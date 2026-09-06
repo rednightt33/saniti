@@ -21,14 +21,20 @@ TABLE_STATUS_RULES = {
     "IDX_Broker_Profile": ("Reference", "Periodic / approximately annual"),
     "IDX_Broker_Summary": ("Transactional", "Continuous / each loaded trading day"),
     "IDX_Stock_Universe": ("Reference", "Periodic / when the listed universe changes"),
+    "Universe_Equity_Description": ("Reference", "Periodic / when equity descriptions change"),
     "stockbit_broker_summary_load_log": ("System", "Continuous / alongside broker-summary loads"),
 }
-TRACKED_REFERENCE_TABLES = ("IDX_Broker_Profile", "IDX_Stock_Universe")
+TRACKED_REFERENCE_TABLES = (
+    "IDX_Broker_Profile",
+    "IDX_Stock_Universe",
+    "Universe_Equity_Description",
+)
 TABLE_DESCRIPTIONS = {
     "Database_Table_Status": "Tracks the data freshness, change time, and update pattern of each table.",
     "IDX_Broker_Profile": "Reference list of IDX broker codes, names, and domestic/foreign classification.",
     "IDX_Broker_Summary": "Daily broker buy/sell activity by symbol, broker, investor type, and market board.",
     "IDX_Stock_Universe": "Reference universe of Indonesian listed securities and TradingView fundamentals.",
+    "Universe_Equity_Description": "Reference descriptions and sector classifications for the Indonesian equity universe.",
     "stockbit_broker_summary_load_log": "Audit log used to resume and verify Stockbit broker-summary loads by date.",
 }
 COLUMN_DESCRIPTIONS = {
@@ -86,6 +92,19 @@ COLUMN_DESCRIPTIONS = {
         "Number of Employees": "Reported employee count when available.",
         "ISIN": "International Securities Identification Number.",
     },
+    "Universe_Equity_Description": {
+        "Region": "Geographic market region.",
+        "Market": "Market-development classification.",
+        "Country": "Country represented by the listing.",
+        "Exchange": "Exchange on which the security is listed.",
+        "Ticker": "Four-character IDX ticker and primary identifier for this table.",
+        "Company_Name": "Issuer or security name.",
+        "TV_Sector": "TradingView sector classification.",
+        "TV_Industry": "TradingView industry classification.",
+        "ISIN": "Unique International Securities Identification Number.",
+        "Sector": "IDX or curated sector classification.",
+        "Industry": "IDX or curated industry classification.",
+    },
     "stockbit_broker_summary_load_log": {
         "target_table": "Schema-qualified table populated by the load.",
         "trade_date": "Trading date covered by this load record.",
@@ -110,6 +129,12 @@ LOGICAL_RELATIONSHIPS = [
         'IDX_Stock_Universe."Ticker"',
         "Logical",
         "Broker activity symbols map to the stock universe when a matching ticker exists. No database foreign key is enforced.",
+    ),
+    (
+        'Universe_Equity_Description."Ticker"',
+        'IDX_Stock_Universe."Ticker"',
+        "Logical one-to-one by ticker",
+        "Both reference tables describe the same listed security when a matching ticker exists. No database foreign key is enforced.",
     ),
 ]
 
@@ -297,6 +322,40 @@ def refresh_status(
     )
 
 
+def trigger_exists(
+    connection: psycopg.Connection[Any], schema: str, table_name: str, trigger_name: str
+) -> bool:
+    return connection.execute(
+        """
+        SELECT EXISTS (
+            SELECT 1
+            FROM pg_catalog.pg_trigger AS trigger
+            JOIN pg_catalog.pg_class AS class ON class.oid = trigger.tgrelid
+            JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = class.relnamespace
+            WHERE namespace.nspname = %s
+              AND class.relname = %s
+              AND trigger.tgname = %s
+              AND NOT trigger.tgisinternal
+        )
+        """,
+        (schema, table_name, trigger_name),
+    ).fetchone()[0]
+
+
+def function_exists(connection: psycopg.Connection[Any], schema: str, function_name: str) -> bool:
+    return connection.execute(
+        """
+        SELECT EXISTS (
+            SELECT 1
+            FROM pg_catalog.pg_proc AS function
+            JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = function.pronamespace
+            WHERE namespace.nspname = %s AND function.proname = %s
+        )
+        """,
+        (schema, function_name),
+    ).fetchone()[0]
+
+
 def ensure_reference_tracking(connection: psycopg.Connection[Any], schema: str, names: list[str]) -> None:
     status_target = sql.SQL("{}.{}").format(sql.Identifier(schema), sql.Identifier(STATUS_TABLE))
     function_statement = sql.SQL(
@@ -316,17 +375,15 @@ def ensure_reference_tracking(connection: psycopg.Connection[Any], schema: str, 
         $function$
         """
     ).format(sql.Identifier(schema), status_target)
-    connection.execute(function_statement)
+    if not function_exists(connection, schema, "track_database_table_change"):
+        connection.execute(function_statement)
 
     for table_name in TRACKED_REFERENCE_TABLES:
         if table_name not in names:
             continue
         trigger_name = "database_table_status_change_tracker"
-        connection.execute(
-            sql.SQL("DROP TRIGGER IF EXISTS {} ON {}.{}").format(
-                sql.Identifier(trigger_name), sql.Identifier(schema), sql.Identifier(table_name)
-            )
-        )
+        if trigger_exists(connection, schema, table_name, trigger_name):
+            continue
         connection.execute(
             sql.SQL(
                 "CREATE TRIGGER {} AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON {}.{} "
@@ -372,14 +429,12 @@ def ensure_broker_load_tracking(connection: psycopg.Connection[Any], schema: str
         $function$
         """
     ).format(sql.Identifier(schema), status_target, log_target)
-    connection.execute(function_statement)
+    if not function_exists(connection, schema, "track_broker_summary_load"):
+        connection.execute(function_statement)
 
     trigger_name = "database_table_status_load_tracker"
-    connection.execute(
-        sql.SQL("DROP TRIGGER IF EXISTS {} ON {}").format(
-            sql.Identifier(trigger_name), log_target
-        )
-    )
+    if trigger_exists(connection, schema, log_table, trigger_name):
+        return
     connection.execute(
         sql.SQL(
             "CREATE TRIGGER {} AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON {} "

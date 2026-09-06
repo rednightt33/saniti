@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-06T13:11:36+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-06T13:22:58+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -8,11 +8,12 @@ Generated from PostgreSQL schema `public` at `2026-09-06T13:11:36+00:00`.
 
 | Table Name | Category | Update Pattern | Latest Data Date | Last Changed At | Tracking | Definition |
 |---|---|---|---|---|---|---|
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-06 13:11:36+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-06 13:22:58+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
 | `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-06 13:04:02+00:00` | Baseline; exact changes tracked from this time forward | Reference list of IDX broker codes, names, and domestic/foreign classification. |
-| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2025-12-08` | `2026-09-06 13:11:00.555699+00:00` | Derived from table data and load log | Daily broker buy/sell activity by symbol, broker, investor type, and market board. |
+| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2025-12-19` | `2026-09-06 13:21:55.431451+00:00` | Derived from table data and load log | Daily broker buy/sell activity by symbol, broker, investor type, and market board. |
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-06 13:04:02+00:00` | Baseline; exact changes tracked from this time forward | Reference universe of Indonesian listed securities and TradingView fundamentals. |
-| `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2025-12-08` | `2026-09-06 13:11:00.555699+00:00` | Derived from load log | Audit log used to resume and verify Stockbit broker-summary loads by date. |
+| `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-09-06 13:21:52.115381+00:00` | Loaded from Universe_Equity_Description.xlsx; future changes tracked automatically | Reference descriptions and sector classifications for the Indonesian equity universe. |
+| `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2025-12-19` | `2026-09-06 13:21:55.431451+00:00` | Derived from load log | Audit log used to resume and verify Stockbit broker-summary loads by date. |
 
 ## Logical relationships
 
@@ -22,6 +23,7 @@ These relationships are documented for analysis but are not enforced as PostgreS
 |---|---|---|---|
 | `IDX_Broker_Summary."Broker"` | `IDX_Broker_Profile.broker_code` | Logical | Broker activity uses the broker-code reference. No database foreign key is enforced. |
 | `IDX_Broker_Summary."Symbol"` | `IDX_Stock_Universe."Ticker"` | Logical | Broker activity symbols map to the stock universe when a matching ticker exists. No database foreign key is enforced. |
+| `Universe_Equity_Description."Ticker"` | `IDX_Stock_Universe."Ticker"` | Logical one-to-one by ticker | Both reference tables describe the same listed security when a matching ticker exists. No database foreign key is enforced. |
 
 ## Database_Table_Status
 
@@ -167,6 +169,40 @@ Reference universe of Indonesian listed securities and TradingView fundamentals.
 | Name | Definition |
 |---|---|
 | `IDX_Stock_Universe_pkey` | `CREATE UNIQUE INDEX "IDX_Stock_Universe_pkey" ON public."IDX_Stock_Universe" USING btree ("Ticker")` |
+
+## Universe_Equity_Description
+
+Reference descriptions and sector classifications for the Indonesian equity universe.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `Region` | `text` | No | — | Geographic market region. |
+| `Market` | `text` | No | — | Market-development classification. |
+| `Country` | `text` | No | — | Country represented by the listing. |
+| `Exchange` | `text` | No | — | Exchange on which the security is listed. |
+| `Ticker` | `text` | No | — | Four-character IDX ticker and primary identifier for this table. |
+| `Company_Name` | `text` | No | — | Issuer or security name. |
+| `TV_Sector` | `text` | No | — | TradingView sector classification. |
+| `TV_Industry` | `text` | No | — | TradingView industry classification. |
+| `ISIN` | `text` | No | — | Unique International Securities Identification Number. |
+| `Sector` | `text` | No | — | IDX or curated sector classification. |
+| `Industry` | `text` | No | — | IDX or curated industry classification. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Universe_Equity_Description_pkey` | Primary key | `PRIMARY KEY ("Ticker")` |
+| `Universe_Equity_Description_isin_key` | Unique | `UNIQUE ("ISIN")` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Universe_Equity_Description_isin_key` | `CREATE UNIQUE INDEX "Universe_Equity_Description_isin_key" ON public."Universe_Equity_Description" USING btree ("ISIN")` |
+| `Universe_Equity_Description_pkey` | `CREATE UNIQUE INDEX "Universe_Equity_Description_pkey" ON public."Universe_Equity_Description" USING btree ("Ticker")` |
 
 ## stockbit_broker_summary_load_log
 
