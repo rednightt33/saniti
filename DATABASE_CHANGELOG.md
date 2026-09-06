@@ -21,3 +21,12 @@ This file records database structure changes and material data loads. Times are 
 - Trading-date range: 2023-01-02 through 2026-09-04.
 - Query date: 2026-09-06.
 - Verification: zero null rows, zero duplicate `(ticker, date)` keys, and all 844 tickers matched `IDX_Stock_Universe`.
+
+### Broker-summary backfill recovery
+
+- Target: `public."IDX_Broker_Summary"`.
+- Cause: the previous Stockbit session credential expired and affected dates were marked `NEEDS_REVIEW` instead of stopping the whole backfill.
+- Recovery: restarted the local supervisor with a refreshed credential; completed dates were skipped automatically.
+- First verified recovered date: 2026-03-17.
+- Rows loaded for the first recovered date: 24,501.
+- Verification: the load status advanced to 2026-03-18 with no authentication error; the remaining date range continues in the background.

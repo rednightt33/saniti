@@ -24,3 +24,11 @@ This file records intentional changes to the Railway project. Git history preser
 - A local Windows supervisor was introduced for the Stockbit backfill.
 - This is a process on the user's PC, not a Railway service or deployment.
 - It resumes incomplete dates and recreates the temporary PostgreSQL TCP proxy after connection failure.
+
+### Broker-summary authentication recovery
+
+- Replaced the expired Stockbit session credential in the local Windows supervisor; no credential value was committed.
+- Restarted the supervisor and preserved all dates already marked `COMPLETED`.
+- Confirmed the existing Railway PostgreSQL TCP proxy and database connection remained healthy.
+- Verified automatic recovery from the earliest `NEEDS_REVIEW` date before allowing the backfill to continue.
+- No Railway service, deployment, domain, or environment-variable values changed.
