@@ -1,0 +1,8 @@
+{
+  "name": "saniti-railway-config",
+  "private": true,
+  "description": "Dependencies used to validate the version-controlled Railway configuration.",
+  "devDependencies": {
+    "railway": "^3.11.0"
+  }
+}

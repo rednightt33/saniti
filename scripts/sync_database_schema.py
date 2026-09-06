@@ -22,14 +22,14 @@ TABLE_STATUS_RULES = {
     "IDX_Broker_Summary": ("Transactional", "Continuous / each loaded trading day"),
     "IDX_Stock_Universe": ("Reference", "Periodic / when the listed universe changes"),
     "Universe_Equity_Description": ("Reference", "Periodic / when equity descriptions change"),
-    "price_stock_indonesia_IDX": ("Transactional", "Periodic / when daily IDX prices are refreshed"),
+    "Price_Stock_Indonesia_IDX": ("Transactional", "Periodic / when daily IDX prices are refreshed"),
     "stockbit_broker_summary_load_log": ("System", "Continuous / alongside broker-summary loads"),
 }
 TRACKED_CHANGE_TABLES = (
     "IDX_Broker_Profile",
     "IDX_Stock_Universe",
     "Universe_Equity_Description",
-    "price_stock_indonesia_IDX",
+    "Price_Stock_Indonesia_IDX",
 )
 TABLE_DESCRIPTIONS = {
     "Database_Table_Status": "Tracks the data freshness, change time, and update pattern of each table.",
@@ -37,7 +37,7 @@ TABLE_DESCRIPTIONS = {
     "IDX_Broker_Summary": "Daily broker buy/sell activity by symbol, broker, investor type, and market board.",
     "IDX_Stock_Universe": "Reference universe of Indonesian listed securities and TradingView fundamentals.",
     "Universe_Equity_Description": "Reference descriptions and sector classifications for the Indonesian equity universe.",
-    "price_stock_indonesia_IDX": "Daily Indonesian stock OHLCV prices sourced from TradingView.",
+    "Price_Stock_Indonesia_IDX": "Daily Indonesian stock OHLCV prices sourced from TradingView.",
     "stockbit_broker_summary_load_log": "Audit log used to resume and verify Stockbit broker-summary loads by date.",
 }
 COLUMN_DESCRIPTIONS = {
@@ -108,7 +108,7 @@ COLUMN_DESCRIPTIONS = {
         "Sector": "IDX or curated sector classification.",
         "Industry": "IDX or curated industry classification.",
     },
-    "price_stock_indonesia_IDX": {
+    "Price_Stock_Indonesia_IDX": {
         "company_name": "Listed company name.",
         "ticker": "Four-character IDX ticker.",
         "tradingview_symbol": "TradingView exchange-qualified symbol.",
@@ -158,7 +158,7 @@ LOGICAL_RELATIONSHIPS = [
         "Both reference tables describe the same listed security when a matching ticker exists. No database foreign key is enforced.",
     ),
     (
-        'price_stock_indonesia_IDX.ticker',
+        'Price_Stock_Indonesia_IDX.ticker',
         'IDX_Stock_Universe."Ticker"',
         "Logical many-to-one by ticker",
         "Daily price rows map to the stock universe when a matching ticker exists. No database foreign key is enforced.",
@@ -283,7 +283,7 @@ def derive_status_rows(
                 ).fetchone()[0]
             tracking_status = "Derived from table data and load log"
             last_operation = "LOAD"
-        elif name == "price_stock_indonesia_IDX":
+        elif name == "Price_Stock_Indonesia_IDX":
             latest_data_date = connection.execute(
                 sql.SQL('SELECT max("date") FROM {}.{}').format(
                     sql.Identifier(schema), sql.Identifier(name)

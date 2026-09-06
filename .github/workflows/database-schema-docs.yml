@@ -1,4 +1,4 @@
-name: Update database schema documentation
+name: Track Railway and database state
 
 on:
   workflow_dispatch:
@@ -32,6 +32,25 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Railway configuration dependency
+        run: npm ci
+
+      - name: Snapshot Railway configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx -y @railway/cli link \
+            --project "$RAILWAY_PROJECT_ID" \
+            --environment "$RAILWAY_ENVIRONMENT_ID" \
+            --json
+          npx -y @railway/cli config pull --force
+          npx -y @railway/cli config plan
 
       - name: Install dependencies
         run: pip install -r requirements-schema.txt
@@ -91,12 +110,12 @@ jobs:
       - name: Refresh catalog and documentation
         run: python scripts/sync_database_schema.py
 
-      - name: Commit updated documentation
+      - name: Commit updated Railway and database documentation
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add DATABASE_SCHEMA.md
+          git add DATABASE_SCHEMA.md .railway/railway.ts
           if ! git diff --cached --quiet; then
             git commit -m "docs: refresh database schema"
             git push
