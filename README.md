@@ -12,6 +12,7 @@ An AI working on this project must read these files in order before changing Rai
 4. [`DATABASE_CHANGELOG.md`](DATABASE_CHANGELOG.md) — database migrations and data-load history.
 5. [`RAILWAY_CHANGELOG.md`](RAILWAY_CHANGELOG.md) — services, deployments, networking, and configuration history.
 6. [`database/migrations/`](database/migrations/) — executable SQL history for schema changes.
+7. [`apps/idx-price-cron/README.md`](apps/idx-price-cron/README.md) — TradingView daily/recovery schedule, data rules, and runtime contract.
 
 ## Mandatory update contract
 

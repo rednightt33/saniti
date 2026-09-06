@@ -30,3 +30,14 @@ This file records database structure changes and material data loads. Times are 
 - First verified recovered date: 2026-03-17.
 - Rows loaded for the first recovered date: 24,501.
 - Verification: the load status advanced to 2026-03-18 with no authentication error; the remaining date range continues in the background.
+
+### Price automation monitoring table
+
+- Action: created `public."Monitoring_Price_ALL"`.
+- Migration: `database/migrations/20260906_002_create_monitoring_price_all.sql`.
+- Purpose: track `DAILY` and `RECOVERY` price runs by exchange, universe `Security Type`, timeframe, and target date.
+- Expected-symbol source: distinct `IDX_Stock_Universe."Ticker"` values grouped by `Exchange` and `Security Type`.
+- Missing-symbol handling: stores both a count and JSON ticker list; unrecovered symbols finish as `NEEDS_REVIEW`.
+- Duplicate protection: unique `(exchange, asset_type, timeframe, update_for_date, run_type)` monitoring key.
+- Initial rows: 0; no TradingView production query was run during table creation.
+- Verification: 18 columns, primary key, run key, status/count/time checks, and date/status index read back from live PostgreSQL.

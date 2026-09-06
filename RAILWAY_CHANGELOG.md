@@ -32,3 +32,13 @@ This file records intentional changes to the Railway project. Git history preser
 - Confirmed the existing Railway PostgreSQL TCP proxy and database connection remained healthy.
 - Verified automatic recovery from the earliest `NEEDS_REVIEW` date before allowing the backfill to continue.
 - No Railway service, deployment, domain, or environment-variable values changed.
+
+### Automated IDX daily prices
+
+- Created service `idx-price-cron` in environment `dev` (service ID `43c86c6f-3221-4403-83c3-cd3056441558`).
+- Deployed the final Python/Docker TradingView price updater; verified deployment `ddd2ba96-d64e-414a-a5c7-87e15eeb23f8` reached `SUCCESS`.
+- Connected `DATABASE_URL` to the existing Railway PostgreSQL service using a Railway variable reference; no credential value is stored in GitHub.
+- Set cron schedule `0 10,23 * * *` UTC, corresponding to 17:00 Asia/Jakarta for the full `DAILY` run and 06:00 Asia/Jakarta the following day for missing-symbol `RECOVERY`.
+- Set restart policy to `NEVER` so a failed recovery cannot create an unapproved third TradingView query.
+- The first full TradingView query is scheduled for 2026-09-07 at 17:00 Asia/Jakarta. Existing price history through 2026-09-04 remains unchanged.
+- Pulled the resulting live Railway state into `.railway/railway.ts`; the follow-up configuration plan reported no drift.

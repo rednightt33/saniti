@@ -13,6 +13,8 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - PostgreSQL service ID: `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`
 - Application service: `valiant-connection`
 - Application service ID: `4f56808b-2797-4d41-bbc5-4e66b9f4304c`
+- IDX price cron service: `idx-price-cron`
+- IDX price cron service ID: `43c86c6f-3221-4403-83c3-cd3056441558`
 - Dashboard: <https://railway.com/project/8aef1702-030b-49cb-9df7-5ac2e0a42691?environmentId=4d3e5af2-302b-4a2e-84e2-7d7476d6ff49>
 - GitHub: <https://github.com/rednightt33/saniti>
 
@@ -34,6 +36,18 @@ Reference and price uploads:
 Local CSV/XLSX -> validation -> one-transaction PostgreSQL load -> live read-back verification
 ```
 
+Automated daily IDX prices:
+
+```text
+17:00 Asia/Jakarta DAILY -> all IDX_Stock_Universe tickers -> TradingView
+-> bulk upsert Price_Stock_Indonesia_IDX -> Monitoring_Price_ALL
+
+06:00 Asia/Jakarta RECOVERY -> prior DAILY missing tickers only -> TradingView
+-> bulk upsert Price_Stock_Indonesia_IDX -> Monitoring_Price_ALL
+```
+
+Railway evaluates the combined cron schedule `0 10,23 * * *` in UTC. The service chooses `DAILY` or `RECOVERY` from the current Asia/Jakarta hour and exits after each run. It never performs an automatic third TradingView query.
+
 ## Main database objects
 
 - `IDX_Broker_Profile`: broker reference data.
@@ -41,6 +55,7 @@ Local CSV/XLSX -> validation -> one-transaction PostgreSQL load -> live read-bac
 - `IDX_Stock_Universe`: Indonesian listed-security universe.
 - `Universe_Equity_Description`: company and industry descriptions.
 - `Price_Stock_Indonesia_IDX`: daily IDX OHLCV price history.
+- `Monitoring_Price_ALL`: per-run daily/recovery completeness, missing symbols, and status grouped by the universe `Security Type` value.
 - `stockbit_broker_summary_load_log`: resume, retry, and `NEEDS_REVIEW` history.
 - `Database_Table_Status`: freshness and tracking catalog.
 

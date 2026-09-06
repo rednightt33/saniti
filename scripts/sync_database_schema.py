@@ -21,6 +21,7 @@ TABLE_STATUS_RULES = {
     "IDX_Broker_Profile": ("Reference", "Periodic / approximately annual"),
     "IDX_Broker_Summary": ("Transactional", "Continuous / each loaded trading day"),
     "IDX_Stock_Universe": ("Reference", "Periodic / when the listed universe changes"),
+    "Monitoring_Price_ALL": ("System", "Twice daily alongside IDX price automation"),
     "Universe_Equity_Description": ("Reference", "Periodic / when equity descriptions change"),
     "Price_Stock_Indonesia_IDX": ("Transactional", "Periodic / when daily IDX prices are refreshed"),
     "stockbit_broker_summary_load_log": ("System", "Continuous / alongside broker-summary loads"),
@@ -36,6 +37,7 @@ TABLE_DESCRIPTIONS = {
     "IDX_Broker_Profile": "Reference list of IDX broker codes, names, and domestic/foreign classification.",
     "IDX_Broker_Summary": "Daily broker buy/sell activity by symbol, broker, investor type, and market board.",
     "IDX_Stock_Universe": "Reference universe of Indonesian listed securities and TradingView fundamentals.",
+    "Monitoring_Price_ALL": "Operational results for daily and recovery IDX price-update runs.",
     "Universe_Equity_Description": "Reference descriptions and sector classifications for the Indonesian equity universe.",
     "Price_Stock_Indonesia_IDX": "Daily Indonesian stock OHLCV prices sourced from TradingView.",
     "stockbit_broker_summary_load_log": "Audit log used to resume and verify Stockbit broker-summary loads by date.",
@@ -94,6 +96,26 @@ COLUMN_DESCRIPTIONS = {
         "Number of Shareholders": "Reported shareholder count when available.",
         "Number of Employees": "Reported employee count when available.",
         "ISIN": "International Securities Identification Number.",
+    },
+    "Monitoring_Price_ALL": {
+        "id": "Generated monitoring-row identifier.",
+        "exchange": "Exchange copied from IDX_Stock_Universe for the monitored group.",
+        "asset_type": "Security Type copied from IDX_Stock_Universe for the monitored group.",
+        "timeframe": "TradingView interval; fixed to 1d.",
+        "run_type": "Scheduled phase: DAILY at 17:00 WIB or RECOVERY at 06:00 WIB.",
+        "expected_symbols": "Distinct universe tickers in the exchange and asset-type group at run time.",
+        "queried_symbols": "Symbols sent to TradingView during this run.",
+        "updated_symbols": "Symbols verified in the price table after bulk upsert.",
+        "missing_symbols": "Queried symbols still missing after this run.",
+        "missing_symbol_list": "JSON array of tickers still missing after this run.",
+        "update_for_date": "Trading date targeted by the run.",
+        "run_time": "UTC timestamp when the run started; display in Asia/Jakarta when needed.",
+        "finished_at": "UTC timestamp when the run completed.",
+        "attempt_count": "Automation attempt number: 1 for DAILY and 2 for RECOVERY.",
+        "status": "Run result: SUCCESS, PARTIAL, FAILED, SKIPPED, or NEEDS_REVIEW.",
+        "last_error": "Condensed failure detail when a run did not fully succeed.",
+        "created_at": "UTC timestamp when the monitoring row was first created.",
+        "updated_at": "UTC timestamp when the monitoring row was last refreshed.",
     },
     "Universe_Equity_Description": {
         "Region": "Geographic market region.",
@@ -162,6 +184,18 @@ LOGICAL_RELATIONSHIPS = [
         'IDX_Stock_Universe."Ticker"',
         "Logical many-to-one by ticker",
         "Daily price rows map to the stock universe when a matching ticker exists. No database foreign key is enforced.",
+    ),
+    (
+        'Monitoring_Price_ALL.asset_type',
+        'IDX_Stock_Universe."Security Type"',
+        "Logical grouped snapshot",
+        "Monitoring rows group expected and missing ticker counts by the universe Security Type value.",
+    ),
+    (
+        'Monitoring_Price_ALL.update_for_date',
+        'Price_Stock_Indonesia_IDX.date',
+        "Logical",
+        "A monitoring date describes the daily-price date targeted by an automation run.",
     ),
 ]
 
@@ -293,6 +327,14 @@ def derive_status_rows(
                 last_changed_at = refreshed_at
                 last_operation = "BASELINE"
             tracking_status = "Latest date derived; future changes tracked automatically"
+        elif name == "Monitoring_Price_ALL":
+            latest_data_date, last_changed_at = connection.execute(
+                sql.SQL(
+                    'SELECT max(update_for_date), max(updated_at) FROM {}.{}'
+                ).format(sql.Identifier(schema), sql.Identifier(name))
+            ).fetchone()
+            tracking_status = "Derived from monitoring rows"
+            last_operation = "UPSERT"
         elif name == "stockbit_broker_summary_load_log":
             latest_data_date, last_changed_at = connection.execute(
                 sql.SQL(
