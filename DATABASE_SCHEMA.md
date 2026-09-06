@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-06T13:49:22+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-06T14:48:09+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -8,12 +8,13 @@ Generated from PostgreSQL schema `public` at `2026-09-06T13:49:22+00:00`.
 
 | Table Name | Category | Update Pattern | Latest Data Date | Last Changed At | Tracking | Definition |
 |---|---|---|---|---|---|---|
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-06 13:49:22+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-06 14:48:09+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
 | `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-06 13:04:02+00:00` | Baseline; exact changes tracked from this time forward | Reference list of IDX broker codes, names, and domestic/foreign classification. |
-| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-01-12` | `2026-09-06 13:49:00.751605+00:00` | Derived from table data and load log | Daily broker buy/sell activity by symbol, broker, investor type, and market board. |
+| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-03-16` | `2026-09-06 14:46:56.356770+00:00` | Derived from table data and load log | Daily broker buy/sell activity by symbol, broker, investor type, and market board. |
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-06 13:04:02+00:00` | Baseline; exact changes tracked from this time forward | Reference universe of Indonesian listed securities and TradingView fundamentals. |
 | `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-09-06 13:21:52.115381+00:00` | Loaded from Universe_Equity_Description.xlsx; future changes tracked automatically | Reference descriptions and sector classifications for the Indonesian equity universe. |
-| `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-01-12` | `2026-09-06 13:49:00.751605+00:00` | Derived from load log | Audit log used to resume and verify Stockbit broker-summary loads by date. |
+| `price_stock_indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-04` | `2026-09-06 14:48:09+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV prices sourced from TradingView. |
+| `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-03-16` | `2026-09-06 14:46:56.356770+00:00` | Derived from load log | Audit log used to resume and verify Stockbit broker-summary loads by date. |
 
 ## Logical relationships
 
@@ -24,6 +25,7 @@ These relationships are documented for analysis but are not enforced as PostgreS
 | `IDX_Broker_Summary."Broker"` | `IDX_Broker_Profile.broker_code` | Logical | Broker activity uses the broker-code reference. No database foreign key is enforced. |
 | `IDX_Broker_Summary."Symbol"` | `IDX_Stock_Universe."Ticker"` | Logical | Broker activity symbols map to the stock universe when a matching ticker exists. No database foreign key is enforced. |
 | `Universe_Equity_Description."Ticker"` | `IDX_Stock_Universe."Ticker"` | Logical one-to-one by ticker | Both reference tables describe the same listed security when a matching ticker exists. No database foreign key is enforced. |
+| `price_stock_indonesia_IDX.ticker` | `IDX_Stock_Universe."Ticker"` | Logical many-to-one by ticker | Daily price rows map to the stock universe when a matching ticker exists. No database foreign key is enforced. |
 
 ## Database_Table_Status
 
@@ -203,6 +205,47 @@ Reference descriptions and sector classifications for the Indonesian equity univ
 |---|---|
 | `Universe_Equity_Description_isin_key` | `CREATE UNIQUE INDEX "Universe_Equity_Description_isin_key" ON public."Universe_Equity_Description" USING btree ("ISIN")` |
 | `Universe_Equity_Description_pkey` | `CREATE UNIQUE INDEX "Universe_Equity_Description_pkey" ON public."Universe_Equity_Description" USING btree ("Ticker")` |
+
+## price_stock_indonesia_IDX
+
+Daily Indonesian stock OHLCV prices sourced from TradingView.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `company_name` | `text` | No | — | Listed company name. |
+| `ticker` | `character varying` | No | — | Four-character IDX ticker. |
+| `tradingview_symbol` | `character varying` | No | — | TradingView exchange-qualified symbol. |
+| `date` | `date` | No | — | Trading date represented by the price row. |
+| `open` | `numeric` | No | — | Opening price. |
+| `high` | `numeric` | No | — | Highest price. |
+| `low` | `numeric` | No | — | Lowest price. |
+| `close` | `numeric` | No | — | Closing price. |
+| `volume` | `numeric` | No | — | Trading volume reported by the source. |
+| `source` | `character varying` | No | — | Price data source. |
+| `query_date` | `date` | No | — | Date the source data was queried. |
+| `timeframe` | `character varying` | No | — | Price-series interval. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `price_stock_indonesia_IDX_check` | Check | `CHECK (low <= open AND open <= high)` |
+| `price_stock_indonesia_IDX_check1` | Check | `CHECK (low <= close AND close <= high)` |
+| `price_stock_indonesia_IDX_close_check` | Check | `CHECK (close >= 0::numeric)` |
+| `price_stock_indonesia_IDX_high_check` | Check | `CHECK (high >= 0::numeric)` |
+| `price_stock_indonesia_IDX_low_check` | Check | `CHECK (low >= 0::numeric)` |
+| `price_stock_indonesia_IDX_open_check` | Check | `CHECK (open >= 0::numeric)` |
+| `price_stock_indonesia_IDX_volume_check` | Check | `CHECK (volume >= 0::numeric)` |
+| `price_stock_indonesia_IDX_pkey` | Primary key | `PRIMARY KEY (ticker, date)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `price_stock_indonesia_IDX_pkey` | `CREATE UNIQUE INDEX "price_stock_indonesia_IDX_pkey" ON public."price_stock_indonesia_IDX" USING btree (ticker, date)` |
+| `price_stock_indonesia_idx_date_idx` | `CREATE INDEX price_stock_indonesia_idx_date_idx ON public."price_stock_indonesia_IDX" USING btree (date)` |
 
 ## stockbit_broker_summary_load_log
 

@@ -22,12 +22,14 @@ TABLE_STATUS_RULES = {
     "IDX_Broker_Summary": ("Transactional", "Continuous / each loaded trading day"),
     "IDX_Stock_Universe": ("Reference", "Periodic / when the listed universe changes"),
     "Universe_Equity_Description": ("Reference", "Periodic / when equity descriptions change"),
+    "price_stock_indonesia_IDX": ("Transactional", "Periodic / when daily IDX prices are refreshed"),
     "stockbit_broker_summary_load_log": ("System", "Continuous / alongside broker-summary loads"),
 }
-TRACKED_REFERENCE_TABLES = (
+TRACKED_CHANGE_TABLES = (
     "IDX_Broker_Profile",
     "IDX_Stock_Universe",
     "Universe_Equity_Description",
+    "price_stock_indonesia_IDX",
 )
 TABLE_DESCRIPTIONS = {
     "Database_Table_Status": "Tracks the data freshness, change time, and update pattern of each table.",
@@ -35,6 +37,7 @@ TABLE_DESCRIPTIONS = {
     "IDX_Broker_Summary": "Daily broker buy/sell activity by symbol, broker, investor type, and market board.",
     "IDX_Stock_Universe": "Reference universe of Indonesian listed securities and TradingView fundamentals.",
     "Universe_Equity_Description": "Reference descriptions and sector classifications for the Indonesian equity universe.",
+    "price_stock_indonesia_IDX": "Daily Indonesian stock OHLCV prices sourced from TradingView.",
     "stockbit_broker_summary_load_log": "Audit log used to resume and verify Stockbit broker-summary loads by date.",
 }
 COLUMN_DESCRIPTIONS = {
@@ -105,6 +108,20 @@ COLUMN_DESCRIPTIONS = {
         "Sector": "IDX or curated sector classification.",
         "Industry": "IDX or curated industry classification.",
     },
+    "price_stock_indonesia_IDX": {
+        "company_name": "Listed company name.",
+        "ticker": "Four-character IDX ticker.",
+        "tradingview_symbol": "TradingView exchange-qualified symbol.",
+        "date": "Trading date represented by the price row.",
+        "open": "Opening price.",
+        "high": "Highest price.",
+        "low": "Lowest price.",
+        "close": "Closing price.",
+        "volume": "Trading volume reported by the source.",
+        "source": "Price data source.",
+        "query_date": "Date the source data was queried.",
+        "timeframe": "Price-series interval.",
+    },
     "stockbit_broker_summary_load_log": {
         "target_table": "Schema-qualified table populated by the load.",
         "trade_date": "Trading date covered by this load record.",
@@ -139,6 +156,12 @@ LOGICAL_RELATIONSHIPS = [
         'IDX_Stock_Universe."Ticker"',
         "Logical one-to-one by ticker",
         "Both reference tables describe the same listed security when a matching ticker exists. No database foreign key is enforced.",
+    ),
+    (
+        'price_stock_indonesia_IDX.ticker',
+        'IDX_Stock_Universe."Ticker"',
+        "Logical many-to-one by ticker",
+        "Daily price rows map to the stock universe when a matching ticker exists. No database foreign key is enforced.",
     ),
 ]
 
@@ -260,6 +283,16 @@ def derive_status_rows(
                 ).fetchone()[0]
             tracking_status = "Derived from table data and load log"
             last_operation = "LOAD"
+        elif name == "price_stock_indonesia_IDX":
+            latest_data_date = connection.execute(
+                sql.SQL('SELECT max("date") FROM {}.{}').format(
+                    sql.Identifier(schema), sql.Identifier(name)
+                )
+            ).fetchone()[0]
+            if last_changed_at is None:
+                last_changed_at = refreshed_at
+                last_operation = "BASELINE"
+            tracking_status = "Latest date derived; future changes tracked automatically"
         elif name == "stockbit_broker_summary_load_log":
             latest_data_date, last_changed_at = connection.execute(
                 sql.SQL(
@@ -275,7 +308,7 @@ def derive_status_rows(
             last_changed_at = refreshed_at
             tracking_status = "System-managed"
             last_operation = "CATALOG_REFRESH"
-        elif name in TRACKED_REFERENCE_TABLES and last_changed_at is None:
+        elif name in TRACKED_CHANGE_TABLES and last_changed_at is None:
             last_changed_at = refreshed_at
             tracking_status = "Baseline; exact changes tracked from this time forward"
             last_operation = "BASELINE"
@@ -385,7 +418,7 @@ def ensure_reference_tracking(connection: psycopg.Connection[Any], schema: str, 
     if not function_exists(connection, schema, "track_database_table_change"):
         connection.execute(function_statement)
 
-    for table_name in TRACKED_REFERENCE_TABLES:
+    for table_name in TRACKED_CHANGE_TABLES:
         if table_name not in names:
             continue
         trigger_name = "database_table_status_change_tracker"
