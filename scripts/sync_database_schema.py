@@ -108,13 +108,17 @@ COLUMN_DESCRIPTIONS = {
     "stockbit_broker_summary_load_log": {
         "target_table": "Schema-qualified table populated by the load.",
         "trade_date": "Trading date covered by this load record.",
-        "status": "Completion state for the trading date.",
+        "status": "Per-date state: COMPLETED or NEEDS_REVIEW.",
         "filter_count": "Number of broker/investor/board combinations processed.",
         "request_count": "Number of Stockbit API requests made.",
         "row_count": "Number of summary rows stored for the trading date.",
         "response_bytes": "Total Stockbit response payload size in bytes.",
         "fetch_elapsed_ms": "Cumulative API request duration in milliseconds.",
-        "completed_at": "UTC timestamp when the date finished loading.",
+        "completed_at": "UTC timestamp when the date completed successfully; null while NEEDS_REVIEW.",
+        "attempt_count": "Cumulative number of date-level attempts across supervisor restarts.",
+        "last_error": "Most recent error for a date; cleared after a successful load.",
+        "last_attempt_at": "UTC timestamp of the latest attempt.",
+        "status_changed_at": "UTC timestamp when this date's status was last changed.",
     },
 }
 LOGICAL_RELATIONSHIPS = [
@@ -250,7 +254,7 @@ def derive_status_rows(
             ).fetchone()[0]
             if "stockbit_broker_summary_load_log" in names:
                 last_changed_at = connection.execute(
-                    sql.SQL('SELECT max(completed_at) FROM {}.{}').format(
+                    sql.SQL("SELECT max(completed_at) FROM {}.{} WHERE status = 'COMPLETED'").format(
                         sql.Identifier(schema), sql.Identifier("stockbit_broker_summary_load_log")
                     )
                 ).fetchone()[0]
@@ -258,7 +262,10 @@ def derive_status_rows(
             last_operation = "LOAD"
         elif name == "stockbit_broker_summary_load_log":
             latest_data_date, last_changed_at = connection.execute(
-                sql.SQL('SELECT max(trade_date), max(completed_at) FROM {}.{}').format(
+                sql.SQL(
+                    "SELECT max(trade_date) FILTER (WHERE status = 'COMPLETED'), "
+                    "max(status_changed_at) FROM {}.{}"
+                ).format(
                     sql.Identifier(schema), sql.Identifier(name)
                 )
             ).fetchone()
