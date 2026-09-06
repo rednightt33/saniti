@@ -340,6 +340,54 @@ def ensure_reference_tracking(connection: psycopg.Connection[Any], schema: str, 
         )
 
 
+def ensure_broker_load_tracking(connection: psycopg.Connection[Any], schema: str, names: list[str]) -> None:
+    log_table = "stockbit_broker_summary_load_log"
+    if log_table not in names or "IDX_Broker_Summary" not in names:
+        return
+
+    status_target = sql.SQL("{}.{}").format(sql.Identifier(schema), sql.Identifier(STATUS_TABLE))
+    log_target = sql.SQL("{}.{}").format(sql.Identifier(schema), sql.Identifier(log_table))
+    function_statement = sql.SQL(
+        """
+        CREATE OR REPLACE FUNCTION {}.track_broker_summary_load()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $function$
+        BEGIN
+            UPDATE {} AS table_status
+            SET "Latest Data Date" = newest.latest_data_date,
+                "Last Changed At" = newest.last_changed_at,
+                "Last Operation" = 'LOAD'
+            FROM (
+                SELECT max(trade_date) AS latest_data_date,
+                       max(completed_at) AS last_changed_at
+                FROM {}
+                WHERE status = 'COMPLETED'
+            ) AS newest
+            WHERE table_status."Table Name" IN (
+                'IDX_Broker_Summary', 'stockbit_broker_summary_load_log'
+            );
+            RETURN NULL;
+        END;
+        $function$
+        """
+    ).format(sql.Identifier(schema), status_target, log_target)
+    connection.execute(function_statement)
+
+    trigger_name = "database_table_status_load_tracker"
+    connection.execute(
+        sql.SQL("DROP TRIGGER IF EXISTS {} ON {}").format(
+            sql.Identifier(trigger_name), log_target
+        )
+    )
+    connection.execute(
+        sql.SQL(
+            "CREATE TRIGGER {} AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON {} "
+            "FOR EACH STATEMENT EXECUTE FUNCTION {}.track_broker_summary_load()"
+        ).format(sql.Identifier(trigger_name), log_target, sql.Identifier(schema))
+    )
+
+
 def fetch_status_rows(connection: psycopg.Connection[Any], schema: str) -> list[dict[str, Any]]:
     target = sql.SQL("{}.{}").format(sql.Identifier(schema), sql.Identifier(STATUS_TABLE))
     rows = connection.execute(
@@ -598,6 +646,7 @@ def main() -> int:
         names = table_names(connection, args.schema)
         refresh_status(connection, args.schema, names, refreshed_at)
         ensure_reference_tracking(connection, args.schema, names)
+        ensure_broker_load_tracking(connection, args.schema, names)
         statuses = fetch_status_rows(connection, args.schema)
         columns = fetch_columns(connection, args.schema)
         constraints = fetch_constraints(connection, args.schema)

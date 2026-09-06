@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-06T13:05:13+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-06T13:11:36+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -8,11 +8,11 @@ Generated from PostgreSQL schema `public` at `2026-09-06T13:05:13+00:00`.
 
 | Table Name | Category | Update Pattern | Latest Data Date | Last Changed At | Tracking | Definition |
 |---|---|---|---|---|---|---|
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-06 13:05:13+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-06 13:11:36+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
 | `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-06 13:04:02+00:00` | Baseline; exact changes tracked from this time forward | Reference list of IDX broker codes, names, and domestic/foreign classification. |
-| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2025-12-01` | `2026-09-06 13:04:24.902060+00:00` | Derived from table data and load log | Daily broker buy/sell activity by symbol, broker, investor type, and market board. |
+| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2025-12-08` | `2026-09-06 13:11:00.555699+00:00` | Derived from table data and load log | Daily broker buy/sell activity by symbol, broker, investor type, and market board. |
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-06 13:04:02+00:00` | Baseline; exact changes tracked from this time forward | Reference universe of Indonesian listed securities and TradingView fundamentals. |
-| `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2025-12-01` | `2026-09-06 13:04:24.902060+00:00` | Derived from load log | Audit log used to resume and verify Stockbit broker-summary loads by date. |
+| `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2025-12-08` | `2026-09-06 13:11:00.555699+00:00` | Derived from load log | Audit log used to resume and verify Stockbit broker-summary loads by date. |
 
 ## Logical relationships
 
