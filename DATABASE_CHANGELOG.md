@@ -22,6 +22,19 @@ This file records database structure changes and material data loads. Times are 
 - Query date: 2026-09-06.
 - Verification: zero null rows, zero duplicate `(ticker, date)` keys, and all 844 tickers matched `IDX_Stock_Universe`.
 
+### Historical daily-price load (2018-2022)
+
+- Target: `public."Price_Stock_Indonesia_IDX"`.
+- Source: `indonesia_stocks_daily_2018_2019.csv`.
+- Source SHA-256: `3b92ba28daae47469b2022dcf2cf497df6dadcfba7f3a7b5d7357d61f245d121`.
+- Source rows: 209,816; 547 distinct tickers; trading-date range 2018-01-02 through 2019-12-30.
+- Source: `indonesia_stocks_daily_2020_2022.csv`.
+- Source SHA-256: `4a57e019dc364320e506dba30dbdb35365030ed100ba88de04fe3f897bf1e4d3`.
+- Source rows: 420,789; 694 distinct tickers; trading-date range 2020-01-02 through 2022-12-30.
+- Combined load: 630,605 new rows and 695 distinct tickers; no existing `(ticker, date)` keys were overwritten.
+- Result: the target increased from 668,967 to 1,299,572 rows and now covers 2018-01-02 through 2026-09-04.
+- Verification: exact source-to-database row match, zero duplicate source keys, zero post-upsert mismatches, valid nonnegative OHLCV values, and all source tickers matched `IDX_Stock_Universe`.
+
 ### Broker-summary backfill recovery
 
 - Target: `public."IDX_Broker_Summary"`.

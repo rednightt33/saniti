@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-06T15:50:22+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-06T16:34:11+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -8,14 +8,14 @@ Generated from PostgreSQL schema `public` at `2026-09-06T15:50:22+00:00`.
 
 | Table Name | Category | Update Pattern | Latest Data Date | Last Changed At | Tracking | Definition |
 |---|---|---|---|---|---|---|
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-06 15:50:22+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-06 16:34:11+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
 | `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-06 13:04:02+00:00` | Baseline; exact changes tracked from this time forward | Reference list of IDX broker codes, names, and domestic/foreign classification. |
-| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-04-29` | `2026-09-06 15:49:59.900524+00:00` | Derived from table data and load log | Daily broker buy/sell activity by symbol, broker, investor type, and market board. |
+| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-06-05` | `2026-09-06 16:33:49.923754+00:00` | Derived from table data and load log | Daily broker buy/sell activity by symbol, broker, investor type, and market board. |
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-06 13:04:02+00:00` | Baseline; exact changes tracked from this time forward | Reference universe of Indonesian listed securities and TradingView fundamentals. |
-| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | — | — | Derived from monitoring rows | Operational results for daily and recovery IDX price-update runs. |
-| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-04` | `2026-09-06 14:56:33+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV prices sourced from TradingView. |
+| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-06` | `2026-09-06 15:52:30.639695+00:00` | Derived from monitoring rows | Operational results for daily and recovery IDX price-update runs. |
+| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-04` | `2026-09-06 16:33:54.470933+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV prices sourced from TradingView. |
 | `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-09-06 13:21:52.115381+00:00` | Loaded from Universe_Equity_Description.xlsx; future changes tracked automatically | Reference descriptions and sector classifications for the Indonesian equity universe. |
-| `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-04-29` | `2026-09-06 15:49:59.900524+00:00` | Derived from load log | Audit log used to resume and verify Stockbit broker-summary loads by date. |
+| `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-06-05` | `2026-09-06 16:33:49.923754+00:00` | Derived from load log | Audit log used to resume and verify Stockbit broker-summary loads by date. |
 
 ## Logical relationships
 
