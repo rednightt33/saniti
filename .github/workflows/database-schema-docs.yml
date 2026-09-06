@@ -1,0 +1,114 @@
+name: Update database schema documentation
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 18 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: database-schema-docs
+  cancel-in-progress: false
+
+jobs:
+  update-schema-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_PROJECT_ID: 8aef1702-030b-49cb-9df7-5ac2e0a42691
+      RAILWAY_ENVIRONMENT_ID: 4d3e5af2-302b-4a2e-84e2-7d7476d6ff49
+      RAILWAY_POSTGRES_SERVICE_ID: bb21a9f4-a9d3-4a51-945f-fa86b63f4b86
+      RAILWAY_CALLER: skill:use-railway@1.4.0
+      RAILWAY_AGENT_SESSION: github-actions-schema-docs
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements-schema.txt
+
+      - name: Open temporary Railway database connection
+        id: database
+        shell: bash
+        run: |
+          set -euo pipefail
+          proxy_json="$(npx -y @railway/cli tcp-proxy list \
+            --project "$RAILWAY_PROJECT_ID" \
+            --environment "$RAILWAY_ENVIRONMENT_ID" \
+            --service "$RAILWAY_POSTGRES_SERVICE_ID" \
+            --json)"
+          proxy_id="$(jq -r '.proxies[0].id // empty' <<<"$proxy_json")"
+          created=false
+
+          if [[ -z "$proxy_id" ]]; then
+            proxy_json="$(npx -y @railway/cli tcp-proxy create \
+              --port 5432 \
+              --project "$RAILWAY_PROJECT_ID" \
+              --environment "$RAILWAY_ENVIRONMENT_ID" \
+              --service "$RAILWAY_POSTGRES_SERVICE_ID" \
+              --json)"
+            proxy_id="$(jq -r '.proxy.id' <<<"$proxy_json")"
+            created=true
+          fi
+
+          for _ in {1..20}; do
+            proxy_json="$(npx -y @railway/cli tcp-proxy list \
+              --project "$RAILWAY_PROJECT_ID" \
+              --environment "$RAILWAY_ENVIRONMENT_ID" \
+              --service "$RAILWAY_POSTGRES_SERVICE_ID" \
+              --json)"
+            status="$(jq -r --arg id "$proxy_id" '.proxies[] | select(.id == $id) | .syncStatus' <<<"$proxy_json")"
+            [[ "$status" == "ACTIVE" ]] && break
+            sleep 2
+          done
+          [[ "${status:-}" == "ACTIVE" ]] || { echo "TCP proxy did not become active"; exit 1; }
+
+          variables="$(npx -y @railway/cli variable list \
+            --project "$RAILWAY_PROJECT_ID" \
+            --environment "$RAILWAY_ENVIRONMENT_ID" \
+            --service "$RAILWAY_POSTGRES_SERVICE_ID" \
+            --json)"
+          export PGUSER_VALUE="$(jq -r '.PGUSER' <<<"$variables")"
+          export PGPASSWORD_VALUE="$(jq -r '.PGPASSWORD' <<<"$variables")"
+          export PGDATABASE_VALUE="$(jq -r '.PGDATABASE' <<<"$variables")"
+          export PGHOST_VALUE="$(jq -r --arg id "$proxy_id" '.proxies[] | select(.id == $id) | .domain' <<<"$proxy_json")"
+          export PGPORT_VALUE="$(jq -r --arg id "$proxy_id" '.proxies[] | select(.id == $id) | .proxyPort' <<<"$proxy_json")"
+          database_url="$(python -c 'import os, urllib.parse; print("postgresql://{}:{}@{}:{}/{}?sslmode=require".format(*(urllib.parse.quote(os.environ[key], safe="") for key in ("PGUSER_VALUE", "PGPASSWORD_VALUE")), os.environ["PGHOST_VALUE"], os.environ["PGPORT_VALUE"], urllib.parse.quote(os.environ["PGDATABASE_VALUE"], safe="")))')"
+          echo "::add-mask::$database_url"
+          echo "DATABASE_URL=$database_url" >> "$GITHUB_ENV"
+          echo "proxy_id=$proxy_id" >> "$GITHUB_OUTPUT"
+          echo "created=$created" >> "$GITHUB_OUTPUT"
+
+      - name: Refresh catalog and documentation
+        run: python scripts/sync_database_schema.py
+
+      - name: Commit updated documentation
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add DATABASE_SCHEMA.md
+          if ! git diff --cached --quiet; then
+            git commit -m "docs: refresh database schema"
+            git push
+          fi
+
+      - name: Close temporary Railway database connection
+        if: always() && steps.database.outputs.created == 'true'
+        shell: bash
+        run: |
+          npx -y @railway/cli tcp-proxy delete "${{ steps.database.outputs.proxy_id }}" \
+            --project "$RAILWAY_PROJECT_ID" \
+            --environment "$RAILWAY_ENVIRONMENT_ID" \
+            --service "$RAILWAY_POSTGRES_SERVICE_ID" \
+            --yes \
+            --json
