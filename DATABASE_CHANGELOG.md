@@ -41,3 +41,14 @@ This file records database structure changes and material data loads. Times are 
 - Duplicate protection: unique `(exchange, asset_type, timeframe, update_for_date, run_type)` monitoring key.
 - Initial rows: 0; no TradingView production query was run during table creation.
 - Verification: 18 columns, primary key, run key, status/count/time checks, and date/status index read back from live PostgreSQL.
+
+### Historical broker-summary backfill started
+
+- Target: `public."IDX_Broker_Summary"`.
+- Source: Stockbit broker-activity API; no source file or local CSV is produced.
+- Requested range and order: 2025-08-31 backward through 2018-01-01; weekends are skipped.
+- First verified trading date: 2025-08-29 because 2025-08-31 is a Sunday.
+- First verified load: 28,715 rows from 672 complete broker/investor/board filters, with zero duplicate natural keys.
+- Parallelism: runs alongside the existing ascending backfill using separate process status and log files.
+- Authentication safety: five consecutive HTTP 401/403 responses stop the query as `STOPPED_INVALID_TOKEN` without advancing through the remaining dates.
+- Status: the continuous historical backfill remains active; per-date results are recorded in `stockbit_broker_summary_load_log`.

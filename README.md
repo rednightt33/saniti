@@ -13,6 +13,7 @@ An AI working on this project must read these files in order before changing Rai
 5. [`RAILWAY_CHANGELOG.md`](RAILWAY_CHANGELOG.md) — services, deployments, networking, and configuration history.
 6. [`database/migrations/`](database/migrations/) — executable SQL history for schema changes.
 7. [`apps/idx-price-cron/README.md`](apps/idx-price-cron/README.md) — TradingView daily/recovery schedule, data rules, and runtime contract.
+8. [`apps/stockbit-broker-backfill/README.md`](apps/stockbit-broker-backfill/README.md) — local Stockbit backfill, parallel date ranges, retry behavior, and invalid-token stop rule.
 
 ## Mandatory update contract
 

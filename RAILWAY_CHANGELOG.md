@@ -42,3 +42,11 @@ This file records intentional changes to the Railway project. Git history preser
 - Set restart policy to `NEVER` so a failed recovery cannot create an unapproved third TradingView query.
 - The first full TradingView query is scheduled for 2026-09-07 at 17:00 Asia/Jakarta. Existing price history through 2026-09-04 remains unchanged.
 - Pulled the resulting live Railway state into `.railway/railway.ts`; the follow-up configuration plan reported no drift.
+
+### Parallel historical broker-summary backfill
+
+- Added a second local Windows supervisor for a descending, database-only backfill from 2025-08-31 through 2018-01-01.
+- Kept the existing ascending backfill active and assigned separate status/log files to each process.
+- Added a five-consecutive-401/403 stop rule to both supervisors so an invalid Stockbit token stops querying instead of marking the remaining date range `NEEDS_REVIEW`.
+- Historical CSV export is disabled; only operational status and logs are retained locally.
+- No Railway service, deployment, domain, or environment-variable values changed.

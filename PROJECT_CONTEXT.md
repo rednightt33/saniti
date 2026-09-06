@@ -25,10 +25,11 @@ Always scope Railway CLI calls with these explicit IDs. Do not rely on an unrela
 Broker-summary backfill:
 
 ```text
-Stockbit API -> local Python runner -> Railway PostgreSQL -> daily CSV on the local PC
+Forward:    Stockbit API -> local Python runner -> Railway PostgreSQL -> daily CSV on the local PC
+Historical: Stockbit API -> local Python runner -> Railway PostgreSQL
 ```
 
-The local supervisor restarts a failed broker-summary runner, recreates the temporary Railway TCP proxy when needed, skips dates logged as `COMPLETED`, and records repeatedly failing dates as `NEEDS_REVIEW`.
+Two local supervisors may run in parallel. The forward run covers 2025-11-17 through 2026-08-31 in ascending order. The historical database-only run covers 2025-08-31 through 2018-01-01 in descending order. Each uses separate status and log files. The supervisor recreates the temporary Railway TCP proxy when needed, skips dates logged as `COMPLETED`, and records repeatedly failing dates as `NEEDS_REVIEW`. Five consecutive Stockbit HTTP 401/403 responses stop an affected query as `STOPPED_INVALID_TOKEN`; a refreshed JWT and supervisor restart are then required.
 
 Reference and price uploads:
 
