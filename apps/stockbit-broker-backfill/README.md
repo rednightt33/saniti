@@ -11,14 +11,15 @@ This local Windows runner loads market-wide Stockbit broker activity into Railwa
 - The supervisor recreates the temporary Railway PostgreSQL TCP proxy after a database-connection failure.
 - Secrets are read only from `STOCKBIT_TOKEN` and `RAILWAY_TOKEN`; never place their values in Git.
 
-## Current parallel runs
+## Current runs
 
 | Run | Direction | Inclusive range | Local CSV |
 |---|---|---|---|
-| Forward | Ascending | 2025-11-17 through 2026-08-31 | Enabled |
-| Historical | Descending | 2025-08-31 through 2018-01-01 | Disabled |
+| Forward (complete) | Ascending | 2025-11-17 through 2026-08-31 | Enabled |
+| Historical recent | Descending | 2025-08-31 through 2021-01-01 | Disabled |
+| Historical older | Descending | 2020-12-31 through 2018-01-01 | Disabled |
 
-Because 2025-08-31 is a Sunday, the historical run's first requested trading-day candidate is 2025-08-29. The historical run covers 2,000 weekdays. Both runs write to the same PostgreSQL table and use separate status/log paths.
+Because 2025-08-31 is a Sunday, the recent historical run's first requested trading-day candidate is 2025-08-29. The recent and older historical ranges contain 1,216 and 784 weekdays respectively. They run concurrently with three API workers each, write to the same PostgreSQL table, and use separate status/log paths. This keeps total API concurrency at six while avoiding date overlap.
 
 ## Files
 

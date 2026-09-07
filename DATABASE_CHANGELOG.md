@@ -2,6 +2,18 @@
 
 This file records database structure changes and material data loads. Times are Asia/Jakarta unless stated otherwise.
 
+## 2026-09-07
+
+### Historical broker-summary range split
+
+- Target: `public."IDX_Broker_Summary"`.
+- Existing historical worker range changed to 2025-08-31 backward through 2021-01-01.
+- Added a concurrent older historical worker covering 2020-12-31 backward through 2018-01-01.
+- Both historical workers are database-only and do not produce local CSV files.
+- Concurrency: three API workers per process, six combined, after twelve combined workers triggered a temporary Stockbit HTTP 429 response.
+- Resume safety: dates already marked `COMPLETED` remain preserved and are skipped; the two active ranges do not overlap.
+- First post-split verification: the recent worker loaded 21,527 rows for 2023-12-14; the older worker completed 2020-12-31 and continued to 2020-12-30. Both had zero `NEEDS_REVIEW` dates.
+
 ## 2026-09-06
 
 ### Rename daily-price table

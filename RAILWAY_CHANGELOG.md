@@ -2,6 +2,16 @@
 
 This file records intentional changes to the Railway project. Git history preserves every revision. Never include secret values.
 
+## 2026-09-07
+
+### Historical broker-summary workers split
+
+- Replaced the single local 2025-08-31 through 2018-01-01 supervisor with two concurrent, non-overlapping local supervisors.
+- Recent range: 2025-08-31 through 2021-01-01 descending; older range: 2020-12-31 through 2018-01-01 descending.
+- Set each process to three API workers so combined Stockbit concurrency remains six.
+- Kept separate status and log paths, disabled local CSV output, and retained the five-consecutive-401/403 stop rule for both processes.
+- Both supervisors use the existing Railway PostgreSQL TCP proxy. No Railway service, deployment, domain, or environment-variable values changed.
+
 ## 2026-09-06
 
 ### GitHub tracking contract established

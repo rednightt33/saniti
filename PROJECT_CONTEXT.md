@@ -29,7 +29,7 @@ Forward:    Stockbit API -> local Python runner -> Railway PostgreSQL -> daily C
 Historical: Stockbit API -> local Python runner -> Railway PostgreSQL
 ```
 
-Two local supervisors may run in parallel. The forward run covers 2025-11-17 through 2026-08-31 in ascending order. The historical database-only run covers 2025-08-31 through 2018-01-01 in descending order. Each uses separate status and log files. The supervisor recreates the temporary Railway TCP proxy when needed, skips dates logged as `COMPLETED`, and records repeatedly failing dates as `NEEDS_REVIEW`. Five consecutive Stockbit HTTP 401/403 responses stop an affected query as `STOPPED_INVALID_TOKEN`; a refreshed JWT and supervisor restart are then required.
+The forward run covers 2025-11-17 through 2026-08-31 in ascending order and is complete. Historical work is split between two database-only local supervisors running in parallel: the recent worker covers 2025-08-31 through 2021-01-01, and the older worker covers 2020-12-31 through 2018-01-01, both in descending order. The two historical workers use three API workers each so their combined concurrency remains six. Each run uses separate status and log files. The supervisor recreates the temporary Railway TCP proxy when needed, skips dates logged as `COMPLETED`, and records repeatedly failing dates as `NEEDS_REVIEW`. Five consecutive Stockbit HTTP 401/403 responses stop an affected query as `STOPPED_INVALID_TOKEN`; a refreshed JWT and supervisor restart are then required.
 
 Reference and price uploads:
 
