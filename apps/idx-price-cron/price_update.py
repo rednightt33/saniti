@@ -11,6 +11,7 @@ import socket
 import string
 import threading
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -33,6 +34,11 @@ PRICE_TABLE = 'public."Price_Stock_Indonesia_IDX"'
 UNIVERSE_TABLE = 'public."IDX_Stock_Universe"'
 MONITORING_TABLE = 'public."Monitoring_Price_ALL"'
 PRINT_LOCK = threading.Lock()
+RUN_LOCK_KEY = "saniti.idx-price-cron"
+RECOVERY_WINDOW_START_MINUTE = 5 * 60 + 45
+RECOVERY_WINDOW_END_MINUTE = 6 * 60 + 30
+DAILY_WINDOW_START_MINUTE = 16 * 60 + 45
+DAILY_WINDOW_END_MINUTE = 17 * 60 + 30
 PRICE_COLUMNS = (
     "company_name",
     "ticker",
@@ -172,6 +178,14 @@ def validate_price_row(row: dict) -> dict:
     if not row["low"] <= row["close"] <= row["high"]:
         raise ValueError("OHLC validation failed for close")
     return row
+
+
+def candle_for_target(rows: list[dict], target_date: date) -> dict | None:
+    """Return only a candle whose TradingView timestamp resolves to target_date."""
+    matching = [row for row in rows if row["date"] == target_date]
+    if not matching:
+        return None
+    return validate_price_row(matching[-1])
 
 
 def request_symbol(
@@ -327,9 +341,8 @@ def fetch_worker(
                 query_date,
             )
             latest_date = max((row["date"] for row in result), default=None)
-            matching = [row for row in result if row["date"] == target_date]
-            if matching:
-                row = validate_price_row(matching[-1])
+            row = candle_for_target(result, target_date)
+            if row is not None:
                 outcomes.append(FetchOutcome(symbol, row, latest_date, None))
             else:
                 outcomes.append(
@@ -479,25 +492,28 @@ def write_monitoring_rows(
 ) -> None:
     sql = f"""
         INSERT INTO {MONITORING_TABLE} (
+            execution_id, trigger_source, query_time,
             exchange, asset_type, timeframe, run_type,
             expected_symbols, queried_symbols, updated_symbols, missing_symbols,
             missing_symbol_list, update_for_date, run_time, finished_at,
             attempt_count, status, last_error, updated_at
         )
         VALUES (
+            %(execution_id)s, %(trigger_source)s, %(query_time)s,
             %(exchange)s, %(asset_type)s, %(timeframe)s, %(run_type)s,
             %(expected_symbols)s, %(queried_symbols)s, %(updated_symbols)s,
             %(missing_symbols)s, %(missing_symbol_list)s, %(update_for_date)s,
             %(run_time)s, %(finished_at)s, %(attempt_count)s, %(status)s,
             %(last_error)s, CURRENT_TIMESTAMP
         )
-        ON CONFLICT (exchange, asset_type, timeframe, update_for_date, run_type)
+        ON CONFLICT (execution_id, exchange, asset_type, timeframe)
         DO UPDATE SET
             expected_symbols = EXCLUDED.expected_symbols,
             queried_symbols = EXCLUDED.queried_symbols,
             updated_symbols = EXCLUDED.updated_symbols,
             missing_symbols = EXCLUDED.missing_symbols,
             missing_symbol_list = EXCLUDED.missing_symbol_list,
+            query_time = EXCLUDED.query_time,
             run_time = EXCLUDED.run_time,
             finished_at = EXCLUDED.finished_at,
             attempt_count = EXCLUDED.attempt_count,
@@ -526,6 +542,9 @@ def monitoring_records(
     target_date: date,
     started_at: datetime,
     finished_at: datetime,
+    execution_id: str,
+    trigger_source: str,
+    query_time: datetime,
     forced_status: str | None = None,
     forced_error: str | None = None,
 ) -> list[dict]:
@@ -556,6 +575,9 @@ def monitoring_records(
 
         records.append(
             {
+                "execution_id": execution_id,
+                "trigger_source": trigger_source,
+                "query_time": query_time,
                 "exchange": exchange,
                 "asset_type": asset_type,
                 "timeframe": TIMEFRAME,
@@ -584,10 +606,18 @@ def get_recovery_symbols(
     with connection.cursor() as cursor:
         cursor.execute(
             f"""
+            WITH latest_scheduled_daily AS (
+                SELECT execution_id
+                FROM {MONITORING_TABLE}
+                WHERE update_for_date = %s
+                  AND run_type = 'DAILY'
+                  AND trigger_source = 'SCHEDULED'
+                ORDER BY run_time DESC
+                LIMIT 1
+            )
             SELECT status, missing_symbol_list
             FROM {MONITORING_TABLE}
-            WHERE update_for_date = %s
-              AND run_type = 'DAILY'
+            WHERE execution_id = (SELECT execution_id FROM latest_scheduled_daily)
             """,
             (target_date,),
         )
@@ -632,16 +662,25 @@ def is_already_successful(
     connection: psycopg.Connection,
     target_date: date,
     run_type: str,
+    trigger_source: str,
 ) -> bool:
     with connection.cursor() as cursor:
         cursor.execute(
             f"""
+            WITH latest_execution AS (
+                SELECT execution_id
+                FROM {MONITORING_TABLE}
+                WHERE update_for_date = %s
+                  AND run_type = %s
+                  AND trigger_source = %s
+                ORDER BY run_time DESC
+                LIMIT 1
+            )
             SELECT COUNT(*) FILTER (WHERE status = 'SUCCESS'), COUNT(*)
             FROM {MONITORING_TABLE}
-            WHERE update_for_date = %s
-              AND run_type = %s
+            WHERE execution_id = (SELECT execution_id FROM latest_execution)
             """,
-            (target_date, run_type),
+            (target_date, run_type, trigger_source),
         )
         successful, total = cursor.fetchone()
     return total > 0 and successful == total
@@ -650,12 +689,42 @@ def is_already_successful(
 def resolve_mode(requested_mode: str, now_jakarta: datetime) -> str:
     if requested_mode != "auto":
         return requested_mode
-    return "recovery" if now_jakarta.hour < 12 else "daily"
+    minute_of_day = now_jakarta.hour * 60 + now_jakarta.minute
+    if RECOVERY_WINDOW_START_MINUTE <= minute_of_day <= RECOVERY_WINDOW_END_MINUTE:
+        return "recovery"
+    if DAILY_WINDOW_START_MINUTE <= minute_of_day <= DAILY_WINDOW_END_MINUTE:
+        return "daily"
+    return "manual"
+
+
+def resolve_trigger_source(mode: str, now_jakarta: datetime) -> str:
+    """Infer Run now outside each service's narrow scheduled execution window."""
+    minute_of_day = now_jakarta.hour * 60 + now_jakarta.minute
+    if mode == "recovery":
+        scheduled = RECOVERY_WINDOW_START_MINUTE <= minute_of_day <= RECOVERY_WINDOW_END_MINUTE
+    else:
+        scheduled = DAILY_WINDOW_START_MINUTE <= minute_of_day <= DAILY_WINDOW_END_MINUTE
+    return "SCHEDULED" if scheduled else "MANUAL"
+
+
+def previous_weekday(current_date: date) -> date:
+    candidate = current_date - timedelta(days=1)
+    while candidate.weekday() >= 5:
+        candidate -= timedelta(days=1)
+    return candidate
+
+
+def try_acquire_run_lock(connection: psycopg.Connection) -> bool:
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT pg_try_advisory_lock(hashtext(%s))", (RUN_LOCK_KEY,))
+        return bool(cursor.fetchone()[0])
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", choices=("auto", "daily", "recovery"), default="auto")
+    parser.add_argument(
+        "--mode", choices=("auto", "daily", "recovery", "manual"), default="auto"
+    )
     parser.add_argument("--target-date", type=date.fromisoformat)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--request-bars", type=int, default=5)
@@ -682,12 +751,17 @@ def main() -> int:
 
     now_jakarta = datetime.now(JAKARTA)
     mode = resolve_mode(args.mode, now_jakarta)
-    run_type = mode.upper()
+    trigger_source = resolve_trigger_source(mode, now_jakarta)
+    run_type = "RECOVERY" if mode == "recovery" else "DAILY"
     target_date = args.target_date or (
-        now_jakarta.date() if mode == "daily" else now_jakarta.date() - timedelta(days=1)
+        now_jakarta.date()
+        if mode in {"daily", "manual"}
+        else previous_weekday(now_jakarta.date())
     )
     started_at = datetime.now(timezone.utc)
     query_date = now_jakarta.date()
+    query_time = started_at
+    execution_id = str(uuid.uuid4())
 
     with psycopg.connect(database_url) as connection:
         universe = read_universe(connection)
@@ -699,6 +773,8 @@ def main() -> int:
                 {
                     "event": "run_started",
                     "mode": mode,
+                    "trigger_source": trigger_source,
+                    "execution_id": execution_id,
                     "target_date": target_date.isoformat(),
                     "universe_symbols": len(universe),
                     "scheduled_time_zone": "Asia/Jakarta",
@@ -706,6 +782,27 @@ def main() -> int:
             ),
             flush=True,
         )
+
+        if not try_acquire_run_lock(connection):
+            records = monitoring_records(
+                universe,
+                [],
+                [],
+                run_type,
+                target_date,
+                started_at,
+                datetime.now(timezone.utc),
+                execution_id,
+                trigger_source,
+                query_time,
+                forced_status="SKIPPED",
+                forced_error="SKIPPED_BUSY: another IDX price update is still running",
+            )
+            if not args.dry_run:
+                write_monitoring_rows(connection, records)
+                connection.commit()
+            print(json.dumps({"event": "run_skipped", "reason": "busy"}))
+            return 0
 
         if target_date.weekday() >= 5:
             records = monitoring_records(
@@ -716,6 +813,9 @@ def main() -> int:
                 target_date,
                 started_at,
                 datetime.now(timezone.utc),
+                execution_id,
+                trigger_source,
+                query_time,
                 forced_status="SKIPPED",
                 forced_error="Weekend: IDX daily prices were not queried",
             )
@@ -725,13 +825,15 @@ def main() -> int:
             print(json.dumps({"event": "run_skipped", "reason": "weekend"}))
             return 0
 
-        if not args.dry_run and is_already_successful(connection, target_date, run_type):
+        if mode == "recovery" and not args.dry_run and is_already_successful(
+            connection, target_date, run_type, trigger_source
+        ):
             print(json.dumps({"event": "run_skipped", "reason": "already_successful"}))
             return 0
 
         queried = (
             universe
-            if mode == "daily"
+            if mode in {"daily", "manual"}
             else get_recovery_symbols(connection, universe, target_date)
         )
 
@@ -744,6 +846,9 @@ def main() -> int:
                 target_date,
                 started_at,
                 datetime.now(timezone.utc),
+                execution_id,
+                trigger_source,
+                query_time,
                 forced_status="SKIPPED",
                 forced_error="No missing symbols from the preceding DAILY run",
             )
@@ -753,10 +858,11 @@ def main() -> int:
             print(json.dumps({"event": "run_skipped", "reason": "no_missing_symbols"}))
             return 0
 
+        query_time = datetime.now(timezone.utc)
         outcomes = fetch_all(queried, target_date, query_date, args)
         rows = [outcome.row for outcome in outcomes if outcome.row is not None]
 
-        if mode == "daily" and not rows:
+        if mode in {"daily", "manual"} and not rows:
             valid_prior_bars = [
                 outcome
                 for outcome in outcomes
@@ -765,14 +871,20 @@ def main() -> int:
             if len(valid_prior_bars) >= max(1, int(len(outcomes) * 0.90)):
                 records = monitoring_records(
                     universe,
-                    [],
-                    [],
+                    queried,
+                    outcomes,
                     run_type,
                     target_date,
                     started_at,
                     datetime.now(timezone.utc),
+                    execution_id,
+                    trigger_source,
+                    query_time,
                     forced_status="SKIPPED",
-                    forced_error="TradingView returned prior candles for the market; no current trading-day candle",
+                    forced_error=(
+                        "NO_CURRENT_CANDLE: TradingView returned no candle dated "
+                        f"{target_date.isoformat()}; older candles were ignored"
+                    ),
                 )
                 if not args.dry_run:
                     write_monitoring_rows(connection, records)
@@ -789,6 +901,9 @@ def main() -> int:
             target_date,
             started_at,
             finished_at,
+            execution_id,
+            trigger_source,
+            query_time,
         )
 
         if args.dry_run:
@@ -817,6 +932,9 @@ def main() -> int:
                 target_date,
                 started_at,
                 datetime.now(timezone.utc),
+                execution_id,
+                trigger_source,
+                query_time,
                 forced_status="FAILED",
                 forced_error=f"{type(exc).__name__}: {exc}"[:4000],
             )
@@ -828,6 +946,8 @@ def main() -> int:
         summary = {
             "event": "run_completed",
             "mode": mode,
+            "trigger_source": trigger_source,
+            "execution_id": execution_id,
             "target_date": target_date.isoformat(),
             "expected_symbols": len(universe),
             "queried_symbols": len(queried),

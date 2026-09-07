@@ -4,6 +4,31 @@ This file records database structure changes and material data loads. Times are 
 
 ## 2026-09-07
 
+### Manual current-day IDX price run
+
+- Target: `public."Price_Stock_Indonesia_IDX"` for 2026-09-07.
+- Railway execution: `f4fd425d-edfe-433a-9925-99d052c794c5` (`MANUAL`, `DAILY`).
+- Queried all 844 live `IDX_Stock_Universe` tickers; accepted and upserted 824 exact-date candles.
+- Left 20 symbols missing because TradingView returned no candle dated 2026-09-07; no prior candle was substituted.
+- Resulting price table: 1,300,396 rows, 844 distinct tickers, date range 2018-01-02 through 2026-09-07.
+- Verification: 824 distinct target-date tickers, all 20 monitoring missing tickers absent for the target date, zero weekend rows for 2026-09-05/06, and zero duplicate `(ticker, date)` keys.
+
+### Price-run monitoring history
+
+- Target: `public."Monitoring_Price_ALL"`.
+- Added `execution_id`, `trigger_source`, and `query_time` so every manual or scheduled execution remains separate history.
+- Replaced the old date/run-type unique key with unique `(execution_id, exchange, asset_type, timeframe)`.
+- Existing monitoring rows were retained and backfilled as scheduled legacy executions.
+- Migration: `database/migrations/20260907_002_track_manual_price_runs.sql`.
+- Verification: all three columns are non-null, the trigger-source check accepts only `SCHEDULED`/`MANUAL`, and the new execution key is active.
+
+### IDX stock-universe classification schema
+
+- Target: `public."IDX_Stock_Universe"`.
+- Recorded the removal of obsolete profile columns and the final `Sector`/`Industry` mapping from `Universe_Equity_Description` in an idempotent migration.
+- Migration: `database/migrations/20260907_001_simplify_idx_stock_universe.sql`.
+- Verification: 844 rows, 844 distinct tickers, complete non-null `Sector` and `Industry`, and no remaining obsolete columns.
+
 ### Historical broker-summary range split
 
 - Target: `public."IDX_Broker_Summary"`.

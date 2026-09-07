@@ -7,9 +7,9 @@ export default defineRailway(() => {
   const valiantConnectionVolume = volume("valiant-connection-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
   const idxPriceCron = service("idx-price-cron", {
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile" },
-    start: "python price_update.py --mode auto",
+    start: "python price_update.py --mode daily",
     replicas: { "sfo": 1 },
-    deploy: { cronSchedule: "0 10,23 * * *", restartPolicyType: "NEVER" },
+    deploy: { cronSchedule: "0 10 * * *", restartPolicyType: "NEVER" },
     env: { DATABASE_URL: preserve() },
   });
   const valiantConnection = service("valiant-connection", {
@@ -17,8 +17,15 @@ export default defineRailway(() => {
     volumeMounts: { "/data": valiantConnectionVolume },
     env: { DATABASE_URL: preserve(), RAILPACK_PYTHON_VERSION: preserve() },
   });
+  const idxPriceRecoveryCron = service("idx-price-recovery-cron", {
+    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile" },
+    start: "python price_update.py --mode recovery",
+    replicas: { "sfo": 1 },
+    deploy: { cronSchedule: "0 23 * * *", restartPolicyType: "NEVER" },
+    env: { DATABASE_URL: preserve() },
+  });
 
   return project("lucid-patience", {
-    resources: [idxPriceCron, valiantConnection, Postgres, postgresVolume, valiantConnectionVolume],
+    resources: [idxPriceCron, valiantConnection, idxPriceRecoveryCron, Postgres, postgresVolume, valiantConnectionVolume],
   });
 });

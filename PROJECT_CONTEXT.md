@@ -15,6 +15,8 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - Application service ID: `4f56808b-2797-4d41-bbc5-4e66b9f4304c`
 - IDX price cron service: `idx-price-cron`
 - IDX price cron service ID: `43c86c6f-3221-4403-83c3-cd3056441558`
+- IDX price recovery cron service: `idx-price-recovery-cron`
+- IDX price recovery cron service ID: `a8e6e32a-fcd8-4c33-9ecc-1488a4b2db05`
 - Dashboard: <https://railway.com/project/8aef1702-030b-49cb-9df7-5ac2e0a42691?environmentId=4d3e5af2-302b-4a2e-84e2-7d7476d6ff49>
 - GitHub: <https://github.com/rednightt33/saniti>
 
@@ -40,14 +42,14 @@ Local CSV/XLSX -> validation -> one-transaction PostgreSQL load -> live read-bac
 Automated daily IDX prices:
 
 ```text
-17:00 Asia/Jakarta DAILY -> all IDX_Stock_Universe tickers -> TradingView
+idx-price-cron at 17:00 Asia/Jakarta, or Run now -> all IDX_Stock_Universe tickers -> TradingView
 -> bulk upsert Price_Stock_Indonesia_IDX -> Monitoring_Price_ALL
 
-06:00 Asia/Jakarta RECOVERY -> prior DAILY missing tickers only -> TradingView
+idx-price-recovery-cron at 06:00 Asia/Jakarta, or Run now -> previous-weekday DAILY missing tickers only -> TradingView
 -> bulk upsert Price_Stock_Indonesia_IDX -> Monitoring_Price_ALL
 ```
 
-Railway evaluates the combined cron schedule `0 10,23 * * *` in UTC. The service chooses `DAILY` or `RECOVERY` from the current Asia/Jakarta hour and exits after each run. It never performs an automatic third TradingView query.
+Railway evaluates separate UTC schedules: `idx-price-cron` uses `0 10 * * *`, and `idx-price-recovery-cron` uses `0 23 * * *`. Both use explicit modes and exit after each execution. Weekend recovery targets Friday. A price row is accepted only when the TradingView candle timestamp matches the exact target date; a prior candle is never used as today's value. The `(ticker, date)` primary key makes repeated runs replace only the same daily row. A shared PostgreSQL advisory lock prevents concurrent runs. Every execution has its own monitoring `execution_id`; the system never performs an automatic third TradingView query.
 
 ## Main database objects
 
@@ -56,7 +58,7 @@ Railway evaluates the combined cron schedule `0 10,23 * * *` in UTC. The service
 - `IDX_Stock_Universe`: Indonesian listed-security universe.
 - `Universe_Equity_Description`: company and industry descriptions.
 - `Price_Stock_Indonesia_IDX`: daily IDX OHLCV price history.
-- `Monitoring_Price_ALL`: per-run daily/recovery completeness, missing symbols, and status grouped by the universe `Security Type` value.
+- `Monitoring_Price_ALL`: per-execution daily/recovery completeness, trigger source, query time, missing symbols, and status grouped by the universe `Security Type` value.
 - `stockbit_broker_summary_load_log`: resume, retry, and `NEEDS_REVIEW` history.
 - `Database_Table_Status`: freshness and tracking catalog.
 

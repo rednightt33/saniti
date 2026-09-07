@@ -99,6 +99,9 @@ COLUMN_DESCRIPTIONS = {
     },
     "Monitoring_Price_ALL": {
         "id": "Generated monitoring-row identifier.",
+        "execution_id": "Identifier shared by all grouped monitoring rows from one service execution.",
+        "trigger_source": "Execution origin inferred from the service schedule window: SCHEDULED or MANUAL.",
+        "query_time": "UTC timestamp immediately before TradingView requests began.",
         "exchange": "Exchange copied from IDX_Stock_Universe for the monitored group.",
         "asset_type": "Security Type copied from IDX_Stock_Universe for the monitored group.",
         "timeframe": "TradingView interval; fixed to 1d.",

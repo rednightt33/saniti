@@ -1,36 +1,44 @@
 # IDX daily price cron
 
-This short-lived Railway service updates `public."Price_Stock_Indonesia_IDX"` from TradingView without creating a local CSV.
+This short-lived Railway app updates `public."Price_Stock_Indonesia_IDX"` from TradingView without creating a local CSV. The same code is deployed as two Railway cron services with explicit roles.
 
-## Schedule
+## Services and schedules
 
-Railway evaluates cron schedules in UTC. The service uses `0 10,23 * * *`:
+Railway evaluates cron schedules in UTC.
 
-- `10:00 UTC` = `17:00 Asia/Jakarta`: query every ticker in `public."IDX_Stock_Universe"` (`DAILY`).
-- `23:00 UTC` = `06:00 Asia/Jakarta` on the following day: query only the prior run's missing tickers (`RECOVERY`).
+| Railway service | UTC schedule | Jakarta time | Start command | Purpose |
+| --- | --- | --- | --- | --- |
+| `idx-price-cron` | `0 10 * * *` | 17:00 daily | `python price_update.py --mode daily` | Query the full live ticker universe for today's candle. |
+| `idx-price-recovery-cron` | `0 23 * * *` | 06:00 the following day | `python price_update.py --mode recovery` | Retry only the previous weekday's missing tickers from the latest scheduled DAILY execution. |
 
-The same command runs at both times. `--mode auto` chooses the phase from the current Asia/Jakarta hour.
+`Run now` follows the selected service's explicit role:
 
-## Data rules
+- On `idx-price-cron`, it queries every current `IDX_Stock_Universe."Ticker"` for today's date.
+- On `idx-price-recovery-cron`, it retries only the previous weekday's missing tickers. Saturday, Sunday, and Monday executions target Friday. If none are missing, it returns `SKIPPED` without querying TradingView.
 
-- Ticker, TradingView symbol, exchange, and asset type come from `IDX_Stock_Universe`.
-- Asset type is the live `Security Type` value; it is not hard-coded.
+## Candle-date and duplicate safety
+
+- A TradingView row is accepted only when its candle timestamp resolves to the exact target date in Asia/Jakarta.
+- A prior/last-available candle is never relabeled or written as today's candle.
+- If TradingView has no current-date candle yet, no prior candle is written. The run is recorded as `SKIPPED` with `NO_CURRENT_CANDLE` when the market broadly returns only prior candles.
+- Exact-date rows that are available may still be written during a partial run; unavailable tickers remain in the monitoring missing list.
 - Prices are deduplicated in memory and bulk-upserted through a temporary PostgreSQL staging table.
-- The `Price_Stock_Indonesia_IDX` primary key `(ticker, date)` is the final duplicate guard.
-- Run results are upserted into `Monitoring_Price_ALL` per exchange, asset type, target date, and run type.
+- The `Price_Stock_Indonesia_IDX` primary key `(ticker, date)` is the final duplicate guard. Re-running the same ticker/date updates that row and preserves all other dates.
+- A PostgreSQL advisory lock prevents the DAILY and RECOVERY services from updating prices concurrently.
+
+## Monitoring rules
+
+- Every service execution receives a new `execution_id`, so manual and scheduled attempts remain separate history rows.
+- `trigger_source` is inferred as `SCHEDULED` inside the service's narrow schedule window and `MANUAL` outside it because Railway does not expose an official runtime variable that distinguishes **Run now** from a scheduled cron start.
+- Expected symbols come from the live `IDX_Stock_Universe`, grouped by `Exchange` and `Security Type`.
+- `query_time` records the UTC timestamp immediately before TradingView requests begin.
 - There is no automatic third TradingView query. Missing symbols after recovery are marked `NEEDS_REVIEW`.
 - Weekend runs are recorded as `SKIPPED` without querying TradingView.
-- If a weekday `DAILY` run dies before writing monitoring, the 06:00 recovery derives its scope from universe tickers still absent from the price table for that date.
+- If a weekday DAILY run dies before writing monitoring, recovery derives its scope from universe tickers still absent from the price table for that date.
 
 ## Runtime
 
-Production command:
-
-```text
-python price_update.py --mode auto
-```
-
-Required variable:
+Both services require:
 
 ```text
 DATABASE_URL=${{Postgres.DATABASE_URL}}

@@ -1,8 +1,16 @@
 import unittest
-from datetime import datetime
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-from price_update import FetchOutcome, Symbol, monitoring_records, resolve_mode
+from price_update import (
+    FetchOutcome,
+    Symbol,
+    candle_for_target,
+    monitoring_records,
+    previous_weekday,
+    resolve_mode,
+    resolve_trigger_source,
+)
 
 
 JAKARTA = ZoneInfo("Asia/Jakarta")
@@ -22,9 +30,54 @@ class PriceUpdateTests(unittest.TestCase):
             "recovery",
         )
         self.assertEqual(
+            resolve_mode("auto", datetime(2026, 9, 7, 5, tzinfo=JAKARTA)),
+            "manual",
+        )
+        self.assertEqual(
+            resolve_mode("auto", datetime(2026, 9, 7, 11, tzinfo=JAKARTA)),
+            "manual",
+        )
+        self.assertEqual(
             resolve_mode("auto", datetime(2026, 9, 7, 17, tzinfo=JAKARTA)),
             "daily",
         )
+
+    def test_target_candle_never_falls_back_to_prior_date(self):
+        rows = [
+            {
+                "date": date(2026, 9, 4),
+                "open": 100,
+                "high": 110,
+                "low": 90,
+                "close": 105,
+                "volume": 1000,
+            }
+        ]
+        self.assertIsNone(candle_for_target(rows, date(2026, 9, 7)))
+
+    def test_trigger_source_is_inferred_from_service_schedule_window(self):
+        self.assertEqual(
+            resolve_trigger_source("daily", datetime(2026, 9, 7, 17, tzinfo=JAKARTA)),
+            "SCHEDULED",
+        )
+        self.assertEqual(
+            resolve_trigger_source("daily", datetime(2026, 9, 7, 11, tzinfo=JAKARTA)),
+            "MANUAL",
+        )
+        self.assertEqual(
+            resolve_trigger_source("recovery", datetime(2026, 9, 7, 6, tzinfo=JAKARTA)),
+            "SCHEDULED",
+        )
+        self.assertEqual(
+            resolve_trigger_source("recovery", datetime(2026, 9, 7, 10, tzinfo=JAKARTA)),
+            "MANUAL",
+        )
+
+    def test_recovery_targets_previous_weekday_across_weekend(self):
+        self.assertEqual(previous_weekday(date(2026, 9, 5)), date(2026, 9, 4))
+        self.assertEqual(previous_weekday(date(2026, 9, 6)), date(2026, 9, 4))
+        self.assertEqual(previous_weekday(date(2026, 9, 7)), date(2026, 9, 4))
+        self.assertEqual(previous_weekday(date(2026, 9, 8)), date(2026, 9, 7))
 
     def test_daily_monitoring_uses_security_type_groups(self):
         universe = [symbol(1, "AAAA"), symbol(2, "BBBB"), symbol(3, "ETF1", "fund")]
@@ -35,7 +88,16 @@ class PriceUpdateTests(unittest.TestCase):
         ]
         now = datetime(2026, 9, 7, 10, tzinfo=ZoneInfo("UTC"))
         records = monitoring_records(
-            universe, universe, outcomes, "DAILY", now.date(), now, now
+            universe,
+            universe,
+            outcomes,
+            "DAILY",
+            now.date(),
+            now,
+            now,
+            "execution-1",
+            "SCHEDULED",
+            now,
         )
         by_type = {record["asset_type"]: record for record in records}
         self.assertEqual(by_type["stock"]["expected_symbols"], 2)
@@ -55,6 +117,9 @@ class PriceUpdateTests(unittest.TestCase):
             "RECOVERY",
             now.date(),
             now,
+            now,
+            "execution-2",
+            "SCHEDULED",
             now,
         )
         self.assertEqual(records[0]["expected_symbols"], 2)

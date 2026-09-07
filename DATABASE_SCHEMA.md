@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-06T16:34:11+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-07T03:24:29+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -8,14 +8,14 @@ Generated from PostgreSQL schema `public` at `2026-09-06T16:34:11+00:00`.
 
 | Table Name | Category | Update Pattern | Latest Data Date | Last Changed At | Tracking | Definition |
 |---|---|---|---|---|---|---|
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-06 16:34:11+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-07 03:24:29+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
 | `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-06 13:04:02+00:00` | Baseline; exact changes tracked from this time forward | Reference list of IDX broker codes, names, and domestic/foreign classification. |
-| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-06-05` | `2026-09-06 16:33:49.923754+00:00` | Derived from table data and load log | Daily broker buy/sell activity by symbol, broker, investor type, and market board. |
-| `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-06 13:04:02+00:00` | Baseline; exact changes tracked from this time forward | Reference universe of Indonesian listed securities and TradingView fundamentals. |
-| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-06` | `2026-09-06 15:52:30.639695+00:00` | Derived from monitoring rows | Operational results for daily and recovery IDX price-update runs. |
-| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-04` | `2026-09-06 16:33:54.470933+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV prices sourced from TradingView. |
+| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-07 03:23:30.435290+00:00` | Derived from table data and load log | Daily broker buy/sell activity by symbol, broker, investor type, and market board. |
+| `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-07 02:32:29.837245+00:00` | Tracked automatically | Reference universe of Indonesian listed securities and TradingView fundamentals. |
+| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-07` | `2026-09-07 03:21:00.320830+00:00` | Derived from monitoring rows | Operational results for daily and recovery IDX price-update runs. |
+| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-07` | `2026-09-07 03:22:04.339332+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV prices sourced from TradingView. |
 | `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-09-06 13:21:52.115381+00:00` | Loaded from Universe_Equity_Description.xlsx; future changes tracked automatically | Reference descriptions and sector classifications for the Indonesian equity universe. |
-| `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-06-05` | `2026-09-06 16:33:49.923754+00:00` | Derived from load log | Audit log used to resume and verify Stockbit broker-summary loads by date. |
+| `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-08-31` | `2026-09-07 03:23:30.435290+00:00` | Derived from load log | Audit log used to resume and verify Stockbit broker-summary loads by date. |
 
 ## Logical relationships
 
@@ -150,18 +150,12 @@ Reference universe of Indonesian listed securities and TradingView fundamentals.
 | `Security Type` | `text` | No | — | Broad security classification. |
 | `Type Specs` | `text` | No | — | More specific security-type detail. |
 | `Is Common Stock` | `text` | No | — | Source flag indicating whether the security is common stock. |
-| `Sector` | `text` | No | — | Source sector classification. |
-| `Sector Translated` | `text` | No | — | Translated sector classification. |
-| `Industry` | `text` | No | — | Source industry classification. |
-| `Industry Translated` | `text` | No | — | Translated industry classification. |
 | `TradingView Country` | `text` | No | — | Country value used by TradingView. |
 | `Currency` | `text` | No | — | Trading currency. |
 | `Fundamental Currency` | `text` | No | — | Currency used for fundamental figures. |
-| `Average Volume 10D` | `numeric` | No | — | Average trading volume over the latest 10-day source window. |
-| `Market Cap` | `numeric` | Yes | — | Market capitalization when available. |
-| `Number of Shareholders` | `numeric` | Yes | — | Reported shareholder count when available. |
-| `Number of Employees` | `bigint` | Yes | — | Reported employee count when available. |
 | `ISIN` | `text` | No | — | International Securities Identification Number. |
+| `Sector` | `text` | No | — | Source sector classification. |
+| `Industry` | `text` | No | — | Source industry classification. |
 
 ### Constraints
 
@@ -201,6 +195,9 @@ Operational results for daily and recovery IDX price-update runs.
 | `last_error` | `text` | Yes | — | Condensed failure detail when a run did not fully succeed. |
 | `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | UTC timestamp when the monitoring row was first created. |
 | `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | UTC timestamp when the monitoring row was last refreshed. |
+| `execution_id` | `text` | No | — | Unique identifier shared by all asset-type rows written by one service execution. |
+| `trigger_source` | `text` | No | — | Execution origin inferred by the service: SCHEDULED or MANUAL. |
+| `query_time` | `timestamp with time zone` | No | — | UTC time immediately before the TradingView request begins. |
 
 ### Constraints
 
@@ -213,16 +210,18 @@ Operational results for daily and recovery IDX price-update runs.
 | `Monitoring_Price_ALL_run_type_check` | Check | `CHECK (run_type = ANY (ARRAY['DAILY'::text, 'RECOVERY'::text]))` |
 | `Monitoring_Price_ALL_status_check` | Check | `CHECK (status = ANY (ARRAY['SUCCESS'::text, 'PARTIAL'::text, 'FAILED'::text, 'SKIPPED'::text, 'NEEDS_REVIEW'::text]))` |
 | `Monitoring_Price_ALL_timeframe_check` | Check | `CHECK (timeframe = '1d'::text)` |
+| `Monitoring_Price_ALL_trigger_source_check` | Check | `CHECK (trigger_source = ANY (ARRAY['SCHEDULED'::text, 'MANUAL'::text]))` |
 | `Monitoring_Price_ALL_pkey` | Primary key | `PRIMARY KEY (id)` |
-| `Monitoring_Price_ALL_run_key` | Unique | `UNIQUE (exchange, asset_type, timeframe, update_for_date, run_type)` |
+| `Monitoring_Price_ALL_execution_key` | Unique | `UNIQUE (execution_id, exchange, asset_type, timeframe)` |
 
 ### Indexes
 
 | Name | Definition |
 |---|---|
 | `Monitoring_Price_ALL_date_status_idx` | `CREATE INDEX "Monitoring_Price_ALL_date_status_idx" ON public."Monitoring_Price_ALL" USING btree (update_for_date DESC, status)` |
+| `Monitoring_Price_ALL_execution_idx` | `CREATE INDEX "Monitoring_Price_ALL_execution_idx" ON public."Monitoring_Price_ALL" USING btree (update_for_date DESC, query_time DESC)` |
+| `Monitoring_Price_ALL_execution_key` | `CREATE UNIQUE INDEX "Monitoring_Price_ALL_execution_key" ON public."Monitoring_Price_ALL" USING btree (execution_id, exchange, asset_type, timeframe)` |
 | `Monitoring_Price_ALL_pkey` | `CREATE UNIQUE INDEX "Monitoring_Price_ALL_pkey" ON public."Monitoring_Price_ALL" USING btree (id)` |
-| `Monitoring_Price_ALL_run_key` | `CREATE UNIQUE INDEX "Monitoring_Price_ALL_run_key" ON public."Monitoring_Price_ALL" USING btree (exchange, asset_type, timeframe, update_for_date, run_type)` |
 
 ## Price_Stock_Indonesia_IDX
 
