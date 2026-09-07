@@ -7,7 +7,7 @@ This local Windows runner loads market-wide Stockbit broker activity into Railwa
 - Dates recorded as `COMPLETED` in `stockbit_broker_summary_load_log` are skipped.
 - Transient network, HTTP 429, and Stockbit 5xx failures are retried.
 - Ordinary per-date failures are recorded as `NEEDS_REVIEW`, allowing later dates to continue.
-- Five consecutive Stockbit HTTP 401/403 responses stop the query with `STOPPED_INVALID_TOKEN`. This prevents an expired token from marking the remaining date range for review.
+- Five consecutive Stockbit HTTP 401/403 responses bypass date-level retries and stop the query with `STOPPED_INVALID_TOKEN`. This prevents an expired token from marking the remaining date range for review.
 - The supervisor recreates the temporary Railway PostgreSQL TCP proxy after a database-connection failure.
 - Secrets are read only from `STOCKBIT_TOKEN` and `RAILWAY_TOKEN`; never place their values in Git.
 
@@ -24,6 +24,7 @@ Because 2025-08-31 is a Sunday, the recent historical run's first requested trad
 ## Files
 
 - `stockbit_marketwide_broker_activity.py`: validates, fetches, loads, resumes, and optionally exports each date.
+- `test_stockbit_marketwide_broker_activity.py`: regression test proving authentication exhaustion stops the process without writing `NEEDS_REVIEW`.
 - `run_stockbit_backfill_background.ps1`: long-running local supervisor and Railway proxy recovery.
 - `requirements.txt`: Python database dependency.
 

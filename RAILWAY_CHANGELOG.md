@@ -4,6 +4,14 @@ This file records intentional changes to the Railway project. Git history preser
 
 ## 2026-09-07
 
+### Broker-summary authentication-stop repair
+
+- Stopped both local historical supervisors after detecting repeated Stockbit HTTP 401 responses.
+- Corrected the runner so authentication exhaustion reaches the supervisor as exit code 3 instead of being treated as an ordinary per-date failure.
+- Replaced the Stockbit credential only in the new local process environments; its value was not persisted.
+- Restarted both non-overlapping historical supervisors with three API workers each and verified successful recovery loads in both ranges.
+- No Railway service, deployment, domain, or environment-variable values changed.
+
 ### Manual-safe IDX price services
 
 - Changed `idx-price-cron` to explicit DAILY mode with schedule `0 10 * * *` UTC (17:00 Asia/Jakarta). Its **Run now** action performs a full current-day universe query.

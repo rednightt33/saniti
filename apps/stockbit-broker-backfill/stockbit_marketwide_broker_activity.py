@@ -852,6 +852,11 @@ def main() -> int:
                         with ThreadPoolExecutor(max_workers=args.workers) as executor:
                             result = fetch_date(executor, fetcher, trade_date, brokers, args.investors, args.boards)
                         replace_date(connection, target, args.log_table, result, attempt)
+                    except StockbitAuthenticationLimitError:
+                        # Authentication exhaustion is process-wide. Let the
+                        # outer handler stop the runner instead of retrying the
+                        # date or incorrectly recording it as NEEDS_REVIEW.
+                        raise
                     except StockbitError as exc:
                         status["latest_failed_date"] = trade_date.isoformat()
                         status["last_error"] = str(exc)

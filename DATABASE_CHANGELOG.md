@@ -4,6 +4,16 @@ This file records database structure changes and material data loads. Times are 
 
 ## 2026-09-07
 
+### Broker-summary authentication-stop repair and recovery
+
+- Target: `public."IDX_Broker_Summary"` and `stockbit_broker_summary_load_log`.
+- Incident: after the prior Stockbit credential expired, both historical workers continued handling the authentication-limit exception as an ordinary date failure.
+- Impact: 24 dates in each historical range, 48 total, were incorrectly marked `NEEDS_REVIEW`; previously completed data remained unchanged.
+- Repair: authentication-limit exceptions now bypass date retries and `NEEDS_REVIEW` writes, reach the process-level `STOPPED_INVALID_TOKEN` handler, and return exit code 3 to stop the supervisor.
+- Verification: an automated regression test simulated the fifth HTTP 401, confirmed `STOPPED_INVALID_TOKEN`, and confirmed that `record_needs_review` was not called.
+- Recovery: restarted both historical supervisors with a refreshed in-memory credential; no secret value was stored in files or Git.
+- First verified recovered dates: 2022-08-24 loaded 22,229 rows in the recent range, and 2019-09-10 loaded 14,124 rows in the older range. Both workers continued with no authentication error or new `NEEDS_REVIEW` date.
+
 ### Manual current-day IDX price run
 
 - Target: `public."Price_Stock_Indonesia_IDX"` for 2026-09-07.
