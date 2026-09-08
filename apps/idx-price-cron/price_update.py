@@ -9,8 +9,10 @@ import os
 import random
 import socket
 import string
+import sys
 import threading
 import time
+import traceback
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -963,5 +965,20 @@ def main() -> int:
         return 0
 
 
+def run_entrypoint(main_fn=main, exit_fn=os._exit) -> None:
+    """Flush logs and terminate even if a library leaves background resources open."""
+    exit_code = 1
+    try:
+        exit_code = main_fn()
+    except SystemExit as exc:
+        exit_code = exc.code if isinstance(exc.code, int) else 1
+    except BaseException:
+        traceback.print_exc()
+    finally:
+        sys.stdout.flush()
+        sys.stderr.flush()
+        exit_fn(exit_code)
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    run_entrypoint()

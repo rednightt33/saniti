@@ -2,6 +2,16 @@
 
 This file records intentional changes to the Railway project. Git history preserves every revision. Never include secret values.
 
+## 2026-09-08
+
+### Guarantee IDX cron process termination
+
+- Diagnosed `idx-price-recovery-cron` remaining `Active` after its 06:05 Asia/Jakarta work had already emitted `run_completed` and recorded 13 symbols as `NEEDS_REVIEW`.
+- Added a guarded entrypoint that flushes stdout/stderr and explicitly terminates the process after database contexts close, including non-zero `NEEDS_REVIEW` and failure paths.
+- Replaced the stuck recovery instance without issuing another TradingView query.
+- Verified DAILY deployment `c831e1ed-0b76-42dc-9ac9-7006906832eb` and RECOVERY deployment `f751f9a1-c8d3-423a-9ccf-fd98d492d75c` reached `SUCCESS`.
+- Verified both cron services returned to waiting state and recovery remains scheduled for 06:00 Asia/Jakarta.
+
 ## 2026-09-07
 
 ### Broker-summary authentication-stop repair

@@ -1,4 +1,6 @@
+import io
 import unittest
+from contextlib import redirect_stderr
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
@@ -10,6 +12,7 @@ from price_update import (
     previous_weekday,
     resolve_mode,
     resolve_trigger_source,
+    run_entrypoint,
 )
 
 
@@ -21,6 +24,21 @@ def symbol(ordinal: int, ticker: str, asset_type: str = "stock") -> Symbol:
 
 
 class PriceUpdateTests(unittest.TestCase):
+    def test_entrypoint_forces_requested_exit_code(self):
+        exit_codes = []
+        run_entrypoint(lambda: 2, exit_codes.append)
+        self.assertEqual(exit_codes, [2])
+
+    def test_entrypoint_forces_failure_exit_after_exception(self):
+        exit_codes = []
+
+        def fail():
+            raise RuntimeError("test failure")
+
+        with redirect_stderr(io.StringIO()):
+            run_entrypoint(fail, exit_codes.append)
+        self.assertEqual(exit_codes, [1])
+
     def test_auto_mode_uses_jakarta_hour(self):
         self.assertEqual(
             resolve_mode("daily", datetime(2026, 9, 7, 6, tzinfo=JAKARTA)), "daily"

@@ -45,3 +45,4 @@ DATABASE_URL=${{Postgres.DATABASE_URL}}
 ```
 
 The script must exit after each run so Railway can start the next cron execution.
+The entrypoint flushes its logs and then terminates the process explicitly, preventing a completed run from remaining `Active` because a dependency left an idle background resource open.
