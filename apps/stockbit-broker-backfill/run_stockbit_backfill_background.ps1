@@ -147,9 +147,8 @@ function Get-DatabaseUrl {
 if ([string]::IsNullOrWhiteSpace($env:STOCKBIT_TOKEN)) {
     throw 'STOCKBIT_TOKEN is missing from the supervisor environment.'
 }
-if ([string]::IsNullOrWhiteSpace($env:RAILWAY_TOKEN)) {
-    throw 'RAILWAY_TOKEN is missing from the supervisor environment.'
-}
+# Railway CLI uses RAILWAY_TOKEN when supplied and otherwise falls back to the
+# existing local Railway login session.
 
 $env:NODE_OPTIONS = '--use-system-ca'
 $env:RAILWAY_CALLER = 'skill:use-railway@1.4.0'
