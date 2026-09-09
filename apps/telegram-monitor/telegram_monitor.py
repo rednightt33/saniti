@@ -7,6 +7,7 @@ import hmac
 import json
 import os
 import re
+import socket
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -170,7 +171,7 @@ def build_messages(
     first = True
     while remaining:
         prefix = prefixes[0] if first else prefixes[1]
-        base = header + "\n" + prefix if first else prefix
+        base = header + "\n\n" + prefix if first else prefix
         included: list[str] = []
         while remaining:
             candidate = ", ".join(included + [remaining[0]])
@@ -402,6 +403,19 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(500, {"error": "notification_failed"})
 
 
+class RailwayPrivateHTTPServer(ThreadingHTTPServer):
+    """Listen on Railway private IPv6 networking, with IPv4 compatibility."""
+
+    address_family = socket.AF_INET6
+
+    def server_bind(self) -> None:
+        try:
+            self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        except OSError:
+            pass
+        super().server_bind()
+
+
 def required_env(name: str) -> str:
     value = os.environ.get(name, "").strip()
     if not value:
@@ -415,7 +429,7 @@ def main() -> None:
         required_env("TELEGRAM_BOT_TOKEN"),
         required_env("TELEGRAM_CHAT_ID"),
     )
-    server = ThreadingHTTPServer(("0.0.0.0", int(os.environ.get("PORT", "8080"))), Handler)
+    server = RailwayPrivateHTTPServer(("::", int(os.environ.get("PORT", "8080"))), Handler)
     server.monitor = monitor
     server.notify_secret = required_env("TELEGRAM_NOTIFY_SECRET")
     print(json.dumps({"event": "server_started", "port": server.server_port}), flush=True)

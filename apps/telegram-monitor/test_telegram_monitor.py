@@ -38,6 +38,7 @@ class TelegramMonitorTests(unittest.TestCase):
         self.assertEqual(len(messages), 1)
         self.assertIn("⚠️ IDX DAILY PARTIAL", messages[0])
         self.assertIn("842/844 updated", messages[0])
+        self.assertIn("\n\nMissing: ", messages[0])
         self.assertTrue(messages[0].endswith("Missing: AAAA, BBBB"))
 
     def test_recovery_uses_queried_symbols_as_denominator(self):
