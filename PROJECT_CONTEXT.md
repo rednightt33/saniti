@@ -25,6 +25,19 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 
 Always scope Railway CLI calls with these explicit IDs. Do not rely on an unrelated locally linked project.
 
+### Service sources and deployment isolation
+
+All application services deploy from `rednightt33/saniti` on branch `main`. Each service has a monorepo root directory and a matching watch path so unrelated application or documentation changes do not trigger its deployment:
+
+| Railway service | Root directory | Watch path |
+| --- | --- | --- |
+| `idx-price-cron` | `/apps/idx-price-cron` | `/apps/idx-price-cron/**` |
+| `idx-price-recovery-cron` | `/apps/idx-price-cron` | `/apps/idx-price-cron/**` |
+| `telegram-monitor` | `/apps/telegram-monitor` | `/apps/telegram-monitor/**` |
+| `telegram-trigger` | `/apps/telegram-trigger` | `/apps/telegram-trigger/**` |
+
+Connecting or changing a service source must preserve its environment variables and secrets, cron schedule, start command, health check, domain, private networking, restart/serverless policy, and database references. Source-configuration work must not use **Run now** on either price service and must not issue a TradingView query. Record the currently active deployment ID before each change so it remains available as the rollback reference, then wait for the new deployment to reach `SUCCESS` before changing the next service.
+
 ## Data flows
 
 Broker-summary backfill:
