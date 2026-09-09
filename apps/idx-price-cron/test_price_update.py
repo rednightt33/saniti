@@ -10,6 +10,7 @@ from price_update import (
     candle_for_target,
     monitoring_records,
     previous_weekday,
+    process_exit_code,
     resolve_mode,
     resolve_trigger_source,
     run_entrypoint,
@@ -24,6 +25,12 @@ def symbol(ordinal: int, ticker: str, asset_type: str = "stock") -> Symbol:
 
 
 class PriceUpdateTests(unittest.TestCase):
+    def test_review_status_is_a_successful_process_exit(self):
+        self.assertEqual(process_exit_code(["NEEDS_REVIEW"]), 0)
+
+    def test_failed_status_is_a_failed_process_exit(self):
+        self.assertEqual(process_exit_code(["FAILED"]), 1)
+
     def test_entrypoint_forces_requested_exit_code(self):
         exit_codes = []
         run_entrypoint(lambda: 2, exit_codes.append)

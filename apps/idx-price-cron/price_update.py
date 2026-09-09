@@ -745,6 +745,11 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
+def process_exit_code(statuses: Iterable[str]) -> int:
+    """Treat reviewable data gaps as a completed cron, not a process failure."""
+    return 1 if "FAILED" in statuses else 0
+
+
 def main() -> int:
     args = parse_args()
     database_url = os.environ.get("DATABASE_URL")
@@ -958,11 +963,7 @@ def main() -> int:
             "statuses": statuses,
         }
         print(json.dumps(summary), flush=True)
-        if "FAILED" in statuses:
-            return 1
-        if "NEEDS_REVIEW" in statuses:
-            return 2
-        return 0
+        return process_exit_code(statuses)
 
 
 def run_entrypoint(main_fn=main, exit_fn=os._exit) -> None:
