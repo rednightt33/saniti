@@ -14,7 +14,7 @@ export default defineRailway(() => {
       TELEGRAM_NOTIFY_ATTEMPTS: preserve(),
       TELEGRAM_NOTIFY_SECRET: preserve(),
       TELEGRAM_NOTIFY_TIMEOUT: preserve(),
-      TELEGRAM_NOTIFY_URL: preserve(),
+      TELEGRAM_NOTIFY_URL: "http://${{telegram-monitor.RAILWAY_PRIVATE_DOMAIN}}:8080/notify",
     },
   });
   const idxPriceRecoveryCron = service("idx-price-recovery-cron", {
@@ -27,7 +27,7 @@ export default defineRailway(() => {
       TELEGRAM_NOTIFY_ATTEMPTS: preserve(),
       TELEGRAM_NOTIFY_SECRET: preserve(),
       TELEGRAM_NOTIFY_TIMEOUT: preserve(),
-      TELEGRAM_NOTIFY_URL: preserve(),
+      TELEGRAM_NOTIFY_URL: "http://${{telegram-monitor.RAILWAY_PRIVATE_DOMAIN}}:8080/notify",
     },
   });
   const telegramMonitor = service("telegram-monitor", {

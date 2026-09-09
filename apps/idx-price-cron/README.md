@@ -44,7 +44,7 @@ Both services require:
 
 ```text
 DATABASE_URL=${{Postgres.DATABASE_URL}}
-TELEGRAM_NOTIFY_URL=http://${{telegram-monitor.RAILWAY_PRIVATE_DOMAIN}}:${{telegram-monitor.PORT}}/notify
+TELEGRAM_NOTIFY_URL=http://${{telegram-monitor.RAILWAY_PRIVATE_DOMAIN}}:8080/notify
 TELEGRAM_NOTIFY_SECRET=<shared Railway secret>
 ```
 
