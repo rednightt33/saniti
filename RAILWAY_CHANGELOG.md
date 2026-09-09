@@ -2,6 +2,16 @@
 
 This file records intentional changes to the Railway project. Git history preserves every revision. Never include secret values.
 
+## 2026-09-09 — Connect application services to GitHub monorepo
+
+- Connected all four application services to `rednightt33/saniti` on branch `main`, one service at a time, and waited for each resulting deployment to reach `SUCCESS` before continuing.
+- Set `idx-price-cron` and `idx-price-recovery-cron` to root `/apps/idx-price-cron` with watch path `/apps/idx-price-cron/**`; their successful source deployments are `3b73e6c5-a60e-459b-ac1b-314c362cf3e9` and `65de3099-051e-45a7-81b2-b135f3bcced4`.
+- Set `telegram-monitor` to root `/apps/telegram-monitor` with watch path `/apps/telegram-monitor/**`; deployment `9c25be22-9fba-48fc-81a3-1a1b555dd59d` reached `SUCCESS` after Railway passed its `/health` check.
+- Set `telegram-trigger` to root `/apps/telegram-trigger` with watch path `/apps/telegram-trigger/**`; deployment `f5bf0056-460f-437f-b2bd-4d0a8334e73d` reached `SUCCESS`, Railway passed its `/health` check, and the public health endpoint returned HTTP 200 with status `ok`.
+- Saved the preceding active deployments as rollback references: DAILY `db51a5fe-b845-44c3-abcc-5a91a3883bba`, RECOVERY `1c3e79af-19aa-4482-906a-bab7584c51c4`, monitor `c03b134b-0879-4e58-aca5-add943f74afa`, and trigger `3e8fd2fe-1cb6-47e7-9233-209bf259d404`.
+- Preserved all environment-variable and secret keys, cron schedules, start commands, health checks, domain, private networking, restart/serverless settings, and PostgreSQL configuration. No **Run now** action or TradingView query was issued.
+- Pulled the resulting live configuration into `.railway/railway.ts`.
+
 ## 2026-09-09 — Show IDX job start and finish times in Telegram
 
 - Extended `telegram-monitor` messages with separate `Triggered at` and `Finished at` timestamps in Asia/Jakarta, sourced from `Monitoring_Price_ALL.run_time` and `finished_at`.
