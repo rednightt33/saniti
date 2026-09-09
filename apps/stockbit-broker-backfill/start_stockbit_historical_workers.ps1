@@ -52,6 +52,7 @@ $results = foreach ($run in $runs) {
 
     $existingPid = $null
     $existingStatus = $null
+    $existingRunnerStatus = $null
     if (Test-Path -LiteralPath $supervisorStatusPath) {
         try {
             $existingStatus = Get-Content -LiteralPath $supervisorStatusPath -Raw | ConvertFrom-Json
@@ -60,6 +61,25 @@ $results = foreach ($run in $runs) {
         catch {
             $existingPid = $null
         }
+    }
+    if (Test-Path -LiteralPath $runnerStatusPath) {
+        try {
+            $existingRunnerStatus = Get-Content -LiteralPath $runnerStatusPath -Raw | ConvertFrom-Json
+        }
+        catch {
+            $existingRunnerStatus = $null
+        }
+    }
+    if ($existingRunnerStatus.state -eq 'COMPLETED') {
+        [pscustomobject]@{
+            Name = $run.Name
+            FromDate = $run.FromDate
+            ToDate = $run.ToDate
+            Workers = $run.Workers
+            State = 'SKIPPED_COMPLETED'
+            SupervisorPid = $null
+        }
+        continue
     }
     $activeSupervisorStates = @('CONNECTING', 'RUNNING', 'RETRY_WAIT')
     $existingProcess = if ($existingPid) { Get-Process -Id $existingPid -ErrorAction SilentlyContinue } else { $null }
