@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-09T05:26:08+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-09T07:50:07+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -8,15 +8,16 @@ Generated from PostgreSQL schema `public` at `2026-09-09T05:26:08+00:00`.
 
 | Table Name | Category | Update Pattern | Latest Data Date | Last Changed At | Tracking | Definition |
 |---|---|---|---|---|---|---|
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-09 05:26:08+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-09 07:50:07+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
 | `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-06 13:04:02+00:00` | Baseline; exact changes tracked from this time forward | Reference list of IDX broker codes, names, and domestic/foreign classification. |
-| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 05:25:30.835060+00:00` | Derived from table data and load log | Daily broker buy/sell activity by symbol, broker, investor type, and market board. |
+| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 07:49:56.652012+00:00` | Derived from table data and load log | Daily broker buy/sell activity by symbol, broker, investor type, and market board. |
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-07 02:32:29.837245+00:00` | Tracked automatically | Reference universe of Indonesian listed securities and TradingView fundamentals. |
-| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-09` | `2026-09-09 04:18:43.771533+00:00` | Derived from monitoring rows | Operational results for daily and recovery IDX price-update runs. |
-| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-09` | `2026-09-09 04:17:02.927434+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV prices sourced from TradingView. |
-| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-09 05:19:54+00:00` | Baseline; exact changes tracked from this time forward | Delivery ledger used by telegram-monitor to prevent duplicate notifications. |
+| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-09` | `2026-09-09 07:47:03.711534+00:00` | Derived from monitoring rows | Operational results for daily and recovery IDX price-update runs. |
+| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-09` | `2026-09-09 06:50:35.686141+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV prices sourced from TradingView. |
+| `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-09 07:50:07+00:00` | Baseline; exact changes tracked from this time forward | Inbound Telegram command audit and duplicate-prevention ledger for telegram-trigger. |
+| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-09 07:47:08.460580+00:00` | Tracked automatically | Delivery ledger used by telegram-monitor to prevent duplicate notifications. |
 | `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-09-06 13:21:52.115381+00:00` | Loaded from Universe_Equity_Description.xlsx; future changes tracked automatically | Reference descriptions and sector classifications for the Indonesian equity universe. |
-| `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-08-31` | `2026-09-09 05:25:30.835060+00:00` | Derived from load log | Audit log used to resume and verify Stockbit broker-summary loads by date. |
+| `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-08-31` | `2026-09-09 07:49:56.652012+00:00` | Derived from load log | Audit log used to resume and verify Stockbit broker-summary loads by date. |
 
 ## Logical relationships
 
@@ -265,6 +266,47 @@ Daily Indonesian stock OHLCV prices sourced from TradingView.
 |---|---|
 | `Price_Stock_Indonesia_IDX_date_idx` | `CREATE INDEX "Price_Stock_Indonesia_IDX_date_idx" ON public."Price_Stock_Indonesia_IDX" USING btree (date)` |
 | `Price_Stock_Indonesia_IDX_pkey` | `CREATE UNIQUE INDEX "Price_Stock_Indonesia_IDX_pkey" ON public."Price_Stock_Indonesia_IDX" USING btree (ticker, date)` |
+
+## Telegram_Command_Log
+
+Inbound Telegram command audit and duplicate-prevention ledger for telegram-trigger.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `id` | `bigint` | No | — | Generated inbound-command identifier. |
+| `telegram_update_id` | `bigint` | No | — | Unique Telegram update identifier; repeated webhook deliveries reuse the existing command row. |
+| `chat_id` | `bigint` | No | — | Telegram chat that requested the action; only the configured owner is accepted. |
+| `command` | `text` | No | — | Allowlisted action requested from the bot. |
+| `target_service` | `text` | No | — | Fixed Railway service selected by the allowlisted command. |
+| `requested_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | UTC timestamp when telegram-trigger accepted the update. |
+| `triggered_at` | `timestamp with time zone` | Yes | — | UTC timestamp when Railway accepted the Run Now request. |
+| `finished_at` | `timestamp with time zone` | Yes | — | UTC timestamp when a trigger request failed before Railway accepted it. |
+| `status` | `text` | No | `'RECEIVED'::text` | Trigger state: RECEIVED, TRIGGERED, BLOCKED, or FAILED. |
+| `railway_reference` | `text` | Yes | — | Allowlisted Railway service-instance identifier used for the Run Now request. |
+| `last_error` | `text` | Yes | — | Cooldown reason or condensed trigger failure detail. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | UTC timestamp when the command row was created. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | UTC timestamp when the command row was last changed. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Telegram_Command_Log_command_not_blank` | Check | `CHECK (btrim(command) <> ''::text)` |
+| `Telegram_Command_Log_status_check` | Check | `CHECK (status = ANY (ARRAY['RECEIVED'::text, 'TRIGGERED'::text, 'BLOCKED'::text, 'FAILED'::text]))` |
+| `Telegram_Command_Log_target_not_blank` | Check | `CHECK (btrim(target_service) <> ''::text)` |
+| `Telegram_Command_Log_pkey` | Primary key | `PRIMARY KEY (id)` |
+| `Telegram_Command_Log_update_key` | Unique | `UNIQUE (telegram_update_id)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Telegram_Command_Log_pkey` | `CREATE UNIQUE INDEX "Telegram_Command_Log_pkey" ON public."Telegram_Command_Log" USING btree (id)` |
+| `Telegram_Command_Log_service_time_idx` | `CREATE INDEX "Telegram_Command_Log_service_time_idx" ON public."Telegram_Command_Log" USING btree (target_service, requested_at DESC)` |
+| `Telegram_Command_Log_status_idx` | `CREATE INDEX "Telegram_Command_Log_status_idx" ON public."Telegram_Command_Log" USING btree (status, requested_at DESC)` |
+| `Telegram_Command_Log_update_key` | `CREATE UNIQUE INDEX "Telegram_Command_Log_update_key" ON public."Telegram_Command_Log" USING btree (telegram_update_id)` |
 
 ## Telegram_Notification_Log
 

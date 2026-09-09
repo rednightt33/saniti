@@ -17,6 +17,9 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - IDX price recovery cron service ID: `a8e6e32a-fcd8-4c33-9ecc-1488a4b2db05`
 - Telegram notification service: `telegram-monitor`
 - Telegram notification service ID: `a6b4e061-721f-4173-82f8-07ccb45740fc`
+- Telegram command service: `telegram-trigger`
+- Telegram command service ID: `5a3f820c-2bb2-494b-b771-15fa6a5eb48a`
+- Telegram command service instance ID: `78bd93d5-f74a-42fb-ad25-2be856bbda07`
 - Dashboard: <https://railway.com/project/8aef1702-030b-49cb-9df7-5ac2e0a42691?environmentId=4d3e5af2-302b-4a2e-84e2-7d7476d6ff49>
 - GitHub: <https://github.com/rednightt33/saniti>
 
@@ -55,6 +58,16 @@ Railway evaluates separate UTC schedules: `idx-price-cron` uses `0 10 * * *`, an
 
 `telegram-monitor` has no cron schedule and does not poll PostgreSQL. It sleeps while idle and is called only after a DAILY or RECOVERY monitoring transaction commits. The caller retries temporary cold-start/network failures; Telegram failure never rolls back price data. Delivery is deduplicated by source table plus `execution_id`.
 
+Telegram manual control:
+
+```text
+Telegram owner -> telegram-trigger webhook -> validate webhook secret and Chat ID
+-> record Telegram_Command_Log -> Railway Run Now on the fixed DAILY or RECOVERY service
+-> normal price/monitoring flow -> telegram-monitor sends the final result
+```
+
+`telegram-trigger` accepts only `/run_price`, `/run_recovery`, and the matching fixed buttons. Telegram retries are deduplicated by `telegram_update_id`, while a short per-service cooldown blocks rapid repeat clicks. The trigger service sends only the immediate started/failed control acknowledgement; `telegram-monitor` remains responsible for the final data result.
+
 ## Main database objects
 
 - `IDX_Broker_Profile`: broker reference data.
@@ -63,6 +76,7 @@ Railway evaluates separate UTC schedules: `idx-price-cron` uses `0 10 * * *`, an
 - `Universe_Equity_Description`: company and industry descriptions.
 - `Price_Stock_Indonesia_IDX`: daily IDX OHLCV price history.
 - `Monitoring_Price_ALL`: per-execution daily/recovery completeness, trigger source, query time, missing symbols, and status grouped by the universe `Security Type` value.
+- `Telegram_Command_Log`: incoming Telegram Run Now audit, webhook-retry deduplication, and rapid-click blocking.
 - `Telegram_Notification_Log`: Telegram delivery status and anti-duplicate ledger keyed by source table and source `execution_id`.
 - `stockbit_broker_summary_load_log`: resume, retry, and `NEEDS_REVIEW` history.
 - `Database_Table_Status`: freshness and tracking catalog.

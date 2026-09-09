@@ -1,5 +1,14 @@
 # Database changelog
 
+## 2026-09-09 — Add Telegram command audit and deduplication ledger
+
+- Added forward-only migration `database/migrations/20260909_002_create_telegram_command_log.sql`.
+- Created `public."Telegram_Command_Log"` to audit authorized inbound bot commands separately from completed price results and outbound notification delivery.
+- Enforced unique `telegram_update_id` values so a Telegram webhook retry cannot start a second Railway execution.
+- Added per-service request-time and status indexes used by the rapid-click cooldown and operational review.
+- Applied the migration to Railway PostgreSQL and regenerated `DATABASE_SCHEMA.md` plus `Database_Table_Status`.
+- End-to-end verification recorded one accepted RECOVERY trigger and rejected an identical replay as a duplicate. The resulting RECOVERY execution `9926d137-6316-4c04-a1c2-099d87bd4735` completed with `NEEDS_REVIEW`, and its outbound notification was recorded as `SENT`.
+
 ## 2026-09-09 — Add Telegram notification delivery ledger
 
 - Added forward-only migration `database/migrations/20260909_001_create_telegram_notification_log.sql`.
