@@ -11,12 +11,12 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - Environment: `dev`
 - Environment ID: `4d3e5af2-302b-4a2e-84e2-7d7476d6ff49`
 - PostgreSQL service ID: `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`
-- Application service: `valiant-connection`
-- Application service ID: `4f56808b-2797-4d41-bbc5-4e66b9f4304c`
 - IDX price cron service: `idx-price-cron`
 - IDX price cron service ID: `43c86c6f-3221-4403-83c3-cd3056441558`
 - IDX price recovery cron service: `idx-price-recovery-cron`
 - IDX price recovery cron service ID: `a8e6e32a-fcd8-4c33-9ecc-1488a4b2db05`
+- Telegram notification service: `telegram-monitor`
+- Telegram notification service ID: `a6b4e061-721f-4173-82f8-07ccb45740fc`
 - Dashboard: <https://railway.com/project/8aef1702-030b-49cb-9df7-5ac2e0a42691?environmentId=4d3e5af2-302b-4a2e-84e2-7d7476d6ff49>
 - GitHub: <https://github.com/rednightt33/saniti>
 
@@ -43,13 +43,17 @@ Automated daily IDX prices:
 
 ```text
 idx-price-cron at 17:00 Asia/Jakarta, or Run now -> all IDX_Stock_Universe tickers -> TradingView
--> bulk upsert Price_Stock_Indonesia_IDX -> Monitoring_Price_ALL
+-> bulk upsert Price_Stock_Indonesia_IDX -> Monitoring_Price_ALL -> send execution_id to telegram-monitor
+-> Telegram message -> Telegram_Notification_Log records SENT
 
 idx-price-recovery-cron at 06:00 Asia/Jakarta, or Run now -> previous-weekday DAILY missing tickers only -> TradingView
--> bulk upsert Price_Stock_Indonesia_IDX -> Monitoring_Price_ALL
+-> bulk upsert Price_Stock_Indonesia_IDX -> Monitoring_Price_ALL -> send execution_id to telegram-monitor
+-> Telegram message with remaining missing tickers -> Telegram_Notification_Log records SENT
 ```
 
 Railway evaluates separate UTC schedules: `idx-price-cron` uses `0 10 * * *`, and `idx-price-recovery-cron` uses `0 23 * * *`. Both use explicit modes and exit after each execution. Weekend recovery targets Friday. A price row is accepted only when the TradingView candle timestamp matches the exact target date; a prior candle is never used as today's value. The `(ticker, date)` primary key makes repeated runs replace only the same daily row. A shared PostgreSQL advisory lock prevents concurrent runs. Every execution has its own monitoring `execution_id`; the system never performs an automatic third TradingView query.
+
+`telegram-monitor` has no cron schedule and does not poll PostgreSQL. It sleeps while idle and is called only after a DAILY or RECOVERY monitoring transaction commits. The caller retries temporary cold-start/network failures; Telegram failure never rolls back price data. Delivery is deduplicated by source table plus `execution_id`.
 
 ## Main database objects
 
@@ -59,6 +63,7 @@ Railway evaluates separate UTC schedules: `idx-price-cron` uses `0 10 * * *`, an
 - `Universe_Equity_Description`: company and industry descriptions.
 - `Price_Stock_Indonesia_IDX`: daily IDX OHLCV price history.
 - `Monitoring_Price_ALL`: per-execution daily/recovery completeness, trigger source, query time, missing symbols, and status grouped by the universe `Security Type` value.
+- `Telegram_Notification_Log`: Telegram delivery status and anti-duplicate ledger keyed by source table and source `execution_id`.
 - `stockbit_broker_summary_load_log`: resume, retry, and `NEEDS_REVIEW` history.
 - `Database_Table_Status`: freshness and tracking catalog.
 

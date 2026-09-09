@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-07T03:24:29+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-09T05:26:08+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -8,14 +8,15 @@ Generated from PostgreSQL schema `public` at `2026-09-07T03:24:29+00:00`.
 
 | Table Name | Category | Update Pattern | Latest Data Date | Last Changed At | Tracking | Definition |
 |---|---|---|---|---|---|---|
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-07 03:24:29+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-09 05:26:08+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
 | `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-06 13:04:02+00:00` | Baseline; exact changes tracked from this time forward | Reference list of IDX broker codes, names, and domestic/foreign classification. |
-| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-07 03:23:30.435290+00:00` | Derived from table data and load log | Daily broker buy/sell activity by symbol, broker, investor type, and market board. |
+| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 05:25:30.835060+00:00` | Derived from table data and load log | Daily broker buy/sell activity by symbol, broker, investor type, and market board. |
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-07 02:32:29.837245+00:00` | Tracked automatically | Reference universe of Indonesian listed securities and TradingView fundamentals. |
-| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-07` | `2026-09-07 03:21:00.320830+00:00` | Derived from monitoring rows | Operational results for daily and recovery IDX price-update runs. |
-| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-07` | `2026-09-07 03:22:04.339332+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV prices sourced from TradingView. |
+| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-09` | `2026-09-09 04:18:43.771533+00:00` | Derived from monitoring rows | Operational results for daily and recovery IDX price-update runs. |
+| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-09` | `2026-09-09 04:17:02.927434+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV prices sourced from TradingView. |
+| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-09 05:19:54+00:00` | Baseline; exact changes tracked from this time forward | Delivery ledger used by telegram-monitor to prevent duplicate notifications. |
 | `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-09-06 13:21:52.115381+00:00` | Loaded from Universe_Equity_Description.xlsx; future changes tracked automatically | Reference descriptions and sector classifications for the Indonesian equity universe. |
-| `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-08-31` | `2026-09-07 03:23:30.435290+00:00` | Derived from load log | Audit log used to resume and verify Stockbit broker-summary loads by date. |
+| `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-08-31` | `2026-09-09 05:25:30.835060+00:00` | Derived from load log | Audit log used to resume and verify Stockbit broker-summary loads by date. |
 
 ## Logical relationships
 
@@ -29,6 +30,7 @@ These relationships are documented for analysis but are not enforced as PostgreS
 | `Price_Stock_Indonesia_IDX.ticker` | `IDX_Stock_Universe."Ticker"` | Logical many-to-one by ticker | Daily price rows map to the stock universe when a matching ticker exists. No database foreign key is enforced. |
 | `Monitoring_Price_ALL.asset_type` | `IDX_Stock_Universe."Security Type"` | Logical grouped snapshot | Monitoring rows group expected and missing ticker counts by the universe Security Type value. |
 | `Monitoring_Price_ALL.update_for_date` | `Price_Stock_Indonesia_IDX.date` | Logical | A monitoring date describes the daily-price date targeted by an automation run. |
+| `Telegram_Notification_Log.source_execution_id` | `Monitoring_Price_ALL.execution_id` | Logical many-to-one by execution | The notifier reads all monitoring rows for one execution before sending and recording delivery. No database foreign key is enforced. |
 
 ## Database_Table_Status
 
@@ -263,6 +265,43 @@ Daily Indonesian stock OHLCV prices sourced from TradingView.
 |---|---|
 | `Price_Stock_Indonesia_IDX_date_idx` | `CREATE INDEX "Price_Stock_Indonesia_IDX_date_idx" ON public."Price_Stock_Indonesia_IDX" USING btree (date)` |
 | `Price_Stock_Indonesia_IDX_pkey` | `CREATE UNIQUE INDEX "Price_Stock_Indonesia_IDX_pkey" ON public."Price_Stock_Indonesia_IDX" USING btree (ticker, date)` |
+
+## Telegram_Notification_Log
+
+Delivery ledger used by telegram-monitor to prevent duplicate notifications.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `id` | `bigint` | No | — | Generated Telegram delivery-log identifier. |
+| `source_table` | `text` | No | — | Monitoring table from which notification details are read. |
+| `source_execution_id` | `text` | No | — | The execution_id from the source monitoring table; one completed run is sent once. |
+| `notification_type` | `text` | No | `'COMPLETED'::text` | Notification event type; currently COMPLETED. |
+| `send_status` | `text` | No | `'PENDING'::text` | Delivery state: PENDING, SENDING, SENT, or FAILED. |
+| `attempt_count` | `integer` | No | `0` | Number of claimed Telegram delivery attempts. |
+| `telegram_message_ids` | `jsonb` | No | `'[]'::jsonb` | JSON array of Telegram message IDs returned after delivery. |
+| `sent_at` | `timestamp with time zone` | Yes | — | UTC timestamp when all Telegram message parts were sent. |
+| `last_error` | `text` | Yes | — | Most recent Telegram delivery error; cleared after success. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | UTC timestamp when the delivery record was created. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | UTC timestamp when the delivery record last changed. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Telegram_Notification_Log_attempt_count_check` | Check | `CHECK (attempt_count >= 0)` |
+| `Telegram_Notification_Log_status_check` | Check | `CHECK (send_status = ANY (ARRAY['PENDING'::text, 'SENDING'::text, 'SENT'::text, 'FAILED'::text]))` |
+| `Telegram_Notification_Log_pkey` | Primary key | `PRIMARY KEY (id)` |
+| `Telegram_Notification_Log_delivery_key` | Unique | `UNIQUE (source_table, source_execution_id, notification_type)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Telegram_Notification_Log_delivery_key` | `CREATE UNIQUE INDEX "Telegram_Notification_Log_delivery_key" ON public."Telegram_Notification_Log" USING btree (source_table, source_execution_id, notification_type)` |
+| `Telegram_Notification_Log_pkey` | `CREATE UNIQUE INDEX "Telegram_Notification_Log_pkey" ON public."Telegram_Notification_Log" USING btree (id)` |
+| `Telegram_Notification_Log_status_idx` | `CREATE INDEX "Telegram_Notification_Log_status_idx" ON public."Telegram_Notification_Log" USING btree (send_status, updated_at DESC)` |
 
 ## Universe_Equity_Description
 

@@ -1,5 +1,13 @@
 # Database changelog
 
+## 2026-09-09 — Add Telegram notification delivery ledger
+
+- Added forward-only migration `database/migrations/20260909_001_create_telegram_notification_log.sql`.
+- Created `public."Telegram_Notification_Log"` to record `SENDING`, `SENT`, and `FAILED` delivery state without changing `Monitoring_Price_ALL.id` or `Monitoring_Price_ALL.execution_id`.
+- Enforced one completed notification per `(source_table, source_execution_id, notification_type)` so repeated wake requests cannot send the same execution twice.
+- Recorded Telegram message IDs, attempt count, sent time, and last delivery error for audit and retry handling.
+- Applied the migration to Railway PostgreSQL and verified an end-to-end test: the first request was `SENT`; the second request for the same execution was treated as a duplicate and reused the same log row.
+
 This file records database structure changes and material data loads. Times are Asia/Jakarta unless stated otherwise.
 
 ## 2026-09-07

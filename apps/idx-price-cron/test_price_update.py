@@ -1,4 +1,5 @@
 import io
+import os
 import unittest
 from contextlib import redirect_stderr
 from datetime import date, datetime
@@ -9,12 +10,14 @@ from price_update import (
     Symbol,
     candle_for_target,
     monitoring_records,
+    notify_telegram_monitor,
     previous_weekday,
     process_exit_code,
     resolve_mode,
     resolve_trigger_source,
     run_entrypoint,
 )
+from unittest.mock import patch
 
 
 JAKARTA = ZoneInfo("Asia/Jakarta")
@@ -25,6 +28,42 @@ def symbol(ordinal: int, ticker: str, asset_type: str = "stock") -> Symbol:
 
 
 class PriceUpdateTests(unittest.TestCase):
+    def test_notifier_is_optional(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertFalse(notify_telegram_monitor("execution-1"))
+
+    def test_notifier_posts_execution_id_and_secret(self):
+        captured = {}
+
+        class Response:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return b'{"status":"sent"}'
+
+        def opener(request, timeout):
+            captured["body"] = request.data
+            captured["secret"] = request.get_header("X-notify-secret")
+            captured["timeout"] = timeout
+            return Response()
+
+        env = {
+            "TELEGRAM_NOTIFY_URL": "http://telegram-monitor/notify",
+            "TELEGRAM_NOTIFY_SECRET": "shared-secret",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            self.assertTrue(notify_telegram_monitor("execution-2", opener=opener))
+
+        self.assertIn(b'"execution_id": "execution-2"', captured["body"])
+        self.assertEqual(captured["secret"], "shared-secret")
+        self.assertEqual(captured["timeout"], 20.0)
+
     def test_review_status_is_a_successful_process_exit(self):
         self.assertEqual(process_exit_code(["NEEDS_REVIEW"]), 0)
 

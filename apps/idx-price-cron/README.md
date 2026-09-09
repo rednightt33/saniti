@@ -35,6 +35,8 @@ Railway evaluates cron schedules in UTC.
 - There is no automatic third TradingView query. Missing symbols after recovery are marked `NEEDS_REVIEW`.
 - Weekend runs are recorded as `SKIPPED` without querying TradingView.
 - If a weekday DAILY run dies before writing monitoring, recovery derives its scope from universe tickers still absent from the price table for that date.
+- After the monitoring transaction commits, the service sends its `execution_id` to the separate `telegram-monitor` service. Temporary cold-start or network failures are retried four times.
+- Telegram delivery is downstream: a notification failure is logged but never rolls back price or monitoring data and never causes another TradingView query.
 
 ## Runtime
 
@@ -42,6 +44,8 @@ Both services require:
 
 ```text
 DATABASE_URL=${{Postgres.DATABASE_URL}}
+TELEGRAM_NOTIFY_URL=http://${{telegram-monitor.RAILWAY_PRIVATE_DOMAIN}}:${{telegram-monitor.PORT}}/notify
+TELEGRAM_NOTIFY_SECRET=<shared Railway secret>
 ```
 
 The script must exit after each run so Railway can start the next cron execution.

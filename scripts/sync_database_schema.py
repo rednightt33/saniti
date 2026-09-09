@@ -22,6 +22,7 @@ TABLE_STATUS_RULES = {
     "IDX_Broker_Summary": ("Transactional", "Continuous / each loaded trading day"),
     "IDX_Stock_Universe": ("Reference", "Periodic / when the listed universe changes"),
     "Monitoring_Price_ALL": ("System", "Twice daily alongside IDX price automation"),
+    "Telegram_Notification_Log": ("System", "Event-driven / after a monitored job completes"),
     "Universe_Equity_Description": ("Reference", "Periodic / when equity descriptions change"),
     "Price_Stock_Indonesia_IDX": ("Transactional", "Periodic / when daily IDX prices are refreshed"),
     "stockbit_broker_summary_load_log": ("System", "Continuous / alongside broker-summary loads"),
@@ -31,6 +32,7 @@ TRACKED_CHANGE_TABLES = (
     "IDX_Stock_Universe",
     "Universe_Equity_Description",
     "Price_Stock_Indonesia_IDX",
+    "Telegram_Notification_Log",
 )
 TABLE_DESCRIPTIONS = {
     "Database_Table_Status": "Tracks the data freshness, change time, and update pattern of each table.",
@@ -38,6 +40,7 @@ TABLE_DESCRIPTIONS = {
     "IDX_Broker_Summary": "Daily broker buy/sell activity by symbol, broker, investor type, and market board.",
     "IDX_Stock_Universe": "Reference universe of Indonesian listed securities and TradingView fundamentals.",
     "Monitoring_Price_ALL": "Operational results for daily and recovery IDX price-update runs.",
+    "Telegram_Notification_Log": "Delivery ledger used by telegram-monitor to prevent duplicate notifications.",
     "Universe_Equity_Description": "Reference descriptions and sector classifications for the Indonesian equity universe.",
     "Price_Stock_Indonesia_IDX": "Daily Indonesian stock OHLCV prices sourced from TradingView.",
     "stockbit_broker_summary_load_log": "Audit log used to resume and verify Stockbit broker-summary loads by date.",
@@ -120,6 +123,19 @@ COLUMN_DESCRIPTIONS = {
         "created_at": "UTC timestamp when the monitoring row was first created.",
         "updated_at": "UTC timestamp when the monitoring row was last refreshed.",
     },
+    "Telegram_Notification_Log": {
+        "id": "Generated Telegram delivery-log identifier.",
+        "source_table": "Monitoring table from which notification details are read.",
+        "source_execution_id": "Execution identifier in the source monitoring table.",
+        "notification_type": "Notification event type; currently COMPLETED.",
+        "send_status": "Delivery state: PENDING, SENDING, SENT, or FAILED.",
+        "attempt_count": "Number of claimed Telegram delivery attempts.",
+        "telegram_message_ids": "JSON array of Telegram message IDs returned after delivery.",
+        "sent_at": "UTC timestamp when all Telegram message parts were sent.",
+        "last_error": "Most recent Telegram delivery error; cleared after success.",
+        "created_at": "UTC timestamp when the delivery record was created.",
+        "updated_at": "UTC timestamp when the delivery record last changed.",
+    },
     "Universe_Equity_Description": {
         "Region": "Geographic market region.",
         "Market": "Market-development classification.",
@@ -199,6 +215,12 @@ LOGICAL_RELATIONSHIPS = [
         'Price_Stock_Indonesia_IDX.date',
         "Logical",
         "A monitoring date describes the daily-price date targeted by an automation run.",
+    ),
+    (
+        'Telegram_Notification_Log.source_execution_id',
+        'Monitoring_Price_ALL.execution_id',
+        "Logical many-to-one by execution",
+        "The notifier reads all monitoring rows for one execution before sending and recording delivery. No database foreign key is enforced.",
     ),
 ]
 
@@ -353,10 +375,12 @@ def derive_status_rows(
             last_changed_at = refreshed_at
             tracking_status = "System-managed"
             last_operation = "CATALOG_REFRESH"
-        elif name in TRACKED_CHANGE_TABLES and last_changed_at is None:
-            last_changed_at = refreshed_at
-            tracking_status = "Baseline; exact changes tracked from this time forward"
-            last_operation = "BASELINE"
+        elif name in TRACKED_CHANGE_TABLES:
+            if last_changed_at is None:
+                last_changed_at = refreshed_at
+                last_operation = "BASELINE"
+            if tracking_status in {"Baseline", "Baseline only"}:
+                tracking_status = "Baseline; exact changes tracked from this time forward"
         elif last_changed_at is None:
             last_changed_at = refreshed_at
             tracking_status = "Baseline only"
@@ -774,14 +798,27 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--schema", default="public")
     parser.add_argument("--output", type=Path, default=Path("DATABASE_SCHEMA.md"))
+    parser.add_argument("--host", help="Optional public database host override")
+    parser.add_argument("--port", type=int, help="Port used with --host")
     args = parser.parse_args()
 
-    database_url = os.environ.get("DATABASE_URL", "").strip()
-    if not database_url:
-        raise RuntimeError("DATABASE_URL is required")
+    if args.host:
+        connection_args = {
+            "host": args.host,
+            "port": args.port or 5432,
+            "dbname": os.environ["PGDATABASE"],
+            "user": os.environ["PGUSER"],
+            "password": os.environ["PGPASSWORD"],
+            "sslmode": "require",
+        }
+    else:
+        database_url = os.environ.get("DATABASE_URL", "").strip()
+        if not database_url:
+            raise RuntimeError("DATABASE_URL is required")
+        connection_args = {"conninfo": database_url}
 
     refreshed_at = datetime.now(timezone.utc).replace(microsecond=0)
-    with psycopg.connect(database_url) as connection:
+    with psycopg.connect(**connection_args) as connection:
         ensure_status_table(connection, args.schema)
         names = table_names(connection, args.schema)
         refresh_status(connection, args.schema, names, refreshed_at)

@@ -19,7 +19,9 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Iterable
+from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urlparse
+from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
 import psycopg
@@ -55,6 +57,88 @@ PRICE_COLUMNS = (
     "query_date",
     "timeframe",
 )
+
+
+def notify_telegram_monitor(
+    execution_id: str,
+    *,
+    opener=urlopen,
+    sleep_fn=time.sleep,
+) -> bool:
+    """Wake the separate notifier after monitoring data has been committed."""
+    notify_url = os.environ.get("TELEGRAM_NOTIFY_URL", "").strip()
+    notify_secret = os.environ.get("TELEGRAM_NOTIFY_SECRET", "").strip()
+    if not notify_url or not notify_secret:
+        print(
+            json.dumps(
+                {
+                    "event": "telegram_notify_skipped",
+                    "execution_id": execution_id,
+                    "reason": "not_configured",
+                }
+            ),
+            flush=True,
+        )
+        return False
+
+    payload = json.dumps(
+        {
+            "source_table": "Monitoring_Price_ALL",
+            "execution_id": execution_id,
+        }
+    ).encode("utf-8")
+    attempts = max(1, int(os.environ.get("TELEGRAM_NOTIFY_ATTEMPTS", "4")))
+    timeout = max(1.0, float(os.environ.get("TELEGRAM_NOTIFY_TIMEOUT", "20")))
+    last_error = "unknown error"
+
+    for attempt in range(1, attempts + 1):
+        request = Request(
+            notify_url,
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "X-Notify-Secret": notify_secret,
+            },
+            method="POST",
+        )
+        try:
+            with opener(request, timeout=timeout) as response:
+                response.read()
+                if 200 <= response.status < 300:
+                    print(
+                        json.dumps(
+                            {
+                                "event": "telegram_notify_accepted",
+                                "execution_id": execution_id,
+                                "attempt": attempt,
+                            }
+                        ),
+                        flush=True,
+                    )
+                    return True
+                last_error = f"HTTP {response.status}"
+        except HTTPError as exc:
+            last_error = f"HTTP {exc.code}"
+            if 400 <= exc.code < 500 and exc.code not in {408, 429}:
+                break
+        except (URLError, TimeoutError, OSError) as exc:
+            last_error = f"{type(exc).__name__}: {exc}"
+
+        if attempt < attempts:
+            sleep_fn(min(2 ** (attempt - 1), 8))
+
+    print(
+        json.dumps(
+            {
+                "event": "telegram_notify_failed",
+                "execution_id": execution_id,
+                "attempts": attempts,
+                "error": last_error[:500],
+            }
+        ),
+        flush=True,
+    )
+    return False
 
 
 @dataclass(frozen=True)
@@ -536,6 +620,17 @@ def write_monitoring_rows(
         )
 
 
+def commit_monitoring_and_notify(
+    connection: psycopg.Connection,
+    records: list[dict],
+    execution_id: str,
+) -> None:
+    """Persist monitoring first; notification failure must not undo price data."""
+    write_monitoring_rows(connection, records)
+    connection.commit()
+    notify_telegram_monitor(execution_id)
+
+
 def monitoring_records(
     universe: list[Symbol],
     queried: list[Symbol],
@@ -806,8 +901,7 @@ def main() -> int:
                 forced_error="SKIPPED_BUSY: another IDX price update is still running",
             )
             if not args.dry_run:
-                write_monitoring_rows(connection, records)
-                connection.commit()
+                commit_monitoring_and_notify(connection, records, execution_id)
             print(json.dumps({"event": "run_skipped", "reason": "busy"}))
             return 0
 
@@ -827,8 +921,7 @@ def main() -> int:
                 forced_error="Weekend: IDX daily prices were not queried",
             )
             if not args.dry_run:
-                write_monitoring_rows(connection, records)
-                connection.commit()
+                commit_monitoring_and_notify(connection, records, execution_id)
             print(json.dumps({"event": "run_skipped", "reason": "weekend"}))
             return 0
 
@@ -860,8 +953,7 @@ def main() -> int:
                 forced_error="No missing symbols from the preceding DAILY run",
             )
             if not args.dry_run:
-                write_monitoring_rows(connection, records)
-                connection.commit()
+                commit_monitoring_and_notify(connection, records, execution_id)
             print(json.dumps({"event": "run_skipped", "reason": "no_missing_symbols"}))
             return 0
 
@@ -894,8 +986,7 @@ def main() -> int:
                     ),
                 )
                 if not args.dry_run:
-                    write_monitoring_rows(connection, records)
-                    connection.commit()
+                    commit_monitoring_and_notify(connection, records, execution_id)
                 print(json.dumps({"event": "run_skipped", "reason": "non_trading_day"}))
                 return 0
 
@@ -927,8 +1018,7 @@ def main() -> int:
 
         try:
             verified = bulk_upsert_prices(connection, rows, target_date)
-            write_monitoring_rows(connection, records)
-            connection.commit()
+            commit_monitoring_and_notify(connection, records, execution_id)
         except Exception as exc:
             connection.rollback()
             failure_records = monitoring_records(
@@ -945,8 +1035,7 @@ def main() -> int:
                 forced_status="FAILED",
                 forced_error=f"{type(exc).__name__}: {exc}"[:4000],
             )
-            write_monitoring_rows(connection, failure_records)
-            connection.commit()
+            commit_monitoring_and_notify(connection, failure_records, execution_id)
             raise
 
         statuses = sorted({record["status"] for record in records})
