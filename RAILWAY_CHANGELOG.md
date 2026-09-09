@@ -2,6 +2,14 @@
 
 This file records intentional changes to the Railway project. Git history preserves every revision. Never include secret values.
 
+## 2026-09-09 — Show IDX job start and finish times in Telegram
+
+- Extended `telegram-monitor` messages with separate `Triggered at` and `Finished at` timestamps in Asia/Jakarta, sourced from `Monitoring_Price_ALL.run_time` and `finished_at`.
+- Kept the existing headline, duration, missing-ticker list, delivery ledger, DAILY/RECOVERY schedules, and trigger flow unchanged.
+- Added regression coverage for UTC-to-WIB conversion and verified the formatter against a live monitoring row without sending a duplicate Telegram message.
+- The first upload attempt (`aa896904-a563-48b1-8b0c-fa77ca712092`) failed before Railway could create its code snapshot; the previous deployment remained active.
+- Retried once and verified deployment `c03b134b-0879-4e58-aca5-add943f74afa` reached `SUCCESS`.
+
 ## 2026-09-09 — Telegram controls for manual IDX price runs
 
 - Created public serverless service `telegram-trigger` (service ID `5a3f820c-2bb2-494b-b771-15fa6a5eb48a`, service-instance ID `78bd93d5-f74a-42fb-ad25-2be856bbda07`).

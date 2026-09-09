@@ -1,11 +1,12 @@
 import unittest
-from datetime import date
+from datetime import date, datetime, timezone
 
 from telegram_monitor import (
     MonitoringSummary,
     aggregate_status,
     build_messages,
     format_header,
+    format_timing,
 )
 
 
@@ -22,6 +23,8 @@ def summary(**overrides) -> MonitoringSummary:
         "missing_symbols": 2,
         "missing_tickers": ("AAAA", "BBBB"),
         "status": "PARTIAL",
+        "started_at": datetime(2026, 9, 9, 10, 0, tzinfo=timezone.utc),
+        "finished_at": datetime(2026, 9, 9, 10, 1, 10, tzinfo=timezone.utc),
         "duration_seconds": 192,
         "last_error": None,
     }
@@ -38,6 +41,10 @@ class TelegramMonitorTests(unittest.TestCase):
         self.assertEqual(len(messages), 1)
         self.assertIn("⚠️ IDX DAILY PARTIAL", messages[0])
         self.assertIn("842/844 updated", messages[0])
+        self.assertIn(
+            "Triggered at: 09 Sep 2026 17:00 WIB • Finished at: 09 Sep 2026 17:01 WIB",
+            messages[0],
+        )
         self.assertIn("\n\nMissing: ", messages[0])
         self.assertTrue(messages[0].endswith("Missing: AAAA, BBBB"))
 
@@ -56,6 +63,12 @@ class TelegramMonitorTests(unittest.TestCase):
 
     def test_manual_run_is_visible(self):
         self.assertIn("DAILY MANUAL", format_header(summary(trigger_source="MANUAL")))
+
+    def test_timing_is_converted_to_jakarta(self):
+        self.assertEqual(
+            format_timing(summary()),
+            "Triggered at: 09 Sep 2026 17:00 WIB • Finished at: 09 Sep 2026 17:01 WIB",
+        )
 
     def test_long_missing_list_is_split_under_limit(self):
         tickers = tuple(f"TICKER{i:04d}" for i in range(500))

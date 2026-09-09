@@ -14,6 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Callable
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from zoneinfo import ZoneInfo
 
 import psycopg
 from psycopg.types.json import Jsonb
@@ -24,6 +25,7 @@ LOG_TABLE = 'public."Telegram_Notification_Log"'
 SUPPORTED_SOURCE = "Monitoring_Price_ALL"
 MAX_REQUEST_BYTES = 16_384
 MAX_TELEGRAM_TEXT = 4_000
+JAKARTA_TZ = ZoneInfo("Asia/Jakarta")
 EXECUTION_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,200}$")
 STATUS_PRIORITY = {
     "FAILED": 5,
@@ -54,6 +56,8 @@ class MonitoringSummary:
     missing_symbols: int
     missing_tickers: tuple[str, ...]
     status: str
+    started_at: datetime
+    finished_at: datetime
     duration_seconds: float
     last_error: str | None
 
@@ -116,6 +120,8 @@ def fetch_monitoring_summary(
         missing_symbols=sum(int(row[7]) for row in rows),
         missing_tickers=tuple(missing_tickers),
         status=aggregate_status([str(row[9]) for row in rows]),
+        started_at=started_at,
+        finished_at=finished_at,
         duration_seconds=max(0.0, (finished_at - started_at).total_seconds()),
         last_error=errors[0] if errors else None,
     )
@@ -158,12 +164,19 @@ def format_header(summary: MonitoringSummary) -> str:
     return header
 
 
+def format_timing(summary: MonitoringSummary) -> str:
+    started = summary.started_at.astimezone(JAKARTA_TZ).strftime("%d %b %Y %H:%M")
+    finished = summary.finished_at.astimezone(JAKARTA_TZ).strftime("%d %b %Y %H:%M")
+    return f"Triggered at: {started} WIB • Finished at: {finished} WIB"
+
+
 def build_messages(
     summary: MonitoringSummary, max_length: int = MAX_TELEGRAM_TEXT
 ) -> list[str]:
     header = format_header(summary)
+    header_with_timing = header + "\n\n" + format_timing(summary)
     if not summary.missing_tickers:
-        return [header]
+        return [header_with_timing]
 
     prefixes = ["Missing: ", "Missing (cont.): "]
     messages: list[str] = []
@@ -171,7 +184,7 @@ def build_messages(
     first = True
     while remaining:
         prefix = prefixes[0] if first else prefixes[1]
-        base = header + "\n\n" + prefix if first else prefix
+        base = header_with_timing + "\n\n" + prefix if first else prefix
         included: list[str] = []
         while remaining:
             candidate = ", ".join(included + [remaining[0]])
