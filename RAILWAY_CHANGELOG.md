@@ -2,6 +2,14 @@
 
 This file records intentional changes to the Railway project. Git history preserves every revision. Never include secret values.
 
+## 2026-09-13 — Record database-side price ingestion timestamps
+
+- Updated the shared `apps/idx-price-cron` bulk upsert so `idx-price-cron` and `idx-price-recovery-cron` assign `Price_Stock_Indonesia_IDX.ingestion_time` from PostgreSQL `statement_timestamp()` on both insert and `(ticker, date)` conflict update.
+- Deployed Git commit `a988a0e2fc37d1ba58db70e365f1d63be98bc9fa` to DAILY as deployment `ae37f76e-caa2-4397-b93d-c5e588d95fe4` and RECOVERY as deployment `08c05d86-fc2b-44d1-9a9a-d4e2ea7fb74e`; both reached `SUCCESS`.
+- Preserved the preceding successful deployments as rollback references: DAILY `3b73e6c5-a60e-459b-ac1b-314c362cf3e9` and RECOVERY `65de3099-051e-45a7-81b2-b135f3bcced4`.
+- Kept both cron schedules, start commands, service variables and secrets, watch paths, restart policies, monitoring flow, and Telegram behavior unchanged.
+- No **Run now** action or TradingView query was issued during deployment.
+
 ## 2026-09-09 — Connect application services to GitHub monorepo
 
 - Connected all four application services to `rednightt33/saniti` on branch `main`, one service at a time, and waited for each resulting deployment to reach `SUCCESS` before continuing.
