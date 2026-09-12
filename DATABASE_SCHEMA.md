@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-09T07:50:07+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-12T13:35:23+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -8,16 +8,17 @@ Generated from PostgreSQL schema `public` at `2026-09-09T07:50:07+00:00`.
 
 | Table Name | Category | Update Pattern | Latest Data Date | Last Changed At | Tracking | Definition |
 |---|---|---|---|---|---|---|
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-09 07:50:07+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
-| `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-06 13:04:02+00:00` | Baseline; exact changes tracked from this time forward | Reference list of IDX broker codes, names, and domestic/foreign classification. |
-| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 07:49:56.652012+00:00` | Derived from table data and load log | Daily broker buy/sell activity by symbol, broker, investor type, and market board. |
-| `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-07 02:32:29.837245+00:00` | Tracked automatically | Reference universe of Indonesian listed securities and TradingView fundamentals. |
-| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-09` | `2026-09-09 07:47:03.711534+00:00` | Derived from monitoring rows | Operational results for daily and recovery IDX price-update runs. |
-| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-09` | `2026-09-09 06:50:35.686141+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV prices sourced from TradingView. |
-| `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-09 07:50:07+00:00` | Baseline; exact changes tracked from this time forward | Inbound Telegram command audit and duplicate-prevention ledger for telegram-trigger. |
-| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-09 07:47:08.460580+00:00` | Tracked automatically | Delivery ledger used by telegram-monitor to prevent duplicate notifications. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-12 13:35:23+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-10 07:23:34.854803+00:00` | Tracked automatically | Reference list of IDX broker codes, names, and domestic/foreign classification. |
+| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 14:41:15.160142+00:00` | Derived from table data and load log | Daily broker buy/sell activity by symbol, broker, investor type, and market board. |
+| `IDX_Broker_Summary_Data_Quality` | Unclassified | Unknown | — | `2026-09-10 15:03:11.787666+00:00` | Derived from append-only audit snapshots | Append-only snapshots of IDX Broker Summary data-quality audit findings. |
+| `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-12 13:34:43.352522+00:00` | Tracked automatically | Reference universe of Indonesian listed securities and TradingView fundamentals. |
+| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-12` | `2026-09-12 10:01:38.397012+00:00` | Derived from monitoring rows | Operational results for daily and recovery IDX price-update runs. |
+| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-11` | `2026-09-11 10:05:26.641709+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV prices sourced from TradingView. |
+| `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger for telegram-trigger. |
+| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-12 10:01:41.458394+00:00` | Tracked automatically | Delivery ledger used by telegram-monitor to prevent duplicate notifications. |
 | `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-09-06 13:21:52.115381+00:00` | Loaded from Universe_Equity_Description.xlsx; future changes tracked automatically | Reference descriptions and sector classifications for the Indonesian equity universe. |
-| `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-08-31` | `2026-09-09 07:49:56.652012+00:00` | Derived from load log | Audit log used to resume and verify Stockbit broker-summary loads by date. |
+| `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-08-31` | `2026-09-09 16:55:55.713468+00:00` | Derived from load log | Audit log used to resume and verify Stockbit broker-summary loads by date. |
 
 ## Logical relationships
 
@@ -73,6 +74,7 @@ Reference list of IDX broker codes, names, and domestic/foreign classification.
 | `broker_code` | `character varying` | No | — | Two-character IDX broker code. |
 | `broker_name` | `text` | No | — | Registered broker or securities-company name. |
 | `broker_type` | `text` | No | — | Broker classification: Domestic or Foreign. |
+| `broker_classification` | `text` | Yes | — | No column description has been recorded. |
 
 ### Constraints
 
@@ -135,6 +137,43 @@ Daily broker buy/sell activity by symbol, broker, investor type, and market boar
 |---|---|
 | `IDX_Broker_Summary_pkey` | `CREATE UNIQUE INDEX "IDX_Broker_Summary_pkey" ON public."IDX_Broker_Summary" USING btree ("Date", "Symbol", "Broker", "Investor Type", "Market Board")` |
 
+## IDX_Broker_Summary_Data_Quality
+
+Append-only snapshots of IDX Broker Summary data-quality audit findings.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `Audit Finding ID` | `bigint` | No | — | No column description has been recorded. |
+| `Audit Run ID` | `uuid` | No | — | No column description has been recorded. |
+| `Audited At` | `timestamp with time zone` | No | — | No column description has been recorded. |
+| `Issue Type` | `text` | No | — | No column description has been recorded. |
+| `Date` | `date` | Yes | — | No column description has been recorded. |
+| `Symbol` | `text` | Yes | — | No column description has been recorded. |
+| `Affected Rows` | `bigint` | No | `0` | No column description has been recorded. |
+| `Current Status` | `text` | No | — | No column description has been recorded. |
+| `Reason` | `text` | No | — | No column description has been recorded. |
+| `Severity` | `text` | No | — | No column description has been recorded. |
+| `Recommended Action` | `text` | No | — | No column description has been recorded. |
+| `Rule` | `text` | No | — | No column description has been recorded. |
+| `Details` | `jsonb` | No | `'{}'::jsonb` | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Broker_Summary_Data_Quality_severity_check` | Check | `CHECK ("Severity" = ANY (ARRAY['CRITICAL'::text, 'HIGH'::text, 'MEDIUM'::text, 'LOW'::text]))` |
+| `IDX_Broker_Summary_Data_Quality_pkey` | Primary key | `PRIMARY KEY ("Audit Finding ID")` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `IDX_Broker_Summary_Data_Quality_pkey` | `CREATE UNIQUE INDEX "IDX_Broker_Summary_Data_Quality_pkey" ON public."IDX_Broker_Summary_Data_Quality" USING btree ("Audit Finding ID")` |
+| `IDX_Broker_Summary_Data_Quality_run_idx` | `CREATE INDEX "IDX_Broker_Summary_Data_Quality_run_idx" ON public."IDX_Broker_Summary_Data_Quality" USING btree ("Audit Run ID")` |
+| `IDX_Broker_Summary_Data_Quality_severity_date_idx` | `CREATE INDEX "IDX_Broker_Summary_Data_Quality_severity_date_idx" ON public."IDX_Broker_Summary_Data_Quality" USING btree ("Severity", "Date")` |
+
 ## IDX_Stock_Universe
 
 Reference universe of Indonesian listed securities and TradingView fundamentals.
@@ -159,6 +198,7 @@ Reference universe of Indonesian listed securities and TradingView fundamentals.
 | `ISIN` | `text` | No | — | International Securities Identification Number. |
 | `Sector` | `text` | No | — | Source sector classification. |
 | `Industry` | `text` | No | — | Source industry classification. |
+| `price_feed_daily` | `numeric` | Yes | — | No column description has been recorded. |
 
 ### Constraints
 

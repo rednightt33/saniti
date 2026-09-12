@@ -1,5 +1,16 @@
 # Database changelog
 
+## 2026-09-12 — Correct IDX stock-universe Sector and Industry values
+
+- Target: `public."IDX_Stock_Universe"` in Railway project `lucid-patience`, environment `dev`, PostgreSQL service `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`.
+- Corrected all 844 reference rows in one short transaction by swapping the values stored in `Sector` and `Industry`; table structure, the `Ticker` primary key, and every other column remained unchanged.
+- Pre-change validation found 59 granular classifications under `Sector` and 12 broad classifications under `Industry`, confirming that the values were reversed semantically. Neither column contained null or blank values.
+- A one-row `AADI` test changed `Coal` / `Energy` to `Energy` / `Coal` inside a transaction, then rolled back and verified the original row before the full correction ran.
+- Post-change verification found 12 broad `Sector` values and 59 granular `Industry` values, zero null or blank values, and all 844 ticker pairs matching the approved swapped interpretation. Example: `AADI` now has `Sector = Energy` and `Industry = Coal`.
+- Content checksum changed from `00549007e7ef4fd027dce108a965ce35` to `f1a77bc69c2ae71c8237a91690cdfe8a`; total row count remained 844.
+- `public."Universe_Equity_Description"`, all other tables, and all Railway services were intentionally left unchanged. The pre-existing PostgreSQL TCP proxy was reused and left untouched. No CSV was created.
+- Refreshed `DATABASE_SCHEMA.md` and `Database_Table_Status` from the verified live database after the correction.
+
 ## 2026-09-09 — Add Telegram command audit and deduplication ledger
 
 - Added forward-only migration `database/migrations/20260909_002_create_telegram_command_log.sql`.
