@@ -547,10 +547,11 @@ def bulk_upsert_prices(
             for column in PRICE_COLUMNS
             if column not in {"ticker", "date"}
         )
+        updates = f"{updates}, ingestion_time = EXCLUDED.ingestion_time"
         cursor.execute(
             f"""
-            INSERT INTO {PRICE_TABLE} ({columns_sql})
-            SELECT {columns_sql}
+            INSERT INTO {PRICE_TABLE} ({columns_sql}, ingestion_time)
+            SELECT {columns_sql}, statement_timestamp()
             FROM price_stock_stage
             ON CONFLICT (ticker, date) DO UPDATE SET {updates}
             """

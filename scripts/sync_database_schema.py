@@ -237,6 +237,7 @@ COLUMN_DESCRIPTIONS = {
         "source": "Price data source.",
         "query_date": "Date the source data was queried.",
         "timeframe": "Price-series interval.",
+        "ingestion_time": "Timezone-aware database statement time of the latest successful insert or upsert for this price row; null for historical rows whose exact ingestion time is unknown.",
     },
     "stockbit_broker_summary_load_log": {
         "target_table": "Schema-qualified table populated by the load.",

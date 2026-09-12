@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-12T17:09:34+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-12T17:46:10+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -8,7 +8,7 @@ Generated from PostgreSQL schema `public` at `2026-09-12T17:09:34+00:00`.
 
 | Table Name | Category | Update Pattern | Latest Data Date | Last Changed At | Tracking | Definition |
 |---|---|---|---|---|---|---|
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-12 17:09:34+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-12 17:46:10+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
 | `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-11` | `2026-09-12 14:47:03+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily ticker-level price, return, volatility, volume, and price-position features derived from IDX prices and the current stock universe. |
 | `Feature_Catalog` | Reference | After each validated Feature schema change | — | `2026-09-12 17:09:34+00:00` | Baseline; exact changes tracked from this time forward | Machine-readable semantic contract for validated columns in the four locked Feature tables. |
 | `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-10 07:23:34.854803+00:00` | Tracked automatically | Reference list of IDX broker codes, names, and domestic/foreign classification. |
@@ -389,6 +389,7 @@ Daily Indonesian stock OHLCV prices sourced from TradingView.
 | `source` | `character varying` | No | — | Price data source. |
 | `query_date` | `date` | No | — | Date the source data was queried. |
 | `timeframe` | `character varying` | No | — | Price-series interval. |
+| `ingestion_time` | `timestamp with time zone` | Yes | `statement_timestamp()` | Timezone-aware database statement time of the latest successful insert or upsert; null for historical rows whose exact ingestion time is unknown. |
 
 ### Constraints
 

@@ -1,5 +1,16 @@
 # Database changelog
 
+## 2026-09-13 — Track price-row ingestion time
+
+- Target: `public."Price_Stock_Indonesia_IDX"` in Railway project `lucid-patience`, environment `dev`, PostgreSQL service `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`.
+- Added forward-only migration `database/migrations/20260913_002_add_price_ingestion_time.sql`.
+- Added nullable `ingestion_time timestamp with time zone` with database default `statement_timestamp()` so one successful bulk upsert assigns one consistent database-side timestamp to every row in that batch.
+- Preserved all 1,303,728 pre-existing rows with `ingestion_time IS NULL` because their exact historical ingestion times cannot be reconstructed reliably.
+- Updated the shared DAILY/RECOVERY price upsert so both inserts and `(ticker, date)` conflict updates set `ingestion_time` from the same PostgreSQL statement timestamp.
+- Live schema read-back PASS: exact type, nullable state, default, and column comment matched the approved design.
+- Rolled-back live upsert test PASS for `AADI` on `2026-09-11`: one row received a valid database statement timestamp inside the transaction, and the timestamp returned to null after rollback.
+- Existing price values, primary key, indexes, query dates, feature tables, schedules, and other database objects were intentionally left unchanged.
+
 ## 2026-09-13 — Create Feature Catalog for validated Feature 01
 
 - Target: `public."Feature_Catalog"` in Railway project `lucid-patience`, environment `dev`, PostgreSQL service `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`.

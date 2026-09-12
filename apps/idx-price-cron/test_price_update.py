@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from price_update import (
     FetchOutcome,
     Symbol,
+    bulk_upsert_prices,
     candle_for_target,
     monitoring_records,
     notify_telegram_monitor,
@@ -28,6 +29,67 @@ def symbol(ordinal: int, ticker: str, asset_type: str = "stock") -> Symbol:
 
 
 class PriceUpdateTests(unittest.TestCase):
+    def test_bulk_upsert_sets_database_ingestion_time_for_insert_and_update(self):
+        executed = []
+        copied_rows = []
+
+        class Copy:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def write_row(self, row):
+                copied_rows.append(row)
+
+        class Cursor:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def execute(self, sql, params=None):
+                executed.append((sql, params))
+
+            def copy(self, sql):
+                executed.append((sql, None))
+                return Copy()
+
+            def fetchone(self):
+                return (1,)
+
+        class Connection:
+            def cursor(self):
+                return Cursor()
+
+        row = {
+            "company_name": "Example",
+            "ticker": "TEST",
+            "tradingview_symbol": "IDX:TEST",
+            "date": date(2026, 9, 11),
+            "open": 100,
+            "high": 110,
+            "low": 90,
+            "close": 105,
+            "volume": 1000,
+            "source": "TradingView",
+            "query_date": date(2026, 9, 13),
+            "timeframe": "Daily",
+        }
+
+        self.assertEqual(
+            bulk_upsert_prices(Connection(), [row], date(2026, 9, 11)),
+            1,
+        )
+        insert_sql = next(sql for sql, _ in executed if "ON CONFLICT" in sql)
+        self.assertIn("ingestion_time", insert_sql)
+        self.assertIn("statement_timestamp()", insert_sql)
+        self.assertIn("ingestion_time = EXCLUDED.ingestion_time", insert_sql)
+        self.assertEqual(len(copied_rows), 1)
+        self.assertEqual(len(copied_rows[0]), 12)
+
     def test_notifier_is_optional(self):
         with patch.dict(os.environ, {}, clear=True):
             self.assertFalse(notify_telegram_monitor("execution-1"))

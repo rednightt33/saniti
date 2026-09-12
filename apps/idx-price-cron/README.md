@@ -24,6 +24,7 @@ Railway evaluates cron schedules in UTC.
 - Exact-date rows that are available may still be written during a partial run; unavailable tickers remain in the monitoring missing list.
 - Prices are deduplicated in memory and bulk-upserted through a temporary PostgreSQL staging table.
 - The `Price_Stock_Indonesia_IDX` primary key `(ticker, date)` is the final duplicate guard. Re-running the same ticker/date updates that row and preserves all other dates.
+- `ingestion_time` records the PostgreSQL statement time for each successful bulk upsert. Every row in one batch shares one timezone-aware timestamp, and a repeated `(ticker, date)` upsert refreshes it. Rows that predate this field remain null because their exact ingestion time is unknown.
 - A PostgreSQL advisory lock prevents the DAILY and RECOVERY services from updating prices concurrently.
 
 ## Monitoring rules
