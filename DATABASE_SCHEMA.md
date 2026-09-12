@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-12T13:35:23+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-12T14:49:53+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -8,7 +8,8 @@ Generated from PostgreSQL schema `public` at `2026-09-12T13:35:23+00:00`.
 
 | Table Name | Category | Update Pattern | Latest Data Date | Last Changed At | Tracking | Definition |
 |---|---|---|---|---|---|---|
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-12 13:35:23+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-12 14:49:53+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-11` | `2026-09-12 14:47:03+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily ticker-level price, return, volatility, volume, and price-position features derived from IDX prices and the current stock universe. |
 | `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-10 07:23:34.854803+00:00` | Tracked automatically | Reference list of IDX broker codes, names, and domestic/foreign classification. |
 | `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 14:41:15.160142+00:00` | Derived from table data and load log | Daily broker buy/sell activity by symbol, broker, investor type, and market board. |
 | `IDX_Broker_Summary_Data_Quality` | Unclassified | Unknown | — | `2026-09-10 15:03:11.787666+00:00` | Derived from append-only audit snapshots | Append-only snapshots of IDX Broker Summary data-quality audit findings. |
@@ -30,6 +31,8 @@ These relationships are documented for analysis but are not enforced as PostgreS
 | `IDX_Broker_Summary."Symbol"` | `IDX_Stock_Universe."Ticker"` | Logical | Broker activity symbols map to the stock universe when a matching ticker exists. No database foreign key is enforced. |
 | `Universe_Equity_Description."Ticker"` | `IDX_Stock_Universe."Ticker"` | Logical one-to-one by ticker | Both reference tables describe the same listed security when a matching ticker exists. No database foreign key is enforced. |
 | `Price_Stock_Indonesia_IDX.ticker` | `IDX_Stock_Universe."Ticker"` | Logical many-to-one by ticker | Daily price rows map to the stock universe when a matching ticker exists. No database foreign key is enforced. |
+| `Feature_01_Stock_Daily.(ticker, date)` | `Price_Stock_Indonesia_IDX.(ticker, date)` | Logical one-to-one by ticker and trading date | Each feature row is derived from exactly one available price candle. No database foreign key is enforced. |
+| `Feature_01_Stock_Daily.ticker` | `IDX_Stock_Universe."Ticker"` | Logical many-to-one by ticker | Feature classifications use the current Sector and Industry values from the stock universe. No database foreign key is enforced. |
 | `Monitoring_Price_ALL.asset_type` | `IDX_Stock_Universe."Security Type"` | Logical grouped snapshot | Monitoring rows group expected and missing ticker counts by the universe Security Type value. |
 | `Monitoring_Price_ALL.update_for_date` | `Price_Stock_Indonesia_IDX.date` | Logical | A monitoring date describes the daily-price date targeted by an automation run. |
 | `Telegram_Notification_Log.source_execution_id` | `Monitoring_Price_ALL.execution_id` | Logical many-to-one by execution | The notifier reads all monitoring rows for one execution before sending and recording delivery. No database foreign key is enforced. |
@@ -62,6 +65,60 @@ Tracks the data freshness, change time, and update pattern of each table.
 | Name | Definition |
 |---|---|
 | `Database_Table_Status_pkey` | `CREATE UNIQUE INDEX "Database_Table_Status_pkey" ON public."Database_Table_Status" USING btree ("Table Name")` |
+
+## Feature_01_Stock_Daily
+
+Daily ticker-level price, return, volatility, volume, and price-position features derived from IDX prices and the current stock universe.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `date` | `date` | No | — | Trading observation date from Price_Stock_Indonesia_IDX. |
+| `ticker` | `text` | No | — | IDX ticker; feature grain is one row per ticker and trading date. |
+| `close` | `numeric` | No | — | Source closing price. |
+| `volume` | `numeric` | No | — | Source trading volume. |
+| `sector` | `text` | No | — | Current Sector value inherited exactly from IDX_Stock_Universe. |
+| `industry` | `text` | No | — | Current Industry value inherited exactly from IDX_Stock_Universe. |
+| `close_1d_ago` | `numeric` | Yes | — | Closing price one prior trading observation ago. |
+| `close_5d_ago` | `numeric` | Yes | — | Closing price five prior trading observations ago. |
+| `close_20d_ago` | `numeric` | Yes | — | Closing price twenty prior trading observations ago. |
+| `close_60d_ago` | `numeric` | Yes | — | Closing price sixty prior trading observations ago. |
+| `return_1d_pct` | `double precision` | Yes | — | Percent close return versus one prior trading observation. |
+| `return_5d_pct` | `double precision` | Yes | — | Percent close return versus five prior trading observations. |
+| `return_20d_pct` | `double precision` | Yes | — | Percent close return versus twenty prior trading observations. |
+| `return_60d_pct` | `double precision` | Yes | — | Percent close return versus sixty prior trading observations. |
+| `abs_return_1d_pct` | `double precision` | Yes | — | Absolute one-observation percent return. |
+| `volatility_5d_ann_pct` | `double precision` | Yes | — | Annualized sample standard deviation of five daily decimal returns, in percent. |
+| `volatility_20d_ann_pct` | `double precision` | Yes | — | Annualized sample standard deviation of twenty daily decimal returns, in percent. |
+| `volatility_60d_ann_pct` | `double precision` | Yes | — | Annualized sample standard deviation of sixty daily decimal returns, in percent. |
+| `volatility_5d_change_pct` | `double precision` | Yes | — | Percent change versus the five-day volatility from five observations ago. |
+| `volatility_20d_change_pct` | `double precision` | Yes | — | Percent change versus the twenty-day volatility from twenty observations ago. |
+| `volatility_60d_change_pct` | `double precision` | Yes | — | Percent change versus the sixty-day volatility from sixty observations ago. |
+| `volume_avg_20d` | `double precision` | Yes | — | Average volume over a complete twenty-observation window. |
+| `volume_std_20d` | `double precision` | Yes | — | Sample standard deviation of volume over a complete twenty-observation window. |
+| `volume_ratio_20d` | `double precision` | Yes | — | Current volume divided by the complete twenty-observation average. |
+| `volume_zscore_20d` | `double precision` | Yes | — | Current volume deviation from the twenty-observation average in standard deviations. |
+| `high_20d` | `numeric` | Yes | — | Maximum close over a complete twenty-observation window. |
+| `high_60d` | `numeric` | Yes | — | Maximum close over a complete sixty-observation window. |
+| `drawdown_20d_pct` | `double precision` | Yes | — | Percent close position below the complete twenty-observation maximum close. |
+| `drawdown_60d_pct` | `double precision` | Yes | — | Percent close position below the complete sixty-observation maximum close. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature_01_Stock_Daily_close_nonnegative` | Check | `CHECK (close >= 0::numeric)` |
+| `Feature_01_Stock_Daily_ticker_not_blank` | Check | `CHECK (btrim(ticker) <> ''::text)` |
+| `Feature_01_Stock_Daily_volume_nonnegative` | Check | `CHECK (volume >= 0::numeric)` |
+| `Feature_01_Stock_Daily_pkey` | Primary key | `PRIMARY KEY (ticker, date)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_01_Stock_Daily_date_idx` | `CREATE INDEX "Feature_01_Stock_Daily_date_idx" ON public."Feature_01_Stock_Daily" USING btree (date)` |
+| `Feature_01_Stock_Daily_pkey` | `CREATE UNIQUE INDEX "Feature_01_Stock_Daily_pkey" ON public."Feature_01_Stock_Daily" USING btree (ticker, date)` |
 
 ## IDX_Broker_Profile
 

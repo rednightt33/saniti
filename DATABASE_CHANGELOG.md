@@ -1,5 +1,55 @@
 # Database changelog
 
+## 2026-09-12 — Create and backfill Feature 01 stock daily
+
+- Target: `public."Feature_01_Stock_Daily"` in Railway project `lucid-patience`, environment `dev`, PostgreSQL service `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`.
+- Added forward-only migration `database/migrations/20260912_001_create_feature_01_stock_daily.sql`.
+- Created the ticker/trading-date feature table with primary key `(ticker, date)`, a separate `date` index, source close/volume and current Sector/Industry, trading-observation lags, percent returns, annualized 5/20/60-observation volatility, volatility changes, 20-observation volume metrics, rolling highs, and drawdowns.
+- Added `public.refresh_feature_01_stock_daily(date, text[])`. A null date performs the initial full refresh; an incremental call recomputes the changed row and up to 120 following trading observations for the selected ticker set. Empty ticker arrays are safe no-ops, zero denominators return null, and an advisory transaction lock serializes refreshes.
+- Initial SQL-side backfill completed in approximately 54 seconds and inserted 1,303,728 rows across 844 tickers from 2018-01-02 through 2026-09-11. The latest date contains the same 829 rows as the price source. The resulting table and indexes use approximately 379 MB.
+- Reconciliation PASS: exact source/feature row and ticker counts, zero duplicate keys, zero missing or extra keys, zero close/volume/Sector/Industry mismatches, zero negative source values, zero one-day returns below -100%, zero positive drawdowns, and zero incomplete classifications.
+- Window validation PASS: all 1/5/20/60 lag boundaries, complete-window volume/high fields, complete-window volatility fields, and zero-denominator volatility-change rules matched their expected null behavior.
+
+| Calculated field | NULL count | NULL rate |
+|---|---:|---:|
+| `close_1d_ago` | 844 | 0.0647% |
+| `close_5d_ago` | 4,220 | 0.3237% |
+| `close_20d_ago` | 16,880 | 1.2947% |
+| `close_60d_ago` | 50,555 | 3.8777% |
+| `return_1d_pct` | 844 | 0.0647% |
+| `return_5d_pct` | 4,220 | 0.3237% |
+| `return_20d_pct` | 16,880 | 1.2947% |
+| `return_60d_pct` | 50,555 | 3.8777% |
+| `abs_return_1d_pct` | 844 | 0.0647% |
+| `volatility_5d_ann_pct` | 4,220 | 0.3237% |
+| `volatility_20d_ann_pct` | 16,880 | 1.2947% |
+| `volatility_60d_ann_pct` | 50,555 | 3.8777% |
+| `volatility_5d_change_pct` | 67,235 | 5.1571% |
+| `volatility_20d_change_pct` | 74,665 | 5.7270% |
+| `volatility_60d_change_pct` | 130,642 | 10.0206% |
+| `volume_avg_20d` | 16,036 | 1.2300% |
+| `volume_std_20d` | 16,036 | 1.2300% |
+| `volume_ratio_20d` | 16,036 | 1.2300% |
+| `volume_zscore_20d` | 16,039 | 1.2302% |
+| `high_20d` | 16,036 | 1.2300% |
+| `high_60d` | 49,717 | 3.8134% |
+| `drawdown_20d_pct` | 16,036 | 1.2300% |
+| `drawdown_60d_pct` | 49,717 | 3.8134% |
+
+- Independent formula validation PASS for BBCA on 2026-09-11, SUPA at its 121st observation on 2026-07-01, and zero-volume DSSA on 2020-10-14. All stored values matched separate calculations within floating-point tolerance.
+
+| Sample | Source inputs | Independently expected | Stored | Difference | Result |
+|---|---|---:|---:|---:|---|
+| BBCA 2026-09-11 `return_1d_pct` | close 6,325; previous trading-observation close 6,425 | -1.5564202334630295 | -1.5564202334630295 | 0 | PASS |
+| BBCA 2026-09-11 `volatility_20d_ann_pct` | 20 complete close-derived daily returns | 19.06043383091717 | 19.06043383091717 | 0 | PASS |
+| SUPA 2026-07-01 `return_1d_pct` | close 515; previous trading-observation close 535 | -3.738317757009346 | -3.738317757009346 | 0 | PASS |
+| DSSA 2020-10-14 `volume_ratio_20d` | volume 0; complete 20-observation average 377,500 | 0 | 0 | 0 | PASS |
+
+- Incremental validation PASS inside a rolled-back test transaction: BBCA historical refresh affected exactly 121 rows, latest-date refresh affected one row, repeated runs preserved the full ticker checksum, and each historical refresh completed in approximately 0.28 seconds.
+- Query-plan validation used the `(ticker, date)` primary key for a 60-row BBCA history query (0.091 ms) and the `date` index for an 829-row latest-market query (2.363 ms).
+- The first migration attempt referenced a renamed CTE alias and failed before backfill; PostgreSQL rolled back the entire transaction. The alias was corrected, absence of partial objects was verified, and the migration then applied successfully.
+- Raw price and universe tables, all other Feature tables, Railway services, schedules, and price-cron application code were intentionally left unchanged. Automatic price-cron integration remains a separate future step.
+
 ## 2026-09-12 — Correct IDX stock-universe Sector and Industry values
 
 - Target: `public."IDX_Stock_Universe"` in Railway project `lucid-patience`, environment `dev`, PostgreSQL service `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`.

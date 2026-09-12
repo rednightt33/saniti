@@ -18,6 +18,7 @@ from psycopg import sql
 STATUS_TABLE = "Database_Table_Status"
 TABLE_STATUS_RULES = {
     "Database_Table_Status": ("System", "Automatic / daily documentation refresh"),
+    "Feature_01_Stock_Daily": ("Feature", "After validated daily-price changes"),
     "IDX_Broker_Profile": ("Reference", "Periodic / approximately annual"),
     "IDX_Broker_Summary": ("Transactional", "Continuous / each loaded trading day"),
     "IDX_Stock_Universe": ("Reference", "Periodic / when the listed universe changes"),
@@ -29,6 +30,7 @@ TABLE_STATUS_RULES = {
     "stockbit_broker_summary_load_log": ("System", "Continuous / alongside broker-summary loads"),
 }
 TRACKED_CHANGE_TABLES = (
+    "Feature_01_Stock_Daily",
     "IDX_Broker_Profile",
     "IDX_Stock_Universe",
     "Universe_Equity_Description",
@@ -38,6 +40,7 @@ TRACKED_CHANGE_TABLES = (
 )
 TABLE_DESCRIPTIONS = {
     "Database_Table_Status": "Tracks the data freshness, change time, and update pattern of each table.",
+    "Feature_01_Stock_Daily": "Daily ticker-level price, return, volatility, volume, and price-position features.",
     "IDX_Broker_Profile": "Reference list of IDX broker codes, names, and domestic/foreign classification.",
     "IDX_Broker_Summary": "Daily broker buy/sell activity by symbol, broker, investor type, and market board.",
     "IDX_Stock_Universe": "Reference universe of Indonesian listed securities and TradingView fundamentals.",
@@ -58,6 +61,37 @@ COLUMN_DESCRIPTIONS = {
         "Last Checked At": "UTC timestamp when the catalog last inspected the table.",
         "Tracking Status": "Explains whether freshness is derived, tracked, or only a baseline.",
         "Last Operation": "Last tracked operation, such as LOAD, INSERT, UPDATE, DELETE, or TRUNCATE.",
+    },
+    "Feature_01_Stock_Daily": {
+        "date": "Trading observation date from Price_Stock_Indonesia_IDX.",
+        "ticker": "IDX ticker; the table grain is one row per ticker and trading date.",
+        "close": "Source closing price.",
+        "volume": "Source trading volume.",
+        "sector": "Current Sector inherited from IDX_Stock_Universe.",
+        "industry": "Current Industry inherited from IDX_Stock_Universe.",
+        "close_1d_ago": "Closing price one prior trading observation ago.",
+        "close_5d_ago": "Closing price five prior trading observations ago.",
+        "close_20d_ago": "Closing price twenty prior trading observations ago.",
+        "close_60d_ago": "Closing price sixty prior trading observations ago.",
+        "return_1d_pct": "Percent close return versus one prior trading observation.",
+        "return_5d_pct": "Percent close return versus five prior trading observations.",
+        "return_20d_pct": "Percent close return versus twenty prior trading observations.",
+        "return_60d_pct": "Percent close return versus sixty prior trading observations.",
+        "abs_return_1d_pct": "Absolute one-observation percent return.",
+        "volatility_5d_ann_pct": "Annualized sample standard deviation of five daily decimal returns, in percent.",
+        "volatility_20d_ann_pct": "Annualized sample standard deviation of twenty daily decimal returns, in percent.",
+        "volatility_60d_ann_pct": "Annualized sample standard deviation of sixty daily decimal returns, in percent.",
+        "volatility_5d_change_pct": "Percent change versus the five-day volatility from five observations ago.",
+        "volatility_20d_change_pct": "Percent change versus the twenty-day volatility from twenty observations ago.",
+        "volatility_60d_change_pct": "Percent change versus the sixty-day volatility from sixty observations ago.",
+        "volume_avg_20d": "Average volume over a complete twenty-observation window.",
+        "volume_std_20d": "Sample standard deviation of volume over a complete twenty-observation window.",
+        "volume_ratio_20d": "Current volume divided by the complete twenty-observation average.",
+        "volume_zscore_20d": "Current volume deviation from the twenty-observation average in standard deviations.",
+        "high_20d": "Maximum close over a complete twenty-observation window.",
+        "high_60d": "Maximum close over a complete sixty-observation window.",
+        "drawdown_20d_pct": "Percent close position below the complete twenty-observation maximum close.",
+        "drawdown_60d_pct": "Percent close position below the complete sixty-observation maximum close.",
     },
     "IDX_Broker_Profile": {
         "broker_code": "Two-character IDX broker code.",
@@ -223,6 +257,18 @@ LOGICAL_RELATIONSHIPS = [
         "Daily price rows map to the stock universe when a matching ticker exists. No database foreign key is enforced.",
     ),
     (
+        'Feature_01_Stock_Daily.(ticker, date)',
+        'Price_Stock_Indonesia_IDX.(ticker, date)',
+        "Logical one-to-one by ticker and trading date",
+        "Each feature row is derived from exactly one available price candle. No database foreign key is enforced.",
+    ),
+    (
+        'Feature_01_Stock_Daily.ticker',
+        'IDX_Stock_Universe."Ticker"',
+        "Logical many-to-one by ticker",
+        "Feature classifications use the current Sector and Industry values from the stock universe. No database foreign key is enforced.",
+    ),
+    (
         'Monitoring_Price_ALL.asset_type',
         'IDX_Stock_Universe."Security Type"',
         "Logical grouped snapshot",
@@ -346,7 +392,17 @@ def derive_status_rows(
         tracking_status = previous.get(name, {}).get("tracking_status") or "Baseline"
         last_operation = previous.get(name, {}).get("last_operation")
 
-        if name == "IDX_Broker_Summary":
+        if name == "Feature_01_Stock_Daily":
+            latest_data_date = connection.execute(
+                sql.SQL('SELECT max("date") FROM {}.{}').format(
+                    sql.Identifier(schema), sql.Identifier(name)
+                )
+            ).fetchone()[0]
+            if last_changed_at is None:
+                last_changed_at = refreshed_at
+                last_operation = "BACKFILL"
+            tracking_status = "Derived from Price_Stock_Indonesia_IDX"
+        elif name == "IDX_Broker_Summary":
             latest_data_date = connection.execute(
                 sql.SQL('SELECT max("Date") FROM {}.{}').format(
                     sql.Identifier(schema), sql.Identifier(name)
