@@ -89,6 +89,7 @@ Telegram owner -> telegram-trigger webhook -> validate webhook secret and Chat I
 - `Universe_Equity_Description`: company and industry descriptions.
 - `Price_Stock_Indonesia_IDX`: daily IDX OHLCV price history.
 - `Feature_01_Stock_Daily`: SQL-side daily ticker features for price returns, volatility, volume, and drawdown. Its refresh routine exists, but price-cron integration is intentionally not active yet.
+- `Feature_Catalog`: machine-readable semantic and governance layer for validated columns in the four locked Feature tables. It currently contains only active `v1` definitions for Feature 01.
 - `Monitoring_Price_ALL`: per-execution daily/recovery completeness, trigger source, query time, missing symbols, and status grouped by the universe `Security Type` value.
 - `Telegram_Command_Log`: incoming Telegram Run Now audit, webhook-retry deduplication, and rapid-click blocking.
 - `Telegram_Notification_Log`: Telegram delivery status and anti-duplicate ledger keyed by source table and source `execution_id`.

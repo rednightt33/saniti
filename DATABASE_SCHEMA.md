@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-12T14:49:53+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-12T17:09:34+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -8,8 +8,9 @@ Generated from PostgreSQL schema `public` at `2026-09-12T14:49:53+00:00`.
 
 | Table Name | Category | Update Pattern | Latest Data Date | Last Changed At | Tracking | Definition |
 |---|---|---|---|---|---|---|
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-12 14:49:53+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-12 17:09:34+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
 | `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-11` | `2026-09-12 14:47:03+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily ticker-level price, return, volatility, volume, and price-position features derived from IDX prices and the current stock universe. |
+| `Feature_Catalog` | Reference | After each validated Feature schema change | — | `2026-09-12 17:09:34+00:00` | Baseline; exact changes tracked from this time forward | Machine-readable semantic contract for validated columns in the four locked Feature tables. |
 | `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-10 07:23:34.854803+00:00` | Tracked automatically | Reference list of IDX broker codes, names, and domestic/foreign classification. |
 | `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 14:41:15.160142+00:00` | Derived from table data and load log | Daily broker buy/sell activity by symbol, broker, investor type, and market board. |
 | `IDX_Broker_Summary_Data_Quality` | Unclassified | Unknown | — | `2026-09-10 15:03:11.787666+00:00` | Derived from append-only audit snapshots | Append-only snapshots of IDX Broker Summary data-quality audit findings. |
@@ -33,6 +34,7 @@ These relationships are documented for analysis but are not enforced as PostgreS
 | `Price_Stock_Indonesia_IDX.ticker` | `IDX_Stock_Universe."Ticker"` | Logical many-to-one by ticker | Daily price rows map to the stock universe when a matching ticker exists. No database foreign key is enforced. |
 | `Feature_01_Stock_Daily.(ticker, date)` | `Price_Stock_Indonesia_IDX.(ticker, date)` | Logical one-to-one by ticker and trading date | Each feature row is derived from exactly one available price candle. No database foreign key is enforced. |
 | `Feature_01_Stock_Daily.ticker` | `IDX_Stock_Universe."Ticker"` | Logical many-to-one by ticker | Feature classifications use the current Sector and Industry values from the stock universe. No database foreign key is enforced. |
+| `Feature_Catalog.(feature_table, feature_column)` | `Locked Feature table physical columns` | Governed semantic reference | Active catalog rows are validated by trigger against exact physical columns in the public schema. |
 | `Monitoring_Price_ALL.asset_type` | `IDX_Stock_Universe."Security Type"` | Logical grouped snapshot | Monitoring rows group expected and missing ticker counts by the universe Security Type value. |
 | `Monitoring_Price_ALL.update_for_date` | `Price_Stock_Indonesia_IDX.date` | Logical | A monitoring date describes the daily-price date targeted by an automation run. |
 | `Telegram_Notification_Log.source_execution_id` | `Monitoring_Price_ALL.execution_id` | Logical many-to-one by execution | The notifier reads all monitoring rows for one execution before sending and recording delivery. No database foreign key is enforced. |
@@ -119,6 +121,50 @@ Daily ticker-level price, return, volatility, volume, and price-position feature
 |---|---|
 | `Feature_01_Stock_Daily_date_idx` | `CREATE INDEX "Feature_01_Stock_Daily_date_idx" ON public."Feature_01_Stock_Daily" USING btree (date)` |
 | `Feature_01_Stock_Daily_pkey` | `CREATE UNIQUE INDEX "Feature_01_Stock_Daily_pkey" ON public."Feature_01_Stock_Daily" USING btree (ticker, date)` |
+
+## Feature_Catalog
+
+Machine-readable semantic contract for validated columns in the four locked Feature tables.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `feature_table` | `text` | No | — | Exact physical name of one of the four locked Feature tables. |
+| `feature_column` | `text` | No | — | Exact physical PostgreSQL column name. |
+| `grain` | `text` | No | — | Business grain represented by one row in the Feature table. |
+| `feature_category` | `text` | No | — | Controlled semantic category for the feature. |
+| `definition` | `text` | No | — | Human-readable meaning of the feature value. |
+| `calculation` | `text` | No | — | Exact formula or ordered calculation logic used by the implementation. |
+| `source_tables` | `text` | No | — | Pipe-delimited exact source-table names required by the calculation. |
+| `source_columns` | `text` | No | — | Pipe-delimited exact source-column references used by the calculation. |
+| `lookback_window` | `text` | No | — | Effective observation-based historical window. |
+| `minimum_history` | `text` | No | — | Minimum valid observation history required for a usable value. |
+| `unit` | `text` | No | — | Semantic unit of the feature value. |
+| `null_rule` | `text` | No | — | Conditions under which the feature is NULL. |
+| `refresh_trigger` | `text` | No | — | Upstream event that requires the feature to be recalculated. |
+| `dependency_rule` | `text` | No | — | Upstream availability conditions required before the feature is valid. |
+| `version` | `text` | No | `'v1'::text` | Semantic-definition version; material formula changes require a new version. |
+| `is_active` | `boolean` | No | `true` | Whether AI analytics may use this catalog definition. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Timestamp when this semantic version was created. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Timestamp of the latest metadata change, maintained by trigger. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature_Catalog_feature_category_check` | Check | `CHECK (feature_category = ANY (ARRAY['Identity'::text, 'Metadata'::text, 'Price'::text, 'Return'::text, 'Volatility'::text, 'Volume'::text, 'Price Positioning'::text, 'Broker Flow'::text, 'Broker Persistence'::text, 'Broker Abnormality'::text, 'Broker Concentration'::text, 'Broker Classification'::text, 'Historical Outcome'::text, 'Smart Money'::text, 'Data Quality'::text]))` |
+| `Feature_Catalog_feature_table_check` | Check | `CHECK (feature_table = ANY (ARRAY['Feature_01_Stock_Daily'::text, 'Feature_02_Broker_Rolling'::text, 'Feature_03_Stock_Broker_Daily'::text, 'Feature_04_Broker_Behavior_Profile'::text]))` |
+| `Feature_Catalog_required_text_check` | Check | `CHECK (btrim(feature_table) <> ''::text AND btrim(feature_column) <> ''::text AND btrim(grain) <> ''::text AND btrim(feature_category) <> ''::text AND btrim(definition) <> ''::text AND btrim(calculation) <> ''::text AND btrim(source_tables) <> ''::text AND btrim(source_columns) <> ''::text AND btrim(lookback_window) <> ''::text AND btrim(minimum_history) <> ''::text AND btrim(unit) <> ''::text AND btrim(null_rule) <> ''::text AND btrim(refresh_trigger) <> ''::text AND btrim(dependency_rule) <> ''::text AND btrim(version) <> ''::text)` |
+| `Feature_Catalog_timestamps_check` | Check | `CHECK (updated_at >= created_at)` |
+| `Feature_Catalog_version_check` | Check | `CHECK (version ~ '^v[1-9][0-9]*$'::text)` |
+| `Feature_Catalog_pkey` | Primary key | `PRIMARY KEY (feature_table, feature_column, version)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_Catalog_pkey` | `CREATE UNIQUE INDEX "Feature_Catalog_pkey" ON public."Feature_Catalog" USING btree (feature_table, feature_column, version)` |
 
 ## IDX_Broker_Profile
 

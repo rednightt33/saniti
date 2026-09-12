@@ -19,6 +19,7 @@ STATUS_TABLE = "Database_Table_Status"
 TABLE_STATUS_RULES = {
     "Database_Table_Status": ("System", "Automatic / daily documentation refresh"),
     "Feature_01_Stock_Daily": ("Feature", "After validated daily-price changes"),
+    "Feature_Catalog": ("Reference", "After each validated Feature schema change"),
     "IDX_Broker_Profile": ("Reference", "Periodic / approximately annual"),
     "IDX_Broker_Summary": ("Transactional", "Continuous / each loaded trading day"),
     "IDX_Stock_Universe": ("Reference", "Periodic / when the listed universe changes"),
@@ -31,6 +32,7 @@ TABLE_STATUS_RULES = {
 }
 TRACKED_CHANGE_TABLES = (
     "Feature_01_Stock_Daily",
+    "Feature_Catalog",
     "IDX_Broker_Profile",
     "IDX_Stock_Universe",
     "Universe_Equity_Description",
@@ -41,6 +43,7 @@ TRACKED_CHANGE_TABLES = (
 TABLE_DESCRIPTIONS = {
     "Database_Table_Status": "Tracks the data freshness, change time, and update pattern of each table.",
     "Feature_01_Stock_Daily": "Daily ticker-level price, return, volatility, volume, and price-position features.",
+    "Feature_Catalog": "Machine-readable semantic contract for validated columns in the four locked Feature tables.",
     "IDX_Broker_Profile": "Reference list of IDX broker codes, names, and domestic/foreign classification.",
     "IDX_Broker_Summary": "Daily broker buy/sell activity by symbol, broker, investor type, and market board.",
     "IDX_Stock_Universe": "Reference universe of Indonesian listed securities and TradingView fundamentals.",
@@ -92,6 +95,26 @@ COLUMN_DESCRIPTIONS = {
         "high_60d": "Maximum close over a complete sixty-observation window.",
         "drawdown_20d_pct": "Percent close position below the complete twenty-observation maximum close.",
         "drawdown_60d_pct": "Percent close position below the complete sixty-observation maximum close.",
+    },
+    "Feature_Catalog": {
+        "feature_table": "Exact physical name of one of the four locked Feature tables.",
+        "feature_column": "Exact physical PostgreSQL column name.",
+        "grain": "Business grain represented by one row in the Feature table.",
+        "feature_category": "Controlled semantic category for the feature.",
+        "definition": "Human-readable meaning of the feature value.",
+        "calculation": "Exact formula or ordered calculation logic used by the implementation.",
+        "source_tables": "Pipe-delimited exact source-table names required by the calculation.",
+        "source_columns": "Pipe-delimited exact source-column references used by the calculation.",
+        "lookback_window": "Effective observation-based historical window.",
+        "minimum_history": "Minimum valid observation history required for a usable value.",
+        "unit": "Semantic unit of the feature value.",
+        "null_rule": "Conditions under which the feature is NULL.",
+        "refresh_trigger": "Upstream event that requires the feature to be recalculated.",
+        "dependency_rule": "Upstream availability conditions required before the feature is valid.",
+        "version": "Semantic-definition version; material formula changes require a new version.",
+        "is_active": "Whether AI analytics may use this catalog definition.",
+        "created_at": "Timestamp when this semantic version was created.",
+        "updated_at": "Timestamp of the latest metadata change, maintained by trigger.",
     },
     "IDX_Broker_Profile": {
         "broker_code": "Two-character IDX broker code.",
@@ -267,6 +290,12 @@ LOGICAL_RELATIONSHIPS = [
         'IDX_Stock_Universe."Ticker"',
         "Logical many-to-one by ticker",
         "Feature classifications use the current Sector and Industry values from the stock universe. No database foreign key is enforced.",
+    ),
+    (
+        'Feature_Catalog.(feature_table, feature_column)',
+        'Locked Feature table physical columns',
+        "Governed semantic reference",
+        "Active catalog rows are validated by trigger against exact physical columns in the public schema.",
     ),
     (
         'Monitoring_Price_ALL.asset_type',

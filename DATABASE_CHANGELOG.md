@@ -1,5 +1,19 @@
 # Database changelog
 
+## 2026-09-13 — Create Feature Catalog for validated Feature 01
+
+- Target: `public."Feature_Catalog"` in Railway project `lucid-patience`, environment `dev`, PostgreSQL service `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`.
+- Added forward-only migration `database/migrations/20260913_001_create_feature_catalog.sql` without changing `Feature_01_Stock_Daily`, raw tables, application services, or schedules.
+- Live inspection found one of the four locked Feature tables: `Feature_01_Stock_Daily` with 29 physical columns. Feature 02–04 and any prior Feature Catalog were absent.
+- Created all 18 required metadata/governance columns using the existing mixed-case table/lowercase-column convention, with primary key `(feature_table, feature_column, version)`, controlled Feature table/category/version checks, mandatory nonblank metadata, timezone-aware timestamps, and automatic `updated_at` maintenance.
+- Added a governance trigger that rejects an active catalog entry unless its exact target table and column physically exist in schema `public`.
+- Registered exactly 29 active `v1` definitions for Feature 01 and zero premature entries for Feature 02–04. Each entry records grain, category, detailed meaning and formula, exact source references, trading-observation lookback, minimum history, unit, null rule, refresh trigger, and dependency rule.
+- Coverage validation PASS: 1 Feature table found, 29 physical Feature columns, 29 catalog entries, 29 active entries, zero missing definitions, zero catalog targets pointing to missing columns, zero duplicate definitions, and zero mandatory-field violations.
+- Source validation PASS: zero broken source-table or source-column references. All references use the actual live PostgreSQL table and column casing.
+- Formula spot-check PASS against `refresh_feature_01_stock_daily(date, text[])` for `return_20d_pct`, `volatility_20d_ann_pct`, and `volume_zscore_20d`. Formula checks belonging to Feature 02–04 are not applicable until those tables exist and pass their own validation.
+- Governance test PASS inside a rolled-back savepoint: an attempted active definition for nonexistent column `does_not_exist` was rejected.
+- Overall status: PASS. Feature Catalog is ready as the semantic/metadata layer for Feature 01; future Feature tables must be validated before their catalog rows are appended.
+
 ## 2026-09-12 — Create and backfill Feature 01 stock daily
 
 - Target: `public."Feature_01_Stock_Daily"` in Railway project `lucid-patience`, environment `dev`, PostgreSQL service `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`.
