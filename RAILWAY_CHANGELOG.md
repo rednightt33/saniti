@@ -12,6 +12,7 @@ This file records intentional changes to the Railway project. Git history preser
 - Local SSH inspection was unavailable because the workstation has no Railway SSH key. A durable smoke request was therefore inserted through the least-privilege public database proxy and was claimed by the running Railway worker, proving the queue-to-worker path.
 - Smoke request `6a5df01f-e4c5-4296-b2a0-c4bdd5d5a756` stopped before any tool call because OpenAI returned HTTP 429 with `insufficient_quota` / `credit_balance_exhausted`. The service, key presence, database access, worker lease, and request lifecycle were operational; paid OpenAI API credits are the remaining external end-to-end gate.
 - Updated the transport to report safe OpenAI error type/code/message plus request ID and to avoid retrying non-transient quota exhaustion. Transient 429 responses retain bounded retry behavior.
+- Deployed that diagnostic patch from Git commit `e270c1bbeeaecbff74b184eeed09f37df32cf757` as `8bbb044a-b8bf-49f9-b4ab-b85d234ec1a5`; it reached `SUCCESS`, completed startup, and passed `/health` with HTTP 200. Post-deploy smoke request `07ea98c7-d940-4f50-8ae3-6c3cf5db70e3` recorded the exact quota codes with zero model input/output tokens and zero tool calls, confirming immediate safe failure instead of wasteful retries.
 - No existing Railway service, schedule, source, network endpoint, volume, raw/Feature value, or Feature automation was changed.
 
 ## 2026-09-13 — Activate always-on Feature 01 calculation worker

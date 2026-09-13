@@ -22,7 +22,8 @@ Status eksekusi per 2026-09-13:
   `20260913_022_align_market_ai_tool_limits.sql` sudah diterapkan. Live handler
   verification PASS dan deterministic Golden Test suite 15/15 PASS.
 - Railway service `market-ai-backend` sudah terhubung ke GitHub, terdeploy, dan
-  sehat. Initial deployment `db143fa6-3eff-4cf3-9ebe-c1d56d53b171` mencapai
+  sehat. Initial deployment `db143fa6-3eff-4cf3-9ebe-c1d56d53b171` dan current
+  diagnostic deployment `8bbb044a-b8bf-49f9-b4ab-b85d234ec1a5` mencapai
   `SUCCESS`; startup dan private `/health` HTTP 200 terverifikasi. Seluruh 43
   configuration keys tersedia. Login `market_ai_app` dapat membaca
   Feature/katalog dan menulis audit, tetapi raw-table SELECT ditolak.
