@@ -16,6 +16,7 @@ APP = ROOT / "apps" / "market-ai-backend"
 sys.path.insert(0, str(APP))
 
 from app.config import Settings  # noqa: E402
+from app.compaction import compact_result  # noqa: E402
 from app.db import Database  # noqa: E402
 from app.tools import ToolError, ToolRegistry  # noqa: E402
 
@@ -54,6 +55,14 @@ def main() -> None:
         multi_columns = {row["feature_column"] for row in multi_discovery.payload["rows"]}
         assert {"close", "return_20d_pct"} <= multi_columns
         assert multi_discovery.payload["search_mode"] == "whitespace_keywords_or"
+        compact_discovery, _, was_compacted = compact_result(
+            multi_discovery.payload,
+            max_rows=settings.llm_tool_result_max_rows,
+            max_bytes=settings.llm_tool_result_max_bytes,
+            max_tokens=settings.ai_max_tool_result_tokens_per_call,
+        )
+        assert not was_compacted, compact_discovery.get("selection")
+        assert len(compact_discovery["rows"]) == multi_discovery.payload["total_rows"]
 
         quality = tools.execute("check_data_quality", {
             "table": "Feature_01_Stock_Daily", "tickers": ["BBCA"],
@@ -107,7 +116,7 @@ def main() -> None:
             "quality": quality.payload["classification"], "query_rows": rows.payload["total_rows"],
             "aggregate_groups": aggregation.payload["total_rows"],
             "market_board_catalog_audit": "PASS", "semantic_contract_audit": "PASS",
-            "multi_keyword_discovery": "PASS",
+            "multi_keyword_discovery": "PASS", "discovery_identifier_preservation": "PASS",
             "market_boards": sorted(boards),
             "raw_column_rejected": rejected,
         }))

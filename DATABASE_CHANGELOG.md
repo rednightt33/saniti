@@ -1,5 +1,11 @@
 # Database changelog
 
+## 2026-09-14 — Preserve Feature discovery identifiers and harden final evidence
+
+- Applied forward-only migration `database/migrations/20260914_026_harden_feature_discovery_and_final_evidence.sql` after a live DeepSeek analysis showed that verbose discovery metadata could trigger semantic compaction before the model selected the intended Feature column.
+- `find_features` now advertises compact identifier discovery followed by complete `get_feature_definition` retrieval for selected columns. The detailed catalog contract remains the source for analytical interpretation, recommended use, misuse warnings, semantic review status, and validation evidence.
+- `record_evidence` now documents that final citations must use evidence IDs actually created for the current request. No Feature definition, Feature value, query limit, raw-table privilege, or calculation routine was changed.
+
 ## 2026-09-14 — Harden all active Feature semantics
 
 - Applied forward-only migration `database/migrations/20260913_023_harden_feature_catalog_semantics.sql` to Railway `dev` PostgreSQL. It added `analytical_interpretation`, `recommended_use`, `misuse_warning`, `semantic_review_status`, and `validation_evidence` to `Feature_Catalog`, with nonblank/evidence/status constraints and matching verified `Column_Catalog` rows.

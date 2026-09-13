@@ -19,7 +19,11 @@ with `Authorization: Bearer $MARKET_AI_INTERNAL_API_KEY`.
    row/byte/token budgets.
 6. Every tool call, query hash, evidence item, warning, context peak, compaction,
    and cumulative token count is audited.
-7. A successful response stores an immutable version/methodology snapshot and a
+7. A final response is accepted only when it matches the full schema and cites
+   evidence IDs actually recorded for the current request. A malformed or
+   premature final response receives bounded corrective feedback within the same
+   analysis budget.
+8. A successful response stores an immutable version/methodology snapshot and a
    structured `recommended_next_analysis` list.
 
 Provider calls use an allowlisted HTTPS Responses endpoint with `store=false`,

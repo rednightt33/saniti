@@ -74,3 +74,18 @@ def test_loaded_definition_gate_is_recoverable() -> None:
         "rank_features",
         {"table": "Feature_01_Stock_Daily", "column": "return_20d_pct"},
     )
+
+
+def test_final_contract_requires_recorded_and_exact_evidence_ids() -> None:
+    state = RunState("request", "question", {"QUERY"}, [])
+    answer = AnalysisOrchestrator._parse_final_output(_valid_final_json())
+    assert "record_evidence" in AnalysisOrchestrator._final_contract_issue(state, answer)
+
+    state.recorded_evidence_ids.add("evidence-1")
+    assert "at least one" in AnalysisOrchestrator._final_contract_issue(state, answer)
+
+    answer["evidence_ids"] = ["invented"]
+    assert "unverified" in AnalysisOrchestrator._final_contract_issue(state, answer)
+
+    answer["evidence_ids"] = ["evidence-1"]
+    assert AnalysisOrchestrator._final_contract_issue(state, answer) is None

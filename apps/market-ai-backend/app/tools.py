@@ -374,8 +374,7 @@ class ToolRegistry:
         with self.db.query_transaction() as connection:
             rows = connection.execute(
                 '''SELECT feature_table, feature_column, feature_category, definition, unit,
-                          semantic_role, ranking_interpretation, analytical_interpretation,
-                          recommended_use, misuse_warning, semantic_review_status
+                          semantic_role, semantic_review_status
                    FROM public."Feature_Catalog" AS f
                    WHERE is_active AND EXISTS (
                          SELECT 1 FROM unnest(%s::text[]) AS p(pattern)

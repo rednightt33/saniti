@@ -55,6 +55,7 @@ class RunState:
     compactions: int = 0
     peak_context: int = 0
     evidence_digest: list[dict[str, Any]] = field(default_factory=list)
+    recorded_evidence_ids: set[str] = field(default_factory=set)
     features_used: set[str] = field(default_factory=set)
     analysis_ready_date: str | None = None
     last_openai_response_id: str | None = None
@@ -116,7 +117,25 @@ class AnalysisOrchestrator:
                 raw = self._output_text(response)
                 if not raw:
                     raise RuntimeError(f"{self.settings.ai_provider} returned neither a function call nor a final answer")
-                return self._parse_final_output(raw)
+                try:
+                    answer = self._parse_final_output(raw)
+                except RuntimeError as exc:
+                    self._continue_after_rejected_final(
+                        state,
+                        response,
+                        "The prior final response did not match the required JSON schema. "
+                        "Continue any unfinished analysis, then return every required final field as schema-valid JSON.",
+                    )
+                    if state.iterations >= self.settings.ai_max_tool_iterations:
+                        raise exc
+                    continue
+                issue = self._final_contract_issue(state, answer)
+                if issue:
+                    self._continue_after_rejected_final(state, response, issue)
+                    if state.iterations >= self.settings.ai_max_tool_iterations:
+                        raise RuntimeError(issue)
+                    continue
+                return answer
 
             state.input_items.extend(self._response_items(response))
             for call in calls:
@@ -158,6 +177,31 @@ class AnalysisOrchestrator:
                 f"Final structured output validation failed (characters={len(candidate)})"
             ) from exc
 
+    @staticmethod
+    def _final_contract_issue(state: RunState, answer: dict[str, Any]) -> str | None:
+        cited = set(answer.get("evidence_ids") or [])
+        if not state.recorded_evidence_ids:
+            return (
+                "Do not finish yet. Retrieve sufficient evidence for the question and call "
+                "record_evidence before returning the final answer."
+            )
+        if not cited:
+            return "The final answer must cite at least one evidence ID returned by record_evidence."
+        unknown = sorted(cited - state.recorded_evidence_ids)
+        if unknown:
+            return (
+                "The final answer cited unverified evidence IDs. Cite only exact IDs returned by "
+                f"record_evidence in this request; unknown IDs: {unknown}."
+            )
+        return None
+
+    def _continue_after_rejected_final(
+        self, state: RunState, response: dict[str, Any], instruction: str
+    ) -> None:
+        state.input_items.extend(self._response_items(response))
+        state.input_items.append({"role": "user", "content": instruction})
+        self._persist_usage(state)
+
     def _execute_and_log(self, state: RunState, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         state.tool_calls += 1
         step_number = state.tool_calls + state.compactions
@@ -178,6 +222,8 @@ class AnalysisOrchestrator:
                     (str(row["feature_table"]), str(row["feature_column"]))
                     for row in execution.payload.get("rows", [])
                 )
+            if name == "record_evidence" and execution.payload.get("evidence_id"):
+                state.recorded_evidence_ids.add(str(execution.payload["evidence_id"]))
             state.point_in_time_warnings.update(execution.payload.get("point_in_time_warnings") or [])
 
             remaining = self.settings.ai_max_tool_result_tokens_total - state.tool_result_tokens
