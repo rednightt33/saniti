@@ -2,6 +2,14 @@
 
 This file records intentional changes to the Railway project. Git history preserves every revision. Never include secret values.
 
+## 2026-09-14 — Enable advanced orchestration limits and verify four-bank insight
+
+- Increased only the per-analysis orchestration circuit breakers on `market-ai-backend`: `AI_MAX_TOOL_CALLS` from 12 to 32 and `AI_MAX_TOOL_ITERATIONS` from 8 to 20. Deployment `87d3e4dd-ceda-4efb-9710-3e08110b10fe` reached `SUCCESS`. This does not activate the deferred ADVANCED/Analytics Worker tools; the separate 100,000 cumulative-input, 12,000 cumulative-output, 64,000 hard-context, database query, and timeout limits remain unchanged.
+- First advanced-profile request `b24fd791-4536-4cac-a76c-b776e397e038` completed discovery, quality validation, semantic preflight, and the four-bank query, but OpenRouter/DeepSeek omitted required `record_evidence.evidence_type`. The handler's direct key access raised fatal `KeyError`; the requested market values were not published as a completed answer.
+- Added backend validation so missing/invalid evidence fields produce a recoverable tool error before database access. Migration `database/migrations/20260914_030_validate_evidence_requests_in_backend.sql` records that runtime contract. Git commit `bf6f8b8` deployed as `6d209137-0ed8-4b1a-ab6e-b8d64194875b` and reached `SUCCESS`; unit tests passed 25/25.
+- Exact-question rerun `87b682d6-2092-453b-ba00-d71dab1f8f6d` finished `SUCCESS`/`FINAL` with 9 tool calls, 10 iterations, 81,280 input tokens, 3,989 output tokens, 85,269 total tokens, and 13,697 peak active-context tokens. It stayed below every cumulative/context limit, cited one same-request evidence row, stored version/methodology snapshots, and identified BBCA and BBNI as descriptive price-volume divergence candidates on 2026-09-11 without making predictive claims.
+- Final `railway config plan` reported the `dev` environment already up to date. No database row/query limits, raw or Feature values, model/provider, secret, schedule, volume, endpoint, or other Railway service was changed.
+
 ## 2026-09-14 — Complete OpenRouter DeepSeek end-to-end acceptance
 
 - Deployed the approved OpenRouter/provider and Feature-semantic hardening sequence only to `market-ai-backend`: `234e3181-be5e-4a6c-be50-84d70ca2da0f` (`b8d9b10`), `dc857d94-fa52-4820-84bf-256384324d1d` (`ae87d89`), `e515a45c-e6ee-41b0-a432-6c9d19b07f10` (`538a8de`), `1198728d-aa9b-4a32-b8e3-0574007448b2` (`6e0d236`), `533ee5c0-6f3d-4a0a-8803-bfa8f302ad73` (`5a5d61a`), `c0e0279b-ee78-4ac9-b9e2-4c002379ec0c` (`1f03cfc`), and final `937d5add-76a6-48a7-94c2-4c507897def7` (`0017a40`). Every listed deployment reached `SUCCESS`.
