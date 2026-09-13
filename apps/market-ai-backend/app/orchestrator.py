@@ -13,7 +13,7 @@ from .compaction import compact_result, dumps, estimate_tokens
 from .config import Settings
 from .db import Database
 from .openai_client import ResponsesClient
-from .schemas import FINAL_RESPONSE_SCHEMA
+from .schemas import FINAL_RESPONSE_SCHEMA, FinalAnalysis
 from .tools import ToolError, ToolRegistry
 
 
@@ -32,6 +32,7 @@ Before executing a data-retrieval or aggregation tool, load the definitions of
 every relevant output, filter, ordering, grouping, and metric column with
 get_feature_definition. If semantic preflight reports missing definitions, load
 exactly those definitions and retry; never load the entire catalog by default.
+Return the final schema JSON without Markdown fences or surrounding prose.
 """
 
 
@@ -111,8 +112,8 @@ class AnalysisOrchestrator:
             if not calls:
                 raw = self._output_text(response)
                 if not raw:
-                    raise RuntimeError("OpenAI returned neither a function call nor a final answer")
-                return json.loads(raw)
+                    raise RuntimeError(f"{self.settings.ai_provider} returned neither a function call nor a final answer")
+                return self._parse_final_output(raw)
 
             state.input_items.extend(self._response_items(response))
             for call in calls:
@@ -138,6 +139,21 @@ class AnalysisOrchestrator:
                 if content.get("type") == "output_text" and isinstance(content.get("text"), str):
                     parts.append(content["text"])
         return "".join(parts)
+
+    @staticmethod
+    def _parse_final_output(raw: str) -> dict[str, Any]:
+        candidate = raw.strip()
+        if candidate.startswith("```"):
+            lines = candidate.splitlines()
+            if len(lines) < 3 or lines[0].strip().lower() not in {"```", "```json"} or lines[-1].strip() != "```":
+                raise RuntimeError("Final structured output used an invalid Markdown wrapper")
+            candidate = "\n".join(lines[1:-1]).strip()
+        try:
+            return FinalAnalysis.model_validate_json(candidate).model_dump(mode="json")
+        except Exception as exc:
+            raise RuntimeError(
+                f"Final structured output validation failed (characters={len(candidate)})"
+            ) from exc
 
     def _execute_and_log(self, state: RunState, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         state.tool_calls += 1

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AnalysisCreate(BaseModel):
@@ -24,6 +24,28 @@ class AnalysisStatus(BaseModel):
     recommended_next_analysis: list[Any] = []
     error_message: str | None = None
     usage: dict[str, int]
+
+
+class RecommendedNextAnalysis(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    description: str
+    reason: str
+    classification: Literal["OPTIONAL", "REQUIRES_NEW_DATA"]
+
+
+class FinalAnalysis(BaseModel):
+    """Runtime validator matching FINAL_RESPONSE_SCHEMA exactly."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    answer: str
+    conclusion: str
+    confidence: Literal["LOW", "MEDIUM", "HIGH"]
+    analysis_ready_date: str | None
+    evidence_ids: list[str]
+    warnings: list[str]
+    recommended_next_analysis: list[RecommendedNextAnalysis]
 
 
 FINAL_RESPONSE_SCHEMA: dict[str, Any] = {

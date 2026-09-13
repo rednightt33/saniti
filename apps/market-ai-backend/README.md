@@ -54,8 +54,11 @@ and `Tool_Catalog` is the model-facing metadata copy.
 ## Smoke tests and provider errors
 
 Run `scripts/smoke_market_ai_analysis.py` with `APP_DATABASE_URL` set to the
-least-privilege public-proxy DSN. The script inserts one bounded durable request
-and waits for its terminal status; it does not bypass the normal Railway worker.
+least-privilege application DSN. For local execution, also set
+`POSTGRES_PUBLIC_URL`; the helper substitutes only its public host/port while
+retaining the application user/password/database. The script inserts one bounded
+durable request and waits for its terminal status; it does not bypass the normal
+Railway worker.
 
 The provider transport records only safe diagnostics: HTTP status, error type/code,
 message, and request ID. `insufficient_quota` or `credit_balance_exhausted` is not

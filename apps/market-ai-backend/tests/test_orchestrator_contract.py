@@ -11,6 +11,24 @@ def test_extracts_structured_output_text() -> None:
     assert AnalysisOrchestrator._output_text(response) == '{"answer":"ok"}'
 
 
+def _valid_final_json() -> str:
+    return '''{"answer":"ok","conclusion":"test","confidence":"LOW","analysis_ready_date":null,"evidence_ids":[],"warnings":[],"recommended_next_analysis":[]}'''
+
+
+def test_accepts_bare_or_exact_json_fence_and_validates_schema() -> None:
+    expected = AnalysisOrchestrator._parse_final_output(_valid_final_json())
+    assert expected["answer"] == "ok"
+    fenced = AnalysisOrchestrator._parse_final_output(f"```json\n{_valid_final_json()}\n```")
+    assert fenced == expected
+
+
+def test_rejects_prose_or_extra_final_fields() -> None:
+    with pytest.raises(RuntimeError, match="validation failed"):
+        AnalysisOrchestrator._parse_final_output("Here is the answer: " + _valid_final_json())
+    with pytest.raises(RuntimeError, match="validation failed"):
+        AnalysisOrchestrator._parse_final_output(_valid_final_json()[:-1] + ',"extra":true}')
+
+
 def test_reported_single_call_context_ceiling_is_enforced() -> None:
     orchestrator = object.__new__(AnalysisOrchestrator)
     orchestrator.settings = Settings.from_env(require_runtime_secrets=False)

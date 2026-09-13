@@ -6,15 +6,29 @@ from __future__ import annotations
 import json
 import os
 import time
+from urllib.parse import urlsplit, urlunsplit
 
 import psycopg
 from psycopg.rows import dict_row
+
+
+def use_public_proxy(app_url: str, proxy_url: str) -> str:
+    """Keep app credentials/database but substitute the Railway public host/port."""
+    app = urlsplit(app_url)
+    proxy = urlsplit(proxy_url)
+    if not app.username or app.password is None or not proxy.hostname or proxy.port is None:
+        raise RuntimeError("Application or proxy database URL is incomplete")
+    netloc = f"{app.username}:{app.password}@{proxy.hostname}:{proxy.port}"
+    return urlunsplit((app.scheme, netloc, app.path, app.query, app.fragment))
 
 
 def main() -> None:
     url = os.environ.get("APP_DATABASE_URL", "")
     if not url:
         raise RuntimeError("APP_DATABASE_URL is required")
+    public_proxy = os.environ.get("POSTGRES_PUBLIC_URL", "")
+    if public_proxy:
+        url = use_public_proxy(url, public_proxy)
     with psycopg.connect(url, row_factory=dict_row, autocommit=True) as connection:
         request_id = connection.execute(
             '''INSERT INTO public."Analysis_Request" (question,user_reference)
