@@ -89,3 +89,9 @@ def test_final_contract_requires_recorded_and_exact_evidence_ids() -> None:
 
     answer["evidence_ids"] = ["evidence-1"]
     assert AnalysisOrchestrator._final_contract_issue(state, answer) is None
+
+
+def test_direct_retrieval_starts_with_query_tools_without_advanced_tools() -> None:
+    assert AnalysisOrchestrator._initial_stage("Find BBCA close on the ready date") == "SCREENING"
+    assert AnalysisOrchestrator._initial_stage("Laporkan return BBCA") == "SCREENING"
+    assert AnalysisOrchestrator._initial_stage("What features are available?") == "DISCOVERY"

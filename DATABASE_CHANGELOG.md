@@ -5,6 +5,7 @@
 - Applied forward-only migration `database/migrations/20260914_026_harden_feature_discovery_and_final_evidence.sql` after a live DeepSeek analysis showed that verbose discovery metadata could trigger semantic compaction before the model selected the intended Feature column.
 - `find_features` now advertises compact identifier discovery followed by complete `get_feature_definition` retrieval for selected columns. The detailed catalog contract remains the source for analytical interpretation, recommended use, misuse warnings, semantic review status, and validation evidence.
 - `record_evidence` now documents that final citations must use evidence IDs actually created for the current request. No Feature definition, Feature value, query limit, raw-table privilege, or calculation routine was changed.
+- Applied follow-up migration `database/migrations/20260914_027_route_bounded_retrieval_efficiently.sql` after the next smoke proved that an eight-iteration analysis cannot afford a redundant tool-family expansion and estimate for a direct one-ticker/one-date request. Direct retrieval now starts with Query/Screening exposed, bounded `query_features` documents its own validation, and ADVANCED remains excluded unless separately justified. The 8-iteration/12-call limits were not raised.
 
 ## 2026-09-14 — Harden all active Feature semantics
 

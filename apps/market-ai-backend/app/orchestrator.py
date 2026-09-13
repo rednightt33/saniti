@@ -35,6 +35,10 @@ exactly those definitions and retry; never load the entire catalog by default.
 Copy exact case-sensitive Feature table and column identifiers from discovery
 results; never abbreviate them. estimate_query_size already performs structured
 query validation, so do not also call validate_query_request for the same payload.
+For an obviously bounded single-ticker/single-date retrieval, call query_features
+directly because it also enforces validation and limits; estimate first only when
+row cost is genuinely uncertain. Request only the tool families needed for the
+question; do not request ADVANCED for ordinary retrieval.
 Return the final schema JSON without Markdown fences or surrounding prose.
 """
 
@@ -457,7 +461,11 @@ class AnalysisOrchestrator:
     @staticmethod
     def _initial_stage(question: str) -> str:
         text = question.lower()
-        screening_terms = ("screen", "rank", "top ", "bottom ", "banding", "compare", "perbandingan", "tertinggi", "terendah")
+        screening_terms = (
+            "screen", "rank", "top ", "bottom ", "banding", "compare", "perbandingan",
+            "tertinggi", "terendah", "find ", "report ", "show ", "retrieve ", "cari ",
+            "tampilkan ", "laporkan ", "berapa ",
+        )
         return "SCREENING" if any(term in text for term in screening_terms) else "DISCOVERY"
 
     @staticmethod
