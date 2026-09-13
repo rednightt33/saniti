@@ -11,6 +11,19 @@ def test_evidence_recording_is_always_exposed() -> None:
     assert ToolRegistry.ALWAYS_EXPOSED == {"record_evidence"}
 
 
+def test_malformed_evidence_call_is_recoverable_before_database_access() -> None:
+    registry = object.__new__(ToolRegistry)
+    with pytest.raises(ToolError, match="missing required fields.*evidence_type"):
+        registry.record_evidence(
+            {
+                "claim": "Observed result",
+                "compact_payload_json": "{}",
+                "source_tables": ["Feature_01_Stock_Daily"],
+            },
+            "request-id",
+        )
+
+
 class CatalogOnlyRegistry(ToolRegistry):
     def __init__(self, settings: Settings) -> None:
         self.settings = settings

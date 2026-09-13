@@ -569,6 +569,18 @@ class ToolRegistry:
         return Execution({"rows": rows, "total_rows": len(rows), "query_hash": hashes})
 
     def record_evidence(self, arguments: dict[str, Any], request_id: str) -> Execution:
+        required = {"evidence_type", "claim", "compact_payload_json", "source_tables"}
+        missing = sorted(required - arguments.keys())
+        if missing:
+            raise ToolError(f"record_evidence missing required fields: {missing}")
+        if arguments["evidence_type"] not in {
+            "OBSERVATION", "QUALITY", "ANOMALY", "STATISTIC", "HISTORICAL_TEST", "WARNING",
+        }:
+            raise ToolError("record_evidence evidence_type is invalid")
+        if not isinstance(arguments["claim"], str) or not arguments["claim"].strip():
+            raise ToolError("record_evidence claim must be non-empty text")
+        if not isinstance(arguments["source_tables"], list) or not arguments["source_tables"]:
+            raise ToolError("record_evidence source_tables must be a non-empty list")
         try:
             compact_payload = json.loads(arguments["compact_payload_json"])
         except (json.JSONDecodeError, TypeError) as exc:
