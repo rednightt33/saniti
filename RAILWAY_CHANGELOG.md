@@ -2,6 +2,17 @@
 
 This file records intentional changes to the Railway project. Git history preserves every revision. Never include secret values.
 
+## 2026-09-14 — Enable bounded INSIGHT stopping policy
+
+- Added non-secret `market-ai-backend` configuration `AI_ANALYSIS_MODE=INSIGHT`, `AI_MIN_INSIGHT_DATA_CALLS=2`, and `AI_MAX_ANALYSIS_SECONDS=600`. The 32-tool-call, 20-iteration, 100,000 cumulative-input, 12,000 cumulative-output, 64,000 hard-context, and independent query limits were not increased.
+- Git commit `d3f0e53` deployed as `353675ba-ecfc-4065-aa5f-52dbb9259d9c` and reached `SUCCESS`. It separated durable `record_evidence` calls from new `complete_analysis` finalization and enforced two distinct successful analytical query hashes for data/screening questions in INSIGHT mode.
+- First INSIGHT smoke `a2118f3d-344a-4838-8816-ebb949123541` correctly continued past its first observation, but accumulated 102,812 input tokens across 15 tool calls before completion because it attempted extra Feature definitions, retried invalid calls, and wrote three separate evidence rows. It failed at the unchanged 100,000-input hard gate; no limit was raised.
+- Git commit `ffa8b10` deployed as `72e25310-328b-4d75-9b15-459864151cec` and reached `SUCCESS`. Direct ticker retrieval now omits Screening schemas until required, evidence is normally consolidated, and a successful evidence result tells the model whether the distinct-query stopping condition has been met.
+- Exact smoke rerun `19b5ef94-a6c3-4cb8-8396-aad7414f2a08` finished `SUCCESS`/`FINAL`: 12 tool calls, 11 iterations, 98,681 cumulative input tokens, 4,183 output tokens, 102,864 combined tokens, and 18,174 peak active-context tokens. It ran two distinct analytical queries, consolidated one evidence item, passed `complete_analysis`, and automatically compared BBCA with large-bank peers after the initial direct result. The final answer reported 2026-08-31 as the common Feature 1–3 date, BBCA close 6,475 and 20-trading-day return +0.39%, a source-valid elevated-volume anomaly, and no predictive claim.
+- Git commit `b3b7b18` added the independent 600-second whole-analysis circuit breaker and deployed as `c94b5423-a1dc-4006-b0b4-97c5caf03b0c`; deployment, startup, and `/health` 200 all passed. The 180-second provider timeout remains per call. Local tests passed 30/30; live catalog/backend verification and deterministic golden acceptance passed.
+- The local smoke harness initially stopped waiting at 240 seconds while its Railway request was still healthy and later completed successfully. Its default wait is now 720 seconds, longer than the 600-second orchestration budget, so harness timeout is no longer misreported as an application failure.
+- Final `railway config pull --force` and `railway config plan` reported `dev` already up to date. No secret, provider/model, database/Feature value, schedule, volume, endpoint, or unrelated service changed.
+
 ## 2026-09-14 — Enable advanced orchestration limits and verify four-bank insight
 
 - Increased only the per-analysis orchestration circuit breakers on `market-ai-backend`: `AI_MAX_TOOL_CALLS` from 12 to 32 and `AI_MAX_TOOL_ITERATIONS` from 8 to 20. Deployment `87d3e4dd-ceda-4efb-9710-3e08110b10fe` reached `SUCCESS`. This does not activate the deferred ADVANCED/Analytics Worker tools; the separate 100,000 cumulative-input, 12,000 cumulative-output, 64,000 hard-context, database query, and timeout limits remain unchanged.

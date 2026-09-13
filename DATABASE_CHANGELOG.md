@@ -1,5 +1,13 @@
 # Database changelog
 
+## 2026-09-14 — Separate evidence storage from the stopping-policy gate
+
+- Applied forward-only migrations `database/migrations/20260914_031_separate_evidence_from_analysis_completion.sql` and `database/migrations/20260914_032_compact_insight_evidence_workflow.sql` to Railway `dev` PostgreSQL.
+- `record_evidence` remains the durable claim/evidence writer but no longer signals finalization. New active orchestrator tool `complete_analysis` requires recorded evidence and an explicit necessary-follow-up checklist before the backend removes data tools for the final response. `Tool_Catalog` now has 18 active and 11 inactive rows.
+- The model-facing catalog recommends one consolidated evidence item after necessary follow-ups and returns a completion-policy hint. Duplicate analytical query hashes do not satisfy the configured INSIGHT minimum.
+- Live read-back PASS: `record_evidence.signals_finalization=false`, `complete_analysis.signals_finalization=true`, all Feature 1–3 readiness rows remain `READY`, raw-table denial and Feature-table read privileges remain unchanged, and the latest deterministic golden run `db3abfec-a474-41cc-8282-3e2cc12665e0` passed 15/15.
+- Catalog synchronization reconciled 429 registered physical columns and regenerated `DATABASE_SCHEMA.md`. No Feature value, formula, raw row, Feature refresh routine, index, or schedule changed.
+
 ## 2026-09-14 — Preserve Feature discovery identifiers and harden final evidence
 
 - Applied forward-only migration `database/migrations/20260914_026_harden_feature_discovery_and_final_evidence.sql` after a live DeepSeek analysis showed that verbose discovery metadata could trigger semantic compaction before the model selected the intended Feature column.
