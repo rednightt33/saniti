@@ -21,9 +21,9 @@ TABLE_STATUS_RULES = {
     "Table_Catalog": ("Reference", "After approved table metadata changes"),
     "Column_Catalog": ("Reference", "After approved column metadata changes"),
     "Feature_01_Stock_Daily": ("Feature", "After validated daily-price changes"),
-    "Feature_Calculation_Queue": ("System", "After price upsert and worker transitions; integration not active"),
-    "Feature_Status": ("System", "After enqueue and worker transitions; integration not active"),
-    "Feature_Calculation_Log": ("System", "After completed worker attempts; worker not active"),
+    "Feature_Calculation_Queue": ("System", "After committed price inserts/updates and worker transitions"),
+    "Feature_Status": ("System", "After enqueue and worker state transitions"),
+    "Feature_Calculation_Log": ("System", "After completed worker attempts"),
     "Feature_Catalog": ("Reference", "After each validated Feature schema change"),
     "IDX_Broker_Profile": ("Reference", "Periodic / approximately annual"),
     "IDX_Broker_Summary": ("Transactional", "Continuous / each loaded trading day"),
@@ -52,9 +52,9 @@ TABLE_DESCRIPTIONS = {
     "Table_Catalog": "Curated meanings, grain, provenance, and update contracts for approved public data tables.",
     "Column_Catalog": "Physical column inventory and evidence-graded semantic definitions for approved tables.",
     "Feature_01_Stock_Daily": "Daily ticker-level price, return, volatility, volume, and price-position features.",
-    "Feature_Calculation_Queue": "Durable work item per changed Feature 01 source candle; no enqueue path active yet.",
-    "Feature_Status": "Current Feature 01 calculation state per ticker; no status writer active yet.",
-    "Feature_Calculation_Log": "Completed Feature 01 worker attempt history; no worker active yet.",
+    "Feature_Calculation_Queue": "Durable work item per changed Feature 01 source candle.",
+    "Feature_Status": "Current price-driven Feature 01 calculation state per ticker.",
+    "Feature_Calculation_Log": "Completed Feature 01 worker attempt and retry history.",
     "Feature_Catalog": "Machine-readable semantic contract for validated columns in the four locked Feature tables.",
     "IDX_Broker_Profile": "Reference list of IDX broker codes, names, and domestic/foreign classification.",
     "IDX_Broker_Summary": "Daily broker buy/sell activity by symbol, broker, investor type, and market board.",
@@ -491,6 +491,33 @@ def derive_status_rows(
                 last_changed_at = refreshed_at
                 last_operation = "BACKFILL"
             tracking_status = "Derived from Price_Stock_Indonesia_IDX"
+        elif name == "Feature_Calculation_Queue":
+            latest_data_date, changed = connection.execute(
+                sql.SQL("SELECT max(price_date), max(updated_at) FROM {}.{}").format(
+                    sql.Identifier(schema), sql.Identifier(name)
+                )
+            ).fetchone()
+            last_changed_at = changed or last_changed_at
+            tracking_status = "Derived from queue rows"
+            last_operation = "ENQUEUE_OR_WORKER_UPDATE"
+        elif name == "Feature_Status":
+            latest_data_date, changed = connection.execute(
+                sql.SQL("SELECT max(latest_price_date), max(updated_at) FROM {}.{}").format(
+                    sql.Identifier(schema), sql.Identifier(name)
+                )
+            ).fetchone()
+            last_changed_at = changed or last_changed_at
+            tracking_status = "Derived from per-ticker status rows"
+            last_operation = "STATUS_RECONCILE"
+        elif name == "Feature_Calculation_Log":
+            latest_data_date, changed = connection.execute(
+                sql.SQL("SELECT max(price_date), max(finished_at) FROM {}.{}").format(
+                    sql.Identifier(schema), sql.Identifier(name)
+                )
+            ).fetchone()
+            last_changed_at = changed or last_changed_at
+            tracking_status = "Derived from attempt log rows"
+            last_operation = "ATTEMPT_RESULT"
         elif name == "IDX_Broker_Summary":
             latest_data_date = connection.execute(
                 sql.SQL('SELECT max("Date") FROM {}.{}').format(

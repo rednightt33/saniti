@@ -17,8 +17,9 @@ An AI working on this project must read these files in order before changing Rai
 9. [`apps/telegram-monitor/README.md`](apps/telegram-monitor/README.md) — event-driven Telegram delivery, anti-duplicate rules, and secret-variable contract.
 10. [`apps/telegram-trigger/README.md`](apps/telegram-trigger/README.md) — authorized Telegram controls for Railway Run Now actions and command deduplication.
 11. [`apps/stockbit-broker-backfill/README.md`](apps/stockbit-broker-backfill/README.md) — local Stockbit backfill, parallel date ranges, retry behavior, and invalid-token stop rule.
+12. [`apps/feature-01-worker/README.md`](apps/feature-01-worker/README.md) — Feature 01 price queue, worker retries, and status/log operating contract.
 
-The three Feature 01 control tables are present, but automatic enqueue and calculation are not active. The remaining rollout steps are documented in [`FEATURE_01_AUTOMATION_PLAN.md`](FEATURE_01_AUTOMATION_PLAN.md).
+The three Feature 01 control tables are present. PostgreSQL now enqueues non-null-ingestion-time price writes transactionally, and the worker has passed a local database end-to-end test; its continuous Railway service is pending deployment. See [`FEATURE_01_AUTOMATION_PLAN.md`](FEATURE_01_AUTOMATION_PLAN.md).
 
 ## Mandatory update contract
 

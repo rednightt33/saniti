@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-13T03:58:35+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-13T04:27:26+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -8,19 +8,19 @@ Generated from PostgreSQL schema `public` at `2026-09-13T03:58:35+00:00`.
 
 | Table Name | Category | Update Pattern | Latest Data Date | Last Changed At | Tracking | Definition |
 |---|---|---|---|---|---|---|
-| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-13 03:56:13.759386+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-13 03:58:35+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
-| `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-11` | `2026-09-12 14:47:03+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
-| `Feature_Calculation_Log` | System | After completed worker attempts; worker not active | — | `2026-09-13 03:56:31+00:00` | Baseline only | Completed attempt and retry history for Feature 01 calculation work. |
-| `Feature_Calculation_Queue` | System | After price upsert and worker transitions; integration not active | — | `2026-09-13 03:56:31+00:00` | Baseline only | Durable pending and completed Feature 01 calculation work per changed source candle. |
+| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-13 04:27:26.541408+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-13 04:27:26+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-11` | `2026-09-13 04:25:27.944496+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
+| `Feature_Calculation_Log` | System | After completed worker attempts | `2026-09-11` | `2026-09-13 04:25:28.490330+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
+| `Feature_Calculation_Queue` | System | After committed price inserts/updates and worker transitions | `2026-09-11` | `2026-09-13 04:25:27.312530+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
 | `Feature_Catalog` | Reference | After each validated Feature schema change | — | `2026-09-12 17:09:34+00:00` | Baseline; exact changes tracked from this time forward | Versioned semantic definitions and formulas for validated Feature columns. |
-| `Feature_Status` | System | After enqueue and worker transitions; integration not active | — | `2026-09-13 03:56:31+00:00` | Baseline only | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
+| `Feature_Status` | System | After enqueue and worker state transitions | `2026-09-11` | `2026-09-13 04:25:27.312530+00:00` | Derived from per-ticker status rows | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
 | `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-10 07:23:34.854803+00:00` | Tracked automatically | Broker code and name, domestic/foreign type, and usage profile such as Institutional-heavy, Retail-heavy, Mixed, or Niche. |
 | `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 14:41:15.160142+00:00` | Derived from table data and load log | Daily broker buy/sell values and lots by symbol, broker, investor type, and market board. |
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-12 13:34:43.352522+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
 | `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-13` | `2026-09-12 23:01:58.271364+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
-| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-11` | `2026-09-11 10:05:26.641709+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
-| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-13 03:56:13.722596+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
+| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-11` | `2026-09-13 04:25:10.755087+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
+| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-13 04:17:52.606541+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
 | `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
 | `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-12 23:02:02.452075+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
 | `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-09-06 13:21:52.115381+00:00` | Loaded from Universe_Equity_Description.xlsx; future changes tracked automatically | Issuer descriptions and TradingView/curated sector and industry classifications. |
@@ -235,6 +235,7 @@ Durable pending and completed Feature 01 calculation work per changed source can
 | `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Time this queue key was first created. |
 | `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Time the queue row was last changed by the writer or worker. |
 | `completed_at` | `timestamp with time zone` | Yes | — | Time the current source version completed Feature calculation. |
+| `source_attempt_count` | `integer` | No | `0` | Worker claims for the current price ingestion version; resets on source re-ingestion while attempt_count remains lifetime-monotonic. |
 
 ### Constraints
 
@@ -244,6 +245,7 @@ Durable pending and completed Feature 01 calculation work per changed source can
 | `Feature_Calculation_Queue_claim_check` | Check | `CHECK ((status = 'PROCESSING'::text) = (claimed_at IS NOT NULL AND claim_token IS NOT NULL AND claim_expires_at IS NOT NULL))` |
 | `Feature_Calculation_Queue_completion_check` | Check | `CHECK ((status = 'DONE'::text) = (completed_at IS NOT NULL))` |
 | `Feature_Calculation_Queue_feature_check` | Check | `CHECK (feature_table = 'Feature_01_Stock_Daily'::text)` |
+| `Feature_Calculation_Queue_source_attempt_check` | Check | `CHECK (source_attempt_count >= 0 AND source_attempt_count <= attempt_count)` |
 | `Feature_Calculation_Queue_status_check` | Check | `CHECK (status = ANY (ARRAY['PENDING'::text, 'PROCESSING'::text, 'DONE'::text, 'FAILED'::text]))` |
 | `Feature_Calculation_Queue_timestamps_check` | Check | `CHECK (updated_at >= created_at)` |
 | `Feature_Calculation_Queue_price_fkey` | Foreign key | `FOREIGN KEY (ticker, price_date) REFERENCES "Price_Stock_Indonesia_IDX"(ticker, date)` |

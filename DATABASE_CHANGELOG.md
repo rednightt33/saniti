@@ -1,5 +1,14 @@
 # Database changelog
 
+## 2026-09-13 — Activate price-driven Feature 01 enqueue and local worker verification
+
+- Applied forward-only migration `database/migrations/20260913_006_activate_feature_01_queue.sql` in Railway project `lucid-patience`, environment `dev`. A PostgreSQL price-row trigger now transactionally opens/reopens one Feature 01 queue item for each inserted or updated candle with non-null `ingestion_time`; no TradingView query or price-cron code change was made.
+- Added `Feature_Calculation_Queue.source_attempt_count` (the per-source retry counter; lifetime `attempt_count` remains monotonic for unique attempt logs), a check constraint, status-reconciliation and enqueue trigger functions, and their `Table_Catalog.related_functions` entries. `Column_Catalog` now covers 203 physical columns across 14 registered tables; synchronization reconciled 39 source-path changes and later reported zero drift.
+- Before activation, reconciled all 1,303,728 price rows to Feature 01: zero missing keys and zero close, volume, Sector, or Industry mismatches. The three control tables were empty.
+- Rollback-only price update PASS: queue and status became `PENDING` inside the transaction and vanished on rollback. A committed BBCA 2026-09-11 no-OHLCV-change test then created one queue item. The first local worker attempt failed due to a result-row access bug and was recorded as `FAILED`; after fixing the worker code, automatic retry logic completed it and recorded `SUCCESS` in both queue and status. The log preserves both attempts.
+- Historical BBCA 2026-01-21 no-OHLCV-change test PASS: worker refreshed exactly 121 trading observations (changed date plus 120 subsequent observations), validated source/Feature coverage, and restored ticker status to `SUCCESS`. Re-ingesting BBCA 2026-09-11 reopened its existing queue key with per-source attempts reset to zero, then a new successful worker claim completed it. OHLCV values and total price/Feature row counts remained unchanged; only ingestion timestamps for those two test candles and the expected operational/Feature refresh records changed.
+- The queue trigger is active, but continuous automatic processing remains pending until the new Railway worker service is deployed and verified. Price cron schedules, source code, and other services were not changed in this stage.
+
 ## 2026-09-13 — Create Feature 01 calculation control tables
 
 - Target: Railway project `lucid-patience`, environment `dev`, PostgreSQL service `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`.

@@ -88,10 +88,10 @@ Telegram owner -> telegram-trigger webhook -> validate webhook secret and Chat I
 - `IDX_Stock_Universe`: Indonesian listed-security universe.
 - `Universe_Equity_Description`: company and industry descriptions.
 - `Price_Stock_Indonesia_IDX`: daily IDX OHLCV price history.
-- `Feature_01_Stock_Daily`: SQL-side daily ticker features for price returns, volatility, volume, and drawdown. Its refresh routine exists, but price-cron integration is intentionally not active yet.
-- `Feature_Calculation_Queue`: durable per-candle Feature 01 work items; no automatic enqueue writer is active yet.
-- `Feature_Status`: current per-ticker Feature 01 calculation state; no status writer is active yet.
-- `Feature_Calculation_Log`: completed calculation attempt history; no worker is active yet.
+- `Feature_01_Stock_Daily`: SQL-side daily ticker features for price returns, volatility, volume, and drawdown; its incremental refresh routine is called by the Feature 01 worker.
+- `Feature_Calculation_Queue`: durable per-candle Feature 01 work items; a PostgreSQL price-row trigger now enqueues them in the price transaction.
+- `Feature_Status`: current price-driven per-ticker Feature 01 calculation state, reconciled during enqueue and worker transitions.
+- `Feature_Calculation_Log`: completed calculation attempt and retry history. The worker has passed a local live-database test; its Railway service is pending deployment.
 - `Feature_Catalog`: machine-readable semantic and governance layer for validated columns in the four locked Feature tables. It currently contains only active `v1` definitions for Feature 01.
 - `Table_Catalog`: curated purpose, grain, source, writer, and update contract for 14 approved tables.
 - `Column_Catalog`: physical column inventory and evidence-graded definitions for columns in those approved tables. For Feature formulas, `Feature_Catalog` remains authoritative.

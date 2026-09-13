@@ -18,7 +18,7 @@ The initial `Table_Catalog` scope was exactly these eleven existing tables:
 `Telegram_Command_Log`, and `Telegram_Notification_Log`.
 `Database_Table_Status`, the deleted `IDX_Broker_Summary_Data_Quality`, and the two new catalog tables themselves are not initial catalog entries.
 
-The current scope adds `Feature_Calculation_Queue`, `Feature_Status`, and `Feature_Calculation_Log`, for 14 registered tables and 202 registered columns. They are `System` control tables, not calculated Feature-output tables; they do not require formula entries in `Feature_Catalog`. Their semantic entries remain `PARTIAL` until the writer and worker are implemented and verified. The 29 active Feature 01 formula definitions are unchanged.
+The current scope adds `Feature_Calculation_Queue`, `Feature_Status`, and `Feature_Calculation_Log`, for 14 registered tables and 203 registered columns. They are `System` control tables, not calculated Feature-output tables; they do not require formula entries in `Feature_Catalog`. The price trigger and worker implementation are recorded in their `Table_Catalog.related_functions` and `source_code_paths`. Their semantic entries remain `PARTIAL` until the Railway worker deployment is verified. The 29 active Feature 01 formula definitions are unchanged.
 
 The only existing Feature table is Feature 01. `Feature_Catalog` already has active `v1` definitions for its 29 physical columns; do not invent entries for Feature 02–04 before those tables exist and are validated.
 
