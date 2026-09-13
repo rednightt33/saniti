@@ -18,9 +18,11 @@ The initial `Table_Catalog` scope was exactly these eleven existing tables:
 `Telegram_Command_Log`, and `Telegram_Notification_Log`.
 `Database_Table_Status`, the deleted `IDX_Broker_Summary_Data_Quality`, and the two new catalog tables themselves are not initial catalog entries.
 
-The current scope adds `Feature_Calculation_Queue`, `Feature_Status`, and `Feature_Calculation_Log`, for 14 registered tables and 203 registered columns. They are `System` control tables, not calculated Feature-output tables; they do not require formula entries in `Feature_Catalog`. The price trigger and worker implementation are recorded in their `Table_Catalog.related_functions` and `source_code_paths`. The Railway worker deployment and one live re-ingestion succeeded; catalog entries still marked `PARTIAL` retain that evidence grade until separately reviewed and promoted. The 29 active Feature 01 formula definitions are unchanged.
+The scope subsequently added `Feature_Calculation_Queue`, `Feature_Status`, and `Feature_Calculation_Log`. They are `System` control tables, not calculated Feature-output tables; they do not require formula entries in `Feature_Catalog`. The price trigger and worker implementation are recorded in their `Table_Catalog.related_functions` and `source_code_paths`. The Railway worker deployment and one live re-ingestion succeeded; catalog entries still marked `PARTIAL` retain that evidence grade until separately reviewed and promoted.
 
-The only existing Feature table is Feature 01. `Feature_Catalog` already has active `v1` definitions for its 29 physical columns; do not invent entries for Feature 02–04 before those tables exist and are validated.
+`Feature_02_Broker_Rolling` is an approved, validated Feature-output table. It adds one `Table_Catalog` entry and 38 `Column_Catalog` entries, bringing the registered scope to 15 tables and 241 columns. After its full backfill passed validation, its 38 active `Feature_Catalog` `v1` definitions were registered by `20260913_008_catalog_feature_02_broker_rolling.sql`. The existing 29 active Feature 01 definitions remain unchanged. Its three board partitions and ticker transaction-date calendar are explained in `FEATURE_02_BROKER_ROLLING.md`.
+
+Do not invent active Feature Catalog entries for Feature 03–04 before those tables exist and are validated.
 
 ## Field contract
 
@@ -54,6 +56,13 @@ ORDER BY ordinal_position;
 SELECT feature_column, definition, calculation, null_rule
 FROM public."Feature_Catalog"
 WHERE feature_table = 'Feature_01_Stock_Daily'
+  AND version = 'v1' AND is_active
+ORDER BY feature_column;
+
+-- Feature 02 validated active definitions:
+SELECT feature_column, calculation, minimum_history, null_rule
+FROM public."Feature_Catalog"
+WHERE feature_table = 'Feature_02_Broker_Rolling'
   AND version = 'v1' AND is_active
 ORDER BY feature_column;
 ```

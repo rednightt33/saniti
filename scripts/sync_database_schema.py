@@ -21,6 +21,7 @@ TABLE_STATUS_RULES = {
     "Table_Catalog": ("Reference", "After approved table metadata changes"),
     "Column_Catalog": ("Reference", "After approved column metadata changes"),
     "Feature_01_Stock_Daily": ("Feature", "After validated daily-price changes"),
+    "Feature_02_Broker_Rolling": ("Feature", "After validated broker-summary changes; manual backfill in v1"),
     "Feature_Calculation_Queue": ("System", "After committed price inserts/updates and worker transitions"),
     "Feature_Status": ("System", "After enqueue and worker state transitions"),
     "Feature_Calculation_Log": ("System", "After completed worker attempts"),
@@ -39,6 +40,7 @@ TRACKED_CHANGE_TABLES = (
     "Table_Catalog",
     "Column_Catalog",
     "Feature_01_Stock_Daily",
+    "Feature_02_Broker_Rolling",
     "Feature_Catalog",
     "IDX_Broker_Profile",
     "IDX_Stock_Universe",
@@ -52,6 +54,7 @@ TABLE_DESCRIPTIONS = {
     "Table_Catalog": "Curated meanings, grain, provenance, and update contracts for approved public data tables.",
     "Column_Catalog": "Physical column inventory and evidence-graded semantic definitions for approved tables.",
     "Feature_01_Stock_Daily": "Daily ticker-level price, return, volatility, volume, and price-position features.",
+    "Feature_02_Broker_Rolling": "Broker flow, persistence, abnormality, and accumulation by source ticker, broker, board, and transaction date.",
     "Feature_Calculation_Queue": "Durable work item per changed Feature 01 source candle.",
     "Feature_Status": "Current price-driven Feature 01 calculation state per ticker.",
     "Feature_Calculation_Log": "Completed Feature 01 worker attempt and retry history.",
@@ -481,7 +484,7 @@ def derive_status_rows(
         tracking_status = previous.get(name, {}).get("tracking_status") or "Baseline"
         last_operation = previous.get(name, {}).get("last_operation")
 
-        if name == "Feature_01_Stock_Daily":
+        if name in {"Feature_01_Stock_Daily", "Feature_02_Broker_Rolling"}:
             latest_data_date = connection.execute(
                 sql.SQL('SELECT max("date") FROM {}.{}').format(
                     sql.Identifier(schema), sql.Identifier(name)
@@ -490,7 +493,11 @@ def derive_status_rows(
             if last_changed_at is None:
                 last_changed_at = refreshed_at
                 last_operation = "BACKFILL"
-            tracking_status = "Derived from Price_Stock_Indonesia_IDX"
+            tracking_status = (
+                "Derived from Price_Stock_Indonesia_IDX"
+                if name == "Feature_01_Stock_Daily"
+                else "Derived from IDX_Broker_Summary; Feature 02 refresh is manual"
+            )
         elif name == "Feature_Calculation_Queue":
             latest_data_date, changed = connection.execute(
                 sql.SQL("SELECT max(price_date), max(updated_at) FROM {}.{}").format(

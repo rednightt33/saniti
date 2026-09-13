@@ -1,5 +1,19 @@
 # Database changelog
 
+## 2026-09-13 — Create, backfill, validate, and catalog Feature 02 broker rolling signals
+
+- Target: `public."Feature_02_Broker_Rolling"` in Railway project `lucid-patience`, environment `dev`, PostgreSQL service `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`.
+- Applied forward-only migrations `database/migrations/20260913_007_create_feature_02_broker_rolling.sql` and `database/migrations/20260913_008_catalog_feature_02_broker_rolling.sql`. The table has 38 columns, primary key `(ticker, market_board, broker, date)`, a daily-consumer index `(date, market_board, ticker)`, board/ratio/percentile checks, and the exact empirical-midrank helper routine.
+- Full SQL-side historical backfill completed for all source data available at execution: 42,598,713 daily derived rows, 4,125 symbols, 111 brokers, and dates 2016-01-04 through 2026-08-31. Board rows are Regular 41,903,954, Nego 636,808, and Tunai 57,951. Domestic and Foreign source rows were combined at `(date, ticker, broker, market_board)`; boards were never combined.
+- Backfill used resumable per-ticker transactions. A stopped first pass left 14,167,393 committed rows; two disjoint resume workers then inserted 14,253,624 rows for ticker values below `N` and 14,177,696 rows from `N` onward. Their staged ranges summed exactly to 42,598,713. Because the run intentionally spanned an interruption and restart, one continuous wall-clock duration is not reported; representative large ticker transactions took roughly 60–100 seconds.
+- Exact source reconciliation PASS: zero extra Feature rows, zero missing Feature rows, and zero mismatches in 1D buy/sell value or lots. Distinct identifiers, min/max dates, and board-level gross totals matched; primary-key duplicates are impossible and none were observed. Metadata coverage had zero null `broker_type` and zero null `broker_classification`; persistence/window invariants had zero violations.
+- Independent 31-field recalculation PASS for BBCA/AK/Regular on 2026-08-31, BBCA/AK/Nego on 2026-08-31, and BBCA/MG/Tunai on 2026-08-18. Boundary tests also covered a short-history instrument, transaction-calendar gaps, zero activity, and zero historical standard deviation. Numerical differences were zero or floating-point noise no larger than `4.45e-16`.
+- Resume/idempotence PASS: re-running BBCA staged 177,212 daily grains, skipped its already complete ticker, and inserted zero rows. The full validation scan completed in approximately 12 minutes and returned `overall=PASS`.
+- Expected NULL boundaries: 5D 208,419 (0.4893%); 20D rolling fields 836,449 (1.9636%); 60D rolling fields 2,277,232 (5.3458%); 20D/60D z-scores 8,247,078 (19.3599%)/9,141,945 (21.4606%); 20D/60D percentiles 7,967,501 (18.7036%)/8,886,424 (20.8608%); largest-buy-day fields 2,347,232 (5.5101%).
+- Catalog activation PASS: `Feature_Catalog` now has 67 active definitions, including 38/38 Feature 02 `v1` definitions. `Table_Catalog` has 15 registered tables and `Column_Catalog` has 241 columns; all 38 Feature 02 column entries are `VERIFIED`. Live catalog reconciliation updated 38 physical facts and `DATABASE_SCHEMA.md` was regenerated from 18 public tables.
+- Query-plan checks use the primary key for ticker/board/broker history and `Feature_02_Broker_Rolling_date_board_ticker_idx` for one-date board/ticker access. Total table-plus-index size was approximately 13 GB after backfill and indexing.
+- No raw broker row, price table, Feature 01 table, price cron, or Railway service was changed. Feature 02 automatic refresh is not deployed in this version; source corrections or new broker data require the documented manual ticker rebuild until a separate queue/worker rollout is approved.
+
 ## 2026-09-13 — Verify live Railway Feature 01 worker
 
 - Deployed the always-on `feature-01-worker` and verified its initial deployment `5465b07b-5919-4dc1-a513-871ba7ca4ad2` reached `SUCCESS`; see `RAILWAY_CHANGELOG.md` for service configuration.

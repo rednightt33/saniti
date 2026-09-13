@@ -94,19 +94,20 @@ Telegram owner -> telegram-trigger webhook -> validate webhook secret and Chat I
 - `Universe_Equity_Description`: company and industry descriptions.
 - `Price_Stock_Indonesia_IDX`: daily IDX OHLCV price history.
 - `Feature_01_Stock_Daily`: SQL-side daily ticker features for price returns, volatility, volume, and drawdown; its incremental refresh routine is called by the Feature 01 worker.
+- `Feature_02_Broker_Rolling`: broker flow and rolling signals for all symbols in `IDX_Broker_Summary`, partitioned by Regular/Nego/Tunai board; windows count ticker transaction dates across any board. Its initial historical backfill is SQL-side, but no automatic Feature 02 refresh worker is deployed. See `FEATURE_02_BROKER_ROLLING.md`.
 - `Feature_Calculation_Queue`: durable per-candle Feature 01 work items; a PostgreSQL price-row trigger now enqueues them in the price transaction.
 - `Feature_Status`: current price-driven per-ticker Feature 01 calculation state, reconciled during enqueue and worker transitions.
 - `Feature_Calculation_Log`: completed calculation attempt and retry history. The Railway worker is deployed and a live re-ingestion test passed.
-- `Feature_Catalog`: machine-readable semantic and governance layer for validated columns in the four locked Feature tables. It currently contains only active `v1` definitions for Feature 01.
-- `Table_Catalog`: curated purpose, grain, source, writer, and update contract for 14 approved tables.
-- `Column_Catalog`: physical column inventory and evidence-graded definitions for columns in those approved tables. For Feature formulas, `Feature_Catalog` remains authoritative.
+- `Feature_Catalog`: machine-readable semantic and governance layer for validated columns in the four locked Feature tables. Active `v1` definitions cover the validated Feature 01 and Feature 02 tables.
+- `Table_Catalog`: curated purpose, grain, source, writer, and update contract for approved tables, including Feature 02.
+- `Column_Catalog`: physical column inventory and evidence-graded definitions for approved tables. For Feature formulas, `Feature_Catalog` remains authoritative.
 - `Monitoring_Price_ALL`: per-execution daily/recovery completeness, trigger source, query time, missing symbols, and status grouped by the universe `Security Type` value.
 - `Telegram_Command_Log`: incoming Telegram Run Now audit, webhook-retry deduplication, and rapid-click blocking.
 - `Telegram_Notification_Log`: Telegram delivery status and anti-duplicate ledger keyed by source table and source `execution_id`.
 - `stockbit_broker_summary_load_log`: resume, retry, and `NEEDS_REVIEW` history.
 - `Database_Table_Status`: freshness and tracking catalog.
 
-See `DATABASE_CATALOG.md` for the initial and current table lists, metadata fields, confidence rules, and mandatory updates when new tables, columns, Feature definitions, or routines are added. `Database_Table_Status` remains a separate operational freshness table and is not one of the 14 semantic catalog targets.
+See `DATABASE_CATALOG.md` for the initial and current table lists, metadata fields, confidence rules, and mandatory updates when new tables, columns, Feature definitions, or routines are added. `Database_Table_Status` remains a separate operational freshness table and is not a semantic catalog target.
 
 Use `DATABASE_SCHEMA.md` for exact current columns and constraints.
 

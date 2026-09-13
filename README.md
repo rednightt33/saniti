@@ -18,8 +18,11 @@ An AI working on this project must read these files in order before changing Rai
 10. [`apps/telegram-trigger/README.md`](apps/telegram-trigger/README.md) — authorized Telegram controls for Railway Run Now actions and command deduplication.
 11. [`apps/stockbit-broker-backfill/README.md`](apps/stockbit-broker-backfill/README.md) — local Stockbit backfill, parallel date ranges, retry behavior, and invalid-token stop rule.
 12. [`apps/feature-01-worker/README.md`](apps/feature-01-worker/README.md) — Feature 01 price queue, worker retries, and status/log operating contract.
+13. [`FEATURE_02_BROKER_ROLLING.md`](FEATURE_02_BROKER_ROLLING.md) — board-separated broker features, ticker transaction-date windows, full backfill, and refresh limitations.
 
 Automatic price-driven Feature 01 calculation is active in Railway `dev`: PostgreSQL transactionally enqueues price writes with non-null `ingestion_time`, and the always-on `feature-01-worker` processes them. The live Railway worker completed a re-ingestion test. See [`FEATURE_01_AUTOMATION_PLAN.md`](FEATURE_01_AUTOMATION_PLAN.md) and [`apps/feature-01-worker/README.md`](apps/feature-01-worker/README.md).
+
+Feature 02 is a separate broker-derived table for all `IDX_Broker_Summary` symbols and three board partitions (`Regular`, `Nego`, `Tunai`). Its 5/20/60D windows use each ticker's transaction dates across any board. The Feature 01 price worker does not update Feature 02; see [`FEATURE_02_BROKER_ROLLING.md`](FEATURE_02_BROKER_ROLLING.md) for the manual backfill and current refresh contract.
 
 ## Mandatory update contract
 
@@ -39,6 +42,7 @@ git pull --ff-only
 # After a direct Railway dashboard/CLI configuration change:
 railway config pull --force
 railway config plan
+python scripts/sync_database_catalog.py
 python scripts/sync_database_schema.py
 git diff --check
 git status --short
