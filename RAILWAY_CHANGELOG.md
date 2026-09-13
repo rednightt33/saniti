@@ -2,6 +2,14 @@
 
 This file records intentional changes to the Railway project. Git history preserves every revision. Never include secret values.
 
+## 2026-09-13 — Activate always-on Feature 01 calculation worker
+
+- Created `feature-01-worker` (service ID `de4e34ee-435b-408f-a77f-63e6698a2dab`) in project `lucid-patience`, environment `dev`. It deploys `rednightt33/saniti` branch `main` from `/apps/feature-01-worker`, with matching watch path, Dockerfile build, `python worker.py`, one `sfo` replica, `ALWAYS` restart, and no cron schedule or public domain.
+- Set only `DATABASE_URL` as a Railway reference to the existing `Postgres` service; no credential value was copied to GitHub. Price cron services, schedules, source, variables, and TradingView behavior were unchanged.
+- Initial deployment `5465b07b-5919-4dc1-a513-871ba7ca4ad2` of Git commit `6c1ee21d202641eaf545882892e349a2f0795f06` reached `SUCCESS`. Runtime logs showed `worker_started`, then `claim_started` and `calculation_completed` for a committed metadata-only BBCA 2026-09-11 re-ingestion.
+- Live database read-back: the reopened BBCA queue key returned to `DONE` with `source_attempt_count=1`; `Feature_Status` was `SUCCESS` with zero outstanding items; `Feature_Calculation_Log` recorded `SUCCESS` and one refreshed Feature row. The queue had two `DONE` items, one ticker `SUCCESS`, and no pending/processing/failed item at verification. No OHLCV value was changed by the test.
+- Pulled the live Railway configuration into `.railway/railway.ts`; `railway config plan` reported no drift. The pull also captured the pre-existing `DB2` and `db-ops-runner` resources, which were not modified.
+
 ## 2026-09-13 — Record database-side price ingestion timestamps
 
 - Updated the shared `apps/idx-price-cron` bulk upsert so `idx-price-cron` and `idx-price-recovery-cron` assign `Price_Stock_Indonesia_IDX.ingestion_time` from PostgreSQL `statement_timestamp()` on both insert and `(ticker, date)` conflict update.

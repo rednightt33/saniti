@@ -15,6 +15,8 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - IDX price cron service ID: `43c86c6f-3221-4403-83c3-cd3056441558`
 - IDX price recovery cron service: `idx-price-recovery-cron`
 - IDX price recovery cron service ID: `a8e6e32a-fcd8-4c33-9ecc-1488a4b2db05`
+- Feature 01 worker service: `feature-01-worker`
+- Feature 01 worker service ID: `de4e34ee-435b-408f-a77f-63e6698a2dab`
 - Telegram notification service: `telegram-monitor`
 - Telegram notification service ID: `a6b4e061-721f-4173-82f8-07ccb45740fc`
 - Telegram command service: `telegram-trigger`
@@ -35,6 +37,7 @@ All application services deploy from `rednightt33/saniti` on branch `main`. Each
 | `idx-price-recovery-cron` | `/apps/idx-price-cron` | `/apps/idx-price-cron/**` |
 | `telegram-monitor` | `/apps/telegram-monitor` | `/apps/telegram-monitor/**` |
 | `telegram-trigger` | `/apps/telegram-trigger` | `/apps/telegram-trigger/**` |
+| `feature-01-worker` | `/apps/feature-01-worker` | `/apps/feature-01-worker/**` |
 
 Connecting or changing a service source must preserve its environment variables and secrets, cron schedule, start command, health check, domain, private networking, restart/serverless policy, and database references. Source-configuration work must not use **Run now** on either price service and must not issue a TradingView query. Record the currently active deployment ID before each change so it remains available as the rollback reference, then wait for the new deployment to reach `SUCCESS` before changing the next service.
 
@@ -69,6 +72,8 @@ idx-price-recovery-cron at 06:00 Asia/Jakarta, or Run now -> previous-weekday DA
 
 Railway evaluates separate UTC schedules: `idx-price-cron` uses `0 10 * * *`, and `idx-price-recovery-cron` uses `0 23 * * *`. Both use explicit modes and exit after each execution. Weekend recovery targets Friday. A price row is accepted only when the TradingView candle timestamp matches the exact target date; a prior candle is never used as today's value. The `(ticker, date)` primary key makes repeated runs replace only the same daily row. A shared PostgreSQL advisory lock prevents concurrent runs. Every execution has its own monitoring `execution_id`; the system never performs an automatic third TradingView query.
 
+After a committed price insert/update with non-null `ingestion_time`, the PostgreSQL trigger opens a Feature 01 queue item for that ticker/date in the same transaction. The always-on `feature-01-worker` polls the queue, runs the incremental SQL refresh, validates affected rows, and updates `Feature_Calculation_Queue`, `Feature_Status`, and `Feature_Calculation_Log`. It has no cron schedule and never queries TradingView. A historical price correction can refresh up to 120 subsequent trading observations. Its `SUCCESS` status measures price-driven freshness only; universe classification changes need a separate refresh path.
+
 `telegram-monitor` has no cron schedule and does not poll PostgreSQL. It sleeps while idle and is called only after a DAILY or RECOVERY monitoring transaction commits. The caller retries temporary cold-start/network failures; Telegram failure never rolls back price data. Delivery is deduplicated by source table plus `execution_id`. Each final message shows the job's `run_time` as `Triggered at` and `finished_at` as `Finished at`, converted to Asia/Jakarta.
 
 Telegram manual control:
@@ -91,7 +96,7 @@ Telegram owner -> telegram-trigger webhook -> validate webhook secret and Chat I
 - `Feature_01_Stock_Daily`: SQL-side daily ticker features for price returns, volatility, volume, and drawdown; its incremental refresh routine is called by the Feature 01 worker.
 - `Feature_Calculation_Queue`: durable per-candle Feature 01 work items; a PostgreSQL price-row trigger now enqueues them in the price transaction.
 - `Feature_Status`: current price-driven per-ticker Feature 01 calculation state, reconciled during enqueue and worker transitions.
-- `Feature_Calculation_Log`: completed calculation attempt and retry history. The worker has passed a local live-database test; its Railway service is pending deployment.
+- `Feature_Calculation_Log`: completed calculation attempt and retry history. The Railway worker is deployed and a live re-ingestion test passed.
 - `Feature_Catalog`: machine-readable semantic and governance layer for validated columns in the four locked Feature tables. It currently contains only active `v1` definitions for Feature 01.
 - `Table_Catalog`: curated purpose, grain, source, writer, and update contract for 14 approved tables.
 - `Column_Catalog`: physical column inventory and evidence-graded definitions for columns in those approved tables. For Feature formulas, `Feature_Catalog` remains authoritative.

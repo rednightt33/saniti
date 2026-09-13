@@ -1,6 +1,6 @@
 # Feature 01 price-ingestion automation plan
 
-The three control tables and price-row enqueue trigger now exist in Railway PostgreSQL. The worker has passed local end-to-end tests against the live database, including retry and historical refresh, but its continuously running Railway service is pending deployment. Until that deployment succeeds, new queue items are durable but not continuously processed. `Feature_01_Stock_Daily` and `refresh_feature_01_stock_daily(date, text[])` remain the calculation targets.
+Automatic price-driven Feature 01 calculation is active in Railway `dev`. A PostgreSQL price-row trigger enqueues work, and the always-on `feature-01-worker` service processes it. Local retry and historical tests and a live Railway worker test passed. `Feature_01_Stock_Daily` and `refresh_feature_01_stock_daily(date, text[])` remain the calculation targets.
 
 ## The three control tables
 
@@ -16,7 +16,7 @@ The queue state is `PENDING` → `PROCESSING` → `DONE` or `FAILED`. `DONE` mea
 
 ## Implemented fields
 
-`Feature_Calculation_Queue`: `feature_table`, `ticker`, `price_date`, `source_ingestion_time`, `source_execution_id` (nullable), `status`, `attempt_count`, `next_attempt_at`, `claimed_at`, `claim_token`, `claim_expires_at`, `last_error`, `created_at`, `updated_at`, and `completed_at`.
+`Feature_Calculation_Queue`: `feature_table`, `ticker`, `price_date`, `source_ingestion_time`, `source_execution_id` (nullable), `status`, lifetime `attempt_count`, per-source-version `source_attempt_count`, `next_attempt_at`, `claimed_at`, `claim_token`, `claim_expires_at`, `last_error`, `created_at`, `updated_at`, and `completed_at`.
 
 `Feature_Status`: `feature_table`, `ticker`, `latest_price_date`, `latest_source_ingestion_time`, `last_successful_source_ingestion_time`, `last_successful_price_date`, `last_calculated_at`, `pending_count`, `processing_count`, `failed_count`, `status`, `last_error`, and `updated_at`.
 
@@ -24,17 +24,17 @@ The queue state is `PENDING` → `PROCESSING` → `DONE` or `FAILED`. `DONE` mea
 
 `Feature_Status` counts/status are reconciled from queue transitions; it never independently declares success while a newer source version is pending. Its `latest_price_date` records the latest trading date observed by the enqueue flow. Queue keys have a foreign key to source candles; log rows have a foreign key to queue keys. The queue has partial ready/recovery indexes and a ticker/state index. The trigger only enqueues rows with non-null `ingestion_time`; the existing price cron supplies this timestamp. `source_execution_id` is currently null because the database trigger does not receive the price execution ID.
 
-## Required transaction and worker behavior
+## Active transaction and worker behavior
 
 1. The price writer upserts a valid `Price_Stock_Indonesia_IDX` candle. Its PostgreSQL trigger inserts/reopens the Feature 01 queue item to `PENDING` **in the same database transaction**. The source version is `ingestion_time`. If the transaction rolls back, neither price nor queue change remains.
 2. After commit, the worker atomically claims eligible `PENDING` work with `FOR UPDATE SKIP LOCKED`; the same worker reclaims expired `PROCESSING` leases and retries eligible `FAILED` work with backoff. It does not query TradingView.
 3. The worker calls `refresh_feature_01_stock_daily(price_date, ARRAY[ticker])`. It must process each changed date needed for a ticker; one historical correction can affect its own feature row and up to 120 later trading observations. Several changes more than 120 observations apart cannot be collapsed into one date.
 4. The worker validates the affected `(ticker, date)` coverage and records `DONE` only if its claim token and `source_ingestion_time` still match the queue row. A newer price upsert must not be overwritten by a stale worker completion.
 5. `Feature_Status` becomes `SUCCESS` only after all queue items for that ticker are `DONE` for current source versions. Errors leave the queue `FAILED`, save a concise reason, and set the summary to `FAILED` unless other work is actively processing.
-6. Worker calls are idempotent; the PostgreSQL refresh routine already protects calculation overlap with an advisory transaction lock. Add bounded batch size, retry limits, and observability tests before deployment.
+6. Worker calls are idempotent; the PostgreSQL refresh routine protects calculation overlap with an advisory transaction lock. The worker handles one queue item per claim, polls every five seconds, and permits five claims per source version with exponential retry delay. It uses a ten-minute claim lease and one always-on Railway replica.
 
-At rollout, reconcile existing Feature 01 keys and values against the price source before initializing historical ticker summaries as `SUCCESS`; do not pretend that old price rows with null `ingestion_time` have a known source version. Queue only committed new/revised price observations from the activation point onward, or explicitly plan a separate historical replay.
+The activation reconciliation found no missing Feature 01 keys or close/volume/Sector/Industry mismatches among 1,303,728 source/Feature pairs. Historical ticker summaries were not blindly marked `SUCCESS`; only committed price changes with non-null `ingestion_time` create queue/status rows. Old price rows with null `ingestion_time` remain covered by the Feature 01 backfill but do not have a known source version in this queue. A separate historical replay would be needed if per-ticker queue history for those rows is desired.
 
 Feature 01 also copies current Sector and Industry from `IDX_Stock_Universe`. A universe-classification change must independently enqueue or invoke a refresh for the affected ticker, or `Feature_Status` must not claim comprehensive freshness. This dependency is separate from the price-ingestion trigger.
 
-Implementation status: the control-table and enqueue-trigger migrations are applied. Baseline reconciliation found 1,303,728 price/Feature pairs with zero missing keys or close/volume/Sector/Industry mismatches. Rollback-only enqueue testing passed. A committed no-OHLCV-change BBCA test demonstrated `FAILED` → retry → `SUCCESS`; a historical BBCA test refreshed 121 observations, and re-ingestion reopened the same queue key. The worker's continuous Railway service is the remaining deployment step. Historical ticker summaries were not blindly marked `SUCCESS`; only tested price changes received queue/status rows. Sector/Industry changes remain a separate dependency.
+Deployment status: Railway service `feature-01-worker` (`de4e34ee-435b-408f-a77f-63e6698a2dab`) deployed Git commit `6c1ee21` as deployment `5465b07b-5919-4dc1-a513-871ba7ca4ad2`, status `SUCCESS`. The live worker log showed `worker_started`, then claimed and completed a metadata-only BBCA 2026-09-11 re-ingestion: queue `DONE`, ticker status `SUCCESS`, log `SUCCESS`, one Feature row refreshed. Rollback-only enqueue, a local `FAILED` → retry → `SUCCESS`, and a historical 121-observation refresh also passed. Sector/Industry changes remain a separate dependency.

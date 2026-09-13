@@ -19,7 +19,7 @@ An AI working on this project must read these files in order before changing Rai
 11. [`apps/stockbit-broker-backfill/README.md`](apps/stockbit-broker-backfill/README.md) — local Stockbit backfill, parallel date ranges, retry behavior, and invalid-token stop rule.
 12. [`apps/feature-01-worker/README.md`](apps/feature-01-worker/README.md) — Feature 01 price queue, worker retries, and status/log operating contract.
 
-The three Feature 01 control tables are present. PostgreSQL now enqueues non-null-ingestion-time price writes transactionally, and the worker has passed a local database end-to-end test; its continuous Railway service is pending deployment. See [`FEATURE_01_AUTOMATION_PLAN.md`](FEATURE_01_AUTOMATION_PLAN.md).
+Automatic price-driven Feature 01 calculation is active in Railway `dev`: PostgreSQL transactionally enqueues price writes with non-null `ingestion_time`, and the always-on `feature-01-worker` processes them. The live Railway worker completed a re-ingestion test. See [`FEATURE_01_AUTOMATION_PLAN.md`](FEATURE_01_AUTOMATION_PLAN.md) and [`apps/feature-01-worker/README.md`](apps/feature-01-worker/README.md).
 
 ## Mandatory update contract
 

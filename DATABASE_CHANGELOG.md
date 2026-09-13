@@ -1,5 +1,11 @@
 # Database changelog
 
+## 2026-09-13 — Verify live Railway Feature 01 worker
+
+- Deployed the always-on `feature-01-worker` and verified its initial deployment `5465b07b-5919-4dc1-a513-871ba7ca4ad2` reached `SUCCESS`; see `RAILWAY_CHANGELOG.md` for service configuration.
+- A committed BBCA 2026-09-11 metadata-only re-ingestion reopened the existing queue key. The Railway worker claimed and recalculated it without a manual worker invocation: queue `DONE`, `Feature_Status.SUCCESS` with zero outstanding work, log `SUCCESS`, and one Feature row refreshed. The queue source version exactly matched the price row's `ingestion_time`, and the Feature row existed.
+- At final read-back: two queue items `DONE`, one ticker status `SUCCESS`, four `SUCCESS` attempt logs and one earlier expected `FAILED` local-test log; no pending, processing, or failed queue item. Catalog synchronization found 203 physical columns and no metadata drift; `DATABASE_SCHEMA.md` was regenerated from 17 public tables. No OHLCV value or row count was changed by this live test.
+
 ## 2026-09-13 — Activate price-driven Feature 01 enqueue and local worker verification
 
 - Applied forward-only migration `database/migrations/20260913_006_activate_feature_01_queue.sql` in Railway project `lucid-patience`, environment `dev`. A PostgreSQL price-row trigger now transactionally opens/reopens one Feature 01 queue item for each inserted or updated candle with non-null `ingestion_time`; no TradingView query or price-cron code change was made.
@@ -7,7 +13,7 @@
 - Before activation, reconciled all 1,303,728 price rows to Feature 01: zero missing keys and zero close, volume, Sector, or Industry mismatches. The three control tables were empty.
 - Rollback-only price update PASS: queue and status became `PENDING` inside the transaction and vanished on rollback. A committed BBCA 2026-09-11 no-OHLCV-change test then created one queue item. The first local worker attempt failed due to a result-row access bug and was recorded as `FAILED`; after fixing the worker code, automatic retry logic completed it and recorded `SUCCESS` in both queue and status. The log preserves both attempts.
 - Historical BBCA 2026-01-21 no-OHLCV-change test PASS: worker refreshed exactly 121 trading observations (changed date plus 120 subsequent observations), validated source/Feature coverage, and restored ticker status to `SUCCESS`. Re-ingesting BBCA 2026-09-11 reopened its existing queue key with per-source attempts reset to zero, then a new successful worker claim completed it. OHLCV values and total price/Feature row counts remained unchanged; only ingestion timestamps for those two test candles and the expected operational/Feature refresh records changed.
-- The queue trigger is active, but continuous automatic processing remains pending until the new Railway worker service is deployed and verified. Price cron schedules, source code, and other services were not changed in this stage.
+- At this migration/test stage, continuous automatic processing remained pending; it was subsequently deployed and verified in the entry above. Price cron schedules, source code, and other existing services were not changed.
 
 ## 2026-09-13 — Create Feature 01 calculation control tables
 
