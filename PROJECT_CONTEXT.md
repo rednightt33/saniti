@@ -40,7 +40,7 @@ All application services deploy from `rednightt33/saniti` on branch `main`. Each
 | `telegram-monitor` | `/apps/telegram-monitor` | `/apps/telegram-monitor/**` |
 | `telegram-trigger` | `/apps/telegram-trigger` | `/apps/telegram-trigger/**` |
 | `feature-01-worker` | `/apps/feature-01-worker` | `/apps/feature-01-worker/**` |
-| `market-ai-backend` | `/apps/market-ai-backend` (planned; source pending API key) | `/apps/market-ai-backend/**` (planned) |
+| `market-ai-backend` | `/apps/market-ai-backend` | `/apps/market-ai-backend/**` |
 
 Connecting or changing a service source must preserve its environment variables and secrets, cron schedule, start command, health check, domain, private networking, restart/serverless policy, and database references. Source-configuration work must not use **Run now** on either price service and must not issue a TradingView query. Record the currently active deployment ID before each change so it remains available as the rollback reference, then wait for the new deployment to reach `SUCCESS` before changing the next service.
 
@@ -115,7 +115,7 @@ Telegram owner -> telegram-trigger webhook -> validate webhook secret and Chat I
 - `stockbit_broker_summary_load_log`: resume, retry, and `NEEDS_REVIEW` history.
 - `Database_Table_Status`: freshness and tracking catalog.
 
-The market-AI database foundation and private backend code are ready. The Railway `market-ai-backend` shell, OpenAI secret, and least-privilege `market_ai_app` login exist; source deployment is the next release gate and no analytics-worker service exists. The app login can access only catalogs and VERIFIED Feature 1–3 tables plus analysis audit writes, never raw price/broker data; the future analytics worker has no Feature/raw SELECT grant. Historical analysis must apply close-`t` to entry-`t+1`, preserve `SURVIVORSHIP_BIAS_WARNING` when point-in-time universe data is unavailable, and retain completed version snapshots.
+The market-AI database foundation and private backend are deployed. Railway reports the service deployment healthy and its private `/health` check passes. The least-privilege `market_ai_app` login can access only catalogs and VERIFIED Feature 1–3 tables plus analysis audit writes, never raw price/broker data; no analytics-worker service exists. A live durable request reached the worker, but OpenAI rejected it before tool execution because the API billing balance had no credits. Paid API credits plus a successful rerun are therefore the remaining Release 1B end-to-end gate. Historical analysis must apply close-`t` to entry-`t+1`, preserve `SURVIVORSHIP_BIAS_WARNING` when point-in-time universe data is unavailable, and retain completed version snapshots.
 
 See `DATABASE_CATALOG.md` for the initial and current table lists, metadata fields, confidence rules, and mandatory updates when new tables, columns, Feature definitions, or routines are added. `Database_Table_Status` remains a separate operational freshness table and is not a semantic catalog target.
 

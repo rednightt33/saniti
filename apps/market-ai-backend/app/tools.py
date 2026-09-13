@@ -390,6 +390,7 @@ class ToolRegistry:
                 '''SELECT feature_table, feature_column, grain, feature_category, definition,
                           calculation, source_tables, source_columns, lookback_window,
                           minimum_history, unit, null_rule, allowed_aggregations,
+                          semantic_role, ranking_interpretation, is_filterable, is_groupable,
                           availability_rule, point_in_time_safe, historical_metadata_warning, version
                    FROM public."Feature_Catalog" f
                    WHERE is_active AND (feature_table, feature_column) IN

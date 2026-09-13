@@ -2,13 +2,17 @@
 
 This file records intentional changes to the Railway project. Git history preserves every revision. Never include secret values.
 
-## 2026-09-13 — Stage private market AI backend pending OpenAI credential
+## 2026-09-13 — Deploy private market AI backend and isolate OpenAI quota blocker
 
-- Created empty private service `market-ai-backend` (service ID `2cefa0cd-c9fc-4b84-992e-fdf08535a064`) in project `lucid-patience`, environment `dev`. It has one `sfo` replica and no public domain.
+- Created private service `market-ai-backend` (service ID `2cefa0cd-c9fc-4b84-992e-fdf08535a064`) in project `lucid-patience`, environment `dev`. It has one `sfo` replica and no public domain.
 - Set a least-privilege `DATABASE_URL`, generated `MARKET_AI_INTERNAL_API_KEY`, and all approved database-query, LLM-result, context, cumulative-token, model, timeout, and worker-lease variables. Values of the secrets were never printed or committed. The project owner subsequently added `OPENAI_API_KEY` directly as a Railway secret.
 - Initially left the GitHub source disconnected so no knowingly failing deployment was created before the OpenAI credential existed. After the credential was confirmed, the exact planned source/build/deploy diff was limited to this service: GitHub `rednightt33/saniti`, root/watch path `/apps/market-ai-backend`, Dockerfile, private `/health`, `ALWAYS` restart, and the uvicorn start command.
 - Pulled the live state into `.railway/railway.ts`. The first `config plan` invocation failed because the IaC SDK resolved PowerShell's `_` process variable instead of the Railway CLI binary; setting `_` to the verified Railway CLI 5.54.1 executable fixed evaluation, and the resulting plan reported no drift.
-- No existing Railway service, schedule, deployment, source, network endpoint, volume, or variable was changed.
+- Connected GitHub `rednightt33/saniti` branch `main`, applied the reviewed zero-add/three-change/zero-destroy service-only plan, and verified initial deployment `db143fa6-3eff-4cf3-9ebe-c1d56d53b171` reached `SUCCESS`. Runtime logs showed application startup and Railway `GET /health` HTTP 200.
+- Local SSH inspection was unavailable because the workstation has no Railway SSH key. A durable smoke request was therefore inserted through the least-privilege public database proxy and was claimed by the running Railway worker, proving the queue-to-worker path.
+- Smoke request `6a5df01f-e4c5-4296-b2a0-c4bdd5d5a756` stopped before any tool call because OpenAI returned HTTP 429 with `insufficient_quota` / `credit_balance_exhausted`. The service, key presence, database access, worker lease, and request lifecycle were operational; paid OpenAI API credits are the remaining external end-to-end gate.
+- Updated the transport to report safe OpenAI error type/code/message plus request ID and to avoid retrying non-transient quota exhaustion. Transient 429 responses retain bounded retry behavior.
+- No existing Railway service, schedule, source, network endpoint, volume, raw/Feature value, or Feature automation was changed.
 
 ## 2026-09-13 — Activate always-on Feature 01 calculation worker
 

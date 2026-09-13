@@ -21,12 +21,16 @@ Status eksekusi per 2026-09-13:
 - Migration `20260913_021_finalize_market_ai_release_1b.sql` dan limit-alignment
   `20260913_022_align_market_ai_tool_limits.sql` sudah diterapkan. Live handler
   verification PASS dan deterministic Golden Test suite 15/15 PASS.
-- Railway service shell `market-ai-backend` sudah dibuat dan 41 non-missing
-  configuration keys sudah disiapkan. Login `market_ai_app` dapat membaca
+- Railway service `market-ai-backend` sudah terhubung ke GitHub, terdeploy, dan
+  sehat. Initial deployment `db143fa6-3eff-4cf3-9ebe-c1d56d53b171` mencapai
+  `SUCCESS`; startup dan private `/health` HTTP 200 terverifikasi. Seluruh 43
+  configuration keys tersedia. Login `market_ai_app` dapat membaca
   Feature/katalog dan menulis audit, tetapi raw-table SELECT ditolak.
-- `OPENAI_API_KEY` kemudian ditambahkan sebagai Railway secret oleh project owner.
-  Source/deployment menjadi gate aktif berikutnya setelah code dan dokumentasi
-  Release 1B tersedia di `origin/main`.
+- `OPENAI_API_KEY` ditambahkan sebagai Railway secret oleh project owner. Live
+  durable request berhasil di-claim worker, tetapi provider menolak request
+  sebelum tool call dengan `insufficient_quota` / `credit_balance_exhausted`.
+  Penambahan paid OpenAI API credits dan rerun smoke adalah gate end-to-end yang
+  masih terbuka; deterministic database/backend acceptance tetap 15/15 PASS.
 - Otomasi update Feature 2/3 dan Analytics Worker tetap di luar scope Release 1B.
 
 Provider pertama hanya OpenAI. Initial model tetap configurable, dengan default

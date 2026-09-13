@@ -73,17 +73,29 @@ def main() -> None:
             rejected = True
         assert rejected, "Unregistered columns must be rejected"
 
+        market_board = tools.execute("get_feature_definition", {
+            "features": [{"table": "Feature_03_Stock_Broker_Daily", "column": "market_board"}],
+        }, "test")
+        market_board_meta = market_board.payload["rows"][0]
+        assert market_board_meta["semantic_role"] == "IDENTITY"
+        assert market_board_meta["is_filterable"] is True
+        assert market_board_meta["is_groupable"] is True
+        assert set(market_board_meta["allowed_aggregations"]) == {"COUNT", "COUNT_DISTINCT"}
+
         aggregation = tools.execute("aggregate_features", {
             "table": "Feature_03_Stock_Broker_Daily", "group_by": ["market_board"],
             "metrics": [{"column": "total_buy_value", "aggregation": "SUM"}],
             "tickers": ["BBCA"], "start_date": start.isoformat(), "end_date": ready.isoformat(), "limit": 10,
         }, "test")
         assert aggregation.payload["rows"]
+        boards = {row["market_board"] for row in aggregation.payload["rows"]}
+        assert boards == {"Regular", "Nego", "Tunai"}, boards
         print(json.dumps({
             "status": "PASS", "active_tool_definitions": len(definitions),
             "feature_tables": tables, "analysis_ready_date": ready.isoformat(),
             "quality": quality.payload["classification"], "query_rows": rows.payload["total_rows"],
             "aggregate_groups": aggregation.payload["total_rows"],
+            "market_board_catalog_audit": "PASS", "market_boards": sorted(boards),
             "raw_column_rejected": rejected,
         }))
     finally:

@@ -40,3 +40,15 @@ exists.
 All numeric variables and their approved defaults are listed in
 `AI_ANALYST_IMPLEMENTATION_PLAN.md`; Railway variables are the enforcement source
 and `Tool_Catalog` is the model-facing metadata copy.
+
+## Smoke test and provider errors
+
+Run `scripts/smoke_market_ai_analysis.py` with `APP_DATABASE_URL` set to the
+least-privilege public-proxy DSN. The script inserts one bounded durable request
+and waits for its terminal status; it does not bypass the normal Railway worker.
+
+The OpenAI transport records only safe diagnostics: HTTP status, error type/code,
+message, and request ID. `insufficient_quota` or `credit_balance_exhausted` is not
+retried because it requires a billing-credit change. Transient 408, 409, 429, and
+5xx responses keep the bounded retry path. Never log the API key, request headers,
+or decrypted Railway variables.
