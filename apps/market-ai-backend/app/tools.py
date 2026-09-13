@@ -74,6 +74,7 @@ class ToolRegistry:
     """Catalog-driven structured tools. No handler accepts SQL text."""
 
     CORE_FAMILIES = {"META", "DISCOVERY", "QUALITY"}
+    ALWAYS_EXPOSED = {"record_evidence"}
     STAGE_FAMILIES = {
         "DISCOVERY": CORE_FAMILIES,
         "SCREENING": CORE_FAMILIES | {"QUERY", "SCREENING"},
@@ -108,8 +109,9 @@ class ToolRegistry:
         with self.db.query_transaction() as connection:
             rows = connection.execute(
                 '''SELECT tool_name, purpose, tool_family FROM public."Tool_Catalog"
-                   WHERE is_active AND tool_family = ANY(%s) ORDER BY tool_name''',
-                (sorted(families),),
+                   WHERE is_active AND (tool_family = ANY(%s) OR tool_name = ANY(%s))
+                   ORDER BY tool_name''',
+                (sorted(families), sorted(self.ALWAYS_EXPOSED)),
             ).fetchall()
         definitions = []
         for row in rows:

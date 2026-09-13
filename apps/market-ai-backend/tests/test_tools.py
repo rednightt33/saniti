@@ -7,6 +7,10 @@ from app.schemas import FINAL_RESPONSE_SCHEMA
 from app.tools import ToolError, ToolRegistry
 
 
+def test_evidence_recording_is_always_exposed() -> None:
+    assert ToolRegistry.ALWAYS_EXPOSED == {"record_evidence"}
+
+
 class CatalogOnlyRegistry(ToolRegistry):
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
