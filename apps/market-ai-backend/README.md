@@ -19,11 +19,13 @@ with `Authorization: Bearer $MARKET_AI_INTERNAL_API_KEY`.
    row/byte/token budgets.
 6. Every tool call, query hash, evidence item, warning, context peak, compaction,
    and cumulative token count is audited.
-7. A final response is accepted only when it matches the full schema and cites
-   evidence IDs actually recorded for the current request. A malformed or
-   premature final response receives bounded corrective feedback within the same
-   analysis budget. Calling `record_evidence` signals that evidence is sufficient;
-   the following call removes data-tool schemas and performs strict finalization.
+7. `record_evidence` stores a decisive result without ending the investigation.
+   `complete_analysis` applies the stopping checklist: evidence must exist,
+   necessary follow-ups must be complete, and `INSIGHT` mode requires the
+   configured minimum number of distinct successful analytical queries for data
+   or screening questions. Only then does the following call remove data-tool
+   schemas and perform strict finalization. A malformed or premature call returns
+   recoverable feedback within the same bounded analysis budget.
 8. A successful response stores an immutable version/methodology snapshot and a
    structured `recommended_next_analysis` list.
 
@@ -51,6 +53,13 @@ configured separately. The current `dev` profile uses DeepSeek V4.1 Flash,
 reasoning `high`, and a 5,000-token cumulative Feature-definition budget. This
 supports larger relevant definition sets but is intentionally not permission to
 inject all 91 catalog rows into every request.
+
+`AI_ANALYSIS_MODE` controls answer depth independently of the circuit breakers.
+`QUICK` may finalize after sufficient direct evidence. `INSIGHT` performs a
+distinct, justified interpretation follow-up before finalization for data and
+screening questions. `AI_MIN_INSIGHT_DATA_CALLS` defaults to `2`; repeated copies
+of the same query hash do not satisfy it. Remaining optional work is reported in
+`recommended_next_analysis`, not executed solely because calls remain.
 
 All numeric variables and their approved defaults are listed in
 `AI_ANALYST_IMPLEMENTATION_PLAN.md`; Railway variables are the enforcement source

@@ -351,6 +351,8 @@ AI_MAX_CUMULATIVE_INPUT_TOKENS=100000
 AI_MAX_CUMULATIVE_OUTPUT_TOKENS=12000
 AI_MAX_TOOL_ITERATIONS=8
 AI_MAX_TOOL_CALLS=12
+AI_ANALYSIS_MODE=QUICK
+AI_MIN_INSIGHT_DATA_CALLS=2
 AI_REQUEST_TIMEOUT_SECONDS=180
 ```
 
@@ -367,6 +369,14 @@ These values implement two different controls:
 `AI_MAX_OUTPUT_TOKENS=3000` is the per-call generation ceiling. It is separate
 from the 12,000-token cumulative output ceiling, tool-result limits, and database
 row limits.
+
+`AI_ANALYSIS_MODE` is a stopping-depth policy, not a resource ceiling. `QUICK`
+may finalize once direct evidence answers the question. `INSIGHT` requires a
+distinct, justified interpretation follow-up for data/screening questions before
+`complete_analysis` can close the tool loop. `record_evidence` never closes the
+loop by itself. The configurable `AI_MIN_INSIGHT_DATA_CALLS` counts distinct
+successful analytical query hashes, so retries or duplicate queries do not satisfy
+the policy. Optional deeper work remains in `recommended_next_analysis`.
 
 Normal operation should remain within approximately 24k–32k active tokens. A
 request crossing 32k is not automatically terminated: lower-priority material is
@@ -470,7 +480,8 @@ Snapshot contract:
 - Query: `query_features`, `get_timeseries`, `compare_periods`.
 - Screening: `screen_features`, `rank_features`, `aggregate_features`,
   `compare_groups`.
-- Audit: `record_evidence`, `get_analysis_history`.
+- Audit/orchestration: `record_evidence`, `complete_analysis`,
+  `get_analysis_history`.
 
 ### Release 2 immediate analytical tools
 

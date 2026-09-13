@@ -97,9 +97,32 @@ def test_direct_retrieval_starts_with_query_tools_without_advanced_tools() -> No
     assert AnalysisOrchestrator._initial_stage("What features are available?") == "DISCOVERY"
 
 
-def test_run_state_enters_finalization_only_after_evidence_signal() -> None:
+def test_run_state_enters_finalization_only_after_completion_signal() -> None:
     state = RunState("request", "question", {"QUERY"}, [])
     assert state.finalization_ready is False
     state.recorded_evidence_ids.add("evidence-1")
+    assert state.finalization_ready is False
     state.finalization_ready = True
     assert state.finalization_ready is True
+
+
+def test_insight_completion_requires_distinct_followup_query() -> None:
+    orchestrator = object.__new__(AnalysisOrchestrator)
+    orchestrator.settings = Settings.from_env(require_runtime_secrets=False)
+    state = RunState(
+        "request", "screen saham dengan return tertinggi", {"SCREENING"}, [],
+        analysis_mode="INSIGHT",
+    )
+    state.recorded_evidence_ids.add("evidence-1")
+    arguments = {
+        "evidence_sufficient": True,
+        "necessary_followups_completed": True,
+        "completion_reason": "Screen completed",
+        "remaining_uncertainties": [],
+        "optional_next_analysis": [],
+    }
+    state.analytical_query_hashes.add("query-1")
+    with pytest.raises(Exception, match="distinct successful analytical queries"):
+        orchestrator._validate_completion(state, arguments)
+    state.analytical_query_hashes.add("query-2")
+    orchestrator._validate_completion(state, arguments)

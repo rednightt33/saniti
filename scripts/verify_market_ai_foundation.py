@@ -51,7 +51,35 @@ def main() -> None:
                 """
             )
             result["tools"] = cursor.fetchone()
-            assert_equal(result["tools"], {"active": 17, "inactive": 11}, "tool counts")
+            assert_equal(result["tools"], {"active": 18, "inactive": 11}, "tool counts")
+
+            cursor.execute(
+                """
+                SELECT tool_name, execution_type,
+                       tool_specific_limits->>'signals_finalization' AS signals_finalization
+                FROM public."Tool_Catalog"
+                WHERE tool_name IN ('record_evidence','complete_analysis') AND is_active
+                ORDER BY tool_name
+                """
+            )
+            stopping_tools = cursor.fetchall()
+            assert_equal(
+                stopping_tools,
+                [
+                    {
+                        "tool_name": "complete_analysis",
+                        "execution_type": "ORCHESTRATOR",
+                        "signals_finalization": "true",
+                    },
+                    {
+                        "tool_name": "record_evidence",
+                        "execution_type": "BACKEND",
+                        "signals_finalization": "false",
+                    },
+                ],
+                "stopping tools",
+            )
+            result["stopping_tools"] = stopping_tools
 
             cursor.execute(
                 """

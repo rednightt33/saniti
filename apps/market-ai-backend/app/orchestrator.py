@@ -39,11 +39,18 @@ For an obviously bounded single-ticker/single-date retrieval, call query_feature
 directly because it also enforces validation and limits; estimate first only when
 row cost is genuinely uncertain. Request only the tool families needed for the
 question; do not request ADVANCED for ordinary retrieval.
-Call record_evidence only after the evidence needed for the current answer is
-sufficient. Recording evidence signals finalization: the next model call has no
-data tools and must return the final schema rather than search for a final-answer tool.
+Record each decisive result with record_evidence. It stores evidence but does not
+end the investigation. When the current question is reliably answered and all
+necessary follow-ups are complete, call complete_analysis. Only a successful
+complete_analysis call signals finalization; optional deeper work belongs in
+recommended_next_analysis and must not be run merely because capacity remains.
 Return the final schema JSON without Markdown fences or surrounding prose.
 """
+
+ANALYTICAL_DATA_TOOLS = {
+    "query_features", "get_timeseries", "compare_periods", "screen_features",
+    "rank_features", "aggregate_features", "compare_groups",
+}
 
 
 @dataclass
@@ -68,6 +75,10 @@ class RunState:
     last_openai_response_id: str | None = None
     point_in_time_warnings: set[str] = field(default_factory=set)
     loaded_feature_definitions: set[tuple[str, str]] = field(default_factory=set)
+    analytical_query_hashes: set[str] = field(default_factory=set)
+    quality_failures: list[dict[str, Any]] = field(default_factory=list)
+    analysis_mode: str = "QUICK"
+    completion_reason: str | None = None
     finalization_ready: bool = False
 
 
@@ -88,6 +99,7 @@ class AnalysisOrchestrator:
             question=question,
             families=families,
             input_items=[{"role": "user", "content": question}],
+            analysis_mode=self.settings.ai_analysis_mode,
         )
         try:
             self._mark_processing(state, initial_stage)
@@ -103,15 +115,16 @@ class AnalysisOrchestrator:
         while state.iterations < self.settings.ai_max_tool_iterations:
             self._enforce_budgets(state)
             self._compact_context_if_needed(state)
+            instructions = self._instructions(state)
             active_tools = [] if state.finalization_ready else self.tools.definitions(state.families)
-            context_tokens = estimate_tokens({"instructions": INSTRUCTIONS, "input": state.input_items, "tools": active_tools})
+            context_tokens = estimate_tokens({"instructions": instructions, "input": state.input_items, "tools": active_tools})
             state.peak_context = max(state.peak_context, context_tokens)
             if context_tokens + self.settings.ai_context_reserve_tokens > self.settings.ai_max_context_tokens:
                 raise RuntimeError("Hard AI context ceiling would be exceeded")
             payload = {
                 "model": self.settings.ai_model,
                 "reasoning": {"effort": self.settings.ai_reasoning_effort},
-                "instructions": INSTRUCTIONS,
+                "instructions": instructions,
                 "input": state.input_items,
                 "max_output_tokens": self.settings.ai_max_output_tokens,
                 "store": False,
@@ -219,6 +232,8 @@ class AnalysisOrchestrator:
         sanitized = self._sanitize(arguments)
         try:
             self._require_loaded_definitions(state, name, arguments)
+            if name == "complete_analysis":
+                self._validate_completion(state, arguments)
             execution = self.tools.execute(name, arguments, state.request_id)
             if name == "list_tools":
                 state.families.update(execution.payload.get("approved_expansion") or [])
@@ -233,8 +248,19 @@ class AnalysisOrchestrator:
                     (str(row["feature_table"]), str(row["feature_column"]))
                     for row in execution.payload.get("rows", [])
                 )
+            if name in ANALYTICAL_DATA_TOOLS and execution.query_hash:
+                state.analytical_query_hashes.add(str(execution.query_hash))
+            if name == "check_data_quality" and execution.payload.get("classification") == "FAIL":
+                state.quality_failures.append({
+                    "table": arguments.get("table"),
+                    "tickers": arguments.get("tickers"),
+                    "start_date": arguments.get("start_date"),
+                    "end_date": arguments.get("end_date"),
+                })
             if name == "record_evidence" and execution.payload.get("evidence_id"):
                 state.recorded_evidence_ids.add(str(execution.payload["evidence_id"]))
+            if name == "complete_analysis" and execution.payload.get("completion_accepted"):
+                state.completion_reason = arguments["completion_reason"].strip()
                 state.finalization_ready = True
             state.point_in_time_warnings.update(execution.payload.get("point_in_time_warnings") or [])
 
@@ -275,7 +301,7 @@ class AnalysisOrchestrator:
             raise
 
     def _compact_context_if_needed(self, state: RunState) -> None:
-        context = estimate_tokens({"instructions": INSTRUCTIONS, "input": state.input_items, "tools": self.tools.definitions(state.families)})
+        context = estimate_tokens({"instructions": self._instructions(state), "input": state.input_items, "tools": self.tools.definitions(state.families)})
         if context <= self.settings.ai_context_compaction_threshold_tokens:
             return
         digest = {
@@ -323,7 +349,7 @@ class AnalysisOrchestrator:
             )
 
     def _persist_usage(self, state: RunState) -> None:
-        context = estimate_tokens({"instructions": INSTRUCTIONS, "input": state.input_items})
+        context = estimate_tokens({"instructions": self._instructions(state), "input": state.input_items})
         state.peak_context = max(state.peak_context, context)
         with self.db.connection() as connection, connection.transaction():
             connection.execute(
@@ -392,7 +418,10 @@ class AnalysisOrchestrator:
             ).fetchall()
         snapshot = {
             "provider": self.settings.ai_provider, "model": self.settings.ai_model,
-            "orchestrator_version": "release-1b-v1", "prompt_version": "release-1b-v1",
+            "orchestrator_version": "release-1b-v2", "prompt_version": "release-1b-v2",
+            "analysis_mode": state.analysis_mode,
+            "completion_reason": state.completion_reason,
+            "distinct_analytical_queries": len(state.analytical_query_hashes),
             "feature_versions": [dict(row) for row in feature_versions],
             "tool_versions": [dict(row) for row in tool_versions],
             "query_hashes": sorted({item["query_hash"] for item in state.evidence_digest if item.get("query_hash")}),
@@ -406,6 +435,36 @@ class AnalysisOrchestrator:
             "look_ahead_validation": "No predictive claim is allowed in Release 1B; historical-validation tools are inactive.",
         }
         return snapshot, methodology
+
+    def _instructions(self, state: RunState) -> str:
+        if state.analysis_mode != "INSIGHT":
+            return INSTRUCTIONS + "\nAnalysis mode QUICK: answer once direct evidence is sufficient.\n"
+        return INSTRUCTIONS + (
+            "\nAnalysis mode INSIGHT: for a data or screening question, do not stop at the first "
+            "descriptive result. Run at least one distinct high-value follow-up that is necessary "
+            "to interpret the result, such as a relevant comparison, persistence check, volume/"
+            "volatility context, or broader benchmark, while staying within available Feature "
+            "1-3 data and resource limits. Do not run optional deep exploration.\n"
+        )
+
+    def _validate_completion(self, state: RunState, arguments: dict[str, Any]) -> None:
+        if not state.recorded_evidence_ids:
+            raise ToolError("Record at least one evidence item before complete_analysis")
+        if arguments.get("evidence_sufficient") is not True:
+            raise ToolError("Evidence is not yet sufficient for completion")
+        if arguments.get("necessary_followups_completed") is not True:
+            raise ToolError("Necessary follow-up analysis is not yet complete")
+        if (
+            state.analysis_mode == "INSIGHT"
+            and self._initial_stage(state.question) == "SCREENING"
+            and not state.quality_failures
+            and len(state.analytical_query_hashes) < self.settings.ai_min_insight_data_calls
+        ):
+            raise ToolError(
+                "INSIGHT mode requires at least "
+                f"{self.settings.ai_min_insight_data_calls} distinct successful analytical queries "
+                "before completion; run a justified follow-up, not a duplicate query"
+            )
 
     @staticmethod
     def _semantic_requirements(name: str, arguments: dict[str, Any]) -> set[tuple[str, str]]:

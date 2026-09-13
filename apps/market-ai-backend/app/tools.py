@@ -74,7 +74,7 @@ class ToolRegistry:
     """Catalog-driven structured tools. No handler accepts SQL text."""
 
     CORE_FAMILIES = {"META", "DISCOVERY", "QUALITY"}
-    ALWAYS_EXPOSED = {"record_evidence"}
+    ALWAYS_EXPOSED = {"record_evidence", "complete_analysis"}
     STAGE_FAMILIES = {
         "DISCOVERY": CORE_FAMILIES,
         "SCREENING": CORE_FAMILIES | {"QUERY", "SCREENING"},
@@ -102,6 +102,7 @@ class ToolRegistry:
             "aggregate_features": self.aggregate_features,
             "compare_groups": self.compare_groups,
             "record_evidence": self.record_evidence,
+            "complete_analysis": self.complete_analysis,
             "get_analysis_history": self.get_analysis_history,
         }
 
@@ -181,6 +182,13 @@ class ToolRegistry:
                 "evidence_type": {"type": "string", "enum": ["OBSERVATION", "QUALITY", "ANOMALY", "STATISTIC", "HISTORICAL_TEST", "WARNING"]},
                 "claim": {"type": "string"}, "compact_payload_json": {"type": "string"}, "query_hash": {"type": ["string", "null"]},
                 "source_tables": {"type": "array", "items": {"type": "string"}}, "analysis_ready_date": {"type": ["string", "null"]},
+            }),
+            "complete_analysis": _object_schema({
+                "evidence_sufficient": {"type": "boolean"},
+                "necessary_followups_completed": {"type": "boolean"},
+                "completion_reason": {"type": "string"},
+                "remaining_uncertainties": {"type": "array", "items": {"type": "string"}},
+                "optional_next_analysis": {"type": "array", "items": {"type": "string"}},
             }),
             "get_analysis_history": _object_schema({"search_text": {"type": "string"}, "limit": {"type": ["integer", "null"]}}),
         }
@@ -597,6 +605,28 @@ class ToolRegistry:
                 (request_id, arguments["evidence_type"], arguments["claim"][:2000], json.dumps(compact_payload), arguments.get("query_hash"), arguments["source_tables"], arguments.get("analysis_ready_date")),
             ).fetchone()
         return Execution({"evidence_id": str(row["evidence_id"]), "recorded": True})
+
+    def complete_analysis(self, arguments: dict[str, Any], _: str) -> Execution:
+        required = {
+            "evidence_sufficient", "necessary_followups_completed", "completion_reason",
+            "remaining_uncertainties", "optional_next_analysis",
+        }
+        missing = sorted(required - arguments.keys())
+        if missing:
+            raise ToolError(f"complete_analysis missing required fields: {missing}")
+        if arguments["evidence_sufficient"] is not True:
+            raise ToolError("complete_analysis requires evidence_sufficient=true")
+        if arguments["necessary_followups_completed"] is not True:
+            raise ToolError("Complete necessary follow-up analysis before finalization")
+        if not isinstance(arguments["completion_reason"], str) or not arguments["completion_reason"].strip():
+            raise ToolError("complete_analysis completion_reason must be non-empty text")
+        for field in ("remaining_uncertainties", "optional_next_analysis"):
+            if not isinstance(arguments[field], list) or any(not isinstance(item, str) for item in arguments[field]):
+                raise ToolError(f"complete_analysis {field} must be an array of text")
+        return Execution({
+            "completion_accepted": True,
+            "next_action": "Return the strict final response using only evidence IDs recorded in this request.",
+        })
 
     def get_analysis_history(self, arguments: dict[str, Any], _: str) -> Execution:
         limit = min(arguments.get("limit") or 5, 20)

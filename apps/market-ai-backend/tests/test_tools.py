@@ -7,8 +7,8 @@ from app.schemas import FINAL_RESPONSE_SCHEMA
 from app.tools import ToolError, ToolRegistry
 
 
-def test_evidence_recording_is_always_exposed() -> None:
-    assert ToolRegistry.ALWAYS_EXPOSED == {"record_evidence"}
+def test_evidence_and_completion_are_always_exposed() -> None:
+    assert ToolRegistry.ALWAYS_EXPOSED == {"record_evidence", "complete_analysis"}
 
 
 def test_malformed_evidence_call_is_recoverable_before_database_access() -> None:
@@ -19,6 +19,21 @@ def test_malformed_evidence_call_is_recoverable_before_database_access() -> None
                 "claim": "Observed result",
                 "compact_payload_json": "{}",
                 "source_tables": ["Feature_01_Stock_Daily"],
+            },
+            "request-id",
+        )
+
+
+def test_completion_requires_explicit_stopping_checklist() -> None:
+    registry = object.__new__(ToolRegistry)
+    with pytest.raises(ToolError, match="necessary follow-up"):
+        registry.complete_analysis(
+            {
+                "evidence_sufficient": True,
+                "necessary_followups_completed": False,
+                "completion_reason": "Initial result only",
+                "remaining_uncertainties": [],
+                "optional_next_analysis": [],
             },
             "request-id",
         )

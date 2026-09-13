@@ -42,6 +42,7 @@ def main() -> None:
         core_definitions = tools.definitions(ToolRegistry.CORE_FAMILIES)
         core_names = {item["name"] for item in core_definitions}
         assert "record_evidence" in core_names
+        assert "complete_analysis" in core_names
         assert "get_analysis_history" not in core_names
         table_result = tools.execute("list_feature_tables", {"include_columns": False}, "test")
         tables = [row["table_name"] for row in table_result.payload["rows"]]
@@ -121,7 +122,8 @@ def main() -> None:
             "aggregate_groups": aggregation.payload["total_rows"],
             "market_board_catalog_audit": "PASS", "semantic_contract_audit": "PASS",
             "multi_keyword_discovery": "PASS", "discovery_identifier_preservation": "PASS",
-            "always_exposed_evidence": "PASS", "history_not_core": True,
+            "always_exposed_evidence": "PASS", "explicit_completion_gate": "PASS",
+            "history_not_core": True,
             "market_boards": sorted(boards),
             "raw_column_rejected": rejected,
         }))
