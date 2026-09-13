@@ -95,17 +95,24 @@ Telegram owner -> telegram-trigger webhook -> validate webhook secret and Chat I
 - `Price_Stock_Indonesia_IDX`: daily IDX OHLCV price history.
 - `Feature_01_Stock_Daily`: SQL-side daily ticker features for price returns, volatility, volume, and drawdown; its incremental refresh routine is called by the Feature 01 worker.
 - `Feature_02_Broker_Rolling`: broker flow and rolling signals for all symbols in `IDX_Broker_Summary`, partitioned by Regular/Nego/Tunai board; windows count ticker transaction dates across any board. Its initial historical backfill is SQL-side, but no automatic Feature 02 refresh worker is deployed. See `FEATURE_02_BROKER_ROLLING.md`.
+- `Feature_03_Stock_Broker_Daily`: stock-level daily broker breadth, classified net flows, dominant brokers, and HHI at `date × ticker × market_board`; all three boards remain separate. It is refreshed after Feature 02, with no automatic worker in v1. See `FEATURE_03_STOCK_BROKER_DAILY.md`.
 - `Feature_Calculation_Queue`: durable per-candle Feature 01 work items; a PostgreSQL price-row trigger now enqueues them in the price transaction.
 - `Feature_Status`: current price-driven per-ticker Feature 01 calculation state, reconciled during enqueue and worker transitions.
 - `Feature_Calculation_Log`: completed calculation attempt and retry history. The Railway worker is deployed and a live re-ingestion test passed.
-- `Feature_Catalog`: machine-readable semantic and governance layer for validated columns in the four locked Feature tables. Active `v1` definitions cover the validated Feature 01 and Feature 02 tables.
-- `Table_Catalog`: curated purpose, grain, source, writer, and update contract for approved tables, including Feature 02.
+- `Feature_Catalog`: machine-readable semantic and governance layer for validated columns in the four locked Feature tables. Active `v1` definitions cover validated Feature 01, Feature 02, and Feature 03 tables.
+- `Feature_Relationship_Catalog`: safe join keys, cardinality, output grain, and preaggregation requirements between validated Feature tables.
+- `Tool_Catalog`: generic AI tool schemas, versions, activation state, and advertised database/worker/LLM-facing limits. Backend configuration remains the enforcement authority.
+- `Analysis_Request`, `Analysis_Step_Log`, and `Analysis_Evidence`: durable request lifecycle, progressive tool exposure, cumulative token/context usage, immutable version/methodology snapshot, compact steps, and reproducible claim evidence.
+- `Golden_Analysis_Test`, `Golden_Analysis_Test_Run`, and `Golden_Analysis_Test_Result`: permanent analytical regression expectations and historical outcomes across data correctness, methodology, safety, and token behavior.
+- `Table_Catalog`: curated purpose, grain, source, writer, and update contract for approved tables, including Feature 02 and Feature 03.
 - `Column_Catalog`: physical column inventory and evidence-graded definitions for approved tables. For Feature formulas, `Feature_Catalog` remains authoritative.
 - `Monitoring_Price_ALL`: per-execution daily/recovery completeness, trigger source, query time, missing symbols, and status grouped by the universe `Security Type` value.
 - `Telegram_Command_Log`: incoming Telegram Run Now audit, webhook-retry deduplication, and rapid-click blocking.
 - `Telegram_Notification_Log`: Telegram delivery status and anti-duplicate ledger keyed by source table and source `execution_id`.
 - `stockbit_broker_summary_load_log`: resume, retry, and `NEEDS_REVIEW` history.
 - `Database_Table_Status`: freshness and tracking catalog.
+
+The market-AI database foundation is live, but no `market-ai-backend` or analytics-worker Railway application service has been deployed yet. AI database roles are NOLOGIN building blocks: the reader can access only catalogs and VERIFIED Feature 1–3 tables, never raw price/broker data; the future analytics worker has no Feature/raw SELECT grant. Historical analysis must apply close-`t` to entry-`t+1`, preserve `SURVIVORSHIP_BIAS_WARNING` when point-in-time universe data is unavailable, and retain completed version snapshots.
 
 See `DATABASE_CATALOG.md` for the initial and current table lists, metadata fields, confidence rules, and mandatory updates when new tables, columns, Feature definitions, or routines are added. `Database_Table_Status` remains a separate operational freshness table and is not a semantic catalog target.
 
