@@ -8,6 +8,12 @@
 - `scripts/audit_feature_catalog_semantics.py` PASS: 91 active, 91 calculation-verified, zero incomplete, exact physical coverage of 29 Feature 01, 38 Feature 02, and 24 Feature 03 columns. Catalog synchronization reconciled 429 registered physical columns and `DATABASE_SCHEMA.md` was regenerated from 27 public tables.
 - No raw row, Feature value, formula, Feature refresh routine, queue, schedule, service, or index was changed.
 
+## 2026-09-14 — Clarify bounded AI tool workflow
+
+- Added forward-only migration `database/migrations/20260914_025_clarify_market_ai_tool_workflow.sql` after a live DeepSeek smoke showed avoidable calls from abbreviated table names, literal multi-word feature search, and duplicate validate/estimate preflight.
+- `Tool_Catalog` now instructs the model to copy exact Feature identifiers, documents whitespace-keyword OR discovery, states that `estimate_query_size` includes request validation, and keeps explicit evidence recording. The backend `find_features` handler applies the documented eight-keyword maximum and parameterized OR search.
+- Query, token, tool-call, raw-table privilege, Feature values, and service limits were not relaxed.
+
 ## 2026-09-13 — Finalize Release 1B semantics and golden acceptance
 
 - Applied forward-only `database/migrations/20260913_021_finalize_market_ai_release_1b.sql`. It corrected the post-Feature-3 generic usage metadata: date/ticker/board and dominant-broker identifiers are groupable dimensions, calculated time is a dimension, and every numeric field now has type-appropriate aggregation/ranking rules.

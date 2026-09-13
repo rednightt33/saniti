@@ -32,6 +32,9 @@ Before executing a data-retrieval or aggregation tool, load the definitions of
 every relevant output, filter, ordering, grouping, and metric column with
 get_feature_definition. If semantic preflight reports missing definitions, load
 exactly those definitions and retry; never load the entire catalog by default.
+Copy exact case-sensitive Feature table and column identifiers from discovery
+results; never abbreviate them. estimate_query_size already performs structured
+query validation, so do not also call validate_query_request for the same payload.
 Return the final schema JSON without Markdown fences or surrounding prose.
 """
 

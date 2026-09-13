@@ -365,7 +365,10 @@ class ToolRegistry:
         return self.query_features(query, request_id)
 
     def find_features(self, arguments: dict[str, Any], _: str) -> Execution:
-        term = f"%{arguments['search_text'].strip()}%"
+        words = list(dict.fromkeys(arguments["search_text"].strip().split()))[:8]
+        if not words:
+            raise ToolError("search_text must contain at least one keyword")
+        patterns = [f"%{word}%" for word in words]
         limit = min(arguments.get("limit") or 30, 100)
         tables = arguments.get("tables") or []
         with self.db.query_transaction() as connection:
@@ -373,13 +376,22 @@ class ToolRegistry:
                 '''SELECT feature_table, feature_column, feature_category, definition, unit,
                           semantic_role, ranking_interpretation, analytical_interpretation,
                           recommended_use, misuse_warning, semantic_review_status
-                   FROM public."Feature_Catalog"
-                   WHERE is_active AND (feature_column ILIKE %s OR definition ILIKE %s OR feature_category ILIKE %s)
-                     AND (cardinality(%s::text[]) = 0 OR feature_table = ANY(%s::text[]))
+                   FROM public."Feature_Catalog" AS f
+                   WHERE is_active AND EXISTS (
+                         SELECT 1 FROM unnest(%s::text[]) AS p(pattern)
+                         WHERE f.feature_column ILIKE p.pattern
+                            OR f.definition ILIKE p.pattern
+                            OR f.feature_category ILIKE p.pattern
+                            OR f.analytical_interpretation ILIKE p.pattern
+                       )
+                     AND (cardinality(%s::text[]) = 0 OR f.feature_table = ANY(%s::text[]))
                    ORDER BY feature_table, feature_column LIMIT %s''',
-                (term, term, term, tables, tables, limit),
+                (patterns, tables, tables, limit),
             ).fetchall()
-        return Execution({"rows": [dict(row) for row in rows], "total_rows": len(rows)})
+        return Execution({
+            "rows": [dict(row) for row in rows], "total_rows": len(rows),
+            "search_mode": "whitespace_keywords_or", "keywords": words,
+        })
 
     def get_feature_definition(self, arguments: dict[str, Any], _: str) -> Execution:
         features = arguments["features"]

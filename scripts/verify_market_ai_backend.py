@@ -48,6 +48,12 @@ def main() -> None:
         start = ready - timedelta(days=30)
         discovery = tools.execute("find_features", {"search_text": "return", "tables": ["Feature_01_Stock_Daily"], "limit": 20}, "test")
         assert discovery.payload["total_rows"] > 0
+        multi_discovery = tools.execute("find_features", {
+            "search_text": "close return", "tables": ["Feature_01_Stock_Daily"], "limit": 40,
+        }, "test")
+        multi_columns = {row["feature_column"] for row in multi_discovery.payload["rows"]}
+        assert {"close", "return_20d_pct"} <= multi_columns
+        assert multi_discovery.payload["search_mode"] == "whitespace_keywords_or"
 
         quality = tools.execute("check_data_quality", {
             "table": "Feature_01_Stock_Daily", "tickers": ["BBCA"],
@@ -101,6 +107,7 @@ def main() -> None:
             "quality": quality.payload["classification"], "query_rows": rows.payload["total_rows"],
             "aggregate_groups": aggregation.payload["total_rows"],
             "market_board_catalog_audit": "PASS", "semantic_contract_audit": "PASS",
+            "multi_keyword_discovery": "PASS",
             "market_boards": sorted(boards),
             "raw_column_rejected": rejected,
         }))
