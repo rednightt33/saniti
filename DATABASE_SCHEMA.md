@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-13T03:36:36+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-13T03:58:35+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -8,16 +8,19 @@ Generated from PostgreSQL schema `public` at `2026-09-13T03:36:36+00:00`.
 
 | Table Name | Category | Update Pattern | Latest Data Date | Last Changed At | Tracking | Definition |
 |---|---|---|---|---|---|---|
-| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-13 03:36:36+00:00` | Baseline; exact changes tracked from this time forward | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-13 03:36:36+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-13 03:56:13.759386+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-13 03:58:35+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
 | `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-11` | `2026-09-12 14:47:03+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
+| `Feature_Calculation_Log` | System | After completed worker attempts; worker not active | — | `2026-09-13 03:56:31+00:00` | Baseline only | Completed attempt and retry history for Feature 01 calculation work. |
+| `Feature_Calculation_Queue` | System | After price upsert and worker transitions; integration not active | — | `2026-09-13 03:56:31+00:00` | Baseline only | Durable pending and completed Feature 01 calculation work per changed source candle. |
 | `Feature_Catalog` | Reference | After each validated Feature schema change | — | `2026-09-12 17:09:34+00:00` | Baseline; exact changes tracked from this time forward | Versioned semantic definitions and formulas for validated Feature columns. |
+| `Feature_Status` | System | After enqueue and worker transitions; integration not active | — | `2026-09-13 03:56:31+00:00` | Baseline only | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
 | `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-10 07:23:34.854803+00:00` | Tracked automatically | Broker code and name, domestic/foreign type, and usage profile such as Institutional-heavy, Retail-heavy, Mixed, or Niche. |
 | `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 14:41:15.160142+00:00` | Derived from table data and load log | Daily broker buy/sell values and lots by symbol, broker, investor type, and market board. |
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-12 13:34:43.352522+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
 | `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-13` | `2026-09-12 23:01:58.271364+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
 | `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-11` | `2026-09-11 10:05:26.641709+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
-| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-13 03:36:36+00:00` | Baseline; exact changes tracked from this time forward | Curated meanings, grain, provenance, and update contracts for the eleven approved public data tables; not a freshness monitor. |
+| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-13 03:56:13.722596+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
 | `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
 | `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-12 23:02:02.452075+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
 | `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-09-06 13:21:52.115381+00:00` | Loaded from Universe_Equity_Description.xlsx; future changes tracked automatically | Issuer descriptions and TradingView/curated sector and industry classifications. |
@@ -169,6 +172,92 @@ Daily per-ticker price, return, volatility, volume, and drawdown features.
 | `Feature_01_Stock_Daily_date_idx` | `CREATE INDEX "Feature_01_Stock_Daily_date_idx" ON public."Feature_01_Stock_Daily" USING btree (date)` |
 | `Feature_01_Stock_Daily_pkey` | `CREATE UNIQUE INDEX "Feature_01_Stock_Daily_pkey" ON public."Feature_01_Stock_Daily" USING btree (ticker, date)` |
 
+## Feature_Calculation_Log
+
+Completed attempt and retry history for Feature 01 calculation work.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `id` | `bigint` | No | — | Unique completed-attempt record identifier. |
+| `feature_table` | `text` | No | — | Target Feature table of the attempted work item. |
+| `ticker` | `text` | No | — | Ticker of the attempted work item. |
+| `price_date` | `date` | No | — | Source trading date of the attempted work item. |
+| `source_ingestion_time` | `timestamp with time zone` | No | — | Source version captured by this worker attempt. |
+| `attempt_no` | `integer` | No | — | Monotonic attempt number for this queue key. |
+| `result` | `text` | No | — | Attempt outcome: SUCCESS, FAILED, or SUPERSEDED by newer source data. |
+| `started_at` | `timestamp with time zone` | No | — | Time the worker attempt began. |
+| `finished_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Time the worker attempt finished. |
+| `rows_refreshed` | `integer` | Yes | — | Number of Feature rows refreshed, if measured by the worker. |
+| `detail` | `text` | Yes | — | Concise outcome or error detail without credentials. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature_Calculation_Log_attempt_check` | Check | `CHECK (attempt_no > 0)` |
+| `Feature_Calculation_Log_result_check` | Check | `CHECK (result = ANY (ARRAY['SUCCESS'::text, 'FAILED'::text, 'SUPERSEDED'::text]))` |
+| `Feature_Calculation_Log_rows_check` | Check | `CHECK (rows_refreshed IS NULL OR rows_refreshed >= 0)` |
+| `Feature_Calculation_Log_time_check` | Check | `CHECK (finished_at >= started_at)` |
+| `Feature_Calculation_Log_queue_fkey` | Foreign key | `FOREIGN KEY (feature_table, ticker, price_date) REFERENCES "Feature_Calculation_Queue"(feature_table, ticker, price_date)` |
+| `Feature_Calculation_Log_pkey` | Primary key | `PRIMARY KEY (id)` |
+| `Feature_Calculation_Log_attempt_key` | Unique | `UNIQUE (feature_table, ticker, price_date, attempt_no)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_Calculation_Log_attempt_key` | `CREATE UNIQUE INDEX "Feature_Calculation_Log_attempt_key" ON public."Feature_Calculation_Log" USING btree (feature_table, ticker, price_date, attempt_no)` |
+| `Feature_Calculation_Log_pkey` | `CREATE UNIQUE INDEX "Feature_Calculation_Log_pkey" ON public."Feature_Calculation_Log" USING btree (id)` |
+| `Feature_Calculation_Log_ticker_time_idx` | `CREATE INDEX "Feature_Calculation_Log_ticker_time_idx" ON public."Feature_Calculation_Log" USING btree (feature_table, ticker, started_at DESC)` |
+
+## Feature_Calculation_Queue
+
+Durable pending and completed Feature 01 calculation work per changed source candle.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `feature_table` | `text` | No | `'Feature_01_Stock_Daily'::text` | Target Feature table; currently restricted to Feature_01_Stock_Daily. |
+| `ticker` | `text` | No | — | Ticker of the changed source candle. |
+| `price_date` | `date` | No | — | Trading date of the changed source candle. |
+| `source_ingestion_time` | `timestamp with time zone` | No | — | Source candle ingestion timestamp captured when the work item is enqueued. |
+| `source_execution_id` | `text` | Yes | — | Optional source price-run execution identifier. |
+| `status` | `text` | No | `'PENDING'::text` | Work state: PENDING, PROCESSING, DONE, or FAILED. |
+| `attempt_count` | `integer` | No | `0` | Number of worker claims made for this queue key. |
+| `next_attempt_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Earliest time when a pending or failed item may be claimed. |
+| `claimed_at` | `timestamp with time zone` | Yes | — | Time the active worker claim began. |
+| `claim_token` | `uuid` | Yes | — | Unique token of the active worker claim. |
+| `claim_expires_at` | `timestamp with time zone` | Yes | — | Lease expiry of the active worker claim. |
+| `last_error` | `text` | Yes | — | Concise error from the most recent failed attempt. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Time this queue key was first created. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Time the queue row was last changed by the writer or worker. |
+| `completed_at` | `timestamp with time zone` | Yes | — | Time the current source version completed Feature calculation. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature_Calculation_Queue_attempt_check` | Check | `CHECK (attempt_count >= 0)` |
+| `Feature_Calculation_Queue_claim_check` | Check | `CHECK ((status = 'PROCESSING'::text) = (claimed_at IS NOT NULL AND claim_token IS NOT NULL AND claim_expires_at IS NOT NULL))` |
+| `Feature_Calculation_Queue_completion_check` | Check | `CHECK ((status = 'DONE'::text) = (completed_at IS NOT NULL))` |
+| `Feature_Calculation_Queue_feature_check` | Check | `CHECK (feature_table = 'Feature_01_Stock_Daily'::text)` |
+| `Feature_Calculation_Queue_status_check` | Check | `CHECK (status = ANY (ARRAY['PENDING'::text, 'PROCESSING'::text, 'DONE'::text, 'FAILED'::text]))` |
+| `Feature_Calculation_Queue_timestamps_check` | Check | `CHECK (updated_at >= created_at)` |
+| `Feature_Calculation_Queue_price_fkey` | Foreign key | `FOREIGN KEY (ticker, price_date) REFERENCES "Price_Stock_Indonesia_IDX"(ticker, date)` |
+| `Feature_Calculation_Queue_pkey` | Primary key | `PRIMARY KEY (feature_table, ticker, price_date)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_Calculation_Queue_lease_idx` | `CREATE INDEX "Feature_Calculation_Queue_lease_idx" ON public."Feature_Calculation_Queue" USING btree (claim_expires_at) WHERE (status = 'PROCESSING'::text)` |
+| `Feature_Calculation_Queue_pkey` | `CREATE UNIQUE INDEX "Feature_Calculation_Queue_pkey" ON public."Feature_Calculation_Queue" USING btree (feature_table, ticker, price_date)` |
+| `Feature_Calculation_Queue_ready_idx` | `CREATE INDEX "Feature_Calculation_Queue_ready_idx" ON public."Feature_Calculation_Queue" USING btree (next_attempt_at, created_at) WHERE (status = ANY (ARRAY['PENDING'::text, 'FAILED'::text]))` |
+| `Feature_Calculation_Queue_ticker_state_idx` | `CREATE INDEX "Feature_Calculation_Queue_ticker_state_idx" ON public."Feature_Calculation_Queue" USING btree (feature_table, ticker, status, price_date)` |
+
 ## Feature_Catalog
 
 Versioned semantic definitions and formulas for validated Feature columns.
@@ -212,6 +301,45 @@ Versioned semantic definitions and formulas for validated Feature columns.
 | Name | Definition |
 |---|---|
 | `Feature_Catalog_pkey` | `CREATE UNIQUE INDEX "Feature_Catalog_pkey" ON public."Feature_Catalog" USING btree (feature_table, feature_column, version)` |
+
+## Feature_Status
+
+Current Feature 01 calculation freshness and outstanding-work summary per ticker.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `feature_table` | `text` | No | `'Feature_01_Stock_Daily'::text` | Target Feature table; currently restricted to Feature_01_Stock_Daily. |
+| `ticker` | `text` | No | — | Ticker summarized by this status row. |
+| `latest_price_date` | `date` | No | — | Latest trading date observed for this ticker by the enqueue flow. |
+| `latest_source_ingestion_time` | `timestamp with time zone` | No | — | Latest source ingestion timestamp observed by the enqueue flow. |
+| `last_successful_source_ingestion_time` | `timestamp with time zone` | Yes | — | Latest source version covered by a validated Feature calculation. |
+| `last_successful_price_date` | `date` | Yes | — | Latest trading date covered by a validated Feature calculation. |
+| `last_calculated_at` | `timestamp with time zone` | Yes | — | Time of the latest validated Feature calculation. |
+| `pending_count` | `integer` | No | `0` | Number of PENDING queue rows for this ticker. |
+| `processing_count` | `integer` | No | `0` | Number of PROCESSING queue rows for this ticker. |
+| `failed_count` | `integer` | No | `0` | Number of FAILED queue rows for this ticker. |
+| `status` | `text` | No | `'PENDING'::text` | Current ticker state: PENDING, PROCESSING, SUCCESS, or FAILED. |
+| `last_error` | `text` | Yes | — | Concise most recent calculation error for this ticker. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Time this status summary was last changed. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature_Status_counts_check` | Check | `CHECK (pending_count >= 0 AND processing_count >= 0 AND failed_count >= 0)` |
+| `Feature_Status_feature_check` | Check | `CHECK (feature_table = 'Feature_01_Stock_Daily'::text)` |
+| `Feature_Status_status_check` | Check | `CHECK (status = ANY (ARRAY['PENDING'::text, 'PROCESSING'::text, 'SUCCESS'::text, 'FAILED'::text]))` |
+| `Feature_Status_success_check` | Check | `CHECK (status <> 'SUCCESS'::text OR pending_count = 0 AND processing_count = 0 AND failed_count = 0 AND last_successful_source_ingestion_time IS NOT NULL AND last_successful_source_ingestion_time >= latest_source_ingestion_time)` |
+| `Feature_Status_pkey` | Primary key | `PRIMARY KEY (feature_table, ticker)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_Status_pkey` | `CREATE UNIQUE INDEX "Feature_Status_pkey" ON public."Feature_Status" USING btree (feature_table, ticker)` |
+| `Feature_Status_state_idx` | `CREATE INDEX "Feature_Status_state_idx" ON public."Feature_Status" USING btree (feature_table, status, updated_at)` |
 
 ## IDX_Broker_Profile
 
@@ -423,7 +551,7 @@ Daily Indonesian stock OHLCV candles sourced from TradingView.
 
 ## Table_Catalog
 
-Curated meanings, grain, provenance, and update contracts for the eleven approved public data tables; not a freshness monitor.
+Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor.
 
 ### Columns
 

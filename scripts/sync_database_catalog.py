@@ -125,12 +125,17 @@ def reconcile(connection: psycopg.Connection[Any]) -> tuple[int, int]:
         raise RuntimeError(f"Catalog targets missing physical tables: {[row[0] for row in missing_tables]}")
 
     feature_definitions = latest_feature_definitions(connection)
+    feature_tables = {
+        row[0]
+        for row in connection.execute(
+            "SELECT table_name FROM public.\"Table_Catalog\" WHERE category = 'Feature'"
+        ).fetchall()
+    }
     columns = physical_columns(connection)
     missing_feature_definitions = [
         (row[1], row[2])
         for row in columns
-        if row[1].startswith("Feature_")
-        and row[1] != "Feature_Catalog"
+        if row[1] in feature_tables
         and (row[1], row[2]) not in feature_definitions
     ]
     if missing_feature_definitions:

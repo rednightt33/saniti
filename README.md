@@ -18,7 +18,7 @@ An AI working on this project must read these files in order before changing Rai
 10. [`apps/telegram-trigger/README.md`](apps/telegram-trigger/README.md) — authorized Telegram controls for Railway Run Now actions and command deduplication.
 11. [`apps/stockbit-broker-backfill/README.md`](apps/stockbit-broker-backfill/README.md) — local Stockbit backfill, parallel date ranges, retry behavior, and invalid-token stop rule.
 
-The proposed (not yet implemented) per-ticker Feature 01 refresh queue and status model is documented in [`FEATURE_01_AUTOMATION_PLAN.md`](FEATURE_01_AUTOMATION_PLAN.md).
+The three Feature 01 control tables are present, but automatic enqueue and calculation are not active. The remaining rollout steps are documented in [`FEATURE_01_AUTOMATION_PLAN.md`](FEATURE_01_AUTOMATION_PLAN.md).
 
 ## Mandatory update contract
 

@@ -11,12 +11,14 @@ The live PostgreSQL schema is the authority for physical types, constraints, and
 | `Feature_Catalog` | Versioned formulas, lookback, minimum history, units, null rules, and dependencies for validated Feature columns | One row per Feature table, column, and semantic version |
 | `Database_Table_Status` | Operational freshness and last-change tracking | One row per public table; **not** a semantic catalog |
 
-The initial `Table_Catalog` scope is exactly these eleven existing tables:
+The initial `Table_Catalog` scope was exactly these eleven existing tables:
 `IDX_Stock_Universe`, `Universe_Equity_Description`, `IDX_Broker_Profile`,
 `IDX_Broker_Summary`, `Price_Stock_Indonesia_IDX`, `Feature_01_Stock_Daily`,
 `Feature_Catalog`, `Monitoring_Price_ALL`, `stockbit_broker_summary_load_log`,
 `Telegram_Command_Log`, and `Telegram_Notification_Log`.
 `Database_Table_Status`, the deleted `IDX_Broker_Summary_Data_Quality`, and the two new catalog tables themselves are not initial catalog entries.
+
+The current scope adds `Feature_Calculation_Queue`, `Feature_Status`, and `Feature_Calculation_Log`, for 14 registered tables and 202 registered columns. They are `System` control tables, not calculated Feature-output tables; they do not require formula entries in `Feature_Catalog`. Their semantic entries remain `PARTIAL` until the writer and worker are implemented and verified. The 29 active Feature 01 formula definitions are unchanged.
 
 The only existing Feature table is Feature 01. `Feature_Catalog` already has active `v1` definitions for its 29 physical columns; do not invent entries for Feature 02–04 before those tables exist and are validated.
 

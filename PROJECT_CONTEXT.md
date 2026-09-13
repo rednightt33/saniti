@@ -89,8 +89,11 @@ Telegram owner -> telegram-trigger webhook -> validate webhook secret and Chat I
 - `Universe_Equity_Description`: company and industry descriptions.
 - `Price_Stock_Indonesia_IDX`: daily IDX OHLCV price history.
 - `Feature_01_Stock_Daily`: SQL-side daily ticker features for price returns, volatility, volume, and drawdown. Its refresh routine exists, but price-cron integration is intentionally not active yet.
+- `Feature_Calculation_Queue`: durable per-candle Feature 01 work items; no automatic enqueue writer is active yet.
+- `Feature_Status`: current per-ticker Feature 01 calculation state; no status writer is active yet.
+- `Feature_Calculation_Log`: completed calculation attempt history; no worker is active yet.
 - `Feature_Catalog`: machine-readable semantic and governance layer for validated columns in the four locked Feature tables. It currently contains only active `v1` definitions for Feature 01.
-- `Table_Catalog`: curated purpose, grain, source, writer, and update contract for the eleven approved tables.
+- `Table_Catalog`: curated purpose, grain, source, writer, and update contract for 14 approved tables.
 - `Column_Catalog`: physical column inventory and evidence-graded definitions for columns in those approved tables. For Feature formulas, `Feature_Catalog` remains authoritative.
 - `Monitoring_Price_ALL`: per-execution daily/recovery completeness, trigger source, query time, missing symbols, and status grouped by the universe `Security Type` value.
 - `Telegram_Command_Log`: incoming Telegram Run Now audit, webhook-retry deduplication, and rapid-click blocking.
@@ -98,7 +101,7 @@ Telegram owner -> telegram-trigger webhook -> validate webhook secret and Chat I
 - `stockbit_broker_summary_load_log`: resume, retry, and `NEEDS_REVIEW` history.
 - `Database_Table_Status`: freshness and tracking catalog.
 
-See `DATABASE_CATALOG.md` for the exact initial table list, metadata fields, confidence rules, and mandatory updates when new tables, columns, Feature definitions, or routines are added. `Database_Table_Status` remains a separate operational freshness table and is not one of the eleven semantic catalog targets.
+See `DATABASE_CATALOG.md` for the initial and current table lists, metadata fields, confidence rules, and mandatory updates when new tables, columns, Feature definitions, or routines are added. `Database_Table_Status` remains a separate operational freshness table and is not one of the 14 semantic catalog targets.
 
 Use `DATABASE_SCHEMA.md` for exact current columns and constraints.
 

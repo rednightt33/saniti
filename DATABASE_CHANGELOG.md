@@ -1,5 +1,13 @@
 # Database changelog
 
+## 2026-09-13 — Create Feature 01 calculation control tables
+
+- Target: Railway project `lucid-patience`, environment `dev`, PostgreSQL service `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`.
+- Applied forward-only migrations `database/migrations/20260913_004_create_feature_calculation_control.sql` and `database/migrations/20260913_005_update_table_catalog_comment.sql`. Created `public."Feature_Calculation_Queue"`, `public."Feature_Status"`, and `public."Feature_Calculation_Log"`, with primary/foreign keys, state and timestamp checks, retry/lease indexes, attempt uniqueness, and documented columns. The second migration corrected the catalog table comment from the original eleven-table wording to the current approved scope without editing an applied migration.
+- Registered all three new System tables and all 39 physical columns in `Table_Catalog`/`Column_Catalog`. `scripts/sync_database_catalog.py` now recognizes calculated Feature tables by catalog category, so control tables do not incorrectly require Feature formulas. Catalog synchronization PASS: 14 registered tables, 202 physical/cataloged columns, zero metadata updates on re-run. The 29 active Feature 01 formula definitions were unchanged.
+- Live verification PASS: all three control tables exist and contain zero committed rows; rollback-only tests rejected duplicate queue keys, invalid queue status, and premature `Feature_Status.SUCCESS`, while valid queue/status/log inserts succeeded and were rolled back. Price source and Feature 01 remain at 1,303,728 rows each. `Database_Table_Status` and `DATABASE_SCHEMA.md` were refreshed for 17 public tables.
+- No price cron, recovery cron, worker, Railway service, or raw/Feature data was changed. Automatic calculation is **not active**: the price writer does not yet enqueue in the price-upsert transaction, and no worker invokes `refresh_feature_01_stock_daily(date, text[])`. See `FEATURE_01_AUTOMATION_PLAN.md` for the required rollout.
+
 ## 2026-09-13 — Create approved table and column catalogs
 
 - Target: `public."Table_Catalog"` and `public."Column_Catalog"` in Railway project `lucid-patience`, environment `dev`, PostgreSQL service `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`.
