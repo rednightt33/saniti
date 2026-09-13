@@ -22,7 +22,8 @@ with `Authorization: Bearer $MARKET_AI_INTERNAL_API_KEY`.
 7. A final response is accepted only when it matches the full schema and cites
    evidence IDs actually recorded for the current request. A malformed or
    premature final response receives bounded corrective feedback within the same
-   analysis budget.
+   analysis budget. Calling `record_evidence` signals that evidence is sufficient;
+   the following call removes data-tool schemas and performs strict finalization.
 8. A successful response stores an immutable version/methodology snapshot and a
    structured `recommended_next_analysis` list.
 
