@@ -1,5 +1,15 @@
 # Database changelog
 
+## 2026-09-13 — Finalize Release 1B semantics and golden acceptance
+
+- Applied forward-only `database/migrations/20260913_021_finalize_market_ai_release_1b.sql`. It corrected the post-Feature-3 generic usage metadata: date/ticker/board and dominant-broker identifiers are groupable dimensions, calculated time is a dimension, and every numeric field now has type-appropriate aggregation/ranking rules.
+- Registered 15 active Release 1B golden definitions covering discovery, common readiness, bounded BBCA retrieval, raw-column/unbounded/ticker-limit rejection, extreme-observation quality policy, Feature 3 board aggregation, query-hash reproducibility, point-in-time warnings, semantic compaction, progressive exposure, inactive Analytics Worker tools, and database least privilege.
+- Applied `database/migrations/20260913_022_align_market_ai_tool_limits.sql` after detecting that the original catalog default output count (100) differed from the approved configurable backend default (500). It aligns query/screening catalog metadata with the enforced 500/5,000 row, 20 ticker/column, 1,825-day, 100,000 estimated-row, 15-second, 1 MiB backend, and 200-row/128 KiB/4,000-token LLM-facing ceilings. Runtime Railway variables remain authoritative.
+- `scripts/run_market_ai_golden_tests.py` executed all 15 definitions under `market_ai_reader`; the final post-limit-alignment run `cafd05d4-aaf4-4450-b84e-3872253c0d08` finished `PASS` with 15 passed and zero failed. No OpenAI request was needed for this deterministic database/backend gate.
+- `scripts/verify_market_ai_backend.py` PASS: 15 exposed Release 1B non-audit definitions in the tested families, all three verified Feature tables, common safe date 2026-08-31, BBCA quality `PASS`, 19 bounded price rows, three Feature 3 market-board groups, stable estimate/execute query hash, and rejection of an unregistered raw column.
+- Provisioned login `market_ai_app` as a member only of `market_ai_reader` and `market_ai_logger`, with statement/lock/idle transaction timeouts. Feature/catalog read and analysis-log write are available; raw price and broker SELECT remain denied. The credential value is stored only as a Railway service variable and is not present in Git.
+- Catalog/schema synchronization remained complete at 424 physical columns; `DATABASE_SCHEMA.md` was regenerated from 27 public tables. No raw row, Feature value, calculation routine, or Feature automation was changed.
+
 ## 2026-09-13 — Create market AI catalog, readiness, audit, and historical-integrity foundation
 
 - Applied forward-only `database/migrations/20260913_009_create_market_ai_foundation.sql`. It added readiness and generic-usage metadata, `Feature_Relationship_Catalog`, `Tool_Catalog`, `Analysis_Request`, `Analysis_Step_Log`, `Analysis_Evidence`, `check_analysis_data_readiness(text[])`, and three NOLOGIN least-privilege roles. The registry contains 17 active Release 1 tools and 11 inactive analytics/deferred tools; advertised backend and LLM-facing result limits are separate.

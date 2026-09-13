@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+"""Exercise Release 1B tools live under market_ai_reader, without OpenAI calls."""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+from datetime import date, timedelta
+from pathlib import Path
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
+
+
+ROOT = Path(__file__).resolve().parents[1]
+APP = ROOT / "apps" / "market-ai-backend"
+sys.path.insert(0, str(APP))
+
+from app.config import Settings  # noqa: E402
+from app.db import Database  # noqa: E402
+from app.tools import ToolError, ToolRegistry  # noqa: E402
+
+
+def with_reader_role(url: str) -> str:
+    parts = urlsplit(url)
+    query = parse_qsl(parts.query, keep_blank_values=True)
+    query.append(("options", "-c role=market_ai_reader"))
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query, quote_via=quote), parts.fragment))
+
+
+def main() -> None:
+    source_url = os.environ.get("DATABASE_URL", "")
+    if not source_url:
+        raise RuntimeError("DATABASE_URL is required")
+    os.environ["DATABASE_URL"] = with_reader_role(source_url)
+    settings = Settings.from_env(require_runtime_secrets=False)
+    db = Database(settings.database_url, settings.query_timeout_seconds)
+    db.open()
+    try:
+        tools = ToolRegistry(db, settings)
+        definitions = tools.definitions({"META", "DISCOVERY", "QUALITY", "QUERY", "SCREENING"})
+        table_result = tools.execute("list_feature_tables", {"include_columns": False}, "test")
+        tables = [row["table_name"] for row in table_result.payload["rows"]]
+        expected = {"Feature_01_Stock_Daily", "Feature_02_Broker_Rolling", "Feature_03_Stock_Broker_Daily"}
+        assert expected <= set(tables), tables
+
+        freshness = tools.execute("check_data_freshness", {"tables": sorted(expected)}, "test")
+        ready = date.fromisoformat(freshness.payload["analysis_ready_date"])
+        start = ready - timedelta(days=30)
+        discovery = tools.execute("find_features", {"search_text": "return", "tables": ["Feature_01_Stock_Daily"], "limit": 20}, "test")
+        assert discovery.payload["total_rows"] > 0
+
+        quality = tools.execute("check_data_quality", {
+            "table": "Feature_01_Stock_Daily", "tickers": ["BBCA"],
+            "start_date": start.isoformat(), "end_date": ready.isoformat(),
+        }, "test")
+        assert quality.payload["classification"] in {"PASS", "WARNING"}
+        assert quality.payload["policy"].startswith("Source-valid extremes")
+
+        query = {
+            "table": "Feature_01_Stock_Daily", "columns": ["date", "ticker", "close", "return_1d_pct"],
+            "tickers": ["BBCA"], "start_date": start.isoformat(), "end_date": ready.isoformat(),
+            "filters": None, "order_by": [{"column": "date", "direction": "asc"}], "limit": 100,
+        }
+        estimate = tools.execute("estimate_query_size", query, "test")
+        rows = tools.execute("query_features", query, "test")
+        assert estimate.payload["valid"] and rows.payload["rows"]
+        assert rows.query_hash == estimate.query_hash
+
+        rejected = False
+        try:
+            tools.execute("query_features", {**query, "columns": ["raw_price"]}, "test")
+        except ToolError:
+            rejected = True
+        assert rejected, "Unregistered columns must be rejected"
+
+        aggregation = tools.execute("aggregate_features", {
+            "table": "Feature_03_Stock_Broker_Daily", "group_by": ["market_board"],
+            "metrics": [{"column": "total_buy_value", "aggregation": "SUM"}],
+            "tickers": ["BBCA"], "start_date": start.isoformat(), "end_date": ready.isoformat(), "limit": 10,
+        }, "test")
+        assert aggregation.payload["rows"]
+        print(json.dumps({
+            "status": "PASS", "active_tool_definitions": len(definitions),
+            "feature_tables": tables, "analysis_ready_date": ready.isoformat(),
+            "quality": quality.payload["classification"], "query_rows": rows.payload["total_rows"],
+            "aggregate_groups": aggregation.payload["total_rows"],
+            "raw_column_rejected": rejected,
+        }))
+    finally:
+        db.close()
+
+
+if __name__ == "__main__":
+    main()

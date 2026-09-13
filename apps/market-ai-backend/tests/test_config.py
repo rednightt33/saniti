@@ -1,0 +1,26 @@
+from __future__ import annotations
+
+import os
+
+import pytest
+
+from app.config import Settings
+
+
+def test_default_limits_are_three_separate_policies(monkeypatch: pytest.MonkeyPatch) -> None:
+    for key in list(os.environ):
+        if key.startswith(("QUERY_", "LLM_", "AI_", "ANALYTICS_")):
+            monkeypatch.delenv(key, raising=False)
+    settings = Settings.from_env(require_runtime_secrets=False)
+    assert settings.query_max_rows == 5000
+    assert settings.llm_tool_result_max_rows == 200
+    assert settings.ai_max_output_tokens == 3000
+    assert settings.ai_target_context_tokens < settings.ai_context_compaction_threshold_tokens < settings.ai_max_context_tokens
+    assert settings.ai_max_cumulative_input_tokens > settings.ai_max_context_tokens
+
+
+def test_invalid_context_order_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AI_TARGET_CONTEXT_TOKENS", "40000")
+    monkeypatch.setenv("AI_CONTEXT_COMPACTION_THRESHOLD_TOKENS", "32000")
+    with pytest.raises(RuntimeError, match="context target"):
+        Settings.from_env(require_runtime_secrets=False)

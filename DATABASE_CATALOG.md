@@ -26,7 +26,7 @@ The scope subsequently added `Feature_Calculation_Queue`, `Feature_Status`, and 
 
 `Feature_03_Stock_Broker_Daily` is also approved and validated. It adds one table entry, 24 verified column entries, and 24 active `Feature_Catalog` `v1` definitions. Its grain is date, source ticker, and market board; Regular, Nego, and Tunai never mix. Two safe Feature 03 join contracts are registered in `Feature_Relationship_Catalog`. See `FEATURE_03_STOCK_BROKER_DAILY.md`.
 
-The market-AI foundation adds `Feature_Relationship_Catalog`, `Tool_Catalog`, three analysis audit tables, and three Golden Test tables. The current live scope is 24 registered tables and 424 registered physical columns across those tables. `Tool_Catalog` has 17 active core tools and 11 inactive analytics/deferred tools. Inactive tools are metadata only and cannot be invoked.
+The market-AI foundation adds `Feature_Relationship_Catalog`, `Tool_Catalog`, three analysis audit tables, and three Golden Test tables. The current live scope is 24 registered tables and 424 registered physical columns across those tables. `Tool_Catalog` has 17 active core tools and 11 inactive analytics/deferred tools. Inactive tools are metadata only and cannot be invoked. Release 1B registers 15 deterministic golden expectations; the first persisted run passed 15/15. Feature 3 usage metadata explicitly permits board/ticker/date grouping and only type-appropriate aggregations.
 
 Do not invent active Feature Catalog entries for Feature 04 before that table exists and is validated.
 

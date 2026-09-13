@@ -22,6 +22,8 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - Telegram command service: `telegram-trigger`
 - Telegram command service ID: `5a3f820c-2bb2-494b-b771-15fa6a5eb48a`
 - Telegram command service instance ID: `78bd93d5-f74a-42fb-ad25-2be856bbda07`
+- Market AI backend service: `market-ai-backend`
+- Market AI backend service ID: `2cefa0cd-c9fc-4b84-992e-fdf08535a064`
 - Dashboard: <https://railway.com/project/8aef1702-030b-49cb-9df7-5ac2e0a42691?environmentId=4d3e5af2-302b-4a2e-84e2-7d7476d6ff49>
 - GitHub: <https://github.com/rednightt33/saniti>
 
@@ -38,6 +40,7 @@ All application services deploy from `rednightt33/saniti` on branch `main`. Each
 | `telegram-monitor` | `/apps/telegram-monitor` | `/apps/telegram-monitor/**` |
 | `telegram-trigger` | `/apps/telegram-trigger` | `/apps/telegram-trigger/**` |
 | `feature-01-worker` | `/apps/feature-01-worker` | `/apps/feature-01-worker/**` |
+| `market-ai-backend` | `/apps/market-ai-backend` (planned; source pending API key) | `/apps/market-ai-backend/**` (planned) |
 
 Connecting or changing a service source must preserve its environment variables and secrets, cron schedule, start command, health check, domain, private networking, restart/serverless policy, and database references. Source-configuration work must not use **Run now** on either price service and must not issue a TradingView query. Record the currently active deployment ID before each change so it remains available as the rollback reference, then wait for the new deployment to reach `SUCCESS` before changing the next service.
 
@@ -112,7 +115,7 @@ Telegram owner -> telegram-trigger webhook -> validate webhook secret and Chat I
 - `stockbit_broker_summary_load_log`: resume, retry, and `NEEDS_REVIEW` history.
 - `Database_Table_Status`: freshness and tracking catalog.
 
-The market-AI database foundation is live, but no `market-ai-backend` or analytics-worker Railway application service has been deployed yet. AI database roles are NOLOGIN building blocks: the reader can access only catalogs and VERIFIED Feature 1–3 tables, never raw price/broker data; the future analytics worker has no Feature/raw SELECT grant. Historical analysis must apply close-`t` to entry-`t+1`, preserve `SURVIVORSHIP_BIAS_WARNING` when point-in-time universe data is unavailable, and retain completed version snapshots.
+The market-AI database foundation and private backend code are ready. The Railway `market-ai-backend` shell, OpenAI secret, and least-privilege `market_ai_app` login exist; source deployment is the next release gate and no analytics-worker service exists. The app login can access only catalogs and VERIFIED Feature 1–3 tables plus analysis audit writes, never raw price/broker data; the future analytics worker has no Feature/raw SELECT grant. Historical analysis must apply close-`t` to entry-`t+1`, preserve `SURVIVORSHIP_BIAS_WARNING` when point-in-time universe data is unavailable, and retain completed version snapshots.
 
 See `DATABASE_CATALOG.md` for the initial and current table lists, metadata fields, confidence rules, and mandatory updates when new tables, columns, Feature definitions, or routines are added. `Database_Table_Status` remains a separate operational freshness table and is not a semantic catalog target.
 

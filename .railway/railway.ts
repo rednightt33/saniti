@@ -9,6 +9,16 @@ export default defineRailway(() => {
   Postgres.networking = { privateNetworkEndpoint: "postgres", tcpProxies: { "5432": {} } };
   const postgresVolumeThQL = volume("postgres-volume-thQL", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
   const postgresVolume = volume("postgres-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
+  const marketAiBackend = service("market-ai-backend", {
+    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-ai-backend" }),
+    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/market-ai-backend/**"] },
+    start: "uvicorn app.main:app --host 0.0.0.0 --port 8080",
+    healthcheck: "/health",
+    healthcheckTimeout: 120,
+    replicas: { "sfo": 1 },
+    deploy: { restartPolicyType: "ALWAYS" },
+    env: { AI_CONTEXT_COMPACTION_THRESHOLD_TOKENS: preserve(), AI_CONTEXT_RESERVE_TOKENS: preserve(), AI_MAX_CONTEXT_TOKENS: preserve(), AI_MAX_CUMULATIVE_INPUT_TOKENS: preserve(), AI_MAX_CUMULATIVE_OUTPUT_TOKENS: preserve(), AI_MAX_FEATURE_METADATA_TOKENS: preserve(), AI_MAX_HISTORY_TOKENS: preserve(), AI_MAX_OUTPUT_TOKENS: preserve(), AI_MAX_TOOL_CALLS: preserve(), AI_MAX_TOOL_ITERATIONS: preserve(), AI_MAX_TOOL_RESULT_TOKENS_PER_CALL: preserve(), AI_MAX_TOOL_RESULT_TOKENS_TOTAL: preserve(), AI_REQUEST_TIMEOUT_SECONDS: preserve(), AI_TARGET_CONTEXT_TOKENS: preserve(), DATABASE_URL: preserve(), LLM_TOOL_RESULT_MAX_BYTES: preserve(), LLM_TOOL_RESULT_MAX_ROWS: preserve(), MARKET_AI_INTERNAL_API_KEY: preserve(), OPENAI_API_KEY: preserve(), OPENAI_MODEL: preserve(), OPENAI_REASONING_EFFORT: preserve(), QUERY_DEFAULT_ROWS: preserve(), QUERY_MAX_COLUMNS: preserve(), QUERY_MAX_DATE_RANGE_DAYS: preserve(), QUERY_MAX_ESTIMATED_ROWS: preserve(), QUERY_MAX_GROUPS: preserve(), QUERY_MAX_OUTPUT_BYTES: preserve(), QUERY_MAX_PERIODS: preserve(), QUERY_MAX_ROWS: preserve(), QUERY_MAX_TICKERS: preserve(), QUERY_MAX_UNFILTERED_DATE_RANGE_DAYS: preserve(), QUERY_TIMEOUT_SECONDS: preserve(), WORKER_LEASE_SECONDS: preserve(), WORKER_POLL_SECONDS: preserve() },
+  });
   const idxPriceCron = service("idx-price-cron", {
     source: saniti,
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/idx-price-cron/**"] },
@@ -62,6 +72,6 @@ export default defineRailway(() => {
   });
 
   return project("lucid-patience", {
-    resources: [idxPriceCron, telegramTrigger, DB2, telegramMonitor, idxPriceRecoveryCron, Postgres, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume],
+    resources: [marketAiBackend, idxPriceCron, telegramTrigger, DB2, telegramMonitor, idxPriceRecoveryCron, Postgres, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume],
   });
 });

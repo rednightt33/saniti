@@ -6,23 +6,28 @@ Plan ini menggantikan working plan sebelumnya dan memasukkan requirements dari
 `Tools.md`, AI Analyst addendum, final limit/context requirements, dan empat
 historical-integrity requirements terakhir.
 
-Status saat revisi:
+Status eksekusi per 2026-09-13:
 
-- Feature 1 dan Feature 2 telah backfill dan tervalidasi.
-- Feature 2 memiliki 42.598.713 row, 4.125 ticker, dan 38 definisi `v1` aktif.
-- Migration `20260913_009_create_market_ai_foundation.sql` sudah diterapkan ke
-  database Railway sebelum eksekusi dihentikan untuk revisi plan. File migration
-  tetap forward-only dan tidak akan diedit setelah penerapan.
-- Working tree saat ini juga memiliki draft Feature 3 dengan prefix migration
-  `20260913_009`. Draft tersebut bukan bagian dari pekerjaan revisi ini dan belum
-  disentuh. Sebelum eksekusi berikutnya, provenance serta live-application status
-  harus diverifikasi; jika belum pernah diterapkan, draft wajib diberi sequence
-  baru agar tidak bertabrakan dengan market-AI `009` yang sudah live.
-- Release 1 belum divalidasi penuh, belum di-commit, dan `market-ai-backend`
-  belum dibuat atau di-deploy.
-- Perubahan yang diperlukan oleh plan revisi akan masuk migration baru, bukan
-  mengubah migration `009`.
-- Otomasi update Feature 2 tetap di luar scope.
+- Feature 1, Feature 2, dan Feature 3 telah backfill, direkonsiliasi, divalidasi,
+  serta terdaftar. Feature 2 memiliki 42.598.713 row/38 definisi `v1`; Feature 3
+  memiliki 2.268.015 row/24 definisi `v1`.
+- Release 1A selesai: foundation, historical-integrity metadata, Golden Test
+  tables, least-privilege roles, dan index-plan acceptance sudah live serta
+  terdokumentasi melalui migration forward-only.
+- Release 1B backend sudah diimplementasikan di `apps/market-ai-backend`.
+  Structured handlers, limit enforcement, token-aware semantic compaction,
+  progressive tool exposure, durable request worker, audit, evidence, dan
+  immutable result snapshot tersedia.
+- Migration `20260913_021_finalize_market_ai_release_1b.sql` dan limit-alignment
+  `20260913_022_align_market_ai_tool_limits.sql` sudah diterapkan. Live handler
+  verification PASS dan deterministic Golden Test suite 15/15 PASS.
+- Railway service shell `market-ai-backend` sudah dibuat dan 41 non-missing
+  configuration keys sudah disiapkan. Login `market_ai_app` dapat membaca
+  Feature/katalog dan menulis audit, tetapi raw-table SELECT ditolak.
+- `OPENAI_API_KEY` kemudian ditambahkan sebagai Railway secret oleh project owner.
+  Source/deployment menjadi gate aktif berikutnya setelah code dan dokumentasi
+  Release 1B tersedia di `origin/main`.
+- Otomasi update Feature 2/3 dan Analytics Worker tetap di luar scope Release 1B.
 
 Provider pertama hanya OpenAI. Initial model tetap configurable, dengan default
 `gpt-5.6-terra` dan reasoning `medium`. Private backend dibuat dan distabilkan
