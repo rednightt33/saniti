@@ -2,6 +2,13 @@
 
 This file records intentional changes to the Railway project. Git history preserves every revision. Never include secret values.
 
+## 2026-09-14 — Configure OpenRouter DeepSeek for market AI
+
+- Confirmed the project-owner-supplied `OPENROUTER_DEEPSEEK` secret exists on `market-ai-backend`; its value was never printed or committed.
+- Bounded live provider probes passed for both strict function calling and strict final structured output using `deepseek/deepseek-v4.1-flash`. Usage accounting was returned by the provider.
+- Set only four non-secret `market-ai-backend` variables with deployment initially suppressed: `AI_PROVIDER=openrouter`, `AI_MODEL=deepseek/deepseek-v4.1-flash`, `AI_REASONING_EFFORT=high`, and `AI_MAX_FEATURE_METADATA_TOKENS=5000`. The existing OpenAI secret remains available for an explicit future provider switch; there is no silent fallback.
+- Updated `.railway/railway.ts` to preserve the generic provider variables and `OPENROUTER_DEEPSEEK`. Railway config plan reported no infrastructure drift; no other service, schedule, volume, endpoint, or variable was changed.
+
 ## 2026-09-13 — Deploy private market AI backend and isolate OpenAI quota blocker
 
 - Created private service `market-ai-backend` (service ID `2cefa0cd-c9fc-4b84-992e-fdf08535a064`) in project `lucid-patience`, environment `dev`. It has one `sfo` replica and no public domain.

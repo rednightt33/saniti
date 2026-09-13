@@ -26,7 +26,7 @@ The scope subsequently added `Feature_Calculation_Queue`, `Feature_Status`, and 
 
 `Feature_03_Stock_Broker_Daily` is also approved and validated. It adds one table entry, 24 verified column entries, and 24 active `Feature_Catalog` `v1` definitions. Its grain is date, source ticker, and market board; Regular, Nego, and Tunai never mix. Two safe Feature 03 join contracts are registered in `Feature_Relationship_Catalog`. See `FEATURE_03_STOCK_BROKER_DAILY.md`.
 
-The market-AI foundation adds `Feature_Relationship_Catalog`, `Tool_Catalog`, three analysis audit tables, and three Golden Test tables. The current live scope is 24 registered tables and 424 registered physical columns across those tables. `Tool_Catalog` has 17 active core tools and 11 inactive analytics/deferred tools. Inactive tools are metadata only and cannot be invoked. Release 1B registers 15 deterministic golden expectations; the first persisted run passed 15/15. Feature 3 usage metadata explicitly permits board/ticker/date grouping and only type-appropriate aggregations.
+The market-AI foundation adds `Feature_Relationship_Catalog`, `Tool_Catalog`, three analysis audit tables, and three Golden Test tables. The current live scope is 24 registered tables and 429 registered physical columns across those tables. `Tool_Catalog` has 17 active core tools and 11 inactive analytics/deferred tools. Inactive tools are metadata only and cannot be invoked. Release 1B registers 15 deterministic golden expectations; the first persisted run passed 15/15. Feature 3 usage metadata explicitly permits board/ticker/date grouping and only type-appropriate aggregations.
 
 Do not invent active Feature Catalog entries for Feature 04 before that table exists and is validated.
 
@@ -36,7 +36,7 @@ Do not invent active Feature Catalog entries for Feature 04 before that table ex
 
 `Column_Catalog` has primary key `(table_schema, table_name, column_name)` and a foreign key to `Table_Catalog`. `ordinal_position`, `data_type`, `is_nullable`, `default_expression`, and `is_primary_key` are synchronized from live PostgreSQL. `definition`, `source_column_or_expression`, `unit`, and `null_rule` explain meaning. `source_code_paths`, `documentation_status`, and timestamps record evidence and maintenance.
 
-`Feature_Catalog` additionally defines `semantic_role`, `allowed_aggregations`, `ranking_interpretation`, filter/group eligibility, decision-time `availability_rule`, `point_in_time_safe`, and `historical_metadata_warning`. An active definition must reference a physical column in a VERIFIED Feature table, and only one definition version may be active per physical column.
+`Feature_Catalog` additionally defines `semantic_role`, `allowed_aggregations`, `ranking_interpretation`, filter/group eligibility, decision-time `availability_rule`, `point_in_time_safe`, `historical_metadata_warning`, `analytical_interpretation`, `recommended_use`, `misuse_warning`, `semantic_review_status`, and `validation_evidence`. An active definition must reference a physical column in a VERIFIED Feature table, contain nonblank semantic guidance and evidence, and only one definition version may be active per physical column. `CALCULATION_VERIFIED` means formula and semantics are backed by the listed migration/validator evidence; it does not make the Feature predictive.
 
 `Analysis_Request` records progressive tool exposure, compact results, cumulative OpenAI input/output usage, current and peak active context, compaction count, methodology metadata, and an immutable completed-request version snapshot. `Analysis_Step_Log` and `Analysis_Evidence` retain compact reproducibility details rather than large raw query results.
 
@@ -63,7 +63,9 @@ FROM public."Column_Catalog"
 WHERE table_schema = 'public' AND table_name = 'Price_Stock_Indonesia_IDX'
 ORDER BY ordinal_position;
 
-SELECT feature_column, definition, calculation, null_rule
+SELECT feature_column, definition, calculation, analytical_interpretation,
+       recommended_use, misuse_warning, semantic_review_status,
+       validation_evidence, null_rule
 FROM public."Feature_Catalog"
 WHERE feature_table = 'Feature_01_Stock_Daily'
   AND version = 'v1' AND is_active
@@ -99,7 +101,7 @@ FROM public.check_analysis_data_readiness(
 
 1. Inspect the live schema and relevant writer script, migration, or source data. Do not promote an inferred definition to `VERIFIED`.
 2. Add a **new forward-only migration** under `database/migrations/`. Register a new approved table in `Table_Catalog`; register new or changed columns in `Column_Catalog`. A deleted or renamed target needs a migration that reconciles its catalog entries in the same transaction.
-3. For new/changed Feature columns or formulas, add a new semantic version in `Feature_Catalog` and reconcile the generic `Column_Catalog` entry. `Feature_Catalog` remains formula authority.
+3. For new/changed Feature columns or formulas, add a new semantic version in `Feature_Catalog` and reconcile the generic `Column_Catalog` entry. Populate `analytical_interpretation`, `recommended_use`, `misuse_warning`, `semantic_review_status`, and `validation_evidence` for every row; do not use blank or name-only boilerplate. Run `scripts/audit_feature_catalog_semantics.py`. `Feature_Catalog` remains formula authority.
 4. For a new/changed PostgreSQL function, update `Table_Catalog.related_functions` for every registered table it directly serves; record its signature, behavior, and affected tables in the migration and `DATABASE_CHANGELOG.md`. Standalone functions with no registered table have no row-level function catalog in this two-catalog design and must be documented explicitly in the changelog and this guide until a separate Function Catalog is approved.
 5. Register or version every safe cross-Feature join in `Feature_Relationship_Catalog`. Register every new/changed AI tool, schema, activation state, and advertised limit in `Tool_Catalog`; runtime configuration remains the actual enforcement layer.
 6. Record observation date, actual availability evidence, point-in-time status, and conservative fallback. Never reinterpret current metadata or a backfill timestamp as historical availability.

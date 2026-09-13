@@ -3,7 +3,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from app.openai_client import OpenAIResponsesClient
+from app.openai_client import ResponsesClient
 
 
 class FakeHttpClient:
@@ -27,7 +27,8 @@ def response(status: int, code: str, error_type: str = "insufficient_quota") -> 
 
 
 def test_credit_exhaustion_is_not_retried() -> None:
-    client = object.__new__(OpenAIResponsesClient)
+    client = object.__new__(ResponsesClient)
+    client.provider = "openai"
     client.client = FakeHttpClient([response(429, "credit_balance_exhausted")])
 
     with pytest.raises(RuntimeError, match="credit_balance_exhausted") as error:
@@ -38,7 +39,8 @@ def test_credit_exhaustion_is_not_retried() -> None:
 
 
 def test_transient_429_is_retried(monkeypatch: pytest.MonkeyPatch) -> None:
-    client = object.__new__(OpenAIResponsesClient)
+    client = object.__new__(ResponsesClient)
+    client.provider = "openai"
     client.client = FakeHttpClient([
         response(429, "rate_limit_exceeded", "rate_limit_error"),
         httpx.Response(
@@ -54,10 +56,16 @@ def test_transient_429_is_retried(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_non_retryable_client_error_keeps_safe_provider_detail() -> None:
-    client = object.__new__(OpenAIResponsesClient)
+    client = object.__new__(ResponsesClient)
+    client.provider = "openai"
     client.client = FakeHttpClient([response(400, "invalid_request_error", "invalid_request_error")])
 
     with pytest.raises(RuntimeError, match="invalid_request_error"):
         client.create({"input": "test"})
 
     assert client.client.calls == 1
+
+
+def test_provider_base_url_is_allowlisted() -> None:
+    with pytest.raises(ValueError, match="Unsupported AI provider"):
+        ResponsesClient("https://attacker.invalid", "secret", 15)

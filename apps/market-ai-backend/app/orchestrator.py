@@ -12,7 +12,7 @@ from typing import Any
 from .compaction import compact_result, dumps, estimate_tokens
 from .config import Settings
 from .db import Database
-from .openai_client import OpenAIResponsesClient
+from .openai_client import ResponsesClient
 from .schemas import FINAL_RESPONSE_SCHEMA
 from .tools import ToolError, ToolRegistry
 
@@ -28,6 +28,10 @@ anomalies, not automatically bad data. Cite recorded evidence IDs for material
 claims. State data-ready date, point-in-time/current-classification limitations,
 and survivorship limitations where relevant. Do not confuse database rows with
 LLM-facing rows: prefer aggregation/ranking and compact evidence.
+Before executing a data-retrieval or aggregation tool, load the definitions of
+every relevant output, filter, ordering, grouping, and metric column with
+get_feature_definition. If semantic preflight reports missing definitions, load
+exactly those definitions and retry; never load the entire catalog by default.
 """
 
 
@@ -51,6 +55,7 @@ class RunState:
     analysis_ready_date: str | None = None
     last_openai_response_id: str | None = None
     point_in_time_warnings: set[str] = field(default_factory=set)
+    loaded_feature_definitions: set[tuple[str, str]] = field(default_factory=set)
 
 
 class AnalysisOrchestrator:
@@ -58,7 +63,9 @@ class AnalysisOrchestrator:
         self.db = db
         self.settings = settings
         self.tools = ToolRegistry(db, settings)
-        self.client = OpenAIResponsesClient(settings.openai_api_key, settings.ai_request_timeout_seconds)
+        self.client = ResponsesClient(
+            settings.ai_provider, settings.ai_api_key, settings.ai_request_timeout_seconds
+        )
 
     def run(self, request_id: str, question: str) -> None:
         initial_stage = self._initial_stage(question)
@@ -88,8 +95,8 @@ class AnalysisOrchestrator:
             if context_tokens + self.settings.ai_context_reserve_tokens > self.settings.ai_max_context_tokens:
                 raise RuntimeError("Hard AI context ceiling would be exceeded")
             response = self.client.create({
-                "model": self.settings.openai_model,
-                "reasoning": {"effort": self.settings.openai_reasoning_effort},
+                "model": self.settings.ai_model,
+                "reasoning": {"effort": self.settings.ai_reasoning_effort},
                 "instructions": INSTRUCTIONS,
                 "input": state.input_items,
                 "tools": self.tools.definitions(state.families),
@@ -137,6 +144,7 @@ class AnalysisOrchestrator:
         step_number = state.tool_calls + state.compactions
         sanitized = self._sanitize(arguments)
         try:
+            self._require_loaded_definitions(state, name, arguments)
             execution = self.tools.execute(name, arguments, state.request_id)
             if name == "list_tools":
                 state.families.update(execution.payload.get("approved_expansion") or [])
@@ -146,6 +154,11 @@ class AnalysisOrchestrator:
                     state.features_used.add(table)
             if name == "check_data_freshness":
                 state.analysis_ready_date = execution.payload.get("analysis_ready_date")
+            if name == "get_feature_definition":
+                state.loaded_feature_definitions.update(
+                    (str(row["feature_table"]), str(row["feature_column"]))
+                    for row in execution.payload.get("rows", [])
+                )
             state.point_in_time_warnings.update(execution.payload.get("point_in_time_warnings") or [])
 
             remaining = self.settings.ai_max_tool_result_tokens_total - state.tool_result_tokens
@@ -190,6 +203,10 @@ class AnalysisOrchestrator:
             return
         digest = {
             "prior_analysis_digest": state.evidence_digest,
+            "loaded_feature_definitions": [
+                {"table": table, "column": column}
+                for table, column in sorted(state.loaded_feature_definitions)
+            ],
             "instruction": "Earlier tool outputs were superseded and compacted. Use hashes/evidence summaries; re-query only if necessary.",
         }
         state.input_items = [
@@ -225,7 +242,7 @@ class AnalysisOrchestrator:
                        lease_owner=%s, lease_expires_at=clock_timestamp() + make_interval(secs => %s),
                        attempt_count=attempt_count+1
                    WHERE request_id=%s''',
-                (stage, sorted(state.families), self.settings.openai_model, socket.gethostname(), self.settings.worker_lease_seconds, state.request_id),
+                (stage, sorted(state.families), self.settings.ai_model, socket.gethostname(), self.settings.worker_lease_seconds, state.request_id),
             )
 
     def _persist_usage(self, state: RunState) -> None:
@@ -297,7 +314,7 @@ class AnalysisOrchestrator:
                 '''SELECT tool_name,version FROM public."Tool_Catalog" WHERE is_active ORDER BY tool_name'''
             ).fetchall()
         snapshot = {
-            "provider": "openai", "model": self.settings.openai_model,
+            "provider": self.settings.ai_provider, "model": self.settings.ai_model,
             "orchestrator_version": "release-1b-v1", "prompt_version": "release-1b-v1",
             "feature_versions": [dict(row) for row in feature_versions],
             "tool_versions": [dict(row) for row in tool_versions],
@@ -312,6 +329,41 @@ class AnalysisOrchestrator:
             "look_ahead_validation": "No predictive claim is allowed in Release 1B; historical-validation tools are inactive.",
         }
         return snapshot, methodology
+
+    @staticmethod
+    def _semantic_requirements(name: str, arguments: dict[str, Any]) -> set[tuple[str, str]]:
+        table = str(arguments.get("table") or "")
+        if not table:
+            return set()
+        columns: set[str] = set()
+        if name in {"query_features", "screen_features"}:
+            columns.update(arguments.get("columns") or [])
+            columns.update(item.get("column") for item in arguments.get("filters") or [])
+            columns.update(item.get("column") for item in arguments.get("order_by") or [])
+        elif name == "get_timeseries":
+            columns.update(["date", "ticker", *(arguments.get("columns") or [])])
+        elif name == "rank_features":
+            columns.update(["date", "ticker", arguments.get("column")])
+        elif name == "aggregate_features":
+            columns.update(arguments.get("group_by") or [])
+            columns.update(item.get("column") for item in arguments.get("metrics") or [])
+        elif name == "compare_groups":
+            columns.update([arguments.get("group_column"), arguments.get("metric_column")])
+        elif name == "compare_periods":
+            columns.update(["ticker", arguments.get("column")])
+        return {(table, column) for column in columns if isinstance(column, str) and column}
+
+    def _require_loaded_definitions(
+        self, state: RunState, name: str, arguments: dict[str, Any]
+    ) -> None:
+        required = self._semantic_requirements(name, arguments)
+        missing = sorted(required - state.loaded_feature_definitions)
+        if missing:
+            detail = [{"table": table, "column": column} for table, column in missing]
+            raise ToolError(
+                "Semantic definitions must be loaded with get_feature_definition before data execution: "
+                + json.dumps(detail, separators=(",", ":"))
+            )
 
     def _log_step(self, state: RunState, step_number: int, tool_name: str | None, arguments: dict[str, Any], status: str, *, execution: Any = None, llm_tokens: int | None = None, result_summary: dict[str, Any] | None = None, error: str | None = None) -> None:
         with self.db.connection() as connection, connection.transaction():

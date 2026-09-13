@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-13T16:10:38+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-13T17:07:40+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -11,14 +11,14 @@ Generated from PostgreSQL schema `public` at `2026-09-13T16:10:38+00:00`.
 | `Analysis_Evidence` | System | When compact evidence is recorded for an analysis | — | `2026-09-13 15:02:15+00:00` | Baseline only | Compact reproducible evidence supporting material AI analysis claims. |
 | `Analysis_Request` | System | One lifecycle per submitted AI analysis | — | `2026-09-13 15:02:15+00:00` | Baseline only | Durable AI analysis request lifecycle, structured result, progressive tool exposure state, and token usage. |
 | `Analysis_Step_Log` | System | After each AI analysis tool or compaction step | — | `2026-09-13 15:02:15+00:00` | Baseline only | Audit record for every query, tool, compaction, or analytical step in an AI request. |
-| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-13 16:10:38.207636+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-13 16:10:38+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-13 17:07:40.166530+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-13 17:07:40+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
 | `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-11` | `2026-09-13 04:36:32.635545+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
 | `Feature_02_Broker_Rolling` | Feature | After validated broker-summary changes; manual backfill in v1 | `2026-08-31` | `2026-09-13 14:13:08+00:00` | Derived from IDX_Broker_Summary; Feature 02 refresh is manual | Validated broker flow, persistence, abnormality and quiet accumulation by source ticker, broker, board and transaction date. All source symbols are in scope. |
 | `Feature_03_Stock_Broker_Daily` | Feature | After Feature 02 refresh; manual refresh in v1 | `2026-08-31` | `2026-09-13 15:02:15+00:00` | Derived from Feature_02_Broker_Rolling; Feature 03 refresh is manual | Validated stock-level daily broker breadth, classified flows, dominant brokers and net-flow concentration, separated by source market board. |
 | `Feature_Calculation_Log` | System | After completed worker attempts | `2026-09-11` | `2026-09-13 04:36:32.642189+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
 | `Feature_Calculation_Queue` | System | After committed price inserts/updates and worker transitions | `2026-09-11` | `2026-09-13 04:36:32.568053+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
-| `Feature_Catalog` | Reference | After each validated Feature schema change | — | `2026-09-13 15:51:02.003242+00:00` | Tracked automatically | Versioned semantic definitions and formulas for validated Feature columns. |
+| `Feature_Catalog` | Reference | After each validated Feature schema change | — | `2026-09-13 17:07:26.953662+00:00` | Tracked automatically | Versioned, machine-readable formula, interpretation, recommended-use, misuse, availability, point-in-time safety and validation-evidence contract for every validated Feature column. |
 | `Feature_Relationship_Catalog` | Reference | After a validated Feature join contract changes | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned safe-join and grain contracts between verified Feature tables. |
 | `Feature_Status` | System | After enqueue and worker state transitions | `2026-09-11` | `2026-09-13 04:36:32.568053+00:00` | Derived from per-ticker status rows | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
 | `Golden_Analysis_Test` | System | After a versioned golden analytical expectation changes | — | `2026-09-13 15:08:56+00:00` | Baseline only | Versioned analytical regression-test definitions with reproducible conditions and tolerances. |
@@ -29,7 +29,7 @@ Generated from PostgreSQL schema `public` at `2026-09-13T16:10:38+00:00`.
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-12 13:34:43.352522+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
 | `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-13` | `2026-09-13 10:01:44.620418+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
 | `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-11` | `2026-09-13 04:36:30.538547+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
-| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-13 16:02:10.128796+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
+| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-13 17:07:26.954014+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
 | `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
 | `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-13 10:01:47.715578+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
 | `Tool_Catalog` | Reference | With each approved backend or analytics tool release | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned generic AI tool metadata, activation state, schemas, and advertised operational ceilings. |
@@ -341,10 +341,10 @@ Validated broker flow, persistence, abnormality and quiet accumulation by source
 | `broker_classification` | `text` | Yes | — | Current usage classification from IDX_Broker_Profile; not point-in-time history. |
 | `buy_value_1d` | `numeric` | No | — | Sum of source Buy Value across Investor Type on this date, ticker, broker and board. |
 | `sell_value_1d` | `numeric` | No | — | Sum of source Sell Value across Investor Type on this date, ticker, broker and board. |
-| `net_value_1d` | `numeric` | No | — | buy_value_1d minus sell_value_1d. |
+| `net_value_1d` | `numeric` | No | — | Net broker traded value for this ticker, board and transaction date: buy_value_1d minus sell_value_1d. Positive means the broker was a net buyer; negative means it was a net seller; zero means balanced value. |
 | `buy_lots_1d` | `numeric` | No | — | Sum of source Buy Lots across Investor Type on this date, ticker, broker and board. |
 | `sell_lots_1d` | `numeric` | No | — | Sum of source Sell Lots across Investor Type on this date, ticker, broker and board. |
-| `net_lots_1d` | `numeric` | No | — | buy_lots_1d minus sell_lots_1d. |
+| `net_lots_1d` | `numeric` | No | — | Net broker traded lots for this ticker, board and transaction date: buy_lots_1d minus sell_lots_1d. Positive means net bought lots; negative means net sold lots; zero means balanced lots. |
 | `net_value_5d` | `numeric` | Yes | — | Sum of daily net value over five ticker transaction dates; absent broker-board activity contributes zero. |
 | `net_value_20d` | `numeric` | Yes | — | Sum of daily net value over twenty ticker transaction dates; absent broker-board activity contributes zero. |
 | `net_value_60d` | `numeric` | Yes | — | Sum of daily net value over sixty ticker transaction dates; absent broker-board activity contributes zero. |
@@ -533,7 +533,7 @@ Durable pending and completed Feature 01 calculation work per changed source can
 
 ## Feature_Catalog
 
-Versioned semantic definitions and formulas for validated Feature columns.
+Versioned, machine-readable formula, interpretation, recommended-use, misuse, availability, point-in-time safety and validation-evidence contract for every validated Feature column.
 
 ### Columns
 
@@ -565,6 +565,11 @@ Versioned semantic definitions and formulas for validated Feature columns.
 | `availability_rule` | `text` | No | `'Use no earlier than the next valid trading observation after observation date unless earlier source availability is documented.'::text` | Decision-time rule used by historical validation and no-look-ahead checks. |
 | `point_in_time_safe` | `boolean` | No | `false` | True only when the value itself is time-indexed and usable under its documented availability rule; analysis-level universe limitations still apply. |
 | `historical_metadata_warning` | `text` | Yes | — | Required warning when a definition uses current state or otherwise incomplete historical metadata. |
+| `analytical_interpretation` | `text` | No | — | Plain-language interpretation of sign, magnitude, category and analytical context; not a formula substitute. |
+| `recommended_use` | `text` | No | — | Approved analyst use cases for this exact Feature column and grain. |
+| `misuse_warning` | `text` | No | — | Column-specific analytical traps, null/board/window caveats and claims that must not be inferred. |
+| `semantic_review_status` | `text` | No | — | Evidence grade for semantic guidance: NEEDS_REVIEW, SOURCE_VERIFIED, or CALCULATION_VERIFIED. |
+| `validation_evidence` | `ARRAY` | No | — | Repository evidence paths supporting the formula and semantic review status. |
 
 ### Constraints
 
@@ -575,8 +580,11 @@ Versioned semantic definitions and formulas for validated Feature columns.
 | `Feature_Catalog_feature_category_check` | Check | `CHECK (feature_category = ANY (ARRAY['Identity'::text, 'Metadata'::text, 'Price'::text, 'Return'::text, 'Volatility'::text, 'Volume'::text, 'Price Positioning'::text, 'Broker Flow'::text, 'Broker Persistence'::text, 'Broker Abnormality'::text, 'Broker Concentration'::text, 'Broker Classification'::text, 'Historical Outcome'::text, 'Smart Money'::text, 'Data Quality'::text]))` |
 | `Feature_Catalog_ranking_interpretation_check` | Check | `CHECK (ranking_interpretation = ANY (ARRAY['HIGHER'::text, 'LOWER'::text, 'CONTEXTUAL'::text, 'NOT_APPLICABLE'::text]))` |
 | `Feature_Catalog_required_text_check` | Check | `CHECK (btrim(feature_table) <> ''::text AND btrim(feature_column) <> ''::text AND btrim(grain) <> ''::text AND btrim(feature_category) <> ''::text AND btrim(definition) <> ''::text AND btrim(calculation) <> ''::text AND btrim(source_tables) <> ''::text AND btrim(source_columns) <> ''::text AND btrim(lookback_window) <> ''::text AND btrim(minimum_history) <> ''::text AND btrim(unit) <> ''::text AND btrim(null_rule) <> ''::text AND btrim(refresh_trigger) <> ''::text AND btrim(dependency_rule) <> ''::text AND btrim(version) <> ''::text)` |
+| `Feature_Catalog_semantic_guidance_check` | Check | `CHECK (btrim(analytical_interpretation) <> ''::text AND btrim(recommended_use) <> ''::text AND btrim(misuse_warning) <> ''::text)` |
+| `Feature_Catalog_semantic_review_status_check` | Check | `CHECK (semantic_review_status = ANY (ARRAY['NEEDS_REVIEW'::text, 'SOURCE_VERIFIED'::text, 'CALCULATION_VERIFIED'::text]))` |
 | `Feature_Catalog_semantic_role_check` | Check | `CHECK (semantic_role = ANY (ARRAY['IDENTITY'::text, 'DIMENSION'::text, 'MEASURE'::text]))` |
 | `Feature_Catalog_timestamps_check` | Check | `CHECK (updated_at >= created_at)` |
+| `Feature_Catalog_validation_evidence_check` | Check | `CHECK (cardinality(validation_evidence) > 0 AND array_position(validation_evidence, ''::text) IS NULL)` |
 | `Feature_Catalog_version_check` | Check | `CHECK (version ~ '^v[1-9][0-9]*$'::text)` |
 | `Feature_Catalog_pkey` | Primary key | `PRIMARY KEY (feature_table, feature_column, version)` |
 

@@ -19,7 +19,12 @@ def main() -> None:
         request_id = connection.execute(
             '''INSERT INTO public."Analysis_Request" (question,user_reference)
                VALUES (%s,'release-1b-smoke') RETURNING request_id''',
-            ("What is the common safe data date for Feature 1, Feature 2, and Feature 3? Answer concisely with evidence.",),
+            (
+                "Find the common safe data date for Feature 1, Feature 2, and Feature 3, "
+                "then report BBCA close and 20-trading-day return on that date. Check "
+                "quality, load every relevant Feature definition before data retrieval, "
+                "and answer concisely with recorded evidence.",
+            ),
         ).fetchone()["request_id"]
         deadline = time.monotonic() + 240
         row = None

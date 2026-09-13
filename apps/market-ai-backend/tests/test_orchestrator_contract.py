@@ -21,3 +21,38 @@ def test_reported_single_call_context_ceiling_is_enforced() -> None:
     }
     with pytest.raises(RuntimeError, match="AI_MAX_CONTEXT_TOKENS"):
         orchestrator._add_usage(state, response)
+
+
+def test_semantic_preflight_requires_only_relevant_columns() -> None:
+    arguments = {
+        "table": "Feature_01_Stock_Daily",
+        "columns": ["ticker", "return_20d_pct"],
+        "filters": [{"column": "sector", "operator": "eq", "value": "Financials"}],
+        "order_by": [{"column": "return_20d_pct", "direction": "desc"}],
+    }
+    assert AnalysisOrchestrator._semantic_requirements("query_features", arguments) == {
+        ("Feature_01_Stock_Daily", "ticker"),
+        ("Feature_01_Stock_Daily", "return_20d_pct"),
+        ("Feature_01_Stock_Daily", "sector"),
+    }
+
+
+def test_loaded_definition_gate_is_recoverable() -> None:
+    orchestrator = object.__new__(AnalysisOrchestrator)
+    state = RunState("request", "question", {"QUERY"}, [])
+    with pytest.raises(Exception, match="get_feature_definition"):
+        orchestrator._require_loaded_definitions(
+            state,
+            "rank_features",
+            {"table": "Feature_01_Stock_Daily", "column": "return_20d_pct"},
+        )
+    state.loaded_feature_definitions.update({
+        ("Feature_01_Stock_Daily", "date"),
+        ("Feature_01_Stock_Daily", "ticker"),
+        ("Feature_01_Stock_Daily", "return_20d_pct"),
+    })
+    orchestrator._require_loaded_definitions(
+        state,
+        "rank_features",
+        {"table": "Feature_01_Stock_Daily", "column": "return_20d_pct"},
+    )

@@ -27,15 +27,17 @@ Status eksekusi per 2026-09-13:
   `SUCCESS`; startup dan private `/health` HTTP 200 terverifikasi. Seluruh 43
   configuration keys tersedia. Login `market_ai_app` dapat membaca
   Feature/katalog dan menulis audit, tetapi raw-table SELECT ditolak.
-- `OPENAI_API_KEY` ditambahkan sebagai Railway secret oleh project owner. Live
-  durable request berhasil di-claim worker, tetapi provider menolak request
-  sebelum tool call dengan `insufficient_quota` / `credit_balance_exhausted`.
-  Penambahan paid OpenAI API credits dan rerun smoke adalah gate end-to-end yang
-  masih terbuka; deterministic database/backend acceptance tetap 15/15 PASS.
+- `OPENAI_API_KEY` tetap tersimpan tetapi akun tersebut menolak request dengan
+  `insufficient_quota` / `credit_balance_exhausted`. Project owner kemudian
+  menambahkan `OPENROUTER_DEEPSEEK`; bounded function-call dan strict structured
+  output probe untuk `deepseek/deepseek-v4.1-flash` PASS. `dev` sekarang memilih
+  OpenRouter melalui provider adapter yang allowlisted.
 - Otomasi update Feature 2/3 dan Analytics Worker tetap di luar scope Release 1B.
 
-Provider pertama hanya OpenAI. Initial model tetap configurable, dengan default
-`gpt-5.6-terra` dan reasoning `medium`. Private backend dibuat dan distabilkan
+Transport mendukung provider allowlist `openai` dan `openrouter` tanpa arbitrary
+base URL atau silent fallback. OpenAI default tetap `gpt-5.6-terra`/`medium`;
+OpenRouter default dan konfigurasi `dev` adalah
+`deepseek/deepseek-v4.1-flash`/`high`. Private backend dibuat dan distabilkan
 sebelum integrasi Telegram.
 
 ## Prinsip Arsitektur
@@ -90,7 +92,17 @@ sebagai waktu data dahulu tersedia.
 - `availability_rule` untuk menjelaskan kapan nilai boleh dipakai oleh keputusan;
 - `point_in_time_safe`;
 - `historical_metadata_warning`;
-- semantic fields yang sudah ditambahkan tetap berlaku.
+- `analytical_interpretation`;
+- `recommended_use`;
+- `misuse_warning`;
+- `semantic_review_status`;
+- `validation_evidence`.
+
+Semua 91 baris aktif Feature 1–3 telah diisi dan diaudit sebagai
+`CALCULATION_VERIFIED`. Query data/aggregation menjalankan semantic preflight:
+definisi semua kolom output, filter, ordering, grouping, dan metric yang relevan
+harus sudah dimuat dalam state request. Error bersifat recoverable dan menyebut
+definisi yang perlu diambil; katalog penuh tidak dimuat otomatis.
 
 Material formula or methodology changes selalu membuat versi baru. Old versions
 tidak ditimpa atau diinterpretasikan ulang.
@@ -330,7 +342,7 @@ AI_MAX_OUTPUT_TOKENS=3000
 AI_MAX_TOOL_RESULT_TOKENS_PER_CALL=4000
 AI_MAX_TOOL_RESULT_TOKENS_TOTAL=12000
 AI_MAX_HISTORY_TOKENS=4000
-AI_MAX_FEATURE_METADATA_TOKENS=3000
+AI_MAX_FEATURE_METADATA_TOKENS=5000
 AI_CONTEXT_RESERVE_TOKENS=8000
 AI_TARGET_CONTEXT_TOKENS=24000
 AI_CONTEXT_COMPACTION_THRESHOLD_TOKENS=32000

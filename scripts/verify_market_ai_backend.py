@@ -81,6 +81,11 @@ def main() -> None:
         assert market_board_meta["is_filterable"] is True
         assert market_board_meta["is_groupable"] is True
         assert set(market_board_meta["allowed_aggregations"]) == {"COUNT", "COUNT_DISTINCT"}
+        assert market_board_meta["analytical_interpretation"]
+        assert market_board_meta["recommended_use"]
+        assert market_board_meta["misuse_warning"]
+        assert market_board_meta["semantic_review_status"] == "CALCULATION_VERIFIED"
+        assert len(market_board_meta["validation_evidence"]) >= 3
 
         aggregation = tools.execute("aggregate_features", {
             "table": "Feature_03_Stock_Broker_Daily", "group_by": ["market_board"],
@@ -95,7 +100,8 @@ def main() -> None:
             "feature_tables": tables, "analysis_ready_date": ready.isoformat(),
             "quality": quality.payload["classification"], "query_rows": rows.payload["total_rows"],
             "aggregate_groups": aggregation.payload["total_rows"],
-            "market_board_catalog_audit": "PASS", "market_boards": sorted(boards),
+            "market_board_catalog_audit": "PASS", "semantic_contract_audit": "PASS",
+            "market_boards": sorted(boards),
             "raw_column_rejected": rejected,
         }))
     finally:

@@ -1,5 +1,13 @@
 # Database changelog
 
+## 2026-09-14 — Harden all active Feature semantics
+
+- Applied forward-only migration `database/migrations/20260913_023_harden_feature_catalog_semantics.sql` to Railway `dev` PostgreSQL. It added `analytical_interpretation`, `recommended_use`, `misuse_warning`, `semantic_review_status`, and `validation_evidence` to `Feature_Catalog`, with nonblank/evidence/status constraints and matching verified `Column_Catalog` rows.
+- Populated all 91 active Feature 1–3 definitions and marked them `CALCULATION_VERIFIED` using the already validated migration and independent-validation evidence. Clarified Feature 02 `net_value_1d`/`net_lots_1d` sign meaning and Feature 03 `ticker`/`market_board` null and board-separation rules.
+- Post-migration editorial audit found overly generic `recommended_use` text for Feature 01 price references and inappropriate peer-group wording for `calculated_at`. Applied corrective forward-only migration `database/migrations/20260914_024_refine_feature_catalog_usage_guidance.sql`; price references, materialization timestamps, and Feature 03 dominant-broker identifiers now have purpose-specific guidance, and the audit script rejects those regressions.
+- `scripts/audit_feature_catalog_semantics.py` PASS: 91 active, 91 calculation-verified, zero incomplete, exact physical coverage of 29 Feature 01, 38 Feature 02, and 24 Feature 03 columns. Catalog synchronization reconciled 429 registered physical columns and `DATABASE_SCHEMA.md` was regenerated from 27 public tables.
+- No raw row, Feature value, formula, Feature refresh routine, queue, schedule, service, or index was changed.
+
 ## 2026-09-13 — Finalize Release 1B semantics and golden acceptance
 
 - Applied forward-only `database/migrations/20260913_021_finalize_market_ai_release_1b.sql`. It corrected the post-Feature-3 generic usage metadata: date/ticker/board and dominant-broker identifiers are groupable dimensions, calculated time is a dimension, and every numeric field now has type-appropriate aggregation/ranking rules.

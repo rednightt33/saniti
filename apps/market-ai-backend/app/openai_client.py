@@ -9,21 +9,33 @@ import httpx
 NON_RETRYABLE_429_CODES = {"credit_balance_exhausted", "insufficient_quota"}
 
 
-class OpenAIResponsesClient:
-    """Small Responses API transport with bounded retry and no stateful storage."""
+PROVIDER_BASE_URLS = {
+    "openai": "https://api.openai.com/v1",
+    "openrouter": "https://openrouter.ai/api/v1",
+}
 
-    def __init__(self, api_key: str, timeout_seconds: int) -> None:
+
+class ResponsesClient:
+    """Provider-allowlisted Responses transport with bounded retry and no storage."""
+
+    def __init__(self, provider: str, api_key: str, timeout_seconds: int) -> None:
+        if provider not in PROVIDER_BASE_URLS:
+            raise ValueError(f"Unsupported AI provider: {provider}")
+        self.provider = provider
         self.client = httpx.Client(
-            base_url="https://api.openai.com/v1",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            base_url=PROVIDER_BASE_URLS[provider],
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                **({"X-Title": "Saniti Market AI"} if provider == "openrouter" else {}),
+            },
             timeout=httpx.Timeout(timeout_seconds),
         )
 
     def close(self) -> None:
         self.client.close()
 
-    @staticmethod
-    def _error_detail(response: httpx.Response) -> tuple[str, str | None, str | None]:
+    def _error_detail(self, response: httpx.Response) -> tuple[str, str | None, str | None]:
         error_type: str | None = None
         error_code: str | None = None
         message: str | None = None
@@ -40,7 +52,7 @@ class OpenAIResponsesClient:
         labels = "/".join(item for item in (error_type, error_code) if item)
         safe_message = " ".join((message or "request failed").split())[:500]
         request_id = response.headers.get("x-request-id")
-        detail = f"OpenAI HTTP {response.status_code}"
+        detail = f"{self.provider} HTTP {response.status_code}"
         if request_id:
             detail += f" (request_id={request_id})"
         if labels:
@@ -55,7 +67,7 @@ class OpenAIResponsesClient:
                 if 200 <= response.status_code < 300:
                     result = response.json()
                     if not isinstance(result, dict):
-                        raise RuntimeError("OpenAI response was not a JSON object")
+                        raise RuntimeError(f"{self.provider} response was not a JSON object")
                     return result
                 detail, error_type, error_code = self._error_detail(response)
                 if response.status_code == 429 and (
@@ -69,4 +81,4 @@ class OpenAIResponsesClient:
                 last_error = exc
             if attempt < 2:
                 time.sleep(1.5 * (2 ** attempt))
-        raise RuntimeError(f"OpenAI Responses request failed after retries: {last_error}")
+        raise RuntimeError(f"{self.provider} Responses request failed after retries: {last_error}")

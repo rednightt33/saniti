@@ -54,10 +54,10 @@ def main() -> None:
              (release_version,model_provider,model_id,reasoning_effort,
               orchestrator_version,orchestrator_prompt_version,version_snapshot,
               status,started_at)
-           VALUES ('release-1b','openai','not-invoked-deterministic',NULL,
+           VALUES ('release-1b',%s,'not-invoked-deterministic',NULL,
                    'release-1b-v1','release-1b-v1',%s,'RUNNING',clock_timestamp())
            RETURNING run_id''',
-        (json.dumps({"feature_catalog": "v1", "tool_catalog": "v1", "suite": "R1B_v1"}),),
+        (settings.ai_provider, json.dumps({"feature_catalog": "v1", "tool_catalog": "v1", "suite": "R1B_v1"})),
     ).fetchone()["run_id"]
     admin.commit()
     start_date, end_date = "2026-08-01", "2026-08-31"

@@ -18,10 +18,11 @@ def _integer(name: str, default: int, minimum: int = 1) -> int:
 @dataclass(frozen=True)
 class Settings:
     database_url: str
-    openai_api_key: str
     internal_api_key: str
-    openai_model: str
-    openai_reasoning_effort: str
+    ai_provider: str
+    ai_api_key: str
+    ai_model: str
+    ai_reasoning_effort: str
     query_default_rows: int
     query_max_rows: int
     query_max_tickers: int
@@ -54,10 +55,15 @@ class Settings:
 
     @classmethod
     def from_env(cls, *, require_runtime_secrets: bool = True) -> "Settings":
+        provider = os.getenv("AI_PROVIDER", "openai").strip().lower()
+        if provider not in {"openai", "openrouter"}:
+            raise RuntimeError("AI_PROVIDER must be openai or openrouter")
+        secret_name = "OPENAI_API_KEY" if provider == "openai" else "OPENROUTER_DEEPSEEK"
+        default_model = "gpt-5.6-terra" if provider == "openai" else "deepseek/deepseek-v4.1-flash"
         required = {
             "DATABASE_URL": os.getenv("DATABASE_URL", ""),
-            "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", ""),
             "MARKET_AI_INTERNAL_API_KEY": os.getenv("MARKET_AI_INTERNAL_API_KEY", ""),
+            secret_name: os.getenv(secret_name, ""),
         }
         if require_runtime_secrets:
             missing = [name for name, value in required.items() if not value]
@@ -65,10 +71,17 @@ class Settings:
                 raise RuntimeError(f"Missing required variables: {', '.join(missing)}")
         settings = cls(
             database_url=required["DATABASE_URL"],
-            openai_api_key=required["OPENAI_API_KEY"],
             internal_api_key=required["MARKET_AI_INTERNAL_API_KEY"],
-            openai_model=os.getenv("OPENAI_MODEL", "gpt-5.6-terra"),
-            openai_reasoning_effort=os.getenv("OPENAI_REASONING_EFFORT", "medium"),
+            ai_provider=provider,
+            ai_api_key=required[secret_name],
+            ai_model=os.getenv("AI_MODEL") or (
+                os.getenv("OPENAI_MODEL", default_model) if provider == "openai" else default_model
+            ),
+            ai_reasoning_effort=os.getenv(
+                "AI_REASONING_EFFORT"
+            ) or (
+                os.getenv("OPENAI_REASONING_EFFORT", "medium") if provider == "openai" else "high"
+            ),
             query_default_rows=_integer("QUERY_DEFAULT_ROWS", 500),
             query_max_rows=_integer("QUERY_MAX_ROWS", 5000),
             query_max_tickers=_integer("QUERY_MAX_TICKERS", 20),
@@ -86,7 +99,7 @@ class Settings:
             ai_max_tool_result_tokens_per_call=_integer("AI_MAX_TOOL_RESULT_TOKENS_PER_CALL", 4000),
             ai_max_tool_result_tokens_total=_integer("AI_MAX_TOOL_RESULT_TOKENS_TOTAL", 12000),
             ai_max_history_tokens=_integer("AI_MAX_HISTORY_TOKENS", 4000),
-            ai_max_feature_metadata_tokens=_integer("AI_MAX_FEATURE_METADATA_TOKENS", 3000),
+            ai_max_feature_metadata_tokens=_integer("AI_MAX_FEATURE_METADATA_TOKENS", 5000),
             ai_context_reserve_tokens=_integer("AI_CONTEXT_RESERVE_TOKENS", 8000),
             ai_target_context_tokens=_integer("AI_TARGET_CONTEXT_TOKENS", 24000),
             ai_context_compaction_threshold_tokens=_integer("AI_CONTEXT_COMPACTION_THRESHOLD_TOKENS", 32000),
@@ -109,4 +122,6 @@ class Settings:
             raise RuntimeError("AI_CONTEXT_RESERVE_TOKENS must be below AI_MAX_CONTEXT_TOKENS")
         if settings.query_default_rows > settings.query_max_rows:
             raise RuntimeError("QUERY_DEFAULT_ROWS must not exceed QUERY_MAX_ROWS")
+        if settings.ai_provider == "openrouter" and settings.ai_reasoning_effort not in {"low", "high", "max"}:
+            raise RuntimeError("OpenRouter DeepSeek reasoning effort must be low, high, or max")
         return settings

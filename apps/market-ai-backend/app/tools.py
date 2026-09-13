@@ -371,7 +371,8 @@ class ToolRegistry:
         with self.db.query_transaction() as connection:
             rows = connection.execute(
                 '''SELECT feature_table, feature_column, feature_category, definition, unit,
-                          semantic_role, ranking_interpretation
+                          semantic_role, ranking_interpretation, analytical_interpretation,
+                          recommended_use, misuse_warning, semantic_review_status
                    FROM public."Feature_Catalog"
                    WHERE is_active AND (feature_column ILIKE %s OR definition ILIKE %s OR feature_category ILIKE %s)
                      AND (cardinality(%s::text[]) = 0 OR feature_table = ANY(%s::text[]))
@@ -391,7 +392,9 @@ class ToolRegistry:
                           calculation, source_tables, source_columns, lookback_window,
                           minimum_history, unit, null_rule, allowed_aggregations,
                           semantic_role, ranking_interpretation, is_filterable, is_groupable,
-                          availability_rule, point_in_time_safe, historical_metadata_warning, version
+                          availability_rule, point_in_time_safe, historical_metadata_warning,
+                          analytical_interpretation, recommended_use, misuse_warning,
+                          semantic_review_status, validation_evidence, version
                    FROM public."Feature_Catalog" f
                    WHERE is_active AND (feature_table, feature_column) IN
                      (SELECT * FROM unnest(%s::text[], %s::text[]))
