@@ -39,6 +39,9 @@ For an obviously bounded single-ticker/single-date retrieval, call query_feature
 directly because it also enforces validation and limits; estimate first only when
 row cost is genuinely uncertain. Request only the tool families needed for the
 question; do not request ADVANCED for ordinary retrieval.
+Call record_evidence only after the evidence needed for the current answer is
+sufficient. Recording evidence signals finalization: the next model call has no
+data tools and must return the final schema rather than search for a final-answer tool.
 Return the final schema JSON without Markdown fences or surrounding prose.
 """
 
@@ -65,6 +68,7 @@ class RunState:
     last_openai_response_id: str | None = None
     point_in_time_warnings: set[str] = field(default_factory=set)
     loaded_feature_definitions: set[tuple[str, str]] = field(default_factory=set)
+    finalization_ready: bool = False
 
 
 class AnalysisOrchestrator:
@@ -99,21 +103,24 @@ class AnalysisOrchestrator:
         while state.iterations < self.settings.ai_max_tool_iterations:
             self._enforce_budgets(state)
             self._compact_context_if_needed(state)
-            context_tokens = estimate_tokens({"instructions": INSTRUCTIONS, "input": state.input_items, "tools": self.tools.definitions(state.families)})
+            active_tools = [] if state.finalization_ready else self.tools.definitions(state.families)
+            context_tokens = estimate_tokens({"instructions": INSTRUCTIONS, "input": state.input_items, "tools": active_tools})
             state.peak_context = max(state.peak_context, context_tokens)
             if context_tokens + self.settings.ai_context_reserve_tokens > self.settings.ai_max_context_tokens:
                 raise RuntimeError("Hard AI context ceiling would be exceeded")
-            response = self.client.create({
+            payload = {
                 "model": self.settings.ai_model,
                 "reasoning": {"effort": self.settings.ai_reasoning_effort},
                 "instructions": INSTRUCTIONS,
                 "input": state.input_items,
-                "tools": self.tools.definitions(state.families),
-                "parallel_tool_calls": False,
                 "max_output_tokens": self.settings.ai_max_output_tokens,
                 "store": False,
                 "text": {"format": {"type": "json_schema", "name": "market_analysis", "schema": FINAL_RESPONSE_SCHEMA, "strict": True}},
-            })
+            }
+            if active_tools:
+                payload["tools"] = active_tools
+                payload["parallel_tool_calls"] = False
+            response = self.client.create(payload)
             state.iterations += 1
             self._add_usage(state, response)
             calls = [item for item in response.get("output", []) if item.get("type") == "function_call"]
@@ -228,6 +235,7 @@ class AnalysisOrchestrator:
                 )
             if name == "record_evidence" and execution.payload.get("evidence_id"):
                 state.recorded_evidence_ids.add(str(execution.payload["evidence_id"]))
+                state.finalization_ready = True
             state.point_in_time_warnings.update(execution.payload.get("point_in_time_warnings") or [])
 
             remaining = self.settings.ai_max_tool_result_tokens_total - state.tool_result_tokens

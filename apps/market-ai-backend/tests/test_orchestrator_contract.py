@@ -95,3 +95,11 @@ def test_direct_retrieval_starts_with_query_tools_without_advanced_tools() -> No
     assert AnalysisOrchestrator._initial_stage("Find BBCA close on the ready date") == "SCREENING"
     assert AnalysisOrchestrator._initial_stage("Laporkan return BBCA") == "SCREENING"
     assert AnalysisOrchestrator._initial_stage("What features are available?") == "DISCOVERY"
+
+
+def test_run_state_enters_finalization_only_after_evidence_signal() -> None:
+    state = RunState("request", "question", {"QUERY"}, [])
+    assert state.finalization_ready is False
+    state.recorded_evidence_ids.add("evidence-1")
+    state.finalization_ready = True
+    assert state.finalization_ready is True
