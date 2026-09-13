@@ -10,6 +10,8 @@ with `Authorization: Bearer $MARKET_AI_INTERNAL_API_KEY`.
 2. The in-service worker leases pending requests with `FOR UPDATE SKIP LOCKED`.
 3. The Responses orchestrator starts with the smallest relevant tool
    families and can progressively add Query/Screening tools during the same run.
+   A direct ticker retrieval starts without Screening schemas; explicit screening
+   or ranking language exposes Screening immediately.
 4. Every query is constructed from catalog-approved identifiers and operators;
    model-supplied SQL is never accepted. Before a data retrieval/aggregation,
    semantic preflight requires the relevant output/filter/order/group/metric
@@ -60,6 +62,9 @@ distinct, justified interpretation follow-up before finalization for data and
 screening questions. `AI_MIN_INSIGHT_DATA_CALLS` defaults to `2`; repeated copies
 of the same query hash do not satisfy it. Remaining optional work is reported in
 `recommended_next_analysis`, not executed solely because calls remain.
+Decisive observations should normally be consolidated into one evidence item
+after the required follow-up, reducing repeated model calls without weakening the
+query-hash audit trail.
 
 All numeric variables and their approved defaults are listed in
 `AI_ANALYST_IMPLEMENTATION_PLAN.md`; Railway variables are the enforcement source

@@ -97,6 +97,13 @@ def test_direct_retrieval_starts_with_query_tools_without_advanced_tools() -> No
     assert AnalysisOrchestrator._initial_stage("What features are available?") == "DISCOVERY"
 
 
+def test_direct_retrieval_does_not_expose_screening_schemas_until_needed() -> None:
+    direct = AnalysisOrchestrator._initial_families("Find BBCA close on the ready date")
+    screen = AnalysisOrchestrator._initial_families("Screen top saham berdasarkan return")
+    assert "QUERY" in direct and "SCREENING" not in direct
+    assert {"QUERY", "SCREENING"} <= screen
+
+
 def test_run_state_enters_finalization_only_after_completion_signal() -> None:
     state = RunState("request", "question", {"QUERY"}, [])
     assert state.finalization_ready is False

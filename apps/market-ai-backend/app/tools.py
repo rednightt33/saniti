@@ -604,7 +604,11 @@ class ToolRegistry:
                    VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING evidence_id''',
                 (request_id, arguments["evidence_type"], arguments["claim"][:2000], json.dumps(compact_payload), arguments.get("query_hash"), arguments["source_tables"], arguments.get("analysis_ready_date")),
             ).fetchone()
-        return Execution({"evidence_id": str(row["evidence_id"]), "recorded": True})
+        return Execution({
+            "evidence_id": str(row["evidence_id"]),
+            "recorded": True,
+            "note": "Evidence was stored; this does not finalize the analysis.",
+        })
 
     def complete_analysis(self, arguments: dict[str, Any], _: str) -> Execution:
         required = {

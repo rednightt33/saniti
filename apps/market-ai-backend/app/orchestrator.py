@@ -39,7 +39,9 @@ For an obviously bounded single-ticker/single-date retrieval, call query_feature
 directly because it also enforces validation and limits; estimate first only when
 row cost is genuinely uncertain. Request only the tool families needed for the
 question; do not request ADVANCED for ordinary retrieval.
-Record each decisive result with record_evidence. It stores evidence but does not
+After necessary follow-ups, prefer one consolidated record_evidence call containing
+the decisive observations, quality result, and query hashes. Use separate evidence
+items only when independent claims genuinely require them. Evidence storage does not
 end the investigation. When the current question is reliably answered and all
 necessary follow-ups are complete, call complete_analysis. Only a successful
 complete_analysis call signals finalization; optional deeper work belongs in
@@ -93,7 +95,7 @@ class AnalysisOrchestrator:
 
     def run(self, request_id: str, question: str) -> None:
         initial_stage = self._initial_stage(question)
-        families = set(self.tools.STAGE_FAMILIES[initial_stage])
+        families = self._initial_families(question)
         state = RunState(
             request_id=request_id,
             question=question,
@@ -259,6 +261,20 @@ class AnalysisOrchestrator:
                 })
             if name == "record_evidence" and execution.payload.get("evidence_id"):
                 state.recorded_evidence_ids.add(str(execution.payload["evidence_id"]))
+                required_queries = (
+                    self.settings.ai_min_insight_data_calls
+                    if state.analysis_mode == "INSIGHT" and self._initial_stage(state.question) == "SCREENING"
+                    else 0
+                )
+                execution.payload["completion_policy"] = {
+                    "distinct_analytical_queries": len(state.analytical_query_hashes),
+                    "required_distinct_analytical_queries": required_queries,
+                    "next_action": (
+                        "Call complete_analysis now if all necessary follow-ups are complete."
+                        if len(state.analytical_query_hashes) >= required_queries
+                        else "Continue with a distinct necessary analytical follow-up before complete_analysis."
+                    ),
+                }
             if name == "complete_analysis" and execution.payload.get("completion_accepted"):
                 state.completion_reason = arguments["completion_reason"].strip()
                 state.finalization_ready = True
@@ -534,6 +550,20 @@ class AnalysisOrchestrator:
             "tampilkan ", "laporkan ", "berapa ",
         )
         return "SCREENING" if any(term in text for term in screening_terms) else "DISCOVERY"
+
+    @classmethod
+    def _initial_families(cls, question: str) -> set[str]:
+        if cls._initial_stage(question) == "DISCOVERY":
+            return set(ToolRegistry.CORE_FAMILIES)
+        families = set(ToolRegistry.CORE_FAMILIES) | {"QUERY"}
+        text = question.lower()
+        screening_terms = (
+            "screen", "rank", "top ", "bottom ", "tertinggi", "terendah",
+            "saring", "peringkat", "mana saja", "daftar saham", "list saham",
+        )
+        if any(term in text for term in screening_terms):
+            families.add("SCREENING")
+        return families
 
     @staticmethod
     def _stage_for(families: set[str]) -> str:

@@ -28,10 +28,23 @@ def with_reader_role(url: str) -> str:
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query, quote_via=quote), parts.fragment))
 
 
+def use_public_proxy(app_url: str, proxy_url: str) -> str:
+    """Keep application credentials while replacing only the private host/port."""
+    app = urlsplit(app_url)
+    proxy = urlsplit(proxy_url)
+    if not app.username or app.password is None or not proxy.hostname or proxy.port is None:
+        raise RuntimeError("Application or proxy database URL is incomplete")
+    netloc = f"{app.username}:{app.password}@{proxy.hostname}:{proxy.port}"
+    return urlunsplit((app.scheme, netloc, app.path, app.query, app.fragment))
+
+
 def main() -> None:
     source_url = os.environ.get("DATABASE_URL", "")
     if not source_url:
         raise RuntimeError("DATABASE_URL is required")
+    public_proxy = os.environ.get("POSTGRES_PUBLIC_URL", "")
+    if public_proxy:
+        source_url = use_public_proxy(source_url, public_proxy)
     os.environ["DATABASE_URL"] = with_reader_role(source_url)
     settings = Settings.from_env(require_runtime_secrets=False)
     db = Database(settings.database_url, settings.query_timeout_seconds)
