@@ -353,6 +353,7 @@ AI_MAX_TOOL_ITERATIONS=8
 AI_MAX_TOOL_CALLS=12
 AI_ANALYSIS_MODE=QUICK
 AI_MIN_INSIGHT_DATA_CALLS=2
+AI_MAX_ANALYSIS_SECONDS=600
 AI_REQUEST_TIMEOUT_SECONDS=180
 ```
 
@@ -377,6 +378,11 @@ distinct, justified interpretation follow-up for data/screening questions before
 loop by itself. The configurable `AI_MIN_INSIGHT_DATA_CALLS` counts distinct
 successful analytical query hashes, so retries or duplicate queries do not satisfy
 the policy. Optional deeper work remains in `recommended_next_analysis`.
+
+`AI_MAX_ANALYSIS_SECONDS` bounds the full orchestration lifecycle independently
+of the 180-second timeout for one provider call. The wall-clock gate is checked
+before each new model iteration, so a slow provider cannot multiply the 20-iteration
+ceiling into an unbounded background analysis.
 
 Normal operation should remain within approximately 24k–32k active tokens. A
 request crossing 32k is not automatically terminated: lower-priority material is

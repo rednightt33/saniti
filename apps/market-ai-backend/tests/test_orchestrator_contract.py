@@ -41,6 +41,15 @@ def test_reported_single_call_context_ceiling_is_enforced() -> None:
         orchestrator._add_usage(state, response)
 
 
+def test_analysis_wall_clock_is_a_separate_circuit_breaker() -> None:
+    orchestrator = object.__new__(AnalysisOrchestrator)
+    orchestrator.settings = Settings.from_env(require_runtime_secrets=False)
+    state = RunState("request", "question", {"META"}, [])
+    state.started_monotonic -= orchestrator.settings.ai_max_analysis_seconds + 1
+    with pytest.raises(RuntimeError, match="wall-clock"):
+        orchestrator._enforce_budgets(state)
+
+
 def test_semantic_preflight_requires_only_relevant_columns() -> None:
     arguments = {
         "table": "Feature_01_Stock_Daily",

@@ -40,7 +40,8 @@ def main() -> None:
                 "and answer concisely with recorded evidence.",
             ),
         ).fetchone()["request_id"]
-        deadline = time.monotonic() + 240
+        wait_seconds = int(os.environ.get("SMOKE_WAIT_SECONDS", "720"))
+        deadline = time.monotonic() + wait_seconds
         row = None
         while time.monotonic() < deadline:
             row = connection.execute(
@@ -55,7 +56,9 @@ def main() -> None:
                 break
             time.sleep(3)
         if not row or row["status"] not in {"SUCCESS", "FAILED", "CANCELLED"}:
-            raise RuntimeError("Smoke analysis did not reach terminal state in 240 seconds")
+            raise RuntimeError(
+                f"Smoke analysis did not reach terminal state in {wait_seconds} seconds"
+            )
         output = {
             "request_id": str(request_id), "status": row["status"], "stage": row["current_stage"],
             "analysis_ready_date": row["analysis_ready_date"].isoformat() if row["analysis_ready_date"] else None,

@@ -51,6 +51,7 @@ class Settings:
     ai_max_tool_calls: int
     ai_analysis_mode: str
     ai_min_insight_data_calls: int
+    ai_max_analysis_seconds: int
     ai_request_timeout_seconds: int
     worker_poll_seconds: int
     worker_lease_seconds: int
@@ -112,6 +113,7 @@ class Settings:
             ai_max_tool_calls=_integer("AI_MAX_TOOL_CALLS", 12),
             ai_analysis_mode=os.getenv("AI_ANALYSIS_MODE", "QUICK").strip().upper(),
             ai_min_insight_data_calls=_integer("AI_MIN_INSIGHT_DATA_CALLS", 2),
+            ai_max_analysis_seconds=_integer("AI_MAX_ANALYSIS_SECONDS", 600),
             ai_request_timeout_seconds=_integer("AI_REQUEST_TIMEOUT_SECONDS", 180),
             worker_poll_seconds=_integer("WORKER_POLL_SECONDS", 2),
             worker_lease_seconds=_integer("WORKER_LEASE_SECONDS", 300),

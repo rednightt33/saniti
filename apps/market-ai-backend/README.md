@@ -66,6 +66,11 @@ Decisive observations should normally be consolidated into one evidence item
 after the required follow-up, reducing repeated model calls without weakening the
 query-hash audit trail.
 
+`AI_MAX_ANALYSIS_SECONDS` is the separate whole-analysis wall-clock circuit
+breaker and defaults to 600 seconds. `AI_REQUEST_TIMEOUT_SECONDS` remains the
+per-provider-call timeout; tool-call, iteration, token, and wall-clock limits are
+independent safeguards.
+
 All numeric variables and their approved defaults are listed in
 `AI_ANALYST_IMPLEMENTATION_PLAN.md`; Railway variables are the enforcement source
 and `Tool_Catalog` is the model-facing metadata copy.

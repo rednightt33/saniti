@@ -81,6 +81,7 @@ class RunState:
     quality_failures: list[dict[str, Any]] = field(default_factory=list)
     analysis_mode: str = "QUICK"
     completion_reason: str | None = None
+    started_monotonic: float = field(default_factory=time.monotonic)
     finalization_ready: bool = False
 
 
@@ -336,6 +337,8 @@ class AnalysisOrchestrator:
         self._log_step(state, state.tool_calls + state.compactions, None, {}, "COMPACTED", result_summary={"reason": "context_threshold", "prior_context_tokens": context})
 
     def _enforce_budgets(self, state: RunState) -> None:
+        if time.monotonic() - state.started_monotonic >= self.settings.ai_max_analysis_seconds:
+            raise RuntimeError("Maximum analysis wall-clock budget exhausted")
         if state.cumulative_input >= self.settings.ai_max_cumulative_input_tokens:
             raise RuntimeError("Cumulative AI input token budget exhausted")
         if state.cumulative_output >= self.settings.ai_max_cumulative_output_tokens:
@@ -436,6 +439,7 @@ class AnalysisOrchestrator:
             "provider": self.settings.ai_provider, "model": self.settings.ai_model,
             "orchestrator_version": "release-1b-v2", "prompt_version": "release-1b-v2",
             "analysis_mode": state.analysis_mode,
+            "max_analysis_seconds": self.settings.ai_max_analysis_seconds,
             "completion_reason": state.completion_reason,
             "distinct_analytical_queries": len(state.analytical_query_hashes),
             "feature_versions": [dict(row) for row in feature_versions],
