@@ -2,7 +2,7 @@
 
 ## Required reading
 
-Before touching Railway or PostgreSQL, read `README.md`, `PROJECT_CONTEXT.md`, `DATABASE_SCHEMA.md`, `DATABASE_CHANGELOG.md`, and `RAILWAY_CHANGELOG.md` completely. Read the relevant files under `database/migrations/` before changing an existing table.
+Before touching Railway or PostgreSQL, read `README.md`, `PROJECT_CONTEXT.md`, `DATABASE_SCHEMA.md`, `DATABASE_CATALOG.md`, `DATABASE_CHANGELOG.md`, and `RAILWAY_CHANGELOG.md` completely. Read the relevant files under `database/migrations/` before changing an existing table.
 
 ## Mandatory workflow
 
@@ -12,6 +12,7 @@ Before touching Railway or PostgreSQL, read `README.md`, `PROJECT_CONTEXT.md`, `
 4. Apply the smallest safe change and verify it from the live system.
 5. Record the change in GitHub during the same task:
    - Schema: add a forward SQL migration, refresh `DATABASE_SCHEMA.md`, and append `DATABASE_CHANGELOG.md`.
+   - Metadata: update `Table_Catalog` for every new/changed public data table, `Column_Catalog` for every new/changed column in those tables, and `Feature_Catalog` for new/changed Feature definitions. The only initial exclusions are `Database_Table_Status`, `Table_Catalog`, and `Column_Catalog` themselves. Register new/changed PostgreSQL routines in related `Table_Catalog.related_functions`; see `DATABASE_CATALOG.md`. Do not mark inferred meanings VERIFIED.
    - Data: append source metadata and verification results to `DATABASE_CHANGELOG.md`.
    - Railway infrastructure/config/deployment: update `.railway/railway.ts` if applicable and append `RAILWAY_CHANGELOG.md`.
    - Documentation/process: update the relevant Markdown file.

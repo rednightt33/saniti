@@ -108,7 +108,9 @@ jobs:
           echo "created=$created" >> "$GITHUB_OUTPUT"
 
       - name: Refresh catalog and documentation
-        run: python scripts/sync_database_schema.py
+        run: |
+          python scripts/sync_database_catalog.py
+          python scripts/sync_database_schema.py
 
       - name: Commit updated Railway and database documentation
         shell: bash

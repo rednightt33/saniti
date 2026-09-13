@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-12T17:46:10+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-13T03:36:36+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -8,19 +8,20 @@ Generated from PostgreSQL schema `public` at `2026-09-12T17:46:10+00:00`.
 
 | Table Name | Category | Update Pattern | Latest Data Date | Last Changed At | Tracking | Definition |
 |---|---|---|---|---|---|---|
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-12 17:46:10+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
-| `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-11` | `2026-09-12 14:47:03+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily ticker-level price, return, volatility, volume, and price-position features derived from IDX prices and the current stock universe. |
-| `Feature_Catalog` | Reference | After each validated Feature schema change | — | `2026-09-12 17:09:34+00:00` | Baseline; exact changes tracked from this time forward | Machine-readable semantic contract for validated columns in the four locked Feature tables. |
-| `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-10 07:23:34.854803+00:00` | Tracked automatically | Reference list of IDX broker codes, names, and domestic/foreign classification. |
-| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 14:41:15.160142+00:00` | Derived from table data and load log | Daily broker buy/sell activity by symbol, broker, investor type, and market board. |
-| `IDX_Broker_Summary_Data_Quality` | Unclassified | Unknown | — | `2026-09-10 15:03:11.787666+00:00` | Derived from append-only audit snapshots | Append-only snapshots of IDX Broker Summary data-quality audit findings. |
-| `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-12 13:34:43.352522+00:00` | Tracked automatically | Reference universe of Indonesian listed securities and TradingView fundamentals. |
-| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-12` | `2026-09-12 10:01:38.397012+00:00` | Derived from monitoring rows | Operational results for daily and recovery IDX price-update runs. |
-| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-11` | `2026-09-11 10:05:26.641709+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV prices sourced from TradingView. |
-| `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger for telegram-trigger. |
-| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-12 10:01:41.458394+00:00` | Tracked automatically | Delivery ledger used by telegram-monitor to prevent duplicate notifications. |
-| `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-09-06 13:21:52.115381+00:00` | Loaded from Universe_Equity_Description.xlsx; future changes tracked automatically | Reference descriptions and sector classifications for the Indonesian equity universe. |
-| `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-08-31` | `2026-09-09 16:55:55.713468+00:00` | Derived from load log | Audit log used to resume and verify Stockbit broker-summary loads by date. |
+| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-13 03:36:36+00:00` | Baseline; exact changes tracked from this time forward | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-13 03:36:36+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-11` | `2026-09-12 14:47:03+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
+| `Feature_Catalog` | Reference | After each validated Feature schema change | — | `2026-09-12 17:09:34+00:00` | Baseline; exact changes tracked from this time forward | Versioned semantic definitions and formulas for validated Feature columns. |
+| `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-10 07:23:34.854803+00:00` | Tracked automatically | Broker code and name, domestic/foreign type, and usage profile such as Institutional-heavy, Retail-heavy, Mixed, or Niche. |
+| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 14:41:15.160142+00:00` | Derived from table data and load log | Daily broker buy/sell values and lots by symbol, broker, investor type, and market board. |
+| `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-12 13:34:43.352522+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
+| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-13` | `2026-09-12 23:01:58.271364+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
+| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-11` | `2026-09-11 10:05:26.641709+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
+| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-13 03:36:36+00:00` | Baseline; exact changes tracked from this time forward | Curated meanings, grain, provenance, and update contracts for the eleven approved public data tables; not a freshness monitor. |
+| `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
+| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-12 23:02:02.452075+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
+| `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-09-06 13:21:52.115381+00:00` | Loaded from Universe_Equity_Description.xlsx; future changes tracked automatically | Issuer descriptions and TradingView/curated sector and industry classifications. |
+| `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-08-31` | `2026-09-09 16:55:55.713468+00:00` | Derived from load log | Per-trading-date Stockbit broker-summary load progress, retries, and review state. |
 
 ## Logical relationships
 
@@ -28,6 +29,8 @@ These relationships are documented for analysis but are not enforced as PostgreS
 
 | From | To | Relationship | Notes |
 |---|---|---|---|
+| `Table_Catalog.(table_schema, table_name)` | `Approved physical public tables` | Governed semantic reference | Exactly the approved table set is registered; Database_Table_Status remains a separate freshness monitor. |
+| `Column_Catalog.(table_schema, table_name)` | `Table_Catalog.(table_schema, table_name)` | Enforced foreign key | Each cataloged physical column belongs to a registered table; physical facts are reconciled from PostgreSQL. |
 | `IDX_Broker_Summary."Broker"` | `IDX_Broker_Profile.broker_code` | Logical | Broker activity uses the broker-code reference. No database foreign key is enforced. |
 | `IDX_Broker_Summary."Symbol"` | `IDX_Stock_Universe."Ticker"` | Logical | Broker activity symbols map to the stock universe when a matching ticker exists. No database foreign key is enforced. |
 | `Universe_Equity_Description."Ticker"` | `IDX_Stock_Universe."Ticker"` | Logical one-to-one by ticker | Both reference tables describe the same listed security when a matching ticker exists. No database foreign key is enforced. |
@@ -38,6 +41,50 @@ These relationships are documented for analysis but are not enforced as PostgreS
 | `Monitoring_Price_ALL.asset_type` | `IDX_Stock_Universe."Security Type"` | Logical grouped snapshot | Monitoring rows group expected and missing ticker counts by the universe Security Type value. |
 | `Monitoring_Price_ALL.update_for_date` | `Price_Stock_Indonesia_IDX.date` | Logical | A monitoring date describes the daily-price date targeted by an automation run. |
 | `Telegram_Notification_Log.source_execution_id` | `Monitoring_Price_ALL.execution_id` | Logical many-to-one by execution | The notifier reads all monitoring rows for one execution before sending and recording delivery. No database foreign key is enforced. |
+
+## Column_Catalog
+
+Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `table_schema` | `text` | No | — | Physical PostgreSQL schema containing the cataloged column. |
+| `table_name` | `text` | No | — | Exact case-sensitive physical table name. |
+| `column_name` | `text` | No | — | Exact case-sensitive physical column name. |
+| `ordinal_position` | `integer` | No | — | Column position in the physical table. |
+| `data_type` | `text` | No | — | Physical PostgreSQL information_schema data type. |
+| `is_nullable` | `boolean` | No | — | Whether PostgreSQL permits a NULL value in this column. |
+| `default_expression` | `text` | Yes | — | Physical PostgreSQL default expression, when present. |
+| `is_primary_key` | `boolean` | No | — | Whether the column participates in the primary key. |
+| `definition` | `text` | Yes | — | Human-readable meaning of values stored in this column. |
+| `source_column_or_expression` | `text` | Yes | — | Source reference or concise derivation; Feature_Catalog remains authoritative for detailed Feature formulas. |
+| `unit` | `text` | Yes | — | Semantic unit, when applicable. |
+| `null_rule` | `text` | Yes | — | Meaning or rule for a NULL value, when documented. |
+| `source_code_paths` | `ARRAY` | No | `'{}'::text[]` | Repository paths supporting the column definition. |
+| `documentation_status` | `text` | No | `'NEEDS_REVIEW'::text` | Semantic confidence only. Physical type, nullability, default, position, and primary-key membership are read from live PostgreSQL. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Timestamp when the catalog row was created. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Timestamp when the catalog row was last changed. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Column_Catalog_definition_check` | Check | `CHECK (definition IS NULL AND documentation_status = 'NEEDS_REVIEW'::text OR definition IS NOT NULL AND btrim(definition) <> ''::text)` |
+| `Column_Catalog_documentation_status_check` | Check | `CHECK (documentation_status = ANY (ARRAY['VERIFIED'::text, 'PARTIAL'::text, 'NEEDS_REVIEW'::text]))` |
+| `Column_Catalog_name_check` | Check | `CHECK (btrim(column_name) <> ''::text AND btrim(data_type) <> ''::text)` |
+| `Column_Catalog_position_check` | Check | `CHECK (ordinal_position > 0)` |
+| `Column_Catalog_timestamps_check` | Check | `CHECK (updated_at >= created_at)` |
+| `Column_Catalog_table_fkey` | Foreign key | `FOREIGN KEY (table_schema, table_name) REFERENCES "Table_Catalog"(table_schema, table_name)` |
+| `Column_Catalog_pkey` | Primary key | `PRIMARY KEY (table_schema, table_name, column_name)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Column_Catalog_pkey` | `CREATE UNIQUE INDEX "Column_Catalog_pkey" ON public."Column_Catalog" USING btree (table_schema, table_name, column_name)` |
+| `Column_Catalog_status_idx` | `CREATE INDEX "Column_Catalog_status_idx" ON public."Column_Catalog" USING btree (documentation_status, table_name)` |
 
 ## Database_Table_Status
 
@@ -70,41 +117,41 @@ Tracks the data freshness, change time, and update pattern of each table.
 
 ## Feature_01_Stock_Daily
 
-Daily ticker-level price, return, volatility, volume, and price-position features derived from IDX prices and the current stock universe.
+Daily per-ticker price, return, volatility, volume, and drawdown features.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `date` | `date` | No | — | Trading observation date from Price_Stock_Indonesia_IDX. |
-| `ticker` | `text` | No | — | IDX ticker; feature grain is one row per ticker and trading date. |
-| `close` | `numeric` | No | — | Source closing price. |
-| `volume` | `numeric` | No | — | Source trading volume. |
-| `sector` | `text` | No | — | Current Sector value inherited exactly from IDX_Stock_Universe. |
-| `industry` | `text` | No | — | Current Industry value inherited exactly from IDX_Stock_Universe. |
-| `close_1d_ago` | `numeric` | Yes | — | Closing price one prior trading observation ago. |
-| `close_5d_ago` | `numeric` | Yes | — | Closing price five prior trading observations ago. |
-| `close_20d_ago` | `numeric` | Yes | — | Closing price twenty prior trading observations ago. |
-| `close_60d_ago` | `numeric` | Yes | — | Closing price sixty prior trading observations ago. |
-| `return_1d_pct` | `double precision` | Yes | — | Percent close return versus one prior trading observation. |
-| `return_5d_pct` | `double precision` | Yes | — | Percent close return versus five prior trading observations. |
-| `return_20d_pct` | `double precision` | Yes | — | Percent close return versus twenty prior trading observations. |
-| `return_60d_pct` | `double precision` | Yes | — | Percent close return versus sixty prior trading observations. |
-| `abs_return_1d_pct` | `double precision` | Yes | — | Absolute one-observation percent return. |
-| `volatility_5d_ann_pct` | `double precision` | Yes | — | Annualized sample standard deviation of five daily decimal returns, in percent. |
-| `volatility_20d_ann_pct` | `double precision` | Yes | — | Annualized sample standard deviation of twenty daily decimal returns, in percent. |
-| `volatility_60d_ann_pct` | `double precision` | Yes | — | Annualized sample standard deviation of sixty daily decimal returns, in percent. |
-| `volatility_5d_change_pct` | `double precision` | Yes | — | Percent change versus the five-day volatility from five observations ago. |
-| `volatility_20d_change_pct` | `double precision` | Yes | — | Percent change versus the twenty-day volatility from twenty observations ago. |
-| `volatility_60d_change_pct` | `double precision` | Yes | — | Percent change versus the sixty-day volatility from sixty observations ago. |
-| `volume_avg_20d` | `double precision` | Yes | — | Average volume over a complete twenty-observation window. |
-| `volume_std_20d` | `double precision` | Yes | — | Sample standard deviation of volume over a complete twenty-observation window. |
-| `volume_ratio_20d` | `double precision` | Yes | — | Current volume divided by the complete twenty-observation average. |
-| `volume_zscore_20d` | `double precision` | Yes | — | Current volume deviation from the twenty-observation average in standard deviations. |
-| `high_20d` | `numeric` | Yes | — | Maximum close over a complete twenty-observation window. |
-| `high_60d` | `numeric` | Yes | — | Maximum close over a complete sixty-observation window. |
-| `drawdown_20d_pct` | `double precision` | Yes | — | Percent close position below the complete twenty-observation maximum close. |
-| `drawdown_60d_pct` | `double precision` | Yes | — | Percent close position below the complete sixty-observation maximum close. |
+| `date` | `date` | No | — | Trading date of the source candle represented by the feature row. |
+| `ticker` | `text` | No | — | Exact IDX ticker identifying the security represented by the feature row. |
+| `close` | `numeric` | No | — | Closing price for the ticker on the trading date. |
+| `volume` | `numeric` | No | — | Trading volume reported for the ticker on the trading date. |
+| `sector` | `text` | No | — | Current Sector classification for the ticker; it is not point-in-time historical classification. |
+| `industry` | `text` | No | — | Current Industry classification for the ticker; it is not point-in-time historical classification. |
+| `close_1d_ago` | `numeric` | Yes | — | Closing price one prior valid trading observation earlier for the same ticker. |
+| `close_5d_ago` | `numeric` | Yes | — | Closing price five prior valid trading observations earlier for the same ticker. |
+| `close_20d_ago` | `numeric` | Yes | — | Closing price twenty prior valid trading observations earlier for the same ticker. |
+| `close_60d_ago` | `numeric` | Yes | — | Closing price sixty prior valid trading observations earlier for the same ticker. |
+| `return_1d_pct` | `double precision` | Yes | — | Percentage price return between the current close and the close one valid trading observation earlier for the same ticker. |
+| `return_5d_pct` | `double precision` | Yes | — | Percentage price return between the current close and the close five valid trading observations earlier for the same ticker. |
+| `return_20d_pct` | `double precision` | Yes | — | Percentage price return between the current close and the close twenty valid trading observations earlier for the same ticker. |
+| `return_60d_pct` | `double precision` | Yes | — | Percentage price return between the current close and the close sixty valid trading observations earlier for the same ticker. |
+| `abs_return_1d_pct` | `double precision` | Yes | — | Absolute magnitude of the one-trading-observation percentage return, without direction. |
+| `volatility_5d_ann_pct` | `double precision` | Yes | — | Annualized sample standard deviation of the latest five valid daily decimal returns for the ticker, expressed as percent. |
+| `volatility_20d_ann_pct` | `double precision` | Yes | — | Annualized sample standard deviation of the latest twenty valid daily decimal returns for the ticker, expressed as percent. |
+| `volatility_60d_ann_pct` | `double precision` | Yes | — | Annualized sample standard deviation of the latest sixty valid daily decimal returns for the ticker, expressed as percent. |
+| `volatility_5d_change_pct` | `double precision` | Yes | — | Percentage change in annualized five-return volatility versus its value five valid trading observations earlier. |
+| `volatility_20d_change_pct` | `double precision` | Yes | — | Percentage change in annualized twenty-return volatility versus its value twenty valid trading observations earlier. |
+| `volatility_60d_change_pct` | `double precision` | Yes | — | Percentage change in annualized sixty-return volatility versus its value sixty valid trading observations earlier. |
+| `volume_avg_20d` | `double precision` | Yes | — | Average source trading volume over the latest twenty valid trading observations for the ticker. |
+| `volume_std_20d` | `double precision` | Yes | — | Sample standard deviation of source trading volume over the latest twenty valid trading observations for the ticker. |
+| `volume_ratio_20d` | `double precision` | Yes | — | Current trading volume divided by the average volume of the latest twenty valid trading observations. |
+| `volume_zscore_20d` | `double precision` | Yes | — | Current trading-volume deviation from its latest twenty-observation average, measured in sample standard deviations. |
+| `high_20d` | `numeric` | Yes | — | Highest closing price among the latest twenty valid trading observations for the ticker. |
+| `high_60d` | `numeric` | Yes | — | Highest closing price among the latest sixty valid trading observations for the ticker. |
+| `drawdown_20d_pct` | `double precision` | Yes | — | Percentage position of the current close below the highest close in the latest twenty valid trading observations. |
+| `drawdown_60d_pct` | `double precision` | Yes | — | Percentage position of the current close below the highest close in the latest sixty valid trading observations. |
 
 ### Constraints
 
@@ -124,7 +171,7 @@ Daily ticker-level price, return, volatility, volume, and price-position feature
 
 ## Feature_Catalog
 
-Machine-readable semantic contract for validated columns in the four locked Feature tables.
+Versioned semantic definitions and formulas for validated Feature columns.
 
 ### Columns
 
@@ -168,7 +215,7 @@ Machine-readable semantic contract for validated columns in the four locked Feat
 
 ## IDX_Broker_Profile
 
-Reference list of IDX broker codes, names, and domestic/foreign classification.
+Broker code and name, domestic/foreign type, and usage profile such as Institutional-heavy, Retail-heavy, Mixed, or Niche.
 
 ### Columns
 
@@ -177,7 +224,7 @@ Reference list of IDX broker codes, names, and domestic/foreign classification.
 | `broker_code` | `character varying` | No | — | Two-character IDX broker code. |
 | `broker_name` | `text` | No | — | Registered broker or securities-company name. |
 | `broker_type` | `text` | No | — | Broker classification: Domestic or Foreign. |
-| `broker_classification` | `text` | Yes | — | No column description has been recorded. |
+| `broker_classification` | `text` | Yes | — | Observed broker usage profile: Institutional-heavy, Retail-heavy, Mixed, or Niche; this is distinct from domestic/foreign broker_type. |
 
 ### Constraints
 
@@ -196,7 +243,7 @@ Reference list of IDX broker codes, names, and domestic/foreign classification.
 
 ## IDX_Broker_Summary
 
-Daily broker buy/sell activity by symbol, broker, investor type, and market board.
+Daily broker buy/sell values and lots by symbol, broker, investor type, and market board.
 
 ### Columns
 
@@ -240,46 +287,9 @@ Daily broker buy/sell activity by symbol, broker, investor type, and market boar
 |---|---|
 | `IDX_Broker_Summary_pkey` | `CREATE UNIQUE INDEX "IDX_Broker_Summary_pkey" ON public."IDX_Broker_Summary" USING btree ("Date", "Symbol", "Broker", "Investor Type", "Market Board")` |
 
-## IDX_Broker_Summary_Data_Quality
-
-Append-only snapshots of IDX Broker Summary data-quality audit findings.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `Audit Finding ID` | `bigint` | No | — | No column description has been recorded. |
-| `Audit Run ID` | `uuid` | No | — | No column description has been recorded. |
-| `Audited At` | `timestamp with time zone` | No | — | No column description has been recorded. |
-| `Issue Type` | `text` | No | — | No column description has been recorded. |
-| `Date` | `date` | Yes | — | No column description has been recorded. |
-| `Symbol` | `text` | Yes | — | No column description has been recorded. |
-| `Affected Rows` | `bigint` | No | `0` | No column description has been recorded. |
-| `Current Status` | `text` | No | — | No column description has been recorded. |
-| `Reason` | `text` | No | — | No column description has been recorded. |
-| `Severity` | `text` | No | — | No column description has been recorded. |
-| `Recommended Action` | `text` | No | — | No column description has been recorded. |
-| `Rule` | `text` | No | — | No column description has been recorded. |
-| `Details` | `jsonb` | No | `'{}'::jsonb` | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Broker_Summary_Data_Quality_severity_check` | Check | `CHECK ("Severity" = ANY (ARRAY['CRITICAL'::text, 'HIGH'::text, 'MEDIUM'::text, 'LOW'::text]))` |
-| `IDX_Broker_Summary_Data_Quality_pkey` | Primary key | `PRIMARY KEY ("Audit Finding ID")` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `IDX_Broker_Summary_Data_Quality_pkey` | `CREATE UNIQUE INDEX "IDX_Broker_Summary_Data_Quality_pkey" ON public."IDX_Broker_Summary_Data_Quality" USING btree ("Audit Finding ID")` |
-| `IDX_Broker_Summary_Data_Quality_run_idx` | `CREATE INDEX "IDX_Broker_Summary_Data_Quality_run_idx" ON public."IDX_Broker_Summary_Data_Quality" USING btree ("Audit Run ID")` |
-| `IDX_Broker_Summary_Data_Quality_severity_date_idx` | `CREATE INDEX "IDX_Broker_Summary_Data_Quality_severity_date_idx" ON public."IDX_Broker_Summary_Data_Quality" USING btree ("Severity", "Date")` |
-
 ## IDX_Stock_Universe
 
-Reference universe of Indonesian listed securities and TradingView fundamentals.
+Current Indonesian listed-security universe, ticker identity, and classifications.
 
 ### Columns
 
@@ -317,7 +327,7 @@ Reference universe of Indonesian listed securities and TradingView fundamentals.
 
 ## Monitoring_Price_ALL
 
-Operational results for daily and recovery IDX price-update runs.
+Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs.
 
 ### Columns
 
@@ -371,7 +381,7 @@ Operational results for daily and recovery IDX price-update runs.
 
 ## Price_Stock_Indonesia_IDX
 
-Daily Indonesian stock OHLCV prices sourced from TradingView.
+Daily Indonesian stock OHLCV candles sourced from TradingView.
 
 ### Columns
 
@@ -411,9 +421,49 @@ Daily Indonesian stock OHLCV prices sourced from TradingView.
 | `Price_Stock_Indonesia_IDX_date_idx` | `CREATE INDEX "Price_Stock_Indonesia_IDX_date_idx" ON public."Price_Stock_Indonesia_IDX" USING btree (date)` |
 | `Price_Stock_Indonesia_IDX_pkey` | `CREATE UNIQUE INDEX "Price_Stock_Indonesia_IDX_pkey" ON public."Price_Stock_Indonesia_IDX" USING btree (ticker, date)` |
 
+## Table_Catalog
+
+Curated meanings, grain, provenance, and update contracts for the eleven approved public data tables; not a freshness monitor.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `table_schema` | `text` | No | `'public'::text` | Physical PostgreSQL schema containing the cataloged table. |
+| `table_name` | `text` | No | — | Exact case-sensitive physical table name. |
+| `category` | `text` | No | — | Operational role: Reference, Transactional, Feature, or System. |
+| `definition` | `text` | Yes | — | Human-readable purpose and meaning of the table. |
+| `grain` | `text` | Yes | — | Business entity represented by one table row. |
+| `primary_key_columns` | `ARRAY` | No | `'{}'::text[]` | Ordered physical columns in the table primary key. |
+| `source_system` | `text` | Yes | — | External system or internal process supplying the data, when known. |
+| `source_tables` | `ARRAY` | No | `'{}'::text[]` | Physical upstream tables used to populate or derive the table. |
+| `source_code_paths` | `ARRAY` | No | `'{}'::text[]` | Repository paths of relevant scripts and migrations. |
+| `update_rule` | `text` | Yes | — | Event or process that changes table data. |
+| `related_functions` | `ARRAY` | No | `'{}'::text[]` | PostgreSQL routines directly related to this table. |
+| `documentation_status` | `text` | No | `'NEEDS_REVIEW'::text` | VERIFIED means checked against implementation and live schema; PARTIAL means supported but not fully verified; NEEDS_REVIEW means meaning is not established. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Timestamp when the catalog row was created. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Timestamp when the catalog row was last changed. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Table_Catalog_definition_check` | Check | `CHECK (definition IS NULL AND documentation_status = 'NEEDS_REVIEW'::text OR definition IS NOT NULL AND btrim(definition) <> ''::text)` |
+| `Table_Catalog_documentation_status_check` | Check | `CHECK (documentation_status = ANY (ARRAY['VERIFIED'::text, 'PARTIAL'::text, 'NEEDS_REVIEW'::text]))` |
+| `Table_Catalog_name_check` | Check | `CHECK (btrim(table_name) <> ''::text)` |
+| `Table_Catalog_target_schema_check` | Check | `CHECK (table_schema = 'public'::text)` |
+| `Table_Catalog_timestamps_check` | Check | `CHECK (updated_at >= created_at)` |
+| `Table_Catalog_pkey` | Primary key | `PRIMARY KEY (table_schema, table_name)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Table_Catalog_pkey` | `CREATE UNIQUE INDEX "Table_Catalog_pkey" ON public."Table_Catalog" USING btree (table_schema, table_name)` |
+
 ## Telegram_Command_Log
 
-Inbound Telegram command audit and duplicate-prevention ledger for telegram-trigger.
+Inbound Telegram command audit and duplicate-prevention ledger.
 
 ### Columns
 
@@ -454,7 +504,7 @@ Inbound Telegram command audit and duplicate-prevention ledger for telegram-trig
 
 ## Telegram_Notification_Log
 
-Delivery ledger used by telegram-monitor to prevent duplicate notifications.
+Outbound Telegram delivery state and anti-duplicate ledger.
 
 ### Columns
 
@@ -491,7 +541,7 @@ Delivery ledger used by telegram-monitor to prevent duplicate notifications.
 
 ## Universe_Equity_Description
 
-Reference descriptions and sector classifications for the Indonesian equity universe.
+Issuer descriptions and TradingView/curated sector and industry classifications.
 
 ### Columns
 
@@ -525,7 +575,7 @@ Reference descriptions and sector classifications for the Indonesian equity univ
 
 ## stockbit_broker_summary_load_log
 
-Audit log used to resume and verify Stockbit broker-summary loads by date.
+Per-trading-date Stockbit broker-summary load progress, retries, and review state.
 
 ### Columns
 

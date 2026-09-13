@@ -18,6 +18,8 @@ from psycopg import sql
 STATUS_TABLE = "Database_Table_Status"
 TABLE_STATUS_RULES = {
     "Database_Table_Status": ("System", "Automatic / daily documentation refresh"),
+    "Table_Catalog": ("Reference", "After approved table metadata changes"),
+    "Column_Catalog": ("Reference", "After approved column metadata changes"),
     "Feature_01_Stock_Daily": ("Feature", "After validated daily-price changes"),
     "Feature_Catalog": ("Reference", "After each validated Feature schema change"),
     "IDX_Broker_Profile": ("Reference", "Periodic / approximately annual"),
@@ -31,6 +33,8 @@ TABLE_STATUS_RULES = {
     "stockbit_broker_summary_load_log": ("System", "Continuous / alongside broker-summary loads"),
 }
 TRACKED_CHANGE_TABLES = (
+    "Table_Catalog",
+    "Column_Catalog",
     "Feature_01_Stock_Daily",
     "Feature_Catalog",
     "IDX_Broker_Profile",
@@ -42,6 +46,8 @@ TRACKED_CHANGE_TABLES = (
 )
 TABLE_DESCRIPTIONS = {
     "Database_Table_Status": "Tracks the data freshness, change time, and update pattern of each table.",
+    "Table_Catalog": "Curated meanings, grain, provenance, and update contracts for approved public data tables.",
+    "Column_Catalog": "Physical column inventory and evidence-graded semantic definitions for approved tables.",
     "Feature_01_Stock_Daily": "Daily ticker-level price, return, volatility, volume, and price-position features.",
     "Feature_Catalog": "Machine-readable semantic contract for validated columns in the four locked Feature tables.",
     "IDX_Broker_Profile": "Reference list of IDX broker codes, names, and domestic/foreign classification.",
@@ -55,6 +61,40 @@ TABLE_DESCRIPTIONS = {
     "stockbit_broker_summary_load_log": "Audit log used to resume and verify Stockbit broker-summary loads by date.",
 }
 COLUMN_DESCRIPTIONS = {
+    "Table_Catalog": {
+        "table_schema": "Physical PostgreSQL schema containing the cataloged table.",
+        "table_name": "Exact case-sensitive physical table name.",
+        "category": "Operational role: Reference, Transactional, Feature, or System.",
+        "definition": "Human-readable purpose and meaning of the table.",
+        "grain": "Business entity represented by one table row.",
+        "primary_key_columns": "Ordered physical columns in the table primary key.",
+        "source_system": "External system or internal process supplying the data, when known.",
+        "source_tables": "Physical upstream tables used to populate or derive the table.",
+        "source_code_paths": "Repository paths of relevant scripts and migrations.",
+        "update_rule": "Event or process that changes table data.",
+        "related_functions": "PostgreSQL routines directly related to this table.",
+        "documentation_status": "Semantic confidence: VERIFIED, PARTIAL, or NEEDS_REVIEW.",
+        "created_at": "Timestamp when the catalog row was created.",
+        "updated_at": "Timestamp when the catalog row was last changed.",
+    },
+    "Column_Catalog": {
+        "table_schema": "Physical PostgreSQL schema containing the cataloged column.",
+        "table_name": "Exact case-sensitive physical table name.",
+        "column_name": "Exact case-sensitive physical column name.",
+        "ordinal_position": "Column position in the physical table.",
+        "data_type": "Physical PostgreSQL information_schema data type.",
+        "is_nullable": "Whether PostgreSQL permits a NULL value in this column.",
+        "default_expression": "Physical PostgreSQL default expression, when present.",
+        "is_primary_key": "Whether the column participates in the primary key.",
+        "definition": "Human-readable meaning of values stored in this column.",
+        "source_column_or_expression": "Source reference or concise derivation; Feature_Catalog owns detailed Feature formulas.",
+        "unit": "Semantic unit, when applicable.",
+        "null_rule": "Meaning or rule for a NULL value, when documented.",
+        "source_code_paths": "Repository paths supporting the column definition.",
+        "documentation_status": "Semantic confidence: VERIFIED, PARTIAL, or NEEDS_REVIEW.",
+        "created_at": "Timestamp when the catalog row was created.",
+        "updated_at": "Timestamp when the catalog row was last changed.",
+    },
     "Database_Table_Status": {
         "Table Name": "Exact PostgreSQL table name in the public schema.",
         "Table Category": "Operational role: Reference, Transactional, or System.",
@@ -120,6 +160,7 @@ COLUMN_DESCRIPTIONS = {
         "broker_code": "Two-character IDX broker code.",
         "broker_name": "Registered broker or securities-company name.",
         "broker_type": "Broker classification: Domestic or Foreign.",
+        "broker_classification": "Observed broker usage profile: Institutional-heavy, Retail-heavy, Mixed, or Niche; this is distinct from domestic/foreign broker_type.",
     },
     "IDX_Broker_Summary": {
         "Date": "Exchange trading date.",
@@ -256,6 +297,18 @@ COLUMN_DESCRIPTIONS = {
     },
 }
 LOGICAL_RELATIONSHIPS = [
+    (
+        'Table_Catalog.(table_schema, table_name)',
+        'Approved physical public tables',
+        "Governed semantic reference",
+        "Exactly the approved table set is registered; Database_Table_Status remains a separate freshness monitor.",
+    ),
+    (
+        'Column_Catalog.(table_schema, table_name)',
+        'Table_Catalog.(table_schema, table_name)',
+        "Enforced foreign key",
+        "Each cataloged physical column belongs to a registered table; physical facts are reconciled from PostgreSQL.",
+    ),
     (
         'IDX_Broker_Summary."Broker"',
         'IDX_Broker_Profile.broker_code',
@@ -776,6 +829,42 @@ def fetch_table_comments(connection: psycopg.Connection[Any], schema: str) -> di
     }
 
 
+def apply_catalog_definitions(
+    connection: psycopg.Connection[Any],
+    schema: str,
+    names: list[str],
+    comments: dict[str, str | None],
+    columns: dict[str, list[dict[str, Any]]],
+) -> None:
+    if "Table_Catalog" not in names or "Column_Catalog" not in names:
+        return
+    for table_name, definition in connection.execute(
+        """
+        SELECT table_name, definition
+        FROM public."Table_Catalog"
+        WHERE table_schema = %s AND definition IS NOT NULL
+        """,
+        (schema,),
+    ).fetchall():
+        comments[table_name] = definition
+    definitions = {
+        (table_name, column_name): definition
+        for table_name, column_name, definition in connection.execute(
+            """
+            SELECT table_name, column_name, definition
+            FROM public."Column_Catalog"
+            WHERE table_schema = %s AND definition IS NOT NULL
+            """,
+            (schema,),
+        ).fetchall()
+    }
+    for table_name, table_columns in columns.items():
+        for column in table_columns:
+            definition = definitions.get((table_name, column["name"]))
+            if definition is not None:
+                column["description"] = definition
+
+
 def generate_document(
     schema: str,
     refreshed_at: datetime,
@@ -933,6 +1022,7 @@ def main() -> int:
         constraints = fetch_constraints(connection, args.schema)
         indexes = fetch_indexes(connection, args.schema)
         comments = fetch_table_comments(connection, args.schema)
+        apply_catalog_definitions(connection, args.schema, names, comments, columns)
         document = generate_document(
             args.schema, refreshed_at, names, columns, constraints, indexes, comments, statuses
         )

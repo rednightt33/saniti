@@ -1,5 +1,17 @@
 # Database changelog
 
+## 2026-09-13 — Create approved table and column catalogs
+
+- Target: `public."Table_Catalog"` and `public."Column_Catalog"` in Railway project `lucid-patience`, environment `dev`, PostgreSQL service `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`.
+- Added and applied forward-only migration `database/migrations/20260913_003_create_table_and_column_catalog.sql`. It created two metadata tables, keys, checks, a column-to-table foreign key, a documentation-status index, and timestamp-maintenance triggers. Raw price/broker rows, Feature rows, and `Monitoring_Price_ALL` were not modified; `Database_Table_Status` was refreshed by the schema-documentation script.
+- Registered exactly the 11 user-approved, still-existing physical tables. `Database_Table_Status`, the already-deleted `IDX_Broker_Summary_Data_Quality`, and the two catalog tables themselves were intentionally excluded from the initial semantic catalog.
+- Seeded and reconciled all 163 physical columns of those tables using `scripts/sync_database_catalog.py`. Semantic grades: 31 VERIFIED, 131 PARTIAL, and one NEEDS_REVIEW (`IDX_Stock_Universe.price_feed_daily`, whose business meaning is not established by a source script). The 29 active Feature 01 definitions remain in `Feature_Catalog` and are authoritative for formulas.
+- The project owner clarified `IDX_Broker_Profile.broker_classification` as a usage profile, separate from domestic/foreign `broker_type`. Live data contained Institutional-heavy, Retail-heavy, Mixed, and Niche values; that column was marked VERIFIED.
+- Live validation PASS: 11 cataloged tables, 163 physical/cataloged columns, zero missing columns, zero stale catalog columns, zero physical type/nullability/default/position mismatches, zero primary-key mismatches, zero catalog rows for the deleted data-quality table, and the unchanged 29 active Feature 01 definitions. Price and Feature 01 tables each still contain 1,303,728 rows.
+- Re-running the catalog synchronizer made zero inserts and zero updates, confirming idempotence. Refreshed `DATABASE_SCHEMA.md` from the live schema (14 current public tables, including `Database_Table_Status` and the two new catalogs).
+- Added `DATABASE_CATALOG.md` and mandatory GitHub maintenance rules for future tables, columns, Feature definitions, and related PostgreSQL routines. Feature 01 queue/status/worker integration is only documented as a future plan; it was not created or enabled.
+- Updated the daily schema-documentation GitHub Action to run catalog reconciliation first. It will fail on an unregistered public data table, missing cataloged column, stale catalog target, or missing active Feature definition instead of silently publishing incomplete metadata.
+
 ## 2026-09-13 — Track price-row ingestion time
 
 - Target: `public."Price_Stock_Indonesia_IDX"` in Railway project `lucid-patience`, environment `dev`, PostgreSQL service `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`.
