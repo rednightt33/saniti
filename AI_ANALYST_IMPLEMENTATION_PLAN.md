@@ -102,9 +102,11 @@ sebagai waktu data dahulu tersedia.
 
 Semua 91 baris aktif Feature 1–3 telah diisi dan diaudit sebagai
 `CALCULATION_VERIFIED`. Query data/aggregation menjalankan semantic preflight:
-definisi semua kolom output, filter, ordering, grouping, dan metric yang relevan
-harus sudah dimuat dalam state request. Error bersifat recoverable dan menyebut
-definisi yang perlu diambil; katalog penuh tidak dimuat otomatis.
+orchestrator otomatis memuat ringkasan definisi kolom output, filter, ordering,
+grouping, metric, dan condition yang relevan dalam call yang sama. AI tidak
+ditolak hanya karena lupa memanggil definisi terlebih dahulu. Definisi lengkap
+tetap diambil melalui `get_feature_definition` ketika formula/metodologi rinci
+dibutuhkan; katalog penuh tidak dimuat otomatis.
 
 Material formula or methodology changes selalu membuat versi baru. Old versions
 tidak ditimpa atau diinterpretasikan ulang.

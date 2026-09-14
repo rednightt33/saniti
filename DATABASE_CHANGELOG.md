@@ -9,6 +9,14 @@
 - Added deterministic test `R1B_016_CONDITION_RUNS`; Golden Test run `4ff14bf3-8c5e-4248-b506-08af06b65dec` passed 16/16 with zero failures. Catalog reconciliation covered 429 physical columns and regenerated `DATABASE_SCHEMA.md`.
 - No Feature value/formula, source row, Feature refresh routine, schedule, or raw-table privilege changed.
 
+## 2026-09-14 — Auto-load compact Feature semantics during data execution
+
+- The first live DeepSeek streak request (`edf80a9f-91f2-4078-b432-5db4bc3195c4`) correctly found the two BBCA runs but failed before finalization after 14 calls/9 iterations because cumulative input reached 101,627 tokens. Audit showed one empty freshness call, a rejected pre-definition streak call, overly broad discovery/seven-definition retrieval, and an invalid full-range quality request before the necessary episode checks.
+- Applied forward-only migration `database/migrations/20260914_035_auto_load_compact_feature_semantics.sql`. Data handlers now advertise that the orchestrator auto-loads compact semantics for referenced columns; complete `get_feature_definition` retrieval is optional and remains available for detailed formula/methodology work.
+- The backend no longer rejects an otherwise valid query merely because the model forgot a separate definition call. Missing or inactive catalog definitions still reject execution, so `Feature_Catalog` remains authoritative.
+- The migration was initially applied from a temporary `034` filename before a concurrently created Feature 2 shadow migration claimed that sequence number. The repository migration was moved forward to `035`, and the migration itself replaces the stale temporary source-path reference with the final `035` path. No SQL behavior or Feature data was changed by the renumbering.
+- A concurrently created empty `Feature_02_Broker_Rolling_v2` shadow table is `PARTIAL` and currently has neither `Column_Catalog` nor `Feature_Catalog` coverage. The strict catalog synchronizer correctly refused to certify it. This tool release did not alter or register that in-progress table; production AI access remains blocked because only `VERIFIED` Feature tables are queryable.
+
 ## 2026-09-14 — Separate evidence storage from the stopping-policy gate
 
 - Applied forward-only migrations `database/migrations/20260914_031_separate_evidence_from_analysis_completion.sql` and `database/migrations/20260914_032_compact_insight_evidence_workflow.sql` to Railway `dev` PostgreSQL.

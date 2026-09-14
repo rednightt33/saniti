@@ -28,10 +28,11 @@ anomalies, not automatically bad data. Cite recorded evidence IDs for material
 claims. State data-ready date, point-in-time/current-classification limitations,
 and survivorship limitations where relevant. Do not confuse database rows with
 LLM-facing rows: prefer aggregation/ranking and compact evidence.
-Before executing a data-retrieval or aggregation tool, load the definitions of
-every relevant output, filter, ordering, grouping, and metric column with
-get_feature_definition. If semantic preflight reports missing definitions, load
-exactly those definitions and retry; never load the entire catalog by default.
+The orchestrator automatically loads compact semantics for every relevant output,
+filter, ordering, grouping, metric, and condition column before data execution.
+Use get_feature_definition only when complete formula/methodology detail is needed;
+do not repeat discovery when the exact catalog identifier is already known. Never
+load the entire catalog by default.
 Copy exact case-sensitive Feature table and column identifiers from discovery
 results; never abbreviate them. estimate_query_size already performs structured
 query validation, so do not also call validate_query_request for the same payload.
@@ -39,6 +40,9 @@ For an obviously bounded single-ticker/single-date retrieval, call query_feature
 directly because it also enforces validation and limits; estimate first only when
 row cost is genuinely uncertain. Request only the tool families needed for the
 question; do not request ADVANCED for ordinary retrieval.
+For a long find_condition_runs search, check data quality only on the qualifying
+episode neighborhoods needed for interpretation; do not submit the full multi-year
+search span to check_data_quality when its generic range limit is smaller.
 After necessary follow-ups, prefer one consolidated record_evidence call containing
 the decisive observations, quality result, and query hashes. Use separate evidence
 items only when independent claims genuinely require them. Evidence storage does not
@@ -234,10 +238,17 @@ class AnalysisOrchestrator:
         step_number = state.tool_calls + state.compactions
         sanitized = self._sanitize(arguments)
         try:
-            self._require_loaded_definitions(state, name, arguments)
+            auto_semantics = self._auto_load_definitions(state, name, arguments)
+            if auto_semantics:
+                metadata_tokens = estimate_tokens(auto_semantics)
+                state.feature_metadata_tokens += metadata_tokens
+                if state.feature_metadata_tokens > self.settings.ai_max_feature_metadata_tokens:
+                    raise RuntimeError("Feature metadata token budget exceeded")
             if name == "complete_analysis":
                 self._validate_completion(state, arguments)
             execution = self.tools.execute(name, arguments, state.request_id)
+            if auto_semantics:
+                execution.payload["auto_loaded_feature_semantics"] = auto_semantics
             if name == "list_tools":
                 state.families.update(execution.payload.get("approved_expansion") or [])
             if name in {"query_features", "get_timeseries", "screen_features", "rank_features", "aggregate_features", "compare_groups", "compare_periods", "find_condition_runs"}:
@@ -437,7 +448,7 @@ class AnalysisOrchestrator:
             ).fetchall()
         snapshot = {
             "provider": self.settings.ai_provider, "model": self.settings.ai_model,
-            "orchestrator_version": "release-1b-v2", "prompt_version": "release-1b-v2",
+            "orchestrator_version": "release-1b-v3", "prompt_version": "release-1b-v3",
             "analysis_mode": state.analysis_mode,
             "max_analysis_seconds": self.settings.ai_max_analysis_seconds,
             "completion_reason": state.completion_reason,
@@ -512,17 +523,26 @@ class AnalysisOrchestrator:
             columns.update(item.get("column") for item in arguments.get("conditions") or [])
         return {(table, column) for column in columns if isinstance(column, str) and column}
 
-    def _require_loaded_definitions(
+    def _auto_load_definitions(
         self, state: RunState, name: str, arguments: dict[str, Any]
-    ) -> None:
+    ) -> list[dict[str, Any]]:
         required = self._semantic_requirements(name, arguments)
-        missing = sorted(required - state.loaded_feature_definitions)
-        if missing:
-            detail = [{"table": table, "column": column} for table, column in missing]
+        missing = required - state.loaded_feature_definitions
+        if not missing:
+            return []
+        rows = self.tools.semantic_summaries(missing)
+        found = {
+            (str(row["feature_table"]), str(row["feature_column"])) for row in rows
+        }
+        unresolved = sorted(missing - found)
+        if unresolved:
+            detail = [{"table": table, "column": column} for table, column in unresolved]
             raise ToolError(
-                "Semantic definitions must be loaded with get_feature_definition before data execution: "
+                "Active semantic definitions are missing from Feature_Catalog: "
                 + json.dumps(detail, separators=(",", ":"))
             )
+        state.loaded_feature_definitions.update(found)
+        return rows
 
     def _log_step(self, state: RunState, step_number: int, tool_name: str | None, arguments: dict[str, Any], status: str, *, execution: Any = None, llm_tokens: int | None = None, result_summary: dict[str, Any] | None = None, error: str | None = None) -> None:
         with self.db.connection() as connection, connection.transaction():

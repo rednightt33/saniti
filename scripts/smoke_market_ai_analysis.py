@@ -30,15 +30,19 @@ def main() -> None:
     if public_proxy:
         url = use_public_proxy(url, public_proxy)
     with psycopg.connect(url, row_factory=dict_row, autocommit=True) as connection:
+        default_question = (
+            "Find the common safe data date for Feature 1, Feature 2, and Feature 3, "
+            "then report BBCA close and 20-trading-day return on that date. Check "
+            "quality, load every relevant Feature definition before data retrieval, "
+            "and answer concisely with recorded evidence."
+        )
+        question = os.environ.get("SMOKE_QUESTION", default_question).strip()
+        if not question:
+            raise RuntimeError("SMOKE_QUESTION must not be blank")
         request_id = connection.execute(
             '''INSERT INTO public."Analysis_Request" (question,user_reference)
                VALUES (%s,'release-1b-smoke') RETURNING request_id''',
-            (
-                "Find the common safe data date for Feature 1, Feature 2, and Feature 3, "
-                "then report BBCA close and 20-trading-day return on that date. Check "
-                "quality, load every relevant Feature definition before data retrieval, "
-                "and answer concisely with recorded evidence.",
-            ),
+            (question,),
         ).fetchone()["request_id"]
         wait_seconds = int(os.environ.get("SMOKE_WAIT_SECONDS", "720"))
         deadline = time.monotonic() + wait_seconds

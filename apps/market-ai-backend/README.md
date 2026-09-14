@@ -13,9 +13,11 @@ with `Authorization: Bearer $MARKET_AI_INTERNAL_API_KEY`.
    A direct ticker retrieval starts without Screening schemas; explicit screening
    or ranking language exposes Screening immediately.
 4. Every query is constructed from catalog-approved identifiers and operators;
-   model-supplied SQL is never accepted. Before a data retrieval/aggregation,
-   semantic preflight requires the relevant output/filter/order/group/metric
-   definitions to have been loaded with `get_feature_definition`.
+   model-supplied SQL is never accepted. Before data execution, the orchestrator
+   automatically loads compact semantics for only the referenced output, filter,
+   order, group, metric, and condition columns. `get_feature_definition` remains
+   available on demand for complete formula/methodology detail; forgetting that
+   separate call no longer wastes a model retry.
 5. PostgreSQL estimates and executes within query limits. Tool handlers then
    rank, aggregate, or semantically compact results to the independent LLM-facing
    row/byte/token budgets.

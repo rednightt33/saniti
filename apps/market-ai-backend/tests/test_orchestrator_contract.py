@@ -64,25 +64,37 @@ def test_semantic_preflight_requires_only_relevant_columns() -> None:
     }
 
 
-def test_loaded_definition_gate_is_recoverable() -> None:
+def test_missing_definitions_are_auto_loaded_without_model_retry() -> None:
     orchestrator = object.__new__(AnalysisOrchestrator)
     state = RunState("request", "question", {"QUERY"}, [])
-    with pytest.raises(Exception, match="get_feature_definition"):
-        orchestrator._require_loaded_definitions(
-            state,
-            "rank_features",
-            {"table": "Feature_01_Stock_Daily", "column": "return_20d_pct"},
-        )
-    state.loaded_feature_definitions.update({
+    expected = {
         ("Feature_01_Stock_Daily", "date"),
         ("Feature_01_Stock_Daily", "ticker"),
         ("Feature_01_Stock_Daily", "return_20d_pct"),
-    })
-    orchestrator._require_loaded_definitions(
+    }
+
+    class SemanticTools:
+        @staticmethod
+        def semantic_summaries(features):
+            assert features == expected
+            return [
+                {"feature_table": table, "feature_column": column, "definition": column}
+                for table, column in sorted(features)
+            ]
+
+    orchestrator.tools = SemanticTools()
+    rows = orchestrator._auto_load_definitions(
         state,
         "rank_features",
         {"table": "Feature_01_Stock_Daily", "column": "return_20d_pct"},
     )
+    assert len(rows) == 3
+    assert state.loaded_feature_definitions == expected
+    assert orchestrator._auto_load_definitions(
+        state,
+        "rank_features",
+        {"table": "Feature_01_Stock_Daily", "column": "return_20d_pct"},
+    ) == []
 
 
 def test_final_contract_requires_recorded_and_exact_evidence_ids() -> None:

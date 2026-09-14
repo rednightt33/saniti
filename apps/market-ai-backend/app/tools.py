@@ -148,7 +148,12 @@ class ToolRegistry:
                 "features": {"type": "array", "items": _object_schema({"table": {"type": "string"}, "column": {"type": "string"}})},
             }),
             "list_feature_tables": _object_schema({"include_columns": {"type": "boolean"}}),
-            "check_data_freshness": _object_schema({"tables": {"type": "array", "items": {"type": "string"}}}),
+            "check_data_freshness": _object_schema({
+                "tables": {
+                    "type": "array", "items": {"type": "string"},
+                    "minItems": 1, "maxItems": 10,
+                }
+            }),
             "check_data_quality": _object_schema({
                 "table": {"type": "string"}, "tickers": {"type": ["array", "null"], "items": {"type": "string"}},
                 "start_date": {"type": ["string", "null"]}, "end_date": {"type": ["string", "null"]},
@@ -245,6 +250,26 @@ class ToolRegistry:
                 (table,),
             ).fetchall()
         return {row["feature_column"]: dict(row) for row in rows}
+
+    def semantic_summaries(
+        self, features: set[tuple[str, str]]
+    ) -> list[dict[str, Any]]:
+        """Load compact semantics for orchestrator preflight without a model round trip."""
+        if not features:
+            return []
+        pairs = sorted(features)
+        with self.db.query_transaction() as connection:
+            rows = connection.execute(
+                '''SELECT feature_table, feature_column, definition, unit, null_rule,
+                          analytical_interpretation, misuse_warning, point_in_time_safe,
+                          historical_metadata_warning, semantic_review_status
+                   FROM public."Feature_Catalog"
+                   WHERE is_active AND (feature_table, feature_column) IN
+                     (SELECT * FROM unnest(%s::text[], %s::text[]))
+                   ORDER BY feature_table, feature_column''',
+                ([item[0] for item in pairs], [item[1] for item in pairs]),
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     def _validate_query(self, arguments: dict[str, Any]) -> dict[str, Any]:
         table = str(arguments.get("table") or "")
