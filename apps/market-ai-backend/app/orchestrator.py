@@ -329,6 +329,19 @@ class AnalysisOrchestrator:
             item for item in definitions
             if item.get("name") not in worker_tools or item.get("name") in permitted
         ]
+        definitions = [item for item in definitions if item.get("name") != "route_analysis"]
+        if state.execution_route in {"QUERY_SANDBOX", "STATISTICAL_VALIDATION"}:
+            selected_worker = next(iter(permitted))
+            route_support = {
+                selected_worker,
+                "check_data_freshness",
+                "check_data_quality",
+                "record_evidence",
+                "complete_analysis",
+            }
+            definitions = [
+                item for item in definitions if item.get("name") in route_support
+            ]
         if state.completion_only:
             return [item for item in definitions if item.get("name") == "complete_analysis"]
         return definitions
@@ -339,6 +352,11 @@ class AnalysisOrchestrator:
             return {"type": "function", "name": "route_analysis"}
         if state.completion_only:
             return {"type": "function", "name": "complete_analysis"}
+        if not state.analytics_job_attempted:
+            if state.execution_route == "QUERY_SANDBOX":
+                return {"type": "function", "name": "run_query_sandbox"}
+            if state.execution_route == "STATISTICAL_VALIDATION":
+                return {"type": "function", "name": "run_statistical_validation"}
         return "required"
 
     def _max_output_tokens(self, state: RunState) -> int:
@@ -446,13 +464,15 @@ class AnalysisOrchestrator:
                 evidence_id = execution.payload.get("evidence_id")
                 if evidence_id:
                     state.recorded_evidence_ids.add(str(evidence_id))
+                    if state.analytics_job_decisive and not state.quality_failures:
+                        state.completion_only = True
                     execution.payload["completion_policy"] = {
-                        "data_tools_locked": False,
+                        "data_tools_locked": state.completion_only,
                         "result_is_decisive": state.analytics_job_decisive,
                         "next_action": (
-                            "If this job directly answers the user's question and all necessary "
-                            "follow-ups are complete, call complete_analysis with "
-                            "evidence_sufficient=true. Otherwise run only the next necessary "
+                            "The requested statistics are decisive. Call complete_analysis now."
+                            if state.completion_only else
+                            "This result is an intermediate probe. Run only the next necessary "
                             "distinct analytical job."
                         ),
                     }
@@ -884,6 +904,14 @@ class AnalysisOrchestrator:
             raise ToolError(
                 "Impossible/invalid data quality FAIL blocks finalization for the affected scope; "
                 "narrow the scope or resolve the invalid data before completing"
+            )
+        if (
+            state.execution_route == "STATISTICAL_VALIDATION"
+            and not state.analytics_job_decisive
+        ):
+            raise ToolError(
+                "The statistical result is only an intermediate probe; run the next necessary "
+                "statistical validation before completing"
             )
         required_queries = self._required_analytical_queries(state)
         if len(state.analytical_query_hashes) < required_queries:

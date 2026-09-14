@@ -9,6 +9,11 @@
 - Registered the new column in `Column_Catalog`, refreshed both affected `Table_Catalog` definitions, and created zero-login worker roles with zero public-table grants.
 - Live verification passed: three active routing/worker tools, old generic tool inactive, class column and composite partial claim index present, catalog status VERIFIED, and zero table grants for both worker roles.
 
+## 2026-09-14 — Controlled backend raw-data reads
+
+- Applied `20260914_042_grant_backend_controlled_raw_reads.sql` so only `market_ai_app` can SELECT the five catalog-approved raw/reference tables used to build analytical snapshots.
+- Explicitly revoked raw-table mutation privileges from the backend and all privileges from query/statistical worker roles. Model-authored PostgreSQL SQL remains prohibited; table/column/filter/size enforcement remains in the backend.
+
 ## 2026-09-14 — Activate generic bounded Analytics Worker
 
 - Applied forward-only migration `database/migrations/20260914_040_create_generic_analytics_worker.sql` to Railway `dev`. It created `Analytics_Dataset_Snapshot` and `Analytics_Job`, registered all 44 new physical columns with evidence-backed definitions, activated one generic `run_analytics_job` tool, and superseded the Release 1 worker-denial Golden expectation.

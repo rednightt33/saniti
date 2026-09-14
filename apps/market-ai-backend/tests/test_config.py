@@ -16,7 +16,7 @@ def test_default_limits_are_three_separate_policies(monkeypatch: pytest.MonkeyPa
     assert settings.llm_tool_result_max_rows == 200
     assert settings.ai_max_output_tokens == 3000
     assert settings.ai_max_feature_metadata_tokens == 5000
-    assert settings.ai_max_cumulative_input_tokens == 150000
+    assert settings.ai_max_cumulative_input_tokens == 500000
     assert settings.ai_context_compaction_mode == "PRESERVE_DECISIVE"
     assert settings.ai_final_response_max_retries == 2
     assert settings.ai_finalization_tool_result_reserve_tokens == 1000

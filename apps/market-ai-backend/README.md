@@ -139,7 +139,7 @@ breaker and defaults to 600 seconds. `AI_REQUEST_TIMEOUT_SECONDS` remains the
 per-provider-call timeout; tool-call, iteration, token, and wall-clock limits are
 independent safeguards.
 
-`AI_MAX_CUMULATIVE_INPUT_TOKENS` defaults to 150,000. The A/B switch
+`AI_MAX_CUMULATIVE_INPUT_TOKENS` defaults to 500,000. The A/B switch
 `AI_CONTEXT_COMPACTION_MODE` accepts `DISABLED` or `PRESERVE_DECISIVE`.
 `DISABLED` disables only cross-iteration context compaction; bounded per-tool
 result shaping remains mandatory because database result limits are intentionally

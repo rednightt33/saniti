@@ -386,7 +386,7 @@ AI_CONTEXT_RESERVE_TOKENS=8000
 AI_TARGET_CONTEXT_TOKENS=24000
 AI_CONTEXT_COMPACTION_THRESHOLD_TOKENS=32000
 AI_MAX_CONTEXT_TOKENS=64000
-AI_MAX_CUMULATIVE_INPUT_TOKENS=150000
+AI_MAX_CUMULATIVE_INPUT_TOKENS=500000
 AI_MAX_CUMULATIVE_OUTPUT_TOKENS=12000
 AI_FINALIZATION_OUTPUT_RESERVE_TOKENS=4000
 AI_CUMULATIVE_COMPACTION_THRESHOLD_PERCENT=75
@@ -497,17 +497,29 @@ completed within the hard cumulative ceilings, the request returns an explicit
 bounded/incomplete result and a `recommended_next_analysis` continuation rather
 than fabricating a conclusion.
 
-### 3. Analytics Worker policy
+### 3. Isolated worker policies
 
 ```text
-ANALYTICS_MAX_ROWS=50000
-ANALYTICS_MAX_COLUMNS=30
-ANALYTICS_MAX_INPUT_BYTES=20971520
-ANALYTICS_MAX_RUNTIME_SECONDS=120
-ANALYTICS_MAX_MEMORY_MB=2048
-ANALYTICS_MAX_CONCURRENT_JOBS=1
-ANALYTICS_MAX_EVENTS=20000
-ANALYTICS_MAX_HORIZONS=4
+QUERY_SANDBOX_MAX_ROWS=100000
+QUERY_SANDBOX_MAX_COLUMNS=40
+QUERY_SANDBOX_MAX_INPUT_BYTES=41943040
+QUERY_SANDBOX_MAX_ESTIMATED_ROWS=3000000
+QUERY_SANDBOX_MAX_DATE_RANGE_DAYS=7305
+QUERY_SANDBOX_MAX_TICKERS=100
+QUERY_SANDBOX_MAX_DATASETS=6
+QUERY_SANDBOX_MAX_RUNTIME_SECONDS=90
+QUERY_SANDBOX_MAX_MEMORY_MB=1024
+
+STATISTICAL_MAX_ROWS=500000
+STATISTICAL_MAX_COLUMNS=60
+STATISTICAL_MAX_INPUT_BYTES=209715200
+STATISTICAL_MAX_ESTIMATED_ROWS=10000000
+STATISTICAL_MAX_DATE_RANGE_DAYS=7305
+STATISTICAL_MAX_TICKERS=1000
+STATISTICAL_MAX_DATASETS=8
+STATISTICAL_MAX_RUNTIME_SECONDS=300
+STATISTICAL_MAX_MEMORY_MB=4096
+
 ANALYTICS_SNAPSHOT_RETENTION_HOURS=24
 ANALYTICS_RESULT_RETENTION_DAYS=90
 ```
@@ -515,17 +527,17 @@ ANALYTICS_RESULT_RETENTION_DAYS=90
 The effective limit is the lower of an active tool's catalog ceiling and the
 service's Railway configuration. Config/catalog mismatches fail service readiness.
 
-## Analytics Worker Data Handoff
+## Isolated Worker Data Handoff
 
-The worker never receives raw or Feature-table credentials.
+Neither worker ever receives raw or Feature-table credentials.
 
 ```text
 market-ai-backend
-→ controlled Feature query
+→ controlled catalog-approved raw/Feature query
 → data-quality and size validation
 → immutable bounded snapshot
 → Analytics_Job
-→ market-analytics-worker
+→ market-query-sandbox OR market-analytics-worker
 → compact analytical result/evidence
 ```
 
@@ -536,10 +548,11 @@ Snapshot contract:
 - job metadata records request ID, job ID, object key, content SHA-256, schema,
   row count, uncompressed/compressed bytes, created time, and expiry time;
 - write-once random job path and checksum verification make the input immutable;
-- backend enforces analytics row/column/byte limits before upload;
-- worker gets neither bucket credentials nor database credentials. It holds only a
-  dedicated backend worker token and receives one short-lived presigned URL for the
-  exact leased snapshot;
+- backend enforces the selected execution class's row/column/byte/date/ticker/dataset
+  limits before upload;
+- each worker gets neither bucket credentials nor database credentials. Each holds a
+  distinct backend token and receives one short-lived presigned URL for the exact
+  leased snapshot;
 - worker cannot call interactive query endpoints as a limits bypass;
 - object retention is at most 24 hours by default;
 - terminal jobs delete input after a short configurable grace period;
@@ -561,21 +574,25 @@ Snapshot contract:
 - Audit/orchestration: `record_evidence`, `complete_analysis`,
   `get_analysis_history`.
 
-### Release 2 generic analytical surface
+### Release 2 routed analytical surfaces
 
-The model receives one generic `run_analytics_job` tool rather than one tool per
-ticker, signal, question, or statistical method. It describes bounded Feature-only
-datasets with structured catalog-validated filters and one analytical `SELECT/WITH`
-query over those named snapshots. Database SQL is never model-authored. The isolated
-worker executes DuckDB with external access disabled and strict memory, runtime,
-input-row/input-byte, output-row/output-byte, and retry limits.
+The model first calls `route_analysis` with a declared operation class. Deterministic
+routing selects built-in tools for simple filtering/ranking/aggregation/time-series/
+condition-run/discovery work, `run_query_sandbox` for custom joins/windows/descriptive
+transformations, or `run_statistical_validation` for inferential and predictive work.
+The two worker tools are generic rather than ticker-, signal-, question-, or feature-
+specific. They describe bounded catalog-validated raw/Feature datasets with structured
+filters. Database SQL is never model-authored or executed by either worker. Each
+isolated worker executes DuckDB with external access disabled and strict memory,
+runtime, input-row/input-byte, output-row/output-byte, and retry limits.
 
-Event study, signal validation, forward-return measurement, streak combinations,
-descriptive statistics, correlations, and backtest-like transformations are internal
-query/method patterns on this surface. Each predictive/historical use must still
-return the universe and availability/no-look-ahead metadata described above. New
-methods are added inside the worker policy rather than as a new public tool unless a
-materially different authority boundary is required.
+Custom joins, forward outcomes, windows, streak combinations, and descriptive
+statistics use the query sandbox. Event study, signal validation, backtesting,
+significance tests, regression, clustering, HMM, and predictive validation use the
+statistical worker. Each predictive/historical use must still return the universe and
+availability/no-look-ahead metadata described above. New methods are added inside the
+appropriate worker policy rather than as a new public tool unless a materially
+different authority boundary is required.
 
 At the beginning of every `Analysis_Request`, the orchestrator injects one compact
 analytics handoff explaining available capabilities, the query-versus-worker decision,

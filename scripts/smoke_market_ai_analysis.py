@@ -23,9 +23,9 @@ def use_public_proxy(app_url: str, proxy_url: str) -> str:
 
 
 def main() -> None:
-    url = os.environ.get("APP_DATABASE_URL", "")
+    url = os.environ.get("APP_DATABASE_URL", "") or os.environ.get("DATABASE_URL", "")
     if not url:
-        raise RuntimeError("APP_DATABASE_URL is required")
+        raise RuntimeError("APP_DATABASE_URL or DATABASE_URL is required")
     public_proxy = os.environ.get("POSTGRES_PUBLIC_URL", "")
     if public_proxy:
         url = use_public_proxy(url, public_proxy)
@@ -44,6 +44,7 @@ def main() -> None:
                VALUES (%s,'release-1b-smoke') RETURNING request_id''',
             (question,),
         ).fetchone()["request_id"]
+        print(json.dumps({"event": "smoke_submitted", "request_id": str(request_id)}), flush=True)
         wait_seconds = int(os.environ.get("SMOKE_WAIT_SECONDS", "720"))
         deadline = time.monotonic() + wait_seconds
         row = None
@@ -73,6 +74,8 @@ def main() -> None:
             "has_methodology_metadata": bool(row["methodology_metadata"]),
             "error": row["error_message"],
         }
+        if os.environ.get("SMOKE_INCLUDE_ANSWER") == "1":
+            output["answer"] = row["answer"]
         print(json.dumps(output))
         if row["status"] != "SUCCESS":
             raise SystemExit(1)

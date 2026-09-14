@@ -61,7 +61,19 @@ def main() -> None:
                WHERE table_name='Analytics_Job' AND column_name='execution_class' '''
         ).fetchone()
         assert catalog == {"documentation_status": "VERIFIED"}, catalog
-    print("PASS: three-path tools, queue isolation, claim index, catalog, and zero worker grants")
+        raw_tables = [
+            "Price_Stock_Indonesia_IDX", "IDX_Broker_Summary", "IDX_Stock_Universe",
+            "Universe_Equity_Description", "IDX_Broker_Profile",
+        ]
+        privileges = connection.execute(
+            '''SELECT table_name,privilege_type FROM information_schema.role_table_grants
+               WHERE grantee='market_ai_app' AND table_schema='public'
+                 AND table_name=ANY(%s) ORDER BY table_name,privilege_type''',
+            (raw_tables,),
+        ).fetchall()
+        assert {row["table_name"] for row in privileges} == set(raw_tables)
+        assert {row["privilege_type"] for row in privileges} == {"SELECT"}
+    print("PASS: routing, queue isolation, index/catalog, backend SELECT-only raw access, zero worker grants")
 
 
 if __name__ == "__main__":

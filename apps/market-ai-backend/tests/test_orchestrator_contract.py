@@ -346,7 +346,36 @@ def test_structured_route_replaces_prompt_keyword_worker_forcing() -> None:
         "name": "route_analysis",
     }
     state.execution_route = "STATISTICAL_VALIDATION"
+    assert AnalysisOrchestrator._required_tool_choice(state) == {
+        "type": "function",
+        "name": "run_statistical_validation",
+    }
+    state.analytics_job_attempted = True
     assert AnalysisOrchestrator._required_tool_choice(state) == "required"
+
+
+def test_worker_route_hides_unselected_and_builtin_data_tools() -> None:
+    class FakeTools:
+        @staticmethod
+        def definitions(_families):
+            return [
+                {"type": "function", "name": "route_analysis"},
+                {"type": "function", "name": "query_features"},
+                {"type": "function", "name": "run_query_sandbox"},
+                {"type": "function", "name": "run_statistical_validation"},
+                {"type": "function", "name": "check_data_quality"},
+                {"type": "function", "name": "complete_analysis"},
+            ]
+
+    orchestrator = object.__new__(AnalysisOrchestrator)
+    orchestrator.tools = FakeTools()
+    state = RunState("request", "question", {"ADVANCED"}, [])
+    state.execution_route = "STATISTICAL_VALIDATION"
+    assert [item["name"] for item in orchestrator._active_tool_definitions(state)] == [
+        "run_statistical_validation",
+        "check_data_quality",
+        "complete_analysis",
+    ]
 
 
 def test_intermediate_worker_evidence_does_not_lock_followup_data_tools() -> None:

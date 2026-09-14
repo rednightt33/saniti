@@ -1120,6 +1120,12 @@ class ToolRegistry:
                 f"Analytics dataset {spec['name']} exceeds its explicit limit {requested_limit}; "
                 "add a meaningful filter or split the hypothesis"
             )
+        if not rows:
+            raise ToolError(
+                f"Analytics dataset {spec['name']} returned zero rows; verify exact catalog "
+                "category values, date coverage, and ticker filters, then retry with the same "
+                "analytical route"
+            )
         digest = query_hash(rendered, params)
         return {
             "name": spec["name"], "table": table, "columns": columns,

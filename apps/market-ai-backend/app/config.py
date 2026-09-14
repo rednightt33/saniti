@@ -179,7 +179,7 @@ class Settings:
             ai_target_context_tokens=_integer("AI_TARGET_CONTEXT_TOKENS", 24000),
             ai_context_compaction_threshold_tokens=_integer("AI_CONTEXT_COMPACTION_THRESHOLD_TOKENS", 32000),
             ai_max_context_tokens=_integer("AI_MAX_CONTEXT_TOKENS", 64000),
-            ai_max_cumulative_input_tokens=_integer("AI_MAX_CUMULATIVE_INPUT_TOKENS", 150000),
+            ai_max_cumulative_input_tokens=_integer("AI_MAX_CUMULATIVE_INPUT_TOKENS", 500000),
             ai_max_cumulative_output_tokens=_integer("AI_MAX_CUMULATIVE_OUTPUT_TOKENS", 12000),
             ai_finalization_output_reserve_tokens=_integer(
                 "AI_FINALIZATION_OUTPUT_RESERVE_TOKENS", 4000
