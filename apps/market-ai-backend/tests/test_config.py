@@ -21,6 +21,8 @@ def test_default_limits_are_three_separate_policies(monkeypatch: pytest.MonkeyPa
     assert settings.ai_analysis_mode == "QUICK"
     assert settings.ai_min_insight_data_calls == 2
     assert settings.ai_max_analysis_seconds == 600
+    assert settings.condition_runs_max_date_range_days == 7305
+    assert settings.condition_runs_max_episodes == 200
 
 
 def test_invalid_context_order_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -51,7 +51,7 @@ def main() -> None:
                 """
             )
             result["tools"] = cursor.fetchone()
-            assert_equal(result["tools"], {"active": 18, "inactive": 11}, "tool counts")
+            assert_equal(result["tools"], {"active": 19, "inactive": 11}, "tool counts")
 
             cursor.execute(
                 """

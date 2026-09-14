@@ -142,3 +142,28 @@ def test_insight_completion_requires_distinct_followup_query() -> None:
         orchestrator._validate_completion(state, arguments)
     state.analytical_query_hashes.add("query-2")
     orchestrator._validate_completion(state, arguments)
+
+
+def test_condition_runs_requires_only_condition_semantics() -> None:
+    arguments = {
+        "table": "Feature_01_Stock_Daily",
+        "conditions": [
+            {"column": "return_1d_pct", "operator": "gt", "value": 0},
+            {"column": "volume_ratio_20d", "operator": "gte", "value": 1.5},
+        ],
+    }
+    assert AnalysisOrchestrator._semantic_requirements(
+        "find_condition_runs", arguments
+    ) == {
+        ("Feature_01_Stock_Daily", "date"),
+        ("Feature_01_Stock_Daily", "ticker"),
+        ("Feature_01_Stock_Daily", "return_1d_pct"),
+        ("Feature_01_Stock_Daily", "volume_ratio_20d"),
+    }
+
+
+def test_streak_language_exposes_screening_tool_family() -> None:
+    families = AnalysisOrchestrator._initial_families(
+        "Kapan BBCA return positif 7 hari berturut-turut?"
+    )
+    assert {"QUERY", "SCREENING"} <= families

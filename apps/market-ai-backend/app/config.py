@@ -34,6 +34,8 @@ class Settings:
     query_max_output_bytes: int
     query_max_groups: int
     query_max_periods: int
+    condition_runs_max_date_range_days: int
+    condition_runs_max_episodes: int
     llm_tool_result_max_rows: int
     llm_tool_result_max_bytes: int
     ai_max_output_tokens: int
@@ -96,6 +98,10 @@ class Settings:
             query_max_output_bytes=_integer("QUERY_MAX_OUTPUT_BYTES", 1048576),
             query_max_groups=_integer("QUERY_MAX_GROUPS", 1000),
             query_max_periods=_integer("QUERY_MAX_PERIODS", 6),
+            condition_runs_max_date_range_days=_integer(
+                "CONDITION_RUNS_MAX_DATE_RANGE_DAYS", 7305
+            ),
+            condition_runs_max_episodes=_integer("CONDITION_RUNS_MAX_EPISODES", 200),
             llm_tool_result_max_rows=_integer("LLM_TOOL_RESULT_MAX_ROWS", 200),
             llm_tool_result_max_bytes=_integer("LLM_TOOL_RESULT_MAX_BYTES", 131072),
             ai_max_output_tokens=_integer("AI_MAX_OUTPUT_TOKENS", 3000),

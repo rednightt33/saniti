@@ -31,6 +31,15 @@ with `Authorization: Bearer $MARKET_AI_INTERNAL_API_KEY`.
 8. A successful response stores an immutable version/methodology snapshot and a
    structured `recommended_next_analysis` list.
 
+`find_condition_runs` is the first generic sequence screener. It accepts one or
+more catalog-approved conditions with AND semantics and returns only qualifying
+episodes. Consecutive means consecutive observations for that ticker in the
+Feature table, not consecutive calendar days; a NULL condition breaks the run.
+Exact matching dates are optional so long searches remain compact. The backend
+enforces `CONDITION_RUNS_MAX_DATE_RANGE_DAYS`,
+`CONDITION_RUNS_MAX_EPISODES`, ticker, estimated-row, timeout, byte, and
+LLM-facing limits independently.
+
 Provider calls use an allowlisted HTTPS Responses endpoint with `store=false`,
 strict function schemas, strict structured output, one tool call at a time, and
 explicit usage accounting. `AI_PROVIDER=openai` targets the OpenAI endpoint;
@@ -42,6 +51,14 @@ Release 1B can read Feature 1–3 through a least-privilege login. It cannot rea
 raw price/broker tables or mutate Feature tables. Historical validation and
 advanced analytics remain inactive until the Release 2 bounded-snapshot worker
 exists.
+
+Raw-table denial does not mean market-source values must always be hidden from
+the analyst. Feature 01 already exposes cataloged `close` and `volume` source
+values alongside derived features. If additional raw OHLCV fields are approved,
+expose them through a dedicated cataloged read-only market-data view/tool with
+the same structured query limits; do not grant the model or application role
+unrestricted raw-table credentials. This preserves source-level validation while
+keeping internal ingestion fields and unrelated raw tables outside the surface.
 
 ## Required secrets
 

@@ -104,3 +104,11 @@ def test_every_tool_and_final_schema_is_strict() -> None:
 def test_estimate_uses_largest_plan_node() -> None:
     plan = {"Plan Rows": 100, "Plans": [{"Plan Rows": 9000}, {"Plan Rows": 500}]}
     assert ToolRegistry._estimated_rows(plan) == 9000
+
+
+def test_condition_runs_schema_is_strict_and_generic() -> None:
+    schema = ToolRegistry.schema_for("find_condition_runs")
+    assert schema["additionalProperties"] is False
+    assert "conditions" in schema["required"]
+    assert "minimum_consecutive_observations" in schema["required"]
+    assert schema["properties"]["conditions"]["items"]["additionalProperties"] is False

@@ -101,6 +101,7 @@ class ToolRegistry:
             "rank_features": self.rank_features,
             "aggregate_features": self.aggregate_features,
             "compare_groups": self.compare_groups,
+            "find_condition_runs": self.find_condition_runs,
             "record_evidence": self.record_evidence,
             "complete_analysis": self.complete_analysis,
             "get_analysis_history": self.get_analysis_history,
@@ -177,6 +178,27 @@ class ToolRegistry:
                 "table": {"type": "string"}, "group_column": {"type": "string"}, "metric_column": {"type": "string"},
                 "aggregation": {"type": "string", "enum": ["AVG", "SUM", "MIN", "MAX", "MEDIAN"]},
                 "start_date": {"type": "string"}, "end_date": {"type": "string"}, "limit": {"type": ["integer", "null"]},
+            }),
+            "find_condition_runs": _object_schema({
+                "table": {"type": "string"},
+                "tickers": {"type": "array", "items": {"type": "string"}},
+                "start_date": {"type": "string"},
+                "end_date": {"type": "string"},
+                "conditions": {
+                    "type": "array",
+                    "items": _object_schema({
+                        "column": {"type": "string"},
+                        "operator": {"type": "string", "enum": list(OPERATORS) + ["in", "between"]},
+                        "value": {
+                            "type": ["string", "number", "boolean", "array"],
+                            "items": {"type": ["string", "number", "boolean"]},
+                        },
+                    }),
+                },
+                "minimum_consecutive_observations": {"type": "integer"},
+                "include_matching_dates": {"type": "boolean"},
+                "order": {"type": "string", "enum": ["start_date_asc", "start_date_desc", "longest"]},
+                "max_episodes": {"type": ["integer", "null"]},
             }),
             "record_evidence": _object_schema({
                 "evidence_type": {"type": "string", "enum": ["OBSERVATION", "QUALITY", "ANOMALY", "STATISTIC", "HISTORICAL_TEST", "WARNING"]},
@@ -576,6 +598,157 @@ class ToolRegistry:
             hashes.append(result.query_hash)
         return Execution({"rows": rows, "total_rows": len(rows), "query_hash": hashes})
 
+    def find_condition_runs(self, arguments: dict[str, Any], _: str) -> Execution:
+        """Find consecutive matching trading observations without returning the full time series."""
+        table = str(arguments.get("table") or "")
+        catalog = self._catalog(table)
+        tickers = list(arguments.get("tickers") or [])
+        if not 1 <= len(tickers) <= self.settings.query_max_tickers:
+            raise ToolError(f"tickers must contain 1..{self.settings.query_max_tickers} items")
+        if any(not isinstance(item, str) or not item.strip() for item in tickers):
+            raise ToolError("tickers must be non-empty strings")
+
+        start = self._date(arguments.get("start_date"), "start_date")
+        end = self._date(arguments.get("end_date"), "end_date")
+        if not start or not end or start > end:
+            raise ToolError("find_condition_runs requires a valid explicit date range")
+        if (end - start).days + 1 > self.settings.condition_runs_max_date_range_days:
+            raise ToolError(
+                "Condition-run date range exceeds "
+                f"{self.settings.condition_runs_max_date_range_days} days"
+            )
+
+        conditions = list(arguments.get("conditions") or [])
+        if not 1 <= len(conditions) <= self.settings.query_max_columns:
+            raise ToolError(
+                f"conditions must contain 1..{self.settings.query_max_columns} items"
+            )
+        condition_sql: list[Any] = []
+        condition_params: list[Any] = []
+        for item in conditions:
+            column = item.get("column")
+            operator = item.get("operator")
+            value = item.get("value")
+            if column not in catalog or not catalog[column]["is_filterable"]:
+                raise ToolError(f"Column is not filterable: {column}")
+            if operator not in set(OPERATORS) | {"in", "between"}:
+                raise ToolError(f"Unsupported operator: {operator}")
+            if operator in {"in", "between"} and (not isinstance(value, list) or not value):
+                raise ToolError(f"{operator} requires a non-empty array value")
+            if operator == "between" and len(value) != 2:
+                raise ToolError("between requires exactly two values")
+            identifier = sql.Identifier(column)
+            if operator == "in":
+                condition_sql.append(sql.SQL("{} = ANY(%s)").format(identifier))
+                condition_params.append(value)
+            elif operator == "between":
+                condition_sql.append(sql.SQL("{} BETWEEN %s AND %s").format(identifier))
+                condition_params.extend(value)
+            else:
+                condition_sql.append(
+                    sql.SQL("{} {} %s").format(identifier, sql.SQL(OPERATORS[operator]))
+                )
+                condition_params.append(value)
+
+        minimum = arguments.get("minimum_consecutive_observations")
+        if not isinstance(minimum, int) or not 2 <= minimum <= self.settings.query_max_rows:
+            raise ToolError(
+                "minimum_consecutive_observations must be between 2 and "
+                f"{self.settings.query_max_rows}"
+            )
+        episode_limit = arguments.get("max_episodes") or min(
+            50, self.settings.condition_runs_max_episodes
+        )
+        if (
+            not isinstance(episode_limit, int)
+            or not 1 <= episode_limit <= self.settings.condition_runs_max_episodes
+        ):
+            raise ToolError(
+                f"max_episodes must be 1..{self.settings.condition_runs_max_episodes}"
+            )
+        order = arguments.get("order")
+        order_sql = {
+            "start_date_asc": sql.SQL("start_date ASC, ticker ASC"),
+            "start_date_desc": sql.SQL("start_date DESC, ticker ASC"),
+            "longest": sql.SQL("observation_count DESC, start_date ASC, ticker ASC"),
+        }.get(order)
+        if order_sql is None:
+            raise ToolError("Invalid condition-run order")
+
+        include_dates = arguments.get("include_matching_dates") is True
+        matching_dates = (
+            sql.SQL(", array_agg(date ORDER BY date) AS matching_dates")
+            if include_dates else sql.SQL("")
+        )
+        output_columns = sql.SQL(
+            "ticker, start_date, end_date, observation_count{}"
+        ).format(sql.SQL(", matching_dates") if include_dates else sql.SQL(""))
+        statement = sql.SQL(
+            """WITH scoped AS (
+                   SELECT ticker, date, (({}) IS TRUE) AS matches
+                   FROM public.{}
+                   WHERE ticker = ANY(%s) AND date BETWEEN %s AND %s
+               ), islands AS (
+                   SELECT ticker, date, matches,
+                          sum(CASE WHEN matches THEN 0 ELSE 1 END) OVER (
+                              PARTITION BY ticker ORDER BY date
+                              ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                          ) AS run_group
+                   FROM scoped
+               ), runs AS (
+                   SELECT ticker, min(date) AS start_date, max(date) AS end_date,
+                          count(*)::integer AS observation_count{}
+                   FROM islands
+                   WHERE matches
+                   GROUP BY ticker, run_group
+                   HAVING count(*) >= %s
+               )
+               SELECT {} FROM runs ORDER BY {} LIMIT %s"""
+        ).format(
+            sql.SQL(" AND ").join(condition_sql),
+            sql.Identifier(table),
+            matching_dates,
+            output_columns,
+            order_sql,
+        )
+        params = [*condition_params, tickers, start, end, minimum, episode_limit]
+        with self.db.query_transaction() as connection:
+            rendered = statement.as_string(connection)
+            plan = connection.execute(
+                sql.SQL("EXPLAIN (FORMAT JSON) ") + statement, params
+            ).fetchone()["QUERY PLAN"]
+            estimated = self._estimated_rows(plan[0]["Plan"])
+            if estimated > self.settings.query_max_estimated_rows:
+                raise ToolError(
+                    f"Estimated condition scan {estimated} exceeds "
+                    f"{self.settings.query_max_estimated_rows}; narrow tickers or date range"
+                )
+            rows = connection.execute(statement, params).fetchall()
+
+        digest = query_hash(rendered, params)
+        payload = {
+            "table": table,
+            "tickers": tickers,
+            "start_date": start.isoformat(),
+            "end_date": end.isoformat(),
+            "conditions": conditions,
+            "minimum_consecutive_observations": minimum,
+            "consecutive_unit": "trading_observations",
+            "null_behavior": "A NULL condition evaluates as not matched and breaks the run.",
+            "rows": [dict(row) for row in rows],
+            "total_rows": len(rows),
+            "query_hash": digest,
+        }
+        if len(dumps(payload).encode("utf-8")) > self.settings.query_max_output_bytes:
+            payload, _, _ = compact_result(
+                payload,
+                max_rows=episode_limit,
+                max_bytes=self.settings.query_max_output_bytes,
+                max_tokens=max(1, self.settings.query_max_output_bytes // 3),
+            )
+            payload["backend_output_compacted"] = True
+        return Execution(payload, digest, estimated)
+
     def record_evidence(self, arguments: dict[str, Any], request_id: str) -> Execution:
         required = {"evidence_type", "claim", "compact_payload_json", "source_tables"}
         missing = sorted(required - arguments.keys())
@@ -651,6 +824,8 @@ class ToolRegistry:
             "max_date_range_days": self.settings.query_max_date_range_days,
             "max_estimated_rows": self.settings.query_max_estimated_rows,
             "timeout_seconds": self.settings.query_timeout_seconds,
+            "condition_runs_max_date_range_days": self.settings.condition_runs_max_date_range_days,
+            "condition_runs_max_episodes": self.settings.condition_runs_max_episodes,
         }
 
     @staticmethod

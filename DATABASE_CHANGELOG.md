@@ -1,5 +1,14 @@
 # Database changelog
 
+## 2026-09-14 — Register generic consecutive-condition screening
+
+- Applied forward-only migration `database/migrations/20260914_033_register_find_condition_runs.sql` to Railway `dev` PostgreSQL.
+- Registered active backend tool `find_condition_runs` in `Tool_Catalog`. It evaluates one or more Feature-Catalog-approved conditions with AND semantics, groups consecutive per-ticker trading observations, treats NULL as a run break, and returns compact episode boundaries plus optional exact matching dates.
+- The tool does not require Analytics Worker or direct raw-table privileges. Enforcement remains configurable and separate: 7,305 maximum calendar days per request, 200 maximum returned episodes, 20 tickers, 100,000 estimated rows, 15-second PostgreSQL timeout, 1 MiB backend output, and the existing smaller LLM-facing limits.
+- The BBCA 2015-through-ready-date live handler verification scanned an estimated 2,466 Feature 01 observations and found two qualifying positive-return runs of at least seven trading observations. Existing `(ticker,date)` access supports this selective path; no new index was added.
+- Added deterministic test `R1B_016_CONDITION_RUNS`; Golden Test run `4ff14bf3-8c5e-4248-b506-08af06b65dec` passed 16/16 with zero failures. Catalog reconciliation covered 429 physical columns and regenerated `DATABASE_SCHEMA.md`.
+- No Feature value/formula, source row, Feature refresh routine, schedule, or raw-table privilege changed.
+
 ## 2026-09-14 — Separate evidence storage from the stopping-policy gate
 
 - Applied forward-only migrations `database/migrations/20260914_031_separate_evidence_from_analysis_completion.sql` and `database/migrations/20260914_032_compact_insight_evidence_workflow.sql` to Railway `dev` PostgreSQL.

@@ -20,7 +20,9 @@ Status eksekusi per 2026-09-13:
   immutable result snapshot tersedia.
 - Migration `20260913_021_finalize_market_ai_release_1b.sql` dan limit-alignment
   `20260913_022_align_market_ai_tool_limits.sql` sudah diterapkan. Live handler
-  verification PASS dan deterministic Golden Test suite 15/15 PASS.
+  verification PASS dan deterministic Golden Test suite 16/16 PASS. Tool generik
+  `find_condition_runs` sekarang menangani rangkaian kondisi pada observasi hari
+  transaksi tanpa Analytics Worker.
 - Railway service `market-ai-backend` sudah terhubung ke GitHub, terdeploy, dan
   sehat. Initial deployment `db143fa6-3eff-4cf3-9ebe-c1d56d53b171` dan current
   diagnostic deployment `8bbb044a-b8bf-49f9-b4ab-b85d234ec1a5` mencapai
@@ -328,10 +330,18 @@ QUERY_TIMEOUT_SECONDS=15
 QUERY_MAX_OUTPUT_BYTES=1048576
 QUERY_MAX_GROUPS=1000
 QUERY_MAX_PERIODS=6
+CONDITION_RUNS_MAX_DATE_RANGE_DAYS=7305
+CONDITION_RUNS_MAX_EPISODES=200
 ```
 
 `QUERY_MAX_ROWS=5000` is a backend processing/result ceiling where allowed. It is
 not permission to inject 5,000 rows into model context.
+
+`find_condition_runs` mempunyai rentang lebih panjang daripada retrieval umum
+karena PostgreSQL mengembalikan episode ringkas, bukan seluruh candle. Pengecualian
+ini tetap memakai maksimum ticker, estimated-row, timeout, output-byte, dan
+LLM-facing budgets. Semua kondisi digabung dengan AND, NULL memutus rangkaian,
+dan unit consecutive adalah observasi perdagangan per ticker.
 
 ### 2. LLM-facing tool results and context
 

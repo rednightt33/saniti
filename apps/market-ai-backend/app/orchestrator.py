@@ -51,7 +51,7 @@ Return the final schema JSON without Markdown fences or surrounding prose.
 
 ANALYTICAL_DATA_TOOLS = {
     "query_features", "get_timeseries", "compare_periods", "screen_features",
-    "rank_features", "aggregate_features", "compare_groups",
+    "rank_features", "aggregate_features", "compare_groups", "find_condition_runs",
 }
 
 
@@ -240,7 +240,7 @@ class AnalysisOrchestrator:
             execution = self.tools.execute(name, arguments, state.request_id)
             if name == "list_tools":
                 state.families.update(execution.payload.get("approved_expansion") or [])
-            if name in {"query_features", "get_timeseries", "screen_features", "rank_features", "aggregate_features", "compare_groups", "compare_periods"}:
+            if name in {"query_features", "get_timeseries", "screen_features", "rank_features", "aggregate_features", "compare_groups", "compare_periods", "find_condition_runs"}:
                 table = arguments.get("table")
                 if table:
                     state.features_used.add(table)
@@ -507,6 +507,9 @@ class AnalysisOrchestrator:
             columns.update([arguments.get("group_column"), arguments.get("metric_column")])
         elif name == "compare_periods":
             columns.update(["ticker", arguments.get("column")])
+        elif name == "find_condition_runs":
+            columns.update(["date", "ticker"])
+            columns.update(item.get("column") for item in arguments.get("conditions") or [])
         return {(table, column) for column in columns if isinstance(column, str) and column}
 
     def _require_loaded_definitions(
@@ -551,7 +554,7 @@ class AnalysisOrchestrator:
         screening_terms = (
             "screen", "rank", "top ", "bottom ", "banding", "compare", "perbandingan",
             "tertinggi", "terendah", "find ", "report ", "show ", "retrieve ", "cari ",
-            "tampilkan ", "laporkan ", "berapa ",
+            "tampilkan ", "laporkan ", "berapa ", "berturut", "consecutive", "streak",
         )
         return "SCREENING" if any(term in text for term in screening_terms) else "DISCOVERY"
 
@@ -564,6 +567,7 @@ class AnalysisOrchestrator:
         screening_terms = (
             "screen", "rank", "top ", "bottom ", "tertinggi", "terendah",
             "saring", "peringkat", "mana saja", "daftar saham", "list saham",
+            "berturut", "consecutive", "streak", "rangkaian kondisi",
         )
         if any(term in text for term in screening_terms):
             families.add("SCREENING")

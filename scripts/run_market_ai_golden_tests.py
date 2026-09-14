@@ -84,6 +84,17 @@ def main() -> None:
             "R1B_013_PROGRESSIVE_EXPOSURE": lambda: {"initial_core_only": "QUERY" not in tools.STAGE_FAMILIES["DISCOVERY"], "query_expandable": "QUERY" in tools.STAGE_FAMILIES["SCREENING"]},
             "R1B_014_WORKER_FAMILY_DENIAL": inactive_worker_tools,
             "R1B_015_LEAST_PRIVILEGE": privilege_check,
+            "R1B_016_CONDITION_RUNS": lambda: tools.execute("find_condition_runs", {
+                "table": "Feature_01_Stock_Daily",
+                "tickers": ["BBCA"],
+                "start_date": start_date,
+                "end_date": end_date,
+                "conditions": [{"column": "return_1d_pct", "operator": "gt", "value": 0}],
+                "minimum_consecutive_observations": 7,
+                "include_matching_dates": True,
+                "order": "start_date_asc",
+                "max_episodes": 20,
+            }, "golden").payload,
         }
 
     def inactive_worker_tools() -> dict:
@@ -129,6 +140,9 @@ def main() -> None:
             if test_id == "R1B_011_POINT_IN_TIME_WARNING": assert metrics["rows"][0]["historical_metadata_warning"]
             if test_id == "R1B_012_LLM_COMPACTION": assert metrics["semantic"] == "semantic_summary"
             if test_id == "R1B_013_PROGRESSIVE_EXPOSURE": assert all(metrics.values())
+            if test_id == "R1B_016_CONDITION_RUNS":
+                assert metrics["consecutive_unit"] == "trading_observations"
+                assert all(row["observation_count"] >= 7 for row in metrics["rows"])
             passed += 1
         except Exception as exc:
             status, reason = "FAIL", f"{type(exc).__name__}: {exc}"[:1000]

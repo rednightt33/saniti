@@ -99,6 +99,20 @@ def main() -> None:
         assert estimate.payload["valid"] and rows.payload["rows"]
         assert rows.query_hash == estimate.query_hash
 
+        condition_runs = tools.execute("find_condition_runs", {
+            "table": "Feature_01_Stock_Daily",
+            "tickers": ["BBCA"],
+            "start_date": "2015-01-01",
+            "end_date": ready.isoformat(),
+            "conditions": [{"column": "return_1d_pct", "operator": "gt", "value": 0}],
+            "minimum_consecutive_observations": 7,
+            "include_matching_dates": True,
+            "order": "start_date_asc",
+            "max_episodes": 200,
+        }, "test")
+        assert condition_runs.payload["consecutive_unit"] == "trading_observations"
+        assert all(row["observation_count"] >= 7 for row in condition_runs.payload["rows"])
+
         rejected = False
         try:
             tools.execute("query_features", {**query, "columns": ["raw_price"]}, "test")
@@ -139,7 +153,10 @@ def main() -> None:
             "history_not_core": True,
             "market_boards": sorted(boards),
             "raw_column_rejected": rejected,
-        }))
+            "condition_run_episodes": condition_runs.payload["total_rows"],
+            "condition_run_plan_rows": condition_runs.estimated_rows,
+            "condition_runs": condition_runs.payload["rows"],
+        }, default=str))
     finally:
         db.close()
 
