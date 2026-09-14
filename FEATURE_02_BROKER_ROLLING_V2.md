@@ -2,10 +2,11 @@
 
 ## Current status
 
-`public."Feature_02_Broker_Rolling_v2"` is an unreleased shadow table. The canonical
-`Feature_02_Broker_Rolling` remains production-active and unchanged. Do not use the
-shadow for production AI analysis until its full backfill, validation, atomic cutover,
-Feature 3 rebuild, and Feature Catalog v2 activation all pass.
+`public."Feature_02_Broker_Rolling_v2"` is a fully backfilled and source-reconciled,
+but still unreleased, shadow table. The canonical `Feature_02_Broker_Rolling` remains
+production-active and unchanged. Do not use the shadow for production AI analysis
+until the remaining calculation review, atomic cutover, Feature 3 rebuild, and
+Feature Catalog v2 activation all pass.
 
 ## Corrected semantic grain
 
@@ -55,6 +56,36 @@ python scripts/backfill_feature_02_v2.py --host <proxy-host> --port <proxy-port>
 `scripts/validate_feature_02_v2_sample.py` reconciles all 1D source rows for the test
 ticker and independently recalculates all 31 numeric/window fields for Domestic and
 Foreign samples.
+
+## Full backfill result
+
+The four disjoint half-open ticker ranges completed successfully on 2026-09-14:
+
+| Range | Tickers | Rows |
+| --- | ---: | ---: |
+| ticker below `CBPE` | 1,262 | 11,446,792 |
+| `CBPE` through below `JIHD` | 965 | 11,292,326 |
+| `JIHD` through below `PSAB` | 940 | 11,117,923 |
+| `PSAB` onward | 958 | 11,372,632 |
+| **Total** | **4,125** | **45,229,673** |
+
+Full ticker-by-ticker source reconciliation returned 45,229,673 source groups and
+45,229,673 shadow rows, with zero missing rows, zero extra rows, and zero 1D value or
+lot mismatches. The table covers 2016-01-04 through 2026-08-31, contains 40,737,689
+Domestic and 4,491,984 Foreign rows, and preserves Regular, Nego, and Tunai separately.
+
+All constraints are validated; global checks found zero invalid investor types,
+boards, negative gross values, incorrect 1D net identities, blank identities,
+rolling-window boundary violations, or invalid day-count relationships. The 216,085
+20D and 194,369 60D rows with a percentile but no z-score are expected zero-standard-
+deviation cases, not invalid values. The physical table and `Column_Catalog` both have
+38 columns. Independent BBCA recalculation remains PASS for all 31 calculated fields
+for both Domestic and Foreign samples.
+
+One initial monolithic reconciliation query exhausted PostgreSQL temporary space and
+was cancelled without changing data. Re-running the same logical validation in four
+disjoint, read-only, per-ticker streams completed in about seven minutes without temp-
+disk pressure and produced the zero-difference result above.
 
 ## Activation gate
 

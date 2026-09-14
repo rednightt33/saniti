@@ -30,7 +30,7 @@ Automatic price-driven Feature 01 calculation is active in Railway `dev`: Postgr
 
 Feature 02 is a separate broker-derived table for all `IDX_Broker_Summary` symbols and three board partitions (`Regular`, `Nego`, `Tunai`). Its 5/20/60D windows use each ticker's transaction dates across any board. The Feature 01 price worker does not update Feature 02; see [`FEATURE_02_BROKER_ROLLING.md`](FEATURE_02_BROKER_ROLLING.md) for the manual backfill and current refresh contract.
 
-An unreleased `Feature_02_Broker_Rolling_v2` shadow is being rebuilt to preserve source `Investor Type` (`Domestic`/`Foreign`) instead of combining it or treating broker domicile as investor identity. Production AI access remains on canonical Feature 2 v1 until full validation, catalog v2 activation, atomic cutover, and Feature 3 rebuild pass. See [`FEATURE_02_BROKER_ROLLING_V2.md`](FEATURE_02_BROKER_ROLLING_V2.md).
+An unreleased `Feature_02_Broker_Rolling_v2` shadow has been fully backfilled and source-reconciled to preserve source `Investor Type` (`Domestic`/`Foreign`) instead of combining it or treating broker domicile as investor identity. Production AI access remains on canonical Feature 2 v1 until the remaining calculation review, catalog v2 activation, atomic cutover, and Feature 3 rebuild pass. See [`FEATURE_02_BROKER_ROLLING_V2.md`](FEATURE_02_BROKER_ROLLING_V2.md).
 
 Feature 03 aggregates Feature 02 into one stock/day/board row for efficient AI screening and statistical analysis. Regular, Nego, and Tunai remain separate. Its 24 active definitions are in `Feature_Catalog`, and safe joins are in `Feature_Relationship_Catalog`; see [`FEATURE_03_STOCK_BROKER_DAILY.md`](FEATURE_03_STOCK_BROKER_DAILY.md).
 
