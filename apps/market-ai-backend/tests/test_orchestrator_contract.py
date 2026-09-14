@@ -343,6 +343,11 @@ def test_historical_route_progressively_forces_generic_worker_after_universe_res
         "name": "run_analytics_job",
     }
     state.analytics_job_attempted = True
+    assert AnalysisOrchestrator._required_tool_choice(state) == {
+        "type": "function",
+        "name": "run_analytics_job",
+    }
+    state.analytics_job_decisive = True
     assert AnalysisOrchestrator._required_tool_choice(state) == "required"
 
 
@@ -356,6 +361,25 @@ def test_intermediate_worker_evidence_does_not_lock_followup_data_tools() -> Non
     state.recorded_evidence_ids.add("probe-evidence")
     state.analytical_query_hashes.add("probe-query")
     assert state.completion_only is False
+
+
+def test_analytics_result_distinguishes_universe_probe_from_requested_statistics() -> None:
+    probe = {
+        "status": "SUCCESS",
+        "columns": ["ticker", "industry"],
+        "rows": [{"ticker": "TLKM", "industry": "Telecommunication Services"}],
+    }
+    assert not AnalysisOrchestrator._analytics_result_is_decisive(
+        {"job_label": "telco_universe_list", "purpose": "Resolve telco universe"}, probe
+    )
+    result = {
+        "status": "SUCCESS",
+        "columns": ["broker_combination", "signal_events", "hit_rate_pct", "avg_forward_return_20obs_pct"],
+        "rows": [{"broker_combination": "YP", "signal_events": 10, "hit_rate_pct": 20}],
+    }
+    assert AnalysisOrchestrator._analytics_result_is_decisive(
+        {"job_label": "telco_forward_test", "purpose": "Historical forward test"}, result
+    )
 
 
 def test_finalization_has_reserved_tool_and_output_budget() -> None:

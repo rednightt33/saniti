@@ -112,6 +112,7 @@ class RunState:
     analytics_handoff: str = ""
     historical_universe_ready: bool = False
     analytics_job_attempted: bool = False
+    analytics_job_decisive: bool = False
 
 
 class AnalysisOrchestrator:
@@ -323,7 +324,7 @@ class AnalysisOrchestrator:
         if (
             cls._initial_stage(state.question) == "HISTORICAL_VALIDATION"
             and state.historical_universe_ready
-            and not state.analytics_job_attempted
+            and not state.analytics_job_decisive
         ):
             return {"type": "function", "name": "run_analytics_job"}
         return "required"
@@ -409,6 +410,9 @@ class AnalysisOrchestrator:
             )
             if name == "run_analytics_job":
                 state.analytics_job_attempted = True
+                state.analytics_job_decisive = self._analytics_result_is_decisive(
+                    arguments, execution.payload
+                )
             if (
                 self._initial_stage(state.question) == "HISTORICAL_VALIDATION"
                 and name == "query_features"
@@ -425,6 +429,7 @@ class AnalysisOrchestrator:
                     state.recorded_evidence_ids.add(str(evidence_id))
                     execution.payload["completion_policy"] = {
                         "data_tools_locked": False,
+                        "result_is_decisive": state.analytics_job_decisive,
                         "next_action": (
                             "If this job directly answers the user's question and all necessary "
                             "follow-ups are complete, call complete_analysis with "
@@ -825,7 +830,9 @@ class AnalysisOrchestrator:
             "only missing identifiers; if a universe is described by sector/industry, resolve its ticker "
             "list with one bounded query_features call; then call run_analytics_job immediately. The job "
             "validates and estimates every dataset itself, so do not call estimate_query_size first and "
-            "do not aggregate the whole market merely to discover a small universe."
+            "do not aggregate the whole market merely to discover a small universe. If a worker job only "
+            "returns a lookup/universe and not the requested analytical statistics, immediately call "
+            "run_analytics_job again using that universe; do not switch back to ordinary query tools."
         )
         if identifier_manifest:
             handoff += (
@@ -833,6 +840,24 @@ class AnalysisOrchestrator:
                 "for used columns): " + identifier_manifest
             )
         return handoff
+
+    @staticmethod
+    def _analytics_result_is_decisive(
+        arguments: dict[str, Any], payload: dict[str, Any]
+    ) -> bool:
+        if payload.get("status") != "SUCCESS" or not payload.get("rows"):
+            return False
+        columns = {str(column).lower() for column in payload.get("columns") or []}
+        metric_terms = (
+            "forward", "return", "hit_rate", "event", "signal", "coefficient",
+            "p_value", "correlation", "cluster", "regime", "performance", "accuracy",
+            "drawdown", "volatility", "average", "avg_", "median", "percentile",
+        )
+        if any(any(term in column for term in metric_terms) for column in columns):
+            return True
+        label = f"{arguments.get('job_label', '')} {arguments.get('purpose', '')}".lower()
+        intermediate_terms = ("probe", "universe", "lookup", "resolve", "prepare", "list")
+        return not any(term in label for term in intermediate_terms)
 
     def _validate_completion(self, state: RunState, arguments: dict[str, Any]) -> None:
         if not state.recorded_evidence_ids:
