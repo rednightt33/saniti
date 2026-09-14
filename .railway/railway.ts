@@ -1,4 +1,4 @@
-import { defineRailway, github, image, postgres, preserve, project, service, volume } from "railway/iac";
+import { bucket, defineRailway, github, image, postgres, preserve, project, service, volume } from "railway/iac";
 
 export default defineRailway(() => {
   const saniti = github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/idx-price-cron" });
@@ -7,6 +7,7 @@ export default defineRailway(() => {
   DB2.networking = { privateNetworkEndpoint: "postgres-xcu1" };
   const Postgres = postgres("Postgres", { region: "sfo" });
   Postgres.networking = { privateNetworkEndpoint: "postgres", tcpProxies: { "5432": {} } };
+  const marketAnalyticsInput = bucket("market-analytics-input", { region: "sin" });
   const postgresVolumeThQL = volume("postgres-volume-thQL", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
   const postgresVolume = volume("postgres-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
   const marketAiBackend = service("market-ai-backend", {
@@ -37,7 +38,7 @@ export default defineRailway(() => {
     healthcheckTimeout: 120,
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "ALWAYS" },
-    env: { QUERY_SANDBOX_API_KEY: preserve(), QUERY_SANDBOX_POLL_SECONDS: preserve(), MARKET_AI_BACKEND_URL: preserve() },
+    env: { QUERY_SANDBOX_API_KEY: preserve(), QUERY_SANDBOX_POLL_SECONDS: preserve(), MARKET_AI_BACKEND_URL: preserve(), PORT: preserve() },
   });
   const idxPriceCron = service("idx-price-cron", {
     source: saniti,
@@ -92,6 +93,6 @@ export default defineRailway(() => {
   });
 
   return project("lucid-patience", {
-    resources: [marketAiBackend, marketAnalyticsWorker, marketQuerySandbox, idxPriceCron, telegramTrigger, DB2, telegramMonitor, idxPriceRecoveryCron, Postgres, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume],
+    resources: [marketAiBackend, marketAnalyticsWorker, marketQuerySandbox, idxPriceCron, telegramTrigger, DB2, telegramMonitor, idxPriceRecoveryCron, Postgres, marketAnalyticsInput, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume],
   });
 });
