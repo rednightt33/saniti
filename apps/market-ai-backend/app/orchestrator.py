@@ -765,7 +765,7 @@ class AnalysisOrchestrator:
                  len(execution.payload.get("rows") or []) if execution else None,
                  len(dumps(execution.payload).encode("utf-8")) if execution else None,
                  llm_tokens, getattr(execution, "duration_ms", None), getattr(execution, "query_hash", None),
-                 json.dumps(result_summary) if result_summary is not None else None, status, error),
+                 dumps(result_summary) if result_summary is not None else None, status, error),
             )
 
     @staticmethod

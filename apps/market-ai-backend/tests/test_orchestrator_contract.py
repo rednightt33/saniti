@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import json
+from contextlib import nullcontext
+from datetime import date
+
 import pytest
 
 from app.config import Settings
@@ -393,6 +397,45 @@ def test_non_fail_quality_explicitly_allows_analysis_to_continue() -> None:
     )
     assert result["quality_blocks_finalization"] is False
     assert result["analysis_may_continue"] is True
+
+
+def test_step_digest_serializes_database_date_values() -> None:
+    class FakeConnection:
+        params = None
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        @staticmethod
+        def transaction():
+            return nullcontext()
+
+        def execute(self, _statement, params):
+            self.params = params
+
+    connection = FakeConnection()
+
+    class FakeDb:
+        @staticmethod
+        def connection():
+            return connection
+
+    orchestrator = object.__new__(AnalysisOrchestrator)
+    orchestrator.db = FakeDb()
+    state = RunState("request", "question", {"QUALITY"}, [])
+    orchestrator._log_step(
+        state,
+        1,
+        "check_data_freshness",
+        {},
+        "SUCCESS",
+        result_summary={"analysis_ready_date": date(2026, 8, 31)},
+    )
+    persisted = json.loads(connection.params[-3])
+    assert persisted["analysis_ready_date"] == "2026-08-31"
 
 
 def test_malformed_provider_tool_arguments_are_recoverable_and_not_stored_raw() -> None:
