@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-14T00:53:21+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-14T03:54:31+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -9,13 +9,14 @@ Generated from PostgreSQL schema `public` at `2026-09-14T00:53:21+00:00`.
 | Table Name | Category | Update Pattern | Latest Data Date | Last Changed At | Tracking | Definition |
 |---|---|---|---|---|---|---|
 | `Analysis_Evidence` | System | When compact evidence is recorded for an analysis | — | `2026-09-13 15:02:15+00:00` | Baseline only | Compact reproducible evidence supporting material AI analysis claims. |
+| `Analysis_Model_Call` | System | One row after every provider model response; retained reasoning is purged by policy | — | `2026-09-14 03:49:36+00:00` | Baseline only | Per-provider-call audit containing usage, progressive tool exposure, a concise decision summary, and temporarily retained provider-returned reasoning. |
 | `Analysis_Request` | System | One lifecycle per submitted AI analysis | — | `2026-09-13 15:02:15+00:00` | Baseline only | Durable AI analysis request lifecycle, structured result, progressive tool exposure state, and token usage. |
 | `Analysis_Step_Log` | System | After each AI analysis tool or compaction step | — | `2026-09-13 15:02:15+00:00` | Baseline only | Audit record for every query, tool, compaction, or analytical step in an AI request. |
-| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-14 00:53:21.330207+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-14 00:53:21+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-14 03:54:29.258630+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-14 03:54:31+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
 | `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-11` | `2026-09-13 04:36:32.635545+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
 | `Feature_02_Broker_Rolling` | Feature | After validated broker-summary changes; manual backfill in v1 | `2026-08-31` | `2026-09-13 14:13:08+00:00` | Derived from IDX_Broker_Summary; Feature 02 refresh is manual | Validated broker flow, persistence, abnormality and quiet accumulation by source ticker, broker, board and transaction date. All source symbols are in scope. |
-| `Feature_02_Broker_Rolling_v2` | Unclassified | Unknown | — | `2026-09-14 00:45:03+00:00` | Baseline only | Unreleased shadow replacement for Feature 02 with source Investor Type preserved. It is staging infrastructure and must not be queried as a production Feature until full validation and atomic cutover. |
+| `Feature_02_Broker_Rolling_v2` | Feature | Unreleased shadow rebuild; no production refresh or AI cutover | — | `2026-09-14 00:45:03+00:00` | Baseline only | Unreleased shadow replacement for Feature 02 with source Investor Type preserved. It is staging infrastructure and must not be queried as a production Feature until full validation and atomic cutover. |
 | `Feature_03_Stock_Broker_Daily` | Feature | After Feature 02 refresh; manual refresh in v1 | `2026-08-31` | `2026-09-13 15:02:15+00:00` | Derived from Feature_02_Broker_Rolling; Feature 03 refresh is manual | Validated stock-level daily broker breadth, classified flows, dominant brokers and net-flow concentration, separated by source market board. |
 | `Feature_Calculation_Log` | System | After completed worker attempts | `2026-09-11` | `2026-09-13 04:36:32.642189+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
 | `Feature_Calculation_Queue` | System | After committed price inserts/updates and worker transitions | `2026-09-11` | `2026-09-13 04:36:32.568053+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
@@ -30,7 +31,7 @@ Generated from PostgreSQL schema `public` at `2026-09-14T00:53:21+00:00`.
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-12 13:34:43.352522+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
 | `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-13` | `2026-09-13 23:03:11.705924+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
 | `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-11` | `2026-09-13 04:36:30.538547+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
-| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-14 00:52:53.666933+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
+| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-14 03:54:20.504678+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
 | `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
 | `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-13 23:03:15.889903+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
 | `Tool_Catalog` | Reference | With each approved backend or analytics tool release | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned generic AI tool metadata, activation state, schemas, and advertised operational ceilings. |
@@ -92,6 +93,61 @@ Compact reproducible evidence supporting material AI analysis claims.
 |---|---|
 | `Analysis_Evidence_pkey` | `CREATE UNIQUE INDEX "Analysis_Evidence_pkey" ON public."Analysis_Evidence" USING btree (evidence_id)` |
 | `Analysis_Evidence_request_idx` | `CREATE INDEX "Analysis_Evidence_request_idx" ON public."Analysis_Evidence" USING btree (request_id, created_at)` |
+
+## Analysis_Model_Call
+
+Per-provider-call audit containing usage, progressive tool exposure, a concise decision summary, and temporarily retained provider-returned reasoning.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `model_call_id` | `bigint` | No | — | Generated model-call audit identifier. |
+| `request_id` | `uuid` | No | — | Analysis request that caused this provider call. |
+| `iteration_number` | `integer` | No | — | One-based provider-call number within the analysis request. |
+| `provider` | `text` | No | — | Allowlisted provider selected by runtime configuration. |
+| `model` | `text` | No | — | Exact configured provider model identifier. |
+| `reasoning_effort` | `text` | No | — | Configured reasoning effort sent to the provider. |
+| `stage` | `text` | No | — | Progressive analytical stage active for this call. |
+| `exposed_tool_families` | `ARRAY` | No | `'{}'::text[]` | Tool families exposed to this specific model call. |
+| `provider_response_id` | `text` | Yes | — | Provider response identifier when returned. |
+| `decision_summary` | `text` | Yes | — | Concise provider reasoning summary when supplied; otherwise a deterministic summary of the requested tool or final-answer action. |
+| `decision_summary_source` | `text` | No | — | PROVIDER_REASONING or DERIVED_ACTION; never an invented chain-of-thought reconstruction. |
+| `reasoning_format` | `text` | No | `'NONE'::text` | NONE, TEXT, SUMMARY, ENCRYPTED, MIXED, or PURGED representation actually stored. |
+| `reasoning_details` | `jsonb` | No | `'[]'::jsonb` | Bounded provider-returned reasoning blocks only; prompts and tool results are not copied here and expired details are replaced by an empty array. |
+| `input_tokens` | `integer` | No | `0` | Provider-reported input tokens for this one call. |
+| `output_tokens` | `integer` | No | `0` | Provider-reported output tokens for this one call. |
+| `reasoning_tokens` | `integer` | No | `0` | Provider-reported reasoning-token subset when available; zero means unavailable or zero, not an estimate. |
+| `active_context_tokens` | `integer` | No | `0` | Backend estimate of active instructions, input items, and tool schemas for this call. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | UTC database timestamp when the audit row was written. |
+| `reasoning_expires_at` | `timestamp with time zone` | No | — | UTC deadline after which raw provider-returned reasoning is purged. |
+| `reasoning_purged_at` | `timestamp with time zone` | Yes | — | UTC timestamp when reasoning_details was cleared; NULL while retained or absent. |
+| `attempt_number` | `integer` | No | — | One-based Analysis_Request processing attempt; iteration numbering restarts within each lease attempt. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Analysis_Model_Call_attempt_check` | Check | `CHECK (attempt_number > 0)` |
+| `Analysis_Model_Call_decision_source_check` | Check | `CHECK (decision_summary_source = ANY (ARRAY['PROVIDER_REASONING'::text, 'DERIVED_ACTION'::text]))` |
+| `Analysis_Model_Call_iteration_check` | Check | `CHECK (iteration_number > 0)` |
+| `Analysis_Model_Call_provider_check` | Check | `CHECK (provider = ANY (ARRAY['openai'::text, 'openrouter'::text]))` |
+| `Analysis_Model_Call_reasoning_array_check` | Check | `CHECK (jsonb_typeof(reasoning_details) = 'array'::text)` |
+| `Analysis_Model_Call_reasoning_format_check` | Check | `CHECK (reasoning_format = ANY (ARRAY['NONE'::text, 'TEXT'::text, 'SUMMARY'::text, 'ENCRYPTED'::text, 'MIXED'::text, 'PURGED'::text]))` |
+| `Analysis_Model_Call_retention_check` | Check | `CHECK (reasoning_expires_at >= created_at AND (reasoning_purged_at IS NULL OR reasoning_purged_at >= created_at))` |
+| `Analysis_Model_Call_stage_check` | Check | `CHECK (stage = ANY (ARRAY['DISCOVERY'::text, 'SCREENING'::text, 'HISTORICAL_VALIDATION'::text, 'ADVANCED'::text, 'FINAL'::text]))` |
+| `Analysis_Model_Call_token_counts_check` | Check | `CHECK (input_tokens >= 0 AND output_tokens >= 0 AND reasoning_tokens >= 0 AND active_context_tokens >= 0)` |
+| `Analysis_Model_Call_request_id_fkey` | Foreign key | `FOREIGN KEY (request_id) REFERENCES "Analysis_Request"(request_id) ON DELETE CASCADE` |
+| `Analysis_Model_Call_pkey` | Primary key | `PRIMARY KEY (model_call_id)` |
+| `Analysis_Model_Call_request_attempt_iteration_key` | Unique | `UNIQUE (request_id, attempt_number, iteration_number)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Analysis_Model_Call_pkey` | `CREATE UNIQUE INDEX "Analysis_Model_Call_pkey" ON public."Analysis_Model_Call" USING btree (model_call_id)` |
+| `Analysis_Model_Call_request_attempt_iteration_key` | `CREATE UNIQUE INDEX "Analysis_Model_Call_request_attempt_iteration_key" ON public."Analysis_Model_Call" USING btree (request_id, attempt_number, iteration_number)` |
+| `Analysis_Model_Call_retention_idx` | `CREATE INDEX "Analysis_Model_Call_retention_idx" ON public."Analysis_Model_Call" USING btree (reasoning_expires_at) WHERE (reasoning_format <> ALL (ARRAY['NONE'::text, 'PURGED'::text]))` |
 
 ## Analysis_Request
 

@@ -18,6 +18,9 @@ Status eksekusi per 2026-09-13:
   Structured handlers, limit enforcement, token-aware semantic compaction,
   progressive tool exposure, durable request worker, audit, evidence, dan
   immutable result snapshot tersedia.
+- Release 1B hardening menambahkan satu `Analysis_Model_Call` per provider call,
+  bounded provider-returned reasoning retention, conditional/scoped QC untuk
+  semua tool, dan compaction saat cumulative-input pressure mencapai 75%.
 - Migration `20260913_021_finalize_market_ai_release_1b.sql` dan limit-alignment
   `20260913_022_align_market_ai_tool_limits.sql` sudah diterapkan. Live handler
   verification PASS dan deterministic Golden Test suite 16/16 PASS. Tool generik
@@ -155,6 +158,16 @@ lookahead_check_status
 Version snapshot ditulis saat request selesai dan bersifat immutable setelah
 status `SUCCESS`.
 
+#### `Analysis_Model_Call`
+
+Satu row per provider call menyimpan request/iteration, provider/model/reasoning
+effort, analytical stage, exposed tool families, provider response ID, per-call
+input/output/reasoning tokens, estimated active context, dan concise
+`decision_summary`. Hanya reasoning block yang benar-benar dikembalikan provider
+yang boleh disimpan; hidden chain-of-thought tidak direkonstruksi. Raw reasoning
+dibatasi per-call, memiliki retention deadline, lalu dipurge secara idempotent
+tanpa menghapus row audit atau decision summary.
+
 #### Golden-test storage
 
 Buat:
@@ -263,6 +276,13 @@ Large returns, volume spikes, extreme broker flow, or z-scores are not removed
 merely for being extreme. They remain available to `detect_anomalies` and retain
 source/evidence references.
 
+QC runtime bersifat conditional dan scoped untuk semua tool. Ia dipanggil ketika
+hasil menunjukkan gap/NULL/coverage, freshness atau cross-feature concern,
+anomali yang perlu divalidasi, atau ketika quality evidence material bagi
+kesimpulan. Ia tidak otomatis memindai seluruh periode setiap query. `WARNING`
+dan `PASS` dengan anomaly flag tetap dianalisis; hanya `FAIL` impossible/invalid
+yang memblokir kesimpulan pada scope terkait.
+
 Any methodology failing the explicit no-look-ahead validation must not be
 reported as valid predictive evidence.
 
@@ -361,6 +381,11 @@ AI_CONTEXT_COMPACTION_THRESHOLD_TOKENS=32000
 AI_MAX_CONTEXT_TOKENS=64000
 AI_MAX_CUMULATIVE_INPUT_TOKENS=100000
 AI_MAX_CUMULATIVE_OUTPUT_TOKENS=12000
+AI_CUMULATIVE_COMPACTION_THRESHOLD_PERCENT=75
+AI_STORE_REASONING_DETAILS=true
+AI_REASONING_RETENTION_DAYS=30
+AI_REASONING_MAX_BYTES_PER_CALL=65536
+AI_REASONING_CLEANUP_INTERVAL_SECONDS=3600
 AI_MAX_TOOL_ITERATIONS=8
 AI_MAX_TOOL_CALLS=12
 AI_ANALYSIS_MODE=QUICK
@@ -400,6 +425,11 @@ Normal operation should remain within approximately 24k–32k active tokens. A
 request crossing 32k is not automatically terminated: lower-priority material is
 compacted first, and necessary follow-up work may continue. The backend must never
 send an OpenAI request whose estimated active context exceeds 64k.
+
+Independently, crossing 75% of the cumulative input ceiling triggers one semantic
+compaction of superseded intermediate results even if active context remains
+below 32k. Per-call records in `Analysis_Model_Call` make cumulative pressure,
+active context, and model output separately auditable.
 
 When a result exceeds its model-facing budget, the handler creates a compact
 representation with:
@@ -546,6 +576,8 @@ Every material claim must have evidence ID and query hash. The completed request
 logs, where available:
 
 - cumulative input, output, total, tool-result, metadata, and history tokens;
+- one `Analysis_Model_Call` row per provider response, including provider-returned
+  reasoning format/retention and concise decision-summary source;
 - current and peak active-context tokens plus compaction count;
 - tool call and iteration counts;
 - provider, model, reasoning effort, OpenAI response ID, and request ID;

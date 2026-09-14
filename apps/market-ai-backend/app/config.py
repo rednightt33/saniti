@@ -15,6 +15,13 @@ def _integer(name: str, default: int, minimum: int = 1) -> int:
     return value
 
 
+def _boolean(name: str, default: bool) -> bool:
+    raw = os.getenv(name, "true" if default else "false").strip().lower()
+    if raw not in {"true", "false"}:
+        raise RuntimeError(f"{name} must be true or false")
+    return raw == "true"
+
+
 @dataclass(frozen=True)
 class Settings:
     database_url: str
@@ -49,6 +56,11 @@ class Settings:
     ai_max_context_tokens: int
     ai_max_cumulative_input_tokens: int
     ai_max_cumulative_output_tokens: int
+    ai_cumulative_compaction_threshold_percent: int
+    ai_store_reasoning_details: bool
+    ai_reasoning_retention_days: int
+    ai_reasoning_max_bytes_per_call: int
+    ai_reasoning_cleanup_interval_seconds: int
     ai_max_tool_iterations: int
     ai_max_tool_calls: int
     ai_analysis_mode: str
@@ -115,6 +127,17 @@ class Settings:
             ai_max_context_tokens=_integer("AI_MAX_CONTEXT_TOKENS", 64000),
             ai_max_cumulative_input_tokens=_integer("AI_MAX_CUMULATIVE_INPUT_TOKENS", 100000),
             ai_max_cumulative_output_tokens=_integer("AI_MAX_CUMULATIVE_OUTPUT_TOKENS", 12000),
+            ai_cumulative_compaction_threshold_percent=_integer(
+                "AI_CUMULATIVE_COMPACTION_THRESHOLD_PERCENT", 75
+            ),
+            ai_store_reasoning_details=_boolean("AI_STORE_REASONING_DETAILS", True),
+            ai_reasoning_retention_days=_integer("AI_REASONING_RETENTION_DAYS", 30),
+            ai_reasoning_max_bytes_per_call=_integer(
+                "AI_REASONING_MAX_BYTES_PER_CALL", 65536
+            ),
+            ai_reasoning_cleanup_interval_seconds=_integer(
+                "AI_REASONING_CLEANUP_INTERVAL_SECONDS", 3600
+            ),
             ai_max_tool_iterations=_integer("AI_MAX_TOOL_ITERATIONS", 8),
             ai_max_tool_calls=_integer("AI_MAX_TOOL_CALLS", 12),
             ai_analysis_mode=os.getenv("AI_ANALYSIS_MODE", "QUICK").strip().upper(),
@@ -132,6 +155,8 @@ class Settings:
             raise RuntimeError("AI context target must be below compaction threshold and hard ceiling")
         if settings.ai_context_reserve_tokens >= settings.ai_max_context_tokens:
             raise RuntimeError("AI_CONTEXT_RESERVE_TOKENS must be below AI_MAX_CONTEXT_TOKENS")
+        if settings.ai_cumulative_compaction_threshold_percent >= 100:
+            raise RuntimeError("AI_CUMULATIVE_COMPACTION_THRESHOLD_PERCENT must be below 100")
         if settings.query_default_rows > settings.query_max_rows:
             raise RuntimeError("QUERY_DEFAULT_ROWS must not exceed QUERY_MAX_ROWS")
         if settings.ai_provider == "openrouter" and settings.ai_reasoning_effort not in {"low", "high", "max"}:

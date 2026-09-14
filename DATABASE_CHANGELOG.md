@@ -1,5 +1,14 @@
 # Database changelog
 
+## 2026-09-14 — Add per-model-call audit and conditional quality policy
+
+- Applied forward-only migration `database/migrations/20260914_037_create_analysis_model_call_audit.sql` to Railway `dev` PostgreSQL. It created `Analysis_Model_Call` with one row per `Analysis_Request` provider-call iteration, a foreign key with cascade lifecycle, unique request/iteration key, bounded token fields, stage/provider/reasoning checks, and a selective retention-deadline index.
+- The table stores exact provider/model/stage/tool-family context, per-call input/output/reasoning tokens, backend active-context estimate, a concise decision summary, and only reasoning blocks actually returned by the provider. It does not copy prompts or tool results and does not reconstruct hidden chain-of-thought. Raw reasoning has a configurable expiry; cleanup clears `reasoning_details` while preserving the audit row and long-term decision summary.
+- Registered the table as `VERIFIED` and all 21/21 final columns in `Table_Catalog`/`Column_Catalog`; granted only analysis logger SELECT/INSERT/UPDATE plus its identity sequence. Post-correction live validation reported 29 physical tables, 26 cataloged tables, 488/488 cataloged columns, zero unregistered required tables, and zero missing columns.
+- Updated active `check_data_quality` metadata: QC is conditional and scoped across all tools, not an automatic full-period scan. `WARNING` and source-valid `PASS` anomalies continue analysis; only impossible/invalid `FAIL` blocks the affected conclusion.
+- Raw tables, Feature rows/formulas, Feature 2 v1/v2 activation state, and calculation schedules were unchanged.
+- Pre-commit recovery audit found that an expired-lease retry restarts local iteration numbering. Because applied migration 037 is immutable, corrective migration `database/migrations/20260914_038_make_model_call_audit_retry_safe.sql` adds `attempt_number` and changes uniqueness to `(request_id,attempt_number,iteration_number)`; the backend obtains the attempt number atomically from `Analysis_Request.attempt_count`.
+
 ## 2026-09-14 — Start Investor-Type-preserving Feature 02 shadow rebuild
 
 - Confirmed the production `Feature_02_Broker_Rolling` aggregates `IDX_Broker_Summary."Investor Type"` away and stores current `IDX_Broker_Profile.broker_type`; this is valid only as combined broker flow and cannot represent Domestic versus Foreign investor activity. The canonical table and its 42,598,713 rows were not changed.

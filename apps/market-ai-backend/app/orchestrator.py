@@ -12,15 +12,16 @@ from typing import Any
 from .compaction import compact_result, dumps, estimate_tokens
 from .config import Settings
 from .db import Database
-from .openai_client import ResponsesClient
+from .openai_client import ResponsesClient, extract_reasoning_audit, response_usage
 from .schemas import FINAL_RESPONSE_SCHEMA, FinalAnalysis
 from .tools import ToolError, ToolRegistry
 
 
 INSTRUCTIONS = """You are the private Saniti Indonesian-market analyst.
-Use only supplied catalog-driven tools and never invent data. Begin with freshness,
-quality, and feature discovery. Expand to QUERY/SCREENING only through list_tools
-when evidence makes it necessary. Release 1B has no historical-validation worker:
+Use only supplied catalog-driven tools and never invent data. Begin with the smallest
+operation needed for the question. Reuse exact identifiers already known in the
+current analysis; use discovery or freshness only when they are genuinely unknown.
+Expand tool families when evidence makes it necessary. Release 1B has no historical-validation worker:
 do not claim causation or predictive evidence. Necessary follow-up queries should
 run automatically within limits; optional deeper work belongs in
 recommended_next_analysis. Treat extreme source-valid observations as useful
@@ -40,9 +41,13 @@ For an obviously bounded single-ticker/single-date retrieval, call query_feature
 directly because it also enforces validation and limits; estimate first only when
 row cost is genuinely uncertain. Request only the tool families needed for the
 question; do not request ADVANCED for ordinary retrieval.
-For a long find_condition_runs search, check data quality only on the qualifying
-episode neighborhoods needed for interpretation; do not submit the full multi-year
-search span to check_data_quality when its generic range limit is smaller.
+check_data_quality is conditional, not a mandatory pre-query ritual. Invoke it only
+when a result exposes missing coverage, NULL/gap concerns, stale/cross-feature state,
+an anomaly needing source validation, or when scoped quality evidence is material to
+the conclusion. For a long find_condition_runs search, check only qualifying episode
+neighborhoods needed for interpretation; never scan the full multi-year search span
+merely because a quality tool exists. WARNING and PASS-with-anomaly continue analysis;
+only an impossible/invalid FAIL blocks the affected conclusion.
 After necessary follow-ups, prefer one consolidated record_evidence call containing
 the decisive observations, quality result, and query hashes. Use separate evidence
 items only when independent claims genuinely require them. Evidence storage does not
@@ -87,6 +92,8 @@ class RunState:
     completion_reason: str | None = None
     started_monotonic: float = field(default_factory=time.monotonic)
     finalization_ready: bool = False
+    cumulative_pressure_compacted: bool = False
+    attempt_number: int = 0
 
 
 class AnalysisOrchestrator:
@@ -142,7 +149,9 @@ class AnalysisOrchestrator:
                 payload["parallel_tool_calls"] = False
             response = self.client.create(payload)
             state.iterations += 1
-            self._add_usage(state, response)
+            usage = self._add_usage(state, response)
+            self._log_model_call(state, response, context_tokens, usage)
+            self._enforce_budgets(state)
             calls = [item for item in response.get("output", []) if item.get("type") == "function_call"]
             if not calls:
                 raw = self._output_text(response)
@@ -330,7 +339,17 @@ class AnalysisOrchestrator:
 
     def _compact_context_if_needed(self, state: RunState) -> None:
         context = estimate_tokens({"instructions": self._instructions(state), "input": state.input_items, "tools": self.tools.definitions(state.families)})
-        if context <= self.settings.ai_context_compaction_threshold_tokens:
+        cumulative_threshold = (
+            self.settings.ai_max_cumulative_input_tokens
+            * self.settings.ai_cumulative_compaction_threshold_percent
+            // 100
+        )
+        active_pressure = context > self.settings.ai_context_compaction_threshold_tokens
+        cumulative_pressure = (
+            not state.cumulative_pressure_compacted
+            and state.cumulative_input >= cumulative_threshold
+        )
+        if not active_pressure and not cumulative_pressure:
             return
         digest = {
             "prior_analysis_digest": state.evidence_digest,
@@ -345,7 +364,21 @@ class AnalysisOrchestrator:
             {"role": "user", "content": dumps(digest)},
         ]
         state.compactions += 1
-        self._log_step(state, state.tool_calls + state.compactions, None, {}, "COMPACTED", result_summary={"reason": "context_threshold", "prior_context_tokens": context})
+        if cumulative_pressure:
+            state.cumulative_pressure_compacted = True
+        reason = "active_and_cumulative_pressure" if active_pressure and cumulative_pressure else (
+            "active_context_threshold" if active_pressure else "cumulative_input_pressure"
+        )
+        self._log_step(
+            state, state.tool_calls + state.compactions, None, {}, "COMPACTED",
+            result_summary={
+                "reason": reason,
+                "prior_context_tokens": context,
+                "cumulative_input_tokens": state.cumulative_input,
+                "cumulative_threshold_tokens": cumulative_threshold,
+            },
+        )
+        self._persist_usage(state)
 
     def _enforce_budgets(self, state: RunState) -> None:
         if time.monotonic() - state.started_monotonic >= self.settings.ai_max_analysis_seconds:
@@ -355,28 +388,71 @@ class AnalysisOrchestrator:
         if state.cumulative_output >= self.settings.ai_max_cumulative_output_tokens:
             raise RuntimeError("Cumulative AI output token budget exhausted")
 
-    def _add_usage(self, state: RunState, response: Any) -> None:
-        usage = response.get("usage") or {}
-        input_tokens = int(usage.get("input_tokens", 0) or 0)
-        output_tokens = int(usage.get("output_tokens", 0) or 0)
+    def _add_usage(self, state: RunState, response: Any) -> dict[str, int]:
+        usage = response_usage(response)
+        input_tokens = usage["input_tokens"]
+        output_tokens = usage["output_tokens"]
         if input_tokens > self.settings.ai_max_context_tokens:
-            raise RuntimeError("OpenAI-reported input exceeded AI_MAX_CONTEXT_TOKENS")
+            # Persisted per-call audit still records this provider-reported violation.
+            state.last_openai_response_id = response.get("id") or state.last_openai_response_id
+            state.cumulative_input += input_tokens
+            state.cumulative_output += output_tokens
+            return usage
         state.last_openai_response_id = response.get("id") or state.last_openai_response_id
         state.cumulative_input += input_tokens
         state.cumulative_output += output_tokens
-        self._enforce_budgets(state)
+        return usage
+
+    def _log_model_call(
+        self,
+        state: RunState,
+        response: dict[str, Any],
+        active_context_tokens: int,
+        usage: dict[str, int],
+    ) -> None:
+        blocks, reasoning_format, decision_summary, summary_source = extract_reasoning_audit(
+            response, max_bytes=self.settings.ai_reasoning_max_bytes_per_call
+        )
+        if not self.settings.ai_store_reasoning_details:
+            blocks = []
+            reasoning_format = "NONE"
+        with self.db.connection() as connection, connection.transaction():
+            connection.execute(
+                '''INSERT INTO public."Analysis_Model_Call"
+                     (request_id,attempt_number,iteration_number,provider,model,reasoning_effort,stage,
+                      exposed_tool_families,provider_response_id,decision_summary,
+                      decision_summary_source,reasoning_format,reasoning_details,
+                      input_tokens,output_tokens,reasoning_tokens,active_context_tokens,
+                      reasoning_expires_at)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                           clock_timestamp()+make_interval(days=>%s))''',
+                (
+                    state.request_id, state.attempt_number, state.iterations, self.settings.ai_provider,
+                    self.settings.ai_model, self.settings.ai_reasoning_effort,
+                    self._stage_for(state.families), sorted(state.families), response.get("id"),
+                    decision_summary, summary_source, reasoning_format, json.dumps(blocks),
+                    usage["input_tokens"], usage["output_tokens"], usage["reasoning_tokens"],
+                    active_context_tokens, self.settings.ai_reasoning_retention_days,
+                ),
+            )
+        if usage["input_tokens"] > self.settings.ai_max_context_tokens:
+            raise RuntimeError("Provider-reported input exceeded AI_MAX_CONTEXT_TOKENS")
 
     def _mark_processing(self, state: RunState, stage: str) -> None:
         with self.db.connection() as connection, connection.transaction():
-            connection.execute(
+            row = connection.execute(
                 '''UPDATE public."Analysis_Request"
                    SET status='PROCESSING', current_stage=%s, exposed_tool_families=%s,
                        model=%s, started_at=COALESCE(started_at,clock_timestamp()),
                        lease_owner=%s, lease_expires_at=clock_timestamp() + make_interval(secs => %s),
                        attempt_count=attempt_count+1
-                   WHERE request_id=%s''',
+                   WHERE request_id=%s
+                   RETURNING attempt_count''',
                 (stage, sorted(state.families), self.settings.ai_model, socket.gethostname(), self.settings.worker_lease_seconds, state.request_id),
-            )
+            ).fetchone()
+            if not row:
+                raise RuntimeError("Analysis request disappeared before processing")
+            state.attempt_number = int(row["attempt_count"])
 
     def _persist_usage(self, state: RunState) -> None:
         context = estimate_tokens({"instructions": self._instructions(state), "input": state.input_items})
@@ -485,6 +561,11 @@ class AnalysisOrchestrator:
             raise ToolError("Evidence is not yet sufficient for completion")
         if arguments.get("necessary_followups_completed") is not True:
             raise ToolError("Necessary follow-up analysis is not yet complete")
+        if state.quality_failures:
+            raise ToolError(
+                "Impossible/invalid data quality FAIL blocks finalization for the affected scope; "
+                "narrow the scope or resolve the invalid data before completing"
+            )
         if (
             state.analysis_mode == "INSIGHT"
             and self._initial_stage(state.question) == "SCREENING"
@@ -612,6 +693,7 @@ class AnalysisWorker:
         self.stop_event = threading.Event()
         self.thread: threading.Thread | None = None
         self.owner = f"{socket.gethostname()}:{threading.get_native_id()}"
+        self.last_reasoning_cleanup = 0.0
 
     def start(self) -> None:
         self.thread = threading.Thread(target=self._loop, name="analysis-worker", daemon=True)
@@ -624,11 +706,29 @@ class AnalysisWorker:
 
     def _loop(self) -> None:
         while not self.stop_event.is_set():
+            self._purge_expired_reasoning_if_due()
             claimed = self._claim()
             if claimed:
                 self.orchestrator.run(str(claimed["request_id"]), claimed["question"])
             else:
                 self.stop_event.wait(self.settings.worker_poll_seconds)
+
+    def _purge_expired_reasoning_if_due(self) -> None:
+        now = time.monotonic()
+        if now - self.last_reasoning_cleanup < self.settings.ai_reasoning_cleanup_interval_seconds:
+            return
+        try:
+            with self.db.connection() as connection, connection.transaction():
+                connection.execute(
+                    '''UPDATE public."Analysis_Model_Call"
+                       SET reasoning_details='[]'::jsonb,reasoning_format='PURGED',
+                           reasoning_purged_at=clock_timestamp()
+                       WHERE reasoning_expires_at <= clock_timestamp()
+                         AND reasoning_format NOT IN ('NONE','PURGED')'''
+                )
+            self.last_reasoning_cleanup = now
+        except Exception as exc:
+            print(json.dumps({"event": "reasoning_cleanup_failed", "error": str(exc)[:500]}), flush=True)
 
     def _claim(self) -> dict[str, Any] | None:
         with self.db.connection() as connection, connection.transaction():

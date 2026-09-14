@@ -18,6 +18,10 @@ def test_default_limits_are_three_separate_policies(monkeypatch: pytest.MonkeyPa
     assert settings.ai_max_feature_metadata_tokens == 5000
     assert settings.ai_target_context_tokens < settings.ai_context_compaction_threshold_tokens < settings.ai_max_context_tokens
     assert settings.ai_max_cumulative_input_tokens > settings.ai_max_context_tokens
+    assert settings.ai_cumulative_compaction_threshold_percent == 75
+    assert settings.ai_store_reasoning_details is True
+    assert settings.ai_reasoning_retention_days == 30
+    assert settings.ai_reasoning_max_bytes_per_call == 65536
     assert settings.ai_analysis_mode == "QUICK"
     assert settings.ai_min_insight_data_calls == 2
     assert settings.ai_max_analysis_seconds == 600
@@ -46,4 +50,16 @@ def test_openrouter_uses_deepseek_defaults(monkeypatch: pytest.MonkeyPatch) -> N
 def test_invalid_analysis_mode_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AI_ANALYSIS_MODE", "ENDLESS")
     with pytest.raises(RuntimeError, match="AI_ANALYSIS_MODE"):
+        Settings.from_env(require_runtime_secrets=False)
+
+
+def test_invalid_cumulative_compaction_percent_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AI_CUMULATIVE_COMPACTION_THRESHOLD_PERCENT", "100")
+    with pytest.raises(RuntimeError, match="below 100"):
+        Settings.from_env(require_runtime_secrets=False)
+
+
+def test_invalid_reasoning_storage_boolean_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AI_STORE_REASONING_DETAILS", "sometimes")
+    with pytest.raises(RuntimeError, match="true or false"):
         Settings.from_env(require_runtime_secrets=False)

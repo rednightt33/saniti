@@ -21,8 +21,9 @@ with `Authorization: Bearer $MARKET_AI_INTERNAL_API_KEY`.
 5. PostgreSQL estimates and executes within query limits. Tool handlers then
    rank, aggregate, or semantically compact results to the independent LLM-facing
    row/byte/token budgets.
-6. Every tool call, query hash, evidence item, warning, context peak, compaction,
-   and cumulative token count is audited.
+6. Every model response receives one `Analysis_Model_Call` row; every tool call,
+   query hash, evidence item, warning, context peak, compaction, and cumulative
+   token count is also audited at its appropriate grain.
 7. `record_evidence` stores a decisive result without ending the investigation.
    `complete_analysis` applies the stopping checklist: evidence must exist,
    necessary follow-ups must be complete, and `INSIGHT` mode requires the
@@ -48,6 +49,18 @@ explicit usage accounting. `AI_PROVIDER=openai` targets the OpenAI endpoint;
 `AI_PROVIDER=openrouter` targets OpenRouter and currently defaults to
 `deepseek/deepseek-v4.1-flash`. Arbitrary base URLs and silent cross-provider
 fallback are not allowed.
+
+Provider-returned reasoning is stored only when actually supplied, capped by
+`AI_REASONING_MAX_BYTES_PER_CALL`, and cleared after
+`AI_REASONING_RETENTION_DAYS`. The worker runs an idempotent bounded cleanup on
+`AI_REASONING_CLEANUP_INTERVAL_SECONDS`; per-call usage and the concise
+`decision_summary` remain. The backend never reconstructs hidden reasoning or
+copies prompts/tool-result payloads into the reasoning audit.
+
+`check_data_quality` is conditional across all tool paths. The model should call
+it only for a scoped coverage, NULL/gap, freshness, cross-feature, anomaly, or
+material-conclusion concern. `WARNING` and source-valid anomalies continue;
+only impossible/invalid `FAIL` blocks the affected conclusion.
 
 Release 1B can read Feature 1–3 through a least-privilege login. It cannot read
 raw price/broker tables or mutate Feature tables. Historical validation and

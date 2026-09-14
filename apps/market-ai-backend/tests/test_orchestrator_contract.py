@@ -29,7 +29,7 @@ def test_rejects_prose_or_extra_final_fields() -> None:
         AnalysisOrchestrator._parse_final_output(_valid_final_json()[:-1] + ',"extra":true}')
 
 
-def test_reported_single_call_context_ceiling_is_enforced() -> None:
+def test_reported_single_call_context_usage_is_accounted_before_audit_enforces_ceiling() -> None:
     orchestrator = object.__new__(AnalysisOrchestrator)
     orchestrator.settings = Settings.from_env(require_runtime_secrets=False)
     state = RunState("request", "question", {"META"}, [])
@@ -37,8 +37,9 @@ def test_reported_single_call_context_ceiling_is_enforced() -> None:
         "id": "resp_test",
         "usage": {"input_tokens": orchestrator.settings.ai_max_context_tokens + 1, "output_tokens": 1},
     }
-    with pytest.raises(RuntimeError, match="AI_MAX_CONTEXT_TOKENS"):
-        orchestrator._add_usage(state, response)
+    usage = orchestrator._add_usage(state, response)
+    assert usage["input_tokens"] == orchestrator.settings.ai_max_context_tokens + 1
+    assert state.cumulative_input == usage["input_tokens"]
 
 
 def test_analysis_wall_clock_is_a_separate_circuit_breaker() -> None:
@@ -179,3 +180,50 @@ def test_streak_language_exposes_screening_tool_family() -> None:
         "Kapan BBCA return positif 7 hari berturut-turut?"
     )
     assert {"QUERY", "SCREENING"} <= families
+
+
+def test_impossible_quality_fail_blocks_completion_but_warning_does_not() -> None:
+    orchestrator = object.__new__(AnalysisOrchestrator)
+    orchestrator.settings = Settings.from_env(require_runtime_secrets=False)
+    state = RunState("request", "question", {"QUERY"}, [])
+    state.recorded_evidence_ids.add("evidence-1")
+    arguments = {
+        "evidence_sufficient": True,
+        "necessary_followups_completed": True,
+        "completion_reason": "Direct evidence is sufficient",
+        "remaining_uncertainties": [],
+        "optional_next_analysis": [],
+    }
+    orchestrator._validate_completion(state, arguments)
+    state.quality_failures.append({"table": "Feature_01_Stock_Daily"})
+    with pytest.raises(Exception, match="FAIL blocks finalization"):
+        orchestrator._validate_completion(state, arguments)
+
+
+def test_cumulative_pressure_triggers_context_compaction_once() -> None:
+    class FakeTools:
+        @staticmethod
+        def definitions(_families):
+            return []
+
+    class FakeOrchestrator(AnalysisOrchestrator):
+        def _log_step(self, *_args, **_kwargs):
+            return None
+
+        def _persist_usage(self, _state):
+            return None
+
+    orchestrator = object.__new__(FakeOrchestrator)
+    orchestrator.settings = Settings.from_env(require_runtime_secrets=False)
+    orchestrator.tools = FakeTools()
+    state = RunState("request", "question", {"META"}, [{"role": "user", "content": "detail"}])
+    state.cumulative_input = (
+        orchestrator.settings.ai_max_cumulative_input_tokens
+        * orchestrator.settings.ai_cumulative_compaction_threshold_percent
+        // 100
+    )
+    orchestrator._compact_context_if_needed(state)
+    assert state.compactions == 1
+    assert state.cumulative_pressure_compacted is True
+    orchestrator._compact_context_if_needed(state)
+    assert state.compactions == 1

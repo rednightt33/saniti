@@ -3,7 +3,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from app.openai_client import ResponsesClient
+from app.openai_client import ResponsesClient, extract_reasoning_audit, response_usage
 
 
 class FakeHttpClient:
@@ -69,3 +69,44 @@ def test_non_retryable_client_error_keeps_safe_provider_detail() -> None:
 def test_provider_base_url_is_allowlisted() -> None:
     with pytest.raises(ValueError, match="Unsupported AI provider"):
         ResponsesClient("https://attacker.invalid", "secret", 15)
+
+
+def test_extracts_only_provider_returned_reasoning_and_summary() -> None:
+    blocks, format_name, summary, source = extract_reasoning_audit(
+        {
+            "output": [
+                {
+                    "type": "reasoning",
+                    "summary": [{"type": "summary_text", "text": "Use a bounded screen first."}],
+                    "encrypted_content": "opaque-provider-value",
+                },
+                {"type": "function_call", "name": "screen_features"},
+            ]
+        },
+        max_bytes=4096,
+    )
+    assert len(blocks) == 1
+    assert format_name == "MIXED"
+    assert summary == "Use a bounded screen first."
+    assert source == "PROVIDER_REASONING"
+
+
+def test_reasoning_audit_has_deterministic_action_fallback() -> None:
+    blocks, format_name, summary, source = extract_reasoning_audit(
+        {"output": [{"type": "function_call", "name": "query_features"}]},
+        max_bytes=4096,
+    )
+    assert blocks == []
+    assert format_name == "NONE"
+    assert summary == "Requested tools: query_features"
+    assert source == "DERIVED_ACTION"
+
+
+def test_response_usage_supports_openrouter_compatible_fields() -> None:
+    assert response_usage({
+        "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 4,
+            "completion_tokens_details": {"reasoning_tokens": 3},
+        }
+    }) == {"input_tokens": 10, "output_tokens": 4, "reasoning_tokens": 3}

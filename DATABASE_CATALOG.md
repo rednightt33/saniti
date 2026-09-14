@@ -26,7 +26,45 @@ The scope subsequently added `Feature_Calculation_Queue`, `Feature_Status`, and 
 
 `Feature_03_Stock_Broker_Daily` is also approved and validated. It adds one table entry, 24 verified column entries, and 24 active `Feature_Catalog` `v1` definitions. Its grain is date, source ticker, and market board; Regular, Nego, and Tunai never mix. Two safe Feature 03 join contracts are registered in `Feature_Relationship_Catalog`. See `FEATURE_03_STOCK_BROKER_DAILY.md`.
 
-The market-AI foundation adds `Feature_Relationship_Catalog`, `Tool_Catalog`, three analysis audit tables, and three Golden Test tables. The current live scope is 24 registered tables and 429 registered physical columns across those tables. `Tool_Catalog` has 17 active core tools and 11 inactive analytics/deferred tools. Inactive tools are metadata only and cannot be invoked. Release 1B registers 15 deterministic golden expectations; the first persisted run passed 15/15. Feature 3 usage metadata explicitly permits board/ticker/date grouping and only type-appropriate aggregations.
+The market-AI foundation adds `Feature_Relationship_Catalog`, `Tool_Catalog`, four analysis audit tables, and three Golden Test tables. The current live scope is 26 registered tables and 488 registered physical columns across those tables; together with the three explicit catalog/status exclusions, PostgreSQL has 29 public tables. `Tool_Catalog` has active core tools plus inactive analytics/deferred metadata; inactive tools cannot be invoked. Release 1B currently has 16 deterministic golden expectations. Feature 3 usage metadata explicitly permits board/ticker/date grouping and only type-appropriate aggregations.
+
+## Complete public-table documentation map
+
+Every current public table is listed here so GitHub readers can find its semantic
+or physical documentation. `DATABASE_SCHEMA.md` remains the exhaustive generated
+column/constraint/index reference for every row below.
+
+| Table | Purpose | Additional semantic/operational guide |
+|---|---|---|
+| `Analysis_Evidence` | Compact reproducible support for material AI claims | `apps/market-ai-backend/README.md` |
+| `Analysis_Model_Call` | Per-provider-call usage, tool exposure, decision summary, and temporary reasoning audit | `ANALYSIS_MODEL_CALL_AUDIT.md` |
+| `Analysis_Request` | Durable request lifecycle, cumulative usage, result, and version snapshot | `apps/market-ai-backend/README.md` |
+| `Analysis_Step_Log` | Tool/query/compaction execution audit | `apps/market-ai-backend/README.md` |
+| `Column_Catalog` | Physical and semantic column inventory | This document |
+| `Database_Table_Status` | Operational table freshness/change status | This document; deliberately not a semantic-catalog target |
+| `Feature_01_Stock_Daily` | Daily price-derived stock features | `FEATURE_01_AUTOMATION_PLAN.md` |
+| `Feature_02_Broker_Rolling` | Canonical broker rolling features by stock/broker/board/date | `FEATURE_02_BROKER_ROLLING.md` |
+| `Feature_02_Broker_Rolling_v2` | Unreleased Investor-Type-preserving shadow | `FEATURE_02_BROKER_ROLLING_V2.md` |
+| `Feature_03_Stock_Broker_Daily` | Stock/day/board broker breadth and flow features | `FEATURE_03_STOCK_BROKER_DAILY.md` |
+| `Feature_Calculation_Log` | Completed Feature 01 worker attempts and retries | `apps/feature-01-worker/README.md` |
+| `Feature_Calculation_Queue` | Durable changed-price work items for Feature 01 | `apps/feature-01-worker/README.md` |
+| `Feature_Catalog` | Versioned formula and analytical-usage authority for Feature columns | This document |
+| `Feature_Relationship_Catalog` | Safe cross-Feature join/grain contracts | This document |
+| `Feature_Status` | Current Feature 01 refresh state per ticker | `apps/feature-01-worker/README.md` |
+| `Golden_Analysis_Test` | Versioned deterministic analytical expectations | `AI_ANALYST_IMPLEMENTATION_PLAN.md` |
+| `Golden_Analysis_Test_Result` | Per-test observed acceptance result | `AI_ANALYST_IMPLEMENTATION_PLAN.md` |
+| `Golden_Analysis_Test_Run` | One complete golden-suite execution | `AI_ANALYST_IMPLEMENTATION_PLAN.md` |
+| `IDX_Broker_Profile` | Broker identity, domicile type, and usage classification | This document and `DATABASE_SCHEMA.md` |
+| `IDX_Broker_Summary` | Daily broker activity by stock, investor type, and board | `FEATURE_02_BROKER_ROLLING.md` |
+| `IDX_Stock_Universe` | Current IDX security universe and classifications | This document and `DATABASE_SCHEMA.md` |
+| `Monitoring_Price_ALL` | Per-execution price-ingestion monitoring | `apps/idx-price-cron/README.md` |
+| `Price_Stock_Indonesia_IDX` | TradingView daily OHLCV source rows | `apps/idx-price-cron/README.md` |
+| `Table_Catalog` | Table meaning, grain, provenance, update, and routine registry | This document |
+| `Telegram_Command_Log` | Inbound command audit and duplicate prevention | `apps/telegram-trigger/README.md` |
+| `Telegram_Notification_Log` | Outbound notification state and duplicate prevention | `apps/telegram-monitor/README.md` |
+| `Tool_Catalog` | Generic AI tool contracts and advertised limits | `AI_ANALYST_IMPLEMENTATION_PLAN.md` |
+| `Universe_Equity_Description` | Issuer descriptions and sector/industry classifications | This document and `DATABASE_SCHEMA.md` |
+| `stockbit_broker_summary_load_log` | Per-date Stockbit load progress/retry history | `apps/stockbit-broker-backfill/README.md` |
 
 Do not invent active Feature Catalog entries for Feature 04 before that table exists and is validated.
 
@@ -38,7 +76,7 @@ Do not invent active Feature Catalog entries for Feature 04 before that table ex
 
 `Feature_Catalog` additionally defines `semantic_role`, `allowed_aggregations`, `ranking_interpretation`, filter/group eligibility, decision-time `availability_rule`, `point_in_time_safe`, `historical_metadata_warning`, `analytical_interpretation`, `recommended_use`, `misuse_warning`, `semantic_review_status`, and `validation_evidence`. An active definition must reference a physical column in a VERIFIED Feature table, contain nonblank semantic guidance and evidence, and only one definition version may be active per physical column. `CALCULATION_VERIFIED` means formula and semantics are backed by the listed migration/validator evidence; it does not make the Feature predictive.
 
-`Analysis_Request` records progressive tool exposure, compact results, cumulative OpenAI input/output usage, current and peak active context, compaction count, methodology metadata, and an immutable completed-request version snapshot. `Analysis_Step_Log` and `Analysis_Evidence` retain compact reproducibility details rather than large raw query results.
+`Analysis_Request` records progressive tool exposure, compact results, cumulative provider input/output usage, current and peak active context, compaction count, methodology metadata, and an immutable completed-request version snapshot. `Analysis_Model_Call` records one provider response at a time, including per-call tokens and temporarily retained provider-returned reasoning; see `ANALYSIS_MODEL_CALL_AUDIT.md`. `Analysis_Step_Log` and `Analysis_Evidence` retain compact reproducibility details rather than large raw query results.
 
 `documentation_status` means:
 
