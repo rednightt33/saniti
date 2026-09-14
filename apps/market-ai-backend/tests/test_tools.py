@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 
 from app.config import Settings
@@ -22,6 +24,14 @@ def test_malformed_evidence_call_is_recoverable_before_database_access() -> None
             },
             "request-id",
         )
+
+
+def test_evidence_ready_date_normalizes_literal_null_and_rejects_other_text() -> None:
+    assert ToolRegistry._normalize_analysis_ready_date(None) is None
+    assert ToolRegistry._normalize_analysis_ready_date("null") is None
+    assert ToolRegistry._normalize_analysis_ready_date("2026-08-31") == date(2026, 8, 31)
+    with pytest.raises(ToolError, match="ISO date"):
+        ToolRegistry._normalize_analysis_ready_date("N/A definition only")
 
 
 def test_completion_requires_explicit_stopping_checklist() -> None:

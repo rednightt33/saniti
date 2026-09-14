@@ -208,7 +208,7 @@ class ToolRegistry:
             "record_evidence": _object_schema({
                 "evidence_type": {"type": "string", "enum": ["OBSERVATION", "QUALITY", "ANOMALY", "STATISTIC", "HISTORICAL_TEST", "WARNING"]},
                 "claim": {"type": "string"}, "compact_payload_json": {"type": "string"}, "query_hash": {"type": ["string", "null"]},
-                "source_tables": {"type": "array", "items": {"type": "string"}}, "analysis_ready_date": {"type": ["string", "null"]},
+                "source_tables": {"type": "array", "items": {"type": "string"}}, "analysis_ready_date": {"type": ["string", "null"], "format": "date"},
             }),
             "complete_analysis": _object_schema({
                 "evidence_sufficient": {"type": "boolean"},
@@ -799,6 +799,7 @@ class ToolRegistry:
             raise ToolError("compact_payload_json must be valid JSON") from exc
         if not isinstance(compact_payload, dict):
             raise ToolError("compact_payload_json must encode an object")
+        ready_date = self._normalize_analysis_ready_date(arguments.get("analysis_ready_date"))
         with self.db.connection() as connection, connection.transaction():
             count = connection.execute('SELECT count(*) FROM public."Analysis_Evidence" WHERE request_id=%s', (request_id,)).fetchone()["count"]
             if count >= 25:
@@ -806,13 +807,27 @@ class ToolRegistry:
             row = connection.execute(
                 '''INSERT INTO public."Analysis_Evidence" (request_id,evidence_type,claim,compact_payload,query_hash,source_tables,analysis_ready_date)
                    VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING evidence_id''',
-                (request_id, arguments["evidence_type"], arguments["claim"][:2000], json.dumps(compact_payload), arguments.get("query_hash"), arguments["source_tables"], arguments.get("analysis_ready_date")),
+                (request_id, arguments["evidence_type"], arguments["claim"][:2000], json.dumps(compact_payload), arguments.get("query_hash"), arguments["source_tables"], ready_date),
             ).fetchone()
         return Execution({
             "evidence_id": str(row["evidence_id"]),
             "recorded": True,
+            "analysis_ready_date": ready_date.isoformat() if ready_date else None,
             "note": "Evidence was stored; this does not finalize the analysis.",
         })
+
+    @staticmethod
+    def _normalize_analysis_ready_date(value: Any) -> date | None:
+        if value is None:
+            return None
+        if isinstance(value, str) and value.strip().lower() == "null":
+            return None
+        if not isinstance(value, str):
+            raise ToolError("analysis_ready_date must be an ISO date or null")
+        try:
+            return date.fromisoformat(value.strip())
+        except ValueError as exc:
+            raise ToolError("analysis_ready_date must be an ISO date or null") from exc
 
     def complete_analysis(self, arguments: dict[str, Any], _: str) -> Execution:
         required = {
