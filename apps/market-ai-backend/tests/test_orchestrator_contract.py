@@ -273,6 +273,16 @@ def test_evidence_gate_exposes_only_completion_then_no_tools() -> None:
     assert orchestrator._active_tool_definitions(state) == []
 
 
+def test_tool_calls_are_required_until_completion_is_accepted() -> None:
+    state = RunState("request", "question", {"QUERY"}, [])
+    assert AnalysisOrchestrator._required_tool_choice(state) == "required"
+    state.completion_only = True
+    assert AnalysisOrchestrator._required_tool_choice(state) == {
+        "type": "function",
+        "name": "complete_analysis",
+    }
+
+
 def test_finalization_has_reserved_tool_and_output_budget() -> None:
     orchestrator = object.__new__(AnalysisOrchestrator)
     orchestrator.settings = Settings.from_env(require_runtime_secrets=False)

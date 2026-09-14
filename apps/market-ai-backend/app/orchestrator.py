@@ -154,6 +154,7 @@ class AnalysisOrchestrator:
             if active_tools:
                 payload["tools"] = active_tools
                 payload["parallel_tool_calls"] = False
+                payload["tool_choice"] = self._required_tool_choice(state)
             response = self.client.create(payload)
             state.iterations += 1
             usage = self._add_usage(state, response)
@@ -294,6 +295,12 @@ class AnalysisOrchestrator:
         if state.completion_only:
             return [item for item in definitions if item.get("name") == "complete_analysis"]
         return definitions
+
+    @staticmethod
+    def _required_tool_choice(state: RunState) -> str | dict[str, str]:
+        if state.completion_only:
+            return {"type": "function", "name": "complete_analysis"}
+        return "required"
 
     def _max_output_tokens(self, state: RunState) -> int:
         remaining = self.settings.ai_max_cumulative_output_tokens - state.cumulative_output
