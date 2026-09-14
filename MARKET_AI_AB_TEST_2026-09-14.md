@@ -20,8 +20,10 @@ row, byte, and token shaping remains active.
 - Mode A: `AI_CONTEXT_COMPACTION_MODE=DISABLED`.
 - Mode B: `AI_CONTEXT_COMPACTION_MODE=PRESERVE_DECISIVE`.
 - Mode B deployment: `63f2e3b9-d8ef-423b-aced-6e6a8f24bf62` (`SUCCESS`).
-- Final restored Mode A deployment: `e962dc56-8c02-4f22-a943-e4a2a1d1c332`
-  (`SUCCESS`).
+- Restored Mode A deployment: `e962dc56-8c02-4f22-a943-e4a2a1d1c332`
+  (`SUCCESS`), subsequently superseded by documentation-only deployment
+  `945dad67-b1e9-410d-bcbf-26a40ee3215a` (`SUCCESS`) with the same runtime code
+  and final `DISABLED` configuration.
 
 Preliminary batches that ran before the final JSON/date/serialization fixes are
 not comparable and are excluded from the figures below. Their failures remain
