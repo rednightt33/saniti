@@ -159,7 +159,7 @@ class AnalysisOrchestrator:
             state.iterations += 1
             usage = self._add_usage(state, response)
             self._log_model_call(state, response, context_tokens, usage)
-            self._enforce_budgets(state)
+            self._enforce_budgets(state, after_response=True)
             calls = [item for item in response.get("output", []) if item.get("type") == "function_call"]
             if not calls:
                 raw = self._output_text(response)
@@ -505,12 +505,22 @@ class AnalysisOrchestrator:
         )
         self._persist_usage(state)
 
-    def _enforce_budgets(self, state: RunState) -> None:
+    def _enforce_budgets(self, state: RunState, *, after_response: bool = False) -> None:
         if time.monotonic() - state.started_monotonic >= self.settings.ai_max_analysis_seconds:
             raise RuntimeError("Maximum analysis wall-clock budget exhausted")
-        if state.cumulative_input >= self.settings.ai_max_cumulative_input_tokens:
+        input_exhausted = (
+            state.cumulative_input > self.settings.ai_max_cumulative_input_tokens
+            if after_response
+            else state.cumulative_input >= self.settings.ai_max_cumulative_input_tokens
+        )
+        output_exhausted = (
+            state.cumulative_output > self.settings.ai_max_cumulative_output_tokens
+            if after_response
+            else state.cumulative_output >= self.settings.ai_max_cumulative_output_tokens
+        )
+        if input_exhausted:
             raise RuntimeError("Cumulative AI input token budget exhausted")
-        if state.cumulative_output >= self.settings.ai_max_cumulative_output_tokens:
+        if output_exhausted:
             raise RuntimeError("Cumulative AI output token budget exhausted")
 
     def _add_usage(self, state: RunState, response: Any) -> dict[str, int]:
@@ -659,7 +669,7 @@ class AnalysisOrchestrator:
             "distinct_analytical_queries": len(state.analytical_query_hashes),
             "feature_versions": [dict(row) for row in feature_versions],
             "tool_versions": [dict(row) for row in tool_versions],
-            "query_hashes": sorted({item["query_hash"] for item in state.evidence_digest if item.get("query_hash")}),
+            "query_hashes": self._digest_query_hashes(state.evidence_digest),
             "completed_at": datetime.now(timezone.utc).isoformat(),
         }
         methodology = {
@@ -670,6 +680,18 @@ class AnalysisOrchestrator:
             "look_ahead_validation": "No predictive claim is allowed in Release 1B; historical-validation tools are inactive.",
         }
         return snapshot, methodology
+
+    @staticmethod
+    def _digest_query_hashes(items: list[dict[str, Any]]) -> list[str]:
+        hashes: set[str] = set()
+        for item in items:
+            value = item.get("query_hash")
+            if isinstance(value, list):
+                hashes.update(str(part) for part in value if part)
+            elif value:
+                hashes.add(str(value))
+            hashes.update(str(part) for part in item.get("query_hashes") or [] if part)
+        return sorted(hashes)
 
     def _instructions(self, state: RunState) -> str:
         if state.analysis_mode != "INSIGHT":

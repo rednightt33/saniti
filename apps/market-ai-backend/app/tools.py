@@ -621,7 +621,13 @@ class ToolRegistry:
             result = self._aggregate(arguments["table"], ["ticker"], [{"column": arguments["column"], "aggregation": arguments["aggregation"]}], period["start_date"], period["end_date"], [arguments["ticker"]], 1)
             rows.append({"label": period["label"], **(result.payload["rows"][0] if result.payload["rows"] else {})})
             hashes.append(result.query_hash)
-        return Execution({"rows": rows, "total_rows": len(rows), "query_hash": hashes})
+        digest = query_hash("compare_periods", hashes)
+        return Execution({
+            "rows": rows,
+            "total_rows": len(rows),
+            "query_hash": digest,
+            "component_query_hashes": hashes,
+        }, digest)
 
     def find_condition_runs(self, arguments: dict[str, Any], _: str) -> Execution:
         """Find consecutive matching trading observations without returning the full time series."""

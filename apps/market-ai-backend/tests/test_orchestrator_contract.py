@@ -34,6 +34,14 @@ def test_rejects_prose_or_extra_final_fields() -> None:
         AnalysisOrchestrator._parse_final_output(_valid_final_json()[:-1] + ',"extra":true}')
 
 
+def test_final_ready_date_requires_iso_date_or_null() -> None:
+    invalid = _valid_final_json().replace(
+        '"analysis_ready_date":null', '"analysis_ready_date":"N/A definition only"'
+    )
+    with pytest.raises(RuntimeError, match="analysis_ready_date"):
+        AnalysisOrchestrator._parse_final_output(invalid)
+
+
 def test_reported_single_call_context_usage_is_accounted_before_audit_enforces_ceiling() -> None:
     orchestrator = object.__new__(AnalysisOrchestrator)
     orchestrator.settings = Settings.from_env(require_runtime_secrets=False)
@@ -53,6 +61,17 @@ def test_analysis_wall_clock_is_a_separate_circuit_breaker() -> None:
     state = RunState("request", "question", {"META"}, [])
     state.started_monotonic -= orchestrator.settings.ai_max_analysis_seconds + 1
     with pytest.raises(RuntimeError, match="wall-clock"):
+        orchestrator._enforce_budgets(state)
+
+
+def test_exact_cumulative_limit_can_finish_current_response_but_not_start_another() -> None:
+    orchestrator = object.__new__(AnalysisOrchestrator)
+    orchestrator.settings = Settings.from_env(require_runtime_secrets=False)
+    state = RunState("request", "question", {"META"}, [])
+    state.cumulative_input = orchestrator.settings.ai_max_cumulative_input_tokens
+    state.cumulative_output = orchestrator.settings.ai_max_cumulative_output_tokens
+    orchestrator._enforce_budgets(state, after_response=True)
+    with pytest.raises(RuntimeError, match="input token"):
         orchestrator._enforce_budgets(state)
 
 
@@ -311,6 +330,14 @@ def test_final_validation_reports_exact_field_issue() -> None:
     with pytest.raises(RuntimeError, match="confidence") as exc:
         AnalysisOrchestrator._parse_final_output(invalid)
     assert "Input should be" in str(exc.value)
+
+
+def test_snapshot_query_hashes_accept_scalar_and_legacy_lists() -> None:
+    assert AnalysisOrchestrator._digest_query_hashes([
+        {"query_hash": "b"},
+        {"query_hash": ["a", "b"]},
+        {"query_hashes": ["c", "a"]},
+    ]) == ["a", "b", "c"]
 
 
 def test_final_candidate_retry_is_capped_at_two() -> None:

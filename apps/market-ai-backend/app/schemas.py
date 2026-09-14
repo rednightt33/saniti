@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -42,7 +43,7 @@ class FinalAnalysis(BaseModel):
     answer: str
     conclusion: str
     confidence: Literal["LOW", "MEDIUM", "HIGH"]
-    analysis_ready_date: str | None
+    analysis_ready_date: date | None
     evidence_ids: list[str]
     warnings: list[str]
     recommended_next_analysis: list[RecommendedNextAnalysis]
@@ -55,7 +56,7 @@ FINAL_RESPONSE_SCHEMA: dict[str, Any] = {
         "answer": {"type": "string"},
         "conclusion": {"type": "string"},
         "confidence": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH"]},
-        "analysis_ready_date": {"type": ["string", "null"]},
+        "analysis_ready_date": {"type": ["string", "null"], "format": "date"},
         "evidence_ids": {"type": "array", "items": {"type": "string"}},
         "warnings": {"type": "array", "items": {"type": "string"}},
         "recommended_next_analysis": {

@@ -125,8 +125,10 @@ def decisive_digest(
     """Build the durable/context digest without discarding decisive values."""
     digest: dict[str, Any] = {"tool": tool_name}
     effective_hash = query_digest or payload.get("query_hash")
-    if effective_hash:
-        digest["query_hash"] = effective_hash
+    if isinstance(effective_hash, list):
+        digest["query_hashes"] = [str(item) for item in effective_hash if item]
+    elif effective_hash:
+        digest["query_hash"] = str(effective_hash)
     for key in DECISIVE_TOP_LEVEL_KEYS:
         if key in payload and key != "query_hash":
             digest[key] = payload[key]

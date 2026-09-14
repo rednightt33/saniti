@@ -40,3 +40,9 @@ def test_decisive_digest_retains_ranked_values_and_audit_references() -> None:
     assert digest["evidence_id"] == "evidence-1"
     assert digest["warnings"] == payload["warnings"]
     assert digest["decisive_observations"] == payload["rows"]
+
+
+def test_decisive_digest_normalizes_legacy_query_hash_lists() -> None:
+    digest = decisive_digest("compare_periods", {"query_hash": ["a", "b"]})
+    assert digest["query_hashes"] == ["a", "b"]
+    assert "query_hash" not in digest
