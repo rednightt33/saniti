@@ -8,6 +8,7 @@
 - Updated active `check_data_quality` metadata: QC is conditional and scoped across all tools, not an automatic full-period scan. `WARNING` and source-valid `PASS` anomalies continue analysis; only impossible/invalid `FAIL` blocks the affected conclusion.
 - Raw tables, Feature rows/formulas, Feature 2 v1/v2 activation state, and calculation schedules were unchanged.
 - Pre-commit recovery audit found that an expired-lease retry restarts local iteration numbering. Because applied migration 037 is immutable, corrective migration `database/migrations/20260914_038_make_model_call_audit_retry_safe.sql` adds `attempt_number` and changes uniqueness to `(request_id,attempt_number,iteration_number)`; the backend obtains the attempt number atomically from `Analysis_Request.attempt_count`.
+- Live DeepSeek acceptance created eight model-call rows for successful request `9ad62d13-cc26-492c-8f3a-769d9d4e3741`; their per-call input/output/reasoning counts reconcile to the request totals, retained reasoning blocks have configured expiry timestamps, and no full-period QC step was executed. Backend verification PASS, Feature Catalog semantic audit remained 91/91, and Golden Test run `5d2a8f03-58af-4807-ae8e-7dc4ab5f1491` passed 16/16.
 
 ## 2026-09-14 — Start Investor-Type-preserving Feature 02 shadow rebuild
 

@@ -32,6 +32,9 @@ Status eksekusi per 2026-09-13:
   `SUCCESS`; startup dan private `/health` HTTP 200 terverifikasi. Seluruh 43
   configuration keys tersedia. Login `market_ai_app` dapat membaca
   Feature/katalog dan menulis audit, tetapi raw-table SELECT ditolak.
+- Model-call audit hardening deployment `4d49e4a1-afdd-4abb-b92b-974edc63eb09`
+  mencapai `SUCCESS`; live DeepSeek request membuat delapan per-call audit rows,
+  backend verification PASS, dan Golden Test tetap 16/16 PASS.
 - `OPENAI_API_KEY` tetap tersimpan tetapi akun tersebut menolak request dengan
   `insufficient_quota` / `credit_balance_exhausted`. Project owner kemudian
   menambahkan `OPENROUTER_DEEPSEEK`; bounded function-call dan strict structured

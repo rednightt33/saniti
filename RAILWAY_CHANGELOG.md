@@ -2,6 +2,17 @@
 
 This file records intentional changes to the Railway project. Git history preserves every revision. Never include secret values.
 
+## 2026-09-14 — Deploy per-model-call audit and global conditional QC
+
+- Added five non-secret `market-ai-backend` variables without exposing their values as secrets: `AI_CUMULATIVE_COMPACTION_THRESHOLD_PERCENT`, `AI_STORE_REASONING_DETAILS`, `AI_REASONING_RETENTION_DAYS`, `AI_REASONING_MAX_BYTES_PER_CALL`, and `AI_REASONING_CLEANUP_INTERVAL_SECONDS`. Database/query, Analytics Worker, 64k active-context, 100k cumulative-input, 12k cumulative-output, 32-call, and 20-iteration ceilings were not increased.
+- Git commit `fe8cb06` deployed as `97f4892d-ff28-4d47-85f4-eaf18f9a9f7b` and reached `SUCCESS`; startup completed and private `/health` returned HTTP 200. It added per-provider-call audit, 75%-cumulative-input semantic compaction, bounded reasoning retention, and global conditional/scoped QC behavior.
+- First post-deploy streak smoke `56cf2a0c-76f0-483c-9e84-ff7e2780227d` completed seven successful data tools but failed at iteration 5 because DeepSeek returned truncated `record_evidence` JSON. The database and query results were valid. Audit rows captured per-call usage/reasoning without storing credentials.
+- Commit `baadbff` made malformed provider tool arguments recoverable and stored only argument length/SHA-256 in failed-step audit, not partial content. Deployment `4d49e4a1-afdd-4abb-b92b-974edc63eb09` reached `SUCCESS`; startup and private `/health` HTTP 200 passed.
+- Identical rerun `9ad62d13-cc26-492c-8f3a-769d9d4e3741` completed `SUCCESS`/`FINAL` in 8 iterations and 9 tool calls with 68,273 input tokens, 4,166 output tokens, 72,439 combined tokens, and 15,688 peak active-context tokens. It created exactly eight retry-safe `Analysis_Model_Call` rows; per-call reasoning formats/token usage/tool-family stages and 30-day expiry were populated where the provider supplied them. No broad 2015–2026 QC scan ran.
+- Live backend verification PASS, Feature Catalog semantic audit PASS at 91/91 calculation-verified definitions, and deterministic Golden Test run `5d2a8f03-58af-4807-ae8e-7dc4ab5f1491` passed 16/16. Local application tests passed 41/41.
+- After `config pull --force`, the first IaC plan repeated the known false CLI-version failure because Node resolved PowerShell `_` rather than the verified CLI. Setting `_` to the actual Railway 5.54.1 executable made `config plan` report `dev` fully up to date. No certificate verification was disabled.
+- No secret value, provider/model, Feature value/formula, Feature 2 v2 activation, schedule, volume, endpoint, or unrelated Railway service changed.
+
 ## 2026-09-14 — Deploy generic condition-run screening and compact semantic preflight
 
 - Added only two non-secret `market-ai-backend` limits: `CONDITION_RUNS_MAX_DATE_RANGE_DAYS=7305` and `CONDITION_RUNS_MAX_EPISODES=200`. Existing ticker, estimated-row, timeout, backend-byte, LLM-result, cumulative-token, and context limits remain independent and unchanged.
