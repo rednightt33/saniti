@@ -82,6 +82,26 @@ deviation cases, not invalid values. The physical table and `Column_Catalog` bot
 38 columns. Independent BBCA recalculation remains PASS for all 31 calculated fields
 for both Domestic and Foreign samples.
 
+An additional deterministic cross-range sample checked 12 ticker/broker/date keys:
+one key for every combination of the four worker ranges and the three Market Boards.
+Both Domestic and Foreign were recalculated from `IDX_Broker_Summary` for each key,
+covering BBTN, ADRO, BNBR-R, GOTO, COCO-R, LSIP, KOTA, PADI-R, YULE, SWID, and
+RMKO-R. All 744 numeric comparisons and all 24 current broker-classification joins
+passed; the largest floating-point difference was `8.88e-16`.
+
+Four targeted edge samples added 124 independent numeric comparisons, all PASS:
+
+- AADI/AI/Foreign/Regular had only 2 active days in a complete 20-ticker-date
+  window. Its independently recalculated `net_value_20d` was `-509582500`, matching
+  storage and confirming that the other ticker transaction dates contribute zero.
+- AADI/DP/Domestic/Nego had zero historical standard deviation: the expected and
+  stored 20D/60D z-scores were `NULL` and their empirical-midrank percentiles were
+  `50`.
+- NSSS/TP/Domestic/Regular independently passed a complete 60-date calculation,
+  including rolling value, z-score, percentile, activity-day, and concentration fields.
+- The Tunai samples with fewer than 20 ticker transaction dates correctly retained
+  `NULL` 20D/60D fields while their available 5D and 1D values matched raw data.
+
 One initial monolithic reconciliation query exhausted PostgreSQL temporary space and
 was cancelled without changing data. Re-running the same logical validation in four
 disjoint, read-only, per-ticker streams completed in about seven minutes without temp-
