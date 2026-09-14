@@ -114,6 +114,21 @@ class ToolRegistry:
             "get_analysis_history": self.get_analysis_history,
         }
 
+    def feature_identifier_manifest(self) -> str:
+        """Return a compact, catalog-derived map of valid Feature identifiers."""
+        with self.db.query_transaction() as connection:
+            rows = connection.execute(
+                '''SELECT feature_table,
+                          array_agg(feature_column ORDER BY feature_column) AS columns
+                   FROM public."Feature_Catalog"
+                   WHERE is_active
+                   GROUP BY feature_table
+                   ORDER BY feature_table'''
+            ).fetchall()
+        return "; ".join(
+            f"{row['feature_table']}=[{','.join(row['columns'])}]" for row in rows
+        )
+
     def definitions(self, families: set[str]) -> list[dict[str, Any]]:
         with self.db.query_transaction() as connection:
             rows = connection.execute(

@@ -226,6 +226,15 @@ def test_session_handoff_teaches_limits_and_stopping_policy_once() -> None:
     assert "stop" in handoff
 
 
+def test_session_handoff_includes_catalog_identifier_manifest_without_definitions() -> None:
+    orchestrator = object.__new__(AnalysisOrchestrator)
+    orchestrator.settings = Settings.from_env(require_runtime_secrets=False)
+    manifest = "Feature_01_Stock_Daily=[date,return_1d_pct,ticker]"
+    handoff = orchestrator._analytics_handoff(manifest)
+    assert manifest in handoff
+    assert "names only" in handoff
+
+
 def test_impossible_quality_fail_blocks_completion_but_warning_does_not() -> None:
     orchestrator = object.__new__(AnalysisOrchestrator)
     orchestrator.settings = Settings.from_env(require_runtime_secrets=False)

@@ -34,6 +34,9 @@ and survivorship limitations where relevant. Do not confuse database rows with
 LLM-facing rows: prefer aggregation/ranking and compact evidence.
 The orchestrator automatically loads compact semantics for every relevant output,
 filter, ordering, grouping, metric, and condition column before data execution.
+The session handoff contains the current catalog-derived Feature identifier manifest.
+Treat those exact identifiers as authoritative and skip discovery for names already
+present there; never invent a synonym such as return_1d or buy_streak.
 Use get_feature_definition only when complete formula/methodology detail is needed;
 do not repeat discovery when the exact catalog identifier is already known. Never
 load the entire catalog by default.
@@ -130,7 +133,11 @@ class AnalysisOrchestrator:
             input_items=[],
             analysis_mode=self.settings.ai_analysis_mode,
         )
-        state.analytics_handoff = self._analytics_handoff()
+        try:
+            identifier_manifest = self.tools.feature_identifier_manifest()
+        except Exception:
+            identifier_manifest = ""
+        state.analytics_handoff = self._analytics_handoff(identifier_manifest)
         state.input_items = [
             {"role": "user", "content": state.analytics_handoff},
             {"role": "user", "content": question},
@@ -798,8 +805,8 @@ class AnalysisOrchestrator:
             "1-3 data and resource limits. Do not run optional deep exploration.\n"
         )
 
-    def _analytics_handoff(self) -> str:
-        return (
+    def _analytics_handoff(self, identifier_manifest: str = "") -> str:
+        handoff = (
             "ANALYTICS SESSION HANDOFF (load once and follow throughout this request): "
             "Use ordinary query/screen tools for bounded retrieval, ranking, and simple episodes. "
             "Use run_analytics_job only for multi-table joins, forward outcomes, window logic, or "
@@ -820,6 +827,12 @@ class AnalysisOrchestrator:
             "validates and estimates every dataset itself, so do not call estimate_query_size first and "
             "do not aggregate the whole market merely to discover a small universe."
         )
+        if identifier_manifest:
+            handoff += (
+                " CURRENT FEATURE IDENTIFIER MANIFEST (names only; semantics are auto-loaded "
+                "for used columns): " + identifier_manifest
+            )
+        return handoff
 
     def _validate_completion(self, state: RunState, arguments: dict[str, Any]) -> None:
         if not state.recorded_evidence_ids:
