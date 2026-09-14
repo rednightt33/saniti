@@ -22,11 +22,11 @@ The initial `Table_Catalog` scope was exactly these eleven existing tables:
 
 The scope subsequently added `Feature_Calculation_Queue`, `Feature_Status`, and `Feature_Calculation_Log`. They are `System` control tables, not calculated Feature-output tables; they do not require formula entries in `Feature_Catalog`. The price trigger and worker implementation are recorded in their `Table_Catalog.related_functions` and `source_code_paths`. The Railway worker deployment and one live re-ingestion succeeded; catalog entries still marked `PARTIAL` retain that evidence grade until separately reviewed and promoted.
 
-`Feature_02_Broker_Rolling` is an approved, validated Feature-output table. It added one `Table_Catalog` entry, 38 `Column_Catalog` entries, and 38 active `Feature_Catalog` `v1` definitions after its full backfill passed validation. Its three board partitions and ticker transaction-date calendar are explained in `FEATURE_02_BROKER_ROLLING.md`.
+`Feature_02_Broker_Rolling` is the approved, validated Investor-Type v2 output table. It has one `Table_Catalog` entry, 38 verified `Column_Catalog` entries, and 38 active `Feature_Catalog` `v2` definitions. The 38 historical v1 definitions remain inactive. `investor_type` is copied from the broker-summary row, not inferred from broker domicile. Its board/type partitions and ticker transaction-date calendar are explained in `FEATURE_02_BROKER_ROLLING_V2.md`.
 
 `Feature_03_Stock_Broker_Daily` is also approved and validated. It adds one table entry, 24 verified column entries, and 24 active `Feature_Catalog` `v1` definitions. Its grain is date, source ticker, and market board; Regular, Nego, and Tunai never mix. Two safe Feature 03 join contracts are registered in `Feature_Relationship_Catalog`. See `FEATURE_03_STOCK_BROKER_DAILY.md`.
 
-The market-AI foundation adds `Feature_Relationship_Catalog`, `Tool_Catalog`, four analysis audit tables, and three Golden Test tables. Release 2 adds `Analytics_Dataset_Snapshot` and `Analytics_Job`. The current live scope is 28 registered tables and 533 registered physical columns across those tables; together with the three explicit catalog/status exclusions, PostgreSQL has 31 public tables. `Tool_Catalog` exposes deterministic `route_analysis`, one generic query-sandbox surface, and one generic statistical-validation surface rather than a tool per ticker or investment question. Feature 3 usage metadata explicitly permits board/ticker/date grouping and only type-appropriate aggregations.
+The market-AI foundation adds `Feature_Relationship_Catalog`, `Tool_Catalog`, four analysis audit tables, and three Golden Test tables. Release 2 adds `Analytics_Dataset_Snapshot` and `Analytics_Job`. After the Feature 02 v2 cutover, the live scope has 27 registered tables and 495 registered physical columns; together with the three explicit catalog/status exclusions, PostgreSQL has 30 public tables. `Tool_Catalog` exposes deterministic `route_analysis`, one generic query-sandbox surface, and one generic statistical-validation surface rather than a tool per ticker or investment question. Feature 3 usage metadata remains on its existing broker-domicile v1 meaning until its separate redesign.
 
 ## Complete public-table documentation map
 
@@ -45,8 +45,7 @@ column/constraint/index reference for every row below.
 | `Column_Catalog` | Physical and semantic column inventory | This document |
 | `Database_Table_Status` | Operational table freshness/change status | This document; deliberately not a semantic-catalog target |
 | `Feature_01_Stock_Daily` | Daily price-derived stock features | `FEATURE_01_AUTOMATION_PLAN.md` |
-| `Feature_02_Broker_Rolling` | Canonical broker rolling features by stock/broker/board/date | `FEATURE_02_BROKER_ROLLING.md` |
-| `Feature_02_Broker_Rolling_v2` | Unreleased Investor-Type-preserving shadow | `FEATURE_02_BROKER_ROLLING_V2.md` |
+| `Feature_02_Broker_Rolling` | Canonical broker rolling features by stock/broker/Investor Type/board/date | `FEATURE_02_BROKER_ROLLING_V2.md` |
 | `Feature_03_Stock_Broker_Daily` | Stock/day/board broker breadth and flow features | `FEATURE_03_STOCK_BROKER_DAILY.md` |
 | `Feature_Calculation_Log` | Completed Feature 01 worker attempts and retries | `apps/feature-01-worker/README.md` |
 | `Feature_Calculation_Queue` | Durable changed-price work items for Feature 01 | `apps/feature-01-worker/README.md` |
@@ -117,7 +116,7 @@ ORDER BY feature_column;
 SELECT feature_column, calculation, minimum_history, null_rule
 FROM public."Feature_Catalog"
 WHERE feature_table = 'Feature_02_Broker_Rolling'
-  AND version = 'v1' AND is_active
+  AND version = 'v2' AND is_active
 ORDER BY feature_column;
 
 -- Feature 03 validated active definitions:

@@ -1,5 +1,16 @@
 # Database changelog
 
+## 2026-09-14 — Feature 02 Investor-Type v2 cutover and v1 storage removal
+
+- Applied `20260914_043_cutover_feature_02_investor_type.sql` to Railway project `8aef1702-030b-49cb-9df7-5ac2e0a42691`, environment `dev`, Postgres service. The migration first passed a rollback-only dry run. It promoted the validated shadow to canonical `Feature_02_Broker_Rolling`, deactivated 38 v1 Feature Catalog definitions, activated 38 v2 definitions, reconciled Table/Column/Relationship catalogs, granted `market_ai_reader` SELECT, and dropped the old 42,598,713-row v1 table with `RESTRICT` (no `CASCADE`).
+- Readback PASS: canonical v2 has 45,229,673 rows, 38 physical and cataloged columns, key `(ticker, market_board, broker, investor_type, date)`, no `broker_type` column, no shadow table, and two active v2 relationship contracts. Database size decreased from approximately 36 GB to 23 GB before the new daily index.
+- The existing Feature 3 refresh routine was made compatibility-safe by summing Feature 02 investor types per broker before its existing broker-level formulas. A BBCA/2026-08-31 two-board refresh returned exactly the previous stored values; the test transaction was rolled back. **Feature 3 data were not deleted, rebuilt, or redefined.** Its Domestic/Foreign columns still use current broker-profile domicile; source-Investor-Type Feature 3 is a separate future project.
+- Applied `20260914_044_clarify_feature_02_v2_catalog.sql` to clarify positive/negative daily net meanings, the canonical materialization timestamp, and explicit Investor-Type source/partition notes. All 91 active semantic definitions audited PASS: Feature 1 = 29, Feature 2 v2 = 38, Feature 3 v1 = 24. Physical catalog reconciliation PASS at 495 columns.
+- Retired v1 backfill and validation scripts now fail before modifying data on the v2 schema. `scripts/backfill_feature_02_v2.py` and `scripts/validate_feature_02_v2_sample.py` target the canonical name; Feature 02 refresh remains manual, not automatic.
+- Post-cutover BBCA/AK/Regular/2026-08-31 sample PASS: exact source reconciliation had zero missing, extra, or 1D mismatches for the ticker; all 31 independently recalculated fields passed for both Domestic and Foreign (62 comparisons, maximum floating difference `3.33e-16`).
+- Bounded pre-index plan for a single Regular-board date read 1,416,602 shared buffers via parallel sequential scan and took 2,136.7 ms. Applied `20260914_045_index_feature_02_v2_daily_reads.sql` to restore `(date, market_board, ticker)` for daily cross-ticker access. The post-index query used an index-only scan, 1,325 shared buffers, and 67.0 ms; the index is 378 MB. Database size remained about 23 GB, well below the pre-cutover ~36 GB.
+- Applied `20260914_046_record_feature_02_cutover_status.sql` to record the Feature 02 cutover timestamp in `Database_Table_Status` and add the compatibility routine migration to Feature 3's code provenance. Reconciled all 495 physical catalog columns and regenerated `DATABASE_SCHEMA.md` for 30 public tables.
+
 ## 2026-09-14 — Separate query sandbox and statistical validation queues
 
 - Applied forward-only migration `20260914_041_split_query_and_statistical_workers.sql` to Railway PostgreSQL `Postgres` in `dev`.

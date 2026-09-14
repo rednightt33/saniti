@@ -1,12 +1,14 @@
-# Feature 02 v2 — Investor-Type shadow rebuild
+# Feature 02 v2 — canonical Investor-Type broker rolling signals
 
 ## Current status
 
-`public."Feature_02_Broker_Rolling_v2"` is a fully backfilled and source-reconciled,
-but still unreleased, shadow table. The canonical `Feature_02_Broker_Rolling` remains
-production-active and unchanged. Do not use the shadow for production AI analysis
-until the remaining calculation review, atomic cutover, Feature 3 rebuild, and
-Feature Catalog v2 activation all pass.
+`public."Feature_02_Broker_Rolling"` is the fully backfilled, source-reconciled
+canonical v2 table. Migration `20260914_043_cutover_feature_02_investor_type.sql`
+promoted the shadow transactionally, activated all 38 Feature Catalog v2 definitions,
+deactivated v1, and dropped the redundant v1 heap without `CASCADE`. The old shadow
+name no longer exists. `market_ai_reader` has SELECT on the canonical v2 table.
+Feature 3 still has its old broker-domicile meaning; a source-Investor-Type Feature 3
+redesign and full rebuild are explicitly a later stage.
 
 ## Corrected semantic grain
 
@@ -39,21 +41,31 @@ The 20D and 60D z-scores and empirical-midrank percentiles use the preceding 252
 complete rolling observations in the same partition and exclude the current date.
 For example, a Domestic AK flow and a Foreign AK flow for BBCA are separate histories.
 
-## Shadow operation
+## Current operation and migration history
 
 Migration `database/migrations/20260914_034_create_feature_02_investor_type_shadow.sql`
-creates the table without changing the canonical Feature 2. Migration
+created the original shadow without changing the former canonical Feature 2. Migration
 `database/migrations/20260914_036_register_feature_02_shadow_columns.sql` registers it
 as `System` staging infrastructure with `PARTIAL` table/column documentation status.
+The cutover migration `20260914_043_cutover_feature_02_investor_type.sql` retired that
+staging identity and registered canonical v2 as `Feature`/`VERIFIED`. The follow-up
+`20260914_044_clarify_feature_02_v2_catalog.sql` sharpened signed-net and timestamp
+definitions; no formula or stored row changed.
+`20260914_045_index_feature_02_v2_daily_reads.sql` restores the daily cross-ticker
+`(date, market_board, ticker)` index. A bounded Regular-board date query improved
+from a 2,136.7 ms parallel heap scan to a 67.0 ms index-only scan; its index is 378 MB.
 
-`scripts/backfill_feature_02_v2.py` performs SQL-side, resumable per-ticker backfill.
+`scripts/backfill_feature_02_v2.py` now targets the canonical table and performs SQL-side,
+resumable per-ticker backfill. For an existing ticker corrected upstream, use
+`--ticker SYMBOL --rebuild-ticker`; a plain rerun skips already-loaded tickers. This
+is not an automatic refresh worker. Do not run retired `scripts/backfill_feature_02.py`.
 It does not load the raw history into Python RAM. A controlled test is:
 
 ```powershell
 python scripts/backfill_feature_02_v2.py --host <proxy-host> --port <proxy-port> --ticker BBCA
 ```
 
-`scripts/validate_feature_02_v2_sample.py` reconciles all 1D source rows for the test
+`scripts/validate_feature_02_v2_sample.py` targets the canonical table and reconciles all 1D source rows for the test
 ticker and independently recalculates all 31 numeric/window fields for Domestic and
 Foreign samples.
 
@@ -70,7 +82,7 @@ The four disjoint half-open ticker ranges completed successfully on 2026-09-14:
 | **Total** | **4,125** | **45,229,673** |
 
 Full ticker-by-ticker source reconciliation returned 45,229,673 source groups and
-45,229,673 shadow rows, with zero missing rows, zero extra rows, and zero 1D value or
+45,229,673 v2 rows, with zero missing rows, zero extra rows, and zero 1D value or
 lot mismatches. The table covers 2016-01-04 through 2026-08-31, contains 40,737,689
 Domestic and 4,491,984 Foreign rows, and preserves Regular, Nego, and Tunai separately.
 
@@ -107,19 +119,15 @@ was cancelled without changing data. Re-running the same logical validation in f
 disjoint, read-only, per-ticker streams completed in about seven minutes without temp-
 disk pressure and produced the zero-difference result above.
 
-## Activation gate
+## Cutover verification and downstream boundary
 
-Do not rename or activate the shadow until all of the following pass:
-
-1. Full source coverage and exact 1D reconciliation.
-2. Duplicate, constraint, NULL-boundary, board, and Investor Type checks.
-3. Independent Domestic and Foreign samples across all boards and edge cases.
-4. Full rolling-window, z-score, percentile, and performance validation.
-5. Complete Feature Catalog v2 definitions for all 38 canonical columns, including
-   exact formula, source columns, grain, partition keys, units, null rules, examples,
-   analytical interpretation, recommended use, misuse warning, and validation evidence.
-6. Reviewed atomic cutover migration and downstream Feature 3 rebuild plan.
-
-At cutover, v1 catalog definitions are deactivated, the validated v2 definitions are
-activated against the canonical table name, and the legacy table is retained temporarily
-for rollback. No destructive legacy-table deletion is implicit in the cutover.
+The pre-cutover full source reconciliation, independent sampling, constraints, and
+rolling-boundary checks above passed. The cutover migration was executed once in a
+rollback-only dry run before permanent application. Post-cutover readback found
+45,229,673 canonical rows, the five-column primary key including `investor_type`,
+38 active v2 definitions, 38 inactive historical v1 definitions, and no shadow table.
+PostgreSQL database size fell from approximately 36 GB to 23 GB. A transactionally
+rolled-back BBCA/2026-08-31 Feature 3 refresh reproduced both existing board rows
+exactly, confirming compatibility with its old broker-level semantics. Feature 3
+data were not rebuilt and its Domestic/Foreign columns remain broker-profile-based,
+not source-Investor-Type-based; that redesign is separate.

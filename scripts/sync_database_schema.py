@@ -32,8 +32,7 @@ TABLE_STATUS_RULES = {
     "Analytics_Dataset_Snapshot": ("System", "Per bounded analytics input; remove private object after terminal grace or expiry"),
     "Analytics_Job": ("System", "Per generic analytics submission, lease, result, or failure"),
     "Feature_01_Stock_Daily": ("Feature", "After validated daily-price changes"),
-    "Feature_02_Broker_Rolling": ("Feature", "After validated broker-summary changes; manual backfill in v1"),
-    "Feature_02_Broker_Rolling_v2": ("Feature", "Unreleased shadow rebuild; no production refresh or AI cutover"),
+    "Feature_02_Broker_Rolling": ("Feature", "After validated broker-summary changes; manual v2 ticker rebuild"),
     "Feature_03_Stock_Broker_Daily": ("Feature", "After Feature 02 refresh; manual refresh in v1"),
     "Feature_Calculation_Queue": ("System", "After committed price inserts/updates and worker transitions"),
     "Feature_Status": ("System", "After enqueue and worker state transitions"),
@@ -79,8 +78,7 @@ TABLE_DESCRIPTIONS = {
     "Analytics_Dataset_Snapshot": "Metadata, checksum, limits, provenance, and retention state for immutable private analytical input snapshots.",
     "Analytics_Job": "Durable lease queue and compact result for isolated generic analytical computation.",
     "Feature_01_Stock_Daily": "Daily ticker-level price, return, volatility, volume, and price-position features.",
-    "Feature_02_Broker_Rolling": "Broker flow, persistence, abnormality, and accumulation by source ticker, broker, board, and transaction date.",
-    "Feature_02_Broker_Rolling_v2": "Unreleased Investor-Type-preserving Feature 02 shadow used only for staged rebuild and validation.",
+    "Feature_02_Broker_Rolling": "Broker flow, persistence, abnormality, and accumulation by source ticker, broker, Investor Type, board, and transaction date.",
     "Feature_03_Stock_Broker_Daily": "Stock-level daily broker breadth, classified flow, dominant-broker, and concentration features separated by market board.",
     "Feature_Calculation_Queue": "Durable work item per changed Feature 01 source candle.",
     "Feature_Status": "Current price-driven Feature 01 calculation state per ticker.",
@@ -538,7 +536,7 @@ def derive_status_rows(
             if name == "Feature_01_Stock_Daily":
                 tracking_status = "Derived from Price_Stock_Indonesia_IDX"
             elif name == "Feature_02_Broker_Rolling":
-                tracking_status = "Derived from IDX_Broker_Summary; Feature 02 refresh is manual"
+                tracking_status = "Derived from IDX_Broker_Summary; Investor-Type Feature 02 v2 refresh is manual"
             else:
                 tracking_status = "Derived from Feature_02_Broker_Rolling; Feature 03 refresh is manual"
         elif name == "Feature_Calculation_Queue":

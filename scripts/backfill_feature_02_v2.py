@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SQL-side resumable backfill for the Investor-Type-preserving Feature 02 shadow."""
+"""SQL-side resumable backfill for canonical Investor-Type Feature 02 v2."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from datetime import date
 import psycopg
 
 
-TARGET = 'public."Feature_02_Broker_Rolling_v2"'
+TARGET = 'public."Feature_02_Broker_Rolling"'
 
 CREATE_TEMP = """
 CREATE TEMP TABLE feature_02_v2_daily_base (
@@ -226,7 +226,12 @@ def main() -> None:
         db.execute("SET work_mem = '64MB'")
         db.execute("SET maintenance_work_mem = '256MB'")
         if db.execute(f"SELECT to_regclass('{TARGET}')").fetchone()[0] is None:
-            raise RuntimeError("Feature 02 v2 shadow migration is not applied")
+            raise RuntimeError("Canonical Feature 02 table is missing")
+        if not db.execute(
+            "SELECT 1 FROM information_schema.columns WHERE table_schema='public' "
+            "AND table_name='Feature_02_Broker_Rolling' AND column_name='investor_type'"
+        ).fetchone():
+            raise RuntimeError("Canonical Feature 02 is not the Investor-Type v2 schema")
         db.execute(CREATE_TEMP)
         bounds = db.execute(
             'SELECT min("Date"), max("Date") FROM public."IDX_Broker_Summary"'
@@ -265,7 +270,7 @@ def main() -> None:
             with db.transaction():
                 db.execute(
                     "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
-                    ("Feature_02_Broker_Rolling_v2:" + ticker,),
+                    ("Feature_02_Broker_Rolling:" + ticker,),
                 )
                 if not args.rebuild_ticker and db.execute(
                     f"SELECT 1 FROM {TARGET} WHERE ticker=%s LIMIT 1", (ticker,)

@@ -59,6 +59,14 @@ def main() -> None:
         password=os.environ["PGPASSWORD"], sslmode="require",
         application_name="feature-02-sample-check", autocommit=True,
     ) as db:
+        if db.execute(
+            "SELECT 1 FROM information_schema.columns WHERE table_schema='public' "
+            "AND table_name='Feature_02_Broker_Rolling' AND column_name='investor_type'"
+        ).fetchone():
+            raise RuntimeError(
+                "This sample checker assumes merged investor types and is retired for v2; "
+                "use scripts/validate_feature_02_v2_sample.py"
+            )
         db.execute("SET statement_timeout = '10min'")
         days = [row[0] for row in db.execute(
             'SELECT DISTINCT "Date" FROM public."IDX_Broker_Summary" '

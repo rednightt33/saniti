@@ -95,6 +95,14 @@ def main() -> None:
         password=os.environ["PGPASSWORD"], sslmode="require",
         application_name="feature-02-validation", autocommit=True,
     ) as db:
+        if db.execute(
+            "SELECT 1 FROM information_schema.columns WHERE table_schema='public' "
+            "AND table_name='Feature_02_Broker_Rolling' AND column_name='investor_type'"
+        ).fetchone():
+            raise RuntimeError(
+                "This validator assumes merged investor types and is retired for v2; "
+                "use scripts/validate_feature_02_v2_sample.py"
+            )
         db.execute("SET statement_timeout = '30min'")
         db.execute("SET work_mem = '64MB'")
         db.execute("""

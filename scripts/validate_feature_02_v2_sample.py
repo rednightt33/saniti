@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate a shadow ticker and independently recalculate both Investor Types."""
+"""Validate canonical Feature 02 and independently recalculate both Investor Types."""
 
 from __future__ import annotations
 
@@ -159,7 +159,7 @@ def main() -> None:
                    count(*) FILTER (WHERE s.date IS NOT NULL AND f.date IS NOT NULL
                      AND (s.buy_value_1d<>f.buy_value_1d OR s.sell_value_1d<>f.sell_value_1d
                        OR s.buy_lots_1d<>f.buy_lots_1d OR s.sell_lots_1d<>f.sell_lots_1d)) AS mismatch
-            FROM source s FULL JOIN public."Feature_02_Broker_Rolling_v2" f
+            FROM source s FULL JOIN public."Feature_02_Broker_Rolling" f
               USING (date,ticker,broker,investor_type,market_board)
             WHERE coalesce(s.ticker,f.ticker)=%s
             ''', (args.ticker, args.ticker),
@@ -169,7 +169,7 @@ def main() -> None:
         print(f"ticker_reconciliation={dict(reconciliation)} "
               f"{'PASS' if reconciliation_pass else 'FAIL'}")
         types = [row["investor_type"] for row in db.execute(
-            '''SELECT DISTINCT investor_type FROM public."Feature_02_Broker_Rolling_v2"
+            '''SELECT DISTINCT investor_type FROM public."Feature_02_Broker_Rolling"
                WHERE ticker=%s AND broker=%s AND market_board=%s AND date=%s
                ORDER BY investor_type''',
             (args.ticker, args.broker, args.board, args.date),
@@ -179,7 +179,7 @@ def main() -> None:
                 db, args.ticker, args.broker, investor_type, args.board, args.date
             )
             stored = db.execute(
-                'SELECT * FROM public."Feature_02_Broker_Rolling_v2" '
+                'SELECT * FROM public."Feature_02_Broker_Rolling" '
                 'WHERE ticker=%s AND broker=%s AND investor_type=%s '
                 'AND market_board=%s AND date=%s',
                 (args.ticker, args.broker, investor_type, args.board, args.date),

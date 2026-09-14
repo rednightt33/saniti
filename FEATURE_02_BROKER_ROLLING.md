@@ -1,9 +1,9 @@
-# Feature 02 — broker rolling signals
+# Feature 02 v1 — historical implementation (retired)
 
-> Correction in progress (2026-09-14): the production table documented below combines
-> source Investor Types. The unreleased `Feature_02_Broker_Rolling_v2` shadow preserves
-> Domestic and Foreign Investor Type as separate rows. The canonical table remains v1
-> until the shadow passes full validation and atomic cutover. See
+> This document records the deleted v1 design for audit only. On 2026-09-14, validated
+> Investor-Type v2 replaced the canonical table and the v1 heap was dropped to reclaim
+> storage. Do not run the v1 backfill/validation scripts below; they fail closed on v2.
+> Current operations and definitions are in
 > [`FEATURE_02_BROKER_ROLLING_V2.md`](FEATURE_02_BROKER_ROLLING_V2.md).
 
 `Feature_02_Broker_Rolling` uses every symbol present in `IDX_Broker_Summary`, including warrants and other instruments absent from the current `IDX_Stock_Universe`. The physical key is `(ticker, market_board, broker, date)`. `Regular`, `Nego`, and `Tunai` are separate market-board partitions; values never combine boards. To analyze regular-market flows, filter `market_board = 'Regular'` explicitly.

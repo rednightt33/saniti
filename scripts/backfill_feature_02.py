@@ -232,6 +232,14 @@ def main() -> None:
             "SELECT to_regclass('public.\"Feature_02_Broker_Rolling\"')"
         ).fetchone()[0] is None:
             raise RuntimeError("Feature 02 migration is not applied")
+        if db.execute(
+            "SELECT 1 FROM information_schema.columns WHERE table_schema='public' "
+            "AND table_name='Feature_02_Broker_Rolling' AND column_name='investor_type'"
+        ).fetchone():
+            raise RuntimeError(
+                "This v1 backfill is retired after the Investor-Type cutover; "
+                "use scripts/backfill_feature_02_v2.py instead"
+            )
         db.execute(CREATE_TEMP)
         bounds = db.execute(
             'SELECT min("Date"), max("Date") FROM public."IDX_Broker_Summary"'
