@@ -50,6 +50,12 @@ explicit usage accounting. `AI_PROVIDER=openai` targets the OpenAI endpoint;
 `deepseek/deepseek-v4.1-flash`. Arbitrary base URLs and silent cross-provider
 fallback are not allowed.
 
+If a provider nevertheless returns truncated or malformed tool-argument JSON,
+the backend stores only its length/hash in the failed step audit and returns a
+recoverable instruction to resend one complete schema-valid call. Partial raw
+arguments are not copied to logs, and a single formatting deviation no longer
+terminates the durable analysis immediately.
+
 Provider-returned reasoning is stored only when actually supplied, capped by
 `AI_REASONING_MAX_BYTES_PER_CALL`, and cleared after
 `AI_REASONING_RETENTION_DAYS`. The worker runs an idempotent bounded cleanup on

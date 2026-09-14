@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import socket
 import threading
 import time
@@ -182,8 +183,12 @@ class AnalysisOrchestrator:
                 if state.tool_calls >= self.settings.ai_max_tool_calls:
                     raise RuntimeError("AI_MAX_TOOL_CALLS reached before sufficient evidence")
                 name = call["name"]
-                arguments = json.loads(call["arguments"])
-                result = self._execute_and_log(state, name, arguments)
+                try:
+                    arguments = json.loads(call["arguments"])
+                except (json.JSONDecodeError, TypeError) as exc:
+                    result = self._recover_malformed_tool_arguments(state, name, call, exc)
+                else:
+                    result = self._execute_and_log(state, name, arguments)
                 state.input_items.append({"type": "function_call_output", "call_id": call["call_id"], "output": dumps(result)})
         raise RuntimeError("AI_MAX_TOOL_ITERATIONS reached before final answer")
 
@@ -336,6 +341,34 @@ class AnalysisOrchestrator:
             if isinstance(exc, (ToolError, RuntimeError)):
                 return {"error": str(exc), "recoverable": isinstance(exc, ToolError)}
             raise
+
+    def _recover_malformed_tool_arguments(
+        self,
+        state: RunState,
+        name: str,
+        call: dict[str, Any],
+        exc: Exception,
+    ) -> dict[str, Any]:
+        state.tool_calls += 1
+        step_number = state.tool_calls + state.compactions
+        raw = call.get("arguments")
+        encoded = raw.encode("utf-8", errors="replace") if isinstance(raw, str) else b""
+        summary = {
+            "argument_characters": len(raw) if isinstance(raw, str) else 0,
+            "argument_sha256": hashlib.sha256(encoded).hexdigest(),
+            "recovery": "Ask the model to resend one complete schema-valid tool call.",
+        }
+        self._log_step(
+            state, step_number, name, summary, "FAILED",
+            result_summary={"reason": "malformed_tool_arguments"},
+            error=f"Invalid provider tool arguments: {type(exc).__name__}"[:1000],
+        )
+        self._persist_usage(state)
+        return {
+            "error": "Tool arguments were not complete valid JSON. Resend the call with every required field and valid JSON.",
+            "recoverable": True,
+            "tool_name": name,
+        }
 
     def _compact_context_if_needed(self, state: RunState) -> None:
         context = estimate_tokens({"instructions": self._instructions(state), "input": state.input_items, "tools": self.tools.definitions(state.families)})

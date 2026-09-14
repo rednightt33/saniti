@@ -227,3 +227,28 @@ def test_cumulative_pressure_triggers_context_compaction_once() -> None:
     assert state.cumulative_pressure_compacted is True
     orchestrator._compact_context_if_needed(state)
     assert state.compactions == 1
+
+
+def test_malformed_provider_tool_arguments_are_recoverable_and_not_stored_raw() -> None:
+    class FakeOrchestrator(AnalysisOrchestrator):
+        logged_arguments = None
+
+        def _log_step(self, _state, _step, _name, arguments, *_args, **_kwargs):
+            self.logged_arguments = arguments
+
+        def _persist_usage(self, _state):
+            return None
+
+    orchestrator = object.__new__(FakeOrchestrator)
+    state = RunState("request", "question", {"META"}, [])
+    raw = '{"claim":"unterminated'
+    result = orchestrator._recover_malformed_tool_arguments(
+        state,
+        "record_evidence",
+        {"arguments": raw},
+        ValueError("bad json"),
+    )
+    assert result["recoverable"] is True
+    assert state.tool_calls == 1
+    assert raw not in str(orchestrator.logged_arguments)
+    assert orchestrator.logged_arguments["argument_characters"] == len(raw)
