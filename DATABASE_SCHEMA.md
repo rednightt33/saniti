@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-14T04:59:54+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-14T07:39:52+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -12,8 +12,10 @@ Generated from PostgreSQL schema `public` at `2026-09-14T04:59:54+00:00`.
 | `Analysis_Model_Call` | System | One row after every provider model response; retained reasoning is purged by policy | — | `2026-09-14 03:49:36+00:00` | Baseline only | Per-provider-call audit containing usage, progressive tool exposure, a concise decision summary, and temporarily retained provider-returned reasoning. |
 | `Analysis_Request` | System | One lifecycle per submitted AI analysis | — | `2026-09-13 15:02:15+00:00` | Baseline only | Durable AI analysis request lifecycle, structured result, progressive tool exposure state, and token usage. |
 | `Analysis_Step_Log` | System | After each AI analysis tool or compaction step | — | `2026-09-13 15:02:15+00:00` | Baseline only | Audit record for every query, tool, compaction, or analytical step in an AI request. |
-| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-14 04:59:32.407872+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-14 04:59:54+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Analytics_Dataset_Snapshot` | System | Per bounded analytics input; remove private object after terminal grace or expiry | — | `2026-09-14 07:39:52+00:00` | Baseline only | Metadata and retention state for immutable bounded analytical input snapshots stored in a private Railway bucket. |
+| `Analytics_Job` | System | Per generic analytics submission, lease, result, or failure | — | `2026-09-14 07:39:52+00:00` | Baseline only | Durable generic analytics queue, lease, bounded resource contract, result and failure audit. |
+| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-14 07:39:51.769309+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-14 07:39:52+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
 | `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-11` | `2026-09-13 04:36:32.635545+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
 | `Feature_02_Broker_Rolling` | Feature | After validated broker-summary changes; manual backfill in v1 | `2026-08-31` | `2026-09-13 14:13:08+00:00` | Derived from IDX_Broker_Summary; Feature 02 refresh is manual | Validated broker flow, persistence, abnormality and quiet accumulation by source ticker, broker, board and transaction date. All source symbols are in scope. |
 | `Feature_02_Broker_Rolling_v2` | Feature | Unreleased shadow rebuild; no production refresh or AI cutover | — | `2026-09-14 00:45:03+00:00` | Baseline only | Unreleased shadow replacement for Feature 02 with source Investor Type preserved. It is staging infrastructure and must not be queried as a production Feature until full validation and atomic cutover. |
@@ -31,7 +33,7 @@ Generated from PostgreSQL schema `public` at `2026-09-14T04:59:54+00:00`.
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-12 13:34:43.352522+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
 | `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-13` | `2026-09-13 23:03:11.705924+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
 | `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-11` | `2026-09-13 04:36:30.538547+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
-| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-14 04:58:31.920923+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
+| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-14 07:25:04.145301+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
 | `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
 | `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-13 23:03:15.889903+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
 | `Tool_Catalog` | Reference | With each approved backend or analytics tool release | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned generic AI tool metadata, activation state, schemas, and advertised operational ceilings. |
@@ -254,6 +256,120 @@ Audit record for every query, tool, compaction, or analytical step in an AI requ
 | `Analysis_Step_Log_pkey` | `CREATE UNIQUE INDEX "Analysis_Step_Log_pkey" ON public."Analysis_Step_Log" USING btree (step_id)` |
 | `Analysis_Step_Log_request_idx` | `CREATE INDEX "Analysis_Step_Log_request_idx" ON public."Analysis_Step_Log" USING btree (request_id, step_number)` |
 | `Analysis_Step_Log_request_step_key` | `CREATE UNIQUE INDEX "Analysis_Step_Log_request_step_key" ON public."Analysis_Step_Log" USING btree (request_id, step_number)` |
+
+## Analytics_Dataset_Snapshot
+
+Metadata and retention state for immutable bounded analytical input snapshots stored in a private Railway bucket.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `snapshot_id` | `uuid` | No | `gen_random_uuid()` | Immutable snapshot metadata identifier. |
+| `request_id` | `uuid` | No | — | Analysis request that owns this snapshot or job. |
+| `object_key` | `text` | No | — | Private bucket path; never returned to the model. |
+| `content_sha256` | `text` | No | — | Checksum of exact compressed input bytes. |
+| `format` | `text` | No | — | Serialized snapshot format and compression contract. |
+| `row_count` | `integer` | No | — | Total observations across all snapshot datasets. |
+| `column_count` | `integer` | No | — | Sum of selected columns across snapshot datasets. |
+| `byte_count` | `integer` | No | — | Uncompressed serialized input size in bytes. |
+| `compressed_byte_count` | `integer` | No | — | Private object size in bytes. |
+| `schema_json` | `jsonb` | No | — | Dataset names and their exact ordered column names. |
+| `source_spec_json` | `jsonb` | No | — | Structured catalog-validated Feature query requests used to build the snapshot. |
+| `source_tables` | `ARRAY` | No | — | Exact Feature tables contributing observations. |
+| `query_hashes` | `ARRAY` | No | — | Reproducible hashes of controlled PostgreSQL reads. |
+| `analysis_ready_date` | `date` | Yes | — | Common safe source date supplied for this analysis. |
+| `status` | `text` | No | `'AVAILABLE'::text` | Current lifecycle state under the table-specific status constraint. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Row creation time. |
+| `expires_at` | `timestamp with time zone` | No | — | Deadline after which the private input object must be removed. |
+| `deleted_at` | `timestamp with time zone` | Yes | — | Time the private input object was confirmed deleted. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Analytics_Dataset_Snapshot_counts_check` | Check | `CHECK (row_count > 0 AND column_count > 0 AND byte_count > 0 AND compressed_byte_count > 0)` |
+| `Analytics_Dataset_Snapshot_expiry_check` | Check | `CHECK (expires_at > created_at)` |
+| `Analytics_Dataset_Snapshot_format_check` | Check | `CHECK (format = 'JSON_GZIP'::text)` |
+| `Analytics_Dataset_Snapshot_hash_check` | Check | `CHECK (content_sha256 ~ '^[0-9a-f]{64}$'::text)` |
+| `Analytics_Dataset_Snapshot_json_check` | Check | `CHECK (jsonb_typeof(schema_json) = 'object'::text AND jsonb_typeof(source_spec_json) = 'array'::text)` |
+| `Analytics_Dataset_Snapshot_status_check` | Check | `CHECK (status = ANY (ARRAY['AVAILABLE'::text, 'EXPIRED'::text, 'DELETED'::text]))` |
+| `Analytics_Dataset_Snapshot_request_id_fkey` | Foreign key | `FOREIGN KEY (request_id) REFERENCES "Analysis_Request"(request_id) ON DELETE CASCADE` |
+| `Analytics_Dataset_Snapshot_pkey` | Primary key | `PRIMARY KEY (snapshot_id)` |
+| `Analytics_Dataset_Snapshot_content_sha256_key` | Unique | `UNIQUE (content_sha256)` |
+| `Analytics_Dataset_Snapshot_object_key_key` | Unique | `UNIQUE (object_key)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Analytics_Dataset_Snapshot_content_sha256_key` | `CREATE UNIQUE INDEX "Analytics_Dataset_Snapshot_content_sha256_key" ON public."Analytics_Dataset_Snapshot" USING btree (content_sha256)` |
+| `Analytics_Dataset_Snapshot_expiry_idx` | `CREATE INDEX "Analytics_Dataset_Snapshot_expiry_idx" ON public."Analytics_Dataset_Snapshot" USING btree (expires_at, snapshot_id) WHERE (status = 'AVAILABLE'::text)` |
+| `Analytics_Dataset_Snapshot_object_key_key` | `CREATE UNIQUE INDEX "Analytics_Dataset_Snapshot_object_key_key" ON public."Analytics_Dataset_Snapshot" USING btree (object_key)` |
+| `Analytics_Dataset_Snapshot_pkey` | `CREATE UNIQUE INDEX "Analytics_Dataset_Snapshot_pkey" ON public."Analytics_Dataset_Snapshot" USING btree (snapshot_id)` |
+| `Analytics_Dataset_Snapshot_request_idx` | `CREATE INDEX "Analytics_Dataset_Snapshot_request_idx" ON public."Analytics_Dataset_Snapshot" USING btree (request_id, created_at DESC)` |
+
+## Analytics_Job
+
+Durable generic analytics queue, lease, bounded resource contract, result and failure audit.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `job_id` | `uuid` | No | `gen_random_uuid()` | Generic analytics job identifier. |
+| `request_id` | `uuid` | No | — | Analysis request that owns this snapshot or job. |
+| `snapshot_id` | `uuid` | No | — | Immutable snapshot metadata identifier. |
+| `job_label` | `text` | No | — | Stable per-request idempotency label chosen for one analytical hypothesis. |
+| `purpose` | `text` | No | — | Human-readable analytical question addressed by the job. |
+| `method` | `text` | No | — | Versioned safe execution surface; v1 is SAFE_DUCKDB_SQL. |
+| `analysis_spec_json` | `jsonb` | No | — | Bounded worker computation over named snapshot datasets. |
+| `status` | `text` | No | `'PENDING'::text` | Current lifecycle state under the table-specific status constraint. |
+| `attempt_count` | `smallint` | No | `0` | Number of successful worker lease claims. |
+| `max_attempts` | `smallint` | No | `3` | Retry ceiling after expired worker leases. |
+| `worker_id` | `text` | Yes | — | Ephemeral identifier of the worker holding the lease. |
+| `lease_token` | `uuid` | Yes | — | Random token required to complete or fail the current lease. |
+| `lease_expires_at` | `timestamp with time zone` | Yes | — | Expiry of the current worker lease. |
+| `max_runtime_seconds` | `integer` | No | — | Per-job worker execution timeout copied from configuration. |
+| `max_memory_mb` | `integer` | No | — | Per-job DuckDB memory ceiling copied from configuration. |
+| `max_result_rows` | `integer` | No | — | Maximum analytical result rows accepted by the backend. |
+| `max_result_bytes` | `integer` | No | — | Maximum serialized analytical result bytes accepted by the backend. |
+| `result_json` | `jsonb` | Yes | — | Compact successful result; never the full analytical input. |
+| `evidence_id` | `uuid` | Yes | — | Evidence record automatically created for a successful analytical job. |
+| `error_class` | `text` | Yes | — | Bounded machine-readable failure category. |
+| `error_message` | `text` | Yes | — | Bounded failure explanation without credentials or raw snapshot content. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Row creation time. |
+| `started_at` | `timestamp with time zone` | Yes | — | Time of first worker lease. |
+| `completed_at` | `timestamp with time zone` | Yes | — | Terminal completion, failure or cancellation time. |
+| `result_expires_at` | `timestamp with time zone` | No | — | Retention deadline for compact job result detail. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Last lifecycle update time. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Analytics_Job_attempts_check` | Check | `CHECK (attempt_count >= 0 AND max_attempts >= 1 AND max_attempts <= 10)` |
+| `Analytics_Job_lease_check` | Check | `CHECK (status = 'PROCESSING'::text AND worker_id IS NOT NULL AND lease_token IS NOT NULL AND lease_expires_at IS NOT NULL OR status <> 'PROCESSING'::text)` |
+| `Analytics_Job_limits_check` | Check | `CHECK (max_runtime_seconds > 0 AND max_memory_mb > 0 AND max_result_rows > 0 AND max_result_bytes > 0)` |
+| `Analytics_Job_method_check` | Check | `CHECK (method = 'SAFE_DUCKDB_SQL'::text)` |
+| `Analytics_Job_result_check` | Check | `CHECK (result_json IS NULL OR jsonb_typeof(result_json) = 'object'::text)` |
+| `Analytics_Job_spec_check` | Check | `CHECK (jsonb_typeof(analysis_spec_json) = 'object'::text)` |
+| `Analytics_Job_status_check` | Check | `CHECK (status = ANY (ARRAY['PENDING'::text, 'PROCESSING'::text, 'SUCCESS'::text, 'FAILED'::text, 'CANCELLED'::text]))` |
+| `Analytics_Job_terminal_check` | Check | `CHECK ((status = ANY (ARRAY['SUCCESS'::text, 'FAILED'::text, 'CANCELLED'::text])) AND completed_at IS NOT NULL OR (status = ANY (ARRAY['PENDING'::text, 'PROCESSING'::text])))` |
+| `Analytics_Job_evidence_id_fkey` | Foreign key | `FOREIGN KEY (evidence_id) REFERENCES "Analysis_Evidence"(evidence_id) ON DELETE SET NULL` |
+| `Analytics_Job_request_id_fkey` | Foreign key | `FOREIGN KEY (request_id) REFERENCES "Analysis_Request"(request_id) ON DELETE CASCADE` |
+| `Analytics_Job_snapshot_id_fkey` | Foreign key | `FOREIGN KEY (snapshot_id) REFERENCES "Analytics_Dataset_Snapshot"(snapshot_id) ON DELETE RESTRICT` |
+| `Analytics_Job_pkey` | Primary key | `PRIMARY KEY (job_id)` |
+| `Analytics_Job_request_label_key` | Unique | `UNIQUE (request_id, job_label)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Analytics_Job_claim_idx` | `CREATE INDEX "Analytics_Job_claim_idx" ON public."Analytics_Job" USING btree (status, created_at, lease_expires_at) WHERE (status = ANY (ARRAY['PENDING'::text, 'PROCESSING'::text]))` |
+| `Analytics_Job_pkey` | `CREATE UNIQUE INDEX "Analytics_Job_pkey" ON public."Analytics_Job" USING btree (job_id)` |
+| `Analytics_Job_request_idx` | `CREATE INDEX "Analytics_Job_request_idx" ON public."Analytics_Job" USING btree (request_id, created_at DESC)` |
+| `Analytics_Job_request_label_key` | `CREATE UNIQUE INDEX "Analytics_Job_request_label_key" ON public."Analytics_Job" USING btree (request_id, job_label)` |
 
 ## Column_Catalog
 

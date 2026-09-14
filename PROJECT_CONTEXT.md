@@ -23,6 +23,7 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - Telegram command service ID: `5a3f820c-2bb2-494b-b771-15fa6a5eb48a`
 - Telegram command service instance ID: `78bd93d5-f74a-42fb-ad25-2be856bbda07`
 - Market AI backend service: `market-ai-backend`
+- Isolated analytics worker service: `market-analytics-worker`
 - Market AI backend service ID: `2cefa0cd-c9fc-4b84-992e-fdf08535a064`
 - Dashboard: <https://railway.com/project/8aef1702-030b-49cb-9df7-5ac2e0a42691?environmentId=4d3e5af2-302b-4a2e-84e2-7d7476d6ff49>
 - GitHub: <https://github.com/rednightt33/saniti>
@@ -41,6 +42,7 @@ All application services deploy from `rednightt33/saniti` on branch `main`. Each
 | `telegram-trigger` | `/apps/telegram-trigger` | `/apps/telegram-trigger/**` |
 | `feature-01-worker` | `/apps/feature-01-worker` | `/apps/feature-01-worker/**` |
 | `market-ai-backend` | `/apps/market-ai-backend` | `/apps/market-ai-backend/**` |
+| `market-analytics-worker` | `/apps/market-analytics-worker` | `/apps/market-analytics-worker/**` |
 
 Connecting or changing a service source must preserve its environment variables and secrets, cron schedule, start command, health check, domain, private networking, restart/serverless policy, and database references. Source-configuration work must not use **Run now** on either price service and must not issue a TradingView query. Record the currently active deployment ID before each change so it remains available as the rollback reference, then wait for the new deployment to reach `SUCCESS` before changing the next service.
 
@@ -104,7 +106,8 @@ Telegram owner -> telegram-trigger webhook -> validate webhook secret and Chat I
 - `Feature_Calculation_Log`: completed calculation attempt and retry history. The Railway worker is deployed and a live re-ingestion test passed.
 - `Feature_Catalog`: machine-readable formula and semantic-governance layer for validated Feature columns. All 91 active `v1` definitions across Feature 01–03 include interpretation, recommended use, misuse warnings, semantic review status, and validation evidence; the backend requires relevant definitions to be loaded before data retrieval or aggregation.
 - `Feature_Relationship_Catalog`: safe join keys, cardinality, output grain, and preaggregation requirements between validated Feature tables.
-- `Tool_Catalog`: generic AI tool schemas, versions, activation state, and advertised database/worker/LLM-facing limits. Backend configuration remains the enforcement authority.
+- `Tool_Catalog`: generic AI tool schemas, versions, activation state, and advertised database/worker/LLM-facing limits. Backend configuration remains the enforcement authority. `run_analytics_job` is the single model-facing worker surface for bounded niche computation; method-specific SQL stays internal.
+- `Analytics_Dataset_Snapshot` / `Analytics_Job`: immutable short-lived Feature-only input provenance plus durable worker lease/result audit. The worker has no PostgreSQL or bucket credentials.
 - `Analysis_Request`, `Analysis_Model_Call`, `Analysis_Step_Log`, and `Analysis_Evidence`: durable request lifecycle, per-provider-call usage and bounded reasoning retention, progressive tool exposure, cumulative token/context usage, immutable version/methodology snapshot, compact steps, and reproducible claim evidence.
 - `Golden_Analysis_Test`, `Golden_Analysis_Test_Run`, and `Golden_Analysis_Test_Result`: permanent analytical regression expectations and historical outcomes across data correctness, methodology, safety, and token behavior.
 - `Table_Catalog`: curated purpose, grain, source, writer, and update contract for approved tables, including Feature 02 and Feature 03.

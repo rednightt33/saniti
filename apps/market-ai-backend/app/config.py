@@ -73,6 +73,29 @@ class Settings:
     ai_request_timeout_seconds: int
     worker_poll_seconds: int
     worker_lease_seconds: int
+    analytics_enabled: bool
+    analytics_worker_api_key: str
+    analytics_bucket_name: str
+    analytics_bucket_endpoint: str
+    analytics_bucket_access_key_id: str
+    analytics_bucket_secret_access_key: str
+    analytics_bucket_region: str
+    analytics_max_rows: int
+    analytics_max_columns: int
+    analytics_max_input_bytes: int
+    analytics_max_estimated_rows: int
+    analytics_max_date_range_days: int
+    analytics_max_datasets: int
+    analytics_max_runtime_seconds: int
+    analytics_max_memory_mb: int
+    analytics_max_result_rows: int
+    analytics_max_result_bytes: int
+    analytics_job_wait_seconds: int
+    analytics_job_poll_milliseconds: int
+    analytics_snapshot_retention_hours: int
+    analytics_terminal_snapshot_grace_seconds: int
+    analytics_result_retention_days: int
+    ai_max_discovery_calls: int
 
     @classmethod
     def from_env(cls, *, require_runtime_secrets: bool = True) -> "Settings":
@@ -160,6 +183,31 @@ class Settings:
             ai_request_timeout_seconds=_integer("AI_REQUEST_TIMEOUT_SECONDS", 180),
             worker_poll_seconds=_integer("WORKER_POLL_SECONDS", 2),
             worker_lease_seconds=_integer("WORKER_LEASE_SECONDS", 300),
+            analytics_enabled=_boolean("ANALYTICS_ENABLED", False),
+            analytics_worker_api_key=os.getenv("ANALYTICS_WORKER_API_KEY", ""),
+            analytics_bucket_name=os.getenv("ANALYTICS_BUCKET_NAME", ""),
+            analytics_bucket_endpoint=os.getenv("ANALYTICS_BUCKET_ENDPOINT", ""),
+            analytics_bucket_access_key_id=os.getenv("ANALYTICS_BUCKET_ACCESS_KEY_ID", ""),
+            analytics_bucket_secret_access_key=os.getenv("ANALYTICS_BUCKET_SECRET_ACCESS_KEY", ""),
+            analytics_bucket_region=os.getenv("ANALYTICS_BUCKET_REGION", "auto"),
+            analytics_max_rows=_integer("ANALYTICS_MAX_ROWS", 50000),
+            analytics_max_columns=_integer("ANALYTICS_MAX_COLUMNS", 30),
+            analytics_max_input_bytes=_integer("ANALYTICS_MAX_INPUT_BYTES", 20971520),
+            analytics_max_estimated_rows=_integer("ANALYTICS_MAX_ESTIMATED_ROWS", 2000000),
+            analytics_max_date_range_days=_integer("ANALYTICS_MAX_DATE_RANGE_DAYS", 3653),
+            analytics_max_datasets=_integer("ANALYTICS_MAX_DATASETS", 4),
+            analytics_max_runtime_seconds=_integer("ANALYTICS_MAX_RUNTIME_SECONDS", 120),
+            analytics_max_memory_mb=_integer("ANALYTICS_MAX_MEMORY_MB", 2048),
+            analytics_max_result_rows=_integer("ANALYTICS_MAX_RESULT_ROWS", 500),
+            analytics_max_result_bytes=_integer("ANALYTICS_MAX_RESULT_BYTES", 262144),
+            analytics_job_wait_seconds=_integer("ANALYTICS_JOB_WAIT_SECONDS", 150),
+            analytics_job_poll_milliseconds=_integer("ANALYTICS_JOB_POLL_MILLISECONDS", 500, 100),
+            analytics_snapshot_retention_hours=_integer("ANALYTICS_SNAPSHOT_RETENTION_HOURS", 24),
+            analytics_terminal_snapshot_grace_seconds=_integer(
+                "ANALYTICS_TERMINAL_SNAPSHOT_GRACE_SECONDS", 3600
+            ),
+            analytics_result_retention_days=_integer("ANALYTICS_RESULT_RETENTION_DAYS", 90),
+            ai_max_discovery_calls=_integer("AI_MAX_DISCOVERY_CALLS", 4),
         )
         if not (
             settings.ai_target_context_tokens
@@ -197,4 +245,19 @@ class Settings:
             raise RuntimeError("OpenRouter DeepSeek reasoning effort must be low, high, or max")
         if settings.ai_analysis_mode not in {"QUICK", "INSIGHT"}:
             raise RuntimeError("AI_ANALYSIS_MODE must be QUICK or INSIGHT")
+        if settings.analytics_enabled:
+            analytics_required = {
+                "ANALYTICS_WORKER_API_KEY": settings.analytics_worker_api_key,
+                "ANALYTICS_BUCKET_NAME": settings.analytics_bucket_name,
+                "ANALYTICS_BUCKET_ENDPOINT": settings.analytics_bucket_endpoint,
+                "ANALYTICS_BUCKET_ACCESS_KEY_ID": settings.analytics_bucket_access_key_id,
+                "ANALYTICS_BUCKET_SECRET_ACCESS_KEY": settings.analytics_bucket_secret_access_key,
+            }
+            missing = [name for name, value in analytics_required.items() if not value]
+            if missing:
+                raise RuntimeError(
+                    "ANALYTICS_ENABLED requires variables: " + ", ".join(missing)
+                )
+        if settings.analytics_max_result_rows > settings.analytics_max_rows:
+            raise RuntimeError("ANALYTICS_MAX_RESULT_ROWS must not exceed ANALYTICS_MAX_ROWS")
         return settings

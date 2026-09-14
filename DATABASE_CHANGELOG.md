@@ -1,5 +1,14 @@
 # Database changelog
 
+## 2026-09-14 — Activate generic bounded Analytics Worker
+
+- Applied forward-only migration `database/migrations/20260914_040_create_generic_analytics_worker.sql` to Railway `dev`. It created `Analytics_Dataset_Snapshot` and `Analytics_Job`, registered all 44 new physical columns with evidence-backed definitions, activated one generic `run_analytics_job` tool, and superseded the Release 1 worker-denial Golden expectation.
+- The backend performs catalog validation and controlled Feature reads, enforces 50,000 input rows, 30 columns, four datasets, 20 MiB input, planner and date limits, serializes one immutable `.json.gz` snapshot, and stores only checksum/provenance/retention metadata in PostgreSQL. The isolated worker has no PostgreSQL/raw/Feature or bucket credentials; it receives one leased job and short-lived snapshot URL.
+- The worker accepts one `SELECT/WITH` DuckDB computation with external access disabled. DDL, DML, `COPY`, `ATTACH`, `INSTALL`, `LOAD`, `PRAGMA`, secrets, and file/network readers are rejected. Runtime, memory, retry, result-row, and result-byte limits are copied into each job and enforced again at completion.
+- First Golden Test `R2_001_TELCO_BROKER_STREAK_FORWARD_10PCT` PASS in run `7c863e38-f479-4f14-a981-fd2463aee6c5`: 42,446 bounded input rows across Feature 1 and Feature 2, 100 ranked result rows, two reproducible component query hashes, automatic evidence, 15.079 seconds end-to-end, and idempotent same-label replay to the same job.
+- Three pre-PASS failures were retained for audit and resolved without changing Feature data: local Boto3 required `AWS_CA_BUNDLE` for the workstation Avast CA; `Content-Encoding:gzip` caused HTTP auto-decompression before checksum and was replaced with `application/gzip`; the test harness sent booleans to integer counters and then omitted the nonempty success snapshot required by `Analysis_Request`. Superseded nonterminal harness rows were explicitly marked terminal.
+- Catalog reconciliation PASS at 532 physical columns; `DATABASE_SCHEMA.md` now covers 31 public tables. No raw/Feature row, Feature formula, Feature 2 v2 cutover, Feature refresh schedule, or unrelated service changed.
+
 ## 2026-09-14 — Register evidence-gated analyst finalization policy
 
 - Applied forward-only migration `database/migrations/20260914_039_harden_analysis_finalization_and_compaction.sql` to the `dev` PostgreSQL service. It changed catalog metadata only; no raw, Feature, evidence, or analysis-result row was rewritten.

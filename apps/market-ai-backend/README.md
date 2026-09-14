@@ -76,10 +76,15 @@ consume `AI_FINALIZATION_TOOL_RESULT_RESERVE_TOKENS`, leaving room for
 consume `AI_FINALIZATION_OUTPUT_RESERVE_TOKENS`, which is reserved for the final
 transition and answer.
 
-Release 1B can read Feature 1–3 through a least-privilege login. It cannot read
-raw price/broker tables or mutate Feature tables. Historical validation and
-advanced analytics remain inactive until the Release 2 bounded-snapshot worker
-exists.
+The backend can read Feature 1–3 through a least-privilege login. It cannot read
+raw price/broker tables or mutate Feature tables. Historical validation uses one
+generic bounded-snapshot worker. The model never writes
+PostgreSQL SQL and the worker never receives database credentials. `run_analytics_job`
+creates catalog-validated Feature-only datasets in a private short-lived object,
+then executes one isolated DuckDB `SELECT/WITH` over those dataset names. A compact
+analytics handoff is loaded at the start of each request so the model knows limits,
+query best practices, conditional QC, idempotency, evidence, and stopping rules before
+its first tool call.
 
 Raw-table denial does not mean market-source values must always be hidden from
 the analyst. Feature 01 already exposes cataloged `close` and `volume` source
@@ -95,6 +100,10 @@ keeping internal ingestion fields and unrelated raw tables outside the surface.
 - `OPENAI_API_KEY`: required only when `AI_PROVIDER=openai`.
 - `OPENROUTER_DEEPSEEK`: required only when `AI_PROVIDER=openrouter`.
 - `MARKET_AI_INTERNAL_API_KEY`: bearer credential for private callers.
+- `ANALYTICS_WORKER_API_KEY`: separate bearer credential accepted only by internal
+  worker lease/result endpoints.
+- `ANALYTICS_BUCKET_*`: private S3-compatible bucket credentials held only by the
+  backend. They are never configured on `market-analytics-worker`.
 
 `AI_MODEL`, `AI_REASONING_EFFORT`, and `AI_MAX_FEATURE_METADATA_TOKENS` are
 configured separately. The current `dev` profile uses DeepSeek V4.1 Flash,

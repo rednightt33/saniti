@@ -16,6 +16,21 @@ class AnalysisAccepted(BaseModel):
     status: Literal["PENDING"] = "PENDING"
 
 
+class AnalyticsWorkerClaim(BaseModel):
+    worker_id: str = Field(min_length=1, max_length=200)
+
+
+class AnalyticsWorkerCompletion(BaseModel):
+    lease_token: str = Field(min_length=10, max_length=100)
+    result: dict[str, Any]
+
+
+class AnalyticsWorkerFailure(BaseModel):
+    lease_token: str = Field(min_length=10, max_length=100)
+    error_class: str = Field(min_length=1, max_length=200)
+    error_message: str = Field(min_length=1, max_length=2000)
+
+
 class AnalysisStatus(BaseModel):
     request_id: str
     status: str

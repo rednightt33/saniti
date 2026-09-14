@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import gzip
+import hashlib
 import json
+import re
+import time
+import uuid
 from dataclasses import dataclass
 from datetime import date
 from time import monotonic
@@ -11,6 +16,7 @@ from psycopg import sql
 from .compaction import compact_result, dumps, query_hash
 from .config import Settings
 from .db import Database
+from .analytics_store import AnalyticsSnapshotStore
 
 
 class ToolError(ValueError):
@@ -71,7 +77,7 @@ class Execution:
 
 
 class ToolRegistry:
-    """Catalog-driven structured tools. No handler accepts SQL text."""
+    """Catalog-driven tools; only the isolated worker accepts bounded analytical SQL."""
 
     CORE_FAMILIES = {"META", "DISCOVERY", "QUALITY"}
     ALWAYS_EXPOSED = {"record_evidence", "complete_analysis"}
@@ -102,6 +108,7 @@ class ToolRegistry:
             "aggregate_features": self.aggregate_features,
             "compare_groups": self.compare_groups,
             "find_condition_runs": self.find_condition_runs,
+            "run_analytics_job": self.run_analytics_job,
             "record_evidence": self.record_evidence,
             "complete_analysis": self.complete_analysis,
             "get_analysis_history": self.get_analysis_history,
@@ -205,6 +212,26 @@ class ToolRegistry:
                 "order": {"type": "string", "enum": ["start_date_asc", "start_date_desc", "longest"]},
                 "max_episodes": {"type": ["integer", "null"]},
             }),
+            "run_analytics_job": _object_schema({
+                "job_label": {"type": "string"},
+                "purpose": {"type": "string"},
+                "datasets": {
+                    "type": "array",
+                    "items": _object_schema({
+                        "name": {"type": "string"},
+                        "table": {"type": "string"},
+                        "columns": {"type": "array", "items": {"type": "string"}},
+                        "tickers": {"type": ["array", "null"], "items": {"type": "string"}},
+                        "start_date": {"type": "string"},
+                        "end_date": {"type": "string"},
+                        "filters": QUERY_PROPERTIES["filters"],
+                        "limit": {"type": "integer"},
+                    }),
+                },
+                "sql": {"type": "string"},
+                "result_limit": {"type": "integer"},
+                "analysis_ready_date": {"type": ["string", "null"], "format": "date"},
+            }),
             "record_evidence": _object_schema({
                 "evidence_type": {"type": "string", "enum": ["OBSERVATION", "QUALITY", "ANOMALY", "STATISTIC", "HISTORICAL_TEST", "WARNING"]},
                 "claim": {"type": "string"}, "compact_payload_json": {"type": "string"}, "query_hash": {"type": ["string", "null"]},
@@ -225,10 +252,60 @@ class ToolRegistry:
         handler = self.handlers.get(name)
         if handler is None:
             raise ToolError(f"Tool {name} is not implemented or active")
+        self._validate_schema_arguments(name, arguments)
         started = monotonic()
         result = handler(arguments, request_id)
         result.duration_ms = round((monotonic() - started) * 1000)
         return result
+
+    @classmethod
+    def _validate_schema_arguments(cls, name: str, arguments: Any) -> None:
+        """Validate the strict subset used by tool schemas before handlers index fields."""
+        if not isinstance(arguments, dict):
+            raise ToolError(f"{name} arguments must be an object")
+
+        def check(schema: dict[str, Any], value: Any, path: str) -> None:
+            expected = schema.get("type")
+            variants = expected if isinstance(expected, list) else [expected]
+            type_ok = any(
+                (kind == "null" and value is None)
+                or (kind == "object" and isinstance(value, dict))
+                or (kind == "array" and isinstance(value, list))
+                or (kind == "string" and isinstance(value, str))
+                or (kind == "boolean" and isinstance(value, bool))
+                or (kind == "integer" and isinstance(value, int) and not isinstance(value, bool))
+                or (kind == "number" and isinstance(value, (int, float)) and not isinstance(value, bool))
+                for kind in variants
+            )
+            if expected is not None and not type_ok:
+                raise ToolError(f"{path} has an invalid type")
+            if value is None:
+                return
+            if isinstance(value, dict) and "properties" in schema:
+                required = set(schema.get("required") or [])
+                missing = sorted(required - set(value))
+                if missing:
+                    raise ToolError(f"{path} missing required fields: {missing}")
+                unknown = sorted(set(value) - set(schema["properties"]))
+                if schema.get("additionalProperties") is False and unknown:
+                    raise ToolError(f"{path} has unsupported fields: {unknown}")
+                for key, child in value.items():
+                    if key in schema["properties"]:
+                        check(schema["properties"][key], child, f"{path}.{key}")
+            if isinstance(value, list):
+                minimum = schema.get("minItems")
+                maximum = schema.get("maxItems")
+                if minimum is not None and len(value) < minimum:
+                    raise ToolError(f"{path} requires at least {minimum} items")
+                if maximum is not None and len(value) > maximum:
+                    raise ToolError(f"{path} allows at most {maximum} items")
+                if "items" in schema:
+                    for index, child in enumerate(value):
+                        check(schema["items"], child, f"{path}[{index}]")
+            if "enum" in schema and value not in schema["enum"]:
+                raise ToolError(f"{path} is outside the allowed values")
+
+        check(cls.schema_for(name), arguments, name)
 
     def _catalog(self, table: str) -> dict[str, dict[str, Any]]:
         with self.db.query_transaction() as connection:
@@ -390,14 +467,23 @@ class ToolRegistry:
 
     def list_tools(self, arguments: dict[str, Any], _: str) -> Execution:
         requested = set(arguments.get("requested_families") or [])
-        allowed = {"QUERY", "SCREENING"}  # Release 1B; worker families remain unavailable.
+        allowed = {"QUERY", "SCREENING"}
+        if self.settings.analytics_enabled:
+            allowed.add("HISTORICAL_VALIDATION")
         approved = sorted(requested & allowed)
         with self.db.query_transaction() as connection:
             rows = connection.execute(
                 '''SELECT tool_name, tool_family, purpose, requires_analytics_worker, is_active
-                   FROM public."Tool_Catalog" ORDER BY tool_family, tool_name'''
+                   FROM public."Tool_Catalog"
+                   WHERE is_active AND (tool_family = ANY(%s) OR tool_family IN ('META','AUDIT'))
+                   ORDER BY tool_family, tool_name''',
+                (sorted(set(approved) | self.CORE_FAMILIES),),
             ).fetchall()
-        return Execution({"tools": [dict(row) for row in rows], "approved_expansion": approved, "unavailable_requested": sorted(requested - allowed)})
+        return Execution({
+            "tools": [dict(row) for row in rows], "approved_expansion": approved,
+            "unavailable_requested": sorted(requested - allowed),
+            "catalog_scope": "Only active tools in the current/requested families are returned.",
+        })
 
     def validate_query_request(self, arguments: dict[str, Any], _: str) -> Execution:
         self._validate_query(arguments)
@@ -779,6 +865,271 @@ class ToolRegistry:
             )
             payload["backend_output_compacted"] = True
         return Execution(payload, digest, estimated)
+
+    @staticmethod
+    def _validate_worker_sql(statement: str) -> str:
+        normalized = statement.strip()
+        if not normalized or len(normalized) > 20000:
+            raise ToolError("analytics sql must contain 1..20000 characters")
+        if ";" in normalized.rstrip(";"):
+            raise ToolError("analytics sql must be one statement")
+        normalized = normalized.rstrip(";").strip()
+        if not re.match(r"^(select|with)\b", normalized, re.IGNORECASE):
+            raise ToolError("analytics sql must be a SELECT or WITH query")
+        forbidden = re.compile(
+            r"\b(attach|detach|copy|export|import|install|load|pragma|call|create|alter|drop|"
+            r"insert|update|delete|merge|vacuum|checkpoint|secret|read_csv|read_json|"
+            r"read_parquet|httpfs|sqlite_scan|postgres_scan)\b",
+            re.IGNORECASE,
+        )
+        match = forbidden.search(normalized)
+        if match:
+            raise ToolError(f"analytics sql contains forbidden operation: {match.group(1)}")
+        return normalized
+
+    def _analytics_dataset(self, spec: dict[str, Any], remaining_rows: int) -> tuple[dict[str, Any], str, int]:
+        table = str(spec["table"])
+        catalog = self._catalog(table)
+        columns = list(spec["columns"])
+        if not 1 <= len(columns) <= self.settings.analytics_max_columns:
+            raise ToolError(
+                f"analytics dataset columns must contain 1..{self.settings.analytics_max_columns} items"
+            )
+        unknown = sorted(set(columns) - set(catalog))
+        if unknown:
+            raise ToolError(f"Analytics columns are not active in Feature_Catalog: {unknown}")
+        tickers = list(spec.get("tickers") or [])
+        if len(tickers) > self.settings.query_max_tickers:
+            raise ToolError(f"Analytics ticker count exceeds {self.settings.query_max_tickers}")
+        start = self._date(spec["start_date"], "start_date")
+        end = self._date(spec["end_date"], "end_date")
+        if not start or not end or start > end:
+            raise ToolError("Analytics dataset requires a valid explicit date range")
+        if (end - start).days + 1 > self.settings.analytics_max_date_range_days:
+            raise ToolError(
+                f"Analytics date range exceeds {self.settings.analytics_max_date_range_days} days"
+            )
+        requested_limit = spec["limit"]
+        if not 1 <= requested_limit <= remaining_rows:
+            raise ToolError(f"Analytics dataset limit exceeds remaining row budget {remaining_rows}")
+        conditions: list[Any] = [sql.SQL("date BETWEEN %s AND %s")]
+        params: list[Any] = [start, end]
+        if tickers:
+            conditions.append(sql.SQL("ticker = ANY(%s)"))
+            params.append(tickers)
+        for item in spec.get("filters") or []:
+            column, operator, value = item["column"], item["operator"], item["value"]
+            if column not in catalog or not catalog[column]["is_filterable"]:
+                raise ToolError(f"Analytics filter column is not catalog-approved: {column}")
+            identifier = sql.Identifier(column)
+            if operator == "in":
+                if not isinstance(value, list) or not value:
+                    raise ToolError("in requires a non-empty array value")
+                conditions.append(sql.SQL("{} = ANY(%s)").format(identifier)); params.append(value)
+            elif operator == "between":
+                if not isinstance(value, list) or len(value) != 2:
+                    raise ToolError("between requires exactly two values")
+                conditions.append(sql.SQL("{} BETWEEN %s AND %s").format(identifier)); params.extend(value)
+            elif operator in OPERATORS:
+                conditions.append(
+                    sql.SQL("{} {} %s").format(identifier, sql.SQL(OPERATORS[operator]))
+                ); params.append(value)
+            else:
+                raise ToolError(f"Unsupported analytics filter operator: {operator}")
+        # Fetch one extra row so a dataset is rejected rather than silently sampled.
+        statement = sql.SQL("SELECT {} FROM public.{} WHERE {} LIMIT %s").format(
+            sql.SQL(", ").join(map(sql.Identifier, columns)),
+            sql.Identifier(table), sql.SQL(" AND ").join(conditions),
+        )
+        params.append(requested_limit + 1)
+        with self.db.bounded_read_transaction(self.settings.analytics_max_runtime_seconds) as connection:
+            rendered = statement.as_string(connection)
+            plan = connection.execute(
+                sql.SQL("EXPLAIN (FORMAT JSON) ") + statement, params
+            ).fetchone()["QUERY PLAN"]
+            estimated = self._estimated_rows(plan[0]["Plan"])
+            if estimated > self.settings.analytics_max_estimated_rows:
+                raise ToolError(
+                    f"Estimated analytics scan {estimated} exceeds "
+                    f"{self.settings.analytics_max_estimated_rows}; prefilter or shorten the period"
+                )
+            rows = connection.execute(statement, params).fetchall()
+        if len(rows) > requested_limit:
+            raise ToolError(
+                f"Analytics dataset {spec['name']} exceeds its explicit limit {requested_limit}; "
+                "add a meaningful filter or split the hypothesis"
+            )
+        digest = query_hash(rendered, params)
+        return {
+            "name": spec["name"], "table": table, "columns": columns,
+            "rows": [dict(row) for row in rows], "row_count": len(rows),
+            "query_hash": digest,
+        }, digest, estimated
+
+    def _analytics_job_result(self, request_id: str, job_label: str) -> Execution | None:
+        with self.db.query_transaction() as connection:
+            row = connection.execute(
+                '''SELECT j.job_id,j.status,j.result_json,j.error_class,j.error_message,
+                          j.evidence_id,j.snapshot_id,s.content_sha256,s.row_count,s.byte_count,
+                          s.source_tables,s.query_hashes,j.created_at,j.completed_at
+                   FROM public."Analytics_Job" j
+                   JOIN public."Analytics_Dataset_Snapshot" s USING (snapshot_id)
+                   WHERE j.request_id=%s AND j.job_label=%s''',
+                (request_id, job_label),
+            ).fetchone()
+        if not row:
+            return None
+        if row["status"] == "SUCCESS" and not row["evidence_id"]:
+            with self.db.connection() as connection, connection.transaction():
+                locked = connection.execute(
+                    'SELECT evidence_id,result_json FROM public."Analytics_Job" WHERE job_id=%s FOR UPDATE',
+                    (row["job_id"],),
+                ).fetchone()
+                if not locked["evidence_id"]:
+                    evidence_payload, _, _ = compact_result(
+                        locked["result_json"], max_rows=50, max_bytes=65536, max_tokens=4000
+                    )
+                    evidence = connection.execute(
+                        '''INSERT INTO public."Analysis_Evidence"
+                             (request_id,evidence_type,claim,compact_payload,query_hash,
+                              source_tables,analysis_ready_date)
+                           VALUES (%s,'HISTORICAL_TEST',%s,%s,%s,%s,
+                                   (SELECT analysis_ready_date FROM public."Analysis_Request" WHERE request_id=%s))
+                           RETURNING evidence_id''',
+                        (
+                            request_id,
+                            f"Generic analytics job {job_label} completed successfully",
+                            dumps(evidence_payload),
+                            row["content_sha256"], row["source_tables"], request_id,
+                        ),
+                    ).fetchone()
+                    connection.execute(
+                        'UPDATE public."Analytics_Job" SET evidence_id=%s WHERE job_id=%s',
+                        (evidence["evidence_id"], row["job_id"]),
+                    )
+                    row["evidence_id"] = evidence["evidence_id"]
+        analytics_result = row["result_json"] or {}
+        payload = {
+            "job_id": str(row["job_id"]), "job_label": job_label,
+            "status": row["status"], "snapshot_id": str(row["snapshot_id"]),
+            "snapshot_sha256": row["content_sha256"], "input_rows": row["row_count"],
+            "input_bytes": row["byte_count"], "source_tables": row["source_tables"],
+            "component_query_hashes": row["query_hashes"],
+            "method": analytics_result.get("method"),
+            "method_version": analytics_result.get("method_version"),
+            "columns": analytics_result.get("columns") or [],
+            "rows": analytics_result.get("rows") or [],
+            "total_rows": int(analytics_result.get("row_count") or 0),
+            "result_metadata": {
+                key: value for key, value in analytics_result.items()
+                if key not in {"columns", "rows", "row_count"}
+            },
+            "evidence_id": str(row["evidence_id"]) if row["evidence_id"] else None,
+            "error_class": row["error_class"], "error_message": row["error_message"],
+            "created_at": row["created_at"], "completed_at": row["completed_at"],
+            "worker_boundary": "The analytics worker received no PostgreSQL/raw/Feature credentials.",
+        }
+        return Execution(
+            payload, row["content_sha256"], processed_rows=int(row["row_count"])
+        )
+
+    def run_analytics_job(self, arguments: dict[str, Any], request_id: str) -> Execution:
+        if not self.settings.analytics_enabled:
+            raise ToolError("Generic Analytics Worker is not enabled in this environment")
+        label = arguments["job_label"].strip()
+        if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{2,79}", label):
+            raise ToolError("job_label must be 3..80 lowercase letters, digits, underscores, or hyphens")
+        if not arguments["purpose"].strip():
+            raise ToolError("purpose must be non-empty")
+        datasets = arguments["datasets"]
+        if not 1 <= len(datasets) <= self.settings.analytics_max_datasets:
+            raise ToolError(
+                f"datasets must contain 1..{self.settings.analytics_max_datasets} items"
+            )
+        names = [str(item["name"]) for item in datasets]
+        if len(set(names)) != len(names) or any(not re.fullmatch(r"[a-z][a-z0-9_]{0,39}", name) for name in names):
+            raise ToolError("dataset names must be unique lowercase SQL identifiers")
+        result_limit = arguments["result_limit"]
+        if not 1 <= result_limit <= self.settings.analytics_max_result_rows:
+            raise ToolError(
+                f"result_limit must be 1..{self.settings.analytics_max_result_rows}"
+            )
+        statement = self._validate_worker_sql(arguments["sql"])
+        existing = self._analytics_job_result(request_id, label)
+        if existing and existing.payload["status"] in {"SUCCESS", "FAILED"}:
+            existing.payload["idempotent_reuse"] = True
+            return existing
+
+        if existing is None:
+            built, hashes, estimated_total, total_rows = [], [], 0, 0
+            for spec in datasets:
+                dataset, digest, estimated = self._analytics_dataset(
+                    spec, self.settings.analytics_max_rows - total_rows
+                )
+                built.append(dataset); hashes.append(digest)
+                total_rows += dataset["row_count"]; estimated_total += estimated
+            package = {
+                "snapshot_version": "v1", "request_id": request_id,
+                "job_label": label, "datasets": built,
+            }
+            raw = dumps(package).encode("utf-8")
+            if len(raw) > self.settings.analytics_max_input_bytes:
+                raise ToolError(
+                    f"Analytics snapshot bytes {len(raw)} exceed {self.settings.analytics_max_input_bytes}"
+                )
+            compressed = gzip.compress(raw, compresslevel=6, mtime=0)
+            checksum = hashlib.sha256(compressed).hexdigest()
+            snapshot_id, job_id = uuid.uuid4(), uuid.uuid4()
+            key = f"snapshots/{request_id}/{job_id}/{checksum}.json.gz"
+            store = AnalyticsSnapshotStore(self.settings)
+            stored = store.put_immutable(key, compressed, checksum)
+            ready_date = self._normalize_analysis_ready_date(arguments.get("analysis_ready_date"))
+            with self.db.connection() as connection, connection.transaction():
+                connection.execute(
+                    '''INSERT INTO public."Analytics_Dataset_Snapshot"
+                         (snapshot_id,request_id,object_key,content_sha256,format,row_count,
+                          column_count,byte_count,compressed_byte_count,schema_json,
+                          source_spec_json,source_tables,query_hashes,analysis_ready_date,expires_at)
+                       VALUES (%s,%s,%s,%s,'JSON_GZIP',%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                               clock_timestamp()+make_interval(hours=>%s))''',
+                    (
+                        snapshot_id, request_id, stored.key, checksum, total_rows,
+                        sum(len(item["columns"]) for item in built), len(raw),
+                        stored.compressed_bytes,
+                        json.dumps({item["name"]: item["columns"] for item in built}),
+                        json.dumps(datasets), sorted({item["table"] for item in built}),
+                        hashes, ready_date, self.settings.analytics_snapshot_retention_hours,
+                    ),
+                )
+                connection.execute(
+                    '''INSERT INTO public."Analytics_Job"
+                         (job_id,request_id,snapshot_id,job_label,purpose,method,
+                          analysis_spec_json,status,max_runtime_seconds,max_memory_mb,
+                          max_result_rows,max_result_bytes,result_expires_at)
+                       VALUES (%s,%s,%s,%s,%s,'SAFE_DUCKDB_SQL',%s,'PENDING',%s,%s,%s,%s,
+                               clock_timestamp()+make_interval(days=>%s))''',
+                    (
+                        job_id, request_id, snapshot_id, label, arguments["purpose"][:1000],
+                        json.dumps({"sql": statement, "dataset_names": names}),
+                        self.settings.analytics_max_runtime_seconds,
+                        self.settings.analytics_max_memory_mb, result_limit,
+                        self.settings.analytics_max_result_bytes,
+                        self.settings.analytics_result_retention_days,
+                    ),
+                )
+
+        deadline = monotonic() + self.settings.analytics_job_wait_seconds
+        while monotonic() < deadline:
+            result = self._analytics_job_result(request_id, label)
+            if result and result.payload["status"] in {"SUCCESS", "FAILED", "CANCELLED"}:
+                return result
+            time.sleep(self.settings.analytics_job_poll_milliseconds / 1000)
+        result = self._analytics_job_result(request_id, label)
+        if result:
+            result.payload["poll_timed_out"] = True
+            result.payload["next_action"] = "Repeat the same idempotent job_label to resume polling."
+            return result
+        raise RuntimeError("Analytics job disappeared after submission")
 
     def record_evidence(self, arguments: dict[str, Any], request_id: str) -> Execution:
         required = {"evidence_type", "claim", "compact_payload_json", "source_tables"}

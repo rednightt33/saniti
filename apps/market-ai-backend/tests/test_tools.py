@@ -122,3 +122,17 @@ def test_condition_runs_schema_is_strict_and_generic() -> None:
     assert "conditions" in schema["required"]
     assert "minimum_consecutive_observations" in schema["required"]
     assert schema["properties"]["conditions"]["items"]["additionalProperties"] is False
+
+
+def test_every_handler_rejects_missing_required_arguments_before_indexing() -> None:
+    registry = ToolRegistry(None, Settings.from_env(require_runtime_secrets=False))
+    with pytest.raises(ToolError, match="missing required fields.*tables"):
+        registry.execute("check_data_freshness", {}, "request-id")
+
+
+def test_generic_analytics_sql_policy_rejects_mutation_and_external_readers() -> None:
+    assert ToolRegistry._validate_worker_sql("WITH x AS (SELECT 1 n) SELECT * FROM x")
+    with pytest.raises(ToolError, match="forbidden operation"):
+        ToolRegistry._validate_worker_sql("SELECT * FROM read_parquet('s3://private/file')")
+    with pytest.raises(ToolError, match="SELECT or WITH"):
+        ToolRegistry._validate_worker_sql("DELETE FROM prices")

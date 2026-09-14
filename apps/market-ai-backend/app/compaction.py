@@ -13,6 +13,10 @@ DECISIVE_TOP_LEVEL_KEYS = (
     "analysis_ready_date", "query_hash", "selection", "completion_policy",
     "evidence_id", "recorded", "completion_accepted", "next_action",
     "quality_blocks_finalization", "analysis_may_continue",
+    "job_id", "job_label", "status", "snapshot_id", "snapshot_sha256",
+    "input_rows", "input_bytes", "source_tables", "component_query_hashes",
+    "method", "method_version", "result_metadata", "worker_boundary",
+    "error_class", "error_message",
 )
 
 

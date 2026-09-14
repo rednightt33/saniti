@@ -2,6 +2,13 @@
 
 This file records intentional changes to the Railway project. Git history preserves every revision. Never include secret values.
 
+## 2026-09-14 — Provision private generic analytics handoff
+
+- Created private Railway bucket `market-analytics-input` in `sin` and service `market-analytics-worker`. Bucket credentials are configured only on `market-ai-backend`; the worker receives only a separate internal worker token and the backend private URL.
+- Added independent, configurable analytics limits without changing interactive query or LLM token limits: 50,000 rows, 30 columns, four datasets, 20 MiB input, 2,000,000 estimated rows, 120 seconds, 2 GiB, 500 result rows, 256 KiB result, 24-hour maximum snapshot retention, one-hour terminal grace, and 90-day compact-result retention.
+- Added `AI_MAX_DISCOVERY_CALLS=4` plus a compact per-request analytics handoff. It tells the model when to use ordinary queries versus the generic worker, how to prefilter/select columns, how QC and anomalies behave, how idempotent job labels work, and when to stop. Repeated exact catalog discovery uses the session cache and `list_tools` no longer dumps inactive/deferred capabilities.
+- Local integration used the real Railway PostgreSQL and private bucket with a local copy of both services. The known workstation CA issue required explicit `AWS_CA_BUNDLE` for Boto3; TLS verification remained enabled. Final worker Golden Test passed and verified the no-database-credentials boundary.
+
 ## 2026-09-14 — Harden analyst finalization and complete compaction A/B
 
 - Deployed the priority 1–6 hardening sequence through commits `e9fda44`, `37d7be8`, `c744c6f`, `9a84c82`, and `88a5514`. The backend now reserves finalization budget, requires tool use before evidence, locks data tools after sufficient evidence, requires `complete_analysis`, validates evidence-ready dates, records exact bounded final-output failures, and stores a decisive audit digest. Priority 7 remained intentionally deferred.

@@ -13,6 +13,7 @@ from typing import Any
 from .compaction import compact_result, decisive_digest, dumps, estimate_tokens
 from .config import Settings
 from .db import Database
+from .analytics_store import AnalyticsSnapshotStore
 from .openai_client import ResponsesClient, extract_reasoning_audit, response_usage
 from .schemas import FINAL_RESPONSE_SCHEMA, FinalAnalysis
 from .tools import ToolError, ToolRegistry
@@ -22,8 +23,9 @@ INSTRUCTIONS = """You are the private Saniti Indonesian-market analyst.
 Use only supplied catalog-driven tools and never invent data. Begin with the smallest
 operation needed for the question. Reuse exact identifiers already known in the
 current analysis; use discovery or freshness only when they are genuinely unknown.
-Expand tool families when evidence makes it necessary. Release 1B has no historical-validation worker:
-do not claim causation or predictive evidence. Necessary follow-up queries should
+Expand tool families when evidence makes it necessary. A bounded generic Analytics
+Worker is available for historical validation; it receives immutable Feature snapshots,
+never database credentials. Necessary follow-up queries should
 run automatically within limits; optional deeper work belongs in
 recommended_next_analysis. Treat extreme source-valid observations as useful
 anomalies, not automatically bad data. Cite recorded evidence IDs for material
@@ -65,6 +67,7 @@ Return the final schema JSON without Markdown fences or surrounding prose.
 ANALYTICAL_DATA_TOOLS = {
     "query_features", "get_timeseries", "compare_periods", "screen_features",
     "rank_features", "aggregate_features", "compare_groups", "find_condition_runs",
+    "run_analytics_job",
 }
 FINALIZATION_TOOLS = {"record_evidence", "complete_analysis"}
 
@@ -101,6 +104,9 @@ class RunState:
     final_rejections: int = 0
     cumulative_pressure_compacted: bool = False
     attempt_number: int = 0
+    discovery_calls: int = 0
+    tool_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
+    analytics_handoff: str = ""
 
 
 class AnalysisOrchestrator:
@@ -119,9 +125,14 @@ class AnalysisOrchestrator:
             request_id=request_id,
             question=question,
             families=families,
-            input_items=[{"role": "user", "content": question}],
+            input_items=[],
             analysis_mode=self.settings.ai_analysis_mode,
         )
+        state.analytics_handoff = self._analytics_handoff()
+        state.input_items = [
+            {"role": "user", "content": state.analytics_handoff},
+            {"role": "user", "content": question},
+        ]
         try:
             self._mark_processing(state, initial_stage)
             answer = self._tool_loop(state)
@@ -323,6 +334,35 @@ class AnalysisOrchestrator:
                     "Call complete_analysis now."
                 )
             remaining, per_call_tokens = self._tool_result_budget(state, name)
+            cache_key = ""
+            if name in {"find_features", "get_feature_definition", "list_feature_tables"}:
+                cache_key = hashlib.sha256(
+                    dumps({"tool": name, "arguments": arguments}).encode("utf-8")
+                ).hexdigest()
+                if cache_key in state.tool_cache:
+                    cache_notice = {
+                        "reused_from_session_cache": True,
+                        "prior_result_digest": decisive_digest(
+                            name, state.tool_cache[cache_key]
+                        ),
+                        "next_action": "Reuse these identifiers; do not repeat discovery.",
+                    }
+                    tokens = estimate_tokens(cache_notice)
+                    state.tool_result_tokens += tokens
+                    digest = decisive_digest(name, cache_notice)
+                    state.evidence_digest.append(digest)
+                    self._log_step(
+                        state, step_number, name, sanitized, "SUCCESS",
+                        llm_tokens=tokens, result_summary=digest,
+                    )
+                    self._persist_usage(state)
+                    return cache_notice
+                if state.discovery_calls >= self.settings.ai_max_discovery_calls:
+                    raise ToolError(
+                        "Session discovery budget is complete. Use the identifiers already returned, "
+                        "execute a bounded data/analytics query, or finish with an explicit limitation."
+                    )
+                state.discovery_calls += 1
             auto_semantics = self._auto_load_definitions(state, name, arguments)
             if auto_semantics:
                 metadata_tokens = estimate_tokens(auto_semantics)
@@ -332,6 +372,8 @@ class AnalysisOrchestrator:
             if name == "complete_analysis":
                 self._validate_completion(state, arguments)
             execution = self.tools.execute(name, arguments, state.request_id)
+            if cache_key:
+                state.tool_cache[cache_key] = execution.payload
             if auto_semantics:
                 execution.payload["auto_loaded_feature_semantics"] = auto_semantics
             if name == "list_tools":
@@ -347,8 +389,25 @@ class AnalysisOrchestrator:
                     (str(row["feature_table"]), str(row["feature_column"]))
                     for row in execution.payload.get("rows", [])
                 )
-            if name in ANALYTICAL_DATA_TOOLS and execution.query_hash:
+            analytics_success = not (
+                name == "run_analytics_job" and execution.payload.get("status") != "SUCCESS"
+            )
+            if name in ANALYTICAL_DATA_TOOLS and execution.query_hash and analytics_success:
                 state.analytical_query_hashes.add(str(execution.query_hash))
+            if name == "run_analytics_job":
+                state.features_used.update(execution.payload.get("source_tables") or [])
+                evidence_id = execution.payload.get("evidence_id")
+                if evidence_id:
+                    state.recorded_evidence_ids.add(str(evidence_id))
+                    if (
+                        len(state.analytical_query_hashes) >= self._required_analytical_queries(state)
+                        and not state.quality_failures
+                    ):
+                        state.completion_only = True
+                    execution.payload["completion_policy"] = {
+                        "data_tools_locked": state.completion_only,
+                        "next_action": "Call complete_analysis now." if state.completion_only else "Run only a necessary distinct follow-up.",
+                    }
             if name == "check_data_quality" and execution.payload.get("classification") == "FAIL":
                 state.quality_failures.append({
                     "table": arguments.get("table"),
@@ -485,6 +544,7 @@ class AnalysisOrchestrator:
             ),
         }
         state.input_items = [
+            {"role": "user", "content": state.analytics_handoff},
             {"role": "user", "content": state.question},
             {"role": "user", "content": dumps(digest)},
         ]
@@ -635,6 +695,23 @@ class AnalysisOrchestrator:
         message = f"{type(exc).__name__}: {exc}"[:2000]
         print(json.dumps({"event": "analysis_failed", "request_id": state.request_id, "error": message, "trace": traceback.format_exc(limit=5)}), flush=True)
         with self.db.connection() as connection, connection.transaction():
+            if state.evidence_digest or state.analytical_query_hashes:
+                connection.execute(
+                    '''INSERT INTO public."Analysis_Evidence"
+                         (request_id,evidence_type,claim,compact_payload,query_hash,source_tables)
+                       SELECT %s,'WARNING','Analysis stopped before a reliable final answer',%s,%s,%s
+                       WHERE (SELECT count(*) FROM public."Analysis_Evidence" WHERE request_id=%s) < 25''',
+                    (
+                        state.request_id,
+                        dumps({
+                            "failure": message,
+                            "decisive_digest": state.evidence_digest[-10:],
+                            "query_hashes": sorted(state.analytical_query_hashes),
+                        }),
+                        next(iter(sorted(state.analytical_query_hashes)), None),
+                        sorted(state.features_used), state.request_id,
+                    ),
+                )
             connection.execute(
                 '''UPDATE public."Analysis_Request" SET status='FAILED',error_message=%s,
                      input_tokens=%s,output_tokens=%s,total_tokens=%s,tool_result_tokens=%s,
@@ -659,7 +736,7 @@ class AnalysisOrchestrator:
             ).fetchall()
         snapshot = {
             "provider": self.settings.ai_provider, "model": self.settings.ai_model,
-            "orchestrator_version": "release-1b-v3", "prompt_version": "release-1b-v3",
+            "orchestrator_version": "release-2-generic-worker-v1", "prompt_version": "release-2-generic-worker-v1",
             "analysis_mode": state.analysis_mode,
             "max_analysis_seconds": self.settings.ai_max_analysis_seconds,
             "context_compaction_mode": self.settings.ai_context_compaction_mode,
@@ -677,7 +754,7 @@ class AnalysisOrchestrator:
             "universe_mode": "current_universe_or_source_coverage",
             "survivorship_warning": "Current universe/reference metadata can introduce survivorship bias in historical comparisons.",
             "point_in_time_warnings": sorted(state.point_in_time_warnings),
-            "look_ahead_validation": "No predictive claim is allowed in Release 1B; historical-validation tools are inactive.",
+            "look_ahead_validation": "Predictive claims require a successful bounded Analytics Worker job with explicit signal and forward horizons.",
         }
         return snapshot, methodology
 
@@ -704,6 +781,24 @@ class AnalysisOrchestrator:
             "1-3 data and resource limits. Do not run optional deep exploration.\n"
         )
 
+    def _analytics_handoff(self) -> str:
+        return (
+            "ANALYTICS SESSION HANDOFF (load once and follow throughout this request): "
+            "Use ordinary query/screen tools for bounded retrieval, ranking, and simple episodes. "
+            "Use run_analytics_job only for multi-table joins, forward outcomes, window logic, or "
+            "other niche computation. It creates catalog-validated Feature-only datasets, checks "
+            f"size, and sends at most {self.settings.analytics_max_rows} rows / "
+            f"{self.settings.analytics_max_input_bytes} bytes across "
+            f"{self.settings.analytics_max_datasets} datasets to an isolated SQL worker. "
+            "The worker has no database credentials. Filter before snapshotting; request only needed "
+            "columns; never use LIMIT as a biased sample; use unique stable job_label values so retries "
+            "are idempotent. QC is conditional and scoped: continue on WARNING or valid anomaly, block "
+            "only impossible-data FAIL. Reuse identifiers and auto-loaded compact semantics; do not "
+            f"repeat discovery more than {self.settings.ai_max_discovery_calls} times. Once the answer "
+            "has decisive evidence and necessary follow-ups are complete, record/accept completion and "
+            "stop; put optional work in recommended_next_analysis."
+        )
+
     def _validate_completion(self, state: RunState, arguments: dict[str, Any]) -> None:
         if not state.recorded_evidence_ids:
             raise ToolError("Record at least one evidence item before complete_analysis")
@@ -725,6 +820,8 @@ class AnalysisOrchestrator:
             )
 
     def _required_analytical_queries(self, state: RunState) -> int:
+        if self._initial_stage(state.question) == "HISTORICAL_VALIDATION":
+            return 1
         if (
             state.analysis_mode == "INSIGHT"
             and self._initial_stage(state.question) == "SCREENING"
@@ -734,6 +831,20 @@ class AnalysisOrchestrator:
 
     @staticmethod
     def _semantic_requirements(name: str, arguments: dict[str, Any]) -> set[tuple[str, str]]:
+        if name == "run_analytics_job":
+            result: set[tuple[str, str]] = set()
+            for dataset in arguments.get("datasets") or []:
+                dataset_table = str(dataset.get("table") or "")
+                dataset_columns = set(dataset.get("columns") or [])
+                dataset_columns.update(
+                    item.get("column") for item in dataset.get("filters") or []
+                )
+                result.update(
+                    (dataset_table, column)
+                    for column in dataset_columns
+                    if dataset_table and isinstance(column, str) and column
+                )
+            return result
         table = str(arguments.get("table") or "")
         if not table:
             return set()
@@ -806,6 +917,13 @@ class AnalysisOrchestrator:
     @staticmethod
     def _initial_stage(question: str) -> str:
         text = question.lower()
+        historical_terms = (
+            "backtest", "event study", "forward return", "setelah sinyal", "sesudah sinyal",
+            "mendahului", "historical validation", "uji historis", "next month",
+            "bulan berikut", "hari berikut", "predict", "prediksi", "korelasi", "correlation",
+        )
+        if any(term in text for term in historical_terms):
+            return "HISTORICAL_VALIDATION"
         screening_terms = (
             "screen", "rank", "top ", "bottom ", "banding", "compare", "perbandingan",
             "tertinggi", "terendah", "find ", "report ", "show ", "retrieve ", "cari ",
@@ -815,8 +933,11 @@ class AnalysisOrchestrator:
 
     @classmethod
     def _initial_families(cls, question: str) -> set[str]:
-        if cls._initial_stage(question) == "DISCOVERY":
+        stage = cls._initial_stage(question)
+        if stage == "DISCOVERY":
             return set(ToolRegistry.CORE_FAMILIES)
+        if stage == "HISTORICAL_VALIDATION":
+            return set(ToolRegistry.STAGE_FAMILIES["HISTORICAL_VALIDATION"])
         families = set(ToolRegistry.CORE_FAMILIES) | {"QUERY"}
         text = question.lower()
         screening_terms = (
@@ -848,6 +969,7 @@ class AnalysisWorker:
         self.thread: threading.Thread | None = None
         self.owner = f"{socket.gethostname()}:{threading.get_native_id()}"
         self.last_reasoning_cleanup = 0.0
+        self.last_snapshot_cleanup = 0.0
 
     def start(self) -> None:
         self.thread = threading.Thread(target=self._loop, name="analysis-worker", daemon=True)
@@ -861,6 +983,7 @@ class AnalysisWorker:
     def _loop(self) -> None:
         while not self.stop_event.is_set():
             self._purge_expired_reasoning_if_due()
+            self._purge_analytics_snapshots_if_due()
             claimed = self._claim()
             if claimed:
                 self.orchestrator.run(str(claimed["request_id"]), claimed["question"])
@@ -883,6 +1006,42 @@ class AnalysisWorker:
             self.last_reasoning_cleanup = now
         except Exception as exc:
             print(json.dumps({"event": "reasoning_cleanup_failed", "error": str(exc)[:500]}), flush=True)
+
+    def _purge_analytics_snapshots_if_due(self) -> None:
+        if not self.settings.analytics_enabled:
+            return
+        now = time.monotonic()
+        if now - self.last_snapshot_cleanup < 3600:
+            return
+        try:
+            with self.db.query_transaction() as connection:
+                rows = connection.execute(
+                    '''SELECT s.snapshot_id,s.object_key
+                       FROM public."Analytics_Dataset_Snapshot" s
+                       WHERE s.status='AVAILABLE' AND (
+                         s.expires_at <= clock_timestamp() OR EXISTS (
+                           SELECT 1 FROM public."Analytics_Job" j
+                           WHERE j.snapshot_id=s.snapshot_id
+                             AND j.status IN ('SUCCESS','FAILED','CANCELLED')
+                             AND j.completed_at <= clock_timestamp()-make_interval(secs=>%s)
+                         ))
+                       ORDER BY s.expires_at LIMIT 100''',
+                    (self.settings.analytics_terminal_snapshot_grace_seconds,),
+                ).fetchall()
+            store = AnalyticsSnapshotStore(self.settings)
+            for row in rows:
+                store.delete(row["object_key"])
+                with self.db.connection() as connection, connection.transaction():
+                    connection.execute(
+                        '''UPDATE public."Analytics_Dataset_Snapshot"
+                           SET status='DELETED',deleted_at=clock_timestamp()
+                           WHERE snapshot_id=%s AND status='AVAILABLE' ''',
+                        (row["snapshot_id"],),
+                    )
+            self.last_snapshot_cleanup = now
+        except Exception as exc:
+            print(json.dumps({"event": "analytics_snapshot_cleanup_failed", "error": str(exc)[:500]}), flush=True)
+            self.last_snapshot_cleanup = now
 
     def _claim(self) -> dict[str, Any] | None:
         with self.db.connection() as connection, connection.transaction():

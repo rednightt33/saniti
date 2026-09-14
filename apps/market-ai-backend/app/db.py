@@ -35,3 +35,13 @@ class Database:
             connection.execute("SET LOCAL TRANSACTION READ ONLY")
             connection.execute("SELECT set_config('statement_timeout', %s, true)", (f"{self.timeout_ms}ms",))
             yield connection
+
+    @contextmanager
+    def bounded_read_transaction(self, timeout_seconds: int) -> Iterator[Any]:
+        with self.pool.connection() as connection, connection.transaction():
+            connection.execute("SET LOCAL TRANSACTION READ ONLY")
+            connection.execute(
+                "SELECT set_config('statement_timeout', %s, true)",
+                (f"{timeout_seconds * 1000}ms",),
+            )
+            yield connection

@@ -40,7 +40,9 @@ Status eksekusi per 2026-09-13:
   menambahkan `OPENROUTER_DEEPSEEK`; bounded function-call dan strict structured
   output probe untuk `deepseek/deepseek-v4.1-flash` PASS. `dev` sekarang memilih
   OpenRouter melalui provider adapter yang allowlisted.
-- Otomasi update Feature 2/3 dan Analytics Worker tetap di luar scope Release 1B.
+- Otomasi update Feature 2/3 tetap di luar scope ini. Release 2 generic Analytics
+  Worker, immutable bounded snapshot handoff, and the first telco forward-outcome
+  Golden Test are implemented by migration `040` and the two market AI services.
 
 Transport mendukung provider allowlist `openai` dan `openrouter` tanpa arbitrary
 base URL atau silent fallback. OpenAI default tetap `gpt-5.6-terra`/`medium`;
@@ -188,8 +190,9 @@ results.
 
 #### Analytics phase storage
 
-Release 2 membuat `Analytics_Job` dan snapshot metadata. Input dataset tidak
-disimpan langsung sebagai large JSON di job row.
+Release 2 creates `Analytics_Job` and `Analytics_Dataset_Snapshot`. Input data is
+stored as an immutable short-lived `.json.gz` object in a private Railway bucket,
+not as large JSON in a job row. The worker has no PostgreSQL/raw/Feature credentials.
 
 ## Data Readiness dan Availability
 
@@ -534,7 +537,9 @@ Snapshot contract:
   row count, uncompressed/compressed bytes, created time, and expiry time;
 - write-once random job path and checksum verification make the input immutable;
 - backend enforces analytics row/column/byte limits before upload;
-- worker gets scoped bucket credentials and job-table permissions only;
+- worker gets neither bucket credentials nor database credentials. It holds only a
+  dedicated backend worker token and receives one short-lived presigned URL for the
+  exact leased snapshot;
 - worker cannot call interactive query endpoints as a limits bypass;
 - object retention is at most 24 hours by default;
 - terminal jobs delete input after a short configurable grace period;
@@ -556,18 +561,27 @@ Snapshot contract:
 - Audit/orchestration: `record_evidence`, `complete_analysis`,
   `get_analysis_history`.
 
-### Release 2 immediate analytical tools
+### Release 2 generic analytical surface
 
-- `run_event_study`;
-- `run_signal_validation`;
-- `run_backtest`;
-- `detect_anomalies`;
-- `run_forward_return_analysis`;
-- `run_statistics`;
-- `run_correlation`.
+The model receives one generic `run_analytics_job` tool rather than one tool per
+ticker, signal, question, or statistical method. It describes bounded Feature-only
+datasets with structured catalog-validated filters and one analytical `SELECT/WITH`
+query over those named snapshots. Database SQL is never model-authored. The isolated
+worker executes DuckDB with external access disabled and strict memory, runtime,
+input-row/input-byte, output-row/output-byte, and retry limits.
 
-Event study, signal validation, forward return, and backtest must return the
-universe and availability/no-look-ahead metadata described above.
+Event study, signal validation, forward-return measurement, streak combinations,
+descriptive statistics, correlations, and backtest-like transformations are internal
+query/method patterns on this surface. Each predictive/historical use must still
+return the universe and availability/no-look-ahead metadata described above. New
+methods are added inside the worker policy rather than as a new public tool unless a
+materially different authority boundary is required.
+
+At the beginning of every `Analysis_Request`, the orchestrator injects one compact
+analytics handoff explaining available capabilities, the query-versus-worker decision,
+limits, efficient filtering/column selection, conditional scoped QC, idempotent job
+labels, evidence rules, and stopping policy. It is retained as session policy; the
+model must not rediscover these rules or dump the catalog on every turn.
 
 ### Deferred
 
@@ -575,8 +589,10 @@ universe and availability/no-look-ahead metadata described above.
 - clustering;
 - HMM;
 - PCA;
-- specialized statistical methods;
-- dynamic code sandbox;
+- specialized methods that cannot yet be expressed safely in bounded DuckDB SQL,
+  including production HMM/clustering implementations;
+- unrestricted dynamic code execution (the bounded generic SQL sandbox replaces the
+  earlier proposal; unrestricted Python remains prohibited);
 - Redis/cache layer.
 
 The orchestrator always retains a small meta family. It starts with the smallest

@@ -208,6 +208,22 @@ def test_streak_language_exposes_screening_tool_family() -> None:
     assert {"QUERY", "SCREENING"} <= families
 
 
+def test_forward_outcome_language_starts_with_generic_worker_family() -> None:
+    question = "Kombinasi broker apa yang mendahului return 10% bulan berikutnya?"
+    assert AnalysisOrchestrator._initial_stage(question) == "HISTORICAL_VALIDATION"
+    assert "HISTORICAL_VALIDATION" in AnalysisOrchestrator._initial_families(question)
+
+
+def test_session_handoff_teaches_limits_and_stopping_policy_once() -> None:
+    orchestrator = object.__new__(AnalysisOrchestrator)
+    orchestrator.settings = Settings.from_env(require_runtime_secrets=False)
+    handoff = orchestrator._analytics_handoff()
+    assert "run_analytics_job" in handoff
+    assert str(orchestrator.settings.analytics_max_rows) in handoff
+    assert "do not repeat discovery" in handoff
+    assert "stop" in handoff
+
+
 def test_impossible_quality_fail_blocks_completion_but_warning_does_not() -> None:
     orchestrator = object.__new__(AnalysisOrchestrator)
     orchestrator.settings = Settings.from_env(require_runtime_secrets=False)
