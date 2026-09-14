@@ -2,6 +2,17 @@
 
 This file records intentional changes to the Railway project. Git history preserves every revision. Never include secret values.
 
+## 2026-09-14 — Deploy generic condition-run screening and compact semantic preflight
+
+- Added only two non-secret `market-ai-backend` limits: `CONDITION_RUNS_MAX_DATE_RANGE_DAYS=7305` and `CONDITION_RUNS_MAX_EPISODES=200`. Existing ticker, estimated-row, timeout, backend-byte, LLM-result, cumulative-token, and context limits remain independent and unchanged.
+- Git commit `4843c4e` deployed as `3fdef450-76c3-4685-b741-b5baf732c96c` and reached `SUCCESS`. The new generic `find_condition_runs` tool evaluates catalog-approved AND conditions over consecutive per-ticker trading observations and returns compact episodes; it does not accept model-written SQL or require Analytics Worker/raw-table access.
+- The first identical DeepSeek streak smoke `edf80a9f-91f2-4078-b432-5db4bc3195c4` found the correct BBCA episodes but reached the unchanged 100,000 cumulative-input gate before finalization (101,627 input tokens, 4,702 output tokens, 14 calls, 9 iterations). Audit identified redundant semantic preflight and an over-broad quality request; no token or query limit was increased.
+- Git commit `0ce0abe` deployed as `8231132b-974c-49fb-a48b-022ad68f31c7` and reached `SUCCESS`. Data handlers now auto-load compact semantics for only referenced catalog columns; complete definition retrieval remains available for detailed methodology, while missing/inactive catalog entries still reject execution.
+- The exact rerun `2d7f8adf-5119-4a60-9ac4-c1b789497ff5` finished `SUCCESS`/`FINAL`: 11 tool calls, 9 iterations, 85,591 cumulative input tokens, 4,129 output tokens, 89,720 combined tokens, and 18,476 peak active-context tokens. It stored evidence `438daac1-8e52-4207-8a88-25130dc7dfb8` and reported the two qualifying BBCA positive-return runs at 2019-05-23 through 2019-06-11 (8 observations) and 2023-04-06 through 2023-04-26 (9 observations).
+- Local tests passed 33/33; deterministic golden run `4ff14bf3-8c5e-4248-b506-08af06b65dec` passed 16/16; live catalog audit remained 91/91 calculation-verified definitions with zero incomplete rows. Both deployments completed startup and returned private `/health` HTTP 200.
+- Final linked-context `railway config plan` reported the `dev` environment already up to date. The first read-only attempt hit the workstation's known TLS `UnknownIssuer`; retrying with the verified local CA bundle succeeded without disabling certificate validation or changing Railway state.
+- No secret value, provider/model, raw/Feature value, calculation worker, schedule, public endpoint, volume, or unrelated Railway service changed.
+
 ## 2026-09-14 — Enable bounded INSIGHT stopping policy
 
 - Added non-secret `market-ai-backend` configuration `AI_ANALYSIS_MODE=INSIGHT`, `AI_MIN_INSIGHT_DATA_CALLS=2`, and `AI_MAX_ANALYSIS_SECONDS=600`. The 32-tool-call, 20-iteration, 100,000 cumulative-input, 12,000 cumulative-output, 64,000 hard-context, and independent query limits were not increased.

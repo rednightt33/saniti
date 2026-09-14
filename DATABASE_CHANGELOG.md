@@ -16,6 +16,7 @@
 - The backend no longer rejects an otherwise valid query merely because the model forgot a separate definition call. Missing or inactive catalog definitions still reject execution, so `Feature_Catalog` remains authoritative.
 - The migration was initially applied from a temporary `034` filename before a concurrently created Feature 2 shadow migration claimed that sequence number. The repository migration was moved forward to `035`, and the migration itself replaces the stale temporary source-path reference with the final `035` path. No SQL behavior or Feature data was changed by the renumbering.
 - A concurrently created empty `Feature_02_Broker_Rolling_v2` shadow table is `PARTIAL` and currently has neither `Column_Catalog` nor `Feature_Catalog` coverage. The strict catalog synchronizer correctly refused to certify it. This tool release did not alter or register that in-progress table; production AI access remains blocked because only `VERIFIED` Feature tables are queryable.
+- Exact-question DeepSeek rerun `2d7f8adf-5119-4a60-9ac4-c1b789497ff5` finished `SUCCESS`/`FINAL` after the repair: 85,591 cumulative input tokens, 4,129 output tokens, 11 tool calls, 9 iterations, and 18,476 peak active-context tokens. It stored evidence `438daac1-8e52-4207-8a88-25130dc7dfb8`; the answer reproduced both independently verified BBCA streaks and retained the descriptive-not-predictive and point-in-time metadata caveats.
 
 ## 2026-09-14 — Separate evidence storage from the stopping-policy gate
 
