@@ -512,7 +512,9 @@ class ToolRegistry:
         if not words:
             raise ToolError("search_text must contain at least one keyword")
         patterns = [f"%{word}%" for word in words]
-        limit = min(arguments.get("limit") or 30, 100)
+        # Discovery is only a routing aid. Keep its LLM-facing footprint small;
+        # exact definitions are auto-loaded later for the columns actually used.
+        limit = min(arguments.get("limit") or 20, 20)
         tables = arguments.get("tables") or []
         with self.db.query_transaction() as connection:
             rows = connection.execute(

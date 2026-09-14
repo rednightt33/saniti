@@ -221,6 +221,8 @@ def test_session_handoff_teaches_limits_and_stopping_policy_once() -> None:
     assert "run_analytics_job" in handoff
     assert str(orchestrator.settings.analytics_max_rows) in handoff
     assert "do not repeat discovery" in handoff
+    assert "resolve its ticker list" in handoff
+    assert "do not call estimate_query_size first" in handoff
     assert "stop" in handoff
 
 
@@ -316,6 +318,23 @@ def test_tool_calls_are_required_until_completion_is_accepted() -> None:
         "type": "function",
         "name": "complete_analysis",
     }
+
+
+def test_historical_route_progressively_forces_generic_worker_after_universe_resolution() -> None:
+    state = RunState(
+        "request",
+        "Kombinasi broker apa yang mendahului return 10% bulan berikutnya?",
+        {"HISTORICAL_VALIDATION"},
+        [],
+    )
+    assert AnalysisOrchestrator._required_tool_choice(state) == "required"
+    state.historical_universe_ready = True
+    assert AnalysisOrchestrator._required_tool_choice(state) == {
+        "type": "function",
+        "name": "run_analytics_job",
+    }
+    state.analytics_job_attempted = True
+    assert AnalysisOrchestrator._required_tool_choice(state) == "required"
 
 
 def test_finalization_has_reserved_tool_and_output_budget() -> None:

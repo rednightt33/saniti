@@ -107,6 +107,8 @@ class RunState:
     discovery_calls: int = 0
     tool_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     analytics_handoff: str = ""
+    historical_universe_ready: bool = False
+    analytics_job_attempted: bool = False
 
 
 class AnalysisOrchestrator:
@@ -307,10 +309,16 @@ class AnalysisOrchestrator:
             return [item for item in definitions if item.get("name") == "complete_analysis"]
         return definitions
 
-    @staticmethod
-    def _required_tool_choice(state: RunState) -> str | dict[str, str]:
+    @classmethod
+    def _required_tool_choice(cls, state: RunState) -> str | dict[str, str]:
         if state.completion_only:
             return {"type": "function", "name": "complete_analysis"}
+        if (
+            cls._initial_stage(state.question) == "HISTORICAL_VALIDATION"
+            and state.historical_universe_ready
+            and not state.analytics_job_attempted
+        ):
+            return {"type": "function", "name": "run_analytics_job"}
         return "required"
 
     def _max_output_tokens(self, state: RunState) -> int:
@@ -392,6 +400,15 @@ class AnalysisOrchestrator:
             analytics_success = not (
                 name == "run_analytics_job" and execution.payload.get("status") != "SUCCESS"
             )
+            if name == "run_analytics_job":
+                state.analytics_job_attempted = True
+            if (
+                self._initial_stage(state.question) == "HISTORICAL_VALIDATION"
+                and name == "query_features"
+                and "ticker" in (arguments.get("columns") or [])
+                and execution.payload.get("rows")
+            ):
+                state.historical_universe_ready = True
             if name in ANALYTICAL_DATA_TOOLS and execution.query_hash and analytics_success:
                 state.analytical_query_hashes.add(str(execution.query_hash))
             if name == "run_analytics_job":
@@ -796,7 +813,12 @@ class AnalysisOrchestrator:
             "only impossible-data FAIL. Reuse identifiers and auto-loaded compact semantics; do not "
             f"repeat discovery more than {self.settings.ai_max_discovery_calls} times. Once the answer "
             "has decisive evidence and necessary follow-ups are complete, record/accept completion and "
-            "stop; put optional work in recommended_next_analysis."
+            "stop; put optional work in recommended_next_analysis. For forward-outcome or cross-table "
+            "historical questions, use this efficient route: check shared readiness at most once; discover "
+            "only missing identifiers; if a universe is described by sector/industry, resolve its ticker "
+            "list with one bounded query_features call; then call run_analytics_job immediately. The job "
+            "validates and estimates every dataset itself, so do not call estimate_query_size first and "
+            "do not aggregate the whole market merely to discover a small universe."
         )
 
     def _validate_completion(self, state: RunState, arguments: dict[str, Any]) -> None:
