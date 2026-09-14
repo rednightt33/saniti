@@ -346,6 +346,18 @@ def test_historical_route_progressively_forces_generic_worker_after_universe_res
     assert AnalysisOrchestrator._required_tool_choice(state) == "required"
 
 
+def test_intermediate_worker_evidence_does_not_lock_followup_data_tools() -> None:
+    state = RunState(
+        "request",
+        "Kombinasi broker apa yang mendahului return 10%?",
+        {"HISTORICAL_VALIDATION"},
+        [],
+    )
+    state.recorded_evidence_ids.add("probe-evidence")
+    state.analytical_query_hashes.add("probe-query")
+    assert state.completion_only is False
+
+
 def test_finalization_has_reserved_tool_and_output_budget() -> None:
     orchestrator = object.__new__(AnalysisOrchestrator)
     orchestrator.settings = Settings.from_env(require_runtime_secrets=False)

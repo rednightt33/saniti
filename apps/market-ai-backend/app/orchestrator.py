@@ -423,14 +423,14 @@ class AnalysisOrchestrator:
                 evidence_id = execution.payload.get("evidence_id")
                 if evidence_id:
                     state.recorded_evidence_ids.add(str(evidence_id))
-                    if (
-                        len(state.analytical_query_hashes) >= self._required_analytical_queries(state)
-                        and not state.quality_failures
-                    ):
-                        state.completion_only = True
                     execution.payload["completion_policy"] = {
-                        "data_tools_locked": state.completion_only,
-                        "next_action": "Call complete_analysis now." if state.completion_only else "Run only a necessary distinct follow-up.",
+                        "data_tools_locked": False,
+                        "next_action": (
+                            "If this job directly answers the user's question and all necessary "
+                            "follow-ups are complete, call complete_analysis with "
+                            "evidence_sufficient=true. Otherwise run only the next necessary "
+                            "distinct analytical job."
+                        ),
                     }
             if name == "check_data_quality" and execution.payload.get("classification") == "FAIL":
                 state.quality_failures.append({
