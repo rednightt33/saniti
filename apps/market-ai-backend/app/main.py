@@ -42,10 +42,18 @@ def authorize(authorization: str | None = Header(default=None)) -> None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
 
-def authorize_analytics_worker(authorization: str | None = Header(default=None)) -> None:
-    expected = f"Bearer {settings.analytics_worker_api_key}"
-    if not settings.analytics_enabled or not authorization or not hmac.compare_digest(authorization, expected):
+def _authorize_worker(token: str, authorization: str | None) -> None:
+    expected = f"Bearer {token}"
+    if not settings.analytics_enabled or not token or not authorization or not hmac.compare_digest(authorization, expected):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+
+def authorize_query_sandbox(authorization: str | None = Header(default=None)) -> None:
+    _authorize_worker(settings.query_sandbox_api_key, authorization)
+
+
+def authorize_statistical_worker(authorization: str | None = Header(default=None)) -> None:
+    _authorize_worker(settings.statistical_worker_api_key, authorization)
 
 
 @app.get("/health")
@@ -95,8 +103,7 @@ def get_analysis(request_id: str) -> AnalysisStatus:
     )
 
 
-@app.post("/internal/analytics/jobs/claim", dependencies=[Depends(authorize_analytics_worker)])
-def claim_analytics_job(payload: AnalyticsWorkerClaim, response: Response) -> dict:
+def _claim_job(payload: AnalyticsWorkerClaim, response: Response, execution_class: str) -> dict:
     assert snapshot_store is not None
     with database.connection() as connection, connection.transaction():
         connection.execute(
@@ -105,14 +112,16 @@ def claim_analytics_job(payload: AnalyticsWorkerClaim, response: Response) -> di
                    error_message='Maximum worker attempts exhausted',
                    completed_at=clock_timestamp(),updated_at=clock_timestamp()
                WHERE status='PROCESSING' AND lease_expires_at < clock_timestamp()
+                 AND execution_class=%s
                  AND attempt_count >= max_attempts'''
+            , (execution_class,)
         )
         row = connection.execute(
             '''WITH candidate AS (
                    SELECT job_id FROM public."Analytics_Job"
-                   WHERE status='PENDING'
-                      OR (status='PROCESSING' AND lease_expires_at < clock_timestamp()
-                          AND attempt_count < max_attempts)
+                   WHERE (status='PENDING' AND execution_class=%s)
+                      OR (status='PROCESSING' AND execution_class=%s
+                          AND lease_expires_at < clock_timestamp() AND attempt_count < max_attempts)
                    ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1
                )
                UPDATE public."Analytics_Job" j
@@ -124,7 +133,7 @@ def claim_analytics_job(payload: AnalyticsWorkerClaim, response: Response) -> di
                RETURNING j.job_id,j.snapshot_id,j.lease_token,j.analysis_spec_json,
                          j.max_runtime_seconds,j.max_memory_mb,j.max_result_rows,
                          j.max_result_bytes''',
-            (payload.worker_id, settings.worker_lease_seconds),
+            (execution_class, execution_class, payload.worker_id, settings.worker_lease_seconds),
         ).fetchone()
         if row:
             snapshot = connection.execute(
@@ -137,6 +146,7 @@ def claim_analytics_job(payload: AnalyticsWorkerClaim, response: Response) -> di
         return {}
     return {
         "job_id": str(row["job_id"]), "lease_token": str(row["lease_token"]),
+        "execution_class": execution_class,
         "snapshot_url": snapshot_store.presigned_download(snapshot["object_key"]),
         "snapshot_sha256": snapshot["content_sha256"],
         "snapshot_compressed_bytes": snapshot["compressed_byte_count"],
@@ -150,16 +160,16 @@ def claim_analytics_job(payload: AnalyticsWorkerClaim, response: Response) -> di
     }
 
 
-@app.post("/internal/analytics/jobs/{job_id}/complete", dependencies=[Depends(authorize_analytics_worker)])
-def complete_analytics_job(job_id: str, payload: AnalyticsWorkerCompletion) -> dict[str, bool]:
+def _complete_job(job_id: str, payload: AnalyticsWorkerCompletion, execution_class: str) -> dict[str, bool]:
     encoded = dumps(payload.result).encode("utf-8")
     rows = payload.result.get("rows") or []
     with database.connection() as connection, connection.transaction():
         job = connection.execute(
             '''SELECT max_result_rows,max_result_bytes FROM public."Analytics_Job"
                WHERE job_id=%s AND status='PROCESSING' AND lease_token=%s
+                 AND execution_class=%s
                  AND lease_expires_at >= clock_timestamp() FOR UPDATE''',
-            (job_id, payload.lease_token),
+            (job_id, payload.lease_token, execution_class),
         ).fetchone()
         if not job:
             raise HTTPException(status_code=409, detail="Invalid or expired analytics lease")
@@ -174,17 +184,47 @@ def complete_analytics_job(job_id: str, payload: AnalyticsWorkerCompletion) -> d
     return {"accepted": True}
 
 
-@app.post("/internal/analytics/jobs/{job_id}/fail", dependencies=[Depends(authorize_analytics_worker)])
-def fail_analytics_job(job_id: str, payload: AnalyticsWorkerFailure) -> dict[str, bool]:
+def _fail_job(job_id: str, payload: AnalyticsWorkerFailure, execution_class: str) -> dict[str, bool]:
     with database.connection() as connection, connection.transaction():
         row = connection.execute(
             '''UPDATE public."Analytics_Job" SET status='FAILED',error_class=%s,
                  error_message=%s,completed_at=clock_timestamp(),updated_at=clock_timestamp(),
                  lease_token=NULL,lease_expires_at=NULL
                WHERE job_id=%s AND status='PROCESSING' AND lease_token=%s
+                 AND execution_class=%s
                  AND lease_expires_at >= clock_timestamp() RETURNING job_id''',
-            (payload.error_class, payload.error_message, job_id, payload.lease_token),
+            (payload.error_class, payload.error_message, job_id, payload.lease_token, execution_class),
         ).fetchone()
     if not row:
         raise HTTPException(status_code=409, detail="Invalid or expired analytics lease")
     return {"accepted": True}
+
+
+@app.post("/internal/query-sandbox/jobs/claim", dependencies=[Depends(authorize_query_sandbox)])
+def claim_query_sandbox_job(payload: AnalyticsWorkerClaim, response: Response) -> dict:
+    return _claim_job(payload, response, "QUERY_SANDBOX")
+
+
+@app.post("/internal/query-sandbox/jobs/{job_id}/complete", dependencies=[Depends(authorize_query_sandbox)])
+def complete_query_sandbox_job(job_id: str, payload: AnalyticsWorkerCompletion) -> dict[str, bool]:
+    return _complete_job(job_id, payload, "QUERY_SANDBOX")
+
+
+@app.post("/internal/query-sandbox/jobs/{job_id}/fail", dependencies=[Depends(authorize_query_sandbox)])
+def fail_query_sandbox_job(job_id: str, payload: AnalyticsWorkerFailure) -> dict[str, bool]:
+    return _fail_job(job_id, payload, "QUERY_SANDBOX")
+
+
+@app.post("/internal/statistical/jobs/claim", dependencies=[Depends(authorize_statistical_worker)])
+def claim_statistical_job(payload: AnalyticsWorkerClaim, response: Response) -> dict:
+    return _claim_job(payload, response, "STATISTICAL_VALIDATION")
+
+
+@app.post("/internal/statistical/jobs/{job_id}/complete", dependencies=[Depends(authorize_statistical_worker)])
+def complete_statistical_job(job_id: str, payload: AnalyticsWorkerCompletion) -> dict[str, bool]:
+    return _complete_job(job_id, payload, "STATISTICAL_VALIDATION")
+
+
+@app.post("/internal/statistical/jobs/{job_id}/fail", dependencies=[Depends(authorize_statistical_worker)])
+def fail_statistical_job(job_id: str, payload: AnalyticsWorkerFailure) -> dict[str, bool]:
+    return _fail_job(job_id, payload, "STATISTICAL_VALIDATION")

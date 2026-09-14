@@ -1,5 +1,14 @@
 # Database changelog
 
+## 2026-09-14 — Separate query sandbox and statistical validation queues
+
+- Applied forward-only migration `20260914_041_split_query_and_statistical_workers.sql` to Railway PostgreSQL `Postgres` in `dev`.
+- Added `Analytics_Job.execution_class` with `QUERY_SANDBOX` and `STATISTICAL_VALIDATION`; replaced the claim index with `(execution_class, status, created_at, lease_expires_at)` for class-scoped `SKIP LOCKED` leasing.
+- Replaced the single `run_analytics_job` catalog entry with deterministic `route_analysis`, `run_query_sandbox`, and `run_statistical_validation` tools and separate advertised resource limits.
+- Expanded immutable snapshot provenance from Feature-only to catalog-approved raw/Feature inputs. The backend remains the only PostgreSQL reader and snapshot writer.
+- Registered the new column in `Column_Catalog`, refreshed both affected `Table_Catalog` definitions, and created zero-login worker roles with zero public-table grants.
+- Live verification passed: three active routing/worker tools, old generic tool inactive, class column and composite partial claim index present, catalog status VERIFIED, and zero table grants for both worker roles.
+
 ## 2026-09-14 — Activate generic bounded Analytics Worker
 
 - Applied forward-only migration `database/migrations/20260914_040_create_generic_analytics_worker.sql` to Railway `dev`. It created `Analytics_Dataset_Snapshot` and `Analytics_Job`, registered all 44 new physical columns with evidence-backed definitions, activated one generic `run_analytics_job` tool, and superseded the Release 1 worker-denial Golden expectation.

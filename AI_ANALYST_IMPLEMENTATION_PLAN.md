@@ -739,11 +739,17 @@ blocks deployment, not database/schema work.
 
 1. Provision private object bucket and scoped credentials.
 2. Create `Analytics_Job` and immutable snapshot metadata.
-3. Build/deploy `market-analytics-worker` without raw/Feature credentials.
-4. Activate analytical tools individually after method-specific acceptance.
-5. Expand golden tests to event study, signal validation, forward returns,
+3. Build/deploy separate `market-query-sandbox` and statistical
+   `market-analytics-worker` services without raw/Feature credentials.
+4. Route every request once from declared operation classes: built-in tools for
+   simple operations, query sandbox for custom joins/windows/descriptive work,
+   and statistical worker for inferential/predictive validation.
+5. Allow only catalog-approved raw/Feature tables in backend-built immutable
+   snapshots; never expose unrestricted raw-table SQL or bulk rows to the LLM.
+6. Activate analytical methods individually after method-specific acceptance.
+7. Expand golden tests to event study, signal validation, forward returns,
    anomaly detection, correlation, and backtest.
-6. Require point-in-time disclosure and no-look-ahead PASS for valid predictive
+8. Require point-in-time disclosure and no-look-ahead PASS for valid predictive
    evidence.
 
 ### Release 3 — Telegram

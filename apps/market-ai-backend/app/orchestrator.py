@@ -23,9 +23,12 @@ INSTRUCTIONS = """You are the private Saniti Indonesian-market analyst.
 Use only supplied catalog-driven tools and never invent data. Begin with the smallest
 operation needed for the question. Reuse exact identifiers already known in the
 current analysis; use discovery or freshness only when they are genuinely unknown.
-Expand tool families when evidence makes it necessary. A bounded generic Analytics
-Worker is available for historical validation; it receives immutable Feature snapshots,
-never database credentials. Necessary follow-up queries should
+First call route_analysis once with the operations genuinely required. The backend
+deterministically selects built-in tools, the query sandbox, or statistical validation.
+The query sandbox handles custom joins/windows/descriptive transformations. The
+statistical worker handles event studies, backtests, significance tests, regression,
+clustering, HMM, and predictive validation. Both receive immutable bounded raw/Feature
+snapshots and never database credentials. Necessary follow-up queries should
 run automatically within limits; optional deeper work belongs in
 recommended_next_analysis. Treat extreme source-valid observations as useful
 anomalies, not automatically bad data. Cite recorded evidence IDs for material
@@ -34,7 +37,7 @@ and survivorship limitations where relevant. Do not confuse database rows with
 LLM-facing rows: prefer aggregation/ranking and compact evidence.
 The orchestrator automatically loads compact semantics for every relevant output,
 filter, ordering, grouping, metric, and condition column before data execution.
-The session handoff contains the current catalog-derived Feature identifier manifest.
+The session handoff contains the current catalog-derived raw and Feature data map.
 Treat those exact identifiers as authoritative and skip discovery for names already
 present there; never invent a synonym such as return_1d or buy_streak.
 Use get_feature_definition only when complete formula/methodology detail is needed;
@@ -70,7 +73,7 @@ Return the final schema JSON without Markdown fences or surrounding prose.
 ANALYTICAL_DATA_TOOLS = {
     "query_features", "get_timeseries", "compare_periods", "screen_features",
     "rank_features", "aggregate_features", "compare_groups", "find_condition_runs",
-    "run_analytics_job",
+    "run_query_sandbox", "run_statistical_validation",
 }
 FINALIZATION_TOOLS = {"record_evidence", "complete_analysis"}
 
@@ -113,6 +116,7 @@ class RunState:
     historical_universe_ready: bool = False
     analytics_job_attempted: bool = False
     analytics_job_decisive: bool = False
+    execution_route: str | None = None
 
 
 class AnalysisOrchestrator:
@@ -313,20 +317,28 @@ class AnalysisOrchestrator:
         if state.finalization_ready:
             return []
         definitions = self.tools.definitions(state.families)
+        if state.execution_route is None:
+            return [item for item in definitions if item.get("name") == "route_analysis"]
+        worker_tools = {"run_query_sandbox", "run_statistical_validation"}
+        permitted = {
+            "EXISTING_TOOL": set(),
+            "QUERY_SANDBOX": {"run_query_sandbox"},
+            "STATISTICAL_VALIDATION": {"run_statistical_validation"},
+        }[state.execution_route]
+        definitions = [
+            item for item in definitions
+            if item.get("name") not in worker_tools or item.get("name") in permitted
+        ]
         if state.completion_only:
             return [item for item in definitions if item.get("name") == "complete_analysis"]
         return definitions
 
     @classmethod
     def _required_tool_choice(cls, state: RunState) -> str | dict[str, str]:
+        if state.execution_route is None:
+            return {"type": "function", "name": "route_analysis"}
         if state.completion_only:
             return {"type": "function", "name": "complete_analysis"}
-        if (
-            cls._initial_stage(state.question) == "HISTORICAL_VALIDATION"
-            and state.historical_universe_ready
-            and not state.analytics_job_decisive
-        ):
-            return {"type": "function", "name": "run_analytics_job"}
         return "required"
 
     def _max_output_tokens(self, state: RunState) -> int:
@@ -388,6 +400,12 @@ class AnalysisOrchestrator:
             if name == "complete_analysis":
                 self._validate_completion(state, arguments)
             execution = self.tools.execute(name, arguments, state.request_id)
+            if name == "route_analysis":
+                state.execution_route = execution.payload["selected_path"]
+                if state.execution_route == "QUERY_SANDBOX":
+                    state.families.update({"QUERY", "HISTORICAL_VALIDATION"})
+                elif state.execution_route == "STATISTICAL_VALIDATION":
+                    state.families.update({"QUERY", "HISTORICAL_VALIDATION", "ADVANCED"})
             if cache_key:
                 state.tool_cache[cache_key] = execution.payload
             if auto_semantics:
@@ -405,10 +423,11 @@ class AnalysisOrchestrator:
                     (str(row["feature_table"]), str(row["feature_column"]))
                     for row in execution.payload.get("rows", [])
                 )
+            analytics_tools = {"run_query_sandbox", "run_statistical_validation"}
             analytics_success = not (
-                name == "run_analytics_job" and execution.payload.get("status") != "SUCCESS"
+                name in analytics_tools and execution.payload.get("status") != "SUCCESS"
             )
-            if name == "run_analytics_job":
+            if name in analytics_tools:
                 state.analytics_job_attempted = True
                 state.analytics_job_decisive = self._analytics_result_is_decisive(
                     arguments, execution.payload
@@ -422,7 +441,7 @@ class AnalysisOrchestrator:
                 state.historical_universe_ready = True
             if name in ANALYTICAL_DATA_TOOLS and execution.query_hash and analytics_success:
                 state.analytical_query_hashes.add(str(execution.query_hash))
-            if name == "run_analytics_job":
+            if name in analytics_tools:
                 state.features_used.update(execution.payload.get("source_tables") or [])
                 evidence_id = execution.payload.get("evidence_id")
                 if evidence_id:
@@ -813,31 +832,26 @@ class AnalysisOrchestrator:
     def _analytics_handoff(self, identifier_manifest: str = "") -> str:
         handoff = (
             "ANALYTICS SESSION HANDOFF (load once and follow throughout this request): "
-            "Use ordinary query/screen tools for bounded retrieval, ranking, and simple episodes. "
-            "Use run_analytics_job only for multi-table joins, forward outcomes, window logic, or "
-            "other niche computation. It creates catalog-validated Feature-only datasets, checks "
-            f"size, and sends at most {self.settings.analytics_max_rows} rows / "
-            f"{self.settings.analytics_max_input_bytes} bytes across "
-            f"{self.settings.analytics_max_datasets} datasets to an isolated SQL worker. "
-            "The worker has no database credentials. Filter before snapshotting; request only needed "
+            "First call route_analysis exactly once. Built-in tools handle bounded retrieval, ranking, "
+            "aggregation, time series, and condition runs. The query sandbox handles custom joins, "
+            "windows, and descriptive transformations. The statistical worker handles event studies, "
+            "backtests, significance tests, regression, clustering, HMM, and predictive validation. "
+            "Both workers receive only catalog-validated immutable bounded raw/Feature snapshots and "
+            "have no database credentials. Filter before snapshotting; request only needed "
             "columns; never use LIMIT as a biased sample; use unique stable job_label values so retries "
             "are idempotent. QC is conditional and scoped: continue on WARNING or valid anomaly, block "
             "only impossible-data FAIL. Reuse identifiers and auto-loaded compact semantics; do not "
             f"repeat discovery more than {self.settings.ai_max_discovery_calls} times. Once the answer "
             "has decisive evidence and necessary follow-ups are complete, record/accept completion and "
-            "stop; put optional work in recommended_next_analysis. For forward-outcome or cross-table "
-            "historical questions, use this efficient route: check shared readiness at most once; discover "
-            "only missing identifiers; if a universe is described by sector/industry, resolve its ticker "
-            "list with one bounded query_features call; then call run_analytics_job immediately. The job "
-            "validates and estimates every dataset itself, so do not call estimate_query_size first and "
-            "do not aggregate the whole market merely to discover a small universe. If a worker job only "
-            "returns a lookup/universe and not the requested analytical statistics, immediately call "
-            "run_analytics_job again using that universe; do not switch back to ordinary query tools."
+            "stop; put optional work in recommended_next_analysis. Worker tools validate and estimate "
+            "every dataset themselves, so do not call estimate_query_size first. The data map below is "
+            "schema visibility, not row content: PostgreSQL may scan many rows, but only compact worker "
+            "results are returned to the model."
         )
         if identifier_manifest:
             handoff += (
-                " CURRENT FEATURE IDENTIFIER MANIFEST (names only; semantics are auto-loaded "
-                "for used columns): " + identifier_manifest
+                " CURRENT RAW/FEATURE DATA MAP (exact identifiers; detailed Feature semantics are "
+                "auto-loaded only for used Feature columns): " + identifier_manifest
             )
         return handoff
 
@@ -891,7 +905,7 @@ class AnalysisOrchestrator:
 
     @staticmethod
     def _semantic_requirements(name: str, arguments: dict[str, Any]) -> set[tuple[str, str]]:
-        if name == "run_analytics_job":
+        if name in {"run_query_sandbox", "run_statistical_validation"}:
             result: set[tuple[str, str]] = set()
             for dataset in arguments.get("datasets") or []:
                 dataset_table = str(dataset.get("table") or "")
@@ -899,6 +913,8 @@ class AnalysisOrchestrator:
                 dataset_columns.update(
                     item.get("column") for item in dataset.get("filters") or []
                 )
+                if not dataset_table.startswith("Feature_"):
+                    continue
                 result.update(
                     (dataset_table, column)
                     for column in dataset_columns

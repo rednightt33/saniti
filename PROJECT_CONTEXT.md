@@ -11,6 +11,11 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - Environment: `dev`
 - Environment ID: `4d3e5af2-302b-4a2e-84e2-7d7476d6ff49`
 - PostgreSQL service ID: `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`
+- Market AI backend service ID: `2cefa0cd-c9fc-4b84-992e-fdf08535a064`
+- Statistical validation worker service: `market-analytics-worker`
+- Statistical validation worker service ID: `75fc5bbc-2ff9-4850-b007-011735506ce6`
+- Query sandbox service: `market-query-sandbox`
+- Query sandbox service ID: `c6bf3085-4784-43f3-90a1-da74456f6c4d`
 - IDX price cron service: `idx-price-cron`
 - IDX price cron service ID: `43c86c6f-3221-4403-83c3-cd3056441558`
 - IDX price recovery cron service: `idx-price-recovery-cron`
@@ -23,8 +28,6 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - Telegram command service ID: `5a3f820c-2bb2-494b-b771-15fa6a5eb48a`
 - Telegram command service instance ID: `78bd93d5-f74a-42fb-ad25-2be856bbda07`
 - Market AI backend service: `market-ai-backend`
-- Isolated analytics worker service: `market-analytics-worker`
-- Market AI backend service ID: `2cefa0cd-c9fc-4b84-992e-fdf08535a064`
 - Dashboard: <https://railway.com/project/8aef1702-030b-49cb-9df7-5ac2e0a42691?environmentId=4d3e5af2-302b-4a2e-84e2-7d7476d6ff49>
 - GitHub: <https://github.com/rednightt33/saniti>
 
@@ -43,6 +46,7 @@ All application services deploy from `rednightt33/saniti` on branch `main`. Each
 | `feature-01-worker` | `/apps/feature-01-worker` | `/apps/feature-01-worker/**` |
 | `market-ai-backend` | `/apps/market-ai-backend` | `/apps/market-ai-backend/**` |
 | `market-analytics-worker` | `/apps/market-analytics-worker` | `/apps/market-analytics-worker/**` |
+| `market-query-sandbox` | `/apps/market-query-sandbox` | `/apps/market-query-sandbox/**` |
 
 Connecting or changing a service source must preserve its environment variables and secrets, cron schedule, start command, health check, domain, private networking, restart/serverless policy, and database references. Source-configuration work must not use **Run now** on either price service and must not issue a TradingView query. Record the currently active deployment ID before each change so it remains available as the rollback reference, then wait for the new deployment to reach `SUCCESS` before changing the next service.
 
@@ -106,8 +110,8 @@ Telegram owner -> telegram-trigger webhook -> validate webhook secret and Chat I
 - `Feature_Calculation_Log`: completed calculation attempt and retry history. The Railway worker is deployed and a live re-ingestion test passed.
 - `Feature_Catalog`: machine-readable formula and semantic-governance layer for validated Feature columns. All 91 active `v1` definitions across Feature 01–03 include interpretation, recommended use, misuse warnings, semantic review status, and validation evidence; the backend requires relevant definitions to be loaded before data retrieval or aggregation.
 - `Feature_Relationship_Catalog`: safe join keys, cardinality, output grain, and preaggregation requirements between validated Feature tables.
-- `Tool_Catalog`: generic AI tool schemas, versions, activation state, and advertised database/worker/LLM-facing limits. Backend configuration remains the enforcement authority. `run_analytics_job` is the single model-facing worker surface for bounded niche computation; method-specific SQL stays internal.
-- `Analytics_Dataset_Snapshot` / `Analytics_Job`: immutable short-lived Feature-only input provenance plus durable worker lease/result audit. The worker has no PostgreSQL or bucket credentials.
+- `Tool_Catalog`: generic AI tool schemas, versions, activation state, and advertised database/worker/LLM-facing limits. Backend configuration remains the enforcement authority. `route_analysis` selects built-in, query-sandbox, or statistical execution from declared operation classes.
+- `Analytics_Dataset_Snapshot` / `Analytics_Job`: immutable short-lived raw/Feature input provenance plus durable class-separated worker lease/result audit. Neither worker has PostgreSQL or bucket credentials.
 - `Analysis_Request`, `Analysis_Model_Call`, `Analysis_Step_Log`, and `Analysis_Evidence`: durable request lifecycle, per-provider-call usage and bounded reasoning retention, progressive tool exposure, cumulative token/context usage, immutable version/methodology snapshot, compact steps, and reproducible claim evidence.
 - `Golden_Analysis_Test`, `Golden_Analysis_Test_Run`, and `Golden_Analysis_Test_Result`: permanent analytical regression expectations and historical outcomes across data correctness, methodology, safety, and token behavior.
 - `Table_Catalog`: curated purpose, grain, source, writer, and update contract for approved tables, including Feature 02 and Feature 03.
@@ -118,7 +122,7 @@ Telegram owner -> telegram-trigger webhook -> validate webhook secret and Chat I
 - `stockbit_broker_summary_load_log`: resume, retry, and `NEEDS_REVIEW` history.
 - `Database_Table_Status`: freshness and tracking catalog.
 
-The market-AI database foundation and private backend are deployed. Railway reports the service deployment healthy and its private `/health` check passes. The least-privilege `market_ai_app` login can access only catalogs and VERIFIED Feature 1–3 tables plus analysis audit writes, never raw price/broker data; no analytics-worker service exists. The original OpenAI credential remains configured but had exhausted credits. The allowlisted Responses transport now also supports OpenRouter, and `dev` is configured for `deepseek/deepseek-v4.1-flash` with reasoning `high`; bounded function-call and strict-output provider probes passed before rollout. Historical analysis must apply close-`t` to entry-`t+1`, preserve `SURVIVORSHIP_BIAS_WARNING` when point-in-time universe data is unavailable, and retain completed version snapshots.
+The market-AI database foundation and private backend are deployed. The backend alone holds PostgreSQL and private snapshot-bucket credentials. It can construct controlled catalog-approved raw/Feature snapshots; neither worker can read PostgreSQL directly. Query sandbox and statistical validation are separate services, credentials, limits, job classes, and claim endpoints. The original OpenAI credential remains configured but had exhausted credits. The allowlisted Responses transport also supports OpenRouter, and `dev` is configured for `deepseek/deepseek-v4.1-flash` with reasoning `high`. Historical analysis must apply close-`t` to entry-`t+1`, preserve `SURVIVORSHIP_BIAS_WARNING` when point-in-time universe data is unavailable, and retain completed version snapshots.
 
 See `DATABASE_CATALOG.md` for the initial and current table lists, metadata fields, confidence rules, and mandatory updates when new tables, columns, Feature definitions, or routines are added. `Database_Table_Status` remains a separate operational freshness table and is not a semantic catalog target.
 

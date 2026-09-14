@@ -17,16 +17,11 @@ import pandas as pd
 
 
 BACKEND_URL = os.environ["MARKET_AI_BACKEND_URL"].rstrip("/")
-WORKER_API_KEY = os.getenv("STATISTICAL_WORKER_API_KEY") or os.environ["ANALYTICS_WORKER_API_KEY"]
-POLL_SECONDS = max(1, int(os.getenv("ANALYTICS_WORKER_POLL_SECONDS", "2")))
+WORKER_API_KEY = os.environ["QUERY_SANDBOX_API_KEY"]
+POLL_SECONDS = max(1, int(os.getenv("QUERY_SANDBOX_POLL_SECONDS", "2")))
 PORT = int(os.getenv("PORT", "8080"))
 WORKER_ID = f"{socket.gethostname()}:{os.getpid()}"
 HEADERS = {"Authorization": f"Bearer {WORKER_API_KEY}"}
-ALLOWED_METHODS = {
-    "DESCRIPTIVE_STATISTICS_SQL", "EVENT_STUDY_SQL", "BACKTEST_SQL",
-    "SIGNIFICANCE_TEST_SQL", "REGRESSION_SQL", "CLUSTERING_SQL", "HMM_SQL",
-    "PREDICTIVE_VALIDATION_SQL",
-}
 
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -45,9 +40,9 @@ class HealthHandler(BaseHTTPRequestHandler):
 def validate_sql(statement: str, dataset_names: set[str]) -> str:
     sql = statement.strip().rstrip(";").strip()
     if not re.match(r"^(select|with)\b", sql, re.IGNORECASE):
-        raise ValueError("Only SELECT/WITH analytics are allowed")
+        raise ValueError("Only SELECT/WITH queries are allowed")
     if ";" in sql:
-        raise ValueError("Only one analytics statement is allowed")
+        raise ValueError("Only one query statement is allowed")
     forbidden = re.compile(
         r"\b(attach|detach|copy|export|import|install|load|pragma|call|create|alter|drop|"
         r"insert|update|delete|merge|vacuum|checkpoint|secret|read_csv|read_json|"
@@ -56,17 +51,16 @@ def validate_sql(statement: str, dataset_names: set[str]) -> str:
     )
     match = forbidden.search(sql)
     if match:
-        raise ValueError(f"Forbidden analytics operation: {match.group(1)}")
+        raise ValueError(f"Forbidden query operation: {match.group(1)}")
     if not dataset_names:
         raise ValueError("Snapshot contains no datasets")
     return sql
 
 
 def execute_job(claim: dict[str, Any], compressed: bytes) -> dict[str, Any]:
-    if claim.get("execution_class") != "STATISTICAL_VALIDATION":
-        raise ValueError("Statistical worker received the wrong execution class")
-    expected = claim["snapshot_sha256"]
-    if hashlib.sha256(compressed).hexdigest() != expected:
+    if claim.get("execution_class") != "QUERY_SANDBOX":
+        raise ValueError("Query sandbox received the wrong execution class")
+    if hashlib.sha256(compressed).hexdigest() != claim["snapshot_sha256"]:
         raise ValueError("Snapshot checksum mismatch")
     if len(compressed) != int(claim["snapshot_compressed_bytes"]):
         raise ValueError("Snapshot byte count mismatch")
@@ -74,9 +68,8 @@ def execute_job(claim: dict[str, Any], compressed: bytes) -> dict[str, Any]:
     datasets = package.get("datasets") or []
     names = {item["name"] for item in datasets}
     specification = claim["analysis_spec"]
-    method = specification.get("method")
-    if method not in ALLOWED_METHODS:
-        raise ValueError(f"Statistical method is not allowlisted: {method}")
+    if specification.get("method") != "SAFE_DUCKDB_SQL":
+        raise ValueError("Query sandbox method must be SAFE_DUCKDB_SQL")
     statement = validate_sql(specification["sql"], names)
     limits = claim["limits"]
     started = time.monotonic()
@@ -99,14 +92,11 @@ def execute_job(claim: dict[str, Any], compressed: bytes) -> dict[str, Any]:
         max_rows = int(limits["result_rows"])
         fetched = cursor.fetchmany(max_rows + 1)
         if len(fetched) > max_rows:
-            raise ValueError(f"Analytics output exceeds result row limit {max_rows}")
+            raise ValueError(f"Query output exceeds result row limit {max_rows}")
         rows = [dict(zip(columns, row)) for row in fetched]
         result = {
-            "method": method,
-            "method_version": "v1",
-            "columns": columns,
-            "rows": rows,
-            "row_count": len(rows),
+            "method": "SAFE_DUCKDB_SQL", "method_version": "v2",
+            "columns": columns, "rows": rows, "row_count": len(rows),
             "input_row_count": sum(int(item["row_count"]) for item in datasets),
             "dataset_row_counts": {item["name"]: int(item["row_count"]) for item in datasets},
             "sql_sha256": hashlib.sha256(statement.encode("utf-8")).hexdigest(),
@@ -114,7 +104,7 @@ def execute_job(claim: dict[str, Any], compressed: bytes) -> dict[str, Any]:
         }
         encoded = json.dumps(result, default=str, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         if len(encoded) > int(limits["result_bytes"]):
-            raise ValueError("Analytics output exceeds result byte limit")
+            raise ValueError("Query output exceeds result byte limit")
         return json.loads(encoded)
     finally:
         timeout.cancel()
@@ -128,7 +118,7 @@ def run() -> None:
         while True:
             try:
                 response = client.post(
-                    f"{BACKEND_URL}/internal/statistical/jobs/claim",
+                    f"{BACKEND_URL}/internal/query-sandbox/jobs/claim",
                     headers=HEADERS, json={"worker_id": WORKER_ID},
                 )
                 if response.status_code == 204:
@@ -141,25 +131,22 @@ def run() -> None:
                     snapshot.raise_for_status()
                     result = execute_job(claim, snapshot.content)
                     completed = client.post(
-                        f"{BACKEND_URL}/internal/statistical/jobs/{job_id}/complete",
+                        f"{BACKEND_URL}/internal/query-sandbox/jobs/{job_id}/complete",
                         headers=HEADERS,
                         json={"lease_token": lease_token, "result": result},
                     )
                     completed.raise_for_status()
                 except Exception as exc:
                     failed = client.post(
-                        f"{BACKEND_URL}/internal/statistical/jobs/{job_id}/fail",
+                        f"{BACKEND_URL}/internal/query-sandbox/jobs/{job_id}/fail",
                         headers=HEADERS,
-                        json={
-                            "lease_token": lease_token,
-                            "error_class": type(exc).__name__,
-                            "error_message": str(exc)[:2000],
-                        },
+                        json={"lease_token": lease_token, "error_class": type(exc).__name__,
+                              "error_message": str(exc)[:2000]},
                     )
                     if failed.status_code not in {200, 409}:
                         failed.raise_for_status()
             except Exception as exc:
-                print(json.dumps({"event": "analytics_worker_error", "error": str(exc)[:1000]}), flush=True)
+                print(json.dumps({"event": "query_sandbox_error", "error": str(exc)[:1000]}), flush=True)
                 time.sleep(POLL_SECONDS)
 
 

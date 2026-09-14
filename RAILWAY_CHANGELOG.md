@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-09-14 — Three-path Market AI execution architecture
+
+- Added service `market-query-sandbox` (`c6bf3085-4784-43f3-90a1-da74456f6c4d`) for isolated custom joins, windows, and descriptive transformations.
+- Re-scoped `market-analytics-worker` (`75fc5bbc-2ff9-4850-b007-011735506ce6`) as the statistical validation worker.
+- Configured distinct sealed worker credentials and separate query-sandbox/statistical row, byte, estimated-scan, ticker, date-range, runtime, memory, and output limits on `market-ai-backend`.
+- Neither worker receives `DATABASE_URL` or private bucket credentials; each can claim only its own `Analytics_Job.execution_class` through a separate backend endpoint.
+- Backend deployment `e69b3c4f-5c9d-47b9-a8d0-a9c04c9b763d` reached `SUCCESS` after correcting the local monorepo upload scope. Initial worker local-upload builds failed because Railway treated the repository root as a Node application; no running worker was replaced by those failed builds.
+- Final worker deployment IDs and end-to-end acceptance results are recorded below after the configuration-managed GitHub deployments complete.
+
 This file records intentional changes to the Railway project. Git history preserves every revision. Never include secret values.
 
 ## 2026-09-14 — Provision private generic analytics handoff

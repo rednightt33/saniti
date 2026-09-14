@@ -10,7 +10,25 @@ from app.tools import ToolError, ToolRegistry
 
 
 def test_evidence_and_completion_are_always_exposed() -> None:
-    assert ToolRegistry.ALWAYS_EXPOSED == {"record_evidence", "complete_analysis"}
+    assert ToolRegistry.ALWAYS_EXPOSED == {
+        "route_analysis", "record_evidence", "complete_analysis"
+    }
+
+
+@pytest.mark.parametrize(
+    ("operations", "expected"),
+    [
+        (["FILTER", "RANK"], "EXISTING_TOOL"),
+        (["CUSTOM_JOIN"], "QUERY_SANDBOX"),
+        (["CUSTOM_JOIN", "EVENT_STUDY"], "STATISTICAL_VALIDATION"),
+    ],
+)
+def test_route_analysis_is_deterministic(operations: list[str], expected: str) -> None:
+    registry = object.__new__(ToolRegistry)
+    result = registry.route_analysis(
+        {"required_operations": operations, "candidate_tables": [], "reason": "test"}, "request"
+    )
+    assert result.payload["selected_path"] == expected
 
 
 def test_malformed_evidence_call_is_recoverable_before_database_access() -> None:
@@ -136,3 +154,13 @@ def test_generic_analytics_sql_policy_rejects_mutation_and_external_readers() ->
         ToolRegistry._validate_worker_sql("SELECT * FROM read_parquet('s3://private/file')")
     with pytest.raises(ToolError, match="SELECT or WITH"):
         ToolRegistry._validate_worker_sql("DELETE FROM prices")
+
+
+def test_worker_tool_schemas_separate_query_and_statistical_methods() -> None:
+    query = ToolRegistry.schema_for("run_query_sandbox")
+    statistical = ToolRegistry.schema_for("run_statistical_validation")
+    assert "method" not in query["properties"]
+    assert "method" in statistical["required"]
+    assert {"date_column", "ticker_column"} <= set(
+        query["properties"]["datasets"]["items"]["properties"]
+    )

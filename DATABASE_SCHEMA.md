@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-14T07:39:52+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-14T09:22:55+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -12,10 +12,10 @@ Generated from PostgreSQL schema `public` at `2026-09-14T07:39:52+00:00`.
 | `Analysis_Model_Call` | System | One row after every provider model response; retained reasoning is purged by policy | — | `2026-09-14 03:49:36+00:00` | Baseline only | Per-provider-call audit containing usage, progressive tool exposure, a concise decision summary, and temporarily retained provider-returned reasoning. |
 | `Analysis_Request` | System | One lifecycle per submitted AI analysis | — | `2026-09-13 15:02:15+00:00` | Baseline only | Durable AI analysis request lifecycle, structured result, progressive tool exposure state, and token usage. |
 | `Analysis_Step_Log` | System | After each AI analysis tool or compaction step | — | `2026-09-13 15:02:15+00:00` | Baseline only | Audit record for every query, tool, compaction, or analytical step in an AI request. |
-| `Analytics_Dataset_Snapshot` | System | Per bounded analytics input; remove private object after terminal grace or expiry | — | `2026-09-14 07:39:52+00:00` | Baseline only | Metadata and retention state for immutable bounded analytical input snapshots stored in a private Railway bucket. |
-| `Analytics_Job` | System | Per generic analytics submission, lease, result, or failure | — | `2026-09-14 07:39:52+00:00` | Baseline only | Durable generic analytics queue, lease, bounded resource contract, result and failure audit. |
-| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-14 07:39:51.769309+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-14 07:39:52+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Analytics_Dataset_Snapshot` | System | Per bounded analytics input; remove private object after terminal grace or expiry | — | `2026-09-14 07:39:52+00:00` | Baseline only | Metadata and retention state for immutable bounded raw or Feature analytical input snapshots stored in a private Railway bucket. |
+| `Analytics_Job` | System | Per generic analytics submission, lease, result, or failure | — | `2026-09-14 07:39:52+00:00` | Baseline only | Durable queue, lease, resource contract, result, and failure audit for separately authenticated query-sandbox and statistical-validation workers. |
+| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-14 09:22:53.656182+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-14 09:22:55+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
 | `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-11` | `2026-09-13 04:36:32.635545+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
 | `Feature_02_Broker_Rolling` | Feature | After validated broker-summary changes; manual backfill in v1 | `2026-08-31` | `2026-09-13 14:13:08+00:00` | Derived from IDX_Broker_Summary; Feature 02 refresh is manual | Validated broker flow, persistence, abnormality and quiet accumulation by source ticker, broker, board and transaction date. All source symbols are in scope. |
 | `Feature_02_Broker_Rolling_v2` | Feature | Unreleased shadow rebuild; no production refresh or AI cutover | — | `2026-09-14 00:45:03+00:00` | Baseline only | Unreleased shadow replacement for Feature 02 with source Investor Type preserved. It is staging infrastructure and must not be queried as a production Feature until full validation and atomic cutover. |
@@ -33,7 +33,7 @@ Generated from PostgreSQL schema `public` at `2026-09-14T07:39:52+00:00`.
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-12 13:34:43.352522+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
 | `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-13` | `2026-09-13 23:03:11.705924+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
 | `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-11` | `2026-09-13 04:36:30.538547+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
-| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-14 07:25:04.145301+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
+| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-14 09:12:05.266535+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
 | `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
 | `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-13 23:03:15.889903+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
 | `Tool_Catalog` | Reference | With each approved backend or analytics tool release | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned generic AI tool metadata, activation state, schemas, and advertised operational ceilings. |
@@ -259,7 +259,7 @@ Audit record for every query, tool, compaction, or analytical step in an AI requ
 
 ## Analytics_Dataset_Snapshot
 
-Metadata and retention state for immutable bounded analytical input snapshots stored in a private Railway bucket.
+Metadata and retention state for immutable bounded raw or Feature analytical input snapshots stored in a private Railway bucket.
 
 ### Columns
 
@@ -311,7 +311,7 @@ Metadata and retention state for immutable bounded analytical input snapshots st
 
 ## Analytics_Job
 
-Durable generic analytics queue, lease, bounded resource contract, result and failure audit.
+Durable queue, lease, resource contract, result, and failure audit for separately authenticated query-sandbox and statistical-validation workers.
 
 ### Columns
 
@@ -343,15 +343,17 @@ Durable generic analytics queue, lease, bounded resource contract, result and fa
 | `completed_at` | `timestamp with time zone` | Yes | — | Terminal completion, failure or cancellation time. |
 | `result_expires_at` | `timestamp with time zone` | No | — | Retention deadline for compact job result detail. |
 | `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Last lifecycle update time. |
+| `execution_class` | `text` | No | `'STATISTICAL_VALIDATION'::text` | Physical execution boundary selecting the separately authenticated query sandbox or statistical validation worker. |
 
 ### Constraints
 
 | Name | Type | Definition |
 |---|---|---|
 | `Analytics_Job_attempts_check` | Check | `CHECK (attempt_count >= 0 AND max_attempts >= 1 AND max_attempts <= 10)` |
+| `Analytics_Job_execution_class_check` | Check | `CHECK (execution_class = ANY (ARRAY['QUERY_SANDBOX'::text, 'STATISTICAL_VALIDATION'::text]))` |
 | `Analytics_Job_lease_check` | Check | `CHECK (status = 'PROCESSING'::text AND worker_id IS NOT NULL AND lease_token IS NOT NULL AND lease_expires_at IS NOT NULL OR status <> 'PROCESSING'::text)` |
 | `Analytics_Job_limits_check` | Check | `CHECK (max_runtime_seconds > 0 AND max_memory_mb > 0 AND max_result_rows > 0 AND max_result_bytes > 0)` |
-| `Analytics_Job_method_check` | Check | `CHECK (method = 'SAFE_DUCKDB_SQL'::text)` |
+| `Analytics_Job_method_check` | Check | `CHECK (execution_class = 'QUERY_SANDBOX'::text AND method = 'SAFE_DUCKDB_SQL'::text OR execution_class = 'STATISTICAL_VALIDATION'::text AND (method = ANY (ARRAY['DESCRIPTIVE_STATISTICS_SQL'::text, 'EVENT_STUDY_SQL'::text, 'BACKTEST_SQL'::text, 'SIGNIFICANCE_TEST_SQL'::text, 'REGRESSION_SQL'::text, 'CLUSTERING_SQL'::text, 'HMM_SQL'::text, 'PREDICTIVE_VALIDATION_SQL'::text, 'SAFE_DUCKDB_SQL'::text])))` |
 | `Analytics_Job_result_check` | Check | `CHECK (result_json IS NULL OR jsonb_typeof(result_json) = 'object'::text)` |
 | `Analytics_Job_spec_check` | Check | `CHECK (jsonb_typeof(analysis_spec_json) = 'object'::text)` |
 | `Analytics_Job_status_check` | Check | `CHECK (status = ANY (ARRAY['PENDING'::text, 'PROCESSING'::text, 'SUCCESS'::text, 'FAILED'::text, 'CANCELLED'::text]))` |
@@ -366,7 +368,7 @@ Durable generic analytics queue, lease, bounded resource contract, result and fa
 
 | Name | Definition |
 |---|---|
-| `Analytics_Job_claim_idx` | `CREATE INDEX "Analytics_Job_claim_idx" ON public."Analytics_Job" USING btree (status, created_at, lease_expires_at) WHERE (status = ANY (ARRAY['PENDING'::text, 'PROCESSING'::text]))` |
+| `Analytics_Job_claim_idx` | `CREATE INDEX "Analytics_Job_claim_idx" ON public."Analytics_Job" USING btree (execution_class, status, created_at, lease_expires_at) WHERE (status = ANY (ARRAY['PENDING'::text, 'PROCESSING'::text]))` |
 | `Analytics_Job_pkey` | `CREATE UNIQUE INDEX "Analytics_Job_pkey" ON public."Analytics_Job" USING btree (job_id)` |
 | `Analytics_Job_request_idx` | `CREATE INDEX "Analytics_Job_request_idx" ON public."Analytics_Job" USING btree (request_id, created_at DESC)` |
 | `Analytics_Job_request_label_key` | `CREATE UNIQUE INDEX "Analytics_Job_request_label_key" ON public."Analytics_Job" USING btree (request_id, job_label)` |
@@ -1418,7 +1420,7 @@ Versioned generic AI tool metadata, activation state, schemas, and advertised op
 
 | Name | Type | Definition |
 |---|---|---|
-| `Tool_Catalog_execution_check` | Check | `CHECK (execution_type = ANY (ARRAY['BACKEND'::text, 'ANALYTICS_WORKER'::text, 'ORCHESTRATOR'::text]))` |
+| `Tool_Catalog_execution_check` | Check | `CHECK (execution_type = ANY (ARRAY['BACKEND'::text, 'ANALYTICS_WORKER'::text, 'QUERY_SANDBOX'::text, 'STATISTICAL_WORKER'::text, 'ORCHESTRATOR'::text]))` |
 | `Tool_Catalog_family_check` | Check | `CHECK (tool_family = ANY (ARRAY['META'::text, 'DISCOVERY'::text, 'QUALITY'::text, 'QUERY'::text, 'SCREENING'::text, 'HISTORICAL_VALIDATION'::text, 'ADVANCED'::text, 'AUDIT'::text]))` |
 | `Tool_Catalog_positive_limits_check` | Check | `CHECK ((default_output_rows IS NULL OR default_output_rows > 0) AND (max_output_rows IS NULL OR max_output_rows > 0) AND (max_input_rows IS NULL OR max_input_rows > 0) AND (max_tickers IS NULL OR max_tickers > 0) AND (max_date_range_days IS NULL OR max_date_range_days > 0) AND (max_estimated_rows IS NULL OR max_estimated_rows > 0) AND (timeout_seconds IS NULL OR timeout_seconds > 0) AND (max_output_bytes IS NULL OR max_output_bytes > 0) AND (max_llm_result_rows IS NULL OR max_llm_result_rows > 0) AND (max_llm_result_bytes IS NULL OR max_llm_result_bytes > 0) AND (max_llm_result_tokens IS NULL OR max_llm_result_tokens > 0))` |
 | `Tool_Catalog_pkey` | Primary key | `PRIMARY KEY (tool_name, version)` |

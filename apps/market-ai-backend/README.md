@@ -76,23 +76,34 @@ consume `AI_FINALIZATION_TOOL_RESULT_RESERVE_TOKENS`, leaving room for
 consume `AI_FINALIZATION_OUTPUT_RESERVE_TOKENS`, which is reserved for the final
 transition and answer.
 
-The backend can read Feature 1–3 through a least-privilege login. It cannot read
-raw price/broker tables or mutate Feature tables. Historical validation uses one
-generic bounded-snapshot worker. The model never writes
-PostgreSQL SQL and the worker never receives database credentials. `run_analytics_job`
-creates catalog-validated Feature-only datasets in a private short-lived object,
-then executes one isolated DuckDB `SELECT/WITH` over those dataset names. A compact
-analytics handoff is loaded at the start of each request so the model knows limits,
-query best practices, conditional QC, idempotency, evidence, and stopping rules before
-its first tool call.
+The backend is the only component with PostgreSQL and private-bucket credentials.
+At request start, it loads a compact catalog-derived data map containing approved
+raw/Feature table names, grain, primary keys, exact columns, and registered Feature
+join contracts. Detailed Feature definitions are still loaded only when used.
 
-Raw-table denial does not mean market-source values must always be hidden from
-the analyst. Feature 01 already exposes cataloged `close` and `volume` source
-values alongside derived features. If additional raw OHLCV fields are approved,
-expose them through a dedicated cataloged read-only market-data view/tool with
-the same structured query limits; do not grant the model or application role
-unrestricted raw-table credentials. This preserves source-level validation while
-keeping internal ingestion fields and unrelated raw tables outside the surface.
+The first model action is `route_analysis`. The backend maps declared operation
+classes deterministically:
+
+- built-in tools: bounded filter, rank, aggregate, time series, and condition runs;
+- `run_query_sandbox`: custom joins, windows, and descriptive transformations;
+- `run_statistical_validation`: event study, backtest, significance test,
+  regression, clustering, HMM, or predictive validation.
+
+Worker input may include catalog-approved raw tables (`Price_Stock_Indonesia_IDX`,
+`IDX_Broker_Summary`, `IDX_Stock_Universe`, `Universe_Equity_Description`, and
+`IDX_Broker_Profile`) as well as VERIFIED Feature tables. This is controlled raw-data
+querying—not a raw-row dump into the model. The backend validates exact columns,
+filters, ticker/date scope, estimated scans, rows, and bytes, then writes an immutable
+short-lived JSON-gzip snapshot. Workers receive only a presigned URL and a lease.
+They have no PostgreSQL credentials, raw/Feature credentials, or bucket credentials.
+Only compact bounded results return to the model.
+
+The query sandbox and statistical worker are separate Railway services with distinct
+tokens and class-filtered `FOR UPDATE SKIP LOCKED` claim endpoints. A sandbox token
+cannot lease a statistical job, and a statistical token cannot lease a sandbox job.
+Both disable DuckDB external access and reject DDL, DML, attachments, extensions, file
+readers, and network readers. Statistical jobs also require an explicit allowlisted,
+versioned method. Arbitrary Python remains prohibited.
 
 ## Required secrets
 
@@ -100,8 +111,10 @@ keeping internal ingestion fields and unrelated raw tables outside the surface.
 - `OPENAI_API_KEY`: required only when `AI_PROVIDER=openai`.
 - `OPENROUTER_DEEPSEEK`: required only when `AI_PROVIDER=openrouter`.
 - `MARKET_AI_INTERNAL_API_KEY`: bearer credential for private callers.
-- `ANALYTICS_WORKER_API_KEY`: separate bearer credential accepted only by internal
-  worker lease/result endpoints.
+- `QUERY_SANDBOX_API_KEY`: credential accepted only for query-sandbox leases/results.
+- `STATISTICAL_WORKER_API_KEY`: credential accepted only for statistical leases/results.
+- `ANALYTICS_WORKER_API_KEY`: backward-compatible statistical-worker secret name;
+  retained during migration but not used for query-sandbox authorization.
 - `ANALYTICS_BUCKET_*`: private S3-compatible bucket credentials held only by the
   backend. They are never configured on `market-analytics-worker`.
 

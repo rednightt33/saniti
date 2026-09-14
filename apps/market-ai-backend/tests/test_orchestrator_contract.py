@@ -218,10 +218,10 @@ def test_session_handoff_teaches_limits_and_stopping_policy_once() -> None:
     orchestrator = object.__new__(AnalysisOrchestrator)
     orchestrator.settings = Settings.from_env(require_runtime_secrets=False)
     handoff = orchestrator._analytics_handoff()
-    assert "run_analytics_job" in handoff
-    assert str(orchestrator.settings.analytics_max_rows) in handoff
+    assert "route_analysis exactly once" in handoff
+    assert "query sandbox" in handoff
+    assert "statistical worker" in handoff
     assert "do not repeat discovery" in handoff
-    assert "resolve its ticker list" in handoff
     assert "do not call estimate_query_size first" in handoff
     assert "stop" in handoff
 
@@ -232,7 +232,7 @@ def test_session_handoff_includes_catalog_identifier_manifest_without_definition
     manifest = "Feature_01_Stock_Daily=[date,return_1d_pct,ticker]"
     handoff = orchestrator._analytics_handoff(manifest)
     assert manifest in handoff
-    assert "names only" in handoff
+    assert "RAW/FEATURE DATA MAP" in handoff
 
 
 def test_impossible_quality_fail_blocks_completion_but_warning_does_not() -> None:
@@ -311,6 +311,7 @@ def test_evidence_gate_exposes_only_completion_then_no_tools() -> None:
     orchestrator = object.__new__(AnalysisOrchestrator)
     orchestrator.tools = FakeTools()
     state = RunState("request", "question", {"QUERY"}, [])
+    state.execution_route = "EXISTING_TOOL"
     state.completion_only = True
     assert [item["name"] for item in orchestrator._active_tool_definitions(state)] == [
         "complete_analysis"
@@ -321,6 +322,10 @@ def test_evidence_gate_exposes_only_completion_then_no_tools() -> None:
 
 def test_tool_calls_are_required_until_completion_is_accepted() -> None:
     state = RunState("request", "question", {"QUERY"}, [])
+    assert AnalysisOrchestrator._required_tool_choice(state) == {
+        "type": "function", "name": "route_analysis"
+    }
+    state.execution_route = "EXISTING_TOOL"
     assert AnalysisOrchestrator._required_tool_choice(state) == "required"
     state.completion_only = True
     assert AnalysisOrchestrator._required_tool_choice(state) == {
@@ -329,25 +334,18 @@ def test_tool_calls_are_required_until_completion_is_accepted() -> None:
     }
 
 
-def test_historical_route_progressively_forces_generic_worker_after_universe_resolution() -> None:
+def test_structured_route_replaces_prompt_keyword_worker_forcing() -> None:
     state = RunState(
         "request",
         "Kombinasi broker apa yang mendahului return 10% bulan berikutnya?",
         {"HISTORICAL_VALIDATION"},
         [],
     )
-    assert AnalysisOrchestrator._required_tool_choice(state) == "required"
-    state.historical_universe_ready = True
     assert AnalysisOrchestrator._required_tool_choice(state) == {
         "type": "function",
-        "name": "run_analytics_job",
+        "name": "route_analysis",
     }
-    state.analytics_job_attempted = True
-    assert AnalysisOrchestrator._required_tool_choice(state) == {
-        "type": "function",
-        "name": "run_analytics_job",
-    }
-    state.analytics_job_decisive = True
+    state.execution_route = "STATISTICAL_VALIDATION"
     assert AnalysisOrchestrator._required_tool_choice(state) == "required"
 
 

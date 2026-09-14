@@ -80,7 +80,25 @@ class ToolRegistry:
     """Catalog-driven tools; only the isolated worker accepts bounded analytical SQL."""
 
     CORE_FAMILIES = {"META", "DISCOVERY", "QUALITY"}
-    ALWAYS_EXPOSED = {"record_evidence", "complete_analysis"}
+    ALWAYS_EXPOSED = {"route_analysis", "record_evidence", "complete_analysis"}
+    RAW_TABLES = {
+        "Price_Stock_Indonesia_IDX",
+        "IDX_Broker_Summary",
+        "IDX_Stock_Universe",
+        "Universe_Equity_Description",
+        "IDX_Broker_Profile",
+    }
+    EXECUTION_ROUTES = {
+        "FILTER": "EXISTING_TOOL", "RANK": "EXISTING_TOOL",
+        "AGGREGATE": "EXISTING_TOOL", "TIMESERIES": "EXISTING_TOOL",
+        "CONDITION_RUN": "EXISTING_TOOL", "DISCOVERY": "EXISTING_TOOL",
+        "CUSTOM_JOIN": "QUERY_SANDBOX", "CUSTOM_WINDOW": "QUERY_SANDBOX",
+        "CUSTOM_TRANSFORM": "QUERY_SANDBOX",
+        "EVENT_STUDY": "STATISTICAL_VALIDATION", "BACKTEST": "STATISTICAL_VALIDATION",
+        "SIGNIFICANCE_TEST": "STATISTICAL_VALIDATION", "REGRESSION": "STATISTICAL_VALIDATION",
+        "CLUSTERING": "STATISTICAL_VALIDATION", "HMM": "STATISTICAL_VALIDATION",
+        "PREDICTIVE_VALIDATION": "STATISTICAL_VALIDATION",
+    }
     STAGE_FAMILIES = {
         "DISCOVERY": CORE_FAMILIES,
         "SCREENING": CORE_FAMILIES | {"QUERY", "SCREENING"},
@@ -92,6 +110,7 @@ class ToolRegistry:
         self.db = db
         self.settings = settings
         self.handlers: dict[str, Callable[[dict[str, Any], str], Execution]] = {
+            "route_analysis": self.route_analysis,
             "list_tools": self.list_tools,
             "validate_query_request": self.validate_query_request,
             "estimate_query_size": self.estimate_query_size,
@@ -108,26 +127,46 @@ class ToolRegistry:
             "aggregate_features": self.aggregate_features,
             "compare_groups": self.compare_groups,
             "find_condition_runs": self.find_condition_runs,
-            "run_analytics_job": self.run_analytics_job,
+            "run_query_sandbox": self.run_query_sandbox,
+            "run_statistical_validation": self.run_statistical_validation,
             "record_evidence": self.record_evidence,
             "complete_analysis": self.complete_analysis,
             "get_analysis_history": self.get_analysis_history,
         }
 
     def feature_identifier_manifest(self) -> str:
-        """Return a compact, catalog-derived map of valid Feature identifiers."""
+        """Return a compact catalog map of approved raw and Feature data."""
         with self.db.query_transaction() as connection:
             rows = connection.execute(
-                '''SELECT feature_table,
-                          array_agg(feature_column ORDER BY feature_column) AS columns
-                   FROM public."Feature_Catalog"
-                   WHERE is_active
-                   GROUP BY feature_table
-                   ORDER BY feature_table'''
+                '''SELECT tc.table_name,tc.category,tc.grain,tc.primary_key_columns,
+                          array_agg(cc.column_name ORDER BY cc.ordinal_position) AS columns
+                   FROM public."Table_Catalog" tc
+                   JOIN public."Column_Catalog" cc
+                     ON cc.table_schema=tc.table_schema AND cc.table_name=tc.table_name
+                   WHERE tc.table_schema='public' AND tc.documentation_status IN ('VERIFIED','PARTIAL')
+                     AND cc.documentation_status IN ('VERIFIED','PARTIAL')
+                     AND (tc.category='Feature' OR tc.table_name = ANY(%s))
+                   GROUP BY tc.table_name,tc.category,tc.grain,tc.primary_key_columns
+                   ORDER BY tc.category,tc.table_name''',
+                (sorted(self.RAW_TABLES),),
             ).fetchall()
-        return "; ".join(
-            f"{row['feature_table']}=[{','.join(row['columns'])}]" for row in rows
+            relationships = connection.execute(
+                '''SELECT left_feature_table,right_feature_table,left_join_columns,
+                          right_join_columns,requires_preaggregation
+                   FROM public."Feature_Relationship_Catalog" WHERE is_active
+                   ORDER BY left_feature_table,right_feature_table'''
+            ).fetchall()
+        tables = "; ".join(
+            f"{row['table_name']}({row['category']}; grain={row['grain']}; "
+            f"pk={','.join(row['primary_key_columns'])}; columns={','.join(row['columns'])})"
+            for row in rows
         )
+        joins = "; ".join(
+            f"{row['left_feature_table']}[{','.join(row['left_join_columns'])}]<->"
+            f"{row['right_feature_table']}[{','.join(row['right_join_columns'])}]"
+            f" preaggregate={row['requires_preaggregation']}" for row in relationships
+        )
+        return f"DATA MAP: {tables}. SAFE FEATURE JOINS: {joins or 'none registered'}."
 
     def definitions(self, families: set[str]) -> list[dict[str, Any]]:
         with self.db.query_transaction() as connection:
@@ -152,9 +191,52 @@ class ToolRegistry:
         return definitions
 
     @staticmethod
+    def _worker_tool_schema(*, statistical: bool) -> dict[str, Any]:
+        properties: dict[str, Any] = {
+            "job_label": {"type": "string"},
+            "purpose": {"type": "string"},
+            "datasets": {
+                "type": "array",
+                "items": _object_schema({
+                    "name": {"type": "string"},
+                    "table": {"type": "string"},
+                    "columns": {"type": "array", "items": {"type": "string"}},
+                    "date_column": {"type": ["string", "null"]},
+                    "ticker_column": {"type": ["string", "null"]},
+                    "tickers": {"type": ["array", "null"], "items": {"type": "string"}},
+                    "start_date": {"type": ["string", "null"]},
+                    "end_date": {"type": ["string", "null"]},
+                    "filters": QUERY_PROPERTIES["filters"],
+                    "limit": {"type": "integer"},
+                }),
+            },
+            "sql": {"type": "string"},
+            "result_limit": {"type": "integer"},
+            "analysis_ready_date": {"type": ["string", "null"], "format": "date"},
+        }
+        if statistical:
+            properties["method"] = {
+                "type": "string",
+                "enum": [
+                    "DESCRIPTIVE_STATISTICS", "EVENT_STUDY", "BACKTEST",
+                    "SIGNIFICANCE_TEST", "REGRESSION", "CLUSTERING", "HMM",
+                    "PREDICTIVE_VALIDATION",
+                ],
+            }
+        return _object_schema(properties)
+
+    @staticmethod
     def schema_for(name: str) -> dict[str, Any]:
         query_schema = _object_schema(QUERY_PROPERTIES)
         schemas: dict[str, dict[str, Any]] = {
+            "route_analysis": _object_schema({
+                "required_operations": {
+                    "type": "array", "minItems": 1,
+                    "items": {"type": "string", "enum": sorted(ToolRegistry.EXECUTION_ROUTES)},
+                },
+                "candidate_tables": {"type": "array", "items": {"type": "string"}},
+                "reason": {"type": "string"},
+            }),
             "list_tools": _object_schema({
                 "requested_families": {"type": ["array", "null"], "items": {"type": "string", "enum": ["QUERY", "SCREENING", "HISTORICAL_VALIDATION", "ADVANCED"]}},
                 "justification": {"type": ["string", "null"]},
@@ -227,26 +309,8 @@ class ToolRegistry:
                 "order": {"type": "string", "enum": ["start_date_asc", "start_date_desc", "longest"]},
                 "max_episodes": {"type": ["integer", "null"]},
             }),
-            "run_analytics_job": _object_schema({
-                "job_label": {"type": "string"},
-                "purpose": {"type": "string"},
-                "datasets": {
-                    "type": "array",
-                    "items": _object_schema({
-                        "name": {"type": "string"},
-                        "table": {"type": "string"},
-                        "columns": {"type": "array", "items": {"type": "string"}},
-                        "tickers": {"type": ["array", "null"], "items": {"type": "string"}},
-                        "start_date": {"type": "string"},
-                        "end_date": {"type": "string"},
-                        "filters": QUERY_PROPERTIES["filters"],
-                        "limit": {"type": "integer"},
-                    }),
-                },
-                "sql": {"type": "string"},
-                "result_limit": {"type": "integer"},
-                "analysis_ready_date": {"type": ["string", "null"], "format": "date"},
-            }),
+            "run_query_sandbox": ToolRegistry._worker_tool_schema(statistical=False),
+            "run_statistical_validation": ToolRegistry._worker_tool_schema(statistical=True),
             "record_evidence": _object_schema({
                 "evidence_type": {"type": "string", "enum": ["OBSERVATION", "QUALITY", "ANOMALY", "STATISTIC", "HISTORICAL_TEST", "WARNING"]},
                 "claim": {"type": "string"}, "compact_payload_json": {"type": "string"}, "query_hash": {"type": ["string", "null"]},
@@ -479,6 +543,31 @@ class ToolRegistry:
             )
             payload["backend_output_compacted"] = True
         return Execution(payload, digest, estimated, len(rows))
+
+    def route_analysis(self, arguments: dict[str, Any], _: str) -> Execution:
+        operations = list(dict.fromkeys(arguments["required_operations"]))
+        routes = {self.EXECUTION_ROUTES[item] for item in operations}
+        if "STATISTICAL_VALIDATION" in routes:
+            selected = "STATISTICAL_VALIDATION"
+            next_tool = "run_statistical_validation"
+        elif "QUERY_SANDBOX" in routes:
+            selected = "QUERY_SANDBOX"
+            next_tool = "run_query_sandbox"
+        else:
+            selected = "EXISTING_TOOL"
+            next_tool = None
+        return Execution({
+            "selected_path": selected,
+            "required_operations": operations,
+            "candidate_tables": arguments["candidate_tables"],
+            "reason": arguments["reason"],
+            "permitted_worker_tool": next_tool,
+            "routing_policy": (
+                "Statistical validation takes precedence over custom query work; custom query "
+                "work takes precedence over built-in retrieval. Routing is deterministic from "
+                "the declared operation classes."
+            ),
+        })
 
     def list_tools(self, arguments: dict[str, Any], _: str) -> Execution:
         requested = set(arguments.get("requested_families") or [])
@@ -904,39 +993,93 @@ class ToolRegistry:
             raise ToolError(f"analytics sql contains forbidden operation: {match.group(1)}")
         return normalized
 
-    def _analytics_dataset(self, spec: dict[str, Any], remaining_rows: int) -> tuple[dict[str, Any], str, int]:
+    def _snapshot_catalog(self, table: str) -> dict[str, dict[str, Any]]:
+        """Catalog allowlist for immutable worker inputs, including approved raw data."""
+        with self.db.query_transaction() as connection:
+            table_row = connection.execute(
+                '''SELECT category FROM public."Table_Catalog"
+                   WHERE table_schema='public' AND table_name=%s
+                     AND documentation_status IN ('VERIFIED','PARTIAL')''',
+                (table,),
+            ).fetchone()
+            if not table_row or not (
+                table_row["category"] == "Feature" or table in self.RAW_TABLES
+            ):
+                raise ToolError(f"Table is not approved for analytical snapshots: {table}")
+            rows = connection.execute(
+                '''SELECT column_name,documentation_status
+                   FROM public."Column_Catalog"
+                   WHERE table_schema='public' AND table_name=%s
+                     AND documentation_status IN ('VERIFIED','PARTIAL')''',
+                (table,),
+            ).fetchall()
+        return {
+            row["column_name"]: {
+                "is_filterable": True,
+                "documentation_status": row["documentation_status"],
+            }
+            for row in rows
+        }
+
+    def _worker_policy(self, execution_class: str) -> dict[str, int]:
+        prefix = "query_sandbox" if execution_class == "QUERY_SANDBOX" else "statistical"
+        return {
+            name: int(getattr(self.settings, f"{prefix}_{name}"))
+            for name in (
+                "max_rows", "max_columns", "max_input_bytes", "max_estimated_rows",
+                "max_date_range_days", "max_tickers", "max_datasets",
+                "max_runtime_seconds", "max_memory_mb", "max_result_rows",
+                "max_result_bytes",
+            )
+        }
+
+    def _analytics_dataset(
+        self, spec: dict[str, Any], remaining_rows: int, policy: dict[str, int]
+    ) -> tuple[dict[str, Any], str, int]:
         table = str(spec["table"])
-        catalog = self._catalog(table)
+        catalog = self._snapshot_catalog(table)
         columns = list(spec["columns"])
-        if not 1 <= len(columns) <= self.settings.analytics_max_columns:
+        if not 1 <= len(columns) <= policy["max_columns"]:
             raise ToolError(
-                f"analytics dataset columns must contain 1..{self.settings.analytics_max_columns} items"
+                f"analytics dataset columns must contain 1..{policy['max_columns']} items"
             )
         unknown = sorted(set(columns) - set(catalog))
         if unknown:
-            raise ToolError(f"Analytics columns are not active in Feature_Catalog: {unknown}")
+            raise ToolError(f"Analytics columns are not approved in the data catalog: {unknown}")
+        date_column = spec.get("date_column")
+        ticker_column = spec.get("ticker_column")
+        for label, column in (("date_column", date_column), ("ticker_column", ticker_column)):
+            if column is not None and column not in catalog:
+                raise ToolError(f"{label} is not an approved column of {table}: {column}")
         tickers = list(spec.get("tickers") or [])
-        if len(tickers) > self.settings.query_max_tickers:
-            raise ToolError(f"Analytics ticker count exceeds {self.settings.query_max_tickers}")
-        start = self._date(spec["start_date"], "start_date")
-        end = self._date(spec["end_date"], "end_date")
-        if not start or not end or start > end:
-            raise ToolError("Analytics dataset requires a valid explicit date range")
-        if (end - start).days + 1 > self.settings.analytics_max_date_range_days:
+        if len(tickers) > policy["max_tickers"]:
+            raise ToolError(f"Analytics ticker count exceeds {policy['max_tickers']}")
+        if tickers and not ticker_column:
+            raise ToolError("ticker_column is required when tickers are supplied")
+        start = self._date(spec.get("start_date"), "start_date")
+        end = self._date(spec.get("end_date"), "end_date")
+        if (start is None) != (end is None):
+            raise ToolError("start_date and end_date must both be supplied or both be null")
+        if start and (not date_column or start > end):
+            raise ToolError("A valid date_column and ordered date range are required")
+        if start and (end - start).days + 1 > policy["max_date_range_days"]:
             raise ToolError(
-                f"Analytics date range exceeds {self.settings.analytics_max_date_range_days} days"
+                f"Analytics date range exceeds {policy['max_date_range_days']} days"
             )
         requested_limit = spec["limit"]
         if not 1 <= requested_limit <= remaining_rows:
             raise ToolError(f"Analytics dataset limit exceeds remaining row budget {remaining_rows}")
-        conditions: list[Any] = [sql.SQL("date BETWEEN %s AND %s")]
-        params: list[Any] = [start, end]
+        conditions: list[Any] = []
+        params: list[Any] = []
+        if start:
+            conditions.append(sql.SQL("{} BETWEEN %s AND %s").format(sql.Identifier(date_column)))
+            params.extend([start, end])
         if tickers:
-            conditions.append(sql.SQL("ticker = ANY(%s)"))
+            conditions.append(sql.SQL("{} = ANY(%s)").format(sql.Identifier(ticker_column)))
             params.append(tickers)
         for item in spec.get("filters") or []:
             column, operator, value = item["column"], item["operator"], item["value"]
-            if column not in catalog or not catalog[column]["is_filterable"]:
+            if column not in catalog:
                 raise ToolError(f"Analytics filter column is not catalog-approved: {column}")
             identifier = sql.Identifier(column)
             if operator == "in":
@@ -954,21 +1097,22 @@ class ToolRegistry:
             else:
                 raise ToolError(f"Unsupported analytics filter operator: {operator}")
         # Fetch one extra row so a dataset is rejected rather than silently sampled.
-        statement = sql.SQL("SELECT {} FROM public.{} WHERE {} LIMIT %s").format(
+        statement = sql.SQL("SELECT {} FROM public.{}{} LIMIT %s").format(
             sql.SQL(", ").join(map(sql.Identifier, columns)),
-            sql.Identifier(table), sql.SQL(" AND ").join(conditions),
+            sql.Identifier(table),
+            sql.SQL(" WHERE ") + sql.SQL(" AND ").join(conditions) if conditions else sql.SQL(""),
         )
         params.append(requested_limit + 1)
-        with self.db.bounded_read_transaction(self.settings.analytics_max_runtime_seconds) as connection:
+        with self.db.bounded_read_transaction(policy["max_runtime_seconds"]) as connection:
             rendered = statement.as_string(connection)
             plan = connection.execute(
                 sql.SQL("EXPLAIN (FORMAT JSON) ") + statement, params
             ).fetchone()["QUERY PLAN"]
             estimated = self._estimated_rows(plan[0]["Plan"])
-            if estimated > self.settings.analytics_max_estimated_rows:
+            if estimated > policy["max_estimated_rows"]:
                 raise ToolError(
                     f"Estimated analytics scan {estimated} exceeds "
-                    f"{self.settings.analytics_max_estimated_rows}; prefilter or shorten the period"
+                    f"{policy['max_estimated_rows']}; prefilter or shorten the period"
                 )
             rows = connection.execute(statement, params).fetchall()
         if len(rows) > requested_limit:
@@ -983,16 +1127,18 @@ class ToolRegistry:
             "query_hash": digest,
         }, digest, estimated
 
-    def _analytics_job_result(self, request_id: str, job_label: str) -> Execution | None:
+    def _analytics_job_result(
+        self, request_id: str, job_label: str, execution_class: str
+    ) -> Execution | None:
         with self.db.query_transaction() as connection:
             row = connection.execute(
-                '''SELECT j.job_id,j.status,j.result_json,j.error_class,j.error_message,
+                '''SELECT j.job_id,j.status,j.method,j.execution_class,j.result_json,j.error_class,j.error_message,
                           j.evidence_id,j.snapshot_id,s.content_sha256,s.row_count,s.byte_count,
                           s.source_tables,s.query_hashes,j.created_at,j.completed_at
                    FROM public."Analytics_Job" j
                    JOIN public."Analytics_Dataset_Snapshot" s USING (snapshot_id)
-                   WHERE j.request_id=%s AND j.job_label=%s''',
-                (request_id, job_label),
+                   WHERE j.request_id=%s AND j.job_label=%s AND j.execution_class=%s''',
+                (request_id, job_label, execution_class),
             ).fetchone()
         if not row:
             return None
@@ -1015,7 +1161,7 @@ class ToolRegistry:
                            RETURNING evidence_id''',
                         (
                             request_id,
-                            f"Generic analytics job {job_label} completed successfully",
+                            f"{execution_class} job {job_label} completed successfully",
                             dumps(evidence_payload),
                             row["content_sha256"], row["source_tables"], request_id,
                         ),
@@ -1028,11 +1174,12 @@ class ToolRegistry:
         analytics_result = row["result_json"] or {}
         payload = {
             "job_id": str(row["job_id"]), "job_label": job_label,
+            "execution_class": row["execution_class"],
             "status": row["status"], "snapshot_id": str(row["snapshot_id"]),
             "snapshot_sha256": row["content_sha256"], "input_rows": row["row_count"],
             "input_bytes": row["byte_count"], "source_tables": row["source_tables"],
             "component_query_hashes": row["query_hashes"],
-            "method": analytics_result.get("method"),
+            "method": analytics_result.get("method") or row["method"],
             "method_version": analytics_result.get("method_version"),
             "columns": analytics_result.get("columns") or [],
             "rows": analytics_result.get("rows") or [],
@@ -1044,35 +1191,51 @@ class ToolRegistry:
             "evidence_id": str(row["evidence_id"]) if row["evidence_id"] else None,
             "error_class": row["error_class"], "error_message": row["error_message"],
             "created_at": row["created_at"], "completed_at": row["completed_at"],
-            "worker_boundary": "The analytics worker received no PostgreSQL/raw/Feature credentials.",
+            "worker_boundary": (
+                "This isolated worker received an immutable bounded snapshot and no "
+                "PostgreSQL/raw/Feature credentials."
+            ),
         }
         return Execution(
             payload, row["content_sha256"], processed_rows=int(row["row_count"])
         )
 
-    def run_analytics_job(self, arguments: dict[str, Any], request_id: str) -> Execution:
+    def run_query_sandbox(self, arguments: dict[str, Any], request_id: str) -> Execution:
+        return self._run_worker_job(arguments, request_id, "QUERY_SANDBOX")
+
+    def run_statistical_validation(self, arguments: dict[str, Any], request_id: str) -> Execution:
+        return self._run_worker_job(arguments, request_id, "STATISTICAL_VALIDATION")
+
+    def _run_worker_job(
+        self, arguments: dict[str, Any], request_id: str, execution_class: str
+    ) -> Execution:
         if not self.settings.analytics_enabled:
-            raise ToolError("Generic Analytics Worker is not enabled in this environment")
+            raise ToolError("Isolated analytical workers are not enabled in this environment")
+        policy = self._worker_policy(execution_class)
         label = arguments["job_label"].strip()
         if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{2,79}", label):
             raise ToolError("job_label must be 3..80 lowercase letters, digits, underscores, or hyphens")
         if not arguments["purpose"].strip():
             raise ToolError("purpose must be non-empty")
         datasets = arguments["datasets"]
-        if not 1 <= len(datasets) <= self.settings.analytics_max_datasets:
+        if not 1 <= len(datasets) <= policy["max_datasets"]:
             raise ToolError(
-                f"datasets must contain 1..{self.settings.analytics_max_datasets} items"
+                f"datasets must contain 1..{policy['max_datasets']} items"
             )
         names = [str(item["name"]) for item in datasets]
         if len(set(names)) != len(names) or any(not re.fullmatch(r"[a-z][a-z0-9_]{0,39}", name) for name in names):
             raise ToolError("dataset names must be unique lowercase SQL identifiers")
         result_limit = arguments["result_limit"]
-        if not 1 <= result_limit <= self.settings.analytics_max_result_rows:
+        if not 1 <= result_limit <= policy["max_result_rows"]:
             raise ToolError(
-                f"result_limit must be 1..{self.settings.analytics_max_result_rows}"
+                f"result_limit must be 1..{policy['max_result_rows']}"
             )
         statement = self._validate_worker_sql(arguments["sql"])
-        existing = self._analytics_job_result(request_id, label)
+        method = (
+            "SAFE_DUCKDB_SQL" if execution_class == "QUERY_SANDBOX"
+            else f"{arguments['method']}_SQL"
+        )
+        existing = self._analytics_job_result(request_id, label, execution_class)
         if existing and existing.payload["status"] in {"SUCCESS", "FAILED"}:
             existing.payload["idempotent_reuse"] = True
             return existing
@@ -1081,7 +1244,7 @@ class ToolRegistry:
             built, hashes, estimated_total, total_rows = [], [], 0, 0
             for spec in datasets:
                 dataset, digest, estimated = self._analytics_dataset(
-                    spec, self.settings.analytics_max_rows - total_rows
+                    spec, policy["max_rows"] - total_rows, policy
                 )
                 built.append(dataset); hashes.append(digest)
                 total_rows += dataset["row_count"]; estimated_total += estimated
@@ -1090,9 +1253,9 @@ class ToolRegistry:
                 "job_label": label, "datasets": built,
             }
             raw = dumps(package).encode("utf-8")
-            if len(raw) > self.settings.analytics_max_input_bytes:
+            if len(raw) > policy["max_input_bytes"]:
                 raise ToolError(
-                    f"Analytics snapshot bytes {len(raw)} exceed {self.settings.analytics_max_input_bytes}"
+                    f"Analytics snapshot bytes {len(raw)} exceed {policy['max_input_bytes']}"
                 )
             compressed = gzip.compress(raw, compresslevel=6, mtime=0)
             checksum = hashlib.sha256(compressed).hexdigest()
@@ -1120,28 +1283,28 @@ class ToolRegistry:
                 )
                 connection.execute(
                     '''INSERT INTO public."Analytics_Job"
-                         (job_id,request_id,snapshot_id,job_label,purpose,method,
+                         (job_id,request_id,snapshot_id,job_label,purpose,execution_class,method,
                           analysis_spec_json,status,max_runtime_seconds,max_memory_mb,
                           max_result_rows,max_result_bytes,result_expires_at)
-                       VALUES (%s,%s,%s,%s,%s,'SAFE_DUCKDB_SQL',%s,'PENDING',%s,%s,%s,%s,
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'PENDING',%s,%s,%s,%s,
                                clock_timestamp()+make_interval(days=>%s))''',
                     (
                         job_id, request_id, snapshot_id, label, arguments["purpose"][:1000],
-                        json.dumps({"sql": statement, "dataset_names": names}),
-                        self.settings.analytics_max_runtime_seconds,
-                        self.settings.analytics_max_memory_mb, result_limit,
-                        self.settings.analytics_max_result_bytes,
+                        execution_class, method,
+                        json.dumps({"sql": statement, "dataset_names": names, "method": method}),
+                        policy["max_runtime_seconds"], policy["max_memory_mb"], result_limit,
+                        policy["max_result_bytes"],
                         self.settings.analytics_result_retention_days,
                     ),
                 )
 
         deadline = monotonic() + self.settings.analytics_job_wait_seconds
         while monotonic() < deadline:
-            result = self._analytics_job_result(request_id, label)
+            result = self._analytics_job_result(request_id, label, execution_class)
             if result and result.payload["status"] in {"SUCCESS", "FAILED", "CANCELLED"}:
                 return result
             time.sleep(self.settings.analytics_job_poll_milliseconds / 1000)
-        result = self._analytics_job_result(request_id, label)
+        result = self._analytics_job_result(request_id, label, execution_class)
         if result:
             result.payload["poll_timed_out"] = True
             result.payload["next_action"] = "Repeat the same idempotent job_label to resume polling."

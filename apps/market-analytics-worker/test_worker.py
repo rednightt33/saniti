@@ -34,12 +34,21 @@ def test_executes_generic_snapshot_query() -> None:
     }
     compressed = gzip.compress(json.dumps(package).encode(), mtime=0)
     claim = {
+        "execution_class": "STATISTICAL_VALIDATION",
         "snapshot_sha256": hashlib.sha256(compressed).hexdigest(),
         "snapshot_compressed_bytes": len(compressed),
-        "analysis_spec": {"sql": "SELECT ticker,sum(value) total FROM prices GROUP BY ticker ORDER BY ticker"},
+        "analysis_spec": {
+            "method": "DESCRIPTIVE_STATISTICS_SQL",
+            "sql": "SELECT ticker,sum(value) total FROM prices GROUP BY ticker ORDER BY ticker",
+        },
         "limits": {"runtime_seconds": 5, "memory_mb": 128, "result_rows": 10, "result_bytes": 10000},
     }
     result = execute_job(claim, compressed)
     assert result["row_count"] == 2
     assert result["rows"][0] == {"ticker": "A", "total": 3.0}
+    assert result["method"] == "DESCRIPTIVE_STATISTICS_SQL"
 
+
+def test_statistical_worker_rejects_query_sandbox_job() -> None:
+    with pytest.raises(ValueError, match="wrong execution class"):
+        execute_job({"execution_class": "QUERY_SANDBOX"}, b"")

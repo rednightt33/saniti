@@ -32,6 +32,9 @@ def test_default_limits_are_three_separate_policies(monkeypatch: pytest.MonkeyPa
     assert settings.ai_max_analysis_seconds == 600
     assert settings.condition_runs_max_date_range_days == 7305
     assert settings.condition_runs_max_episodes == 200
+    assert settings.query_sandbox_max_rows == 100000
+    assert settings.statistical_max_rows == 500000
+    assert settings.query_sandbox_max_memory_mb < settings.statistical_max_memory_mb
 
 
 def test_invalid_context_order_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -75,6 +75,8 @@ class Settings:
     worker_lease_seconds: int
     analytics_enabled: bool
     analytics_worker_api_key: str
+    query_sandbox_api_key: str
+    statistical_worker_api_key: str
     analytics_bucket_name: str
     analytics_bucket_endpoint: str
     analytics_bucket_access_key_id: str
@@ -95,6 +97,28 @@ class Settings:
     analytics_snapshot_retention_hours: int
     analytics_terminal_snapshot_grace_seconds: int
     analytics_result_retention_days: int
+    query_sandbox_max_rows: int
+    query_sandbox_max_columns: int
+    query_sandbox_max_input_bytes: int
+    query_sandbox_max_estimated_rows: int
+    query_sandbox_max_date_range_days: int
+    query_sandbox_max_tickers: int
+    query_sandbox_max_datasets: int
+    query_sandbox_max_runtime_seconds: int
+    query_sandbox_max_memory_mb: int
+    query_sandbox_max_result_rows: int
+    query_sandbox_max_result_bytes: int
+    statistical_max_rows: int
+    statistical_max_columns: int
+    statistical_max_input_bytes: int
+    statistical_max_estimated_rows: int
+    statistical_max_date_range_days: int
+    statistical_max_tickers: int
+    statistical_max_datasets: int
+    statistical_max_runtime_seconds: int
+    statistical_max_memory_mb: int
+    statistical_max_result_rows: int
+    statistical_max_result_bytes: int
     ai_max_discovery_calls: int
 
     @classmethod
@@ -185,6 +209,10 @@ class Settings:
             worker_lease_seconds=_integer("WORKER_LEASE_SECONDS", 300),
             analytics_enabled=_boolean("ANALYTICS_ENABLED", False),
             analytics_worker_api_key=os.getenv("ANALYTICS_WORKER_API_KEY", ""),
+            query_sandbox_api_key=os.getenv("QUERY_SANDBOX_API_KEY", ""),
+            statistical_worker_api_key=os.getenv(
+                "STATISTICAL_WORKER_API_KEY", os.getenv("ANALYTICS_WORKER_API_KEY", "")
+            ),
             analytics_bucket_name=os.getenv("ANALYTICS_BUCKET_NAME", ""),
             analytics_bucket_endpoint=os.getenv("ANALYTICS_BUCKET_ENDPOINT", ""),
             analytics_bucket_access_key_id=os.getenv("ANALYTICS_BUCKET_ACCESS_KEY_ID", ""),
@@ -207,6 +235,28 @@ class Settings:
                 "ANALYTICS_TERMINAL_SNAPSHOT_GRACE_SECONDS", 3600
             ),
             analytics_result_retention_days=_integer("ANALYTICS_RESULT_RETENTION_DAYS", 90),
+            query_sandbox_max_rows=_integer("QUERY_SANDBOX_MAX_ROWS", 100000),
+            query_sandbox_max_columns=_integer("QUERY_SANDBOX_MAX_COLUMNS", 40),
+            query_sandbox_max_input_bytes=_integer("QUERY_SANDBOX_MAX_INPUT_BYTES", 41943040),
+            query_sandbox_max_estimated_rows=_integer("QUERY_SANDBOX_MAX_ESTIMATED_ROWS", 3000000),
+            query_sandbox_max_date_range_days=_integer("QUERY_SANDBOX_MAX_DATE_RANGE_DAYS", 7305),
+            query_sandbox_max_tickers=_integer("QUERY_SANDBOX_MAX_TICKERS", 100),
+            query_sandbox_max_datasets=_integer("QUERY_SANDBOX_MAX_DATASETS", 6),
+            query_sandbox_max_runtime_seconds=_integer("QUERY_SANDBOX_MAX_RUNTIME_SECONDS", 90),
+            query_sandbox_max_memory_mb=_integer("QUERY_SANDBOX_MAX_MEMORY_MB", 1024),
+            query_sandbox_max_result_rows=_integer("QUERY_SANDBOX_MAX_RESULT_ROWS", 500),
+            query_sandbox_max_result_bytes=_integer("QUERY_SANDBOX_MAX_RESULT_BYTES", 262144),
+            statistical_max_rows=_integer("STATISTICAL_MAX_ROWS", 500000),
+            statistical_max_columns=_integer("STATISTICAL_MAX_COLUMNS", 60),
+            statistical_max_input_bytes=_integer("STATISTICAL_MAX_INPUT_BYTES", 209715200),
+            statistical_max_estimated_rows=_integer("STATISTICAL_MAX_ESTIMATED_ROWS", 10000000),
+            statistical_max_date_range_days=_integer("STATISTICAL_MAX_DATE_RANGE_DAYS", 7305),
+            statistical_max_tickers=_integer("STATISTICAL_MAX_TICKERS", 1000),
+            statistical_max_datasets=_integer("STATISTICAL_MAX_DATASETS", 8),
+            statistical_max_runtime_seconds=_integer("STATISTICAL_MAX_RUNTIME_SECONDS", 300),
+            statistical_max_memory_mb=_integer("STATISTICAL_MAX_MEMORY_MB", 4096),
+            statistical_max_result_rows=_integer("STATISTICAL_MAX_RESULT_ROWS", 1000),
+            statistical_max_result_bytes=_integer("STATISTICAL_MAX_RESULT_BYTES", 524288),
             ai_max_discovery_calls=_integer("AI_MAX_DISCOVERY_CALLS", 4),
         )
         if not (
@@ -247,7 +297,8 @@ class Settings:
             raise RuntimeError("AI_ANALYSIS_MODE must be QUICK or INSIGHT")
         if settings.analytics_enabled:
             analytics_required = {
-                "ANALYTICS_WORKER_API_KEY": settings.analytics_worker_api_key,
+                "QUERY_SANDBOX_API_KEY": settings.query_sandbox_api_key,
+                "STATISTICAL_WORKER_API_KEY": settings.statistical_worker_api_key,
                 "ANALYTICS_BUCKET_NAME": settings.analytics_bucket_name,
                 "ANALYTICS_BUCKET_ENDPOINT": settings.analytics_bucket_endpoint,
                 "ANALYTICS_BUCKET_ACCESS_KEY_ID": settings.analytics_bucket_access_key_id,
@@ -260,4 +311,8 @@ class Settings:
                 )
         if settings.analytics_max_result_rows > settings.analytics_max_rows:
             raise RuntimeError("ANALYTICS_MAX_RESULT_ROWS must not exceed ANALYTICS_MAX_ROWS")
+        if settings.query_sandbox_max_result_rows > settings.query_sandbox_max_rows:
+            raise RuntimeError("QUERY_SANDBOX_MAX_RESULT_ROWS must not exceed QUERY_SANDBOX_MAX_ROWS")
+        if settings.statistical_max_result_rows > settings.statistical_max_rows:
+            raise RuntimeError("STATISTICAL_MAX_RESULT_ROWS must not exceed STATISTICAL_MAX_ROWS")
         return settings

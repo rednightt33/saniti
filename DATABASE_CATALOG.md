@@ -26,7 +26,7 @@ The scope subsequently added `Feature_Calculation_Queue`, `Feature_Status`, and 
 
 `Feature_03_Stock_Broker_Daily` is also approved and validated. It adds one table entry, 24 verified column entries, and 24 active `Feature_Catalog` `v1` definitions. Its grain is date, source ticker, and market board; Regular, Nego, and Tunai never mix. Two safe Feature 03 join contracts are registered in `Feature_Relationship_Catalog`. See `FEATURE_03_STOCK_BROKER_DAILY.md`.
 
-The market-AI foundation adds `Feature_Relationship_Catalog`, `Tool_Catalog`, four analysis audit tables, and three Golden Test tables. Release 2 adds `Analytics_Dataset_Snapshot` and `Analytics_Job`. The current live scope is 28 registered tables and 532 registered physical columns across those tables; together with the three explicit catalog/status exclusions, PostgreSQL has 31 public tables. `Tool_Catalog` exposes one generic `run_analytics_job` surface instead of one public tool per statistical method or investment question. Feature 3 usage metadata explicitly permits board/ticker/date grouping and only type-appropriate aggregations.
+The market-AI foundation adds `Feature_Relationship_Catalog`, `Tool_Catalog`, four analysis audit tables, and three Golden Test tables. Release 2 adds `Analytics_Dataset_Snapshot` and `Analytics_Job`. The current live scope is 28 registered tables and 533 registered physical columns across those tables; together with the three explicit catalog/status exclusions, PostgreSQL has 31 public tables. `Tool_Catalog` exposes deterministic `route_analysis`, one generic query-sandbox surface, and one generic statistical-validation surface rather than a tool per ticker or investment question. Feature 3 usage metadata explicitly permits board/ticker/date grouping and only type-appropriate aggregations.
 
 ## Complete public-table documentation map
 
@@ -40,8 +40,8 @@ column/constraint/index reference for every row below.
 | `Analysis_Model_Call` | Per-provider-call usage, tool exposure, decision summary, and temporary reasoning audit | `ANALYSIS_MODEL_CALL_AUDIT.md` |
 | `Analysis_Request` | Durable request lifecycle, cumulative usage, result, and version snapshot | `apps/market-ai-backend/README.md` |
 | `Analysis_Step_Log` | Tool/query/compaction execution audit | `apps/market-ai-backend/README.md` |
-| `Analytics_Dataset_Snapshot` | Immutable bounded Feature-only input metadata and private-object retention | `apps/market-analytics-worker/README.md` |
-| `Analytics_Job` | Generic analytics queue, lease, resource contract, compact result, and failure audit | `apps/market-analytics-worker/README.md` |
+| `Analytics_Dataset_Snapshot` | Immutable bounded raw/Feature input metadata and private-object retention | `apps/market-ai-backend/README.md` |
+| `Analytics_Job` | Class-separated query/statistical queue, lease, resource contract, compact result, and failure audit | `apps/market-ai-backend/README.md` |
 | `Column_Catalog` | Physical and semantic column inventory | This document |
 | `Database_Table_Status` | Operational table freshness/change status | This document; deliberately not a semantic-catalog target |
 | `Feature_01_Stock_Daily` | Daily price-derived stock features | `FEATURE_01_AUTOMATION_PLAN.md` |
@@ -80,7 +80,7 @@ Do not invent active Feature Catalog entries for Feature 04 before that table ex
 
 `Analysis_Request` records progressive tool exposure, compact results, cumulative provider input/output usage, current and peak active context, compaction count, methodology metadata, and an immutable completed-request version snapshot. `Analysis_Model_Call` records one provider response at a time, including per-call tokens and temporarily retained provider-returned reasoning; see `ANALYSIS_MODEL_CALL_AUDIT.md`. `Analysis_Step_Log` and `Analysis_Evidence` retain compact reproducibility details rather than large raw query results.
 
-`Analytics_Dataset_Snapshot` records the exact source specifications, schema, row/byte counts, query hashes, object checksum, readiness date, and deletion deadline for one immutable private input. `Analytics_Job` records the safe SQL method version, limits, lease attempts, compact result or bounded failure, and generated evidence ID. The worker receives neither PostgreSQL nor bucket credentials; it receives only a short-lived URL for the exact leased snapshot. Every session starts with a compact analytics handoff so the model already knows these limits and query best practices before choosing tools.
+`Analytics_Dataset_Snapshot` records exact catalog-approved raw/Feature source specifications, schema, row/byte counts, query hashes, object checksum, readiness date, and deletion deadline. `Analytics_Job.execution_class` selects `QUERY_SANDBOX` or `STATISTICAL_VALIDATION`; class-scoped credentials and claim indexes prevent cross-worker leasing. Neither worker receives PostgreSQL or bucket credentials—only a short-lived URL for the exact leased snapshot. Every session starts with a compact data map and operating handoff; the first `route_analysis` call selects the smallest sufficient execution path.
 
 `documentation_status` means:
 
