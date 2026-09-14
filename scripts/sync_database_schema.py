@@ -33,7 +33,7 @@ TABLE_STATUS_RULES = {
     "Analytics_Job": ("System", "Per generic analytics submission, lease, result, or failure"),
     "Feature_01_Stock_Daily": ("Feature", "After validated daily-price changes"),
     "Feature_02_Broker_Rolling": ("Feature", "After validated broker-summary changes; manual v2 ticker rebuild"),
-    "Feature_03_Stock_Broker_Daily": ("Feature", "After Feature 02 refresh; manual refresh in v1"),
+    "Feature_03_Stock_Broker_Daily": ("Feature", "After Feature 02 refresh; manual Investor-Type v2 refresh"),
     "Feature_Calculation_Queue": ("System", "After committed price inserts/updates and worker transitions"),
     "Feature_Status": ("System", "After enqueue and worker state transitions"),
     "Feature_Calculation_Log": ("System", "After completed worker attempts"),
@@ -538,7 +538,7 @@ def derive_status_rows(
             elif name == "Feature_02_Broker_Rolling":
                 tracking_status = "Derived from IDX_Broker_Summary; Investor-Type Feature 02 v2 refresh is manual"
             else:
-                tracking_status = "Derived from Feature_02_Broker_Rolling; Feature 03 refresh is manual"
+                tracking_status = "Derived from Investor-Type Feature_02_Broker_Rolling; Feature 03 v2 refresh is manual"
         elif name == "Feature_Calculation_Queue":
             latest_data_date, changed = connection.execute(
                 sql.SQL("SELECT max(price_date), max(updated_at) FROM {}.{}").format(

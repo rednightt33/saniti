@@ -28,8 +28,8 @@ def main() -> None:
         application_name="feature-03-independent-sample",
     ) as connection:
         source = connection.execute("""
-            SELECT s."Broker" AS broker,
-                   p.broker_type, p.broker_classification,
+            SELECT s."Broker" AS broker, s."Investor Type" AS investor_type,
+                   p.broker_classification,
                    sum(s."Buy Value") AS buy_value,
                    sum(s."Sell Value") AS sell_value,
                    sum(s."Buy Lots") AS buy_lots,
@@ -38,7 +38,7 @@ def main() -> None:
             LEFT JOIN public."IDX_Broker_Profile" AS p
               ON p.broker_code = s."Broker"
             WHERE s."Date"=%s AND s."Symbol"=%s AND s."Market Board"=%s
-            GROUP BY s."Broker", p.broker_type, p.broker_classification
+            GROUP BY s."Broker", s."Investor Type", p.broker_classification
         """, (args.date, args.ticker, args.board)).fetchall()
         stored = connection.execute("""
             SELECT * FROM public."Feature_03_Stock_Broker_Daily"
@@ -48,15 +48,29 @@ def main() -> None:
     if not source or stored is None:
         raise SystemExit("Source or stored sample row is missing")
 
-    brokers = []
+    broker_daily = {}
     type_flow = defaultdict(Decimal)
     class_flow = defaultdict(Decimal)
     for row in source:
         net = row["buy_value"] - row["sell_value"]
         active = any(row[name] != 0 for name in ("buy_value", "sell_value", "buy_lots", "sell_lots"))
-        brokers.append((row["broker"], net, active, row["buy_value"], row["sell_value"]))
-        type_flow[row["broker_type"]] += net
-        class_flow[row["broker_classification"]] += net
+        existing = broker_daily.setdefault(
+            row["broker"],
+            {"net": Decimal(0), "active": False, "buy": Decimal(0),
+             "sell": Decimal(0), "classification": row["broker_classification"]},
+        )
+        existing["net"] += net
+        existing["active"] = existing["active"] or active
+        existing["buy"] += row["buy_value"]
+        existing["sell"] += row["sell_value"]
+        type_flow[row["investor_type"]] += net
+
+    brokers = [
+        (code, value["net"], value["active"], value["buy"], value["sell"])
+        for code, value in broker_daily.items()
+    ]
+    for value in broker_daily.values():
+        class_flow[value["classification"]] += value["net"]
 
     positive = sorted(((code, net) for code, net, *_ in brokers if net > 0), key=lambda x: (-x[1], x[0]))
     negative = sorted(((code, net) for code, net, *_ in brokers if net < 0), key=lambda x: (x[1], x[0]))

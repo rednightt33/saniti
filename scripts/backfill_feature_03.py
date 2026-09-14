@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the PostgreSQL-side full historical Feature 03 refresh."""
+"""Run the PostgreSQL-side full historical Feature 03 v2 refresh."""
 
 from __future__ import annotations
 

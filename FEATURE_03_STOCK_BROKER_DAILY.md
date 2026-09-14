@@ -1,12 +1,14 @@
-# Feature 03 — stock broker daily structure
+# Feature 03 v2 — stock broker and investor daily structure
 
 `Feature_03_Stock_Broker_Daily` compresses broker-level flows into one row per `date × ticker × market_board`. `Regular`, `Nego`, and `Tunai` are always separate; consumers should filter `market_board = 'Regular'` when they want regular-market structure. All symbols present in Broker Summary remain eligible, including instruments outside the current stock universe.
 
 ## Calculation contract
 
-The refresh aggregates validated Feature 02 daily fields across brokers and joins current `IDX_Broker_Profile` classifications. `active_broker_count` includes a broker with any nonzero gross value or lots. Positive, negative, and zero-net brokers are distinct: zero-net active brokers remain in the denominator of `net_buy_broker_ratio` but do not enter its numerator or `net_sell_broker_count`.
+The refresh has two deliberate aggregation paths. `foreign_net_value` and `domestic_net_value` sum the point-in-time `Feature_02_Broker_Rolling.investor_type` rows directly. They represent investor identity from the source Broker Summary, not broker domicile. All other broker-level metrics first sum Domestic and Foreign activity per broker, then aggregate those broker totals. This keeps `active_broker_count`, rankings, and HHI as broker—not investor-type-row—metrics.
 
-Domestic/Foreign flows and Institutional-heavy/Retail-heavy/Mixed/Niche flows are two independent classification axes. All source brokers currently have complete profile mappings. An unmatched future broker remains included in gross totals, breadth, dominant-broker, and HHI calculations but is excluded from classified-flow sums until its profile exists.
+`active_broker_count` includes a broker with any nonzero gross value or lots. Positive, negative, and zero-net brokers are distinct: zero-net active brokers remain in the denominator of `net_buy_broker_ratio` but do not enter its numerator or `net_sell_broker_count`.
+
+Source Domestic/Foreign investor flows and current Institutional-heavy/Retail-heavy/Mixed/Niche broker classifications are two independent axes. A foreign broker can serve a domestic investor and vice versa. An unmatched future broker remains included in gross totals, breadth, dominant-broker, and HHI calculations but is excluded from current broker-classification sums until its profile exists.
 
 `top_buyer` is the broker with the greatest positive daily net value; `top_seller` is the broker with the lowest negative daily net value. Equal net values use broker code ascending. The seller value retains its negative sign. Top-three buyer value uses only positive-net brokers. Its share is null when total positive net value is zero.
 
@@ -16,7 +18,7 @@ For broker `i`, HHI uses `weight_i = ABS(net_value_i) / SUM(ABS(net_value))`, th
 
 The production backfill contains 2,268,015 rows. Board coverage is Regular 1,955,758 rows/3,942 tickers, Nego 300,796 rows/1,399 tickers, and Tunai 11,461 rows/1,117 tickers. Regular and Nego cover 2016-01-04 through 2026-08-31; Tunai begins 2016-01-06 and ends 2026-08-31.
 
-Full SQL reconciliation returned zero extra rows, missing rows, or calculated-field mismatches. Independent raw-source checks passed all 20 calculated fields for BBCA examples on Regular, Nego, and Tunai. A committed scoped BBCA refresh preserved row counts and values. Complete column formulas and null rules are active in `Feature_Catalog` version `v1`.
+The v1 results above are historical evidence only. The v2 full rebuild again produced 2,268,015 rows over the same date range. Every row passed `foreign_net_value + domestic_net_value = total daily net value`; independent 20-field raw checks passed for BBCA Regular, BBCA Nego, and ADRO Tunai on 2026-08-31. Complete current column formulas and null rules are active in `Feature_Catalog` version `v2`.
 
 ## Refresh operation
 

@@ -1,5 +1,14 @@
 # Database changelog
 
+## 2026-09-14 — Feature 03 v2 Investor-Type rebuild
+
+- Applied forward-only migration `20260914_047_define_feature_03_investor_type_v2.sql` after the Feature 02 Investor-Type cutover. It replaced only the Feature 03 refresh routine and semantic contract; the physical Feature 03 schema and primary key remain `(ticker, market_board, date)`.
+- `foreign_net_value` and `domestic_net_value` now sum `Feature_02_Broker_Rolling.net_value_1d` by source `investor_type` (`Foreign`/`Domestic`). They are point-in-time source investor identities and must not be interpreted as broker domicile. Broker breadth, rankings, top-three flows, HHI, and current broker-profile classifications first sum both Investor Types per broker, preserving their broker-level grain.
+- Ran the transactionally safe full historical rebuild through `refresh_feature_03_stock_broker_daily(NULL, NULL)`: 2,268,015 rows, 2016-01-04 through 2026-08-31, were replaced in one committed run. The core identity check returned zero violations: `foreign_net_value + domestic_net_value = total_buy_value - total_sell_value` for every stored row.
+- Independent raw-Broker-Summary samples passed all 20 calculated fields: BBCA/Regular/2026-08-31 (81 brokers), BBCA/Nego/2026-08-31 (12 brokers, zero-net edge case), and ADRO/Tunai/2026-08-31 (one-broker zero-net edge case). `scripts/validate_feature_03.py` now independently reconstructs the v2 contract for full read-only reconciliation; `scripts/check_feature_03_sample.py` independently aggregates source Investor Type and broker totals.
+- Deactivated 24 v1 Feature Catalog definitions, activated 24 v2 definitions, updated column/table catalog evidence and the Feature 02 → Feature 03 safe-join contract to v3. No raw table, Feature 01, Feature 02 row, price cron, or Railway service changed. Feature 03 still has no automatic worker.
+- Applied `20260914_048_record_feature_03_v2_rebuild_status.sql` to record `FULL_REBUILD_V2` and the materialization timestamp in `Database_Table_Status`; regenerated `DATABASE_SCHEMA.md` for all 30 public tables.
+
 ## 2026-09-14 — Feature 02 Investor-Type v2 cutover and v1 storage removal
 
 - Applied `20260914_043_cutover_feature_02_investor_type.sql` to Railway project `8aef1702-030b-49cb-9df7-5ac2e0a42691`, environment `dev`, Postgres service. The migration first passed a rollback-only dry run. It promoted the validated shadow to canonical `Feature_02_Broker_Rolling`, deactivated 38 v1 Feature Catalog definitions, activated 38 v2 definitions, reconciled Table/Column/Relationship catalogs, granted `market_ai_reader` SELECT, and dropped the old 42,598,713-row v1 table with `RESTRICT` (no `CASCADE`).

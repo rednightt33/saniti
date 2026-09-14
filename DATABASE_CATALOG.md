@@ -24,9 +24,9 @@ The scope subsequently added `Feature_Calculation_Queue`, `Feature_Status`, and 
 
 `Feature_02_Broker_Rolling` is the approved, validated Investor-Type v2 output table. It has one `Table_Catalog` entry, 38 verified `Column_Catalog` entries, and 38 active `Feature_Catalog` `v2` definitions. The 38 historical v1 definitions remain inactive. `investor_type` is copied from the broker-summary row, not inferred from broker domicile. Its board/type partitions and ticker transaction-date calendar are explained in `FEATURE_02_BROKER_ROLLING_V2.md`.
 
-`Feature_03_Stock_Broker_Daily` is also approved and validated. It adds one table entry, 24 verified column entries, and 24 active `Feature_Catalog` `v1` definitions. Its grain is date, source ticker, and market board; Regular, Nego, and Tunai never mix. Two safe Feature 03 join contracts are registered in `Feature_Relationship_Catalog`. See `FEATURE_03_STOCK_BROKER_DAILY.md`.
+`Feature_03_Stock_Broker_Daily` is approved and validated at its existing date/ticker/board grain. Its 24 active `Feature_Catalog` `v2` definitions use source `Investor Type` for the Domestic/Foreign net-flow columns. Broker breadth, rankings, HHI, and current broker-profile classification fields first aggregate both Investor Types per broker. Regular, Nego, and Tunai never mix. Safe join contracts are versioned in `Feature_Relationship_Catalog`. See `FEATURE_03_STOCK_BROKER_DAILY.md`.
 
-The market-AI foundation adds `Feature_Relationship_Catalog`, `Tool_Catalog`, four analysis audit tables, and three Golden Test tables. Release 2 adds `Analytics_Dataset_Snapshot` and `Analytics_Job`. After the Feature 02 v2 cutover, the live scope has 27 registered tables and 495 registered physical columns; together with the three explicit catalog/status exclusions, PostgreSQL has 30 public tables. `Tool_Catalog` exposes deterministic `route_analysis`, one generic query-sandbox surface, and one generic statistical-validation surface rather than a tool per ticker or investment question. Feature 3 usage metadata remains on its existing broker-domicile v1 meaning until its separate redesign.
+The market-AI foundation adds `Feature_Relationship_Catalog`, `Tool_Catalog`, four analysis audit tables, and three Golden Test tables. Release 2 adds `Analytics_Dataset_Snapshot` and `Analytics_Job`. After the Feature 02 v2 cutover, the live scope has 27 registered tables and 495 registered physical columns; together with the three explicit catalog/status exclusions, PostgreSQL has 30 public tables. `Tool_Catalog` exposes deterministic `route_analysis`, one generic query-sandbox surface, and one generic statistical-validation surface rather than a tool per ticker or investment question. Feature 3 v2 clearly separates source investor identity from current broker-profile metadata.
 
 ## Complete public-table documentation map
 
@@ -123,7 +123,7 @@ ORDER BY feature_column;
 SELECT feature_column, calculation, unit, null_rule
 FROM public."Feature_Catalog"
 WHERE feature_table = 'Feature_03_Stock_Broker_Daily'
-  AND version = 'v1' AND is_active
+  AND version = 'v2' AND is_active
 ORDER BY feature_column;
 
 SELECT tool_name, tool_family, max_output_rows, max_llm_result_rows,
