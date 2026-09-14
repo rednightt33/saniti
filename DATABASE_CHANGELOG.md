@@ -1,5 +1,15 @@
 # Database changelog
 
+## 2026-09-14 — Start Investor-Type-preserving Feature 02 shadow rebuild
+
+- Confirmed the production `Feature_02_Broker_Rolling` aggregates `IDX_Broker_Summary."Investor Type"` away and stores current `IDX_Broker_Profile.broker_type`; this is valid only as combined broker flow and cannot represent Domestic versus Foreign investor activity. The canonical table and its 42,598,713 rows were not changed.
+- Applied forward-only migration `database/migrations/20260914_034_create_feature_02_investor_type_shadow.sql`, creating unreleased `Feature_02_Broker_Rolling_v2` with grain `(date,ticker,broker,investor_type,market_board)` and primary key `(ticker,market_board,broker,investor_type,date)`. `investor_type` is the exact point-in-time source label; `broker_classification` remains current profile metadata. Every rolling and 252-observation history partition now includes Investor Type.
+- Added resumable SQL-side `scripts/backfill_feature_02_v2.py`. A controlled BBCA run staged and inserted 219,762 investor-specific rows; the final rolling insert took 149.6 seconds. Production BBCA v1 remained unchanged at 177,212 rows.
+- BBCA source reconciliation PASS: zero extra, missing, or mismatched 1D rows. Independent AK/Regular/2026-08-31 calculation PASS for all 31 numeric/window fields for both Domestic and Foreign investors; the maximum floating-point difference was `3.33e-16`.
+- The first sample-validator run passed source reconciliation but stopped on a local dictionary-row indexing error. Updating positional access to named fields fixed the validator; no database value was changed or invalidated by this failure.
+- The first strict catalog sync correctly rejected the shadow because migration 034 initially categorized it as `Feature` without prematurely active Feature Catalog definitions. No partial sync was committed. Migration `database/migrations/20260914_036_register_feature_02_shadow_columns.sql` corrected the shadow to `System` staging infrastructure and registered 38/38 Column Catalog rows as `PARTIAL`; catalog/schema synchronization then passed for 467 physical columns and 28 public tables.
+- Active Feature 2 v1 definitions remain unchanged. Complete calculation-verified Feature Catalog v2 definitions will be activated only after full shadow backfill and validation, immediately before or during reviewed atomic cutover. Feature 3 has not been rebuilt and Feature 4 has not started.
+
 ## 2026-09-14 — Register generic consecutive-condition screening
 
 - Applied forward-only migration `database/migrations/20260914_033_register_find_condition_runs.sql` to Railway `dev` PostgreSQL.

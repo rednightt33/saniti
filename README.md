@@ -19,14 +19,17 @@ An AI working on this project must read these files in order before changing Rai
 11. [`apps/stockbit-broker-backfill/README.md`](apps/stockbit-broker-backfill/README.md) — local Stockbit backfill, parallel date ranges, retry behavior, and invalid-token stop rule.
 12. [`apps/feature-01-worker/README.md`](apps/feature-01-worker/README.md) — Feature 01 price queue, worker retries, and status/log operating contract.
 13. [`FEATURE_02_BROKER_ROLLING.md`](FEATURE_02_BROKER_ROLLING.md) — board-separated broker features, ticker transaction-date windows, full backfill, and refresh limitations.
-14. [`FEATURE_03_STOCK_BROKER_DAILY.md`](FEATURE_03_STOCK_BROKER_DAILY.md) — stock-level broker breadth, classified flows, dominant brokers, HHI, board separation, and refresh limitations.
-15. [`AI_ANALYST_IMPLEMENTATION_PLAN.md`](AI_ANALYST_IMPLEMENTATION_PLAN.md) — approved staged architecture, limits, point-in-time/no-look-ahead policy, reproducibility, and Golden Test gates.
-16. [`DATABASE_INDEX_ACCEPTANCE.md`](DATABASE_INDEX_ACCEPTANCE.md) — measured Feature 1–2 query plans, buffers, latency, and index decisions.
-17. [`apps/market-ai-backend/README.md`](apps/market-ai-backend/README.md) — private analysis API, structured tools, independent limits, progressive exposure, and audit lifecycle.
+14. [`FEATURE_02_BROKER_ROLLING_V2.md`](FEATURE_02_BROKER_ROLLING_V2.md) — unreleased Investor-Type-preserving shadow, validation evidence, and cutover gates.
+15. [`FEATURE_03_STOCK_BROKER_DAILY.md`](FEATURE_03_STOCK_BROKER_DAILY.md) — stock-level broker breadth, classified flows, dominant brokers, HHI, board separation, and refresh limitations.
+16. [`AI_ANALYST_IMPLEMENTATION_PLAN.md`](AI_ANALYST_IMPLEMENTATION_PLAN.md) — approved staged architecture, limits, point-in-time/no-look-ahead policy, reproducibility, and Golden Test gates.
+17. [`DATABASE_INDEX_ACCEPTANCE.md`](DATABASE_INDEX_ACCEPTANCE.md) — measured Feature 1–2 query plans, buffers, latency, and index decisions.
+18. [`apps/market-ai-backend/README.md`](apps/market-ai-backend/README.md) — private analysis API, structured tools, independent limits, progressive exposure, and audit lifecycle.
 
 Automatic price-driven Feature 01 calculation is active in Railway `dev`: PostgreSQL transactionally enqueues price writes with non-null `ingestion_time`, and the always-on `feature-01-worker` processes them. The live Railway worker completed a re-ingestion test. See [`FEATURE_01_AUTOMATION_PLAN.md`](FEATURE_01_AUTOMATION_PLAN.md) and [`apps/feature-01-worker/README.md`](apps/feature-01-worker/README.md).
 
 Feature 02 is a separate broker-derived table for all `IDX_Broker_Summary` symbols and three board partitions (`Regular`, `Nego`, `Tunai`). Its 5/20/60D windows use each ticker's transaction dates across any board. The Feature 01 price worker does not update Feature 02; see [`FEATURE_02_BROKER_ROLLING.md`](FEATURE_02_BROKER_ROLLING.md) for the manual backfill and current refresh contract.
+
+An unreleased `Feature_02_Broker_Rolling_v2` shadow is being rebuilt to preserve source `Investor Type` (`Domestic`/`Foreign`) instead of combining it or treating broker domicile as investor identity. Production AI access remains on canonical Feature 2 v1 until full validation, catalog v2 activation, atomic cutover, and Feature 3 rebuild pass. See [`FEATURE_02_BROKER_ROLLING_V2.md`](FEATURE_02_BROKER_ROLLING_V2.md).
 
 Feature 03 aggregates Feature 02 into one stock/day/board row for efficient AI screening and statistical analysis. Regular, Nego, and Tunai remain separate. Its 24 active definitions are in `Feature_Catalog`, and safe joins are in `Feature_Relationship_Catalog`; see [`FEATURE_03_STOCK_BROKER_DAILY.md`](FEATURE_03_STOCK_BROKER_DAILY.md).
 

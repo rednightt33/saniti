@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-13T19:53:36+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-14T00:53:21+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -11,10 +11,11 @@ Generated from PostgreSQL schema `public` at `2026-09-13T19:53:36+00:00`.
 | `Analysis_Evidence` | System | When compact evidence is recorded for an analysis | — | `2026-09-13 15:02:15+00:00` | Baseline only | Compact reproducible evidence supporting material AI analysis claims. |
 | `Analysis_Request` | System | One lifecycle per submitted AI analysis | — | `2026-09-13 15:02:15+00:00` | Baseline only | Durable AI analysis request lifecycle, structured result, progressive tool exposure state, and token usage. |
 | `Analysis_Step_Log` | System | After each AI analysis tool or compaction step | — | `2026-09-13 15:02:15+00:00` | Baseline only | Audit record for every query, tool, compaction, or analytical step in an AI request. |
-| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-13 19:53:36.618003+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-13 19:53:36+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-14 00:53:21.330207+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-14 00:53:21+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
 | `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-11` | `2026-09-13 04:36:32.635545+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
 | `Feature_02_Broker_Rolling` | Feature | After validated broker-summary changes; manual backfill in v1 | `2026-08-31` | `2026-09-13 14:13:08+00:00` | Derived from IDX_Broker_Summary; Feature 02 refresh is manual | Validated broker flow, persistence, abnormality and quiet accumulation by source ticker, broker, board and transaction date. All source symbols are in scope. |
+| `Feature_02_Broker_Rolling_v2` | Unclassified | Unknown | — | `2026-09-14 00:45:03+00:00` | Baseline only | Unreleased shadow replacement for Feature 02 with source Investor Type preserved. It is staging infrastructure and must not be queried as a production Feature until full validation and atomic cutover. |
 | `Feature_03_Stock_Broker_Daily` | Feature | After Feature 02 refresh; manual refresh in v1 | `2026-08-31` | `2026-09-13 15:02:15+00:00` | Derived from Feature_02_Broker_Rolling; Feature 03 refresh is manual | Validated stock-level daily broker breadth, classified flows, dominant brokers and net-flow concentration, separated by source market board. |
 | `Feature_Calculation_Log` | System | After completed worker attempts | `2026-09-11` | `2026-09-13 04:36:32.642189+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
 | `Feature_Calculation_Queue` | System | After committed price inserts/updates and worker transitions | `2026-09-11` | `2026-09-13 04:36:32.568053+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
@@ -27,11 +28,11 @@ Generated from PostgreSQL schema `public` at `2026-09-13T19:53:36+00:00`.
 | `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-10 07:23:34.854803+00:00` | Tracked automatically | Broker code and name, domestic/foreign type, and usage profile such as Institutional-heavy, Retail-heavy, Mixed, or Niche. |
 | `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 14:41:15.160142+00:00` | Derived from table data and load log | Daily broker buy/sell values and lots by symbol, broker, investor type, and market board. |
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-12 13:34:43.352522+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
-| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-13` | `2026-09-13 10:01:44.620418+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
+| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-13` | `2026-09-13 23:03:11.705924+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
 | `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-11` | `2026-09-13 04:36:30.538547+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
-| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-13 19:50:26.310457+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
+| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-14 00:52:53.666933+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
 | `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
-| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-13 10:01:47.715578+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
+| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-13 23:03:15.889903+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
 | `Tool_Catalog` | Reference | With each approved backend or analytics tool release | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned generic AI tool metadata, activation state, schemas, and advertised operational ceilings. |
 | `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-09-06 13:21:52.115381+00:00` | Loaded from Universe_Equity_Description.xlsx; future changes tracked automatically | Issuer descriptions and TradingView/curated sector and industry classifications. |
 | `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-08-31` | `2026-09-09 16:55:55.713468+00:00` | Derived from load log | Per-trading-date Stockbit broker-summary load progress, retries, and review state. |
@@ -390,6 +391,72 @@ Validated broker flow, persistence, abnormality and quiet accumulation by source
 |---|---|
 | `Feature_02_Broker_Rolling_date_board_ticker_idx` | `CREATE INDEX "Feature_02_Broker_Rolling_date_board_ticker_idx" ON public."Feature_02_Broker_Rolling" USING btree (date, market_board, ticker)` |
 | `Feature_02_Broker_Rolling_pkey` | `CREATE UNIQUE INDEX "Feature_02_Broker_Rolling_pkey" ON public."Feature_02_Broker_Rolling" USING btree (ticker, market_board, broker, date)` |
+
+## Feature_02_Broker_Rolling_v2
+
+Unreleased shadow replacement for Feature 02 with source Investor Type preserved. It is staging infrastructure and must not be queried as a production Feature until full validation and atomic cutover.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `date` | `date` | No | — | Ticker transaction date from IDX_Broker_Summary; the rolling calendar uses all observed dates for the ticker across investor types and boards. |
+| `ticker` | `text` | No | — | Exact IDX_Broker_Summary Symbol; no Stock Universe filter is applied. |
+| `broker` | `text` | No | — | Exact source Broker code identifying the executing broker. |
+| `investor_type` | `text` | No | — | Exact source Investor Type: Domestic or Foreign. This describes the investor represented by the source row, not the broker domicile. |
+| `market_board` | `text` | No | — | Exact source Market Board: Regular, Nego or Tunai; boards never mix in rolling calculations. |
+| `broker_classification` | `text` | Yes | — | Current broker usage classification from IDX_Broker_Profile; metadata only and not point-in-time history. |
+| `buy_value_1d` | `numeric` | No | — | Source Buy Value for this date, ticker, broker, investor type and board. |
+| `sell_value_1d` | `numeric` | No | — | Source Sell Value for this date, ticker, broker, investor type and board. |
+| `net_value_1d` | `numeric` | No | — | buy_value_1d minus sell_value_1d for the same investor type and board. |
+| `buy_lots_1d` | `numeric` | No | — | Source Buy Lots for this date, ticker, broker, investor type and board. |
+| `sell_lots_1d` | `numeric` | No | — | Source Sell Lots for this date, ticker, broker, investor type and board. |
+| `net_lots_1d` | `numeric` | No | — | buy_lots_1d minus sell_lots_1d for the same investor type and board. |
+| `net_value_5d` | `numeric` | Yes | — | Sum of net_value_1d over 5 ticker transaction dates within broker, investor type and board; missing activity contributes zero. |
+| `net_value_20d` | `numeric` | Yes | — | Sum of net_value_1d over 20 ticker transaction dates within broker, investor type and board; missing activity contributes zero. |
+| `net_value_60d` | `numeric` | Yes | — | Sum of net_value_1d over 60 ticker transaction dates within broker, investor type and board; missing activity contributes zero. |
+| `net_lots_5d` | `numeric` | Yes | — | Sum of net_lots_1d over 5 ticker transaction dates within broker, investor type and board. |
+| `net_lots_20d` | `numeric` | Yes | — | Sum of net_lots_1d over 20 ticker transaction dates within broker, investor type and board. |
+| `net_lots_60d` | `numeric` | Yes | — | Sum of net_lots_1d over 60 ticker transaction dates within broker, investor type and board. |
+| `buy_days_20d` | `smallint` | Yes | — | Number of positive net-value dates in the complete 20-date window for this broker, investor type and board. |
+| `sell_days_20d` | `smallint` | Yes | — | Number of negative net-value dates in the complete 20-date window for this broker, investor type and board. |
+| `active_days_20d` | `smallint` | Yes | — | Number of dates with nonzero gross activity in the complete 20-date window for this broker, investor type and board. |
+| `stock_trading_days_20d` | `smallint` | Yes | — | 20 after the ticker has 20 observed transaction dates across any investor type or board; otherwise NULL. |
+| `buy_day_ratio_20d` | `double precision` | Yes | — | buy_days_20d divided by 20; for example 12 positive dates produces 0.60. |
+| `buy_share_active_days_20d` | `double precision` | Yes | — | buy_days_20d divided by active_days_20d; NULL when there are no active dates. |
+| `buy_days_60d` | `smallint` | Yes | — | Number of positive net-value dates in the complete 60-date window for this broker, investor type and board. |
+| `sell_days_60d` | `smallint` | Yes | — | Number of negative net-value dates in the complete 60-date window for this broker, investor type and board. |
+| `active_days_60d` | `smallint` | Yes | — | Number of dates with nonzero gross activity in the complete 60-date window for this broker, investor type and board. |
+| `stock_trading_days_60d` | `smallint` | Yes | — | 60 after the ticker has 60 observed transaction dates across any investor type or board; otherwise NULL. |
+| `buy_day_ratio_60d` | `double precision` | Yes | — | buy_days_60d divided by 60. |
+| `buy_share_active_days_60d` | `double precision` | Yes | — | buy_days_60d divided by active_days_60d; NULL when there are no active dates. |
+| `net_value_zscore_20d` | `double precision` | Yes | — | Current 20-date net value minus the mean of the preceding 252 complete 20-date values, divided by their sample standard deviation; current date excluded. |
+| `net_value_zscore_60d` | `double precision` | Yes | — | Current 60-date net value minus the mean of the preceding 252 complete 60-date values, divided by their sample standard deviation; current date excluded. |
+| `net_value_percentile_20d` | `double precision` | Yes | — | Empirical midrank percentile of current 20-date net value against the preceding 252 complete values in the same broker, investor type and board partition. |
+| `net_value_percentile_60d` | `double precision` | Yes | — | Empirical midrank percentile of current 60-date net value against the preceding 252 complete values in the same broker, investor type and board partition. |
+| `positive_net_value_20d` | `numeric` | Yes | — | Sum of positive daily net values in the complete 20-date window; zero when the complete window has no positive date. |
+| `largest_buy_day_20d` | `numeric` | Yes | — | Largest positive daily net value in the complete 20-date window; NULL when no positive date exists. |
+| `largest_buy_day_share_20d` | `double precision` | Yes | — | largest_buy_day_20d divided by positive_net_value_20d; for example 40 of 100 total positive flow produces 0.40. |
+| `calculated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Database statement timestamp when this shadow row was materialized. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature_02_Broker_Rolling_v2_board_check` | Check | `CHECK (market_board = ANY (ARRAY['Regular'::text, 'Nego'::text, 'Tunai'::text]))` |
+| `Feature_02_Broker_Rolling_v2_gross_check` | Check | `CHECK (buy_value_1d >= 0::numeric AND sell_value_1d >= 0::numeric AND buy_lots_1d >= 0::numeric AND sell_lots_1d >= 0::numeric)` |
+| `Feature_02_Broker_Rolling_v2_identity_check` | Check | `CHECK (btrim(ticker) <> ''::text AND btrim(broker) <> ''::text)` |
+| `Feature_02_Broker_Rolling_v2_investor_type_check` | Check | `CHECK (investor_type = ANY (ARRAY['Domestic'::text, 'Foreign'::text]))` |
+| `Feature_02_Broker_Rolling_v2_net_check` | Check | `CHECK (net_value_1d = (buy_value_1d - sell_value_1d) AND net_lots_1d = (buy_lots_1d - sell_lots_1d))` |
+| `Feature_02_Broker_Rolling_v2_percentile_check` | Check | `CHECK ((net_value_percentile_20d IS NULL OR net_value_percentile_20d >= 0::double precision AND net_value_percentile_20d <= 100::double precision) AND (net_value_percentile_60d IS NULL OR net_value_percentile_60d >= 0::double precision AND net_value_percentile_60d <= 100::double precision))` |
+| `Feature_02_Broker_Rolling_v2_ratio_check` | Check | `CHECK ((buy_day_ratio_20d IS NULL OR buy_day_ratio_20d >= 0::double precision AND buy_day_ratio_20d <= 1::double precision) AND (buy_share_active_days_20d IS NULL OR buy_share_active_days_20d >= 0::double precision AND buy_share_active_days_20d <= 1::double precision) AND (buy_day_ratio_60d IS NULL OR buy_day_ratio_60d >= 0::double precision AND buy_day_ratio_60d <= 1::double precision) AND (buy_share_active_days_60d IS NULL OR buy_share_active_days_60d >= 0::double precision AND buy_share_active_days_60d <= 1::double precision) AND (largest_buy_day_share_20d IS NULL OR largest_buy_day_share_20d >= 0::double precision AND largest_buy_day_share_20d <= 1::double precision))` |
+| `Feature_02_Broker_Rolling_v2_pkey` | Primary key | `PRIMARY KEY (ticker, market_board, broker, investor_type, date)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_02_Broker_Rolling_v2_pkey` | `CREATE UNIQUE INDEX "Feature_02_Broker_Rolling_v2_pkey" ON public."Feature_02_Broker_Rolling_v2" USING btree (ticker, market_board, broker, investor_type, date)` |
 
 ## Feature_03_Stock_Broker_Daily
 
