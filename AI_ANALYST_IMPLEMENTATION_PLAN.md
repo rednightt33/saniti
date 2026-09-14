@@ -376,15 +376,19 @@ LLM_TOOL_RESULT_MAX_BYTES=131072
 AI_MAX_OUTPUT_TOKENS=3000
 AI_MAX_TOOL_RESULT_TOKENS_PER_CALL=4000
 AI_MAX_TOOL_RESULT_TOKENS_TOTAL=12000
+AI_FINALIZATION_TOOL_RESULT_RESERVE_TOKENS=1000
 AI_MAX_HISTORY_TOKENS=4000
 AI_MAX_FEATURE_METADATA_TOKENS=5000
 AI_CONTEXT_RESERVE_TOKENS=8000
 AI_TARGET_CONTEXT_TOKENS=24000
 AI_CONTEXT_COMPACTION_THRESHOLD_TOKENS=32000
 AI_MAX_CONTEXT_TOKENS=64000
-AI_MAX_CUMULATIVE_INPUT_TOKENS=100000
+AI_MAX_CUMULATIVE_INPUT_TOKENS=150000
 AI_MAX_CUMULATIVE_OUTPUT_TOKENS=12000
+AI_FINALIZATION_OUTPUT_RESERVE_TOKENS=4000
 AI_CUMULATIVE_COMPACTION_THRESHOLD_PERCENT=75
+AI_CONTEXT_COMPACTION_MODE=PRESERVE_DECISIVE
+AI_FINAL_RESPONSE_MAX_RETRIES=2
 AI_STORE_REASONING_DETAILS=true
 AI_REASONING_RETENTION_DAYS=30
 AI_REASONING_MAX_BYTES_PER_CALL=65536
@@ -407,6 +411,10 @@ These values implement two different controls:
 - cumulative input and output limits bound total usage across all iterations of
   one `Analysis_Request`, even when every individual call remains below 64k.
 
+The 150k cumulative-input ceiling is independent from the 64k per-call context
+ceiling. Finalization reserves prevent earlier query/tool chatter from consuming
+the budget needed to persist evidence, accept completion, and generate the answer.
+
 `AI_MAX_OUTPUT_TOKENS=3000` is the per-call generation ceiling. It is separate
 from the 12,000-token cumulative output ceiling, tool-result limits, and database
 row limits.
@@ -418,6 +426,11 @@ distinct, justified interpretation follow-up for data/screening questions before
 loop by itself. The configurable `AI_MIN_INSIGHT_DATA_CALLS` counts distinct
 successful analytical query hashes, so retries or duplicate queries do not satisfy
 the policy. Optional deeper work remains in `recommended_next_analysis`.
+
+After consolidated evidence is recorded and the minimum query count is met, data
+tools are programmatically locked. Only `complete_analysis` remains exposed; after
+it succeeds no tools remain. Strict final-output repair is limited to two retries,
+and each rejected candidate records the exact schema or contract issue.
 
 `AI_MAX_ANALYSIS_SECONDS` bounds the full orchestration lifecycle independently
 of the 180-second timeout for one provider call. The wall-clock gate is checked
@@ -455,6 +468,10 @@ supersedes an old tool result, the full old payload is removed from active conte
 and replaced with summary statistics, key observations, unresolved warnings,
 query hashes, and evidence IDs. Reproducible detail remains outside model context
 through evidence references.
+
+`AI_CONTEXT_COMPACTION_MODE=DISABLED` is an experiment mode that skips only this
+cross-iteration compaction. It does not disable per-tool row/byte/token shaping,
+which is a mandatory separation between database capacity and LLM context.
 
 Compaction priority is:
 

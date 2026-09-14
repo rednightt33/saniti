@@ -36,6 +36,13 @@ Feature 03 aggregates Feature 02 into one stock/day/board row for efficient AI s
 
 The market-AI database foundation and Release 1B private backend are deployed: generic tool, relationship, readiness, point-in-time/availability, analysis audit, version snapshot, and Golden Test contracts are registered, and deterministic acceptance is 16/16 PASS. Every active Feature 1–3 column has a calculation-verified interpretation, recommended use, misuse warning, and evidence path. Data tools enforce semantic preflight: the orchestrator loads only the relevant definitions before retrieval or aggregation, rather than injecting all 91 rows. The generic `find_condition_runs` tool detects multi-condition consecutive trading-observation episodes without sending the full source series to the model. Runtime QC is conditional and scoped across every tool; warnings and valid anomalies continue analysis, while impossible/invalid data blocks the affected conclusion. Each provider response now has a durable `Analysis_Model_Call` audit row with per-call usage, exposed tool families, a concise decision summary, and bounded provider-returned reasoning that is purged after its retention deadline. Railway startup and private `/health` pass with least-privilege database access and independent database, Analytics Worker, and LLM context/cumulative-token policies. Evidence recording is separate from the explicit stopping gate, so `INSIGHT` mode can execute a distinct justified follow-up before `complete_analysis` finalizes; duplicate query hashes do not count. The provider transport supports allowlisted OpenAI and OpenRouter Responses endpoints; `dev` uses OpenRouter with DeepSeek V4.1 Flash and retains the 64k hard context ceiling with a 5,000-token Feature-metadata budget. Historical Feature 1–3 analysis uses conservative close-`t` to entry-`t+1` timing and must disclose survivorship/current-metadata limitations.
 
+The finalization policy additionally reserves tool/output budget, locks data tools
+after sufficient evidence, permits only `complete_analysis` and then the final
+answer, caps final-schema repair at two retries, and preserves decisive numbers,
+warnings, evidence IDs, and query hashes during context compaction. The cumulative
+input ceiling is 150,000 tokens; the 64,000-token per-call context ceiling remains
+separate and unchanged.
+
 ## Mandatory update contract
 
 Every successful change to Railway or its PostgreSQL database must be recorded and pushed to this repository in the same task. A change is not complete until its Git commit is visible on `origin/main`.

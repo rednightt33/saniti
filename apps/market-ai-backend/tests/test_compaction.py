@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.compaction import compact_result
+from app.compaction import compact_result, decisive_digest
 
 
 def test_compaction_keeps_summary_and_ordered_extremes() -> None:
@@ -20,3 +20,23 @@ def test_byte_budget_uses_semantic_summary_not_broken_json() -> None:
     assert changed is True
     assert compact["selection"]["method"] == "semantic_summary"
     assert compact["total_rows"] == 100
+    assert compact.get("top_observations")
+    assert compact.get("bottom_observations")
+
+
+def test_decisive_digest_retains_ranked_values_and_audit_references() -> None:
+    payload = {
+        "table": "Feature_03_Stock_Broker_Daily",
+        "rows": [
+            {"ticker": "BBCA", "institutional_net_value": 10_000_000},
+            {"ticker": "BBRI", "institutional_net_value": -5_000_000},
+        ],
+        "total_rows": 2,
+        "warnings": ["classification is not investor identity"],
+        "evidence_id": "evidence-1",
+    }
+    digest = decisive_digest("screen_features", payload, "query-abc")
+    assert digest["query_hash"] == "query-abc"
+    assert digest["evidence_id"] == "evidence-1"
+    assert digest["warnings"] == payload["warnings"]
+    assert digest["decisive_observations"] == payload["rows"]

@@ -7,6 +7,15 @@ from decimal import Decimal
 from typing import Any
 
 
+DECISIVE_TOP_LEVEL_KEYS = (
+    "table", "columns", "total_rows", "returned_rows", "classification",
+    "row_count", "null_counts", "warnings", "anomaly_flags",
+    "analysis_ready_date", "query_hash", "selection", "completion_policy",
+    "evidence_id", "recorded", "completion_accepted", "next_action",
+    "quality_blocks_finalization", "analysis_may_continue",
+)
+
+
 def json_default(value: Any) -> Any:
     if isinstance(value, (date, datetime)):
         return value.isoformat()
@@ -76,9 +85,66 @@ def compact_result(
             "reason": "LLM-facing byte/token budget",
         },
     })
-    # Drop verbose optional fields in a deterministic order if still oversized.
-    for key in ("bottom_observations", "top_observations", "summary_statistics"):
-        if len(dumps(compact).encode("utf-8")) <= max_bytes and estimate_tokens(compact) <= max_tokens:
-            break
-        compact.pop(key, None)
+    # Preserve at least the first and last decisive observations. Shrink counts
+    # and statistics before removing evidence-bearing rows.
+    while (
+        len(dumps(compact).encode("utf-8")) > max_bytes
+        or estimate_tokens(compact) > max_tokens
+    ) and (
+        len(compact.get("top_observations") or []) > 1
+        or len(compact.get("bottom_observations") or []) > 1
+    ):
+        top = compact.get("top_observations") or []
+        bottom = compact.get("bottom_observations") or []
+        if len(bottom) >= len(top) and len(bottom) > 1:
+            compact["bottom_observations"] = bottom[:-1]
+        elif len(top) > 1:
+            compact["top_observations"] = top[:-1]
+    if len(dumps(compact).encode("utf-8")) > max_bytes or estimate_tokens(compact) > max_tokens:
+        compact.pop("summary_statistics", None)
+    if len(dumps(compact).encode("utf-8")) > max_bytes or estimate_tokens(compact) > max_tokens:
+        compact = {
+            key: compact[key]
+            for key in DECISIVE_TOP_LEVEL_KEYS
+            if key in compact
+        } | {
+            "top_observations": (compact.get("top_observations") or [])[:1],
+            "bottom_observations": (compact.get("bottom_observations") or [])[-1:],
+            "selection": {
+                "method": "decisive_minimum",
+                "source_rows": len(rows),
+                "reason": "LLM-facing byte/token budget",
+            },
+        }
     return compact, estimate_tokens(compact), True
+
+
+def decisive_digest(
+    tool_name: str, payload: dict[str, Any], query_digest: str | None = None
+) -> dict[str, Any]:
+    """Build the durable/context digest without discarding decisive values."""
+    digest: dict[str, Any] = {"tool": tool_name}
+    effective_hash = query_digest or payload.get("query_hash")
+    if effective_hash:
+        digest["query_hash"] = effective_hash
+    for key in DECISIVE_TOP_LEVEL_KEYS:
+        if key in payload and key != "query_hash":
+            digest[key] = payload[key]
+
+    rows = list(payload.get("rows") or [])
+    top = list(payload.get("top_observations") or [])
+    bottom = list(payload.get("bottom_observations") or [])
+    if rows:
+        if len(rows) <= 10:
+            digest["decisive_observations"] = rows
+        else:
+            digest["top_observations"] = rows[:5]
+            digest["bottom_observations"] = rows[-5:]
+    else:
+        if top:
+            digest["top_observations"] = top[:5]
+        if bottom:
+            digest["bottom_observations"] = bottom[-5:]
+    if payload.get("summary_statistics"):
+        digest["summary_statistics"] = payload["summary_statistics"]
+    return digest

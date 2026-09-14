@@ -48,6 +48,7 @@ class Settings:
     ai_max_output_tokens: int
     ai_max_tool_result_tokens_per_call: int
     ai_max_tool_result_tokens_total: int
+    ai_finalization_tool_result_reserve_tokens: int
     ai_max_history_tokens: int
     ai_max_feature_metadata_tokens: int
     ai_context_reserve_tokens: int
@@ -56,7 +57,10 @@ class Settings:
     ai_max_context_tokens: int
     ai_max_cumulative_input_tokens: int
     ai_max_cumulative_output_tokens: int
+    ai_finalization_output_reserve_tokens: int
     ai_cumulative_compaction_threshold_percent: int
+    ai_context_compaction_mode: str
+    ai_final_response_max_retries: int
     ai_store_reasoning_details: bool
     ai_reasoning_retention_days: int
     ai_reasoning_max_bytes_per_call: int
@@ -119,17 +123,27 @@ class Settings:
             ai_max_output_tokens=_integer("AI_MAX_OUTPUT_TOKENS", 3000),
             ai_max_tool_result_tokens_per_call=_integer("AI_MAX_TOOL_RESULT_TOKENS_PER_CALL", 4000),
             ai_max_tool_result_tokens_total=_integer("AI_MAX_TOOL_RESULT_TOKENS_TOTAL", 12000),
+            ai_finalization_tool_result_reserve_tokens=_integer(
+                "AI_FINALIZATION_TOOL_RESULT_RESERVE_TOKENS", 1000
+            ),
             ai_max_history_tokens=_integer("AI_MAX_HISTORY_TOKENS", 4000),
             ai_max_feature_metadata_tokens=_integer("AI_MAX_FEATURE_METADATA_TOKENS", 5000),
             ai_context_reserve_tokens=_integer("AI_CONTEXT_RESERVE_TOKENS", 8000),
             ai_target_context_tokens=_integer("AI_TARGET_CONTEXT_TOKENS", 24000),
             ai_context_compaction_threshold_tokens=_integer("AI_CONTEXT_COMPACTION_THRESHOLD_TOKENS", 32000),
             ai_max_context_tokens=_integer("AI_MAX_CONTEXT_TOKENS", 64000),
-            ai_max_cumulative_input_tokens=_integer("AI_MAX_CUMULATIVE_INPUT_TOKENS", 100000),
+            ai_max_cumulative_input_tokens=_integer("AI_MAX_CUMULATIVE_INPUT_TOKENS", 150000),
             ai_max_cumulative_output_tokens=_integer("AI_MAX_CUMULATIVE_OUTPUT_TOKENS", 12000),
+            ai_finalization_output_reserve_tokens=_integer(
+                "AI_FINALIZATION_OUTPUT_RESERVE_TOKENS", 4000
+            ),
             ai_cumulative_compaction_threshold_percent=_integer(
                 "AI_CUMULATIVE_COMPACTION_THRESHOLD_PERCENT", 75
             ),
+            ai_context_compaction_mode=os.getenv(
+                "AI_CONTEXT_COMPACTION_MODE", "PRESERVE_DECISIVE"
+            ).strip().upper(),
+            ai_final_response_max_retries=_integer("AI_FINAL_RESPONSE_MAX_RETRIES", 2),
             ai_store_reasoning_details=_boolean("AI_STORE_REASONING_DETAILS", True),
             ai_reasoning_retention_days=_integer("AI_REASONING_RETENTION_DAYS", 30),
             ai_reasoning_max_bytes_per_call=_integer(
@@ -157,6 +171,26 @@ class Settings:
             raise RuntimeError("AI_CONTEXT_RESERVE_TOKENS must be below AI_MAX_CONTEXT_TOKENS")
         if settings.ai_cumulative_compaction_threshold_percent >= 100:
             raise RuntimeError("AI_CUMULATIVE_COMPACTION_THRESHOLD_PERCENT must be below 100")
+        if settings.ai_context_compaction_mode not in {"DISABLED", "PRESERVE_DECISIVE"}:
+            raise RuntimeError(
+                "AI_CONTEXT_COMPACTION_MODE must be DISABLED or PRESERVE_DECISIVE"
+            )
+        if (
+            settings.ai_finalization_tool_result_reserve_tokens
+            >= settings.ai_max_tool_result_tokens_total
+        ):
+            raise RuntimeError(
+                "AI_FINALIZATION_TOOL_RESULT_RESERVE_TOKENS must be below "
+                "AI_MAX_TOOL_RESULT_TOKENS_TOTAL"
+            )
+        if (
+            settings.ai_finalization_output_reserve_tokens
+            >= settings.ai_max_cumulative_output_tokens
+        ):
+            raise RuntimeError(
+                "AI_FINALIZATION_OUTPUT_RESERVE_TOKENS must be below "
+                "AI_MAX_CUMULATIVE_OUTPUT_TOKENS"
+            )
         if settings.query_default_rows > settings.query_max_rows:
             raise RuntimeError("QUERY_DEFAULT_ROWS must not exceed QUERY_MAX_ROWS")
         if settings.ai_provider == "openrouter" and settings.ai_reasoning_effort not in {"low", "high", "max"}:

@@ -28,9 +28,11 @@ with `Authorization: Bearer $MARKET_AI_INTERNAL_API_KEY`.
    `complete_analysis` applies the stopping checklist: evidence must exist,
    necessary follow-ups must be complete, and `INSIGHT` mode requires the
    configured minimum number of distinct successful analytical queries for data
-   or screening questions. Only then does the following call remove data-tool
-   schemas and perform strict finalization. A malformed or premature call returns
-   recoverable feedback within the same bounded analysis budget.
+   or screening questions. Once evidence is recorded after that minimum is met,
+   the backend locks further data tools and exposes only `complete_analysis`.
+   A successful completion then removes every tool schema, so the model can only
+   return the final answer. Invalid finals receive the exact schema issue and at
+   most `AI_FINAL_RESPONSE_MAX_RETRIES` retries.
 8. A successful response stores an immutable version/methodology snapshot and a
    structured `recommended_next_analysis` list.
 
@@ -67,6 +69,12 @@ copies prompts/tool-result payloads into the reasoning audit.
 it only for a scoped coverage, NULL/gap, freshness, cross-feature, anomaly, or
 material-conclusion concern. `WARNING` and source-valid anomalies continue;
 only impossible/invalid `FAIL` blocks the affected conclusion.
+
+Tool-result budget is also phase-aware. Ordinary discovery/query results cannot
+consume `AI_FINALIZATION_TOOL_RESULT_RESERVE_TOKENS`, leaving room for
+`record_evidence` and `complete_analysis`; ordinary model calls likewise cannot
+consume `AI_FINALIZATION_OUTPUT_RESERVE_TOKENS`, which is reserved for the final
+transition and answer.
 
 Release 1B can read Feature 1–3 through a least-privilege login. It cannot read
 raw price/broker tables or mutate Feature tables. Historical validation and
@@ -108,6 +116,14 @@ query-hash audit trail.
 breaker and defaults to 600 seconds. `AI_REQUEST_TIMEOUT_SECONDS` remains the
 per-provider-call timeout; tool-call, iteration, token, and wall-clock limits are
 independent safeguards.
+
+`AI_MAX_CUMULATIVE_INPUT_TOKENS` defaults to 150,000. The A/B switch
+`AI_CONTEXT_COMPACTION_MODE` accepts `DISABLED` or `PRESERVE_DECISIVE`.
+`DISABLED` disables only cross-iteration context compaction; bounded per-tool
+result shaping remains mandatory because database result limits are intentionally
+larger than the model-facing budget. `PRESERVE_DECISIVE` removes obsolete wrappers
+while retaining decisive numbers, top/bottom observations, warnings, evidence IDs,
+and query hashes in both active-context and durable step digests.
 
 All numeric variables and their approved defaults are listed in
 `AI_ANALYST_IMPLEMENTATION_PLAN.md`; Railway variables are the enforcement source

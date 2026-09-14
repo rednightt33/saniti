@@ -1,5 +1,13 @@
 # Database changelog
 
+## 2026-09-14 — Register evidence-gated analyst finalization policy
+
+- Applied forward-only migration `database/migrations/20260914_039_harden_analysis_finalization_and_compaction.sql` to the `dev` PostgreSQL service. It changed catalog metadata only; no raw, Feature, evidence, or analysis-result row was rewritten.
+- Registered stopping policy v2 for all eight active analytical data tools: after sufficient consolidated evidence is recorded, further data calls are blocked, `complete_analysis` is the only allowed tool, and a successful completion permits only the strict final answer.
+- Updated `check_data_quality` metadata so `WARNING` and source-valid `PASS` anomalies explicitly continue analysis while impossible/invalid `FAIL` blocks only the affected conclusion.
+- Registered reserved finalization budget, exact final-schema feedback with at most two retries, and preservation of decisive values, warnings, evidence IDs, and query hashes during context compaction.
+- Catalog reconciliation PASS at 488 physical columns; regenerated `DATABASE_SCHEMA.md` from 29 public tables. Live backend verification PASS and deterministic Golden Test run `f597da6b-760c-4b4e-8cf0-8ef0b74f6874` passed 16/16.
+
 ## 2026-09-14 — Add per-model-call audit and conditional quality policy
 
 - Applied forward-only migration `database/migrations/20260914_037_create_analysis_model_call_audit.sql` to Railway `dev` PostgreSQL. It created `Analysis_Model_Call` with one row per `Analysis_Request` provider-call iteration, a foreign key with cascade lifecycle, unique request/iteration key, bounded token fields, stage/provider/reasoning checks, and a selective retention-deadline index.

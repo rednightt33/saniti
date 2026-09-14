@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-from .compaction import compact_result, dumps, estimate_tokens
+from .compaction import compact_result, decisive_digest, dumps, estimate_tokens
 from .config import Settings
 from .db import Database
 from .openai_client import ResponsesClient, extract_reasoning_audit, response_usage
@@ -56,6 +56,9 @@ end the investigation. When the current question is reliably answered and all
 necessary follow-ups are complete, call complete_analysis. Only a successful
 complete_analysis call signals finalization; optional deeper work belongs in
 recommended_next_analysis and must not be run merely because capacity remains.
+Once record_evidence confirms that the minimum analytical-query requirement is
+met, the backend locks all data tools. Call complete_analysis next; after it is
+accepted, produce only the final structured answer.
 Return the final schema JSON without Markdown fences or surrounding prose.
 """
 
@@ -63,6 +66,7 @@ ANALYTICAL_DATA_TOOLS = {
     "query_features", "get_timeseries", "compare_periods", "screen_features",
     "rank_features", "aggregate_features", "compare_groups", "find_condition_runs",
 }
+FINALIZATION_TOOLS = {"record_evidence", "complete_analysis"}
 
 
 @dataclass
@@ -93,6 +97,8 @@ class RunState:
     completion_reason: str | None = None
     started_monotonic: float = field(default_factory=time.monotonic)
     finalization_ready: bool = False
+    completion_only: bool = False
+    final_rejections: int = 0
     cumulative_pressure_compacted: bool = False
     attempt_number: int = 0
 
@@ -131,7 +137,7 @@ class AnalysisOrchestrator:
             self._enforce_budgets(state)
             self._compact_context_if_needed(state)
             instructions = self._instructions(state)
-            active_tools = [] if state.finalization_ready else self.tools.definitions(state.families)
+            active_tools = self._active_tool_definitions(state)
             context_tokens = estimate_tokens({"instructions": instructions, "input": state.input_items, "tools": active_tools})
             state.peak_context = max(state.peak_context, context_tokens)
             if context_tokens + self.settings.ai_context_reserve_tokens > self.settings.ai_max_context_tokens:
@@ -141,7 +147,7 @@ class AnalysisOrchestrator:
                 "reasoning": {"effort": self.settings.ai_reasoning_effort},
                 "instructions": instructions,
                 "input": state.input_items,
-                "max_output_tokens": self.settings.ai_max_output_tokens,
+                "max_output_tokens": self._max_output_tokens(state),
                 "store": False,
                 "text": {"format": {"type": "json_schema", "name": "market_analysis", "schema": FINAL_RESPONSE_SCHEMA, "strict": True}},
             }
@@ -161,20 +167,11 @@ class AnalysisOrchestrator:
                 try:
                     answer = self._parse_final_output(raw)
                 except RuntimeError as exc:
-                    self._continue_after_rejected_final(
-                        state,
-                        response,
-                        "The prior final response did not match the required JSON schema. "
-                        "Continue any unfinished analysis, then return every required final field as schema-valid JSON.",
-                    )
-                    if state.iterations >= self.settings.ai_max_tool_iterations:
-                        raise exc
+                    self._reject_final_candidate(state, response, str(exc))
                     continue
                 issue = self._final_contract_issue(state, answer)
                 if issue:
-                    self._continue_after_rejected_final(state, response, issue)
-                    if state.iterations >= self.settings.ai_max_tool_iterations:
-                        raise RuntimeError(issue)
+                    self._reject_final_candidate(state, response, issue)
                     continue
                 return answer
 
@@ -218,8 +215,15 @@ class AnalysisOrchestrator:
         try:
             return FinalAnalysis.model_validate_json(candidate).model_dump(mode="json")
         except Exception as exc:
+            details = []
+            if hasattr(exc, "errors"):
+                for item in exc.errors(include_url=False)[:8]:
+                    location = ".".join(str(part) for part in item.get("loc") or ()) or "root"
+                    details.append(f"{location}: {item.get('msg', 'invalid value')}")
+            exact_issue = "; ".join(details) if details else f"{type(exc).__name__}: {exc}"
             raise RuntimeError(
-                f"Final structured output validation failed (characters={len(candidate)})"
+                "Final structured output validation failed "
+                f"(characters={len(candidate)}): {exact_issue}"
             ) from exc
 
     @staticmethod
@@ -229,6 +233,11 @@ class AnalysisOrchestrator:
             return (
                 "Do not finish yet. Retrieve sufficient evidence for the question and call "
                 "record_evidence before returning the final answer."
+            )
+        if not state.finalization_ready:
+            return (
+                "Do not return the final answer yet. Call complete_analysis with "
+                "evidence_sufficient=true and necessary_followups_completed=true first."
             )
         if not cited:
             return "The final answer must cite at least one evidence ID returned by record_evidence."
@@ -247,11 +256,66 @@ class AnalysisOrchestrator:
         state.input_items.append({"role": "user", "content": instruction})
         self._persist_usage(state)
 
+    def _reject_final_candidate(
+        self, state: RunState, response: dict[str, Any], issue: str
+    ) -> None:
+        state.final_rejections += 1
+        self._log_step(
+            state,
+            1_000_000 + state.iterations,
+            None,
+            {},
+            "FAILED",
+            result_summary={
+                "reason": "final_response_rejected",
+                "rejection_number": state.final_rejections,
+                "maximum_retries": self.settings.ai_final_response_max_retries,
+            },
+            error=issue[:1000],
+        )
+        if state.final_rejections > self.settings.ai_final_response_max_retries:
+            raise RuntimeError(
+                "Final structured output remained invalid after "
+                f"{self.settings.ai_final_response_max_retries} retries: {issue}"
+            )
+        self._continue_after_rejected_final(
+            state,
+            response,
+            f"Final response rejected ({state.final_rejections}/"
+            f"{self.settings.ai_final_response_max_retries} retries): {issue} "
+            "Correct exactly this issue. Do not run optional analysis. Return every required "
+            "field as bare schema-valid JSON.",
+        )
+
+    def _active_tool_definitions(self, state: RunState) -> list[dict[str, Any]]:
+        if state.finalization_ready:
+            return []
+        definitions = self.tools.definitions(state.families)
+        if state.completion_only:
+            return [item for item in definitions if item.get("name") == "complete_analysis"]
+        return definitions
+
+    def _max_output_tokens(self, state: RunState) -> int:
+        remaining = self.settings.ai_max_cumulative_output_tokens - state.cumulative_output
+        if not state.completion_only and not state.finalization_ready:
+            remaining -= self.settings.ai_finalization_output_reserve_tokens
+        if remaining <= 0:
+            raise RuntimeError("AI output budget available for the current phase is exhausted")
+        return min(self.settings.ai_max_output_tokens, remaining)
+
     def _execute_and_log(self, state: RunState, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         state.tool_calls += 1
         step_number = state.tool_calls + state.compactions
         sanitized = self._sanitize(arguments)
         try:
+            if state.finalization_ready:
+                raise ToolError("Analysis is complete; only the final structured answer is allowed")
+            if state.completion_only and name != "complete_analysis":
+                raise ToolError(
+                    "Evidence and required analytical queries are complete; data tools are locked. "
+                    "Call complete_analysis now."
+                )
+            remaining, per_call_tokens = self._tool_result_budget(state, name)
             auto_semantics = self._auto_load_definitions(state, name, arguments)
             if auto_semantics:
                 metadata_tokens = estimate_tokens(auto_semantics)
@@ -285,19 +349,31 @@ class AnalysisOrchestrator:
                     "start_date": arguments.get("start_date"),
                     "end_date": arguments.get("end_date"),
                 })
+                execution.payload["quality_blocks_finalization"] = True
+                execution.payload["analysis_may_continue"] = False
+                execution.payload["orchestrator_status"] = (
+                    "FAIL blocks the affected conclusion; narrow or repair that scope."
+                )
+            elif name == "check_data_quality":
+                execution.payload["quality_blocks_finalization"] = False
+                execution.payload["analysis_may_continue"] = True
+                execution.payload["orchestrator_status"] = (
+                    "Quality result permits analysis to continue. Finish necessary follow-ups, "
+                    "record decisive evidence, then complete_analysis."
+                )
             if name == "record_evidence" and execution.payload.get("evidence_id"):
                 state.recorded_evidence_ids.add(str(execution.payload["evidence_id"]))
-                required_queries = (
-                    self.settings.ai_min_insight_data_calls
-                    if state.analysis_mode == "INSIGHT" and self._initial_stage(state.question) == "SCREENING"
-                    else 0
-                )
+                required_queries = self._required_analytical_queries(state)
+                minimum_satisfied = len(state.analytical_query_hashes) >= required_queries
+                if minimum_satisfied and not state.quality_failures:
+                    state.completion_only = True
                 execution.payload["completion_policy"] = {
                     "distinct_analytical_queries": len(state.analytical_query_hashes),
                     "required_distinct_analytical_queries": required_queries,
+                    "data_tools_locked": state.completion_only,
                     "next_action": (
-                        "Call complete_analysis now if all necessary follow-ups are complete."
-                        if len(state.analytical_query_hashes) >= required_queries
+                        "Data queries are now locked. Call complete_analysis now."
+                        if state.completion_only
                         else "Continue with a distinct necessary analytical follow-up before complete_analysis."
                     ),
                 }
@@ -306,10 +382,6 @@ class AnalysisOrchestrator:
                 state.finalization_ready = True
             state.point_in_time_warnings.update(execution.payload.get("point_in_time_warnings") or [])
 
-            remaining = self.settings.ai_max_tool_result_tokens_total - state.tool_result_tokens
-            if remaining <= 0:
-                raise RuntimeError("Cumulative LLM tool-result budget exhausted")
-            per_call_tokens = min(self.settings.ai_max_tool_result_tokens_per_call, remaining)
             compact, tokens, compacted = compact_result(
                 execution.payload,
                 max_rows=self.settings.llm_tool_result_max_rows,
@@ -325,14 +397,11 @@ class AnalysisOrchestrator:
                 state.history_tokens += tokens
                 if state.history_tokens > self.settings.ai_max_history_tokens:
                     raise RuntimeError("Analysis history token budget exceeded")
-            digest = {
-                "tool": name, "query_hash": execution.query_hash,
-                "summary": {key: compact.get(key) for key in ("table", "total_rows", "classification", "analysis_ready_date", "warnings", "selection") if key in compact},
-            }
+            digest = decisive_digest(name, compact, execution.query_hash)
             state.evidence_digest.append(digest)
             self._log_step(
                 state, step_number, name, sanitized, "COMPACTED" if compacted else "SUCCESS",
-                execution=execution, llm_tokens=tokens, result_summary=digest["summary"],
+                execution=execution, llm_tokens=tokens, result_summary=digest,
             )
             self._persist_usage(state)
             return compact
@@ -341,6 +410,16 @@ class AnalysisOrchestrator:
             if isinstance(exc, (ToolError, RuntimeError)):
                 return {"error": str(exc), "recoverable": isinstance(exc, ToolError)}
             raise
+
+    def _tool_result_budget(self, state: RunState, name: str) -> tuple[int, int]:
+        cap = self.settings.ai_max_tool_result_tokens_total
+        if name not in FINALIZATION_TOOLS:
+            cap -= self.settings.ai_finalization_tool_result_reserve_tokens
+        remaining = cap - state.tool_result_tokens
+        if remaining <= 0:
+            phase = "finalization" if name in FINALIZATION_TOOLS else "analysis"
+            raise RuntimeError(f"Cumulative LLM tool-result budget for {phase} is exhausted")
+        return remaining, min(self.settings.ai_max_tool_result_tokens_per_call, remaining)
 
     def _recover_malformed_tool_arguments(
         self,
@@ -371,7 +450,9 @@ class AnalysisOrchestrator:
         }
 
     def _compact_context_if_needed(self, state: RunState) -> None:
-        context = estimate_tokens({"instructions": self._instructions(state), "input": state.input_items, "tools": self.tools.definitions(state.families)})
+        if self.settings.ai_context_compaction_mode == "DISABLED":
+            return
+        context = estimate_tokens({"instructions": self._instructions(state), "input": state.input_items, "tools": self._active_tool_definitions(state)})
         cumulative_threshold = (
             self.settings.ai_max_cumulative_input_tokens
             * self.settings.ai_cumulative_compaction_threshold_percent
@@ -391,6 +472,10 @@ class AnalysisOrchestrator:
                 for table, column in sorted(state.loaded_feature_definitions)
             ],
             "instruction": "Earlier tool outputs were superseded and compacted. Use hashes/evidence summaries; re-query only if necessary.",
+            "preservation_policy": (
+                "Decisive numbers, top/bottom observations, warnings, evidence IDs, and query "
+                "hashes are retained; obsolete conversational/tool wrappers are removed."
+            ),
         }
         state.input_items = [
             {"role": "user", "content": state.question},
@@ -560,6 +645,9 @@ class AnalysisOrchestrator:
             "orchestrator_version": "release-1b-v3", "prompt_version": "release-1b-v3",
             "analysis_mode": state.analysis_mode,
             "max_analysis_seconds": self.settings.ai_max_analysis_seconds,
+            "context_compaction_mode": self.settings.ai_context_compaction_mode,
+            "cumulative_input_limit": self.settings.ai_max_cumulative_input_tokens,
+            "final_response_max_retries": self.settings.ai_final_response_max_retries,
             "completion_reason": state.completion_reason,
             "distinct_analytical_queries": len(state.analytical_query_hashes),
             "feature_versions": [dict(row) for row in feature_versions],
@@ -599,17 +687,21 @@ class AnalysisOrchestrator:
                 "Impossible/invalid data quality FAIL blocks finalization for the affected scope; "
                 "narrow the scope or resolve the invalid data before completing"
             )
+        required_queries = self._required_analytical_queries(state)
+        if len(state.analytical_query_hashes) < required_queries:
+            raise ToolError(
+                "INSIGHT mode requires at least "
+                f"{required_queries} distinct successful analytical queries "
+                "before completion; run a justified follow-up, not a duplicate query"
+            )
+
+    def _required_analytical_queries(self, state: RunState) -> int:
         if (
             state.analysis_mode == "INSIGHT"
             and self._initial_stage(state.question) == "SCREENING"
-            and not state.quality_failures
-            and len(state.analytical_query_hashes) < self.settings.ai_min_insight_data_calls
         ):
-            raise ToolError(
-                "INSIGHT mode requires at least "
-                f"{self.settings.ai_min_insight_data_calls} distinct successful analytical queries "
-                "before completion; run a justified follow-up, not a duplicate query"
-            )
+            return self.settings.ai_min_insight_data_calls
+        return 0
 
     @staticmethod
     def _semantic_requirements(name: str, arguments: dict[str, Any]) -> set[tuple[str, str]]:

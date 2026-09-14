@@ -4,6 +4,7 @@ import pytest
 
 from app.config import Settings
 from app.orchestrator import AnalysisOrchestrator, RunState
+from app.tools import Execution
 
 
 def test_extracts_structured_output_text() -> None:
@@ -104,6 +105,8 @@ def test_final_contract_requires_recorded_and_exact_evidence_ids() -> None:
     assert "record_evidence" in AnalysisOrchestrator._final_contract_issue(state, answer)
 
     state.recorded_evidence_ids.add("evidence-1")
+    assert "complete_analysis" in AnalysisOrchestrator._final_contract_issue(state, answer)
+    state.finalization_ready = True
     assert "at least one" in AnalysisOrchestrator._final_contract_issue(state, answer)
 
     answer["evidence_ids"] = ["invented"]
@@ -227,6 +230,169 @@ def test_cumulative_pressure_triggers_context_compaction_once() -> None:
     assert state.cumulative_pressure_compacted is True
     orchestrator._compact_context_if_needed(state)
     assert state.compactions == 1
+
+
+def test_disabled_mode_never_compacts_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeTools:
+        @staticmethod
+        def definitions(_families):
+            return []
+
+    orchestrator = object.__new__(AnalysisOrchestrator)
+    monkeypatch.setenv("AI_CONTEXT_COMPACTION_MODE", "DISABLED")
+    orchestrator.settings = Settings.from_env(require_runtime_secrets=False)
+    orchestrator.tools = FakeTools()
+    state = RunState("request", "question", {"META"}, [{"role": "user", "content": "x" * 100_000}])
+    state.cumulative_input = 149_000
+    orchestrator._compact_context_if_needed(state)
+    assert state.compactions == 0
+    assert len(state.input_items) == 1
+
+
+def test_evidence_gate_exposes_only_completion_then_no_tools() -> None:
+    class FakeTools:
+        @staticmethod
+        def definitions(_families):
+            return [
+                {"type": "function", "name": "query_features"},
+                {"type": "function", "name": "complete_analysis"},
+            ]
+
+    orchestrator = object.__new__(AnalysisOrchestrator)
+    orchestrator.tools = FakeTools()
+    state = RunState("request", "question", {"QUERY"}, [])
+    state.completion_only = True
+    assert [item["name"] for item in orchestrator._active_tool_definitions(state)] == [
+        "complete_analysis"
+    ]
+    state.finalization_ready = True
+    assert orchestrator._active_tool_definitions(state) == []
+
+
+def test_finalization_has_reserved_tool_and_output_budget() -> None:
+    orchestrator = object.__new__(AnalysisOrchestrator)
+    orchestrator.settings = Settings.from_env(require_runtime_secrets=False)
+    state = RunState("request", "question", {"QUERY"}, [])
+    state.tool_result_tokens = (
+        orchestrator.settings.ai_max_tool_result_tokens_total
+        - orchestrator.settings.ai_finalization_tool_result_reserve_tokens
+    )
+    with pytest.raises(RuntimeError, match="analysis"):
+        orchestrator._tool_result_budget(state, "query_features")
+    remaining, _ = orchestrator._tool_result_budget(state, "record_evidence")
+    assert remaining == orchestrator.settings.ai_finalization_tool_result_reserve_tokens
+
+    state.cumulative_output = (
+        orchestrator.settings.ai_max_cumulative_output_tokens
+        - orchestrator.settings.ai_finalization_output_reserve_tokens
+    )
+    with pytest.raises(RuntimeError, match="current phase"):
+        orchestrator._max_output_tokens(state)
+    state.completion_only = True
+    assert orchestrator._max_output_tokens(state) > 0
+
+
+def test_final_validation_reports_exact_field_issue() -> None:
+    invalid = _valid_final_json().replace('"confidence":"LOW"', '"confidence":"CERTAIN"')
+    with pytest.raises(RuntimeError, match="confidence") as exc:
+        AnalysisOrchestrator._parse_final_output(invalid)
+    assert "Input should be" in str(exc.value)
+
+
+def test_final_candidate_retry_is_capped_at_two() -> None:
+    class FakeOrchestrator(AnalysisOrchestrator):
+        def _log_step(self, *_args, **_kwargs):
+            return None
+
+        def _continue_after_rejected_final(self, *_args, **_kwargs):
+            return None
+
+    orchestrator = object.__new__(FakeOrchestrator)
+    orchestrator.settings = Settings.from_env(require_runtime_secrets=False)
+    state = RunState("request", "question", {"META"}, [])
+    orchestrator._reject_final_candidate(state, {}, "missing conclusion")
+    orchestrator._reject_final_candidate(state, {}, "invalid confidence")
+    with pytest.raises(RuntimeError, match="after 2 retries"):
+        orchestrator._reject_final_candidate(state, {}, "still invalid")
+
+
+def test_recorded_sufficient_evidence_locks_data_tools() -> None:
+    class FakeTools:
+        @staticmethod
+        def execute(name, _arguments, _request_id):
+            assert name == "record_evidence"
+            return Execution({"evidence_id": "evidence-1", "recorded": True})
+
+    class FakeOrchestrator(AnalysisOrchestrator):
+        def _auto_load_definitions(self, *_args, **_kwargs):
+            return []
+
+        def _log_step(self, *_args, **_kwargs):
+            return None
+
+        def _persist_usage(self, *_args, **_kwargs):
+            return None
+
+    orchestrator = object.__new__(FakeOrchestrator)
+    orchestrator.settings = Settings.from_env(require_runtime_secrets=False)
+    orchestrator.tools = FakeTools()
+    state = RunState(
+        "request", "screen saham dengan return tertinggi", {"SCREENING"}, [],
+        analysis_mode="INSIGHT",
+    )
+    state.analytical_query_hashes.update({"query-1", "query-2"})
+    result = orchestrator._execute_and_log(
+        state,
+        "record_evidence",
+        {
+            "evidence_type": "OBSERVATION",
+            "claim": "test",
+            "compact_payload_json": "{}",
+            "query_hash": "query-2",
+            "source_tables": ["Feature_01_Stock_Daily"],
+            "analysis_ready_date": "2026-08-31",
+        },
+    )
+    assert state.completion_only is True
+    assert result["completion_policy"]["data_tools_locked"] is True
+    assert result["completion_policy"]["next_action"] == (
+        "Data queries are now locked. Call complete_analysis now."
+    )
+
+
+def test_non_fail_quality_explicitly_allows_analysis_to_continue() -> None:
+    class FakeTools:
+        @staticmethod
+        def execute(name, _arguments, _request_id):
+            assert name == "check_data_quality"
+            return Execution({"classification": "WARNING", "warnings": ["partial coverage"]})
+
+    class FakeOrchestrator(AnalysisOrchestrator):
+        def _auto_load_definitions(self, *_args, **_kwargs):
+            return []
+
+        def _log_step(self, *_args, **_kwargs):
+            return None
+
+        def _persist_usage(self, *_args, **_kwargs):
+            return None
+
+    orchestrator = object.__new__(FakeOrchestrator)
+    orchestrator.settings = Settings.from_env(require_runtime_secrets=False)
+    orchestrator.tools = FakeTools()
+    state = RunState("request", "question", {"QUALITY"}, [])
+    result = orchestrator._execute_and_log(
+        state,
+        "check_data_quality",
+        {
+            "table": "Feature_01_Stock_Daily",
+            "tickers": ["BBCA"],
+            "start_date": "2026-08-01",
+            "end_date": "2026-08-31",
+        },
+    )
+    assert result["quality_blocks_finalization"] is False
+    assert result["analysis_may_continue"] is True
 
 
 def test_malformed_provider_tool_arguments_are_recoverable_and_not_stored_raw() -> None:
