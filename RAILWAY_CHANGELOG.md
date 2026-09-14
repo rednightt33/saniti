@@ -2,6 +2,17 @@
 
 This file records intentional changes to the Railway project. Git history preserves every revision. Never include secret values.
 
+## 2026-09-14 — Harden analyst finalization and complete compaction A/B
+
+- Deployed the priority 1–6 hardening sequence through commits `e9fda44`, `37d7be8`, `c744c6f`, `9a84c82`, and `88a5514`. The backend now reserves finalization budget, requires tool use before evidence, locks data tools after sufficient evidence, requires `complete_analysis`, validates evidence-ready dates, records exact bounded final-output failures, and stores a decisive audit digest. Priority 7 remained intentionally deferred.
+- Raised only `AI_MAX_CUMULATIVE_INPUT_TOKENS` to 150,000 and added the configurable A/B switch plus two finalization reserves and two bounded final-response retries. Database-query, LLM-facing result, Analytics Worker, 64k active-context, cumulative-output, provider-call, and wall-clock policies remain separate.
+- Canary request `e8835b86-e4ad-4dcb-bba2-81212c8b88d8` finished `SUCCESS`/`FINAL` after the final evidence-date fix: 16,553 input tokens, 2,178 output tokens, 4 tool calls, 5 iterations, and 5,823 peak active-context tokens.
+- Ran the same fixed ten-question DeepSeek suite with cross-iteration compaction disabled and with `PRESERVE_DECISIVE`. Disabled completed 7/10 using 902,667 input tokens and 996.363 seconds total; preserve completed 8/10 using 857,164 input tokens and 573.907 seconds. All 15 successful answers had durable, correctly cited evidence and both modes made zero data/QC calls after the evidence gate.
+- Only two preserve-mode requests actually compacted. S5 still failed after exceeding the 150k cumulative-input ceiling, and F4 lost explicitly requested numeric columns that the non-compacted answer retained. The apparently additional S2 success did not use compaction and reflects provider-output variance. Strict answer review was six complete/one partial/three failed for disabled versus five complete/three partial/two failed for preserve.
+- Restored `AI_CONTEXT_COMPACTION_MODE=DISABLED` as the current `dev` setting. Deployment `e962dc56-8c02-4f22-a943-e4a2a1d1c332` reached `SUCCESS` on commit `88a5514`. Per-tool result shaping remains enabled; only cross-iteration compaction is disabled.
+- All 180 A/B provider calls stored bounded reasoning details, concise decision summaries, usage, and 30-day expiry in `Analysis_Model_Call`. Unit tests passed 58/58, live backend verification passed, and deterministic Golden Test run `801f4f11-5d8a-4774-9fa6-58bf60f68f47` passed 16/16. Full results and unresolved gaps are in `MARKET_AI_AB_TEST_2026-09-14.md`.
+- The first local Railway read hit the known Avast TLS `UnknownIssuer`; setting `SSL_CERT_FILE` to the verified CA bundle restored the connection without disabling TLS validation. No secret, provider/model, database/Feature value, schedule, volume, endpoint, or unrelated service was changed.
+
 ## 2026-09-14 — Deploy per-model-call audit and global conditional QC
 
 - Added five non-secret `market-ai-backend` variables without exposing their values as secrets: `AI_CUMULATIVE_COMPACTION_THRESHOLD_PERCENT`, `AI_STORE_REASONING_DETAILS`, `AI_REASONING_RETENTION_DAYS`, `AI_REASONING_MAX_BYTES_PER_CALL`, and `AI_REASONING_CLEANUP_INTERVAL_SECONDS`. Database/query, Analytics Worker, 64k active-context, 100k cumulative-input, 12k cumulative-output, 32-call, and 20-iteration ceilings were not increased.

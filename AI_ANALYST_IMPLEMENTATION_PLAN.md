@@ -387,15 +387,15 @@ AI_MAX_CUMULATIVE_INPUT_TOKENS=150000
 AI_MAX_CUMULATIVE_OUTPUT_TOKENS=12000
 AI_FINALIZATION_OUTPUT_RESERVE_TOKENS=4000
 AI_CUMULATIVE_COMPACTION_THRESHOLD_PERCENT=75
-AI_CONTEXT_COMPACTION_MODE=PRESERVE_DECISIVE
+AI_CONTEXT_COMPACTION_MODE=DISABLED
 AI_FINAL_RESPONSE_MAX_RETRIES=2
 AI_STORE_REASONING_DETAILS=true
 AI_REASONING_RETENTION_DAYS=30
 AI_REASONING_MAX_BYTES_PER_CALL=65536
 AI_REASONING_CLEANUP_INTERVAL_SECONDS=3600
-AI_MAX_TOOL_ITERATIONS=8
-AI_MAX_TOOL_CALLS=12
-AI_ANALYSIS_MODE=QUICK
+AI_MAX_TOOL_ITERATIONS=20
+AI_MAX_TOOL_CALLS=32
+AI_ANALYSIS_MODE=INSIGHT
 AI_MIN_INSIGHT_DATA_CALLS=2
 AI_MAX_ANALYSIS_SECONDS=600
 AI_REQUEST_TIMEOUT_SECONDS=180
@@ -472,6 +472,11 @@ through evidence references.
 `AI_CONTEXT_COMPACTION_MODE=DISABLED` is an experiment mode that skips only this
 cross-iteration compaction. It does not disable per-tool row/byte/token shaping,
 which is a mandatory separation between database capacity and LLM context.
+
+The 2026-09-14 ten-question A/B promoted `DISABLED` from experiment to the
+current `dev` operational default. Preserve mode remains available but must pass
+an explicit output-fidelity regression before it is enabled by default. The
+decision and measurements are recorded in `MARKET_AI_AB_TEST_2026-09-14.md`.
 
 Compaction priority is:
 

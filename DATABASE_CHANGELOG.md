@@ -7,6 +7,8 @@
 - Updated `check_data_quality` metadata so `WARNING` and source-valid `PASS` anomalies explicitly continue analysis while impossible/invalid `FAIL` blocks only the affected conclusion.
 - Registered reserved finalization budget, exact final-schema feedback with at most two retries, and preservation of decisive values, warnings, evidence IDs, and query hashes during context compaction.
 - Catalog reconciliation PASS at 488 physical columns; regenerated `DATABASE_SCHEMA.md` from 29 public tables. Live backend verification PASS and deterministic Golden Test run `f597da6b-760c-4b4e-8cf0-8ef0b74f6874` passed 16/16.
+- Final controlled A/B wrote 20 durable analysis requests, 15 completed evidence packages, and 180 bounded `Analysis_Model_Call` audit rows. All 15 successful answers cited evidence that exists for their request, and zero data/QC call ran after the evidence gate. No raw or Feature row was changed by the test.
+- Final live verification remained PASS and deterministic Golden Test run `801f4f11-5d8a-4774-9fa6-58bf60f68f47` passed 16/16. The full compaction comparison and retained `DISABLED` operational decision are documented in `MARKET_AI_AB_TEST_2026-09-14.md`.
 
 ## 2026-09-14 — Add per-model-call audit and conditional quality policy
 

@@ -125,6 +125,12 @@ larger than the model-facing budget. `PRESERVE_DECISIVE` removes obsolete wrappe
 while retaining decisive numbers, top/bottom observations, warnings, evidence IDs,
 and query hashes in both active-context and durable step digests.
 
+The 2026-09-14 controlled ten-question A/B left Railway `dev` on `DISABLED`.
+`PRESERVE_DECISIVE` reduced aggregate tokens and latency but did not reliably
+retain every explicitly requested output column in the two requests that actually
+compacted. See `MARKET_AI_AB_TEST_2026-09-14.md`. This is an operational default,
+not removal of the preserve mode.
+
 All numeric variables and their approved defaults are listed in
 `AI_ANALYST_IMPLEMENTATION_PLAN.md`; Railway variables are the enforcement source
 and `Tool_Catalog` is the model-facing metadata copy.
