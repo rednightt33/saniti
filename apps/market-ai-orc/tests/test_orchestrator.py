@@ -68,11 +68,11 @@ def test_full_tool_loop_returns_structured_answer() -> None:
     first, second = client.payloads
     assert first["instructions"] == SYSTEM_PROMPT
     assert first["store"] is False
-    assert first["tool_choice"] == "auto" and first["parallel_tool_calls"] is False
+    assert first["tool_choice"] == "auto"
+    assert "parallel_tool_calls" not in first
     assert [tool["name"] for tool in first["tools"]] == ["get_system_capabilities"]
     assert first["provider"] == {"require_parameters": True, "allow_fallbacks": True}
-    assert first["text"]["format"]["name"] == "saniti_agent_response"
-    assert first["text"]["format"]["strict"] is True
+    assert "text" not in first and "text" not in second
     assert first["input"] == [{"role": "user", "content": "What capabilities do you currently have?"}]
 
     call_items = [item for item in second["input"] if item.get("type") == "function_call"]
@@ -99,6 +99,8 @@ def test_no_registered_tools_means_no_tool_fields() -> None:
     agent.run(request())
     payload = client.payloads[0]
     assert "tools" not in payload and "tool_choice" not in payload and "parallel_tool_calls" not in payload
+    assert payload["text"]["format"]["name"] == "saniti_agent_response"
+    assert payload["text"]["format"]["strict"] is True
 
 
 @pytest.mark.parametrize(
@@ -196,7 +198,7 @@ def test_invalid_final_is_retried_without_tools() -> None:
     agent, client = orchestrator([
         final_response({**ANSWER, "confidence": "HIGH"}),
         final_response(ANSWER),
-    ])
+    ], registry=ToolRegistry())
     result = agent.run(request())
     assert result.status == "COMPLETED"
     retry = client.payloads[1]
@@ -207,10 +209,55 @@ def test_invalid_final_is_retried_without_tools() -> None:
 
 def test_final_retries_are_bounded() -> None:
     bad = final_response("not json")
-    agent, client = orchestrator([bad, bad, bad], AI_FINAL_RESPONSE_MAX_RETRIES="2")
+    agent, client = orchestrator([bad, bad, bad], registry=ToolRegistry(), AI_FINAL_RESPONSE_MAX_RETRIES="2")
     result = agent.run(request())
     assert result.status == "FAILED" and result.error.code == "INVALID_FINAL_RESPONSE"
     assert len(client.payloads) == 3
+
+
+def test_prose_answer_on_tool_turn_is_finalized_under_strict_schema() -> None:
+    agent, client = orchestrator([
+        tool_call_response("get_system_capabilities", call_id="call_caps"),
+        final_response("Only get_system_capabilities is available; no database or Python yet."),
+        final_response(ANSWER),
+    ], AI_FINAL_RESPONSE_MAX_RETRIES="0")
+    result = agent.run(request())
+
+    assert result.status == "COMPLETED" and result.response.model_dump() == ANSWER
+    assert result.execution.iterations == 3 and result.execution.tool_call_count == 1
+    finalize = client.payloads[2]
+    assert "tools" not in finalize and "tool_choice" not in finalize
+    assert finalize["text"]["format"]["strict"] is True
+    assert finalize["input"][-2] == {
+        "role": "assistant",
+        "content": "Only get_system_capabilities is available; no database or Python yet.",
+    }
+    assert "never ask the user about it" in finalize["input"][-1]["content"]
+
+
+def test_invalid_output_after_finalization_uses_bounded_retries() -> None:
+    agent, client = orchestrator([
+        final_response("draft prose"),
+        final_response("still not json"),
+        final_response("again not json"),
+    ], AI_FINAL_RESPONSE_MAX_RETRIES="1")
+    result = agent.run(request())
+    assert result.error.code == "INVALID_FINAL_RESPONSE"
+    assert len(client.payloads) == 3
+    assert all("tools" not in payload for payload in client.payloads[1:])
+
+
+def test_tool_call_during_finalization_is_not_executed() -> None:
+    registry, executed = counting_registry()
+    agent, client = orchestrator([
+        final_response("draft prose"),
+        tool_call_response("lookup", '{"ticker": "BBCA"}', call_id="late"),
+        final_response(ANSWER),
+    ], registry=registry)
+    assert agent.run(request()).status == "COMPLETED"
+    assert executed == []
+    assert json.loads(outputs(client.payloads[2])[-1]["output"])["error"]["code"] == "TOOLS_NOT_AVAILABLE"
+    assert "tools" not in client.payloads[2]
 
 
 def test_markdown_fenced_final_is_accepted() -> None:

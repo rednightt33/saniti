@@ -47,6 +47,21 @@ Return only the response defined by the provided strict output schema."""
 
 RESPONSE_FORMAT_NAME = "saniti_agent_response"
 REJECTED_OUTPUT_ECHO_CHARS = 4000
+RESPONSE_CONTRACT = (
+    "Return one JSON object with exactly these fields: "
+    "response_type: \"ANSWER\" when the request can be answered, \"CLARIFICATION\" only when an "
+    "ambiguity in the user's request materially prevents a reliable answer, or \"LIMITATION\" when "
+    "a required capability is unavailable; "
+    "answer: the answer for the user (for LIMITATION, what can reliably be said; empty string for "
+    "CLARIFICATION); "
+    "clarification_question: one focused question for CLARIFICATION, otherwise null; "
+    "assumptions: list of strings; limitations: list of strings. "
+    "The output format is already defined by the application; never ask the user about it."
+)
+FINALIZE_INSTRUCTION = (
+    "Provide your final response to my latest message now, based only on the conversation and "
+    "tool results above. Do not call tools. " + RESPONSE_CONTRACT
+)
 
 
 class ResponsesTransport(Protocol):
@@ -78,7 +93,7 @@ class RunState:
     final_rejections: int = 0
     tools_offered: bool = False
     tools_locked: bool = False
-    format_repair: bool = False
+    structured_only: bool = False
     history_turns_dropped: int = 0
     # tool+arguments hash -> (consecutive executions with an unchanged result, last result hash)
     call_history: dict[str, tuple[int, str | None]] = field(default_factory=dict)
@@ -147,7 +162,7 @@ class AgentOrchestrator:
             if self.clock() - state.started >= self.settings.ai_max_analysis_seconds:
                 raise RunFailure("ANALYSIS_TIMEOUT", "AI_MAX_ANALYSIS_SECONDS exhausted before a final answer")
 
-            tools = [] if state.tools_locked or state.format_repair else self.registry.definitions()
+            tools = [] if state.tools_locked or state.structured_only else self.registry.definitions()
             state.tools_offered = bool(tools)
             payload = self._payload(state, tools)
             context_tokens = estimate_tokens({
@@ -177,7 +192,6 @@ class AgentOrchestrator:
                 raise RunFailure("CONTEXT_LIMIT", "Provider-reported input exceeded AI_MAX_CONTEXT_TOKENS")
 
             if calls:
-                state.format_repair = False
                 for call in calls:
                     self._handle_call(state, call)
                 continue
@@ -186,7 +200,10 @@ class AgentOrchestrator:
             try:
                 return self._parse_final_output(raw)
             except ValueError as exc:
-                self._reject_final(state, raw, str(exc))
+                if tools:
+                    self._request_structured_final(state, raw)
+                else:
+                    self._reject_final(state, raw, str(exc))
         raise RunFailure("MAX_ITERATIONS", "AI_MAX_TOOL_ITERATIONS reached before a final answer")
 
     def _payload(self, state: RunState, tools: list[dict[str, Any]]) -> dict[str, Any]:
@@ -198,19 +215,23 @@ class AgentOrchestrator:
             "max_output_tokens": self.settings.ai_max_output_tokens,
             "store": False,
             "provider": {"require_parameters": True, "allow_fallbacks": True},
-            "text": {
+        }
+        if tools:
+            # Strict text.format is withheld on tool turns: OpenRouter providers enforce it by
+            # constraining the whole generation, which prevents any function call.
+            # parallel_tool_calls is omitted: with require_parameters=true OpenRouter drops every
+            # endpoint that does not advertise it. Sequential execution is enforced in code.
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
+        else:
+            payload["text"] = {
                 "format": {
                     "type": "json_schema",
                     "name": RESPONSE_FORMAT_NAME,
                     "strict": True,
                     "schema": FINAL_RESPONSE_SCHEMA,
                 }
-            },
-        }
-        if tools:
-            payload["tools"] = tools
-            payload["tool_choice"] = "auto"
-            payload["parallel_tool_calls"] = False
+            }
         return payload
 
     def _build_input(self, request: AgentRunRequest) -> tuple[list[dict[str, Any]], int]:
@@ -284,6 +305,13 @@ class AgentOrchestrator:
                 return raw
         return raw or {}
 
+    def _request_structured_final(self, state: RunState, raw: str) -> None:
+        """A tool turn ended with a draft answer; ask for it once more under the strict schema."""
+        if raw.strip():
+            state.input_items.append({"role": "assistant", "content": raw[:REJECTED_OUTPUT_ECHO_CHARS]})
+        state.input_items.append({"role": "user", "content": FINALIZE_INSTRUCTION})
+        state.structured_only = True
+
     def _reject_final(self, state: RunState, raw: str, issue: str) -> None:
         state.final_rejections += 1
         limit = self.settings.ai_final_response_max_retries
@@ -298,11 +326,10 @@ class AgentOrchestrator:
             "role": "user",
             "content": (
                 f"Your previous response was rejected ({state.final_rejections}/{limit} retries): "
-                f"{issue} Correct exactly this issue and return only bare JSON matching the "
-                "required response schema. Do not call tools."
+                f"{issue} Correct exactly this issue. Do not call tools. " + RESPONSE_CONTRACT
             ),
         })
-        state.format_repair = True
+        state.structured_only = True
 
     def _add_usage(self, state: RunState, response: dict[str, Any]) -> dict[str, int]:
         usage = response_usage(response)

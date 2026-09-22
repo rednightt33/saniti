@@ -56,15 +56,33 @@ OpenRouter AI
    roles other than `user`/`assistant`.
 3. The model input is built from the fixed system prompt, the latest history turns that fit
    `AI_MAX_HISTORY_TOKENS` (passed as one context-only item), and the latest message.
-4. OpenRouter is called with `store: false`, strict JSON-schema output, and
-   `provider.require_parameters: true`. Tools are sent only when at least one is registered,
-   with `tool_choice: auto` and `parallel_tool_calls: false`.
+4. OpenRouter is called with `store: false` and `provider.require_parameters: true`. There
+   are two kinds of turn:
+   - **Tool turns** (at least one tool registered and available) send the tools with
+     `tool_choice: auto` and **no** `text.format`.
+   - **Structured turns** (no tools available, finalization, or format repair) send strict
+     `text.format` (`json_schema`, `saniti_agent_response`) and no tools.
 5. Each requested tool call is checked, validated, and run sequentially. The
    `function_call` and its `function_call_output` are appended, then OpenRouter is called
    again. Provider reasoning items are never replayed into later calls.
-6. A final answer is parsed against the strict schema. If it is invalid, the model gets a
-   short correction and retries without tools, up to `AI_FINAL_RESPONSE_MAX_RETRIES` times.
+6. When a tool turn ends in text, it is accepted if it is already valid schema JSON.
+   Otherwise, one structured finalization turn converts the draft, and the response
+   contract is spelled out for the model. This does not count as a retry. An invalid
+   structured output gets a short correction and retries, up to
+   `AI_FINAL_RESPONSE_MAX_RETRIES` times.
 7. Code, not the model, wraps the answer in the API envelope with status, usage, and timing.
+
+### Why tool turns carry no `text.format`, and there is no `parallel_tool_calls`
+
+Both were verified live against OpenRouter with `deepseek/deepseek-v4.1-flash` on 2026-09-22:
+
+- OpenRouter providers enforce `text.format: json_schema` by constraining the whole
+  generation. With tools and a strict format in the same turn, the model never called a
+  tool; it answered "Let me check…" as schema JSON (3/3 trials). Without the format, it
+  called the tool 3/3 times.
+- None of the 23 OpenRouter endpoints for this model supports `parallel_tool_calls`.
+  With `require_parameters: true`, sending the field, even as `false`, leaves no eligible
+  endpoint (HTTP 404). Sequential execution is enforced in code instead.
 
 Loop protection is enforced in code: iterations, total tool calls, identical repeated calls,
 wall-clock time, output tokens, and a context ceiling checked before each provider call.
