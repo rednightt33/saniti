@@ -22,6 +22,7 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - IDX price recovery cron service ID: `a8e6e32a-fcd8-4c33-9ecc-1488a4b2db05`
 - Feature 01 worker service: `feature-01-worker`
 - Feature 01 worker service ID: `de4e34ee-435b-408f-a77f-63e6698a2dab`
+- AI data coverage cron service: `ai-data-coverage` (daily at 07:30 Asia/Jakarta / `30 0 * * *` UTC)
 - Telegram notification service: `telegram-monitor`
 - Telegram notification service ID: `a6b4e061-721f-4173-82f8-07ccb45740fc`
 - Telegram command service: `telegram-trigger`
@@ -47,6 +48,7 @@ All application services deploy from `rednightt33/saniti` on branch `main`. Each
 | `market-ai-backend` | `/apps/market-ai-backend` | `/apps/market-ai-backend/**` |
 | `market-analytics-worker` | `/apps/market-analytics-worker` | `/apps/market-analytics-worker/**` |
 | `market-query-sandbox` | `/apps/market-query-sandbox` | `/apps/market-query-sandbox/**` |
+| `ai-data-coverage` | `/apps/ai-data-coverage` | `/apps/ai-data-coverage/**` |
 
 Connecting or changing a service source must preserve its environment variables and secrets, cron schedule, start command, health check, domain, private networking, restart/serverless policy, and database references. Source-configuration work must not use **Run now** on either price service and must not issue a TradingView query. Record the currently active deployment ID before each change so it remains available as the rollback reference, then wait for the new deployment to reach `SUCCESS` before changing the next service.
 
@@ -83,6 +85,15 @@ Railway evaluates separate UTC schedules: `idx-price-cron` uses `0 10 * * *`, an
 
 After a committed price insert/update with non-null `ingestion_time`, the PostgreSQL trigger opens a Feature 01 queue item for that ticker/date in the same transaction. The always-on `feature-01-worker` polls the queue, runs the incremental SQL refresh, validates affected rows, and updates `Feature_Calculation_Queue`, `Feature_Status`, and `Feature_Calculation_Log`. It has no cron schedule and never queries TradingView. A historical price correction can refresh up to 120 subsequent trading observations. Its `SUCCESS` status measures price-driven freshness only; universe classification changes need a separate refresh path.
 
+AI coverage metadata:
+
+```text
+07:30 Asia/Jakarta -> ai-data-coverage -> recent raw Price and Broker Summary coverage
+-> AI_data_coverage -> expected Feature 01/02/03 coverage derived from source metadata
+```
+
+The nightly job reads a 30-day recent window and preserves the last full counts. A manual initial `--mode full` establishes all-history raw coverage. It does not scan the three physical Feature tables. Feature 01 is marked `PIPELINE_CONFIRMED` only when `Feature_Status` reports a successful calculation through the source maximum date. Feature 02 and Feature 03 are manual-refresh tables, so their source-derived expected coverage remains `UNVERIFIED` / `MANUAL_REFRESH_REQUIRED`.
+
 `telegram-monitor` has no cron schedule and does not poll PostgreSQL. It sleeps while idle and is called only after a DAILY or RECOVERY monitoring transaction commits. The caller retries temporary cold-start/network failures; Telegram failure never rolls back price data. Delivery is deduplicated by source table plus `execution_id`. Each final message shows the job's `run_time` as `Triggered at` and `finished_at` as `Finished at`, converted to Asia/Jakarta.
 
 Telegram manual control:
@@ -116,6 +127,8 @@ Telegram owner -> telegram-trigger webhook -> validate webhook secret and Chat I
 - `Golden_Analysis_Test`, `Golden_Analysis_Test_Run`, and `Golden_Analysis_Test_Result`: permanent analytical regression expectations and historical outcomes across data correctness, methodology, safety, and token behavior.
 - `Table_Catalog`: curated purpose, grain, source, writer, and update contract for approved tables, including Feature 02 and Feature 03.
 - `Column_Catalog`: physical column inventory and evidence-graded definitions for approved tables. For Feature formulas, `Feature_Catalog` remains authoritative.
+- `AI_table_catalog`, `AI_column_catalog`, `AI_catalog_relationships`, and `AI_calculation_catalog`: compact AI-facing metadata for exactly the seven approved market-data tables; the original catalogs remain authoritative and preserved.
+- `AI_data_coverage`: actual raw-source coverage and explicitly labelled expected derived-table coverage. Only the `ai-data-coverage` job writes this table.
 - `Monitoring_Price_ALL`: per-execution daily/recovery completeness, trigger source, query time, missing symbols, and status grouped by the universe `Security Type` value.
 - `Telegram_Command_Log`: incoming Telegram Run Now audit, webhook-retry deduplication, and rapid-click blocking.
 - `Telegram_Notification_Log`: Telegram delivery status and anti-duplicate ledger keyed by source table and source `execution_id`.

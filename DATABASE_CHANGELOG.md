@@ -1,5 +1,14 @@
 # Database changelog
 
+## 2026-09-22 — Add AI-facing catalogs and source-derived coverage
+
+- Applied forward-only migration `database/migrations/20260922_001_create_ai_catalogs.sql` to Railway project `lucid-patience`, environment `dev`. It created `AI_table_catalog`, `AI_column_catalog`, `AI_catalog_relationships`, `AI_calculation_catalog`, and `AI_data_coverage` without replacing the legacy catalogs.
+- Seeded exactly seven approved table rows, 138 column rows, five safe-relationship rows, and 91 active Feature calculation rows (Feature 01 = 29, Feature 02 = 38, Feature 03 = 24). Registered all five new tables and 85 physical columns in the legacy catalogs; post-sync totals are 32 registered tables and 580 registered columns.
+- Ran the initial full raw-source coverage successfully. `AI_data_coverage` contains 14,070 rows: 844 price tickers, 4,125 Broker Summary tickers, the corresponding source-derived Feature expectations, and dataset/snapshot summaries. Feature 01 has 839 ticker expectations confirmed by `Feature_Status` and five unverified; Feature 02/03 remain explicitly `UNVERIFIED` / `MANUAL_REFRESH_REQUIRED`.
+- Verified the coverage job reads only raw price, Broker Summary, universe/profile snapshots, `Feature_Status`, and its own catalog/coverage tables. It never scans Feature 01–03 and writes only `AI_data_coverage`.
+- Exact before/after checks showed no change to Feature 01–03 row counts, date ranges, or Feature 02/03 maximum write timestamps. No raw-source row, Feature formula, Feature refresh routine, backend service, or legacy-catalog row was removed.
+- Catalog synchronization reconciled 580 physical columns and schema synchronization recorded 35 public tables.
+
 ## 2026-09-14 — Feature 03 v2 Investor-Type rebuild
 
 - Applied forward-only migration `20260914_047_define_feature_03_investor_type_v2.sql` after the Feature 02 Investor-Type cutover. It replaced only the Feature 03 refresh routine and semantic contract; the physical Feature 03 schema and primary key remain `(ticker, market_board, date)`.

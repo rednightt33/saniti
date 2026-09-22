@@ -11,6 +11,11 @@ The live PostgreSQL schema is the authority for physical types, constraints, and
 | `Feature_Catalog` | Versioned formulas, semantic usage, availability, point-in-time safety, null rules, and dependencies for validated Feature columns | One row per Feature table, column, and semantic version |
 | `Feature_Relationship_Catalog` | Versioned safe joins, cardinality, required preaggregation, and output grain between Features | One row per Feature-table pair and version |
 | `Tool_Catalog` | Versioned generic tool schemas, activation, handler, and advertised database/worker/LLM-facing limits | One row per tool and version |
+| `AI_table_catalog` | Compact master list for exactly the seven AI-approved market-data tables | One row per approved table |
+| `AI_column_catalog` | AI-facing column semantics copied from reviewed legacy catalogs | One row per column of an AI-approved table |
+| `AI_catalog_relationships` | Safe join and output-grain contracts among AI-approved tables | One row per relationship contract |
+| `AI_calculation_catalog` | Active Feature formula and analytical-use contracts | One row per active Feature column |
+| `AI_data_coverage` | Actual raw-source coverage and clearly labelled source-derived Feature expectations | One row per dataset or dataset/entity pair |
 | `Database_Table_Status` | Operational freshness and last-change tracking | One row per public table; **not** a semantic catalog |
 
 The initial `Table_Catalog` scope was exactly these eleven existing tables:
@@ -26,7 +31,9 @@ The scope subsequently added `Feature_Calculation_Queue`, `Feature_Status`, and 
 
 `Feature_03_Stock_Broker_Daily` is approved and validated at its existing date/ticker/board grain. Its 24 active `Feature_Catalog` `v2` definitions use source `Investor Type` for the Domestic/Foreign net-flow columns. Broker breadth, rankings, HHI, and current broker-profile classification fields first aggregate both Investor Types per broker. Regular, Nego, and Tunai never mix. Safe join contracts are versioned in `Feature_Relationship_Catalog`. See `FEATURE_03_STOCK_BROKER_DAILY.md`.
 
-The market-AI foundation adds `Feature_Relationship_Catalog`, `Tool_Catalog`, four analysis audit tables, and three Golden Test tables. Release 2 adds `Analytics_Dataset_Snapshot` and `Analytics_Job`. After the Feature 02 v2 cutover, the live scope has 27 registered tables and 495 registered physical columns; together with the three explicit catalog/status exclusions, PostgreSQL has 30 public tables. `Tool_Catalog` exposes deterministic `route_analysis`, one generic query-sandbox surface, and one generic statistical-validation surface rather than a tool per ticker or investment question. Feature 3 v2 clearly separates source investor identity from current broker-profile metadata.
+The market-AI foundation adds `Feature_Relationship_Catalog`, `Tool_Catalog`, four analysis audit tables, and three Golden Test tables. Release 2 adds `Analytics_Dataset_Snapshot` and `Analytics_Job`. The AI-facing catalog migration then adds five registered `AI_*` tables, bringing the live scope to 32 registered tables, 580 registered physical columns, and 35 public tables including the three explicit catalog/status exclusions. `Tool_Catalog` exposes deterministic `route_analysis`, one generic query-sandbox surface, and one generic statistical-validation surface rather than a tool per ticker or investment question. Feature 3 v2 clearly separates source investor identity from current broker-profile metadata.
+
+The legacy `Table_Catalog`, `Column_Catalog`, `Feature_Catalog`, and relationship catalog remain authoritative and are not replaced. The AI-facing layer contains seven table rows, 138 column rows, five relationship rows, and 91 active calculation rows. Only `AI_data_coverage` is automated. Its job scans raw price and Broker Summary for actual date coverage, uses `Feature_Status` only to confirm Feature 01 pipeline completion, and derives expected Feature 02/03 coverage from Broker Summary without scanning the Feature tables themselves.
 
 ## Complete public-table documentation map
 
@@ -40,6 +47,11 @@ column/constraint/index reference for every row below.
 | `Analysis_Model_Call` | Per-provider-call usage, tool exposure, decision summary, and temporary reasoning audit | `ANALYSIS_MODEL_CALL_AUDIT.md` |
 | `Analysis_Request` | Durable request lifecycle, cumulative usage, result, and version snapshot | `apps/market-ai-backend/README.md` |
 | `Analysis_Step_Log` | Tool/query/compaction execution audit | `apps/market-ai-backend/README.md` |
+| `AI_calculation_catalog` | AI-facing active Feature calculation contracts | This document and `apps/ai-data-coverage/README.md` |
+| `AI_catalog_relationships` | AI-facing safe join and output-grain contracts | This document |
+| `AI_column_catalog` | AI-facing semantics for the seven approved tables | This document |
+| `AI_data_coverage` | Actual source coverage and labelled derived expectations | `apps/ai-data-coverage/README.md` |
+| `AI_table_catalog` | AI-facing seven-table master catalog | This document |
 | `Analytics_Dataset_Snapshot` | Immutable bounded raw/Feature input metadata and private-object retention | `apps/market-ai-backend/README.md` |
 | `Analytics_Job` | Class-separated query/statistical queue, lease, resource contract, compact result, and failure audit | `apps/market-ai-backend/README.md` |
 | `Column_Catalog` | Physical and semantic column inventory | This document |

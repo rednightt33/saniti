@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-14T15:40:34+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-22T16:55:06+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -8,33 +8,38 @@ Generated from PostgreSQL schema `public` at `2026-09-14T15:40:34+00:00`.
 
 | Table Name | Category | Update Pattern | Latest Data Date | Last Changed At | Tracking | Definition |
 |---|---|---|---|---|---|---|
+| `AI_calculation_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing calculation contracts derived from active, validated Feature definitions. |
+| `AI_catalog_relationships` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing safe join, temporal alignment, preaggregation, and output-grain contracts. |
+| `AI_column_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing column semantics and bounded-query permissions for the seven approved tables. |
+| `AI_data_coverage` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | Automated actual raw-source coverage plus explicitly inferred expectations for derived Feature tables. |
+| `AI_table_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing master list and bounded-access contract for seven approved source and Feature tables. |
 | `Analysis_Evidence` | System | When compact evidence is recorded for an analysis | — | `2026-09-13 15:02:15+00:00` | Baseline only | Compact reproducible evidence supporting material AI analysis claims. |
 | `Analysis_Model_Call` | System | One row after every provider model response; retained reasoning is purged by policy | — | `2026-09-14 03:49:36+00:00` | Baseline only | Per-provider-call audit containing usage, progressive tool exposure, a concise decision summary, and temporarily retained provider-returned reasoning. |
 | `Analysis_Request` | System | One lifecycle per submitted AI analysis | — | `2026-09-13 15:02:15+00:00` | Baseline only | Durable AI analysis request lifecycle, structured result, progressive tool exposure state, and token usage. |
 | `Analysis_Step_Log` | System | After each AI analysis tool or compaction step | — | `2026-09-13 15:02:15+00:00` | Baseline only | Audit record for every query, tool, compaction, or analytical step in an AI request. |
 | `Analytics_Dataset_Snapshot` | System | Per bounded analytics input; remove private object after terminal grace or expiry | — | `2026-09-14 07:39:52+00:00` | Baseline only | Metadata and retention state for immutable bounded raw or Feature analytical input snapshots stored in a private Railway bucket. |
 | `Analytics_Job` | System | Per generic analytics submission, lease, result, or failure | — | `2026-09-14 07:39:52+00:00` | Baseline only | Durable queue, lease, resource contract, result, and failure audit for separately authenticated query-sandbox and statistical-validation workers. |
-| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-14 15:38:17.191891+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-14 15:40:34+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
-| `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-14` | `2026-09-14 10:03:46.232960+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
+| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-22 16:55:08.479724+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-22 16:55:06+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-22` | `2026-09-22 10:08:30.026848+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
 | `Feature_02_Broker_Rolling` | Feature | After validated broker-summary changes; manual v2 ticker rebuild | `2026-08-31` | `2026-09-14 14:26:33.580099+00:00` | Derived from IDX_Broker_Summary; Investor-Type Feature 02 v2 refresh is manual | Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata. |
 | `Feature_03_Stock_Broker_Daily` | Feature | After Feature 02 refresh; manual Investor-Type v2 refresh | `2026-08-31` | `2026-09-14 15:17:23.131992+00:00` | Derived from Investor-Type Feature_02_Broker_Rolling; Feature 03 v2 refresh is manual | Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate. |
-| `Feature_Calculation_Log` | System | After completed worker attempts | `2026-09-14` | `2026-09-14 10:03:46.239553+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
-| `Feature_Calculation_Queue` | System | After committed price inserts/updates and worker transitions | `2026-09-14` | `2026-09-14 10:03:46.183348+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
+| `Feature_Calculation_Log` | System | After completed worker attempts | `2026-09-22` | `2026-09-22 10:08:30.032078+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
+| `Feature_Calculation_Queue` | System | After committed price inserts/updates and worker transitions | `2026-09-22` | `2026-09-22 10:08:29.976045+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
 | `Feature_Catalog` | Reference | After each validated Feature schema change | — | `2026-09-14 15:17:06.460831+00:00` | Tracked automatically | Versioned, machine-readable formula, interpretation, recommended-use, misuse, availability, point-in-time safety and validation-evidence contract for every validated Feature column. |
 | `Feature_Relationship_Catalog` | Reference | After a validated Feature join contract changes | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned safe-join and grain contracts between verified Feature tables. |
-| `Feature_Status` | System | After enqueue and worker state transitions | `2026-09-14` | `2026-09-14 10:03:46.183348+00:00` | Derived from per-ticker status rows | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
+| `Feature_Status` | System | After enqueue and worker state transitions | `2026-09-22` | `2026-09-22 10:08:29.976045+00:00` | Derived from per-ticker status rows | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
 | `Golden_Analysis_Test` | System | After a versioned golden analytical expectation changes | — | `2026-09-13 15:08:56+00:00` | Baseline only | Versioned analytical regression-test definitions with reproducible conditions and tolerances. |
 | `Golden_Analysis_Test_Result` | System | After each test in a golden-suite run | — | `2026-09-13 15:08:56+00:00` | Baseline only | Per-test correctness, methodology, evidence, warning, latency and token outcome. |
 | `Golden_Analysis_Test_Run` | System | Before major releases and material model, prompt, Feature, or tool changes | — | `2026-09-13 15:08:56+00:00` | Baseline only | Historical execution record for one complete golden analytical regression suite. |
 | `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-10 07:23:34.854803+00:00` | Tracked automatically | Broker code and name, domestic/foreign type, and usage profile such as Institutional-heavy, Retail-heavy, Mixed, or Niche. |
 | `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 14:41:15.160142+00:00` | Derived from table data and load log | Daily broker buy/sell values and lots by symbol, broker, investor type, and market board. |
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-12 13:34:43.352522+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
-| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-14` | `2026-09-14 10:00:21.062945+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
-| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-14` | `2026-09-14 10:01:54.097073+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
-| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-14 15:17:06.447626+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
+| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-22` | `2026-09-22 10:04:17.353466+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
+| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-22` | `2026-09-22 10:06:39.432017+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
+| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-22 16:43:16.144445+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
 | `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
-| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-14 10:01:56.133858+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
+| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-22 10:06:42.778031+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
 | `Tool_Catalog` | Reference | With each approved backend or analytics tool release | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned generic AI tool metadata, activation state, schemas, and advertised operational ceilings. |
 | `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-09-06 13:21:52.115381+00:00` | Loaded from Universe_Equity_Description.xlsx; future changes tracked automatically | Issuer descriptions and TradingView/curated sector and industry classifications. |
 | `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-08-31` | `2026-09-09 16:55:55.713468+00:00` | Derived from load log | Per-trading-date Stockbit broker-summary load progress, retries, and review state. |
@@ -57,6 +62,234 @@ These relationships are documented for analysis but are not enforced as PostgreS
 | `Monitoring_Price_ALL.asset_type` | `IDX_Stock_Universe."Security Type"` | Logical grouped snapshot | Monitoring rows group expected and missing ticker counts by the universe Security Type value. |
 | `Monitoring_Price_ALL.update_for_date` | `Price_Stock_Indonesia_IDX.date` | Logical | A monitoring date describes the daily-price date targeted by an automation run. |
 | `Telegram_Notification_Log.source_execution_id` | `Monitoring_Price_ALL.execution_id` | Logical many-to-one by execution | The notifier reads all monitoring rows for one execution before sending and recording delivery. No database foreign key is enforced. |
+
+## AI_calculation_catalog
+
+AI-facing calculation contracts derived from active, validated Feature definitions.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `calculation_name` | `text` | No | — | Governed calculation_name field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `version` | `text` | No | — | Governed version field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `target_table` | `text` | No | — | Governed target_table field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `target_columns` | `ARRAY` | No | — | Governed target_columns field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `definition` | `text` | No | — | Governed definition field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `required_inputs` | `jsonb` | No | — | Governed required_inputs field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `parameters` | `jsonb` | No | `'{}'::jsonb` | Governed parameters field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `defaults` | `jsonb` | No | `'{}'::jsonb` | Governed defaults field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `implementation_ref` | `ARRAY` | No | — | Governed implementation_ref field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `alignment_rules` | `text` | No | — | Governed alignment_rules field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `missing_data_policy` | `text` | No | — | Governed missing_data_policy field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `output_definition` | `jsonb` | No | — | Governed output_definition field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `validation_evidence` | `ARRAY` | No | — | Governed validation_evidence field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `status` | `text` | No | `'ACTIVE'::text` | Governed status field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed created_at field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed updated_at field of AI_calculation_catalog; see the creating migration for its exact contract. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `AI_calculation_catalog_json_check` | Check | `CHECK (jsonb_typeof(required_inputs) = 'object'::text AND jsonb_typeof(parameters) = 'object'::text AND jsonb_typeof(defaults) = 'object'::text AND jsonb_typeof(output_definition) = 'object'::text)` |
+| `AI_calculation_catalog_status_check` | Check | `CHECK (status = ANY (ARRAY['ACTIVE'::text, 'INACTIVE'::text]))` |
+| `AI_calculation_catalog_timestamp_check` | Check | `CHECK (updated_at >= created_at)` |
+| `AI_calculation_catalog_version_check` | Check | `CHECK (version ~ '^v[1-9][0-9]*$'::text)` |
+| `AI_calculation_catalog_table_fkey` | Foreign key | `FOREIGN KEY (target_table) REFERENCES "AI_table_catalog"(table_name) ON DELETE CASCADE` |
+| `AI_calculation_catalog_pkey` | Primary key | `PRIMARY KEY (target_table, calculation_name, version)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `AI_calculation_catalog_pkey` | `CREATE UNIQUE INDEX "AI_calculation_catalog_pkey" ON public."AI_calculation_catalog" USING btree (target_table, calculation_name, version)` |
+
+## AI_catalog_relationships
+
+AI-facing safe join, temporal alignment, preaggregation, and output-grain contracts.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `relationship_id` | `bigint` | No | — | Governed relationship_id field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `left_table` | `text` | No | — | Governed left_table field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `left_columns` | `ARRAY` | No | — | Governed left_columns field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `right_table` | `text` | No | — | Governed right_table field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `right_columns` | `ARRAY` | No | — | Governed right_columns field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `relationship_type` | `text` | No | — | Governed relationship_type field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `temporal_rule` | `text` | No | — | Governed temporal_rule field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `safe_output_grain` | `text` | No | — | Governed safe_output_grain field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `requires_preaggregation` | `boolean` | No | `false` | Governed requires_preaggregation field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `description` | `text` | No | — | Governed description field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `version` | `text` | No | `'v1'::text` | Governed version field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `is_allowed` | `boolean` | No | `true` | Governed is_allowed field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed created_at field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed updated_at field of AI_catalog_relationships; see the creating migration for its exact contract. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `AI_catalog_relationships_columns_check` | Check | `CHECK (cardinality(left_columns) > 0 AND cardinality(left_columns) = cardinality(right_columns))` |
+| `AI_catalog_relationships_timestamp_check` | Check | `CHECK (updated_at >= created_at)` |
+| `AI_catalog_relationships_type_check` | Check | `CHECK (relationship_type = ANY (ARRAY['ONE_TO_ONE'::text, 'ONE_TO_MANY'::text, 'MANY_TO_ONE'::text, 'MANY_TO_MANY'::text]))` |
+| `AI_catalog_relationships_version_check` | Check | `CHECK (version ~ '^v[1-9][0-9]*$'::text)` |
+| `AI_catalog_relationships_left_fkey` | Foreign key | `FOREIGN KEY (left_table) REFERENCES "AI_table_catalog"(table_name)` |
+| `AI_catalog_relationships_right_fkey` | Foreign key | `FOREIGN KEY (right_table) REFERENCES "AI_table_catalog"(table_name)` |
+| `AI_catalog_relationships_pkey` | Primary key | `PRIMARY KEY (relationship_id)` |
+| `AI_catalog_relationships_unique` | Unique | `UNIQUE (left_table, right_table, version)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `AI_catalog_relationships_pkey` | `CREATE UNIQUE INDEX "AI_catalog_relationships_pkey" ON public."AI_catalog_relationships" USING btree (relationship_id)` |
+| `AI_catalog_relationships_unique` | `CREATE UNIQUE INDEX "AI_catalog_relationships_unique" ON public."AI_catalog_relationships" USING btree (left_table, right_table, version)` |
+
+## AI_column_catalog
+
+AI-facing column semantics and bounded-query permissions for the seven approved tables.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `table_name` | `text` | No | — | Governed table_name field of AI_column_catalog; see the creating migration for its exact contract. |
+| `column_name` | `text` | No | — | Governed column_name field of AI_column_catalog; see the creating migration for its exact contract. |
+| `ordinal_position` | `integer` | No | — | Governed ordinal_position field of AI_column_catalog; see the creating migration for its exact contract. |
+| `description` | `text` | Yes | — | Governed description field of AI_column_catalog; see the creating migration for its exact contract. |
+| `data_type` | `text` | No | — | Governed data_type field of AI_column_catalog; see the creating migration for its exact contract. |
+| `semantic_type` | `text` | No | — | Governed semantic_type field of AI_column_catalog; see the creating migration for its exact contract. |
+| `unit` | `text` | Yes | — | Governed unit field of AI_column_catalog; see the creating migration for its exact contract. |
+| `nullable` | `boolean` | No | — | Governed nullable field of AI_column_catalog; see the creating migration for its exact contract. |
+| `is_primary_key` | `boolean` | No | — | Governed is_primary_key field of AI_column_catalog; see the creating migration for its exact contract. |
+| `source_column_or_expression` | `text` | Yes | — | Governed source_column_or_expression field of AI_column_catalog; see the creating migration for its exact contract. |
+| `is_sensitive` | `boolean` | No | `false` | Governed is_sensitive field of AI_column_catalog; see the creating migration for its exact contract. |
+| `ai_allowed` | `boolean` | No | `true` | Governed ai_allowed field of AI_column_catalog; see the creating migration for its exact contract. |
+| `allowed_aggregations` | `ARRAY` | No | `'{}'::text[]` | Governed allowed_aggregations field of AI_column_catalog; see the creating migration for its exact contract. |
+| `filter_allowed` | `boolean` | No | `true` | Governed filter_allowed field of AI_column_catalog; see the creating migration for its exact contract. |
+| `group_by_allowed` | `boolean` | No | `false` | Governed group_by_allowed field of AI_column_catalog; see the creating migration for its exact contract. |
+| `example_value` | `text` | Yes | — | Governed example_value field of AI_column_catalog; see the creating migration for its exact contract. |
+| `coverage_required` | `boolean` | No | `false` | Governed coverage_required field of AI_column_catalog; see the creating migration for its exact contract. |
+| `documentation_status` | `text` | No | — | Governed documentation_status field of AI_column_catalog; see the creating migration for its exact contract. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed created_at field of AI_column_catalog; see the creating migration for its exact contract. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed updated_at field of AI_column_catalog; see the creating migration for its exact contract. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `AI_column_catalog_aggregations_check` | Check | `CHECK (allowed_aggregations <@ ARRAY['SUM'::text, 'AVG'::text, 'MEDIAN'::text, 'MIN'::text, 'MAX'::text, 'COUNT'::text, 'COUNT_DISTINCT'::text, 'PERCENTILE'::text, 'WEIGHTED_AVG'::text])` |
+| `AI_column_catalog_documentation_check` | Check | `CHECK (documentation_status = ANY (ARRAY['VERIFIED'::text, 'PARTIAL'::text, 'NEEDS_REVIEW'::text]))` |
+| `AI_column_catalog_position_check` | Check | `CHECK (ordinal_position > 0)` |
+| `AI_column_catalog_semantic_check` | Check | `CHECK (semantic_type = ANY (ARRAY['IDENTIFIER'::text, 'TIME'::text, 'DIMENSION'::text, 'MEASURE'::text]))` |
+| `AI_column_catalog_timestamp_check` | Check | `CHECK (updated_at >= created_at)` |
+| `AI_column_catalog_table_fkey` | Foreign key | `FOREIGN KEY (table_name) REFERENCES "AI_table_catalog"(table_name) ON DELETE CASCADE` |
+| `AI_column_catalog_pkey` | Primary key | `PRIMARY KEY (table_name, column_name)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `AI_column_catalog_pkey` | `CREATE UNIQUE INDEX "AI_column_catalog_pkey" ON public."AI_column_catalog" USING btree (table_name, column_name)` |
+
+## AI_data_coverage
+
+Automated actual raw-source coverage plus explicitly inferred expectations for derived Feature tables.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `coverage_id` | `bigint` | No | — | Governed coverage_id field of AI_data_coverage; see the creating migration for its exact contract. |
+| `dataset_name` | `text` | No | — | Governed dataset_name field of AI_data_coverage; see the creating migration for its exact contract. |
+| `coverage_scope` | `text` | No | — | Governed coverage_scope field of AI_data_coverage; see the creating migration for its exact contract. |
+| `entity_id` | `text` | Yes | — | Governed entity_id field of AI_data_coverage; see the creating migration for its exact contract. |
+| `reference_dataset_name` | `text` | Yes | — | Governed reference_dataset_name field of AI_data_coverage; see the creating migration for its exact contract. |
+| `coverage_mode` | `text` | No | — | Governed coverage_mode field of AI_data_coverage; see the creating migration for its exact contract. |
+| `actual_min_date` | `date` | Yes | — | Governed actual_min_date field of AI_data_coverage; see the creating migration for its exact contract. |
+| `actual_max_date` | `date` | Yes | — | Governed actual_max_date field of AI_data_coverage; see the creating migration for its exact contract. |
+| `expected_min_date` | `date` | Yes | — | Governed expected_min_date field of AI_data_coverage; see the creating migration for its exact contract. |
+| `expected_max_date` | `date` | Yes | — | Governed expected_max_date field of AI_data_coverage; see the creating migration for its exact contract. |
+| `source_row_count` | `bigint` | Yes | — | Governed source_row_count field of AI_data_coverage; see the creating migration for its exact contract. |
+| `source_key_count` | `bigint` | Yes | — | Governed source_key_count field of AI_data_coverage; see the creating migration for its exact contract. |
+| `pipeline_status` | `text` | No | — | Governed pipeline_status field of AI_data_coverage; see the creating migration for its exact contract. |
+| `verification_status` | `text` | No | — | Governed verification_status field of AI_data_coverage; see the creating migration for its exact contract. |
+| `quality_status` | `text` | No | — | Governed quality_status field of AI_data_coverage; see the creating migration for its exact contract. |
+| `check_error` | `text` | Yes | — | Governed check_error field of AI_data_coverage; see the creating migration for its exact contract. |
+| `last_checked_at` | `timestamp with time zone` | No | — | Governed last_checked_at field of AI_data_coverage; see the creating migration for its exact contract. |
+| `last_full_checked_at` | `timestamp with time zone` | Yes | — | Governed last_full_checked_at field of AI_data_coverage; see the creating migration for its exact contract. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed created_at field of AI_data_coverage; see the creating migration for its exact contract. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed updated_at field of AI_data_coverage; see the creating migration for its exact contract. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `AI_data_coverage_actual_dates_check` | Check | `CHECK (actual_min_date IS NULL OR actual_max_date IS NULL OR actual_max_date >= actual_min_date)` |
+| `AI_data_coverage_counts_check` | Check | `CHECK ((source_row_count IS NULL OR source_row_count >= 0) AND (source_key_count IS NULL OR source_key_count >= 0))` |
+| `AI_data_coverage_entity_check` | Check | `CHECK (coverage_scope = 'DATASET'::text AND entity_id IS NULL OR coverage_scope = 'ENTITY'::text AND entity_id IS NOT NULL AND btrim(entity_id) <> ''::text)` |
+| `AI_data_coverage_expected_dates_check` | Check | `CHECK (expected_min_date IS NULL OR expected_max_date IS NULL OR expected_max_date >= expected_min_date)` |
+| `AI_data_coverage_mode_check` | Check | `CHECK (coverage_mode = ANY (ARRAY['ACTUAL_SOURCE'::text, 'EXPECTED_DERIVED'::text, 'SNAPSHOT'::text]))` |
+| `AI_data_coverage_quality_check` | Check | `CHECK (quality_status = ANY (ARRAY['HEALTHY'::text, 'WARNING'::text, 'FAILED'::text, 'ERROR'::text]))` |
+| `AI_data_coverage_scope_check` | Check | `CHECK (coverage_scope = ANY (ARRAY['DATASET'::text, 'ENTITY'::text]))` |
+| `AI_data_coverage_timestamp_check` | Check | `CHECK (updated_at >= created_at)` |
+| `AI_data_coverage_verification_check` | Check | `CHECK (verification_status = ANY (ARRAY['VERIFIED'::text, 'PIPELINE_CONFIRMED'::text, 'UNVERIFIED'::text]))` |
+| `AI_data_coverage_dataset_fkey` | Foreign key | `FOREIGN KEY (dataset_name) REFERENCES "AI_table_catalog"(table_name) ON DELETE CASCADE` |
+| `AI_data_coverage_reference_fkey` | Foreign key | `FOREIGN KEY (reference_dataset_name) REFERENCES "AI_table_catalog"(table_name)` |
+| `AI_data_coverage_pkey` | Primary key | `PRIMARY KEY (coverage_id)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `AI_data_coverage_identity_idx` | `CREATE UNIQUE INDEX "AI_data_coverage_identity_idx" ON public."AI_data_coverage" USING btree (dataset_name, coverage_scope, COALESCE(entity_id, ''::text))` |
+| `AI_data_coverage_pkey` | `CREATE UNIQUE INDEX "AI_data_coverage_pkey" ON public."AI_data_coverage" USING btree (coverage_id)` |
+| `AI_data_coverage_reference_idx` | `CREATE INDEX "AI_data_coverage_reference_idx" ON public."AI_data_coverage" USING btree (reference_dataset_name, entity_id) WHERE (reference_dataset_name IS NOT NULL)` |
+| `AI_data_coverage_status_idx` | `CREATE INDEX "AI_data_coverage_status_idx" ON public."AI_data_coverage" USING btree (quality_status, verification_status, dataset_name)` |
+
+## AI_table_catalog
+
+AI-facing master list and bounded-access contract for seven approved source and Feature tables.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `table_name` | `text` | No | — | Governed table_name field of AI_table_catalog; see the creating migration for its exact contract. |
+| `description` | `text` | No | — | Governed description field of AI_table_catalog; see the creating migration for its exact contract. |
+| `category` | `text` | No | — | Governed category field of AI_table_catalog; see the creating migration for its exact contract. |
+| `grain` | `text` | No | — | Governed grain field of AI_table_catalog; see the creating migration for its exact contract. |
+| `primary_key_columns` | `ARRAY` | No | — | Governed primary_key_columns field of AI_table_catalog; see the creating migration for its exact contract. |
+| `time_column` | `text` | Yes | — | Governed time_column field of AI_table_catalog; see the creating migration for its exact contract. |
+| `entity_column` | `text` | No | — | Governed entity_column field of AI_table_catalog; see the creating migration for its exact contract. |
+| `owner` | `text` | No | `'Saniti'::text` | Governed owner field of AI_table_catalog; see the creating migration for its exact contract. |
+| `is_active` | `boolean` | No | `true` | Governed is_active field of AI_table_catalog; see the creating migration for its exact contract. |
+| `ai_access_level` | `text` | No | `'BOUNDED_READ'::text` | Governed ai_access_level field of AI_table_catalog; see the creating migration for its exact contract. |
+| `freshness_sla` | `interval` | Yes | — | Governed freshness_sla field of AI_table_catalog; see the creating migration for its exact contract. |
+| `coverage_enabled` | `boolean` | No | `true` | Governed coverage_enabled field of AI_table_catalog; see the creating migration for its exact contract. |
+| `documentation_status` | `text` | No | — | Governed documentation_status field of AI_table_catalog; see the creating migration for its exact contract. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed created_at field of AI_table_catalog; see the creating migration for its exact contract. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed updated_at field of AI_table_catalog; see the creating migration for its exact contract. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `AI_table_catalog_access_check` | Check | `CHECK (ai_access_level = ANY (ARRAY['BOUNDED_READ'::text, 'DENIED'::text]))` |
+| `AI_table_catalog_category_check` | Check | `CHECK (category = ANY (ARRAY['REFERENCE'::text, 'TRANSACTIONAL'::text, 'FEATURE'::text]))` |
+| `AI_table_catalog_documentation_check` | Check | `CHECK (documentation_status = ANY (ARRAY['VERIFIED'::text, 'PARTIAL'::text, 'NEEDS_REVIEW'::text]))` |
+| `AI_table_catalog_name_check` | Check | `CHECK (btrim(table_name) <> ''::text)` |
+| `AI_table_catalog_timestamp_check` | Check | `CHECK (updated_at >= created_at)` |
+| `AI_table_catalog_pkey` | Primary key | `PRIMARY KEY (table_name)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `AI_table_catalog_pkey` | `CREATE UNIQUE INDEX "AI_table_catalog_pkey" ON public."AI_table_catalog" USING btree (table_name)` |
 
 ## Analysis_Evidence
 
