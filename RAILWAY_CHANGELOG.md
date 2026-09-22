@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-09-23 — Deploy AI data coverage cron
+
+- Created only `ai-data-coverage` (service ID `d2e57c12-cebf-4434-a66a-ba2d6d2f176d`) in Railway `dev`; the reviewed IaC plan was exactly one add, zero changes, and zero destroys.
+- Connected GitHub `rednightt33/saniti` branch `main` at root `/apps/ai-data-coverage`, Dockerfile build, start command `python coverage_job.py --mode nightly`, `NEVER` restart policy, and schedule `30 0 * * *` UTC (07:30 Asia/Jakarta). `DATABASE_URL` is present as the existing Postgres service reference; no credential value was printed or committed.
+- Initial deployment `31aab1e5-4baa-43b8-b770-1b8183d717b2` built commit `7d8f29513e5f2f07a365ab6829f6e33a68ca7f30` and reached `SUCCESS`.
+- A manual local full run and nightly-mode run both succeeded against Railway PostgreSQL before deployment. The job writes only `AI_data_coverage` and does not scan or modify Feature 01–03.
+- Pulled the live Railway configuration into `.railway/railway.ts`; the follow-up plan reported the `dev` environment already up to date. No existing service, schedule, endpoint, volume, secret value, raw row, or Feature row was changed.
+
 ## 2026-09-14 — Three-path Market AI execution architecture
 
 - Added service `market-query-sandbox` (`c6bf3085-4784-43f3-90a1-da74456f6c4d`) for isolated custom joins, windows, and descriptive transformations.
