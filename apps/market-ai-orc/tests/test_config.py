@@ -1,0 +1,72 @@
+from __future__ import annotations
+
+import pytest
+
+from app.config import ConfigError, Settings
+from conftest import BASE_ENV, make_settings
+
+
+@pytest.mark.parametrize("missing", ["MARKET_AI_ORC_API_KEY", "OPENROUTER_API_KEY"])
+def test_missing_secret_is_rejected(missing: str) -> None:
+    env = {key: value for key, value in BASE_ENV.items() if key != missing}
+    with pytest.raises(ConfigError, match=missing):
+        Settings.from_env(env)
+
+
+def test_blank_secret_is_rejected() -> None:
+    with pytest.raises(ConfigError, match="OPENROUTER_API_KEY"):
+        Settings.from_env({**BASE_ENV, "OPENROUTER_API_KEY": "   "})
+
+
+def test_valid_configuration_loads_with_defaults() -> None:
+    settings = make_settings()
+    assert settings.openrouter_api_key == BASE_ENV["OPENROUTER_API_KEY"]
+    assert settings.ai_model == "deepseek/deepseek-v4.1-flash"
+    assert settings.ai_reasoning_effort == "high"
+    assert settings.ai_max_identical_tool_calls == 2
+    assert settings.ai_final_response_max_retries == 2
+    assert settings.openrouter_http_referer is None
+    assert settings.openrouter_x_title == "Saniti Market AI"
+
+
+def test_overrides_are_applied() -> None:
+    settings = make_settings(
+        AI_MODEL="openai/gpt-test", AI_REASONING_EFFORT="LOW", AI_MAX_TOOL_CALLS="3",
+        AI_FINAL_RESPONSE_MAX_RETRIES="0", OPENROUTER_HTTP_REFERER="https://saniti.example",
+    )
+    assert settings.ai_model == "openai/gpt-test"
+    assert settings.ai_reasoning_effort == "low"
+    assert settings.ai_max_tool_calls == 3
+    assert settings.ai_final_response_max_retries == 0
+    assert settings.openrouter_http_referer == "https://saniti.example"
+
+
+@pytest.mark.parametrize(
+    ("name", "value", "message"),
+    [
+        ("AI_MAX_TOOL_CALLS", "abc", "must be an integer"),
+        ("AI_MAX_TOOL_ITERATIONS", "0", "at least 1"),
+        ("AI_MAX_OUTPUT_TOKENS", "-5", "at least 1"),
+        ("AI_FINAL_RESPONSE_MAX_RETRIES", "-1", "at least 0"),
+        ("AI_MAX_OUTPUT_TOKENS", "70000", "below AI_MAX_CONTEXT_TOKENS"),
+        ("AI_MAX_HISTORY_TOKENS", "64000", "below AI_MAX_CONTEXT_TOKENS"),
+        ("AI_REQUEST_TIMEOUT_SECONDS", "900", "must not exceed AI_MAX_ANALYSIS_SECONDS"),
+        ("AI_REASONING_EFFORT", "extreme", "AI_REASONING_EFFORT must be one of"),
+    ],
+)
+def test_invalid_limits_are_rejected(name: str, value: str, message: str) -> None:
+    with pytest.raises(ConfigError, match=message):
+        make_settings(**{name: value})
+
+
+def test_secrets_are_hidden_from_repr() -> None:
+    rendered = repr(make_settings())
+    assert BASE_ENV["OPENROUTER_API_KEY"] not in rendered
+    assert BASE_ENV["MARKET_AI_ORC_API_KEY"] not in rendered
+
+
+def test_old_backend_variables_are_not_required() -> None:
+    settings = Settings.from_env(dict(BASE_ENV))
+    fields = set(Settings.__dataclass_fields__)
+    assert not {"database_url", "ai_provider", "analytics_bucket_name", "query_sandbox_api_key"} & fields
+    assert settings.internal_api_key == BASE_ENV["MARKET_AI_ORC_API_KEY"]
