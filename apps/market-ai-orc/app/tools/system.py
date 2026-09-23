@@ -13,6 +13,7 @@ CAPABILITY_TOOLS = {
     "full_catalog_read": "read_catalog_rows",
     "market_data_preview": "preview_table_rows",
     "database_query": "request_data",
+    "fact_lookup": "lookup_fact",
     "python_analysis": "run_python_analysis",
     "web_search": "search_web",
 }
@@ -34,7 +35,7 @@ def capabilities_spec(registry: ToolRegistry) -> ToolSpec:
         name="get_system_capabilities",
         description=(
             "Return which backend capabilities (catalog discovery, full catalog read, market-data "
-            "preview, database query, Python analysis, web search) and tools are currently "
+            "preview, database query, fact lookup, Python analysis, web search) and tools are currently "
             "available to this agent."
         ),
         arguments_model=NoArguments,

@@ -137,53 +137,21 @@ to completing a user's analytical calculation.
 When the required execution capability is unavailable,
 return a LIMITATION response explaining what has
 been identified and what remains unexecuted."""
-    query_block = """DATA QUERY RULES
-Use request_data when actual database observations
-are required to answer the user's request.
-Build data requests only from identifiers and semantics
-returned by the catalog tools.
-Do not write or submit raw SQL.
-The SQL Governor determines whether a requested query
-is allowed, too expensive, requires narrowing, or is
-returned as an inline result or dataset snapshot.
-Do not choose the dataset delivery format yourself.
-Use the execution result returned by request_data.
-If a request is rejected or requires narrowing, use the
-governor response to revise the request when a reliable
-bounded alternative exists.
-Do not claim data was retrieved unless request_data
-returns a successful execution result.
-If request_data returns INLINE_RESULT, use the returned
-observations directly when they are sufficient for the task.
-If request_data returns DATASET_READY, treat dataset_id as
-a reference to the approved extracted dataset. Do not claim
-that analytical calculations have been completed unless an
-analysis tool actually executes them.
-Do not treat catalog metadata or preview rows as a substitute
-for the required analytical dataset."""
-    python_block = """PYTHON ANALYSIS RULES
-Use run_python_analysis when the user's request requires
-calculations that cannot be completed from an inline database
-result alone.
-Only analyze datasets returned through the governed data
-workflow.
-Use get_dataset_manifest when the exact contents or coverage
-of a dataset must be checked before analysis.
-Python analysis executes in an isolated bounded sandbox.
-Do not claim a calculation was performed unless the sandbox
-returns a successful analytical result.
-Use TA-Lib and the available analytical libraries when they
-are appropriate to the requested calculation.
-For multi-entity time series, keep entity histories separated
-and correctly ordered in time.
-Do not treat an analytical result as statistically validated
-merely because Python execution succeeded.
-If the sandbox reports incomplete input, insufficient history,
-execution failure, or another limitation, preserve that
-limitation in the final answer."""
+    query_block = SYSTEM_PROMPT[SYSTEM_PROMPT.index("DATA QUERY RULES"):SYSTEM_PROMPT.index("PYTHON ANALYSIS RULES")]
+    python_block = SYSTEM_PROMPT[SYSTEM_PROMPT.index("PYTHON ANALYSIS RULES"):SYSTEM_PROMPT.index(
+        "ANALYSIS VALIDATION RULES")]
+    for rule in ("Use lookup_fact for specific source facts", "never rows", "a dataset is not an answer",
+                 "come only from a Python analysis whose validation passed", "Never\ncalculate them yourself",
+                 "Every number in an answer must come from", "USE_ANALYSIS_PATH", "Do not write or submit raw SQL",
+                 "never use their values"):
+        assert rule in query_block, rule
+    assert "INLINE" not in SYSTEM_PROMPT and "inline" not in SYSTEM_PROMPT
+    for rule in ("Use run_python_analysis when the answer needs a number derived", "TA-Lib",
+                 "keep entity histories separated", "preserve that\nlimitation"):
+        assert rule in python_block, rule
     validation_block = SYSTEM_PROMPT[SYSTEM_PROMPT.index("ANALYSIS VALIDATION RULES"):]
-    assert SYSTEM_PROMPT.endswith("strict output schema.\n\n" + block + "\n\n" + query_block + "\n\n"
-                                  + python_block + "\n\n" + validation_block)
+    assert SYSTEM_PROMPT.endswith("strict output schema.\n\n" + block + "\n\n" + query_block
+                                  + python_block + validation_block)
     for rule in ("call create_analysis_spec", "provenance", "Never change the user's requested period",
                  "required_input", "execution_status and validation_status are independent",
                  "Only\nvalidation PASS supports presenting a result", "not\nstatistically validated"):

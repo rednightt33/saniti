@@ -1,8 +1,8 @@
-"""Immutable Parquet snapshots for approved datasets that are too large to return inline.
+"""Immutable Parquet snapshots: the only delivery form of an approved data request.
 
 Rows are streamed into a zstd-compressed Parquet file in record batches, so the extracted
 dataset is never held as Python rows in full. PostgreSQL numeric is stored as float64 (the
-manifest records the source type); inline results keep exact decimal strings.
+manifest records the source type); lookup_fact values keep exact decimal strings.
 """
 from __future__ import annotations
 

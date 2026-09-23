@@ -1,7 +1,7 @@
-"""The Data Request Spec: the only query input the Governor accepts.
+"""The Governor's two query inputs: the Data Request Spec and the Lookup Fact Spec.
 
-It names catalog identifiers and typed values; it has no field for SQL text, expressions,
-join keys, or delivery format. market-ai-orc exposes an identical model to the AI
+Both name catalog identifiers and typed values; neither has a field for SQL text, expressions,
+join keys, ranking, or delivery format. market-ai-orc exposes identical models to the AI
 (apps/market-ai-orc/app/tools/request_data.py); a contract test keeps them equal.
 """
 from __future__ import annotations
@@ -70,3 +70,45 @@ class DataRequestSpec(Strict):
     aggregations: list[AggregationSpec] = Field(max_length=20)
     order_by: list[OrderSpec] = Field(max_length=10)
     requested_limit: int | None = Field(ge=1, le=5_000_000, description="Optional row limit; null for none.")
+
+
+# ---------------------------------------------------------------- lookup_fact
+# A narrow path for specific source facts. Limits are part of the contract (and repeated in the
+# Governor after execution): at most 5 entities, 10 dates, 4 columns, and 20 returned values.
+LOOKUP_MAX_ENTITIES = 5
+LOOKUP_MAX_DATES = 10
+LOOKUP_MAX_COLUMNS = 4
+LOOKUP_MAX_VALUES = 20
+ENTITY_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,19}$"
+DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
+LookupFunction = Literal["SUM", "AVG", "MIN", "MAX", "COUNT"]
+
+
+class LookupDateRange(Strict):
+    start: str = Field(pattern=DATE_PATTERN, description="First date, YYYY-MM-DD (inclusive).")
+    end: str = Field(pattern=DATE_PATTERN, description="Last date, YYYY-MM-DD (inclusive).")
+
+
+class LookupAggregation(Strict):
+    column: str = Field(pattern=COLUMN_PATTERN)
+    function: LookupFunction
+
+
+class LookupFactSpec(Strict):
+    purpose: str = Field(min_length=1, max_length=300, description="Which fact is needed and why.")
+    mode: Literal["VALUE", "AGGREGATE"] = Field(
+        description="VALUE: source values at explicit entity/date keys. AGGREGATE: SUM/AVG/MIN/MAX/COUNT computed "
+                    "by the database over the explicit scope.")
+    table: str = Field(pattern=TABLE_PATTERN, description="Exact table_name from the catalog.")
+    entities: list[str] = Field(min_length=1, max_length=LOOKUP_MAX_ENTITIES,
+                                description="Tickers (or the table's entity codes), 1 to 5.")
+    dates: list[str] | None = Field(max_length=LOOKUP_MAX_DATES,
+                                    description="Explicit dates YYYY-MM-DD (at most 10), or null.")
+    date_range: LookupDateRange | None = Field(
+        description="Inclusive date range, or null. VALUE mode: at most 10 trading dates may fall inside it.")
+    columns: list[str] | None = Field(max_length=LOOKUP_MAX_COLUMNS,
+                                      description="VALUE mode: 1 to 4 value columns; null in AGGREGATE mode.")
+    aggregations: list[LookupAggregation] | None = Field(
+        max_length=LOOKUP_MAX_COLUMNS, description="AGGREGATE mode: 1 to 4 aggregations; null in VALUE mode.")
+    per_entity: bool | None = Field(
+        description="AGGREGATE mode: true for one value per entity, false for one value across all entities.")

@@ -13,8 +13,10 @@ from .config import Settings
 from .openrouter_client import ProviderError, response_usage
 from .schemas import (
     FINAL_RESPONSE_SCHEMA, STATUS_BY_RESPONSE_TYPE, AgentRunRequest, AgentRunResponse, AnalysisSummary,
-    ExecutionMetadata, FinalResponse, RunError,
+    ExecutionMetadata, FinalResponse, NumberProvenance, RunError,
 )
+from .provenance import (CONTEXT, SourceIndex, analysis_label, check_answer, numbers_in, parse_numbers,
+                         requested_statistics, weakest)
 from .tools import ToolOutcome, ToolRegistry, error_outcome
 from .tools.analysis import current_run_context, run_context
 from .tools.request_data import current_request_id
@@ -81,34 +83,35 @@ return a LIMITATION response explaining what has
 been identified and what remains unexecuted.
 
 DATA QUERY RULES
-Use request_data when actual database observations
-are required to answer the user's request.
-Build data requests only from identifiers and semantics
-returned by the catalog tools.
-Do not write or submit raw SQL.
-The SQL Governor determines whether a requested query
-is allowed, too expensive, requires narrowing, or is
-returned as an inline result or dataset snapshot.
-Do not choose the dataset delivery format yourself.
-Use the execution result returned by request_data.
-If a request is rejected or requires narrowing, use the
-governor response to revise the request when a reliable
-bounded alternative exists.
-Do not claim data was retrieved unless request_data
-returns a successful execution result.
-If request_data returns INLINE_RESULT, use the returned
-observations directly when they are sufficient for the task.
-If request_data returns DATASET_READY, treat dataset_id as
-a reference to the approved extracted dataset. Do not claim
-that analytical calculations have been completed unless an
-analysis tool actually executes them.
-Do not treat catalog metadata or preview rows as a substitute
-for the required analytical dataset.
+There are two data paths.
+Use lookup_fact for specific source facts: values at explicit
+entities and dates (for example yesterday's close of one ticker),
+or a SUM, AVG, MIN, MAX, or COUNT that the database computes over
+an explicit scope (for example this week's total volume).
+Use request_data only to obtain analysis input. An approved
+request is always a dataset reference (DATASET_READY), never rows;
+a dataset is not an answer.
+Numbers derived from data (statistics, comparisons between values,
+percentage changes, returns, rankings, indicators, correlations)
+come only from a Python analysis whose validation passed. Never
+calculate them yourself from facts, datasets, or preview rows.
+Every number in an answer must come from a lookup_fact result, the
+output of a validated analysis, the user's message, the approved
+spec, or a dataset manifest. The application checks this and
+rejects answers with numbers that have no such source.
+Build requests only from identifiers and semantics returned by
+the catalog tools. Do not write or submit raw SQL.
+If lookup_fact returns next_action USE_ANALYSIS_PATH, use
+create_analysis_spec, request_data, and run_python_analysis.
+If a request is rejected or requires narrowing, use the governor
+response to revise it when a reliable bounded alternative exists.
+Do not claim data was retrieved unless a tool returned it.
+Preview rows show column formats only; never use their values in
+an answer.
 
 PYTHON ANALYSIS RULES
-Use run_python_analysis when the user's request requires
-calculations that cannot be completed from an inline database
-result alone.
+Use run_python_analysis when the answer needs a number derived
+from data: a statistic, comparison, change, ranking, or indicator.
 Only analyze datasets returned through the governed data
 workflow.
 Use get_dataset_manifest when the exact contents or coverage
@@ -160,6 +163,21 @@ VALIDATION_GATE_INSTRUCTION = (
 )
 GATE_NOTICE = ("Validation did not pass for the analysis behind this response; any figures below are not a "
                "validated answer to the request. ")
+ROUTING_INSTRUCTION = (
+    "The request asks for {families}, which only a Python analysis whose validation passed can answer; source "
+    "facts alone are not enough and numbers must not be calculated by you. Use create_analysis_spec, "
+    "request_data, and run_python_analysis, or return response_type \"LIMITATION\" stating what was not calculated."
+)
+ROUTING_NOTICE = ("This request needs a validated analysis ({families}), and none supports this response; any "
+                  "figures below are not a validated answer. ")
+PROVENANCE_INSTRUCTION = (
+    "These numbers in your answer have no governed source in this run: {numbers}. Every number must come from a "
+    "lookup_fact result, the output of an analysis whose validation passed, the user's message, the approved spec, "
+    "or a dataset manifest; outputs of failed or incomplete analyses and preview rows are not sources. Remove or "
+    "correct those numbers, obtain them with the right tool, or return response_type \"LIMITATION\"."
+)
+PROVENANCE_NOTICE = ("Some figures below could not be traced to a governed source in this run and are not "
+                     "validated: {numbers}. ")
 
 RESPONSE_FORMAT_NAME = "saniti_agent_response"
 REJECTED_OUTPUT_ECHO_CHARS = 4000
@@ -234,6 +252,14 @@ class RunState:
     specs: dict[str, dict[str, Any]] = field(default_factory=dict)
     gate_rejections: int = 0
     validation_gate: str = "NOT_APPLICABLE"
+    # Number provenance: sources collected from tool results only (never from the model).
+    user_text: str = ""
+    context_numbers: list[float] = field(default_factory=list)
+    facts: list[dict[str, Any]] = field(default_factory=list)            # {kind, aggregation, value}
+    analysis_values: dict[str, dict[str, Any]] = field(default_factory=dict)  # analysis_id -> {label, values}
+    gate_kinds_rejected: set[str] = field(default_factory=set)
+    number_provenance: dict[str, Any] | None = None
+    evidence_label: str | None = None
 
 
 class AgentOrchestrator:
@@ -261,7 +287,10 @@ class AgentOrchestrator:
             started=self.clock(),
             input_items=input_items,
             history_turns_dropped=dropped,
+            user_text=self._routing_text(request),
         )
+        for text in [turn.content for turn in request.history if turn.role == "user"] + [request.message]:
+            state.context_numbers.extend(value for shown in parse_numbers(text) for value, _ in shown.candidates)
         token = current_request_id.set(request.request_id)
         context = current_run_context.set(run_context(
             self.wall_clock(), self.settings.analysis_timezone,
@@ -273,6 +302,7 @@ class AgentOrchestrator:
                 status=STATUS_BY_RESPONSE_TYPE[final.response_type],
                 response=final,
                 execution=self._execution(state),
+                evidence_label=state.evidence_label,
             )
         except (RunFailure, ProviderError) as exc:
             result = self._failed(state, exc.code, str(exc))
@@ -449,6 +479,7 @@ class AgentOrchestrator:
 
         outcome = self.registry.execute(call_id, name, raw_arguments)
         self._track_analysis(state, name, outcome)
+        self._track_sources(state, name, self._normalized_arguments(raw_arguments), outcome)
         result_hash = stable_hash(outcome.output)
         count = count + 1 if last_result in (None, result_hash) else 1
         state.call_history[key] = (count, result_hash)
@@ -538,24 +569,126 @@ class AgentOrchestrator:
                              f"{', '.join(spec['unverified'])}.")
         return blocking, lines
 
+    @staticmethod
+    def _routing_text(request: AgentRunRequest) -> str:
+        """The user's question for the routing guard: the latest message, plus the previous user turn when the
+        latest message answers a clarification question."""
+        text = request.message
+        history = list(request.history)
+        if len(history) >= 2 and history[-1].role == "assistant" and history[-1].content.rstrip().endswith("?") \
+                and history[-2].role == "user":
+            text = history[-2].content + "\n" + text
+        return text
+
+    @staticmethod
+    def _track_sources(state: RunState, name: str, arguments: Any, outcome: ToolOutcome) -> None:
+        """Collect the numbers an answer may cite, from tool results the application received."""
+        if not outcome.ok:
+            return
+        result = outcome.output.get("result")
+        if not isinstance(result, dict):
+            return
+        if name == "lookup_fact" and result.get("decision") == "FACTS_READY":
+            for fact in result.get("facts") or []:
+                kind = "DATABASE_AGGREGATE" if fact.get("kind") == "AGGREGATE" else "FACT"
+                state.facts.append({"kind": kind, "aggregation": fact.get("aggregation"),
+                                    "values": numbers_in(fact.get("value"))})
+        elif name == "request_data" and result.get("decision") == "DATASET_READY":
+            state.context_numbers.extend(numbers_in(result.get("dataset"), ints_only=True))
+        elif name == "get_dataset_manifest" and result.get("status") == "AVAILABLE":
+            state.context_numbers.extend(numbers_in(result, ints_only=True))
+        elif name == "create_analysis_spec" and result.get("spec_id"):
+            state.context_numbers.extend(numbers_in(arguments))
+            for key in ("resolved_period", "required_input", "output_contract"):
+                state.context_numbers.extend(numbers_in(result.get(key)))
+        elif name in ("run_python_analysis", "get_analysis_result") and result.get("analysis_id") \
+                and result.get("execution_status"):
+            label = analysis_label(result.get("execution_status"), result.get("validation_status"),
+                                   result.get("validation_level"))
+            state.analysis_values[result["analysis_id"]] = {
+                "label": label, "values": numbers_in(result.get("outputs")) if label else []}
+            evidence = [{k: v for k, v in item.items() if k not in ("examples", "missing_examples",
+                                                                     "unexpected_examples", "diagnosis")}
+                        for item in result.get("validation_evidence") or [] if isinstance(item, dict)]
+            for part in (result.get("expected_scope"), result.get("actual_scope"), evidence):
+                state.context_numbers.extend(numbers_in(part, ints_only=True))
+
+    def _source_index(self, state: RunState) -> SourceIndex:
+        index = SourceIndex()
+        static = SYSTEM_PROMPT + "\n" + "\n".join(str(d.get("description", "")) for d in self.registry.definitions())
+        index.add(CONTEXT, state.context_numbers
+                  + [value for shown in parse_numbers(static) for value, _ in shown.candidates])
+        for fact in state.facts:
+            index.add(fact["kind"], fact["values"])
+        for record in state.analysis_values.values():
+            if record["label"]:
+                index.add(record["label"], record["values"])
+        return index
+
+    def _gate_once(self, state: RunState, kind: str, message: str) -> None:
+        """Reject a final answer once per kind of problem while the model can still repair it with tools."""
+        if kind not in state.gate_kinds_rejected and not state.tools_locked:
+            state.gate_kinds_rejected.add(kind)
+            state.gate_rejections += 1
+            raise GateRejection(message)
+
+    def _consulted_labels(self, state: RunState) -> list[str]:
+        labels = [record["label"] for record in state.analysis_values.values() if record["label"]]
+        return labels + sorted({fact["kind"] for fact in state.facts})
+
     def _validation_gate(self, state: RunState, final: FinalResponse) -> FinalResponse:
-        """Backend enforcement: an answer may not rest on an analysis that failed validation."""
-        if not state.analyses or final.response_type == "CLARIFICATION":
+        """Backend enforcement of the answer contract, in order:
+        1. an ANSWER may not rest on an analysis that failed validation or did not complete;
+        2. a request for a derived number (statistic, change, ranking) needs a usable analysis;
+        3. every number in the answer must trace to a governed source of this run.
+        Each check rejects once (tools stay available for a repair), then forces LIMITATION."""
+        if final.response_type == "CLARIFICATION":
+            state.evidence_label = None
             return final
         blocking, lines = self._gate_findings(state)
         if blocking and final.response_type == "ANSWER":
-            if state.gate_rejections == 0 and not state.tools_locked:
-                state.gate_rejections += 1
-                raise GateRejection(VALIDATION_GATE_INSTRUCTION.format(findings="; ".join(blocking)))
-            state.validation_gate = "FORCED_LIMITATION"
-            return FinalResponse(response_type="LIMITATION", answer=GATE_NOTICE + final.answer,
-                                 clarification_question=None, assumptions=final.assumptions,
-                                 limitations=lines + [x for x in final.limitations if x not in lines])
-        missing = [line for line in lines if line not in final.limitations]
-        state.validation_gate = "ANNOTATED" if missing else "PASSED"
-        if not missing:
+            self._gate_once(state, "ANALYSIS", VALIDATION_GATE_INSTRUCTION.format(findings="; ".join(blocking)))
+            return self._forced(state, final, GATE_NOTICE, lines)
+
+        families, plain_average = requested_statistics(state.user_text)
+        usable = any(record["label"] for record in state.analysis_values.values())
+        average_fact = any(f["kind"] == "DATABASE_AGGREGATE" and f["aggregation"] == "AVG" for f in state.facts)
+        missing = sorted(families) if not usable else []
+        if not missing and plain_average and not usable and not average_fact:
+            missing = ["AVERAGE"]
+        if missing and final.response_type == "ANSWER":
+            names = ", ".join(missing)
+            self._gate_once(state, "ROUTING", ROUTING_INSTRUCTION.format(families=names))
+            return self._forced(state, final, ROUTING_NOTICE.format(families=names),
+                                [f"The request needs a validated analysis ({names}); no such analysis supports this "
+                                 f"response."] + lines)
+
+        provenance = check_answer(final.answer, self._source_index(state))
+        state.number_provenance = {"checked": provenance.checked, "unsupported": provenance.unsupported[:50]}
+        if provenance.unsupported:
+            numbers = ", ".join(provenance.unsupported[:20])
+            self._gate_once(state, "PROVENANCE", PROVENANCE_INSTRUCTION.format(numbers=numbers))
+            return self._forced(state, final, PROVENANCE_NOTICE.format(numbers=numbers),
+                                [f"Figures without a governed source in this run: {numbers}."] + lines)
+
+        missing_lines = [line for line in lines if line not in final.limitations]
+        if state.analyses:
+            state.validation_gate = "ANNOTATED" if missing_lines else "PASSED"
+        if final.response_type == "LIMITATION" and blocking:
+            state.evidence_label = "NOT_VALIDATED"
+        else:
+            state.evidence_label = weakest(provenance.data_kinds) or weakest(self._consulted_labels(state))
+        if not missing_lines:
             return final
-        return final.model_copy(update={"limitations": [*final.limitations, *missing]})
+        return final.model_copy(update={"limitations": [*final.limitations, *missing_lines]})
+
+    @staticmethod
+    def _forced(state: RunState, final: FinalResponse, notice: str, lines: list[str]) -> FinalResponse:
+        state.validation_gate = "FORCED_LIMITATION"
+        state.evidence_label = "NOT_VALIDATED"
+        return FinalResponse(response_type="LIMITATION", answer=notice + final.answer, clarification_question=None,
+                             assumptions=final.assumptions,
+                             limitations=lines + [x for x in final.limitations if x not in lines])
 
     @staticmethod
     def _normalized_arguments(raw: Any) -> Any:
@@ -652,6 +785,7 @@ class AgentOrchestrator:
             analyses=[AnalysisSummary(**{k: v for k, v in a.items() if k != "error_code"})
                       for a in state.analyses.values()],
             validation_gate=state.validation_gate,
+            number_provenance=NumberProvenance(**state.number_provenance) if state.number_provenance else None,
         )
 
     def _failed(self, state: RunState, code: str, message: str) -> AgentRunResponse:

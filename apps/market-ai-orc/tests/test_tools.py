@@ -42,6 +42,7 @@ def test_known_tool_executes_with_phase_one_result() -> None:
             "full_catalog_read": False,
             "market_data_preview": False,
             "database_query": False,
+            "fact_lookup": False,
             "python_analysis": False,
             "web_search": False,
             "available_tools": ["get_system_capabilities"],

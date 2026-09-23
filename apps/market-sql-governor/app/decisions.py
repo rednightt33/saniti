@@ -4,11 +4,12 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
-Decision = Literal["INLINE_RESULT", "DATASET_READY", "NEEDS_NARROWING", "REJECTED", "SANDBOX_REQUIRED"]
+Decision = Literal["DATASET_READY", "NEEDS_NARROWING", "REJECTED", "SANDBOX_REQUIRED"]
 
-# Deterministic: the next action is a pure function of the decision.
+# Deterministic: the next action is a pure function of the decision. An approved data request is
+# always an immutable dataset (analysis input); its rows never go to the model. Specific source
+# values go through lookup_fact instead (LookupResponse below).
 NEXT_ACTION: dict[str, str] = {
-    "INLINE_RESULT": "USE_INLINE_RESULT",
     "DATASET_READY": "RUN_ANALYSIS",
     "NEEDS_NARROWING": "REVISE_DATA_REQUEST",
     "REJECTED": "STOP_OR_REFORMULATE",
@@ -78,8 +79,60 @@ class GovernorResponse(BaseModel):
     estimated_plan_cost: float | None = None
     returned_rows: int | None = None
     output_bytes: int | None = None
-    rows: list[list[Any]] | None = None
     dataset: DatasetReference | None = None
+    details: dict[str, Any] = {}
+    warnings: list[str] = []
+    runtime_ms: int = 0
+
+
+LookupDecision = Literal["FACTS_READY", "NEEDS_NARROWING", "REJECTED"]
+# Refusals that mean "this is not a fact lookup": too many values, ranking, statistics, or any other
+# shape outside the narrow contract. The caller must use request_data + a Python analysis instead.
+LOOKUP_SHAPE_CODES = {"LOOKUP_NOT_ALLOWED", "LOOKUP_TOO_LARGE", "AGGREGATION_NOT_ALLOWED"}
+
+
+def lookup_next_action(decision: str, reason_code: str) -> str:
+    if decision == "FACTS_READY":
+        return "USE_FACTS"
+    if reason_code in LOOKUP_SHAPE_CODES:
+        return "USE_ANALYSIS_PATH"
+    if decision == "NEEDS_NARROWING":
+        return "REVISE_LOOKUP"
+    return "STOP_OR_REFORMULATE"
+
+
+class Fact(BaseModel):
+    """One source value (VALUE) or one database aggregate over an explicit scope (AGGREGATE)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    fact_id: str
+    kind: Literal["VALUE", "AGGREGATE"]
+    table: str
+    column: str
+    aggregation: str | None
+    entity: str | None          # None for an aggregate across all requested entities
+    date: str | None            # VALUE facts on dated tables
+    scope: dict[str, Any] | None  # AGGREGATE facts: {entities, from, to} or {entities, dates}
+    value: Any
+    query_id: str
+
+
+class LookupResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    decision: LookupDecision
+    next_action: str
+    reason_code: str
+    message: str
+    request_id: str
+    query_id: str
+    query_hash: str | None = None
+    mode: str | None = None
+    table: str | None = None
+    scope: dict[str, Any] = {}
+    facts: list[Fact] = []
+    missing: list[dict[str, str]] = []
     details: dict[str, Any] = {}
     warnings: list[str] = []
     runtime_ms: int = 0

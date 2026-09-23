@@ -7,7 +7,7 @@ from .catalog import CatalogReader, catalog_specs
 from .catalog_rows import catalog_rows_spec
 from .preview import preview_spec
 from .registry import ToolError, ToolOutcome, ToolRegistry, ToolSpec, error_outcome
-from .request_data import GovernorClient, request_data_spec
+from .request_data import GovernorClient, lookup_fact_spec, request_data_spec
 from .rows import CursorCodec
 from .system import capabilities_spec
 
@@ -44,6 +44,8 @@ def build_default_registry(
     if governor_client is not None:
         registry.register(request_data_spec(
             governor_client, timeout_seconds=governor_timeout_seconds, max_result_bytes=request_data_max_bytes))
+        registry.register(lookup_fact_spec(
+            governor_client, timeout_seconds=min(governor_timeout_seconds, 30.0), max_result_bytes=request_data_max_bytes))
         registry.register(manifest_spec(governor_client, timeout_seconds=min(governor_timeout_seconds, 20.0)))
     if sandbox_client is not None:
         for spec in analysis_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,

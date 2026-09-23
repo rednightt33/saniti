@@ -134,6 +134,19 @@ class AnalysisSummary(BaseModel):
     reason_codes: list[str] = Field(default_factory=list)
 
 
+class NumberProvenance(BaseModel):
+    """How many numbers in the final answer were checked, and which had no governed source."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    checked: int
+    unsupported: list[str] = Field(default_factory=list)
+
+
+EvidenceLabel = Literal["FACT", "DATABASE_AGGREGATE", "CALCULATION_VERIFIED", "SCOPE_VERIFIED",
+                        "UNVERIFIED_EXPLORATORY", "NOT_VALIDATED"]
+
+
 class ExecutionMetadata(BaseModel):
     """Produced deterministically by code, never by the model."""
 
@@ -154,6 +167,8 @@ class ExecutionMetadata(BaseModel):
     # Every Python analysis of the run, and what the validation gate did to the final response.
     analyses: list[AnalysisSummary] = Field(default_factory=list)
     validation_gate: Literal["NOT_APPLICABLE", "PASSED", "ANNOTATED", "FORCED_LIMITATION"] = "NOT_APPLICABLE"
+    # The answer's numbers checked against governed sources (null when the gate did not check numbers).
+    number_provenance: NumberProvenance | None = None
 
 
 class RunError(BaseModel):
@@ -171,3 +186,6 @@ class AgentRunResponse(BaseModel):
     response: FinalResponse | None
     execution: ExecutionMetadata
     error: RunError | None = None
+    # Set by code from the evidence the answer's numbers trace to (weakest wins), never by the model.
+    # null for clarifications and answers without data-derived numbers.
+    evidence_label: EvidenceLabel | None = None

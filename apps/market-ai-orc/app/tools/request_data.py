@@ -1,11 +1,13 @@
-"""request_data: the only model-facing tool for actual database observations.
+"""request_data and lookup_fact: the model-facing tools for actual database observations.
 
-The model sends a structured Data Request Spec; market-sql-governor validates it against the
-AI catalogs, compiles and cost-checks the SQL, executes it read-only, and decides whether the
-result is returned inline or as an immutable dataset snapshot. This module only forwards the
-spec and returns the Governor's decision unchanged. It holds no database credential and no
-SQL logic. The models below must stay identical to apps/market-sql-governor/app/spec.py
-(tests/test_request_data.py enforces this).
+Two separate paths through market-sql-governor, which validates every request against the AI
+catalogs, compiles and cost-checks the SQL, and executes it read-only:
+- request_data: analysis input. An approved request is always an immutable dataset (dataset_id,
+  manifest, checksum); its rows never reach the model.
+- lookup_fact: a narrow path for specific source facts (at most 20 values, each with a fact_id).
+This module only forwards the specs and returns the Governor's decisions. It holds no database
+credential and no SQL logic. The models below must stay identical to
+apps/market-sql-governor/app/spec.py (tests/test_request_data.py enforces this).
 """
 from __future__ import annotations
 
@@ -23,6 +25,9 @@ COLUMN_PATTERN = r"^[A-Za-z_][A-Za-z0-9_ ]{0,62}$"
 
 FilterOperator = Literal["EQ", "NEQ", "GT", "GTE", "LT", "LTE", "IN", "BETWEEN", "IS_NULL", "IS_NOT_NULL"]
 AggregateFunction = Literal["SUM", "AVG", "MEDIAN", "MIN", "MAX", "COUNT", "COUNT_DISTINCT"]
+
+DATASET_DECISIONS = {"DATASET_READY", "NEEDS_NARROWING", "REJECTED", "SANDBOX_REQUIRED"}
+LOOKUP_DECISIONS = {"FACTS_READY", "NEEDS_NARROWING", "REJECTED"}
 
 # Set by the orchestrator for each run so Governor logs can be joined to the agent run.
 current_request_id: contextvars.ContextVar[str | None] = contextvars.ContextVar("current_request_id", default=None)
@@ -83,15 +88,70 @@ class DataRequestSpec(Strict):
     requested_limit: int | None = Field(ge=1, le=5_000_000, description="Optional row limit; null for none.")
 
 
+# ---------------------------------------------------------------- lookup_fact
+# A narrow path for specific source facts. Limits are part of the contract (and repeated in the
+# Governor after execution): at most 5 entities, 10 dates, 4 columns, and 20 returned values.
+LOOKUP_MAX_ENTITIES = 5
+LOOKUP_MAX_DATES = 10
+LOOKUP_MAX_COLUMNS = 4
+LOOKUP_MAX_VALUES = 20
+ENTITY_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,19}$"
+DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
+LookupFunction = Literal["SUM", "AVG", "MIN", "MAX", "COUNT"]
+
+
+class LookupDateRange(Strict):
+    start: str = Field(pattern=DATE_PATTERN, description="First date, YYYY-MM-DD (inclusive).")
+    end: str = Field(pattern=DATE_PATTERN, description="Last date, YYYY-MM-DD (inclusive).")
+
+
+class LookupAggregation(Strict):
+    column: str = Field(pattern=COLUMN_PATTERN)
+    function: LookupFunction
+
+
+class LookupFactSpec(Strict):
+    purpose: str = Field(min_length=1, max_length=300, description="Which fact is needed and why.")
+    mode: Literal["VALUE", "AGGREGATE"] = Field(
+        description="VALUE: source values at explicit entity/date keys. AGGREGATE: SUM/AVG/MIN/MAX/COUNT computed "
+                    "by the database over the explicit scope.")
+    table: str = Field(pattern=TABLE_PATTERN, description="Exact table_name from the catalog.")
+    entities: list[str] = Field(min_length=1, max_length=LOOKUP_MAX_ENTITIES,
+                                description="Tickers (or the table's entity codes), 1 to 5.")
+    dates: list[str] | None = Field(max_length=LOOKUP_MAX_DATES,
+                                    description="Explicit dates YYYY-MM-DD (at most 10), or null.")
+    date_range: LookupDateRange | None = Field(
+        description="Inclusive date range, or null. VALUE mode: at most 10 trading dates may fall inside it.")
+    columns: list[str] | None = Field(max_length=LOOKUP_MAX_COLUMNS,
+                                      description="VALUE mode: 1 to 4 value columns; null in AGGREGATE mode.")
+    aggregations: list[LookupAggregation] | None = Field(
+        max_length=LOOKUP_MAX_COLUMNS, description="AGGREGATE mode: 1 to 4 aggregations; null in VALUE mode.")
+    per_entity: bool | None = Field(
+        description="AGGREGATE mode: true for one value per entity, false for one value across all entities.")
+
+
 DESCRIPTION = (
-    "Request actual database observations with a structured data request (never SQL). Use exact "
+    "Request analysis input from the database with a structured data request (never SQL). Use exact "
     "table and column names from the catalog tools. Joins name only the table (and optionally a "
     "catalog relationship_id); join keys come from the catalog. Filters use EQ, NEQ, GT, GTE, LT, "
     "LTE, IN, BETWEEN, IS_NULL, IS_NOT_NULL with typed values. Aggregations must be allowed by the "
     "column catalog; when aggregating, every returned column must be in group_by. The SQL Governor "
-    "validates, cost-checks, and executes the request and returns a decision: INLINE_RESULT (rows "
-    "included), DATASET_READY (a dataset_id reference only), NEEDS_NARROWING, or REJECTED, with "
-    "next_action and reason_code."
+    "validates, cost-checks, and executes the request. An approved request is always DATASET_READY: "
+    "an immutable dataset reference (dataset_id, row count, columns, date range, entities, "
+    "completeness) for run_python_analysis, never the rows themselves. Other decisions are "
+    "NEEDS_NARROWING or REJECTED, with next_action and reason_code. A dataset is not an answer: "
+    "numbers in an answer come from lookup_fact or from a validated Python analysis."
+)
+
+LOOKUP_DESCRIPTION = (
+    "Look up specific source facts without Python: mode VALUE returns source values at explicit keys "
+    "(1-5 entities such as tickers, explicit dates or a date range of at most 10 trading dates, 1-4 "
+    "columns, at most 20 values in total); mode AGGREGATE returns SUM, AVG, MIN, MAX, or COUNT computed "
+    "by the database over the explicit scope (per_entity true for one value per entity), at most 20 "
+    "values. Filters are only the entities and dates; there is no ranking, ordering by value, or "
+    "statistic. Every value comes back with a fact_id, table, column, entity, and date or scope. "
+    "A refusal with next_action USE_ANALYSIS_PATH means the question needs request_data plus a "
+    "Python analysis (statistics such as correlation, z-score, RSI, returns, rankings, or more values)."
 )
 
 
@@ -118,6 +178,28 @@ class GovernorClient:
         except ValueError as exc:
             raise ToolError("The SQL Governor returned an invalid response.") from exc
         if not isinstance(result, dict) or "decision" not in result or "next_action" not in result:
+            raise ToolError("The SQL Governor returned an invalid response.")
+        if result.get("rows") is not None or result["decision"] not in DATASET_DECISIONS:
+            # Data rows must never reach the model through request_data (an outdated Governor would send them).
+            raise ToolError("The SQL Governor returned rows instead of a dataset reference; request refused.")
+        return result
+
+    def lookup(self, spec: "LookupFactSpec") -> dict[str, Any]:
+        request_id = current_request_id.get() or f"orc-{uuid.uuid4().hex[:16]}"
+        try:
+            response = self._client.post("/v1/lookup", json={"request_id": request_id, "spec": spec.model_dump()})
+        except httpx.TimeoutException as exc:
+            raise ToolError("The SQL Governor did not answer in time.") from exc
+        except httpx.HTTPError as exc:
+            raise ToolError("The SQL Governor is unreachable.") from exc
+        if response.status_code != 200:
+            raise ToolError(f"The SQL Governor is unavailable (HTTP {response.status_code}).")
+        try:
+            result = response.json()
+        except ValueError as exc:
+            raise ToolError("The SQL Governor returned an invalid response.") from exc
+        if not isinstance(result, dict) or result.get("decision") not in LOOKUP_DECISIONS \
+                or len(result.get("facts") or []) > LOOKUP_MAX_VALUES:
             raise ToolError("The SQL Governor returned an invalid response.")
         return result
 
@@ -150,6 +232,21 @@ def request_data_spec(client: GovernorClient, *, timeout_seconds: float, max_res
         name="request_data",
         description=DESCRIPTION,
         arguments_model=DataRequestSpec,
+        handler=handler,
+        timeout_seconds=timeout_seconds,
+        max_result_bytes=max_result_bytes,
+    )
+
+
+def lookup_fact_spec(client: GovernorClient, *, timeout_seconds: float, max_result_bytes: int) -> ToolSpec:
+    def handler(arguments: BaseModel) -> dict[str, Any]:
+        assert isinstance(arguments, LookupFactSpec)
+        return client.lookup(arguments)
+
+    return ToolSpec(
+        name="lookup_fact",
+        description=LOOKUP_DESCRIPTION,
+        arguments_model=LookupFactSpec,
         handler=handler,
         timeout_seconds=timeout_seconds,
         max_result_bytes=max_result_bytes,

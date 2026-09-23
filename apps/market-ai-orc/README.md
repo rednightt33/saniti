@@ -39,11 +39,13 @@ market-ai-orc executes a registered tool → function_call_output
    │    discover_catalog / get_catalog_details → targeted, visibility-filtered catalog metadata
    │    read_catalog_rows → complete AI_* catalog rows, keyset-paginated
    │    preview_table_rows → public.ai_preview_table_rows(): ≤ 20 fixed-order example rows
-   │    request_data → market-sql-governor POST /v1/query → INLINE_RESULT | DATASET_READY |
-   │                   NEEDS_NARROWING | REJECTED (returned unchanged, with next_action)
+   │    request_data → market-sql-governor POST /v1/query → DATASET_READY (reference, never rows) |
+   │                   NEEDS_NARROWING | REJECTED (with next_action)
+   │    lookup_fact → market-sql-governor POST /v1/lookup → FACTS_READY (≤ 20 facts with fact_id) |
+   │                   REJECTED (USE_ANALYSIS_PATH for statistics, rankings, or larger requests)
    ↓  (repeat within limits)
 strict final response
-   ↓
+   ↓  validation gate (code): failed analyses, routing guard, number provenance, evidence_label
 Backend
 ```
 
@@ -149,7 +151,7 @@ wall-clock time, output tokens, and a context ceiling checked before each provid
 | `SQL_GOVERNOR_URL` | no | unset | market-sql-governor base URL (private network). When unset, `request_data` is not registered |
 | `SQL_GOVERNOR_API_KEY` | with URL (secret, ≥ 32 chars) | — | Bearer key for the Governor; reference `${{market-sql-governor.SQL_GOVERNOR_API_KEY}}` |
 | `SQL_GOVERNOR_TIMEOUT_SECONDS` | no | `90` | HTTP timeout for one Governor call (≤ 300); the tool timeout is this plus 5 s |
-| `REQUEST_DATA_MAX_RESULT_BYTES` | no | `40000` | Hard cap on one `request_data` result sent to the model (8192–131072); keep it above the Governor's inline byte limit plus envelope |
+| `REQUEST_DATA_MAX_RESULT_BYTES` | no | `40000` | Hard cap on one `request_data` or `lookup_fact` result sent to the model (8192–131072) |
 | `MARKET_DATA_PREVIEW_ENABLED` | no | `true` | `false` unregisters `preview_table_rows` without touching the catalog tools |
 | `PY_SANDBOX_URL` | no | unset | market-python-sandbox base URL (private network). `run_python_analysis` and `get_analysis_result` are registered only when this is set **and** the sandbox reports `/ready` at startup (3 attempts, 2 s apart) |
 | `PY_SANDBOX_API_KEY` | with URL (secret, ≥ 32 chars) | — | Bearer key for the sandbox; reference `${{market-python-sandbox.PY_SANDBOX_API_KEY}}` |
@@ -216,9 +218,11 @@ Response (HTTP `200` for every agent outcome, including `FAILED`):
     "duration_ms": 0,
     "tools_withdrawn_reason": null,
     "analyses": [],
-    "validation_gate": "NOT_APPLICABLE"
+    "validation_gate": "NOT_APPLICABLE",
+    "number_provenance": {"checked": 0, "unsupported": []}
   },
-  "error": null
+  "error": null,
+  "evidence_label": null
 }
 ```
 
@@ -226,7 +230,28 @@ Response (HTTP `200` for every agent outcome, including `FAILED`):
 `execution_status`, `validation_status`, `validation_level`, and `reason_codes`, taken from the
 sandbox records, not from the model. `execution.validation_gate` is `NOT_APPLICABLE` (no
 analysis), `PASSED`, `ANNOTATED` (mandatory validation limitations were appended), or
-`FORCED_LIMITATION` (an `ANSWER` resting on a failed analysis was converted to `LIMITATION`).
+`FORCED_LIMITATION` (the gate converted the response to `LIMITATION`).
+`execution.number_provenance` counts the numbers checked in the answer and lists those without a
+governed source (null when the gate did not check numbers, for example on a clarification).
+
+`evidence_label` is set by code, never by the model, for a frontend badge:
+
+| `evidence_label` | Shown as | When |
+|---|---|---|
+| `FACT` | Fakta | every data number comes from `lookup_fact` mode `VALUE` |
+| `DATABASE_AGGREGATE` | Agregat database | a data number comes from `lookup_fact` mode `AGGREGATE` |
+| `CALCULATION_VERIFIED` | Terverifikasi (dihitung ulang dan cocok) | an analysis with validation `PASS` and level `CALCULATION_VERIFIED` |
+| `SCOPE_VERIFIED` | Cakupan terverifikasi | `PASS` at `SCOPE_VERIFIED` (for example a custom method; values not recalculated) |
+| `UNVERIFIED_EXPLORATORY` | Belum terverifikasi (eksploratif) | an analysis with validation `UNVERIFIED` |
+| `NOT_VALIDATED` | Tidak tervalidasi | `INCOMPLETE`/`FAILED`, or numbers without a source; the response is `LIMITATION` |
+
+A mixed answer carries its weakest label (the order above is strongest to weakest). Each number is
+attributed to the strongest source it matches; user, spec, and manifest numbers are context and
+do not set a label. An answer without data numbers gets the weakest label of the evidence the run
+consulted (analyses and facts), or `null` when it consulted none, as for clarifications and
+capability questions. "Terverifikasi" means recalculated independently and matching, not
+"certainly correct"; approved defaults and exploratory derived features stay in
+`assumptions`/`limitations`.
 
 The model produces only `response`. Code sets `status` from `response_type`:
 `ANSWER → COMPLETED`, `CLARIFICATION → NEEDS_CLARIFICATION`, `LIMITATION → LIMITED`.
@@ -298,7 +323,8 @@ Guarantees:
 | `get_catalog_details` | `table_names`, `sections`, `column_names`, `entity_ids` | Requested catalog sections (see below) |
 | `read_catalog_rows` | `catalog_name`, `page_size`, `cursor` | One page of complete catalog rows (see [Full catalog access](#full-catalog-access)) |
 | `preview_table_rows` | `table_name` | At most 20 example rows (see [Market-data preview](#market-data-preview)) |
-| `request_data` | `purpose`, `from_table`, `columns`, `joins`, `filters`, `group_by`, `aggregations`, `order_by`, `requested_limit` | The SQL Governor decision, unchanged (see [Data requests](#data-requests)) |
+| `request_data` | `purpose`, `from_table`, `columns`, `joins`, `filters`, `group_by`, `aggregations`, `order_by`, `requested_limit` | The SQL Governor decision: always a dataset reference when approved, never rows (see [Data requests](#data-requests)) |
+| `lookup_fact` | `purpose`, `mode` (`VALUE`/`AGGREGATE`), `table`, `entities` (1–5), `dates` (≤ 10) or `date_range`, `columns` (1–4) or `aggregations` (1–4 of SUM/AVG/MIN/MAX/COUNT) with `per_entity` | At most 20 facts, each with `fact_id`, table, column, entity, date or scope, and value |
 | `get_dataset_manifest` | `dataset_id` | The Governor's bounded dataset manifest: `AVAILABLE`, or explicit `DATASET_EXPIRED` / `DATASET_NOT_FOUND` (see [Python analysis](#python-analysis)) |
 | `create_analysis_spec` | `question`, `universe`, `analysis_period`, `frequency`, `inputs`, `calculations`, `outputs`, `exclusion_rules`, each requirement with its provenance | The spec review: `status`, `spec_id` when approved, `resolved_period`, `required_input` (with warm-up), `output_contract`, mismatches, unverified requirements, clarification needed |
 | `run_python_analysis` | `spec_id`, `inputs` (1–4 logical inputs, each `name`, `dataset_ids` 1–8, `duplicate_policy`), `python_code` (≤ 20000), `expected_outputs` ⊆ {TABLE, METRICS, CHART, ARTIFACT} | The analysis record: `execution_status`, `validation_status`, `validation_level`, `reason_codes`, `next_action`, scopes, outputs, evidence, error |
@@ -331,8 +357,15 @@ identical to the Governor's `app/spec.py`, and a contract test enforces this. Th
 - checks the spec with the same strict model (unknown fields and malformed identifiers never
   leave this service);
 - posts `{request_id, spec}` to `SQL_GOVERNOR_URL/v1/query` with the bearer key;
-- returns the Governor's JSON unchanged: `decision`, `next_action`, `reason_code`, rows or
-  dataset reference, and details.
+- returns the Governor's JSON: `decision`, `next_action`, `reason_code`, the dataset reference,
+  and details. An approved request is always `DATASET_READY`; a response that carries rows or an
+  unknown decision (for example from an outdated Governor) becomes a `TOOL_ERROR`, so data rows
+  never reach the model through this tool.
+
+`lookup_fact` takes the Lookup Fact Spec (identical to the Governor's, contract-tested) and posts
+it to `SQL_GOVERNOR_URL/v1/lookup`. It is the only way specific source values reach the model:
+at most 20 per call, each with a `fact_id`. Refusals with `next_action = USE_ANALYSIS_PATH` send
+the model to the analysis path. Statistics never go through it.
 
 Governor HTTP errors and timeouts become a generic `TOOL_ERROR`. The spec has no SQL,
 expression, join-key, or delivery-format field, and the row, scan, and byte ceilings exist
@@ -391,8 +424,29 @@ spec is checked:
   notice and the findings as limitations (`FORCED_LIMITATION`);
 - validation `UNVERIFIED`, a level below `CALCULATION_VERIFIED`, or unverified spec requirements:
   the matching limitation lines are appended when the model left them out (`ANNOTATED`).
-`CLARIFICATION` responses are never blocked. The gate is code, not a prompt rule: the ANALYSIS
-VALIDATION RULES prompt block only explains it to the model.
+- **routing guard:** when the user's question asks for a statistic (the sandbox's deterministic
+  method-family rules: RSI, moving average, standard deviation, z-score, return, forward return,
+  correlation) or a ranking or percentage change, an `ANSWER` needs an analysis whose outputs are
+  a source (execution `COMPLETED`, validation `PASS` or `UNVERIFIED`); facts alone are rejected
+  once, then forced to `LIMITATION`. A plain average over an explicit scope may instead come from
+  a `lookup_fact` `AVG` aggregate. When the latest message answers a clarification question, the
+  previous user turn is checked too;
+- **number provenance** (`app/provenance.py`): every number in `answer` (tables included) must
+  match a source of this run: a `lookup_fact` value, an output (METRICS or table preview) of an
+  analysis with execution `COMPLETED` and validation `PASS` or `UNVERIFIED`, a number in the
+  user's messages, an approved spec (its parameters, resolved period, and required input), a
+  dataset manifest, the counts in validation evidence and scopes, or the application's own
+  prompt and tool descriptions. Outputs of `FAILED`/`INCOMPLETE` analyses, mismatch examples, and
+  `preview_table_rows` values are never sources. A match allows rounding to the displayed
+  decimals, decimal ↔ percent, Indonesian and English separators, "ribu/juta/miliar" style
+  multipliers, and a sign stated in words ("turun 2,4%"). Dates, years, list markers, and digits
+  inside identifiers (T001, ids) are not checked. Unsupported numbers are rejected once with
+  their list, then the response is forced to `LIMITATION` with a notice (this also applies to a
+  `LIMITATION` that quotes them).
+
+Each check rejects at most once per run, and tools stay available for the repair.
+`CLARIFICATION` responses are never blocked. The gate is code, not a prompt rule: the prompt
+blocks only explain it to the model.
 
 `get_dataset_manifest` calls the Governor's `GET /v1/datasets/{id}/manifest` with the existing
 Governor key. The orc key cannot obtain dataset URLs.

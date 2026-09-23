@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 
 from .config import Settings
 from .datasets import DatasetError, DatasetService
-from .decisions import GovernorResponse
+from .decisions import GovernorResponse, LookupResponse
 from .governor import Database, Governor, GovernorUnavailable
 from .janitor import DatasetJanitor
 from .store import build_store
@@ -31,10 +31,10 @@ def _configure_logging() -> None:
 
 
 def create_app(settings: Settings | None = None, governor: Governor | None = None) -> FastAPI:
-    """App factory. The only query endpoint accepts a structured Data Request Spec, never SQL.
+    """App factory. The query endpoints accept structured specs (Data Request, Lookup Fact), never SQL.
 
     Two bearer keys with disjoint purposes:
-    - SQL_GOVERNOR_API_KEY (market-ai-orc): /v1/query and dataset manifests.
+    - SQL_GOVERNOR_API_KEY (market-ai-orc): /v1/query, /v1/lookup, and dataset manifests.
     - SQL_GOVERNOR_DATASET_ACCESS_KEY (market-python-sandbox): dataset manifests and a
       short-lived read URL for one dataset. It cannot submit queries.
     """
@@ -98,6 +98,18 @@ def create_app(settings: Settings | None = None, governor: Governor | None = Non
             raise HTTPException(status_code=422, detail="request_id must match ^[A-Za-z0-9._:-]{1,128}$")
         try:
             return governor.handle(request_id, body["spec"])
+        except GovernorUnavailable:
+            return JSONResponse(status_code=503, content={"detail": "Governed database unavailable"})
+
+    @app.post("/v1/lookup", response_model=LookupResponse, dependencies=[Depends(authorize)])
+    def lookup(body: Any = Body(...)) -> Any:
+        if not isinstance(body, dict) or set(body) != {"request_id", "spec"}:
+            raise HTTPException(status_code=422, detail="Body must be exactly {request_id, spec}")
+        request_id = body["request_id"]
+        if not isinstance(request_id, str) or not REQUEST_ID.fullmatch(request_id):
+            raise HTTPException(status_code=422, detail="request_id must match ^[A-Za-z0-9._:-]{1,128}$")
+        try:
+            return governor.lookup(request_id, body["spec"])
         except GovernorUnavailable:
             return JSONResponse(status_code=503, content={"detail": "Governed database unavailable"})
 

@@ -16,7 +16,7 @@ from conftest import API_KEY, base_env
 def test_defaults_are_conservative_backend_limits() -> None:
     s = Settings.from_env(base_env())
     assert (s.max_tables, s.max_joins, s.max_columns, s.max_filters) == (3, 2, 20, 10)
-    assert (s.max_inline_rows, s.max_inline_output_bytes) == (200, 24000)
+    assert not hasattr(s, "max_inline_rows")  # approved requests are always datasets
     assert (s.max_estimated_scan_rows, s.max_plan_cost, s.max_execution_seconds) == (2_000_000, 600_000, 60)
     assert (s.max_date_range_days, s.max_unfiltered_date_range_days) == (3660, 400)
     assert (s.statement_timeout_seconds, s.lock_timeout_seconds) == (20, 2)
@@ -37,7 +37,7 @@ def test_defaults_are_conservative_backend_limits() -> None:
         ({"SQL_STATEMENT_TIMEOUT_SECONDS": "500"}, "between 1 and 120"),
         ({"SQL_STATEMENT_TIMEOUT_SECONDS": "90", "SQL_MAX_EXECUTION_SECONDS": "60"}, "must not exceed SQL_MAX_EXECUTION"),
         ({"SQL_DATASET_BUCKET_NAME": "b"}, "requires endpoint"),
-        ({"SQL_MAX_INLINE_ROWS": "abc"}, "integer"),
+        ({"SQL_MAX_DATASET_ROWS": "abc"}, "integer"),
     ],
 )
 def test_invalid_configuration_is_rejected(overrides: dict, message: str) -> None:
@@ -47,7 +47,7 @@ def test_invalid_configuration_is_rejected(overrides: dict, message: str) -> Non
 
 def test_next_action_is_a_fixed_function_of_decision() -> None:
     assert NEXT_ACTION == {
-        "INLINE_RESULT": "USE_INLINE_RESULT", "DATASET_READY": "RUN_ANALYSIS",
+        "DATASET_READY": "RUN_ANALYSIS",
         "NEEDS_NARROWING": "REVISE_DATA_REQUEST", "REJECTED": "STOP_OR_REFORMULATE",
         "SANDBOX_REQUIRED": "USE_ANALYSIS_SANDBOX",
     }
@@ -124,3 +124,23 @@ def test_there_is_no_sql_endpoint_and_no_docs() -> None:
     for path in ("/v1/sql", "/v1/execute", "/docs", "/openapi.json"):
         assert api.post(path, json={"sql": "SELECT 1"}, headers=headers).status_code in (404, 405)
     assert api.get("/health").json() == {"status": "ok"} and api.get("/ready").json() == {"status": "ready"}
+
+
+def test_lookup_next_action_routes_shape_refusals_to_the_analysis_path() -> None:
+    from app.decisions import lookup_next_action
+
+    assert lookup_next_action("FACTS_READY", "OK") == "USE_FACTS"
+    for code in ("LOOKUP_NOT_ALLOWED", "LOOKUP_TOO_LARGE", "AGGREGATION_NOT_ALLOWED"):
+        assert lookup_next_action("REJECTED", code) == "USE_ANALYSIS_PATH"
+    assert lookup_next_action("REJECTED", "TABLE_NOT_APPROVED") == "STOP_OR_REFORMULATE"
+    assert lookup_next_action("NEEDS_NARROWING", "OUTSIDE_VERIFIED_COVERAGE") == "REVISE_LOOKUP"
+
+
+def test_lookup_spec_has_no_sql_ranking_or_statistics_fields() -> None:
+    from app.spec import LookupFactSpec
+
+    assert set(LookupFactSpec.model_fields) == {"purpose", "mode", "table", "entities", "dates", "date_range",
+                                                "columns", "aggregations", "per_entity"}
+    text = str(LookupFactSpec.model_json_schema())
+    for word in ("sql", "order", "rank", "limit", "STDDEV", "CORR", "MEDIAN"):
+        assert word not in text

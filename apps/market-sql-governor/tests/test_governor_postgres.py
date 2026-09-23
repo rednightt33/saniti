@@ -7,6 +7,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -27,12 +28,22 @@ from fixture import MARKET_TABLES, TABLE_META  # noqa: E402
 PRICE = "Price_Stock_Indonesia_IDX"
 
 
-def governor(db: dict, tmp_path: Path | None = None, **limits: str) -> Governor:
+def governor(db: dict, tmp_path: Path | None = None, storage: bool = True, **limits: str) -> Governor:
     env = base_env(GOVERNOR_DATABASE_URL=db["login"], **limits)
-    if tmp_path is not None:
+    if storage and tmp_path is None:
+        tmp_path = Path(tempfile.mkdtemp(prefix="gov-test-"))
+    if storage:
         env["SQL_DATASET_LOCAL_DIR"] = str(tmp_path)
     settings = Settings.from_env(env)
-    return Governor(settings, Database(settings), LocalStore(str(tmp_path)) if tmp_path is not None else None)
+    return Governor(settings, Database(settings), LocalStore(str(tmp_path)) if storage else None)
+
+
+def dataset_rows(gov: Governor, result) -> list[list[Any]]:
+    """The rows of a DATASET_READY snapshot, read the way the sandbox reads them."""
+    assert result.decision == "DATASET_READY", (result.reason_code, result.message)
+    path = Path(gov.store.root) / "datasets" / result.dataset.dataset_id / "data.parquet"
+    table = pq.read_table(path)
+    return [list(row.values()) for row in table.to_pylist()]
 
 
 def cols(table: str, *names: str) -> list[dict[str, str]]:
@@ -67,7 +78,7 @@ def test_each_approved_table_is_accepted_when_catalog_policy_allows_it(governed_
     filters = [filt(table, time_col, "BETWEEN", ["2026-08-01", "2026-08-31"])] if time_col else []
     result = run(governor(governed_db, tmp_path), spec(
         table, columns=cols(table, *columns), filters=filters, order_by=[], requested_limit=None))
-    assert result.decision in {"INLINE_RESULT", "DATASET_READY"}, (result.reason_code, result.message)
+    assert result.decision == "DATASET_READY", (result.reason_code, result.message)
     assert result.source_tables == [table]
 
 
@@ -79,7 +90,7 @@ def test_each_approved_table_is_accepted_when_catalog_policy_allows_it(governed_
 def test_unapproved_inactive_and_denied_tables_are_rejected(governed_db, table, reason) -> None:
     result = run(governor(governed_db), spec(table, columns=cols(table, "ticker"), filters=[], order_by=[]))
     assert (result.decision, result.reason_code, result.next_action) == ("REJECTED", reason, "STOP_OR_REFORMULATE")
-    assert result.rows is None and result.query_hash is None
+    assert result.dataset is None and result.query_hash is None
 
 
 def test_catalog_approved_table_without_database_grant_is_denied_by_the_role(governed_db) -> None:
@@ -123,31 +134,33 @@ def test_database_role_cannot_select_unapproved_tables_directly(governed_db) -> 
 def test_column_filter_group_and_aggregation_gates_reject_the_whole_request(governed_db, overrides, reason) -> None:
     result = run(governor(governed_db), spec(**overrides))
     assert (result.decision, result.reason_code) == ("REJECTED", reason), result.message
-    assert result.rows is None
+    assert result.dataset is None
 
 
 def test_approved_aggregation_is_accepted_and_computed(governed_db) -> None:
-    result = run(governor(governed_db), spec(
+    gov = governor(governed_db)
+    result = run(gov, spec(
         columns=cols(PRICE, "ticker"), group_by=cols(PRICE, "ticker"),
         aggregations=[{"table": PRICE, "column": "close", "function": "AVG"},
                       {"table": PRICE, "column": "volume", "function": "MEDIAN"},
                       {"table": PRICE, "column": "date", "function": "COUNT"}],
         filters=[filt(PRICE, "ticker", "IN", ["BBCA", "BBRI"]), filt(PRICE, "date", "GTE", "2026-01-01")],
         order_by=[{"table": PRICE, "column": "close", "function": "AVG", "direction": "DESC"}], requested_limit=None))
-    assert result.decision == "INLINE_RESULT", result.message
+    rows = dataset_rows(gov, result)
     assert [c.name for c in result.columns] == ["ticker", "avg_close", "median_volume", "count_date"]
-    assert result.returned_rows == 2 and float(result.rows[0][1]) >= float(result.rows[1][1])
+    assert result.dataset.row_count == 2 and float(rows[0][1]) >= float(rows[1][1])
 
 
 def test_min_max_on_date_columns_is_allowed_by_migration_007(governed_db) -> None:
-    result = run(governor(governed_db), spec(
+    gov = governor(governed_db)
+    result = run(gov, spec(
         columns=cols(PRICE, "ticker"), group_by=cols(PRICE, "ticker"), order_by=[], requested_limit=None,
         aggregations=[{"table": PRICE, "column": "date", "function": "MIN"},
                       {"table": PRICE, "column": "date", "function": "MAX"}],
         filters=[filt(PRICE, "ticker", "IN", ["BBCA", "BBRI"])]))
-    assert result.decision == "INLINE_RESULT", result.message
+    rows = dataset_rows(gov, result)
     assert [c.name for c in result.columns] == ["ticker", "min_date", "max_date"]
-    assert {tuple(row[1:]) for row in result.rows} == {("2025-01-02", "2026-08-31")}
+    assert {tuple(str(v) for v in row[1:]) for row in rows} == {("2025-01-02", "2026-08-31")}
     still_blocked = run(governor(governed_db), spec(
         columns=cols(PRICE, "ticker"), group_by=cols(PRICE, "ticker"), order_by=[],
         aggregations=[{"table": PRICE, "column": "date", "function": "SUM"}]))
@@ -161,8 +174,8 @@ def test_approved_relationship_join_uses_catalog_keys(governed_db) -> None:
     result = run(governor(governed_db), spec(
         columns=cols(PRICE, "ticker", "date", "close") + cols(f01, "return_1d_pct"),
         joins=[{"table": f01, "relationship_id": None}]))
-    assert result.decision == "INLINE_RESULT", result.message
-    assert result.source_tables == [PRICE, f01] and result.returned_rows == 20
+    assert result.decision == "DATASET_READY", result.message
+    assert result.source_tables == [PRICE, f01] and result.dataset.row_count == 20
 
 
 @pytest.mark.parametrize(
@@ -222,7 +235,7 @@ def test_filter_values_are_bound_parameters_never_sql_text(governed_db) -> None:
     assert "BBCA" not in compiled.text and "DROP" not in compiled.text
     assert compiled.text.count("%s") == len(compiled.params) == 2 and [hostile, "BBRI"] in compiled.params
     result = run(governor(governed_db), spec(filters=[filt(PRICE, "ticker", "EQ", hostile)]))
-    assert result.decision == "INLINE_RESULT" and result.returned_rows == 0
+    assert result.decision == "DATASET_READY" and result.dataset.row_count == 0
     with psycopg.connect(governed_db["admin"]) as connection:
         assert connection.execute(f'SELECT count(*) FROM public."{PRICE}"').fetchone()[0] > 0
 
@@ -241,7 +254,7 @@ def test_unverified_expected_coverage_is_a_warning_not_a_guarantee(governed_db) 
     f01 = "Feature_01_Stock_Daily"
     result = run(governor(governed_db), spec(f01, columns=cols(f01, "ticker", "date"),
                                              filters=[filt(f01, "ticker", "EQ", "BBCA")], order_by=[]))
-    assert result.decision == "INLINE_RESULT"
+    assert result.decision == "DATASET_READY"
     assert any("EXPECTED_DERIVED/UNVERIFIED" in warning for warning in result.warnings)
 
 
@@ -262,14 +275,14 @@ def test_explain_gate_rejects_excessive_scan_before_execution(governed_db) -> No
         f02, columns=cols(f02, "ticker", "date", "broker", "net_value_1d"),
         filters=[filt(f02, "date", "BETWEEN", ["2026-03-01", "2026-08-31"])], order_by=[], requested_limit=None))
     assert (result.decision, result.reason_code) == ("NEEDS_NARROWING", "ESTIMATED_SCAN_TOO_LARGE")
-    assert result.estimated_scan_rows > 5000 and result.rows is None and result.returned_rows is None
+    assert result.estimated_scan_rows > 5000 and result.dataset is None and result.returned_rows is None
 
 
 def test_sequential_scans_count_the_whole_relation(governed_db) -> None:
     result = run(governor(governed_db), spec(
         "IDX_Stock_Universe", columns=cols("IDX_Stock_Universe", "Ticker", "Sector"),
         filters=[filt("IDX_Stock_Universe", "Sector", "EQ", "no-such-sector")], order_by=[], requested_limit=None))
-    assert result.decision == "INLINE_RESULT" and result.returned_rows == 0
+    assert result.decision == "DATASET_READY" and result.dataset.row_count == 0
     assert result.estimated_scan_rows >= 30  # all 30 rows are read even though none match
 
 
@@ -303,25 +316,20 @@ def test_sessions_are_read_only(governed_db) -> None:
                 connection.execute(statement)
 
 
-# --- Gate 10 routing: inline vs dataset ------------------------------------------------------------------------
+# --- Gate 10: every approved request is a dataset -----------------------------------------------------------
 
-def test_inline_row_limit_routes_larger_results_to_a_dataset(governed_db, tmp_path) -> None:
-    gov = governor(governed_db, tmp_path, SQL_MAX_INLINE_ROWS="10")
-    assert run(gov, spec(requested_limit=10)).decision == "INLINE_RESULT"
-    larger = run(gov, spec(requested_limit=11))
-    assert larger.decision == "DATASET_READY" and larger.next_action == "RUN_ANALYSIS"
-    assert larger.rows is None and larger.dataset.row_count == 11
-
-
-def test_inline_byte_limit_routes_to_a_dataset(governed_db, tmp_path) -> None:
-    result = run(governor(governed_db, tmp_path, SQL_MAX_INLINE_OUTPUT_BYTES="1024"), spec(requested_limit=100))
-    assert result.decision == "DATASET_READY" and result.rows is None
+def test_even_a_tiny_result_is_a_dataset_never_rows(governed_db, tmp_path) -> None:
+    gov = governor(governed_db, tmp_path)
+    result = run(gov, spec(requested_limit=3))
+    assert (result.decision, result.next_action) == ("DATASET_READY", "RUN_ANALYSIS")
+    assert result.dataset.row_count == 3 and len(dataset_rows(gov, result)) == 3
+    assert "rows" not in result.model_dump() and result.returned_rows == 0 and result.output_bytes == 0
 
 
-def test_without_storage_an_oversized_result_needs_narrowing(governed_db) -> None:
-    result = run(governor(governed_db, SQL_MAX_INLINE_ROWS="10"), spec(requested_limit=50))
-    assert (result.decision, result.reason_code) == ("NEEDS_NARROWING", "RESULT_TOO_LARGE_FOR_INLINE")
-    assert result.rows is None
+def test_without_storage_an_approved_request_is_refused_not_returned_inline(governed_db) -> None:
+    result = run(governor(governed_db, storage=False), spec(requested_limit=5))
+    assert (result.decision, result.reason_code) == ("REJECTED", "DATASET_STORAGE_UNAVAILABLE")
+    assert result.dataset is None and "lookup_fact" in result.message
 
 
 def test_dataset_ready_returns_reference_only_and_writes_a_verifiable_parquet(governed_db, tmp_path) -> None:
@@ -330,7 +338,7 @@ def test_dataset_ready_returns_reference_only_and_writes_a_verifiable_parquet(go
         filters=[filt(PRICE, "ticker", "IN", ["BBCA", "BBRI", "ZZZZ"]), filt(PRICE, "date", "GTE", "2025-06-01")]))
     assert result.decision == "DATASET_READY", result.message
     body = result.model_dump_json()
-    assert result.rows is None and len(body) < 6000 and str(tmp_path) not in body and "data.parquet" not in body
+    assert "rows" not in result.model_dump() and len(body) < 6000 and str(tmp_path) not in body and "data.parquet" not in body
     dataset = result.dataset
     assert dataset.format == "PARQUET" and dataset.missing_entities == ["ZZZZ"]
     assert dataset.completeness_status == "MISSING_REQUESTED_ENTITIES" and dataset.entities_present_count == 2
@@ -349,7 +357,7 @@ def test_dataset_ready_returns_reference_only_and_writes_a_verifiable_parquet(go
 
 
 def test_estimated_result_above_dataset_ceiling_is_refused_before_execution(governed_db, tmp_path) -> None:
-    result = run(governor(governed_db, tmp_path, SQL_MAX_INLINE_ROWS="10", SQL_MAX_DATASET_ROWS="100"),
+    result = run(governor(governed_db, tmp_path, SQL_MAX_DATASET_ROWS="100"),
                  spec(requested_limit=None, order_by=[]))
     assert (result.decision, result.reason_code) == ("NEEDS_NARROWING", "ESTIMATED_RESULT_TOO_LARGE")
     assert result.details["estimated_result_rows"] == 101 and result.returned_rows is None
@@ -357,7 +365,7 @@ def test_estimated_result_above_dataset_ceiling_is_refused_before_execution(gove
 
 
 def test_dataset_row_ceiling_holds_even_when_the_estimate_is_too_low(governed_db, tmp_path, monkeypatch) -> None:
-    gov = governor(governed_db, tmp_path, SQL_MAX_INLINE_ROWS="10", SQL_MAX_DATASET_ROWS="100")
+    gov = governor(governed_db, tmp_path, SQL_MAX_DATASET_ROWS="100")
     original = gov._explain
     monkeypatch.setattr(gov, "_explain", lambda *a: (*original(*a)[:2], 5))  # pretend the planner expects 5 rows
     result = run(gov, spec(requested_limit=None, order_by=[]))
@@ -367,7 +375,7 @@ def test_dataset_row_ceiling_holds_even_when_the_estimate_is_too_low(governed_db
 
 def test_total_extraction_time_is_bounded(governed_db, tmp_path, monkeypatch) -> None:
     import app.governor as governor_module
-    gov = governor(governed_db, tmp_path, SQL_MAX_INLINE_ROWS="10", SQL_MAX_EXECUTION_SECONDS="20")
+    gov = governor(governed_db, tmp_path, SQL_MAX_EXECUTION_SECONDS="20")
     monkeypatch.setattr(governor_module, "FETCH_BATCH_ROWS", 5)
     clock = iter(range(0, 10_000, 7))  # every call advances 7 s
     monkeypatch.setattr(governor_module.time, "monotonic", lambda: next(clock))
@@ -393,10 +401,149 @@ def test_structured_log_has_decision_fields_and_no_secrets_or_values(governed_db
     finally:
         logger.removeHandler(handler)
     events = [json.loads(record) for record in records]
-    assert [event["decision"] for event in events] == ["INLINE_RESULT", "DATASET_READY"]
+    assert [event["decision"] for event in events] == ["DATASET_READY", "DATASET_READY"]
     for key in ("request_id", "query_id", "query_hash", "source_tables", "requested_columns", "decision",
                 "reason_code", "next_action", "estimated_scan_rows", "returned_rows", "output_bytes", "runtime_ms"):
         assert key in events[0]
     text = "\n".join(records)
     for secret in (API_KEY, LOGIN_PASSWORD, governed_db["login"], "postgresql://", "BBCA"):
         assert secret not in text
+
+
+# --- lookup_fact: the narrow path for specific source facts -------------------------------------------------------
+
+def lookup_spec(**overrides: Any) -> dict[str, Any]:
+    body = {"purpose": "test fact", "mode": "VALUE", "table": PRICE, "entities": ["BBCA"],
+            "dates": ["2026-08-28", "2026-08-31"], "date_range": None, "columns": ["close"], "aggregations": None,
+            "per_entity": None}
+    body.update(overrides)
+    return body
+
+
+def admin_scalar(db: dict, statement: str, params: tuple = ()) -> Any:
+    with psycopg.connect(db["admin"]) as connection:
+        return connection.execute(statement, params).fetchone()[0]
+
+
+def test_lookup_value_returns_source_values_with_fact_ids(governed_db) -> None:
+    result = governor(governed_db, storage=False).lookup("test-request", lookup_spec())
+    assert (result.decision, result.next_action, result.reason_code) == ("FACTS_READY", "USE_FACTS", "OK")
+    assert [(f.entity, f.date, f.column, f.kind) for f in result.facts] == [
+        ("BBCA", "2026-08-28", "close", "VALUE"), ("BBCA", "2026-08-31", "close", "VALUE")]
+    for fact in result.facts:
+        expected = admin_scalar(governed_db, f'SELECT close FROM public."{PRICE}" WHERE ticker = %s AND date = %s',
+                                ("BBCA", fact.date))
+        assert float(fact.value) == float(expected)
+        assert fact.fact_id.startswith("fct_") and fact.query_id == result.query_id and fact.table == PRICE
+    assert len({f.fact_id for f in result.facts}) == 2 and result.missing == []
+    assert result.scope == {"entities": ["BBCA"], "dates": ["2026-08-28", "2026-08-31"], "columns": ["close"]}
+
+
+def test_lookup_reports_explicit_keys_without_a_source_row(governed_db) -> None:
+    result = governor(governed_db, storage=False).lookup("test-request", lookup_spec(
+        entities=["BBCA", "ZZZZ"], dates=["2026-08-31", "2026-08-29"]))  # 2026-08-29 is a Saturday
+    assert result.decision == "FACTS_READY" and len(result.facts) == 1
+    assert {"entity": "ZZZZ", "date": "2026-08-31"} in result.missing
+    assert {"entity": "BBCA", "date": "2026-08-29"} in result.missing
+
+
+def test_lookup_value_range_of_at_most_ten_trading_dates(governed_db) -> None:
+    gov = governor(governed_db, storage=False)
+    ok = gov.lookup("r", lookup_spec(dates=None, date_range={"start": "2026-08-18", "end": "2026-08-31"}))
+    assert ok.decision == "FACTS_READY" and 1 <= len(ok.facts) <= 10
+    wide = gov.lookup("r", lookup_spec(dates=None, date_range={"start": "2026-07-01", "end": "2026-08-31"}))
+    assert (wide.decision, wide.reason_code, wide.next_action) == ("REJECTED", "LOOKUP_TOO_LARGE", "USE_ANALYSIS_PATH")
+    assert wide.facts == []
+
+
+@pytest.mark.parametrize(
+    ("overrides", "reason"),
+    [
+        # more than 20 values: 5 entities x 5 dates x 1 column = 25
+        ({"entities": ["BBCA", "BBRI", "BMRI", "TLKM", "ASII"],
+          "dates": ["2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-31"]}, "LOOKUP_TOO_LARGE"),
+        ({"entities": ["BBCA", "BBRI", "BMRI", "TLKM", "ASII", "T001"]}, "LOOKUP_NOT_ALLOWED"),       # > 5 entities
+        ({"columns": ["open", "high", "low", "close", "volume"]}, "LOOKUP_NOT_ALLOWED"),              # > 4 columns
+        ({"aggregations": [{"column": "close", "function": "AVG"}]}, "LOOKUP_NOT_ALLOWED"),          # agg in VALUE
+        ({"order_by": [{"column": "close", "direction": "DESC"}]}, "LOOKUP_NOT_ALLOWED"),            # ranking
+        ({"rank": "top 5"}, "LOOKUP_NOT_ALLOWED"),
+        ({"mode": "AGGREGATE", "columns": None, "per_entity": True,
+          "aggregations": [{"column": "close", "function": "STDDEV"}]}, "LOOKUP_NOT_ALLOWED"),        # statistic
+        ({"mode": "AGGREGATE", "columns": None, "per_entity": True,
+          "aggregations": [{"column": "close", "function": "MEDIAN"}]}, "LOOKUP_NOT_ALLOWED"),
+        ({"mode": "CORRELATION"}, "LOOKUP_NOT_ALLOWED"),
+    ],
+)
+def test_lookup_refuses_everything_outside_the_narrow_contract(governed_db, overrides, reason) -> None:
+    result = governor(governed_db, storage=False).lookup("r", lookup_spec(**overrides))
+    assert (result.decision, result.reason_code, result.next_action) == ("REJECTED", reason, "USE_ANALYSIS_PATH")
+    assert result.facts == []
+
+
+@pytest.mark.parametrize(
+    ("overrides", "reason"),
+    [
+        ({"table": "Unapproved_Market_Table"}, "TABLE_NOT_APPROVED"),
+        ({"table": "Table_Catalog"}, "TABLE_NOT_APPROVED"),
+        ({"columns": ["no_such_column"]}, "UNKNOWN_COLUMN"),
+        ({"columns": ["source"]}, "COLUMN_NOT_ALLOWED"),         # ai_allowed = false in the catalog
+        ({"columns": ["ingestion_time"]}, "COLUMN_NOT_ALLOWED"),  # is_sensitive
+    ],
+)
+def test_lookup_applies_the_same_catalog_gates_as_request_data(governed_db, overrides, reason) -> None:
+    result = governor(governed_db, storage=False).lookup("r", lookup_spec(**overrides))
+    assert (result.decision, result.reason_code) == ("REJECTED", reason), result.message
+    assert result.facts == []
+
+
+def test_lookup_aggregate_is_computed_by_the_database_over_the_explicit_scope(governed_db) -> None:
+    gov = governor(governed_db, storage=False)
+    result = gov.lookup("r", lookup_spec(mode="AGGREGATE", columns=None, dates=None, per_entity=True,
+                                         entities=["BBCA", "BBRI"],
+                                         date_range={"start": "2026-08-24", "end": "2026-08-28"},
+                                         aggregations=[{"column": "volume", "function": "SUM"},
+                                                       {"column": "close", "function": "MAX"}]))
+    assert result.decision == "FACTS_READY", result.message
+    assert [(f.entity, f.aggregation, f.column) for f in result.facts] == [
+        ("BBCA", "SUM", "volume"), ("BBCA", "MAX", "close"), ("BBRI", "SUM", "volume"), ("BBRI", "MAX", "close")]
+    total = admin_scalar(governed_db, f'SELECT sum(volume) FROM public."{PRICE}" WHERE ticker = %s AND date '
+                                      "BETWEEN %s AND %s", ("BBCA", "2026-08-24", "2026-08-28"))
+    assert float(result.facts[0].value) == float(total)
+    assert result.facts[0].scope == {"entities": ["BBCA"], "from": "2026-08-24", "to": "2026-08-28"}
+    assert result.facts[0].kind == "AGGREGATE" and result.facts[0].date is None
+    across = gov.lookup("r", lookup_spec(mode="AGGREGATE", columns=None, dates=["2026-08-31"], per_entity=False,
+                                         entities=["BBCA", "BBRI"], aggregations=[{"column": "volume",
+                                                                                   "function": "SUM"}]))
+    assert len(across.facts) == 1 and across.facts[0].entity is None
+    assert across.facts[0].scope == {"entities": ["BBCA", "BBRI"], "dates": ["2026-08-31"]}
+
+
+def test_lookup_through_the_api_and_its_log_hold_ids_not_values(governed_db, caplog) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    gov = governor(governed_db, storage=False)
+    client = TestClient(create_app(gov.settings, governor=gov))
+    headers = {"Authorization": f"Bearer {API_KEY}"}
+    assert client.post("/v1/lookup", json={"request_id": "r", "spec": lookup_spec()}).status_code == 401
+    assert client.post("/v1/lookup", json={"spec": lookup_spec()}, headers=headers).status_code == 422
+    logger = logging.getLogger("market_sql_governor")
+    records: list[str] = []
+
+    class Capture(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record.getMessage())
+    handler = Capture(level=logging.INFO)
+    logger.addHandler(handler)
+    try:
+        body = client.post("/v1/lookup", json={"request_id": "r", "spec": lookup_spec()}, headers=headers).json()
+    finally:
+        logger.removeHandler(handler)
+    assert body["decision"] == "FACTS_READY" and len(body["facts"]) == 2
+    event = json.loads(records[-1])
+    assert event["event"] == "sql_governor_lookup" and event["fact_count"] == 2 and event["values_sha256"]
+    assert [f["fact_id"] for f in event["facts"]] == [f["fact_id"] for f in body["facts"]]
+    for fact in body["facts"]:
+        assert str(fact["value"]) not in records[-1]
+    assert API_KEY not in records[-1] and "postgresql://" not in records[-1]

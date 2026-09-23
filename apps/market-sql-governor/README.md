@@ -1,14 +1,15 @@
 # market-sql-governor
 
-The only path from the AI to market data in PostgreSQL. `market-ai-orc` exposes one tool,
-`request_data`, which forwards a structured **Data Request Spec** to this service. The service
-validates the spec against the five AI catalogs, compiles safe SQL, checks the planner estimate,
-executes read-only, and decides how the result is delivered:
-- **inline**, for small results;
-- as an **immutable Parquet snapshot**, for approved large results;
-- or it returns a structured refusal.
+The only path from the AI to market data in PostgreSQL. `market-ai-orc` exposes two tools that
+forward structured specs to this service, one per purpose:
+- `request_data` (**analysis input**): a Data Request Spec. An approved request is **always** an
+  immutable Parquet dataset (`DATASET_READY`), whatever its size. Its rows never go to the model.
+- `lookup_fact` (**specific facts**): a narrow Lookup Fact Spec. It returns at most 20 source
+  values (`VALUE`) or database aggregates (`AGGREGATE`), each with a `fact_id`.
 
-The AI never sends SQL, never sees a database credential, and never chooses the delivery format.
+Both validate against the five AI catalogs with the same gates, compile safe SQL, check the
+planner estimate, and execute read-only, or return a structured refusal. The AI never sends SQL,
+never sees a database credential, and never chooses the delivery format.
 
 ```text
 market-ai-orc ── request_data(spec) ──► POST /v1/query (Bearer SQL_GOVERNOR_API_KEY)
@@ -16,8 +17,10 @@ market-ai-orc ── request_data(spec) ──► POST /v1/query (Bearer SQL_GOV
       Gate 1-7  AI catalog policy (tables, columns, filters, joins, grouping, aggregation, coverage)
       Gate 8    SQL compiler (psycopg.sql identifiers, every value a bound parameter)
       Gate 9    EXPLAIN (FORMAT JSON) scan-rows and cost gate
-      Gate 10   read-only execution ── small ──► INLINE_RESULT (rows)
-                                    └─ large ──► Parquet + manifest in a private bucket ─► DATASET_READY (dataset_id)
+      Gate 10   read-only execution ──► Parquet + manifest in a private bucket ─► DATASET_READY (dataset_id)
+
+market-ai-orc ── lookup_fact(spec) ──► POST /v1/lookup   same gates 1-9 on a generated narrow request
+                                              └─► ≤ 20 values ─► FACTS_READY (facts with fact_id)
 ```
 
 ## Separation and credentials
@@ -40,6 +43,8 @@ read URL for one dataset. It **cannot** call `/v1/query`, and the orc key cannot
 - `GET /ready`: returns 200 only when the governed database is reachable.
 - `POST /v1/query`: requires `Authorization: Bearer ${SQL_GOVERNOR_API_KEY}`. The body is
   exactly `{"request_id": "...", "spec": DataRequestSpec}`. Any other key gets a 422.
+- `POST /v1/lookup`: the same key and body shape with a `LookupFactSpec` (see
+  [Lookup facts](#lookup-facts)).
 
 - `GET /v1/datasets/{dataset_id}/manifest`: requires either key. It returns a bounded safe
   subset of the manifest (`app/datasets.py`):
@@ -87,12 +92,11 @@ level. No field accepts SQL, expressions, join keys, or a delivery format.
 
 The response always contains `decision`, `next_action`, `reason_code`, `message`,
 `request_id`, `query_id`, `query_hash`, `source_tables`, `columns`, `estimated_scan_rows`,
-`estimated_plan_cost`, `returned_rows`, `output_bytes`, `rows`, `dataset`, `details`,
-`warnings`, and `runtime_ms`.
+`estimated_plan_cost`, `returned_rows`, `output_bytes`, `dataset`, `details`, `warnings`, and
+`runtime_ms`. There is no `rows` field.
 
 | decision | next_action | Meaning |
 |---|---|---|
-| `INLINE_RESULT` | `USE_INLINE_RESULT` | Executed; `rows` holds the observations. Numerics are exact decimal strings |
 | `DATASET_READY` | `RUN_ANALYSIS` | Executed and stored as Parquet; `dataset` holds the reference and summary, never rows or object keys |
 | `NEEDS_NARROWING` | `REVISE_DATA_REQUEST` | Allowed but too broad or expensive. `details` names the limit and the available range |
 | `REJECTED` | `STOP_OR_REFORMULATE` | Not allowed as specified. `reason_code` names the gate |
@@ -145,17 +149,43 @@ The response always contains `decision`, `next_action`, `reason_code`, `message`
     `idle_in_transaction_session_timeout`. `statement_timeout` bounds each `FETCH`, and
     `SQL_MAX_EXECUTION_SECONDS` bounds the whole extraction (`QUERY_TIMEOUT`).
 
-## Routing
+## Delivery
 
-- **Inline:** if the rows (≤ `SQL_MAX_INLINE_ROWS`) and their serialized JSON
-  (≤ `SQL_MAX_INLINE_OUTPUT_BYTES`) both fit, the result is `INLINE_RESULT`.
-- **Dataset:** otherwise rows stream in batches of 10,000 into a zstd Parquet file, bounded by
-  `SQL_MAX_DATASET_ROWS` and `SQL_MAX_DATASET_BYTES`. Exceeding a bound gives
-  `NEEDS_NARROWING`/`DATASET_TOO_LARGE`, and nothing is stored.
-- **No storage:** without dataset storage an oversized result gets
-  `NEEDS_NARROWING`/`RESULT_TOO_LARGE_FOR_INLINE`.
+- **Dataset only:** every approved request, even a single row, streams in batches of 10,000 into
+  a zstd Parquet file, bounded by `SQL_MAX_DATASET_ROWS` and `SQL_MAX_DATASET_BYTES`. Exceeding a
+  bound gives `NEEDS_NARROWING`/`DATASET_TOO_LARGE`, and nothing is stored. An empty result is an
+  empty dataset.
+- **No storage:** without dataset storage an approved request gets
+  `REJECTED`/`DATASET_STORAGE_UNAVAILABLE` after the gates; rows are never returned instead.
 
-The AI cannot influence routing beyond lowering `requested_limit`.
+The row, byte, and time bounds are cost limits, not a delivery choice.
+
+## Lookup facts
+
+`POST /v1/lookup` answers specific factual questions (a close on a date, a week's total volume)
+without Python. `LookupFactSpec` (`app/spec.py`) has `purpose`, `mode`, `table`, `entities`
+(1–5 tickers or the table's entity codes), `dates` (≤ 10) or `date_range`, and either `columns`
+(`VALUE`, 1–4) or `aggregations` plus `per_entity` (`AGGREGATE`, 1–4 of `SUM`, `AVG`, `MIN`,
+`MAX`, `COUNT`). It has no ordering, ranking, statistic, or free filter field.
+
+The Governor turns the spec into an ordinary Data Request Spec (entity `IN` filter, date `IN` or
+`BETWEEN` filter on the catalog's entity and time columns) and runs **gates 1–9 unchanged**, so
+the table allowlist, column permissions, allowed aggregations, coverage, and EXPLAIN limits are
+exactly those of `request_data`. Then:
+- `VALUE`: at most 20 values (rows × columns) and at most 10 distinct dates; otherwise
+  `REJECTED`/`LOOKUP_TOO_LARGE`. Explicit keys without a source row are listed in `missing`.
+- `AGGREGATE`: the database computes the aggregates over the explicit scope (one row per entity
+  or one row in total), at most 20 values; the scope comes back whole with every fact.
+
+Each fact carries `fact_id`, `kind`, `table`, `column`, `aggregation`, `entity`, `date` or
+`scope`, the `value` (numerics as exact decimal strings), and `query_id`.
+
+| decision | next_action | Meaning |
+|---|---|---|
+| `FACTS_READY` | `USE_FACTS` | The facts are in `facts` |
+| `REJECTED` (`LOOKUP_NOT_ALLOWED`, `LOOKUP_TOO_LARGE`, `AGGREGATION_NOT_ALLOWED`) | `USE_ANALYSIS_PATH` | Not a fact lookup (too many values, ranking, a statistic, or another shape): use `request_data` plus a Python analysis |
+| `REJECTED` (other gates) | `STOP_OR_REFORMULATE` | For example `TABLE_NOT_APPROVED`, `UNKNOWN_COLUMN` |
+| `NEEDS_NARROWING` | `REVISE_LOOKUP` | For example `OUTSIDE_VERIFIED_COVERAGE` |
 
 ## Parquet snapshots and manifest
 
@@ -231,7 +261,6 @@ mistake.
 | `SQL_LOCK_TIMEOUT_SECONDS` | 2 | Lock wait timeout |
 | `SQL_MAX_TABLES` / `SQL_MAX_JOINS` | 3 / 2 | Tables and joins per request |
 | `SQL_MAX_COLUMNS` / `SQL_MAX_FILTERS` / `SQL_MAX_IN_VALUES` | 20 / 10 / 100 | Request breadth |
-| `SQL_MAX_INLINE_ROWS` / `SQL_MAX_INLINE_OUTPUT_BYTES` | 200 / 24000 | Inline routing thresholds |
 | `SQL_MAX_ESTIMATED_SCAN_ROWS` | 2,000,000 | EXPLAIN scan ceiling |
 | `SQL_MAX_PLAN_COST` | 600,000 | EXPLAIN total-cost ceiling, calibrated on live dev data on 2026-09-23: cost 411k took 29 s (106k Feature 02 rows) and cost 819k took over 74 s |
 | `SQL_MAX_EXECUTION_SECONDS` | 60 | Wall-clock bound on one whole extraction; must be at least `SQL_STATEMENT_TIMEOUT_SECONDS` |
@@ -253,6 +282,11 @@ Each query writes one JSON line (`event = sql_governor_query`) with `request_id`
 `query_hash`, `source_tables`, `requested_columns`, `decision`, `reason_code`, `next_action`,
 `estimated_scan_rows`, `estimated_plan_cost`, `returned_rows`, `output_bytes`, `dataset_id`, and
 `runtime_ms`. Filter values, rows, SQL parameters, credentials, and headers are never logged.
+
+Each lookup writes `event = sql_governor_lookup` with `request_id`, `query_id`, `query_hash`,
+`mode`, `table`, `decision`, `reason_code`, `next_action`, `fact_count`, and per fact its
+`fact_id`, `column`, `aggregation`, `entity`, and `date`, plus `values_sha256`. The values
+themselves are not logged; the hash lets an audit confirm what was returned.
 
 ## Railway deployment
 
