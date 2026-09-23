@@ -181,8 +181,13 @@ merely because Python execution succeeded.
 If the sandbox reports incomplete input, insufficient history,
 execution failure, or another limitation, preserve that
 limitation in the final answer."""
-    assert SYSTEM_PROMPT.endswith(
-        "strict output schema.\n\n" + block + "\n\n" + query_block + "\n\n" + python_block)
+    validation_block = SYSTEM_PROMPT[SYSTEM_PROMPT.index("ANALYSIS VALIDATION RULES"):]
+    assert SYSTEM_PROMPT.endswith("strict output schema.\n\n" + block + "\n\n" + query_block + "\n\n"
+                                  + python_block + "\n\n" + validation_block)
+    for rule in ("call create_analysis_spec", "provenance", "Never change the user's requested period",
+                 "required_input", "execution_status and validation_status are independent",
+                 "Only\nvalidation PASS supports presenting a result", "not\nstatistically validated"):
+        assert rule in validation_block, rule
     for secret_limit in ("SQL_MAX", "INLINE_ROWS", "password", "200 rows", "PY_SANDBOX", "railway.internal",
                          "bucket", "seccomp", "2 GB", "120 s", "http"):
         assert secret_limit not in SYSTEM_PROMPT

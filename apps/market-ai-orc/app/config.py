@@ -80,6 +80,8 @@ class Settings:
     py_sandbox_request_timeout_seconds: int = 45
     py_sandbox_poll_wait_seconds: int = 20
     python_analysis_max_result_bytes: int = 40000
+    # Relative analysis periods ("last three months") are resolved in this time zone.
+    analysis_timezone: str = "Asia/Jakarta"
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -127,7 +129,14 @@ class Settings:
             py_sandbox_request_timeout_seconds=_integer(env, "PY_SANDBOX_REQUEST_TIMEOUT_SECONDS", 45, minimum=10),
             py_sandbox_poll_wait_seconds=_integer(env, "PY_SANDBOX_POLL_WAIT_SECONDS", 20, minimum=0),
             python_analysis_max_result_bytes=_integer(env, "PYTHON_ANALYSIS_MAX_RESULT_BYTES", 40000, minimum=8192),
+            analysis_timezone=env.get("ANALYSIS_TIMEZONE", "").strip() or "Asia/Jakarta",
         )
+        try:
+            from zoneinfo import ZoneInfo
+
+            ZoneInfo(settings.analysis_timezone)
+        except Exception as exc:  # noqa: BLE001 - any lookup failure is a configuration error
+            raise ConfigError("ANALYSIS_TIMEZONE must be an IANA time zone such as Asia/Jakarta") from exc
         if settings.ai_reasoning_effort not in REASONING_EFFORTS:
             raise ConfigError(
                 "AI_REASONING_EFFORT must be one of: " + ", ".join(sorted(REASONING_EFFORTS))

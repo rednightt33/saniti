@@ -5,16 +5,18 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Protocol
 
 from .compaction import dumps, estimate_tokens, stable_hash, trim_history
 from .config import Settings
 from .openrouter_client import ProviderError, response_usage
 from .schemas import (
-    FINAL_RESPONSE_SCHEMA, STATUS_BY_RESPONSE_TYPE, AgentRunRequest, AgentRunResponse,
+    FINAL_RESPONSE_SCHEMA, STATUS_BY_RESPONSE_TYPE, AgentRunRequest, AgentRunResponse, AnalysisSummary,
     ExecutionMetadata, FinalResponse, RunError,
 )
 from .tools import ToolOutcome, ToolRegistry, error_outcome
+from .tools.analysis import current_run_context, run_context
 from .tools.request_data import current_request_id
 
 
@@ -122,7 +124,42 @@ Do not treat an analytical result as statistically validated
 merely because Python execution succeeded.
 If the sandbox reports incomplete input, insufficient history,
 execution failure, or another limitation, preserve that
-limitation in the final answer."""
+limitation in the final answer.
+
+ANALYSIS VALIDATION RULES
+Before running Python, call create_analysis_spec with a structured
+contract of the requested calculation: universe, analysis period,
+frequency, inputs, calculations with their parameters, and the
+outputs your code will emit.
+Mark each requirement's provenance truthfully: USER_EXPLICIT only
+for what the user stated, USER_CLARIFIED for answers to your
+clarification question, APPROVED_DEFAULT with its default_id, and
+AI_INFERRED for anything else.
+Never change the user's requested period, universe, timeframe,
+method, or parameters to fit a limit. If the spec result is
+ANALYSIS_SPEC_MISMATCH, correct the spec; if it is
+NEEDS_CLARIFICATION, ask the user.
+Request data that covers the returned required_input, including
+the warm-up history before the analysis period.
+Run the analysis with the approved spec_id and emit every declared
+output with its declared name and columns.
+execution_status and validation_status are independent. Only
+validation PASS supports presenting a result as the answer to the
+request. On FAILED, revise and rerun or report the limitation; on
+INCOMPLETE, request the missing data or state exactly what is not
+covered; on UNVERIFIED, state that the result could not be
+independently validated.
+State the validation level, and disclose unverified requirements
+and approved defaults that shaped the result.
+Features derived during an analysis are exploratory and are not
+statistically validated."""
+VALIDATION_GATE_INSTRUCTION = (
+    "Your answer relies on Python analyses that did not pass validation: {findings}. A result that failed "
+    "validation must not be presented as a valid answer. Fix the analysis and run it again, request the missing "
+    "data, or return response_type \"LIMITATION\" that states what was and was not validated."
+)
+GATE_NOTICE = ("Validation did not pass for the analysis behind this response; any figures below are not a "
+               "validated answer to the request. ")
 
 RESPONSE_FORMAT_NAME = "saniti_agent_response"
 REJECTED_OUTPUT_ECHO_CHARS = 4000
@@ -157,6 +194,10 @@ class ResponsesTransport(Protocol):
     def create(self, payload: dict[str, Any]) -> dict[str, Any]: ...
 
 
+class GateRejection(ValueError):
+    """The final answer relied on an analysis that did not pass validation (one chance to repair)."""
+
+
 class RunFailure(RuntimeError):
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
@@ -188,6 +229,11 @@ class RunState:
     # tool+arguments hash -> (consecutive executions with an unchanged result, last result hash)
     call_history: dict[str, tuple[int, str | None]] = field(default_factory=dict)
     tools_requested: list[str] = field(default_factory=list)
+    # analysis_id -> latest known summary, in submission order; spec_id -> review summary
+    analyses: dict[str, dict[str, Any]] = field(default_factory=dict)
+    specs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    gate_rejections: int = 0
+    validation_gate: str = "NOT_APPLICABLE"
 
 
 class AgentOrchestrator:
@@ -200,10 +246,12 @@ class AgentOrchestrator:
         registry: ToolRegistry,
         *,
         clock: Callable[[], float] = time.monotonic,
+        wall_clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
     ) -> None:
         self.settings = settings
         self.client = client
         self.registry = registry
+        self.wall_clock = wall_clock
         self.clock = clock
 
     def run(self, request: AgentRunRequest) -> AgentRunResponse:
@@ -215,6 +263,9 @@ class AgentOrchestrator:
             history_turns_dropped=dropped,
         )
         token = current_request_id.set(request.request_id)
+        context = current_run_context.set(run_context(
+            self.wall_clock(), self.settings.analysis_timezone,
+            [(turn.role, turn.content) for turn in request.history], request.message))
         try:
             final = self._loop(state)
             result = AgentRunResponse(
@@ -231,6 +282,7 @@ class AgentOrchestrator:
             )
         finally:
             current_request_id.reset(token)
+            current_run_context.reset(context)
         log_event(
             "ai_run_completed" if result.status != "FAILED" else "ai_run_failed",
             request_id=state.request_id,
@@ -296,7 +348,14 @@ class AgentOrchestrator:
 
             raw = self._output_text(response)
             try:
-                return self._check_budget_limitations(state, self._parse_final_output(raw))
+                final = self._check_budget_limitations(state, self._parse_final_output(raw))
+                return self._validation_gate(state, final)
+            except GateRejection as exc:
+                # The model may still repair the analysis, so tools stay available for this turn.
+                if raw.strip():
+                    state.input_items.append({"role": "assistant", "content": raw[:REJECTED_OUTPUT_ECHO_CHARS]})
+                state.input_items.append({"role": "user", "content": str(exc)})
+                state.structured_only = False
             except ValueError as exc:
                 if tools:
                     self._request_structured_final(state, raw)
@@ -389,6 +448,7 @@ class AgentOrchestrator:
             )
 
         outcome = self.registry.execute(call_id, name, raw_arguments)
+        self._track_analysis(state, name, outcome)
         result_hash = stable_hash(outcome.output)
         count = count + 1 if last_result in (None, result_hash) else 1
         state.call_history[key] = (count, result_hash)
@@ -421,6 +481,81 @@ class AgentOrchestrator:
                 "ANSWER with limitations stating what was read and what remains unread."
             )
         return final
+
+    @staticmethod
+    def _track_analysis(state: RunState, name: str, outcome: ToolOutcome) -> None:
+        """Record every spec review and analysis status the model has seen (from tool results only)."""
+        if not outcome.ok:
+            return
+        result = outcome.output.get("result")
+        if not isinstance(result, dict):
+            return
+        if name == "create_analysis_spec" and result.get("spec_id"):
+            state.specs[result["spec_id"]] = {
+                "status": result.get("status"),
+                "unverified": [str(u.get("requirement")) for u in result.get("unverified_requirements") or []][:12]}
+        elif name in ("run_python_analysis", "get_analysis_result") and result.get("analysis_id") \
+                and result.get("execution_status"):
+            previous = state.analyses.get(result["analysis_id"], {})
+            state.analyses[result["analysis_id"]] = {
+                "analysis_id": result["analysis_id"], "spec_id": result.get("spec_id") or previous.get("spec_id"),
+                "execution_status": result["execution_status"], "validation_status": result.get("validation_status"),
+                "validation_level": result.get("validation_level"),
+                "reason_codes": list(result.get("reason_codes") or [])[:10],
+                "error_code": (result.get("error") or {}).get("code")}
+
+    def _gate_findings(self, state: RunState) -> tuple[list[str], list[str]]:
+        """(blocking findings, mandatory limitation lines) from the latest analysis of each spec."""
+        latest: dict[str, dict[str, Any]] = {}
+        for summary in state.analyses.values():
+            latest[summary.get("spec_id") or summary["analysis_id"]] = summary
+        blocking, lines = [], []
+        for summary in latest.values():
+            ident = summary["analysis_id"]
+            reasons = ", ".join(summary["reason_codes"]) or "no reason recorded"
+            execution, validation = summary["execution_status"], summary.get("validation_status")
+            level = summary.get("validation_level") or "EXECUTION_ONLY"
+            if execution in ("QUEUED", "RUNNING"):
+                blocking.append(f"analysis {ident} had not finished")
+                lines.append(f"Analysis {ident} had not finished, so no calculated result from it is available.")
+            elif execution != "COMPLETED":
+                blocking.append(f"analysis {ident} did not complete ({summary.get('error_code') or execution})")
+                lines.append(f"Analysis {ident} did not complete ({summary.get('error_code') or execution}); no "
+                             f"validated calculation result is available from it.")
+            elif validation in ("FAILED", "INCOMPLETE"):
+                blocking.append(f"analysis {ident} validation {validation} ({reasons})")
+                lines.append(f"Analysis {ident}: execution COMPLETED but validation {validation} ({reasons}); its "
+                             f"result is not a validated answer to the requested scope.")
+            elif validation == "UNVERIFIED":
+                lines.append(f"Analysis {ident}: validation UNVERIFIED (level {level}); its scope and values could "
+                             f"not be checked independently.")
+            elif level != "CALCULATION_VERIFIED":
+                lines.append(f"Analysis {ident}: validation {validation} at level {level}; the calculation itself "
+                             f"was not independently recalculated.")
+            spec = state.specs.get(summary.get("spec_id") or "")
+            if spec and spec["unverified"]:
+                lines.append(f"Requirements not stated by the user in the spec of analysis {ident}: "
+                             f"{', '.join(spec['unverified'])}.")
+        return blocking, lines
+
+    def _validation_gate(self, state: RunState, final: FinalResponse) -> FinalResponse:
+        """Backend enforcement: an answer may not rest on an analysis that failed validation."""
+        if not state.analyses or final.response_type == "CLARIFICATION":
+            return final
+        blocking, lines = self._gate_findings(state)
+        if blocking and final.response_type == "ANSWER":
+            if state.gate_rejections == 0 and not state.tools_locked:
+                state.gate_rejections += 1
+                raise GateRejection(VALIDATION_GATE_INSTRUCTION.format(findings="; ".join(blocking)))
+            state.validation_gate = "FORCED_LIMITATION"
+            return FinalResponse(response_type="LIMITATION", answer=GATE_NOTICE + final.answer,
+                                 clarification_question=None, assumptions=final.assumptions,
+                                 limitations=lines + [x for x in final.limitations if x not in lines])
+        missing = [line for line in lines if line not in final.limitations]
+        state.validation_gate = "ANNOTATED" if missing else "PASSED"
+        if not missing:
+            return final
+        return final.model_copy(update={"limitations": [*final.limitations, *missing]})
 
     @staticmethod
     def _normalized_arguments(raw: Any) -> Any:
@@ -514,6 +649,9 @@ class AgentOrchestrator:
             total_tokens=state.total_tokens,
             duration_ms=int((self.clock() - state.started) * 1000),
             tools_withdrawn_reason=state.tools_withdrawn_reason,
+            analyses=[AnalysisSummary(**{k: v for k, v in a.items() if k != "error_code"})
+                      for a in state.analyses.values()],
+            validation_gate=state.validation_gate,
         )
 
     def _failed(self, state: RunState, code: str, message: str) -> AgentRunResponse:

@@ -3,12 +3,17 @@ FROM ${BASE_IMAGE}
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# One dedicated non-root user per concurrent analysis slot (PY_SANDBOX_SLOT_UID_BASE + slot).
+# One dedicated non-root user per concurrent analysis slot (PY_SANDBOX_SLOT_UID_BASE + slot), and a
+# separate validator user (PY_SANDBOX_VALIDATOR_UID) that can read inputs and declared outputs but
+# not an analysis's private intermediate or output directories.
 RUN for i in 1 2 3 4; do \
       groupadd --system --gid "2000$i" "sandbox$i" && \
       useradd --system --uid "2000$i" --gid "2000$i" --no-create-home --home-dir /nonexistent \
               --shell /usr/sbin/nologin "sandbox$i"; \
-    done
+    done \
+ && groupadd --system --gid 20100 sandboxv \
+ && useradd --system --uid 20100 --gid 20100 --no-create-home --home-dir /nonexistent \
+            --shell /usr/sbin/nologin sandboxv
 
 WORKDIR /app
 COPY requirements.txt requirements-analysis.txt ./

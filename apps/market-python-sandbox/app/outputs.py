@@ -15,6 +15,7 @@ import re
 import secrets
 import stat
 import struct
+import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -137,6 +138,20 @@ class OutputStore:
                  "expires_at": expires}
         self.records.add_file(entry)
         return entry
+
+    def store_json(self, analysis_id: str, name: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """Persist a harness-generated JSON artifact (for example derived-feature definitions)."""
+        expires = (datetime.now(timezone.utc) + timedelta(hours=self.settings.result_retention_hours)).replace(
+            microsecond=0).isoformat()
+        raw = json.dumps(payload, sort_keys=True, default=str).encode()
+        with tempfile.TemporaryFile(dir=self.root) as handle:
+            handle.write(raw)
+            handle.flush()
+            stored = self._store(analysis_id, handle.fileno(), "ARTIFACT", "JSON", "art", None, expires)
+        return {"type": "ARTIFACT", "name": name, "generated_by": "HARNESS",
+                "description": "Machine-readable definitions of the features derived in this analysis.",
+                "artifact_id": stored["file_id"], "format": "JSON", "row_count": None,
+                "byte_count": stored["byte_count"], "checksum_sha256": stored["checksum_sha256"], "expires_at": expires}
 
     def _parquet_rows(self, fd: int, name: str, expected_columns: list[str] | None) -> int:
         with os.fdopen(os.dup(fd), "rb") as handle:

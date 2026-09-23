@@ -53,21 +53,40 @@ class FakeGovernor:
         self.calls: list[dict] = []
         self.checksum_override: dict[str, str] = {}
 
+    FRIENDLY = {"double": "float64", "float": "float32", "date32[day]": "date", "timestamp[us]": "timestamp",
+                "timestamp[ns]": "timestamp", "bool": "boolean", "string": "string", "large_string": "string",
+                "int64": "int64", "int32": "int32"}
+
     def add(self, data, *, expired: bool = False, numeric: tuple[str, ...] = (), completeness: str = "COMPLETE",
-            dataset_id: str | None = None) -> str:
+            dataset_id: str | None = None, source_table: str = "Price_Stock_Indonesia_IDX",
+            requested_from: str | None = None, requested_to: str | None = None, entities: list[str] | None = None,
+            missing: list[str] | None = None, created_at: datetime | None = None,
+            aggregation: dict[str, str] | None = None, source_columns: dict[str, str] | None = None) -> str:
         dataset_id = dataset_id or f"ds_{uuid.uuid4().hex[:24]}"
         table = data if isinstance(data, pa.Table) else pa.Table.from_pandas(data, preserve_index=False)
         path = self.root / f"{dataset_id}.parquet"
         pq.write_table(table, path, compression="zstd")
         raw = path.read_bytes()
-        now = datetime.now(timezone.utc)
+        now = created_at or datetime.now(timezone.utc)
+        columns = [{"name": n, "type": self.FRIENDLY.get(str(t), str(t)), "source_type": None,
+                    "source_table": source_table, "source_column": (source_columns or {}).get(n, n),
+                    "aggregation": (aggregation or {}).get(n)}
+                   for n, t in zip(table.column_names, table.schema.types)]
+        date_column = next((c["name"] for c in columns if c["type"] == "date"), None)
+        entity_column = "ticker" if "ticker" in table.column_names else None
+        dates = table.column(date_column).to_pylist() if date_column else []
+        present = sorted(set(table.column(entity_column).to_pylist())) if entity_column else []
         self.datasets[dataset_id] = {
             "path": path, "expired": expired, "manifest": {
-                "dataset_id": dataset_id, "format": "PARQUET", "source_tables": ["Price_Stock_Indonesia_IDX"],
+                "dataset_id": dataset_id, "format": "PARQUET", "source_tables": [source_table],
                 "query_id": "qry_test", "row_count": table.num_rows, "column_count": table.num_columns,
-                "byte_count": len(raw), "columns": [{"name": n, "type": str(t)} for n, t in
-                                                    zip(table.column_names, table.schema.types)],
-                "completeness_status": completeness, "missing_entities_count": 0 if completeness == "COMPLETE" else 3,
+                "byte_count": len(raw), "columns": columns,
+                "requested_scope": {"date_range": {"from": requested_from, "to": requested_to},
+                                    "entities": entities, "entities_count": len(entities) if entities else None},
+                "actual_date_range": {"from": str(min(dates)), "to": str(max(dates))} if dates else None,
+                "entities_present_count": len(present) if entity_column else None,
+                "missing_entities": missing or [], "missing_entities_count": len(missing or []),
+                "completeness_status": completeness if not missing else "MISSING_REQUESTED_ENTITIES",
                 "checksum_sha256": hashlib.sha256(raw).hexdigest(), "numeric_float64_columns": list(numeric),
                 "created_at": now.isoformat(), "expires_at": (now + timedelta(days=7)).isoformat(),
             }}
@@ -125,6 +144,7 @@ def make_service(sandbox_root: Path, governor: FakeGovernor):
     def factory(start: bool = True, **overrides: str) -> AnalysisService:
         settings = Settings.from_env(base_env(sandbox_root, **overrides))
         service = AnalysisService(settings, datasets=DatasetProvider(settings, transport=governor.transport()))
+        service.datasets_governor = governor  # lets tests look up the fake manifests
         if start:
             service.start()
         services.append(service)
@@ -153,3 +173,42 @@ def ohlc_frame(tickers: dict[str, int], seed: int = 7):
                                     "Close": close}))
     frame = pd.concat(frames, ignore_index=True)
     return frame.sample(frac=1.0, random_state=seed).reset_index(drop=True)
+
+
+def price_frame(tickers: dict[str, tuple[str, int]], seed: int = 11):
+    """Deterministic daily closes per ticker: {ticker: (first business day, number of days)}, shuffled."""
+    import numpy as np
+    import pandas as pd
+
+    rng = np.random.default_rng(seed)
+    frames = []
+    for ticker, (start, days) in tickers.items():
+        dates = pd.bdate_range(start, periods=days)
+        close = 1000 + np.cumsum(rng.normal(0, 15, days))
+        frames.append(pd.DataFrame({"ticker": ticker, "date": dates.date, "close": close,
+                                    "volume": rng.integers(1000, 100000, days).astype(float)}))
+    frame = pd.concat(frames, ignore_index=True)
+    return frame.sample(frac=1.0, random_state=seed).reset_index(drop=True)
+
+
+def zscore_spec(*, window: int = 20, universe: str = "ALL_IN_SOURCE", tickers: list[str] | None = None,
+                period: dict | None = None, output_grain: str = "ENTITY_DATE", selection: list | None = None,
+                question: str = "Calculate rolling 20-day z-scores for all IDX stocks over the last three months.",
+                window_provenance: str = "USER_EXPLICIT", exclusions: list | None = None) -> dict:
+    return {
+        "question": question,
+        "universe": {"type": universe, "tickers": tickers, "provenance": "USER_EXPLICIT",
+                     "default_id": "DEFAULT_UNIVERSE_ALL_IN_SOURCE" if universe == "ALL_IN_SOURCE" else None},
+        "analysis_period": period or {"mode": "TRAILING", "unit": "MONTH", "count": 3, "provenance": "USER_EXPLICIT",
+                                      "default_id": "DEFAULT_TRAILING_CALENDAR_WINDOW"},
+        "frequency": {"value": "1D", "provenance": "APPROVED_DEFAULT", "default_id": "DEFAULT_FREQUENCY_DAILY"},
+        "inputs": [{"name": "prices", "source_table": "Price_Stock_Indonesia_IDX", "entity_column": "ticker",
+                    "date_column": "date", "columns": ["ticker", "date", "close"]}],
+        "calculations": [{"id": "z20", "method": "ROLLING_ZSCORE", "dataset": "prices", "columns": ["close"],
+                          "params": [{"name": "window", "value": window, "provenance": window_provenance}],
+                          "output_column": f"zscore_{window}", "provenance": "USER_EXPLICIT"}],
+        "outputs": [{"name": "zscores", "grain": output_grain,
+                     "coverage": "SELECTION" if selection else "FULL", "calculations": ["z20"],
+                     "selection": selection}],
+        "exclusion_rules": exclusions or [],
+    }

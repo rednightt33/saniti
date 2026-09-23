@@ -1,10 +1,12 @@
 """Entry point of one analysis execution process (started by the harness as a non-root slot user).
 
 Order matters and is fixed:
-1. read the harness-written job file (read-only for this user);
-2. lower resource limits and pin the CPU set (irreversible for a non-root process);
-3. install the seccomp filter while the process is still single-threaded;
-4. only then import analytical libraries, seed randomness, and execute the model's code.
+1. read the harness-written runtime file (read-only for this user);
+2. confine the process: resource limits, CPU set, then the seccomp filter (runtime/confine.py);
+3. configure the saniti helper from the workspace manifest and the approved spec, and replace
+   DuckDB's connections with locked ones (memory and temp-disk limits, no external files outside
+   the workspace, no extensions, no attachments, configuration locked);
+4. only then seed randomness and execute analysis.py.
 
 The process exits 0 when the code finished (outputs are in output/index.json), 3 when it raised,
 and anything else means it was killed or crashed. Structured errors go to output/error.json.
@@ -13,18 +15,12 @@ from __future__ import annotations
 
 import json
 import os
-import resource
-import signal
 import sys
 import traceback
 
 EXIT_OK, EXIT_ERROR = 0, 3
 MESSAGE_MAX = 800
 TRACE_FRAMES = 6
-
-
-def _limit(which: int, value: int) -> None:
-    resource.setrlimit(which, (value, value))
 
 
 def _write_error(output_dir: str, code: str, exc: BaseException | None, message: str | None = None) -> None:
@@ -65,43 +61,29 @@ def _classify(exc: BaseException) -> str:
     if isinstance(exc, SyntaxError):
         return "SYNTAX_ERROR"
     for item in _chain(exc):
-        if isinstance(item, MemoryError):
+        if isinstance(item, MemoryError) or type(item).__name__ == "OutOfMemoryException":
             return "MEMORY_LIMIT_EXCEEDED"
         if isinstance(item, OSError) and item.errno == _errno.EFBIG:
             return "OUTPUT_LIMIT_EXCEEDED"
         if isinstance(item, OSError) and item.errno in (_errno.EPERM, _errno.EACCES):
             return "FORBIDDEN_OPERATION"  # denied by the sandbox (seccomp or file permissions)
-        if type(item).__name__ == "gaierror":
-            return "FORBIDDEN_OPERATION"  # name resolution needs a socket, which is denied
+        if type(item).__name__ in ("gaierror", "PermissionException"):
+            return "FORBIDDEN_OPERATION"  # sockets are denied; DuckDB refused a file outside the workspace
     return "PYTHON_EXCEPTION"
 
 
 def main(job_dir: str) -> int:
-    with open(os.path.join(job_dir, "job.json"), encoding="utf-8") as handle:
-        job = json.load(handle)
+    with open(os.path.join(job_dir, "runtime.json"), encoding="utf-8") as handle:
+        runtime = json.load(handle)
     output_dir = os.path.join(job_dir, "output")
-    limits = job["limits"]
-
-    mib = 1 << 20
-    _limit(resource.RLIMIT_AS, int(limits["virtual_memory_mb"]) * mib)
-    _limit(resource.RLIMIT_CPU, int(limits["cpu_seconds"]))
-    _limit(resource.RLIMIT_FSIZE, int(limits["max_artifact_bytes"]))
-    _limit(resource.RLIMIT_NOFILE, 256)
-    _limit(resource.RLIMIT_NPROC, int(limits["max_threads"]))
-    _limit(resource.RLIMIT_CORE, 0)
-    signal.signal(signal.SIGXFSZ, signal.SIG_IGN)  # oversized writes fail with EFBIG instead of killing
-    if job.get("cpus"):
-        os.sched_setaffinity(0, set(job["cpus"]))
-
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    import seccomp
+    import confine
 
-    if job.get("require_seccomp", True):
-        seccomp.install()
+    confine.apply(runtime["limits"], runtime.get("cpus"), runtime.get("require_seccomp", True))
 
     import saniti
 
-    saniti._configure(job, output_dir)
+    saniti._configure(runtime, job_dir)
     import random
 
     random.seed(saniti.SEED)
@@ -111,25 +93,13 @@ def main(job_dir: str) -> int:
         numpy.random.seed(saniti.SEED)
     except ImportError:  # pragma: no cover
         pass
-    try:
-        import duckdb
+    saniti._lock_duckdb()
 
-        threads = int(job.get("threads", 1))
-        duckdb.default_connection().execute(f"SET threads = {threads}")
-        _connect = duckdb.connect
-
-        def connect(database=":memory:", read_only=False, config=None, **kwargs):
-            config = dict(config or {})
-            config.setdefault("threads", threads)  # resource default, not a security control
-            return _connect(database, read_only, config, **kwargs)
-
-        duckdb.connect = connect
-    except ImportError:  # pragma: no cover
-        pass
-
-    source = job["code"]
-    namespace = {"__name__": "__main__", "__builtins__": __builtins__, "DATASETS": dict(saniti.DATASETS),
-                 "SEED": saniti.SEED}
+    with open(os.path.join(job_dir, "analysis.py"), encoding="utf-8") as handle:
+        source = handle.read()
+    namespace = {"__name__": "__main__", "__builtins__": __builtins__, "INPUTS": saniti.INPUTS, "SPEC": saniti.SPEC,
+                 "SEED": saniti.SEED, "ANALYSIS_START": saniti.ANALYSIS_START, "ANALYSIS_END": saniti.ANALYSIS_END,
+                 "REFERENCE_DATE": saniti.REFERENCE_DATE}
     import linecache
 
     linecache.cache["<analysis>"] = (len(source), None, source.splitlines(True), "<analysis>")
@@ -143,6 +113,8 @@ def main(job_dir: str) -> int:
     except BaseException as exc:  # noqa: BLE001 - every failure is reported as a structured error
         _write_error(output_dir, _classify(exc), exc)
         return EXIT_ERROR
+    finally:
+        saniti._flush()
     return EXIT_OK
 
 

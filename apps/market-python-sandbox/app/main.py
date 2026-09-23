@@ -15,6 +15,7 @@ from .config import Settings
 from .models import ANALYSIS_ID, AnalysisRequest
 from .outputs import CONTENT_TYPES
 from .service import AnalysisService, ServiceUnavailable
+from .spec import SPEC_ID, SpecRequest
 
 FILE_ID = re.compile(r"^(res|art)_[0-9a-f]{24}$")
 PAGE_MAX = 500
@@ -43,7 +44,7 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
         yield
         service.stop()
 
-    app = FastAPI(title="Saniti Market Python Sandbox", version="1.0.0", docs_url=None, redoc_url=None,
+    app = FastAPI(title="Saniti Market Python Sandbox", version="2.0.0", docs_url=None, redoc_url=None,
                   openapi_url=None, lifespan=lifespan)
     app.state.service = service
     expected = f"Bearer {settings.api_key}"
@@ -78,21 +79,55 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
     def runtime() -> dict[str, Any]:
         return {"isolation": service.isolation.public(), "versions": service.isolation.versions,
                 "network_isolation": "seccomp: socket creation denied in analysis processes (not a network namespace)",
+                "duckdb": "locked connection: files only inside the job's input/ and intermediate/ directories, "
+                          "no extensions or attachments, configuration locked",
                 "limits": {**settings.child_limits(), "max_runtime_seconds": settings.max_runtime_seconds,
-                           "max_memory_mb": settings.max_memory_mb, "max_datasets": settings.max_datasets,
-                           "max_input_rows": settings.max_input_rows, "max_input_bytes": settings.max_input_bytes,
+                           "max_memory_mb": settings.max_memory_mb, "duckdb_memory_mb": settings.duckdb_memory_mb,
+                           "max_logical_datasets": settings.max_logical_datasets,
+                           "max_input_files": settings.max_input_files, "max_input_rows": settings.max_input_rows,
+                           "max_input_bytes": settings.max_input_bytes,
+                           "max_intermediate_bytes": settings.max_intermediate_bytes,
+                           "max_output_dir_bytes": settings.max_output_dir_bytes,
                            "max_code_chars": settings.max_code_chars, "max_output_bytes": settings.max_output_bytes,
                            "result_retention_hours": settings.result_retention_hours,
-                           "concurrency": settings.concurrency, "max_queued": settings.max_queued}}
+                           "failed_workspace_ttl_hours": settings.failed_workspace_ttl_hours,
+                           "concurrency": settings.concurrency, "max_queued": settings.max_queued,
+                           "per_request": {"analyses": settings.max_analyses_per_request,
+                                           "cpu_seconds": settings.max_cpu_seconds_per_request,
+                                           "input_bytes": settings.max_input_bytes_per_request,
+                                           "specs": settings.max_specs_per_request},
+                           "validator": {"runtime_seconds": settings.validator_runtime_seconds,
+                                         "memory_mb": settings.validator_memory_mb}}}
+
+    def invalid(exc: ValidationError, what: str) -> JSONResponse:
+        errors = [{"loc": ".".join(str(p) for p in e["loc"]), "msg": e["msg"]} for e in exc.errors()[:15]]
+        return JSONResponse(status_code=422, content={"status": "REJECTED", "error": {
+            "code": "INVALID_REQUEST", "message": f"The {what} is invalid.", "details": errors}})
+
+    @app.post("/v1/specs", dependencies=[Depends(authorize)])
+    def create_spec(body: Any = Body(...)) -> Any:
+        """Review a proposed Analysis Spec against the user's messages; an approved spec becomes immutable."""
+        try:
+            request = SpecRequest.model_validate(body)
+        except ValidationError as exc:
+            return invalid(exc, "analysis spec")
+        return service.create_spec(request)
+
+    @app.get("/v1/specs/{spec_id}", dependencies=[Depends(authorize)])
+    def get_spec(spec_id: str) -> Any:
+        if not re.fullmatch(SPEC_ID, spec_id):
+            raise HTTPException(status_code=404, detail="Unknown spec_id")
+        spec = service.get_spec(spec_id)
+        if spec is None:
+            raise HTTPException(status_code=404, detail="Unknown spec_id")
+        return spec
 
     @app.post("/v1/analyses", dependencies=[Depends(authorize)])
     def submit(body: Any = Body(...)) -> Any:
         try:
             request = AnalysisRequest.model_validate(body)
         except ValidationError as exc:
-            errors = [{"loc": ".".join(str(p) for p in e["loc"]), "msg": e["msg"]} for e in exc.errors()[:10]]
-            return JSONResponse(status_code=422, content={"status": "REJECTED", "error": {
-                "code": "INVALID_REQUEST", "message": "The analysis request is invalid.", "details": errors}})
+            return invalid(exc, "analysis request")
         try:
             return service.submit(request)
         except ServiceUnavailable as exc:

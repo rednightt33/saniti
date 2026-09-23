@@ -61,10 +61,31 @@ engulf = talib.CDLENGULFING(o, h, l, c)
 ok = (numpy.isnan(rsi[:14]).all() and 0 < rsi[-1] < 100 and abs(sma[-1] - close[-5:].mean()) < 1e-9
       and abs(std[-1] - close[-5:].std()) < 1e-9 and int(engulf[-1]) == 100)
 checks["talib_functions"] = "PASS" if ok else "FAIL: unexpected TA-Lib results"
-with open(os.path.join(os.path.dirname(DATASETS_DIR), "output", "selftest.json"), "w") as handle:
+def duck_denied(name, fn, expected):
+    # Only DuckDB's own refusal counts: a network failure would mean the configuration allowed the attempt.
+    try:
+        fn()
+        checks[name] = "FAIL: allowed"
+    except Exception as exc:
+        checks[name] = "PASS" if type(exc).__name__ == expected else f"FAIL: {type(exc).__name__}"
+refused = "PermissionException"
+duck_denied("duckdb_outside_file_denied", lambda: duckdb.sql("SELECT * FROM read_text('/etc/hostname')").fetchall(),
+            refused)
+duck_denied("duckdb_config_locked", lambda: duckdb.sql("SET enable_external_access = true"), "InvalidInputException")
+duck_denied("duckdb_extension_install_denied", lambda: duckdb.sql("INSTALL httpfs"), refused)
+duck_denied("duckdb_extension_load_denied", lambda: duckdb.sql("LOAD httpfs"), refused)
+duck_denied("duckdb_attach_denied", lambda: duckdb.sql("ATTACH '/tmp/saniti-selftest.duckdb'"), refused)
+second = duckdb.connect()
+duck_denied("duckdb_new_connection_locked", lambda: second.sql("SELECT * FROM read_text('/etc/hostname')").fetchall(),
+            refused)
+value, unit = duckdb.sql("SELECT current_setting('memory_limit')").fetchone()[0].split()
+mib = float(value) * {"KiB": 1 / 1024, "MiB": 1, "GiB": 1024, "TiB": 1024 * 1024}.get(unit, 0)
+checks["duckdb_memory_limit"] = "PASS" if abs(mib * 1.048576 - DUCKDB_MB) < 2 else f"FAIL: {value} {unit}"
+with open(os.path.join(OUTPUT_DIR, "selftest.json"), "w") as handle:
     json.dump({"checks": checks, "versions": versions}, handle)
 '''
-UID_CHECKS = {"uid_non_root", "parent_environment_unreadable", "pid1_environment_unreadable"}
+UID_CHECKS = {"uid_non_root", "parent_environment_unreadable", "pid1_environment_unreadable",
+              "validator_uid_non_root"}
 
 
 @dataclass
@@ -81,15 +102,21 @@ class IsolationReport:
 def run_selftest(settings: Settings, executor: Executor, uid: int, cpus: list[int]) -> IsolationReport:
     job_dir = Path(settings.jobs_dir) / "selftest"
     shutil.rmtree(job_dir, ignore_errors=True)
-    from .service import prepare_job_dir  # local import avoids a cycle
+    from .service import _write_readonly, prepare_workspace  # local import avoids a cycle
 
-    work = job_dir / "work"
-    allowed = sorted(child_environment(settings, work))
-    code = (f"ALLOWED_ENV = {json.dumps(json.dumps(allowed))}\nDATASETS_DIR = {json.dumps(str(job_dir / 'input'))}\n"
-            + SELFTEST_CODE)
-    prepare_job_dir(settings, job_dir, uid if executor.drop_privileges else None, {
-        "code": code, "datasets": {}, "seed": settings.random_seed, "limits": settings.child_limits(),
-        "expected_outputs": [], "cpus": cpus, "threads": settings.threads_per_job, "require_seccomp": True})
+    drop = executor.drop_privileges
+    home = job_dir / "intermediate" / "home"
+    allowed = sorted(child_environment(settings, home, job_dir / "intermediate" / "tmp"))
+    code = (f"ALLOWED_ENV = {json.dumps(json.dumps(allowed))}\nOUTPUT_DIR = {json.dumps(str(job_dir / 'output'))}\n"
+            f"DUCKDB_MB = {settings.duckdb_memory_mb}\n" + SELFTEST_CODE)
+    prepare_workspace(settings, job_dir, uid if drop else None, settings.validator_uid if drop else None,
+                      manifest={"logical_datasets": {}}, analysis_spec={"spec": {}}, code=code)
+    _write_readonly(job_dir / "runtime.json", {
+        "limits": settings.child_limits(), "cpus": cpus, "threads": settings.threads_per_job, "require_seccomp": True,
+        "seed": settings.random_seed, "expected_outputs": [], "inputs": {}, "analysis_period": {},
+        "duckdb": {"memory_limit_mb": settings.duckdb_memory_mb, "threads": settings.threads_per_job,
+                   "temp_directory": str(job_dir / "intermediate" / ".duckdb_tmp"), "max_temp_directory_mb": 64,
+                   "allowed_directories": [str(job_dir / "input") + "/", str(job_dir / "intermediate") + "/"]}})
     report = IsolationReport()
     try:
         outcome = executor.run(job_dir, uid, deadline_seconds=max(60, settings.max_runtime_seconds))
@@ -97,13 +124,29 @@ def run_selftest(settings: Settings, executor: Executor, uid: int, cpus: list[in
             detail = (outcome.error or {}).get("message") or outcome.stderr_tail[-300:]
             report.failure = f"self-test process ended with {outcome.kind}: {detail}"
             return report
-        result = read_child_json(job_dir / "output" / "selftest.json",
-                                 uid if executor.drop_privileges else None, 65536)
+        result = read_child_json(job_dir / "output" / "selftest.json", uid if drop else None, 65536)
         report.checks, report.versions = result["checks"], result["versions"]
+        validator_home = job_dir / "validation" / "home"
+        _write_readonly(job_dir / "validation" / "request.json", {
+            "mode": "selftest", "limits": settings.validator_limits(), "cpus": cpus, "require_seccomp": True})
+        checked = executor.run(job_dir, settings.validator_uid, script="validator.py", args=("selftest",),
+                               cwd=validator_home, home=validator_home, tmp=validator_home / "tmp",
+                               quotas={validator_home: 16 << 20}, deadline_seconds=60,
+                               memory_mb=settings.validator_memory_mb,
+                               error_dir=job_dir / "validation" / "result", log_name="validator-selftest")
+        if checked.kind != "OK":
+            report.failure = f"validator self-test ended with {checked.kind}: {checked.stderr_tail[-300:]}"
+            return report
+        validator = read_child_json(job_dir / "validation" / "result" / "selftest.json",
+                                    settings.validator_uid if drop else None, 65536)
+        if validator.get("validator_error"):
+            report.failure = f"validator self-test failed: {validator['validator_error'][:200]}"
+            return report
+        report.checks.update({f"validator_{k}": v for k, v in validator["checks"].items()})
         mandatory = {k: v for k, v in report.checks.items()
                      if settings.require_isolation or k not in UID_CHECKS}
         failed = sorted(k for k, v in mandatory.items() if v != "PASS")
-        report.ok = not failed and (executor.drop_privileges or not settings.require_isolation)
+        report.ok = not failed and (drop or not settings.require_isolation)
         if failed:
             report.failure = "failed checks: " + ", ".join(failed)
         elif not report.ok:

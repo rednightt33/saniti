@@ -15,7 +15,9 @@ import os
 import shutil
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlsplit
@@ -52,6 +54,8 @@ class DatasetProvider:
         self.cache.mkdir(parents=True, exist_ok=True)
         os.chmod(self.cache, 0o700)
         self._lock = threading.Lock()
+        # Called for every newly cached file so the service can expire it with its Governor snapshot.
+        self.on_cached: Callable[[str, str, str, int, str | None], None] | None = None
         self.governor = httpx.Client(
             base_url=settings.governor_url, transport=transport, timeout=httpx.Timeout(15.0),
             headers={"Authorization": f"Bearer {settings.governor_access_key}"})
@@ -111,6 +115,9 @@ class DatasetProvider:
             with self._lock:
                 os.replace(partial, target)
                 self._evict(keep=target)
+            if self.on_cached is not None:
+                self.on_cached(target.name, grant.dataset_id, grant.checksum, grant.byte_count,
+                               grant.manifest.get("expires_at"))
             return target
         finally:
             if partial.exists():
@@ -148,6 +155,32 @@ class DatasetProvider:
             oldest = files.pop(0)
             total -= oldest.stat().st_size
             oldest.unlink(missing_ok=True)
+
+    def evict_expired(self, records, now: datetime) -> int:
+        """Delete cached copies whose Governor snapshot has expired, and cache files nobody recorded.
+
+        Only the sandbox's own working copies are removed; the Governor's snapshots are never touched."""
+        removed = 0
+        known = set()
+        with self._lock:
+            for entry in records.cache_entries():
+                path = self.cache / entry["file_name"]
+                known.add(entry["file_name"])
+                expires = entry.get("expires_at")
+                try:
+                    expired = expires is not None and datetime.fromisoformat(expires) <= now
+                except ValueError:
+                    expired = True
+                if expired or not path.exists():
+                    if path.exists():
+                        path.unlink()
+                        removed += 1
+                    records.cache_remove(entry["file_name"])
+            for path in self.cache.glob("ds_*.parquet"):
+                if path.name not in known and time.time() - path.stat().st_mtime > 3600:
+                    path.unlink(missing_ok=True)
+                    removed += 1
+        return removed
 
     @staticmethod
     def link(source: Path, destination: Path) -> None:

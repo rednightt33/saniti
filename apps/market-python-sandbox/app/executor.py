@@ -43,15 +43,15 @@ class Outcome:
     notes: dict[str, Any] = field(default_factory=dict)
 
 
-def child_environment(settings: Settings, work: Path) -> dict[str, str]:
+def child_environment(settings: Settings, home: Path, tmp: Path) -> dict[str, str]:
     threads = str(settings.threads_per_job)
     return {
-        "PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": str(work), "TMPDIR": str(work / "tmp"),
+        "PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": str(home), "TMPDIR": str(tmp),
         "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "TZ": "UTC", "PYTHONHASHSEED": "0",
         "PYTHONDONTWRITEBYTECODE": "1", "PYTHONUNBUFFERED": "1", "PYTHONNOUSERSITE": "1",
         "OMP_NUM_THREADS": threads, "OPENBLAS_NUM_THREADS": threads, "MKL_NUM_THREADS": threads,
         "NUMEXPR_MAX_THREADS": threads, "POLARS_MAX_THREADS": threads, "RAYON_NUM_THREADS": threads,
-        "MPLBACKEND": "Agg", "MPLCONFIGDIR": str(work / ".matplotlib"), "XDG_CACHE_HOME": str(work / ".cache"),
+        "MPLBACKEND": "Agg", "MPLCONFIGDIR": str(home / ".matplotlib"), "XDG_CACHE_HOME": str(home / ".cache"),
     }
 
 
@@ -115,12 +115,23 @@ class Executor:
         self.settings = settings
         self.drop_privileges = os.geteuid() == 0
 
-    def run(self, job_dir: Path, uid: int, deadline_seconds: int | None = None,
+    def run(self, job_dir: Path, uid: int, *, script: str = "runner.py", args: tuple[str, ...] = (),
+            cwd: Path | None = None, home: Path | None = None, tmp: Path | None = None,
+            quotas: dict[Path, int] | None = None, deadline_seconds: int | None = None, memory_mb: int | None = None,
+            cpu_seconds: int | None = None, error_dir: Path | None = None, log_name: str = "analysis",
             on_start: Callable[[int], None] | None = None) -> Outcome:
+        """Start runtime/<script> as `uid` on this job and watch time, resident memory, and disk quotas."""
         s = self.settings
-        work, output = job_dir / "work", job_dir / "output"
-        stdout_path, stderr_path = job_dir / "stdout.log", job_dir / "stderr.log"
-        runner = str(Path(s.runtime_dir) / "runner.py")
+        cwd = cwd or job_dir / "intermediate"
+        home = home or cwd / "home"
+        tmp = tmp or cwd / "tmp"
+        quotas = quotas if quotas is not None else {job_dir / "intermediate": s.max_intermediate_bytes,
+                                                    job_dir / "output": s.max_output_dir_bytes}
+        error_dir = error_dir or job_dir / "output"
+        memory_limit = memory_mb or s.max_memory_mb
+        cpu_limit = cpu_seconds or s.cpu_seconds
+        stdout_path, stderr_path = job_dir / f"{log_name}.stdout.log", job_dir / f"{log_name}.stderr.log"
+        entry = str(Path(s.runtime_dir) / script)
         limit = deadline_seconds or s.max_runtime_seconds
         kwargs: dict[str, Any] = {}
         if self.drop_privileges:
@@ -128,12 +139,13 @@ class Executor:
         with open(stdout_path, "wb") as out, open(stderr_path, "wb") as err:
             started = time.monotonic()
             process = subprocess.Popen(
-                [s.python_executable, "-s", "-B", runner, str(job_dir)],
-                cwd=str(work), env=child_environment(s, work), stdin=subprocess.DEVNULL, stdout=out, stderr=err,
+                [s.python_executable, "-s", "-B", entry, str(job_dir), *args],
+                cwd=str(cwd), env=child_environment(s, home, tmp), stdin=subprocess.DEVNULL, stdout=out, stderr=err,
                 close_fds=True, process_group=0, umask=0o077, **kwargs)
         if on_start is not None:
             on_start(process.pid)
-        reason, peak_rss, next_disk = None, 0.0, started + DISK_CHECK_SECONDS
+        reason, peak_rss, next_disk, disk_note = None, 0.0, started + DISK_CHECK_SECONDS, None
+        peak_disk: dict[str, int] = {}
         status, usage = None, None
         while True:
             pid, raw_status, raw_usage = os.wait4(process.pid, os.WNOHANG)
@@ -145,12 +157,16 @@ class Executor:
             peak_rss = max(peak_rss, rss)
             if now - started > limit:
                 reason = "TIMEOUT"
-            elif rss > s.max_memory_mb:
+            elif rss > memory_limit:
                 reason = "MEMORY"
             elif now >= next_disk:
                 next_disk = now + DISK_CHECK_SECONDS
-                if disk_usage(job_dir) > s.max_workdir_bytes:
-                    reason = "DISK"
+                for path, quota in quotas.items():
+                    used = disk_usage(path)
+                    peak_disk[path.name] = max(peak_disk.get(path.name, 0), used)
+                    if used > quota:
+                        reason, disk_note = "DISK", path.name
+                        break
             if reason:
                 try:
                     os.killpg(process.pid, signal.SIGKILL)
@@ -159,13 +175,16 @@ class Executor:
                 _, status, usage = os.wait4(process.pid, 0)
                 break
             time.sleep(POLL_SECONDS)
+        for path in quotas:
+            peak_disk[path.name] = max(peak_disk.get(path.name, 0), disk_usage(path))
         process.returncode = os.waitstatus_to_exitcode(status)
         runtime_ms = round((time.monotonic() - started) * 1000)
         outcome = Outcome(
             kind="OK", returncode=process.returncode, runtime_ms=runtime_ms,
             cpu_seconds=round(usage.ru_utime + usage.ru_stime, 3) if usage else 0.0,
             max_rss_mb=round(max(peak_rss, (usage.ru_maxrss / 1024) if usage else 0.0), 1),
-            stdout_tail=_tail(stdout_path, s.diagnostics_chars), stderr_tail=_tail(stderr_path, s.diagnostics_chars))
+            stdout_tail=_tail(stdout_path, s.diagnostics_chars), stderr_tail=_tail(stderr_path, s.diagnostics_chars),
+            notes={"peak_disk_bytes": peak_disk, **({"disk_quota_exceeded": disk_note} if disk_note else {})})
         code = process.returncode
         if reason:
             outcome.kind = reason
@@ -174,10 +193,10 @@ class Executor:
         elif code == 3:
             outcome.kind = "ERROR"
             try:
-                outcome.error = read_child_json(output / "error.json", uid if self.drop_privileges else None, 65536)
+                outcome.error = read_child_json(error_dir / "error.json", uid if self.drop_privileges else None, 65536)
             except (OSError, ValueError):
                 outcome.error = None
-        elif code in (-signal.SIGXCPU, -signal.SIGKILL) and outcome.cpu_seconds >= s.cpu_seconds - 1:
+        elif code in (-signal.SIGXCPU, -signal.SIGKILL) and outcome.cpu_seconds >= cpu_limit - 1:
             outcome.kind = "CPU"
         elif code == -signal.SIGSYS:
             outcome.kind = "FORBIDDEN"

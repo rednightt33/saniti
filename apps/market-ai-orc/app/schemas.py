@@ -121,6 +121,19 @@ FINAL_RESPONSE_SCHEMA: dict[str, Any] = {
 }
 
 
+class AnalysisSummary(BaseModel):
+    """One Python analysis of this run, with execution and validation kept separate."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    analysis_id: str
+    spec_id: str | None = None
+    execution_status: str
+    validation_status: str | None = None
+    validation_level: str | None = None
+    reason_codes: list[str] = Field(default_factory=list)
+
+
 class ExecutionMetadata(BaseModel):
     """Produced deterministically by code, never by the model."""
 
@@ -138,6 +151,9 @@ class ExecutionMetadata(BaseModel):
     duration_ms: int = 0
     # Why tools were withdrawn before the final answer: TOOL_CALL_BUDGET or CONTEXT_BUDGET.
     tools_withdrawn_reason: Literal["TOOL_CALL_BUDGET", "CONTEXT_BUDGET"] | None = None
+    # Every Python analysis of the run, and what the validation gate did to the final response.
+    analyses: list[AnalysisSummary] = Field(default_factory=list)
+    validation_gate: Literal["NOT_APPLICABLE", "PASSED", "ANNOTATED", "FORCED_LIMITATION"] = "NOT_APPLICABLE"
 
 
 class RunError(BaseModel):

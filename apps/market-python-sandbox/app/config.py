@@ -43,7 +43,8 @@ class Settings:
     mpl_cache_dir: str
     dataset_url_schemes: tuple[str, ...]
     # inputs
-    max_datasets: int
+    max_logical_datasets: int
+    max_input_files: int
     max_input_rows: int
     max_input_bytes: int
     max_code_chars: int
@@ -56,12 +57,24 @@ class Settings:
     cpus_per_job: int
     threads_per_job: int
     max_threads: int
-    max_workdir_bytes: int
+    max_intermediate_bytes: int
+    max_output_dir_bytes: int
+    duckdb_memory_mb: int
+    max_materialize_rows: int
     concurrency: int
     max_queued: int
     slot_uid_base: int
     random_seed: int
     require_isolation: bool
+    # validation
+    validator_uid: int
+    validator_runtime_seconds: int
+    validator_memory_mb: int
+    # request-level budgets (all run_python_analysis calls of one orchestrator request together)
+    max_analyses_per_request: int
+    max_cpu_seconds_per_request: int
+    max_input_bytes_per_request: int
+    max_specs_per_request: int
     # outputs
     max_tables: int
     max_table_output_rows: int
@@ -81,6 +94,8 @@ class Settings:
     record_retention_days: int
     cleanup_interval_seconds: int
     retain_code: bool
+    failed_workspace_ttl_hours: int
+    failed_workspace_max_bytes: int
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -116,7 +131,8 @@ class Settings:
             python_executable=env.get("PY_SANDBOX_PYTHON", "/usr/local/bin/python").strip(),
             mpl_cache_dir=env.get("PY_SANDBOX_MPL_CACHE_DIR", "/opt/mplcache").strip(),
             dataset_url_schemes=schemes,
-            max_datasets=_integer(env, "PY_SANDBOX_MAX_DATASETS", 4, maximum=8),
+            max_logical_datasets=_integer(env, "PY_SANDBOX_MAX_LOGICAL_DATASETS", 4, maximum=4),
+            max_input_files=_integer(env, "PY_SANDBOX_MAX_INPUT_FILES", 8, maximum=64),
             max_input_rows=_integer(env, "PY_SANDBOX_MAX_INPUT_ROWS", 2_000_000, maximum=20_000_000),
             max_input_bytes=_integer(env, "PY_SANDBOX_MAX_INPUT_BYTES", 268_435_456, minimum=1024,
                                      maximum=4_294_967_296),
@@ -131,12 +147,29 @@ class Settings:
             cpus_per_job=_integer(env, "PY_SANDBOX_CPUS_PER_JOB", 2, maximum=16),
             threads_per_job=_integer(env, "PY_SANDBOX_THREADS_PER_JOB", 2, maximum=16),
             max_threads=_integer(env, "PY_SANDBOX_MAX_THREADS", 128, minimum=16, maximum=1024),
-            max_workdir_bytes=_integer(env, "PY_SANDBOX_MAX_WORKDIR_BYTES", 536_870_912, minimum=1_048_576),
+            max_intermediate_bytes=_integer(env, "PY_SANDBOX_MAX_INTERMEDIATE_BYTES", 1_073_741_824,
+                                            minimum=16_777_216, maximum=17_179_869_184),
+            max_output_dir_bytes=_integer(env, "PY_SANDBOX_MAX_OUTPUT_DIR_BYTES", 268_435_456, minimum=1_048_576,
+                                          maximum=4_294_967_296),
+            duckdb_memory_mb=_integer(env, "PY_SANDBOX_DUCKDB_MEMORY_MB", max(128, memory // 2), minimum=64,
+                                      maximum=memory),
+            max_materialize_rows=_integer(env, "PY_SANDBOX_MAX_MATERIALIZE_ROWS", 2_000_000, minimum=1000,
+                                          maximum=20_000_000),
             concurrency=_integer(env, "PY_SANDBOX_CONCURRENCY", 1, maximum=4),
             max_queued=_integer(env, "PY_SANDBOX_MAX_QUEUED", 8, maximum=100),
             slot_uid_base=_integer(env, "PY_SANDBOX_SLOT_UID_BASE", 20001, minimum=1000, maximum=60000),
             random_seed=_integer(env, "PY_SANDBOX_RANDOM_SEED", 0, minimum=0, maximum=2**32 - 1),
             require_isolation=_boolean(env, "PY_SANDBOX_REQUIRE_ISOLATION", True),
+            validator_uid=_integer(env, "PY_SANDBOX_VALIDATOR_UID", 20100, minimum=1000, maximum=60000),
+            validator_runtime_seconds=_integer(env, "PY_SANDBOX_VALIDATOR_RUNTIME_SECONDS", 120, minimum=10,
+                                               maximum=900),
+            validator_memory_mb=_integer(env, "PY_SANDBOX_VALIDATOR_MEMORY_MB", memory, minimum=256, maximum=16384),
+            max_analyses_per_request=_integer(env, "PY_SANDBOX_MAX_ANALYSES_PER_REQUEST", 6, maximum=100),
+            max_cpu_seconds_per_request=_integer(env, "PY_SANDBOX_MAX_CPU_SECONDS_PER_REQUEST", 1200, minimum=10,
+                                                 maximum=86400),
+            max_input_bytes_per_request=_integer(env, "PY_SANDBOX_MAX_INPUT_BYTES_PER_REQUEST", 1_073_741_824,
+                                                 minimum=1024, maximum=68_719_476_736),
+            max_specs_per_request=_integer(env, "PY_SANDBOX_MAX_SPECS_PER_REQUEST", 10, maximum=100),
             max_tables=_integer(env, "PY_SANDBOX_MAX_TABLES", 8, maximum=32),
             max_table_output_rows=_integer(env, "PY_SANDBOX_MAX_TABLE_OUTPUT_ROWS", 100_000, maximum=5_000_000),
             max_table_preview_rows=_integer(env, "PY_SANDBOX_MAX_TABLE_PREVIEW_ROWS", 50, maximum=200),
@@ -153,9 +186,13 @@ class Settings:
             retry_after_seconds=_integer(env, "PY_SANDBOX_RETRY_AFTER_SECONDS", 15, maximum=300),
             result_retention_hours=_integer(env, "PY_SANDBOX_RESULT_RETENTION_HOURS", 24, maximum=720),
             record_retention_days=_integer(env, "PY_SANDBOX_RECORD_RETENTION_DAYS", 30, maximum=3650),
-            cleanup_interval_seconds=_integer(env, "PY_SANDBOX_CLEANUP_INTERVAL_SECONDS", 3600, minimum=0,
+            cleanup_interval_seconds=_integer(env, "PY_SANDBOX_CLEANUP_INTERVAL_SECONDS", 900, minimum=0,
                                               maximum=86400),
             retain_code=_boolean(env, "PY_SANDBOX_RETAIN_CODE", True),
+            failed_workspace_ttl_hours=_integer(env, "PY_SANDBOX_FAILED_WORKSPACE_TTL_HOURS", 6, minimum=0,
+                                                maximum=72),
+            failed_workspace_max_bytes=_integer(env, "PY_SANDBOX_FAILED_WORKSPACE_MAX_BYTES", 67_108_864,
+                                                minimum=0, maximum=1_073_741_824),
         )
         if settings.record_retention_days * 24 < settings.result_retention_hours:
             raise ConfigError("PY_SANDBOX_RECORD_RETENTION_DAYS must cover PY_SANDBOX_RESULT_RETENTION_HOURS")
@@ -163,6 +200,8 @@ class Settings:
             raise ConfigError("PY_SANDBOX_MAX_TABLE_PREVIEW_ROWS must not exceed PY_SANDBOX_MAX_TABLE_OUTPUT_ROWS")
         if settings.threads_per_job * 8 > settings.max_threads:
             raise ConfigError("PY_SANDBOX_MAX_THREADS must be at least 8x PY_SANDBOX_THREADS_PER_JOB")
+        if settings.slot_uid_base <= settings.validator_uid < settings.slot_uid_base + settings.concurrency:
+            raise ConfigError("PY_SANDBOX_VALIDATOR_UID must differ from every analysis slot user")
         return settings
 
     @property
@@ -170,12 +209,19 @@ class Settings:
         """RLIMIT_CPU: the wall-clock budget on every pinned CPU, plus a small margin."""
         return self.max_runtime_seconds * self.cpus_per_job + 5
 
-    def child_limits(self) -> dict[str, int]:
+    def child_limits(self, cpu_seconds: int | None = None) -> dict[str, int]:
         return {
-            "virtual_memory_mb": self.max_virtual_memory_mb, "cpu_seconds": self.cpu_seconds,
+            "virtual_memory_mb": self.max_virtual_memory_mb, "cpu_seconds": cpu_seconds or self.cpu_seconds,
+            "max_file_bytes": max(self.max_artifact_bytes, self.max_intermediate_bytes),
             "max_artifact_bytes": self.max_artifact_bytes, "max_threads": self.max_threads,
+            "max_materialize_rows": self.max_materialize_rows,
             "max_tables": self.max_tables, "max_table_output_rows": self.max_table_output_rows,
             "max_table_preview_rows": self.max_table_preview_rows, "max_metrics": self.max_metrics,
             "max_metrics_bytes": self.max_metrics_bytes, "max_charts": self.max_charts,
             "max_artifacts": self.max_artifacts,
         }
+
+    def validator_limits(self) -> dict[str, int]:
+        memory = self.validator_memory_mb
+        return {"virtual_memory_mb": max(4096, memory * 2), "cpu_seconds": self.validator_runtime_seconds * 2 + 5,
+                "max_file_bytes": 16_777_216, "max_threads": self.max_threads}

@@ -1,7 +1,15 @@
 """Runtime helpers available to analysis code as `import saniti` (or `from saniti import ...`).
 
-Official results are only what these functions emit: TABLE, METRICS, CHART, and ARTIFACT outputs.
-print() output is kept only as bounded diagnostics.
+Inputs are logical datasets named in the approved Analysis Spec. The harness maps each name to
+read-only local Parquet files (INPUTS) and registers it as a DuckDB view of the same name on a
+locked connection: DuckDB can read only the job's input and intermediate directories, cannot
+install or load extensions or attach databases, and has fixed memory and temp-disk limits.
+
+Load only what the calculation needs: sql()/load() select columns and rows inside DuckDB and
+refuse to materialize more than the row budget. Bounded intermediate results can be written to
+intermediate_path(name). Official results are only what the emit_* functions write; print()
+output is kept only as bounded diagnostics, and nothing this code reports about itself (for
+example in METRICS) is accepted as evidence of what it analysed.
 
 Time-series helpers keep entity histories separate and ordered, surface duplicates, and enforce
 minimum history. They never fill missing values.
@@ -13,29 +21,41 @@ import decimal as _decimal
 import json as _json
 import math as _math
 import os as _os
+import re as _re
 from collections.abc import Iterator
 from typing import Any
 
 __all__ = [
-    "DATASETS", "SEED", "load_dataset", "emit_table", "emit_metrics", "emit_chart", "emit_artifact",
+    "INPUTS", "SPEC", "SEED", "ANALYSIS_START", "ANALYSIS_END", "REFERENCE_DATE", "sql", "load", "load_dataset",
+    "relation", "duckdb_connection", "intermediate_path", "emit_table", "emit_metrics", "emit_chart", "emit_artifact",
     "add_warning", "panel_check", "prepare_panel", "iter_series", "SanitiError", "InsufficientHistory",
-    "DuplicateObservations", "OutputLimitExceeded", "UndeclaredOutput", "InvalidOutput",
+    "DuplicateObservations", "OutputLimitExceeded", "UndeclaredOutput", "InvalidOutput", "ResultTooLarge",
 ]
 
-# Populated by runner.py from the harness-controlled job file. Model code cannot choose paths.
-DATASETS: dict[str, str] = {}
+# Populated by runner.py from harness-controlled files. Model code cannot choose paths.
+INPUTS: dict[str, dict[str, Any]] = {}
+SPEC: dict[str, Any] = {}
 SEED: int = 0
+ANALYSIS_START: str | None = None
+ANALYSIS_END: str | None = None
+REFERENCE_DATE: str | None = None
 _LIMITS: dict[str, int] = {}
 _EXPECTED: set[str] = set()
 _OUTPUT_DIR = ""
+_INTERMEDIATE_DIR = ""
+_DUCKDB: dict[str, Any] = {}
+_CONNECTION: Any = None
 _INDEX: list[dict[str, Any]] = []
 _WARNINGS: list[dict[str, str]] = []
+_ACCESS_LOG: list[dict[str, Any]] = []
 _COUNTS = {"TABLE": 0, "METRICS": 0, "CHART": 0, "ARTIFACT": 0}
 NAME_MAX = 80
 TEXT_MAX = 500
 CELL_TEXT_MAX = 200
 MAX_WARNINGS = 50
 MAX_COLUMNS = 100
+MAX_ACCESS_LOG = 50
+INTERMEDIATE_NAME = _re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
 class SanitiError(Exception):
@@ -62,27 +82,170 @@ class InvalidOutput(SanitiError):
     code = "OUTPUT_INVALID"
 
 
-def _configure(job: dict[str, Any], output_dir: str) -> None:
-    global SEED, _OUTPUT_DIR
-    DATASETS.clear()
-    DATASETS.update(job["datasets"])
-    SEED = int(job["seed"])
+class ResultTooLarge(SanitiError):
+    code = "MATERIALIZATION_LIMIT_EXCEEDED"
+
+
+def _configure(runtime: dict[str, Any], job_dir: str) -> None:
+    global SEED, _OUTPUT_DIR, _INTERMEDIATE_DIR, ANALYSIS_START, ANALYSIS_END, REFERENCE_DATE
+    INPUTS.clear()
+    INPUTS.update({name: {k: v for k, v in info.items() if k != "view_sql"} for name, info in runtime["inputs"].items()})
+    with open(_os.path.join(job_dir, "analysis_spec.json"), encoding="utf-8") as handle:
+        SPEC.clear()
+        SPEC.update(_json.load(handle).get("spec") or {})
+    SEED = int(runtime["seed"])
     _LIMITS.clear()
-    _LIMITS.update(job["limits"])
+    _LIMITS.update(runtime["limits"])
     _EXPECTED.clear()
-    _EXPECTED.update(job["expected_outputs"])
-    _OUTPUT_DIR = output_dir
+    _EXPECTED.update(runtime["expected_outputs"])
+    period = runtime.get("analysis_period") or {}
+    ANALYSIS_START, ANALYSIS_END = period.get("start"), period.get("end")
+    REFERENCE_DATE = period.get("reference_date")
+    _OUTPUT_DIR = _os.path.join(job_dir, "output")
+    _INTERMEDIATE_DIR = _os.path.join(job_dir, "intermediate")
+    _DUCKDB.clear()
+    _DUCKDB.update(runtime["duckdb"], views={name: info["view_sql"] for name, info in runtime["inputs"].items()})
 
 
-# ---------------------------------------------------------------- inputs
+# ---------------------------------------------------------------- DuckDB
 
-def load_dataset(dataset_id: str, columns: list[str] | None = None):
-    """Read one governed dataset into a pandas DataFrame."""
-    import pandas as pd
+def _quote(text: str) -> str:
+    return "'" + str(text).replace("'", "''") + "'"
 
-    if dataset_id not in DATASETS:
-        raise SanitiError(f"Dataset {dataset_id!r} is not an input of this analysis. Inputs: {sorted(DATASETS)}")
-    return pd.read_parquet(DATASETS[dataset_id], columns=columns)
+
+def _locked_connection():
+    raw = _DUCKDB["raw_connect"]
+    config = {"threads": int(_DUCKDB["threads"]), "memory_limit": f"{int(_DUCKDB['memory_limit_mb'])}MB",
+              "autoinstall_known_extensions": False, "autoload_known_extensions": False}
+    con = raw(":memory:", False, config)
+    directories = ", ".join(_quote(d) for d in _DUCKDB["allowed_directories"])
+    con.execute(f"SET allowed_directories = [{directories}]")
+    # Extensions would otherwise install under HOME, which is inside the workspace; point them outside it.
+    con.execute("SET extension_directory = '/nonexistent/duckdb-extensions'")
+    con.execute("SET allow_community_extensions = false")
+    con.execute(f"SET temp_directory = {_quote(_DUCKDB['temp_directory'])}")
+    con.execute(f"SET max_temp_directory_size = '{int(_DUCKDB['max_temp_directory_mb'])}MB'")
+    con.execute("SET enable_external_access = false")
+    con.execute("SET lock_configuration = true")
+    for name, view in _DUCKDB["views"].items():
+        con.execute(f'CREATE VIEW "{name}" AS {view}')
+    return con
+
+
+def _lock_duckdb() -> None:
+    """Replace DuckDB's default connection and connect() with locked, view-registered connections."""
+    global _CONNECTION
+    try:
+        import duckdb
+    except ImportError:  # pragma: no cover
+        return
+    _DUCKDB["raw_connect"] = duckdb.connect
+    _os.makedirs(_DUCKDB["temp_directory"], exist_ok=True)
+    _CONNECTION = _locked_connection()
+    duckdb.set_default_connection(_CONNECTION)
+
+    def connect(database: str = ":memory:", read_only: bool = False, config: dict | None = None, **_: Any):
+        if database not in (":memory:", "", None):
+            raise PermissionError(13, "Only in-memory DuckDB connections are available; write intermediate "
+                                      "Parquet files with saniti.intermediate_path().")
+        return _locked_connection()  # the requested config is ignored; limits and access rules are fixed
+
+    duckdb.connect = connect
+
+
+def duckdb_connection():
+    """The locked DuckDB connection, with one view per logical input (same name as the input)."""
+    if _CONNECTION is None:
+        raise SanitiError("DuckDB is not available in this runtime.")
+    return _CONNECTION
+
+
+def _log_access(entry: dict[str, Any]) -> None:
+    if len(_ACCESS_LOG) < MAX_ACCESS_LOG:
+        _ACCESS_LOG.append(entry)
+
+
+def sql(query: str, params: list | None = None, max_rows: int | None = None):
+    """Run DuckDB SQL over the input views and return a pandas DataFrame of at most max_rows rows.
+
+    Raises ResultTooLarge instead of materializing a larger result; filter or aggregate in SQL.
+    """
+    frame = _query(query, params, max_rows)
+    if frame is not None:
+        _log_access({"call": "sql", "rows": len(frame), "columns": list(frame.columns)[:20]})
+    return frame
+
+
+def _query(query: str, params: list | None, max_rows: int | None):
+    budget = int(_LIMITS["max_materialize_rows"])
+    limit = budget if max_rows is None else min(int(max_rows), budget)
+    con = duckdb_connection()
+    relation = con.sql(query, params=params) if params else con.sql(query)
+    if relation is None:
+        return None
+    frame = relation.limit(limit + 1).df(date_as_object=True)  # DATE stays a date, as in the source
+    if len(frame) > limit:
+        raise ResultTooLarge(f"The query returns more than {limit} rows. Select fewer columns or rows, aggregate in "
+                             f"SQL, or write it with COPY ... TO saniti.intermediate_path(name).")
+    return frame
+
+
+def relation(name: str):
+    """A lazy DuckDB relation over a logical input (nothing is loaded until it is materialized)."""
+    if name not in INPUTS:
+        raise SanitiError(f"{name!r} is not an input of this analysis. Inputs: {sorted(INPUTS)}")
+    return duckdb_connection().table(name)
+
+
+def load(name: str, columns: list[str] | None = None, start: str | None = None, end: str | None = None,
+         entities: list[str] | None = None, max_rows: int | None = None):
+    """Load a filtered, column-projected slice of a logical input as a pandas DataFrame (bounded)."""
+    if name not in INPUTS:
+        raise SanitiError(f"{name!r} is not an input of this analysis. Inputs: {sorted(INPUTS)}")
+    info = INPUTS[name]
+    available = info["columns"]
+    chosen = list(columns) if columns else list(available)
+    unknown = [c for c in chosen if c not in available]
+    if unknown:
+        raise SanitiError(f"Columns {unknown} are not in input {name}. Columns: {available}")
+    where, params = [], []
+    date_column, entity_column = info.get("date_column"), info.get("entity_column")
+    for bound, op in ((start, ">="), (end, "<=")):
+        if bound is not None:
+            if not date_column:
+                raise SanitiError(f"Input {name} has no date column to filter on.")
+            where.append(f'"{date_column}" {op} CAST(? AS DATE)')
+            params.append(str(bound))
+    if entities is not None:
+        if not entity_column:
+            raise SanitiError(f"Input {name} has no entity column to filter on.")
+        where.append(f'list_contains(?, "{entity_column}")')
+        params.append([str(e) for e in entities])
+    order = [c for c in (entity_column, date_column) if c]
+    query = (f'SELECT {", ".join(f"{chr(34)}{c}{chr(34)}" for c in chosen)} FROM "{name}"'
+             + (f" WHERE {' AND '.join(where)}" if where else "")
+             + (f' ORDER BY {", ".join(f"{chr(34)}{c}{chr(34)}" for c in order)}' if order else ""))
+    frame = _query(query, params or None, max_rows)
+    _log_access({"call": "load", "input": name, "columns": chosen[:20], "start": start, "end": end,
+                 "entities": len(entities) if entities is not None else None, "rows": len(frame)})
+    return frame
+
+
+def load_dataset(name: str, columns: list[str] | None = None):
+    """Load a whole logical input (bounded by the row budget); prefer load() or sql() with filters."""
+    return load(name, columns=columns)
+
+
+def intermediate_path(name: str) -> str:
+    """A harness-controlled path for a bounded intermediate Parquet file (counts toward the job quota)."""
+    if not INTERMEDIATE_NAME.fullmatch(str(name)):
+        raise SanitiError("Intermediate names are 1-64 letters, digits, _ or -.")
+    return _os.path.join(_INTERMEDIATE_DIR, f"{name}.parquet")
+
+
+def _flush() -> None:
+    if _OUTPUT_DIR and (_ACCESS_LOG or _INDEX or _WARNINGS):
+        _write_index()
 
 
 # ---------------------------------------------------------------- warnings
@@ -203,7 +366,8 @@ def _write_index() -> None:
     path = _os.path.join(_OUTPUT_DIR, "index.json")
     temp = path + ".tmp"
     with open(temp, "w", encoding="utf-8") as handle:
-        _json.dump({"outputs": _INDEX, "warnings": _WARNINGS}, handle, separators=(",", ":"), allow_nan=False)
+        _json.dump({"outputs": _INDEX, "warnings": _WARNINGS, "access_log": _ACCESS_LOG}, handle,
+                   separators=(",", ":"), allow_nan=False, default=str)
     _os.replace(temp, path)
 
 

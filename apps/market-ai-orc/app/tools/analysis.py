@@ -1,14 +1,28 @@
-"""Governed analysis tools: get_dataset_manifest, run_python_analysis, get_analysis_result.
+"""Governed analysis tools: get_dataset_manifest, create_analysis_spec, run_python_analysis,
+get_analysis_result.
 
-market-ai-orc never executes model-generated Python. run_python_analysis forwards the code to the
-separate market-python-sandbox service, which runs it in an isolated process over Parquet
-datasets it obtains from market-sql-governor. This module holds only the sandbox's bearer key; it
-never sees dataset URLs, bucket or database credentials, or complete result tables. The request
-model must stay aligned with apps/market-python-sandbox/app/models.py (tests enforce it).
+market-ai-orc never executes model-generated Python. Every analysis follows the Execution
+Validation Gate implemented in market-python-sandbox:
+
+1. create_analysis_spec: the model proposes a structured Analysis Spec. This module adds what the
+   model must not control: the user's own messages from this run, the run's reference time, and
+   the reference time zone. The sandbox checks the spec against those messages and stores an
+   approved spec immutably (spec_id).
+2. run_python_analysis: code runs against an approved spec_id and logical inputs bound to
+   governed dataset_ids. The sandbox validates inputs before and outputs after execution.
+3. Results carry execution_status and validation_status separately; the orchestrator enforces
+   what the final answer may claim from them.
+
+This module holds only the sandbox's bearer key; it never sees dataset URLs, bucket or database
+credentials, or complete result tables. The request models must stay aligned with
+apps/market-python-sandbox/app/models.py and app/spec.py (tests enforce it).
 """
 from __future__ import annotations
 
+import contextvars
 import uuid
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, Literal
 
 import httpx
@@ -19,11 +33,37 @@ from .request_data import GovernorClient, current_request_id
 
 DATASET_ID_PATTERN = r"^ds_[0-9a-f]{24}$"
 ANALYSIS_ID_PATTERN = r"^ana_[0-9a-f]{24}$"
+SPEC_ID_PATTERN = r"^spec_[0-9a-f]{24}$"
+IDENT_PATTERN = r"^[a-z][a-z0-9_]{0,39}$"
+COLUMN_PATTERN = r"^[A-Za-z_][A-Za-z0-9_ ]{0,62}$"
+TABLE_PATTERN = r"^[A-Za-z][A-Za-z0-9_]{0,62}$"
+OUTPUT_NAME_PATTERN = r"^[A-Za-z0-9_\-. ]{1,80}$"
+TICKER_PATTERN = r"^[A-Z0-9]{2,6}$"
 OutputType = Literal["TABLE", "METRICS", "CHART", "ARTIFACT"]
+Provenance = Literal["USER_EXPLICIT", "USER_CLARIFIED", "APPROVED_DEFAULT", "AI_INFERRED"]
+Method = Literal["SMA", "ROLLING_STD", "ROLLING_ZSCORE", "RETURN", "FORWARD_RETURN", "RSI", "ROLLING_CORRELATION",
+                 "CORRELATION", "CUSTOM"]
+Family = Literal["RSI", "SMA", "STD", "ZSCORE", "RETURN", "FORWARD_RETURN", "CORRELATION"]
 DIAGNOSTIC_CHARS = 1000
+MAX_USER_MESSAGES = 12
+MAX_MESSAGE_CHARS = 8000
 # Next step for a request the sandbox refused before creating an analysis.
 REJECTION_ACTIONS = {"QUEUE_FULL": "RETRY_LATER", "INVALID_REQUEST": "REVISE_ANALYSIS",
-                     "SANDBOX_ISOLATION_UNAVAILABLE": "REPORT_LIMITATION"}
+                     "SANDBOX_ISOLATION_UNAVAILABLE": "REPORT_LIMITATION", "SPEC_NOT_FOUND": "CREATE_ANALYSIS_SPEC",
+                     "REQUEST_BUDGET_EXCEEDED": "REPORT_LIMITATION"}
+
+
+@dataclass(frozen=True)
+class RunContext:
+    """Set by the orchestrator for each run; the model cannot change any of it."""
+
+    reference_time: datetime
+    timezone: str
+    messages: tuple[tuple[str, str], ...]  # (role, content), oldest first, ending with the current message
+
+
+current_run_context: contextvars.ContextVar[RunContext | None] = contextvars.ContextVar("current_run_context",
+                                                                                         default=None)
 
 
 class Strict(BaseModel):
@@ -34,14 +74,105 @@ class GetDatasetManifestArgs(Strict):
     dataset_id: str = Field(pattern=DATASET_ID_PATTERN, description="dataset_id from a DATASET_READY result.")
 
 
-class RunPythonAnalysisArgs(Strict):
-    purpose: str = Field(min_length=1, max_length=1000, description="The calculation this code performs and why.")
-    dataset_ids: list[str] = Field(
-        min_length=1, max_length=4,
-        description="dataset_ids from DATASET_READY results to use as inputs (1 to 4, unique).")
-    python_code: str = Field(min_length=1, max_length=20000, description="Python source to run in the sandbox.")
-    expected_outputs: list[OutputType] = Field(
-        min_length=1, max_length=4, description="Output types the code will emit (unique).")
+# ---------------------------------------------------------------- create_analysis_spec
+
+class SpecUniverse(Strict):
+    type: Literal["ALL_IN_SOURCE", "TICKERS"]
+    tickers: list[str] | None = Field(max_length=200, description="Upper-case tickers for TICKERS, else null.")
+    provenance: Provenance
+    default_id: str | None
+
+
+class SpecPeriod(Strict):
+    mode: Literal["EXPLICIT_DATES", "TRAILING", "TRADING_DAYS", "LATEST"]
+    start: str | None = Field(description="YYYY-MM-DD for EXPLICIT_DATES, else null.")
+    end: str | None = Field(description="YYYY-MM-DD for EXPLICIT_DATES, else null.")
+    unit: Literal["DAY", "WEEK", "MONTH", "YEAR"] | None = Field(description="TRAILING calendar unit, else null.")
+    count: int | None = Field(ge=1, le=3650, description="Units for TRAILING, dates for TRADING_DAYS, else null.")
+    provenance: Provenance
+    default_id: str | None
+
+
+class SpecFrequency(Strict):
+    value: Literal["1D", "1W", "1M"]
+    provenance: Provenance
+    default_id: str | None
+
+
+class SpecInput(Strict):
+    name: str = Field(pattern=IDENT_PATTERN, description="Logical input name, e.g. prices.")
+    source_table: str = Field(pattern=TABLE_PATTERN, description="Catalog table the data comes from.")
+    entity_column: str | None = Field(description="Entity column (e.g. ticker); null uses the table's default.")
+    date_column: str | None = Field(description="Date column; null uses the table's default.")
+    columns: list[str] = Field(min_length=1, max_length=50, description="Columns the analysis needs.")
+
+
+class SpecParam(Strict):
+    name: str = Field(pattern=IDENT_PATTERN)
+    value: int | float | str | bool | None
+    provenance: Provenance
+    default_id: str | None
+
+
+class SpecCalculation(Strict):
+    id: str = Field(pattern=IDENT_PATTERN)
+    method: Method
+    dataset: str = Field(pattern=IDENT_PATTERN, description="Logical input name.")
+    columns: list[str] = Field(max_length=4, description="Input columns ([] when input_calculation is set).")
+    input_calculation: str | None = Field(description="id of an earlier calculation used as input, or null.")
+    params: list[SpecParam] = Field(max_length=20)
+    output_column: str = Field(pattern=COLUMN_PATTERN, description="Column holding this value in the outputs.")
+    formula: str | None = Field(max_length=1000, description="Required for CUSTOM; null for other methods.")
+    time_alignment: str | None = Field(max_length=300, description="Required for CUSTOM; null otherwise.")
+    covers: list[Family] | None = Field(description="CUSTOM only: requested method families it implements.")
+    provenance: Provenance
+    default_id: str | None
+
+
+class SpecPredicate(Strict):
+    calculation: str = Field(pattern=IDENT_PATTERN)
+    op: Literal[">", ">=", "<", "<=", "==", "!="]
+    value: float
+    provenance: Provenance
+    default_id: str | None
+
+
+class SpecOutput(Strict):
+    name: str = Field(pattern=OUTPUT_NAME_PATTERN, description="The name the code passes to emit_table.")
+    grain: Literal["ENTITY_DATE", "ENTITY", "ENTITY_PAIR", "UNSPECIFIED"]
+    coverage: Literal["FULL", "SELECTION"]
+    calculations: list[str] = Field(max_length=12)
+    selection: list[SpecPredicate] | None = Field(max_length=6, description="Predicates for SELECTION, else null.")
+    entity_column: str | None
+    date_column: str | None
+    pair_columns: list[str] | None = Field(description="Two entity columns for ENTITY_PAIR, else null.")
+
+
+class SpecExclusion(Strict):
+    rule: Literal["MIN_OBSERVATIONS_IN_PERIOD", "MAX_STALENESS_DAYS", "EXCLUDE_TICKERS"]
+    value: int | list[str]
+    provenance: Provenance
+    default_id: str | None
+
+
+class CreateAnalysisSpecArgs(Strict):
+    question: str = Field(min_length=1, max_length=1000, description="The analytical request, restated.")
+    universe: SpecUniverse
+    analysis_period: SpecPeriod
+    frequency: SpecFrequency
+    inputs: list[SpecInput] = Field(min_length=1, max_length=4)
+    calculations: list[SpecCalculation] = Field(min_length=1, max_length=12)
+    outputs: list[SpecOutput] = Field(min_length=1, max_length=8)
+    exclusion_rules: list[SpecExclusion] = Field(max_length=8)
+
+
+# ---------------------------------------------------------------- run_python_analysis
+
+class InputBindingArgs(Strict):
+    name: str = Field(pattern=IDENT_PATTERN, description="A logical input name from the approved spec.")
+    dataset_ids: list[str] = Field(min_length=1, max_length=8,
+                                   description="DATASET_READY dataset_ids holding this input (same table and columns).")
+    duplicate_policy: Literal["ERROR_ON_CONFLICT", "PREFER_LATEST_SNAPSHOT"]
 
     @field_validator("dataset_ids")
     @classmethod
@@ -53,6 +184,14 @@ class RunPythonAnalysisArgs(Strict):
         if len(set(values)) != len(values):
             raise ValueError("dataset_ids must be unique")
         return values
+
+
+class RunPythonAnalysisArgs(Strict):
+    spec_id: str = Field(pattern=SPEC_ID_PATTERN, description="spec_id of an approved analysis spec.")
+    inputs: list[InputBindingArgs] = Field(min_length=1, max_length=4)
+    python_code: str = Field(min_length=1, max_length=20000, description="Python source to run in the sandbox.")
+    expected_outputs: list[OutputType] = Field(
+        min_length=1, max_length=4, description="Output types the code will emit (unique).")
 
     @field_validator("expected_outputs")
     @classmethod
@@ -74,33 +213,67 @@ MANIFEST_DESCRIPTION = (
     "DATASET_EXPIRED or DATASET_NOT_FOUND."
 )
 
+SPEC_DESCRIPTION = (
+    "Required before any Python analysis: propose the machine-readable contract of the calculation. The service "
+    "checks it against the user's own messages and returns APPROVED (with spec_id), APPROVED_WITH_UNVERIFIED "
+    "(spec_id plus requirements the user did not state, which must be disclosed), ANALYSIS_SPEC_MISMATCH (fix the "
+    "spec to match the request; never change the request to fit limits), NEEDS_CLARIFICATION (ask the user), or "
+    "INVALID_SPEC. It also returns the resolved analysis period and required_input: the warm-up history and the "
+    "date range to request with request_data. "
+    "provenance per requirement: USER_EXPLICIT only for what the user stated, USER_CLARIFIED for answers to your "
+    "clarification question, APPROVED_DEFAULT with default_id for a documented default, AI_INFERRED otherwise. "
+    "Defaults: DEFAULT_TRAILING_CALENDAR_WINDOW ('last N months' = TRAILING), DEFAULT_TRADING_DAYS, DEFAULT_LATEST, "
+    "DEFAULT_MONTH_WITHOUT_YEAR, DEFAULT_UNIVERSE_ALL_IN_SOURCE ('all stocks'), DEFAULT_FREQUENCY_DAILY, "
+    "DEFAULT_ROLLING_WINDOW_UNIT, DEFAULT_STD_DDOF (1), DEFAULT_ZSCORE_INCLUDES_CURRENT, DEFAULT_RETURN_KIND "
+    "(SIMPLE), DEFAULT_RETURN_HORIZON (1), DEFAULT_RETURN_AS_PERCENT (false), DEFAULT_RSI_PERIOD (14), "
+    "DEFAULT_RSI_SMOOTHING (WILDER), DEFAULT_CORRELATION_METHOD, DEFAULT_CORRELATION_TRANSFORM (SIMPLE_RETURN), "
+    "DEFAULT_CORRELATION_MIN_OVERLAP. Omitted method parameters get their default. "
+    "Methods with independent recalculation (params): SMA(window), ROLLING_STD(window, ddof), "
+    "ROLLING_ZSCORE(window, ddof, include_current), RETURN(horizon, kind SIMPLE|LOG, as_percent), "
+    "FORWARD_RETURN(horizon, kind, as_percent), RSI(period), ROLLING_CORRELATION(window, method, transform; two "
+    "columns), CORRELATION(method, transform, min_overlap; ENTITY_PAIR output over a TICKERS universe). Any other "
+    "research method is CUSTOM with a formula, time_alignment, optional warmup_observations param, and covers; "
+    "CUSTOM results are never independently recalculated. Chain a method on another calculation with "
+    "input_calculation (e.g. ROLLING_STD of a RETURN). "
+    "outputs: each TABLE the code emits, by name. grain ENTITY_DATE (one row per entity and date in the period), "
+    "ENTITY (one row per entity at its latest observation in the period), ENTITY_PAIR, or UNSPECIFIED (not "
+    "checkable). coverage FULL (every entity/date in scope) or SELECTION (only rows meeting the selection "
+    "predicates, e.g. RSI < 30). Only declared outputs with a checkable grain can pass validation."
+)
+
 RUN_DESCRIPTION = (
-    "Run Python analysis in an isolated sandbox over 1-4 governed datasets (dataset_ids from DATASET_READY "
-    "results). The code runs as a script without network, subprocess, or file access outside its inputs. "
-    "Inputs: DATASETS maps each dataset_id to a local Parquet path, e.g. pd.read_parquet(DATASETS[id]), "
-    "pl.scan_parquet(DATASETS[id]), or duckdb.sql('SELECT ... FROM read_parquet(?)', params=[DATASETS[id]]); "
-    "never write your own file paths. Libraries: numpy, pandas, polars, pyarrow, duckdb, scipy, statsmodels, "
-    "matplotlib, and TA-Lib (import talib: RSI, SMA, STDDEV, MACD, BBANDS, candlestick patterns such as "
-    "CDLENGULFING, which returns positive values for bullish and negative for bearish patterns). "
-    "Helper module saniti: load_dataset(id, columns=None) returns a pandas DataFrame; "
-    "iter_series(df, entity, date, min_history) yields (entity, its history sorted by date) and records "
-    "entities excluded for short history; prepare_panel(df, entity, date, on_duplicate='error'|'keep_last'|"
-    "'keep_first') sorts and handles duplicate observations explicitly; panel_check(df, entity, date) reports "
-    "duplicates, ordering, and nulls; add_warning(code, message) records a limitation; SEED is the fixed seed. "
-    "Official results must be emitted, not printed: emit_table(name, dataframe, description=''), "
-    "emit_metrics(dict), emit_chart(figure, name, title, description), emit_artifact(name, data, "
-    "format='PARQUET'|'CSV'|'JSON'); only types listed in expected_outputs may be emitted. Compute indicators "
-    "per entity on date-sorted history, never across a multi-entity frame, and do not fill missing values "
-    "silently. The call waits briefly; if status is QUEUED or RUNNING, call get_analysis_result after "
-    "retry_after_seconds. A TABLE returns row_count, columns, a bounded preview, and a result_id for the "
-    "complete table."
+    "Run Python analysis in an isolated sandbox against an approved spec_id. Bind every logical input of the spec "
+    "to the DATASET_READY dataset_ids that hold it (several dataset_ids may form one input only if they come from "
+    "the same table with identical columns). The code runs without network, subprocess, or file access outside "
+    "its workspace. Inputs are DuckDB views named after the logical inputs: saniti.sql('SELECT ticker, date, "
+    "close FROM prices WHERE date >= ?', [ANALYSIS_START]) or saniti.load('prices', columns=[...], start=..., "
+    "end=..., entities=[...]) return bounded pandas DataFrames (filter and aggregate in SQL; large results are "
+    "refused); INPUTS lists each input's columns; SPEC is the approved spec; ANALYSIS_START, ANALYSIS_END and "
+    "REFERENCE_DATE are the resolved period. Compute on the full input history (it includes the warm-up) and emit "
+    "only rows inside the analysis period. Write intermediate Parquet only to saniti.intermediate_path(name). "
+    "Libraries: numpy, pandas, polars, pyarrow, duckdb, scipy, statsmodels, matplotlib, TA-Lib (import talib). "
+    "Helpers: iter_series, prepare_panel, panel_check, add_warning. Emit each spec output with emit_table(name, "
+    "dataframe) using the spec's output name, entity/date columns, and output_column names; also emit_metrics, "
+    "emit_chart, emit_artifact. Compute indicators per entity on date-sorted history. Nothing the code reports "
+    "about itself counts as evidence. The result has execution_status and validation_status (PASS, INCOMPLETE, "
+    "FAILED, UNVERIFIED) with validation_level, reason_codes, expected_scope, actual_scope and validation_evidence."
 )
 
 RESULT_DESCRIPTION = (
-    "Get the status and structured outputs of a run_python_analysis job. Waits briefly while it runs. Returns "
-    "status (QUEUED, RUNNING, COMPLETED, FAILED, CANCELLED, EXPIRED), next_action, outputs, warnings, and a "
-    "structured error."
+    "Get the execution_status, validation_status, validation_level, and structured outputs of a "
+    "run_python_analysis job. Waits briefly while it runs."
 )
+
+
+def _compact_evidence(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    compact = []
+    for item in items[:25]:
+        entry = {k: v for k, v in item.items() if k not in ("examples", "missing_examples", "unexpected_examples")}
+        for key in ("examples", "missing_examples", "unexpected_examples"):
+            if item.get(key):
+                entry[key] = item[key][:3]
+        compact.append(entry)
+    return compact
 
 
 def model_view(result: dict[str, Any]) -> dict[str, Any]:
@@ -109,13 +282,29 @@ def model_view(result: dict[str, Any]) -> dict[str, Any]:
     lineage.pop("limits", None)
     lineage.pop("deployment_id", None)
     view = {key: result.get(key) for key in (
-        "analysis_id", "status", "next_action", "retry_after_seconds", "purpose", "dataset_ids", "expected_outputs",
-        "runtime_ms", "outputs", "warnings", "error", "outputs_expire_at")}
+        "analysis_id", "spec_id", "execution_status", "validation_status", "validation_level", "reason_codes",
+        "next_action", "retry_after_seconds", "question", "inputs", "expected_outputs", "runtime_ms",
+        "expected_scope", "actual_scope", "outputs", "warnings", "error", "outputs_expire_at")}
+    view["validation_evidence"] = _compact_evidence(result.get("validation_evidence") or [])
+    view["derived_features"] = [
+        {k: f.get(k) for k in ("name", "method", "parameters", "output_grain", "independent_check_result", "status",
+                               "statistical_validation")} for f in (result.get("derived_features") or [])]
+    if result.get("database_features"):
+        view["database_features"] = result["database_features"]
     view["lineage"] = lineage
     diagnostics = result.get("diagnostics") or {}
     if diagnostics:
         view["diagnostics"] = {k: str(v)[-DIAGNOSTIC_CHARS:] for k, v in diagnostics.items() if v}
-    return {k: v for k, v in view.items() if v is not None}
+    return {k: v for k, v in view.items() if v is not None and v != []}
+
+
+def spec_view(result: dict[str, Any]) -> dict[str, Any]:
+    keys = ("status", "spec_id", "reference", "resolved_period", "required_input", "mismatches",
+            "unverified_requirements", "clarification_needed", "problems", "next_action")
+    view = {k: result.get(k) for k in keys if result.get(k) not in (None, [])}
+    if result.get("derived_features"):
+        view["derived_features"] = [f.get("name") for f in result["derived_features"]]
+    return view
 
 
 class SandboxClient:
@@ -151,23 +340,48 @@ class SandboxClient:
             raise ToolError("The Python sandbox returned an invalid response.")
         return body
 
+    @staticmethod
+    def _request_id() -> str:
+        return current_request_id.get() or f"orc-{uuid.uuid4().hex[:16]}"
+
+    def _rejected(self, response: httpx.Response, body: dict[str, Any]) -> dict[str, Any]:
+        error = body.get("error") if isinstance(body.get("error"), dict) else None
+        if response.status_code in (422, 429, 503) and error:
+            rejected = {"status": "REJECTED", "error": {"code": error.get("code"), "message": error.get("message")},
+                        "next_action": REJECTION_ACTIONS.get(error.get("code"), "REPORT_LIMITATION")}
+            if error.get("details"):
+                rejected["error"]["details"] = error["details"][:15]
+            if body.get("retry_after_seconds"):
+                rejected["retry_after_seconds"] = body["retry_after_seconds"]
+            return rejected
+        raise ToolError(f"The Python sandbox is unavailable (HTTP {response.status_code}).")
+
+    def create_spec(self, arguments: CreateAnalysisSpecArgs) -> dict[str, Any]:
+        context = current_run_context.get()
+        if context is None:
+            raise ToolError("No user request is available to check the spec against.")
+        messages = [{"role": role, "content": content[-MAX_MESSAGE_CHARS:]}
+                    for role, content in context.messages[-MAX_USER_MESSAGES:]]
+        response = self._call("POST", "/v1/specs", json={
+            "request_id": self._request_id(), "reference_time": context.reference_time.isoformat(),
+            "timezone": context.timezone, "user_messages": messages, "spec": arguments.model_dump(mode="json")})
+        body = self._json(response)
+        if response.status_code == 200 and "status" in body:
+            return spec_view(body)
+        return self._rejected(response, body)
+
     def submit(self, arguments: RunPythonAnalysisArgs) -> dict[str, Any]:
-        request_id = current_request_id.get() or f"orc-{uuid.uuid4().hex[:16]}"
-        response = self._call("POST", "/v1/analyses", json={"request_id": request_id, **arguments.model_dump()})
+        response = self._call("POST", "/v1/analyses", json={"request_id": self._request_id(),
+                                                            **arguments.model_dump(mode="json")})
         body = self._json(response)
         if response.status_code == 200 and "analysis_id" in body:
             return model_view(body)
-        error = body.get("error") if isinstance(body.get("error"), dict) else None
-        if response.status_code in (422, 429, 503) and error:
-            return {"status": "REJECTED", "error": {"code": error.get("code"), "message": error.get("message")},
-                    "next_action": REJECTION_ACTIONS.get(error.get("code"), "REPORT_LIMITATION"),
-                    **({"retry_after_seconds": body["retry_after_seconds"]} if body.get("retry_after_seconds") else {})}
-        raise ToolError(f"The Python sandbox is unavailable (HTTP {response.status_code}).")
+        return self._rejected(response, body)
 
     def result(self, analysis_id: str) -> dict[str, Any]:
         response = self._call("GET", f"/v1/analyses/{analysis_id}", params={"wait_seconds": self.poll_wait_seconds})
         if response.status_code == 404:
-            return {"analysis_id": analysis_id, "status": "NOT_FOUND", "next_action": "STOP_OR_REFORMULATE",
+            return {"analysis_id": analysis_id, "execution_status": "NOT_FOUND", "next_action": "STOP_OR_REFORMULATE",
                     "error": {"code": "ANALYSIS_NOT_FOUND", "message": "No analysis exists with this analysis_id."}}
         body = self._json(response)
         if response.status_code == 200 and "analysis_id" in body:
@@ -176,6 +390,11 @@ class SandboxClient:
 
     def close(self) -> None:
         self._client.close()
+
+
+def run_context(reference_time: datetime | None, tz: str, history: list[tuple[str, str]], message: str) -> RunContext:
+    moment = reference_time or datetime.now(timezone.utc)
+    return RunContext(reference_time=moment, timezone=tz, messages=tuple(history) + (("user", message),))
 
 
 def manifest_spec(client: GovernorClient, *, timeout_seconds: float) -> ToolSpec:
@@ -188,6 +407,10 @@ def manifest_spec(client: GovernorClient, *, timeout_seconds: float) -> ToolSpec
 
 
 def analysis_specs(client: SandboxClient, *, timeout_seconds: float, max_result_bytes: int) -> list[ToolSpec]:
+    def create(arguments: BaseModel) -> dict[str, Any]:
+        assert isinstance(arguments, CreateAnalysisSpecArgs)
+        return client.create_spec(arguments)
+
     def run(arguments: BaseModel) -> dict[str, Any]:
         assert isinstance(arguments, RunPythonAnalysisArgs)
         return client.submit(arguments)
@@ -197,6 +420,8 @@ def analysis_specs(client: SandboxClient, *, timeout_seconds: float, max_result_
         return client.result(arguments.analysis_id)
 
     return [
+        ToolSpec(name="create_analysis_spec", description=SPEC_DESCRIPTION, arguments_model=CreateAnalysisSpecArgs,
+                 handler=create, timeout_seconds=timeout_seconds, max_result_bytes=max_result_bytes),
         ToolSpec(name="run_python_analysis", description=RUN_DESCRIPTION, arguments_model=RunPythonAnalysisArgs,
                  handler=run, timeout_seconds=timeout_seconds, max_result_bytes=max_result_bytes),
         ToolSpec(name="get_analysis_result", description=RESULT_DESCRIPTION, arguments_model=GetAnalysisResultArgs,
