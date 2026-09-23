@@ -94,6 +94,16 @@ FINALIZE_INSTRUCTION = (
     "Provide your final response to my latest message now, based only on the conversation and "
     "tool results above. Do not call tools. " + RESPONSE_CONTRACT
 )
+CONTEXT_BUDGET_INSTRUCTION = (
+    "Tool access has ended because this run reached its context budget; no further tools can be "
+    "called. Answer my latest message using only the information already retrieved in the tool "
+    "results above, and do not state anything about records that were not retrieved. Return "
+    "response_type \"LIMITATION\", or \"ANSWER\" only if the retrieved information fully answers "
+    "the request. In both cases, limitations must state that tool access ended because the context "
+    "budget was reached, what was read (for example which catalogs and pages, using "
+    "rows_before_this_page, returned_rows and total_rows), and what remains unread (for example "
+    "catalogs whose last page had has_more=true). " + RESPONSE_CONTRACT
+)
 
 
 class ResponsesTransport(Protocol):
@@ -125,6 +135,7 @@ class RunState:
     final_rejections: int = 0
     tools_offered: bool = False
     tools_locked: bool = False
+    tools_withdrawn_reason: str | None = None
     structured_only: bool = False
     history_turns_dropped: int = 0
     # tool+arguments hash -> (consecutive executions with an unchanged result, last result hash)
@@ -180,6 +191,7 @@ class AgentOrchestrator:
             iterations=state.iterations,
             tool_calls=state.tool_calls,
             tools_requested=state.tools_requested,
+            tools_withdrawn_reason=state.tools_withdrawn_reason,
             history_turns_dropped=state.history_turns_dropped,
             input_tokens=state.input_tokens,
             output_tokens=state.output_tokens,
@@ -195,13 +207,17 @@ class AgentOrchestrator:
                 raise RunFailure("ANALYSIS_TIMEOUT", "AI_MAX_ANALYSIS_SECONDS exhausted before a final answer")
 
             tools = [] if state.tools_locked or state.structured_only else self.registry.definitions()
+            context_tokens = self._estimate_context(state, tools)
+            if tools and context_tokens + self.settings.ai_max_output_tokens >= self._soft_context_limit():
+                # Degrade instead of failing: stop tool use and finalize from what was retrieved.
+                self._withdraw_tools(state, "CONTEXT_BUDGET")
+                state.input_items.append({"role": "user", "content": CONTEXT_BUDGET_INSTRUCTION})
+                tools = []
+                context_tokens = self._estimate_context(state, tools)
             state.tools_offered = bool(tools)
             payload = self._payload(state, tools)
-            context_tokens = estimate_tokens({
-                "instructions": SYSTEM_PROMPT, "input": state.input_items,
-                "tools": tools, "schema": FINAL_RESPONSE_SCHEMA,
-            })
             if context_tokens + self.settings.ai_max_output_tokens > self.settings.ai_max_context_tokens:
+                # Last-resort safety net: even the tool-free finalization turn does not fit.
                 raise RunFailure("CONTEXT_LIMIT", "Request would exceed AI_MAX_CONTEXT_TOKENS")
 
             response = self.client.create(payload)
@@ -230,7 +246,7 @@ class AgentOrchestrator:
 
             raw = self._output_text(response)
             try:
-                return self._parse_final_output(raw)
+                return self._check_budget_limitations(state, self._parse_final_output(raw))
             except ValueError as exc:
                 if tools:
                     self._request_structured_final(state, raw)
@@ -305,7 +321,7 @@ class AgentOrchestrator:
             return error_outcome(call_id, name, "TOOLS_NOT_AVAILABLE",
                                  "No tools are available in this step. Return the final response.")
         if state.tool_calls >= self.settings.ai_max_tool_calls:
-            state.tools_locked = True
+            self._withdraw_tools(state, "TOOL_CALL_BUDGET")
             return error_outcome(
                 call_id, name, "TOOL_BUDGET_EXHAUSTED",
                 "The tool-call budget is exhausted. Answer with the results already returned "
@@ -327,6 +343,34 @@ class AgentOrchestrator:
         count = count + 1 if last_result in (None, result_hash) else 1
         state.call_history[key] = (count, result_hash)
         return outcome
+
+    def _estimate_context(self, state: RunState, tools: list[dict[str, Any]]) -> int:
+        return estimate_tokens({
+            "instructions": SYSTEM_PROMPT, "input": state.input_items,
+            "tools": tools, "schema": FINAL_RESPONSE_SCHEMA,
+        })
+
+    def _soft_context_limit(self) -> float:
+        return self.settings.ai_max_context_tokens * self.settings.ai_context_soft_limit_ratio
+
+    @staticmethod
+    def _withdraw_tools(state: RunState, reason: str) -> None:
+        """The single tools-withdrawn mechanism (tool-call budget or context budget); first reason wins."""
+        if not state.tools_locked:
+            state.tools_locked = True
+            state.tools_withdrawn_reason = reason
+
+    @staticmethod
+    def _check_budget_limitations(state: RunState, final: FinalResponse) -> FinalResponse:
+        if state.tools_withdrawn_reason == "CONTEXT_BUDGET" and (
+            final.response_type == "CLARIFICATION"
+            or (final.response_type == "ANSWER" and not final.limitations)
+        ):
+            raise ValueError(
+                "Tool access ended at the context budget, so the response must be LIMITATION, or "
+                "ANSWER with limitations stating what was read and what remains unread."
+            )
+        return final
 
     @staticmethod
     def _normalized_arguments(raw: Any) -> Any:
@@ -419,6 +463,7 @@ class AgentOrchestrator:
             reasoning_tokens=state.reasoning_tokens,
             total_tokens=state.total_tokens,
             duration_ms=int((self.clock() - state.started) * 1000),
+            tools_withdrawn_reason=state.tools_withdrawn_reason,
         )
 
     def _failed(self, state: RunState, code: str, message: str) -> AgentRunResponse:

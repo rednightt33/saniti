@@ -17,7 +17,7 @@ def build_default_registry(
     cursor_secret: bytes | None = None,
     page_size_default: int = 100,
     page_size_max: int = 200,
-    page_max_bytes: int = 32000,
+    page_max_bytes: int = 16000,
     preview_enabled: bool = True,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""

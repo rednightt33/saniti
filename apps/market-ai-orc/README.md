@@ -81,6 +81,28 @@ OpenRouter AI
    `AI_FINAL_RESPONSE_MAX_RETRIES` times.
 7. Code, not the model, wraps the answer in the API envelope with status, usage, and timing.
 
+### Context budget
+
+Before every model call the context is estimated: system prompt, input items including all
+prior tool outputs, tool definitions, and schema. `AI_MAX_OUTPUT_TOKENS` is added to the
+estimate.
+
+- **Soft limit.** A tool turn would reach `AI_MAX_CONTEXT_TOKENS × AI_CONTEXT_SOFT_LIMIT_RATIO`
+  (64000 × 0.8 = 51200 by default). The run then degrades instead of failing:
+  - Tools are withdrawn through the same mechanism as the `AI_MAX_TOOL_CALLS` budget.
+  - A finalization instruction is added, telling the model that tool access ended at the
+    context budget.
+  - The model must answer only from what was already retrieved. It returns `LIMITATION`,
+    or an `ANSWER` whose `limitations` say what was read and what remains unread.
+  - An `ANSWER` without limitations, or a `CLARIFICATION`, is rejected and retried.
+  - `execution.tools_withdrawn_reason` is `CONTEXT_BUDGET`. It is `TOOL_CALL_BUDGET` when the
+    tool-call budget ended tool use.
+  - Prior tool outputs are never dropped, summarized, or truncated.
+- **Hard limit.** When even the tool-free finalization turn would exceed
+  `AI_MAX_CONTEXT_TOKENS`, for example with oversized history or one very large tool
+  output, the run fails with `CONTEXT_LIMIT`. The same happens when provider-reported input
+  exceeds the ceiling.
+
 ### Why tool turns carry no `text.format`, and there is no `parallel_tool_calls`
 
 Both were verified live against OpenRouter with `deepseek/deepseek-v4.1-flash` on 2026-09-22:
@@ -110,7 +132,8 @@ wall-clock time, output tokens, and a context ceiling checked before each provid
 | `AI_MAX_TOOL_CALLS` | no | `12` | Maximum tool calls per run; after that, tools are withdrawn |
 | `AI_MAX_IDENTICAL_TOOL_CALLS` | no | `2` | Executions allowed for the same tool and arguments while the result is unchanged |
 | `AI_MAX_ANALYSIS_SECONDS` | no | `600` | Wall-clock limit per run |
-| `AI_MAX_CONTEXT_TOKENS` | no | `64000` | Context ceiling (estimated before the call, provider-reported after) |
+| `AI_MAX_CONTEXT_TOKENS` | no | `64000` | Hard context ceiling (estimated before the call, provider-reported after) |
+| `AI_CONTEXT_SOFT_LIMIT_RATIO` | no | `0.8` | 0.5–0.95. At `AI_MAX_CONTEXT_TOKENS ×` this ratio, tools are withdrawn and the run finalizes from what was already retrieved (see [Context budget](#context-budget)). `AI_MAX_OUTPUT_TOKENS` must stay below this soft limit |
 | `AI_MAX_HISTORY_TOKENS` | no | `4000` | Budget for supplied history; the newest whole turns are kept |
 | `AI_FINAL_RESPONSE_MAX_RETRIES` | no | `2` | Retries after an invalid final response (`0` allowed) |
 | `OPENROUTER_HTTP_REFERER` | no | unset | Optional `HTTP-Referer` header |
@@ -120,7 +143,7 @@ wall-clock time, output tokens, and a context ceiling checked before each provid
 | `CATALOG_STATEMENT_TIMEOUT_MS` | no | `5000` | Per-statement timeout for catalog queries (100–30000) |
 | `CATALOG_PAGE_SIZE_DEFAULT` | no | `100` | `read_catalog_rows` page size when the model passes `null` (≤ `CATALOG_PAGE_SIZE_MAX`) |
 | `CATALOG_PAGE_SIZE_MAX` | no | `200` | Largest `page_size` the model may request (≤ 1000) |
-| `CATALOG_PAGE_MAX_BYTES` | no | `32000` | Serialized row budget per catalog page (4096–131072); a page ends early rather than exceeding it |
+| `CATALOG_PAGE_MAX_BYTES` | no | `16000` | Serialized row budget per catalog page (4096–131072); a page ends early rather than exceeding it |
 | `MARKET_DATA_PREVIEW_ENABLED` | no | `true` | `false` unregisters `preview_table_rows` without touching the catalog tools |
 
 Secrets have no defaults, and the service refuses to start without them. It never logs API
@@ -178,7 +201,8 @@ Response (HTTP `200` for every agent outcome, including `FAILED`):
     "output_tokens": 0,
     "reasoning_tokens": 0,
     "total_tokens": 0,
-    "duration_ms": 0
+    "duration_ms": 0,
+    "tools_withdrawn_reason": null
   },
   "error": null
 }

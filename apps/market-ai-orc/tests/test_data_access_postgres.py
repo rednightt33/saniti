@@ -187,6 +187,28 @@ def test_byte_budget_ends_pages_early_without_losing_rows(db: dict) -> None:
     assert len(ids) == len(set(ids)) == total
 
 
+@pytest.mark.parametrize("catalog", CATALOG_TABLES)
+def test_default_16000_byte_pages_traverse_completely_with_headroom(db: dict, catalog: str) -> None:
+    from app.compaction import dumps
+
+    reg = registry(db["login"])  # defaults: page_size 100 / max 200, page_max_bytes 16000
+    pages = traverse(reg, catalog, page_size=200)
+    rows = [row for page in pages for row in page["rows"]]
+    names = [column["name"] for column in pages[0]["columns"]]
+    keys = [tuple(row[names.index(k)] for k in EXPECTED_KEYS[catalog]) for row in rows]
+    total = admin_rows(db["admin"], f'SELECT count(*) FROM public."{catalog}"')[0][0]
+    assert len(keys) == len(set(keys)) == total == pages[-1]["total_rows"]
+    for page in pages:
+        row_bytes = sum(len(dumps(row).encode("utf-8")) + 1 for row in page["rows"])
+        assert row_bytes <= 16000
+        envelope = len(dumps({"ok": True, "tool": "read_catalog_rows", "result": page}).encode("utf-8"))
+        assert envelope <= 16000 + 8192 and envelope - row_bytes < 4096  # well inside the headroom
+        if page["has_more"]:
+            assert page["page_limited_by"] in {"PAGE_SIZE", "BYTE_BUDGET"} and page["next_cursor"]
+    if catalog == "AI_data_coverage":
+        assert any(page["page_limited_by"] == "BYTE_BUDGET" for page in pages)
+
+
 @pytest.mark.parametrize(
     "arguments",
     [

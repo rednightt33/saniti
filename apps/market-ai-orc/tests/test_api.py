@@ -66,7 +66,9 @@ def test_run_returns_deterministic_envelope(api: TestClient) -> None:
     assert set(body["execution"]) == {
         "provider", "model", "provider_response_id", "iterations", "tool_call_count",
         "input_tokens", "output_tokens", "reasoning_tokens", "total_tokens", "duration_ms",
+        "tools_withdrawn_reason",
     }
+    assert body["execution"]["tools_withdrawn_reason"] is None
 
 
 @pytest.mark.parametrize(

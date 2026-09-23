@@ -23,6 +23,17 @@ def _integer(env: Mapping[str, str], name: str, default: int, minimum: int = 1) 
     return value
 
 
+def _ratio(env: Mapping[str, str], name: str, default: float, low: float, high: float) -> float:
+    raw = env.get(name, str(default))
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ConfigError(f"{name} must be a number") from exc
+    if not low <= value <= high:
+        raise ConfigError(f"{name} must be between {low} and {high}")
+    return value
+
+
 def _boolean(env: Mapping[str, str], name: str, default: bool) -> bool:
     raw = env.get(name, "true" if default else "false").strip().lower()
     if raw not in {"true", "false"}:
@@ -48,6 +59,7 @@ class Settings:
     ai_max_identical_tool_calls: int
     ai_max_analysis_seconds: int
     ai_max_context_tokens: int
+    ai_context_soft_limit_ratio: float
     ai_max_history_tokens: int
     ai_final_response_max_retries: int
     openrouter_http_referer: str | None
@@ -83,6 +95,7 @@ class Settings:
             ai_max_identical_tool_calls=_integer(env, "AI_MAX_IDENTICAL_TOOL_CALLS", 2),
             ai_max_analysis_seconds=_integer(env, "AI_MAX_ANALYSIS_SECONDS", 600),
             ai_max_context_tokens=_integer(env, "AI_MAX_CONTEXT_TOKENS", 64000),
+            ai_context_soft_limit_ratio=_ratio(env, "AI_CONTEXT_SOFT_LIMIT_RATIO", 0.8, 0.5, 0.95),
             ai_max_history_tokens=_integer(env, "AI_MAX_HISTORY_TOKENS", 4000),
             ai_final_response_max_retries=_integer(
                 env, "AI_FINAL_RESPONSE_MAX_RETRIES", 2, minimum=0
@@ -94,7 +107,7 @@ class Settings:
             catalog_statement_timeout_ms=_integer(env, "CATALOG_STATEMENT_TIMEOUT_MS", 5000, minimum=100),
             catalog_page_size_default=_integer(env, "CATALOG_PAGE_SIZE_DEFAULT", 100),
             catalog_page_size_max=_integer(env, "CATALOG_PAGE_SIZE_MAX", 200),
-            catalog_page_max_bytes=_integer(env, "CATALOG_PAGE_MAX_BYTES", 32000, minimum=4096),
+            catalog_page_max_bytes=_integer(env, "CATALOG_PAGE_MAX_BYTES", 16000, minimum=4096),
             market_data_preview_enabled=_boolean(env, "MARKET_DATA_PREVIEW_ENABLED", True),
         )
         if settings.ai_reasoning_effort not in REASONING_EFFORTS:
@@ -103,6 +116,10 @@ class Settings:
             )
         if settings.ai_max_output_tokens >= settings.ai_max_context_tokens:
             raise ConfigError("AI_MAX_OUTPUT_TOKENS must be below AI_MAX_CONTEXT_TOKENS")
+        if settings.ai_max_output_tokens >= settings.ai_max_context_tokens * settings.ai_context_soft_limit_ratio:
+            raise ConfigError(
+                "AI_MAX_OUTPUT_TOKENS must be below AI_MAX_CONTEXT_TOKENS x AI_CONTEXT_SOFT_LIMIT_RATIO"
+            )
         if settings.ai_max_history_tokens >= settings.ai_max_context_tokens:
             raise ConfigError("AI_MAX_HISTORY_TOKENS must be below AI_MAX_CONTEXT_TOKENS")
         if settings.catalog_database_url and not settings.catalog_database_url.startswith(

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import inspect
+
 import pytest
 
 from app.config import ConfigError, Settings
+from app.tools import build_default_registry
 from conftest import BASE_ENV, make_settings
 
 
@@ -97,7 +100,8 @@ def test_invalid_catalog_settings_are_rejected(name: str, value: str, message: s
 def test_catalog_paging_and_preview_defaults() -> None:
     settings = make_settings()
     assert (settings.catalog_page_size_default, settings.catalog_page_size_max) == (100, 200)
-    assert settings.catalog_page_max_bytes == 32000 and settings.market_data_preview_enabled is True
+    assert settings.catalog_page_max_bytes == 16000 and settings.market_data_preview_enabled is True
+    assert inspect.signature(build_default_registry).parameters["page_max_bytes"].default == 16000
     assert make_settings(MARKET_DATA_PREVIEW_ENABLED="false").market_data_preview_enabled is False
 
 
@@ -114,3 +118,24 @@ def test_catalog_paging_and_preview_defaults() -> None:
 def test_invalid_paging_settings_are_rejected(name: str, value: str, message: str) -> None:
     with pytest.raises(ConfigError, match=message):
         make_settings(**{name: value})
+
+
+def test_context_soft_limit_ratio_default_and_override() -> None:
+    assert make_settings().ai_context_soft_limit_ratio == 0.8
+    assert make_settings(AI_CONTEXT_SOFT_LIMIT_RATIO="0.5").ai_context_soft_limit_ratio == 0.5
+    assert make_settings(AI_CONTEXT_SOFT_LIMIT_RATIO="0.95").ai_context_soft_limit_ratio == 0.95
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"AI_CONTEXT_SOFT_LIMIT_RATIO": "0.49"}, "between 0.5 and 0.95"),
+        ({"AI_CONTEXT_SOFT_LIMIT_RATIO": "0.96"}, "between 0.5 and 0.95"),
+        ({"AI_CONTEXT_SOFT_LIMIT_RATIO": "1"}, "between 0.5 and 0.95"),
+        ({"AI_CONTEXT_SOFT_LIMIT_RATIO": "high"}, "must be a number"),
+        ({"AI_MAX_CONTEXT_TOKENS": "10000", "AI_MAX_OUTPUT_TOKENS": "8000"}, "AI_CONTEXT_SOFT_LIMIT_RATIO"),
+    ],
+)
+def test_invalid_context_soft_limit_is_rejected(overrides: dict, message: str) -> None:
+    with pytest.raises(ConfigError, match=message):
+        make_settings(**overrides)

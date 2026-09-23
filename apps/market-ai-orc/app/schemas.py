@@ -136,6 +136,8 @@ class ExecutionMetadata(BaseModel):
     reasoning_tokens: int = 0
     total_tokens: int = 0
     duration_ms: int = 0
+    # Why tools were withdrawn before the final answer: TOOL_CALL_BUDGET or CONTEXT_BUDGET.
+    tools_withdrawn_reason: Literal["TOOL_CALL_BUDGET", "CONTEXT_BUDGET"] | None = None
 
 
 class RunError(BaseModel):

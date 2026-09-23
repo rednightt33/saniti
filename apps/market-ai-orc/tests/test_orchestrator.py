@@ -172,6 +172,7 @@ def test_tool_budget_exhaustion_locks_tools() -> None:
     assert executed == ["A"]
     assert json.loads(outputs(client.payloads[2])[-1]["output"])["error"]["code"] == "TOOL_BUDGET_EXHAUSTED"
     assert "tools" not in client.payloads[2]
+    assert result.execution.tools_withdrawn_reason == "TOOL_CALL_BUDGET"
 
 
 def test_unknown_tool_request_returns_error_to_model() -> None:
@@ -299,7 +300,7 @@ def test_wall_clock_budget_is_enforced() -> None:
 def test_context_ceiling_is_checked_before_calling_provider() -> None:
     agent, client = orchestrator(
         [final_response(ANSWER)], AI_MAX_CONTEXT_TOKENS="3500", AI_MAX_OUTPUT_TOKENS="3000",
-        AI_MAX_HISTORY_TOKENS="100",
+        AI_MAX_HISTORY_TOKENS="100", AI_CONTEXT_SOFT_LIMIT_RATIO="0.95",
     )
     result = agent.run(request("x" * 3000))
     assert result.error.code == "CONTEXT_LIMIT"
@@ -357,3 +358,115 @@ def test_logs_are_structured_and_never_contain_secrets_or_prompts() -> None:
 
 def test_no_argument_tool_fixture_is_strict() -> None:
     assert NoArguments.model_config["extra"] == "forbid"
+
+
+# --- Context budget: graceful degradation before the hard ceiling ---------------------------------
+
+class BlobArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    size: int
+
+
+def blob_registry() -> ToolRegistry:
+    registry = ToolRegistry(max_result_bytes=200_000)
+    registry.register(ToolSpec(
+        name="read_blob", description="test", arguments_model=BlobArguments,
+        handler=lambda args: {"blob": "x" * args.size},
+    ))
+    return registry
+
+
+# About 1.7k tokens of instructions/tools/schema; each 21,000-byte result adds ~7k tokens.
+BUDGET = {"AI_MAX_CONTEXT_TOKENS": "20000", "AI_MAX_OUTPUT_TOKENS": "1000"}
+LIMITATION = {
+    "response_type": "LIMITATION",
+    "answer": "Only part of the requested records could be read.",
+    "clarification_question": None,
+    "assumptions": [],
+    "limitations": ["Tool access ended at the context budget; pages 1-2 were read, the rest is unread."],
+}
+
+
+def blob_call(size: int, call_id: str) -> dict:
+    return tool_call_response("read_blob", json.dumps({"size": size}), call_id=call_id)
+
+
+def test_soft_context_limit_withdraws_tools_and_finalizes_instead_of_failing() -> None:
+    agent, client = orchestrator([
+        blob_call(21000, "c1"),
+        blob_call(21001, "c2"),
+        final_response(LIMITATION),
+    ], registry=blob_registry(), **BUDGET)
+    service_logger = logging.getLogger("market_ai_orc")
+    handler, previous_level = ListHandler(), service_logger.level
+    service_logger.addHandler(handler)
+    service_logger.setLevel(logging.INFO)
+    try:
+        result = agent.run(request("Read every page."))
+    finally:
+        service_logger.removeHandler(handler)
+        service_logger.setLevel(previous_level)
+
+    assert result.status == "LIMITED" and result.error is None
+    assert result.response.model_dump() == LIMITATION
+    assert result.execution.tools_withdrawn_reason == "CONTEXT_BUDGET"
+    assert result.execution.tool_call_count == 2 and result.execution.iterations == 3
+    assert "tools" in client.payloads[1] and "text" not in client.payloads[1]
+    final = client.payloads[2]
+    assert "tools" not in final and final["text"]["format"]["strict"] is True
+    assert final["input"][-1]["role"] == "user"
+    assert "context budget" in final["input"][-1]["content"]
+    # Prior tool outputs are kept verbatim: nothing is dropped, summarized, or truncated.
+    blobs = [json.loads(item["output"])["result"]["blob"] for item in outputs(final)]
+    assert [len(blob) for blob in blobs] == [21000, 21001]
+    events = [json.loads(message) for message in handler.messages]
+    assert events[-1]["event"] == "ai_run_completed"
+    assert events[-1]["tools_withdrawn_reason"] == "CONTEXT_BUDGET"
+    assert not any("xxxxxxxx" in message or "context budget" in message for message in handler.messages)
+
+
+def test_context_budget_answer_with_limitations_completes() -> None:
+    answer = {**ANSWER, "limitations": ["Tool access ended at the context budget after page 2."]}
+    agent, _ = orchestrator([blob_call(21000, "c1"), blob_call(21001, "c2"), final_response(answer)],
+                            registry=blob_registry(), **BUDGET)
+    result = agent.run(request("Read every page."))
+    assert result.status == "COMPLETED" and result.response.limitations == answer["limitations"]
+    assert result.execution.tools_withdrawn_reason == "CONTEXT_BUDGET"
+
+
+def test_context_budget_answer_without_limitations_is_rejected_then_corrected() -> None:
+    agent, client = orchestrator([
+        blob_call(21000, "c1"), blob_call(21001, "c2"), final_response(ANSWER), final_response(LIMITATION),
+    ], registry=blob_registry(), **BUDGET)
+    result = agent.run(request("Read every page."))
+    assert result.status == "LIMITED" and result.execution.iterations == 4
+    assert "what remains unread" in client.payloads[3]["input"][-1]["content"]
+    assert "tools" not in client.payloads[3]
+
+
+def test_below_soft_limit_behaves_exactly_as_before() -> None:
+    agent, client = orchestrator([blob_call(100, "c1"), blob_call(101, "c2"), final_response(ANSWER)],
+                                 registry=blob_registry(), **BUDGET)
+    result = agent.run(request("Read two small pages."))
+    assert result.status == "COMPLETED" and result.execution.tools_withdrawn_reason is None
+    assert all("tools" in payload and "text" not in payload for payload in client.payloads)
+    assert not any(item.get("role") == "user" and "context budget" in str(item.get("content"))
+                   for item in client.payloads[-1]["input"])
+
+
+def test_hard_context_limit_remains_when_even_finalization_cannot_fit() -> None:
+    agent, client = orchestrator([blob_call(21000, "c1"), blob_call(45000, "c2"), final_response(LIMITATION)],
+                                 registry=blob_registry(), **BUDGET)
+    result = agent.run(request("Read every page."))
+    assert result.status == "FAILED" and result.error.code == "CONTEXT_LIMIT"
+    assert result.execution.tools_withdrawn_reason == "CONTEXT_BUDGET"
+    assert len(client.payloads) == 2  # the finalization turn was never sent
+
+
+def test_oversized_initial_request_still_fails_with_context_limit() -> None:
+    agent, client = orchestrator([final_response(ANSWER)], registry=blob_registry(),
+                                 AI_MAX_CONTEXT_TOKENS="6000", AI_MAX_OUTPUT_TOKENS="1000",
+                                 AI_MAX_HISTORY_TOKENS="100")
+    result = agent.run(request("y" * 15000))
+    assert result.error.code == "CONTEXT_LIMIT" and client.payloads == []
