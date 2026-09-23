@@ -1,5 +1,28 @@
 # Railway changelog
 
+## 2026-09-23 — Deploy market-ai-orc Phase 2+3 (catalog discovery, full catalog access, 20-row preview)
+
+- **Variables on `market-ai-orc`**, both set with `--skip-deploys`:
+  - `MARKET_AI_ORC_DB_PASSWORD`: a new random 48-character secret, set through stdin and never printed.
+  - `CATALOG_DATABASE_URL`: a reference template, `postgresql://market_ai_orc:${{MARKET_AI_ORC_DB_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:5432/${{Postgres.PGDATABASE}}`. It resolves to the private host `postgres.railway.internal`.
+  - No other variable changed.
+- **Deployment:**
+  - Deployed commit `456081d` (Phase 2+3 only; the later context-budget change is not deployed).
+  - Upload `98ec3d4f-8009-43d3-8fd7-8827f54c0ffd` was `SKIPPED` ("No changes to watched files"): the service watch path `/apps/market-ai-orc/**` also applies to CLI uploads, and a `--path-as-root` upload of `apps/market-ai-orc` places files at `app/...`.
+  - The code was then uploaded with its repository layout under `apps/market-ai-orc/`, plus a root wrapper Dockerfile that builds the same image as `apps/market-ai-orc/Dockerfile`.
+  - Deployment `2d6c60ca-4b44-4473-a2de-8e6482075d92` reached `SUCCESS`. Uvicorn started cleanly and `GET /ready` returned `200`.
+- **Temporary one-off service `orc-db-setup`** (`a916cd58-4b22-4e45-bbd9-d57e330b57b1`):
+  - Created with only reference variables (`${{Postgres.DATABASE_URL}}` and three `${{market-ai-orc.*}}` references) and restart policy `NEVER`. It ran once as deployment `11b4d8ad-c908-49eb-a9f9-174a3248ce04`.
+  - It applied the three database migrations, provisioned `market_ai_orc`, and ran the live verification, privilege checks, and `EXPLAIN` evidence (see `DATABASE_CHANGELOG.md`).
+  - It then smoke-tested the deployed service over the private network and finished with `SETUP COMPLETE`.
+  - It was deleted afterwards; the service list confirms it is gone.
+- **Live smoke test** ("Explain which tables and calculations are available for analyzing broker accumulation, and show me example records."):
+  - Result: `COMPLETED`/`ANSWER` in 24 s, 5 model calls, and 9 real tool calls (`get_system_capabilities`, `discover_catalog`, 3 × `get_catalog_details`, 4 × `preview_table_rows`).
+  - Tokens: 63.8k in total, with a peak single-call input of about 22k.
+  - The limitations correctly stated that no SQL or Python analysis ran, that the previews are example rows, and that Feature 02/03 are `UNVERIFIED`/`MANUAL_REFRESH_REQUIRED`.
+- Ran `railway config pull --force`. `.railway/railway.ts` now preserves `CATALOG_DATABASE_URL` and `MARKET_AI_ORC_DB_PASSWORD`, and the follow-up `railway config plan` reported `dev` up to date. No other service, domain, schedule, or source was changed.
+- **Rollback:** redeploy `60f622a5-eed1-4077-8b5b-cb0c0c2faf57` (Phase 1). The catalog tools are registered only when `CATALOG_DATABASE_URL` is set.
+
 ## 2026-09-23 — Deploy market-ai-orc Phase 1 orchestrator
 
 - Created only `market-ai-orc` (service ID `41dc17ee-3bac-41ef-90ec-8b9356815c71`) in Railway `dev`. The user-approved pinned IaC plan (`sha256:f1547b72…`) was exactly one safe create, zero changes, zero destroys.

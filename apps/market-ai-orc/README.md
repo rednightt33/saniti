@@ -501,9 +501,14 @@ frontend, and Telegram.
   so rotating that key updates both services.
 - A future backend caller should reference `${{market-ai-orc.MARKET_AI_ORC_API_KEY}}` rather
   than copying it.
-- It is currently deployed by local upload
-  (`railway up apps/market-ai-orc --path-as-root --service market-ai-orc`). A GitHub `main`
-  source with watch path `/apps/market-ai-orc/**` is not connected yet.
+- It is currently deployed by local upload. A GitHub `main` source is not connected yet.
+  The service watch path `/apps/market-ai-orc/**` also applies to CLI uploads, so a
+  `--path-as-root` upload of this folder is skipped as "No changes to watched files". Upload
+  a staging folder instead: it keeps the code under `apps/market-ai-orc/` and has a root
+  Dockerfile that copies `apps/market-ai-orc/requirements.txt` and `apps/market-ai-orc/app`.
+- Catalog and preview access are live. Migrations `20260923_001`–`003` are applied, and the
+  `market_ai_orc` login is provisioned. `CATALOG_DATABASE_URL` is a Railway reference built
+  from `MARKET_AI_ORC_DB_PASSWORD` and the `Postgres` service's private domain.
 
 ## Run locally
 
