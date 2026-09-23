@@ -57,6 +57,11 @@ class Settings:
     bucket_access_key_id: str | None = field(repr=False)
     bucket_secret_access_key: str | None = field(repr=False)
     dataset_local_dir: str | None
+    # market-python-sandbox only: reads manifests and obtains a short-lived read URL for one
+    # dataset. It can never call /v1/query.
+    dataset_access_key: str | None = field(default=None, repr=False)
+    dataset_access_url_ttl_seconds: int = 120
+    dataset_tombstone_retention_hours: int = 720
 
     @property
     def dataset_storage_configured(self) -> bool:
@@ -106,6 +111,11 @@ class Settings:
             bucket_access_key_id=_optional(env, "SQL_DATASET_BUCKET_ACCESS_KEY_ID"),
             bucket_secret_access_key=_optional(env, "SQL_DATASET_BUCKET_SECRET_ACCESS_KEY"),
             dataset_local_dir=_optional(env, "SQL_DATASET_LOCAL_DIR"),
+            dataset_access_key=_optional(env, "SQL_GOVERNOR_DATASET_ACCESS_KEY"),
+            dataset_access_url_ttl_seconds=_integer(env, "SQL_DATASET_ACCESS_URL_TTL_SECONDS", 120,
+                                                    minimum=30, maximum=900),
+            dataset_tombstone_retention_hours=_integer(env, "SQL_DATASET_TOMBSTONE_RETENTION_HOURS", 720,
+                                                       minimum=0, maximum=8760),
         )
         if settings.max_unfiltered_date_range_days > settings.max_date_range_days:
             raise ConfigError("SQL_MAX_UNFILTERED_DATE_RANGE_DAYS must not exceed SQL_MAX_DATE_RANGE_DAYS")
@@ -119,6 +129,11 @@ class Settings:
             settings.bucket_endpoint and settings.bucket_access_key_id and settings.bucket_secret_access_key
         ):
             raise ConfigError("SQL_DATASET_BUCKET_NAME requires endpoint, access key id, and secret access key")
+        if settings.dataset_access_key is not None:
+            if len(settings.dataset_access_key) < 32:
+                raise ConfigError("SQL_GOVERNOR_DATASET_ACCESS_KEY must be at least 32 characters")
+            if settings.dataset_access_key == settings.api_key:
+                raise ConfigError("SQL_GOVERNOR_DATASET_ACCESS_KEY must differ from SQL_GOVERNOR_API_KEY")
         if settings.bucket_name and settings.dataset_local_dir:
             raise ConfigError("Configure either a dataset bucket or SQL_DATASET_LOCAL_DIR, not both")
         return settings

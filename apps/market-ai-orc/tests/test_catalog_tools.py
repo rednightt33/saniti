@@ -105,7 +105,7 @@ def test_capabilities_report_catalog_discovery_only() -> None:
     assert caps["database_query"] is False and caps["python_analysis"] is False
 
 
-def test_system_prompt_keeps_data_discovery_block_then_appends_data_query_block() -> None:
+def test_system_prompt_keeps_discovery_and_query_blocks_then_appends_python_analysis_block() -> None:
     block = """DATA DISCOVERY RULES
 You have access to a catalog-governed data universe.
 Use discover_catalog to identify the available data
@@ -161,8 +161,30 @@ that analytical calculations have been completed unless an
 analysis tool actually executes them.
 Do not treat catalog metadata or preview rows as a substitute
 for the required analytical dataset."""
-    assert SYSTEM_PROMPT.endswith("strict output schema.\n\n" + block + "\n\n" + query_block)
-    for secret_limit in ("SQL_MAX", "INLINE_ROWS", "password", "200 rows"):
+    python_block = """PYTHON ANALYSIS RULES
+Use run_python_analysis when the user's request requires
+calculations that cannot be completed from an inline database
+result alone.
+Only analyze datasets returned through the governed data
+workflow.
+Use get_dataset_manifest when the exact contents or coverage
+of a dataset must be checked before analysis.
+Python analysis executes in an isolated bounded sandbox.
+Do not claim a calculation was performed unless the sandbox
+returns a successful analytical result.
+Use TA-Lib and the available analytical libraries when they
+are appropriate to the requested calculation.
+For multi-entity time series, keep entity histories separated
+and correctly ordered in time.
+Do not treat an analytical result as statistically validated
+merely because Python execution succeeded.
+If the sandbox reports incomplete input, insufficient history,
+execution failure, or another limitation, preserve that
+limitation in the final answer."""
+    assert SYSTEM_PROMPT.endswith(
+        "strict output schema.\n\n" + block + "\n\n" + query_block + "\n\n" + python_block)
+    for secret_limit in ("SQL_MAX", "INLINE_ROWS", "password", "200 rows", "PY_SANDBOX", "railway.internal",
+                         "bucket", "seccomp", "2 GB", "120 s", "http"):
         assert secret_limit not in SYSTEM_PROMPT
     assert SYSTEM_PROMPT.count("DATA DISCOVERY RULES") == 1
     assert SYSTEM_PROMPT.startswith("You are the Saniti AI orchestration agent.")

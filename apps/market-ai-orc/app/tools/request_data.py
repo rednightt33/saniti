@@ -121,6 +121,22 @@ class GovernorClient:
             raise ToolError("The SQL Governor returned an invalid response.")
         return result
 
+    def manifest(self, dataset_id: str) -> dict[str, Any]:
+        """The Governor's bounded safe manifest subset, or an explicit DATASET_EXPIRED / NOT_FOUND status."""
+        try:
+            response = self._client.get(f"/v1/datasets/{dataset_id}/manifest")
+        except httpx.TimeoutException as exc:
+            raise ToolError("The SQL Governor did not answer in time.") from exc
+        except httpx.HTTPError as exc:
+            raise ToolError("The SQL Governor is unreachable.") from exc
+        try:
+            result = response.json()
+        except ValueError as exc:
+            raise ToolError("The SQL Governor returned an invalid response.") from exc
+        if response.status_code in (200, 404, 410, 422) and isinstance(result, dict) and "status" in result:
+            return result
+        raise ToolError(f"The SQL Governor is unavailable (HTTP {response.status_code}).")
+
     def close(self) -> None:
         self._client.close()
 

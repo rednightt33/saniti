@@ -1,0 +1,181 @@
+from __future__ import annotations
+
+import os
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+
+
+class ConfigError(RuntimeError):
+    pass
+
+
+def _integer(env: Mapping[str, str], name: str, default: int, minimum: int = 1, maximum: int | None = None) -> int:
+    raw = env.get(name, str(default)).strip()
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ConfigError(f"{name} must be an integer") from exc
+    if value < minimum or (maximum is not None and value > maximum):
+        bound = f"between {minimum} and {maximum}" if maximum is not None else f"at least {minimum}"
+        raise ConfigError(f"{name} must be {bound}")
+    return value
+
+
+def _boolean(env: Mapping[str, str], name: str, default: bool) -> bool:
+    raw = env.get(name, "true" if default else "false").strip().lower()
+    if raw not in {"true", "false", "1", "0"}:
+        raise ConfigError(f"{name} must be true or false")
+    return raw in {"true", "1"}
+
+
+@dataclass(frozen=True)
+class Settings:
+    """All limits are backend configuration. No request field can raise them."""
+
+    api_key: str = field(repr=False)
+    governor_url: str
+    governor_access_key: str = field(repr=False)
+    data_dir: str
+    jobs_dir: str
+    cache_dir: str
+    runtime_dir: str
+    python_executable: str
+    mpl_cache_dir: str
+    dataset_url_schemes: tuple[str, ...]
+    # inputs
+    max_datasets: int
+    max_input_rows: int
+    max_input_bytes: int
+    max_code_chars: int
+    download_timeout_seconds: int
+    dataset_cache_bytes: int
+    # execution
+    max_runtime_seconds: int
+    max_memory_mb: int
+    max_virtual_memory_mb: int
+    cpus_per_job: int
+    threads_per_job: int
+    max_threads: int
+    max_workdir_bytes: int
+    concurrency: int
+    max_queued: int
+    slot_uid_base: int
+    random_seed: int
+    require_isolation: bool
+    # outputs
+    max_tables: int
+    max_table_output_rows: int
+    max_table_preview_rows: int
+    max_metrics: int
+    max_metrics_bytes: int
+    max_output_bytes: int
+    max_artifact_bytes: int
+    max_charts: int
+    max_artifacts: int
+    diagnostics_chars: int
+    # lifecycle
+    submit_wait_seconds: int
+    max_poll_wait_seconds: int
+    retry_after_seconds: int
+    result_retention_hours: int
+    record_retention_days: int
+    cleanup_interval_seconds: int
+    retain_code: bool
+
+    @classmethod
+    def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
+        env = os.environ if env is None else env
+        secrets = {name: env.get(name, "").strip() for name in
+                   ("PY_SANDBOX_API_KEY", "SQL_GOVERNOR_URL", "SQL_GOVERNOR_DATASET_ACCESS_KEY")}
+        missing = [name for name, value in secrets.items() if not value]
+        if missing:
+            raise ConfigError(f"Missing required variables: {', '.join(missing)}")
+        for name in ("PY_SANDBOX_API_KEY", "SQL_GOVERNOR_DATASET_ACCESS_KEY"):
+            if len(secrets[name]) < 32:
+                raise ConfigError(f"{name} must be at least 32 characters")
+        if secrets["PY_SANDBOX_API_KEY"] == secrets["SQL_GOVERNOR_DATASET_ACCESS_KEY"]:
+            raise ConfigError("PY_SANDBOX_API_KEY must differ from SQL_GOVERNOR_DATASET_ACCESS_KEY")
+        if not secrets["SQL_GOVERNOR_URL"].startswith(("http://", "https://")):
+            raise ConfigError("SQL_GOVERNOR_URL must be an http(s) URL")
+        schemes = tuple(s.strip().lower() for s in env.get("PY_SANDBOX_DATASET_URL_SCHEMES", "https").split(",")
+                        if s.strip())
+        if not schemes or not set(schemes) <= {"https", "http", "file"}:
+            raise ConfigError("PY_SANDBOX_DATASET_URL_SCHEMES must be a subset of https,http,file")
+
+        memory = _integer(env, "PY_SANDBOX_MAX_MEMORY_MB", 2048, minimum=256, maximum=16384)
+        settings = cls(
+            api_key=secrets["PY_SANDBOX_API_KEY"],
+            governor_url=secrets["SQL_GOVERNOR_URL"].rstrip("/"),
+            governor_access_key=secrets["SQL_GOVERNOR_DATASET_ACCESS_KEY"],
+            data_dir=env.get("PY_SANDBOX_DATA_DIR", "/data").strip(),
+            jobs_dir=env.get("PY_SANDBOX_JOBS_DIR", "/sandbox/jobs").strip(),
+            cache_dir=env.get("PY_SANDBOX_CACHE_DIR", "/sandbox/cache").strip(),
+            runtime_dir=env.get("PY_SANDBOX_RUNTIME_DIR",
+                                os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                             "runtime")).strip(),
+            python_executable=env.get("PY_SANDBOX_PYTHON", "/usr/local/bin/python").strip(),
+            mpl_cache_dir=env.get("PY_SANDBOX_MPL_CACHE_DIR", "/opt/mplcache").strip(),
+            dataset_url_schemes=schemes,
+            max_datasets=_integer(env, "PY_SANDBOX_MAX_DATASETS", 4, maximum=8),
+            max_input_rows=_integer(env, "PY_SANDBOX_MAX_INPUT_ROWS", 2_000_000, maximum=20_000_000),
+            max_input_bytes=_integer(env, "PY_SANDBOX_MAX_INPUT_BYTES", 268_435_456, minimum=1024,
+                                     maximum=4_294_967_296),
+            max_code_chars=_integer(env, "PY_SANDBOX_MAX_CODE_CHARS", 20000, minimum=100, maximum=20000),
+            download_timeout_seconds=_integer(env, "PY_SANDBOX_DOWNLOAD_TIMEOUT_SECONDS", 60, maximum=600),
+            dataset_cache_bytes=_integer(env, "PY_SANDBOX_DATASET_CACHE_BYTES", 1_073_741_824, minimum=0,
+                                         maximum=17_179_869_184),
+            max_runtime_seconds=_integer(env, "PY_SANDBOX_MAX_RUNTIME_SECONDS", 120, minimum=5, maximum=900),
+            max_memory_mb=memory,
+            max_virtual_memory_mb=_integer(env, "PY_SANDBOX_MAX_VIRTUAL_MEMORY_MB", max(4096, memory * 2),
+                                           minimum=memory, maximum=65536),
+            cpus_per_job=_integer(env, "PY_SANDBOX_CPUS_PER_JOB", 2, maximum=16),
+            threads_per_job=_integer(env, "PY_SANDBOX_THREADS_PER_JOB", 2, maximum=16),
+            max_threads=_integer(env, "PY_SANDBOX_MAX_THREADS", 128, minimum=16, maximum=1024),
+            max_workdir_bytes=_integer(env, "PY_SANDBOX_MAX_WORKDIR_BYTES", 536_870_912, minimum=1_048_576),
+            concurrency=_integer(env, "PY_SANDBOX_CONCURRENCY", 1, maximum=4),
+            max_queued=_integer(env, "PY_SANDBOX_MAX_QUEUED", 8, maximum=100),
+            slot_uid_base=_integer(env, "PY_SANDBOX_SLOT_UID_BASE", 20001, minimum=1000, maximum=60000),
+            random_seed=_integer(env, "PY_SANDBOX_RANDOM_SEED", 0, minimum=0, maximum=2**32 - 1),
+            require_isolation=_boolean(env, "PY_SANDBOX_REQUIRE_ISOLATION", True),
+            max_tables=_integer(env, "PY_SANDBOX_MAX_TABLES", 8, maximum=32),
+            max_table_output_rows=_integer(env, "PY_SANDBOX_MAX_TABLE_OUTPUT_ROWS", 100_000, maximum=5_000_000),
+            max_table_preview_rows=_integer(env, "PY_SANDBOX_MAX_TABLE_PREVIEW_ROWS", 50, maximum=200),
+            max_metrics=_integer(env, "PY_SANDBOX_MAX_METRICS", 8, maximum=32),
+            max_metrics_bytes=_integer(env, "PY_SANDBOX_MAX_METRICS_BYTES", 8000, minimum=256, maximum=65536),
+            max_output_bytes=_integer(env, "PY_SANDBOX_MAX_OUTPUT_BYTES", 24000, minimum=4096, maximum=262144),
+            max_artifact_bytes=_integer(env, "PY_SANDBOX_MAX_ARTIFACT_BYTES", 67_108_864, minimum=65536,
+                                        maximum=1_073_741_824),
+            max_charts=_integer(env, "PY_SANDBOX_MAX_CHARTS", 8, minimum=0, maximum=32),
+            max_artifacts=_integer(env, "PY_SANDBOX_MAX_ARTIFACTS", 8, minimum=0, maximum=32),
+            diagnostics_chars=_integer(env, "PY_SANDBOX_DIAGNOSTICS_CHARS", 2000, minimum=0, maximum=20000),
+            submit_wait_seconds=_integer(env, "PY_SANDBOX_SUBMIT_WAIT_SECONDS", 25, minimum=0, maximum=60),
+            max_poll_wait_seconds=_integer(env, "PY_SANDBOX_MAX_POLL_WAIT_SECONDS", 20, minimum=0, maximum=60),
+            retry_after_seconds=_integer(env, "PY_SANDBOX_RETRY_AFTER_SECONDS", 15, maximum=300),
+            result_retention_hours=_integer(env, "PY_SANDBOX_RESULT_RETENTION_HOURS", 24, maximum=720),
+            record_retention_days=_integer(env, "PY_SANDBOX_RECORD_RETENTION_DAYS", 30, maximum=3650),
+            cleanup_interval_seconds=_integer(env, "PY_SANDBOX_CLEANUP_INTERVAL_SECONDS", 3600, minimum=0,
+                                              maximum=86400),
+            retain_code=_boolean(env, "PY_SANDBOX_RETAIN_CODE", True),
+        )
+        if settings.record_retention_days * 24 < settings.result_retention_hours:
+            raise ConfigError("PY_SANDBOX_RECORD_RETENTION_DAYS must cover PY_SANDBOX_RESULT_RETENTION_HOURS")
+        if settings.max_table_preview_rows > settings.max_table_output_rows:
+            raise ConfigError("PY_SANDBOX_MAX_TABLE_PREVIEW_ROWS must not exceed PY_SANDBOX_MAX_TABLE_OUTPUT_ROWS")
+        if settings.threads_per_job * 8 > settings.max_threads:
+            raise ConfigError("PY_SANDBOX_MAX_THREADS must be at least 8x PY_SANDBOX_THREADS_PER_JOB")
+        return settings
+
+    @property
+    def cpu_seconds(self) -> int:
+        """RLIMIT_CPU: the wall-clock budget on every pinned CPU, plus a small margin."""
+        return self.max_runtime_seconds * self.cpus_per_job + 5
+
+    def child_limits(self) -> dict[str, int]:
+        return {
+            "virtual_memory_mb": self.max_virtual_memory_mb, "cpu_seconds": self.cpu_seconds,
+            "max_artifact_bytes": self.max_artifact_bytes, "max_threads": self.max_threads,
+            "max_tables": self.max_tables, "max_table_output_rows": self.max_table_output_rows,
+            "max_table_preview_rows": self.max_table_preview_rows, "max_metrics": self.max_metrics,
+            "max_metrics_bytes": self.max_metrics_bytes, "max_charts": self.max_charts,
+            "max_artifacts": self.max_artifacts,
+        }

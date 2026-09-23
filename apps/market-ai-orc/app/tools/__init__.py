@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 
+from .analysis import SandboxClient, analysis_specs, manifest_spec
 from .catalog import CatalogReader, catalog_specs
 from .catalog_rows import catalog_rows_spec
 from .preview import preview_spec
@@ -23,6 +24,9 @@ def build_default_registry(
     governor_client: GovernorClient | None = None,
     governor_timeout_seconds: float = 95.0,
     request_data_max_bytes: int = 40000,
+    sandbox_client: SandboxClient | None = None,
+    sandbox_timeout_seconds: float = 50.0,
+    python_analysis_max_bytes: int = 40000,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
@@ -40,6 +44,11 @@ def build_default_registry(
     if governor_client is not None:
         registry.register(request_data_spec(
             governor_client, timeout_seconds=governor_timeout_seconds, max_result_bytes=request_data_max_bytes))
+        registry.register(manifest_spec(governor_client, timeout_seconds=min(governor_timeout_seconds, 20.0)))
+    if sandbox_client is not None:
+        for spec in analysis_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
+                                   max_result_bytes=python_analysis_max_bytes):
+            registry.register(spec)
     return registry
 
 

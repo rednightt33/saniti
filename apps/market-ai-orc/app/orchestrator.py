@@ -101,7 +101,28 @@ a reference to the approved extracted dataset. Do not claim
 that analytical calculations have been completed unless an
 analysis tool actually executes them.
 Do not treat catalog metadata or preview rows as a substitute
-for the required analytical dataset."""
+for the required analytical dataset.
+
+PYTHON ANALYSIS RULES
+Use run_python_analysis when the user's request requires
+calculations that cannot be completed from an inline database
+result alone.
+Only analyze datasets returned through the governed data
+workflow.
+Use get_dataset_manifest when the exact contents or coverage
+of a dataset must be checked before analysis.
+Python analysis executes in an isolated bounded sandbox.
+Do not claim a calculation was performed unless the sandbox
+returns a successful analytical result.
+Use TA-Lib and the available analytical libraries when they
+are appropriate to the requested calculation.
+For multi-entity time series, keep entity histories separated
+and correctly ordered in time.
+Do not treat an analytical result as statistically validated
+merely because Python execution succeeded.
+If the sandbox reports incomplete input, insufficient history,
+execution failure, or another limitation, preserve that
+limitation in the final answer."""
 
 RESPONSE_FORMAT_NAME = "saniti_agent_response"
 REJECTED_OUTPUT_ECHO_CHARS = 4000

@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import logging
 import sys
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
@@ -14,6 +15,7 @@ from .openrouter_client import OpenRouterClient
 from .orchestrator import AgentOrchestrator
 from .schemas import AgentRunRequest, AgentRunResponse
 from .tools import build_default_registry
+from .tools.analysis import SandboxClient
 from .tools.request_data import GovernorClient
 
 
@@ -25,6 +27,15 @@ def _configure_logging() -> None:
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
         logger.propagate = False
+
+
+def _sandbox_ready(sandbox: SandboxClient, attempts: int = 3, delay_seconds: float = 2.0) -> bool:
+    for attempt in range(attempts):
+        if sandbox.ready():
+            return True
+        if attempt + 1 < attempts:
+            time.sleep(delay_seconds)
+    return False
 
 
 def create_app(
@@ -53,6 +64,16 @@ def create_app(
         if settings.sql_governor_url:
             governor = GovernorClient(settings.sql_governor_url, settings.sql_governor_api_key or "",
                                       settings.sql_governor_timeout_seconds)
+        sandbox = None
+        if settings.py_sandbox_url:
+            sandbox = SandboxClient(settings.py_sandbox_url, settings.py_sandbox_api_key or "",
+                                    settings.py_sandbox_request_timeout_seconds, settings.py_sandbox_poll_wait_seconds)
+            if not _sandbox_ready(sandbox):
+                # Intentionally disabled: python_analysis stays false until the sandbox is ready at startup.
+                logging.getLogger("market_ai_orc").warning(
+                    '{"event":"python_sandbox_not_ready","python_analysis":false}')
+                sandbox.close()
+                sandbox = None
         registry = build_default_registry(
             catalog,
             catalog_timeout_seconds=(
@@ -70,6 +91,9 @@ def create_app(
             governor_client=governor,
             governor_timeout_seconds=settings.sql_governor_timeout_seconds + 5,
             request_data_max_bytes=settings.request_data_max_result_bytes,
+            sandbox_client=sandbox,
+            sandbox_timeout_seconds=settings.py_sandbox_request_timeout_seconds + 5,
+            python_analysis_max_bytes=settings.python_analysis_max_result_bytes,
         )
         orchestrator = AgentOrchestrator(settings, owned_client, registry)
     ready = {"value": False}
@@ -87,6 +111,7 @@ def create_app(
         title="Saniti Market AI Orchestrator", version="0.1.0",
         docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan,
     )
+    app.state.orchestrator = orchestrator
     expected = f"Bearer {settings.internal_api_key}"
 
     def authorize(authorization: str | None = Header(default=None)) -> None:

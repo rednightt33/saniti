@@ -75,6 +75,11 @@ class Settings:
     sql_governor_api_key: str | None = field(repr=False)
     sql_governor_timeout_seconds: int
     request_data_max_result_bytes: int
+    py_sandbox_url: str | None = None
+    py_sandbox_api_key: str | None = field(default=None, repr=False)
+    py_sandbox_request_timeout_seconds: int = 45
+    py_sandbox_poll_wait_seconds: int = 20
+    python_analysis_max_result_bytes: int = 40000
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -117,6 +122,11 @@ class Settings:
             sql_governor_api_key=_optional(env, "SQL_GOVERNOR_API_KEY"),
             sql_governor_timeout_seconds=_integer(env, "SQL_GOVERNOR_TIMEOUT_SECONDS", 90),
             request_data_max_result_bytes=_integer(env, "REQUEST_DATA_MAX_RESULT_BYTES", 40000, minimum=8192),
+            py_sandbox_url=_optional(env, "PY_SANDBOX_URL"),
+            py_sandbox_api_key=_optional(env, "PY_SANDBOX_API_KEY"),
+            py_sandbox_request_timeout_seconds=_integer(env, "PY_SANDBOX_REQUEST_TIMEOUT_SECONDS", 45, minimum=10),
+            py_sandbox_poll_wait_seconds=_integer(env, "PY_SANDBOX_POLL_WAIT_SECONDS", 20, minimum=0),
+            python_analysis_max_result_bytes=_integer(env, "PYTHON_ANALYSIS_MAX_RESULT_BYTES", 40000, minimum=8192),
         )
         if settings.ai_reasoning_effort not in REASONING_EFFORTS:
             raise ConfigError(
@@ -147,6 +157,17 @@ class Settings:
                 raise ConfigError("SQL_GOVERNOR_API_KEY (at least 32 characters) is required with SQL_GOVERNOR_URL")
         if settings.sql_governor_timeout_seconds > 300 or settings.request_data_max_result_bytes > 131072:
             raise ConfigError("SQL_GOVERNOR_TIMEOUT_SECONDS must be <= 300 and REQUEST_DATA_MAX_RESULT_BYTES <= 131072")
+        if settings.py_sandbox_url:
+            if not settings.py_sandbox_url.startswith(("http://", "https://")):
+                raise ConfigError("PY_SANDBOX_URL must be an http(s):// URL")
+            if not settings.py_sandbox_api_key or len(settings.py_sandbox_api_key) < 32:
+                raise ConfigError("PY_SANDBOX_API_KEY (at least 32 characters) is required with PY_SANDBOX_URL")
+        if settings.py_sandbox_request_timeout_seconds > 300 or settings.python_analysis_max_result_bytes > 131072:
+            raise ConfigError("PY_SANDBOX_REQUEST_TIMEOUT_SECONDS must be <= 300 and "
+                              "PYTHON_ANALYSIS_MAX_RESULT_BYTES <= 131072")
+        if settings.py_sandbox_poll_wait_seconds > min(60, settings.py_sandbox_request_timeout_seconds - 10):
+            raise ConfigError("PY_SANDBOX_POLL_WAIT_SECONDS must be <= 60 and at least 10 s below "
+                              "PY_SANDBOX_REQUEST_TIMEOUT_SECONDS")
         if settings.ai_request_timeout_seconds > settings.ai_max_analysis_seconds:
             raise ConfigError("AI_REQUEST_TIMEOUT_SECONDS must not exceed AI_MAX_ANALYSIS_SECONDS")
         return settings
