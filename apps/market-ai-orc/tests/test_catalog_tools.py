@@ -333,10 +333,14 @@ def test_invalid_arguments_never_reach_the_database(arguments: dict[str, Any]) -
     assert reader.calls == []
 
 
-def test_discover_rejects_any_argument() -> None:
-    reader = FakeReader()
-    outcome = execute(build_default_registry(reader), "discover_catalog", '{"sql": "SELECT 1"}')
-    assert outcome.error_code == "INVALID_ARGUMENTS" and reader.calls == []
+def test_discover_ignores_and_reports_any_argument() -> None:
+    reader = FakeReader({DISCOVER_SQL: [table_row("Feature_02_Broker_Rolling")]})
+    outcome = execute(build_default_registry(reader), "discover_catalog", '{"sql": "SELECT 1", "request": "all"}')
+    assert outcome.ok and outcome.output["ignored_arguments"] == ["request", "sql"]
+    assert [call[0] for call in reader.calls] == [DISCOVER_SQL]   # only the fixed catalog query ran
+    assert "SELECT 1" not in json.dumps(reader.calls)
+    malformed = execute(build_default_registry(reader), "discover_catalog", "not json")
+    assert malformed.error_code == "INVALID_ARGUMENTS"
 
 
 # 5. Empty or incomplete records ---------------------------------------------------------------

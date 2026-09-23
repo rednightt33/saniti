@@ -1,5 +1,18 @@
 # Railway changelog
 
+## 2026-09-23 — Isolation probe for market-python-sandbox (temporary, deleted)
+
+- **Why:** Before the sandbox was designed, a read-only probe checked which isolation primitives Railway containers allow. The Railway docs describe containers only as "non-privileged".
+- **Temporary service:** `sandbox-isolation-probe` (`546162a2-7128-40e0-948a-de521cbe2be1`, deployment `b92eccc9-9b6c-424c-905f-33ca3245b6f6`, image `python:3.12-slim`, restart `NEVER`, no variables). It printed one JSON line and exited. It never printed environment values.
+- **Results on `dev`:**
+  - Kernel `6.18.5+deb13-cloud-amd64`, x86_64 (not gVisor). The container runs as root with capability set `0x800405fb` (Docker defaults without NET_RAW, MKNOD, and AUDIT_WRITE).
+  - The runtime already applies its own seccomp filters (`Seccomp: 2`, 3 filters). cgroup is not writable. The limits are `memory.max` 24 GB, `cpu.max` 24 CPUs, and `pids.max` 1000.
+  - Dropping to UID 65534 works. `/proc/1/environ` is unreadable to that user (`EACCES`), and `RLIMIT_AS` is enforced.
+  - A process-level seccomp filter installs as non-root. It denies AF_INET, AF_INET6, and AF_NETLINK sockets and `execve`, while AF_UNIX stays allowed in the probe.
+  - `unshare(CLONE_NEWNET)` as root returns `EPERM`, and `unshare(CLONE_NEWUSER|CLONE_NEWNET)` as non-root returns `EACCES`. **Network namespaces are not available.** Outbound TCP from the container works, and Railway has no egress firewall.
+- **Cleanup:** The service was deleted with `railway service delete`. `railway config plan` reported `dev` up to date.
+- The design recorded in `apps/market-python-sandbox/README.md` follows from these results: seccomp socket denial per analysis process, not a network namespace.
+
 ## 2026-09-23 — market-sql-governor: one-week dataset expiry and MIN/MAX on dates
 
 - Railway buckets do not support lifecycle configuration: the storage-bucket docs list "Bucket lifecycle configuration" under "Not yet supported". Expiry is therefore done by the Governor's own janitor (`apps/market-sql-governor/app/janitor.py`).

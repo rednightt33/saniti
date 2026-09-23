@@ -149,6 +149,11 @@ wall-clock time, output tokens, and a context ceiling checked before each provid
 | `SQL_GOVERNOR_TIMEOUT_SECONDS` | no | `90` | HTTP timeout for one Governor call (≤ 300); the tool timeout is this plus 5 s |
 | `REQUEST_DATA_MAX_RESULT_BYTES` | no | `40000` | Hard cap on one `request_data` result sent to the model (8192–131072); keep it above the Governor's inline byte limit plus envelope |
 | `MARKET_DATA_PREVIEW_ENABLED` | no | `true` | `false` unregisters `preview_table_rows` without touching the catalog tools |
+| `PY_SANDBOX_URL` | no | unset | market-python-sandbox base URL (private network). `run_python_analysis` and `get_analysis_result` are registered only when this is set **and** the sandbox reports `/ready` at startup (3 attempts, 2 s apart) |
+| `PY_SANDBOX_API_KEY` | with URL (secret, ≥ 32 chars) | — | Bearer key for the sandbox; reference `${{market-python-sandbox.PY_SANDBOX_API_KEY}}` |
+| `PY_SANDBOX_REQUEST_TIMEOUT_SECONDS` | no | `45` | HTTP timeout for one sandbox call (10–300); the tool timeout is this plus 5 s. Keep it above the sandbox's submit wait |
+| `PY_SANDBOX_POLL_WAIT_SECONDS` | no | `20` | How long `get_analysis_result` waits for a running analysis (≤ 60, at least 10 s below the request timeout) |
+| `PYTHON_ANALYSIS_MAX_RESULT_BYTES` | no | `40000` | Hard cap on one analysis tool result sent to the model (8192–131072) |
 
 Secrets have no defaults, and the service refuses to start without them. It never logs API
 keys, `Authorization` headers, prompts, user messages, or provider reasoning.
@@ -283,6 +288,9 @@ Guarantees:
 | `read_catalog_rows` | `catalog_name`, `page_size`, `cursor` | One page of complete catalog rows (see [Full catalog access](#full-catalog-access)) |
 | `preview_table_rows` | `table_name` | At most 20 example rows (see [Market-data preview](#market-data-preview)) |
 | `request_data` | `purpose`, `from_table`, `columns`, `joins`, `filters`, `group_by`, `aggregations`, `order_by`, `requested_limit` | The SQL Governor decision, unchanged (see [Data requests](#data-requests)) |
+| `get_dataset_manifest` | `dataset_id` | The Governor's bounded dataset manifest: `AVAILABLE`, or explicit `DATASET_EXPIRED` / `DATASET_NOT_FOUND` (see [Python analysis](#python-analysis)) |
+| `run_python_analysis` | `purpose` (≤ 1000), `dataset_ids` (1–4, unique), `python_code` (≤ 20000), `expected_outputs` ⊆ {TABLE, METRICS, CHART, ARTIFACT} | The analysis record: status, next_action, outputs, warnings, error |
+| `get_analysis_result` | `analysis_id` | The same record for a queued/running/finished analysis |
 
 Each capability flag is derived from the registry. It becomes `true` only when its providing
 tool is actually registered: `catalog_discovery` → `discover_catalog`, `full_catalog_read` →
@@ -290,7 +298,9 @@ tool is actually registered: `catalog_discovery` → `discover_catalog`, `full_c
 `request_data`, `python_analysis` → `run_python_analysis`, `web_search` → `search_web`. The
 catalog tools are registered only when `CATALOG_DATABASE_URL` is set;
 `preview_table_rows` additionally requires `MARKET_DATA_PREVIEW_ENABLED=true`; and
-`request_data` only when `SQL_GOVERNOR_URL` is set.
+`request_data` and `get_dataset_manifest` only when `SQL_GOVERNOR_URL` is set; and
+`run_python_analysis`/`get_analysis_result` only when `PY_SANDBOX_URL` is set and the sandbox was
+ready at startup. Otherwise `python_analysis` is `false`.
 
 The logical catalog tool surface maps onto the existing tools. It keeps the names used by the
 DATA DISCOVERY RULES prompt block:
@@ -316,6 +326,37 @@ Governor HTTP errors and timeouts become a generic `TOOL_ERROR`. The spec has no
 expression, join-key, or delivery-format field, and the row, scan, and byte ceilings exist
 only in Governor configuration. The DATA QUERY RULES block is appended after DATA DISCOVERY
 RULES in the system prompt; it contains no thresholds or credentials.
+
+## Python analysis
+
+market-ai-orc never executes model-generated Python. `run_python_analysis` validates the strict
+argument model (`app/tools/analysis.py`, aligned with the sandbox's `AnalysisRequest` by a
+contract test) and posts `{request_id, …}` to `PY_SANDBOX_URL/v1/analyses`. The sandbox waits
+briefly and returns either a finished record or `QUEUED`/`RUNNING` with
+`next_action=GET_ANALYSIS_RESULT` and `retry_after_seconds`. `get_analysis_result` then waits
+up to `PY_SANDBOX_POLL_WAIT_SECONDS`.
+
+**What the model sees:**
+- TABLE: `row_count`, columns, a bounded preview, and `result_id`. The complete table stays in
+  the sandbox (`GET /v1/results/{id}` for backend/frontend presentation).
+- METRICS: the values.
+- CHART and ARTIFACT: ids and metadata only, never bytes.
+- warnings (for example `NUMERIC_AS_FLOAT64`, `INSUFFICIENT_HISTORY`);
+- a structured error with only the model's own code lines;
+- a compact lineage: code hash, seed, library versions, dataset checksums.
+
+Sandbox limits, deployment ids, and resource usage are removed. Refusals such as
+`QUEUE_FULL` or `SANDBOX_ISOLATION_UNAVAILABLE` come back as `status: REJECTED` with a
+`next_action`. Transport failures become `TOOL_ERROR`.
+
+`get_dataset_manifest` calls the Governor's `GET /v1/datasets/{id}/manifest` with the existing
+Governor key. The orc key cannot obtain dataset URLs.
+
+The PYTHON ANALYSIS RULES block is appended after DATA QUERY RULES. It contains no limits, URLs,
+credentials, or security details. The runtime interface (the `DATASETS` mapping, the `saniti`
+helpers, and the libraries including TA-Lib) is described in the tool description. See
+[`../market-python-sandbox/README.md`](../market-python-sandbox/README.md) for the isolation
+design.
 
 ## Catalog discovery
 
@@ -525,8 +566,9 @@ These are observed in the migration seed and reported, not changed:
 
 These are not implemented, and no placeholder pretends they exist: model-written SQL (market
 data is reached only through `request_data` and the Governor), the legacy
-`Table_Catalog`/`Column_Catalog`/`Feature_Catalog` catalogs, a Python or DuckDB sandbox, statistical analysis (event study, backtest, regression, HMM,
-clustering), web search, RAG or vector search, long-term memory, multi-agent flows, Redis,
+`Table_Catalog`/`Column_Catalog`/`Feature_Catalog` catalogs, a Research Governor (statistical-validity
+controls such as multiple-testing policy, holdouts, or hypothesis registries — the Python sandbox
+answers only whether a bounded calculation can execute safely), web search, RAG or vector search, long-term memory, multi-agent flows, Redis,
 frontend, and Telegram.
 
 ## Railway deployment

@@ -30,6 +30,9 @@ market-ai-orc ── request_data(spec) ──► POST /v1/query (Bearer SQL_GOV
 | Talks to OpenRouter | yes | never |
 
 `market-ai-orc` holds only `SQL_GOVERNOR_URL` and `SQL_GOVERNOR_API_KEY`.
+`market-python-sandbox` holds only `SQL_GOVERNOR_URL` and `SQL_GOVERNOR_DATASET_ACCESS_KEY`, a
+second key with a disjoint purpose. That key can read dataset manifests and obtain a short-lived
+read URL for one dataset. It **cannot** call `/v1/query`, and the orc key cannot obtain URLs.
 
 ## API
 
@@ -37,6 +40,29 @@ market-ai-orc ── request_data(spec) ──► POST /v1/query (Bearer SQL_GOV
 - `GET /ready`: returns 200 only when the governed database is reachable.
 - `POST /v1/query`: requires `Authorization: Bearer ${SQL_GOVERNOR_API_KEY}`. The body is
   exactly `{"request_id": "...", "spec": DataRequestSpec}`. Any other key gets a 422.
+
+- `GET /v1/datasets/{dataset_id}/manifest`: requires either key. It returns a bounded safe
+  subset of the manifest (`app/datasets.py`):
+  - columns with friendly types (`float64`, `date`, `string`, …) and their source types;
+  - row, column, and byte counts; source tables; `query_id`;
+  - requested and actual scope, entities present;
+  - missing entities (at most 200, plus the full count);
+  - completeness, checksum, created/expires;
+  - `numeric_float64_columns`, with a `NUMERIC_AS_FLOAT64` warning.
+
+  It never returns the request spec, the 5000-entity list, object keys, or URLs. Responses
+  are `AVAILABLE` (200), `DATASET_EXPIRED` (410, with `expires_at`), `DATASET_NOT_FOUND` (404),
+  or `INVALID_DATASET_ID` (422).
+- `POST /v1/datasets/{dataset_id}/access`: requires `SQL_GOVERNOR_DATASET_ACCESS_KEY` only. The
+  body is exactly `{request_id, analysis_id}`. It returns the safe manifest plus
+  `download: {url, expires_in_seconds}`. The URL is a **SigV4 presigned GET for exactly
+  `datasets/<id>/data.parquet`** that expires after `SQL_DATASET_ACCESS_URL_TTL_SECONDS`
+  (default 120). It cannot list or write, and it carries the access-key id and a signature but
+  never the secret key.
+  - Before granting, the Governor checks expiry and confirms that the object exists with the
+    manifest's byte count (`DATASET_UNAVAILABLE` / `DATASET_INTEGRITY_ERROR` otherwise).
+  - Each call logs `sql_governor_dataset_access` (request_id, analysis_id, dataset_id, outcome,
+    byte_count). The URL is never logged.
 
 There is no SQL endpoint and no OpenAPI or docs route.
 
@@ -149,8 +175,12 @@ Objects are immutable (write-once, checksum-verified):
 Railway buckets do not support lifecycle rules yet ("Bucket lifecycle configuration" is listed as
 not supported). The Governor therefore runs an expiry janitor (`app/janitor.py`). It is a
 background thread that runs at startup and then every `SQL_DATASET_CLEANUP_INTERVAL_SECONDS`.
-- It lists `datasets/`, reads each manifest's `expires_at`, and deletes `data.parquet` and then
-  `manifest.json` once that time has passed. The default is one week after creation.
+- It lists `datasets/`, reads each manifest's `expires_at`, and deletes `data.parquet` once that
+  time has passed. The default is one week after creation.
+- The readable `manifest.json` stays as a **tombstone** for
+  `SQL_DATASET_TOMBSTONE_RETENTION_HOURS` (default 720, 30 days) and is then deleted, so a later
+  lookup answers `DATASET_EXPIRED` rather than `DATASET_NOT_FOUND`. An unreadable manifest is
+  deleted together with the data.
 - A dataset without a readable manifest, such as an interrupted write, expires
   `SQL_DATASET_RETENTION_HOURS` after its oldest object.
 - Only keys shaped `datasets/ds_<24 hex>/(data.parquet|manifest.json)` are ever deleted.
@@ -160,9 +190,10 @@ background thread that runs at startup and then every `SQL_DATASET_CLEANUP_INTER
 PostgreSQL `numeric` is stored as `float64` in Parquet, and the manifest notes this. Inline
 results keep exact decimal strings.
 
-The manifest is what a future `get_dataset_manifest(dataset_id)` and
-`run_python_analysis(dataset_id=...)` will read. It describes what this extract contains, while
-`get_data_coverage` describes what the source is believed to contain.
+The manifest is what `get_dataset_manifest(dataset_id)` (market-ai-orc) and
+`run_python_analysis` (market-python-sandbox, through the access endpoint) read. It describes
+what this extract contains, while `get_data_coverage` describes what the source is believed to
+contain.
 
 Legacy market-ai-backend snapshots are `JSON_GZIP` in `Analytics_Dataset_Snapshot`. This
 service writes no database rows: its role is read-only, so metadata lives in the manifest.
@@ -209,7 +240,10 @@ mistake.
 | `SQL_DATASET_RETENTION_HOURS` | 168 (one week) | `expires_at` in the manifest; the janitor deletes the dataset after it |
 | `SQL_DATASET_CLEANUP_INTERVAL_SECONDS` | 3600 | How often the expiry janitor runs (0 disables it; at most 86400) |
 | `SQL_DATASET_BUCKET_NAME`, `_ENDPOINT`, `_REGION`, `_ACCESS_KEY_ID`, `_SECRET_ACCESS_KEY` | unset | Private S3-compatible dataset bucket |
-| `SQL_DATASET_LOCAL_DIR` | unset | Development and test storage (mutually exclusive with the bucket) |
+| `SQL_DATASET_LOCAL_DIR` | unset | Development and test storage (mutually exclusive with the bucket); access URLs are `file://` there |
+| `SQL_GOVERNOR_DATASET_ACCESS_KEY` | unset (secret, ≥ 32 chars, ≠ API key) | market-python-sandbox key for manifests and dataset access; the access endpoint is disabled (401) without it |
+| `SQL_DATASET_ACCESS_URL_TTL_SECONDS` | 120 | Presigned GET lifetime (30–900) |
+| `SQL_DATASET_TOMBSTONE_RETENTION_HOURS` | 720 | How long an expired dataset's manifest is kept as a tombstone (0 deletes it with the data) |
 
 These limits are not in any prompt or tool description, and no request field can raise them.
 

@@ -157,8 +157,14 @@ class ToolRegistry:
             return error_outcome(call_id, name, "UNKNOWN_TOOL",
                                  f"Tool {name!r} is not available. Use only the tools provided.")
 
+        ignored: list[str] = []
         try:
             parsed = self._parse_arguments(raw_arguments)
+            if not spec.arguments_model.model_fields and isinstance(parsed, dict) and parsed:
+                # A zero-argument tool cannot be influenced by input. Some models invent a
+                # placeholder key (e.g. "request", "_dummy") for empty schemas; rejecting it only
+                # burns the tool-call budget, so the keys are ignored and reported back.
+                ignored, parsed = sorted(str(key) for key in parsed)[:20], {}
             arguments = spec.arguments_model.model_validate(parsed)
         except (ValueError, ValidationError) as exc:
             return error_outcome(call_id, name, "INVALID_ARGUMENTS", self._argument_issue(exc))
@@ -178,6 +184,8 @@ class ToolRegistry:
         if not isinstance(result, dict):
             return error_outcome(call_id, name, "TOOL_FAILED", f"Tool {name} returned a non-object result.")
         output = {"ok": True, "tool": name, "result": result}
+        if ignored:
+            output["ignored_arguments"] = ignored
         try:
             size = len(dumps(output).encode("utf-8"))
         except (TypeError, ValueError):

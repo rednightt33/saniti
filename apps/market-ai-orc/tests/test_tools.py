@@ -69,7 +69,6 @@ def test_disabled_tool_fails_closed() -> None:
 @pytest.mark.parametrize(
     ("raw", "fragment"),
     [
-        ('{"unexpected": 1}', "failed validation"),
         ("{not json", "not valid JSON"),
         ("[1, 2]", "JSON object"),
     ],
@@ -78,6 +77,16 @@ def test_invalid_arguments_are_rejected(raw: str, fragment: str) -> None:
     outcome = build_default_registry().execute("c", "get_system_capabilities", raw)
     assert outcome.error_code == "INVALID_ARGUMENTS"
     assert fragment in outcome.output["error"]["message"]
+
+
+def test_zero_argument_tools_ignore_and_report_placeholder_keys() -> None:
+    outcome = build_default_registry().execute("c", "get_system_capabilities", '{"_dummy": 1, "request": "x"}')
+    assert outcome.ok and outcome.output["ignored_arguments"] == ["_dummy", "request"]
+    assert "ignored_arguments" not in build_default_registry().execute("c", "get_system_capabilities", "{}").output
+    strict = ToolRegistry()
+    strict.register(spec("lookup", lambda args: {"seen": args.ticker}, model=TickerArguments))
+    rejected = strict.execute("c", "lookup", '{"ticker": "BBCA", "unexpected": 1}')
+    assert rejected.error_code == "INVALID_ARGUMENTS" and "failed validation" in rejected.output["error"]["message"]
 
 
 def test_arguments_are_validated_against_the_model() -> None:
