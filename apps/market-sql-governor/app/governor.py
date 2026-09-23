@@ -163,13 +163,18 @@ class Governor:
                 cap = min(spec.requested_limit, cap)
             compiled = compile_query(query, cap)  # gate 8
             state["query_hash"] = compiled.query_hash
-            scan_rows, cost = self._explain(connection, compiled, run)  # gate 9
+            scan_rows, cost, result_rows = self._explain(connection, compiled, run)  # gate 9
             state["estimated_scan_rows"], state["estimated_plan_cost"] = scan_rows, cost
             if scan_rows > s.max_estimated_scan_rows:
                 raise narrowing("ESTIMATED_SCAN_TOO_LARGE",
                                 f"The planner estimates scanning {scan_rows} rows; the limit is "
                                 f"{s.max_estimated_scan_rows}. Add or tighten filters.",
                                 estimated_scan_rows=scan_rows, limit=s.max_estimated_scan_rows)
+            if result_rows > s.max_dataset_rows:
+                raise narrowing("ESTIMATED_RESULT_TOO_LARGE",
+                                f"The planner estimates more than {s.max_dataset_rows} result rows, above the dataset "
+                                "limit. Add or tighten filters, or aggregate.",
+                                estimated_result_rows=result_rows, limit=s.max_dataset_rows)
             if cost > s.max_plan_cost:
                 raise narrowing("ESTIMATED_COST_TOO_LARGE",
                                 f"The planner cost estimate {cost:.0f} exceeds the limit {s.max_plan_cost}. "
@@ -177,7 +182,7 @@ class Governor:
             return self._execute(connection, request_id, query_id, spec, query, compiled, scan_rows, cost)  # gate 10
 
     @staticmethod
-    def _explain(connection: psycopg.Connection, compiled: CompiledQuery, run) -> tuple[int, float]:
+    def _explain(connection: psycopg.Connection, compiled: CompiledQuery, run) -> tuple[int, float, int]:
         with connection.cursor() as cursor:
             cursor.execute(sql.SQL("EXPLAIN (FORMAT JSON) {}").format(compiled.statement), compiled.params)
             plan = cursor.fetchone()[0][0]["Plan"]
@@ -192,7 +197,8 @@ class Governor:
                     rows = int(found[0]["reltuples"])  # a sequential scan reads the whole relation
             largest = max(largest, rows)
             stack.extend(node.get("Plans") or [])
-        return largest, float(plan.get("Total Cost") or 0.0)
+        # The root estimate is the result size; the compiled LIMIT caps it at SQL_MAX_DATASET_ROWS + 1.
+        return largest, float(plan.get("Total Cost") or 0.0), int(plan.get("Plan Rows") or 0)
 
     def _execute(self, connection, request_id, query_id, spec, query: ValidatedQuery,
                  compiled: CompiledQuery, scan_rows: int, cost: float) -> GovernorResponse:
@@ -204,6 +210,7 @@ class Governor:
         base = dict(request_id=request_id, query_id=query_id, query_hash=compiled.query_hash,
                     source_tables=query.source_tables, columns=output_columns, estimated_scan_rows=scan_rows,
                     estimated_plan_cost=cost, warnings=query.warnings)
+        deadline = time.monotonic() + s.max_execution_seconds
         with connection.cursor(name=f"governed_{query_id}") as cursor:
             cursor.itersize = FETCH_BATCH_ROWS
             cursor.execute(compiled.statement, compiled.params)
@@ -235,6 +242,11 @@ class Governor:
                                     f"The approved result exceeds {s.max_dataset_rows} rows. Narrow the request.",
                                     limit_rows=s.max_dataset_rows)
                 builder.write(batch)
+                if time.monotonic() > deadline:
+                    # statement_timeout bounds each FETCH; this bounds the whole extraction.
+                    raise narrowing("QUERY_TIMEOUT",
+                                    f"The extraction exceeded {s.max_execution_seconds} seconds. Narrow the request.",
+                                    limit_seconds=s.max_execution_seconds)
                 batch = cursor.fetchmany(FETCH_BATCH_ROWS)
         payload = builder.finish()
         checksum = hashlib.sha256(payload).hexdigest()

@@ -107,10 +107,15 @@ The response always contains `decision`, `next_action`, `reason_code`, `message`
    `query_hash` is the SHA-256 of the SQL text plus its parameters.
 9. **EXPLAIN (FORMAT JSON).** Walks the whole plan tree. The estimate is the largest node's
    `Plan Rows`, except that a sequential scan counts the relation's full `reltuples`, because it
-   reads every row. It also checks the root `Total Cost` against `SQL_MAX_PLAN_COST`.
+   reads every row. Three checks run before anything executes:
+   - the scan estimate against `SQL_MAX_ESTIMATED_SCAN_ROWS`;
+   - the root `Plan Rows` (the estimated result size, capped by the compiled `LIMIT`) against
+     `SQL_MAX_DATASET_ROWS`, which gives `ESTIMATED_RESULT_TOO_LARGE`;
+   - the root `Total Cost` against `SQL_MAX_PLAN_COST`.
 10. **Execute.** Runs in the same read-only `REPEATABLE READ` transaction as the policy read and
     `EXPLAIN`, through a server-side cursor with `statement_timeout`, `lock_timeout`, and
-    `idle_in_transaction_session_timeout`.
+    `idle_in_transaction_session_timeout`. `statement_timeout` bounds each `FETCH`, and
+    `SQL_MAX_EXECUTION_SECONDS` bounds the whole extraction (`QUERY_TIMEOUT`).
 
 ## Routing
 
@@ -182,7 +187,8 @@ mistake.
 | `SQL_MAX_COLUMNS` / `SQL_MAX_FILTERS` / `SQL_MAX_IN_VALUES` | 20 / 10 / 100 | Request breadth |
 | `SQL_MAX_INLINE_ROWS` / `SQL_MAX_INLINE_OUTPUT_BYTES` | 200 / 24000 | Inline routing thresholds |
 | `SQL_MAX_ESTIMATED_SCAN_ROWS` | 2,000,000 | EXPLAIN scan ceiling |
-| `SQL_MAX_PLAN_COST` | 3,000,000 | EXPLAIN total-cost ceiling. Calibrate against live plans before tightening |
+| `SQL_MAX_PLAN_COST` | 600,000 | EXPLAIN total-cost ceiling, calibrated on live dev data on 2026-09-23: cost 411k took 29 s (106k Feature 02 rows) and cost 819k took over 74 s |
+| `SQL_MAX_EXECUTION_SECONDS` | 60 | Wall-clock bound on one whole extraction; must be at least `SQL_STATEMENT_TIMEOUT_SECONDS` |
 | `SQL_MAX_DATE_RANGE_DAYS` / `SQL_MAX_UNFILTERED_DATE_RANGE_DAYS` | 3660 / 400 | Date span with / without an entity filter |
 | `SQL_MAX_DATASET_ROWS` / `SQL_MAX_DATASET_BYTES` | 500,000 / 128 MiB | Snapshot ceilings |
 | `SQL_DATASET_RETENTION_HOURS` | 24 | `expires_at` in the manifest |

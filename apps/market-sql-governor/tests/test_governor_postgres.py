@@ -333,11 +333,32 @@ def test_dataset_ready_returns_reference_only_and_writes_a_verifiable_parquet(go
     assert manifest["actual_date_range"]["from"] >= "2025-06-01" and manifest["truncated"] is False
 
 
-def test_dataset_row_ceiling_is_a_hard_limit(governed_db, tmp_path) -> None:
+def test_estimated_result_above_dataset_ceiling_is_refused_before_execution(governed_db, tmp_path) -> None:
     result = run(governor(governed_db, tmp_path, SQL_MAX_INLINE_ROWS="10", SQL_MAX_DATASET_ROWS="100"),
                  spec(requested_limit=None, order_by=[]))
+    assert (result.decision, result.reason_code) == ("NEEDS_NARROWING", "ESTIMATED_RESULT_TOO_LARGE")
+    assert result.details["estimated_result_rows"] == 101 and result.returned_rows is None
+    assert not list(tmp_path.glob("datasets/*/data.parquet"))
+
+
+def test_dataset_row_ceiling_holds_even_when_the_estimate_is_too_low(governed_db, tmp_path, monkeypatch) -> None:
+    gov = governor(governed_db, tmp_path, SQL_MAX_INLINE_ROWS="10", SQL_MAX_DATASET_ROWS="100")
+    original = gov._explain
+    monkeypatch.setattr(gov, "_explain", lambda *a: (*original(*a)[:2], 5))  # pretend the planner expects 5 rows
+    result = run(gov, spec(requested_limit=None, order_by=[]))
     assert (result.decision, result.reason_code) == ("NEEDS_NARROWING", "DATASET_TOO_LARGE")
     assert not list(tmp_path.glob("datasets/*/data.parquet"))
+
+
+def test_total_extraction_time_is_bounded(governed_db, tmp_path, monkeypatch) -> None:
+    import app.governor as governor_module
+    gov = governor(governed_db, tmp_path, SQL_MAX_INLINE_ROWS="10", SQL_MAX_EXECUTION_SECONDS="20")
+    monkeypatch.setattr(governor_module, "FETCH_BATCH_ROWS", 5)
+    clock = iter(range(0, 10_000, 7))  # every call advances 7 s
+    monkeypatch.setattr(governor_module.time, "monotonic", lambda: next(clock))
+    result = run(gov, spec(requested_limit=100))
+    assert (result.decision, result.reason_code) == ("NEEDS_NARROWING", "QUERY_TIMEOUT")
+    assert result.details["limit_seconds"] == 20 and not list(tmp_path.glob("datasets/*/data.parquet"))
 
 
 def test_structured_log_has_decision_fields_and_no_secrets_or_values(governed_db, tmp_path) -> None:

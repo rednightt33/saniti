@@ -44,6 +44,7 @@ class Settings:
     max_inline_output_bytes: int
     max_estimated_scan_rows: int
     max_plan_cost: int
+    max_execution_seconds: int
     max_date_range_days: int
     max_unfiltered_date_range_days: int
     max_dataset_rows: int
@@ -89,7 +90,8 @@ class Settings:
             max_inline_rows=_integer(env, "SQL_MAX_INLINE_ROWS", 200, maximum=2000),
             max_inline_output_bytes=_integer(env, "SQL_MAX_INLINE_OUTPUT_BYTES", 24000, minimum=1024, maximum=131072),
             max_estimated_scan_rows=_integer(env, "SQL_MAX_ESTIMATED_SCAN_ROWS", 2_000_000),
-            max_plan_cost=_integer(env, "SQL_MAX_PLAN_COST", 3_000_000),
+            max_plan_cost=_integer(env, "SQL_MAX_PLAN_COST", 600_000),
+            max_execution_seconds=_integer(env, "SQL_MAX_EXECUTION_SECONDS", 60, maximum=300),
             max_date_range_days=_integer(env, "SQL_MAX_DATE_RANGE_DAYS", 3660),
             max_unfiltered_date_range_days=_integer(env, "SQL_MAX_UNFILTERED_DATE_RANGE_DAYS", 400),
             max_dataset_rows=_integer(env, "SQL_MAX_DATASET_ROWS", 500_000, maximum=5_000_000),
@@ -106,6 +108,8 @@ class Settings:
             raise ConfigError("SQL_MAX_UNFILTERED_DATE_RANGE_DAYS must not exceed SQL_MAX_DATE_RANGE_DAYS")
         if settings.max_inline_rows > settings.max_dataset_rows:
             raise ConfigError("SQL_MAX_INLINE_ROWS must not exceed SQL_MAX_DATASET_ROWS")
+        if settings.statement_timeout_seconds > settings.max_execution_seconds:
+            raise ConfigError("SQL_STATEMENT_TIMEOUT_SECONDS must not exceed SQL_MAX_EXECUTION_SECONDS")
         if settings.max_joins >= settings.max_tables:
             raise ConfigError("SQL_MAX_JOINS must be below SQL_MAX_TABLES")
         if settings.bucket_name and not (

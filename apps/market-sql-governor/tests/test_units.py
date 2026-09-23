@@ -17,7 +17,7 @@ def test_defaults_are_conservative_backend_limits() -> None:
     s = Settings.from_env(base_env())
     assert (s.max_tables, s.max_joins, s.max_columns, s.max_filters) == (3, 2, 20, 10)
     assert (s.max_inline_rows, s.max_inline_output_bytes) == (200, 24000)
-    assert (s.max_estimated_scan_rows, s.max_plan_cost) == (2_000_000, 3_000_000)
+    assert (s.max_estimated_scan_rows, s.max_plan_cost, s.max_execution_seconds) == (2_000_000, 600_000, 60)
     assert (s.max_date_range_days, s.max_unfiltered_date_range_days) == (3660, 400)
     assert (s.statement_timeout_seconds, s.lock_timeout_seconds) == (20, 2)
     assert (s.max_dataset_rows, s.max_dataset_bytes) == (500_000, 134_217_728)
@@ -34,6 +34,7 @@ def test_defaults_are_conservative_backend_limits() -> None:
         ({"SQL_MAX_UNFILTERED_DATE_RANGE_DAYS": "5000"}, "must not exceed SQL_MAX_DATE_RANGE_DAYS"),
         ({"SQL_MAX_JOINS": "3"}, "below SQL_MAX_TABLES"),
         ({"SQL_STATEMENT_TIMEOUT_SECONDS": "500"}, "between 1 and 120"),
+        ({"SQL_STATEMENT_TIMEOUT_SECONDS": "90", "SQL_MAX_EXECUTION_SECONDS": "60"}, "must not exceed SQL_MAX_EXECUTION"),
         ({"SQL_DATASET_BUCKET_NAME": "b"}, "requires endpoint"),
         ({"SQL_MAX_INLINE_ROWS": "abc"}, "integer"),
     ],
