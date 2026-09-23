@@ -1,5 +1,12 @@
 # Railway changelog
 
+## 2026-09-23 — market-ai-orc: AI_MAX_TOOL_ITERATIONS = 20
+
+- At the user's request, set `AI_MAX_TOOL_ITERATIONS=20` on `market-ai-orc`. The code default is 8.
+- Railway redeployed the same image as `b33d1736-1229-4ca1-b796-569b9df0a6f2`, which reached `SUCCESS` with a clean start and `GET /ready` `200`.
+- `AI_MAX_TOOL_CALLS` stays at its default of 12, so a page-by-page catalog read now ends through the graceful paths instead of `MAX_ITERATIONS`: the tool-call budget (`TOOL_CALL_BUDGET`) or the context soft limit (`CONTEXT_BUDGET`), whichever comes first.
+- Ran `railway config pull --force`. `.railway/railway.ts` now preserves `AI_MAX_TOOL_ITERATIONS`, and the plan reported `dev` up to date.
+
 ## 2026-09-23 — Deploy market-ai-orc context budget and 16 KB catalog pages (c1b4e93)
 
 - **Deployment:**

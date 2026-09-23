@@ -102,7 +102,9 @@ estimate.
   with `MAX_ITERATIONS` when every call requests another tool. With 16 KB pages, each page adds
   about 5k provider tokens, so a page-by-page read of a large catalog reaches 8 iterations
   (about 37k tokens) before the 51.2k soft limit. Verified live on 2026-09-23 with
-  `AI_calculation_catalog`.
+  `AI_calculation_catalog`. Railway `dev` therefore sets `AI_MAX_TOOL_ITERATIONS=20`. With the
+  default `AI_MAX_TOOL_CALLS=12`, the tool-call budget or the context soft limit, both graceful,
+  now ends such runs first.
 - **Hard limit.** When even the tool-free finalization turn would exceed
   `AI_MAX_CONTEXT_TOKENS`, for example with oversized history or one very large tool
   output, the run fails with `CONTEXT_LIMIT`. The same happens when provider-reported input
