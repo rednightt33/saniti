@@ -1,5 +1,40 @@
 # Database changelog
 
+## 2026-09-23 — market-ai-orc read-only catalog and preview access
+
+- Applied three forward-only migrations to Railway project `lucid-patience`, environment `dev` (PostgreSQL 18.6, database `railway`, as superuser `postgres`). They were applied by a temporary one-off Railway service on the private network; see `RAILWAY_CHANGELOG.md`.
+  - `20260923_001_create_market_ai_catalog_reader.sql`: `NOLOGIN` role `market_ai_catalog_reader` with `USAGE` on `public` and `SELECT` on exactly the five `AI_*` catalogs.
+  - `20260923_002_create_market_ai_preview_interface.sql`:
+    - Creates `public.ai_preview_table_rows(text) RETURNS json`. It is `SECURITY DEFINER`, pins `search_path = pg_catalog, pg_temp`, and hard-codes the allowlist of seven tables, a fixed `ORDER BY`, and `LIMIT 20`.
+    - The function is owned by `NOLOGIN` role `market_ai_preview_owner`, which has `SELECT` on exactly those seven tables and no write privilege.
+    - Only `NOLOGIN` role `market_ai_preview_reader` can `EXECUTE` it (`PUBLIC` is revoked). That role has no table privilege.
+    - Tables served: `Feature_01_Stock_Daily`, `Feature_02_Broker_Rolling`, `Feature_03_Stock_Broker_Daily`, `IDX_Broker_Profile`, `IDX_Broker_Summary`, `IDX_Stock_Universe`, `Price_Stock_Indonesia_IDX`.
+  - `20260923_003_register_market_ai_orc_catalog_metadata.sql`:
+    - Registers the five market-ai-orc tools in `Tool_Catalog` (`get_system_capabilities`, `discover_catalog`, `get_catalog_details`, `read_catalog_rows`, `preview_table_rows`; `execution_type = ORCHESTRATOR`, `version = v1`).
+    - Their input schemas were generated from the deployed registry (commit `456081d`).
+    - They have `is_active = false` on purpose, because market-ai-backend lists every active `META`/`DISCOVERY`/`QUALITY` row to its own model. Activation is owned by the market-ai-orc registry and recorded in `tool_specific_limits.runtime_service`.
+    - Also appends `public.ai_preview_table_rows(text)` to `Table_Catalog.related_functions` for the seven tables.
+- Provisioned login `market_ai_orc` with `scripts/provision_market_ai_orc_login.py`.
+  - Memberships: `market_ai_catalog_reader` and `market_ai_preview_reader` only.
+  - Settings: `CONNECTION LIMIT 5`, `default_transaction_read_only=on`, `statement_timeout=5s`, `lock_timeout=2s`, `idle_in_transaction_session_timeout=15s`.
+  - Its password exists only as a Railway variable on `market-ai-orc`.
+- Live verification as `market_ai_orc`, with counts only (`scripts/verify_market_ai_orc_data_access.py`):
+  - `read_catalog_rows` traversed every catalog to the end with rows read = distinct keys = `total_rows`: `AI_table_catalog` 7, `AI_column_catalog` 138, `AI_catalog_relationships` 5, `AI_calculation_catalog` 91 (5 pages), `AI_data_coverage` 14,070 (146 pages).
+  - `preview_table_rows` returned exactly 20 rows with all columns for each of the seven tables.
+  - Direct `SELECT` on each of the seven tables, `Tool_Catalog`, and `Table_Catalog` was denied. Preview calls for `AI_table_catalog` and `Tool_Catalog` were denied. `DELETE` on `AI_table_catalog` failed with `ReadOnlySqlTransaction`.
+- Preview query plans on live data, measured with `EXPLAIN (ANALYZE, BUFFERS)`. Every plan is index-backed and runs in under 0.5 ms; no index was added.
+
+  | Table | Estimated rows | Plan | Execution | Buffers |
+  |---|---|---|---|---|
+  | `Feature_02_Broker_Rolling` | 45.2M | Backward `date_board_ticker_idx` + incremental sort | 0.10 ms | 29 |
+  | `IDX_Broker_Summary` | 43.7M | Backward primary key | 0.06 ms | 24 |
+  | `Feature_03_Stock_Broker_Daily` | 2.25M | Backward `date_board_ticker_idx` | 0.03 ms | 9 |
+  | `Feature_01_Stock_Daily` | 1.30M | Backward `date_idx` + incremental sort | 0.41 ms | 49 |
+  | `Price_Stock_Indonesia_IDX` | 1.30M | Backward `date_idx` + incremental sort | 0.21 ms | 25 |
+  | `IDX_Stock_Universe` | 844 | Primary key | 0.03 ms | 5 |
+  | `IDX_Broker_Profile` | 112 | Primary key | 0.01 ms | 3 |
+- No table, column, market-data row, catalog row other than the five new `Tool_Catalog` rows and the seven `related_functions` arrays, or `market-ai-backend` object was changed. `DATABASE_SCHEMA.md` covers tables only and is unchanged.
+
 ## 2026-09-22 — Add AI-facing catalogs and source-derived coverage
 
 - Applied forward-only migration `database/migrations/20260922_001_create_ai_catalogs.sql` to Railway project `lucid-patience`, environment `dev`. It created `AI_table_catalog`, `AI_column_catalog`, `AI_catalog_relationships`, `AI_calculation_catalog`, and `AI_data_coverage` without replacing the legacy catalogs.

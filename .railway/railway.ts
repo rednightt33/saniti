@@ -27,7 +27,7 @@ export default defineRailway(() => {
     healthcheckTimeout: 120,
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "ALWAYS" },
-    env: { AI_MODEL: preserve(), AI_REASONING_EFFORT: preserve(), MARKET_AI_ORC_API_KEY: preserve(), OPENROUTER_API_KEY: preserve(), PORT: preserve() },
+    env: { AI_MODEL: preserve(), AI_REASONING_EFFORT: preserve(), CATALOG_DATABASE_URL: preserve(), MARKET_AI_ORC_API_KEY: preserve(), MARKET_AI_ORC_DB_PASSWORD: preserve(), OPENROUTER_API_KEY: preserve(), PORT: preserve() },
   });
   const idxPriceCron = service("idx-price-cron", {
     source: saniti,
