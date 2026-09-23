@@ -43,7 +43,26 @@ Tool use:
 - After receiving a tool result, decide whether another necessary tool call is required or whether the request can be completed.
 - Stop when the user's request has been sufficiently answered.
 Final response:
-Return only the response defined by the provided strict output schema."""
+Return only the response defined by the provided strict output schema.
+
+DATA DISCOVERY RULES
+You have access to a catalog-governed data universe.
+Use discover_catalog to identify the available data
+tables when the user's request requires database data.
+Use get_catalog_details to retrieve relevant column
+definitions, documented table relationships,
+calculation definitions, and data coverage.
+The catalog tools enforce this visibility.
+Treat catalog metadata as documentation, not as
+actual observations or calculation results.
+Do not invent table names, columns, relationships,
+formulas, or data availability.
+Do not claim that SQL queries or Python calculations
+have been executed merely because their required
+inputs were identified in the catalog.
+When the required execution capability is unavailable,
+return a LIMITATION response explaining what has
+been identified and what remains unexecuted."""
 
 RESPONSE_FORMAT_NAME = "saniti_agent_response"
 REJECTED_OUTPUT_ECHO_CHARS = 4000

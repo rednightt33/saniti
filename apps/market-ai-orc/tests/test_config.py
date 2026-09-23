@@ -70,3 +70,25 @@ def test_old_backend_variables_are_not_required() -> None:
     fields = set(Settings.__dataclass_fields__)
     assert not {"database_url", "ai_provider", "analytics_bucket_name", "query_sandbox_api_key"} & fields
     assert settings.internal_api_key == BASE_ENV["MARKET_AI_ORC_API_KEY"]
+
+
+def test_catalog_database_is_optional_and_hidden_from_repr() -> None:
+    assert make_settings().catalog_database_url is None
+    settings = make_settings(CATALOG_DATABASE_URL="postgresql://market_ai_orc:s3cret@db:5432/railway")
+    assert settings.catalog_database_url.startswith("postgresql://")
+    assert "s3cret" not in repr(settings)
+    assert (settings.catalog_connect_timeout_seconds, settings.catalog_statement_timeout_ms) == (5, 5000)
+
+
+@pytest.mark.parametrize(
+    ("name", "value", "message"),
+    [
+        ("CATALOG_DATABASE_URL", "mysql://x@y/z", "postgresql://"),
+        ("CATALOG_CONNECT_TIMEOUT_SECONDS", "31", "30 seconds"),
+        ("CATALOG_STATEMENT_TIMEOUT_MS", "30001", "30 seconds"),
+        ("CATALOG_STATEMENT_TIMEOUT_MS", "50", "at least 100"),
+    ],
+)
+def test_invalid_catalog_settings_are_rejected(name: str, value: str, message: str) -> None:
+    with pytest.raises(ConfigError, match=message):
+        make_settings(**{name: value})

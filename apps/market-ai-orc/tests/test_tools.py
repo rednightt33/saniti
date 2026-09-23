@@ -38,6 +38,7 @@ def test_known_tool_executes_with_phase_one_result() -> None:
         "ok": True,
         "tool": "get_system_capabilities",
         "result": {
+            "catalog_discovery": False,
             "database_query": False,
             "python_analysis": False,
             "web_search": False,

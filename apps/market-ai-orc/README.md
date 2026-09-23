@@ -1,8 +1,9 @@
 # market-ai-orc
 
-Phase 1 AI orchestration service. It receives an AI request from a trusted backend,
-calls OpenRouter, runs registered tools when the model asks for them, and returns a
-validated structured response.
+AI orchestration service. It receives an AI request from a trusted backend, calls
+OpenRouter, runs registered tools when the model asks for them, and returns a validated
+structured response. Phase 2 adds read-only **catalog discovery** over Saniti's five
+`AI_*` metadata tables.
 
 It was derived from `apps/market-ai-backend`. It keeps that service's proven OpenRouter
 Responses transport, bounded retry, quota handling, usage accounting, strict final-schema
@@ -10,12 +11,14 @@ validation with bounded retries, and bounded agent loop. It removes everything t
 market data: PostgreSQL, catalogs, SQL governance, query sandbox, statistical worker,
 S3 snapshots, evidence and completion gates, and analysis routing.
 
-`market-ai-orc` has **no database credentials, no bucket credentials, and no market-data
-access**. It is stateless: the caller owns conversation persistence.
+`market-ai-orc` has **no market-data access and no bucket credentials**. Its only database
+access is optional and read-only: the `market_ai_orc` login can SELECT exactly the five
+`AI_*` catalog tables (see [Catalog discovery](#catalog-discovery)). It is stateless: the
+caller owns conversation persistence.
 
 ## Architecture
 
-Current (Phase 1):
+Current (Phase 2):
 
 ```text
 Backend
@@ -25,6 +28,7 @@ market-ai-orc
 OpenRouter → AI model
    ↓  optional function_call
 market-ai-orc executes a registered tool → function_call_output
+   │    discover_catalog / get_catalog_details → read-only AI_* catalog metadata
    ↓  (repeat within limits)
 strict final response
    ↓
@@ -106,6 +110,9 @@ wall-clock time, output tokens, and a context ceiling checked before each provid
 | `AI_FINAL_RESPONSE_MAX_RETRIES` | no | `2` | Retries after an invalid final response (`0` allowed) |
 | `OPENROUTER_HTTP_REFERER` | no | unset | Optional `HTTP-Referer` header |
 | `OPENROUTER_X_TITLE` | no | `Saniti Market AI` | `X-Title` header |
+| `CATALOG_DATABASE_URL` | no (secret) | unset | DSN for the catalog-only `market_ai_orc` login. When unset, the catalog tools are not registered |
+| `CATALOG_CONNECT_TIMEOUT_SECONDS` | no | `5` | Catalog connection timeout (≤ 30) |
+| `CATALOG_STATEMENT_TIMEOUT_MS` | no | `5000` | Per-statement timeout for catalog queries (100–30000) |
 
 Secrets have no defaults, and the service refuses to start without them. It never logs API
 keys, `Authorization` headers, prompts, user messages, or provider reasoning.
@@ -225,16 +232,122 @@ Guarantees:
 
 | Tool | Arguments | Result |
 |---|---|---|
-| `get_system_capabilities` | none | `{"database_query": false, "python_analysis": false, "web_search": false, "available_tools": ["get_system_capabilities"]}` |
+| `get_system_capabilities` | none | Capability flags plus `available_tools`, for example `{"catalog_discovery": true, "database_query": false, "python_analysis": false, "web_search": false, "available_tools": [...]}` |
+| `discover_catalog` | none | AI-visible tables with their catalog metadata (see below) |
+| `get_catalog_details` | `table_names`, `sections`, `column_names`, `entity_ids` | Requested catalog sections (see below) |
 
 Each capability flag is derived from the registry. It becomes `true` only when its providing
-tool (`request_data`, `run_python_analysis`, `search_web`) is actually registered.
+tool (`discover_catalog`, `request_data`, `run_python_analysis`, `search_web`) is actually
+registered. The two catalog tools are registered only when `CATALOG_DATABASE_URL` is set.
+
+## Catalog discovery
+
+The five `AI_*` tables created by `database/migrations/20260922_001_create_ai_catalogs.sql`
+are the only metadata source. The service creates no catalog tables, hardcodes no table
+list, and never accepts SQL.
+
+### Visibility rules
+
+All rules come from the catalog's own flags:
+
+| Catalog | A row is visible when |
+|---|---|
+| `AI_table_catalog` | `is_active AND ai_access_level = 'BOUNDED_READ'` |
+| `AI_column_catalog` | its table is visible, `ai_allowed`, and `NOT is_sensitive` |
+| `AI_catalog_relationships` | `is_allowed`, and both `left_table` and `right_table` are visible |
+| `AI_calculation_catalog` | its `target_table` is visible and `status = 'ACTIVE'` |
+| `AI_data_coverage` | its `dataset_name` is visible and that table has `coverage_enabled` |
+
+`documentation_status` (`VERIFIED`, `PARTIAL`, `NEEDS_REVIEW`) is passed through, never used
+to hide rows. A `NULL` description is returned as `null`: per `DATABASE_CATALOG.md`, the
+meaning is not established and must not be inferred.
+
+### `discover_catalog()`
+
+This tool takes no arguments. For each visible table it returns `table_name`, `description`,
+`category`, `grain`, `primary_key_columns`, `time_column`, `entity_column`,
+`documentation_status`, `freshness_sla`, `coverage_enabled`, and `available_metadata`
+(counts of visible columns, active calculations, and allowed relationships). At most 50
+tables are returned, with a `truncated` flag.
+
+### `get_catalog_details(table_names, sections, column_names, entity_ids)`
+
+| Argument | Contract |
+|---|---|
+| `table_names` | 1–3 unique names matching `^[A-Za-z0-9_]{1,63}$`; must be visible |
+| `sections` | 1–4 of `COLUMNS`, `RELATIONSHIPS`, `CALCULATIONS`, `COVERAGE` |
+| `column_names` | `null`, or 1–40 names matching `^[A-Za-z0-9_][A-Za-z0-9_ ]{0,62}$` (spaces allowed, e.g. `Investor Type`); narrows `COLUMNS` and `CALCULATIONS` |
+| `entity_ids` | `null`, or 1–20 ids matching `^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$` (e.g. tickers); adds per-entity `COVERAGE` rows |
+
+The tool schema is strict and generated from the same Pydantic model that validates the
+arguments. Unknown fields are rejected, and invalid input never reaches the database.
+
+What each section returns:
+
+| Section | Source | Fields |
+|---|---|---|
+| `COLUMNS` | `AI_column_catalog` | `column_name`, `description`, `data_type`, `semantic_type`, `unit`, `nullable`, `is_primary_key`, `source_column_or_expression`, `allowed_aggregations`, `filter_allowed`, `group_by_allowed`, `example_value`, `documentation_status`; grouped by table, in `ordinal_position` order |
+| `RELATIONSHIPS` | `AI_catalog_relationships` | `relationship_id`, `left_table`, `left_columns`, `right_table`, `right_columns`, `relationship_type`, `temporal_rule`, `safe_output_grain`, `requires_preaggregation`, `description`, `version` (`left_columns[i]` joins `right_columns[i]`) |
+| `CALCULATIONS` | `AI_calculation_catalog` | `calculation_name`, `version`, `target_columns`, `definition`, `required_inputs`, `parameters`, `defaults`, `alignment_rules`, `missing_data_policy`, `output_definition`; `implementation_ref` and `validation_evidence` are omitted to save space |
+| `COVERAGE` | `AI_data_coverage` | The `DATASET` row per table, `entity_status_counts` (entity rows grouped by pipeline, verification, and quality status), and the matching `ENTITY` rows only when `entity_ids` is given. It never dumps the ~14k per-ticker rows |
+
+A field that is `NULL` or empty in the catalog is omitted from the entry, except the
+explicit `description`/`definition` `null`. The result notice states this.
+
+Other cases are reported explicitly:
+- Requested tables that are unknown or hidden: `unknown_tables`, or `TOOL_ERROR` when none
+  are visible.
+- Columns and entities not found: `unknown_columns` and `unknown_entities`.
+- Tables with coverage disabled: `coverage_disabled_tables`.
+- Tables with no coverage row: `no_coverage_record`.
+- Empty sections: a `note`.
+
+### Bounds
+
+- **SQL:** fixed statements with `%s` parameters only; table, column, and entity names are
+  bound as values, never as identifiers.
+- **Row caps:** 150 columns, 100 calculations, 50 relationships, 60 status groups, and 60
+  entity rows per call.
+- **Payload budget:** the result stays within a 24 KB budget, below the registry's 32 KB
+  hard cap. Small sections are filled first. A large `COLUMNS` or `CALCULATIONS` section
+  first switches to `detail: "SUMMARY"` (names, definitions, types, units), then truncates,
+  always with `returned`, `total_matching`, `truncated`, and a `hint` to narrow with
+  `column_names`.
+- **Database session:** one read-only transaction per tool call, opened with
+  `default_transaction_read_only=on`, `statement_timeout`, and a connect timeout. Database
+  errors return a generic `TOOL_ERROR` with no server message or DSN.
+
+### Database access
+
+1. Apply `database/migrations/20260923_001_create_market_ai_catalog_reader.sql`. It creates
+   `NOLOGIN` role `market_ai_catalog_reader` with `USAGE` on schema `public` and `SELECT` on
+   exactly the five `AI_*` tables. It fails the transaction if that role could read or
+   modify any other public table.
+2. Run `scripts/provision_market_ai_orc_login.py` with `DATABASE_URL` (admin) and
+   `MARKET_AI_ORC_DB_PASSWORD`. It creates or rotates login `market_ai_orc`, a member only of
+   `market_ai_catalog_reader`, with `CONNECTION LIMIT 5`,
+   `default_transaction_read_only=on`, `statement_timeout=5s`, `lock_timeout=2s`, and
+   `idle_in_transaction_session_timeout=15s`. It then verifies that the readable public
+   tables are exactly the five catalogs.
+3. Set `CATALOG_DATABASE_URL` to the private DSN for `market_ai_orc`
+   (`postgres.railway.internal:5432`).
+
+`scripts/inspect_ai_catalogs.py` is a read-only report of catalog structure, visibility
+states, sizes, and samples. It works with the `market_ai_orc` login.
+
+### Known catalog gaps
+
+These are observed in the migration seed and reported, not changed:
+- `AI_calculation_catalog.definition` is copied from `Feature_Catalog.definition`. The
+  separate `Feature_Catalog.calculation` expression is **not** in the AI catalog.
+- `AI_column_catalog.example_value` is seeded `NULL` for every row.
+- Every seeded column has `ai_allowed = true` and `is_sensitive = false`.
 
 ## Currently unavailable capabilities
 
 These are not implemented, and no placeholder pretends they exist: SQL generation or
-execution, the SQL Governor, PostgreSQL market-data access, Feature/Table/Column catalogs,
-a Python or DuckDB sandbox, statistical analysis (event study, backtest, regression, HMM,
+execution, the SQL Governor, PostgreSQL market-data access, the legacy
+`Table_Catalog`/`Column_Catalog`/`Feature_Catalog` catalogs, a Python or DuckDB sandbox, statistical analysis (event study, backtest, regression, HMM,
 clustering), web search, RAG or vector search, long-term memory, multi-agent flows, Redis,
 frontend, and Telegram.
 
@@ -276,4 +389,14 @@ pip install -r requirements-dev.txt
 python -m pytest
 ```
 
-The tests mock all HTTP traffic and make no OpenRouter calls.
+The tests mock all HTTP traffic and make no OpenRouter calls. The catalog integration tests
+in `tests/test_catalog_postgres.py` run only when `ORC_TEST_POSTGRES_URL` points to a
+disposable PostgreSQL server:
+
+```bash
+ORC_TEST_POSTGRES_URL=postgresql://postgres@127.0.0.1:55432/postgres python -m pytest
+```
+
+They create a temporary database from the exact DDL in
+`20260922_001_create_ai_catalogs.sql`, apply the reader-role migration and the provisioning
+script, and drop everything afterwards.

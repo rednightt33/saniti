@@ -9,6 +9,7 @@ from .registry import ToolRegistry, ToolSpec
 
 # A capability is reported true only when the tool that provides it is registered.
 CAPABILITY_TOOLS = {
+    "catalog_discovery": "discover_catalog",
     "database_query": "request_data",
     "python_analysis": "run_python_analysis",
     "web_search": "search_web",
@@ -30,8 +31,8 @@ def capabilities_spec(registry: ToolRegistry) -> ToolSpec:
     return ToolSpec(
         name="get_system_capabilities",
         description=(
-            "Return which backend capabilities (database query, Python analysis, web search) "
-            "and tools are currently available to this agent."
+            "Return which backend capabilities (catalog discovery, database query, Python "
+            "analysis, web search) and tools are currently available to this agent."
         ),
         arguments_model=NoArguments,
         handler=handler,

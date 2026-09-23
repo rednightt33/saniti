@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 
+from .catalog_store import CatalogStore
 from .config import Settings
 from .openrouter_client import OpenRouterClient
 from .orchestrator import AgentOrchestrator
@@ -39,7 +40,22 @@ def create_app(
             x_title=settings.openrouter_x_title,
             http_referer=settings.openrouter_http_referer,
         )
-        orchestrator = AgentOrchestrator(settings, owned_client, build_default_registry())
+        catalog = None
+        if settings.catalog_database_url:
+            catalog = CatalogStore(
+                settings.catalog_database_url,
+                connect_timeout_seconds=settings.catalog_connect_timeout_seconds,
+                statement_timeout_ms=settings.catalog_statement_timeout_ms,
+            )
+        registry = build_default_registry(
+            catalog,
+            catalog_timeout_seconds=(
+                settings.catalog_connect_timeout_seconds
+                + 2 * settings.catalog_statement_timeout_ms / 1000
+                + 2
+            ),
+        )
+        orchestrator = AgentOrchestrator(settings, owned_client, registry)
     ready = {"value": False}
 
     @asynccontextmanager

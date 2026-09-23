@@ -45,6 +45,9 @@ class Settings:
     ai_final_response_max_retries: int
     openrouter_http_referer: str | None
     openrouter_x_title: str
+    catalog_database_url: str | None = field(repr=False)
+    catalog_connect_timeout_seconds: int
+    catalog_statement_timeout_ms: int
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -75,6 +78,9 @@ class Settings:
             ),
             openrouter_http_referer=_optional(env, "OPENROUTER_HTTP_REFERER"),
             openrouter_x_title=_optional(env, "OPENROUTER_X_TITLE") or "Saniti Market AI",
+            catalog_database_url=_optional(env, "CATALOG_DATABASE_URL"),
+            catalog_connect_timeout_seconds=_integer(env, "CATALOG_CONNECT_TIMEOUT_SECONDS", 5),
+            catalog_statement_timeout_ms=_integer(env, "CATALOG_STATEMENT_TIMEOUT_MS", 5000, minimum=100),
         )
         if settings.ai_reasoning_effort not in REASONING_EFFORTS:
             raise ConfigError(
@@ -84,6 +90,12 @@ class Settings:
             raise ConfigError("AI_MAX_OUTPUT_TOKENS must be below AI_MAX_CONTEXT_TOKENS")
         if settings.ai_max_history_tokens >= settings.ai_max_context_tokens:
             raise ConfigError("AI_MAX_HISTORY_TOKENS must be below AI_MAX_CONTEXT_TOKENS")
+        if settings.catalog_database_url and not settings.catalog_database_url.startswith(
+            ("postgresql://", "postgres://")
+        ):
+            raise ConfigError("CATALOG_DATABASE_URL must be a postgresql:// connection URL")
+        if settings.catalog_connect_timeout_seconds > 30 or settings.catalog_statement_timeout_ms > 30000:
+            raise ConfigError("Catalog connect/statement timeouts must not exceed 30 seconds")
         if settings.ai_request_timeout_seconds > settings.ai_max_analysis_seconds:
             raise ConfigError("AI_REQUEST_TIMEOUT_SECONDS must not exceed AI_MAX_ANALYSIS_SECONDS")
         return settings
