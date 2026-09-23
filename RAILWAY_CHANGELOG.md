@@ -1,5 +1,28 @@
 # Railway changelog
 
+## 2026-09-23 — Deploy market-ai-orc context budget and 16 KB catalog pages (c1b4e93)
+
+- **Deployment:**
+  - What changed:
+    - Soft context limit `AI_CONTEXT_SOFT_LIMIT_RATIO` (default `0.8`): tools are withdrawn and the run finalizes with `LIMITATION` instead of failing.
+    - New execution field `execution.tools_withdrawn_reason`.
+    - Code default of `CATALOG_PAGE_MAX_BYTES` changed from 32000 to 16000.
+  - No Railway variable was added or changed, so both new defaults apply.
+  - Upload method: the same watch-path-compatible staging upload as before.
+  - Deployment `4d2a7665-696f-4f5f-b9fc-8df6a35db7b0` reached `SUCCESS`, with a clean Uvicorn start and `GET /ready` returning `200`.
+  - Rollback reference: `2d6c60ca-4b44-4473-a2de-8e6482075d92`.
+- **Temporary one-off service `orc-db-update`** (`b7efbd14-a030-4540-8880-f39485cea5a9`):
+  - It had only reference variables (`${{Postgres.DATABASE_URL}}` and `${{market-ai-orc.MARKET_AI_ORC_API_KEY}}`) and restart policy `NEVER`, and ran as deployment `fc6e2821-4fe4-480d-b426-51945a29468d`.
+  - It applied migration 004 and ran two live smoke tests. It was deleted afterwards.
+  - `railway config plan` reported `dev` up to date.
+- **Smoke test 1: regression** (broker accumulation question).
+  - Result: `COMPLETED`/`ANSWER` in 48 s, 5 model calls, 9 tool calls, `tools_withdrawn_reason = null`.
+  - Behavior is unchanged from the Phase 2+3 run.
+- **Smoke test 2: stress** ("read the complete `AI_calculation_catalog`, every page").
+  - Result: `FAILED` with `MAX_ITERATIONS` after 8 model calls, each reading one page.
+  - Provider-reported input per call grew about 5k tokens per 16 KB page, from 2.0k to 37.3k. That is below the 51.2k soft limit, so `AI_MAX_TOOL_ITERATIONS = 8` ended the run before the context budget applied.
+  - This is not a regression. With 32 KB pages the same request would have hit `CONTEXT_LIMIT` after about four pages. But the iteration cap still fails hard instead of degrading. This is recorded as an open follow-up, not changed in this deployment.
+
 ## 2026-09-23 — Deploy market-ai-orc Phase 2+3 (catalog discovery, full catalog access, 20-row preview)
 
 - **Variables on `market-ai-orc`**, both set with `--skip-deploys`:

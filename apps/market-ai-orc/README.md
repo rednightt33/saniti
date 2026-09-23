@@ -98,6 +98,11 @@ estimate.
   - `execution.tools_withdrawn_reason` is `CONTEXT_BUDGET`. It is `TOOL_CALL_BUDGET` when the
     tool-call budget ended tool use.
   - Prior tool outputs are never dropped, summarized, or truncated.
+- **Iteration cap (not degraded yet).** `AI_MAX_TOOL_ITERATIONS` (default 8) still ends a run
+  with `MAX_ITERATIONS` when every call requests another tool. With 16 KB pages, each page adds
+  about 5k provider tokens, so a page-by-page read of a large catalog reaches 8 iterations
+  (about 37k tokens) before the 51.2k soft limit. Verified live on 2026-09-23 with
+  `AI_calculation_catalog`.
 - **Hard limit.** When even the tool-free finalization turn would exceed
   `AI_MAX_CONTEXT_TOKENS`, for example with oversized history or one very large tool
   output, the run fails with `CONTEXT_LIMIT`. The same happens when provider-reported input

@@ -1,5 +1,13 @@
 # Database changelog
 
+## 2026-09-23 — Update market-ai-orc catalog page limit in Tool_Catalog
+
+- Applied `database/migrations/20260923_004_update_market_ai_orc_catalog_page_limit.sql` to `dev` using a temporary one-off service, which was deleted afterwards (see `RAILWAY_CHANGELOG.md`).
+- Changes to the `read_catalog_rows` row: `max_output_bytes` and `max_llm_result_bytes` 40192 → 24192, and `tool_specific_limits.page_max_bytes` 32000 → 16000.
+- All five market-ai-orc rows now have `tool_specific_limits.runtime_commit = c1b4e93`.
+- The input schemas and descriptions of all five tools are unchanged. This was verified by comparing the registries at `456081d` and `c1b4e93`.
+- Verified on live: exactly the five market-ai-orc rows are present, all with `is_active = false`. No market-ai-orc tool is visible to market-ai-backend (0 active rows). No other row changed.
+
 ## 2026-09-23 — market-ai-orc read-only catalog and preview access
 
 - Applied three forward-only migrations to Railway project `lucid-patience`, environment `dev` (PostgreSQL 18.6, database `railway`, as superuser `postgres`). They were applied by a temporary one-off Railway service on the private network; see `RAILWAY_CHANGELOG.md`.
