@@ -1,5 +1,16 @@
 # Railway changelog
 
+## 2026-09-23 — market-sql-governor: one-week dataset expiry and MIN/MAX on dates
+
+- Railway buckets do not support lifecycle configuration: the storage-bucket docs list "Bucket lifecycle configuration" under "Not yet supported". Expiry is therefore done by the Governor's own janitor (`apps/market-sql-governor/app/janitor.py`).
+  - It runs at startup and then every hour (`SQL_DATASET_CLEANUP_INTERVAL_SECONDS=3600`).
+  - It deletes `datasets/ds_*/data.parquet` and `manifest.json` once the manifest's `expires_at` has passed.
+  - Default retention is now one week (`SQL_DATASET_RETENTION_HOURS=168`). Both values are code defaults, so no Railway variable was added.
+- Deployed commit `f2c4012` as `4c66fb87-fbe2-481a-b412-067c0d61de14`: `SUCCESS`, `/ready` `200`.
+  - The first live janitor pass logged `sql_governor_dataset_cleanup datasets_seen=9 datasets_deleted=0 errors=0`, which proves bucket list and read work.
+  - Datasets written before this change keep the 24-hour `expires_at` recorded in their manifests.
+- Temporary one-off service `orc-mig007-job` (`72942e81-6cbf-48fa-af3c-1e6e638cfa05`, deployment `414b7d62-c82b-45c6-a480-d6af500106d4`) applied migration 007 and checked MIN/MAX live (see `DATABASE_CHANGELOG.md`). It was deleted afterwards, and `railway config plan` reported `dev` up to date.
+
 ## 2026-09-23 — Deploy market-sql-governor and request_data
 
 - **New resources** (user-approved pinned IaC plan `sha256:c9e8e1bb…`: 2 creates, 0 changes, 0 destroys):

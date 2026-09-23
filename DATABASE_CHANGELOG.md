@@ -1,5 +1,21 @@
 # Database changelog
 
+## 2026-09-23 — Allow MIN/MAX on date columns for the SQL Governor
+
+- Applied `database/migrations/20260923_007_allow_min_max_on_date_columns.sql` to `dev` using the temporary one-off service `orc-mig007-job`, which was deleted afterwards.
+- It appends `MIN` and `MAX` to `AI_column_catalog.allowed_aggregations` for every `date` column of the seven approved market-data tables. Existing entries are kept in order.
+  - The six affected columns, with their previous values:
+    - `Feature_01_Stock_Daily.date` (`COUNT`)
+    - `Feature_02_Broker_Rolling.date` (`COUNT`)
+    - `Feature_03_Stock_Broker_Daily.date` (`COUNT, COUNT_DISTINCT`)
+    - `IDX_Broker_Summary."Date"` (`COUNT, COUNT_DISTINCT`)
+    - `Price_Stock_Indonesia_IDX.date` (`COUNT, COUNT_DISTINCT`)
+    - `Price_Stock_Indonesia_IDX.query_date` (`COUNT, COUNT_DISTINCT`)
+  - Timestamp columns are not included.
+- Verified: all six columns now include `MIN`/`MAX`, and no other `AI_column_catalog` row changed.
+- Checked live through the Governor API: `MIN(date)`/`MAX(date)` per ticker for BBCA, BBRI, and TLKM returned `INLINE_RESULT` (2018-01-02 to 2026-09-22 each, 72 ms). `SUM(date)` stays rejected.
+- No sync job rewrites `AI_column_catalog`; only migrations change it.
+
 ## 2026-09-23 — market-sql-governor role, request_data registration, live calibration
 
 - Applied to `dev` (PostgreSQL 18.6, as superuser `postgres`) by the temporary one-off service `orc-governor-setup`, which was deleted afterwards:
