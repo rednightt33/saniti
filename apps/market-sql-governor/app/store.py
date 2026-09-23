@@ -2,6 +2,8 @@
 directory for development and tests). Object keys are never returned to market-ai-orc."""
 from __future__ import annotations
 
+from collections.abc import Iterator
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol
 
@@ -10,6 +12,13 @@ from .config import Settings
 
 class ObjectStore(Protocol):
     def put_immutable(self, key: str, payload: bytes, content_type: str, checksum: str) -> None: ...
+
+    # Used only by the expiry janitor (app/janitor.py).
+    def list_keys(self, prefix: str) -> Iterator[tuple[str, datetime]]: ...
+
+    def get(self, key: str) -> bytes: ...
+
+    def delete(self, key: str) -> None: ...
 
 
 class S3Store:
@@ -41,6 +50,17 @@ class S3Store:
         self.client.put_object(Bucket=self.bucket, Key=key, Body=payload, ContentType=content_type,
                                Metadata={"sha256": checksum})
 
+    def list_keys(self, prefix: str) -> Iterator[tuple[str, datetime]]:
+        for page in self.client.get_paginator("list_objects_v2").paginate(Bucket=self.bucket, Prefix=prefix):
+            for item in page.get("Contents") or []:
+                yield item["Key"], item["LastModified"]
+
+    def get(self, key: str) -> bytes:
+        return self.client.get_object(Bucket=self.bucket, Key=key)["Body"].read()
+
+    def delete(self, key: str) -> None:
+        self.client.delete_object(Bucket=self.bucket, Key=key)
+
 
 class LocalStore:
     def __init__(self, directory: str) -> None:
@@ -54,6 +74,20 @@ class LocalStore:
             return
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(payload)
+
+    def list_keys(self, prefix: str) -> Iterator[tuple[str, datetime]]:
+        base = self.root / prefix
+        if not base.exists():
+            return
+        for path in sorted(p for p in base.rglob("*") if p.is_file()):
+            modified = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+            yield path.relative_to(self.root).as_posix(), modified
+
+    def get(self, key: str) -> bytes:
+        return (self.root / key).read_bytes()
+
+    def delete(self, key: str) -> None:
+        (self.root / key).unlink(missing_ok=True)
 
 
 def build_store(settings: Settings) -> ObjectStore | None:

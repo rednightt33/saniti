@@ -9,7 +9,7 @@ from urllib.parse import urlsplit, urlunsplit
 import pytest
 
 from fixture import (
-    MARKET_TABLES, POLICY_CASES_SQL, READER_MIGRATION, REPO_ROOT, TRIGGER_FUNCTION_STUB, catalog_ddl,
+    DATE_AGGREGATION_MIGRATION, MARKET_TABLES, POLICY_CASES_SQL, READER_MIGRATION, REPO_ROOT, TRIGGER_FUNCTION_STUB, catalog_ddl,
     catalog_rows_sql, market_insert, relationships_sql, table_ddl,
 )
 
@@ -50,6 +50,7 @@ def governed_db() -> Iterator[dict[str, str]]:
             connection.execute(table_ddl(table))
             connection.execute(market_insert(table))
         connection.execute(POLICY_CASES_SQL)
+        connection.execute(DATE_AGGREGATION_MIGRATION.read_text())
         connection.execute(READER_MIGRATION.read_text())
         connection.execute("ANALYZE")
     spec = importlib.util.spec_from_file_location(

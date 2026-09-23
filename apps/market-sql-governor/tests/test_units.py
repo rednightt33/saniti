@@ -21,6 +21,7 @@ def test_defaults_are_conservative_backend_limits() -> None:
     assert (s.max_date_range_days, s.max_unfiltered_date_range_days) == (3660, 400)
     assert (s.statement_timeout_seconds, s.lock_timeout_seconds) == (20, 2)
     assert (s.max_dataset_rows, s.max_dataset_bytes) == (500_000, 134_217_728)
+    assert (s.dataset_retention_hours, s.dataset_cleanup_interval_seconds) == (168, 3600)  # one week
     assert s.dataset_storage_configured is False
     assert API_KEY not in repr(s) and "postgresql://" not in repr(s)
 

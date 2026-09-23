@@ -139,6 +139,21 @@ def test_approved_aggregation_is_accepted_and_computed(governed_db) -> None:
     assert result.returned_rows == 2 and float(result.rows[0][1]) >= float(result.rows[1][1])
 
 
+def test_min_max_on_date_columns_is_allowed_by_migration_007(governed_db) -> None:
+    result = run(governor(governed_db), spec(
+        columns=cols(PRICE, "ticker"), group_by=cols(PRICE, "ticker"), order_by=[], requested_limit=None,
+        aggregations=[{"table": PRICE, "column": "date", "function": "MIN"},
+                      {"table": PRICE, "column": "date", "function": "MAX"}],
+        filters=[filt(PRICE, "ticker", "IN", ["BBCA", "BBRI"])]))
+    assert result.decision == "INLINE_RESULT", result.message
+    assert [c.name for c in result.columns] == ["ticker", "min_date", "max_date"]
+    assert {tuple(row[1:]) for row in result.rows} == {("2025-01-02", "2026-08-31")}
+    still_blocked = run(governor(governed_db), spec(
+        columns=cols(PRICE, "ticker"), group_by=cols(PRICE, "ticker"), order_by=[],
+        aggregations=[{"table": PRICE, "column": "date", "function": "SUM"}]))
+    assert still_blocked.reason_code == "AGGREGATION_NOT_ALLOWED"
+
+
 # --- Gate 4: joins --------------------------------------------------------------------------------
 
 def test_approved_relationship_join_uses_catalog_keys(governed_db) -> None:

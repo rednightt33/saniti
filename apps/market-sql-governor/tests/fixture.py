@@ -13,6 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 MIGRATIONS = REPO_ROOT / "database/migrations"
 CATALOG_MIGRATION = MIGRATIONS / "20260922_001_create_ai_catalogs.sql"
 READER_MIGRATION = MIGRATIONS / "20260923_005_create_market_ai_sql_reader.sql"
+DATE_AGGREGATION_MIGRATION = MIGRATIONS / "20260923_007_allow_min_max_on_date_columns.sql"
 SCHEMA_DOC = REPO_ROOT / "DATABASE_SCHEMA.md"
 
 MARKET_TABLES = (

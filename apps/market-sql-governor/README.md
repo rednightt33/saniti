@@ -92,7 +92,9 @@ The response always contains `decision`, `next_action`, `reason_code`, `message`
      `safe_output_grain`, `temporal_rule`, and the relationship. It never performs a naive join.
    - Ambiguity (`AMBIGUOUS_RELATIONSHIP`) requires a `relationship_id`.
 5. **GROUP BY.** `group_by_allowed = true`.
-6. **Aggregation.** The function must be listed in `allowed_aggregations`.
+6. **Aggregation.** The function must be listed in `allowed_aggregations`. Migration
+   `20260923_007` adds `MIN`/`MAX` to every `date` column of the seven approved tables, for
+   example for first and last available dates.
 7. **Coverage and dates.** Uses the `DATASET` row in `AI_data_coverage` for the first table
    that has a time column.
    - **ACTUAL_SOURCE + VERIFIED:** a range entirely outside it gets
@@ -141,6 +143,19 @@ Objects are immutable (write-once, checksum-verified):
   `entities_present_count`, `entities_present` (up to 5,000), `missing_entities`, `truncated`
   (always `false`; oversize is refused), `completeness_status`, `created_at`, `expires_at`, and
   `governor_version`.
+
+### Expiry
+
+Railway buckets do not support lifecycle rules yet ("Bucket lifecycle configuration" is listed as
+not supported). The Governor therefore runs an expiry janitor (`app/janitor.py`). It is a
+background thread that runs at startup and then every `SQL_DATASET_CLEANUP_INTERVAL_SECONDS`.
+- It lists `datasets/`, reads each manifest's `expires_at`, and deletes `data.parquet` and then
+  `manifest.json` once that time has passed. The default is one week after creation.
+- A dataset without a readable manifest, such as an interrupted write, expires
+  `SQL_DATASET_RETENTION_HOURS` after its oldest object.
+- Only keys shaped `datasets/ds_<24 hex>/(data.parquet|manifest.json)` are ever deleted.
+- Each pass logs `sql_governor_dataset_cleanup` with the counts and the deleted dataset ids.
+- Storage errors are logged, and the next pass retries.
 
 PostgreSQL `numeric` is stored as `float64` in Parquet, and the manifest notes this. Inline
 results keep exact decimal strings.
@@ -191,7 +206,8 @@ mistake.
 | `SQL_MAX_EXECUTION_SECONDS` | 60 | Wall-clock bound on one whole extraction; must be at least `SQL_STATEMENT_TIMEOUT_SECONDS` |
 | `SQL_MAX_DATE_RANGE_DAYS` / `SQL_MAX_UNFILTERED_DATE_RANGE_DAYS` | 3660 / 400 | Date span with / without an entity filter |
 | `SQL_MAX_DATASET_ROWS` / `SQL_MAX_DATASET_BYTES` | 500,000 / 128 MiB | Snapshot ceilings |
-| `SQL_DATASET_RETENTION_HOURS` | 24 | `expires_at` in the manifest |
+| `SQL_DATASET_RETENTION_HOURS` | 168 (one week) | `expires_at` in the manifest; the janitor deletes the dataset after it |
+| `SQL_DATASET_CLEANUP_INTERVAL_SECONDS` | 3600 | How often the expiry janitor runs (0 disables it; at most 86400) |
 | `SQL_DATASET_BUCKET_NAME`, `_ENDPOINT`, `_REGION`, `_ACCESS_KEY_ID`, `_SECRET_ACCESS_KEY` | unset | Private S3-compatible dataset bucket |
 | `SQL_DATASET_LOCAL_DIR` | unset | Development and test storage (mutually exclusive with the bucket) |
 

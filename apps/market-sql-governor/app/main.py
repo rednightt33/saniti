@@ -4,6 +4,7 @@ import hmac
 import logging
 import re
 import sys
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, status
@@ -12,6 +13,7 @@ from fastapi.responses import JSONResponse
 from .config import Settings
 from .decisions import GovernorResponse
 from .governor import Database, Governor, GovernorUnavailable
+from .janitor import DatasetJanitor
 from .store import build_store
 
 REQUEST_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
@@ -33,8 +35,21 @@ def create_app(settings: Settings | None = None, governor: Governor | None = Non
     settings = settings or Settings.from_env()
     database = Database(settings)
     governor = governor or Governor(settings, database, build_store(settings))
+    store = getattr(governor, "store", None)
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        janitor = None
+        if store is not None and settings.dataset_cleanup_interval_seconds > 0:
+            janitor = DatasetJanitor(store, interval_seconds=settings.dataset_cleanup_interval_seconds,
+                                     retention_hours=settings.dataset_retention_hours)
+            janitor.start()
+        yield
+        if janitor is not None:
+            janitor.stop()
+
     app = FastAPI(title="Saniti Market SQL Governor", version="1.0.0",
-                  docs_url=None, redoc_url=None, openapi_url=None)
+                  docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     expected = f"Bearer {settings.api_key}"
 
     def authorize(authorization: str | None = Header(default=None)) -> None:

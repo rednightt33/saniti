@@ -50,6 +50,7 @@ class Settings:
     max_dataset_rows: int
     max_dataset_bytes: int
     dataset_retention_hours: int
+    dataset_cleanup_interval_seconds: int
     bucket_name: str | None
     bucket_endpoint: str | None
     bucket_region: str | None
@@ -96,7 +97,9 @@ class Settings:
             max_unfiltered_date_range_days=_integer(env, "SQL_MAX_UNFILTERED_DATE_RANGE_DAYS", 400),
             max_dataset_rows=_integer(env, "SQL_MAX_DATASET_ROWS", 500_000, maximum=5_000_000),
             max_dataset_bytes=_integer(env, "SQL_MAX_DATASET_BYTES", 134_217_728, minimum=65536, maximum=1_073_741_824),
-            dataset_retention_hours=_integer(env, "SQL_DATASET_RETENTION_HOURS", 24, maximum=720),
+            dataset_retention_hours=_integer(env, "SQL_DATASET_RETENTION_HOURS", 168, maximum=720),
+            dataset_cleanup_interval_seconds=_integer(env, "SQL_DATASET_CLEANUP_INTERVAL_SECONDS", 3600,
+                                                      minimum=0, maximum=86400),
             bucket_name=_optional(env, "SQL_DATASET_BUCKET_NAME"),
             bucket_endpoint=_optional(env, "SQL_DATASET_BUCKET_ENDPOINT"),
             bucket_region=_optional(env, "SQL_DATASET_BUCKET_REGION"),
