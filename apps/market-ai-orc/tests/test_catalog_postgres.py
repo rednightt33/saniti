@@ -127,6 +127,7 @@ def test_calculations_only_active_and_filterable(database: str) -> None:
                                           "source_columns": ["Buy Value", "Sell Value"]}
     assert rolling["parameters"] == {"lookback_window": "20 ticker transaction dates", "minimum_history": None}
     assert "defaults" not in rolling
+    assert rolling["status"] == "ACTIVE" and "validation_evidence" in rolling
     narrowed = details(registry, ["Feature_02_Broker_Rolling"], ["CALCULATIONS"], column_names=["net_value_20d"])
     assert [c["calculation_name"] for c in narrowed["sections"]["CALCULATIONS"]["by_table"]["Feature_02_Broker_Rolling"]] == ["net_value_20d"]
 
@@ -138,6 +139,7 @@ def test_coverage_dataset_status_entities_and_disabled(database: str) -> None:
     dataset = coverage["datasets"]["Feature_02_Broker_Rolling"]
     assert dataset["coverage_mode"] == "EXPECTED_DERIVED"
     assert dataset["expected_min_date"] == "2018-01-02" and "actual_min_date" not in dataset
+    assert dataset["availability_interpretation"].startswith("EXPECTED_NOT_CONFIRMED")
     assert coverage["entity_status_counts"]["Feature_02_Broker_Rolling"] == [{
         "pipeline_status": "MANUAL_REFRESH_REQUIRED", "verification_status": "UNVERIFIED",
         "quality_status": "WARNING", "entity_count": 2,

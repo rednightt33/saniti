@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextvars
 import json
 import re
 from collections.abc import Callable
@@ -40,8 +41,47 @@ class ToolOutcome:
     error_code: str | None = None
 
 
+# Keywords sent to the provider. These are the keywords verified live with OpenRouter strict tools;
+# value constraints (pattern, lengths, ranges) are still enforced by the Pydantic model on every call.
+PROVIDER_SCHEMA_KEYWORDS = {"type", "properties", "required", "additionalProperties", "items", "anyOf", "enum", "description"}
+
+
+def _provider_schema(node: Any, defs: dict[str, Any], owner: str) -> Any:
+    if isinstance(node, list):
+        return [_provider_schema(item, defs, owner) for item in node]
+    if not isinstance(node, dict):
+        return node
+    if "$ref" in node:
+        target = defs[node["$ref"].rsplit("/", 1)[-1]]
+        resolved = _provider_schema(target, defs, owner)
+        if "description" in node:
+            resolved = {**resolved, "description": node["description"]}
+        return resolved
+    result: dict[str, Any] = {}
+    for key, value in node.items():
+        if key not in PROVIDER_SCHEMA_KEYWORDS:
+            continue
+        if key == "properties":
+            result[key] = {name: _provider_schema(spec, defs, owner) for name, spec in value.items()}
+        elif key in ("items", "anyOf"):
+            result[key] = _provider_schema(value, defs, owner)
+        else:
+            result[key] = value
+    if result.get("type") == "object" and "properties" in result:
+        if node.get("additionalProperties") is not False:
+            raise ValueError(f"{owner}: every nested model must set extra='forbid'")
+        if set(node.get("required", [])) != set(result["properties"]):
+            raise ValueError(f"{owner}: every nested model field must be required (use a nullable type)")
+        result["required"] = list(result["properties"])
+    return result
+
+
 def strict_parameters_schema(model: type[BaseModel]) -> dict[str, Any]:
-    """Derive the provider schema from the same model that validates arguments."""
+    """Derive the provider schema from the same model that validates arguments.
+
+    Nested models are inlined and must follow the same strict rules (extra='forbid', every
+    field required). Only structural keywords reach the provider.
+    """
     if model.model_config.get("extra") != "forbid":
         raise ValueError(f"{model.__name__} must set extra='forbid'")
     optional = [name for name, field in model.model_fields.items() if not field.is_required()]
@@ -51,10 +91,9 @@ def strict_parameters_schema(model: type[BaseModel]) -> dict[str, Any]:
             f"(use a nullable type instead of a default): {optional}"
         )
     schema = model.model_json_schema()
-    if "$defs" in schema:
-        raise ValueError(f"{model.__name__} uses nested models; keep tool arguments flat")
+    defs = schema.get("$defs", {})
     properties = {
-        name: {key: value for key, value in spec.items() if key != "title"}
+        name: _provider_schema(spec, defs, model.__name__)
         for name, spec in schema.get("properties", {}).items()
     }
     return {
@@ -124,7 +163,7 @@ class ToolRegistry:
         except (ValueError, ValidationError) as exc:
             return error_outcome(call_id, name, "INVALID_ARGUMENTS", self._argument_issue(exc))
 
-        future = self._executor.submit(spec.handler, arguments)
+        future = self._executor.submit(contextvars.copy_context().run, spec.handler, arguments)
         try:
             result = future.result(timeout=spec.timeout_seconds)
         except FutureTimeout:

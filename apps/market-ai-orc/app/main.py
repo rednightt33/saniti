@@ -14,6 +14,7 @@ from .openrouter_client import OpenRouterClient
 from .orchestrator import AgentOrchestrator
 from .schemas import AgentRunRequest, AgentRunResponse
 from .tools import build_default_registry
+from .tools.request_data import GovernorClient
 
 
 def _configure_logging() -> None:
@@ -48,6 +49,10 @@ def create_app(
                 connect_timeout_seconds=settings.catalog_connect_timeout_seconds,
                 statement_timeout_ms=settings.catalog_statement_timeout_ms,
             )
+        governor = None
+        if settings.sql_governor_url:
+            governor = GovernorClient(settings.sql_governor_url, settings.sql_governor_api_key or "",
+                                      settings.sql_governor_timeout_seconds)
         registry = build_default_registry(
             catalog,
             catalog_timeout_seconds=(
@@ -62,6 +67,9 @@ def create_app(
             page_size_max=settings.catalog_page_size_max,
             page_max_bytes=settings.catalog_page_max_bytes,
             preview_enabled=settings.market_data_preview_enabled,
+            governor_client=governor,
+            governor_timeout_seconds=settings.sql_governor_timeout_seconds + 5,
+            request_data_max_bytes=settings.request_data_max_result_bytes,
         )
         orchestrator = AgentOrchestrator(settings, owned_client, registry)
     ready = {"value": False}

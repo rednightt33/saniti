@@ -71,6 +71,10 @@ class Settings:
     catalog_page_size_max: int
     catalog_page_max_bytes: int
     market_data_preview_enabled: bool
+    sql_governor_url: str | None
+    sql_governor_api_key: str | None = field(repr=False)
+    sql_governor_timeout_seconds: int
+    request_data_max_result_bytes: int
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -109,6 +113,10 @@ class Settings:
             catalog_page_size_max=_integer(env, "CATALOG_PAGE_SIZE_MAX", 200),
             catalog_page_max_bytes=_integer(env, "CATALOG_PAGE_MAX_BYTES", 16000, minimum=4096),
             market_data_preview_enabled=_boolean(env, "MARKET_DATA_PREVIEW_ENABLED", True),
+            sql_governor_url=_optional(env, "SQL_GOVERNOR_URL"),
+            sql_governor_api_key=_optional(env, "SQL_GOVERNOR_API_KEY"),
+            sql_governor_timeout_seconds=_integer(env, "SQL_GOVERNOR_TIMEOUT_SECONDS", 90),
+            request_data_max_result_bytes=_integer(env, "REQUEST_DATA_MAX_RESULT_BYTES", 40000, minimum=8192),
         )
         if settings.ai_reasoning_effort not in REASONING_EFFORTS:
             raise ConfigError(
@@ -132,6 +140,13 @@ class Settings:
             raise ConfigError("CATALOG_PAGE_SIZE_DEFAULT must not exceed CATALOG_PAGE_SIZE_MAX")
         if settings.catalog_page_size_max > 1000 or settings.catalog_page_max_bytes > 131072:
             raise ConfigError("CATALOG_PAGE_SIZE_MAX must be <= 1000 and CATALOG_PAGE_MAX_BYTES <= 131072")
+        if settings.sql_governor_url:
+            if not settings.sql_governor_url.startswith(("http://", "https://")):
+                raise ConfigError("SQL_GOVERNOR_URL must be an http(s):// URL")
+            if not settings.sql_governor_api_key or len(settings.sql_governor_api_key) < 32:
+                raise ConfigError("SQL_GOVERNOR_API_KEY (at least 32 characters) is required with SQL_GOVERNOR_URL")
+        if settings.sql_governor_timeout_seconds > 300 or settings.request_data_max_result_bytes > 131072:
+            raise ConfigError("SQL_GOVERNOR_TIMEOUT_SECONDS must be <= 300 and REQUEST_DATA_MAX_RESULT_BYTES <= 131072")
         if settings.ai_request_timeout_seconds > settings.ai_max_analysis_seconds:
             raise ConfigError("AI_REQUEST_TIMEOUT_SECONDS must not exceed AI_MAX_ANALYSIS_SECONDS")
         return settings

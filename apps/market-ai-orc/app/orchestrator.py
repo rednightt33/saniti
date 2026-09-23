@@ -15,6 +15,7 @@ from .schemas import (
     ExecutionMetadata, FinalResponse, RunError,
 )
 from .tools import ToolOutcome, ToolRegistry, error_outcome
+from .tools.request_data import current_request_id
 
 
 logger = logging.getLogger("market_ai_orc")
@@ -75,7 +76,32 @@ A catalog read or table preview is not equivalent
 to completing a user's analytical calculation.
 When the required execution capability is unavailable,
 return a LIMITATION response explaining what has
-been identified and what remains unexecuted."""
+been identified and what remains unexecuted.
+
+DATA QUERY RULES
+Use request_data when actual database observations
+are required to answer the user's request.
+Build data requests only from identifiers and semantics
+returned by the catalog tools.
+Do not write or submit raw SQL.
+The SQL Governor determines whether a requested query
+is allowed, too expensive, requires narrowing, or is
+returned as an inline result or dataset snapshot.
+Do not choose the dataset delivery format yourself.
+Use the execution result returned by request_data.
+If a request is rejected or requires narrowing, use the
+governor response to revise the request when a reliable
+bounded alternative exists.
+Do not claim data was retrieved unless request_data
+returns a successful execution result.
+If request_data returns INLINE_RESULT, use the returned
+observations directly when they are sufficient for the task.
+If request_data returns DATASET_READY, treat dataset_id as
+a reference to the approved extracted dataset. Do not claim
+that analytical calculations have been completed unless an
+analysis tool actually executes them.
+Do not treat catalog metadata or preview rows as a substitute
+for the required analytical dataset."""
 
 RESPONSE_FORMAT_NAME = "saniti_agent_response"
 REJECTED_OUTPUT_ECHO_CHARS = 4000
@@ -167,6 +193,7 @@ class AgentOrchestrator:
             input_items=input_items,
             history_turns_dropped=dropped,
         )
+        token = current_request_id.set(request.request_id)
         try:
             final = self._loop(state)
             result = AgentRunResponse(
@@ -181,6 +208,8 @@ class AgentOrchestrator:
             result = self._failed(
                 state, "INTERNAL_ERROR", f"Unexpected orchestrator error ({type(exc).__name__})."
             )
+        finally:
+            current_request_id.reset(token)
         log_event(
             "ai_run_completed" if result.status != "FAILED" else "ai_run_failed",
             request_id=state.request_id,

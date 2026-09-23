@@ -6,6 +6,7 @@ from .catalog import CatalogReader, catalog_specs
 from .catalog_rows import catalog_rows_spec
 from .preview import preview_spec
 from .registry import ToolError, ToolOutcome, ToolRegistry, ToolSpec, error_outcome
+from .request_data import GovernorClient, request_data_spec
 from .rows import CursorCodec
 from .system import capabilities_spec
 
@@ -19,6 +20,9 @@ def build_default_registry(
     page_size_max: int = 200,
     page_max_bytes: int = 16000,
     preview_enabled: bool = True,
+    governor_client: GovernorClient | None = None,
+    governor_timeout_seconds: float = 95.0,
+    request_data_max_bytes: int = 40000,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
@@ -33,6 +37,9 @@ def build_default_registry(
         ))
         if preview_enabled:
             registry.register(preview_spec(catalog_reader, timeout_seconds=catalog_timeout_seconds))
+    if governor_client is not None:
+        registry.register(request_data_spec(
+            governor_client, timeout_seconds=governor_timeout_seconds, max_result_bytes=request_data_max_bytes))
     return registry
 
 

@@ -105,8 +105,8 @@ LIMIT %s
 '''
 
 CALCULATIONS_SQL = '''
-SELECT target_table, calculation_name, version, target_columns, definition, required_inputs,
-       parameters, defaults, alignment_rules, missing_data_policy, output_definition,
+SELECT target_table, calculation_name, version, status, target_columns, definition, required_inputs,
+       parameters, defaults, alignment_rules, missing_data_policy, output_definition, validation_evidence,
        count(*) OVER () AS total_matching
 FROM public."AI_calculation_catalog"
 WHERE target_table = ANY(%s) AND status = 'ACTIVE'
@@ -145,6 +145,21 @@ WHERE coverage_scope = 'ENTITY' AND dataset_name = ANY(%s) AND entity_id = ANY(%
 ORDER BY dataset_name, entity_id
 LIMIT %s
 '''
+
+
+def _availability(row: dict[str, Any]) -> str:
+    """Plain reading of coverage_mode x verification_status; an expected range is never confirmation."""
+    mode, verification = row.get("coverage_mode"), row.get("verification_status")
+    if mode == "ACTUAL_SOURCE" and verification == "VERIFIED":
+        return "CONFIRMED_SOURCE_RANGE: actual_min_date..actual_max_date was observed in the source table."
+    if mode == "SNAPSHOT":
+        return "SNAPSHOT: current-state reference data; no historical date range."
+    if mode == "EXPECTED_DERIVED" and verification == "PIPELINE_CONFIRMED":
+        return "PIPELINE_CONFIRMED: the derivation pipeline reported success for the expected range."
+    if mode == "EXPECTED_DERIVED":
+        return ("EXPECTED_NOT_CONFIRMED: expected_min_date..expected_max_date is derived from the source and is "
+                "not confirmed physical availability.")
+    return f"UNCLASSIFIED: coverage_mode={mode}, verification_status={verification}."
 
 
 def _unique(values: list[str]) -> list[str]:
@@ -259,9 +274,9 @@ COLUMN_FULL = (
 )
 COLUMN_SUMMARY = ("table_name", "column_name", "description", "data_type", "semantic_type", "unit")
 CALCULATION_FULL = (
-    "target_table", "calculation_name", "version", "target_columns", "definition",
+    "target_table", "calculation_name", "version", "status", "target_columns", "definition",
     "required_inputs", "parameters", "defaults", "alignment_rules", "missing_data_policy",
-    "output_definition",
+    "output_definition", "validation_evidence",
 )
 CALCULATION_SUMMARY = ("target_table", "calculation_name", "version", "target_columns", "definition")
 RELATIONSHIP_FIELDS = (
@@ -442,7 +457,10 @@ class CatalogTools:
             return result
 
         datasets = run(COVERAGE_DATASET_SQL, (enabled,))
-        by_dataset = {row["dataset_name"]: _entry(row, COVERAGE_FIELDS) for row in datasets}
+        by_dataset = {
+            row["dataset_name"]: {**_entry(row, COVERAGE_FIELDS), "availability_interpretation": _availability(row)}
+            for row in datasets
+        }
         result["datasets"] = by_dataset
         without = [name for name in enabled if name not in by_dataset]
         if without:

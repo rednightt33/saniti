@@ -4,7 +4,10 @@ AI orchestration service. It receives an AI request from a trusted backend, call
 OpenRouter, runs registered tools when the model asks for them, and returns a validated
 structured response. Phase 2 added read-only **catalog discovery** over Saniti's five
 `AI_*` metadata tables. Phase 3 adds **full catalog access** (every catalog row, paginated)
-and a fixed **20-row market-data preview** of seven approved tables.
+and a fixed **20-row market-data preview** of seven approved tables. The SQL Governor milestone
+adds **`request_data`**. It forwards a structured Data Request Spec to the separate
+`market-sql-governor` service, which is the only component that compiles and runs market-data
+SQL (see [`../market-sql-governor/README.md`](../market-sql-governor/README.md)).
 
 It was derived from `apps/market-ai-backend`. It keeps that service's proven OpenRouter
 Responses transport, bounded retry, quota handling, usage accounting, strict final-schema
@@ -17,7 +20,9 @@ database access is optional and read-only: the `market_ai_orc` login can SELECT 
 five `AI_*` catalog tables (see [Catalog discovery](#catalog-discovery)) and EXECUTE one
 database function that returns at most 20 example rows from one of seven approved tables
 (see [Market-data preview](#market-data-preview)). It has no SELECT privilege on any
-market-data table. It is stateless: the caller owns conversation persistence.
+market-data table. `request_data` reaches market data only through the Governor's HTTP API
+(`SQL_GOVERNOR_URL` and `SQL_GOVERNOR_API_KEY`); this service holds no Governor database
+credential and no SQL logic. It is stateless: the caller owns conversation persistence.
 
 ## Architecture
 
@@ -34,29 +39,17 @@ market-ai-orc executes a registered tool → function_call_output
    │    discover_catalog / get_catalog_details → targeted, visibility-filtered catalog metadata
    │    read_catalog_rows → complete AI_* catalog rows, keyset-paginated
    │    preview_table_rows → public.ai_preview_table_rows(): ≤ 20 fixed-order example rows
+   │    request_data → market-sql-governor POST /v1/query → INLINE_RESULT | DATASET_READY |
+   │                   NEEDS_NARROWING | REJECTED (returned unchanged, with next_action)
    ↓  (repeat within limits)
 strict final response
    ↓
 Backend
 ```
 
-Future (not built yet):
-
-```text
-Backend
-   ↓
-market-ai-orc
-   ↓
-OpenRouter AI
-   │
-   ├── request_data()        [future — NOT IMPLEMENTED]
-   │       ↓
-   │   SQL Governor
-   │
-   └── run_python_analysis() [future — NOT IMPLEMENTED]
-           ↓
-       Python Sandbox
-```
+Future (not built yet): `run_python_analysis(dataset_id=...)` in a Python sandbox, which will
+consume the Governor's `DATASET_READY` Parquet snapshots. Until it is registered,
+`python_analysis` stays `false` and the model must not claim an analysis ran.
 
 ## Request flow
 
@@ -151,6 +144,10 @@ wall-clock time, output tokens, and a context ceiling checked before each provid
 | `CATALOG_PAGE_SIZE_DEFAULT` | no | `100` | `read_catalog_rows` page size when the model passes `null` (≤ `CATALOG_PAGE_SIZE_MAX`) |
 | `CATALOG_PAGE_SIZE_MAX` | no | `200` | Largest `page_size` the model may request (≤ 1000) |
 | `CATALOG_PAGE_MAX_BYTES` | no | `16000` | Serialized row budget per catalog page (4096–131072); a page ends early rather than exceeding it |
+| `SQL_GOVERNOR_URL` | no | unset | market-sql-governor base URL (private network). When unset, `request_data` is not registered |
+| `SQL_GOVERNOR_API_KEY` | with URL (secret, ≥ 32 chars) | — | Bearer key for the Governor; reference `${{market-sql-governor.SQL_GOVERNOR_API_KEY}}` |
+| `SQL_GOVERNOR_TIMEOUT_SECONDS` | no | `90` | HTTP timeout for one Governor call (≤ 300); the tool timeout is this plus 5 s |
+| `REQUEST_DATA_MAX_RESULT_BYTES` | no | `40000` | Hard cap on one `request_data` result sent to the model (8192–131072); keep it above the Governor's inline byte limit plus envelope |
 | `MARKET_DATA_PREVIEW_ENABLED` | no | `true` | `false` unregisters `preview_table_rows` without touching the catalog tools |
 
 Secrets have no defaults, and the service refuses to start without them. It never logs API
@@ -240,15 +237,15 @@ Tools live in `app/tools/` and are registered in one place, `build_default_regis
 `app/tools/__init__.py`. Adding a tool never changes the orchestration loop.
 
 ```python
-class RequestDataArguments(BaseModel):
-    model_config = ConfigDict(extra="forbid")   # required
+class LookupArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")   # required, also on every nested model
     dataset: str                                 # every field required; use `X | None` for optional
     ticker: str | None
 
 registry.register(ToolSpec(
-    name="request_data",
+    name="lookup",
     description="...",
-    arguments_model=RequestDataArguments,        # validates arguments AND generates the strict schema
+    arguments_model=LookupArguments,             # validates arguments AND generates the strict schema
     handler=lambda args: {...},                  # returns a JSON object
     timeout_seconds=10,
     max_result_bytes=None,                       # optional per-tool cap; default is the registry's 32 KB
@@ -266,8 +263,15 @@ Guarantees:
 - Results are normalized to `{"ok": true, "tool": ..., "result": {...}}` or
   `{"ok": false, "tool": ..., "error": {"code", "message"}}`, and are always linked to
   their `call_id`.
-- Registration rejects invalid names, duplicates, models without `extra="forbid"`, fields
-  with defaults, and nested models.
+- Registration rejects invalid names, duplicates, models without `extra="forbid"`, and fields
+  with defaults, at every nesting level.
+- Nested models are allowed (for `request_data`). They are inlined into the provider schema
+  (no `$ref`/`$defs`). The provider receives only keywords already verified live with
+  OpenRouter strict tools: `type`, `properties`, `required`, `additionalProperties`, `items`,
+  `anyOf`, `enum`, and `description`. Patterns, lengths, and ranges are still enforced by the
+  Pydantic model on every call.
+- The agent run's `request_id` is carried into handler threads through a context variable, so
+  Governor logs join to the run.
 
 ## Currently available tools
 
@@ -278,13 +282,40 @@ Guarantees:
 | `get_catalog_details` | `table_names`, `sections`, `column_names`, `entity_ids` | Requested catalog sections (see below) |
 | `read_catalog_rows` | `catalog_name`, `page_size`, `cursor` | One page of complete catalog rows (see [Full catalog access](#full-catalog-access)) |
 | `preview_table_rows` | `table_name` | At most 20 example rows (see [Market-data preview](#market-data-preview)) |
+| `request_data` | `purpose`, `from_table`, `columns`, `joins`, `filters`, `group_by`, `aggregations`, `order_by`, `requested_limit` | The SQL Governor decision, unchanged (see [Data requests](#data-requests)) |
 
 Each capability flag is derived from the registry. It becomes `true` only when its providing
 tool is actually registered: `catalog_discovery` → `discover_catalog`, `full_catalog_read` →
 `read_catalog_rows`, `market_data_preview` → `preview_table_rows`, `database_query` →
 `request_data`, `python_analysis` → `run_python_analysis`, `web_search` → `search_web`. The
 catalog tools are registered only when `CATALOG_DATABASE_URL` is set;
-`preview_table_rows` additionally requires `MARKET_DATA_PREVIEW_ENABLED=true`.
+`preview_table_rows` additionally requires `MARKET_DATA_PREVIEW_ENABLED=true`; and
+`request_data` only when `SQL_GOVERNOR_URL` is set.
+
+The logical catalog tool surface maps onto the existing tools. It keeps the names used by the
+DATA DISCOVERY RULES prompt block:
+
+| Logical tool | Implemented by |
+|---|---|
+| `search_catalog()` | `discover_catalog()` |
+| `get_table_context()` | `get_catalog_details(sections=["COLUMNS", "RELATIONSHIPS"])` |
+| `get_calculation_definition()` | `get_catalog_details(sections=["CALCULATIONS"])`, including `status` and `validation_evidence` |
+| `get_data_coverage()` | `get_catalog_details(sections=["COVERAGE"])`, with an explicit `availability_interpretation` per dataset |
+
+## Data requests
+
+`request_data` takes the Data Request Spec defined in `app/tools/request_data.py`. It is
+identical to the Governor's `app/spec.py`, and a contract test enforces this. The tool:
+- checks the spec with the same strict model (unknown fields and malformed identifiers never
+  leave this service);
+- posts `{request_id, spec}` to `SQL_GOVERNOR_URL/v1/query` with the bearer key;
+- returns the Governor's JSON unchanged: `decision`, `next_action`, `reason_code`, rows or
+  dataset reference, and details.
+
+Governor HTTP errors and timeouts become a generic `TOOL_ERROR`. The spec has no SQL,
+expression, join-key, or delivery-format field, and the row, scan, and byte ceilings exist
+only in Governor configuration. The DATA QUERY RULES block is appended after DATA DISCOVERY
+RULES in the system prompt; it contains no thresholds or credentials.
 
 ## Catalog discovery
 
@@ -335,8 +366,8 @@ What each section returns:
 |---|---|---|
 | `COLUMNS` | `AI_column_catalog` | `column_name`, `description`, `data_type`, `semantic_type`, `unit`, `nullable`, `is_primary_key`, `source_column_or_expression`, `allowed_aggregations`, `filter_allowed`, `group_by_allowed`, `example_value`, `documentation_status`; grouped by table, in `ordinal_position` order |
 | `RELATIONSHIPS` | `AI_catalog_relationships` | `relationship_id`, `left_table`, `left_columns`, `right_table`, `right_columns`, `relationship_type`, `temporal_rule`, `safe_output_grain`, `requires_preaggregation`, `description`, `version` (`left_columns[i]` joins `right_columns[i]`) |
-| `CALCULATIONS` | `AI_calculation_catalog` | `calculation_name`, `version`, `target_columns`, `definition`, `required_inputs`, `parameters`, `defaults`, `alignment_rules`, `missing_data_policy`, `output_definition`; `implementation_ref` and `validation_evidence` are omitted to save space |
-| `COVERAGE` | `AI_data_coverage` | The `DATASET` row per table, `entity_status_counts` (entity rows grouped by pipeline, verification, and quality status), and the matching `ENTITY` rows only when `entity_ids` is given. It never dumps the ~14k per-ticker rows |
+| `CALCULATIONS` | `AI_calculation_catalog` | `calculation_name`, `version`, `status`, `target_columns`, `definition`, `required_inputs`, `parameters`, `defaults`, `alignment_rules`, `missing_data_policy`, `output_definition`, `validation_evidence`; `implementation_ref` is omitted to save space |
+| `COVERAGE` | `AI_data_coverage` | The `DATASET` row per table with `availability_interpretation` (`CONFIRMED_SOURCE_RANGE`, `SNAPSHOT`, `PIPELINE_CONFIRMED`, or `EXPECTED_NOT_CONFIRMED`; an expected range is never confirmation), `entity_status_counts` (entity rows grouped by pipeline, verification, and quality status), and the matching `ENTITY` rows only when `entity_ids` is given. It never dumps the ~14k per-ticker rows |
 
 A field that is `NULL` or empty in the catalog is omitted from the entry, except the
 explicit `description`/`definition` `null`. The result notice states this.
@@ -492,8 +523,8 @@ These are observed in the migration seed and reported, not changed:
 
 ## Currently unavailable capabilities
 
-These are not implemented, and no placeholder pretends they exist: SQL generation or
-execution, the SQL Governor, market-data queries beyond the fixed 20-row preview, the legacy
+These are not implemented, and no placeholder pretends they exist: model-written SQL (market
+data is reached only through `request_data` and the Governor), the legacy
 `Table_Catalog`/`Column_Catalog`/`Feature_Catalog` catalogs, a Python or DuckDB sandbox, statistical analysis (event study, backtest, regression, HMM,
 clustering), web search, RAG or vector search, long-term memory, multi-agent flows, Redis,
 frontend, and Telegram.
