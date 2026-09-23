@@ -533,6 +533,8 @@ frontend, and Telegram.
 
 - Service `market-ai-orc` (`41dc17ee-3bac-41ef-90ec-8b9356815c71`) runs in project `lucid-patience`, environment `dev`.
 - It is private: `http://market-ai-orc.railway.internal:8080`. There is no public domain.
+- `request_data` is live. `SQL_GOVERNOR_URL=http://market-sql-governor.railway.internal:8080`, and
+  `SQL_GOVERNOR_API_KEY` is a reference to `${{market-sql-governor.SQL_GOVERNOR_API_KEY}}`.
 - Its health check is `/ready`. The start command is
   `uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080`.
 - `OPENROUTER_API_KEY` is a Railway reference to `${{market-ai-backend.OPENROUTER_DEEPSEEK}}`,

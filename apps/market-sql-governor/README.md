@@ -204,6 +204,20 @@ Each query writes one JSON line (`event = sql_governor_query`) with `request_id`
 `estimated_scan_rows`, `estimated_plan_cost`, `returned_rows`, `output_bytes`, `dataset_id`, and
 `runtime_ms`. Filter values, rows, SQL parameters, credentials, and headers are never logged.
 
+## Railway deployment
+
+- Service `market-sql-governor` (`1a322795-4f93-4c51-a25e-5fcfc5ab4722`), project `lucid-patience`, environment `dev`.
+  It is private at `http://market-sql-governor.railway.internal:8080`, with no public domain.
+  The health check is `/ready`, and restart is `ALWAYS`.
+- It is deployed by local upload of this folder with `--path-as-root`. There is no GitHub source and no watch path.
+- Variables:
+  - `SQL_GOVERNOR_API_KEY` and `MARKET_SQL_GOVERNOR_DB_PASSWORD` are secrets set through stdin.
+  - `GOVERNOR_DATABASE_URL` references that password and the `Postgres` private domain.
+  - `SQL_DATASET_BUCKET_*` reference bucket `market-sql-datasets` (region `sjc`).
+  - The limits use the code defaults.
+- market-ai-orc reaches the service through `SQL_GOVERNOR_URL` and references `SQL_GOVERNOR_API_KEY`.
+- Live acceptance and calibration results are recorded in `RAILWAY_CHANGELOG.md` and `DATABASE_CHANGELOG.md`.
+
 ## Run tests
 
 ```bash

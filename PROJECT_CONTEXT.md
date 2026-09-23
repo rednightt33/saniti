@@ -32,6 +32,9 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - Market AI backend service: `market-ai-backend`
 - Market AI orchestrator (stateless; read-only `market_ai_orc` login: SELECT on the five `AI_*` catalogs and EXECUTE on the 20-row preview function `public.ai_preview_table_rows`, no direct market-data table access): `market-ai-orc`
 - Market AI orchestrator service ID: `41dc17ee-3bac-41ef-90ec-8b9356815c71` (private: `market-ai-orc.railway.internal:8080`)
+- Market SQL Governor (the only path from the AI to market-data SQL; login `market_sql_governor`, SELECT on 5 AI catalogs + 7 approved market tables): `market-sql-governor`
+- Market SQL Governor service ID: `1a322795-4f93-4c51-a25e-5fcfc5ab4722` (private: `market-sql-governor.railway.internal:8080`)
+- Governor dataset bucket: `market-sql-datasets` (`62b028ba-313f-4c6a-81b3-48a9645411c1`, region `sjc`; immutable Parquet snapshots + manifests)
 - Dashboard: <https://railway.com/project/8aef1702-030b-49cb-9df7-5ac2e0a42691?environmentId=4d3e5af2-302b-4a2e-84e2-7d7476d6ff49>
 - GitHub: <https://github.com/rednightt33/saniti>
 
@@ -53,6 +56,7 @@ All application services deploy from `rednightt33/saniti` on branch `main`. Each
 | `market-query-sandbox` | `/apps/market-query-sandbox` | `/apps/market-query-sandbox/**` |
 | `ai-data-coverage` | `/apps/ai-data-coverage` | `/apps/ai-data-coverage/**` |
 | `market-ai-orc` | `/apps/market-ai-orc` (local upload; GitHub source not yet connected; uploads must keep the `apps/market-ai-orc/` layout or they are skipped by the watch path) | `/apps/market-ai-orc/**` |
+| `market-sql-governor` | `/apps/market-sql-governor` (local upload; no GitHub source) | none |
 
 Connecting or changing a service source must preserve its environment variables and secrets, cron schedule, start command, health check, domain, private networking, restart/serverless policy, and database references. Source-configuration work must not use **Run now** on either price service and must not issue a TradingView query. Record the currently active deployment ID before each change so it remains available as the rollback reference, then wait for the new deployment to reach `SUCCESS` before changing the next service.
 

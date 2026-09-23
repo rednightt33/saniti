@@ -1,5 +1,34 @@
 # Railway changelog
 
+## 2026-09-23 — Deploy market-sql-governor and request_data
+
+- **New resources** (user-approved pinned IaC plan `sha256:c9e8e1bb…`: 2 creates, 0 changes, 0 destroys):
+  - Bucket `market-sql-datasets` (`62b028ba-313f-4c6a-81b3-48a9645411c1`, region `sjc`).
+  - Service `market-sql-governor` (`1a322795-4f93-4c51-a25e-5fcfc5ab4722`): Dockerfile build, `uvicorn app.main:create_app --factory` on `:8080`, health check `/ready` (which also checks the database), 1 replica in `sfo`, restart `ALWAYS`.
+  - The service is private (`market-sql-governor.railway.internal:8080`) with no public domain. It has no GitHub source and no watch path; it is deployed by local upload.
+- **`market-sql-governor` variables:**
+  - `SQL_GOVERNOR_API_KEY` (64 hex characters) and `MARKET_SQL_GOVERNOR_DB_PASSWORD` were generated and set through stdin; they were never printed.
+  - `GOVERNOR_DATABASE_URL` is a reference template: `postgresql://market_sql_governor:${{MARKET_SQL_GOVERNOR_DB_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:5432/${{Postgres.PGDATABASE}}`.
+  - `SQL_DATASET_BUCKET_{NAME,ENDPOINT,REGION,ACCESS_KEY_ID,SECRET_ACCESS_KEY}` reference `${{market-sql-datasets.*}}`.
+  - `PORT=8080`. No `SQL_*` limit is overridden, so the code defaults apply.
+- **`market-ai-orc` variables:** `SQL_GOVERNOR_URL=http://market-sql-governor.railway.internal:8080`, and `SQL_GOVERNOR_API_KEY=${{market-sql-governor.SQL_GOVERNOR_API_KEY}}`.
+- **Temporary one-off services** (reference variables only, restart `NEVER`, deleted after use):
+  - `orc-governor-setup` (`c54d2e20-947b-49ed-8867-19f9cbfaff53`, deployment `9f070d4a-1df1-42fe-a33e-6cdb67d96503`): migrations 005/006, login provisioning, privilege checks, and live calibration (see `DATABASE_CHANGELOG.md`).
+  - `orc-acceptance-job` (`5931c9ca-b88e-40c5-8c55-60b55eb64563`, deployment `f01d48e9-8eb8-43f5-9399-edadcd14254b`): live acceptance tests over the private network.
+- **Deployments:**
+  - Governor `d8ae37a4-1321-4e89-8138-6abcfec4f850` (commit `0b0ba24`): `SUCCESS`, `/ready` returned `200`.
+  - market-ai-orc `44e44fdf-330b-4fb0-b6f5-83e4fde81c10` (commit `0b0ba24`; the app code is identical to `f63bebc`): `SUCCESS`, `/ready` returned `200`.
+  - Rollback references: market-ai-orc `b33d1736-1229-4ca1-b796-569b9df0a6f2`, or unset `SQL_GOVERNOR_URL` to unregister `request_data`.
+- **Live acceptance** (real OpenRouter model, real data):
+  1. "Ambil 20 latest daily close BBCA." → `COMPLETED`/`ANSWER` in 23 s with 4 tool calls. The Governor returned `INLINE_RESULT` (estimated scan 2,282 rows, 20 rows, 93 ms), and the answer lists the 20 real closes (2026-09-22 back to 2026-08-21).
+  2. "Ambil historical price universe IDX … rolling correlation." → `COMPLETED` in 65 s.
+     - The full-history request got `NEEDS_NARROWING`/`DATE_RANGE_TOO_LARGE` (3,186 days, limit 400 without a ticker filter).
+     - The model revised the request and got `DATASET_READY`: 214,023 rows × 3 columns, 844 entities, `COMPLETE`, 530 KB Parquet in `market-sql-datasets`.
+     - Its limitations state that rolling correlation was not calculated because no analysis tool exists.
+  - Direct Governor checks: no bearer key returned `401`; an F02 × F03 join returned `REJECTED`/`PREAGGREGATION_REQUIRED`; a spec with a `sql` field returned `REJECTED`/`INVALID_REQUEST_SPEC`.
+  - Governor logs carry the orc run `request_id` (for example `live-acceptance-1`).
+- Ran `railway config pull --force`. `.railway/railway.ts` now includes the bucket, the service, and all preserved variables, and the follow-up plan reported `dev` up to date. No other service, domain, schedule, or source was changed.
+
 ## 2026-09-23 — market-ai-orc: AI_MAX_TOOL_ITERATIONS = 20
 
 - At the user's request, set `AI_MAX_TOOL_ITERATIONS=20` on `market-ai-orc`. The code default is 8.

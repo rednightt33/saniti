@@ -1,5 +1,46 @@
 # Database changelog
 
+## 2026-09-23 — market-sql-governor role, request_data registration, live calibration
+
+- Applied to `dev` (PostgreSQL 18.6, as superuser `postgres`) by the temporary one-off service `orc-governor-setup`, which was deleted afterwards:
+  - `20260923_005_create_market_ai_sql_reader.sql`: `NOLOGIN` role `market_ai_sql_reader` with `USAGE` on `public` and `SELECT` on exactly the 5 AI catalogs and 7 approved market-data tables (`Feature_01_Stock_Daily`, `Feature_02_Broker_Rolling`, `Feature_03_Stock_Broker_Daily`, `IDX_Broker_Profile`, `IDX_Broker_Summary`, `IDX_Stock_Universe`, `Price_Stock_Indonesia_IDX`). It has no write, DDL, or `CREATE` privilege, and the migration's verify block passed.
+  - `20260923_006_register_request_data_tool.sql`:
+    - Adds `request_data` to `Tool_Catalog` (`QUERY`/`RETRIEVAL`, `ORCHESTRATOR`, `v1`). The input schema is generated from the deployed registry; the advertised ceilings mirror the Governor defaults.
+    - Sets `is_active = false`, like the other market-ai-orc rows.
+    - Moves the five existing market-ai-orc rows to `runtime_commit = f63bebc`.
+    - Verified: 6 inactive rows, 0 visible to market-ai-backend.
+- Provisioned login `market_sql_governor` with `scripts/provision_market_sql_governor_login.py`.
+  - Memberships: `market_ai_sql_reader` only.
+  - Settings: `CONNECTION LIMIT 5`, `default_transaction_read_only=on`, `statement_timeout=60s`, `lock_timeout=2s`, `idle_in_transaction_session_timeout=30s`.
+  - Its password exists only as a Railway variable on `market-sql-governor`.
+- Live checks as `market_sql_governor`:
+  - Readable: the AI catalogs, `Price_Stock_Indonesia_IDX`, `Feature_02_Broker_Rolling`, and `IDX_Broker_Summary`.
+  - Denied: `Table_Catalog`, `Analysis_Request`, `Analytics_Job`, `Feature_Catalog`, and `Tool_Catalog`.
+  - `DELETE` failed with `ReadOnlySqlTransaction`.
+- Live calibration: 13 representative requests through the real Governor, read-only, with the snapshots written to the new bucket.
+
+  | Request | Decision | Estimated scan / plan cost | Result | Runtime |
+  |---|---|---|---|---|
+  | BBCA latest 20 closes | `INLINE_RESULT` | 2,282 / 71 | 20 rows | 44 ms |
+  | Price universe, 365 days | `DATASET_READY` | 192,932 / 27,233 | 195,160 rows | 4.1 s |
+  | BBCA full price history | `DATASET_READY` | — | 2,100 rows (2018-01-02..2026-09-22) | 0.15 s |
+  | Feature 01 universe, 90 days | `DATASET_READY` | — | 51,551 rows | 0.8 s |
+  | Feature 02 BBCA, 90 days | `DATASET_READY` | — | 6,341 rows | 0.5 s |
+  | Feature 02 universe, 5 days | `DATASET_READY` | 106,089 / 411,619 | 106,390 rows | 28.8 s |
+  | IDX_Broker_Summary BBCA, 60 days | `DATASET_READY` | — | 4,051 rows | 9.9 s |
+  | Top BBCA brokers by `SUM("Net Value")` | `INLINE_RESULT` | — | 20 rows | 1.3 s |
+  | Feature 03 universe, 30 days | `DATASET_READY` | — | 27,237 rows | 0.5 s |
+  | Stock universe | `DATASET_READY` | — | 844 rows | 0.15 s |
+  | Price joined to IDX_Stock_Universe | `INLINE_RESULT` | — | 20 rows | 56 ms |
+  | Feature 02 joined to Feature 03 | `REJECTED`/`PREAGGREGATION_REQUIRED` | — | nothing executed | 25 ms |
+  | Feature 02 universe, 60 days | `DATASET_TOO_LARGE` | about 1.1M estimated rows | streamed 74 s before refusal | 74 s |
+
+- **Fix from the last row.** The 60-day Feature 02 request passed the scan and cost gates, then streamed for 74 s before being refused. That led to commit `0b0ba24`:
+  - an `ESTIMATED_RESULT_TOO_LARGE` gate before execution;
+  - `SQL_MAX_EXECUTION_SECONDS=60`;
+  - `SQL_MAX_PLAN_COST` calibrated to 600,000.
+- No table, column, or market-data row was changed. The only catalog change is the `Tool_Catalog` registration above. `DATABASE_SCHEMA.md` covers tables only and is unchanged.
+
 ## 2026-09-23 — Update market-ai-orc catalog page limit in Tool_Catalog
 
 - Applied `database/migrations/20260923_004_update_market_ai_orc_catalog_page_limit.sql` to `dev` using a temporary one-off service, which was deleted afterwards (see `RAILWAY_CHANGELOG.md`).
