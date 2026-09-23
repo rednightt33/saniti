@@ -417,7 +417,7 @@ class Validator:
             raise narrowing(
                 "DATE_RANGE_TOO_LARGE",
                 f"The effective {primary.time_column} range is {span} days; the limit is {limit} days "
-                f"{'with' if entity_filtered else 'without'} an {primary.entity_column} filter.",
+                f"{'with' if entity_filtered else 'without'} a filter on {primary.entity_column}.",
                 max_days=limit, entity_filtered=entity_filtered, effective_range={"from": _iso(start), "to": _iso(end)},
                 available_range=available,
             )
