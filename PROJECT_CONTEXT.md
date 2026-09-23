@@ -30,6 +30,8 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - Telegram command service ID: `5a3f820c-2bb2-494b-b771-15fa6a5eb48a`
 - Telegram command service instance ID: `78bd93d5-f74a-42fb-ad25-2be856bbda07`
 - Market AI backend service: `market-ai-backend`
+- Market AI orchestrator (Phase 1, stateless, no database access): `market-ai-orc`
+- Market AI orchestrator service ID: `41dc17ee-3bac-41ef-90ec-8b9356815c71` (private: `market-ai-orc.railway.internal:8080`)
 - Dashboard: <https://railway.com/project/8aef1702-030b-49cb-9df7-5ac2e0a42691?environmentId=4d3e5af2-302b-4a2e-84e2-7d7476d6ff49>
 - GitHub: <https://github.com/rednightt33/saniti>
 
@@ -50,6 +52,7 @@ All application services deploy from `rednightt33/saniti` on branch `main`. Each
 | `market-analytics-worker` | `/apps/market-analytics-worker` | `/apps/market-analytics-worker/**` |
 | `market-query-sandbox` | `/apps/market-query-sandbox` | `/apps/market-query-sandbox/**` |
 | `ai-data-coverage` | `/apps/ai-data-coverage` | `/apps/ai-data-coverage/**` |
+| `market-ai-orc` | `/apps/market-ai-orc` (local upload; GitHub source not yet connected) | `/apps/market-ai-orc/**` |
 
 Connecting or changing a service source must preserve its environment variables and secrets, cron schedule, start command, health check, domain, private networking, restart/serverless policy, and database references. Source-configuration work must not use **Run now** on either price service and must not issue a TradingView query. Record the currently active deployment ID before each change so it remains available as the rollback reference, then wait for the new deployment to reach `SUCCESS` before changing the next service.
 

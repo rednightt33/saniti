@@ -28,6 +28,7 @@ An AI working on this project must read these files in order before changing Rai
 20. [`apps/market-analytics-worker/README.md`](apps/market-analytics-worker/README.md) — isolated statistical validation over immutable bounded raw/Feature snapshots, without database credentials.
 21. [`apps/ai-data-coverage/README.md`](apps/ai-data-coverage/README.md) — raw-source coverage, derived-Feature expectations, no-Feature-scan contract, and daily schedule.
 22. [`ANALYSIS_MODEL_CALL_AUDIT.md`](ANALYSIS_MODEL_CALL_AUDIT.md) — per-provider-call token, tool-exposure, decision-summary, reasoning-retention, and purge contract.
+23. [`apps/market-ai-orc/README.md`](apps/market-ai-orc/README.md) — Phase 1 stateless OpenRouter orchestrator: internal API, bounded agent loop, tool registry, and the verified OpenRouter compatibility rules. It has no database access.
 
 Automatic price-driven Feature 01 calculation is active in Railway `dev`: PostgreSQL transactionally enqueues price writes with non-null `ingestion_time`, and the always-on `feature-01-worker` processes them. The live Railway worker completed a re-ingestion test. See [`FEATURE_01_AUTOMATION_PLAN.md`](FEATURE_01_AUTOMATION_PLAN.md) and [`apps/feature-01-worker/README.md`](apps/feature-01-worker/README.md).
 

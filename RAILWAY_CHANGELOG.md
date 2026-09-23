@@ -1,5 +1,18 @@
 # Railway changelog
 
+## 2026-09-23 — Deploy market-ai-orc Phase 1 orchestrator
+
+- Created only `market-ai-orc` (service ID `41dc17ee-3bac-41ef-90ec-8b9356815c71`) in Railway `dev`. The user-approved pinned IaC plan (`sha256:f1547b72…`) was exactly one safe create, zero changes, zero destroys.
+- Configuration: region `sfo`, one replica, Dockerfile build, start command `uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080`, health check `/ready` (120 s), restart `ALWAYS`. It is private: no public domain. Other services reach it at `market-ai-orc.railway.internal:8080`.
+- There is no GitHub source yet; the code was uploaded from `apps/market-ai-orc` at commit `1a857f9`. Connect GitHub `main` at root `/apps/market-ai-orc` with watch path `/apps/market-ai-orc/**` in a separate approved change.
+- Variables: `PORT`, `AI_MODEL=deepseek/deepseek-v4.1-flash`, and `AI_REASONING_EFFORT=high` are literals. `OPENROUTER_API_KEY` is a Railway reference to `${{market-ai-backend.OPENROUTER_DEEPSEEK}}`, so the existing OpenRouter key is reused without copying it; a hash comparison confirmed the resolved value matches. `MARKET_AI_ORC_API_KEY` is a new random 64-character bearer secret, set through stdin. No secret value was printed or committed.
+- Deployment `60f622a5-eed1-4077-8b5b-cb0c0c2faf57` reached `SUCCESS`. The logs show a clean Uvicorn start, and Railway's `GET /ready` health check returned `200`.
+- Before deployment, the same code passed three local live acceptance runs against OpenRouter with the existing key. Each run was `COMPLETED`/`ANSWER` with one real `get_system_capabilities` call, reported database, Python, and web search as unavailable, and used about 2.9–3.0k tokens.
+- Two OpenRouter incompatibilities were found live and fixed in code (details in `apps/market-ai-orc/README.md`):
+  - No DeepSeek V4.1 Flash endpoint supports `parallel_tool_calls`, which caused a 404 under `require_parameters`.
+  - A strict `text.format` sent in the same turn as tools prevented any tool call.
+- Pulled the live Railway configuration into `.railway/railway.ts`; the follow-up plan reported `dev` already up to date. No existing service, variable, database, domain, schedule, or data was changed.
+
 ## 2026-09-23 — Deploy AI data coverage cron
 
 - Created only `ai-data-coverage` (service ID `d2e57c12-cebf-4434-a66a-ba2d6d2f176d`) in Railway `dev`; the reviewed IaC plan was exactly one add, zero changes, and zero destroys.

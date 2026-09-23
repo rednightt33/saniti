@@ -238,6 +238,20 @@ a Python or DuckDB sandbox, statistical analysis (event study, backtest, regress
 clustering), web search, RAG or vector search, long-term memory, multi-agent flows, Redis,
 frontend, and Telegram.
 
+## Railway deployment
+
+- Service `market-ai-orc` (`41dc17ee-3bac-41ef-90ec-8b9356815c71`) runs in project `lucid-patience`, environment `dev`.
+- It is private: `http://market-ai-orc.railway.internal:8080`. There is no public domain.
+- Its health check is `/ready`. The start command is
+  `uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080`.
+- `OPENROUTER_API_KEY` is a Railway reference to `${{market-ai-backend.OPENROUTER_DEEPSEEK}}`,
+  so rotating that key updates both services.
+- A future backend caller should reference `${{market-ai-orc.MARKET_AI_ORC_API_KEY}}` rather
+  than copying it.
+- It is currently deployed by local upload
+  (`railway up apps/market-ai-orc --path-as-root --service market-ai-orc`). A GitHub `main`
+  source with watch path `/apps/market-ai-orc/**` is not connected yet.
+
 ## Run locally
 
 ```bash
