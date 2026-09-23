@@ -47,9 +47,11 @@ strict final response
 Backend
 ```
 
-Future (not built yet): `run_python_analysis(dataset_id=...)` in a Python sandbox, which will
-consume the Governor's `DATASET_READY` Parquet snapshots. Until it is registered,
-`python_analysis` stays `false` and the model must not claim an analysis ran.
+Python analysis (when the sandbox is configured) adds a validation path:
+`create_analysis_spec` → `request_data` → `run_python_analysis` → `get_analysis_result`, and a
+backend validation gate on the final response (see [Python analysis](#python-analysis)). When the
+analysis tools are not registered, `python_analysis` is `false` and the model must not claim an
+analysis ran.
 
 ## Request flow
 
@@ -154,6 +156,7 @@ wall-clock time, output tokens, and a context ceiling checked before each provid
 | `PY_SANDBOX_REQUEST_TIMEOUT_SECONDS` | no | `45` | HTTP timeout for one sandbox call (10–300); the tool timeout is this plus 5 s. Keep it above the sandbox's submit wait |
 | `PY_SANDBOX_POLL_WAIT_SECONDS` | no | `20` | How long `get_analysis_result` waits for a running analysis (≤ 60, at least 10 s below the request timeout) |
 | `PYTHON_ANALYSIS_MAX_RESULT_BYTES` | no | `40000` | Hard cap on one analysis tool result sent to the model (8192–131072) |
+| `ANALYSIS_TIMEZONE` | no | `Asia/Jakarta` | IANA time zone of the analysis reference date (the request date in this zone anchors "last 3 months", "latest", and similar periods); invalid zones stop startup |
 
 Secrets have no defaults, and the service refuses to start without them. It never logs API
 keys, `Authorization` headers, prompts, user messages, or provider reasoning.
@@ -211,11 +214,19 @@ Response (HTTP `200` for every agent outcome, including `FAILED`):
     "reasoning_tokens": 0,
     "total_tokens": 0,
     "duration_ms": 0,
-    "tools_withdrawn_reason": null
+    "tools_withdrawn_reason": null,
+    "analyses": [],
+    "validation_gate": "NOT_APPLICABLE"
   },
   "error": null
 }
 ```
+
+`execution.analyses` lists every Python analysis of the run with `analysis_id`, `spec_id`,
+`execution_status`, `validation_status`, `validation_level`, and `reason_codes`, taken from the
+sandbox records, not from the model. `execution.validation_gate` is `NOT_APPLICABLE` (no
+analysis), `PASSED`, `ANNOTATED` (mandatory validation limitations were appended), or
+`FORCED_LIMITATION` (an `ANSWER` resting on a failed analysis was converted to `LIMITATION`).
 
 The model produces only `response`. Code sets `status` from `response_type`:
 `ANSWER → COMPLETED`, `CLARIFICATION → NEEDS_CLARIFICATION`, `LIMITATION → LIMITED`.
@@ -289,7 +300,8 @@ Guarantees:
 | `preview_table_rows` | `table_name` | At most 20 example rows (see [Market-data preview](#market-data-preview)) |
 | `request_data` | `purpose`, `from_table`, `columns`, `joins`, `filters`, `group_by`, `aggregations`, `order_by`, `requested_limit` | The SQL Governor decision, unchanged (see [Data requests](#data-requests)) |
 | `get_dataset_manifest` | `dataset_id` | The Governor's bounded dataset manifest: `AVAILABLE`, or explicit `DATASET_EXPIRED` / `DATASET_NOT_FOUND` (see [Python analysis](#python-analysis)) |
-| `run_python_analysis` | `purpose` (≤ 1000), `dataset_ids` (1–4, unique), `python_code` (≤ 20000), `expected_outputs` ⊆ {TABLE, METRICS, CHART, ARTIFACT} | The analysis record: status, next_action, outputs, warnings, error |
+| `create_analysis_spec` | `question`, `universe`, `analysis_period`, `frequency`, `inputs`, `calculations`, `outputs`, `exclusion_rules`, each requirement with its provenance | The spec review: `status`, `spec_id` when approved, `resolved_period`, `required_input` (with warm-up), `output_contract`, mismatches, unverified requirements, clarification needed |
+| `run_python_analysis` | `spec_id`, `inputs` (1–4 logical inputs, each `name`, `dataset_ids` 1–8, `duplicate_policy`), `python_code` (≤ 20000), `expected_outputs` ⊆ {TABLE, METRICS, CHART, ARTIFACT} | The analysis record: `execution_status`, `validation_status`, `validation_level`, `reason_codes`, `next_action`, scopes, outputs, evidence, error |
 | `get_analysis_result` | `analysis_id` | The same record for a queued/running/finished analysis |
 
 Each capability flag is derived from the registry. It becomes `true` only when its providing
@@ -329,34 +341,64 @@ RULES in the system prompt; it contains no thresholds or credentials.
 
 ## Python analysis
 
-market-ai-orc never executes model-generated Python. `run_python_analysis` validates the strict
-argument model (`app/tools/analysis.py`, aligned with the sandbox's `AnalysisRequest` by a
-contract test) and posts `{request_id, …}` to `PY_SANDBOX_URL/v1/analyses`. The sandbox waits
-briefly and returns either a finished record or `QUEUED`/`RUNNING` with
-`next_action=GET_ANALYSIS_RESULT` and `retry_after_seconds`. `get_analysis_result` then waits
-up to `PY_SANDBOX_POLL_WAIT_SECONDS`.
+market-ai-orc never executes model-generated Python. The sandbox runs the code and validates it
+(see [`../market-python-sandbox/README.md`](../market-python-sandbox/README.md)); this service
+supplies the user's own words, enforces the order of the tools, and gates the final response.
+
+**1. `create_analysis_spec`.** The model states the requested analysis as a structured spec
+(universe, period, frequency, inputs, calculations with parameters, outputs, exclusion rules), each
+requirement marked `USER_EXPLICIT`, `USER_CLARIFIED`, `APPROVED_DEFAULT` (with its `default_id`),
+or `AI_INFERRED`. The tool adds what the model cannot choose, from the run itself (`RunContext`):
+the `request_id`, the reference time (`wall_clock`, pinned in tests), `ANALYSIS_TIMEZONE`, and the
+user's actual messages (history plus the current message; assistant turns are included so a
+clarified answer can be recognised). The sandbox checks the spec against those messages with
+deterministic rules and answers `APPROVED`, `APPROVED_WITH_UNVERIFIED`, `ANALYSIS_SPEC_MISMATCH`, or
+`NEEDS_CLARIFICATION`. Only approved specs get an immutable `spec_id`. The model sees a compact
+view: `status`, `spec_id`, `resolved_period`, `required_input` (the date range to request,
+including warm-up), `output_contract` (the key and value columns each output must contain),
+mismatches, unverified requirements, and clarification needed.
+
+**2. `run_python_analysis`.** `{request_id, spec_id, inputs, python_code, expected_outputs}` is
+validated by a strict model aligned with the sandbox's `AnalysisRequest` (contract test) and posted
+to `PY_SANDBOX_URL/v1/analyses`. The sandbox waits briefly and returns either a finished record or
+`QUEUED`/`RUNNING` with `next_action=GET_ANALYSIS_RESULT` and `retry_after_seconds`;
+`get_analysis_result` then waits up to `PY_SANDBOX_POLL_WAIT_SECONDS`. The runtime interface
+(pre-bound `saniti` helpers such as `load`, `sql`, `in_period`, `emit_table`, and the libraries
+including TA-Lib) is described in the tool description.
 
 **What the model sees:**
+- `execution_status` and `validation_status` (`PASS`, `INCOMPLETE`, `FAILED`, `UNVERIFIED`) with
+  `validation_level`, `reason_codes`, and a deterministic `next_action`;
+- `expected_scope`, `actual_scope`, and compact `validation_evidence` (a calculation mismatch may
+  carry a diagnosis such as `PARAMETER_DIFFERS` or `WARMUP_NOT_USED`);
 - TABLE: `row_count`, columns, a bounded preview, and `result_id`. The complete table stays in
-  the sandbox (`GET /v1/results/{id}` for backend/frontend presentation).
-- METRICS: the values.
-- CHART and ARTIFACT: ids and metadata only, never bytes.
-- warnings (for example `NUMERIC_AS_FLOAT64`, `INSUFFICIENT_HISTORY`);
-- a structured error with only the model's own code lines;
-- a compact lineage: code hash, seed, library versions, dataset checksums.
+  the sandbox (`GET /v1/results/{id}` for backend/frontend presentation). METRICS: the values.
+  CHART and ARTIFACT: ids and metadata only, never bytes;
+- warnings, derived features (always `EXPLORATORY_UNVALIDATED`, statistical validation
+  `NOT_PERFORMED`), a structured error with only the model's own code lines, and a compact
+  lineage (spec hash, code hash, seed, library versions, dataset checksums).
 
-Sandbox limits, deployment ids, and resource usage are removed. Refusals such as
-`QUEUE_FULL` or `SANDBOX_ISOLATION_UNAVAILABLE` come back as `status: REJECTED` with a
-`next_action`. Transport failures become `TOOL_ERROR`.
+Sandbox limits, deployment ids, and resource usage are removed. Refusals such as `QUEUE_FULL`,
+`SPEC_NOT_FOUND`, `REQUEST_BUDGET_EXCEEDED`, or `SANDBOX_ISOLATION_UNAVAILABLE` come back as
+`status: REJECTED` with a `next_action`. Transport failures become `TOOL_ERROR`.
+
+**3. Validation gate.** Every analysis result the model receives is recorded in the run state
+from the sandbox's record. When the model returns its final response, the latest analysis of each
+spec is checked:
+- validation `FAILED` or `INCOMPLETE`, or an execution that did not complete: an `ANSWER` is
+  rejected once with an instruction to fix, rerun, request data, or report a limitation, and the
+  tools stay available for that repair. A second `ANSWER` is converted to `LIMITATION` with a
+  notice and the findings as limitations (`FORCED_LIMITATION`);
+- validation `UNVERIFIED`, a level below `CALCULATION_VERIFIED`, or unverified spec requirements:
+  the matching limitation lines are appended when the model left them out (`ANNOTATED`).
+`CLARIFICATION` responses are never blocked. The gate is code, not a prompt rule: the ANALYSIS
+VALIDATION RULES prompt block only explains it to the model.
 
 `get_dataset_manifest` calls the Governor's `GET /v1/datasets/{id}/manifest` with the existing
 Governor key. The orc key cannot obtain dataset URLs.
 
-The PYTHON ANALYSIS RULES block is appended after DATA QUERY RULES. It contains no limits, URLs,
-credentials, or security details. The runtime interface (the `DATASETS` mapping, the `saniti`
-helpers, and the libraries including TA-Lib) is described in the tool description. See
-[`../market-python-sandbox/README.md`](../market-python-sandbox/README.md) for the isolation
-design.
+The PYTHON ANALYSIS RULES and ANALYSIS VALIDATION RULES blocks are appended after DATA QUERY
+RULES. They contain no limits, URLs, credentials, or security details.
 
 ## Catalog discovery
 

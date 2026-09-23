@@ -19,7 +19,7 @@ import itertools
 import json
 import os
 import sys
-from datetime import date, timedelta
+from datetime import timedelta
 from typing import Any
 
 RTOL, ATOL = 1e-6, 1e-8
@@ -522,7 +522,6 @@ def check_output(output: dict[str, Any], path: str | None, spec: dict[str, Any],
                  frames: dict[str, Any], refs: dict[str, Any], period: dict[str, Any], expected_all: set[str],
                  evidence: Evidence, warmups: dict[str, int]) -> dict[str, Any]:
     import numpy as np
-    import pandas as pd
     import pyarrow.parquet as pq
 
     name = output["name"]
@@ -633,9 +632,10 @@ def check_output(output: dict[str, Any], path: str | None, spec: dict[str, Any],
     defined = np.ones(len(merged), dtype=bool)
     for c in verifiable:
         defined &= np.isfinite(_numeric(merged[ref_col[c["output_column"]]]))
-    if selection and selectable:
+
+    def satisfies(predicates: list[dict[str, Any]]):
         chosen = defined.copy()
-        for predicate in output["selection"]:
+        for predicate in predicates:
             column = ref_col[calcs[predicate["calculation"]]["output_column"]]
             values = _numeric(merged[column])
             op = predicate["op"]
@@ -645,6 +645,10 @@ def check_output(output: dict[str, Any], path: str | None, spec: dict[str, Any],
                         "==": np.isclose(values, predicate["value"]),
                         "!=": ~np.isclose(values, predicate["value"])}[op]
             chosen &= np.nan_to_num(test, nan=False).astype(bool)
+        return chosen
+
+    if selection and selectable:
+        chosen = satisfies(output["selection"])
         false_negative = merged[in_ref & chosen & ~in_out]
         false_positive = merged[in_out & ~(in_ref & chosen)]
         if len(false_negative) or len(false_positive):
@@ -658,10 +662,25 @@ def check_output(output: dict[str, Any], path: str | None, spec: dict[str, Any],
             evidence.add(f"output.{name}.selection", "PASS", selected=int((in_ref & chosen).sum()))
         scope["selected"] = int(in_out.sum())
     elif selection:
+        checkable = [p for p in output["selection"] if p["calculation"] not in refs["unverifiable"]]
+        if checkable:
+            # A necessary condition still holds: every selected row must satisfy the recalculable predicates.
+            violating = merged[in_out & ~(in_ref & satisfies(checkable))]
+            if len(violating):
+                evidence.add(f"output.{name}.selection", "FAIL", "SELECTION_MISMATCH", missing=0,
+                             unexpected=len(violating), unexpected_examples=_keys(violating, out_entity, out_time),
+                             detail="Selected rows do not satisfy the selection predicates that can be recalculated "
+                                    "independently.")
+            else:
+                evidence.add(f"output.{name}.selection.checkable", "PASS", selected=int(in_out.sum()),
+                             predicates=[p["calculation"] for p in checkable],
+                             detail="Every selected row satisfies the recalculable predicates; rows the other "
+                                    "predicates excluded cannot be checked.")
         evidence.add(f"output.{name}.selection", "SKIPPED",
-                     detail="The selection uses a calculation without an independent reference; the selected set "
-                            "cannot be checked.")
+                     detail="The selection uses a calculation without an independent reference; the complete "
+                            "selected set cannot be checked.")
         scope["scope_unverifiable"] = True
+        scope["selected"] = int(in_out.sum())
     else:
         # Without a reference, rows inside the declared warm-up of each entity's input may be undefined.
         position = merged["_pos"].fillna(-1).to_numpy() >= warmups.get(dataset, 0)
@@ -739,9 +758,75 @@ def check_output(output: dict[str, Any], path: str | None, spec: dict[str, Any],
     return scope
 
 
-def _check_pairs(output, table, key_columns, used, spec, manifest, frames, period, evidence, scope):
+def _pair_series(frame, entity: str, time: str, tickers: list[str], column: str, kind: str, period: dict[str, Any],
+                 warmup: bool = True) -> dict[str, dict]:
+    """Per ticker: {date: transformed value} inside the period (transformed on the full history when warmup)."""
+    import reference
+
+    series = {}
+    for ticker, part in frame[frame[entity].isin(tickers)].groupby(entity):
+        if not warmup:
+            part = part[part[time] >= period["start"]]
+        values = reference.transform(part[column].to_numpy(dtype=float), kind)
+        mask = (part[time] >= period["start"]).to_numpy() & (part[time] <= period["end"]).to_numpy()
+        series[ticker] = dict(zip(part[time].to_numpy()[mask], values[mask]))
+    return series
+
+
+def _pair_values(series: dict[str, dict], tickers: list[str], method: str, min_overlap: int,
+                 listwise: bool = False) -> dict[tuple[str, str], float]:
     import numpy as np
     import reference
+
+    shared = set.intersection(*(set(series.get(t, {})) for t in tickers)) if listwise and tickers else None
+    if shared is not None:  # listwise deletion: only dates where every ticker has a defined value
+        shared = {d for d in shared if all(np.isfinite(series[t][d]) for t in tickers)}
+    out = {}
+    for a, b in itertools.combinations(tickers, 2):
+        common = sorted(shared if shared is not None else set(series.get(a, {})) & set(series.get(b, {})))
+        out[(a, b)] = reference.pair_correlation(np.array([series[a][d] for d in common], dtype=float),
+                                                 np.array([series[b][d] for d in common], dtype=float),
+                                                 method, min_overlap)
+    return out
+
+
+def _diagnose_pairs(frame, entity, time, tickers, column, params, period, actual, pairs) -> dict | None:
+    """Explain a pair-correlation mismatch: which transform, method, or procedure the actual values match."""
+    import numpy as np
+
+    act = np.array([actual[p] for p in pairs], dtype=float)
+
+    def matches(values: dict) -> bool:
+        return bool(_compare(act, np.array([values[p] for p in pairs], dtype=float)).all())
+
+    for kind in ("SIMPLE_RETURN", "LOG_RETURN", "NONE"):
+        series = _pair_series(frame, entity, time, tickers, column, kind, period)
+        for method in ("PEARSON", "SPEARMAN"):
+            if (kind, method) == (params["transform"], params["method"]):
+                continue
+            if matches(_pair_values(series, tickers, method, params["min_overlap"])):
+                name = "transform" if method == params["method"] else "method"
+                if kind != params["transform"] and method != params["method"]:
+                    name = "transform+method"
+                return {"finding": "PARAMETER_DIFFERS", "parameter": name,
+                        "spec_value": f"{params['transform']}/{params['method']}", "values_match": f"{kind}/{method}"}
+    series = _pair_series(frame, entity, time, tickers, column, params["transform"], period, warmup=False)
+    if params["transform"] != "NONE" and matches(_pair_values(series, tickers, params["method"],
+                                                               params["min_overlap"])):
+        return {"finding": "WARMUP_NOT_USED", "detail": "The values match returns computed only from prices inside "
+                                                        "the analysis period, which drops the first return; compute "
+                                                        "returns on the full input history, then restrict dates."}
+    if len(tickers) > 2:
+        series = _pair_series(frame, entity, time, tickers, column, params["transform"], period)
+        if matches(_pair_values(series, tickers, params["method"], params["min_overlap"], listwise=True)):
+            return {"finding": "LISTWISE_DELETION", "detail": "The values match correlations over only the dates where "
+                                                              "every ticker has a value; the spec uses each pair's own "
+                                                              "overlapping dates."}
+    return None
+
+
+def _check_pairs(output, table, key_columns, used, spec, manifest, frames, period, evidence, scope):
+    import numpy as np
 
     calc = used[0]
     if calc["method"] != "CORRELATION":
@@ -752,17 +837,9 @@ def _check_pairs(output, table, key_columns, used, spec, manifest, frames, perio
     frame = frames[calc["dataset"]]
     params = {p["name"]: p["value"] for p in calc["params"]}
     tickers = sorted(set(spec["universe"]["tickers"]) & set(frame[entity]))
-    series = {}
-    for ticker, part in frame[frame[entity].isin(tickers)].groupby(entity):
-        values = reference.transform(part[calc["columns"][0]].to_numpy(dtype=float), params["transform"])
-        mask = (part[time] >= period["start"]).to_numpy() & (part[time] <= period["end"]).to_numpy()
-        series[ticker] = dict(zip(part[time].to_numpy()[mask], values[mask]))
-    expected = {}
-    for a, b in itertools.combinations(tickers, 2):
-        common = sorted(set(series[a]) & set(series[b]))
-        expected[(a, b)] = reference.pair_correlation(np.array([series[a][d] for d in common]),
-                                                      np.array([series[b][d] for d in common]),
-                                                      params["method"], params["min_overlap"])
+    column = calc["columns"][0]
+    series = _pair_series(frame, entity, time, tickers, column, params["transform"], period)
+    expected = _pair_values(series, tickers, params["method"], params["min_overlap"])
     left, right = key_columns
     actual = {}
     for _, row in table.iterrows():
@@ -778,10 +855,13 @@ def _check_pairs(output, table, key_columns, used, spec, manifest, frames, perio
     common = sorted(set(expected) & set(actual))
     ok = _compare(np.array([actual[p] for p in common]), np.array([expected[p] for p in common]))
     if len(ok) and not ok.all():
+        bad = [p for p, good in zip(common, ok) if not good]
+        diagnosis = _diagnose_pairs(frame, entity, time, tickers, column, params, period, actual, bad[:50])
         evidence.add(f"calculation.{calc['id']}.{output['name']}", "FAIL", "CALCULATION_MISMATCH",
                      mismatched=int((~ok).sum()), checked=len(ok),
+                     **({"diagnosis": diagnosis} if diagnosis else {}),
                      examples=[{"pair": list(p), "expected": _round(expected[p]), "actual": _round(actual[p])}
-                               for p, good in zip(common, ok) if not good][:MAX_EXAMPLES])
+                               for p in bad][:MAX_EXAMPLES])
     else:
         evidence.add(f"calculation.{calc['id']}.{output['name']}", "PASS", method="CORRELATION", checked=len(ok))
     scope.update(values_checked=len(ok), verified_calculations=[calc["id"]], unverified_calculations=[])

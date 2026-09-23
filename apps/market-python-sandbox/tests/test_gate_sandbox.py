@@ -81,6 +81,21 @@ def test_correct_analysis_passes_with_calculation_verified_and_records_everythin
     assert result["lineage"]["spec_sha256"] == result["spec_sha256"] and result["lineage"]["reproducible_until"]
 
 
+def test_helpers_are_preloaded_and_in_period_applies_the_approved_period(make_service, governor) -> None:
+    """Code written without any import: saniti, load, in_period and emit_table are pre-bound."""
+    service = make_service()
+    code = (
+        'df = saniti.load("prices", columns=["ticker", "date", "close"])\n'
+        'g = df.groupby("ticker")["close"]\n'
+        'df["zscore_20"] = (df["close"] - g.transform(lambda s: s.rolling(20).mean())) / g.transform(\n'
+        '    lambda s: s.rolling(20).std())\n'
+        'emit_table("zscores", df[in_period(df)][["ticker", "date", "zscore_20"]])\n'
+    )
+    result = run(service, spec_id(service), full_dataset(governor), code)
+    assert (result["execution_status"], result["validation_status"], result["validation_level"]) == (
+        "COMPLETED", "PASS", "CALCULATION_VERIFIED"), (result["error"], result["validation_evidence"])
+
+
 def test_A_three_months_requested_two_calculated(make_service, governor) -> None:
     service = make_service()
     result = run(service, spec_id(service), full_dataset(governor), zcode(start="'2026-07-24'"))

@@ -1,19 +1,21 @@
 # market-python-sandbox
 
-Isolated Python execution for governed datasets. `market-ai-orc` submits model-generated
-analysis code here through `run_python_analysis`. This service runs the code over the
-immutable Parquet datasets that `market-sql-governor` extracted (`DATASET_READY`) and
-returns structured outputs: TABLE, METRICS, CHART, and ARTIFACT.
+Isolated Python execution for governed datasets, with an **Execution Validation Gate**.
+`market-ai-orc` submits model-generated analysis code here. This service runs the code over the
+immutable Parquet snapshots that `market-sql-governor` extracted (`DATASET_READY`), returns
+structured outputs (TABLE, METRICS, CHART, ARTIFACT), and then checks, independently of the
+code, whether those outputs match the analysis the user asked for.
 
 ```text
-market-ai-orc ──(bearer PY_SANDBOX_API_KEY)──► market-python-sandbox (harness, root)
-                                                 │ POST /v1/datasets/{id}/access  (SQL_GOVERNOR_DATASET_ACCESS_KEY)
-                                                 ▼
-                                          market-sql-governor ── presigned GET, 120 s, one object
-                                                 │
-                         verified, read-only copy of the Parquet file
-                                                 ▼
-                     analysis process: fresh, non-root slot user, rlimits, seccomp
+user request ─► market-ai-orc ─► POST /v1/specs     Structured Analysis Spec ─► intent check ─► immutable spec_id
+                              ─► request_data        SQL Governor datasets (with warm-up history)
+                              ─► POST /v1/analyses   spec_id + logical inputs + code
+                                     │
+         market-python-sandbox harness (root) ─► Governor /v1/datasets/{id}/access ─► verified local Parquet
+                                     │
+         workspace ─► preflight validator ─► analysis process ─► outputs ─► postflight validator
+                                     │
+         execution_status  +  validation_status (PASS / INCOMPLETE / FAILED / UNVERIFIED)  +  validation_level
 ```
 
 The service holds **no PostgreSQL credential and no bucket credential**. It holds two keys:
@@ -21,294 +23,470 @@ The service holds **no PostgreSQL credential and no bucket credential**. It hold
 - `SQL_GOVERNOR_DATASET_ACCESS_KEY`: can read dataset manifests and obtain short-lived read
   URLs. It cannot submit queries.
 
-Analysis processes hold no keys at all.
+Analysis and validator processes hold no keys at all.
 
-## Execution isolation
+## Execution Validation Gate
 
-Every analysis runs in a **fresh process** (`runtime/runner.py`). The model's Python is never
-`exec`'d inside the FastAPI process.
+A successful Python run is not treated as proof that the request was answered. Every analysis
+goes through these steps, all in backend code:
 
-| Control | Mechanism |
+1. **Structured Analysis Spec** (`app/spec.py`). The model proposes a machine-readable contract:
+   universe, analysis period, frequency, logical inputs, calculations with method-specific
+   parameters, the outputs the code will emit, and exclusion rules. Every material requirement
+   carries a **provenance**:
+   - `USER_EXPLICIT`: stated by the user;
+   - `USER_CLARIFIED`: stated in a reply to a clarification question;
+   - `APPROVED_DEFAULT`: one of the approved defaults below, named by `default_id`;
+   - `AI_INFERRED`: chosen by the model, and reported as an unverified requirement.
+
+   Method parameters the model omits are filled with their approved default and marked as such.
+2. **Independent intent check** (`app/intent.py`). market-ai-orc sends the user's own messages
+   from the run, the run's reference time, and the time zone; the model cannot supply these. A
+   deterministic English/Indonesian extractor builds the expected-requirements record: periods,
+   trading-day counts, "latest", explicit dates and months, tickers, "all stocks", frequency,
+   method keywords, and method-bound windows and thresholds. It then compares that record with
+   the spec. There are four outcomes:
+   - **`APPROVED`:** the spec is stored immutably and returned as `spec_id` plus `spec_sha256`.
+   - **`APPROVED_WITH_UNVERIFIED`:** stored as well. The requirements the extractor could not
+     confirm are listed as `UNVERIFIED_REQUIREMENT` and must be disclosed.
+   - **`ANALYSIS_SPEC_MISMATCH`:** a contradiction, such as three months requested but two
+     proposed, a different window, or a subset of the requested universe. Nothing is stored.
+   - **`NEEDS_CLARIFICATION`:** material ambiguity, such as "recently", "last month", or no
+     period for a time-series result.
+
+   The check never accepts the model's own confirmation as evidence, and anything it does not
+   recognise is never assumed to match.
+3. **Resolved period and required input.** Relative periods are resolved against the reference
+   date. `TRAILING` periods get dates immediately; `TRADING_DAYS` and `LATEST` are resolved from
+   the input calendar. The service computes each method's warm-up (minimum and recommended) and
+   look-ahead, and returns the date range to request from the Governor. Warm-up history is
+   never part of the analysis period. The spec response also carries an `output_contract`: for
+   each declared output, the key columns (entity, date, or pair columns) and the value columns
+   the validator will read.
+4. **Preflight** (validator process, before the code runs). It checks that the bound datasets
+   cover the contract:
+   - the source table, required columns, and column types;
+   - the requested and actual date range against the analysis period;
+   - whether the requested universe was extracted;
+   - warm-up history per entity;
+   - duplicate and grain problems.
+
+   Shortfalls that more data would fix stop the job before execution with
+   `INPUT_VALIDATION_FAILED` and validation `INCOMPLETE`. These include
+   `INSUFFICIENT_WARMUP_HISTORY` (with the date to request from), the period or universe not
+   extracted, and `PERIOD_NOT_COVERED`. Unusable inputs (`DUPLICATE_CONFLICT`,
+   `GRAIN_AMBIGUOUS`, `INCOMPATIBLE_LOGICAL_DATASET`) are `FAILED`.
+5. **Execution** in the isolated analysis process (below).
+6. **Postflight** (validator process, after the analysis process has exited). The validator
+   reads only harness-written files: the manifest, the spec, the read-only inputs, and harness
+   copies of the outputs the spec declares. It never reads the analysis's private directories
+   and never accepts anything the code reported about itself. For every declared output it:
+   - checks the declared grain and key columns (duplicate keys → `OUTPUT_GRAIN_VIOLATION`);
+   - measures the actual scope: entities, date range, rows, and rows outside the analysis
+     period;
+   - builds the expected keys from the inputs, the universe, and documented exclusion rules;
+   - classifies every missing expected observation:
+
+     | Classification | Meaning | Effect |
+     |---|---|---|
+     | `SOURCE_UNAVAILABLE` | The source has no row (ticker missing, no data in the period) | reported; `INCOMPLETE` for a named ticker or a period the source does not cover |
+     | `NOT_EXTRACTED` | The dataset request did not cover it (may be SQL Governor limits) | blocked at preflight |
+     | `INSUFFICIENT_WARMUP_HISTORY` | Too little history before the period (source-limited, e.g. a recent listing) | reported with affected observations; `INCOMPLETE` for a named ticker |
+     | `LOST_IN_TRANSFORMATION` | Present in the input with a defined value, absent from the output | `ANALYSIS_SCOPE_MISMATCH` or `UNIVERSE_MISMATCH` (`FAILED`) |
+     | `DOCUMENTED_EXCLUSION` | Excluded by a declared exclusion rule, recomputed by the validator | reported |
+
+   - recomputes every supported calculation with its own reference implementation
+     (`runtime/reference.py`, NumPy, not TA-Lib or pandas rolling) on the full input history of
+     each entity. A difference beyond `rtol 1e-6` is `CALCULATION_MISMATCH`. The validator also
+     tries to explain the difference: a different parameter (for example "values match
+     window = 10"), ignored warm-up, or no per-entity partitioning. For pair correlations it
+     tries the other transforms and methods, returns computed only from in-period prices
+     (`WARMUP_NOT_USED`), and listwise deletion across all tickers (`LISTWISE_DELETION`).
+   - recomputes selection screens (such as RSI < 30): missing or extra rows are
+     `SELECTION_MISMATCH`.
+
+### Statuses
+
+`execution_status` and `validation_status` are independent:
+
+| execution_status | Meaning |
 |---|---|
-| Separate user | Each concurrency slot has its own non-root UID (`sandbox1..4`, UID 20001+). The harness starts the child through `subprocess` `user=`/`group=`/`extra_groups=[]`, with no `preexec_fn`. |
-| No inherited secrets | The environment is constructed from scratch (PATH, HOME, TMPDIR, locale, thread caps, `PYTHONHASHSEED=0`). File descriptors are closed. The harness runs as root, so `/proc/<harness>/environ` is unreadable to the slot user. |
-| Private files | Layout is `jobs/<analysis_id>/`, with the jobs root at 0711 (not listable). `job.json` and `input/*.parquet` are root-owned and read-only. `work/` and `output/` belong to the slot user at 0700. Service storage (`/data`) and the dataset cache are 0700 root. `/tmp` and `/var/tmp` are not writable in the image. |
-| CPU | CPU affinity is pinned to `PY_SANDBOX_CPUS_PER_JOB`. `RLIMIT_CPU` is set to runtime × CPUs + 5 s. Thread pools are capped (OpenBLAS/OMP/Polars env, DuckDB `threads`). |
-| Memory | An RSS watchdog kills the process at `PY_SANDBOX_MAX_MEMORY_MB`, sampled every 100 ms. `RLIMIT_AS` enforces a hard virtual ceiling of `PY_SANDBOX_MAX_VIRTUAL_MEMORY_MB`. The ceiling is separate because the libraries reserve virtual memory: importing the full stack fails at 1 GiB AS. |
-| Runtime | A wall-clock watchdog SIGKILLs the process group at `PY_SANDBOX_MAX_RUNTIME_SECONDS`. |
-| Output / disk | `RLIMIT_FSIZE` is set to the per-output byte limit. A job-directory quota (`PY_SANDBOX_MAX_WORKDIR_BYTES`) is checked every second. |
-| Syscalls | A seccomp-bpf filter (`runtime/seccomp.py`) is installed before any model code while the process is single-threaded, with TSYNC. It cannot be removed. |
+| `QUEUED`, `RUNNING` | not finished (`validation_status` is `PENDING`) |
+| `COMPLETED` | the code ran and its outputs were collected |
+| `FAILED` | the code or its inputs failed (validation is `INCOMPLETE`/`FAILED` for preflight problems, else `UNVERIFIED`) |
+| `CANCELLED`, `EXPIRED` | cancelled / stored outputs expired (metadata kept) |
 
-The seccomp filter enforces the following:
+| validation_status | Meaning |
+|---|---|
+| `PASS` | every declared output was checked and matched the contract |
+| `INCOMPLETE` | the source or the extracted data cannot cover the requested scope |
+| `FAILED` | the outputs contradict the contract (scope, universe, grain, calculation, selection) |
+| `UNVERIFIED` | nothing could be checked independently (no checkable output, or the validator failed) |
 
-- **No sockets.** `socket()` fails with `EACCES` for every family, so there is no TCP, UDP, DNS,
-  raw, netlink, or Unix-domain socket. Only an anonymous `AF_UNIX` `socketpair()` is allowed.
-- **No new programs or processes.** `execve`, `execveat`, `fork`, and `vfork` are denied, and so
-  is `clone()` without `CLONE_THREAD`. `clone3` returns `ENOSYS`, so the C library falls back to
-  `clone()` for threads. `subprocess`, `os.system`, and `multiprocessing` therefore fail.
-- **No escalation surface.** ptrace, process_vm_*, pidfd_getfd, bpf, perf_event_open, io_uring,
-  keyrings, mount (including the new mount API), namespaces, module loading, kexec, handle
-  opens, userfaultfd, mknod, and personality are all denied. A non-x86_64 architecture or the
-  x32 ABI kills the process.
+`validation_level` states how far verification got:
+- `EXECUTION_ONLY`: nothing was verified.
+- `SCOPE_VERIFIED`: the scope was checked, but at least one calculation (a CUSTOM method)
+  has no independent reference.
+- `CALCULATION_VERIFIED`: the scope was checked and every emitted calculation was recalculated
+  independently. Arbitrary AI-generated code never reaches this level on its own.
 
-**Network isolation, stated precisely.** Railway has no egress firewall, and it does not allow
-namespaces inside a container. On dev, `unshare(CLONE_NEWNET)` returned EPERM and
-`unshare(USER|NET)` returned EACCES. So this is **not a network namespace**. The analysis
-process cannot create any socket, which the kernel enforces through seccomp. The service
-container itself keeps normal Railway egress, because it must download datasets from the
-bucket over the public network.
+`next_action` is a fixed function of both statuses and the codes:
+- `USE_ANALYSIS_RESULT`
+- `USE_RESULT_WITH_VALIDATION_LIMITATION`
+- `REVISE_ANALYSIS`
+- `REQUEST_MORE_DATA_OR_REPORT_INCOMPLETE`
+- `REPORT_INCOMPLETE_RESULT`
+- `REVISE_DATA_REQUEST`
+- `REVISE_SPEC_OR_INPUTS`
+- `REQUEST_DATA_AGAIN`
+- `REPORT_LIMITATION`
+- `GET_ANALYSIS_RESULT`
+- `STOP_OR_REFORMULATE`
+- `RERUN_ANALYSIS_IF_NEEDED`
 
-**Fail closed.** At startup the harness runs a self-test job through the same path and checks:
-- non-root UID;
-- seccomp active and no_new_privs set;
-- inet, inet6, and unix sockets denied;
-- fork and execve denied;
-- parent and PID 1 environments unreadable;
-- clean environment;
-- TA-Lib RSI, SMA, STDDEV, and CDLENGULFING results.
+market-ai-orc enforces the gate on the final answer; see its README.
 
-If any check fails, `/ready` returns 503 and every analysis is refused with
-`SANDBOX_ISOLATION_UNAVAILABLE`. `GET /v1/runtime` (bearer) reports each check and the
-library versions.
+### Supported methods and approved defaults
 
-The source screen (`app/policy.py`) rejects clearly dangerous imports and calls (`subprocess`,
-`socket`, `requests`, `urllib`, `ctypes`, `os.system`, `os.environ`, and so on) with
-`FORBIDDEN_IMPORT` or `FORBIDDEN_OPERATION`. It is **defense in depth only**. Tests deliberately
-bypass it (`getattr(__builtins__, '__import__')`) to prove the kernel filter is the boundary.
+| Method | Parameters (default) | Independent check |
+|---|---|---|
+| `SMA` | `window`, `window_unit` (`TRADING_OBSERVATIONS`) | reference recalculation |
+| `ROLLING_STD` | `window`, `ddof` (1) | reference recalculation |
+| `ROLLING_ZSCORE` | `window`, `ddof` (1), `include_current` (true) | reference recalculation |
+| `RETURN` | `horizon` (1), `kind` (`SIMPLE`/`LOG`), `as_percent` (false) | reference recalculation |
+| `FORWARD_RETURN` | `horizon`, `kind`, `as_percent` (look-ahead label) | reference recalculation |
+| `RSI` | `period` (14), `smoothing` (`WILDER`, TA-Lib convention) | reference recalculation (matches TA-Lib to ~1e-14) |
+| `ROLLING_CORRELATION` | `window`, `method` (`PEARSON`/`SPEARMAN`), `transform` | reference recalculation |
+| `CORRELATION` | `method`, `transform` (`SIMPLE_RETURN`), `min_overlap` (20); `ENTITY_PAIR` output | reference recalculation per pair |
+| `CUSTOM` | anything, plus a required `formula` and `time_alignment` | scope only; never `CALCULATION_VERIFIED` |
 
-## Dataset access
+Calculations can chain through `input_calculation`, for example `ROLLING_STD` of a `RETURN`.
+Approved defaults for interpreting requests:
+- The reference date is the request date in Asia/Jakarta.
+- "Last N days/weeks/months/years" is the trailing window `(reference − N units, reference]`.
+- "Last N trading days" is the last N distinct trading dates in the input.
+- "Latest" is each entity's newest observation at or before the reference date; stale ones
+  are reported.
+- A month named without a year is its most recent occurrence.
+- "All IDX stocks" is every ticker in the governed source table (current listings, so
+  survivorship bias applies).
 
-1. For each input the harness calls `POST {SQL_GOVERNOR_URL}/v1/datasets/{id}/access` with
-   `{request_id, analysis_id}`. The Governor refuses a missing dataset (404
-   `DATASET_NOT_FOUND`), an expired one (410 `DATASET_EXPIRED`, kept distinguishable by
-   manifest tombstones), a malformed id, and a file whose size mismatches.
-2. For an available dataset, the Governor returns its bounded manifest and a **presigned SigV4
-   GET URL for exactly `datasets/<id>/data.parquet`**. The URL expires in
-   `SQL_DATASET_ACCESS_URL_TTL_SECONDS` (default 120). It is read-only, cannot list or write,
-   and carries only the access-key id and a signature, never the secret key.
-3. The harness enforces the input limits before downloading
-   (`PY_SANDBOX_MAX_INPUT_ROWS` / `_BYTES`). It streams the file, stops at the manifest's byte
-   count, and verifies the manifest SHA-256 (`DATASET_INTEGRITY_ERROR` on mismatch). The
-   verified copy is cached read-only in a root-only cache and hard-linked into the job's
-   `input/` directory.
+Recursive indicators depend on where their input starts. Wilder RSI, for example, has a seed
+error that decays by (n−1)/n per observation. The recommended warm-up is therefore
+10 × period, and entities with less are reported as `PATH_DEPENDENT_WARMUP`.
 
-The URL is never logged, never stored in a record, never returned to market-ai-orc, and never
-visible to the analysis process. Model code receives only the harness-controlled mapping:
+### Derived features
 
-```python
-DATASETS = {"ds_…": "/sandbox/jobs/ana_…/input/ds_….parquet"}
+Every calculation output is a derived feature of the analysis. It is distinct from database
+features, which are input columns that come from `Feature_*` tables and are listed in
+`database_features`. Each derived feature carries a machine-readable definition:
+- the method and formula;
+- the source logical input, source table, and input columns;
+- the parameters;
+- the output grain and time alignment;
+- `origin: DERIVED_IN_ANALYSIS`, `status: EXPLORATORY_UNVALIDATED`, and
+  `statistical_validation: NOT_PERFORMED`;
+- its SHA-256;
+- `independent_check_result`: `RECALCULATED_MATCH`, `RECALCULATED_MISMATCH`, or `NOT_CHECKED`.
+
+Definitions are stored as a harness-written JSON artifact (`derived_feature_definitions`) next
+to the result tables, and in the `derived_features` table of the records database for a future
+Research Governor. Nothing is written to PostgreSQL, and no `AI_calculation_catalog` entry is
+created.
+
+## Workspace and logical datasets
+
+Each job gets its own workspace. Every path is created by the harness:
+
+```text
+/sandbox/jobs/<analysis_id>/          0755 root
+├── manifest.json                     0444 root  logical datasets → approved local files (+ checksums, lineage)
+├── analysis_spec.json                0444 root  the immutable approved spec, resolved period, required input
+├── analysis.py                       0444 root  the model's code
+├── runtime.json                      0444 root  limits, CPU set, DuckDB settings, input views
+├── input/input_001.parquet …         0444 root  hard links to the checksum-verified cache
+├── intermediate/                     0700 slot user  HOME, TMPDIR, DuckDB temp, intermediate Parquet
+├── output/                           0700 slot user  emitted outputs
+├── validation/                       0755 root
+│   ├── request.json, outputs/        0444 root  harness copies of the declared outputs
+│   └── result/, home/                0700 validator user
+└── execution_report.json             0444 root  statuses, checksums, usage (also persisted)
 ```
 
-Limitation: within its TTL the URL is a bearer grant for that one object. Anyone holding it
-could read that dataset until it expires.
+- **Logical datasets** (`app/logical.py`). A spec names logical inputs (for example `prices`),
+  and each run binds every input to one or more Governor `dataset_ids`. Files are combined only
+  when all of the following hold:
+  - they come from the spec input's source table;
+  - their column contracts are identical: name, type, source table, source column, and
+    aggregation;
+  - their grain comes from the source contract, or from the group-by columns of an aggregated
+    extract.
+
+  Different grains or meanings stay separate inputs (`INCOMPATIBLE_LOGICAL_DATASET`,
+  `SOURCE_TABLE_MISMATCH`). Overlapping rows follow the binding's `duplicate_policy`:
+  - identical rows are removed;
+  - conflicting rows are refused (`ERROR_ON_CONFLICT`, the default), or resolved by the newest
+    snapshot (`PREFER_LATEST_SNAPSHOT`).
+
+  The model cannot put a path, dataset id, or table into the manifest. The Governor's
+  seven-table allowlist is unchanged.
+- **Semantic contracts** of the seven approved tables record the meaning, grain,
+  entity and time columns, frequency, time zone, and units.
 
 ## Runtime interface for analysis code
 
 - **Libraries** (pinned, see `requirements-analysis.txt`): numpy, pandas, polars, pyarrow,
-  duckdb, scipy, statsmodels, matplotlib (Agg), and TA-Lib (`import talib`; the wheel bundles
-  the TA-Lib C library). pip is removed from the image, and no package can be installed at
-  runtime.
-- **`saniti` helper module:**
-  - `load_dataset(id, columns=None)`
-  - `iter_series(df, entity, date, min_history)`: per entity, sorted by date, never mixing
-    entities. Entities excluded for short history are recorded in an `INSUFFICIENT_HISTORY`
-    warning. If no entity qualifies it raises `InsufficientHistory`.
-  - `prepare_panel(df, entity, date, on_duplicate='error'|'keep_last'|'keep_first')`
-  - `panel_check(...)`
-  - `add_warning(code, message)`
-  - `SEED`
+  duckdb, scipy, statsmodels, matplotlib (Agg), and TA-Lib. pip is removed from the image.
+- **Namespace.** The `saniti` module and every public name in `saniti.__all__` (helpers, `INPUTS`,
+  `SPEC`, the period constants, the exception classes) are pre-bound in the analysis namespace,
+  so `saniti.load(...)`, `emit_table(...)`, and `import saniti` all work. The first real-model
+  rehearsal showed that a model otherwise spends its analysis budget discovering the API.
+- **Inputs:** each logical input is a DuckDB view with the same name on a locked connection.
+  - `saniti.sql(query, params, max_rows)` and `saniti.load(name, columns, start, end, entities,
+    max_rows)` return pandas DataFrames. They refuse to materialize more than
+    `PY_SANDBOX_MAX_MATERIALIZE_ROWS` (`MATERIALIZATION_LIMIT_EXCEEDED`); filter or aggregate in
+    SQL instead. Without `start`/`end`, `load` returns the whole input, including the warm-up
+    history before the analysis period; the tool description never shows `start`/`end`, because
+    cutting the input to the period before computing is the most common cause of
+    `WARMUP_NOT_USED`.
+  - `saniti.in_period(frame, date_column=None, entity_column=None)` is a boolean mask of the
+    rows inside the approved period, resolved like the validator: `start ≤ date ≤ end`, and for a
+    `LATEST` period each entity's newest row on or before the period end. Analysis code computes
+    on the full history and then emits `frame[in_period(frame)]`.
+  - `saniti.relation(name)` is lazy.
+  - `INPUTS` lists each input's files and columns (for polars/pyarrow scans).
+  - `SPEC`, `ANALYSIS_START`, `ANALYSIS_END`, and `REFERENCE_DATE` come from the approved
+    contract.
+  - `saniti.intermediate_path(name)` is the only place for intermediate Parquet.
+- **DuckDB lockdown.** The runner replaces DuckDB's default connection and `duckdb.connect()`
+  before any model code runs:
+  - `memory_limit` and `threads` are set;
+  - `temp_directory` is `intermediate/.duckdb_tmp`, with `max_temp_directory_size`;
+  - `allowed_directories` is only the job's `input/` and `intermediate/`;
+  - `enable_external_access=false`;
+  - automatic extension install and load are off, and the extension directory is outside
+    the workspace;
+  - community extensions are off;
+  - `lock_configuration=true`;
+  - only in-memory databases are allowed.
 
-  Missing values are never filled by the helpers.
-- **Outputs** (only types listed in `expected_outputs`):
+  The self-test proves at startup, and requires DuckDB's own permission error for each
+  refusal, that reading outside the workspace, changing the configuration, INSTALL, LOAD,
+  ATTACH, and a new connection are all refused. A determined script could still reach DuckDB's
+  raw C module, so the security boundary remains the OS isolation below, not DuckDB settings.
+- **Helpers:**
+  - `iter_series`, `prepare_panel`, and `panel_check` keep each entity's history separate and
+    date-ordered and surface duplicates; they never fill missing values.
+  - `add_warning` records a limitation.
+  - `emit_table`, `emit_metrics`, `emit_chart`, and `emit_artifact` are the only official
+    results.
+  - Anything the code reports about itself (METRICS claims, the helper access log) is kept
+    under `self_reported` and never used as evidence.
 
-  | Helper | Stored as | Returned to the model |
-  |---|---|---|
-  | `emit_table(name, df)` | Complete Parquet (`result_id`) | `row_count`, columns, preview ≤ `PY_SANDBOX_MAX_TABLE_PREVIEW_ROWS` (50) |
-  | `emit_metrics(dict)` | Inline JSON, bounded depth/size | The values |
-  | `emit_chart(fig, name, title, description)` | PNG (`artifact_id`) | Metadata only; never image bytes |
-  | `emit_artifact(name, data, format='PARQUET'\|'CSV'\|'JSON')` | The file (`artifact_id`) | `artifact_id`, format, rows, bytes, checksum, expiry |
+The harness re-validates everything the process wrote, as before:
+- names, counts, and the declared type set;
+- Parquet footers and PNG headers;
+- previews and JSON validity;
+- `O_NOFOLLOW`, regular files owned by the slot user.
 
-  `print()` is kept only as bounded diagnostics.
+## Execution isolation
 
-The harness re-validates everything the process wrote. Code can bypass the helper, so the
-harness checks:
-- names and counts;
-- the declared type set;
-- Parquet footers (row count and columns must match what was declared, and expansion is
-  bounded);
-- PNG headers;
-- preview sizes and JSON validity.
+Every analysis runs in a **fresh process** (`runtime/runner.py`). The validator is another
+fresh process (`runtime/validator.py`). Both run as dedicated non-root users (analysis slots
+`sandbox1..4`, UID 20001+; validator `sandboxv`, UID 20100). Both are confined by
+`runtime/confine.py` before any work starts:
+- rlimits: AS, CPU, FSIZE, NOFILE, NPROC, and CORE;
+- a pinned CPU set;
+- a seccomp-bpf filter.
 
-Files are opened with `O_NOFOLLOW`, and only regular files owned by the slot user are
-accepted. Any mismatch is `OUTPUT_INVALID`; an oversized result is `OUTPUT_LIMIT_EXCEEDED`.
-Nothing is silently truncated. When previews are shortened to fit
-`PY_SANDBOX_MAX_OUTPUT_BYTES`, each table reports `preview_row_count` and
-`preview_truncated`.
+The model's Python is never `exec`'d inside the FastAPI process.
+
+| Control | Mechanism |
+|---|---|
+| No inherited secrets | The environment is constructed from scratch and file descriptors are closed. The harness runs as root, so `/proc/<harness>/environ` is unreadable. |
+| Private files | The jobs root is 0711. The layout is above. Service storage (`/data`) and the dataset cache are 0700 root. `/tmp` and `/var/tmp` are not writable. |
+| Memory | An RSS watchdog runs every 100 ms, a hard `RLIMIT_AS` ceiling applies, and DuckDB has its own `memory_limit` (default half of the job's RSS). |
+| Runtime / CPU | A wall-clock watchdog runs, and `RLIMIT_CPU` is capped by the remaining request-level CPU budget. |
+| Disk | Separate quotas for `intermediate/` (including DuckDB temp) and `output/`, checked every second. `RLIMIT_FSIZE` applies. |
+| Syscalls | seccomp denies every socket (only an anonymous AF_UNIX `socketpair` is allowed), `execve`/`fork`/non-thread `clone`, ptrace, bpf, io_uring, mount, namespaces, keyrings, and more. |
+
+**Network isolation, stated precisely.** Railway has no egress firewall and allows no
+namespaces. The analysis and validator processes cannot create any socket, which the kernel
+enforces through seccomp. This is **not a network namespace**.
+
+**Fail closed.** At startup, a self-test job goes through the same path. It checks:
+- non-root, seccomp, and no_new_privs;
+- sockets, fork, and execve denied;
+- unreadable parent environments and a clean environment;
+- TA-Lib;
+- the DuckDB lockdown;
+- the validator process's uid, seccomp, and socket denial.
+
+If any check fails, `/ready` returns 503 and every analysis is refused with
+`SANDBOX_ISOLATION_UNAVAILABLE`.
+
+The source screen (`app/policy.py`) is defense in depth only.
+
+## Dataset access
+
+1. For each input the harness calls `POST {SQL_GOVERNOR_URL}/v1/datasets/{id}/access`. The
+   Governor refuses a missing, expired, or malformed dataset, and a file whose size does not
+   match.
+2. For an available dataset, it returns the bounded manifest and a **presigned SigV4 GET for
+   exactly `datasets/<id>/data.parquet`** that expires in 120 s.
+3. The harness enforces the input limits and streams the file. It verifies the manifest SHA-256
+   (`DATASET_INTEGRITY_ERROR` on mismatch) and caches the verified copy root-only. The cache
+   entry expires with the Governor snapshot.
+
+The URL is never logged, stored, returned, or visible to any child process.
 
 ## API (private networking only, bearer `PY_SANDBOX_API_KEY`)
 
 | Endpoint | Purpose |
 |---|---|
 | `GET /health`, `GET /ready` | Liveness; readiness means the isolation self-test passed |
-| `POST /v1/analyses` | `{request_id, purpose, dataset_ids[1..4], python_code ≤ 20000, expected_outputs}`. Unknown fields → 422. Waits up to `PY_SANDBOX_SUBMIT_WAIT_SECONDS`. |
-| `GET /v1/analyses/{id}?wait_seconds=` | Status and outputs; waits at most `PY_SANDBOX_MAX_POLL_WAIT_SECONDS` |
+| `POST /v1/specs` | `{request_id, reference_time, timezone, user_messages[], spec}` → spec review (see above) |
+| `GET /v1/specs/{spec_id}` | The stored immutable contract (audit). It holds a hash of the user messages, never the messages. |
+| `POST /v1/analyses` | `{request_id, spec_id, inputs: [{name, dataset_ids[1..8], duplicate_policy}], python_code ≤ 20000, expected_outputs}`. The spec must be approved and belong to the same `request_id` (`SPEC_NOT_FOUND` otherwise). |
+| `GET /v1/analyses/{id}?wait_seconds=` | The record, including both statuses, `expected_scope`, `actual_scope`, `validation_evidence`, derived features, and lineage |
 | `POST /v1/analyses/{id}/cancel` | Cancel a queued or running analysis |
-| `GET /v1/results/{res_…}?offset&limit≤500` | Complete TABLE rows, paged (for backend/frontend presentation, not the model) |
-| `GET /v1/artifacts/{art_…}` | PNG / Parquet / CSV / JSON bytes |
-| `GET /v1/runtime` | Isolation checks, library versions, limits (operations) |
+| `GET /v1/results/{res_…}?offset&limit≤500` | Complete TABLE rows, paged |
+| `GET /v1/artifacts/{art_…}` | PNG / Parquet / CSV / JSON bytes, including the feature definitions |
+| `GET /v1/runtime` | Isolation checks, library versions, limits |
 
-There are no docs routes and no public domain.
+**Request-level budgets.** All analyses of one orchestrator request share:
+- `PY_SANDBOX_MAX_ANALYSES_PER_REQUEST`;
+- `PY_SANDBOX_MAX_CPU_SECONDS_PER_REQUEST` (analysis plus validator CPU);
+- `PY_SANDBOX_MAX_INPUT_BYTES_PER_REQUEST`;
+- `PY_SANDBOX_MAX_SPECS_PER_REQUEST`.
 
-**Statuses:** `QUEUED`, `RUNNING`, `COMPLETED`, `FAILED`, `CANCELLED`, `EXPIRED`.
-`next_action` is a fixed function of the status and error code:
-`USE_ANALYSIS_RESULT`, `GET_ANALYSIS_RESULT` (with `retry_after_seconds`), `REVISE_ANALYSIS`,
-`REVISE_DATA_REQUEST`, `REQUEST_DATA_AGAIN`, `REPORT_LIMITATION`, `STOP_OR_REFORMULATE`, and
-`RERUN_ANALYSIS_IF_NEEDED`.
-
-**Error codes:**
-- `SYNTAX_ERROR`, `FORBIDDEN_IMPORT`, `FORBIDDEN_OPERATION`, `PYTHON_EXCEPTION`
-- `INSUFFICIENT_HISTORY`, `DUPLICATE_OBSERVATIONS`
-- `RUNTIME_LIMIT_EXCEEDED`, `MEMORY_LIMIT_EXCEEDED`, `OUTPUT_LIMIT_EXCEEDED`, `OUTPUT_INVALID`,
-  `NO_OUTPUT`
-- `DATASET_NOT_FOUND`, `DATASET_EXPIRED`, `DATASET_UNAVAILABLE`, `DATASET_INTEGRITY_ERROR`,
-  `INPUT_LIMIT_EXCEEDED`
-- `SANDBOX_RESTARTED`, `QUEUE_FULL`, `CANCELLED`, `INTERNAL_ERROR`
-
-Error messages carry only the model's own code frames (`<analysis>` line numbers), never
-library or harness paths.
-
-**Idempotency:** an identical submission (same request_id, purpose, datasets, code hash, and
-outputs) returns the same `analysis_id`. The exception is a transient failure
-(`SANDBOX_RESTARTED`, `DATASET_UNAVAILABLE`, `INTERNAL_ERROR`), which may be resubmitted.
+Repeated `run_python_analysis` calls therefore cannot bypass them (`REQUEST_BUDGET_EXCEEDED`,
+429). An idempotent replay of an identical submission returns the recorded analysis and does
+not count again.
 
 ## Records, reproducibility, retention
 
-Records live in SQLite on the service volume (`/data/analyses.sqlite3`, root-only). Each
-analysis keeps:
-- `analysis_id` and `request_id`;
-- status, purpose, and expected outputs;
-- dataset ids with checksum, rows, bytes, completeness, source tables, and float64 columns;
-- `code_sha256` and the source (`PY_SANDBOX_RETAIN_CODE`, default true);
-- runtime version, Python version, and every library version (including the TA-Lib C
-  version);
-- the fixed seed (`PY_SANDBOX_RANDOM_SEED`, applied to `random` and `numpy`; hash seed 0);
-- limits, start/completion times, `runtime_ms`, CPU seconds, and peak RSS;
-- outputs and warnings;
-- the error code and bounded message;
-- bounded stdout/stderr tails;
-- `research_context`, reserved for the future Research Governor.
+Records live in SQLite on the service volume (`/data/analyses.sqlite3`, root-only; migrated in
+place). Each analysis keeps:
+- its spec id and hash, logical inputs, and dataset checksums;
+- both statuses, the level, reason codes, and evidence;
+- the expected and actual scope;
+- derived features;
+- the code hash (and source), runtime and library versions, seed, and limits;
+- resource usage (analysis and validator);
+- `reproducible_until`, the earliest snapshot expiry;
+- the execution report.
 
-Hidden model reasoning is never stored.
+| Layer | Owner | Retention |
+|---|---|---|
+| PostgreSQL source data | PostgreSQL | never touched by the sandbox |
+| Governor snapshots (bucket) | market-sql-governor | its own 168 h policy; the sandbox never deletes them |
+| Sandbox dataset cache | sandbox | deleted when the Governor snapshot expires, or by LRU over `PY_SANDBOX_DATASET_CACHE_BYTES` |
+| Workspace inputs and intermediates | sandbox | deleted as soon as a job ends; a failed job's inputs are deleted immediately |
+| Failed-job diagnostics (code, reports, small intermediate/output) | sandbox | `PY_SANDBOX_FAILED_WORKSPACE_TTL_HOURS` (6), only if ≤ `PY_SANDBOX_FAILED_WORKSPACE_MAX_BYTES` |
+| Result tables, charts, artifacts, feature definitions | sandbox | `PY_SANDBOX_RESULT_RETENTION_HOURS` (24), then `EXPIRED` |
+| Compact audit records (specs, analyses, derived features) | sandbox | `PY_SANDBOX_RECORD_RETENTION_DAYS` (30) |
 
-**Warnings.** Every analysis whose inputs contain PostgreSQL `numeric` columns carries
-`NUMERIC_AS_FLOAT64`. These values are suitable for indicators, returns, and statistics, but
-they are not decimal-exact. An input that is not `COMPLETE` carries `INCOMPLETE_INPUT`.
+The janitor runs every `PY_SANDBOX_CLEANUP_INTERVAL_SECONDS` (900) and at startup. It removes
+every workspace that no running job owns, except failed-job diagnostics within their TTL, so
+cleanup does not depend on redeploys. Active workspaces are never touched. After the input
+snapshot expires, a record carries `INPUT_SNAPSHOT_EXPIRED`: its checksums identify the input,
+but the analysis can no longer be re-run on the same data.
 
-**Retention.**
-- Outputs are kept `PY_SANDBOX_RESULT_RETENTION_HOURS` (24). The analysis then becomes
-  `EXPIRED`, with its metadata kept.
-- Records are kept `PY_SANDBOX_RECORD_RETENTION_DAYS` (30).
-- On restart, analyses that were queued or running become `FAILED SANDBOX_RESTARTED`.
+**Structured logs:**
+- `sandbox_spec_review`: request_id, status, and counts only.
+- `sandbox_analysis`: ids, checksums, both statuses, the level, reason codes, and resource
+  usage.
 
-**Structured logs.** `sandbox_analysis` events carry:
-- request_id and analysis_id;
-- dataset_ids and checksums;
-- code_sha256 and status;
-- runtime_ms, CPU seconds, and peak RSS;
-- input rows and bytes;
-- output types, rows, and bytes;
-- error_code.
-
-Logs never contain keys, dataset URLs, datasets, or tables.
+Logs never contain keys, dataset URLs, user messages, datasets, or tables.
 
 ## Configuration
 
 **Required:**
 - `PY_SANDBOX_API_KEY` (≥ 32 characters)
-- `SQL_GOVERNOR_URL` (private URL)
-- `SQL_GOVERNOR_DATASET_ACCESS_KEY` (≥ 32 characters, must differ from the API key and from
-  the Governor's `SQL_GOVERNOR_API_KEY`)
+- `SQL_GOVERNOR_URL`
+- `SQL_GOVERNOR_DATASET_ACCESS_KEY` (≥ 32 characters, must differ from the API key)
 
 **Limits** (backend only; no request field can raise them):
 
 | Variable | Default |
 |---|---|
-| `PY_SANDBOX_MAX_DATASETS` | 4 |
+| `PY_SANDBOX_MAX_LOGICAL_DATASETS` | 4 |
+| `PY_SANDBOX_MAX_INPUT_FILES` | 8 |
 | `PY_SANDBOX_MAX_INPUT_ROWS` | 2,000,000 |
 | `PY_SANDBOX_MAX_INPUT_BYTES` | 256 MiB |
+| `PY_SANDBOX_MAX_MATERIALIZE_ROWS` | 2,000,000 |
 | `PY_SANDBOX_MAX_CODE_CHARS` | 20,000 |
 | `PY_SANDBOX_MAX_RUNTIME_SECONDS` | 120 |
 | `PY_SANDBOX_MAX_MEMORY_MB` | 2048 |
 | `PY_SANDBOX_MAX_VIRTUAL_MEMORY_MB` | 4096 |
-| `PY_SANDBOX_CPUS_PER_JOB` | 2 |
-| `PY_SANDBOX_THREADS_PER_JOB` | 2 |
-| `PY_SANDBOX_MAX_TABLES` | 8 |
-| `PY_SANDBOX_MAX_TABLE_OUTPUT_ROWS` | 100,000 |
-| `PY_SANDBOX_MAX_TABLE_PREVIEW_ROWS` | 50 |
-| `PY_SANDBOX_MAX_METRICS` | 8 |
-| `PY_SANDBOX_MAX_METRICS_BYTES` | 8000 |
-| `PY_SANDBOX_MAX_OUTPUT_BYTES` | 24,000 (model-facing result) |
-| `PY_SANDBOX_MAX_ARTIFACT_BYTES` | 64 MiB |
-| `PY_SANDBOX_MAX_CHARTS` | 8 |
-| `PY_SANDBOX_MAX_ARTIFACTS` | 8 |
-| `PY_SANDBOX_MAX_WORKDIR_BYTES` | 512 MiB |
-| `PY_SANDBOX_CONCURRENCY` | 1 |
-| `PY_SANDBOX_MAX_QUEUED` | 8 |
-| `PY_SANDBOX_SUBMIT_WAIT_SECONDS` | 25 |
-| `PY_SANDBOX_MAX_POLL_WAIT_SECONDS` | 20 |
-| `PY_SANDBOX_RETRY_AFTER_SECONDS` | 15 |
-| `PY_SANDBOX_RESULT_RETENTION_HOURS` | 24 |
-| `PY_SANDBOX_RECORD_RETENTION_DAYS` | 30 |
-| `PY_SANDBOX_CLEANUP_INTERVAL_SECONDS` | 3600 |
+| `PY_SANDBOX_DUCKDB_MEMORY_MB` | half of the memory limit (1024) |
+| `PY_SANDBOX_MAX_INTERMEDIATE_BYTES` | 1 GiB (includes DuckDB temp) |
+| `PY_SANDBOX_MAX_OUTPUT_DIR_BYTES` | 256 MiB |
+| `PY_SANDBOX_CPUS_PER_JOB` / `_THREADS_PER_JOB` | 2 / 2 |
+| `PY_SANDBOX_CONCURRENCY` / `_MAX_QUEUED` | 1 / 8 |
+| `PY_SANDBOX_VALIDATOR_UID` | 20100 |
+| `PY_SANDBOX_VALIDATOR_RUNTIME_SECONDS` / `_MEMORY_MB` | 120 / the memory limit |
+| `PY_SANDBOX_MAX_ANALYSES_PER_REQUEST` | 6 |
+| `PY_SANDBOX_MAX_CPU_SECONDS_PER_REQUEST` | 1200 |
+| `PY_SANDBOX_MAX_INPUT_BYTES_PER_REQUEST` | 1 GiB |
+| `PY_SANDBOX_MAX_SPECS_PER_REQUEST` | 10 |
+| `PY_SANDBOX_MAX_TABLES` / `_TABLE_OUTPUT_ROWS` / `_TABLE_PREVIEW_ROWS` | 8 / 100,000 / 50 |
+| `PY_SANDBOX_MAX_METRICS` / `_METRICS_BYTES` / `_OUTPUT_BYTES` | 8 / 8000 / 24,000 |
+| `PY_SANDBOX_MAX_ARTIFACT_BYTES` / `_CHARTS` / `_ARTIFACTS` | 64 MiB / 8 / 8 |
+| `PY_SANDBOX_SUBMIT_WAIT_SECONDS` / `_MAX_POLL_WAIT_SECONDS` / `_RETRY_AFTER_SECONDS` | 25 / 20 / 15 |
+| `PY_SANDBOX_RESULT_RETENTION_HOURS` / `_RECORD_RETENTION_DAYS` | 24 / 30 |
+| `PY_SANDBOX_FAILED_WORKSPACE_TTL_HOURS` / `_MAX_BYTES` | 6 / 64 MiB |
+| `PY_SANDBOX_CLEANUP_INTERVAL_SECONDS` | 900 |
 
 **Paths:**
+- `PY_SANDBOX_DATA_DIR` (`/data`, the Railway volume)
+- `PY_SANDBOX_JOBS_DIR` (`/sandbox/jobs`)
+- `PY_SANDBOX_CACHE_DIR` (`/sandbox/cache`)
+- `PY_SANDBOX_DATASET_CACHE_BYTES` (1 GiB)
+- `PY_SANDBOX_DATASET_URL_SCHEMES` (`https`; `file` is for tests only)
 
-| Variable | Default |
-|---|---|
-| `PY_SANDBOX_DATA_DIR` | `/data` (the Railway volume) |
-| `PY_SANDBOX_JOBS_DIR` | `/sandbox/jobs` |
-| `PY_SANDBOX_CACHE_DIR` | `/sandbox/cache` |
-| `PY_SANDBOX_DATASET_CACHE_BYTES` | 1 GiB |
-| `PY_SANDBOX_DATASET_URL_SCHEMES` | `https` (`file` is for local tests only) |
+## Railway service
 
-## Railway service design (not deployed)
-
-- **Service:** `market-python-sandbox`, local upload of this directory (like
-  market-sql-governor), with no public domain.
-- **Volume:** one Railway volume mounted at `/data`. Consequences:
-  - single replica;
-  - brief downtime on redeploy;
-  - in-flight analyses become `SANDBOX_RESTARTED`.
-- **Variables:**
-  - `PY_SANDBOX_API_KEY`, which market-ai-orc references;
-  - `SQL_GOVERNOR_URL=http://market-sql-governor.railway.internal:8080`;
-  - `SQL_GOVERNOR_DATASET_ACCESS_KEY`, which the Governor also receives.
-- **Changes to other services:**
-  - market-sql-governor: add `SQL_GOVERNOR_DATASET_ACCESS_KEY`.
-  - market-ai-orc: add `PY_SANDBOX_URL=http://market-python-sandbox.railway.internal:8080` and
-    `PY_SANDBOX_API_KEY`. orc registers the three analysis tools only if the sandbox reports
-    ready at orc startup.
-- **Memory:** about 3 GB for one 2 GB analysis plus the harness.
+Deployed on `dev` as `market-python-sandbox` (v1, before the validation gate). It is a local
+upload with no public domain, and the Railway volume is mounted at `/data`, so it runs as a
+single replica. `RAILWAY_CHANGELOG.md` has the details. Version 2 (the validation gate) changes
+the API contract together with market-ai-orc, so both must be deployed together. The existing
+SQLite records are migrated in place (new columns and tables only).
 
 ## Tests
 
 ```bash
 pip install -r requirements-dev.txt
-sudo pytest   # root is required for the slot-user isolation tests; they are skipped otherwise
+sudo pytest   # root is required for the isolation tests; they are skipped otherwise
 ```
 
-- `tests/test_units.py`: configuration, schema, source screen, seccomp program, helpers.
+- `tests/test_units.py`: configuration, request schema, source screen, seccomp program,
+  helpers.
+- `tests/test_gate_units.py` (no child processes):
+  - spec normalization and defaults;
+  - intent review (mismatch, clarification, unverified, Indonesian and English);
+  - logical binding;
+  - reference calculations against TA-Lib and pandas;
+  - validator decisions for acceptance scenarios A–D, F, and H;
+  - selection screens, pair correlation, cross-entity contamination, and CUSTOM levels.
 - `tests/test_sandbox.py`: real child processes covering:
-  - isolation self-test;
-  - TA-Lib RSI and CDLENGULFING with ticker partitioning, date ordering, and minimum history;
-  - rolling z-score;
-  - large-table preview and paged retrieval;
-  - chart and artifact storage;
-  - syntax, forbidden import, and kernel-denied network/subprocess/fork/multiprocessing
-    attempts;
-  - runtime, memory, row, and byte limits;
-  - forged outputs and symlinks;
-  - dataset not found, expired, and tampered;
-  - no credentials in the process;
-  - no secrets in logs;
+  - isolation;
+  - TA-Lib and time-series safety;
+  - outputs and limits;
+  - forged outputs;
+  - dataset security;
+  - no credentials in the process and no secrets in logs;
   - lifecycle, idempotency, cancel, restart, and retention.
+- `tests/test_gate_sandbox.py`: acceptance A–H through the real service, including:
+  - (A) three months requested, two calculated;
+  - (B) warm-up;
+  - (C) universe;
+  - (D) wrong window;
+  - (E) a large four-file DuckDB workspace, with measurements;
+  - (F) logical datasets;
+  - (G) cleanup and retention;
+  - (H) fabricated evidence;
+  - DuckDB and workspace boundaries in a real process;
+  - spec immutability and request scoping;
+  - request budgets.

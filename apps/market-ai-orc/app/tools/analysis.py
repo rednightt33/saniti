@@ -109,7 +109,8 @@ class SpecInput(Strict):
 
 class SpecParam(Strict):
     name: str = Field(pattern=IDENT_PATTERN)
-    value: int | float | str | bool | None
+    value: int | float | str | bool | None = Field(
+        description="The parameter value; null applies the method's approved default (recorded as APPROVED_DEFAULT).")
     provenance: Provenance
     default_id: str | None
 
@@ -245,18 +246,24 @@ RUN_DESCRIPTION = (
     "Run Python analysis in an isolated sandbox against an approved spec_id. Bind every logical input of the spec "
     "to the DATASET_READY dataset_ids that hold it (several dataset_ids may form one input only if they come from "
     "the same table with identical columns). The code runs without network, subprocess, or file access outside "
-    "its workspace. Inputs are DuckDB views named after the logical inputs: saniti.sql('SELECT ticker, date, "
-    "close FROM prices WHERE date >= ?', [ANALYSIS_START]) or saniti.load('prices', columns=[...], start=..., "
-    "end=..., entities=[...]) return bounded pandas DataFrames (filter and aggregate in SQL; large results are "
-    "refused); INPUTS lists each input's columns; SPEC is the approved spec; ANALYSIS_START, ANALYSIS_END and "
-    "REFERENCE_DATE are the resolved period. Compute on the full input history (it includes the warm-up) and emit "
-    "only rows inside the analysis period. Write intermediate Parquet only to saniti.intermediate_path(name). "
-    "Libraries: numpy, pandas, polars, pyarrow, duckdb, scipy, statsmodels, matplotlib, TA-Lib (import talib). "
-    "Helpers: iter_series, prepare_panel, panel_check, add_warning. Emit each spec output with emit_table(name, "
-    "dataframe) using the spec's output name, entity/date columns, and output_column names; also emit_metrics, "
-    "emit_chart, emit_artifact. Compute indicators per entity on date-sorted history. Nothing the code reports "
-    "about itself counts as evidence. The result has execution_status and validation_status (PASS, INCOMPLETE, "
-    "FAILED, UNVERIFIED) with validation_level, reason_codes, expected_scope, actual_scope and validation_evidence."
+    "its workspace. The helper module saniti and its functions are already imported (no import needed). Inputs "
+    "are DuckDB views named after the logical inputs. load(name, columns=[...]) returns the whole input as a "
+    "pandas DataFrame sorted by entity and date, including the warm-up history before the analysis period; "
+    "sql('SELECT ... FROM prices WHERE ...', [params]) runs DuckDB SQL (filter and aggregate in SQL; large results "
+    "are refused). Compute every indicator per entity on that full date-sorted history, then keep the period rows "
+    "with out = df[in_period(df)], which applies the approved period (including LATEST and trading-day periods) "
+    "the same way the validator does; never cut the input to the period before computing. INPUTS lists each "
+    "input's columns; SPEC is the approved spec; ANALYSIS_START, ANALYSIS_END and REFERENCE_DATE are the resolved "
+    "period. Write intermediate Parquet only to intermediate_path(name). Libraries: numpy 2, pandas 3 "
+    "(groupby().apply drops the grouping columns; prefer groupby()[col].transform), polars, pyarrow, duckdb, scipy, "
+    "statsmodels, matplotlib, TA-Lib (import talib). Helpers: iter_series, prepare_panel, panel_check, add_warning. "
+    "Emit every spec output with emit_table(output_name, dataframe, description='') (no other arguments); the "
+    "dataframe's columns must include the output's entity_column, date_column or pair_columns, and the "
+    "output_column of each calculation it lists. Also emit_metrics(dict), emit_chart(figure, name, title, "
+    "description), emit_artifact(name, data, format). print() is not a result, and nothing the code reports about "
+    "itself counts as evidence. The result has execution_status and validation_status (PASS, INCOMPLETE, FAILED, "
+    "UNVERIFIED) with validation_level, reason_codes, expected_scope, actual_scope and validation_evidence; a "
+    "CALCULATION_MISMATCH can carry a diagnosis naming the parameter or procedure the values match."
 )
 
 RESULT_DESCRIPTION = (
@@ -299,7 +306,7 @@ def model_view(result: dict[str, Any]) -> dict[str, Any]:
 
 
 def spec_view(result: dict[str, Any]) -> dict[str, Any]:
-    keys = ("status", "spec_id", "reference", "resolved_period", "required_input", "mismatches",
+    keys = ("status", "spec_id", "reference", "resolved_period", "required_input", "output_contract", "mismatches",
             "unverified_requirements", "clarification_needed", "problems", "next_action")
     view = {k: result.get(k) for k in keys if result.get(k) not in (None, [])}
     if result.get("derived_features"):

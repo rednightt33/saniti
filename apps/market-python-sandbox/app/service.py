@@ -36,8 +36,8 @@ from .models import TERMINAL, AnalysisRequest, AnalysisResult, next_action
 from .outputs import OutputRejected, OutputStore
 from .policy import check_source
 from .records import Records, utc_now
-from .spec import (SPEC_VERSION, SpecInvalid, SpecRequest, derived_feature_definitions, normalize, reference_date,
-                   required_input, resolve_period, sha256_json)
+from .spec import (SPEC_VERSION, SpecInvalid, SpecRequest, derived_feature_definitions, normalize, output_contract,
+                   reference_date, required_input, resolve_period, sha256_json)
 
 logger = logging.getLogger("market_python_sandbox")
 RUNTIME_VERSION = "market-python-sandbox/v2"
@@ -236,7 +236,8 @@ class AnalysisService:
             "resolved_period": resolved, "required_input": needs,
             "checks": result.checks, "mismatches": result.mismatches,
             "unverified_requirements": result.unverified, "clarification_needed": result.clarifications,
-            "expected_requirements": found.record(), "derived_features": features,
+            "expected_requirements": found.record(), "output_contract": output_contract(spec),
+            "derived_features": features,
             "next_action": {"APPROVED": "REQUEST_DATA_THEN_RUN_ANALYSIS",
                             "APPROVED_WITH_UNVERIFIED": "REQUEST_DATA_THEN_RUN_ANALYSIS",
                             "ANALYSIS_SPEC_MISMATCH": "REVISE_SPEC_TO_MATCH_REQUEST",

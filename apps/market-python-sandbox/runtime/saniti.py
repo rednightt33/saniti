@@ -27,8 +27,8 @@ from typing import Any
 
 __all__ = [
     "INPUTS", "SPEC", "SEED", "ANALYSIS_START", "ANALYSIS_END", "REFERENCE_DATE", "sql", "load", "load_dataset",
-    "relation", "duckdb_connection", "intermediate_path", "emit_table", "emit_metrics", "emit_chart", "emit_artifact",
-    "add_warning", "panel_check", "prepare_panel", "iter_series", "SanitiError", "InsufficientHistory",
+    "relation", "duckdb_connection", "intermediate_path", "in_period", "emit_table", "emit_metrics", "emit_chart",
+    "emit_artifact", "add_warning", "panel_check", "prepare_panel", "iter_series", "SanitiError", "InsufficientHistory",
     "DuplicateObservations", "OutputLimitExceeded", "UndeclaredOutput", "InvalidOutput", "ResultTooLarge",
 ]
 
@@ -39,6 +39,7 @@ SEED: int = 0
 ANALYSIS_START: str | None = None
 ANALYSIS_END: str | None = None
 REFERENCE_DATE: str | None = None
+_PERIOD_MODE: str | None = None
 _LIMITS: dict[str, int] = {}
 _EXPECTED: set[str] = set()
 _OUTPUT_DIR = ""
@@ -87,7 +88,7 @@ class ResultTooLarge(SanitiError):
 
 
 def _configure(runtime: dict[str, Any], job_dir: str) -> None:
-    global SEED, _OUTPUT_DIR, _INTERMEDIATE_DIR, ANALYSIS_START, ANALYSIS_END, REFERENCE_DATE
+    global SEED, _OUTPUT_DIR, _INTERMEDIATE_DIR, ANALYSIS_START, ANALYSIS_END, REFERENCE_DATE, _PERIOD_MODE
     INPUTS.clear()
     INPUTS.update({name: {k: v for k, v in info.items() if k != "view_sql"} for name, info in runtime["inputs"].items()})
     with open(_os.path.join(job_dir, "analysis_spec.json"), encoding="utf-8") as handle:
@@ -101,6 +102,7 @@ def _configure(runtime: dict[str, Any], job_dir: str) -> None:
     period = runtime.get("analysis_period") or {}
     ANALYSIS_START, ANALYSIS_END = period.get("start"), period.get("end")
     REFERENCE_DATE = period.get("reference_date")
+    _PERIOD_MODE = period.get("mode")
     _OUTPUT_DIR = _os.path.join(job_dir, "output")
     _INTERMEDIATE_DIR = _os.path.join(job_dir, "intermediate")
     _DUCKDB.clear()
@@ -199,7 +201,12 @@ def relation(name: str):
 
 def load(name: str, columns: list[str] | None = None, start: str | None = None, end: str | None = None,
          entities: list[str] | None = None, max_rows: int | None = None):
-    """Load a filtered, column-projected slice of a logical input as a pandas DataFrame (bounded)."""
+    """Load a column-projected logical input as a pandas DataFrame sorted by entity and date (bounded).
+
+    Without start/end it returns the whole input, which includes the warm-up history before the
+    analysis period: compute on it, then keep output rows with in_period(). start/end cut that
+    history off and are only for calculations that need no earlier observations.
+    """
     if name not in INPUTS:
         raise SanitiError(f"{name!r} is not an input of this analysis. Inputs: {sorted(INPUTS)}")
     info = INPUTS[name]
@@ -229,6 +236,41 @@ def load(name: str, columns: list[str] | None = None, start: str | None = None, 
     _log_access({"call": "load", "input": name, "columns": chosen[:20], "start": start, "end": end,
                  "entities": len(entities) if entities is not None else None, "rows": len(frame)})
     return frame
+
+
+def _column_for(kind: str, given: str | None) -> str | None:
+    if given is not None:
+        return given
+    names = {info.get(kind) for info in INPUTS.values()} - {None}
+    if len(names) > 1:
+        raise SanitiError(f"The inputs use different {kind}s {sorted(names)}; pass {kind}= explicitly.")
+    return next(iter(names), None)
+
+
+def in_period(frame, date_column: str | None = None, entity_column: str | None = None):
+    """Boolean mask of the rows inside the approved analysis period (a pandas Series aligned to frame).
+
+    Use it after computing on the full input history: out = frame[in_period(frame)]. For a LATEST
+    period it keeps each entity's newest row on or before the period end. Columns default to the
+    inputs' date and entity columns.
+    """
+    import pandas as pd
+
+    date_column = _column_for("date_column", date_column)
+    if date_column is None:
+        raise SanitiError("The inputs have no date column; pass date_column=.")
+    if ANALYSIS_START is None or ANALYSIS_END is None:
+        raise SanitiError("This analysis has no resolved period.")
+    dates = pd.to_datetime(frame[date_column])
+    start, end = pd.Timestamp(ANALYSIS_START), pd.Timestamp(ANALYSIS_END)
+    if _PERIOD_MODE != "LATEST":
+        return (dates >= start) & (dates <= end)
+    eligible = dates <= end
+    entity_column = _column_for("entity_column", entity_column)
+    if entity_column is None:
+        return eligible & (dates == dates[eligible].max())
+    newest = dates.where(eligible).groupby(frame[entity_column]).transform("max")
+    return eligible & (dates == newest)
 
 
 def load_dataset(name: str, columns: list[str] | None = None):

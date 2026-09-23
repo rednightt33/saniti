@@ -16,8 +16,8 @@ import reference
 import validator
 from app.intent import extract, review
 from app.logical import BindingError, GrantedFile, bind
-from app.spec import (AnalysisSpec, SpecInvalid, add_months, derived_feature_definitions, normalize, required_input,
-                      resolve_period)
+from app.spec import (AnalysisSpec, SpecInvalid, add_months, derived_feature_definitions, normalize, output_contract,
+                      required_input, resolve_period)
 from conftest import FakeGovernor, price_frame, zscore_spec
 
 REF = date(2026, 9, 23)
@@ -69,6 +69,27 @@ def test_invalid_specs_are_refused_with_every_problem(change, problem: str) -> N
     with pytest.raises(SpecInvalid) as info:
         normalized(spec)
     assert any(problem in p for p in info.value.problems), info.value.problems
+
+
+def test_null_parameter_values_take_the_approved_default() -> None:
+    spec = zscore_spec(window=20)
+    spec["calculations"] = [{"id": "corr", "method": "CORRELATION", "dataset": "prices", "columns": ["close"],
+                             "output_column": "correlation", "provenance": "USER_EXPLICIT",
+                             "params": [{"name": n, "value": None, "provenance": "USER_EXPLICIT"}
+                                        for n in ("method", "transform", "min_overlap")]}]
+    spec["universe"] = {"type": "TICKERS", "tickers": ["BBCA", "BBRI"], "provenance": "USER_EXPLICIT"}
+    spec["outputs"] = [{"name": "pair", "grain": "ENTITY_PAIR", "calculations": ["corr"],
+                        "pair_columns": ["ticker_a", "ticker_b"]}]
+    params = {p["name"]: p for p in normalize(AnalysisSpec.model_validate(spec), REF)["calculations"][0]["params"]}
+    assert {n: (p["value"], p["provenance"], p["default_id"]) for n, p in params.items()} == {
+        "method": ("PEARSON", "APPROVED_DEFAULT", "DEFAULT_CORRELATION_METHOD"),
+        "transform": ("SIMPLE_RETURN", "APPROVED_DEFAULT", "DEFAULT_CORRELATION_TRANSFORM"),
+        "min_overlap": (20, "APPROVED_DEFAULT", "DEFAULT_CORRELATION_MIN_OVERLAP")}
+    required = zscore_spec()
+    required["calculations"][0]["params"] = [{"name": "window", "value": None, "provenance": "USER_EXPLICIT"}]
+    with pytest.raises(SpecInvalid) as caught:
+        normalize(AnalysisSpec.model_validate(required), REF)
+    assert any("parameter window is required" in p for p in caught.value.problems)
 
 
 def test_period_resolution_and_required_history() -> None:
@@ -499,6 +520,27 @@ def test_latest_selection_screens_are_recomputed(sandbox_root) -> None:
         assert "SELECTION_MISMATCH" in result["reasons"]
 
 
+def test_mixed_screens_still_check_the_recalculable_predicates(sandbox_root) -> None:
+    spec = zscore_spec(period={"mode": "LATEST", "provenance": "USER_EXPLICIT"}, output_grain="ENTITY",
+                       selection=[{"calculation": "z20", "op": ">", "value": 0.0, "provenance": "USER_EXPLICIT"},
+                                  {"calculation": "flag", "op": "==", "value": 1, "provenance": "AI_INFERRED"}])
+    spec["calculations"].append({"id": "flag", "method": "CUSTOM", "dataset": "prices", "columns": ["close"],
+                                 "output_column": "flag", "formula": "1 if close > previous close else 0",
+                                 "time_alignment": "current and previous observation", "provenance": "AI_INFERRED"})
+    spec["outputs"][0]["calculations"] = ["z20", "flag"]
+    latest = zscores(FULL, start="2026-01-01").sort_values("date").groupby("ticker").tail(1).assign(flag=1)
+    good = latest[latest["zscore_20"] > 0.0]
+    result = full_job(sandbox_root, spec).postflight({"zscores": good})
+    assert (result["validation_status"], result["validation_level"]) == ("UNVERIFIED", "EXECUTION_ONLY")
+    checks = {e["check"]: e for e in result["evidence"]}
+    assert checks["output.zscores.selection.checkable"]["result"] == "PASS"
+    assert checks["output.zscores.selection"]["result"] == "SKIPPED"
+    bad = latest[latest["zscore_20"] <= 0.0].head(1)
+    assert len(bad), "fixture needs an entity with a non-positive latest z-score"
+    result = full_job(sandbox_root / "bad", spec).postflight({"zscores": pd.concat([good, bad])})
+    assert result["validation_status"] == "FAILED" and "SELECTION_MISMATCH" in result["reasons"]
+
+
 def test_pair_correlation_outputs_are_recomputed(sandbox_root) -> None:
     frame = price_frame({"BBCA": ("2026-04-01", 125), "BBRI": ("2026-04-01", 125), "TLKM": ("2026-04-01", 125)})
     spec = zscore_spec(universe="TICKERS", tickers=["BBCA", "BBRI", "TLKM"])
@@ -518,6 +560,77 @@ def test_pair_correlation_outputs_are_recomputed(sandbox_root) -> None:
     assert "CALCULATION_MISMATCH" in Job(sandbox_root / "x", spec, [("prices", [{
         "data": frame, "requested_from": "2026-04-01", "entities": ["BBCA", "BBRI", "TLKM"]}])]).postflight(
         {"matrix": pd.DataFrame(rows)})["reasons"]
+
+
+def _pair_job(root: Path) -> tuple[Job, pd.DataFrame]:
+    frame = price_frame({"BBCA": ("2026-04-01", 125), "BBRI": ("2026-04-01", 125), "TLKM": ("2026-04-01", 125)})
+    spec = zscore_spec(universe="TICKERS", tickers=["BBCA", "BBRI", "TLKM"])
+    spec["calculations"] = [{"id": "corr", "method": "CORRELATION", "dataset": "prices", "columns": ["close"],
+                             "output_column": "correlation", "provenance": "USER_EXPLICIT"}]
+    spec["outputs"] = [{"name": "matrix", "grain": "ENTITY_PAIR", "calculations": ["corr"],
+                        "pair_columns": ["ticker_a", "ticker_b"]}]
+    return Job(root, spec, [("prices", [{"data": frame, "requested_from": "2026-04-01",
+                                         "entities": ["BBCA", "BBRI", "TLKM"]}])]), frame
+
+
+def _pairs(frame: pd.DataFrame, start: str = "2026-06-24", warmup: bool = True, log: bool = False) -> pd.DataFrame:
+    df = frame.assign(date=pd.to_datetime(frame["date"])).sort_values(["ticker", "date"])
+    if not warmup:
+        df = df[df["date"] >= start]
+    close = df.groupby("ticker")["close"]
+    df["ret"] = close.transform(lambda s: np.log(s).diff()) if log else close.pct_change()
+    wide = df[df["date"] >= start].pivot(index="date", columns="ticker", values="ret")
+    return pd.DataFrame([{"ticker_a": a, "ticker_b": b, "correlation": wide[a].corr(wide[b])}
+                         for a, b in (("BBCA", "BBRI"), ("BBCA", "TLKM"), ("BBRI", "TLKM"))])
+
+
+@pytest.mark.parametrize("kwargs, finding, parameter", [
+    ({"warmup": False}, "WARMUP_NOT_USED", None),
+    ({"log": True}, "PARAMETER_DIFFERS", "transform"),
+])
+def test_pair_correlation_mismatches_are_diagnosed(sandbox_root, kwargs: dict, finding: str, parameter) -> None:
+    job, frame = _pair_job(sandbox_root)
+    result = job.postflight({"matrix": _pairs(frame, **kwargs)})
+    assert result["validation_status"] == "FAILED" and "CALCULATION_MISMATCH" in result["reasons"]
+    item = next(e for e in result["evidence"] if e.get("code") == "CALCULATION_MISMATCH")
+    assert item["diagnosis"]["finding"] == finding
+    if parameter:
+        assert item["diagnosis"]["parameter"] == parameter and item["diagnosis"]["values_match"] == "LOG_RETURN/PEARSON"
+
+
+def test_the_output_contract_names_the_columns_the_validator_reads() -> None:
+    spec = normalize(AnalysisSpec.model_validate(zscore_spec()), REF)
+    contract = output_contract(spec)
+    assert contract == [{"name": "zscores", "grain": "ENTITY_DATE", "key_columns": ["ticker", "date"],
+                         "value_columns": ["zscore_20"], "coverage": "FULL", "emit": "emit_table"}]
+    latest = normalize(AnalysisSpec.model_validate(zscore_spec(
+        period={"mode": "LATEST", "provenance": "USER_EXPLICIT"}, output_grain="ENTITY",
+        selection=[{"calculation": "z20", "op": ">", "value": 0.5, "provenance": "USER_EXPLICIT"}])), REF)
+    item = output_contract(latest)[0]
+    assert item["key_columns"] == ["ticker"] and item["optional_columns"] == ["date"]
+    assert item["coverage"] == "SELECTION" and item["selection"][0]["op"] == ">"
+
+
+def test_in_period_keeps_the_approved_period_and_each_entitys_latest_row(monkeypatch) -> None:
+    import saniti
+
+    monkeypatch.setattr(saniti, "INPUTS", {"prices": {"entity_column": "ticker", "date_column": "date"}})
+    frame = pd.DataFrame({"ticker": ["A", "A", "A", "B", "B", "C"],
+                          "date": [date(2026, 8, 27), date(2026, 8, 28), date(2026, 9, 1), date(2026, 8, 26),
+                                   date(2026, 8, 27), date(2026, 8, 28)]})
+    monkeypatch.setattr(saniti, "ANALYSIS_START", "2026-08-27")
+    monkeypatch.setattr(saniti, "ANALYSIS_END", "2026-08-28")
+    monkeypatch.setattr(saniti, "_PERIOD_MODE", "EXPLICIT_DATES")
+    assert saniti.in_period(frame).tolist() == [True, True, False, False, True, True]
+    as_text = frame.assign(date=frame["date"].astype(str))
+    assert saniti.in_period(as_text).tolist() == saniti.in_period(frame).tolist()
+    monkeypatch.setattr(saniti, "ANALYSIS_START", "2026-08-28")
+    monkeypatch.setattr(saniti, "_PERIOD_MODE", "LATEST")
+    # newest row on or before the period end per entity; B's stale latest row is still its latest
+    assert saniti.in_period(frame).tolist() == [False, True, False, False, True, True]
+    monkeypatch.setattr(saniti, "INPUTS", {"a": {"date_column": "date"}, "b": {"date_column": "day"}})
+    with pytest.raises(saniti.SanitiError, match="date_column"):
+        saniti.in_period(frame)
 
 
 def test_F_overlapping_snapshots_deduplicate_identical_rows_and_refuse_conflicts(sandbox_root) -> None:

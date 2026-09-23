@@ -489,6 +489,8 @@ def normalize(spec: AnalysisSpec, ref: date) -> dict[str, Any]:
                                 f"{sorted(definition.params)}")
             normalized = []
             for name, pdef in definition.params.items():
+                if name in params and params[name]["value"] is None:
+                    del params[name]  # null means "not chosen": the approved default applies and is marked so
                 if name in params:
                     try:
                         value = _coerce(name, pdef, params[name]["value"])
@@ -606,6 +608,30 @@ def required_input(spec: dict[str, Any], resolved: dict[str, Any], ref: date) ->
             "recommended_request_date_range": {"from": request_from.isoformat(), "to": request_to.isoformat()},
         }
     return per_input
+
+
+def output_contract(spec: dict[str, Any]) -> list[dict[str, Any]]:
+    """What each declared output must contain, as the validator will read it."""
+    calcs = {c["id"]: c for c in spec["calculations"]}
+    contract = []
+    for output in spec["outputs"]:
+        grain = output["grain"]
+        if grain == "ENTITY_PAIR":
+            keys = list(output["pair_columns"] or [])
+        elif grain == "UNSPECIFIED":
+            keys = []
+        else:
+            keys = [output["entity_column"]] + ([output["date_column"]] if grain == "ENTITY_DATE" else [])
+        item = {"name": output["name"], "grain": grain, "key_columns": keys,
+                "value_columns": [calcs[c]["output_column"] for c in output["calculations"] if c in calcs],
+                "coverage": output["coverage"], "emit": "emit_table"}
+        if grain == "ENTITY":
+            item["optional_columns"] = [output["date_column"]] if output.get("date_column") else []
+            item["at"] = output.get("at")
+        if output.get("selection"):
+            item["selection"] = output["selection"]
+        contract.append(item)
+    return contract
 
 
 def derived_feature_definitions(spec: dict[str, Any]) -> list[dict[str, Any]]:

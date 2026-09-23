@@ -96,6 +96,8 @@ def approved(**overrides: Any) -> dict[str, Any]:
                                           "recommended_request_date_range": {"from": "2026-05-15"}}},
             "checks": [{"requirement": "universe", "result": "MATCH"}] * 10, "mismatches": [],
             "unverified_requirements": [], "clarification_needed": [], "expected_requirements": {"x": 1},
+            "output_contract": [{"name": "zscores", "grain": "ENTITY_DATE", "key_columns": ["ticker", "date"],
+                                 "value_columns": ["zscore_20"], "coverage": "FULL", "emit": "emit_table"}],
             "derived_features": [{"name": "zscore_20"}], "next_action": "REQUEST_DATA_THEN_RUN_ANALYSIS", **overrides}
 
 
@@ -215,6 +217,7 @@ def test_spec_review_gets_the_real_user_messages_and_reference_time_from_the_run
     result = outcome.output["result"]
     assert result["spec_id"] == SPEC and result["required_input"]["prices"]["minimum_warmup_observations"] == 19
     assert "checks" not in result and "expected_requirements" not in result  # compact model view
+    assert result["output_contract"][0]["key_columns"] == ["ticker", "date"]  # what the code must emit
 
 
 def test_spec_review_without_a_run_context_is_refused() -> None:
