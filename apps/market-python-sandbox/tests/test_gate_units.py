@@ -555,7 +555,8 @@ def test_pair_correlation_outputs_are_recomputed(sandbox_root) -> None:
     wide = df[df["date"] >= "2026-06-24"].pivot(index="date", columns="ticker", values="ret")
     rows = [{"ticker_a": a, "ticker_b": b, "correlation": wide[a].corr(wide[b])}
             for a, b in (("BBCA", "BBRI"), ("BBCA", "TLKM"), ("BBRI", "TLKM"))]
-    assert job.postflight({"matrix": pd.DataFrame(rows)})["validation_status"] == "PASS"
+    result = job.postflight({"matrix": pd.DataFrame(rows)})
+    assert (result["validation_status"], result["validation_level"]) == ("PASS", "CALCULATION_VERIFIED")
     rows[0]["correlation"] += 0.1
     assert "CALCULATION_MISMATCH" in Job(sandbox_root / "x", spec, [("prices", [{
         "data": frame, "requested_from": "2026-04-01", "entities": ["BBCA", "BBRI", "TLKM"]}])]).postflight(

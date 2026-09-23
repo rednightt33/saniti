@@ -924,9 +924,10 @@ def aggregate(spec: dict[str, Any], evidence: Evidence, scopes: list[dict[str, A
         status = "PASS"
     scope_ok = bool(checked) and not ({"ANALYSIS_SCOPE_MISMATCH", "UNIVERSE_MISMATCH", "REQUIRED_OUTPUT_MISSING",
                                         "OUTPUT_GRAIN_VIOLATION", "SELECTION_MISMATCH"} & set(evidence.reasons))
-    emitted = {c for s in checked for c in s.get("verified_calculations", []) + s.get("unverified_calculations", [])}
-    all_verified = bool(emitted) and all(c not in refs["unverifiable"] for c in emitted) and \
-        all(not s.get("unverified_calculations") for s in scopes if s.get("checked"))
+    # Each output check reports which calculations it actually recalculated (pair correlations are recalculated by
+    # the pair check even though they have no per-entity reference series).
+    verified = {c for s in checked for c in s.get("verified_calculations", [])}
+    all_verified = bool(verified) and all(not s.get("unverified_calculations") for s in scopes if s.get("checked"))
     if status == "PASS" and all_verified:
         level = "CALCULATION_VERIFIED"
     elif scope_ok:
