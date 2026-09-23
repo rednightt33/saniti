@@ -9,6 +9,7 @@ export default defineRailway(() => {
   Postgres.networking = { privateNetworkEndpoint: "postgres", tcpProxies: { "5432": {} } };
   const postgresVolumeThQL = volume("postgres-volume-thQL", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
   const postgresVolume = volume("postgres-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
+  const marketPythonSandboxData = volume("market-python-sandbox-data", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
   const marketSqlDatasets = bucket("market-sql-datasets", { region: "sjc" });
   const marketAnalyticsInput = bucket("market-analytics-input", { region: "sin" });
   const marketSqlGovernor = service("market-sql-governor", {
@@ -18,7 +19,17 @@ export default defineRailway(() => {
     healthcheckTimeout: 120,
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "ALWAYS" },
-    env: { GOVERNOR_DATABASE_URL: preserve(), MARKET_SQL_GOVERNOR_DB_PASSWORD: preserve(), PORT: preserve(), SQL_DATASET_BUCKET_ACCESS_KEY_ID: preserve(), SQL_DATASET_BUCKET_ENDPOINT: preserve(), SQL_DATASET_BUCKET_NAME: preserve(), SQL_DATASET_BUCKET_REGION: preserve(), SQL_DATASET_BUCKET_SECRET_ACCESS_KEY: preserve(), SQL_GOVERNOR_API_KEY: preserve() },
+    env: { GOVERNOR_DATABASE_URL: preserve(), MARKET_SQL_GOVERNOR_DB_PASSWORD: preserve(), PORT: preserve(), SQL_DATASET_BUCKET_ACCESS_KEY_ID: preserve(), SQL_DATASET_BUCKET_ENDPOINT: preserve(), SQL_DATASET_BUCKET_NAME: preserve(), SQL_DATASET_BUCKET_REGION: preserve(), SQL_DATASET_BUCKET_SECRET_ACCESS_KEY: preserve(), SQL_GOVERNOR_API_KEY: preserve(), SQL_GOVERNOR_DATASET_ACCESS_KEY: preserve() },
+  });
+  const marketPythonSandbox = service("market-python-sandbox", {
+    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile" },
+    start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080",
+    healthcheck: "/ready",
+    healthcheckTimeout: 300,
+    replicas: { "sfo": 1 },
+    deploy: { restartPolicyType: "ALWAYS" },
+    volumeMounts: { "/data": marketPythonSandboxData },
+    env: { PORT: preserve(), PY_SANDBOX_API_KEY: preserve(), SQL_GOVERNOR_DATASET_ACCESS_KEY: preserve(), SQL_GOVERNOR_URL: preserve() },
   });
   const marketAiBackend = service("market-ai-backend", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-ai-backend" }),
@@ -37,7 +48,7 @@ export default defineRailway(() => {
     healthcheckTimeout: 120,
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "ALWAYS" },
-    env: { AI_MAX_TOOL_ITERATIONS: preserve(), AI_MODEL: preserve(), AI_REASONING_EFFORT: preserve(), CATALOG_DATABASE_URL: preserve(), MARKET_AI_ORC_API_KEY: preserve(), MARKET_AI_ORC_DB_PASSWORD: preserve(), OPENROUTER_API_KEY: preserve(), PORT: preserve(), SQL_GOVERNOR_API_KEY: preserve(), SQL_GOVERNOR_URL: preserve() },
+    env: { AI_MAX_TOOL_CALLS: preserve(), AI_MAX_TOOL_ITERATIONS: preserve(), AI_MODEL: preserve(), AI_REASONING_EFFORT: preserve(), CATALOG_DATABASE_URL: preserve(), MARKET_AI_ORC_API_KEY: preserve(), MARKET_AI_ORC_DB_PASSWORD: preserve(), OPENROUTER_API_KEY: preserve(), PORT: preserve(), PY_SANDBOX_API_KEY: preserve(), PY_SANDBOX_URL: preserve(), SQL_GOVERNOR_API_KEY: preserve(), SQL_GOVERNOR_URL: preserve() },
   });
   const idxPriceCron = service("idx-price-cron", {
     source: saniti,
@@ -120,6 +131,6 @@ export default defineRailway(() => {
   });
 
   return project("lucid-patience", {
-    resources: [marketSqlGovernor, marketAiBackend, marketAiOrc, idxPriceCron, telegramTrigger, marketAnalyticsWorker, DB2, telegramMonitor, idxPriceRecoveryCron, Postgres, marketQuerySandbox, aiDataCoverage, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketSqlDatasets, marketAnalyticsInput],
+    resources: [marketSqlGovernor, marketPythonSandbox, marketAiBackend, marketAiOrc, idxPriceCron, telegramTrigger, marketAnalyticsWorker, DB2, telegramMonitor, idxPriceRecoveryCron, Postgres, marketQuerySandbox, aiDataCoverage, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, marketSqlDatasets, marketAnalyticsInput],
   });
 });

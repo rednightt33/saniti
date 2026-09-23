@@ -1,5 +1,17 @@
 # Database changelog
 
+## 2026-09-23 — Register the Python analysis tools in Tool_Catalog
+
+- Applied `database/migrations/20260923_008_register_python_analysis_tools.sql` to `dev`. It was run by the temporary one-off service `sandbox-acceptance-job` (deployment `c6cf05e3-16a5-43c0-b328-8bda4e8ef1b4`), which was deleted afterwards.
+- It adds three `ORCHESTRATOR` rows (`v1`, `is_active = false`):
+  - `get_dataset_manifest` (`DISCOVERY`/`RETRIEVAL`, executor `market-sql-governor`);
+  - `run_python_analysis` (`ADVANCED`/`COMPUTATION`, executor `market-python-sandbox`);
+  - `get_analysis_result` (`ADVANCED`/`RETRIEVAL`, executor `market-python-sandbox`).
+- The input schemas were generated from the deployed market-ai-orc registry. The advertised ceilings mirror the code defaults; the Governor and sandbox configuration remain the enforcement layer.
+- It moves the six existing market-ai-orc rows from `runtime_commit = f63bebc` to `81475ae`, the deployed orc commit.
+- Verified by reading back live: 9 market-ai-orc rows, all at `runtime_commit = 81475ae`, none active. market-ai-backend therefore still lists none of them. The migration's own verify block passed as well.
+- No table, column, routine, or market-data row changed. `DATABASE_SCHEMA.md`, `Table_Catalog`, and `Column_Catalog` are unchanged.
+
 ## 2026-09-23 — Allow MIN/MAX on date columns for the SQL Governor
 
 - Applied `database/migrations/20260923_007_allow_min_max_on_date_columns.sql` to `dev` using the temporary one-off service `orc-mig007-job`, which was deleted afterwards.

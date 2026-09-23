@@ -1,5 +1,49 @@
 # Railway changelog
 
+## 2026-09-23 — Deploy market-python-sandbox and the Python analysis tools (81475ae)
+
+- **Governor dataset-access key:** generated a new 64-hex `SQL_GOVERNOR_DATASET_ACCESS_KEY` on `market-sql-governor`. It was set through stdin with `--skip-deploys` and never printed. A check confirmed it differs from `SQL_GOVERNOR_API_KEY`.
+- **New resources** (user-approved pinned IaC plan, plan file sha256 `729913afd92dfa9d…`, change set `sha256:1299b527…`; 2 safe creates, 0 changes, 0 destroys):
+  - Volume `market-python-sandbox-data` (`853e57c0-eb4c-4b48-a4ce-6bd7ffe282d8`, region `sfo`, mounted at `/data`).
+  - Service `market-python-sandbox` (`225b1be1-d7f5-4b2d-a4c7-052eb53af818`):
+    - Dockerfile build; start command `uvicorn app.main:create_app --factory` on `:8080`.
+    - Health check `/ready` (300 s), which returns `503` unless the isolation self-test passed.
+    - One replica in `sfo`, restart `ALWAYS`.
+    - Private only (`market-python-sandbox.railway.internal:8080`), no public domain, no GitHub source. It is deployed by local upload.
+- **`market-python-sandbox` variables:**
+  - `PORT=8080` and `SQL_GOVERNOR_URL=http://market-sql-governor.railway.internal:8080`.
+  - `SQL_GOVERNOR_DATASET_ACCESS_KEY` is a reference to `${{market-sql-governor.SQL_GOVERNOR_DATASET_ACCESS_KEY}}`.
+  - `PY_SANDBOX_API_KEY` is a new 64-hex secret, set through stdin.
+  - No `PY_SANDBOX_*` limit is overridden, so the code defaults apply.
+  - The service holds no PostgreSQL or bucket credential.
+- **`market-ai-orc` variables** (with `--skip-deploys`):
+  - `PY_SANDBOX_URL=http://market-python-sandbox.railway.internal:8080`.
+  - `PY_SANDBOX_API_KEY` is a reference to `${{market-python-sandbox.PY_SANDBOX_API_KEY}}`.
+  - `AI_MAX_TOOL_CALLS=20` (previously the default of 12), approved by the user with this deployment.
+- **Deployments** (each reached `SUCCESS`):
+  - Governor `92aaf788-b147-4437-88ec-6d36bbad6e96` (dataset manifest/access endpoints, tombstones). Rollback: `4c66fb87-fbe2-481a-b412-067c0d61de14`.
+  - Sandbox `4310a9f6-43e6-438f-b55e-8155155beeaf`. Its startup log records `isolation_enforced=true` and pinned library versions (Python 3.12.14, numpy 2.4.6, pandas 3.0.6, polars 1.44.2, pyarrow 25.0.1, duckdb 1.5.5, scipy 1.17.1, statsmodels 0.15.0, matplotlib 3.11.2, TA-Lib 0.8.1).
+  - market-ai-orc `a292e767-071f-4afb-8978-8e93901c34c6`: the same watch-path-compatible staging upload as before. Rollback: `44e44fdf-330b-4fb0-b6f5-83e4fde81c10`, or unset `PY_SANDBOX_URL` to unregister the two analysis tools.
+- **Temporary one-off service `sandbox-acceptance-job`** (`0e909127-145c-4b86-a87f-ed4f69322523`, deployment `c6cf05e3-16a5-43c0-b328-8bda4e8ef1b4`):
+  - Reference variables only, restart `NEVER`.
+  - It applied migration 008 (see `DATABASE_CHANGELOG.md`) and ran the live acceptance over the private network.
+  - It was deleted afterwards; the service list confirms 15 services and no temporary job.
+- **Live acceptance** (real OpenRouter model, real data):
+  - A. "RSI(14) < 30 and latest-bar bullish engulfing": `COMPLETED`/`ANSWER`, 127 s, 9 tool calls. The screen covered 841 of 844 tickers. 53 matched RSI < 30 and 12 matched bullish engulfing. The answer honestly reported 0 tickers matching both. It disclosed that RSI smoothing was seeded at the start of the extracted window.
+  - B. "Latest close > 2 SD above the 20-day rolling mean": `COMPLETED`/`ANSWER`, 112 s, 5 tool calls. It found 42 tickers, using sample SD (ddof=1). The full table is a `result_id`.
+  - C. "Daily returns, last 10 trading days, all stocks": `COMPLETED`/`ANSWER`, 330 s, 8 tool calls. It covered 842 tickers × 10 dates, and a model-chosen cross-check against `return_1d_pct` found 0 mismatches.
+  - Observation: the answers disagree on the newest date. A and C say 2026-09-22, while B's dataset contains 2026-09-23 rows. The run did not establish whether this came from the model's chosen window, source freshness at extraction time, or Feature 01 lag. The architecture addendum's reference-date and actual-scope validation targets this class of gap.
+- **Direct checks:**
+  - A 27,498-row dataset produced a full `TABLE` with a 50-row preview, in 709 ms.
+  - An unknown dataset returned `DATASET_NOT_FOUND`; a malformed id returned `422`.
+  - Sockets to PostgreSQL, the bucket endpoint, and the Governor from analysis code returned `FORBIDDEN_OPERATION`. Listing `/data` also returned `FORBIDDEN_OPERATION`.
+  - Importing `psycopg` returned `FORBIDDEN_IMPORT`.
+  - An over-allocation returned `MEMORY_LIMIT_EXCEEDED`, and `subprocess` returned `FORBIDDEN_OPERATION`.
+  - An infinite loop returned `RUNTIME_LIMIT_EXCEEDED` at 120,039 ms. A healthy job completed afterwards.
+  - Key separation: the orc API key on the access endpoint returned `401`, and the access key on `/v1/query` returned `401`.
+- **Logs:** the Governor logged 15 `sql_governor_dataset_access` events and the sandbox logged 16 `sandbox_analysis` events. Neither service's logs contain presigned URLs, `X-Amz` parameters, bearer strings, or key values.
+- Ran `railway config pull --force`. `.railway/railway.ts` now preserves the new orc variables (`PY_SANDBOX_URL`, `PY_SANDBOX_API_KEY`, `AI_MAX_TOOL_CALLS`) and the volume's live defaults, and the follow-up `railway config plan` reported `dev` up to date. No other service, domain, schedule, or source was changed.
+
 ## 2026-09-23 — Isolation probe for market-python-sandbox (temporary, deleted)
 
 - **Why:** Before the sandbox was designed, a read-only probe checked which isolation primitives Railway containers allow. The Railway docs describe containers only as "non-privileged".

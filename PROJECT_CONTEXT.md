@@ -35,6 +35,9 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - Market SQL Governor (the only path from the AI to market-data SQL; login `market_sql_governor`, SELECT on 5 AI catalogs + 7 approved market tables): `market-sql-governor`
 - Market SQL Governor service ID: `1a322795-4f93-4c51-a25e-5fcfc5ab4722` (private: `market-sql-governor.railway.internal:8080`)
 - Governor dataset bucket: `market-sql-datasets` (`62b028ba-313f-4c6a-81b3-48a9645411c1`, region `sjc`; immutable Parquet snapshots + manifests)
+- Market Python sandbox (runs model-written Python over Governor datasets; no PostgreSQL or bucket credentials, only the Governor dataset-access key): `market-python-sandbox`
+- Market Python sandbox service ID: `225b1be1-d7f5-4b2d-a4c7-052eb53af818` (private: `market-python-sandbox.railway.internal:8080`)
+- Market Python sandbox volume: `market-python-sandbox-data` (`853e57c0-eb4c-4b48-a4ce-6bd7ffe282d8`, mounted at `/data`; SQLite analysis records and result files)
 - Dashboard: <https://railway.com/project/8aef1702-030b-49cb-9df7-5ac2e0a42691?environmentId=4d3e5af2-302b-4a2e-84e2-7d7476d6ff49>
 - GitHub: <https://github.com/rednightt33/saniti>
 
@@ -57,6 +60,7 @@ All application services deploy from `rednightt33/saniti` on branch `main`. Each
 | `ai-data-coverage` | `/apps/ai-data-coverage` | `/apps/ai-data-coverage/**` |
 | `market-ai-orc` | `/apps/market-ai-orc` (local upload; GitHub source not yet connected; uploads must keep the `apps/market-ai-orc/` layout or they are skipped by the watch path) | `/apps/market-ai-orc/**` |
 | `market-sql-governor` | `/apps/market-sql-governor` (local upload; no GitHub source) | none |
+| `market-python-sandbox` | `/apps/market-python-sandbox` (local upload; no GitHub source; one replica because of the volume) | none |
 
 Connecting or changing a service source must preserve its environment variables and secrets, cron schedule, start command, health check, domain, private networking, restart/serverless policy, and database references. Source-configuration work must not use **Run now** on either price service and must not issue a TradingView query. Record the currently active deployment ID before each change so it remains available as the rollback reference, then wait for the new deployment to reach `SUCCESS` before changing the next service.
 
