@@ -2,8 +2,9 @@
 
 AI orchestration service. It receives an AI request from a trusted backend, calls
 OpenRouter, runs registered tools when the model asks for them, and returns a validated
-structured response. Phase 2 adds read-only **catalog discovery** over Saniti's five
-`AI_*` metadata tables.
+structured response. Phase 2 added read-only **catalog discovery** over Saniti's five
+`AI_*` metadata tables. Phase 3 adds **full catalog access** (every catalog row, paginated)
+and a fixed **20-row market-data preview** of seven approved tables.
 
 It was derived from `apps/market-ai-backend`. It keeps that service's proven OpenRouter
 Responses transport, bounded retry, quota handling, usage accounting, strict final-schema
@@ -11,14 +12,16 @@ validation with bounded retries, and bounded agent loop. It removes everything t
 market data: PostgreSQL, catalogs, SQL governance, query sandbox, statistical worker,
 S3 snapshots, evidence and completion gates, and analysis routing.
 
-`market-ai-orc` has **no market-data access and no bucket credentials**. Its only database
-access is optional and read-only: the `market_ai_orc` login can SELECT exactly the five
-`AI_*` catalog tables (see [Catalog discovery](#catalog-discovery)). It is stateless: the
-caller owns conversation persistence.
+`market-ai-orc` has **no market-data query access and no bucket credentials**. Its only
+database access is optional and read-only: the `market_ai_orc` login can SELECT exactly the
+five `AI_*` catalog tables (see [Catalog discovery](#catalog-discovery)) and EXECUTE one
+database function that returns at most 20 example rows from one of seven approved tables
+(see [Market-data preview](#market-data-preview)). It has no SELECT privilege on any
+market-data table. It is stateless: the caller owns conversation persistence.
 
 ## Architecture
 
-Current (Phase 2):
+Current (Phase 3):
 
 ```text
 Backend
@@ -28,7 +31,9 @@ market-ai-orc
 OpenRouter → AI model
    ↓  optional function_call
 market-ai-orc executes a registered tool → function_call_output
-   │    discover_catalog / get_catalog_details → read-only AI_* catalog metadata
+   │    discover_catalog / get_catalog_details → targeted, visibility-filtered catalog metadata
+   │    read_catalog_rows → complete AI_* catalog rows, keyset-paginated
+   │    preview_table_rows → public.ai_preview_table_rows(): ≤ 20 fixed-order example rows
    ↓  (repeat within limits)
 strict final response
    ↓
@@ -113,6 +118,10 @@ wall-clock time, output tokens, and a context ceiling checked before each provid
 | `CATALOG_DATABASE_URL` | no (secret) | unset | DSN for the catalog-only `market_ai_orc` login. When unset, the catalog tools are not registered |
 | `CATALOG_CONNECT_TIMEOUT_SECONDS` | no | `5` | Catalog connection timeout (≤ 30) |
 | `CATALOG_STATEMENT_TIMEOUT_MS` | no | `5000` | Per-statement timeout for catalog queries (100–30000) |
+| `CATALOG_PAGE_SIZE_DEFAULT` | no | `100` | `read_catalog_rows` page size when the model passes `null` (≤ `CATALOG_PAGE_SIZE_MAX`) |
+| `CATALOG_PAGE_SIZE_MAX` | no | `200` | Largest `page_size` the model may request (≤ 1000) |
+| `CATALOG_PAGE_MAX_BYTES` | no | `32000` | Serialized row budget per catalog page (4096–131072); a page ends early rather than exceeding it |
+| `MARKET_DATA_PREVIEW_ENABLED` | no | `true` | `false` unregisters `preview_table_rows` without touching the catalog tools |
 
 Secrets have no defaults, and the service refuses to start without them. It never logs API
 keys, `Authorization` headers, prompts, user messages, or provider reasoning.
@@ -211,6 +220,7 @@ registry.register(ToolSpec(
     arguments_model=RequestDataArguments,        # validates arguments AND generates the strict schema
     handler=lambda args: {...},                  # returns a JSON object
     timeout_seconds=10,
+    max_result_bytes=None,                       # optional per-tool cap; default is the registry's 32 KB
 ))
 ```
 
@@ -235,10 +245,15 @@ Guarantees:
 | `get_system_capabilities` | none | Capability flags plus `available_tools`, for example `{"catalog_discovery": true, "database_query": false, "python_analysis": false, "web_search": false, "available_tools": [...]}` |
 | `discover_catalog` | none | AI-visible tables with their catalog metadata (see below) |
 | `get_catalog_details` | `table_names`, `sections`, `column_names`, `entity_ids` | Requested catalog sections (see below) |
+| `read_catalog_rows` | `catalog_name`, `page_size`, `cursor` | One page of complete catalog rows (see [Full catalog access](#full-catalog-access)) |
+| `preview_table_rows` | `table_name` | At most 20 example rows (see [Market-data preview](#market-data-preview)) |
 
 Each capability flag is derived from the registry. It becomes `true` only when its providing
-tool (`discover_catalog`, `request_data`, `run_python_analysis`, `search_web`) is actually
-registered. The two catalog tools are registered only when `CATALOG_DATABASE_URL` is set.
+tool is actually registered: `catalog_discovery` → `discover_catalog`, `full_catalog_read` →
+`read_catalog_rows`, `market_data_preview` → `preview_table_rows`, `database_query` →
+`request_data`, `python_analysis` → `run_python_analysis`, `web_search` → `search_web`. The
+catalog tools are registered only when `CATALOG_DATABASE_URL` is set;
+`preview_table_rows` additionally requires `MARKET_DATA_PREVIEW_ENABLED=true`.
 
 ## Catalog discovery
 
@@ -259,7 +274,8 @@ All rules come from the catalog's own flags:
 | `AI_data_coverage` | its `dataset_name` is visible and that table has `coverage_enabled` |
 
 `documentation_status` (`VERIFIED`, `PARTIAL`, `NEEDS_REVIEW`) is passed through, never used
-to hide rows. A `NULL` description is returned as `null`: per `DATABASE_CATALOG.md`, the
+to hide rows. These rules apply only to the two targeted tools; both notices say so, and
+`read_catalog_rows` returns every row including the ones they hide. A `NULL` description is returned as `null`: per `DATABASE_CATALOG.md`, the
 meaning is not established and must not be inferred.
 
 ### `discover_catalog()`
@@ -317,25 +333,125 @@ Other cases are reported explicitly:
   `default_transaction_read_only=on`, `statement_timeout`, and a connect timeout. Database
   errors return a generic `TOOL_ERROR` with no server message or DSN.
 
-### Database access
+## Full catalog access
+
+`read_catalog_rows(catalog_name, page_size, cursor)` returns the complete records of one of
+the five `AI_*` catalogs: every column and every row, including rows that the visibility
+rules above hide (inactive or denied tables, disallowed or sensitive columns, disallowed
+relationships, inactive calculations). No filter is applied.
+
+| Argument | Contract |
+|---|---|
+| `catalog_name` | Exactly one of `AI_table_catalog`, `AI_column_catalog`, `AI_catalog_relationships`, `AI_calculation_catalog`, `AI_data_coverage` (enum) |
+| `page_size` | `null` for `CATALOG_PAGE_SIZE_DEFAULT` (100), or 1–`CATALOG_PAGE_SIZE_MAX` (200) |
+| `cursor` | `null` for the first page, or the exact `next_cursor` of the previous page |
+
+Result: `catalog_name`, `columns` (`name`, `type`, `nullable`, in table order), `order_by`
+(the primary-key columns), `rows` (arrays aligned to `columns`), `returned_rows`,
+`page_size`, `page_limited_by` (`PAGE_SIZE`, `BYTE_BUDGET`, or `null` on the last page),
+`total_rows`, `rows_before_this_page`, `has_more`, `next_cursor`, and `notice`.
+
+How paging stays complete:
+- **Keyset order.** Rows are ordered by the primary key, discovered at run time from
+  `pg_index`, and each page continues with `WHERE (pk...) > (last key)`. Pages never skip or
+  repeat a row of an unchanged table. If a catalog has no primary key, the tool refuses
+  rather than paging unstably.
+- **No silent truncation.** A page fetches `page_size + 1` rows to know whether more exist.
+  It ends early only to stay within `CATALOG_PAGE_MAX_BYTES`, and then says
+  `page_limited_by: "BYTE_BUDGET"` with `has_more: true`. A single row larger than the
+  budget is an explicit `TOOL_ERROR`, never a cut row.
+- **Cursor.** The cursor is base64url JSON `{"v":1,"c":catalog,"k":[last key values]}` plus a
+  truncated HMAC-SHA256. The secret is derived from `MARKET_AI_ORC_API_KEY`, so cursors
+  survive restarts and replicas. A cursor carries key values, never SQL. It is bound to its
+  catalog, and a tampered or foreign cursor is rejected. It is tamper-evident, not
+  encrypted: it holds only key values the model has already seen.
+- **Consistency.** Each page is one `REPEATABLE READ`, read-only transaction. Rows inserted or
+  deleted between two pages can appear or disappear, as with any keyset pagination. The
+  catalogs change only on pipeline refreshes.
+
+Exact values: rows are produced by PostgreSQL `to_json` and parsed with `Decimal`, so
+`numeric` values are returned as exact decimal strings (`"12345678901234567.89"`). Integers
+stay JSON integers, and dates and timestamps are ISO strings.
+
+`AI_data_coverage` has about 14k rows (about 141 pages at the default size), which is more
+than one agent run's tool budget. `get_catalog_details(..., sections=["COVERAGE"])` gives the
+aggregated status counts instead.
+
+## Market-data preview
+
+`preview_table_rows(table_name)` returns up to 20 example rows, with all columns, from one of
+seven approved tables. The only argument is the table name. There are no filters, offsets,
+custom limits, ordering choices, or pagination, so repeated calls return the same rows.
+Rows are example records, marked `is_sample: true`. They are not a random or representative
+sample and not an analytical result.
+
+| Table | Fixed order (`ordering.order_by`) | Backing index |
+|---|---|---|
+| `Feature_01_Stock_Daily` | `date DESC, ticker DESC` | `(date)` index, then top-N sort within the latest date |
+| `Feature_02_Broker_Rolling` | `date DESC, market_board DESC, ticker DESC, broker DESC, investor_type DESC` | `(date, market_board, ticker)` index, then a small incremental sort |
+| `Feature_03_Stock_Broker_Daily` | `date DESC, market_board DESC, ticker DESC` | `(date, market_board, ticker)` index |
+| `IDX_Broker_Profile` | `broker_code ASC` | primary key |
+| `IDX_Broker_Summary` | `"Date" DESC, "Symbol" DESC, "Broker" DESC, "Investor Type" DESC, "Market Board" DESC` | primary key, scanned backward |
+| `IDX_Stock_Universe` | `"Ticker" ASC` | primary key |
+| `Price_Stock_Indonesia_IDX` | `date DESC, ticker DESC` | `(date)` index, then top-N sort within the latest date |
+
+Result: `table_name`, `columns`, `rows` (arrays aligned to `columns`, with exact decimal
+strings), `returned_rows`, `row_limit: 20`, `ordering` (`order_by` and a plain-language
+`description`), `is_sample: true`, and `notice`. A preview larger than 48,000 bytes is an
+explicit `TOOL_ERROR`; a partial preview is never returned.
+
+**The database enforces the boundary.** The service calls only
+`SELECT public.ai_preview_table_rows(%s)`, with the table name bound as a value. That
+function (migration `20260923_002_create_market_ai_preview_interface.sql`):
+- maps the name through a hard-coded `CASE` allowlist and raises `insufficient_privilege`
+  for anything else;
+- composes identifiers with `format('%I')` and literals with `format('%L')`, and hard-codes
+  `ORDER BY` and `LIMIT 20`;
+- is `SECURITY DEFINER` with `search_path = pg_catalog, pg_temp`. It is owned by `NOLOGIN`
+  role `market_ai_preview_owner`, which has `SELECT` on exactly the seven tables and no
+  write privilege;
+- is executable only by `market_ai_preview_reader` (`PUBLIC` is revoked). That role has no
+  table privilege at all.
+
+The login therefore cannot read market tables directly, cannot pick another table, and
+cannot get more than 20 rows, whatever the application does. The service also checks the
+function's reply (table, `row_limit`, row count, ordering) and returns nothing if it
+disagrees.
+
+## Database access
 
 1. Apply `database/migrations/20260923_001_create_market_ai_catalog_reader.sql`. It creates
    `NOLOGIN` role `market_ai_catalog_reader` with `USAGE` on schema `public` and `SELECT` on
    exactly the five `AI_*` tables. It fails the transaction if that role could read or
    modify any other public table.
-2. Run `scripts/provision_market_ai_orc_login.py` with `DATABASE_URL` (admin) and
-   `MARKET_AI_ORC_DB_PASSWORD`. It creates or rotates login `market_ai_orc`, a member only of
-   `market_ai_catalog_reader`, with `CONNECTION LIMIT 5`,
-   `default_transaction_read_only=on`, `statement_timeout=5s`, `lock_timeout=2s`, and
-   `idle_in_transaction_session_timeout=15s`. It then verifies that the readable public
-   tables are exactly the five catalogs.
-3. Set `CATALOG_DATABASE_URL` to the private DSN for `market_ai_orc`
+2. Apply `database/migrations/20260923_002_create_market_ai_preview_interface.sql` as a
+   superuser, which is needed to hand the function to its owner role. It creates the
+   preview function and the roles `market_ai_preview_reader` and `market_ai_preview_owner`.
+   It fails the whole transaction if any of these hold: the function already exists, a
+   table is missing, the owner or reader has any privilege beyond the design, or `PUBLIC`
+   can execute the function.
+3. Run `scripts/provision_market_ai_orc_login.py` with `DATABASE_URL` (admin) and
+   `MARKET_AI_ORC_DB_PASSWORD`. It creates or rotates login `market_ai_orc` with
+   `CONNECTION LIMIT 5`, `default_transaction_read_only=on`, `statement_timeout=5s`,
+   `lock_timeout=2s`, and `idle_in_transaction_session_timeout=15s`. The login is a member
+   only of `market_ai_catalog_reader`, plus `market_ai_preview_reader` when step 2 was
+   applied. The script then verifies that the readable public tables are exactly the five
+   catalogs, and that preview EXECUTE matches membership.
+4. Set `CATALOG_DATABASE_URL` to the private DSN for `market_ai_orc`
    (`postgres.railway.internal:5432`).
+5. Run `scripts/verify_market_ai_orc_data_access.py` with that `CATALOG_DATABASE_URL`. It
+   uses the service's own tool code to read every catalog to the end, checking that rows
+   read = distinct keys = `total_rows`, and to preview each approved table. It prints only
+   counts, column names, ordering, and byte sizes, never row values.
 
 `scripts/inspect_ai_catalogs.py` is a read-only report of catalog structure, visibility
 states, sizes, and samples. It works with the `market_ai_orc` login.
 
-### Known catalog gaps
+All database access is one read-only `REPEATABLE READ` transaction per tool call, rolled
+back at the end. A timeout, a missing interface, or a permission error returns a
+generic `TOOL_ERROR` with no server message or DSN.
+
+## Known catalog gaps
 
 These are observed in the migration seed and reported, not changed:
 - `AI_calculation_catalog.definition` is copied from `Feature_Catalog.definition`. The
@@ -346,7 +462,7 @@ These are observed in the migration seed and reported, not changed:
 ## Currently unavailable capabilities
 
 These are not implemented, and no placeholder pretends they exist: SQL generation or
-execution, the SQL Governor, PostgreSQL market-data access, the legacy
+execution, the SQL Governor, market-data queries beyond the fixed 20-row preview, the legacy
 `Table_Catalog`/`Column_Catalog`/`Feature_Catalog` catalogs, a Python or DuckDB sandbox, statistical analysis (event study, backtest, regression, HMM,
 clustering), web search, RAG or vector search, long-term memory, multi-agent flows, Redis,
 frontend, and Telegram.
@@ -389,14 +505,16 @@ pip install -r requirements-dev.txt
 python -m pytest
 ```
 
-The tests mock all HTTP traffic and make no OpenRouter calls. The catalog integration tests
-in `tests/test_catalog_postgres.py` run only when `ORC_TEST_POSTGRES_URL` points to a
-disposable PostgreSQL server:
+The tests mock all HTTP traffic and make no OpenRouter calls. The integration tests in
+`tests/test_catalog_postgres.py` and `tests/test_data_access_postgres.py` run only when
+`ORC_TEST_POSTGRES_URL` points to a disposable PostgreSQL server:
 
 ```bash
 ORC_TEST_POSTGRES_URL=postgresql://postgres@127.0.0.1:55432/postgres python -m pytest
 ```
 
 They create a temporary database from the exact DDL in
-`20260922_001_create_ai_catalogs.sql`, apply the reader-role migration and the provisioning
-script, and drop everything afterwards.
+`20260922_001_create_ai_catalogs.sql`. They add the seven market tables with the exact
+columns, keys, and indexes of `DATABASE_SCHEMA.md`, filled with synthetic rows. They apply
+both migrations and the provisioning script, call every tool as the `market_ai_orc` login,
+and drop everything afterwards.

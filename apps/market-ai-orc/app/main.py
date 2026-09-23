@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import hmac
 import logging
 import sys
@@ -51,9 +52,16 @@ def create_app(
             catalog,
             catalog_timeout_seconds=(
                 settings.catalog_connect_timeout_seconds
-                + 2 * settings.catalog_statement_timeout_ms / 1000
+                + 4 * settings.catalog_statement_timeout_ms / 1000
                 + 2
             ),
+            cursor_secret=hashlib.sha256(
+                b"market-ai-orc catalog cursor:" + settings.internal_api_key.encode()
+            ).digest(),
+            page_size_default=settings.catalog_page_size_default,
+            page_size_max=settings.catalog_page_size_max,
+            page_max_bytes=settings.catalog_page_max_bytes,
+            preview_enabled=settings.market_data_preview_enabled,
         )
         orchestrator = AgentOrchestrator(settings, owned_client, registry)
     ready = {"value": False}

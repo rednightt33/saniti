@@ -128,3 +128,86 @@ CREATE TABLE public."Feature_02_Broker_Rolling" (ticker text, net_value_1d numer
 CREATE TABLE public."IDX_Broker_Summary" ("Symbol" text, "Buy Value" numeric);
 CREATE TABLE public."Table_Catalog" (table_name text);
 '''
+
+
+# --- Market-data tables for the preview interface -------------------------------------------------
+import re as _re
+
+SCHEMA_DOC = REPO_ROOT / "DATABASE_SCHEMA.md"
+PREVIEW_MIGRATION = REPO_ROOT / "database/migrations/20260923_002_create_market_ai_preview_interface.sql"
+MARKET_TABLES = (
+    "Feature_01_Stock_Daily", "Feature_02_Broker_Rolling", "Feature_03_Stock_Broker_Daily",
+    "IDX_Broker_Profile", "IDX_Broker_Summary", "IDX_Stock_Universe", "Price_Stock_Indonesia_IDX",
+)
+
+
+def _schema_section(table: str) -> str:
+    text = SCHEMA_DOC.read_text()
+    start = text.index(f"\n## {table}\n")
+    end = text.find("\n## ", start + 5)
+    return text[start:end]
+
+
+def market_columns(table: str) -> list[tuple[str, str, bool]]:
+    """(name, type, nullable) exactly as generated from the live database."""
+    return [
+        (name, data_type, nullable == "Yes")
+        for name, data_type, nullable in _re.findall(
+            r"^\| `([^`]+)` \| `([^`]+)` \| (Yes|No) \|", _schema_section(table), _re.M
+        )
+    ]
+
+
+def market_primary_key(table: str) -> list[str]:
+    match = _re.search(r"`PRIMARY KEY \(([^)]*)\)`", _schema_section(table))
+    return [part.strip().strip('"') for part in match.group(1).split(",")]
+
+
+def market_table_ddl(table: str) -> str:
+    """CREATE TABLE plus the non-primary-key indexes, verbatim from the live-generated schema."""
+    columns = ",\n  ".join(
+        f'"{name}" {data_type}{"" if nullable else " NOT NULL"}'
+        for name, data_type, nullable in market_columns(table)
+    )
+    key = ", ".join(f'"{name}"' for name in market_primary_key(table))
+    indexes = [
+        statement for statement in _re.findall(r"`(CREATE (?:UNIQUE )?INDEX [^`]+)`", _schema_section(table))
+        if "_pkey" not in statement
+    ]
+    return (f'CREATE TABLE public."{table}" (\n  {columns},\n  PRIMARY KEY ({key})\n);\n'
+            + "".join(statement + ";\n" for statement in indexes))
+
+
+def _value_expression(name: str, data_type: str, nullable: bool, key: list[str]) -> str:
+    """Deterministic synthetic values; primary keys stay unique because one text key uses g."""
+    if data_type == "date":
+        return "(date '2026-08-01' + (g % 7))"
+    if name in key and data_type in ("text", "character varying"):
+        return f"('{name[:1].upper()}' || lpad(g::text, 6, '0'))"
+    if data_type in ("text", "character varying"):
+        return "NULL" if nullable else f"('{name}-' || (g % 3))"
+    if data_type == "smallint":
+        return "(g % 20)::smallint"
+    if data_type == "numeric":
+        return "NULL" if nullable and name.endswith("_60d") else "(g * 1000.25)::numeric"
+    if data_type == "double precision":
+        return "(g * 0.125)::double precision"
+    if data_type == "timestamp with time zone":
+        return "timestamptz '2026-09-22 00:00:00+00'"
+    raise AssertionError(f"unhandled type {data_type}")
+
+
+def market_insert(table: str, rows: int) -> str:
+    key = market_primary_key(table)
+    expressions = ", ".join(
+        _value_expression(name, data_type, nullable, key) for name, data_type, nullable in market_columns(table)
+    )
+    return f'INSERT INTO public."{table}" SELECT {expressions} FROM generate_series(1, {rows}) AS g;'
+
+
+# Row counts: >20 everywhere except IDX_Broker_Profile (5) to exercise the fewer-than-20 case.
+MARKET_ROWS = {
+    "Feature_01_Stock_Daily": 60, "Feature_02_Broker_Rolling": 60, "Feature_03_Stock_Broker_Daily": 60,
+    "IDX_Broker_Profile": 5, "IDX_Broker_Summary": 60, "IDX_Stock_Universe": 30,
+    "Price_Stock_Indonesia_IDX": 60,
+}

@@ -37,6 +37,11 @@ COLUMN_NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_ ]{0,62}$")
 ENTITY_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")
 
 METADATA_NOTICE = "Catalog metadata is documentation. It contains no observed market values or calculation results."
+VISIBILITY_NOTE = (
+    "This targeted view applies the catalog visibility flags (inactive/denied tables, disallowed or "
+    "sensitive columns, disallowed relationships, inactive calculations are excluded); "
+    "read_catalog_rows returns every catalog row including those."
+)
 ABSENT_FIELDS_NOTE = "Fields absent from an entry are NULL or empty in the catalog."
 
 VISIBLE_TABLES = '''
@@ -332,7 +337,7 @@ class CatalogTools:
             "table_count": len(tables),
             "truncated": len(rows) > MAX_DISCOVERED_TABLES,
             "notice": METADATA_NOTICE + " Use get_catalog_details for columns, relationships, "
-                      "calculations, and coverage.",
+                      "calculations, and coverage. " + VISIBILITY_NOTE,
         }
         if not tables:
             result["note"] = "The AI catalog currently exposes no tables."
@@ -351,7 +356,10 @@ class CatalogTools:
                     "Call discover_catalog for valid table_name values."
                 )
 
-            base: dict[str, Any] = {"tables": tables, "notice": METADATA_NOTICE + " " + ABSENT_FIELDS_NOTE}
+            base: dict[str, Any] = {
+                "tables": tables,
+                "notice": " ".join((METADATA_NOTICE, ABSENT_FIELDS_NOTE, VISIBILITY_NOTE)),
+            }
             if unknown:
                 base["unknown_tables"] = unknown
             remaining = RESULT_BUDGET_BYTES - _size(base) - 200

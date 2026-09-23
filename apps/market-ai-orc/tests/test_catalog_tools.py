@@ -80,7 +80,7 @@ def details_args(**overrides: Any) -> dict[str, Any]:
 
 def test_catalog_tools_are_registered_and_exposed() -> None:
     registry = build_default_registry(FakeReader())
-    assert registry.names() == ["get_system_capabilities", "discover_catalog", "get_catalog_details"]
+    assert registry.names() == ["get_system_capabilities", "discover_catalog", "get_catalog_details", "read_catalog_rows", "preview_table_rows"]
     definitions = {tool["name"]: tool for tool in registry.definitions()}
     assert definitions["discover_catalog"]["parameters"]["properties"] == {}
     params = definitions["get_catalog_details"]["parameters"]
@@ -106,19 +106,39 @@ def test_capabilities_report_catalog_discovery_only() -> None:
 
 
 def test_system_prompt_ends_with_exact_data_discovery_block() -> None:
-    block = (
-        "DATA DISCOVERY RULES\nYou have access to a catalog-governed data universe.\n"
-        "Use discover_catalog to identify the available data\ntables when the user's request requires "
-        "database data.\nUse get_catalog_details to retrieve relevant column\ndefinitions, documented "
-        "table relationships,\ncalculation definitions, and data coverage.\nThe catalog tools enforce "
-        "this visibility.\nTreat catalog metadata as documentation, not as\nactual observations or "
-        "calculation results.\nDo not invent table names, columns, relationships,\nformulas, or data "
-        "availability.\nDo not claim that SQL queries or Python calculations\nhave been executed merely "
-        "because their required\ninputs were identified in the catalog.\nWhen the required execution "
-        "capability is unavailable,\nreturn a LIMITATION response explaining what has\nbeen identified "
-        "and what remains unexecuted."
-    )
+    block = """DATA DISCOVERY RULES
+You have access to a catalog-governed data universe.
+Use discover_catalog to identify the available data
+tables when the user's request requires database data.
+Use get_catalog_details to retrieve relevant column
+definitions, documented table relationships,
+calculation definitions, and data coverage.
+Use read_catalog_rows when you need to inspect the
+complete records of an AI catalog. You may retrieve
+additional pages until the required catalog records
+have been obtained.
+Use preview_table_rows when you need to inspect
+example records from an available market-data table.
+This tool returns a maximum of 20 rows per call.
+The catalog and preview tools enforce their
+respective access restrictions.
+Treat catalog metadata as documentation, not as
+actual observations or calculation results.
+Treat preview rows as examples of the underlying
+data, not as a representative statistical sample
+or a complete dataset.
+Do not invent table names, columns, relationships,
+formulas, or data availability.
+Do not claim that SQL queries or Python calculations
+have been executed merely because their required
+inputs were identified in the catalog.
+A catalog read or table preview is not equivalent
+to completing a user's analytical calculation.
+When the required execution capability is unavailable,
+return a LIMITATION response explaining what has
+been identified and what remains unexecuted."""
     assert SYSTEM_PROMPT.endswith("strict output schema.\n\n" + block)
+    assert SYSTEM_PROMPT.count("DATA DISCOVERY RULES") == 1
     assert SYSTEM_PROMPT.startswith("You are the Saniti AI orchestration agent.")
 
 
@@ -394,9 +414,7 @@ def test_agent_loop_discovers_then_reads_details_then_limits() -> None:
     assert result.status == "LIMITED" and result.response.model_dump() == limitation
     assert result.execution.tool_call_count == 2 and result.execution.iterations == 3
     first = client.payloads[0]
-    assert [tool["name"] for tool in first["tools"]] == [
-        "get_system_capabilities", "discover_catalog", "get_catalog_details",
-    ]
+    assert [tool["name"] for tool in first["tools"]] == ["get_system_capabilities", "discover_catalog", "get_catalog_details", "read_catalog_rows", "preview_table_rows"]
     assert first["instructions"] == SYSTEM_PROMPT
     outputs = [item for item in client.payloads[2]["input"] if item.get("type") == "function_call_output"]
     assert [item["call_id"] for item in outputs] == ["c_disc", "c_det"]

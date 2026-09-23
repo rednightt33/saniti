@@ -92,3 +92,25 @@ def test_catalog_database_is_optional_and_hidden_from_repr() -> None:
 def test_invalid_catalog_settings_are_rejected(name: str, value: str, message: str) -> None:
     with pytest.raises(ConfigError, match=message):
         make_settings(**{name: value})
+
+
+def test_catalog_paging_and_preview_defaults() -> None:
+    settings = make_settings()
+    assert (settings.catalog_page_size_default, settings.catalog_page_size_max) == (100, 200)
+    assert settings.catalog_page_max_bytes == 32000 and settings.market_data_preview_enabled is True
+    assert make_settings(MARKET_DATA_PREVIEW_ENABLED="false").market_data_preview_enabled is False
+
+
+@pytest.mark.parametrize(
+    ("name", "value", "message"),
+    [
+        ("CATALOG_PAGE_SIZE_DEFAULT", "300", "must not exceed CATALOG_PAGE_SIZE_MAX"),
+        ("CATALOG_PAGE_SIZE_MAX", "5000", "<= 1000"),
+        ("CATALOG_PAGE_MAX_BYTES", "1000", "at least 4096"),
+        ("CATALOG_PAGE_MAX_BYTES", "999999", "131072"),
+        ("MARKET_DATA_PREVIEW_ENABLED", "yes", "true or false"),
+    ],
+)
+def test_invalid_paging_settings_are_rejected(name: str, value: str, message: str) -> None:
+    with pytest.raises(ConfigError, match=message):
+        make_settings(**{name: value})

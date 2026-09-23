@@ -28,6 +28,7 @@ class ToolSpec:
     handler: Callable[[BaseModel], dict[str, Any]]
     timeout_seconds: float = 10.0
     enabled: bool = True
+    max_result_bytes: int | None = None
 
 
 @dataclass(frozen=True)
@@ -90,6 +91,8 @@ class ToolRegistry:
             raise ValueError(f"Tool already registered: {spec.name}")
         if spec.timeout_seconds <= 0:
             raise ValueError(f"Tool timeout must be positive: {spec.name}")
+        if spec.max_result_bytes is not None and spec.max_result_bytes <= 0:
+            raise ValueError(f"Tool result limit must be positive: {spec.name}")
         self._schemas[spec.name] = strict_parameters_schema(spec.arguments_model)
         self._tools[spec.name] = spec
 
@@ -140,9 +143,10 @@ class ToolRegistry:
             size = len(dumps(output).encode("utf-8"))
         except (TypeError, ValueError):
             return error_outcome(call_id, name, "TOOL_FAILED", f"Tool {name} returned a non-JSON result.")
-        if size > self._max_result_bytes:
+        limit = spec.max_result_bytes or self._max_result_bytes
+        if size > limit:
             return error_outcome(call_id, name, "TOOL_RESULT_TOO_LARGE",
-                                 f"Tool {name} result exceeded {self._max_result_bytes} bytes.")
+                                 f"Tool {name} result exceeded {limit} bytes.")
         return ToolOutcome(call_id=call_id, name=name, ok=True, output=output)
 
     def close(self) -> None:

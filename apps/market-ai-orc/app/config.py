@@ -23,6 +23,13 @@ def _integer(env: Mapping[str, str], name: str, default: int, minimum: int = 1) 
     return value
 
 
+def _boolean(env: Mapping[str, str], name: str, default: bool) -> bool:
+    raw = env.get(name, "true" if default else "false").strip().lower()
+    if raw not in {"true", "false"}:
+        raise ConfigError(f"{name} must be true or false")
+    return raw == "true"
+
+
 def _optional(env: Mapping[str, str], name: str) -> str | None:
     value = env.get(name, "").strip()
     return value or None
@@ -48,6 +55,10 @@ class Settings:
     catalog_database_url: str | None = field(repr=False)
     catalog_connect_timeout_seconds: int
     catalog_statement_timeout_ms: int
+    catalog_page_size_default: int
+    catalog_page_size_max: int
+    catalog_page_max_bytes: int
+    market_data_preview_enabled: bool
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -81,6 +92,10 @@ class Settings:
             catalog_database_url=_optional(env, "CATALOG_DATABASE_URL"),
             catalog_connect_timeout_seconds=_integer(env, "CATALOG_CONNECT_TIMEOUT_SECONDS", 5),
             catalog_statement_timeout_ms=_integer(env, "CATALOG_STATEMENT_TIMEOUT_MS", 5000, minimum=100),
+            catalog_page_size_default=_integer(env, "CATALOG_PAGE_SIZE_DEFAULT", 100),
+            catalog_page_size_max=_integer(env, "CATALOG_PAGE_SIZE_MAX", 200),
+            catalog_page_max_bytes=_integer(env, "CATALOG_PAGE_MAX_BYTES", 32000, minimum=4096),
+            market_data_preview_enabled=_boolean(env, "MARKET_DATA_PREVIEW_ENABLED", True),
         )
         if settings.ai_reasoning_effort not in REASONING_EFFORTS:
             raise ConfigError(
@@ -96,6 +111,10 @@ class Settings:
             raise ConfigError("CATALOG_DATABASE_URL must be a postgresql:// connection URL")
         if settings.catalog_connect_timeout_seconds > 30 or settings.catalog_statement_timeout_ms > 30000:
             raise ConfigError("Catalog connect/statement timeouts must not exceed 30 seconds")
+        if settings.catalog_page_size_default > settings.catalog_page_size_max:
+            raise ConfigError("CATALOG_PAGE_SIZE_DEFAULT must not exceed CATALOG_PAGE_SIZE_MAX")
+        if settings.catalog_page_size_max > 1000 or settings.catalog_page_max_bytes > 131072:
+            raise ConfigError("CATALOG_PAGE_SIZE_MAX must be <= 1000 and CATALOG_PAGE_MAX_BYTES <= 131072")
         if settings.ai_request_timeout_seconds > settings.ai_max_analysis_seconds:
             raise ConfigError("AI_REQUEST_TIMEOUT_SECONDS must not exceed AI_MAX_ANALYSIS_SECONDS")
         return settings
