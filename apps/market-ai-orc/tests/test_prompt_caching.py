@@ -126,3 +126,20 @@ def test_model_behavior_settings_are_unchanged() -> None:
     assert "parallel_tool_calls" not in tool_turn and "prompt_cache_key" not in tool_turn
     assert "cache_control" not in json.dumps(client.payloads)
     assert "text" not in tool_turn and "tools" in tool_turn
+
+
+def test_the_final_reask_keeps_the_tool_turn_prefix_so_it_stays_on_the_cached_provider() -> None:
+    """A prose draft on a tool turn is re-asked with the same tools and no text.format: the static prefix is
+    byte-identical, so the call stays on the provider that holds the run's cache (verified live 2026-09-24: 5/5 on
+    the same provider with ~93% cached, where the strict-format turn moved to another provider with no cache)."""
+    agent, client = orchestrator([
+        cached(tool_call_response("get_system_capabilities", call_id="c1"), 9000, 0),
+        cached(final_response("Here is what I can do: catalog discovery and Python analysis."), 9500, 8960),
+        cached(final_response(ANSWER), 9800, 9472),
+    ])
+    result, events = run_logged(agent)
+    assert result.status == "COMPLETED" and len(client.payloads) == 3
+    assert static_prefix_hash(client.payloads[2]) == static_prefix_hash(client.payloads[0])
+    assert "text" not in client.payloads[2] and client.payloads[2]["tool_choice"] == "auto"
+    summary = [e for e in events if e["event"] == "ai_model_usage_summary"][0]
+    assert summary["distinct_static_prefixes"] == 1

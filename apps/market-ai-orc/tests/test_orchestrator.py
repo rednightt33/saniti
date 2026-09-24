@@ -227,8 +227,8 @@ def test_prose_answer_on_tool_turn_is_finalized_under_strict_schema() -> None:
     assert result.status == "COMPLETED" and result.response.model_dump() == ANSWER
     assert result.execution.iterations == 3 and result.execution.tool_call_count == 1
     finalize = client.payloads[2]
-    assert "tools" not in finalize and "tool_choice" not in finalize
-    assert finalize["text"]["format"]["strict"] is True
+    # the re-ask keeps the tool-turn request (same prefix and provider); the JSON contract is in the instruction
+    assert finalize["tools"] == client.payloads[1]["tools"] and "text" not in finalize
     assert finalize["input"][-2] == {
         "role": "assistant",
         "content": "Only get_system_capabilities is available; no database or Python yet.",
@@ -241,11 +241,14 @@ def test_invalid_output_after_finalization_uses_bounded_retries() -> None:
         final_response("draft prose"),
         final_response("still not json"),
         final_response("again not json"),
+        final_response("and again not json"),
     ], AI_FINAL_RESPONSE_MAX_RETRIES="1")
     result = agent.run(request())
     assert result.error.code == "INVALID_FINAL_RESPONSE"
-    assert len(client.payloads) == 3
-    assert all("tools" not in payload for payload in client.payloads[1:])
+    assert len(client.payloads) == 4
+    # first re-ask as a tool turn, then the strict schema without tools for the bounded retries
+    assert "tools" in client.payloads[1] and "text" not in client.payloads[1]
+    assert all("tools" not in p and p["text"]["format"]["strict"] for p in client.payloads[2:])
 
 
 def test_tool_call_during_finalization_is_not_executed() -> None:

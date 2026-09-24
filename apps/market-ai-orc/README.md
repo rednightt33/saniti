@@ -136,6 +136,19 @@ reuse the prefix of one run's calls:
   grows at the end: earlier items are never rewritten, and dynamic notes (a gate's rejection, the
   context-budget instruction) are appended after them. The prefix legitimately changes when tools are
   withdrawn or the final turn switches to the strict JSON format.
+- **Final re-ask on the same prefix.** When the model drafts prose on a tool turn, the first request
+  for the final JSON response is sent exactly like a tool turn: same tools and `tool_choice`, no
+  `text.format`. `FINALIZE_INSTRUCTION` carries the JSON contract, and the answer is still parsed and
+  validated strictly. The tools are sent but not offered, so a tool call in that turn is refused
+  (`TOOLS_NOT_AVAILABLE`). Only when that answer is still invalid, or when the model calls a tool
+  there, does the next turn drop the tools and enforce the strict schema. A gate rejection reopens
+  the tools for the repair.
+
+  The reason: with `provider.require_parameters`, a strict-format turn can only run on endpoints that
+  support structured outputs. As of 2026-09-24, Relace, the endpoint OpenRouter chose for this model's
+  tool turns, advertises `tools` but not `response_format` or `structured_outputs`, so that turn had to
+  move to another provider without the run's cache. Keeping the tools while sending `tool_choice: "none"`
+  did not help: the tool definitions were dropped from the prompt, and the turn still moved provider.
 - **Usage per call** (`ai_model_call` log event): `session_id`, `iteration`, the `model` and `provider`
   that served it, `latency_ms`, and `static_prefix_sha256`, a fingerprint of everything sent except
   `input`. The usage fields are:
@@ -160,10 +173,12 @@ Measured on `dev` (2026-09-24, see `RAILWAY_CHANGELOG.md`):
   The cache ratio was 0.70 (92,416 of 132,042 prompt tokens), at $0.0065 for the run.
 - The same prompt without `session_id` already stayed sticky through OpenRouter's conversation hash
   (ratio 0.75), so `session_id` did not measurably change the ratio in that comparison.
-- The remaining miss is the structured-final turn, when the model drafted prose on a tool turn. That
-  turn withdraws tools and adds the strict JSON format, which changes the prefix. With
-  `require_parameters` it can also move to another provider. It is left unchanged pending a separate
-  decision.
+- The remaining miss was the structured-final turn, when the model drafted prose on a tool turn. That
+  turn withdrew tools and added the strict JSON format, which changed the prefix and moved the call to
+  another provider (Relace to DekaLLM).
+- The final re-ask above fixes this. In a probe of 5 runs with the production prefix, the re-ask stayed
+  on Relace with 9,728 of about 10,400 prompt tokens cached. It returned a valid final JSON and no tool
+  call every time. The strict-format turn moved to another provider every time, in 6 of 6 trials.
 
 ## Environment variables
 

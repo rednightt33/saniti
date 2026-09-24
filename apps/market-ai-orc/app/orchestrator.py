@@ -314,6 +314,7 @@ class RunState:
     tools_locked: bool = False
     tools_withdrawn_reason: str | None = None
     structured_only: bool = False
+    final_reask_sent: bool = False
     history_turns_dropped: int = 0
     # tool+arguments hash -> (consecutive executions with an unchanged result, last result hash)
     call_history: dict[str, tuple[int, str | None]] = field(default_factory=dict)
@@ -431,7 +432,9 @@ class AgentOrchestrator:
                 state.input_items.append({"role": "user", "content": CONTEXT_BUDGET_INSTRUCTION})
                 tools = []
                 context_tokens = self._estimate_context(state, tools)
-            state.tools_offered = bool(tools)
+            # On the final re-ask the tools are still sent, so the request prefix and the provider stay the same,
+            # but they are not offered: a call in that turn is refused, as in the strict final turn.
+            state.tools_offered = bool(tools) and not state.final_reask_sent
             payload = self._payload(state, tools)
             if context_tokens + self.settings.ai_max_output_tokens > self.settings.ai_max_context_tokens:
                 # Last-resort safety net: even the tool-free finalization turn does not fit.
@@ -467,6 +470,8 @@ class AgentOrchestrator:
                 raise RunFailure("CONTEXT_LIMIT", "Provider-reported input exceeded AI_MAX_CONTEXT_TOKENS")
 
             if calls:
+                if state.final_reask_sent:
+                    state.structured_only = True  # it was asked for the final response, not for a tool
                 for call in calls:
                     self._handle_call(state, call)
                 continue
@@ -481,6 +486,7 @@ class AgentOrchestrator:
                     state.input_items.append({"role": "assistant", "content": raw[:REJECTED_OUTPUT_ECHO_CHARS]})
                 state.input_items.append({"role": "user", "content": str(exc)})
                 state.structured_only = False
+                state.final_reask_sent = False
             except ValueError as exc:
                 if tools:
                     self._request_structured_final(state, raw)
@@ -882,11 +888,21 @@ class AgentOrchestrator:
         return raw or {}
 
     def _request_structured_final(self, state: RunState, raw: str) -> None:
-        """A tool turn ended with a draft answer; ask for it once more under the strict schema."""
+        """A tool turn ended with a draft answer; ask for the final response as JSON.
+
+        The first re-ask keeps the tool-turn request unchanged (same tools, no text.format), so it stays on the
+        provider that served the run and reuses its prompt cache; the contract comes from FINALIZE_INSTRUCTION
+        and the answer is still parsed and validated strictly. Only when that answer is still not a valid final
+        response does the next turn drop the tools and enforce the strict JSON schema. With
+        provider.require_parameters, that strict turn can only run on endpoints that support structured outputs,
+        which may not be the endpoint that served the tool turns (verified 2026-09-24).
+        """
         if raw.strip():
             state.input_items.append({"role": "assistant", "content": raw[:REJECTED_OUTPUT_ECHO_CHARS]})
         state.input_items.append({"role": "user", "content": FINALIZE_INSTRUCTION})
-        state.structured_only = True
+        if state.final_reask_sent:
+            state.structured_only = True
+        state.final_reask_sent = True
 
     def _reject_final(self, state: RunState, raw: str, issue: str) -> None:
         state.final_rejections += 1
