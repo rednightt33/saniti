@@ -21,16 +21,34 @@ class ProviderError(RuntimeError):
         self.status_code = status_code
 
 
-def response_usage(response: dict[str, Any]) -> dict[str, int]:
+def response_usage(response: dict[str, Any]) -> dict[str, Any]:
+    """Token usage of one provider response, including provider-side prompt caching.
+
+    OpenRouter reports cache activity in usage.input_tokens_details (Responses API) or
+    usage.prompt_tokens_details (Chat Completions): cached_tokens were read from the provider's cache,
+    cache_write_tokens were written to it. input_tokens counts every prompt token, cached or not, so
+    fresh_input_tokens = input_tokens - cached_input_tokens is what was processed without a cache hit.
+    cache_metrics_reported tells a reported zero apart from a response without cache metrics. cost is
+    OpenRouter's charged amount for the call (usage.cost), or None when the response has none.
+    """
     usage = response.get("usage") or {}
     output_details = usage.get("output_tokens_details") or usage.get("completion_tokens_details") or {}
+    input_details = usage.get("input_tokens_details") or usage.get("prompt_tokens_details")
+    details = input_details if isinstance(input_details, dict) else {}
     input_tokens = int(usage.get("input_tokens", usage.get("prompt_tokens", 0)) or 0)
     output_tokens = int(usage.get("output_tokens", usage.get("completion_tokens", 0)) or 0)
+    cached = int(details.get("cached_tokens", 0) or 0)
+    cost = usage.get("cost")
     return {
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "reasoning_tokens": int(output_details.get("reasoning_tokens", 0) or 0),
         "total_tokens": int(usage.get("total_tokens", 0) or 0) or input_tokens + output_tokens,
+        "cached_input_tokens": cached,
+        "cache_write_tokens": int(details.get("cache_write_tokens", 0) or 0),
+        "fresh_input_tokens": max(input_tokens - cached, 0),
+        "cache_metrics_reported": "cached_tokens" in details,
+        "cost": float(cost) if isinstance(cost, (int, float)) and not isinstance(cost, bool) else None,
     }
 
 

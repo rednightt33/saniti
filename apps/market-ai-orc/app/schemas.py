@@ -187,6 +187,11 @@ class ExecutionMetadata(BaseModel):
     output_tokens: int = 0
     reasoning_tokens: int = 0
     total_tokens: int = 0
+    # Provider-side prompt caching: input tokens read from / written to the provider's cache (part of
+    # input_tokens), and the cost OpenRouter reported for the run's model calls (null when none reported).
+    cached_input_tokens: int = 0
+    cache_write_tokens: int = 0
+    cost: float | None = None
     duration_ms: int = 0
     # Why tools were withdrawn before the final answer: TOOL_CALL_BUDGET or CONTEXT_BUDGET.
     tools_withdrawn_reason: Literal["TOOL_CALL_BUDGET", "CONTEXT_BUDGET"] | None = None

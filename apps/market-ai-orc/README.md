@@ -122,6 +122,36 @@ Both were verified live against OpenRouter with `deepseek/deepseek-v4.1-flash` o
 Loop protection is enforced in code: iterations, total tool calls, identical repeated calls,
 wall-clock time, output tokens, and a context ceiling checked before each provider call.
 
+### Prompt caching and model usage
+
+DeepSeek caches prompts implicitly on the provider side (OpenRouter bills a cache read at 0.1x the input
+price). This service keeps no prompt cache of its own. It only shapes the requests so the provider can
+reuse the prefix of one run's calls:
+
+- **One session per run.** Every model call of a run sends `session_id` = the run's `request_id` in the
+  Responses body. OpenRouter uses it as the sticky-routing key, so the calls of a run go to the same
+  provider endpoint. A new request is a new session.
+- **Stable prefix.** `instructions` is the constant `SYSTEM_PROMPT` (it holds no time, id, or count).
+  Tools are sent in registration order with schemas built once at registration. The conversation only
+  grows at the end: earlier items are never rewritten, and dynamic notes (a gate's rejection, the
+  context-budget instruction) are appended after them. The prefix legitimately changes when tools are
+  withdrawn or the final turn switches to the strict JSON format.
+- **Usage per call** (`ai_model_call` log event): `session_id`, `iteration`, the `model` and `provider`
+  that served it, `latency_ms`, and `static_prefix_sha256`, a fingerprint of everything sent except
+  `input`. The usage fields are:
+  - `input_tokens` (all prompt tokens);
+  - `cached_input_tokens` and `cache_write_tokens`, from `usage.input_tokens_details`, with
+    `prompt_tokens_details` as the fallback;
+  - `fresh_input_tokens` (`input_tokens - cached_input_tokens`);
+  - `cache_metrics_reported` (false when the response carried no cache fields, so a missing report is
+    not read as zero);
+  - `output_tokens` and `reasoning_tokens`;
+  - `cost`, OpenRouter's `usage.cost` for the call, or null when none was reported.
+- **Run summary** (`ai_model_usage_summary` log event): the totals above, `cache_ratio` =
+  cached / prompt tokens (null without prompt tokens), total `cost` (null when no call reported one),
+  `average_latency_ms`, and `distinct_static_prefixes`. `execution.cached_input_tokens`,
+  `execution.cache_write_tokens`, and `execution.cost` carry the same totals in the response.
+
 ## Environment variables
 
 | Variable | Required | Default | Purpose |
@@ -216,6 +246,9 @@ Response (HTTP `200` for every agent outcome, including `FAILED`):
     "output_tokens": 0,
     "reasoning_tokens": 0,
     "total_tokens": 0,
+    "cached_input_tokens": 0,
+    "cache_write_tokens": 0,
+    "cost": null,
     "duration_ms": 0,
     "tools_withdrawn_reason": null,
     "analyses": [],

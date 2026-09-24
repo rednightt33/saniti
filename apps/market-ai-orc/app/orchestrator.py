@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -280,6 +281,14 @@ def log_event(event: str, **fields: Any) -> None:
     logger.info(dumps({"event": event, **fields}))
 
 
+def static_prefix_hash(payload: dict[str, Any]) -> str:
+    """Fingerprint of everything a model call sends except the conversation (input): instructions, tools,
+    output format, and settings, serialized in the order sent. Equal fingerprints across a run's calls mean
+    the reusable prefix did not change; tools withdrawn or a final JSON format change it legitimately."""
+    static = {key: value for key, value in payload.items() if key != "input"}
+    return hashlib.sha256(json.dumps(static, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()[:16]
+
+
 @dataclass
 class RunState:
     request_id: str
@@ -291,6 +300,14 @@ class RunState:
     output_tokens: int = 0
     reasoning_tokens: int = 0
     total_tokens: int = 0
+    # Provider-side prompt caching and cost, summed over the run's model calls (see response_usage).
+    cached_input_tokens: int = 0
+    cache_write_tokens: int = 0
+    cache_metrics_calls: int = 0
+    cost: float = 0.0
+    cost_calls: int = 0
+    model_latency_ms: int = 0
+    static_prefixes: list[str] = field(default_factory=list)
     provider_response_id: str | None = None
     final_rejections: int = 0
     tools_offered: bool = False
@@ -398,6 +415,7 @@ class AgentOrchestrator:
             total_tokens=state.total_tokens,
             duration_ms=result.execution.duration_ms,
         )
+        log_event("ai_model_usage_summary", **self._usage_summary(state))
         return result
 
     def _loop(self, state: RunState) -> FinalResponse:
@@ -419,9 +437,14 @@ class AgentOrchestrator:
                 # Last-resort safety net: even the tool-free finalization turn does not fit.
                 raise RunFailure("CONTEXT_LIMIT", "Request would exceed AI_MAX_CONTEXT_TOKENS")
 
+            call_started = time.monotonic()
             response = self.client.create(payload)
+            latency_ms = int((time.monotonic() - call_started) * 1000)
             state.iterations += 1
             usage = self._add_usage(state, response)
+            state.model_latency_ms += latency_ms
+            prefix = static_prefix_hash(payload)
+            state.static_prefixes.append(prefix)
             calls = [
                 item for item in response.get("output", [])
                 if isinstance(item, dict) and item.get("type") == "function_call"
@@ -429,10 +452,15 @@ class AgentOrchestrator:
             log_event(
                 "ai_model_call",
                 request_id=state.request_id,
+                session_id=payload["session_id"],
                 iteration=state.iterations,
+                model=response.get("model") or self.settings.ai_model,
+                provider=response.get("provider"),
                 provider_response_id=response.get("id"),
+                static_prefix_sha256=prefix,
                 tools_offered=[tool["name"] for tool in tools],
                 tools_requested=[str(call.get("name")) for call in calls],
+                latency_ms=latency_ms,
                 **usage,
             )
             if usage["input_tokens"] > self.settings.ai_max_context_tokens:
@@ -463,6 +491,9 @@ class AgentOrchestrator:
     def _payload(self, state: RunState, tools: list[dict[str, Any]]) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "model": self.settings.ai_model,
+            # One session per run: OpenRouter uses it as the sticky-routing key, so every call of the run
+            # goes to the same provider endpoint and can reuse its implicit prompt cache.
+            "session_id": state.request_id,
             "instructions": SYSTEM_PROMPT,
             "input": state.input_items,
             "reasoning": {"effort": self.settings.ai_reasoning_effort},
@@ -876,14 +907,42 @@ class AgentOrchestrator:
         })
         state.structured_only = True
 
-    def _add_usage(self, state: RunState, response: dict[str, Any]) -> dict[str, int]:
+    def _add_usage(self, state: RunState, response: dict[str, Any]) -> dict[str, Any]:
         usage = response_usage(response)
         state.input_tokens += usage["input_tokens"]
         state.output_tokens += usage["output_tokens"]
         state.reasoning_tokens += usage["reasoning_tokens"]
         state.total_tokens += usage["total_tokens"]
+        state.cached_input_tokens += usage["cached_input_tokens"]
+        state.cache_write_tokens += usage["cache_write_tokens"]
+        state.cache_metrics_calls += int(usage["cache_metrics_reported"])
+        if usage["cost"] is not None:
+            state.cost += usage["cost"]
+            state.cost_calls += 1
         state.provider_response_id = response.get("id") or state.provider_response_id
         return usage
+
+    def _usage_summary(self, state: RunState) -> dict[str, Any]:
+        """Run-level model usage: logical prompt tokens versus what the provider served from its cache."""
+        return {
+            "request_id": state.request_id,
+            "session_id": state.request_id,
+            "model": self.settings.ai_model,
+            "model_calls": state.iterations,
+            "prompt_tokens": state.input_tokens,
+            "cached_input_tokens": state.cached_input_tokens,
+            "cache_write_tokens": state.cache_write_tokens,
+            "fresh_input_tokens": max(state.input_tokens - state.cached_input_tokens, 0),
+            "completion_tokens": state.output_tokens,
+            "reasoning_tokens": state.reasoning_tokens,
+            "total_tokens": state.total_tokens,
+            "cache_ratio": round(state.cached_input_tokens / state.input_tokens, 4) if state.input_tokens else None,
+            "cache_metrics_reported_calls": state.cache_metrics_calls,
+            "cost": round(state.cost, 8) if state.cost_calls else None,
+            "cost_reported_calls": state.cost_calls,
+            "average_latency_ms": round(state.model_latency_ms / state.iterations) if state.iterations else None,
+            "distinct_static_prefixes": len(dict.fromkeys(state.static_prefixes)),
+        }
 
     @staticmethod
     def _output_text(response: dict[str, Any]) -> str:
@@ -931,6 +990,9 @@ class AgentOrchestrator:
             output_tokens=state.output_tokens,
             reasoning_tokens=state.reasoning_tokens,
             total_tokens=state.total_tokens,
+            cached_input_tokens=state.cached_input_tokens,
+            cache_write_tokens=state.cache_write_tokens,
+            cost=round(state.cost, 8) if state.cost_calls else None,
             duration_ms=int((self.clock() - state.started) * 1000),
             tools_withdrawn_reason=state.tools_withdrawn_reason,
             analyses=[AnalysisSummary(**{k: v for k, v in a.items() if k != "error_code"})

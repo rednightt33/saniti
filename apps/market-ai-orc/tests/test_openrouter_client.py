@@ -149,15 +149,42 @@ def test_errors_never_contain_the_api_key() -> None:
     assert "Bearer" not in str(raised.value)
 
 
+NO_CACHE = {"cached_input_tokens": 0, "cache_write_tokens": 0, "cache_metrics_reported": False, "cost": None}
+
+
 def test_response_usage_reads_responses_and_legacy_fields() -> None:
     assert response_usage({
         "usage": {"input_tokens": 10, "output_tokens": 4,
                   "output_tokens_details": {"reasoning_tokens": 3}, "total_tokens": 14}
-    }) == {"input_tokens": 10, "output_tokens": 4, "reasoning_tokens": 3, "total_tokens": 14}
+    }) == {"input_tokens": 10, "output_tokens": 4, "reasoning_tokens": 3, "total_tokens": 14,
+           "fresh_input_tokens": 10, **NO_CACHE}
     assert response_usage({
         "usage": {"prompt_tokens": 7, "completion_tokens": 2,
                   "completion_tokens_details": {"reasoning_tokens": 1}}
-    }) == {"input_tokens": 7, "output_tokens": 2, "reasoning_tokens": 1, "total_tokens": 9}
+    }) == {"input_tokens": 7, "output_tokens": 2, "reasoning_tokens": 1, "total_tokens": 9,
+           "fresh_input_tokens": 7, **NO_CACHE}
     assert response_usage({}) == {
         "input_tokens": 0, "output_tokens": 0, "reasoning_tokens": 0, "total_tokens": 0,
+        "fresh_input_tokens": 0, **NO_CACHE,
     }
+
+
+def test_response_usage_reads_prompt_cache_and_cost() -> None:
+    # Responses API: cache activity in input_tokens_details, OpenRouter's charge in usage.cost
+    usage = response_usage({"usage": {"input_tokens": 12554, "output_tokens": 634, "total_tokens": 13188,
+                                      "input_tokens_details": {"cached_tokens": 8721, "cache_write_tokens": 0},
+                                      "cost": 0.00053}})
+    assert (usage["cached_input_tokens"], usage["fresh_input_tokens"], usage["cache_write_tokens"]) == (8721, 3833, 0)
+    assert usage["cache_metrics_reported"] is True and usage["cost"] == 0.00053
+    # Chat Completions shape
+    usage = response_usage({"usage": {"prompt_tokens": 100, "completion_tokens": 5,
+                                      "prompt_tokens_details": {"cached_tokens": 64, "cache_write_tokens": 36}}})
+    assert (usage["cached_input_tokens"], usage["cache_write_tokens"], usage["fresh_input_tokens"]) == (64, 36, 36)
+    # A reported zero is not the same as no report; malformed values never crash
+    assert response_usage({"usage": {"input_tokens": 5, "input_tokens_details": {"cached_tokens": 0}}})[
+        "cache_metrics_reported"] is True
+    usage = response_usage({"usage": {"input_tokens": 5, "input_tokens_details": None, "cost": True}})
+    assert usage["cache_metrics_reported"] is False and usage["cost"] is None
+    # cached can never make fresh negative
+    assert response_usage({"usage": {"input_tokens": 5, "input_tokens_details": {"cached_tokens": 9}}})[
+        "fresh_input_tokens"] == 0

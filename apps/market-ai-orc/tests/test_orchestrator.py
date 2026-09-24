@@ -345,8 +345,9 @@ def test_logs_are_structured_and_never_contain_secrets_or_prompts() -> None:
         service_logger.removeHandler(handler)
         service_logger.setLevel(previous_level)
     events = [json.loads(message) for message in handler.messages]
-    assert [event["event"] for event in events] == ["ai_model_call", "ai_model_call", "ai_run_completed"]
-    summary = events[-1]
+    assert [event["event"] for event in events] == ["ai_model_call", "ai_model_call", "ai_run_completed",
+                                                    "ai_model_usage_summary"]
+    summary = events[-2]
     assert summary["status"] == "COMPLETED" and summary["tool_calls"] == 1
     assert summary["tools_requested"] == ["get_system_capabilities"]
     joined = "\n".join(handler.messages)
@@ -421,8 +422,8 @@ def test_soft_context_limit_withdraws_tools_and_finalizes_instead_of_failing() -
     blobs = [json.loads(item["output"])["result"]["blob"] for item in outputs(final)]
     assert [len(blob) for blob in blobs] == [21000, 21001]
     events = [json.loads(message) for message in handler.messages]
-    assert events[-1]["event"] == "ai_run_completed"
-    assert events[-1]["tools_withdrawn_reason"] == "CONTEXT_BUDGET"
+    assert events[-2]["event"] == "ai_run_completed"
+    assert events[-2]["tools_withdrawn_reason"] == "CONTEXT_BUDGET"
     assert not any("xxxxxxxx" in message or "context budget" in message for message in handler.messages)
 
 
