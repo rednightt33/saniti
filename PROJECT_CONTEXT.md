@@ -30,7 +30,7 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - Telegram command service ID: `5a3f820c-2bb2-494b-b771-15fa6a5eb48a`
 - Telegram command service instance ID: `78bd93d5-f74a-42fb-ad25-2be856bbda07`
 - Market AI backend service: `market-ai-backend`
-- Market AI orchestrator (stateless; read-only `market_ai_orc` login: SELECT on the five `AI_*` catalogs and EXECUTE on the 20-row preview function `public.ai_preview_table_rows`, no direct market-data table access): `market-ai-orc`
+- Market AI orchestrator (stateless; `market_ai_orc` login: SELECT on the `AI_*` catalogs, EXECUTE on the 20-row preview function `public.ai_preview_table_rows`, and INSERT only on `AI_research_run_audit` through `market_ai_research_audit_writer`; no direct market-data table access): `market-ai-orc`
 - Market AI orchestrator service ID: `41dc17ee-3bac-41ef-90ec-8b9356815c71` (private: `market-ai-orc.railway.internal:8080`)
 - Market SQL Governor (the only path from the AI to market-data SQL; login `market_sql_governor`, SELECT on 5 AI catalogs + 7 approved market tables): `market-sql-governor`
 - Market SQL Governor service ID: `1a322795-4f93-4c51-a25e-5fcfc5ab4722` (private: `market-sql-governor.railway.internal:8080`)
@@ -142,6 +142,7 @@ Telegram owner -> telegram-trigger webhook -> validate webhook secret and Chat I
 - `AI_table_catalog`, `AI_column_catalog`, `AI_catalog_relationships`, and `AI_calculation_catalog`: compact AI-facing metadata for exactly the seven approved market-data tables; the original catalogs remain authoritative and preserved.
 - `AI_data_coverage`: actual raw-source coverage and explicitly labelled expected derived-table coverage. Only the `ai-data-coverage` job writes this table.
 - `AI_research_catalog`: global reference catalog of 18 analysis methods for the orchestrator, all `REFERENCE_ONLY` (documentation, not installed or validated sandbox code). SELECT is granted only to `market_ai_catalog_reader`; the SQL Governor role has no access. Exposed through `discover_catalog`, `get_catalog_details` (RESEARCH section), and `read_catalog_rows`, all active in `Tool_Catalog`.
+- `AI_research_run_audit`: one INSERT-only audit row per `market-ai-orc` run (question, final answer, evidence label, gate outcome, experiments with their Research Governor, validation and evidence decisions, datasets by id and checksum). Written by the orchestrator through `market_ai_research_audit_writer`; the run's operational state stays in the `market-python-sandbox` SQLite store.
 - `AI_formula_reference`: global reference catalog of 200 documented calculation formulas for the orchestrator (no per-row status column; every tool response notes these are documentation, not verified or executable implementations). Same access pattern as `AI_research_catalog`: SELECT only to `market_ai_catalog_reader`, no Governor access. Exposed through the same three tools (FORMULAS section, `formula_catalog` count, and `read_catalog_rows`).
 - `Monitoring_Price_ALL`: per-execution daily/recovery completeness, trigger source, query time, missing symbols, and status grouped by the universe `Security Type` value.
 - `Telegram_Command_Log`: incoming Telegram Run Now audit, webhook-retry deduplication, and rapid-click blocking.

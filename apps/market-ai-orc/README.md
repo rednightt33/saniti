@@ -765,6 +765,13 @@ frontend, and Telegram.
 - Catalog and preview access are live. Migrations `20260923_001`–`003` are applied, and the
   `market_ai_orc` login is provisioned. `CATALOG_DATABASE_URL` is a Railway reference built
   from `MARKET_AI_ORC_DB_PASSWORD` and the `Postgres` service's private domain.
+- The run audit is live (migration `20260924_004`). `RESEARCH_AUDIT_DATABASE_URL` is the same
+  reference template as `CATALOG_DATABASE_URL`: the `market_ai_orc` login also holds the
+  INSERT-only `market_ai_research_audit_writer` role.
+- Capacity on `dev` (since the Research AI release): `AI_MAX_TOOL_CALLS=60`,
+  `AI_MAX_TOOL_ITERATIONS=60`, `AI_MAX_CONTEXT_TOKENS=500000` (the model's window is 1,048,576),
+  and `AI_MAX_ANALYSIS_SECONDS=1800`. A caller of `/v1/agent/run` needs an HTTP timeout above
+  1800 s.
 
 ## Run locally
 

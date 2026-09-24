@@ -1,5 +1,67 @@
 # Railway changelog
 
+## 2026-09-24 — Deploy the Research AI release: Research Governor, event studies, evidence assessment, claim gate, run audit (commit bc589d3)
+
+- Scope approved by the user: apply migration `20260924_004`, deploy `market-sql-governor`, `market-python-sandbox` and `market-ai-orc`, set the 3x capacity limits and `RESEARCH_AUDIT_DATABASE_URL`, and run the live PoC.
+  - Local suites on the release tree: sandbox 206, orc 373, Governor 135 passed. The migration was rehearsed on a scratch database.
+  - `origin/main` had no new commits, so the release is the feature branch fast-forwarded.
+- **Pre-deploy checks:**
+  - OpenRouter's models API reports `deepseek/deepseek-v4.1-flash` with a 1,048,576-token context window, so `AI_MAX_CONTEXT_TOKENS=500000` is below the model limit. Listed pricing is $0.14/M input, $0.42/M output, and $0.0042/M cache read.
+  - No caller of `/v1/agent/run` exists in the repository besides the temporary jobs. The private network has no proxy timeout, and the job's HTTP timeout is 1900 s, above `AI_MAX_ANALYSIS_SECONDS`.
+  - A SQLite file in the old schema, written by the code at `ca10721`, opened cleanly with the new code: columns were added, old rows read back, and reopening was idempotent.
+- **Rollback references**, recorded before deploying: Governor `ddd1d851-a0c8-4dc8-9361-e2333018db7a`, sandbox `d7f57f10-6fc1-4bee-a231-a76b3716c3d5`, orc `7f463b78-19a9-4b15-8e30-5b0d8b8254ea`.
+  - The orc v3 tool contract, sandbox research fields, and Governor units ship together, so these three roll back together.
+  - Rolling back does not remove `AI_research_run_audit`. With an older orc, the table simply stops receiving rows.
+- **Variables**, all set with `--skip-deploys` before deploying:
+  - `market-python-sandbox`: `PY_SANDBOX_MAX_ANALYSES_PER_REQUEST=18`, `PY_SANDBOX_MAX_SPECS_PER_REQUEST=30`, `PY_SANDBOX_MAX_CPU_SECONDS_PER_REQUEST=3600`. These were code defaults (6, 10, 1200) and are now explicit.
+  - `market-ai-orc`:
+    - `AI_MAX_TOOL_CALLS` 20 → 60.
+    - `AI_MAX_TOOL_ITERATIONS` 20 → 60.
+    - `AI_MAX_CONTEXT_TOKENS=500000` (was the code default 64000).
+    - `AI_MAX_ANALYSIS_SECONDS=1800` (was the code default 600).
+    - `RESEARCH_AUDIT_DATABASE_URL` (secret): a reference template, `postgresql://market_ai_orc:${{MARKET_AI_ORC_DB_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:5432/${{Postgres.PGDATABASE}}`. It is the same template as `CATALOG_DATABASE_URL`: the `market_ai_orc` login now also holds the INSERT-only `market_ai_research_audit_writer` role. A read-back confirmed it resolves, equals the catalog DSN, and has no unresolved reference. Its value was never printed.
+- **Deployed** by local upload (`railway up <app> --path-as-root`, clean `git archive` of `bc589d3`), one at a time. Each deployment reached `SUCCESS`:
+  - Governor `8682d991-986d-4c4d-8916-d3f9335dabb6`.
+  - Sandbox `3d38acaf-eff8-43f8-9f36-2319af6c7f8f`. Startup logged `isolation_enforced=true`, 0 interrupted analyses, and `/ready` 200.
+  - Orc `7fe7f1f6-0adf-4dd5-b118-4aa01b99d51d`, `/ready` 200.
+- **Temporary one-off service** `research-deploy-job` (`8a6534be-787a-4971-8666-6de0b60c9537`): reference variables only (`DATABASE_URL`, `MARKET_AI_ORC_API_KEY`, `PY_SANDBOX_API_KEY`, `SQL_GOVERNOR_API_KEY`), redacted from its output, deleted afterwards. Deployments:
+  - `539a778e` applied migration 004. Its own read-back query failed on a wrong column name after the commit.
+  - `22721042` read back read-only.
+  - `0618e56d` ran the live PoC.
+  - `6b682dc0` ran the controlled event study and the catalog/schema sync.
+- **Live PoC** (§71 of the Research AI spec) over the private network with the real model, reported as observed:
+
+  | Run | Result | Tool calls | Tokens | Time | Note |
+  |---|---|---|---|---|---|
+  | poc-1 standard: "z-score rolling 20 hari … BBCA, BBRI, TLKM … 3 bulan terakhir" | `ANSWER`, `CALCULATION_VERIFIED`, gate `PASSED` | 7 | 119,253 | 113.5 s | 186/186 values recalculated and matching; experiment `RETAINED`; audit row written |
+  | poc-2 custom formula: upper-shadow ratio 10-day mean, BBCA and BBRI, "dari 1 Juli sampai 31 Agustus 2026" | `LIMITATION` | 15 | 545,324 | 140.1 s | **Failed.** Every spec was refused `ANALYSIS_SPEC_MISMATCH` by the sandbox intent review, for two reasons. First, "tiap saham" is read as an all-stocks universe. Second, "1 Juli sampai 31 Agustus 2026" is read as August 2026 only. The model correctly did not bend the user's parameters. |
+  | poc-3 event study: "turun lebih dari 7% dalam sehari … 5 hari … 2 Januari 2025 sampai 31 Juli 2026" | `LIMITATION` | 5 | 126,494 | 48.8 s | **Not exercised.** The model never called `create_analysis_spec` and answered with a limitation after catalog discovery. |
+  | poc-4 ambiguous: "Saham bank mana yang bagus sekarang?" | `CLARIFICATION` | 3 | 49,933 | 32.6 s | Asked for the criterion, period and universe; disclosed that fundamentals are unavailable |
+  | poc-5 pairwise correlation across all IDX stocks in 2025 | `LIMITATION` | 4 | 71,483 | 29.5 s | Refused by spec validation (`INVALID_SPEC`: a pairwise output needs a TICKERS universe), not by the Research Governor. The model did not propose a bounded universe. |
+
+- **Controlled checks** through the live services (direct API, labelled as injected; they test the gates, not the model):
+  - An approved z-score spec for BBCA/BBRI/TLKM received a Governor dataset of 258 rows, `COMPLETE`. The manifest reports `unit: null` for `close`, because `AI_column_catalog.unit` is empty for the price table, so the unit preflight has nothing to compare yet.
+  - Injected wrong window 10 → `FAILED`, `CALCULATION_MISMATCH` on 186/186 values, diagnosis `PARAMETER_DIFFERS` (`window`, spec 20, values match 10), evidence `INVALID`.
+  - The correct window 20 → `PASS`, `CALCULATION_VERIFIED`, evidence `SUPPORTED`/`OBSERVATION`.
+  - A `HISTORICAL_PATTERN` research spec without an event study → Research Governor `REPLAN_REQUIRED`, `MISSING_BASELINE_DEFINITION`, `next_action=REVISE_SPEC`, with the 18-experiment and 4-hypothesis budget shown.
+  - **Controlled live event study** (`poc-direct-event`), for all IDX stocks from 2025-01-02 to 2026-06-30: a 20-day z-score below −1.5, followed by the 5-day forward return from the next open.
+    - Spec `APPROVED`; the Research Governor reserved experiment 1/18 and hypothesis 1/4. Resubmitting the same spec replayed the same `spec_id`, so no budget was consumed twice.
+    - First data request, one unfiltered 602-day range: the SQL Governor answered `NEEDS_NARROWING`/`DATE_RANGE_TOO_LARGE`, because unfiltered requests are capped at 400 days.
+    - Split into two requests and bound as one logical input: 201,031 + 108,740 rows, 843 tickers, both `COMPLETE`.
+    - The sandbox preflight refused it `INSUFFICIENT_WARMUP_HISTORY`. 26 thinly traded tickers had fewer than 19 observations inside the recommended request range (from 2024-11-23). Their remedy text, "request data from 2024-11-23 or earlier", repeats the range already requested.
+    - A retry starting 90 days earlier (199,039 + 160,495 rows) still left 2 tickers (CSMI, TFCO) short and was refused the same way.
+    - Evidence was `INSUFFICIENT_EVIDENCE` both times; no finding was produced. The event-study recalculation itself was therefore not reached on live data; it is covered by the local fixture tests only.
+    - The two attempts ran as analyses 1 and 2 of that request's 18.
+- **Run audit:** each of the 5 orc runs wrote one `AI_research_run_audit` row through the `market_ai_orc` login.
+  - poc-1 carries its experiment (code hash, dataset id and checksum), budget, and `sandbox_summary_status=REPORTED`.
+  - The other four carry `NOT_USED`, because no analysis ran. Refused specs are not stored by the sandbox, so they are visible only in logs, not in the audit row.
+- **Catalog and schema refresh** (deployment `6b682dc0-2159-4aa0-9232-b74a94998e97`):
+  - `scripts/sync_database_catalog.py` reported `Catalog reconciled: 628 physical columns, 21 updated`, the physical facts of the new table's columns. `scripts/sync_database_schema.py` reported `Synchronized 38 tables`.
+  - The regenerated `DATABASE_SCHEMA.md` came back as gzip+base64 chunks and was verified locally by sha256 (`37347e25…`, 153,842 bytes). Its only changes are timestamp drift and the new `AI_research_run_audit` section.
+- Deleted `research-deploy-job` with `railway service delete`; the environment is back to its 15 services. Then ran `railway config pull --force`: `.railway/railway.ts` now preserves the new variable names (three `PY_SANDBOX_MAX_*`, `AI_MAX_ANALYSIS_SECONDS`, `AI_MAX_CONTEXT_TOKENS`, `RESEARCH_AUDIT_DATABASE_URL`), without values. `railway config plan` reported the configuration up to date.
+- The job's output (all six deployments) and the three new deployments' logs were scanned: no bearer token, OpenRouter key, DSN with a password, AWS key id, or presigned-URL signature. A direct in-process comparison against the 13 secret and URL variable values of the three services also found none of them in any log. The 64-hex strings in the logs are sha256 checksums (spec, code, dataset, query).
+- No other service's variables, source, schedule, volume, domain, or restart policy was changed.
+
 ## 2026-09-24 — Deploy the fact/analysis split: Governor dataset-only + lookup, sandbox v2 validation gate, orc answer gates (commit 1361644)
 
 - Scope approved by the user: one joint release of migration 009, `market-sql-governor`, `market-python-sandbox` v2, and `market-ai-orc`. Before deploying, `origin/main` was found eight commits ahead (the `AI_research_catalog` and `AI_formula_reference` rollouts, deployed to `market-ai-orc` as `89ed23b6` at 09:17 UTC). The feature branch merged `origin/main` cleanly as `1361644`, so the release keeps those features. The orc, Governor, and sandbox suites pass on the merged tree (363, 118, 164 tests; local PostgreSQL 16 for the database tests). Governor and sandbox code was not touched by those main commits.

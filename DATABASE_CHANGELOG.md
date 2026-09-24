@@ -1,5 +1,28 @@
 # Database changelog
 
+## 2026-09-24 — Create AI_research_run_audit and register the Research AI tool contracts (migration 20260924_004)
+
+- Applied `database/migrations/20260924_004_create_research_run_audit.sql` to `dev` at 12:11 UTC. It was run by the temporary one-off service `research-deploy-job` (`8a6534be-787a-4971-8666-6de0b60c9537`, deployment `539a778e-2b47-411f-a42a-c19ee919334f`), which was deleted afterwards. The migration is one transaction; its preflight and `$verify$` blocks passed and it committed.
+  - Creates `public."AI_research_run_audit"`: one INSERT-only summary row per market-ai-orc run (question, final answer, their sha256, evidence label, gate outcome, limitations, number provenance, experiments, datasets by id and checksum, budget, model, tool calls, tokens, duration, sandbox summary status).
+    - 21 columns, primary key `request_id`, and nine check constraints (request id pattern, status, response type, gate, hashes, text lengths, JSON types, counts, sandbox status).
+    - Index `ai_research_run_audit_recorded_idx` on `recorded_at`.
+  - Creates the NOLOGIN role `market_ai_research_audit_writer` with INSERT only on that table, granted to `market_ai_orc`. `PUBLIC` is revoked.
+  - Registers the table in `Table_Catalog` (`System`, `VERIFIED`) and its 21 columns in `Column_Catalog`.
+  - `Tool_Catalog`: inserts `create_analysis_spec` v2, `run_python_analysis` v3 and `get_analysis_result` v3 at `runtime_commit="0e0234c"`, all `is_active=false`, and marks `create_analysis_spec` v1, `run_python_analysis` v2 and `get_analysis_result` v2 with `superseded_by`. The capabilities purpose names the Research AI features.
+- Read back live in a read-only session (deployment `22721042-d899-4abc-9730-86de42b6a5c7`):
+  - 21 columns with the expected types, nullability, and defaults; 25 constraints in `pg_constraint` (15 not-null, 1 primary key, 9 checks); 2 indexes (the primary key and `ai_research_run_audit_recorded_idx`).
+  - `market_ai_research_audit_writer`: `rolcanlogin=false`, `rolsuper=false`.
+  - `market_ai_orc`:
+    - Privileges on the table: INSERT true; SELECT, UPDATE, DELETE and TRUNCATE all false.
+    - Memberships: `market_ai_catalog_reader`, `market_ai_preview_reader`, `market_ai_research_audit_writer`.
+  - `market_sql_governor`, `market_ai_sql_reader`, `market_ai_catalog_reader` and `market_ai_preview_reader` have no privilege on the table, and neither does `PUBLIC`.
+  - **Also found:** `pgweb_reader` has SELECT on the new table. The migration did not grant it; it comes from default privileges for tables created by `postgres`, set outside this repository for the `pgweb` viewer. It is recorded here and not changed.
+  - `Table_Catalog` row present (`System`, `VERIFIED`); 21 `Column_Catalog` rows; 0 audit rows before the release.
+  - 17 market-ai-orc `Tool_Catalog` rows; the only active ones are still `discover_catalog`, `get_catalog_details` and `read_catalog_rows`.
+- First live writes, by the deployed orchestrator through `RESEARCH_AUDIT_DATABASE_URL` (the `market_ai_orc` login): 5 rows, one per PoC run (`poc-1-standard` … `poc-5-governor`), read back by a read-only session. See `RAILWAY_CHANGELOG.md` for the runs.
+- The rehearsal before applying ran the chain `20260923_003` → `20260924_003` and then this migration on a scratch database. It covered the preflight refusal, the rerun refusal, the privilege denials, a login rotation with `scripts/provision_market_ai_orc_login.py` (which now keeps the audit grant), and the auditor INSERT then `ALREADY_RECORDED`.
+- No market-data table, SQL Governor grant, or PostgreSQL source data was changed.
+
 ## 2026-09-24 — Create and populate AI_formula_reference; extend the three ORC catalog tools
 
 - Applied `database/migrations/20260924_003_create_ai_formula_reference.sql` to `dev`, run by the temporary one-off service `ai-formula-reference-setup` (deployment `54548d1e-1236-4d36-9d27-31192c74b5a2`), deleted immediately afterwards.

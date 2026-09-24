@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-24T09:22:02+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-24T12:33:35+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -14,6 +14,7 @@ Generated from PostgreSQL schema `public` at `2026-09-24T09:22:02+00:00`.
 | `AI_data_coverage` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | Automated actual raw-source coverage plus explicitly inferred expectations for derived Feature tables. |
 | `AI_formula_reference` | Unclassified | Unknown | — | `2026-09-24 09:22:02+00:00` | Baseline only | Global reference catalog of calculation formulas for the orchestrator; entries document a formula, not a verified or executable implementation. |
 | `AI_research_catalog` | Unclassified | Unknown | — | `2026-09-24 07:24:52+00:00` | Baseline only | Global reference catalog of research methods for the orchestrator; entries do not enable sandbox execution. |
+| `AI_research_run_audit` | Unclassified | Unknown | — | `2026-09-24 12:33:35+00:00` | Baseline only | Durable audit of market-ai-orc runs: the question, the final answer, its evidence label and gate outcome, and every experiment with its Research Governor decision, validation, evidence decision and fingerprints. |
 | `AI_table_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing master list and bounded-access contract for seven approved source and Feature tables. |
 | `Analysis_Evidence` | System | When compact evidence is recorded for an analysis | — | `2026-09-13 15:02:15+00:00` | Baseline only | Compact reproducible evidence supporting material AI analysis claims. |
 | `Analysis_Model_Call` | System | One row after every provider model response; retained reasoning is purged by policy | — | `2026-09-14 03:49:36+00:00` | Baseline only | Per-provider-call audit containing usage, progressive tool exposure, a concise decision summary, and temporarily retained provider-returned reasoning. |
@@ -21,27 +22,27 @@ Generated from PostgreSQL schema `public` at `2026-09-24T09:22:02+00:00`.
 | `Analysis_Step_Log` | System | After each AI analysis tool or compaction step | — | `2026-09-13 15:02:15+00:00` | Baseline only | Audit record for every query, tool, compaction, or analytical step in an AI request. |
 | `Analytics_Dataset_Snapshot` | System | Per bounded analytics input; remove private object after terminal grace or expiry | — | `2026-09-14 07:39:52+00:00` | Baseline only | Metadata and retention state for immutable bounded raw or Feature analytical input snapshots stored in a private Railway bucket. |
 | `Analytics_Job` | System | Per generic analytics submission, lease, result, or failure | — | `2026-09-14 07:39:52+00:00` | Baseline only | Durable queue, lease, resource contract, result, and failure audit for separately authenticated query-sandbox and statistical-validation workers. |
-| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-24 08:13:37.760333+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-24 09:22:02+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
-| `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-23` | `2026-09-23 10:05:13.286404+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
+| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-24 12:33:35.336331+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-24 12:33:35+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-24` | `2026-09-24 10:04:45.474392+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
 | `Feature_02_Broker_Rolling` | Feature | After validated broker-summary changes; manual v2 ticker rebuild | `2026-08-31` | `2026-09-14 14:26:33.580099+00:00` | Derived from IDX_Broker_Summary; Investor-Type Feature 02 v2 refresh is manual | Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata. |
 | `Feature_03_Stock_Broker_Daily` | Feature | After Feature 02 refresh; manual Investor-Type v2 refresh | `2026-08-31` | `2026-09-14 15:17:23.131992+00:00` | Derived from Investor-Type Feature_02_Broker_Rolling; Feature 03 v2 refresh is manual | Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate. |
-| `Feature_Calculation_Log` | System | After completed worker attempts | `2026-09-23` | `2026-09-23 10:05:13.295145+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
-| `Feature_Calculation_Queue` | System | After committed price inserts/updates and worker transitions | `2026-09-23` | `2026-09-23 10:05:13.242779+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
+| `Feature_Calculation_Log` | System | After completed worker attempts | `2026-09-24` | `2026-09-24 10:04:45.480600+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
+| `Feature_Calculation_Queue` | System | After committed price inserts/updates and worker transitions | `2026-09-24` | `2026-09-24 10:04:45.414475+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
 | `Feature_Catalog` | Reference | After each validated Feature schema change | — | `2026-09-14 15:17:06.460831+00:00` | Tracked automatically | Versioned, machine-readable formula, interpretation, recommended-use, misuse, availability, point-in-time safety and validation-evidence contract for every validated Feature column. |
 | `Feature_Relationship_Catalog` | Reference | After a validated Feature join contract changes | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned safe-join and grain contracts between verified Feature tables. |
-| `Feature_Status` | System | After enqueue and worker state transitions | `2026-09-23` | `2026-09-23 10:05:13.242779+00:00` | Derived from per-ticker status rows | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
+| `Feature_Status` | System | After enqueue and worker state transitions | `2026-09-24` | `2026-09-24 10:04:45.414475+00:00` | Derived from per-ticker status rows | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
 | `Golden_Analysis_Test` | System | After a versioned golden analytical expectation changes | — | `2026-09-13 15:08:56+00:00` | Baseline only | Versioned analytical regression-test definitions with reproducible conditions and tolerances. |
 | `Golden_Analysis_Test_Result` | System | After each test in a golden-suite run | — | `2026-09-13 15:08:56+00:00` | Baseline only | Per-test correctness, methodology, evidence, warning, latency and token outcome. |
 | `Golden_Analysis_Test_Run` | System | Before major releases and material model, prompt, Feature, or tool changes | — | `2026-09-13 15:08:56+00:00` | Baseline only | Historical execution record for one complete golden analytical regression suite. |
 | `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-10 07:23:34.854803+00:00` | Tracked automatically | Broker code and name, domestic/foreign type, and usage profile such as Institutional-heavy, Retail-heavy, Mixed, or Niche. |
 | `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 14:41:15.160142+00:00` | Derived from table data and load log | Daily broker buy/sell values and lots by symbol, broker, investor type, and market board. |
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-12 13:34:43.352522+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
-| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-23` | `2026-09-23 23:01:25.390125+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
-| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-23` | `2026-09-23 10:03:22.949645+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
-| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-24 08:13:37.756927+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
+| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-24` | `2026-09-24 10:01:46.967932+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
+| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-24` | `2026-09-24 10:03:00.813285+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
+| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-24 12:11:33.596785+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
 | `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
-| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-23 23:01:30.221581+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
+| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-24 10:03:04.004554+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
 | `Tool_Catalog` | Reference | With each approved backend or analytics tool release | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned generic AI tool metadata, activation state, schemas, and advertised operational ceilings. |
 | `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-09-06 13:21:52.115381+00:00` | Loaded from Universe_Equity_Description.xlsx; future changes tracked automatically | Issuer descriptions and TradingView/curated sector and industry classifications. |
 | `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-08-31` | `2026-09-09 16:55:55.713468+00:00` | Derived from load log | Per-trading-date Stockbit broker-summary load progress, retries, and review state. |
@@ -324,6 +325,58 @@ Global reference catalog of research methods for the orchestrator; entries do no
 | Name | Definition |
 |---|---|
 | `AI_research_catalog_pkey` | `CREATE UNIQUE INDEX "AI_research_catalog_pkey" ON public."AI_research_catalog" USING btree (method_id)` |
+
+## AI_research_run_audit
+
+Durable audit of market-ai-orc runs: the question, the final answer, its evidence label and gate outcome, and every experiment with its Research Governor decision, validation, evidence decision and fingerprints.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `request_id` | `text` | No | — | The orchestrator request_id of the run (one research run = one market-ai-orc request). |
+| `recorded_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | When the audit row was written. |
+| `status` | `text` | No | — | Run status returned to the caller: COMPLETED, NEEDS_CLARIFICATION, LIMITED or FAILED. |
+| `response_type` | `text` | Yes | — | ANSWER, CLARIFICATION or LIMITATION; NULL for a failed run. |
+| `evidence_label` | `text` | Yes | — | The evidence label of the final answer (FACT ... NOT_VALIDATED); NULL without data numbers. |
+| `validation_gate` | `text` | No | — | What the answer gate did: NOT_APPLICABLE, PASSED, ANNOTATED or FORCED_LIMITATION. |
+| `error_code` | `text` | Yes | — | Error code of a failed run, else NULL. |
+| `question_sha256` | `text` | No | — | SHA-256 of the user's message. |
+| `question` | `text` | No | — | The user's message (at most 16000 characters). |
+| `answer_sha256` | `text` | Yes | — | SHA-256 of the final answer text; NULL for a failed run. |
+| `answer` | `text` | Yes | — | The final answer text (at most 20000 characters); NULL for a failed run. |
+| `limitations` | `jsonb` | No | `'[]'::jsonb` | JSON array of the limitation lines returned with the answer. |
+| `number_provenance` | `jsonb` | Yes | — | JSON {checked, unsupported} of the answer's numbers, or NULL. |
+| `experiments` | `jsonb` | No | `'[]'::jsonb` | JSON array of the run's analysis specs: governor decision, validation, evidence decision, whether the answer relies on it (RETAINED/DISCARDED/FOLLOWED_UP/NOT_RUN), code and dataset fingerprints. |
+| `datasets` | `jsonb` | No | `'[]'::jsonb` | JSON array of governed datasets used: dataset_id, checksum, row count, source tables, completeness. |
+| `budget` | `jsonb` | No | `'{}'::jsonb` | JSON of the run's budgets as the sandbox counted them (analyses, specs, CPU, research experiments). |
+| `model` | `text` | No | — | The OpenRouter model identifier the run used. |
+| `tool_call_count` | `integer` | No | — | Tool calls in the run. |
+| `total_tokens` | `integer` | No | — | Provider-reported total tokens of the run. |
+| `duration_ms` | `integer` | No | — | Run duration in milliseconds. |
+| `sandbox_summary_status` | `text` | No | — | State of the sandbox run record when copied: REPORTED, AWAITING_REPORT, ACTIVE, UNAVAILABLE or NOT_USED. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `ai_research_run_audit_counts_check` | Check | `CHECK (tool_call_count >= 0 AND total_tokens >= 0 AND duration_ms >= 0)` |
+| `ai_research_run_audit_gate_check` | Check | `CHECK (validation_gate = ANY (ARRAY['NOT_APPLICABLE'::text, 'PASSED'::text, 'ANNOTATED'::text, 'FORCED_LIMITATION'::text]))` |
+| `ai_research_run_audit_hash_check` | Check | `CHECK (question_sha256 ~ '^[0-9a-f]{64}$'::text AND (answer_sha256 IS NULL OR answer_sha256 ~ '^[0-9a-f]{64}$'::text))` |
+| `ai_research_run_audit_json_check` | Check | `CHECK (jsonb_typeof(limitations) = 'array'::text AND jsonb_typeof(experiments) = 'array'::text AND jsonb_typeof(datasets) = 'array'::text AND jsonb_typeof(budget) = 'object'::text)` |
+| `ai_research_run_audit_request_id_check` | Check | `CHECK (request_id ~ '^[A-Za-z0-9._:-]{1,200}$'::text)` |
+| `ai_research_run_audit_response_check` | Check | `CHECK (response_type IS NULL OR (response_type = ANY (ARRAY['ANSWER'::text, 'CLARIFICATION'::text, 'LIMITATION'::text])))` |
+| `ai_research_run_audit_sandbox_check` | Check | `CHECK (sandbox_summary_status = ANY (ARRAY['REPORTED'::text, 'AWAITING_REPORT'::text, 'ACTIVE'::text, 'UNAVAILABLE'::text, 'NOT_USED'::text]))` |
+| `ai_research_run_audit_status_check` | Check | `CHECK (status = ANY (ARRAY['COMPLETED'::text, 'NEEDS_CLARIFICATION'::text, 'LIMITED'::text, 'FAILED'::text]))` |
+| `ai_research_run_audit_text_check` | Check | `CHECK (length(question) <= 16000 AND (answer IS NULL OR length(answer) <= 20000))` |
+| `AI_research_run_audit_pkey` | Primary key | `PRIMARY KEY (request_id)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `AI_research_run_audit_pkey` | `CREATE UNIQUE INDEX "AI_research_run_audit_pkey" ON public."AI_research_run_audit" USING btree (request_id)` |
+| `ai_research_run_audit_recorded_idx` | `CREATE INDEX ai_research_run_audit_recorded_idx ON public."AI_research_run_audit" USING btree (recorded_at)` |
 
 ## AI_table_catalog
 
