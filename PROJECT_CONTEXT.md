@@ -141,6 +141,7 @@ Telegram owner -> telegram-trigger webhook -> validate webhook secret and Chat I
 - `Column_Catalog`: physical column inventory and evidence-graded definitions for approved tables. For Feature formulas, `Feature_Catalog` remains authoritative.
 - `AI_table_catalog`, `AI_column_catalog`, `AI_catalog_relationships`, and `AI_calculation_catalog`: compact AI-facing metadata for exactly the seven approved market-data tables; the original catalogs remain authoritative and preserved.
 - `AI_data_coverage`: actual raw-source coverage and explicitly labelled expected derived-table coverage. Only the `ai-data-coverage` job writes this table.
+- `AI_research_catalog`: global reference catalog of 18 analysis methods for the orchestrator, all `REFERENCE_ONLY` (documentation, not installed or validated sandbox code). SELECT is granted only to `market_ai_catalog_reader`; the SQL Governor role has no access. Exposed through `discover_catalog`, `get_catalog_details` (RESEARCH section), and `read_catalog_rows`, all active in `Tool_Catalog`.
 - `Monitoring_Price_ALL`: per-execution daily/recovery completeness, trigger source, query time, missing symbols, and status grouped by the universe `Security Type` value.
 - `Telegram_Command_Log`: incoming Telegram Run Now audit, webhook-retry deduplication, and rapid-click blocking.
 - `Telegram_Notification_Log`: Telegram delivery status and anti-duplicate ledger keyed by source table and source `execution_id`.

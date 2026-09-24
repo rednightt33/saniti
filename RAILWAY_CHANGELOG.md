@@ -1,5 +1,16 @@
 # Railway changelog
 
+## 2026-09-24 — Deploy market-ai-orc with AI_research_catalog RESEARCH support (commit aa7b231)
+
+- Reviewed [PR #1](https://github.com/rednightt33/saniti/pull/1) (`codex/ai-research-catalog`, opened by the ChatGPT Codex connector) line by line and applied its `market-ai-orc` code changes directly to `main` at the user's explicit request, rather than merging the PR branch: `orchestrator.py` prompt update, `catalog.py`/`catalog_rows.py` RESEARCH-section support in `discover_catalog`, `get_catalog_details`, and `read_catalog_rows`. 249 tests passed locally, 58 skipped (no disposable Postgres), matching the PR's own report.
+- Recorded rollback reference before deploying: the previously active deployment was `a292e767-071f-4afb-8978-8e93901c34c6`.
+- Deployed via `railway up ./apps/market-ai-orc --path-as-root --service market-ai-orc` (local upload — this service has no GitHub source, so the `main` push alone does not deploy it). New deployment `9db01c3c-7392-4e99-9741-822ce0a4274c`, reached `Online`; startup logs show a clean `Uvicorn running` and a `200` on `/ready`.
+- Verified all three tools end-to-end against live dev data (see `DATABASE_CHANGELOG.md` for exact results), using a temporary service (`orc-verify`, deleted after) that imported the identical deployed `app/` code and called it directly through `CATALOG_DATABASE_URL` (`${{market-ai-orc.CATALOG_DATABASE_URL}}`, the real read-only `market_ai_orc` login) — not a synthetic/disposable database.
+- The three `Tool_Catalog` rows for these tools were activated (`is_active=true`) in the same task at the user's explicit request; see `DATABASE_CHANGELOG.md` migration `20260924_002`.
+- PR #1 is superseded by this direct-to-main deployment; see its closing comment for the exact commit.
+- **Sandbox network constraint** (context for the temporary-service workaround, same as the earlier pgweb deployment): this session's outbound network supports plain HTTPS request/response only; raw-TCP and WebSocket-based paths to Postgres are blocked by this environment's egress policy. All Railway CLI operations used here (`railway up`, `railway add`, `railway domain`, `railway logs`) are plain HTTPS.
+- No other service's schedule, source, variables, secrets, watch path, restart policy, domain, or database reference was changed. No production environment was touched.
+
 ## 2026-09-23 — Deploy market-python-sandbox and the Python analysis tools (81475ae)
 
 - **Governor dataset-access key:** generated a new 64-hex `SQL_GOVERNOR_DATASET_ACCESS_KEY` on `market-sql-governor`. It was set through stdin with `--skip-deploys` and never printed. A check confirmed it differs from `SQL_GOVERNOR_API_KEY`.

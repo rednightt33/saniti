@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-22T16:55:06+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-24T07:26:13+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -12,6 +12,7 @@ Generated from PostgreSQL schema `public` at `2026-09-22T16:55:06+00:00`.
 | `AI_catalog_relationships` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing safe join, temporal alignment, preaggregation, and output-grain contracts. |
 | `AI_column_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing column semantics and bounded-query permissions for the seven approved tables. |
 | `AI_data_coverage` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | Automated actual raw-source coverage plus explicitly inferred expectations for derived Feature tables. |
+| `AI_research_catalog` | Unclassified | Unknown | — | `2026-09-24 07:24:52+00:00` | Baseline only | Global reference catalog of research methods for the orchestrator; entries do not enable sandbox execution. |
 | `AI_table_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing master list and bounded-access contract for seven approved source and Feature tables. |
 | `Analysis_Evidence` | System | When compact evidence is recorded for an analysis | — | `2026-09-13 15:02:15+00:00` | Baseline only | Compact reproducible evidence supporting material AI analysis claims. |
 | `Analysis_Model_Call` | System | One row after every provider model response; retained reasoning is purged by policy | — | `2026-09-14 03:49:36+00:00` | Baseline only | Per-provider-call audit containing usage, progressive tool exposure, a concise decision summary, and temporarily retained provider-returned reasoning. |
@@ -19,27 +20,27 @@ Generated from PostgreSQL schema `public` at `2026-09-22T16:55:06+00:00`.
 | `Analysis_Step_Log` | System | After each AI analysis tool or compaction step | — | `2026-09-13 15:02:15+00:00` | Baseline only | Audit record for every query, tool, compaction, or analytical step in an AI request. |
 | `Analytics_Dataset_Snapshot` | System | Per bounded analytics input; remove private object after terminal grace or expiry | — | `2026-09-14 07:39:52+00:00` | Baseline only | Metadata and retention state for immutable bounded raw or Feature analytical input snapshots stored in a private Railway bucket. |
 | `Analytics_Job` | System | Per generic analytics submission, lease, result, or failure | — | `2026-09-14 07:39:52+00:00` | Baseline only | Durable queue, lease, resource contract, result, and failure audit for separately authenticated query-sandbox and statistical-validation workers. |
-| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-22 16:55:08.479724+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-22 16:55:06+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
-| `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-22` | `2026-09-22 10:08:30.026848+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
+| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-24 07:14:54.914847+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-24 07:26:13+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-23` | `2026-09-23 10:05:13.286404+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
 | `Feature_02_Broker_Rolling` | Feature | After validated broker-summary changes; manual v2 ticker rebuild | `2026-08-31` | `2026-09-14 14:26:33.580099+00:00` | Derived from IDX_Broker_Summary; Investor-Type Feature 02 v2 refresh is manual | Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata. |
 | `Feature_03_Stock_Broker_Daily` | Feature | After Feature 02 refresh; manual Investor-Type v2 refresh | `2026-08-31` | `2026-09-14 15:17:23.131992+00:00` | Derived from Investor-Type Feature_02_Broker_Rolling; Feature 03 v2 refresh is manual | Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate. |
-| `Feature_Calculation_Log` | System | After completed worker attempts | `2026-09-22` | `2026-09-22 10:08:30.032078+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
-| `Feature_Calculation_Queue` | System | After committed price inserts/updates and worker transitions | `2026-09-22` | `2026-09-22 10:08:29.976045+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
+| `Feature_Calculation_Log` | System | After completed worker attempts | `2026-09-23` | `2026-09-23 10:05:13.295145+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
+| `Feature_Calculation_Queue` | System | After committed price inserts/updates and worker transitions | `2026-09-23` | `2026-09-23 10:05:13.242779+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
 | `Feature_Catalog` | Reference | After each validated Feature schema change | — | `2026-09-14 15:17:06.460831+00:00` | Tracked automatically | Versioned, machine-readable formula, interpretation, recommended-use, misuse, availability, point-in-time safety and validation-evidence contract for every validated Feature column. |
 | `Feature_Relationship_Catalog` | Reference | After a validated Feature join contract changes | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned safe-join and grain contracts between verified Feature tables. |
-| `Feature_Status` | System | After enqueue and worker state transitions | `2026-09-22` | `2026-09-22 10:08:29.976045+00:00` | Derived from per-ticker status rows | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
+| `Feature_Status` | System | After enqueue and worker state transitions | `2026-09-23` | `2026-09-23 10:05:13.242779+00:00` | Derived from per-ticker status rows | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
 | `Golden_Analysis_Test` | System | After a versioned golden analytical expectation changes | — | `2026-09-13 15:08:56+00:00` | Baseline only | Versioned analytical regression-test definitions with reproducible conditions and tolerances. |
 | `Golden_Analysis_Test_Result` | System | After each test in a golden-suite run | — | `2026-09-13 15:08:56+00:00` | Baseline only | Per-test correctness, methodology, evidence, warning, latency and token outcome. |
 | `Golden_Analysis_Test_Run` | System | Before major releases and material model, prompt, Feature, or tool changes | — | `2026-09-13 15:08:56+00:00` | Baseline only | Historical execution record for one complete golden analytical regression suite. |
 | `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-10 07:23:34.854803+00:00` | Tracked automatically | Broker code and name, domestic/foreign type, and usage profile such as Institutional-heavy, Retail-heavy, Mixed, or Niche. |
 | `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 14:41:15.160142+00:00` | Derived from table data and load log | Daily broker buy/sell values and lots by symbol, broker, investor type, and market board. |
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-12 13:34:43.352522+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
-| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-22` | `2026-09-22 10:04:17.353466+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
-| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-22` | `2026-09-22 10:06:39.432017+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
-| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-22 16:43:16.144445+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
+| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-23` | `2026-09-23 23:01:25.390125+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
+| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-23` | `2026-09-23 10:03:22.949645+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
+| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-24 07:14:54.904752+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
 | `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
-| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-22 10:06:42.778031+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
+| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-23 23:01:30.221581+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
 | `Tool_Catalog` | Reference | With each approved backend or analytics tool release | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned generic AI tool metadata, activation state, schemas, and advertised operational ceilings. |
 | `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-09-06 13:21:52.115381+00:00` | Loaded from Universe_Equity_Description.xlsx; future changes tracked automatically | Issuer descriptions and TradingView/curated sector and industry classifications. |
 | `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-08-31` | `2026-09-09 16:55:55.713468+00:00` | Derived from load log | Per-trading-date Stockbit broker-summary load progress, retries, and review state. |
@@ -249,6 +250,49 @@ Automated actual raw-source coverage plus explicitly inferred expectations for d
 | `AI_data_coverage_pkey` | `CREATE UNIQUE INDEX "AI_data_coverage_pkey" ON public."AI_data_coverage" USING btree (coverage_id)` |
 | `AI_data_coverage_reference_idx` | `CREATE INDEX "AI_data_coverage_reference_idx" ON public."AI_data_coverage" USING btree (reference_dataset_name, entity_id) WHERE (reference_dataset_name IS NOT NULL)` |
 | `AI_data_coverage_status_idx` | `CREATE INDEX "AI_data_coverage_status_idx" ON public."AI_data_coverage" USING btree (quality_status, verification_status, dataset_name)` |
+
+## AI_research_catalog
+
+Global reference catalog of research methods for the orchestrator; entries do not enable sandbox execution.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `method_id` | `text` | No | — | Stable unique method ID. |
+| `method_name` | `text` | No | — | Display name for agent and human review. |
+| `category` | `text` | No | — | Broad method family. |
+| `purpose` | `text` | No | — | Method objective, not proof of enabled tooling. |
+| `example_question` | `text` | No | — | Illustrative natural-language request. |
+| `analysis_kind` | `text` | No | — | Evidence type: descriptive, exploratory, conditional_outcome or inference. |
+| `input_grain` | `text` | No | — | Observation granularity required by analysis. |
+| `required_inputs_json` | `jsonb` | No | — | JSON array of logical input roles, NOT actual Postgres column names. |
+| `optional_inputs_json` | `jsonb` | No | — | JSON array of additional logical input roles. |
+| `future_outcome_required` | `boolean` | No | — | True if a forward or outcome variable is part of this method. |
+| `supports_numeric_directly` | `boolean` | No | — | False if categorical/binary encoding is required. |
+| `preprocessing` | `text` | No | — | Preparation, time alignment and signal availability requirements. |
+| `parameter_keys_json` | `jsonb` | No | — | JSON array of unresolved analysis parameter names; no silently imposed numeric defaults. |
+| `expected_outputs_json` | `jsonb` | No | — | JSON array of expected result field names. |
+| `validation_requirements_json` | `jsonb` | No | — | JSON array of method-specific checks; enforcement belongs in code. |
+| `main_risks` | `text` | No | — | Likely data, model or interpretation failure modes. |
+| `compute_strategy` | `text` | No | — | Execution hint, not a resource guarantee. |
+| `tool_or_library_examples` | `text` | No | — | Potential libraries; NOT evidence of installed/registered tools. |
+| `implementation_status` | `text` | No | — | REFERENCE_ONLY until developer implements, tests and registers a usable tool. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `ai_research_json_arrays` | Check | `CHECK (jsonb_typeof(required_inputs_json) = 'array'::text AND jsonb_typeof(optional_inputs_json) = 'array'::text AND jsonb_typeof(parameter_keys_json) = 'array'::text AND jsonb_typeof(expected_outputs_json) = 'array'::text AND jsonb_typeof(validation_requirements_json) = 'array'::text)` |
+| `ai_research_nonempty_id` | Check | `CHECK (method_id ~ '^[A-Za-z][A-Za-z0-9_]{0,62}$'::text)` |
+| `ai_research_nonempty_status` | Check | `CHECK (length(TRIM(BOTH FROM implementation_status)) > 0)` |
+| `AI_research_catalog_pkey` | Primary key | `PRIMARY KEY (method_id)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `AI_research_catalog_pkey` | `CREATE UNIQUE INDEX "AI_research_catalog_pkey" ON public."AI_research_catalog" USING btree (method_id)` |
 
 ## AI_table_catalog
 
