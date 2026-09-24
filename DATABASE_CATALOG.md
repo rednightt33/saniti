@@ -53,6 +53,7 @@ column/constraint/index reference for every row below.
 | `AI_catalog_relationships` | AI-facing safe join and output-grain contracts | This document |
 | `AI_column_catalog` | AI-facing semantics for the seven approved tables | This document |
 | `AI_data_coverage` | Actual source coverage and labelled derived expectations | `apps/ai-data-coverage/README.md` |
+| `AI_research_run_audit` | One INSERT-only audit row per market-ai-orc run: question, final answer, evidence label, gate outcome, and experiments | `apps/market-ai-orc/README.md` (Research run audit) |
 | `AI_table_catalog` | AI-facing seven-table master catalog | This document |
 | `Analytics_Dataset_Snapshot` | Immutable bounded raw/Feature input metadata and private-object retention | `apps/market-ai-backend/README.md` |
 | `Analytics_Job` | Class-separated query/statistical queue, lease, resource contract, compact result, and failure audit | `apps/market-ai-backend/README.md` |
