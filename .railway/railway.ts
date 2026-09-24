@@ -3,8 +3,6 @@ import { bucket, defineRailway, github, image, postgres, preserve, project, serv
 export default defineRailway(() => {
   const saniti = github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/idx-price-cron" });
 
-  const DB2 = postgres("DB2", { region: "sfo" });
-  DB2.networking = { privateNetworkEndpoint: "postgres-xcu1" };
   const Postgres = postgres("Postgres", { region: "sfo" });
   Postgres.networking = { privateNetworkEndpoint: "postgres", tcpProxies: { "5432": {} } };
   const postgresVolumeThQL = volume("postgres-volume-thQL", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
@@ -58,6 +56,11 @@ export default defineRailway(() => {
     deploy: { cronSchedule: "0 10 * * *", restartPolicyType: "NEVER" },
     env: { DATABASE_URL: preserve(), TELEGRAM_NOTIFY_ATTEMPTS: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_TIMEOUT: preserve(), TELEGRAM_NOTIFY_URL: preserve() },
   });
+  const pgweb = service("pgweb", {
+    source: image("sosedoff/pgweb:0.17.0"),
+    replicas: { "sfo": 1 },
+    env: { PGWEB_AUTH_PASS: preserve(), PGWEB_AUTH_USER: preserve(), PGWEB_DATABASE_URL: preserve() },
+  });
   const telegramTrigger = service("telegram-trigger", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/telegram-trigger" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/telegram-trigger/**"] },
@@ -77,6 +80,10 @@ export default defineRailway(() => {
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "ALWAYS" },
     env: { ANALYTICS_WORKER_API_KEY: preserve(), ANALYTICS_WORKER_POLL_SECONDS: preserve(), MARKET_AI_BACKEND_URL: preserve(), STATISTICAL_WORKER_API_KEY: preserve() },
+  });
+  const splitDeployJob = service("split-deploy-job", {
+    replicas: { "sfo": 1 },
+    env: { DATABASE_URL: preserve(), MARKET_AI_ORC_API_KEY: preserve(), PY_SANDBOX_API_KEY: preserve(), SQL_GOVERNOR_API_KEY: preserve() },
   });
   const telegramMonitor = service("telegram-monitor", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/telegram-monitor" }),
@@ -131,6 +138,6 @@ export default defineRailway(() => {
   });
 
   return project("lucid-patience", {
-    resources: [marketSqlGovernor, marketPythonSandbox, marketAiBackend, marketAiOrc, idxPriceCron, telegramTrigger, marketAnalyticsWorker, DB2, telegramMonitor, idxPriceRecoveryCron, Postgres, marketQuerySandbox, aiDataCoverage, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, marketSqlDatasets, marketAnalyticsInput],
+    resources: [marketSqlGovernor, marketPythonSandbox, marketAiBackend, marketAiOrc, idxPriceCron, pgweb, telegramTrigger, marketAnalyticsWorker, splitDeployJob, telegramMonitor, idxPriceRecoveryCron, Postgres, marketQuerySandbox, aiDataCoverage, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, marketSqlDatasets, marketAnalyticsInput],
   });
 });

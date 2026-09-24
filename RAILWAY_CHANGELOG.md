@@ -1,5 +1,16 @@
 # Railway changelog
 
+## 2026-09-24 — Deploy pgweb (read-only Postgres browser); observed removal of the pre-existing DB2 resource
+
+- **New service `pgweb`** (service ID `45d074f9-872a-4d44-96c4-676fbcaad53c`), image `sosedoff/pgweb:0.17.0` (pinned, not `latest`), one replica in `sfo`. Connects to the existing `Postgres` service — no new database was created — over Railway's private network via `PGWEB_DATABASE_URL=postgresql://pgweb:<password>@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/${{Postgres.PGDATABASE}}?sslmode=require`, using the new read-only `pgweb` Postgres login (see `DATABASE_CHANGELOG.md`), never the superuser connection.
+- Public domain generated: `https://pgweb-dev-a888.up.railway.app`, explicitly pinned to container port `8081` (pgweb's fixed listen port; it does not read Railway's injected `$PORT`) to avoid the known image-service port-mismatch/502 failure mode.
+- HTTP Basic Auth enforced via `PGWEB_AUTH_USER`/`PGWEB_AUTH_PASS`, generated locally and set as plain Railway service variables (not `${{secret()}}`, which regenerates on every deploy and would break login). Values were shared with the user in chat, not recorded here.
+- Verified end-to-end: an unauthenticated request to the domain returns `401`; an authenticated request returns `200`; `/api/connection` returns the real live database (`current_database: railway`, `current_user: pgweb`, a real internal server address) — confirming genuine connectivity, not just a running container.
+- **Temporary helper service** `pgweb-db-setup` was created to run the role/login migration against `Postgres` from inside Railway's network (this sandbox cannot reach Postgres directly — see below), then deleted immediately after its one successful run.
+- **Observed, not caused by this task:** `railway config pull --force` showed the pre-existing `DB2` Postgres resource (service ID `7af77ccf-0b12-4178-ba3c-f5656c9464c7`, present and `Online` at the start of this session) no longer exists in the live project, and a previously-undocumented `split-deploy-job` resource is now present. Neither was created, modified, or deleted by this task — both are simply reflected in the refreshed `.railway/railway.ts`. Flagged to the user; cause unknown from this session.
+- **Sandbox network constraint** (context for the temporary-service workaround): this session's outbound network supports plain HTTPS request/response only; raw-TCP (`railway connect`/`psql` to Postgres) and WebSocket-based paths (`railway ssh`) are blocked by this environment's egress policy. Every Railway CLI operation actually used here (`railway up`, `railway add`, `railway domain`, `railway config pull`) is plain HTTPS and worked normally.
+- No existing service's schedule, source, variables, secrets, watch path, restart policy, domain, or database reference was changed.
+
 ## 2026-09-23 — Deploy market-python-sandbox and the Python analysis tools (81475ae)
 
 - **Governor dataset-access key:** generated a new 64-hex `SQL_GOVERNOR_DATASET_ACCESS_KEY` on `market-sql-governor`. It was set through stdin with `--skip-deploys` and never printed. A check confirmed it differs from `SQL_GOVERNOR_API_KEY`.

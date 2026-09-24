@@ -1,5 +1,14 @@
 # Database changelog
 
+## 2026-09-24 — Create the read-only pgweb role and login
+
+- Applied `database/migrations/20260924_001_create_pgweb_reader.sql` to `dev`. It was run by the temporary one-off service `pgweb-db-setup` (deployment `864d80d2-14a3-4672-839e-5ec2706503ff`), which was deleted immediately afterwards.
+- Creates `pgweb_reader` (NOLOGIN): `SELECT` on every current and future table/view in schema `public`; no `INSERT`/`UPDATE`/`DELETE`/DDL grant anywhere.
+- Ran `scripts/provision_pgweb_login.py` in the same service to create the `pgweb` LOGIN role (password from `PGWEB_DB_PASSWORD`, generated locally, never logged or committed), joined to `pgweb_reader`, with `default_transaction_read_only=on`, `statement_timeout=30s`, `lock_timeout=5s`, `idle_in_transaction_session_timeout=5min` as a second layer of defense independent of the GRANT.
+- Verified by reading back live: the migration's own verify block passed (SELECT confirmed on all 35 public tables/views present at the time; no write grant found on any). The provisioning script printed `MIGRATION_OK pgweb_reader created; pgweb provisioned: read-only SELECT on 35 public table(s)/view(s); no write access anywhere; session forced to read-only transactions`. Additionally verified end-to-end through the deployed `pgweb` service itself (see `RAILWAY_CHANGELOG.md`): an authenticated `SELECT count(*) FROM "IDX_Stock_Universe"` returned real data (844), while `CREATE TABLE pgweb_write_test (x int)` was rejected by PostgreSQL with `cannot execute CREATE TABLE in a read-only transaction`.
+- No table, column, routine, or market-data row changed. `DATABASE_SCHEMA.md`, `Table_Catalog`, and `Column_Catalog` are unchanged — this migration creates a role/login, not a table or column.
+- Credential note: the `pgweb` login password and the separate `PGWEB_AUTH_USER`/`PGWEB_AUTH_PASS` HTTP Basic Auth pair for the public pgweb UI were generated locally and set directly as Railway service variables on `pgweb`. No value is recorded here or anywhere in Git.
+
 ## 2026-09-23 — Register the Python analysis tools in Tool_Catalog
 
 - Applied `database/migrations/20260923_008_register_python_analysis_tools.sql` to `dev`. It was run by the temporary one-off service `sandbox-acceptance-job` (deployment `c6cf05e3-16a5-43c0-b328-8bda4e8ef1b4`), which was deleted afterwards.

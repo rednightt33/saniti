@@ -38,6 +38,8 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - Market Python sandbox (runs model-written Python over Governor datasets; no PostgreSQL or bucket credentials, only the Governor dataset-access key): `market-python-sandbox`
 - Market Python sandbox service ID: `225b1be1-d7f5-4b2d-a4c7-052eb53af818` (private: `market-python-sandbox.railway.internal:8080`)
 - Market Python sandbox volume: `market-python-sandbox-data` (`853e57c0-eb4c-4b48-a4ce-6bd7ffe282d8`, mounted at `/data`; SQLite analysis records and result files)
+- Read-only Postgres browser (pgweb, image `sosedoff/pgweb:0.17.0`; connects to the existing `Postgres` service over the private network using the read-only `pgweb` login, never the superuser connection): `pgweb`
+- pgweb service ID: `45d074f9-872a-4d44-96c4-676fbcaad53c` (public: `https://pgweb-dev-a888.up.railway.app`, HTTP Basic Auth required, container port `8081`)
 - Dashboard: <https://railway.com/project/8aef1702-030b-49cb-9df7-5ac2e0a42691?environmentId=4d3e5af2-302b-4a2e-84e2-7d7476d6ff49>
 - GitHub: <https://github.com/rednightt33/saniti>
 
