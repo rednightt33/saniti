@@ -6,6 +6,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CATALOG_MIGRATION = REPO_ROOT / "database/migrations/20260922_001_create_ai_catalogs.sql"
 READER_MIGRATION = REPO_ROOT / "database/migrations/20260923_001_create_market_ai_catalog_reader.sql"
+RESEARCH_MIGRATION = REPO_ROOT / "database/migrations/20260924_001_create_ai_research_catalog.sql"
+FORMULA_MIGRATION = REPO_ROOT / "database/migrations/20260924_003_create_ai_formula_reference.sql"
 
 TRIGGER_FUNCTION_STUB = '''
 CREATE FUNCTION public.set_database_catalog_updated_at() RETURNS trigger
@@ -19,6 +21,43 @@ def catalog_ddl() -> str:
     start = text.index('CREATE TABLE public."AI_table_catalog"')
     end = text.index("WITH requested(")
     return text[start:end]
+
+
+def research_catalog_ddl() -> str:
+    """The new table and comments, without private workbook records or catalog metadata."""
+    text = RESEARCH_MIGRATION.read_text()
+    return text[text.index('CREATE TABLE public."AI_research_catalog"'):text.index('-- The orchestrator catalog login')]
+
+
+RESEARCH_FIXTURE_SQL = '''
+INSERT INTO public."AI_research_catalog" (
+    method_id, method_name, category, purpose, example_question, analysis_kind, input_grain,
+    required_inputs_json, optional_inputs_json, future_outcome_required, supports_numeric_directly,
+    preprocessing, parameter_keys_json, expected_outputs_json, validation_requirements_json,
+    main_risks, compute_strategy, tool_or_library_examples, implementation_status
+) VALUES (
+    'example_method', 'Example method', 'descriptive', 'Synthetic test only', 'Example?', 'descriptive',
+    'entity x date', '["entity_id","date","value"]', '[]', false, true, 'Sort rows', '[]',
+    '["value"]', '["coverage"]', 'No production method claims', 'Test only', 'None', 'REFERENCE_ONLY'
+);
+'''
+
+
+def formula_catalog_ddl() -> str:
+    """The new table and comments, without private workbook records or catalog metadata."""
+    text = FORMULA_MIGRATION.read_text()
+    return text[text.index('CREATE TABLE public."AI_formula_reference"'):text.index('-- The orchestrator catalog login')]
+
+
+FORMULA_FIXTURE_SQL = '''
+INSERT INTO public."AI_formula_reference" (
+    calculation_id, calculation_name, description, required_inputs, formula_method,
+    parameters, output, implementation
+) VALUES (
+    'example_formula', 'Example formula', 'Synthetic test only', 'asset_id;timestamp;close',
+    'Synthetic method text', 'window=20', 'example_output', 'Test only'
+);
+'''
 
 
 FIXTURE_SQL = '''

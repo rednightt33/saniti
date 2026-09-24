@@ -6,7 +6,7 @@ from contextlib import AbstractContextManager
 from datetime import date, datetime
 from typing import Any, Literal, Protocol
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ..compaction import dumps
 from .registry import ToolError, ToolSpec
@@ -20,21 +20,26 @@ class CatalogReader(Protocol):
     def read_only(self) -> AbstractContextManager[QueryRunner]: ...
 
 
-Section = Literal["COLUMNS", "RELATIONSHIPS", "CALCULATIONS", "COVERAGE"]
+Section = Literal["COLUMNS", "RELATIONSHIPS", "CALCULATIONS", "COVERAGE", "RESEARCH", "FORMULAS"]
 
 MAX_TABLES_PER_CALL = 3
 MAX_COLUMN_FILTER = 40
 MAX_ENTITY_IDS = 20
+MAX_METHOD_IDS = 40
+MAX_FORMULA_IDS = 40
 MAX_DISCOVERED_TABLES = 50
-ROW_CAPS = {"COLUMNS": 150, "RELATIONSHIPS": 50, "CALCULATIONS": 100, "STATUS": 60, "ENTITIES": 60}
+ROW_CAPS = {"COLUMNS": 150, "RELATIONSHIPS": 50, "CALCULATIONS": 100, "RESEARCH": 50,
+            "FORMULAS": 50, "STATUS": 60, "ENTITIES": 60}
 # Stays below the registry's 32 KB hard cap once the {"ok","tool","result"} wrapper is added.
 RESULT_BUDGET_BYTES = 24000
 # Small sections are filled first so large ones cannot starve them; output keeps request order.
-ALLOCATION_ORDER = ("RELATIONSHIPS", "COVERAGE", "COLUMNS", "CALCULATIONS")
+ALLOCATION_ORDER = ("RELATIONSHIPS", "COVERAGE", "COLUMNS", "CALCULATIONS", "RESEARCH", "FORMULAS")
 
 TABLE_NAME = re.compile(r"^[A-Za-z0-9_]{1,63}$")
 COLUMN_NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_ ]{0,62}$")
 ENTITY_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")
+METHOD_ID = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,62}$")
+FORMULA_ID = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,62}$")
 
 METADATA_NOTICE = "Catalog metadata is documentation. It contains no observed market values or calculation results."
 VISIBILITY_NOTE = (
@@ -66,6 +71,12 @@ FROM public."AI_table_catalog" t
 WHERE t.table_name IN (SELECT table_name FROM visible)
 ORDER BY t.table_name
 LIMIT %s
+'''
+
+RESEARCH_COUNTS_SQL = '''
+SELECT implementation_status, count(*) AS method_count
+FROM public."AI_research_catalog"
+GROUP BY implementation_status ORDER BY implementation_status
 '''
 
 RESOLVE_TABLES_SQL = f'''
@@ -113,6 +124,27 @@ WHERE target_table = ANY(%s) AND status = 'ACTIVE'
   AND (%s::text[] IS NULL OR target_columns && %s::text[])
 ORDER BY target_table, calculation_name, version
 LIMIT %s
+'''
+
+RESEARCH_SQL = '''
+SELECT method_id, method_name, category, purpose, example_question, analysis_kind, input_grain,
+       required_inputs_json, optional_inputs_json, future_outcome_required, supports_numeric_directly,
+       preprocessing, parameter_keys_json, expected_outputs_json, validation_requirements_json,
+       main_risks, compute_strategy, tool_or_library_examples, implementation_status,
+       count(*) OVER () AS total_matching
+FROM public."AI_research_catalog"
+WHERE (%s::text[] IS NULL OR method_id = ANY(%s::text[]))
+ORDER BY method_id LIMIT %s
+'''
+
+FORMULA_COUNT_SQL = 'SELECT count(*) AS formula_count FROM public."AI_formula_reference"'
+
+FORMULAS_SQL = '''
+SELECT calculation_id, calculation_name, description, required_inputs, formula_method,
+       parameters, output, implementation, count(*) OVER () AS total_matching
+FROM public."AI_formula_reference"
+WHERE (%s::text[] IS NULL OR calculation_id = ANY(%s::text[]))
+ORDER BY calculation_id LIMIT %s
 '''
 
 COVERAGE_DATASET_SQL = '''
@@ -182,10 +214,10 @@ class CatalogDetailsArguments(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     table_names: list[str] = Field(
-        description=f"1-{MAX_TABLES_PER_CALL} exact table_name values returned by discover_catalog."
+        description=f"1-{MAX_TABLES_PER_CALL} exact market table names, or [] for RESEARCH only."
     )
     sections: list[Section] = Field(
-        description="Metadata sections to return: COLUMNS, RELATIONSHIPS, CALCULATIONS, COVERAGE."
+        description="Metadata sections: COLUMNS, RELATIONSHIPS, CALCULATIONS, COVERAGE, RESEARCH."
     )
     column_names: list[str] | None = Field(
         description=(
@@ -199,11 +231,30 @@ class CatalogDetailsArguments(BaseModel):
             "per-entity rows to COVERAGE. Use null for dataset-level coverage only."
         )
     )
+    method_ids: list[str] | None = Field(
+        description=f"Optional 1-{MAX_METHOD_IDS} exact research method_id values; null lists all methods."
+    )
+    formula_ids: list[str] | None = Field(
+        description=f"Optional 1-{MAX_FORMULA_IDS} exact formula calculation_id values; null lists all formulas."
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy_args(cls, value: Any) -> Any:
+        # Existing internal callers may omit newer fields; provider strict schemas require them.
+        return {"method_ids": None, "formula_ids": None, **value} if isinstance(value, dict) else value
 
     @field_validator("table_names")
     @classmethod
     def _tables(cls, value: list[str]) -> list[str]:
-        return _checked(value, TABLE_NAME, "table name", MAX_TABLES_PER_CALL)
+        return _checked(value, TABLE_NAME, "table name", MAX_TABLES_PER_CALL) if value else []
+
+    @model_validator(mode="after")
+    def _required_tables(self) -> "CatalogDetailsArguments":
+        table_free_sections = {"RESEARCH", "FORMULAS"}
+        if not self.table_names and any(section not in table_free_sections for section in self.sections):
+            raise ValueError("table_names are required for market-table metadata sections")
+        return self
 
     @field_validator("sections")
     @classmethod
@@ -222,6 +273,16 @@ class CatalogDetailsArguments(BaseModel):
     @classmethod
     def _entities(cls, value: list[str] | None) -> list[str] | None:
         return None if value is None else _checked(value, ENTITY_ID, "entity id", MAX_ENTITY_IDS)
+
+    @field_validator("method_ids")
+    @classmethod
+    def _methods(cls, value: list[str] | None) -> list[str] | None:
+        return None if value is None else _checked(value, METHOD_ID, "method id", MAX_METHOD_IDS)
+
+    @field_validator("formula_ids")
+    @classmethod
+    def _formulas(cls, value: list[str] | None) -> list[str] | None:
+        return None if value is None else _checked(value, FORMULA_ID, "formula id", MAX_FORMULA_IDS)
 
 
 def _plain(value: Any) -> Any:
@@ -279,6 +340,18 @@ CALCULATION_FULL = (
     "output_definition", "validation_evidence",
 )
 CALCULATION_SUMMARY = ("target_table", "calculation_name", "version", "target_columns", "definition")
+RESEARCH_FULL = (
+    "method_id", "method_name", "category", "purpose", "example_question", "analysis_kind", "input_grain",
+    "required_inputs_json", "optional_inputs_json", "future_outcome_required", "supports_numeric_directly",
+    "preprocessing", "parameter_keys_json", "expected_outputs_json", "validation_requirements_json",
+    "main_risks", "compute_strategy", "tool_or_library_examples", "implementation_status",
+)
+RESEARCH_SUMMARY = ("method_id", "method_name", "category", "purpose", "implementation_status")
+FORMULA_FULL = (
+    "calculation_id", "calculation_name", "description", "required_inputs", "formula_method",
+    "parameters", "output", "implementation",
+)
+FORMULA_SUMMARY = ("calculation_id", "calculation_name", "output")
 RELATIONSHIP_FIELDS = (
     "relationship_id", "left_table", "left_columns", "right_table", "right_columns",
     "relationship_type", "temporal_rule", "safe_output_grain", "requires_preaggregation",
@@ -332,6 +405,8 @@ class CatalogTools:
     def discover(self, _: BaseModel) -> dict[str, Any]:
         with self.reader.read_only() as run:
             rows = run(DISCOVER_SQL, (MAX_DISCOVERED_TABLES + 1,))
+            research = run(RESEARCH_COUNTS_SQL, ())
+            formulas = run(FORMULA_COUNT_SQL, ())
         tables = [
             {
                 **_entry(row, (
@@ -351,8 +426,22 @@ class CatalogTools:
             "tables": tables,
             "table_count": len(tables),
             "truncated": len(rows) > MAX_DISCOVERED_TABLES,
+            "research_catalog": {
+                "catalog_name": "AI_research_catalog",
+                "method_count": sum(int(row["method_count"]) for row in research),
+                "implementation_status_counts": {
+                    row["implementation_status"]: int(row["method_count"]) for row in research
+                },
+                "scope": "GLOBAL_METHOD_REFERENCE",
+            },
+            "formula_catalog": {
+                "catalog_name": "AI_formula_reference",
+                "formula_count": int(formulas[0]["formula_count"]) if formulas else 0,
+                "scope": "GLOBAL_FORMULA_REFERENCE",
+                "note": "Documented formula definitions, not verified or executable implementations.",
+            },
             "notice": METADATA_NOTICE + " Use get_catalog_details for columns, relationships, "
-                      "calculations, and coverage. " + VISIBILITY_NOTE,
+                      "calculations, coverage, research methods, and formulas. " + VISIBILITY_NOTE,
         }
         if not tables:
             result["note"] = "The AI catalog currently exposes no tables."
@@ -361,11 +450,11 @@ class CatalogTools:
     def details(self, arguments: BaseModel) -> dict[str, Any]:
         assert isinstance(arguments, CatalogDetailsArguments)
         with self.reader.read_only() as run:
-            resolved = run(RESOLVE_TABLES_SQL, (arguments.table_names,))
+            resolved = run(RESOLVE_TABLES_SQL, (arguments.table_names,)) if arguments.table_names else []
             found = {row["table_name"]: row for row in resolved}
             tables = [name for name in arguments.table_names if name in found]
             unknown = [name for name in arguments.table_names if name not in found]
-            if not tables:
+            if arguments.table_names and not tables:
                 raise ToolError(
                     f"None of the requested tables are available in the AI catalog: {unknown}. "
                     "Call discover_catalog for valid table_name values."
@@ -419,6 +508,38 @@ class CatalogTools:
                 group_key="target_table", budget=budget,
                 narrow_hint="Pass column_names to receive full calculation contracts for specific columns.",
             )
+
+        if section == "RESEARCH":
+            rows = run(RESEARCH_SQL, (arguments.method_ids, arguments.method_ids, ROW_CAPS["RESEARCH"] + 1))
+            total = int(rows[0]["total_matching"]) if rows else 0
+            entries = [_entry(row, RESEARCH_FULL) for row in rows[: ROW_CAPS["RESEARCH"]]]
+            detail = "FULL"
+            if _size(entries) > budget:
+                detail = "SUMMARY"
+                entries = [_entry(row, RESEARCH_SUMMARY) for row in rows[: ROW_CAPS["RESEARCH"]]]
+            kept, _ = _fit(entries, budget)
+            result = {"detail": detail, "entries": kept, "returned": len(kept), "total_matching": total,
+                      "note": "REFERENCE_ONLY does not indicate an installed or validated sandbox method."}
+            if detail == "SUMMARY" or len(kept) < total:
+                result["truncated"] = len(kept) < total
+                result["hint"] = "Pass method_ids to retrieve full definitions for specific research methods."
+            return result
+
+        if section == "FORMULAS":
+            rows = run(FORMULAS_SQL, (arguments.formula_ids, arguments.formula_ids, ROW_CAPS["FORMULAS"] + 1))
+            total = int(rows[0]["total_matching"]) if rows else 0
+            entries = [_entry(row, FORMULA_FULL) for row in rows[: ROW_CAPS["FORMULAS"]]]
+            detail = "FULL"
+            if _size(entries) > budget:
+                detail = "SUMMARY"
+                entries = [_entry(row, FORMULA_SUMMARY) for row in rows[: ROW_CAPS["FORMULAS"]]]
+            kept, _ = _fit(entries, budget)
+            result = {"detail": detail, "entries": kept, "returned": len(kept), "total_matching": total,
+                      "note": "Documented formula definitions, not verified or executable implementations."}
+            if detail == "SUMMARY" or len(kept) < total:
+                result["truncated"] = len(kept) < total
+                result["hint"] = "Pass formula_ids to retrieve full definitions for specific formulas."
+            return result
 
         if section == "RELATIONSHIPS":
             rows = run(RELATIONSHIPS_SQL, (tables, tables, ROW_CAPS["RELATIONSHIPS"] + 1))
@@ -501,7 +622,8 @@ def catalog_specs(reader: CatalogReader, *, timeout_seconds: float) -> list[Tool
             description=(
                 "List the data tables available in Saniti's AI catalog with their descriptions, "
                 "category, grain, keys, documentation status, and how much column, calculation, "
-                "and relationship metadata each has. Returns catalog metadata only, never data rows."
+                "and relationship metadata each has, plus the global research-method and "
+                "formula-reference catalog counts. Returns catalog metadata only, never data rows."
             ),
             arguments_model=NoArguments,
             handler=tools.discover,
@@ -515,8 +637,12 @@ def catalog_specs(reader: CatalogReader, *, timeout_seconds: float) -> list[Tool
                 "aggregations. RELATIONSHIPS: documented join keys, temporal rules, and output "
                 "grain. CALCULATIONS: documented calculation definitions, required inputs, "
                 "alignment and missing-data rules. COVERAGE: recorded date coverage and "
-                "verification status. Large sections are summarized or truncated and say so; "
-                "narrow them with column_names. Returns documentation only, never observed values."
+                "verification status. RESEARCH: global reference methods, independent of market tables; "
+                "use table_names=[] for RESEARCH only and method_ids to narrow. FORMULAS: global "
+                "documented calculation formulas, independent of market tables; use table_names=[] for "
+                "FORMULAS only and formula_ids to narrow; these are documented definitions, not verified "
+                "or executable implementations. Large sections are summarized or truncated and say so. "
+                "Returns documentation only, never observed values."
             ),
             arguments_model=CatalogDetailsArguments,
             handler=tools.details,

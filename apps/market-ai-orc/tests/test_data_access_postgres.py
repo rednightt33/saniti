@@ -26,6 +26,7 @@ from app.tools.preview import ORDERING  # noqa: E402
 from catalog_fixture import (  # noqa: E402
     FIXTURE_SQL, MARKET_ROWS, MARKET_TABLES, PREVIEW_MIGRATION, READER_MIGRATION, REPO_ROOT,
     TRIGGER_FUNCTION_STUB, catalog_ddl, market_insert, market_primary_key, market_table_ddl,
+    RESEARCH_FIXTURE_SQL, research_catalog_ddl, FORMULA_FIXTURE_SQL, formula_catalog_ddl,
 )
 
 ADMIN_URL = os.environ.get("ORC_TEST_POSTGRES_URL", "")
@@ -55,6 +56,10 @@ def db() -> Iterator[dict[str, str]]:
         connection.execute(TRIGGER_FUNCTION_STUB)
         connection.execute(catalog_ddl())
         connection.execute(FIXTURE_SQL)
+        connection.execute(research_catalog_ddl())
+        connection.execute(RESEARCH_FIXTURE_SQL)
+        connection.execute(formula_catalog_ddl())
+        connection.execute(FORMULA_FIXTURE_SQL)
         connection.execute('''
             INSERT INTO public."AI_data_coverage" (dataset_name, coverage_scope, entity_id, coverage_mode,
                 pipeline_status, verification_status, quality_status, check_error, last_checked_at)
@@ -72,6 +77,8 @@ def db() -> Iterator[dict[str, str]]:
             WHERE (ticker, date) = (SELECT ticker, date FROM public."Price_Stock_Indonesia_IDX"
                                     ORDER BY date DESC, ticker DESC LIMIT 1)''')
         connection.execute(READER_MIGRATION.read_text())
+        connection.execute('GRANT SELECT ON public."AI_research_catalog" TO market_ai_catalog_reader')
+        connection.execute('GRANT SELECT ON public."AI_formula_reference" TO market_ai_catalog_reader')
         connection.execute(PREVIEW_MIGRATION.read_text())
         connection.execute("ANALYZE")
     spec = importlib.util.spec_from_file_location("provision", REPO_ROOT / "scripts/provision_market_ai_orc_login.py")
@@ -137,6 +144,8 @@ EXPECTED_KEYS = {
     "AI_catalog_relationships": ["relationship_id"],
     "AI_calculation_catalog": ["target_table", "calculation_name", "version"],
     "AI_data_coverage": ["coverage_id"],
+    "AI_research_catalog": ["method_id"],
+    "AI_formula_reference": ["calculation_id"],
 }
 
 

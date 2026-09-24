@@ -3,8 +3,6 @@ import { bucket, defineRailway, github, image, postgres, preserve, project, serv
 export default defineRailway(() => {
   const saniti = github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/idx-price-cron" });
 
-  const DB2 = postgres("DB2", { region: "sfo" });
-  DB2.networking = { privateNetworkEndpoint: "postgres-xcu1" };
   const Postgres = postgres("Postgres", { region: "sfo" });
   Postgres.networking = { privateNetworkEndpoint: "postgres", tcpProxies: { "5432": {} } };
   const postgresVolumeThQL = volume("postgres-volume-thQL", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
@@ -42,7 +40,7 @@ export default defineRailway(() => {
     env: { AI_ANALYSIS_MODE: preserve(), AI_CONTEXT_COMPACTION_MODE: preserve(), AI_CONTEXT_COMPACTION_THRESHOLD_TOKENS: preserve(), AI_CONTEXT_RESERVE_TOKENS: preserve(), AI_CUMULATIVE_COMPACTION_THRESHOLD_PERCENT: preserve(), AI_FINALIZATION_OUTPUT_RESERVE_TOKENS: preserve(), AI_FINALIZATION_TOOL_RESULT_RESERVE_TOKENS: preserve(), AI_FINAL_RESPONSE_MAX_RETRIES: preserve(), AI_MAX_ANALYSIS_SECONDS: preserve(), AI_MAX_CONTEXT_TOKENS: preserve(), AI_MAX_CUMULATIVE_INPUT_TOKENS: preserve(), AI_MAX_CUMULATIVE_OUTPUT_TOKENS: preserve(), AI_MAX_DISCOVERY_CALLS: preserve(), AI_MAX_FEATURE_METADATA_TOKENS: preserve(), AI_MAX_HISTORY_TOKENS: preserve(), AI_MAX_OUTPUT_TOKENS: preserve(), AI_MAX_TOOL_CALLS: preserve(), AI_MAX_TOOL_ITERATIONS: preserve(), AI_MAX_TOOL_RESULT_TOKENS_PER_CALL: preserve(), AI_MAX_TOOL_RESULT_TOKENS_TOTAL: preserve(), AI_MIN_INSIGHT_DATA_CALLS: preserve(), AI_MODEL: preserve(), AI_PROVIDER: preserve(), AI_REASONING_CLEANUP_INTERVAL_SECONDS: preserve(), AI_REASONING_EFFORT: preserve(), AI_REASONING_MAX_BYTES_PER_CALL: preserve(), AI_REASONING_RETENTION_DAYS: preserve(), AI_REQUEST_TIMEOUT_SECONDS: preserve(), AI_STORE_REASONING_DETAILS: preserve(), AI_TARGET_CONTEXT_TOKENS: preserve(), ANALYTICS_BUCKET_ACCESS_KEY_ID: preserve(), ANALYTICS_BUCKET_ENDPOINT: preserve(), ANALYTICS_BUCKET_NAME: preserve(), ANALYTICS_BUCKET_REGION: preserve(), ANALYTICS_BUCKET_SECRET_ACCESS_KEY: preserve(), ANALYTICS_ENABLED: preserve(), ANALYTICS_JOB_POLL_MILLISECONDS: preserve(), ANALYTICS_JOB_WAIT_SECONDS: preserve(), ANALYTICS_MAX_COLUMNS: preserve(), ANALYTICS_MAX_DATASETS: preserve(), ANALYTICS_MAX_DATE_RANGE_DAYS: preserve(), ANALYTICS_MAX_ESTIMATED_ROWS: preserve(), ANALYTICS_MAX_INPUT_BYTES: preserve(), ANALYTICS_MAX_MEMORY_MB: preserve(), ANALYTICS_MAX_RESULT_BYTES: preserve(), ANALYTICS_MAX_RESULT_ROWS: preserve(), ANALYTICS_MAX_ROWS: preserve(), ANALYTICS_MAX_RUNTIME_SECONDS: preserve(), ANALYTICS_RESULT_RETENTION_DAYS: preserve(), ANALYTICS_SNAPSHOT_RETENTION_HOURS: preserve(), ANALYTICS_TERMINAL_SNAPSHOT_GRACE_SECONDS: preserve(), ANALYTICS_WORKER_API_KEY: preserve(), CONDITION_RUNS_MAX_DATE_RANGE_DAYS: preserve(), CONDITION_RUNS_MAX_EPISODES: preserve(), DATABASE_URL: preserve(), LLM_TOOL_RESULT_MAX_BYTES: preserve(), LLM_TOOL_RESULT_MAX_ROWS: preserve(), MARKET_AI_INTERNAL_API_KEY: preserve(), OPENAI_API_KEY: preserve(), OPENAI_MODEL: preserve(), OPENAI_REASONING_EFFORT: preserve(), OPENROUTER_DEEPSEEK: preserve(), QUERY_DEFAULT_ROWS: preserve(), QUERY_MAX_COLUMNS: preserve(), QUERY_MAX_DATE_RANGE_DAYS: preserve(), QUERY_MAX_ESTIMATED_ROWS: preserve(), QUERY_MAX_GROUPS: preserve(), QUERY_MAX_OUTPUT_BYTES: preserve(), QUERY_MAX_PERIODS: preserve(), QUERY_MAX_ROWS: preserve(), QUERY_MAX_TICKERS: preserve(), QUERY_MAX_UNFILTERED_DATE_RANGE_DAYS: preserve(), QUERY_SANDBOX_API_KEY: preserve(), QUERY_SANDBOX_MAX_COLUMNS: preserve(), QUERY_SANDBOX_MAX_DATASETS: preserve(), QUERY_SANDBOX_MAX_DATE_RANGE_DAYS: preserve(), QUERY_SANDBOX_MAX_ESTIMATED_ROWS: preserve(), QUERY_SANDBOX_MAX_INPUT_BYTES: preserve(), QUERY_SANDBOX_MAX_MEMORY_MB: preserve(), QUERY_SANDBOX_MAX_RESULT_BYTES: preserve(), QUERY_SANDBOX_MAX_RESULT_ROWS: preserve(), QUERY_SANDBOX_MAX_ROWS: preserve(), QUERY_SANDBOX_MAX_RUNTIME_SECONDS: preserve(), QUERY_SANDBOX_MAX_TICKERS: preserve(), QUERY_TIMEOUT_SECONDS: preserve(), STATISTICAL_MAX_COLUMNS: preserve(), STATISTICAL_MAX_DATASETS: preserve(), STATISTICAL_MAX_DATE_RANGE_DAYS: preserve(), STATISTICAL_MAX_ESTIMATED_ROWS: preserve(), STATISTICAL_MAX_INPUT_BYTES: preserve(), STATISTICAL_MAX_MEMORY_MB: preserve(), STATISTICAL_MAX_RESULT_BYTES: preserve(), STATISTICAL_MAX_RESULT_ROWS: preserve(), STATISTICAL_MAX_ROWS: preserve(), STATISTICAL_MAX_RUNTIME_SECONDS: preserve(), STATISTICAL_MAX_TICKERS: preserve(), STATISTICAL_WORKER_API_KEY: preserve(), WORKER_LEASE_SECONDS: preserve(), WORKER_POLL_SECONDS: preserve() },
   });
   const marketAiOrc = service("market-ai-orc", {
-    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/market-ai-orc/**"] },
+    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile" },
     start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080",
     healthcheck: "/ready",
     healthcheckTimeout: 120,
@@ -57,6 +55,11 @@ export default defineRailway(() => {
     replicas: { "sfo": 1 },
     deploy: { cronSchedule: "0 10 * * *", restartPolicyType: "NEVER" },
     env: { DATABASE_URL: preserve(), TELEGRAM_NOTIFY_ATTEMPTS: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_TIMEOUT: preserve(), TELEGRAM_NOTIFY_URL: preserve() },
+  });
+  const pgweb = service("pgweb", {
+    source: image("sosedoff/pgweb:0.17.0"),
+    replicas: { "sfo": 1 },
+    env: { PGWEB_AUTH_PASS: preserve(), PGWEB_AUTH_USER: preserve(), PGWEB_DATABASE_URL: preserve() },
   });
   const telegramTrigger = service("telegram-trigger", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/telegram-trigger" }),
@@ -77,6 +80,10 @@ export default defineRailway(() => {
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "ALWAYS" },
     env: { ANALYTICS_WORKER_API_KEY: preserve(), ANALYTICS_WORKER_POLL_SECONDS: preserve(), MARKET_AI_BACKEND_URL: preserve(), STATISTICAL_WORKER_API_KEY: preserve() },
+  });
+  const splitDeployJob = service("split-deploy-job", {
+    replicas: { "sfo": 1 },
+    env: { DATABASE_URL: preserve(), MARKET_AI_ORC_API_KEY: preserve(), PY_SANDBOX_API_KEY: preserve(), SQL_GOVERNOR_API_KEY: preserve() },
   });
   const telegramMonitor = service("telegram-monitor", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/telegram-monitor" }),
@@ -131,6 +138,6 @@ export default defineRailway(() => {
   });
 
   return project("lucid-patience", {
-    resources: [marketSqlGovernor, marketPythonSandbox, marketAiBackend, marketAiOrc, idxPriceCron, telegramTrigger, marketAnalyticsWorker, DB2, telegramMonitor, idxPriceRecoveryCron, Postgres, marketQuerySandbox, aiDataCoverage, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, marketSqlDatasets, marketAnalyticsInput],
+    resources: [marketSqlGovernor, marketPythonSandbox, marketAiBackend, marketAiOrc, idxPriceCron, pgweb, telegramTrigger, marketAnalyticsWorker, splitDeployJob, telegramMonitor, idxPriceRecoveryCron, Postgres, marketQuerySandbox, aiDataCoverage, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, marketSqlDatasets, marketAnalyticsInput],
   });
 });
