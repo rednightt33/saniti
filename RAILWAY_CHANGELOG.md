@@ -1,5 +1,44 @@
 # Railway changelog
 
+## 2026-09-24 — Deploy the fact/analysis split: Governor dataset-only + lookup, sandbox v2 validation gate, orc answer gates (commit 1361644)
+
+- Scope approved by the user: one joint release of migration 009, `market-sql-governor`, `market-python-sandbox` v2, and `market-ai-orc`. Before deploying, `origin/main` was found eight commits ahead (the `AI_research_catalog` and `AI_formula_reference` rollouts, deployed to `market-ai-orc` as `89ed23b6` at 09:17 UTC). The feature branch merged `origin/main` cleanly as `1361644`, so the release keeps those features. The orc, Governor, and sandbox suites pass on the merged tree (363, 118, 164 tests; local PostgreSQL 16 for the database tests). Governor and sandbox code was not touched by those main commits.
+- Rollback references, recorded before deploying: Governor `92aaf788-b147-4437-88ec-6d36bbad6e96`, sandbox `4310a9f6-43e6-438f-b55e-8155155beeaf`, orc `89ed23b6-3ff5-481e-96af-733888dae794`. Note: Governor v2 no longer returns inline rows and sandbox v2 requires a `spec_id`, so these three must be rolled back together.
+- Deployed by local upload (`railway up <app> --path-as-root`, clean `git archive` of `1361644`). Each deployment reached `SUCCESS`:
+  - Governor `ddd1d851-a0c8-4dc8-9361-e2333018db7a`.
+  - Sandbox `d7f57f10-6fc1-4bee-a231-a76b3716c3d5`. Startup logged `isolation_enforced=true` with no interrupted analyses.
+  - Orc `7f463b78-19a9-4b15-8e30-5b0d8b8254ea`.
+  - Each service answered `200` on `/ready`, both from Railway's health probe and over the private network.
+- No variable, secret, volume, domain, schedule, or restart policy of these services was changed. The orc keeps `AI_MAX_TOOL_CALLS=20` and `AI_MAX_TOOL_ITERATIONS=20`; the sandbox and Governor run on their code defaults.
+- The temporary one-off service `split-deploy-job` (`836e701d-926c-4ffe-b0c0-f50487185e20`) held reference variables only (`DATABASE_URL`, `MARKET_AI_ORC_API_KEY`, `PY_SANDBOX_API_KEY`, `SQL_GOVERNOR_API_KEY`) and redacted them from its output. It ran four jobs:
+  - Migration 009 (see `DATABASE_CHANGELOG.md`).
+  - The live acceptance run below.
+  - Three read-only catalog inspections, in `default_transaction_read_only` sessions.
+  - The first migration run's output was never collected by Railway's log pipeline, and later runs lost some long lines. The job now waits before exiting and prints one row per line.
+- Live acceptance over the private network (deployment `5a71843e-74e9-488c-9f35-90952fe12551`):
+  - **Governor, direct calls:**
+    - A small `/v1/query` returns `DATASET_READY` with no `rows` field.
+    - `/v1/lookup` VALUE (BBCA close on 2026-09-23) and AGGREGATE (SUM of volume, 2026-09-15..23) both return `FACTS_READY` and equal the PostgreSQL values.
+    - Five refusals behave as specified:
+      - too many values → `LOOKUP_TOO_LARGE` / `USE_ANALYSIS_PATH`;
+      - an `order_by` field → `LOOKUP_NOT_ALLOWED` / `USE_ANALYSIS_PATH`;
+      - STDDEV → `LOOKUP_NOT_ALLOWED` / `USE_ANALYSIS_PATH`;
+      - a table outside the allowlist → `TABLE_NOT_APPROVED`;
+      - an unknown column → `UNKNOWN_COLUMN`.
+  - **Sandbox:** `/v1/runtime` reports `isolation_enforced=true` and validator checks `validator_seccomp_filter_active`, `validator_socket_inet_denied`, `validator_uid_non_root`.
+  - **Orc, real model** (`deepseek/deepseek-v4.1-flash`); six runs, every one HTTP 200 with `number_provenance.unsupported=[]`. Every first data call was on the intended path. Results:
+
+    | Run | Result | Tool calls | Time | Note |
+    |---|---|---|---|---|
+    | "Berapa harga close BBCA kemarin?" | `ANSWER`, `FACT` | 4 | 43.5 s | |
+    | "total volume BBCA minggu ini" | `ANSWER`, `DATABASE_AGGREGATE` | 4 | 13.1 s | Discloses the partial week |
+    | BBCA–BBRI daily-return correlation, Jun–Aug 2026 | `ANSWER`, `CALCULATION_VERIFIED`, gate `PASSED` | 6 | 26.2 s | |
+    | "average of the preview rows, without Python" | `ANSWER`, `DATABASE_AGGREGATE` | 7 | 27.1 s | Refused to compute from preview rows; used a lookup AVG |
+    | 20-day rolling z-score, 5 tickers, 3 months | `ANSWER`, `CALCULATION_VERIFIED`, gate `PASSED` | 6 | 30.7 s | |
+    | RSI(14) < 30 + bullish engulfing, all IDX | `LIMITATION`, `UNVERIFIED_EXPLORATORY`, gate `ANNOTATED` | 12 | 44.2 s | Custom engulfing rule; `PATH_DEPENDENT_WARMUP`, `STALE_LATEST_OBSERVATION`; tools withdrawn at `CONTEXT_BUDGET` after 251k cumulative tokens |
+
+- The logs of the three services and of the job were scanned for bearer tokens, provider keys, DSNs with credentials, bucket secrets, and presigned-URL signatures: no match. The Governor logs `sql_governor_lookup` events with fact ids and a values hash, not the values.
+
 ## 2026-09-24 — Deploy market-ai-orc with AI_formula_reference FORMULAS support (commit cb97fac); clear its watchPatterns
 
 - Added `FORMULAS` support to `market-ai-orc` (`catalog.py`/`catalog_rows.py`/`orchestrator.py`), mirroring the `RESEARCH` rollout: `discover_catalog`'s `formula_catalog` count, `get_catalog_details`'s `FORMULAS` section with `formula_ids` narrowing, and `AI_formula_reference` in `read_catalog_rows`. 253 tests pass locally, 60 skipped (no disposable Postgres). Bumped the FastAPI app version to `0.2.0`.

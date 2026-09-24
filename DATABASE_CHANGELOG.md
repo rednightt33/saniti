@@ -23,6 +23,17 @@
 - Ran `scripts/sync_database_catalog.py` (`Catalog reconciled: 599 physical columns, 0 updated` — already consistent) and `scripts/sync_database_schema.py` (`Synchronized 36 tables`) against live dev in a temporary service, fetched the regenerated `DATABASE_SCHEMA.md` over HTTPS, diffed it locally, and applied it; the only content changes are routine freshness-timestamp drift on unrelated tables and the new `AI_research_catalog` section.
 - No table, column, or grant belonging to the SQL Governor's seven-table market-data allowlist was changed. No production environment was touched.
 
+## 2026-09-24 — Register the fact/analysis split tools in Tool_Catalog (migration 009)
+
+- Applied `database/migrations/20260923_009_register_fact_and_analysis_tools.sql` to `dev` at about 01:27 UTC, run by the temporary one-off service `split-deploy-job` (deployment `ebaa6479-6712-47d4-8020-76a5c9c65200`), before the `AI_research_catalog` and `AI_formula_reference` rollouts below. That run's stdout was never collected by Railway (only `Starting Container` appears, although the deployment reached `SUCCESS`). The migration is a single transaction whose `$verify$` block raises on any mismatch, and `lookup_fact` exists, so it committed with its checks passing: 11 inactive market-ai-orc rows at `runtime_commit="27e118a"`, the 3 superseded v1 rows still at `81475ae`, no active market-ai-orc row.
+  - It marks `request_data`, `run_python_analysis`, and `get_analysis_result` v1 with `superseded_by="v2"` and inserts `request_data` v2 (dataset-only), `lookup_fact` v1, `create_analysis_spec` v1, `run_python_analysis` v2, and `get_analysis_result` v2, all `is_active=false`. The six unchanged market-ai-orc rows moved to `runtime_commit="27e118a"`, and `get_system_capabilities` took its new purpose (it reports `fact_lookup`).
+- Read back at 09:30 UTC by an idempotent rerun of the same job (deployment `1cd6b9b8-91cd-4100-a4b8-f5fe6d325d9a`; it found `lookup_fact` and skipped the SQL). There are 14 market-ai-orc rows:
+  - 8 inactive at `27e118a`: `create_analysis_spec` v1, `get_analysis_result` v2, `get_dataset_manifest` v1, `get_system_capabilities` v1, `lookup_fact` v1, `preview_table_rows` v1, `request_data` v2, `run_python_analysis` v2.
+  - 3 superseded v1 rows at `81475ae`.
+  - 3 active rows at `cb97fac`: `discover_catalog`, `get_catalog_details`, `read_catalog_rows`. They were among the 11 when 009 committed; migrations `20260924_002` and `20260924_003` below later activated them and restamped them `aa7b231` and then `cb97fac`.
+  - 25 active rows in the whole table, and `get_system_capabilities.purpose` names fact lookup.
+- No market-data table, SQL Governor grant, or PostgreSQL source data was changed.
+
 ## 2026-09-23 — Register the Python analysis tools in Tool_Catalog
 
 - Applied `database/migrations/20260923_008_register_python_analysis_tools.sql` to `dev`. It was run by the temporary one-off service `sandbox-acceptance-job` (deployment `c6cf05e3-16a5-43c0-b328-8bda4e8ef1b4`), which was deleted afterwards.

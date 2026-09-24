@@ -81,10 +81,6 @@ export default defineRailway(() => {
     deploy: { restartPolicyType: "ALWAYS" },
     env: { ANALYTICS_WORKER_API_KEY: preserve(), ANALYTICS_WORKER_POLL_SECONDS: preserve(), MARKET_AI_BACKEND_URL: preserve(), STATISTICAL_WORKER_API_KEY: preserve() },
   });
-  const splitDeployJob = service("split-deploy-job", {
-    replicas: { "sfo": 1 },
-    env: { DATABASE_URL: preserve(), MARKET_AI_ORC_API_KEY: preserve(), PY_SANDBOX_API_KEY: preserve(), SQL_GOVERNOR_API_KEY: preserve() },
-  });
   const telegramMonitor = service("telegram-monitor", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/telegram-monitor" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/telegram-monitor/**"] },
@@ -138,6 +134,6 @@ export default defineRailway(() => {
   });
 
   return project("lucid-patience", {
-    resources: [marketSqlGovernor, marketPythonSandbox, marketAiBackend, marketAiOrc, idxPriceCron, pgweb, telegramTrigger, marketAnalyticsWorker, splitDeployJob, telegramMonitor, idxPriceRecoveryCron, Postgres, marketQuerySandbox, aiDataCoverage, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, marketSqlDatasets, marketAnalyticsInput],
+    resources: [marketSqlGovernor, marketPythonSandbox, marketAiBackend, marketAiOrc, idxPriceCron, pgweb, telegramTrigger, marketAnalyticsWorker, telegramMonitor, idxPriceRecoveryCron, Postgres, marketQuerySandbox, aiDataCoverage, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, marketSqlDatasets, marketAnalyticsInput],
   });
 });
