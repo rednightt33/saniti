@@ -108,7 +108,7 @@ def create_app(
             owned_client.close()
 
     app = FastAPI(
-        title="Saniti Market AI Orchestrator", version="0.1.0",
+        title="Saniti Market AI Orchestrator", version="0.2.0",
         docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan,
     )
     app.state.orchestrator = orchestrator
