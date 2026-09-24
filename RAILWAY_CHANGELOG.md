@@ -1,5 +1,45 @@
 # Railway changelog
 
+## 2026-09-24 — Deploy market-ai-orc prompt-caching-aware model calls (commit 73b3c4e)
+
+- Scope approved by the user: the model-call layer of `market-ai-orc` only, keeping the OpenRouter Responses API.
+  - Every call of a run sends `session_id` = `request_id`.
+  - Usage now includes cached and cache-write tokens, fresh tokens, cost, latency, and a static-prefix fingerprint per call, with a run summary.
+  - No custom prompt cache. `market-ai-backend` was not changed.
+  - Orc suite: 382 passed.
+- **Verified against OpenRouter documentation** (prompt-caching and usage-accounting pages):
+  - `session_id` in the body is accepted by both the Chat and Responses APIs and becomes the sticky-routing key.
+  - DeepSeek caching is implicit, and a cache read is billed at 0.1x input.
+  - Responses reports cache use in `usage.input_tokens_details`, and `usage.cost` is always present.
+  - The Responses body carries no `provider` field. The serving provider comes from `GET /api/v1/generation?id=<provider_response_id>`.
+- Rollback reference: orc `7fe7f1f6-0adf-4dd5-b118-4aa01b99d51d`. Deployed `c79aac06-dc7b-4c76-9b61-2f1e18f2c1c3` by local upload (clean `git archive` of `73b3c4e`); it reached `SUCCESS` with `/ready` 200. No variable changed.
+- **Live PoC:** the temporary job `cache-poc-job` (`292d969e-90ab-4db5-861d-85552c285bee`, only a reference to `MARKET_AI_ORC_API_KEY`, deleted afterwards) ran `cache-poc-1`, "Hitung z-score rolling 20 hari … BBCA, BBRI, TLKM … 3 bulan terakhir". Result: `ANSWER`, `CALCULATION_VERIFIED`, gate `PASSED`, 8 model calls, 7 tool calls, 107.5 s. Per call, from the orc logs and OpenRouter's generation records:
+
+  | Call | Prompt | Cached | Fresh | Completion | Cost (USD) | Provider | Prefix |
+  |---|---|---|---|---|---|---|---|
+  | 1 | 10,841 | 0 | 10,841 | 101 | 0.00102114 | Relace | `6078453d` |
+  | 2 | 12,090 | 10,752 | 1,338 | 254 | 0.00033149 | Relace | `6078453d` |
+  | 3 | 15,378 | 12,032 | 3,346 | 837 | 0.00078608 | Relace | `6078453d` |
+  | 4 | 16,355 | 15,360 | 995 | 419 | 0.00041634 | Relace | `6078453d` |
+  | 5 | 17,284 | 16,640 | 644 | 499 | 0.00043227 | Relace | `6078453d` |
+  | 6 | 20,483 | 17,152 | 3,331 | 1,833 | 0.00127901 | Relace | `6078453d` |
+  | 7 | 23,884 | 20,480 | 3,404 | 751 | 0.00082863 | Relace | `6078453d` |
+  | 8 (structured final) | 15,727 | 0 | 15,727 | 803 | 0.00143208 | DekaLLM | `ad094799` |
+
+  - Totals: 132,042 prompt tokens, of which 92,416 cached (ratio 0.6999), 39,626 fresh and 5,497 completion; cost $0.00652703; average latency 12.4 s.
+  - Every call carried the same `session_id`, and OpenRouter recorded it on each generation. Calls 1–7 had a byte-identical static prefix and stayed on one provider.
+  - `cache_write_tokens` was 0 on every call; DeepSeek endpoints report no cache writes.
+- **Baseline for comparison:** the same prompt before this change (`poc-1-standard`, orc `7fe7f1f6`, no `session_id`), looked up in OpenRouter's generation records.
+  - 7 calls: 114,506 prompt tokens, 86,060 cached (ratio 0.7516), cost $0.00560759.
+  - Calls 1–6 stayed on Relace through OpenRouter's default conversation-hash stickiness, since the first system and user messages are stable within a run. The last call went to OpenInference.
+  - **Conclusion:** in this single-sample comparison, `session_id` did not measurably raise the cache ratio. Excluding the final call, the ratio is 0.795 with `session_id` and 0.771 without, which is within run-to-run variation. What it adds is explicit stickiness from the first call and session grouping in OpenRouter's logs.
+- **Cache miss, evidenced and not fixed:** in both runs, and in a local probe, the final call lost the cache.
+  - It is the structured-final turn: the model drafted prose on a tool turn, so the orchestrator asks again with tools withdrawn and a strict `text.format` JSON schema.
+  - That changes the static prefix (the fingerprint differs). With `provider.require_parameters=true`, it also moved to another provider, presumably one that supports structured outputs, so sticky routing could not apply.
+  - In `cache-poc-1` that single call carried 40% of the fresh prompt tokens and 22% of the cost.
+  - Changing it touches structured output and tool choice, which the user excluded from this change. It is reported for a separate decision.
+- No other service, variable, or schedule was changed. `railway config plan` reports the configuration up to date.
+
 ## 2026-09-24 — Deploy the Research AI release: Research Governor, event studies, evidence assessment, claim gate, run audit (commit bc589d3)
 
 - Scope approved by the user: apply migration `20260924_004`, deploy `market-sql-governor`, `market-python-sandbox` and `market-ai-orc`, set the 3x capacity limits and `RESEARCH_AUDIT_DATABASE_URL`, and run the live PoC.

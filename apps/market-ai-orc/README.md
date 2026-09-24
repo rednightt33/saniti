@@ -151,6 +151,19 @@ reuse the prefix of one run's calls:
   cached / prompt tokens (null without prompt tokens), total `cost` (null when no call reported one),
   `average_latency_ms`, and `distinct_static_prefixes`. `execution.cached_input_tokens`,
   `execution.cache_write_tokens`, and `execution.cost` carry the same totals in the response.
+- **Serving provider.** The Responses body has no `provider` field. `ai_model_call` logs
+  `provider_response_id`, and `GET https://openrouter.ai/api/v1/generation?id=<it>` returns
+  `provider_name`, `session_id`, and `native_tokens_cached` for that call.
+
+Measured on `dev` (2026-09-24, see `RAILWAY_CHANGELOG.md`):
+- A z-score run made 8 calls, and calls 1–7 stayed on one provider with a byte-identical static prefix.
+  The cache ratio was 0.70 (92,416 of 132,042 prompt tokens), at $0.0065 for the run.
+- The same prompt without `session_id` already stayed sticky through OpenRouter's conversation hash
+  (ratio 0.75), so `session_id` did not measurably change the ratio in that comparison.
+- The remaining miss is the structured-final turn, when the model drafted prose on a tool turn. That
+  turn withdraws tools and adds the strict JSON format, which changes the prefix. With
+  `require_parameters` it can also move to another provider. It is left unchanged pending a separate
+  decision.
 
 ## Environment variables
 
