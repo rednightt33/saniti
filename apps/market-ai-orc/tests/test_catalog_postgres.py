@@ -20,7 +20,7 @@ from app.catalog_store import CatalogStore  # noqa: E402
 from app.tools import ToolError, build_default_registry  # noqa: E402
 from catalog_fixture import (  # noqa: E402
     FIXTURE_SQL, MARKET_DATA_STUBS, READER_MIGRATION, REPO_ROOT, TRIGGER_FUNCTION_STUB, catalog_ddl,
-    RESEARCH_FIXTURE_SQL, research_catalog_ddl,
+    RESEARCH_FIXTURE_SQL, research_catalog_ddl, FORMULA_FIXTURE_SQL, formula_catalog_ddl,
 )
 
 ADMIN_URL = os.environ.get("ORC_TEST_POSTGRES_URL", "")
@@ -48,6 +48,8 @@ def database() -> Iterator[str]:
         connection.execute(FIXTURE_SQL)
         connection.execute(research_catalog_ddl())
         connection.execute(RESEARCH_FIXTURE_SQL)
+        connection.execute(formula_catalog_ddl())
+        connection.execute(FORMULA_FIXTURE_SQL)
     try:
         yield url
     finally:
@@ -186,6 +188,7 @@ def test_least_privilege_role_reads_only_catalogs(database: str, monkeypatch: py
         ).replace('CREATE TABLE public."IDX_Broker_Summary"', 'CREATE TABLE public."Market_Stub_Raw"'))
         connection.execute(READER_MIGRATION.read_text())
         connection.execute('GRANT SELECT ON public."AI_research_catalog" TO market_ai_catalog_reader')
+        connection.execute('GRANT SELECT ON public."AI_formula_reference" TO market_ai_catalog_reader')
     monkeypatch.setenv("DATABASE_URL", database)
     monkeypatch.setenv("MARKET_AI_ORC_DB_PASSWORD", "p" * 40)
     _load_provisioning_script().main()
@@ -196,6 +199,7 @@ def test_least_privilege_role_reads_only_catalogs(database: str, monkeypatch: py
         assert connection.execute("SHOW default_transaction_read_only").fetchone()[0] == "on"
         assert connection.execute('SELECT count(*) FROM public."AI_table_catalog"').fetchone()[0] == 6
         assert connection.execute('SELECT count(*) FROM public."AI_research_catalog"').fetchone()[0] == 1
+        assert connection.execute('SELECT count(*) FROM public."AI_formula_reference"').fetchone()[0] == 1
         for forbidden in ("Market_Stub_Feature", "Market_Stub_Raw", "Table_Catalog"):
             with pytest.raises(psycopg.errors.InsufficientPrivilege):
                 connection.execute(f'SELECT 1 FROM public."{forbidden}"')

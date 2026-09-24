@@ -2,7 +2,7 @@
 """Provision/rotate the market-ai-orc login without logging secrets.
 
 Requires migration 20260923_001_create_market_ai_catalog_reader.sql. The login joins
-market_ai_catalog_reader (SELECT on exactly the five AI_* catalog tables) and, when migration
+market_ai_catalog_reader (SELECT on exactly the seven AI_* catalog tables) and, when migration
 20260923_002_create_market_ai_preview_interface.sql is applied, market_ai_preview_reader
 (EXECUTE on public.ai_preview_table_rows only; no SELECT on any market-data table).
 """
@@ -22,7 +22,7 @@ PREVIEW_GROUP = "market_ai_preview_reader"
 PREVIEW_FUNCTION = "public.ai_preview_table_rows(text)"
 CATALOG_TABLES = (
     "AI_table_catalog", "AI_column_catalog", "AI_catalog_relationships",
-    "AI_calculation_catalog", "AI_data_coverage", "AI_research_catalog",
+    "AI_calculation_catalog", "AI_data_coverage", "AI_research_catalog", "AI_formula_reference",
 )
 
 

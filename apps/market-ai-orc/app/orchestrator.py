@@ -58,6 +58,11 @@ Use discover_catalog to see its method count, then
 get_catalog_details with RESEARCH and method_ids for
 specific methods. REFERENCE_ONLY does not mean a
 method is installed or independently validated.
+The formula catalog documents calculation formulas
+across tables. Use discover_catalog to see its formula
+count, then get_catalog_details with FORMULAS and
+formula_ids for specific formulas. A documented formula
+is not installed or independently validated either.
 Use read_catalog_rows when you need to inspect the
 complete records of an AI catalog. You may retrieve
 additional pages until the required catalog records

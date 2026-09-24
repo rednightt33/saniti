@@ -360,17 +360,23 @@ design.
 
 ## Catalog discovery
 
-The five `AI_*` tables created by `database/migrations/20260922_001_create_ai_catalogs.sql`
-and the global `AI_research_catalog` created by
-`database/migrations/20260924_001_create_ai_research_catalog.sql` provide metadata.
+The five `AI_*` tables created by `database/migrations/20260922_001_create_ai_catalogs.sql`,
+the global `AI_research_catalog` created by
+`database/migrations/20260924_001_create_ai_research_catalog.sql`, and the global
+`AI_formula_reference` created by
+`database/migrations/20260924_003_create_ai_formula_reference.sql` provide metadata.
 The service creates no catalog tables and never accepts model-supplied SQL.
 The research migration creates the 19-column table and read-only role grant; it contains no
 workbook rows. After inspecting the target database, use
 `scripts/import_ai_research_catalog.py /path/to/Saniti_DB_AI_Research_Catalog.xlsx`
 with `DATABASE_URL` set to that database. The script requires `openpyxl` and `psycopg`,
 checks the reviewed workbook SHA256, refuses a nonempty target, inserts the 18 records in
-one transaction, and reads every field back before committing. Run this before deploying
-ORC code that reads the new table. Keep the workbook outside the public repository.
+one transaction, and reads every field back before committing. The formula migration creates
+the 8-column table the same way, activating FORMULAS support immediately (the three tools are
+already active, unlike the RESEARCH rollout); use
+`scripts/import_ai_formula_reference.py /path/to/AI_Calculation_Formula.xlsx` the same way for
+its 200 records. Run these before deploying ORC code that reads the new tables. Keep both
+workbooks outside the public repository.
 
 ### Visibility rules
 
@@ -384,6 +390,7 @@ All rules come from the catalog's own flags:
 | `AI_calculation_catalog` | its `target_table` is visible and `status = 'ACTIVE'` |
 | `AI_data_coverage` | its `dataset_name` is visible and that table has `coverage_enabled` |
 | `AI_research_catalog` | all reference methods are discoverable; `implementation_status` is reported verbatim, not treated as an execution permission |
+| `AI_formula_reference` | all documented formulas are discoverable; there is no per-row status, but every FORMULAS response repeats that these are documented definitions, not verified or executable implementations |
 
 `documentation_status` (`VERIFIED`, `PARTIAL`, `NEEDS_REVIEW`) is passed through, never used
 to hide rows. These rules apply only to the two targeted tools; both notices say so, and
@@ -398,17 +405,19 @@ This tool takes no arguments. For each visible table it returns `table_name`, `d
 (counts of visible columns, active calculations, and allowed relationships). At most 50
 tables are returned, with a `truncated` flag.
 The separate `research_catalog` field reports the global method count and counts by
-`implementation_status`. Research methods are not added to the market-data `tables` list.
+`implementation_status`; `formula_catalog` reports the global formula count. Neither is
+added to the market-data `tables` list.
 
-### `get_catalog_details(table_names, sections, column_names, entity_ids, method_ids)`
+### `get_catalog_details(table_names, sections, column_names, entity_ids, method_ids, formula_ids)`
 
 | Argument | Contract |
 |---|---|
-| `table_names` | 1–3 visible market-table names, or `[]` when requesting only `RESEARCH` |
-| `sections` | 1–5 of `COLUMNS`, `RELATIONSHIPS`, `CALCULATIONS`, `COVERAGE`, `RESEARCH` |
+| `table_names` | 1–3 visible market-table names, or `[]` when requesting only `RESEARCH`/`FORMULAS` |
+| `sections` | 1–6 of `COLUMNS`, `RELATIONSHIPS`, `CALCULATIONS`, `COVERAGE`, `RESEARCH`, `FORMULAS` |
 | `column_names` | `null`, or 1–40 names matching `^[A-Za-z0-9_][A-Za-z0-9_ ]{0,62}$` (spaces allowed, e.g. `Investor Type`); narrows `COLUMNS` and `CALCULATIONS` |
 | `entity_ids` | `null`, or 1–20 ids matching `^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$` (e.g. tickers); adds per-entity `COVERAGE` rows |
 | `method_ids` | `null` for all methods, or 1–40 exact research `method_id` values; narrows `RESEARCH` |
+| `formula_ids` | `null` for all formulas, or 1–40 exact `calculation_id` values; narrows `FORMULAS` |
 
 The tool schema is strict and generated from the same Pydantic model that validates the
 arguments. Unknown fields are rejected, and invalid input never reaches the database.
@@ -422,6 +431,7 @@ What each section returns:
 | `CALCULATIONS` | `AI_calculation_catalog` | `calculation_name`, `version`, `status`, `target_columns`, `definition`, `required_inputs`, `parameters`, `defaults`, `alignment_rules`, `missing_data_policy`, `output_definition`, `validation_evidence`; `implementation_ref` is omitted to save space |
 | `COVERAGE` | `AI_data_coverage` | The `DATASET` row per table with `availability_interpretation` (`CONFIRMED_SOURCE_RANGE`, `SNAPSHOT`, `PIPELINE_CONFIRMED`, or `EXPECTED_NOT_CONFIRMED`; an expected range is never confirmation), `entity_status_counts` (entity rows grouped by pipeline, verification, and quality status), and the matching `ENTITY` rows only when `entity_ids` is given. It never dumps the ~14k per-ticker rows |
 | `RESEARCH` | `AI_research_catalog` | The 19 fields defining each global method. Returns summary fields when full entries exceed the payload budget; narrow with `method_ids` for complete records. `REFERENCE_ONLY` does not mean sandbox support or independent validation. |
+| `FORMULAS` | `AI_formula_reference` | The 8 fields defining each global formula (`formula_method` renamed from the source workbook's `formula / method`). Returns summary fields when full entries exceed the payload budget; narrow with `formula_ids` for complete records. A documented formula is not sandbox support or independent validation. |
 
 A field that is `NULL` or empty in the catalog is omitted from the entry, except the
 explicit `description`/`definition` `null`. The result notice states this.
@@ -438,8 +448,8 @@ Other cases are reported explicitly:
 
 - **SQL:** fixed statements with `%s` parameters only; table, column, and entity names are
   bound as values, never as identifiers.
-- **Row caps:** 150 columns, 100 calculations, 50 relationships, 50 research methods, 60 status groups, and 60
-  entity rows per call.
+- **Row caps:** 150 columns, 100 calculations, 50 relationships, 50 research methods, 50 formulas, 60 status groups,
+  and 60 entity rows per call.
 - **Payload budget:** the result stays within a 24 KB budget, below the registry's 32 KB
   hard cap. Small sections are filled first. A large `COLUMNS` or `CALCULATIONS` section
   first switches to `detail: "SUMMARY"` (names, definitions, types, units), then truncates,
@@ -452,13 +462,13 @@ Other cases are reported explicitly:
 ## Full catalog access
 
 `read_catalog_rows(catalog_name, page_size, cursor)` returns the complete records of one of
-the six `AI_*` catalogs: every column and every row, including rows that the visibility
+the seven `AI_*` catalogs: every column and every row, including rows that the visibility
 rules above hide (inactive or denied tables, disallowed or sensitive columns, disallowed
 relationships, inactive calculations). No filter is applied.
 
 | Argument | Contract |
 |---|---|
-| `catalog_name` | Exactly one of `AI_table_catalog`, `AI_column_catalog`, `AI_catalog_relationships`, `AI_calculation_catalog`, `AI_data_coverage`, `AI_research_catalog` (enum) |
+| `catalog_name` | Exactly one of `AI_table_catalog`, `AI_column_catalog`, `AI_catalog_relationships`, `AI_calculation_catalog`, `AI_data_coverage`, `AI_research_catalog`, `AI_formula_reference` (enum) |
 | `page_size` | `null` for `CATALOG_PAGE_SIZE_DEFAULT` (100), or 1–`CATALOG_PAGE_SIZE_MAX` (200) |
 | `cursor` | `null` for the first page, or the exact `next_cursor` of the previous page |
 
@@ -551,8 +561,8 @@ disagrees.
    `CONNECTION LIMIT 5`, `default_transaction_read_only=on`, `statement_timeout=5s`,
    `lock_timeout=2s`, and `idle_in_transaction_session_timeout=15s`. The login is a member
    only of `market_ai_catalog_reader`, plus `market_ai_preview_reader` when step 2 was
-   applied. The script then verifies that the readable public tables are exactly the five
-   six catalogs, and that preview EXECUTE matches membership.
+   applied. The script then verifies that the readable public tables are exactly the seven
+   catalogs, and that preview EXECUTE matches membership.
 4. Set `CATALOG_DATABASE_URL` to the private DSN for `market_ai_orc`
    (`postgres.railway.internal:5432`).
 5. Run `scripts/verify_market_ai_orc_data_access.py` with that `CATALOG_DATABASE_URL`. It

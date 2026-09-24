@@ -14,14 +14,14 @@ from app.tools import catalog as catalog_module
 from app.tools.catalog import (
     CALCULATIONS_SQL, COLUMNS_SQL, COVERAGE_DATASET_SQL, COVERAGE_ENTITIES_SQL, COVERAGE_STATUS_SQL,
     DISCOVER_SQL, FOUND_COLUMNS_SQL, RELATIONSHIPS_SQL, RESOLVE_TABLES_SQL,
-    RESEARCH_COUNTS_SQL, RESEARCH_SQL,
+    RESEARCH_COUNTS_SQL, RESEARCH_SQL, FORMULA_COUNT_SQL, FORMULAS_SQL,
 )
 from app.tools.registry import DEFAULT_MAX_RESULT_BYTES
 
 ALL_SQL = {
     DISCOVER_SQL, RESOLVE_TABLES_SQL, COLUMNS_SQL, FOUND_COLUMNS_SQL, RELATIONSHIPS_SQL,
     CALCULATIONS_SQL, COVERAGE_DATASET_SQL, COVERAGE_STATUS_SQL, COVERAGE_ENTITIES_SQL,
-    RESEARCH_COUNTS_SQL, RESEARCH_SQL,
+    RESEARCH_COUNTS_SQL, RESEARCH_SQL, FORMULA_COUNT_SQL, FORMULAS_SQL,
 }
 
 
@@ -86,10 +86,12 @@ def test_catalog_tools_are_registered_and_exposed() -> None:
     definitions = {tool["name"]: tool for tool in registry.definitions()}
     assert definitions["discover_catalog"]["parameters"]["properties"] == {}
     params = definitions["get_catalog_details"]["parameters"]
-    assert params["required"] == ["table_names", "sections", "column_names", "entity_ids", "method_ids"]
+    assert params["required"] == [
+        "table_names", "sections", "column_names", "entity_ids", "method_ids", "formula_ids",
+    ]
     assert params["additionalProperties"] is False
     assert params["properties"]["sections"]["items"]["enum"] == [
-        "COLUMNS", "RELATIONSHIPS", "CALCULATIONS", "COVERAGE", "RESEARCH",
+        "COLUMNS", "RELATIONSHIPS", "CALCULATIONS", "COVERAGE", "RESEARCH", "FORMULAS",
     ]
     assert all(tool["strict"] for tool in definitions.values())
 
@@ -120,6 +122,11 @@ Use discover_catalog to see its method count, then
 get_catalog_details with RESEARCH and method_ids for
 specific methods. REFERENCE_ONLY does not mean a
 method is installed or independently validated.
+The formula catalog documents calculation formulas
+across tables. Use discover_catalog to see its formula
+count, then get_catalog_details with FORMULAS and
+formula_ids for specific formulas. A documented formula
+is not installed or independently validated either.
 Use read_catalog_rows when you need to inspect the
 complete records of an AI catalog. You may retrieve
 additional pages until the required catalog records
@@ -212,7 +219,7 @@ def test_discover_returns_catalog_rows_verbatim() -> None:
     assert first["available_metadata"] == {"columns": 2, "calculations": 1, "relationships": 1}
     assert "time_column" not in second
     assert "documentation" in result["notice"]
-    assert reader.calls == [(DISCOVER_SQL, (51,)), (RESEARCH_COUNTS_SQL, ())]
+    assert reader.calls == [(DISCOVER_SQL, (51,)), (RESEARCH_COUNTS_SQL, ()), (FORMULA_COUNT_SQL, ())]
 
 
 def test_research_discovery_is_separate_from_market_tables() -> None:
@@ -254,6 +261,59 @@ def test_full_catalog_tool_whitelists_research_catalog() -> None:
     schema = next(tool["parameters"] for tool in build_default_registry(FakeReader()).definitions()
                   if tool["name"] == "read_catalog_rows")
     assert "AI_research_catalog" in schema["properties"]["catalog_name"]["enum"]
+    assert "AI_formula_reference" in schema["properties"]["catalog_name"]["enum"]
+
+
+def test_formula_discovery_is_separate_from_market_tables() -> None:
+    reader = FakeReader({DISCOVER_SQL: [table_row("IDX_Stock_Universe")],
+                         FORMULA_COUNT_SQL: [{"formula_count": 200}]})
+    result = execute(build_default_registry(reader), "discover_catalog", {}).output["result"]
+    assert result["table_count"] == 1
+    assert result["formula_catalog"] == {
+        "catalog_name": "AI_formula_reference", "formula_count": 200,
+        "scope": "GLOBAL_FORMULA_REFERENCE",
+        "note": "Documented formula definitions, not verified or executable implementations.",
+    }
+
+
+def test_formula_details_without_market_tables_and_exact_id_filter() -> None:
+    reader = FakeReader({FORMULAS_SQL: [{
+        "calculation_id": "latest_close", "calculation_name": "Latest Close",
+        "description": "Final close on the last completed bar.",
+        "required_inputs": "asset_id;timestamp;close", "formula_method": "Pick max completed timestamp",
+        "parameters": "timeframe=user_defined", "output": "latest_close",
+        "implementation": "SQL / Polars", "total_matching": 1,
+    }]})
+    reg = build_default_registry(reader)
+    result = execute(reg, "get_catalog_details", {
+        "table_names": [], "sections": ["FORMULAS"], "column_names": None, "entity_ids": None,
+        "formula_ids": ["latest_close"],
+    })
+    assert result.ok, result.output
+    section = result.output["result"]["sections"]["FORMULAS"]
+    assert section["detail"] == "FULL" and section["total_matching"] == 1
+    assert section["entries"][0]["formula_method"] == "Pick max completed timestamp"
+    assert reader.calls == [(FORMULAS_SQL, (["latest_close"], ["latest_close"], 51))]
+    invalid = execute(reg, "get_catalog_details", {
+        "table_names": [], "sections": ["CALCULATIONS"], "column_names": None,
+        "entity_ids": None, "formula_ids": None,
+    })
+    assert not invalid.ok
+
+
+def test_formula_summary_respects_budget_and_keeps_reference_note() -> None:
+    rows = [{"calculation_id": f"calc_{i}", "calculation_name": "Calc", "description": "x" * 3000,
+             "required_inputs": "a;b", "formula_method": "m", "parameters": "p", "output": "o",
+             "implementation": "Python / Polars", "total_matching": 200} for i in range(50)]
+    reader = FakeReader({FORMULAS_SQL: rows})
+    result = execute(build_default_registry(reader), "get_catalog_details", {
+        "table_names": [], "sections": ["FORMULAS"], "column_names": None,
+        "entity_ids": None, "formula_ids": None,
+    })
+    assert result.ok, result.output
+    section = result.output["result"]["sections"]["FORMULAS"]
+    assert section["detail"] == "SUMMARY" and section["returned"] == 50
+    assert section["note"] == "Documented formula definitions, not verified or executable implementations."
 
 
 def test_research_summary_respects_budget_and_keeps_reference_status() -> None:
@@ -375,7 +435,7 @@ def test_only_unknown_tables_returns_recoverable_error() -> None:
 @pytest.mark.parametrize(
     "arguments",
     [
-        details_args(sections=["FORMULAS"]),
+        details_args(sections=["NOT_A_REAL_SECTION"]),
         details_args(sections=[]),
         details_args(table_names=[]),
         details_args(table_names=["A", "B", "C", "D"]),
@@ -400,7 +460,7 @@ def test_discover_ignores_and_reports_any_argument() -> None:
     reader = FakeReader({DISCOVER_SQL: [table_row("Feature_02_Broker_Rolling")]})
     outcome = execute(build_default_registry(reader), "discover_catalog", '{"sql": "SELECT 1", "request": "all"}')
     assert outcome.ok and outcome.output["ignored_arguments"] == ["request", "sql"]
-    assert [call[0] for call in reader.calls] == [DISCOVER_SQL, RESEARCH_COUNTS_SQL]
+    assert [call[0] for call in reader.calls] == [DISCOVER_SQL, RESEARCH_COUNTS_SQL, FORMULA_COUNT_SQL]
     assert "SELECT 1" not in json.dumps(reader.calls)
     malformed = execute(build_default_registry(reader), "discover_catalog", "not json")
     assert malformed.error_code == "INVALID_ARGUMENTS"
@@ -480,7 +540,7 @@ def test_row_limits_are_passed_to_sql() -> None:
 def test_sql_is_fixed_and_fully_parameterized() -> None:
     for statement in ALL_SQL:
         assert "{" not in statement and "}" not in statement
-        assert statement.count("%s") >= 1 or statement in (DISCOVER_SQL, RESEARCH_COUNTS_SQL)
+        assert statement.count("%s") >= 1 or statement in (DISCOVER_SQL, RESEARCH_COUNTS_SQL, FORMULA_COUNT_SQL)
         assert not any(word in statement.upper().split() for word in ("INSERT", "UPDATE", "DELETE", "DROP"))
 
 
