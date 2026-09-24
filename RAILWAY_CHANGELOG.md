@@ -1,5 +1,40 @@
 # Railway changelog
 
+## 2026-09-24 — Deploy the PoC fixes: sandbox intent dates and universe, warm-up remedy, cache-friendly final re-ask (commit 9085ee7)
+
+- Scope approved by the user: fix the defects found by the Research AI PoC, and act on the structured-final cache miss (F.2). Local suites: sandbox 225 (19 new), orc 383.
+- **Sandbox** (`1614b9c`):
+  - Day-level date ranges are read as one period: "1 Juli sampai 31 Agustus 2026", "July 1 to August 31, 2026", "1-15 Juli 2026", "sejak 3 Maret 2026", and single days.
+  - Outcome horizons ("dalam 5 hari … berikutnya") and a move "dalam sehari" are no longer taken for the analysis period.
+  - "tiap/setiap/every/each saham" means each named ticker when tickers are named.
+  - An `INSUFFICIENT_WARMUP_HISTORY` refusal now names the entities and a `suggested_from` estimated from their own trading density, and offers `EXCLUDE_TICKERS`. The gate stays strict.
+- **Orc** (`9085ee7`): the first re-ask for the final JSON is sent exactly like a tool turn: same tools, no `text.format`, tools not offered. Only an invalid answer, or a tool call there, falls back to the strict schema.
+  - Evidence: OpenRouter's endpoint list shows Relace (tools, but no `response_format` or `structured_outputs`). A local probe with the production prefix gave these results:
+    - Strict final turn: moved provider 6/6.
+    - Tools kept with `tool_choice: "none"`: definitions dropped, provider moved 3/3.
+    - Tool-turn-shaped re-ask: stayed on Relace 5/5 with about 93% cached and a valid JSON 5/5.
+- **Rollback references:** sandbox `3d38acaf-eff8-43f8-9f36-2319af6c7f8f`, orc `c79aac06-dc7b-4c76-9b61-2f1e18f2c1c3`.
+- **Deployed** by local upload (`git archive` of `9085ee7`). Both reached `SUCCESS`:
+  - Sandbox `3cd9de07-73d0-4a73-8dc8-7f6fcba298a2` (`isolation_enforced=true`, `/ready` 200).
+  - Orc `3e06e8d6-dfa5-4826-b7c2-28e4e7ac171b` (`/ready` 200).
+  - No variable changed.
+- **Live verification:** the temporary job `fix-verify-job` (`0a677eb3-55b2-47c0-9c53-3e8608d32de1`, only a reference to `MARKET_AI_ORC_API_KEY`, deleted afterwards) re-ran the two PoC requests that had failed, with the exact same wording, plus the z-score request.
+
+  | Run | Before | After | Calls | Cached / prompt | Cost |
+  |---|---|---|---|---|---|
+  | poc-2 custom formula (upper-shadow ratio, BBCA and BBRI, "1 Juli sampai 31 Agustus 2026") | `LIMITATION`, spec refused 15 times | `ANSWER`, `CALCULATION_VERIFIED`, gate `ANNOTATED`; last values on 2026-08-31: BBCA 0.2883, BBRI 0.1964 | 14 | 378,368 / 423,786 (0.893) | $0.02370 |
+  | poc-3 event study (fall over 7% in a day, 5-day forward return, 2025-01-02 to 2026-07-31) | `LIMITATION`, no spec attempted | `ANSWER` (details below) | 15 | 401,280 / 432,582 (0.928) | $0.02922 |
+  | z-score, 3 tickers, 3 months | `CALCULATION_VERIFIED` | `CALCULATION_VERIFIED`, gate `PASSED` | 10 | 151,552 / 177,887 (0.852) | $0.00796 |
+
+  - poc-3 details:
+    - Research Governor `APPROVED` (`HISTORICAL_PATTERN`, H1).
+    - The first analysis was `FAILED` (`CALCULATION_MISMATCH`, caught by the validator); the second was `PASS` / `CALCULATION_VERIFIED`, evidence `PARTIALLY_SUPPORTED` / `PATTERN`.
+    - 8,048 events against a baseline of 300,168 observations. Mean 5-day forward return +0.519% against +0.617%, delta −0.097 pp, CI95 −0.445 to +0.251. So the pattern was not better than the baseline, and the answer said so.
+  - **Caching:** every run kept one static prefix (`distinct_static_prefixes=1`) and one provider for all its calls (Together, Together, Relace), per OpenRouter's generation records.
+    - The final re-ask now reuses the cache. In the z-score run, the re-ask after a prose draft had 24,064 of 25,723 prompt tokens cached; the same turn had 0 cached before this fix.
+    - The earlier runs had cache ratios of 0.700 and 0.752.
+- The job's output and the orc logs were scanned: no bearer token, OpenRouter key, or DSN with a password. `railway config plan` reports the configuration up to date; the environment is back to 15 services.
+
 ## 2026-09-24 — Deploy market-ai-orc prompt-caching-aware model calls (commit 73b3c4e)
 
 - Scope approved by the user: the model-call layer of `market-ai-orc` only, keeping the OpenRouter Responses API.
