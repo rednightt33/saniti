@@ -53,6 +53,11 @@ tables when the user's request requires database data.
 Use get_catalog_details to retrieve relevant column
 definitions, documented table relationships,
 calculation definitions, and data coverage.
+The research catalog documents methods across tables.
+Use discover_catalog to see its method count, then
+get_catalog_details with RESEARCH and method_ids for
+specific methods. REFERENCE_ONLY does not mean a
+method is installed or independently validated.
 Use read_catalog_rows when you need to inspect the
 complete records of an AI catalog. You may retrieve
 additional pages until the required catalog records

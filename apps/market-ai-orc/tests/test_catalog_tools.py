@@ -14,12 +14,14 @@ from app.tools import catalog as catalog_module
 from app.tools.catalog import (
     CALCULATIONS_SQL, COLUMNS_SQL, COVERAGE_DATASET_SQL, COVERAGE_ENTITIES_SQL, COVERAGE_STATUS_SQL,
     DISCOVER_SQL, FOUND_COLUMNS_SQL, RELATIONSHIPS_SQL, RESOLVE_TABLES_SQL,
+    RESEARCH_COUNTS_SQL, RESEARCH_SQL,
 )
 from app.tools.registry import DEFAULT_MAX_RESULT_BYTES
 
 ALL_SQL = {
     DISCOVER_SQL, RESOLVE_TABLES_SQL, COLUMNS_SQL, FOUND_COLUMNS_SQL, RELATIONSHIPS_SQL,
     CALCULATIONS_SQL, COVERAGE_DATASET_SQL, COVERAGE_STATUS_SQL, COVERAGE_ENTITIES_SQL,
+    RESEARCH_COUNTS_SQL, RESEARCH_SQL,
 }
 
 
@@ -84,10 +86,10 @@ def test_catalog_tools_are_registered_and_exposed() -> None:
     definitions = {tool["name"]: tool for tool in registry.definitions()}
     assert definitions["discover_catalog"]["parameters"]["properties"] == {}
     params = definitions["get_catalog_details"]["parameters"]
-    assert params["required"] == ["table_names", "sections", "column_names", "entity_ids"]
+    assert params["required"] == ["table_names", "sections", "column_names", "entity_ids", "method_ids"]
     assert params["additionalProperties"] is False
     assert params["properties"]["sections"]["items"]["enum"] == [
-        "COLUMNS", "RELATIONSHIPS", "CALCULATIONS", "COVERAGE",
+        "COLUMNS", "RELATIONSHIPS", "CALCULATIONS", "COVERAGE", "RESEARCH",
     ]
     assert all(tool["strict"] for tool in definitions.values())
 
@@ -113,6 +115,11 @@ tables when the user's request requires database data.
 Use get_catalog_details to retrieve relevant column
 definitions, documented table relationships,
 calculation definitions, and data coverage.
+The research catalog documents methods across tables.
+Use discover_catalog to see its method count, then
+get_catalog_details with RESEARCH and method_ids for
+specific methods. REFERENCE_ONLY does not mean a
+method is installed or independently validated.
 Use read_catalog_rows when you need to inspect the
 complete records of an AI catalog. You may retrieve
 additional pages until the required catalog records
@@ -205,7 +212,63 @@ def test_discover_returns_catalog_rows_verbatim() -> None:
     assert first["available_metadata"] == {"columns": 2, "calculations": 1, "relationships": 1}
     assert "time_column" not in second
     assert "documentation" in result["notice"]
-    assert reader.calls == [(DISCOVER_SQL, (51,))]
+    assert reader.calls == [(DISCOVER_SQL, (51,)), (RESEARCH_COUNTS_SQL, ())]
+
+
+def test_research_discovery_is_separate_from_market_tables() -> None:
+    reader = FakeReader({DISCOVER_SQL: [table_row("IDX_Stock_Universe")],
+                         RESEARCH_COUNTS_SQL: [{"implementation_status": "REFERENCE_ONLY", "method_count": 18}]})
+    result = execute(build_default_registry(reader), "discover_catalog", {}).output["result"]
+    assert result["table_count"] == 1
+    assert result["tables"][0]["table_name"] == "IDX_Stock_Universe"
+    assert result["research_catalog"] == {
+        "catalog_name": "AI_research_catalog", "method_count": 18,
+        "implementation_status_counts": {"REFERENCE_ONLY": 18}, "scope": "GLOBAL_METHOD_REFERENCE",
+    }
+
+
+def test_research_details_without_market_tables_and_exact_method_filter() -> None:
+    reader = FakeReader({RESEARCH_SQL: [{
+        "method_id": "event_study", "method_name": "Event study", "category": "event",
+        "purpose": "Study events.", "required_inputs_json": ["asset_id", "timestamp"],
+        "implementation_status": "REFERENCE_ONLY", "total_matching": 1,
+    }]})
+    reg = build_default_registry(reader)
+    result = execute(reg, "get_catalog_details", {
+        "table_names": [], "sections": ["RESEARCH"], "column_names": None, "entity_ids": None,
+        "method_ids": ["event_study"],
+    })
+    assert result.ok, result.output
+    section = result.output["result"]["sections"]["RESEARCH"]
+    assert section["detail"] == "FULL" and section["total_matching"] == 1
+    assert section["entries"][0]["required_inputs_json"] == ["asset_id", "timestamp"]
+    assert reader.calls == [(RESEARCH_SQL, (["event_study"], ["event_study"], 51))]
+    invalid = execute(reg, "get_catalog_details", {
+        "table_names": [], "sections": ["CALCULATIONS"], "column_names": None,
+        "entity_ids": None, "method_ids": None,
+    })
+    assert not invalid.ok
+
+
+def test_full_catalog_tool_whitelists_research_catalog() -> None:
+    schema = next(tool["parameters"] for tool in build_default_registry(FakeReader()).definitions()
+                  if tool["name"] == "read_catalog_rows")
+    assert "AI_research_catalog" in schema["properties"]["catalog_name"]["enum"]
+
+
+def test_research_summary_respects_budget_and_keeps_reference_status() -> None:
+    rows = [{"method_id": f"method_{i}", "method_name": "Method", "category": "research",
+             "purpose": "Research method", "implementation_status": "REFERENCE_ONLY",
+             "preprocessing": "x" * 3000, "total_matching": 18} for i in range(18)]
+    reader = FakeReader({RESEARCH_SQL: rows})
+    result = execute(build_default_registry(reader), "get_catalog_details", {
+        "table_names": [], "sections": ["RESEARCH"], "column_names": None,
+        "entity_ids": None, "method_ids": None,
+    })
+    assert result.ok, result.output
+    section = result.output["result"]["sections"]["RESEARCH"]
+    assert section["detail"] == "SUMMARY" and section["returned"] == 18
+    assert section["entries"][0]["implementation_status"] == "REFERENCE_ONLY"
 
 
 def test_discover_keeps_null_description_and_reports_empty_catalog() -> None:
@@ -337,7 +400,7 @@ def test_discover_ignores_and_reports_any_argument() -> None:
     reader = FakeReader({DISCOVER_SQL: [table_row("Feature_02_Broker_Rolling")]})
     outcome = execute(build_default_registry(reader), "discover_catalog", '{"sql": "SELECT 1", "request": "all"}')
     assert outcome.ok and outcome.output["ignored_arguments"] == ["request", "sql"]
-    assert [call[0] for call in reader.calls] == [DISCOVER_SQL]   # only the fixed catalog query ran
+    assert [call[0] for call in reader.calls] == [DISCOVER_SQL, RESEARCH_COUNTS_SQL]
     assert "SELECT 1" not in json.dumps(reader.calls)
     malformed = execute(build_default_registry(reader), "discover_catalog", "not json")
     assert malformed.error_code == "INVALID_ARGUMENTS"
@@ -417,7 +480,7 @@ def test_row_limits_are_passed_to_sql() -> None:
 def test_sql_is_fixed_and_fully_parameterized() -> None:
     for statement in ALL_SQL:
         assert "{" not in statement and "}" not in statement
-        assert statement.count("%s") >= 1 or statement is DISCOVER_SQL
+        assert statement.count("%s") >= 1 or statement in (DISCOVER_SQL, RESEARCH_COUNTS_SQL)
         assert not any(word in statement.upper().split() for word in ("INSERT", "UPDATE", "DELETE", "DROP"))
 
 
