@@ -36,11 +36,18 @@ from .models import TERMINAL, AnalysisRequest, AnalysisResult, next_action
 from .outputs import OutputRejected, OutputStore
 from .policy import check_source
 from .records import Records, utc_now
-from .spec import (SPEC_VERSION, SpecInvalid, SpecRequest, derived_feature_definitions, normalize, output_contract,
-                   reference_date, required_input, resolve_period, sha256_json)
+from .research_policy import research_context as build_research_context
+from .research_policy import review as research_review
+from .spec import (SPEC_VERSION, SpecInvalid, SpecRequest, convention_notes, derived_feature_definitions, normalize,
+                   output_contract, reference_date, required_input, resolve_period, sha256_json)
 
 logger = logging.getLogger("market_python_sandbox")
 RUNTIME_VERSION = "market-python-sandbox/v2"
+PRICE_TABLES = {"Price_Stock_Indonesia_IDX", "Feature_01_Stock_Daily"}
+PRICE_CHANGE_METHODS = {"RETURN", "FORWARD_RETURN", "EVENT_STUDY", "CORRELATION", "ROLLING_CORRELATION", "CUSTOM"}
+CORPORATE_ACTIONS_MESSAGE = (
+    "Prices are split-adjusted as fetched (TradingView adjustment=splits) and are not dividend-adjusted; history stored "
+    "before a later split is not re-adjusted. Returns that span a corporate action can be distorted.")
 # Failures worth resubmitting unchanged; any other identical resubmission returns the recorded result.
 TRANSIENT_ERRORS = {"SANDBOX_RESTARTED", "DATASET_UNAVAILABLE", "DATASET_STORAGE_UNAVAILABLE", "INTERNAL_ERROR",
                     "SANDBOX_ISOLATION_UNAVAILABLE", "VALIDATOR_ERROR"}
@@ -225,6 +232,15 @@ class AnalysisService:
                       problems=len(exc.problems))
             return {"status": "INVALID_SPEC", "problems": exc.problems[:30], "next_action": "REVISE_SPEC"}
         messages = [m.model_dump() for m in request.user_messages]
+        # The same spec for the same request and user messages is the same experiment: a retry returns the
+        # stored spec_id and reserves nothing again.
+        key = sha256_json({"request_id": request.request_id, "spec": spec, "messages": messages_sha256(messages),
+                           "reference_date": ref.isoformat(), "timezone": request.timezone})
+        existing = self.records.find_spec_by_key(request.request_id, key)
+        if existing and existing.get("review"):
+            self._log("sandbox_spec_review", request_id=request.request_id, status=existing["status"],
+                      spec_id=existing["spec_id"], replayed=True)
+            return {**existing["review"], "replayed": True}
         result, found = review(spec, messages, ref)
         resolved = resolve_period(spec["analysis_period"], ref)
         needs = required_input(spec, resolved, ref)
@@ -237,30 +253,132 @@ class AnalysisService:
             "checks": result.checks, "mismatches": result.mismatches,
             "unverified_requirements": result.unverified, "clarification_needed": result.clarifications,
             "expected_requirements": found.record(), "output_contract": output_contract(spec),
-            "derived_features": features,
+            "derived_features": features, "convention_notes": convention_notes(spec),
             "next_action": {"APPROVED": "REQUEST_DATA_THEN_RUN_ANALYSIS",
                             "APPROVED_WITH_UNVERIFIED": "REQUEST_DATA_THEN_RUN_ANALYSIS",
                             "ANALYSIS_SPEC_MISMATCH": "REVISE_SPEC_TO_MATCH_REQUEST",
                             "NEEDS_CLARIFICATION": "ASK_USER_CLARIFICATION"}[status],
         }
+        governor = None
         if status in APPROVED:
             if self.records.count_specs(request.request_id) >= self.settings.max_specs_per_request:
                 return {"status": "REQUEST_BUDGET_EXCEEDED", "next_action": "REPORT_LIMITATION",
                         "problems": ["This request has reached its limit of analysis specs."]}
+            if spec.get("research"):
+                with self._submit_lock:  # one reservation at a time per service
+                    governor, context = self._govern(request.request_id, spec, resolved)
+                body["governor"] = governor
+                if governor["decision"] != "APPROVED":
+                    body.update(status=governor["decision"],
+                                next_action="REVISE_SPEC" if governor["decision"] == "REPLAN_REQUIRED"
+                                else "REPORT_LIMITATION")
+                    self._log("sandbox_research_decision", request_id=request.request_id,
+                              decision=governor["decision"], reason_code=governor["reason_code"],
+                              budget=governor["budget_before"])
+                    return body
+            else:
+                context = {"evidence_standard": "CALCULATION"}
             contract = {"spec_version": SPEC_VERSION, "request_id": request.request_id, "reference": body["reference"],
                         "spec": spec, "resolved_period": resolved, "required_input": needs,
                         "review": {"status": status, "checks": result.checks,
                                    "unverified_requirements": result.unverified},
                         "expected_requirements": body["expected_requirements"], "derived_features": features,
-                        "user_messages_sha256": messages_sha256(messages)}
+                        "user_messages_sha256": messages_sha256(messages), "governor": governor,
+                        "research_context": context}
             spec_id = f"spec_{secrets.token_hex(12)}"
             digest = sha256_json(contract)
-            self.records.insert_spec(spec_id, request.request_id, utc_now(), digest, status, contract)
             body.update(spec_id=spec_id, spec_sha256=digest)
+            self.records.insert_spec(spec_id, request.request_id, utc_now(), digest, status, contract,
+                                     idempotency_key=key, review=body)
+            if governor:
+                self._log("sandbox_research_decision", request_id=request.request_id, spec_id=spec_id,
+                          decision="APPROVED", evidence_standard=context["evidence_standard"],
+                          hypothesis_id=context.get("hypothesis_id"), budget=governor["budget_after_reservation"])
         self._log("sandbox_spec_review", request_id=request.request_id, status=status, spec_id=body.get("spec_id"),
                   mismatches=len(result.mismatches), unverified=len(result.unverified),
                   clarifications=len(result.clarifications))
         return body
+
+    def _govern(self, request_id: str, spec: dict[str, Any], resolved: dict[str, Any]
+                ) -> tuple[dict[str, Any], dict[str, Any] | None]:
+        """Research Governor pre-run decision for one experiment (called under the submit lock)."""
+        policy = self.settings.research_policy()
+        experiments = self.records.research_experiments(request_id)
+        parent = None
+        followup = spec["research"].get("followup_of")
+        if followup:
+            row = self.records.get_spec(followup)
+            parent_research = (row or {}).get("research") or {}
+            parent = {"exists": bool(row and row["request_id"] == request_id and parent_research),
+                      "hypothesis_id": (parent_research.get("hypothesis") or {}).get("id"),
+                      "completed": bool(row) and self.records.spec_completed(followup)}
+        decision = research_review(spec, resolved, experiments, parent, policy)
+        context = build_research_context(spec, decision, experiments, policy) \
+            if decision["decision"] == "APPROVED" else None
+        return decision, context
+
+    # ------------------------------------------------------------ research runs (audit)
+
+    def run_summary(self, request_id: str) -> dict[str, Any] | None:
+        """Everything this service knows about one orchestrator run: experiments, governor decisions, analyses
+        with their code, data and validation fingerprints, evidence decisions, budgets, and the final report."""
+        specs = self.records.specs_for(request_id)
+        analyses = self.records.analyses_for(request_id)
+        report = self.records.get_run_report(request_id)
+        if not specs and not analyses and report is None:
+            return None
+        s = self.settings
+        policy = s.research_policy()
+        from .research_policy import ledger
+
+        experiments = self.records.research_experiments(request_id)
+        counters = ledger(experiments)
+        usage = self.records.request_usage(request_id)
+        rows = []
+        for a in analyses:
+            assessment = a.get("evidence_assessment") or fallback_assessment(a) or {}
+            rows.append({
+                "analysis_id": a["analysis_id"], "spec_id": a.get("spec_id"), "spec_sha256": a.get("spec_sha256"),
+                "execution_status": a["status"], "validation_status": a.get("validation_status"),
+                "validation_level": a.get("validation_level"), "reason_codes": a.get("reason_codes") or [],
+                "code_sha256": a["code_sha256"], "dataset_ids": a["dataset_ids"],
+                "datasets": {ds: {k: m.get(k) for k in ("checksum_sha256", "row_count", "source_tables",
+                                                        "completeness_status", "actual_date_range")}
+                             for ds, m in (a.get("inputs") or {}).items()},
+                "evidence": {k: assessment.get(k) for k in ("claim_type", "decision", "evidence_level", "checks",
+                                                            "reporting_constraints")},
+                "leakage_check": (a.get("leakage_check") or {}).get("result"),
+                "cpu_seconds": a.get("cpu_seconds"), "created_at": a["created_at"], "completed_at": a.get("completed_at"),
+            })
+        active = any(a["status"] in ("QUEUED", "RUNNING") for a in analyses)
+        return {
+            "request_id": request_id,
+            "status": "ACTIVE" if active else "REPORTED" if report else "AWAITING_REPORT",
+            "experiments": [{"spec_id": x["spec_id"], "spec_sha256": x["spec_sha256"], "created_at": x["created_at"],
+                             "status": x["status"], "question": x["contract"]["spec"]["question"],
+                             "research": x.get("research"),
+                             "governor": {k: (x["contract"].get("governor") or {}).get(k) for k in
+                                          ("decision", "reason_code", "budget_after_reservation")}
+                             if x["contract"].get("governor") else None}
+                            for x in specs],
+            "analyses": rows,
+            "budget": {"analyses": {"used": usage["analyses"], "max": s.max_analyses_per_request},
+                       "specs": {"used": len(specs), "max": s.max_specs_per_request},
+                       "cpu_seconds": {"used": round(usage["cpu_seconds"], 3), "max": s.max_cpu_seconds_per_request},
+                       "research": {"experiments": {"used": counters["experiments"], "max": policy.max_experiments},
+                                    "hypotheses": {"used": len(counters["hypotheses"]),
+                                                   "max": policy.max_hypotheses},
+                                    "followups": counters["followups"],
+                                    "max_followups_per_hypothesis": policy.max_followups_per_hypothesis}},
+            "report": report,
+        }
+
+    def put_report(self, request_id: str, report: dict[str, Any]) -> dict[str, Any]:
+        stored = self.records.put_run_report(request_id, utc_now(), report)
+        self._log("sandbox_run_report", request_id=request_id, stored=stored, status=report.get("status"),
+                  evidence_label=report.get("evidence_label"))
+        return {"request_id": request_id, "stored": stored,
+                "detail": None if stored else "A report for this request already exists; the first one is kept."}
 
     def get_spec(self, spec_id: str) -> dict[str, Any] | None:
         row = self.records.get_spec(spec_id)
@@ -308,7 +426,8 @@ class AnalysisService:
                 "logical_inputs": [b.model_dump() for b in request.inputs], "spec_id": request.spec_id,
                 "spec_sha256": spec["spec_sha256"], "expected_outputs": request.expected_outputs,
                 "code_sha256": code_sha256, "code": request.python_code if s.retain_code else None, "created_at": now,
-                "lineage": self._lineage(code_sha256, spec), "research_context": None,
+                "lineage": self._lineage(code_sha256, spec),
+                "research_context": spec["contract"].get("research_context") or {"evidence_standard": "CALCULATION"},
                 "derived_features": spec["contract"]["derived_features"],
             }
             violation = check_source(request.python_code)
@@ -442,6 +561,9 @@ class AnalysisService:
             f"{ds}: numeric columns {meta['numeric_float64_columns'][:10]} are float64 (not decimal-exact). Suitable "
             f"for indicators, returns, and statistics; not for exact accounting reconciliation.")}
             for ds, meta in inputs.items() if meta.get("numeric_float64_columns")]
+        price_sources = {t for meta in inputs.values() for t in (meta.get("source_tables") or [])} & PRICE_TABLES
+        if price_sources and {c["method"] for c in contract["spec"]["calculations"]} & PRICE_CHANGE_METHODS:
+            warnings.append({"code": "CORPORATE_ACTIONS_NOT_ADJUSTED", "message": CORPORATE_ACTIONS_MESSAGE})
 
         # preflight: does the bound data cover the contract?
         pre, pre_outcome = self._validate(job_dir, "preflight", cpus, {})
@@ -499,7 +621,8 @@ class AnalysisService:
 
         # postflight: what did the outputs actually cover, and do supported calculations recompute?
         declared = self._stage_declared_outputs(job_dir, contract["spec"], collected.outputs)
-        post, post_outcome = self._validate(job_dir, "postflight", cpus, {"outputs": declared})
+        post, post_outcome = self._validate(job_dir, "postflight", cpus, {
+            "outputs": declared, "research_context": record.get("research_context") or {}})
         usage["validator_cpu_seconds"] = round(usage["validator_cpu_seconds"] + post_outcome.cpu_seconds, 3)
         usage["validator_max_rss_mb"] = max(pre_outcome.max_rss_mb, post_outcome.max_rss_mb)
         if post is None or post.get("validator_error"):
@@ -515,6 +638,19 @@ class AnalysisService:
             evidence = post["evidence"]
             level = post["validation_level"]
             actual_scope = self._actual_scope(pre, post)
+            assessment = post.get("evidence_assessment")
+            leak = self._leakage_check(analysis_id, record, contract, logical, granted, paths, pre, cpus, uid, source,
+                                       job_dir, declared, usage) if status_allows_leak_check(post) else None
+            if leak is not None:
+                self.records.update(analysis_id, leakage_check=leak)
+                evidence = evidence + leak["evidence"]
+                if leak["result"] == "FAIL":
+                    validation = ("FAILED", sorted(set(validation[1]) | {"TEMPORAL_LEAKAGE_DETECTED"}))
+                    level = "EXECUTION_ONLY"
+                    assessment = {**(assessment or {}), "decision": "INVALID", "evidence_level": "NONE",
+                                  "reporting_constraints": ["The analysis uses information from after each date "
+                                                            "(temporal leakage); none of its values may be reported."]}
+            self.records.update(analysis_id, evidence_assessment=assessment)
             expected_scope = self._expected_scope(contract, post, pre)
         features = self._feature_results(contract, evidence, level)
         definitions = self.outputs.store_json(analysis_id, "derived_feature_definitions",
@@ -619,6 +755,108 @@ class AnalysisService:
             declared[output["name"]] = f"validation/outputs/out_{index:03d}.parquet"
         return declared
 
+    # ------------------------------------------------------------ temporal leakage (prefix re-run)
+
+    @staticmethod
+    def _leakage_targets(spec: dict[str, Any]) -> dict[str, list[str]]:
+        """ENTITY_DATE outputs with CUSTOM calculations that claim to be trailing but cannot be recalculated:
+        {output name: [value columns to compare]}."""
+        from .spec import _looks_ahead
+
+        calcs = {c["id"]: c for c in spec["calculations"]}
+        targets: dict[str, list[str]] = {}
+        for output in spec["outputs"]:
+            if output["grain"] != "ENTITY_DATE":
+                continue
+            columns = [calcs[c]["output_column"] for c in output["calculations"]
+                       if calcs[c]["method"] == "CUSTOM" and not calcs[c].get("expression")
+                       and not _looks_ahead(calcs[c], calcs)]
+            if columns:
+                targets[output["name"]] = columns
+        return targets
+
+    def _leakage_check(self, analysis_id: str, record: dict[str, Any], contract: dict[str, Any],
+                       logical: dict[str, Any], granted: dict[str, GrantedFile], paths: dict[str, Path],
+                       pre: dict[str, Any], cpus: list[int], uid: int, source: str, job_dir: Path,
+                       declared: dict[str, str], usage: dict[str, Any]) -> dict[str, Any] | None:
+        """Re-run the same code on inputs truncated at a cutoff date; values at or before the cutoff must not
+        change. A trailing calculation is invariant to data after t; look-ahead (shift(-k), centred windows,
+        full-sample normalisation) is not."""
+        import pandas as pd
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        s = self.settings
+        spec = contract["spec"]
+        targets = {name: cols for name, cols in self._leakage_targets(spec).items() if name in declared}
+        if not s.leakage_check or not targets or contract["resolved_period"]["mode"] not in ("EXPLICIT_DATES",
+                                                                                               "TRAILING"):
+            return None
+
+        def skipped(reason: str) -> dict[str, Any]:
+            return {"result": "NOT_VERIFIABLE", "reason": reason, "evidence": [
+                {"check": "temporal.leakage", "result": "WARN", "code": "LEAKAGE_CHECK_INCONCLUSIVE", "detail": reason}]}
+
+        period = pre["period"]
+        primary = logical[period["primary_input"]]
+        date_column = primary["date_column"]
+        by_local = {f["local_path"].split("/", 1)[1]: (name, info) for name, info in logical.items()
+                    for f in info["files"]}
+        dates: set = set()
+        for dataset_id, file in granted.items():
+            name, info = by_local[file.local_name]
+            if name == period["primary_input"] and date_column:
+                column = pq.read_table(paths[dataset_id], columns=[date_column]).column(0).to_pandas()
+                dates.update(pd.to_datetime(column, errors="coerce").dropna().dt.normalize())
+        in_period = sorted(d for d in dates if pd.Timestamp(period["start"]) <= d <= pd.Timestamp(period["end"]))
+        if len(in_period) < 10:
+            return skipped("Fewer than 10 trading dates in the period; the prefix re-run is not informative.")
+        cutoff = in_period[int(len(in_period) * 0.6) - 1]
+        remaining = int(s.max_cpu_seconds_per_request - self.records.request_usage(record["request_id"])["cpu_seconds"]
+                        - usage.get("cpu_seconds", 0) - usage.get("validator_cpu_seconds", 0))
+        budget = min(s.cpu_seconds, remaining)
+        if budget < max(10, int(usage.get("cpu_seconds", 0)) + 5):
+            return skipped("Not enough of the request's compute budget remains for the prefix re-run.")
+        prefix_dir = Path(s.jobs_dir) / f"{analysis_id}-prefix"
+        drop = self.executor.drop_privileges
+        try:
+            manifest = {"job_id": f"{analysis_id}-prefix", "analysis_id": analysis_id, "spec_id": record["spec_id"],
+                        "logical_datasets": logical}
+            prepare_workspace(s, prefix_dir, uid if drop else None, s.validator_uid if drop else None,
+                              manifest=manifest, analysis_spec={"spec_id": record["spec_id"],
+                                                                "spec_sha256": record["spec_sha256"], **contract},
+                              code=source)
+            for dataset_id, file in granted.items():
+                _, info = by_local[file.local_name]
+                table = pq.read_table(paths[dataset_id])
+                column = info["date_column"]
+                if column:
+                    keep = (pd.to_datetime(table.column(column).to_pandas(), errors="coerce").dt.normalize()
+                            <= cutoff).fillna(False).to_numpy()
+                    table = table.filter(pa.array(keep))
+                target = prefix_dir / "input" / file.local_name
+                pq.write_table(table, target, compression="zstd")
+                os.chmod(target, 0o444)
+            self._write_runtime(prefix_dir, logical, pre, cpus, record["expected_outputs"], budget)
+            outcome = self._execute(analysis_id, prefix_dir, uid, budget)
+            usage["leakage_check_cpu_seconds"] = round(outcome.cpu_seconds, 3)
+            if outcome.kind != "OK":
+                return skipped(f"The code did not complete on the truncated input ({outcome.kind}).")
+            names = {name: job_dir / "validation" / "outputs" / f"prefix_{i:03d}.parquet"
+                     for i, name in enumerate(sorted(targets), start=1)}
+            copied = self.outputs.copy_tables(prefix_dir / "output", uid if drop else None, names)
+            if set(copied) != set(targets):
+                return skipped("The re-run on the truncated input did not emit every checked output.")
+            result, _ = self._validate(job_dir, "leakcheck", cpus, {
+                "outputs": declared, "prefix_outputs": {k: str(v.relative_to(job_dir)) for k, v in copied.items()},
+                "targets": targets, "cutoff": str(cutoff.date())})
+            if result is None or result.get("validator_error"):
+                return skipped("The validator could not compare the prefix re-run.")
+            return {"result": result["result"], "cutoff": str(cutoff.date()), "outputs": result["outputs"],
+                    "evidence": result["evidence"]}
+        finally:
+            shutil.rmtree(prefix_dir, ignore_errors=True)
+
     def _execute(self, analysis_id: str, job_dir: Path, uid: int, cpu_budget: int) -> Outcome:
         def started(pid: int) -> None:
             with self._lock:
@@ -662,7 +900,8 @@ class AnalysisService:
             "validation_level": level if status == "COMPLETED" else "EXECUTION_ONLY", "reason_codes": reasons,
             "validation_evidence": (evidence or [])[:200], "expected_scope": expected_scope or {},
             "actual_scope": actual_scope or {}, "warnings": warnings or [], "resource_usage": usage or {},
-            "cpu_seconds": round((usage or {}).get("cpu_seconds", 0) + (usage or {}).get("validator_cpu_seconds", 0), 3),
+            "cpu_seconds": round((usage or {}).get("cpu_seconds", 0) + (usage or {}).get("validator_cpu_seconds", 0)
+                                 + (usage or {}).get("leakage_check_cpu_seconds", 0), 3),
         }
         if outcome is not None:
             fields["runtime_ms"] = outcome.runtime_ms
@@ -772,8 +1011,11 @@ class AnalysisService:
         for definition in contract["derived_features"]:
             result = outcome.get(definition["calculation_id"])
             check = {"PASS": "RECALCULATED_MATCH", "FAIL": "RECALCULATED_MISMATCH"}.get(result or "", "NOT_CHECKED")
+            status = definition.get("formula_status")
+            if definition.get("method") == "CUSTOM" and check == "RECALCULATED_MATCH":
+                status = "VALIDATED_CUSTOM_FORMULA_RESULT"  # an AI-generated formula whose values were recalculated
             features.append({**definition, "independent_check_result": check, "validation_level": level,
-                             "statistical_validation": "NOT_PERFORMED"})
+                             "statistical_validation": "NOT_PERFORMED", "formula_status": status})
         return features
 
     # ------------------------------------------------------------ janitor
@@ -883,6 +1125,9 @@ class AnalysisService:
             self_reported=record.get("self_reported") or {}, lineage=lineage,
             resource_usage=record.get("resource_usage") or {}, outputs_expire_at=record.get("outputs_expire_at"))
         data = result.model_dump()
+        data["evidence_assessment"] = record.get("evidence_assessment") or fallback_assessment(record)
+        if record.get("leakage_check"):
+            data["leakage_check"] = record["leakage_check"]
         if status == "EXPIRED":
             data["warnings"] = [*data["warnings"], {"code": "OUTPUTS_EXPIRED", "message": (
                 "The stored outputs of this analysis have expired; its metadata remains. Run it again if needed.")}]
@@ -914,6 +1159,23 @@ class AnalysisService:
     @staticmethod
     def _log(event: str, **fields: Any) -> None:
         logger.info(json.dumps({"event": event, **fields}, separators=(",", ":"), default=str))
+
+
+def status_allows_leak_check(post: dict[str, Any]) -> bool:
+    return post.get("validation_status") in ("PASS", "UNVERIFIED", "INCOMPLETE")
+
+
+def fallback_assessment(record: dict[str, Any]) -> dict[str, Any] | None:
+    """Evidence decision for an analysis the postflight validator did not assess (it failed or never ran)."""
+    status = record.get("status")
+    if status in ("QUEUED", "RUNNING"):
+        return None
+    claim = (record.get("research_context") or {}).get("evidence_standard") or "CALCULATION"
+    failed = record.get("validation_status") == "FAILED"
+    return {"claim_type": claim, "decision": "INVALID" if failed else "INSUFFICIENT_EVIDENCE",
+            "evidence_level": "NONE", "checks": {},
+            "reporting_constraints": ["No result of this analysis may be reported as a finding."],
+            "source": "HARNESS"}
 
 
 def _validator_detail(result: dict[str, Any] | None, outcome: Outcome) -> str:

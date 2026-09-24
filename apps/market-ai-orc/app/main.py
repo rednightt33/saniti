@@ -12,6 +12,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, status
 from .catalog_store import CatalogStore
 from .config import Settings
 from .openrouter_client import OpenRouterClient
+from .audit import RunAuditor
 from .orchestrator import AgentOrchestrator
 from .schemas import AgentRunRequest, AgentRunResponse
 from .tools import build_default_registry
@@ -95,7 +96,9 @@ def create_app(
             sandbox_timeout_seconds=settings.py_sandbox_request_timeout_seconds + 5,
             python_analysis_max_bytes=settings.python_analysis_max_result_bytes,
         )
-        orchestrator = AgentOrchestrator(settings, owned_client, registry)
+        auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
+            if sandbox is not None or settings.research_audit_database_url else None
+        orchestrator = AgentOrchestrator(settings, owned_client, registry, auditor=auditor)
     ready = {"value": False}
 
     @asynccontextmanager

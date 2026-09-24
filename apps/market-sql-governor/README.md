@@ -48,7 +48,9 @@ read URL for one dataset. It **cannot** call `/v1/query`, and the orc key cannot
 
 - `GET /v1/datasets/{dataset_id}/manifest`: requires either key. It returns a bounded safe
   subset of the manifest (`app/datasets.py`):
-  - columns with friendly types (`float64`, `date`, `string`, …) and their source types;
+  - columns with friendly types (`float64`, `date`, `string`, …), their source types, and their
+    `unit` from `AI_column_catalog.unit` (null for a COUNT). market-python-sandbox uses the units
+    to refuse a CUSTOM formula that adds or compares columns with different units;
   - row, column, and byte counts; source tables; `query_id`;
   - requested and actual scope, entities present;
   - missing entities (at most 200, plus the full count);
@@ -227,6 +229,23 @@ contain.
 
 Legacy market-ai-backend snapshots are `JSON_GZIP` in `Analytics_Dataset_Snapshot`. This
 service writes no database rows: its role is read-only, so metadata lives in the manifest.
+
+## External data contract (not connected)
+
+`app/external.py` defines the contract a future external data provider (macro, yields, FX,
+fundamentals, news, estimates) must meet, so such data would reach an analysis only as a governed
+dataset with provenance, never as rows handed to the model:
+- a `ProviderDescriptor` (source, grain, units, currency, history, revisions, entitlements, rate
+  limit, timeout, response size) whose state starts `DISABLED` and must reach `AVAILABLE`
+  (configured and authorized) before use;
+- normalized errors (`EXTERNAL_PROVIDER_UNKNOWN`, `EXTERNAL_PROVIDER_DISABLED`,
+  `EXTERNAL_RATE_LIMITED`, `EXTERNAL_TIMEOUT`, `EXTERNAL_RESPONSE_TOO_LARGE`, ...);
+- `point_in_time_filter`: for a signal dated D, an observation is usable only when it was
+  available on or before D; a later revision never replaces the vintage available at D, and
+  retrieval time never makes data historically available.
+
+The provider registry is empty, no endpoint or tool uses the module, and no credential is
+configured. market-ai-orc reports `external_data: false`. The tests use fixture providers only.
 
 ## Database role
 

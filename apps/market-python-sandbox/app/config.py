@@ -75,6 +75,17 @@ class Settings:
     max_cpu_seconds_per_request: int
     max_input_bytes_per_request: int
     max_specs_per_request: int
+    # research governor (experiments of one orchestrator request) and the evidence thresholds
+    research_max_hypotheses: int
+    research_max_experiments: int
+    research_max_followups_per_hypothesis: int
+    research_max_pairwise_candidates: int
+    research_max_candidates: int
+    research_min_events: int
+    research_min_baseline_observations: int
+    research_min_coverage_pct: int
+    research_min_holdout_pct: int
+    leakage_check: bool
     # outputs
     max_tables: int
     max_table_output_rows: int
@@ -170,6 +181,22 @@ class Settings:
             max_input_bytes_per_request=_integer(env, "PY_SANDBOX_MAX_INPUT_BYTES_PER_REQUEST", 1_073_741_824,
                                                  minimum=1024, maximum=68_719_476_736),
             max_specs_per_request=_integer(env, "PY_SANDBOX_MAX_SPECS_PER_REQUEST", 10, maximum=100),
+            research_max_hypotheses=_integer(env, "PY_SANDBOX_RESEARCH_MAX_HYPOTHESES", 4, maximum=50),
+            # default: every analysis of the request may be an experiment
+            research_max_experiments=_integer(env, "PY_SANDBOX_RESEARCH_MAX_EXPERIMENTS",
+                                              _integer(env, "PY_SANDBOX_MAX_ANALYSES_PER_REQUEST", 6, maximum=100),
+                                              maximum=100),
+            research_max_followups_per_hypothesis=_integer(env, "PY_SANDBOX_RESEARCH_MAX_FOLLOWUPS_PER_HYPOTHESIS", 5,
+                                                           minimum=0, maximum=50),
+            research_max_pairwise_candidates=_integer(env, "PY_SANDBOX_RESEARCH_MAX_PAIRWISE_CANDIDATES", 20_000,
+                                                      maximum=10_000_000),
+            research_max_candidates=_integer(env, "PY_SANDBOX_RESEARCH_MAX_CANDIDATES", 50, maximum=100_000),
+            research_min_events=_integer(env, "PY_SANDBOX_RESEARCH_MIN_EVENTS", 30, maximum=100_000),
+            research_min_baseline_observations=_integer(env, "PY_SANDBOX_RESEARCH_MIN_BASELINE_OBSERVATIONS", 100,
+                                                        maximum=10_000_000),
+            research_min_coverage_pct=_integer(env, "PY_SANDBOX_RESEARCH_MIN_COVERAGE_PCT", 95, maximum=100),
+            research_min_holdout_pct=_integer(env, "PY_SANDBOX_RESEARCH_MIN_HOLDOUT_PCT", 20, maximum=90),
+            leakage_check=_boolean(env, "PY_SANDBOX_LEAKAGE_CHECK", True),
             max_tables=_integer(env, "PY_SANDBOX_MAX_TABLES", 8, maximum=32),
             max_table_output_rows=_integer(env, "PY_SANDBOX_MAX_TABLE_OUTPUT_ROWS", 100_000, maximum=5_000_000),
             max_table_preview_rows=_integer(env, "PY_SANDBOX_MAX_TABLE_PREVIEW_ROWS", 50, maximum=200),
@@ -203,6 +230,17 @@ class Settings:
         if settings.slot_uid_base <= settings.validator_uid < settings.slot_uid_base + settings.concurrency:
             raise ConfigError("PY_SANDBOX_VALIDATOR_UID must differ from every analysis slot user")
         return settings
+
+    def research_policy(self):
+        from .research_policy import ResearchPolicy
+
+        return ResearchPolicy(
+            max_hypotheses=self.research_max_hypotheses, max_experiments=self.research_max_experiments,
+            max_followups_per_hypothesis=self.research_max_followups_per_hypothesis,
+            max_pairwise_candidates=self.research_max_pairwise_candidates,
+            max_candidates=self.research_max_candidates, min_events=self.research_min_events,
+            min_baseline_observations=self.research_min_baseline_observations,
+            min_coverage_pct=self.research_min_coverage_pct, min_holdout_pct=self.research_min_holdout_pct)
 
     @property
     def cpu_seconds(self) -> int:

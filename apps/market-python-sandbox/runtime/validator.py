@@ -28,7 +28,11 @@ MAX_LIST = 20
 MAX_EXAMPLES = 5
 STALE_GRACE_DAYS = 7
 FAILED_CODES = ("REQUIRED_OUTPUT_MISSING", "OUTPUT_GRAIN_VIOLATION", "ANALYSIS_SCOPE_MISMATCH", "UNIVERSE_MISMATCH",
-                "CALCULATION_MISMATCH", "SELECTION_MISMATCH")
+                "CALCULATION_MISMATCH", "SELECTION_MISMATCH", "TEMPORAL_LEAKAGE_DETECTED")
+EVENT_COLUMNS = ("event_count", "mean", "median", "hit_rate", "baseline_count", "baseline_mean", "baseline_median",
+                 "delta_mean", "censored_count", "overlapping_dropped")
+COUNT_COLUMNS = ("event_count", "baseline_count", "censored_count", "overlapping_dropped")
+DEFAULT_THRESHOLDS = {"min_events": 30, "min_baseline_observations": 100, "min_coverage_pct": 95}
 INCOMPLETE_CODES = ("INSUFFICIENT_WARMUP_HISTORY", "SOURCE_PERIOD_UNAVAILABLE", "UNIVERSE_SOURCE_UNAVAILABLE")
 TZ = "Asia/Jakarta"
 
@@ -240,6 +244,25 @@ def preflight(job_dir: str, analysis_spec: dict[str, Any], manifest: dict[str, A
         blocking.append({"code": "UNIVERSE_MISMATCH", "classification": "NOT_EXTRACTED",
                          "message": f"Tickers {not_extracted[:MAX_LIST]} were not requested from the SQL Governor."})
 
+    # units of CUSTOM expressions (AI_column_catalog units carried by the Governor manifest)
+    import expression
+
+    calcs = {c["id"]: c for c in spec["calculations"]}
+    for calc in spec["calculations"]:
+        if calc["method"] != "CUSTOM" or not calc.get("expression"):
+            continue
+        units = {c["name"]: c.get("unit") for c in manifest["logical_datasets"][calc["dataset"]]["columns"]}
+        units.update({cid: calcs[cid].get("unit") if calcs[cid]["method"] == "CUSTOM" else None
+                      for cid in calc.get("expression_calcs") or []})
+        conflicts = expression.unit_conflicts(calc["expression"], units)
+        if conflicts:
+            blocking.append({"code": "UNIT_MISMATCH", "calculation": calc["id"], "conflicts": conflicts[:MAX_LIST],
+                             "message": f"Calculation {calc['id']} combines values with different units: "
+                                        f"{'; '.join(conflicts[:5])}. Convert them first or revise the formula."})
+        else:
+            evidence.add(f"units.{calc['id']}", "PASS", units={n: units.get(n) for n in sorted(units)
+                                                               if n in calc["expression"]})
+
     # warm-up and look-ahead per expected entity
     warmup = _warmup(analysis_spec, manifest, frames, period, expected, requested, evidence)
     for name, info in warmup.items():
@@ -379,6 +402,7 @@ def _warmup(analysis_spec: dict[str, Any], manifest: dict[str, Any], frames: dic
 def reference_frames(spec: dict[str, Any], manifest: dict[str, Any], frames: dict[str, Any]) -> dict[str, Any]:
     """Per input: entity, date, and one column per supported calculation (NaN where undefined)."""
     import numpy as np
+    import expression
     import reference
 
     by_dataset: dict[str, Any] = {}
@@ -395,12 +419,32 @@ def reference_frames(spec: dict[str, Any], manifest: dict[str, Any], frames: dic
             by_dataset[name] = frame[[entity, time]].copy()
         target = by_dataset[name]
         upstream = calc["input_calculation"]
-        if calc["method"] in ("CUSTOM", "CORRELATION") or (upstream and upstream in unverifiable):
+        if calc["method"] == "EVENT_STUDY":
+            # summarised in check_output; verifiable when its outcome and every signal are
+            deps = [upstream] + [p["calculation"] for p in calc.get("signal") or []]
+            if any(d in unverifiable for d in deps):
+                unverifiable.add(calc["id"])
+            continue
+        if calc["method"] == "CUSTOM":
+            used = list(calc.get("expression_calcs") or [])
+            if not calc.get("expression") or any(u in unverifiable for u in used):
+                unverifiable.add(calc["id"])
+                continue
+            try:
+                columns = {c: _numeric(frame[c]) for c in calc["columns"]}
+                columns.update({u: target[_calc_column(spec, u)].to_numpy(dtype=float) for u in used})
+                groups = list(frame.groupby(entity, sort=False).indices.values())
+                policy = (calc.get("data_policies") or {}).get("zero_denominator", "NULL")
+                target[calc["output_column"]] = expression.evaluate(calc["expression"], columns, groups, policy)
+            except Exception:  # noqa: BLE001 - an expression that cannot be evaluated is not verifiable
+                unverifiable.add(calc["id"])
+            continue
+        if calc["method"] == "CORRELATION" or (upstream and upstream in unverifiable):
             unverifiable.add(calc["id"])
             continue
         params = {p["name"]: p["value"] for p in calc["params"]}
         source = target[_calc_column(spec, upstream)] if upstream else frame[calc["columns"][0]]
-        other = frame[calc["columns"][1]] if calc["method"] == "ROLLING_CORRELATION" else None
+        other = frame[calc["columns"][1]] if len(calc["columns"]) == 2 else None
         values = np.full(len(frame), np.nan)
         x_all = source.to_numpy(dtype=float)
         y_all = other.to_numpy(dtype=float) if other is not None else None
@@ -477,14 +521,14 @@ def _diagnose(calc: dict[str, Any], frame, entity: str, time: str, period: dict[
             ordered = frame.sort_values([entity, time], kind="stable")
             computed = reference.compute(calc["method"], alt_params, ordered[column].to_numpy(dtype=float),
                                          ordered[calc["columns"][1]].to_numpy(dtype=float)
-                                         if calc["method"] == "ROLLING_CORRELATION" else None)
+                                         if len(calc["columns"]) == 2 else None)
             lookup = dict(zip(zip(ordered[entity], ordered[time]), computed))
         else:
             lookup = {}
             for ent, part in source.groupby(entity, sort=False):
                 computed = reference.compute(calc["method"], alt_params, part[column].to_numpy(dtype=float),
                                              part[calc["columns"][1]].to_numpy(dtype=float)
-                                             if calc["method"] == "ROLLING_CORRELATION" else None)
+                                             if len(calc["columns"]) == 2 else None)
                 lookup.update(zip(zip(part[entity], part[time]), computed))
         values = np.array([lookup.get((e, d), np.nan) for e, d in zip(sub[entity], sub[time])], dtype=float)
         return float(_compare(act, values).mean()) if len(values) else 0.0
@@ -505,6 +549,8 @@ def _diagnose(calc: dict[str, Any], frame, entity: str, time: str, period: dict[
     if "kind" in params:
         other = "LOG" if params["kind"] == "SIMPLE" else "SIMPLE"
         candidates.append(("kind", other, {**params, "kind": other}))
+    if params.get("entry") == "NEXT_OPEN":
+        candidates.append(("entry", "SIGNAL_CLOSE", {**params, "entry": "SIGNAL_CLOSE"}))
     for name, value, alt in candidates:
         if score(alt) >= 0.99:
             return {"finding": "PARAMETER_DIFFERS", "parameter": name, "spec_value": params.get(name),
@@ -520,7 +566,8 @@ def _diagnose(calc: dict[str, Any], frame, entity: str, time: str, period: dict[
 
 def check_output(output: dict[str, Any], path: str | None, spec: dict[str, Any], manifest: dict[str, Any],
                  frames: dict[str, Any], refs: dict[str, Any], period: dict[str, Any], expected_all: set[str],
-                 evidence: Evidence, warmups: dict[str, int]) -> dict[str, Any]:
+                 evidence: Evidence, warmups: dict[str, int], research_context: dict[str, Any] | None = None
+                 ) -> dict[str, Any]:
     import numpy as np
     import pyarrow.parquet as pq
 
@@ -537,6 +584,9 @@ def check_output(output: dict[str, Any], path: str | None, spec: dict[str, Any],
         return scope
     calcs = {c["id"]: c for c in spec["calculations"]}
     used = [calcs[c] for c in output["calculations"]]
+    if output["grain"] == "SUMMARY":
+        return _check_summary(output, path, used[0], spec, manifest, frames, refs, period, expected_all, evidence,
+                              scope, research_context or {})
     value_columns = [c["output_column"] for c in used]
     if output["grain"] == "ENTITY_PAIR":
         key_columns = list(output["pair_columns"])
@@ -868,6 +918,299 @@ def _check_pairs(output, table, key_columns, used, spec, manifest, frames, perio
     return scope
 
 
+# ---------------------------------------------------------------- event studies
+
+def _segment_stats(outcome, kept, eligible, censored, dropped, mask) -> dict[str, Any]:
+    import numpy as np
+    from scipy import stats
+
+    events = outcome[kept & mask]
+    base = outcome[eligible & mask]
+    n, nb = len(events), len(base)
+    row: dict[str, Any] = {
+        "event_count": int(n), "mean": float(events.mean()) if n else float("nan"),
+        "median": float(np.median(events)) if n else float("nan"),
+        "hit_rate": float((events > 0).mean()) if n else float("nan"),
+        "baseline_count": int(nb), "baseline_mean": float(base.mean()) if nb else float("nan"),
+        "baseline_median": float(np.median(base)) if nb else float("nan"),
+        "censored_count": int((censored & mask).sum()), "overlapping_dropped": int((dropped & mask).sum()),
+    }
+    row["delta_mean"] = row["mean"] - row["baseline_mean"]
+    # uncertainty of the event mean and of its difference from the baseline mean (Welch)
+    std = float(events.std(ddof=1)) if n > 1 else float("nan")
+    base_std = float(base.std(ddof=1)) if nb > 1 else float("nan")
+    se = std / np.sqrt(n) if n > 1 else float("nan")
+    delta_se = float(np.sqrt(se ** 2 + (base_std / np.sqrt(nb)) ** 2)) if n > 1 and nb > 1 else float("nan")
+    t = float(stats.t.ppf(0.975, n - 1)) if n > 1 else float("nan")
+    row.update(std=std, standard_error=se, ci95=[row["mean"] - t * se, row["mean"] + t * se] if n > 1 else None,
+               delta_standard_error=delta_se,
+               delta_ci95=[row["delta_mean"] - t * delta_se, row["delta_mean"] + t * delta_se] if n > 1 and nb > 1
+               else None, _t_df=n - 1)
+    return row
+
+
+def _event_study_reference(calc: dict[str, Any], spec: dict[str, Any], manifest: dict[str, Any],
+                           frames: dict[str, Any], refs: dict[str, Any], period: dict[str, Any], universe: set[str],
+                           research_context: dict[str, Any]) -> dict[str, Any]:
+    """Recompute events, outcomes and the baseline from the validator's own reference values."""
+    import numpy as np
+    import pandas as pd
+
+    logical = manifest["logical_datasets"][calc["dataset"]]
+    entity, time = logical["entity_column"], logical["date_column"]
+    frame = frames[calc["dataset"]]
+    ref = refs["frames"][calc["dataset"]]
+    calcs = {c["id"]: c for c in spec["calculations"]}
+    outcome_calc = calcs[calc["input_calculation"]]
+    horizon = int(next(p["value"] for p in outcome_calc["params"] if p["name"] == "horizon"))
+    params = {p["name"]: p["value"] for p in calc["params"]}
+    in_period = ((frame[time] >= period["start"]) & (frame[time] <= period["end"]) &
+                 frame[entity].isin(universe)).to_numpy()
+    outcome = ref[outcome_calc["output_column"]].to_numpy(dtype=float)
+    defined, true = np.ones(len(frame), dtype=bool), np.ones(len(frame), dtype=bool)
+    for predicate in calc["signal"]:
+        values = ref[calcs[predicate["calculation"]]["output_column"]].to_numpy(dtype=float)
+        finite = np.isfinite(values)
+        with np.errstate(invalid="ignore"):
+            test = {">": values > predicate["value"], ">=": values >= predicate["value"],
+                    "<": values < predicate["value"], "<=": values <= predicate["value"],
+                    "==": np.isclose(values, predicate["value"]), "!=": ~np.isclose(values, predicate["value"])}[
+                predicate["op"]]
+        defined &= finite
+        true &= finite & test
+    has_outcome = np.isfinite(outcome)
+    eligible = in_period & defined & has_outcome
+    raw = in_period & defined & true
+    censored = raw & ~has_outcome
+    events = raw & has_outcome
+    kept = events.copy()
+    overlapping = 0
+    positions = frame.groupby(entity, sort=False).cumcount().to_numpy()
+    for _, index in frame.groupby(entity, sort=False).indices.items():
+        last = None
+        for i in index[events[index]]:
+            if last is not None and positions[i] < positions[last] + horizon:
+                overlapping += 1
+                if params["overlap_policy"] == "NON_OVERLAPPING":
+                    kept[i] = False
+                    continue
+            last = i
+    dropped = events & ~kept
+    segments = {"ALL": np.ones(len(frame), dtype=bool)}
+    holdout = (spec.get("research") or {}).get("holdout")
+    if holdout:
+        dates = frame[time]
+        cut = dates >= pd.Timestamp(holdout["start"])
+        if holdout.get("end"):
+            cut &= dates <= pd.Timestamp(holdout["end"])
+        segments["IN_SAMPLE"] = (dates < pd.Timestamp(holdout["start"])).to_numpy()
+        segments["OUT_OF_SAMPLE"] = cut.to_numpy()
+    rows = {name: _segment_stats(outcome, kept, eligible, censored, dropped, mask)
+            for name, mask in segments.items()}
+    covered = frame.loc[eligible, entity].nunique()
+    return {"segments": rows, "horizon": horizon, "overlap_policy": params["overlap_policy"],
+            "overlapping_events": overlapping, "entities_with_eligible": int(covered),
+            "universe_entities": len(universe),
+            "coverage_pct": round(100.0 * covered / len(universe), 2) if universe else 0.0}
+
+
+def _check_summary(output, path, calc, spec, manifest, frames, refs, period, expected_all, evidence, scope,
+                   research_context):
+    import numpy as np
+    import pyarrow.parquet as pq
+
+    name = output["name"]
+    if path is None:
+        evidence.add(f"output.{name}", "FAIL", "REQUIRED_OUTPUT_MISSING",
+                     detail="The spec declares this event-study summary, but the analysis did not emit it.")
+        return scope
+    wanted = ["segment", *EVENT_COLUMNS]
+    schema = pq.read_schema(path).names
+    missing = [c for c in wanted if c not in schema]
+    if missing:
+        evidence.add(f"output.{name}", "FAIL", "REQUIRED_OUTPUT_MISSING", missing_columns=missing,
+                     detail="An event-study summary has the columns segment, " + ", ".join(EVENT_COLUMNS) + ".")
+        return scope
+    table = pq.read_table(path, columns=wanted).to_pandas()
+    table["segment"] = table["segment"].astype(str)
+    scope.update(rows=len(table), checked=True)
+    if table["segment"].duplicated().any():
+        evidence.add(f"output.{name}.grain", "FAIL", "OUTPUT_GRAIN_VIOLATION", key=["segment"],
+                     detail="Several rows share one segment.")
+        return scope
+    expected_segments = ["ALL"] + (["IN_SAMPLE", "OUT_OF_SAMPLE"] if (spec.get("research") or {}).get("holdout")
+                                   else [])
+    got = set(table["segment"])
+    if got != set(expected_segments):
+        evidence.add(f"output.{name}.segments", "FAIL", "ANALYSIS_SCOPE_MISMATCH", expected=expected_segments,
+                     actual=sorted(got), detail="The summary rows are not the declared segments.")
+    if calc["id"] in refs["unverifiable"]:
+        evidence.add(f"calculation.{calc['id']}.{name}", "SKIPPED", method="EVENT_STUDY",
+                     detail="A signal or the outcome has no independent reference, so events cannot be recalculated.")
+        scope.update(scope_unverifiable=True, verified_calculations=[], unverified_calculations=[calc["id"]],
+                     event_study={"unverifiable": True})
+        return scope
+    logical = manifest["logical_datasets"][calc["dataset"]]
+    frame = frames[calc["dataset"]]
+    excluded = _exclusions(spec, frame, logical["entity_column"], logical["date_column"], period, expected_all,
+                           evidence)
+    reference_values = _event_study_reference(calc, spec, manifest, frames, refs, period, expected_all - excluded,
+                                              research_context)
+    mismatches, checked = [], 0
+    for _, row in table.iterrows():
+        expected = reference_values["segments"].get(row["segment"])
+        if expected is None:
+            continue
+        for column in EVENT_COLUMNS:
+            actual = float(_numeric(np.array([row[column]]))[0])
+            want = float(expected[column])
+            checked += 1
+            same = (np.isnan(actual) and np.isnan(want)) or (
+                actual == want if column in COUNT_COLUMNS else bool(np.isclose(actual, want, rtol=RTOL, atol=ATOL)))
+            if not same:
+                mismatches.append({"segment": row["segment"], "column": column, "expected": _round(want),
+                                   "actual": _round(actual)})
+    if mismatches:
+        evidence.add(f"calculation.{calc['id']}.{name}", "FAIL", "CALCULATION_MISMATCH", method="EVENT_STUDY",
+                     mismatched=len(mismatches), checked=checked, examples=mismatches[:MAX_EXAMPLES],
+                     detail="The summary differs from the independent recalculation of events, outcomes and the "
+                            "baseline.")
+    else:
+        evidence.add(f"calculation.{calc['id']}.{name}", "PASS", method="EVENT_STUDY", checked=checked)
+    all_row = reference_values["segments"]["ALL"]
+    evidence.add(f"event_study.{calc['id']}", "PASS", events=all_row["event_count"],
+                 baseline=all_row["baseline_count"], censored=all_row["censored_count"],
+                 overlapping_events=reference_values["overlapping_events"],
+                 coverage_pct=reference_values["coverage_pct"])
+    scope.update(values_checked=checked, verified_calculations=[calc["id"]], unverified_calculations=[],
+                 event_study=reference_values)
+    return scope
+
+
+# ---------------------------------------------------------------- evidence assessment (post-run evidence gate)
+
+def _clean(value: Any) -> Any:
+    if isinstance(value, float):
+        return None if value != value else round(value, 10)
+    if isinstance(value, list):
+        return [_clean(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _clean(v) for k, v in value.items() if not k.startswith("_")}
+    return value
+
+
+def _excludes_zero(interval) -> bool:
+    return bool(interval) and all(v == v for v in interval) and (interval[0] > 0 or interval[1] < 0)
+
+
+def assess(context: dict[str, Any], status: str, level: str, scopes: list[dict[str, Any]]) -> dict[str, Any]:
+    """Does the validated evidence support the intended claim? Deterministic; uses only the validator's own
+    recalculated statistics, never numbers the analysis reported."""
+    import math
+
+    from scipy import stats
+
+    claim = context.get("evidence_standard") or "CALCULATION"
+    thresholds = {**DEFAULT_THRESHOLDS, **(context.get("thresholds") or {})}
+    checks: dict[str, str] = {"scope": "PASS" if status == "PASS" else "FAIL" if status == "FAILED" else "PARTIAL",
+                              "calculation": "PASS" if level == "CALCULATION_VERIFIED" else
+                              "PARTIAL" if level == "SCOPE_VERIFIED" else "NOT_VERIFIABLE"}
+    constraints: list[str] = []
+    statistics: dict[str, Any] = {}
+    if status == "FAILED":
+        return {"claim_type": claim, "decision": "INVALID", "evidence_level": "NONE", "checks": checks,
+                "reporting_constraints": ["Validation failed: no result of this analysis may be reported as a "
+                                          "finding."], "statistics": {}, "source": "VALIDATOR"}
+    if status == "INCOMPLETE":
+        return {"claim_type": claim, "decision": "INSUFFICIENT_EVIDENCE", "evidence_level": "NONE", "checks": checks,
+                "reporting_constraints": ["The input does not cover the requested scope; state what is missing."],
+                "statistics": {}, "source": "VALIDATOR"}
+    if claim in ("CALCULATION", "SCREEN", "DESCRIPTIVE", "SCENARIO"):
+        for name in ("minimum_sample", "baseline", "multiple_testing", "temporal_holdout"):
+            checks[name] = "NOT_APPLICABLE"
+        decision = "SUPPORTED" if status == "PASS" and level == "CALCULATION_VERIFIED" else "PARTIALLY_SUPPORTED"
+        if decision != "SUPPORTED":
+            constraints.append("State that the calculation could not be fully recalculated independently.")
+        if claim == "SCENARIO":
+            constraints.append("Present the result as a hypothetical scenario, not a forecast.")
+        return {"claim_type": claim, "decision": decision,
+                "evidence_level": "SCENARIO" if claim == "SCENARIO" else "OBSERVATION", "checks": checks,
+                "reporting_constraints": constraints, "statistics": {}, "source": "VALIDATOR"}
+
+    study = next((s["event_study"] for s in scopes if s.get("event_study")), None)
+    constraints.append("Describe the result as a historical association, not causation.")
+    if claim != "PREDICTIVE":
+        constraints.append("Do not describe the result as a prediction of future returns.")
+    if study is None or study.get("unverifiable"):
+        checks["minimum_sample"] = checks["baseline"] = "NOT_VERIFIABLE"
+        decision = "PARTIALLY_SUPPORTED" if claim == "EXPLORATORY" and status == "PASS" else "INSUFFICIENT_EVIDENCE"
+        constraints.append("No independently recalculated event study supports this claim; report it as "
+                           "exploratory at most.")
+        return {"claim_type": claim, "decision": decision,
+                "evidence_level": "EXPLORATORY" if decision == "PARTIALLY_SUPPORTED" else "NONE", "checks": checks,
+                "reporting_constraints": constraints, "statistics": {}, "source": "VALIDATOR"}
+
+    segments = study["segments"]
+    holdout = context.get("holdout")
+    main = segments["IN_SAMPLE"] if claim == "PREDICTIVE" and "IN_SAMPLE" in segments else segments["ALL"]
+    tests = max(1, int(context.get("tests_on_hypothesis") or 1))
+    checks["minimum_sample"] = "PASS" if main["event_count"] >= thresholds["min_events"] else "FAIL"
+    checks["baseline"] = "PASS" if main["baseline_count"] >= thresholds["min_baseline_observations"] else "FAIL"
+    checks["coverage"] = "PASS" if study["coverage_pct"] >= thresholds["min_coverage_pct"] else "PARTIAL"
+    checks["overlap"] = "PASS" if study["overlap_policy"] == "NON_OVERLAPPING" or not study["overlapping_events"] \
+        else "PARTIAL"
+    checks["censoring"] = "PASS" if not main["censored_count"] else "PARTIAL"
+    checks["uncertainty"] = "PASS" if _excludes_zero(main.get("delta_ci95")) else "PARTIAL"
+    adjusted = None
+    if main["event_count"] > 1 and main.get("delta_standard_error") == main.get("delta_standard_error"):
+        t = float(stats.t.ppf(1 - 0.05 / (2 * tests), main["_t_df"]))
+        adjusted = [main["delta_mean"] - t * main["delta_standard_error"],
+                    main["delta_mean"] + t * main["delta_standard_error"]]
+    checks["multiple_testing"] = "PASS" if _excludes_zero(adjusted) else "PARTIAL"
+    if claim == "PREDICTIVE":
+        out = segments.get("OUT_OF_SAMPLE")
+        needed = max(10, math.ceil(thresholds["min_events"] / 3))
+        consistent = bool(out) and out["event_count"] >= needed and out["delta_mean"] == out["delta_mean"] and \
+            main["delta_mean"] == main["delta_mean"] and out["delta_mean"] * main["delta_mean"] > 0
+        checks["temporal_holdout"] = "PASS" if consistent else "FAIL"
+    else:
+        checks["temporal_holdout"] = "NOT_APPLICABLE"
+    if checks["minimum_sample"] == "FAIL" or checks["baseline"] == "FAIL":
+        decision = "INSUFFICIENT_EVIDENCE"
+    elif claim == "PREDICTIVE" and checks["temporal_holdout"] == "FAIL":
+        decision = "INSUFFICIENT_EVIDENCE"
+    elif all(checks[k] == "PASS" for k in ("calculation", "coverage", "uncertainty", "multiple_testing")):
+        decision = "SUPPORTED"
+    else:
+        decision = "PARTIALLY_SUPPORTED"
+    if claim == "EXPLORATORY" and decision == "SUPPORTED":
+        decision = "PARTIALLY_SUPPORTED"
+    level_name = {"PREDICTIVE": "PREDICTIVE_SIGNAL", "HISTORICAL_PATTERN": "PATTERN",
+                  "EXPLORATORY": "EXPLORATORY"}[claim] if decision in ("SUPPORTED", "PARTIALLY_SUPPORTED") else "NONE"
+    if claim == "PREDICTIVE" and decision != "SUPPORTED":
+        constraints.append("Do not describe the result as predictive: the out-of-sample evidence does not support it.")
+        if level_name == "PREDICTIVE_SIGNAL":
+            level_name = "PATTERN"
+    if claim == "EXPLORATORY":
+        constraints.append("Label the finding as exploratory and hypothesis-generating.")
+    constraints.append("Report the event count, the baseline, and the difference with its uncertainty.")
+    if main["censored_count"]:
+        constraints.append(f"{main['censored_count']} events near the end of the data had no complete outcome and "
+                           f"were not counted.")
+    if checks["coverage"] != "PASS":
+        constraints.append(f"Only {study['coverage_pct']}% of the analysed universe had eligible observations.")
+    if tests > 1:
+        constraints.append(f"{tests} tests were run on this hypothesis; use the multiple-testing adjusted interval.")
+    if checks["uncertainty"] != "PASS":
+        constraints.append("The difference from the baseline is not distinguishable from zero at 95% confidence.")
+    statistics = {"segments": segments, "horizon": study["horizon"], "overlap_policy": study["overlap_policy"],
+                  "overlapping_events": study["overlapping_events"], "coverage_pct": study["coverage_pct"],
+                  "tests_on_hypothesis": tests, "delta_ci_adjusted": adjusted, "confidence_level": 0.95}
+    return {"claim_type": claim, "decision": decision, "evidence_level": level_name, "checks": checks,
+            "reporting_constraints": constraints, "statistics": _clean(statistics), "source": "VALIDATOR",
+            "holdout": holdout}
+
+
 def _round(value: Any) -> Any:
     try:
         number = float(value)
@@ -903,11 +1246,14 @@ def postflight(job_dir: str, analysis_spec: dict[str, Any], manifest: dict[str, 
     for output in spec["outputs"]:
         path = request["outputs"].get(output["name"])
         scopes.append(check_output(output, os.path.join(job_dir, path) if path else None, spec, manifest, frames,
-                                   refs, period, expected, evidence, warmups))
+                                   refs, period, expected, evidence, warmups, request.get("research_context")))
     status, level = aggregate(spec, evidence, scopes, refs)
+    assessment = assess(request.get("research_context") or {}, status, level, scopes)
+    for scope in scopes:
+        scope.pop("event_study", None)  # the assessment carries the validator's statistics
     return {"mode": "postflight", "validation_status": status, "validation_level": level,
             "reasons": evidence.reasons, "evidence": evidence.items, "period": _period_json(period),
-            "expected_entities": len(expected), "outputs": scopes}
+            "expected_entities": len(expected), "outputs": scopes, "evidence_assessment": assessment}
 
 
 def aggregate(spec: dict[str, Any], evidence: Evidence, scopes: list[dict[str, Any]], refs: dict[str, Any]
@@ -935,6 +1281,56 @@ def aggregate(spec: dict[str, Any], evidence: Evidence, scopes: list[dict[str, A
     else:
         level = "EXECUTION_ONLY"
     return status, level
+
+
+# ---------------------------------------------------------------- temporal leakage (prefix re-run)
+
+def leakcheck(job_dir: str, analysis_spec: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
+    """Compare the outputs of the full run with a re-run on inputs truncated at the cutoff date: every value at or
+    before the cutoff of a trailing calculation must be identical."""
+    import pandas as pd
+    import pyarrow.parquet as pq
+
+    spec = analysis_spec["spec"]
+    cutoff = pd.Timestamp(request["cutoff"])
+    evidence = Evidence()
+    outputs = {o["name"]: o for o in spec["outputs"]}
+    summary = []
+    for name, columns in request["targets"].items():
+        output = outputs[name]
+        keys = [output["entity_column"], output["date_column"]]
+        frames = []
+        for path in (request["outputs"][name], request["prefix_outputs"][name]):
+            table = pq.read_table(os.path.join(job_dir, path), columns=keys + columns).to_pandas()
+            table[keys[0]] = table[keys[0]].astype(str)
+            table[keys[1]] = _dates(table[keys[1]])
+            frames.append(table[table[keys[1]] <= cutoff])
+        full, prefix = frames
+        merged = full.merge(prefix, on=keys, how="outer", suffixes=("", "_prefix"), indicator=True)
+        only_full = int((merged["_merge"] == "left_only").sum())
+        only_prefix = int((merged["_merge"] == "right_only").sum())
+        both = merged[merged["_merge"] == "both"]
+        changed = {}
+        for column in columns:
+            ok = _compare(_numeric(both[column]), _numeric(both[column + "_prefix"]))
+            if not ok.all():
+                bad = both[~ok]
+                changed[column] = {"rows": int((~ok).sum()), "examples": [
+                    {"entity": r[keys[0]], "date": str(r[keys[1]].date()), "full_data": _round(r[column]),
+                     "data_up_to_cutoff": _round(r[column + "_prefix"])} for _, r in bad.head(MAX_EXAMPLES).iterrows()]}
+        summary.append({"output": name, "rows_compared": len(both), "rows_only_with_future_data": only_full,
+                        "rows_only_without_future_data": only_prefix, "changed_columns": sorted(changed)})
+        if changed or only_full or only_prefix:
+            evidence.add(f"temporal.leakage.{name}", "FAIL", "TEMPORAL_LEAKAGE_DETECTED", cutoff=str(cutoff.date()),
+                         changed=changed, rows_only_with_future_data=only_full,
+                         rows_only_without_future_data=only_prefix,
+                         detail="Values dated on or before the cutoff change when data after the cutoff is removed: "
+                                "the calculation uses information from after each date.")
+        else:
+            evidence.add(f"temporal.leakage.{name}", "PASS", cutoff=str(cutoff.date()), rows_compared=len(both),
+                         detail="Values up to the cutoff are identical without the later data.")
+    return {"mode": "leakcheck", "result": "FAIL" if "TEMPORAL_LEAKAGE_DETECTED" in evidence.reasons else "PASS",
+            "outputs": summary, "evidence": evidence.items}
 
 
 # ---------------------------------------------------------------- entry point
@@ -970,8 +1366,12 @@ def main(job_dir: str, mode: str) -> int:
         else:
             analysis_spec = _load_json(os.path.join(job_dir, "analysis_spec.json"))
             manifest = _load_json(os.path.join(job_dir, "manifest.json"))
-            result = preflight(job_dir, analysis_spec, manifest) if mode == "preflight" else \
-                postflight(job_dir, analysis_spec, manifest, runtime)
+            if mode == "preflight":
+                result = preflight(job_dir, analysis_spec, manifest)
+            elif mode == "leakcheck":
+                result = leakcheck(job_dir, analysis_spec, runtime)
+            else:
+                result = postflight(job_dir, analysis_spec, manifest, runtime)
     except Exception as exc:  # noqa: BLE001 - reported to the harness as a validator failure
         result = {"mode": mode, "validator_error": f"{type(exc).__name__}: {str(exc)[:400]}"}
     path = os.path.join(result_dir, f"{mode}.json")

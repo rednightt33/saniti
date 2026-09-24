@@ -45,6 +45,7 @@ def test_known_tool_executes_with_phase_one_result() -> None:
             "fact_lookup": False,
             "python_analysis": False,
             "web_search": False,
+            "external_data": False,
             "available_tools": ["get_system_capabilities"],
         },
     }

@@ -147,6 +147,32 @@ EvidenceLabel = Literal["FACT", "DATABASE_AGGREGATE", "CALCULATION_VERIFIED", "S
                         "UNVERIFIED_EXPLORATORY", "NOT_VALIDATED"]
 
 
+class ExperimentSummary(BaseModel):
+    """One analysis spec of the run: the Research Governor's decision, validation, evidence, and whether the final
+    answer relies on it (RETAINED: the answer cites its numbers)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    spec_id: str
+    evidence_standard: str
+    hypothesis_id: str | None = None
+    followup_of: str | None = None
+    governor_decision: str | None = None
+    analysis_id: str | None = None
+    execution_status: str | None = None
+    validation_status: str | None = None
+    validation_level: str | None = None
+    evidence_decision: str | None = None
+    evidence_level: str | None = None
+    retained: Literal["RETAINED", "DISCARDED", "FOLLOWED_UP", "NOT_RUN"]
+
+
+class ResearchSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    experiments: list[ExperimentSummary] = Field(default_factory=list)
+
+
 class ExecutionMetadata(BaseModel):
     """Produced deterministically by code, never by the model."""
 
@@ -169,6 +195,8 @@ class ExecutionMetadata(BaseModel):
     validation_gate: Literal["NOT_APPLICABLE", "PASSED", "ANNOTATED", "FORCED_LIMITATION"] = "NOT_APPLICABLE"
     # The answer's numbers checked against governed sources (null when the gate did not check numbers).
     number_provenance: NumberProvenance | None = None
+    # The run's analysis specs as research experiments (null when no spec was created).
+    research: ResearchSummary | None = None
 
 
 class RunError(BaseModel):

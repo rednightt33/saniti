@@ -138,6 +138,8 @@ def bind(spec: dict[str, Any], bindings: list[dict[str, Any]], files: dict[str, 
                 raise BindingError("COLUMN_TYPE_MISMATCH", f"Input {binding['name']}: {column} is "
                                                            f"{signature[column][0]}, not numeric.")
         policy = binding.get("duplicate_policy") or "ERROR_ON_CONFLICT"
+        # AI_column_catalog units, as the Governor recorded them in the first dataset's manifest
+        units = {c.get("name"): c.get("unit") for c in members[0].manifest.get("columns") or []}
         series_key = [entity, time] if entity and time else []
         # Rows are the same observation when they agree on the full grain; without a complete grain,
         # only whole-row identity is safe.
@@ -147,8 +149,8 @@ def bind(spec: dict[str, Any], bindings: list[dict[str, Any]], files: dict[str, 
             "contract": contract or {"meaning": "no semantic contract recorded", "grain": [], "frequency": None},
             "grain": grain, "grain_complete": grain_complete, "aggregated": aggregated,
             "entity_column": entity, "date_column": time, "key_columns": key, "series_key": series_key,
-            "columns": [{"name": k, "type": v[0], "source_table": v[1], "source_column": v[2], "aggregation": v[3]}
-                        for k, v in sorted(signature.items())],
+            "columns": [{"name": k, "type": v[0], "source_table": v[1], "source_column": v[2], "aggregation": v[3],
+                         "unit": units.get(k)} for k, v in sorted(signature.items())],
             "required_columns": spec_input["columns"],
             "duplicate_policy": policy,
             "database_features": sorted(k for k, v in signature.items() if (v[1] or "").startswith("Feature_")

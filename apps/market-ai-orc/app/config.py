@@ -82,6 +82,8 @@ class Settings:
     python_analysis_max_result_bytes: int = 40000
     # Relative analysis periods ("last three months") are resolved in this time zone.
     analysis_timezone: str = "Asia/Jakarta"
+    # PostgreSQL DSN whose login may INSERT into "AI_research_run_audit"; unset disables the copy.
+    research_audit_database_url: str | None = None
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -130,6 +132,7 @@ class Settings:
             py_sandbox_poll_wait_seconds=_integer(env, "PY_SANDBOX_POLL_WAIT_SECONDS", 20, minimum=0),
             python_analysis_max_result_bytes=_integer(env, "PYTHON_ANALYSIS_MAX_RESULT_BYTES", 40000, minimum=8192),
             analysis_timezone=env.get("ANALYSIS_TIMEZONE", "").strip() or "Asia/Jakarta",
+            research_audit_database_url=_optional(env, "RESEARCH_AUDIT_DATABASE_URL"),
         )
         try:
             from zoneinfo import ZoneInfo
@@ -153,6 +156,10 @@ class Settings:
             ("postgresql://", "postgres://")
         ):
             raise ConfigError("CATALOG_DATABASE_URL must be a postgresql:// connection URL")
+        if settings.research_audit_database_url and not settings.research_audit_database_url.startswith(
+            ("postgresql://", "postgres://")
+        ):
+            raise ConfigError("RESEARCH_AUDIT_DATABASE_URL must be a postgresql:// connection URL")
         if settings.catalog_connect_timeout_seconds > 30 or settings.catalog_statement_timeout_ms > 30000:
             raise ConfigError("Catalog connect/statement timeouts must not exceed 30 seconds")
         if settings.catalog_page_size_default > settings.catalog_page_size_max:

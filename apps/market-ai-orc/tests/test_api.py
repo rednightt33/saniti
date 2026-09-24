@@ -66,7 +66,7 @@ def test_run_returns_deterministic_envelope(api: TestClient) -> None:
     assert set(body["execution"]) == {
         "provider", "model", "provider_response_id", "iterations", "tool_call_count",
         "input_tokens", "output_tokens", "reasoning_tokens", "total_tokens", "duration_ms",
-        "tools_withdrawn_reason", "analyses", "validation_gate", "number_provenance",
+        "tools_withdrawn_reason", "analyses", "validation_gate", "number_provenance", "research",
     }
     assert body["execution"]["tools_withdrawn_reason"] is None
     assert body["execution"]["analyses"] == [] and body["execution"]["validation_gate"] == "NOT_APPLICABLE"

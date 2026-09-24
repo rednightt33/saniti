@@ -246,6 +246,39 @@ class OutputStore:
         self._fit_previews(collected)
         return collected
 
+    def copy_tables(self, output_dir: Path, uid: int | None, names: dict[str, Path]) -> dict[str, Path]:
+        """Copy child-written TABLE outputs (by output name) to harness-owned read-only files, without storing
+        them as results. Used for the prefix re-run of the leakage check."""
+        try:
+            index = read_child_json(output_dir / "index.json", uid, INDEX_MAX_BYTES)
+        except (OSError, ValueError):
+            return {}
+        copied: dict[str, Path] = {}
+        for item in index.get("outputs") or [] if isinstance(index, dict) else []:
+            if not isinstance(item, dict) or item.get("type") != "TABLE" or item.get("name") not in names:
+                continue
+            filename = item.get("file")
+            if not isinstance(filename, str) or not FILE_NAMES["TABLE"].fullmatch(filename):
+                continue
+            try:
+                fd, _ = self._open_child_file(output_dir, filename, uid)
+            except OutputRejected:
+                continue
+            try:
+                self._parquet_rows(fd, filename, None)
+                target = names[item["name"]]
+                os.lseek(fd, 0, os.SEEK_SET)
+                with open(target, "wb") as sink:
+                    while chunk := os.read(fd, 1 << 20):
+                        sink.write(chunk)
+                os.chmod(target, 0o444)
+                copied[item["name"]] = target
+            except OutputRejected:
+                continue
+            finally:
+                os.close(fd)
+        return copied
+
     def _table(self, analysis_id: str, fd: int, item: dict, filename: str, expires: str,
                collected: Collected) -> dict[str, Any]:
         s = self.settings

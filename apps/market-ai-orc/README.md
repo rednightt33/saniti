@@ -158,6 +158,7 @@ wall-clock time, output tokens, and a context ceiling checked before each provid
 | `PY_SANDBOX_REQUEST_TIMEOUT_SECONDS` | no | `45` | HTTP timeout for one sandbox call (10–300); the tool timeout is this plus 5 s. Keep it above the sandbox's submit wait |
 | `PY_SANDBOX_POLL_WAIT_SECONDS` | no | `20` | How long `get_analysis_result` waits for a running analysis (≤ 60, at least 10 s below the request timeout) |
 | `PYTHON_ANALYSIS_MAX_RESULT_BYTES` | no | `40000` | Hard cap on one analysis tool result sent to the model (8192–131072) |
+| `RESEARCH_AUDIT_DATABASE_URL` | no (secret) | unset | DSN of a login holding `market_ai_research_audit_writer` (INSERT only on `AI_research_run_audit`). When unset, the per-run PostgreSQL audit copy is disabled; the report still goes to the sandbox (see [Research run audit](#research-run-audit)) |
 | `ANALYSIS_TIMEZONE` | no | `Asia/Jakarta` | IANA time zone of the analysis reference date (the request date in this zone anchors "last 3 months", "latest", and similar periods); invalid zones stop startup |
 
 Secrets have no defaults, and the service refuses to start without them. It never logs API
@@ -219,7 +220,8 @@ Response (HTTP `200` for every agent outcome, including `FAILED`):
     "tools_withdrawn_reason": null,
     "analyses": [],
     "validation_gate": "NOT_APPLICABLE",
-    "number_provenance": {"checked": 0, "unsupported": []}
+    "number_provenance": {"checked": 0, "unsupported": []},
+    "research": null
   },
   "error": null,
   "evidence_label": null
@@ -233,6 +235,13 @@ analysis), `PASSED`, `ANNOTATED` (mandatory validation limitations were appended
 `FORCED_LIMITATION` (the gate converted the response to `LIMITATION`).
 `execution.number_provenance` counts the numbers checked in the answer and lists those without a
 governed source (null when the gate did not check numbers, for example on a clarification).
+`execution.research.experiments` lists every analysis spec of the run (null when none was created)
+with its `evidence_standard` (`CALCULATION` when the spec has no research block), `hypothesis_id`,
+`followup_of`, the Research Governor's `governor_decision`, the latest analysis and its validation,
+the `evidence_decision`/`evidence_level` of its evidence assessment, and `retained`: `RETAINED`
+(the answer cites numbers of that analysis), `DISCARDED` (it ran, but the answer does not rely
+on it), `FOLLOWED_UP` (a later experiment followed it up and the answer does not cite it), or
+`NOT_RUN`. `retained` is derived by code from number provenance, never stated by the model.
 
 `evidence_label` is set by code, never by the model, for a frontend badge:
 
@@ -318,7 +327,7 @@ Guarantees:
 
 | Tool | Arguments | Result |
 |---|---|---|
-| `get_system_capabilities` | none | Capability flags plus `available_tools`, for example `{"catalog_discovery": true, "database_query": false, "python_analysis": false, "web_search": false, "available_tools": [...]}` |
+| `get_system_capabilities` | none | Capability flags plus `available_tools`, for example `{"catalog_discovery": true, "database_query": false, "python_analysis": false, "web_search": false, "external_data": false, "available_tools": [...]}` |
 | `discover_catalog` | none | AI-visible tables with their catalog metadata (see below) |
 | `get_catalog_details` | `table_names`, `sections`, `column_names`, `entity_ids` | Requested catalog sections (see below) |
 | `read_catalog_rows` | `catalog_name`, `page_size`, `cursor` | One page of complete catalog rows (see [Full catalog access](#full-catalog-access)) |
@@ -326,14 +335,16 @@ Guarantees:
 | `request_data` | `purpose`, `from_table`, `columns`, `joins`, `filters`, `group_by`, `aggregations`, `order_by`, `requested_limit` | The SQL Governor decision: always a dataset reference when approved, never rows (see [Data requests](#data-requests)) |
 | `lookup_fact` | `purpose`, `mode` (`VALUE`/`AGGREGATE`), `table`, `entities` (1–5), `dates` (≤ 10) or `date_range`, `columns` (1–4) or `aggregations` (1–4 of SUM/AVG/MIN/MAX/COUNT) with `per_entity` | At most 20 facts, each with `fact_id`, table, column, entity, date or scope, and value |
 | `get_dataset_manifest` | `dataset_id` | The Governor's bounded dataset manifest: `AVAILABLE`, or explicit `DATASET_EXPIRED` / `DATASET_NOT_FOUND` (see [Python analysis](#python-analysis)) |
-| `create_analysis_spec` | `question`, `universe`, `analysis_period`, `frequency`, `inputs`, `calculations`, `outputs`, `exclusion_rules`, each requirement with its provenance | The spec review: `status`, `spec_id` when approved, `resolved_period`, `required_input` (with warm-up), `output_contract`, mismatches, unverified requirements, clarification needed |
-| `run_python_analysis` | `spec_id`, `inputs` (1–4 logical inputs, each `name`, `dataset_ids` 1–8, `duplicate_policy`), `python_code` (≤ 20000), `expected_outputs` ⊆ {TABLE, METRICS, CHART, ARTIFACT} | The analysis record: `execution_status`, `validation_status`, `validation_level`, `reason_codes`, `next_action`, scopes, outputs, evidence, error |
+| `create_analysis_spec` | `question`, `universe`, `analysis_period`, `frequency`, `inputs`, `calculations` (optionally `signal`, `expression`, `formula_refs`, `meaning`, `unit`, `data_policies`), `outputs`, `exclusion_rules`, each requirement with its provenance, and an optional `research` block | The spec review: `status`, `spec_id` when approved, `resolved_period`, `required_input` (with warm-up), `output_contract`, mismatches, unverified requirements, clarification needed, `convention_notes`, the Research Governor decision (`governor`), and `replayed` for an idempotent resubmission |
+| `run_python_analysis` | `spec_id`, `inputs` (1–4 logical inputs, each `name`, `dataset_ids` 1–8, `duplicate_policy`), `python_code` (≤ 20000), `expected_outputs` ⊆ {TABLE, METRICS, CHART, ARTIFACT} | The analysis record: `execution_status`, `validation_status`, `validation_level`, `reason_codes`, `next_action`, scopes, outputs, evidence, `evidence_assessment`, `leakage_check`, derived features with `formula_status`, error |
 | `get_analysis_result` | `analysis_id` | The same record for a queued/running/finished analysis |
 
 Each capability flag is derived from the registry. It becomes `true` only when its providing
 tool is actually registered: `catalog_discovery` → `discover_catalog`, `full_catalog_read` →
 `read_catalog_rows`, `market_data_preview` → `preview_table_rows`, `database_query` →
-`request_data`, `python_analysis` → `run_python_analysis`, `web_search` → `search_web`. The
+`request_data`, `python_analysis` → `run_python_analysis`, `web_search` → `search_web`, `external_data` →
+`request_external_data` (not implemented: no external provider is connected, so it is always
+`false`; the provider contract is in market-sql-governor `app/external.py`). The
 catalog tools are registered only when `CATALOG_DATABASE_URL` is set;
 `preview_table_rows` additionally requires `MARKET_DATA_PREVIEW_ENABLED=true`; and
 `request_data` and `get_dataset_manifest` only when `SQL_GOVERNOR_URL` is set; and
@@ -396,8 +407,8 @@ validated by a strict model aligned with the sandbox's `AnalysisRequest` (contra
 to `PY_SANDBOX_URL/v1/analyses`. The sandbox waits briefly and returns either a finished record or
 `QUEUED`/`RUNNING` with `next_action=GET_ANALYSIS_RESULT` and `retry_after_seconds`;
 `get_analysis_result` then waits up to `PY_SANDBOX_POLL_WAIT_SECONDS`. The runtime interface
-(pre-bound `saniti` helpers such as `load`, `sql`, `in_period`, `emit_table`, and the libraries
-including TA-Lib) is described in the tool description.
+(pre-bound `saniti` helpers such as `load`, `sql`, `in_period`, `emit_table`, `pd` and `np`, and
+the libraries including TA-Lib) is described in the tool description.
 
 **What the model sees:**
 - `execution_status` and `validation_status` (`PASS`, `INCOMPLETE`, `FAILED`, `UNVERIFIED`) with
@@ -407,8 +418,12 @@ including TA-Lib) is described in the tool description.
 - TABLE: `row_count`, columns, a bounded preview, and `result_id`. The complete table stays in
   the sandbox (`GET /v1/results/{id}` for backend/frontend presentation). METRICS: the values.
   CHART and ARTIFACT: ids and metadata only, never bytes;
-- warnings, derived features (always `EXPLORATORY_UNVALIDATED`, statistical validation
-  `NOT_PERFORMED`), a structured error with only the model's own code lines, and a compact
+- `evidence_assessment` for a research spec (claim type, `decision`, `evidence_level`, checks,
+  statistics, and `reporting_constraints`) and the `leakage_check` outcome, both computed by the
+  sandbox validator;
+- warnings (including `CORPORATE_ACTIONS_NOT_ADJUSTED`), derived features (`formula_status`
+  `VALIDATED_CUSTOM_FORMULA_RESULT` when a CUSTOM expression was recalculated and matched,
+  otherwise `EXPLORATORY_UNVALIDATED`; statistical validation `NOT_PERFORMED`), a structured error with only the model's own code lines, and a compact
   lineage (spec hash, code hash, seed, library versions, dataset checksums).
 
 Sandbox limits, deployment ids, and resource usage are removed. Refusals such as `QUEUE_FULL`,
@@ -442,7 +457,17 @@ spec is checked:
   multipliers, and a sign stated in words ("turun 2,4%"). Dates, years, list markers, and digits
   inside identifiers (T001, ids) are not checked. Unsupported numbers are rejected once with
   their list, then the response is forced to `LIMITATION` with a notice (this also applies to a
-  `LIMITATION` that quotes them).
+  `LIMITATION` that quotes them). The statistics of an evidence assessment (for example the
+  interval of a mean difference) are validator outputs and count as sources;
+- **claim gate:** causal wording ("causes", "menyebabkan", "penyebab", ...) is never supported by
+  these analyses, and predictive wording ("will rise", "akan naik", "predicts", "sinyal beli",
+  ...) needs an analysis with evidence standard `PREDICTIVE` whose assessment is `SUPPORTED`. A
+  match preceded within 40 characters by a negation ("not a prediction", "bukan penyebab") is not
+  a claim. An unsupported claim in an `ANSWER` is rejected once, then forced to `LIMITATION`;
+- **research lines:** for each research analysis, its evidence decision and level and its
+  `reporting_constraints` are appended to `limitations` when the model left them out, and when an
+  analysis warned `CORPORATE_ACTIONS_NOT_ADJUSTED` a line discloses that prices are not
+  dividend-adjusted.
 
 Each check rejects at most once per run, and tools stay available for the repair.
 `CLARIFICATION` responses are never blocked. The gate is code, not a prompt rule: the prompt
@@ -451,8 +476,37 @@ blocks only explain it to the model.
 `get_dataset_manifest` calls the Governor's `GET /v1/datasets/{id}/manifest` with the existing
 Governor key. The orc key cannot obtain dataset URLs.
 
-The PYTHON ANALYSIS RULES and ANALYSIS VALIDATION RULES blocks are appended after DATA QUERY
-RULES. They contain no limits, URLs, credentials, or security details.
+The PYTHON ANALYSIS RULES, ANALYSIS VALIDATION RULES, and RESEARCH RULES blocks are appended after
+DATA QUERY RULES. They contain no limits, URLs, credentials, or security details.
+
+### Research runs
+
+One research run is one `request_id`; there is still one orchestrator and no second agent. The
+model marks a research question with `research` in `create_analysis_spec`:
+`evidence_standard` (`CALCULATION`, `SCREEN`, `DESCRIPTIVE`, `HISTORICAL_PATTERN`, `EXPLORATORY`,
+`PREDICTIVE`, `SCENARIO`), `objective`, `hypothesis`, `method_ref` (an `AI_research_catalog`
+method as methodology reference), `followup_of`, `candidates`, and `holdout`. The deterministic
+Research Governor in the sandbox (see
+[`../market-python-sandbox/README.md`](../market-python-sandbox/README.md#research-governor-evidence-assessment-and-leakage))
+answers `APPROVED`, `REPLAN_REQUIRED`, or `REJECTED` with a `reason_code` and the run's budget;
+the model sees that decision and must follow it. A plain calculation, screen, or description needs
+no research block. The model cannot change a governor decision, an evidence assessment, or a
+leakage outcome: they come from sandbox records.
+
+### Research run audit
+
+After every run (`app/audit.py`), the orchestrator:
+1. posts the final report (answer and its sha256, question sha256, evidence label, gate outcome,
+   limitations, number provenance, experiments) to the sandbox `POST /v1/runs/{request_id}/report`
+   when the run used the sandbox. The sandbox keeps the run's operational state (specs, governor
+   decisions, analyses, budgets) and stores the report once;
+2. reads `GET /v1/runs/{request_id}` and, when `RESEARCH_AUDIT_DATABASE_URL` is set, inserts one
+   summary row into PostgreSQL `AI_research_run_audit` (datasets by id and checksum, experiments
+   with code hash and leakage outcome, budget). The writer role has INSERT only; a retried
+   `request_id` keeps its first row (`ON CONFLICT DO NOTHING`).
+
+Auditing never changes the response and never fails the run; failures are logged as
+`research_audit` events. Hidden model reasoning, secrets, and dataset contents are never recorded.
 
 ## Catalog discovery
 
@@ -685,9 +739,10 @@ These are observed in the migration seed and reported, not changed:
 
 These are not implemented, and no placeholder pretends they exist: model-written SQL (market
 data is reached only through `request_data` and the Governor), the legacy
-`Table_Catalog`/`Column_Catalog`/`Feature_Catalog` catalogs, a Research Governor (statistical-validity
-controls such as multiple-testing policy, holdouts, or hypothesis registries — the Python sandbox
-answers only whether a bounded calculation can execute safely), web search, RAG or vector search, long-term memory, multi-agent flows, Redis,
+`Table_Catalog`/`Column_Catalog`/`Feature_Catalog` catalogs, external data providers (the
+contract exists in market-sql-governor `app/external.py`, but no provider is registered and no
+credential is configured), causal inference or probabilistic forecasting beyond the event-study
+evidence assessment, web search, RAG or vector search, long-term memory, multi-agent flows, Redis,
 frontend, and Telegram.
 
 ## Railway deployment

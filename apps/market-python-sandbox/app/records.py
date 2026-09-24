@@ -17,14 +17,17 @@ from typing import Any
 JSON_FIELDS = {"dataset_ids", "expected_outputs", "inputs", "outputs", "warnings", "error_frames", "diagnostics",
                "lineage", "resource_usage", "research_context", "logical_inputs", "reason_codes", "expected_scope",
                "actual_scope", "validation_evidence", "derived_features", "database_features", "self_reported",
-               "execution_report", "feature_artifact"}
+               "execution_report", "feature_artifact", "evidence_assessment", "leakage_check"}
 # Columns added for the Execution Validation Gate; existing databases are migrated in place.
 ADDED_COLUMNS = {
     "spec_id": "TEXT", "spec_sha256": "TEXT", "logical_inputs": "TEXT", "validation_status": "TEXT",
     "validation_level": "TEXT", "reason_codes": "TEXT", "expected_scope": "TEXT", "actual_scope": "TEXT",
     "validation_evidence": "TEXT", "derived_features": "TEXT", "database_features": "TEXT", "self_reported": "TEXT",
     "execution_report": "TEXT", "cpu_seconds": "REAL", "reproducible_until": "TEXT", "feature_artifact": "TEXT",
+    "evidence_assessment": "TEXT", "leakage_check": "TEXT",
 }
+# Columns added to specs for the Research Governor (idempotent creation and the experiment ledger).
+ADDED_SPEC_COLUMNS = {"idempotency_key": "TEXT", "review": "TEXT", "research": "TEXT"}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS analyses (
@@ -93,6 +96,11 @@ CREATE TABLE IF NOT EXISTS derived_features (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS derived_features_analysis ON derived_features (analysis_id);
+CREATE TABLE IF NOT EXISTS run_reports (
+    request_id TEXT PRIMARY KEY,
+    reported_at TEXT NOT NULL,
+    report TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS dataset_cache (
     file_name TEXT PRIMARY KEY,
     dataset_id TEXT NOT NULL,
@@ -121,6 +129,11 @@ class Records:
         for column, kind in ADDED_COLUMNS.items():
             if column not in existing:
                 self._db.execute(f"ALTER TABLE analyses ADD COLUMN {column} {kind}")
+        existing = {row["name"] for row in self._db.execute("PRAGMA table_info(specs)").fetchall()}
+        for column, kind in ADDED_SPEC_COLUMNS.items():
+            if column not in existing:
+                self._db.execute(f"ALTER TABLE specs ADD COLUMN {column} {kind}")
+        self._db.execute("CREATE INDEX IF NOT EXISTS specs_idempotency ON specs (idempotency_key)")
 
     @staticmethod
     def _encode(fields: dict[str, Any]) -> dict[str, Any]:
@@ -220,24 +233,80 @@ class Records:
             cursor = self._db.execute("DELETE FROM analyses WHERE created_at < ? AND status IN "
                                       "('COMPLETED','FAILED','CANCELLED','EXPIRED')", (before,))
             self._db.execute("DELETE FROM specs WHERE created_at < ?", (before,))
+            self._db.execute("DELETE FROM run_reports WHERE reported_at < ?", (before,))
             self._db.execute("DELETE FROM derived_features WHERE created_at < ?", (before,))
             return cursor.rowcount
 
     # ------------------------------------------------------------ specs (immutable once stored)
 
     def insert_spec(self, spec_id: str, request_id: str, created_at: str, sha256: str, status: str,
-                    contract: dict[str, Any]) -> None:
+                    contract: dict[str, Any], idempotency_key: str | None = None,
+                    review: dict[str, Any] | None = None) -> None:
+        research = contract.get("spec", {}).get("research")
         with self._lock:
-            self._db.execute("INSERT INTO specs (spec_id, request_id, created_at, spec_sha256, status, contract) "
-                             "VALUES (?, ?, ?, ?, ?, ?)",
-                             (spec_id, request_id, created_at, sha256, status, json.dumps(contract, sort_keys=True)))
+            self._db.execute("INSERT INTO specs (spec_id, request_id, created_at, spec_sha256, status, contract, "
+                             "idempotency_key, review, research) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                             (spec_id, request_id, created_at, sha256, status, json.dumps(contract, sort_keys=True),
+                              idempotency_key, json.dumps(review, sort_keys=True, default=str) if review else None,
+                              json.dumps(research, sort_keys=True, default=str) if research else None))
+
+    @staticmethod
+    def _spec_row(row: sqlite3.Row | None) -> dict[str, Any] | None:
+        if row is None:
+            return None
+        data = dict(row)
+        for key in ("contract", "review", "research"):
+            data[key] = json.loads(data[key]) if data.get(key) else None
+        return data
 
     def get_spec(self, spec_id: str) -> dict[str, Any] | None:
         with self._lock:
             row = self._db.execute("SELECT * FROM specs WHERE spec_id = ?", (spec_id,)).fetchone()
-        if row is None:
-            return None
-        return {**dict(row), "contract": json.loads(row["contract"])}
+        return self._spec_row(row)
+
+    def find_spec_by_key(self, request_id: str, key: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._db.execute("SELECT * FROM specs WHERE request_id = ? AND idempotency_key = ? "
+                                   "ORDER BY created_at LIMIT 1", (request_id, key)).fetchone()
+        return self._spec_row(row)
+
+    def specs_for(self, request_id: str) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._db.execute("SELECT * FROM specs WHERE request_id = ? ORDER BY created_at, rowid",
+                                    (request_id,)).fetchall()
+        return [self._spec_row(r) for r in rows]
+
+    def research_experiments(self, request_id: str) -> list[dict[str, Any]]:
+        """The run's approved research specs, oldest first (the Research Governor's ledger)."""
+        return [{"spec_id": s["spec_id"], "research": s["research"], "created_at": s["created_at"]}
+                for s in self.specs_for(request_id) if s["research"]]
+
+    def analyses_for(self, request_id: str) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._db.execute("SELECT * FROM analyses WHERE request_id = ? ORDER BY created_at, rowid",
+                                    (request_id,)).fetchall()
+        return [self._decode(r) for r in rows]
+
+    def spec_completed(self, spec_id: str) -> bool:
+        with self._lock:
+            row = self._db.execute("SELECT count(*) FROM analyses WHERE spec_id = ? AND status IN "
+                                   "('COMPLETED', 'EXPIRED')", (spec_id,)).fetchone()
+        return bool(row[0])
+
+    # ------------------------------------------------------------ run reports (the orchestrator's final answer)
+
+    def put_run_report(self, request_id: str, reported_at: str, report: dict[str, Any]) -> bool:
+        """Insert once; a retried report for the same request keeps the first one."""
+        with self._lock:
+            cursor = self._db.execute("INSERT OR IGNORE INTO run_reports (request_id, reported_at, report) "
+                                      "VALUES (?, ?, ?)", (request_id, reported_at,
+                                                           json.dumps(report, sort_keys=True, default=str)))
+            return cursor.rowcount == 1
+
+    def get_run_report(self, request_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._db.execute("SELECT * FROM run_reports WHERE request_id = ?", (request_id,)).fetchone()
+        return {"reported_at": row["reported_at"], **json.loads(row["report"])} if row else None
 
     def count_specs(self, request_id: str) -> int:
         with self._lock:

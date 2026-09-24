@@ -60,6 +60,7 @@ def safe_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
             "source_table": column.get("source_table"),
             "source_column": column.get("source_column"),
             "aggregation": column.get("aggregation"),
+            "unit": column.get("unit"),
         }
         if column.get("encoding_note"):
             entry["encoding_note"] = column["encoding_note"]

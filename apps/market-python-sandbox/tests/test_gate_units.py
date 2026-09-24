@@ -40,8 +40,10 @@ def test_method_defaults_are_filled_as_approved_defaults() -> None:
     spec = normalized(zscore_spec())
     params = {p["name"]: p for p in spec["calculations"][0]["params"]}
     assert params["window"]["value"] == 20 and params["window"]["provenance"] == "USER_EXPLICIT"
+    # z-score conventions come from AI_formula_reference (TA-Lib has no z-score): ddof=1, and a price z-score
+    # includes the current observation (CALC_054)
     assert params["ddof"] == {"name": "ddof", "value": 1, "provenance": "APPROVED_DEFAULT",
-                              "default_id": "DEFAULT_STD_DDOF"}
+                              "default_id": "DEFAULT_ZSCORE_DDOF"}
     assert params["include_current"]["value"] is True
     assert spec["calculations"][0]["covers"] == ["ZSCORE", "SMA", "STD"]
     assert spec["outputs"][0]["entity_column"] == "ticker" and spec["outputs"][0]["date_column"] == "date"
@@ -50,7 +52,7 @@ def test_method_defaults_are_filled_as_approved_defaults() -> None:
 @pytest.mark.parametrize(("change", "problem"), [
     (lambda s: s["calculations"][0].update(method="CUSTOM"), "CUSTOM calculations need a formula"),
     (lambda s: s["calculations"][0]["params"].append({"name": "ddof", "value": 0, "provenance": "APPROVED_DEFAULT",
-                                                      "default_id": "DEFAULT_STD_DDOF"}), "not the approved default"),
+                                                      "default_id": "DEFAULT_ZSCORE_DDOF"}), "not the approved default"),
     (lambda s: s["calculations"][0]["params"].append({"name": "alpha", "value": 1, "provenance": "AI_INFERRED"}),
      "unknown parameters"),
     (lambda s: s["calculations"][0].update(columns=["open"]), "not listed in input"),

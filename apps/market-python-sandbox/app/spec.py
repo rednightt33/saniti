@@ -9,9 +9,15 @@ Every material requirement carries a provenance: USER_EXPLICIT (stated by the us
 named by default_id), or AI_INFERRED (chosen by the model; reported as an unverified requirement).
 
 Methods in METHODS have a separately implemented reference calculation (runtime/reference.py), so
-their outputs can be independently recalculated. CUSTOM calculations are allowed for any other
-research method; they must carry a formula and time-alignment rule, but they can never be
+their outputs can be independently recalculated. Their conventions follow, in order: TA-Lib where
+TA-Lib defines the calculation, else the AI_formula_reference entry named in CONVENTIONS, else a
+Saniti definition. CUSTOM calculations are allowed for any other research method (an AI-generated
+formula); they must carry a formula and time-alignment rule. A CUSTOM calculation with an
+`expression` (runtime/expression.py) is recalculated independently; without one it can never be
 reported as CALCULATION_VERIFIED.
+
+An optional `research` block turns a spec into a governed research experiment: the Research
+Governor (app/research_policy.py) reviews it against the run's budget before a spec_id exists.
 """
 from __future__ import annotations
 
@@ -25,6 +31,29 @@ from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+
+
+
+def _load_expression_module():
+    """runtime/expression.py is shared with the validator (which imports it as a plain module); load it by path
+    so the harness does not depend on sys.path."""
+    import importlib.util
+    import sys
+    from pathlib import Path
+
+    name = "saniti_runtime_expression"
+    if name not in sys.modules:
+        location = Path(__file__).resolve().parents[1] / "runtime" / "expression.py"
+        module_spec = importlib.util.spec_from_file_location(name, location)
+        module = importlib.util.module_from_spec(module_spec)
+        sys.modules[name] = module
+        module_spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
+_expression = _load_expression_module()
+ExpressionError = _expression.ExpressionError
+analyze_expression = _expression.analyze
 
 SPEC_VERSION = "analysis_spec/v1"
 SPEC_ID = r"^spec_[0-9a-f]{24}$"
@@ -57,15 +86,35 @@ APPROVED_DEFAULTS: dict[str, dict[str, Any]] = {
     "DEFAULT_FREQUENCY_DAILY": {"value": "1D", "meaning": "Daily observations."},
     "DEFAULT_ROLLING_WINDOW_UNIT": {"value": "TRADING_OBSERVATIONS", "meaning": "An N-day rolling window is N trading "
                                     "observations of the entity, including the current one."},
-    "DEFAULT_STD_DDOF": {"value": 1, "meaning": "Standard deviation is the sample standard deviation (ddof=1)."},
-    "DEFAULT_ZSCORE_INCLUDES_CURRENT": {"value": True, "meaning": "A rolling z-score window includes the current "
-                                        "observation."},
-    "DEFAULT_RETURN_KIND": {"value": "SIMPLE", "meaning": "Returns are simple returns x_t / x_(t-h) - 1."},
+    "DEFAULT_STD_DDOF": {"value": 0, "meaning": "A rolling standard deviation follows TA-Lib STDDEV: the "
+                         "population standard deviation (ddof=0)."},
+    "DEFAULT_ZSCORE_DDOF": {"value": 1, "meaning": "A rolling z-score uses the sample standard deviation (ddof=1), as "
+                            "in AI_formula_reference CALC_053 and CALC_054 (TA-Lib has no z-score)."},
+    "DEFAULT_ZSCORE_INCLUDES_CURRENT": {"value": "BY_INPUT", "meaning": "A z-score of a level series (for example a "
+                                        "price) includes the current observation in its window (CALC_054); a z-score "
+                                        "of a return series excludes it (CALC_053)."},
+    "DEFAULT_RETURN_KIND": {"value": "SIMPLE", "meaning": "Returns are simple returns x_t / x_(t-h) - 1 (TA-Lib "
+                            "ROCP)."},
     "DEFAULT_RETURN_HORIZON": {"value": 1, "meaning": "Returns are one-observation returns unless stated."},
     "DEFAULT_RETURN_AS_PERCENT": {"value": False, "meaning": "Returns are fractions, not percentages, unless stated."},
     "DEFAULT_RSI_PERIOD": {"value": 14, "meaning": "RSI uses 14 observations."},
     "DEFAULT_RSI_SMOOTHING": {"value": "WILDER", "meaning": "RSI uses Wilder smoothing seeded with the simple average "
-                              "of the first N changes of the input series (TA-Lib convention)."},
+                              "of the first N changes of the input series, and is 0 when both averages are 0 "
+                              "(TA-Lib RSI convention)."},
+    "DEFAULT_FORWARD_RETURN_ENTRY": {"value": "NEXT_OPEN", "meaning": "A forward return enters at the next "
+                                     "observation's open and exits at the close h observations after the signal: "
+                                     "close[t+h] / open[t+1] - 1 (AI_formula_reference CALC_011, tradable). The "
+                                     "signal-close convention close[t+h] / close[t] - 1 (CALC_010) is used only when "
+                                     "the user asks for it."},
+    "DEFAULT_EVENT_OVERLAP_POLICY": {"value": "NON_OVERLAPPING", "meaning": "An event study keeps an entity's next "
+                                     "event only after the previous event's outcome horizon has passed (independent "
+                                     "outcome windows)."},
+    "DEFAULT_EVENT_BASELINE": {"value": "ALL_ELIGIBLE", "meaning": "The baseline of an event study is every eligible "
+                               "observation (defined signal and outcome) of the analysed universe in the period."},
+    "DEFAULT_EVENT_MIN_EVENTS": {"value": 30, "meaning": "An event study needs at least 30 events before a historical "
+                                 "pattern can be supported."},
+    "DEFAULT_ZERO_DENOMINATOR": {"value": "NULL", "meaning": "A CUSTOM expression with a zero denominator has no "
+                                 "value (NULL), never infinity."},
     "DEFAULT_CORRELATION_METHOD": {"value": "PEARSON", "meaning": "Correlation is Pearson correlation."},
     "DEFAULT_CORRELATION_TRANSFORM": {"value": "SIMPLE_RETURN", "meaning": "Correlation between price series is "
                                       "computed on simple returns, not on price levels."},
@@ -73,7 +122,7 @@ APPROVED_DEFAULTS: dict[str, dict[str, Any]] = {
                                         "observations."},
 }
 
-FAMILIES = ("RSI", "SMA", "STD", "ZSCORE", "RETURN", "FORWARD_RETURN", "CORRELATION")
+FAMILIES = ("RSI", "SMA", "STD", "ZSCORE", "RETURN", "FORWARD_RETURN", "CORRELATION", "EVENT_STUDY")
 
 
 @dataclass(frozen=True)
@@ -101,7 +150,8 @@ class MethodDef:
 WINDOW = ParamDef("int", required=True, minimum=2, maximum=1000)
 WINDOW_UNIT = ParamDef("enum", default="TRADING_OBSERVATIONS", default_id="DEFAULT_ROLLING_WINDOW_UNIT",
                        choices=("TRADING_OBSERVATIONS",))
-DDOF = ParamDef("int", default=1, default_id="DEFAULT_STD_DDOF", minimum=0, maximum=1)
+DDOF = ParamDef("int", default=0, default_id="DEFAULT_STD_DDOF", minimum=0, maximum=1)
+ZSCORE_DDOF = ParamDef("int", default=1, default_id="DEFAULT_ZSCORE_DDOF", minimum=0, maximum=1)
 RETURN_KIND = ParamDef("enum", default="SIMPLE", default_id="DEFAULT_RETURN_KIND", choices=("SIMPLE", "LOG"))
 AS_PERCENT = ParamDef("bool", default=False, default_id="DEFAULT_RETURN_AS_PERCENT")
 TRANSFORM = ParamDef("enum", default="SIMPLE_RETURN", default_id="DEFAULT_CORRELATION_TRANSFORM",
@@ -119,7 +169,8 @@ METHODS: dict[str, MethodDef] = {
                              ENTITY_SERIES, "std(x[t-window+1 .. t], ddof)", TRAILING_ALIGNMENT),
     "ROLLING_ZSCORE": MethodDef(
         "ROLLING_ZSCORE", ("ZSCORE", "SMA", "STD"),
-        {"window": WINDOW, "ddof": DDOF, "window_unit": WINDOW_UNIT,
+        {"window": WINDOW, "ddof": ZSCORE_DDOF, "window_unit": WINDOW_UNIT,
+         # default resolved per input in normalize(): True for level series, False for return series
          "include_current": ParamDef("bool", default=True, default_id="DEFAULT_ZSCORE_INCLUDES_CURRENT")},
         1, ENTITY_SERIES, "(x_t - mean(W)) / std(W, ddof); W = x[t-window+1 .. t] (include_current) or "
                           "x[t-window .. t-1]", TRAILING_ALIGNMENT),
@@ -130,11 +181,13 @@ METHODS: dict[str, MethodDef] = {
                         TRAILING_ALIGNMENT),
     "FORWARD_RETURN": MethodDef("FORWARD_RETURN", ("FORWARD_RETURN",),
                                 {"horizon": ParamDef("int", required=True, minimum=1, maximum=1000),
-                                 "kind": RETURN_KIND, "as_percent": AS_PERCENT}, 1, ENTITY_SERIES,
-                                "x_(t+horizon) / x_t - 1 (SIMPLE) or ln(x_(t+horizon) / x_t) (LOG); x100 when "
-                                "as_percent",
-                                "Value at t uses observations t .. t+horizon of the same entity (look-ahead label; "
-                                "never use as a predictor at t)."),
+                                 "kind": RETURN_KIND, "as_percent": AS_PERCENT,
+                                 "entry": ParamDef("enum", default="NEXT_OPEN", default_id="DEFAULT_FORWARD_RETURN_ENTRY",
+                                                   choices=("NEXT_OPEN", "SIGNAL_CLOSE"))}, 2, ENTITY_SERIES,
+                                "NEXT_OPEN: close_(t+horizon) / open_(t+1) - 1; SIGNAL_CLOSE: close_(t+horizon) / "
+                                "close_t - 1 (SIMPLE) or the log of the ratio (LOG); x100 when as_percent",
+                                "Value at t uses observations t+1 .. t+horizon (NEXT_OPEN) or t .. t+horizon "
+                                "(SIGNAL_CLOSE) of the same entity: a look-ahead label, never a predictor at t."),
     "RSI": MethodDef("RSI", ("RSI",), {"period": ParamDef("int", default=14, default_id="DEFAULT_RSI_PERIOD", minimum=2,
                                                           maximum=500),
                                        "smoothing": ParamDef("enum", default="WILDER", default_id="DEFAULT_RSI_SMOOTHING",
@@ -157,8 +210,49 @@ METHODS: dict[str, MethodDef] = {
         "Both series are aligned on common dates inside the analysis period; a return on the first period date "
         "uses the previous observation."),
 }
+METHODS["EVENT_STUDY"] = MethodDef(
+    "EVENT_STUDY", ("EVENT_STUDY",),
+    {"min_events": ParamDef("int", default=30, default_id="DEFAULT_EVENT_MIN_EVENTS", minimum=1, maximum=100000),
+     "overlap_policy": ParamDef("enum", default="NON_OVERLAPPING", default_id="DEFAULT_EVENT_OVERLAP_POLICY",
+                                choices=("NON_OVERLAPPING", "ALL")),
+     "baseline": ParamDef("enum", default="ALL_ELIGIBLE", default_id="DEFAULT_EVENT_BASELINE",
+                          choices=("ALL_ELIGIBLE",))},
+    0, ("SUMMARY",),
+    "events: period observations where every signal predicate holds; outcome: the FORWARD_RETURN named in "
+    "input_calculation; per segment: event_count, mean, median, hit_rate (outcome > 0), baseline over all eligible "
+    "observations, delta_mean = mean - baseline_mean; NON_OVERLAPPING keeps an entity's next event only after the "
+    "previous event's horizon",
+    "Signals at t use only trailing values at or before t; the outcome starts after the signal. Events whose "
+    "outcome horizon runs past the data are censored, not counted.")
 CUSTOM = "CUSTOM"
 METHOD_NAMES = tuple(METHODS) + (CUSTOM,)
+# Every EVENT_STUDY summary output has these columns (key: segment).
+EVENT_STUDY_COLUMNS = ("event_count", "mean", "median", "hit_rate", "baseline_count", "baseline_mean",
+                       "baseline_median", "delta_mean", "censored_count", "overlapping_dropped")
+LOOKAHEAD_METHODS = ("FORWARD_RETURN", "EVENT_STUDY")
+
+# Where each method's definition comes from, in the approved order: TA-Lib, then AI_formula_reference,
+# then a Saniti definition (EVENT_STUDY) or an AI-generated formula (CUSTOM).
+CONVENTIONS: dict[str, dict[str, Any]] = {
+    "SMA": {"source": "TA_LIB", "function": "SMA", "formula_refs": ["CALC_021"]},
+    "ROLLING_STD": {"source": "TA_LIB", "function": "STDDEV", "formula_refs": []},
+    "ROLLING_ZSCORE": {"source": "FORMULA_REFERENCE", "function": None, "formula_refs": ["CALC_053", "CALC_054"]},
+    "RETURN": {"source": "TA_LIB", "function": "ROCP", "formula_refs": ["CALC_008", "CALC_009"]},
+    "FORWARD_RETURN": {"source": "FORMULA_REFERENCE", "function": None, "formula_refs": ["CALC_010", "CALC_011"]},
+    "RSI": {"source": "TA_LIB", "function": "RSI", "formula_refs": ["CALC_028"]},
+    "ROLLING_CORRELATION": {"source": "TA_LIB", "function": "CORREL", "formula_refs": ["CALC_104"]},
+    "CORRELATION": {"source": "TA_LIB", "function": "CORREL", "formula_refs": ["CALC_101", "CALC_102"]},
+    "EVENT_STUDY": {"source": "FORMULA_REFERENCE", "function": None,
+                    "formula_refs": ["CALC_176", "CALC_177", "CALC_178", "CALC_179"]},
+}
+# AI_formula_reference entries a registered method implements: a CUSTOM formula citing one must use the method.
+REFERENCE_TO_METHOD = {ref: method for method, convention in CONVENTIONS.items() for ref in convention["formula_refs"]}
+# Where Saniti deliberately differs from an AI_formula_reference entry (TA-Lib takes precedence).
+CONVENTION_NOTES = {
+    "CALC_028": "RSI follows TA-Lib: 0 (not 50) when average gain and loss are both 0.",
+    "CALC_044": "Rolling volatility of returns: ROLLING_STD (TA-Lib, ddof=0) chained on RETURN; CALC_044 uses the "
+                "sample standard deviation.",
+}
 
 
 def method_warmup(method: str, params: dict[str, Any]) -> tuple[int, int, int]:
@@ -173,6 +267,8 @@ def method_warmup(method: str, params: dict[str, Any]) -> tuple[int, int, int]:
         return params["horizon"], params["horizon"], 0
     if method == "FORWARD_RETURN":
         return 0, 0, params["horizon"]
+    if method == "EVENT_STUDY":
+        return 0, 0, 0
     if method == "RSI":
         # Wilder smoothing depends on where the series starts; the seed effect decays by (n-1)/n per
         # observation, so about 10 x period observations make values practically start-independent.
@@ -183,7 +279,7 @@ def method_warmup(method: str, params: dict[str, Any]) -> tuple[int, int, int]:
     if method == "CORRELATION":
         extra = 0 if params["transform"] == "NONE" else 1
         return extra, extra, 0
-    warmup = int(params.get("warmup_observations") or 0)
+    warmup = max(int(params.get("warmup_observations") or 0), int(params.get("expression_warmup") or 0))
     return warmup, warmup, int(params.get("lookahead_observations") or 0)
 
 
@@ -231,10 +327,15 @@ class Param(Loose):
     default_id: str | None = None
 
 
+class DataPolicies(Loose):
+    zero_denominator: Literal["NULL", "ZERO"] = "NULL"
+    missing: Literal["PROPAGATE"] = "PROPAGATE"
+
+
 class Calculation(Loose):
     id: Ident
     method: Literal["SMA", "ROLLING_STD", "ROLLING_ZSCORE", "RETURN", "FORWARD_RETURN", "RSI", "ROLLING_CORRELATION",
-                    "CORRELATION", "CUSTOM"]
+                    "CORRELATION", "EVENT_STUDY", "CUSTOM"]
     dataset: Ident
     columns: list[Column] = Field(default_factory=list, max_length=4)
     input_calculation: Ident | None = None
@@ -242,7 +343,18 @@ class Calculation(Loose):
     output_column: Column
     formula: Annotated[str, StringConstraints(max_length=1000)] | None = None
     time_alignment: Annotated[str, StringConstraints(max_length=300)] | None = None
-    covers: list[Literal["RSI", "SMA", "STD", "ZSCORE", "RETURN", "FORWARD_RETURN", "CORRELATION"]] | None = None
+    covers: list[Literal["RSI", "SMA", "STD", "ZSCORE", "RETURN", "FORWARD_RETURN", "CORRELATION",
+                         "EVENT_STUDY"]] | None = None
+    # EVENT_STUDY: the predicates that define an event (all must hold at t)
+    signal: list["Predicate"] | None = Field(default=None, max_length=6)
+    # CUSTOM: a recalculable expression (runtime/expression.py), the formula references it adapts, its meaning
+    # and unit, and how undefined arithmetic is handled
+    expression: Annotated[str, StringConstraints(max_length=500)] | None = None
+    formula_refs: list[Annotated[str, StringConstraints(pattern=r"^CALC_[0-9]{3}$")]] | None = Field(
+        default=None, max_length=5)
+    meaning: Annotated[str, StringConstraints(max_length=300)] | None = None
+    unit: Annotated[str, StringConstraints(max_length=40)] | None = None
+    data_policies: DataPolicies | None = None
     provenance: Provenance
     default_id: str | None = None
 
@@ -255,9 +367,12 @@ class Predicate(Loose):
     default_id: str | None = None
 
 
+Calculation.model_rebuild()
+
+
 class OutputSpec(Loose):
     name: Annotated[str, StringConstraints(pattern=OUTPUT_NAME)]
-    grain: Literal["ENTITY_DATE", "ENTITY", "ENTITY_PAIR", "UNSPECIFIED"]
+    grain: Literal["ENTITY_DATE", "ENTITY", "ENTITY_PAIR", "SUMMARY", "UNSPECIFIED"]
     at: Literal["EACH_DATE", "PERIOD_END"] | None = None
     coverage: Literal["FULL", "SELECTION"] = "FULL"
     calculations: list[Ident] = Field(default_factory=list, max_length=12)
@@ -274,6 +389,32 @@ class ExclusionRule(Loose):
     default_id: str | None = None
 
 
+EvidenceStandard = Literal["CALCULATION", "SCREEN", "DESCRIPTIVE", "HISTORICAL_PATTERN", "EXPLORATORY", "PREDICTIVE",
+                           "SCENARIO"]
+
+
+class Hypothesis(Loose):
+    id: Annotated[str, StringConstraints(pattern=r"^H[0-9]{1,2}$")]
+    statement: Annotated[str, StringConstraints(min_length=1, max_length=500)]
+
+
+class Holdout(Loose):
+    """The out-of-sample part of the analysis period: observations on or after start (and up to end)."""
+
+    start: date
+    end: date | None = None
+
+
+class ResearchBlock(Loose):
+    evidence_standard: EvidenceStandard
+    objective: Annotated[str, StringConstraints(min_length=1, max_length=500)]
+    hypothesis: Hypothesis | None = None
+    method_ref: Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{0,62}$")] | None = None
+    followup_of: Annotated[str, StringConstraints(pattern=SPEC_ID)] | None = None
+    candidates: int | None = Field(default=None, ge=1, le=1_000_000)
+    holdout: Holdout | None = None
+
+
 class AnalysisSpec(Loose):
     question: Annotated[str, StringConstraints(min_length=1, max_length=1000)]
     universe: Universe
@@ -283,6 +424,7 @@ class AnalysisSpec(Loose):
     calculations: list[Calculation] = Field(min_length=1, max_length=12)
     outputs: list[OutputSpec] = Field(min_length=1, max_length=8)
     exclusion_rules: list[ExclusionRule] = Field(default_factory=list, max_length=8)
+    research: ResearchBlock | None = None
 
 
 class Message(Loose):
@@ -382,6 +524,20 @@ def _trace(item: dict[str, Any], where: str, problems: list[str]) -> None:
         problems.append(f"{where}: unknown default_id {default_id!r}")
 
 
+def _looks_ahead(calc: dict[str, Any], calcs: dict[str, dict[str, Any]], depth: int = 0) -> bool:
+    """True when a calculation (or anything it is built from) uses observations after t."""
+    if depth > 20:
+        return True
+    if calc["method"] in LOOKAHEAD_METHODS:
+        return True
+    if calc["method"] == CUSTOM and any(p["name"] == "lookahead_observations" and (p["value"] or 0) > 0
+                                        for p in calc["params"]):
+        return True
+    upstream = [calc["input_calculation"]] if calc.get("input_calculation") else []
+    upstream += list(calc.get("expression_calcs") or [])
+    return any(u in calcs and _looks_ahead(calcs[u], calcs, depth + 1) for u in upstream)
+
+
 def normalize(spec: AnalysisSpec, ref: date) -> dict[str, Any]:
     """Validate semantics, fill method defaults (as APPROVED_DEFAULT), and return the canonical spec.
 
@@ -464,11 +620,34 @@ def normalize(spec: AnalysisSpec, ref: date) -> dict[str, Any]:
             if param["name"] in params:
                 problems.append(f"{where}: parameter {param['name']} is given twice")
             params[param["name"]] = param
+        if method != "EVENT_STUDY" and calc["signal"]:
+            problems.append(f"{where}: signal predicates belong to EVENT_STUDY calculations")
+        if method != CUSTOM and any(calc[k] for k in ("expression", "formula_refs", "meaning", "unit",
+                                                        "data_policies")):
+            problems.append(f"{where}: expression, formula_refs, meaning, unit and data_policies belong to CUSTOM "
+                            f"calculations")
         if method == CUSTOM:
             if not (calc["formula"] or "").strip() or not (calc["time_alignment"] or "").strip():
                 problems.append(f"{where}: CUSTOM calculations need a formula and a time_alignment rule")
-            if not calc["columns"] and calc["input_calculation"] is None:
+            if not calc["columns"] and calc["input_calculation"] is None and not calc["expression"]:
                 problems.append(f"{where}: CUSTOM calculations must name their input columns")
+            implemented = sorted({REFERENCE_TO_METHOD[r] for r in calc["formula_refs"] or [] if r in REFERENCE_TO_METHOD})
+            if implemented:
+                problems.append(f"{where}: formula_refs {calc['formula_refs']} are implemented by the tested method(s) "
+                                f"{implemented}; use that method (its convention takes precedence) instead of CUSTOM")
+            if calc["expression"]:
+                earlier = {cid for cid, c in calcs.items() if c["dataset"] == calc["dataset"]
+                           and c["method"] not in LOOKAHEAD_METHODS}
+                try:
+                    info = analyze_expression(calc["expression"], set(calc["columns"]) | earlier)
+                except ExpressionError as exc:
+                    problems.append(f"{where}: expression: {exc}")
+                else:
+                    used_calcs = sorted(info.names & earlier)
+                    calc["expression_calcs"] = used_calcs
+                    calc["expression_warmup"] = info.warmup
+                    calc["data_policies"] = calc["data_policies"] or {"zero_denominator": "NULL",
+                                                                      "missing": "PROPAGATE"}
             for name in ("warmup_observations", "lookahead_observations"):
                 if name in params:
                     try:
@@ -481,14 +660,55 @@ def normalize(spec: AnalysisSpec, ref: date) -> dict[str, Any]:
             definition = METHODS[method]
             expected_inputs = definition.input_columns
             given = len(calc["columns"]) + (1 if calc["input_calculation"] else 0)
-            if given != expected_inputs:
+            if method == "FORWARD_RETURN":
+                entry_param = params.get("entry")
+                entry = str(entry_param["value"]).upper() if entry_param and entry_param["value"] is not None \
+                    else "NEXT_OPEN"
+                expected_inputs = 2 if entry == "NEXT_OPEN" else 1
+                if entry == "NEXT_OPEN" and calc["input_calculation"]:
+                    problems.append(f"{where}: FORWARD_RETURN with entry NEXT_OPEN needs two input columns (the exit "
+                                    f"close and the entry open), not input_calculation")
+                elif entry == "NEXT_OPEN" and len(calc["columns"]) == 2:
+                    opens = [c for c in calc["columns"] if "open" in c.lower()]
+                    if len(opens) != 1:
+                        problems.append(f"{where}: FORWARD_RETURN with entry NEXT_OPEN needs exactly one open column "
+                                        f"(entry) and one close column (exit); got {calc['columns']}")
+                    else:
+                        calc["columns"] = [c for c in calc["columns"] if c != opens[0]] + opens  # [exit, entry]
+            if method == "EVENT_STUDY":
+                upstream = calcs.get(calc["input_calculation"] or "")
+                if calc["columns"] or upstream is None or upstream["method"] != "FORWARD_RETURN":
+                    problems.append(f"{where}: EVENT_STUDY takes no columns; input_calculation must name an earlier "
+                                    f"FORWARD_RETURN calculation (the outcome)")
+                if not calc["signal"]:
+                    problems.append(f"{where}: EVENT_STUDY needs signal predicates (the event definition)")
+                for predicate in calc["signal"] or []:
+                    _trace(predicate, f"{where} signal", problems)
+                    source_calc = calcs.get(predicate["calculation"])
+                    if source_calc is None or source_calc["dataset"] != calc["dataset"]:
+                        problems.append(f"{where}: signal calculation {predicate['calculation']!r} must be an earlier "
+                                        f"calculation on the same input")
+                    elif source_calc["method"] in LOOKAHEAD_METHODS or _looks_ahead(source_calc, calcs):
+                        problems.append(f"{where}: FUTURE_LABEL_IN_SIGNAL: signal {predicate['calculation']!r} uses "
+                                        f"observations after t; an event may only use information available at t")
+                expected_inputs = 1
+            elif given != expected_inputs:
                 problems.append(f"{where}: {method} takes {expected_inputs} input column(s)")
             unknown = sorted(set(params) - set(definition.params))
             if unknown:
                 problems.append(f"{where}: unknown parameters {unknown} for {method}; allowed "
                                 f"{sorted(definition.params)}")
             normalized = []
+            dynamic: dict[str, Any] = {}
+            if method == "ROLLING_ZSCORE":
+                upstream = calcs.get(calc["input_calculation"] or "")
+                is_return = upstream is not None and (upstream["method"] == "RETURN" or (
+                    upstream["method"] == CUSTOM and "RETURN" in (upstream.get("covers") or [])))
+                dynamic["include_current"] = not is_return
             for name, pdef in definition.params.items():
+                if name in dynamic:
+                    pdef = ParamDef(pdef.kind, pdef.required, dynamic[name], pdef.default_id, pdef.minimum,
+                                    pdef.maximum, pdef.choices)
                 if name in params and params[name]["value"] is None:
                     del params[name]  # null means "not chosen": the approved default applies and is marked so
                 if name in params:
@@ -512,9 +732,14 @@ def normalize(spec: AnalysisSpec, ref: date) -> dict[str, Any]:
             calc["formula"] = definition.formula
             calc["time_alignment"] = definition.time_alignment
             calc["covers"] = list(definition.families)
+            if method == "FORWARD_RETURN" and param_values(calc).get("entry") == "SIGNAL_CLOSE":
+                calc["formula"] = ("close_(t+horizon) / close_t - 1 (SIMPLE) or the log of the ratio (LOG); x100 when "
+                                   "as_percent (AI_formula_reference CALC_010, signal-close entry)")
             if raw["frequency"]["value"] != "1D":
                 problems.append(f"{where}: {method} is defined on daily observations; use CUSTOM for "
                                 f"{raw['frequency']['value']} resampled calculations")
+        calc["convention"] = CONVENTIONS.get(method) or {"source": "AI_GENERATED", "function": None,
+                                                         "formula_refs": list(calc.get("formula_refs") or [])}
         calcs[calc["id"]] = calc
 
     output_names = set()
@@ -528,7 +753,16 @@ def normalize(spec: AnalysisSpec, ref: date) -> dict[str, Any]:
                 problems.append(f"{where}: unknown calculation {cid!r}")
         grain = output["grain"]
         refs = [calcs[c] for c in output["calculations"] if c in calcs]
-        if grain == "ENTITY_PAIR":
+        if any(c["method"] == "EVENT_STUDY" for c in refs) and grain != "SUMMARY":
+            problems.append(f"{where}: EVENT_STUDY calculations produce SUMMARY outputs")
+        if grain == "SUMMARY":
+            if len(refs) != 1 or refs[0]["method"] != "EVENT_STUDY":
+                problems.append(f"{where}: a SUMMARY output lists exactly one EVENT_STUDY calculation")
+            if output["coverage"] != "FULL" or output["selection"]:
+                problems.append(f"{where}: SUMMARY outputs have coverage FULL and no selection")
+            output["at"] = None
+            output["entity_column"] = output["date_column"] = output["pair_columns"] = None
+        elif grain == "ENTITY_PAIR":
             if raw["universe"]["type"] != "TICKERS" or len(raw["universe"]["tickers"] or []) < 2:
                 problems.append(f"{where}: ENTITY_PAIR outputs need a TICKERS universe of at least two tickers")
             if not output["pair_columns"]:
@@ -564,6 +798,11 @@ def normalize(spec: AnalysisSpec, ref: date) -> dict[str, Any]:
             problems.append(f"{where}: selection predicates need coverage SELECTION")
         if grain != "UNSPECIFIED" and not output["calculations"]:
             problems.append(f"{where}: list the calculations whose values this output contains")
+    research = raw.get("research")
+    if research and research.get("holdout"):
+        holdout = research["holdout"]
+        if holdout.get("end") and holdout["end"] < holdout["start"]:
+            problems.append("research.holdout: end is before start")
     for rule in raw["exclusion_rules"]:
         _trace(rule, f"exclusion rule {rule['rule']}", problems)
         value = rule["value"]
@@ -576,6 +815,19 @@ def normalize(spec: AnalysisSpec, ref: date) -> dict[str, Any]:
     return raw
 
 
+def convention_notes(spec: dict[str, Any]) -> list[dict[str, str]]:
+    """Where a calculation's convention (TA-Lib first) differs from an AI_formula_reference entry: disclose it."""
+    notes = []
+    for calc in spec["calculations"]:
+        refs = (calc.get("convention") or {}).get("formula_refs") or []
+        if calc["method"] == "ROLLING_STD":
+            refs = [*refs, "CALC_044"]
+        for ref in refs:
+            if ref in CONVENTION_NOTES:
+                notes.append({"calculation": calc["id"], "formula_ref": ref, "note": CONVENTION_NOTES[ref]})
+    return notes
+
+
 def param_values(calc: dict[str, Any]) -> dict[str, Any]:
     return {p["name"]: p["value"] for p in calc["params"]}
 
@@ -585,8 +837,15 @@ def required_input(spec: dict[str, Any], resolved: dict[str, Any], ref: date) ->
     per_input: dict[str, dict[str, Any]] = {}
     chains: dict[str, tuple[int, int, int]] = {}
     for calc in spec["calculations"]:
-        own = method_warmup(calc["method"], param_values(calc))
-        base = chains.get(calc["input_calculation"], (0, 0, 0)) if calc["input_calculation"] else (0, 0, 0)
+        params = param_values(calc)
+        if calc["method"] == CUSTOM:
+            params["expression_warmup"] = calc.get("expression_warmup") or 0
+        own = method_warmup(calc["method"], params)
+        upstream = [calc["input_calculation"]] if calc["input_calculation"] else []
+        upstream += list(calc.get("expression_calcs") or [])
+        upstream += [p["calculation"] for p in calc.get("signal") or []]
+        bases = [chains.get(u, (0, 0, 0)) for u in upstream] or [(0, 0, 0)]
+        base = tuple(max(b[i] for b in bases) for i in range(3))
         chains[calc["id"]] = (own[0] + base[0], own[1] + base[1], own[2] + base[2])
     for item in spec["inputs"]:
         mine = [chains[c["id"]] for c in spec["calculations"] if c["dataset"] == item["name"]]
@@ -616,6 +875,12 @@ def output_contract(spec: dict[str, Any]) -> list[dict[str, Any]]:
     contract = []
     for output in spec["outputs"]:
         grain = output["grain"]
+        if grain == "SUMMARY":
+            holdout = (spec.get("research") or {}).get("holdout")
+            contract.append({"name": output["name"], "grain": grain, "key_columns": ["segment"],
+                             "value_columns": list(EVENT_STUDY_COLUMNS), "coverage": "FULL", "emit": "emit_table",
+                             "rows": ["ALL"] + (["IN_SAMPLE", "OUT_OF_SAMPLE"] if holdout else [])})
+            continue
         if grain == "ENTITY_PAIR":
             keys = list(output["pair_columns"] or [])
         elif grain == "UNSPECIFIED":
@@ -651,8 +916,14 @@ def derived_feature_definitions(spec: dict[str, Any]) -> list[dict[str, Any]]:
             "output_grain": sorted(set(grains.get(calc["id"], []))) or ["NOT_EMITTED"],
             "time_alignment": calc["time_alignment"], "origin": "DERIVED_IN_ANALYSIS",
             "status": "EXPLORATORY_UNVALIDATED",
-            "independent_check": "REFERENCE_RECALCULATION" if calc["method"] in METHODS else "NONE",
+            "independent_check": "REFERENCE_RECALCULATION" if calc["method"] in METHODS else
+            "EXPRESSION_RECALCULATION" if calc.get("expression") else "NONE",
+            "convention": calc.get("convention"),
+            "formula_status": "TESTED_IMPLEMENTATION" if calc["method"] in METHODS else "CUSTOM_FORMULA",
         }
+        if calc["method"] == CUSTOM:
+            definition.update({k: calc.get(k) for k in ("expression", "formula_refs", "meaning", "unit",
+                                                         "data_policies") if calc.get(k)})
         definition["definition_sha256"] = sha256_json(definition)
         definitions.append(definition)
     return definitions

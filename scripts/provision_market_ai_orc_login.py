@@ -4,7 +4,9 @@
 Requires migration 20260923_001_create_market_ai_catalog_reader.sql. The login joins
 market_ai_catalog_reader (SELECT on exactly the seven AI_* catalog tables) and, when migration
 20260923_002_create_market_ai_preview_interface.sql is applied, market_ai_preview_reader
-(EXECUTE on public.ai_preview_table_rows only; no SELECT on any market-data table).
+(EXECUTE on public.ai_preview_table_rows only; no SELECT on any market-data table). When migration
+20260924_004_create_research_run_audit.sql is applied, it also joins market_ai_research_audit_writer
+(INSERT only on AI_research_run_audit; no SELECT), so a rotation keeps the run-audit grant.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ LOGIN = "market_ai_orc"
 GROUP = "market_ai_catalog_reader"
 PREVIEW_GROUP = "market_ai_preview_reader"
 PREVIEW_FUNCTION = "public.ai_preview_table_rows(text)"
+AUDIT_GROUP = "market_ai_research_audit_writer"
 CATALOG_TABLES = (
     "AI_table_catalog", "AI_column_catalog", "AI_catalog_relationships",
     "AI_calculation_catalog", "AI_data_coverage", "AI_research_catalog", "AI_formula_reference",
@@ -41,8 +44,9 @@ def main() -> None:
                     "CONNECTION LIMIT 5 PASSWORD {}").format(sql.Identifier(LOGIN), sql.Literal(password))
         )
         groups = {GROUP}
-        if connection.execute("SELECT 1 FROM pg_roles WHERE rolname=%s", (PREVIEW_GROUP,)).fetchone():
-            groups.add(PREVIEW_GROUP)
+        for optional in (PREVIEW_GROUP, AUDIT_GROUP):
+            if connection.execute("SELECT 1 FROM pg_roles WHERE rolname=%s", (optional,)).fetchone():
+                groups.add(optional)
         for group in sorted(groups):
             connection.execute(sql.SQL("GRANT {} TO {}").format(sql.Identifier(group), sql.Identifier(LOGIN)))
         for setting, value in (
@@ -93,8 +97,9 @@ def main() -> None:
         raise RuntimeError(f"{LOGIN} preview EXECUTE privilege does not match role membership")
     preview = ("; EXECUTE on the 20-row preview function" if preview_state["installed"]
                else "; preview interface not installed in this database")
+    audit = "; INSERT-only run audit" if AUDIT_GROUP in groups else ""
     print(f"{LOGIN} provisioned: read-only SELECT on {len(CATALOG_TABLES)} AI catalog tables"
-          f"{preview}; no other public table is readable")
+          f"{preview}{audit}; no other public table is readable")
 
 
 if __name__ == "__main__":

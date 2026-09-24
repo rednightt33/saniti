@@ -54,10 +54,12 @@ def spec_args(**overrides: Any) -> dict[str, Any]:
                           "params": [{"name": "window", "value": 20, "provenance": "USER_EXPLICIT",
                                       "default_id": None}],
                           "output_column": "zscore_20", "formula": None, "time_alignment": None, "covers": None,
-                          "provenance": "USER_EXPLICIT", "default_id": None}],
+                          "signal": None, "expression": None, "formula_refs": None, "meaning": None, "unit": None,
+                          "data_policies": None, "provenance": "USER_EXPLICIT", "default_id": None}],
         "outputs": [{"name": "zscores", "grain": "ENTITY_DATE", "coverage": "FULL", "calculations": ["z20"],
                      "selection": None, "entity_column": None, "date_column": None, "pair_columns": None}],
         "exclusion_rules": [],
+        "research": None,
     }
     return {**base, **overrides}
 
@@ -137,7 +139,7 @@ def test_tool_schemas_are_strict_and_expose_no_limits_paths_or_user_context() ->
     expected = {"get_dataset_manifest": {"dataset_id"}, "get_analysis_result": {"analysis_id"},
                 "run_python_analysis": {"spec_id", "inputs", "python_code", "expected_outputs"},
                 "create_analysis_spec": {"question", "universe", "analysis_period", "frequency", "inputs",
-                                         "calculations", "outputs", "exclusion_rules"}}
+                                         "calculations", "outputs", "exclusion_rules", "research"}}
     for name, fields in expected.items():
         params = definitions[name]["parameters"]
         assert definitions[name]["strict"] is True and set(params["properties"]) == fields

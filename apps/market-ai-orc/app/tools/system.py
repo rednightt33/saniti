@@ -16,6 +16,8 @@ CAPABILITY_TOOLS = {
     "fact_lookup": "lookup_fact",
     "python_analysis": "run_python_analysis",
     "web_search": "search_web",
+    # No external data provider is connected (see market-sql-governor app/external.py): always false.
+    "external_data": "request_external_data",
 }
 
 
@@ -35,7 +37,7 @@ def capabilities_spec(registry: ToolRegistry) -> ToolSpec:
         name="get_system_capabilities",
         description=(
             "Return which backend capabilities (catalog discovery, full catalog read, market-data "
-            "preview, database query, fact lookup, Python analysis, web search) and tools are currently "
+            "preview, database query, fact lookup, Python analysis, web search, external data) and tools are currently "
             "available to this agent."
         ),
         arguments_model=NoArguments,

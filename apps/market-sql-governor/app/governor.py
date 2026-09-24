@@ -223,7 +223,7 @@ class Governor:
         s = self.settings
         names = [item.name for item in query.select]
         output_columns = [OutputColumn(name=item.name, type=item.data_type, source_table=item.table,
-                                       source_column=item.column, aggregation=item.function)
+                                       source_column=item.column, aggregation=item.function, unit=item.unit)
                           for item in query.select]
         base = dict(request_id=request_id, query_id=query_id, query_hash=compiled.query_hash,
                     source_tables=query.source_tables, columns=output_columns, estimated_scan_rows=scan_rows,

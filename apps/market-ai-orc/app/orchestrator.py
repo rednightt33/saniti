@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -13,7 +14,7 @@ from .config import Settings
 from .openrouter_client import ProviderError, response_usage
 from .schemas import (
     FINAL_RESPONSE_SCHEMA, STATUS_BY_RESPONSE_TYPE, AgentRunRequest, AgentRunResponse, AnalysisSummary,
-    ExecutionMetadata, FinalResponse, NumberProvenance, RunError,
+    ExecutionMetadata, ExperimentSummary, FinalResponse, NumberProvenance, ResearchSummary, RunError,
 )
 from .provenance import (CONTEXT, SourceIndex, analysis_label, check_answer, numbers_in, parse_numbers,
                          requested_statistics, weakest)
@@ -165,7 +166,30 @@ independently validated.
 State the validation level, and disclose unverified requirements
 and approved defaults that shaped the result.
 Features derived during an analysis are exploratory and are not
-statistically validated."""
+statistically validated.
+
+RESEARCH RULES
+Keep the work proportional to the request: a calculation, screen,
+or description needs no research block, hypothesis, or follow-up.
+For a research question (whether a condition historically precedes
+an outcome, whether something is predictive, or a bounded
+exploration), set research in create_analysis_spec: the evidence
+standard, the objective, a hypothesis, and the AI_research_catalog
+method used as methodology reference. A historical pattern needs an
+EVENT_STUDY with a baseline; a predictive claim also needs a
+temporal holdout. A further experiment on the same hypothesis is a
+follow-up (followup_of) of a completed one; the Research Governor
+limits experiments, hypotheses, and follow-ups, and REJECTED means
+report what the completed experiments show.
+Report each finding as an observation, a historical pattern, or an
+insight only as far as its evidence_assessment allows, and follow its
+reporting_constraints: an association is never a cause, and only a
+SUPPORTED PREDICTIVE assessment allows predictive wording. State the
+event count, the baseline, and the uncertainty of a pattern.
+Data the catalog does not contain (for example macro data, yields,
+fundamentals, or news) is unavailable: say so and never substitute
+another dataset. A documented formula whose inputs are not in the
+catalog cannot be calculated."""
 VALIDATION_GATE_INSTRUCTION = (
     "Your answer relies on Python analyses that did not pass validation: {findings}. A result that failed "
     "validation must not be presented as a valid answer. Fix the analysis and run it again, request the missing "
@@ -188,6 +212,26 @@ PROVENANCE_INSTRUCTION = (
 )
 PROVENANCE_NOTICE = ("Some figures below could not be traced to a governed source in this run and are not "
                      "validated: {numbers}. ")
+CLAIM_INSTRUCTION = (
+    "Your answer makes a claim the evidence of this run does not support: {problem}. Historical results describe an "
+    "association, not a cause, and a result is predictive only when an analysis with evidence_standard PREDICTIVE "
+    "has evidence_assessment decision SUPPORTED. Rephrase the claim to what the evidence supports (follow each "
+    "analysis's reporting_constraints), or return response_type \"LIMITATION\"."
+)
+CLAIM_NOTICE = "The evidence of this run does not support a causal or predictive reading of the result below. "
+# Predictive or causal wording about market outcomes (English and Indonesian). A match preceded closely by a
+# negation ("not a prediction", "bukan penyebab") is not a claim.
+PREDICTIVE_PATTERN = (
+    r"\b(?:will|is likely to|are likely to|is expected to|are expected to|akan|diperkirakan akan|cenderung akan)\s+"
+    r"(?:\w+\s+){0,2}?(?:rise|increase|climb|rally|rebound|outperform|fall|decline|drop|underperform|naik|turun|"
+    r"menguat|melemah|rebound|berbalik|mengungguli)\b|\bpredict(?:s|ed|ive|ion|ions)?\b|\bforecast(?:s|ed)?\b|"
+    r"\bmemprediksi\b|\bprediksi\b|\bmeramalkan\b|\bbuy signal\b|\bsell signal\b|\bsinyal (?:beli|jual)\b"
+)
+CAUSAL_PATTERN = (r"\bcaus(?:e|es|ed|al|ally|ation)\b|\bdrives? (?:the )?(?:price|return)s?\b|\bmenyebabkan\b|"
+                  r"\bmengakibatkan\b|\bpenyebab\b")
+NEGATION_PATTERN = (r"\b(?:not|no|never|cannot|can't|isn't|aren't|doesn't|don't|without|rather than|bukan|tidak|"
+                    r"tanpa|belum|jangan)\b")
+RESEARCH_CLAIMS = {"HISTORICAL_PATTERN", "PREDICTIVE", "EXPLORATORY", "SCENARIO"}
 
 RESPONSE_FORMAT_NAME = "saniti_agent_response"
 REJECTED_OUTPUT_ECHO_CHARS = 4000
@@ -270,6 +314,10 @@ class RunState:
     gate_kinds_rejected: set[str] = field(default_factory=set)
     number_provenance: dict[str, Any] | None = None
     evidence_label: str | None = None
+    # analysis_id -> the validator's evidence assessment (compact); warning codes the sandbox attached
+    evidence: dict[str, dict[str, Any]] = field(default_factory=dict)
+    warning_codes: set[str] = field(default_factory=set)
+    experiments: list[dict[str, Any]] = field(default_factory=list)
 
 
 class AgentOrchestrator:
@@ -283,10 +331,12 @@ class AgentOrchestrator:
         *,
         clock: Callable[[], float] = time.monotonic,
         wall_clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+        auditor: Any | None = None,
     ) -> None:
         self.settings = settings
         self.client = client
         self.registry = registry
+        self.auditor = auditor
         self.wall_clock = wall_clock
         self.clock = clock
 
@@ -307,6 +357,7 @@ class AgentOrchestrator:
             [(turn.role, turn.content) for turn in request.history], request.message))
         try:
             final = self._loop(state)
+            state.experiments = self._research_summary(state, final.answer)
             result = AgentRunResponse(
                 request_id=request.request_id,
                 status=STATUS_BY_RESPONSE_TYPE[final.response_type],
@@ -323,6 +374,12 @@ class AgentOrchestrator:
         finally:
             current_request_id.reset(token)
             current_run_context.reset(context)
+        if self.auditor is not None:
+            try:
+                self.auditor.record(request.request_id, request.message, result, state.experiments,
+                                    used_sandbox=bool(state.specs or state.analyses))
+            except Exception:  # noqa: BLE001 - auditing never changes the response
+                logger.warning(dumps({"event": "research_audit_failed", "request_id": request.request_id}))
         log_event(
             "ai_run_completed" if result.status != "FAILED" else "ai_run_failed",
             request_id=state.request_id,
@@ -488,7 +545,7 @@ class AgentOrchestrator:
             )
 
         outcome = self.registry.execute(call_id, name, raw_arguments)
-        self._track_analysis(state, name, outcome)
+        self._track_analysis(state, name, outcome, self._normalized_arguments(raw_arguments))
         self._track_sources(state, name, self._normalized_arguments(raw_arguments), outcome)
         result_hash = stable_hash(outcome.output)
         count = count + 1 if last_result in (None, result_hash) else 1
@@ -524,17 +581,23 @@ class AgentOrchestrator:
         return final
 
     @staticmethod
-    def _track_analysis(state: RunState, name: str, outcome: ToolOutcome) -> None:
-        """Record every spec review and analysis status the model has seen (from tool results only)."""
+    def _track_analysis(state: RunState, name: str, outcome: ToolOutcome, arguments: Any = None) -> None:
+        """Record every spec review and analysis status the model has seen (from tool results only; the
+        research block is taken from the approved spec's own arguments)."""
         if not outcome.ok:
             return
         result = outcome.output.get("result")
         if not isinstance(result, dict):
             return
         if name == "create_analysis_spec" and result.get("spec_id"):
+            research = (arguments or {}).get("research") if isinstance(arguments, dict) else None
             state.specs[result["spec_id"]] = {
                 "status": result.get("status"),
-                "unverified": [str(u.get("requirement")) for u in result.get("unverified_requirements") or []][:12]}
+                "unverified": [str(u.get("requirement")) for u in result.get("unverified_requirements") or []][:12],
+                "research": {"evidence_standard": research.get("evidence_standard"),
+                             "hypothesis_id": (research.get("hypothesis") or {}).get("id"),
+                             "followup_of": research.get("followup_of")} if isinstance(research, dict) else None,
+                "governor": (result.get("governor") or {}).get("decision")}
         elif name in ("run_python_analysis", "get_analysis_result") and result.get("analysis_id") \
                 and result.get("execution_status"):
             previous = state.analyses.get(result["analysis_id"], {})
@@ -544,6 +607,12 @@ class AgentOrchestrator:
                 "validation_level": result.get("validation_level"),
                 "reason_codes": list(result.get("reason_codes") or [])[:10],
                 "error_code": (result.get("error") or {}).get("code")}
+            assessment = result.get("evidence_assessment")
+            if isinstance(assessment, dict):
+                state.evidence[result["analysis_id"]] = {
+                    k: assessment.get(k) for k in ("claim_type", "decision", "evidence_level")} | {
+                    "reporting_constraints": [str(c) for c in assessment.get("reporting_constraints") or []][:10]}
+            state.warning_codes |= {str(w.get("code")) for w in result.get("warnings") or [] if isinstance(w, dict)}
 
     def _gate_findings(self, state: RunState) -> tuple[list[str], list[str]]:
         """(blocking findings, mandatory limitation lines) from the latest analysis of each spec."""
@@ -577,6 +646,14 @@ class AgentOrchestrator:
             if spec and spec["unverified"]:
                 lines.append(f"Requirements not stated by the user in the spec of analysis {ident}: "
                              f"{', '.join(spec['unverified'])}.")
+            evidence = state.evidence.get(ident)
+            if evidence and evidence.get("claim_type") in RESEARCH_CLAIMS:
+                lines.append(f"Analysis {ident} ({evidence['claim_type']}): evidence {evidence.get('decision')}, "
+                             f"level {evidence.get('evidence_level')}.")
+                lines.extend(c for c in evidence["reporting_constraints"] if c not in lines)
+        if "CORPORATE_ACTIONS_NOT_ADJUSTED" in state.warning_codes and latest:
+            lines.append("Prices are split-adjusted as fetched and not dividend-adjusted; returns that span a "
+                         "corporate action can be distorted.")
         return blocking, lines
 
     @staticmethod
@@ -615,8 +692,10 @@ class AgentOrchestrator:
                 and result.get("execution_status"):
             label = analysis_label(result.get("execution_status"), result.get("validation_status"),
                                    result.get("validation_level"))
+            # the validator's own evidence statistics (event counts, baseline, intervals) are sources too
+            statistics = (result.get("evidence_assessment") or {}).get("statistics")
             state.analysis_values[result["analysis_id"]] = {
-                "label": label, "values": numbers_in(result.get("outputs")) if label else []}
+                "label": label, "values": numbers_in(result.get("outputs")) + numbers_in(statistics) if label else []}
             evidence = [{k: v for k, v in item.items() if k not in ("examples", "missing_examples",
                                                                      "unexpected_examples", "diagnosis")}
                         for item in result.get("validation_evidence") or [] if isinstance(item, dict)]
@@ -681,6 +760,11 @@ class AgentOrchestrator:
             return self._forced(state, final, PROVENANCE_NOTICE.format(numbers=numbers),
                                 [f"Figures without a governed source in this run: {numbers}."] + lines)
 
+        problem = self._claim_problem(state, final.answer)
+        if problem and final.response_type == "ANSWER":
+            self._gate_once(state, "CLAIM", CLAIM_INSTRUCTION.format(problem=problem))
+            return self._forced(state, final, CLAIM_NOTICE, [f"Unsupported claim: {problem}."] + lines)
+
         missing_lines = [line for line in lines if line not in final.limitations]
         if state.analyses:
             state.validation_gate = "ANNOTATED" if missing_lines else "PASSED"
@@ -691,6 +775,63 @@ class AgentOrchestrator:
         if not missing_lines:
             return final
         return final.model_copy(update={"limitations": [*final.limitations, *missing_lines]})
+
+    @staticmethod
+    def _claim_problem(state: RunState, answer: str) -> str | None:
+        """Causal wording is never supported by these analyses; predictive wording needs a PREDICTIVE analysis
+        whose evidence was SUPPORTED."""
+        text = answer or ""
+
+        def asserted(pattern: str) -> str | None:
+            for match in re.finditer(pattern, text, re.IGNORECASE):
+                before = text[max(0, match.start() - 40):match.start()]
+                if not re.search(NEGATION_PATTERN, before, re.IGNORECASE):
+                    return match.group(0)
+            return None
+
+        causal = asserted(CAUSAL_PATTERN)
+        if causal:
+            return f"causal wording ({causal!r}) for a historical association"
+        predictive = asserted(PREDICTIVE_PATTERN)
+        supported = any(e.get("claim_type") == "PREDICTIVE" and e.get("decision") == "SUPPORTED"
+                        for e in state.evidence.values())
+        if predictive and not supported:
+            return f"predictive wording ({predictive!r}) without a supported predictive analysis"
+        return None
+
+    def _research_summary(self, state: RunState, answer: str) -> list[dict[str, Any]]:
+        """Experiments of this run and whether the final answer relies on them (from the numbers it cites)."""
+        latest: dict[str, dict[str, Any]] = {}
+        for summary in state.analyses.values():
+            if summary.get("spec_id"):
+                latest[summary["spec_id"]] = summary
+        followed = {spec["research"]["followup_of"] for spec in state.specs.values()
+                    if spec.get("research") and spec["research"].get("followup_of")}
+        experiments = []
+        for spec_id, spec in state.specs.items():
+            analysis = latest.get(spec_id)
+            retained = "NOT_RUN"
+            if analysis:
+                record = state.analysis_values.get(analysis["analysis_id"]) or {}
+                index = SourceIndex()
+                if record.get("label"):
+                    index.add(record["label"], record["values"])
+                cited = check_answer(answer or "", index)
+                retained = "RETAINED" if cited.checked > len(cited.unsupported) else "DISCARDED"
+                if spec_id in followed:
+                    retained = "FOLLOWED_UP" if retained == "DISCARDED" else retained
+            evidence = state.evidence.get(analysis["analysis_id"]) if analysis else None
+            experiments.append({
+                "spec_id": spec_id, "evidence_standard": (spec.get("research") or {}).get("evidence_standard")
+                or "CALCULATION", "hypothesis_id": (spec.get("research") or {}).get("hypothesis_id"),
+                "followup_of": (spec.get("research") or {}).get("followup_of"), "governor_decision":
+                spec.get("governor"), "analysis_id": analysis["analysis_id"] if analysis else None,
+                "execution_status": analysis["execution_status"] if analysis else None,
+                "validation_status": analysis.get("validation_status") if analysis else None,
+                "validation_level": analysis.get("validation_level") if analysis else None,
+                "evidence_decision": (evidence or {}).get("decision"),
+                "evidence_level": (evidence or {}).get("evidence_level"), "retained": retained})
+        return experiments
 
     @staticmethod
     def _forced(state: RunState, final: FinalResponse, notice: str, lines: list[str]) -> FinalResponse:
@@ -796,6 +937,8 @@ class AgentOrchestrator:
                       for a in state.analyses.values()],
             validation_gate=state.validation_gate,
             number_provenance=NumberProvenance(**state.number_provenance) if state.number_provenance else None,
+            research=ResearchSummary(experiments=[ExperimentSummary(**e) for e in state.experiments])
+            if state.experiments else None,
         )
 
     def _failed(self, state: RunState, code: str, message: str) -> AgentRunResponse:

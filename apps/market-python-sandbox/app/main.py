@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import ValidationError
 
 from .config import Settings
-from .models import ANALYSIS_ID, AnalysisRequest
+from .models import ANALYSIS_ID, REQUEST_ID, AnalysisRequest, RunReport
 from .outputs import CONTENT_TYPES
 from .service import AnalysisService, ServiceUnavailable
 from .spec import SPEC_ID, SpecRequest
@@ -112,6 +112,26 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
         except ValidationError as exc:
             return invalid(exc, "analysis spec")
         return service.create_spec(request)
+
+    @app.get("/v1/runs/{request_id}", dependencies=[Depends(authorize)])
+    def run_summary(request_id: str) -> Any:
+        """Audit view of one orchestrator run (experiments, decisions, analyses, budgets, final report)."""
+        if not re.fullmatch(REQUEST_ID, request_id):
+            raise HTTPException(status_code=404, detail="Unknown request_id")
+        summary = service.run_summary(request_id)
+        if summary is None:
+            raise HTTPException(status_code=404, detail="Unknown request_id")
+        return summary
+
+    @app.post("/v1/runs/{request_id}/report", dependencies=[Depends(authorize)])
+    def run_report(request_id: str, body: Any = Body(...)) -> Any:
+        if not re.fullmatch(REQUEST_ID, request_id):
+            raise HTTPException(status_code=404, detail="Unknown request_id")
+        try:
+            report = RunReport.model_validate(body)
+        except ValidationError as exc:
+            return invalid(exc, "run report")
+        return service.put_report(request_id, report.model_dump())
 
     @app.get("/v1/specs/{spec_id}", dependencies=[Depends(authorize)])
     def get_spec(spec_id: str) -> Any:

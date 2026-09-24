@@ -61,7 +61,8 @@ class FakeGovernor:
             dataset_id: str | None = None, source_table: str = "Price_Stock_Indonesia_IDX",
             requested_from: str | None = None, requested_to: str | None = None, entities: list[str] | None = None,
             missing: list[str] | None = None, created_at: datetime | None = None,
-            aggregation: dict[str, str] | None = None, source_columns: dict[str, str] | None = None) -> str:
+            aggregation: dict[str, str] | None = None, source_columns: dict[str, str] | None = None,
+            units: dict[str, str] | None = None) -> str:
         dataset_id = dataset_id or f"ds_{uuid.uuid4().hex[:24]}"
         table = data if isinstance(data, pa.Table) else pa.Table.from_pandas(data, preserve_index=False)
         path = self.root / f"{dataset_id}.parquet"
@@ -70,7 +71,7 @@ class FakeGovernor:
         now = created_at or datetime.now(timezone.utc)
         columns = [{"name": n, "type": self.FRIENDLY.get(str(t), str(t)), "source_type": None,
                     "source_table": source_table, "source_column": (source_columns or {}).get(n, n),
-                    "aggregation": (aggregation or {}).get(n)}
+                    "aggregation": (aggregation or {}).get(n), "unit": (units or {}).get(n)}
                    for n, t in zip(table.column_names, table.schema.types)]
         date_column = next((c["name"] for c in columns if c["type"] == "date"), None)
         entity_column = "ticker" if "ticker" in table.column_names else None

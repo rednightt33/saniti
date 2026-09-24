@@ -42,8 +42,10 @@ TICKER_PATTERN = r"^[A-Z0-9]{2,6}$"
 OutputType = Literal["TABLE", "METRICS", "CHART", "ARTIFACT"]
 Provenance = Literal["USER_EXPLICIT", "USER_CLARIFIED", "APPROVED_DEFAULT", "AI_INFERRED"]
 Method = Literal["SMA", "ROLLING_STD", "ROLLING_ZSCORE", "RETURN", "FORWARD_RETURN", "RSI", "ROLLING_CORRELATION",
-                 "CORRELATION", "CUSTOM"]
-Family = Literal["RSI", "SMA", "STD", "ZSCORE", "RETURN", "FORWARD_RETURN", "CORRELATION"]
+                 "CORRELATION", "EVENT_STUDY", "CUSTOM"]
+Family = Literal["RSI", "SMA", "STD", "ZSCORE", "RETURN", "FORWARD_RETURN", "CORRELATION", "EVENT_STUDY"]
+EvidenceStandard = Literal["CALCULATION", "SCREEN", "DESCRIPTIVE", "HISTORICAL_PATTERN", "EXPLORATORY", "PREDICTIVE",
+                           "SCENARIO"]
 DIAGNOSTIC_CHARS = 1000
 MAX_USER_MESSAGES = 12
 MAX_MESSAGE_CHARS = 8000
@@ -115,6 +117,19 @@ class SpecParam(Strict):
     default_id: str | None
 
 
+class SpecPredicate(Strict):
+    calculation: str = Field(pattern=IDENT_PATTERN)
+    op: Literal[">", ">=", "<", "<=", "==", "!="]
+    value: float
+    provenance: Provenance
+    default_id: str | None
+
+
+class SpecDataPolicies(Strict):
+    zero_denominator: Literal["NULL", "ZERO"]
+    missing: Literal["PROPAGATE"]
+
+
 class SpecCalculation(Strict):
     id: str = Field(pattern=IDENT_PATTERN)
     method: Method
@@ -126,21 +141,35 @@ class SpecCalculation(Strict):
     formula: str | None = Field(max_length=1000, description="Required for CUSTOM; null for other methods.")
     time_alignment: str | None = Field(max_length=300, description="Required for CUSTOM; null otherwise.")
     covers: list[Family] | None = Field(description="CUSTOM only: requested method families it implements.")
+    signal: list[SpecPredicate] | None = Field(
+        max_length=6, description="EVENT_STUDY only: predicates on earlier trailing calculations that define an event "
+                                  "(all must hold at t); null otherwise.")
+    expression: str | None = Field(
+        max_length=500, description="CUSTOM only: recalculable expression over the input columns and earlier "
+                                    "calculation ids, e.g. rolling_sum(net_value, 20) / rolling_sum(value, 20); null "
+                                    "for free-form code that cannot be recalculated.")
+    formula_refs: list[str] | None = Field(max_length=5, description="CUSTOM only: AI_formula_reference ids "
+                                                                    "(CALC_###) the formula adapts; null if none.")
+    meaning: str | None = Field(max_length=300, description="CUSTOM only: what the value means financially.")
+    unit: str | None = Field(max_length=40, description="CUSTOM only: unit of the value (ratio, IDR, percent).")
+    data_policies: SpecDataPolicies | None = Field(
+        description="CUSTOM only: zero_denominator NULL (default) or ZERO; missing PROPAGATE.")
     provenance: Provenance
     default_id: str | None
 
+    @field_validator("formula_refs")
+    @classmethod
+    def _formula_refs(cls, values: list[str] | None) -> list[str] | None:
+        import re
 
-class SpecPredicate(Strict):
-    calculation: str = Field(pattern=IDENT_PATTERN)
-    op: Literal[">", ">=", "<", "<=", "==", "!="]
-    value: float
-    provenance: Provenance
-    default_id: str | None
+        if values and any(not re.fullmatch(r"CALC_[0-9]{3}", v) for v in values):
+            raise ValueError("formula_refs must be AI_formula_reference ids like CALC_028")
+        return values
 
 
 class SpecOutput(Strict):
     name: str = Field(pattern=OUTPUT_NAME_PATTERN, description="The name the code passes to emit_table.")
-    grain: Literal["ENTITY_DATE", "ENTITY", "ENTITY_PAIR", "UNSPECIFIED"]
+    grain: Literal["ENTITY_DATE", "ENTITY", "ENTITY_PAIR", "SUMMARY", "UNSPECIFIED"]
     coverage: Literal["FULL", "SELECTION"]
     calculations: list[str] = Field(max_length=12)
     selection: list[SpecPredicate] | None = Field(max_length=6, description="Predicates for SELECTION, else null.")
@@ -156,6 +185,29 @@ class SpecExclusion(Strict):
     default_id: str | None
 
 
+class SpecHypothesis(Strict):
+    id: str = Field(pattern=r"^H[0-9]{1,2}$", description="H1, H2, ...")
+    statement: str = Field(min_length=1, max_length=500)
+
+
+class SpecHoldout(Strict):
+    start: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$", description="First out-of-sample date (YYYY-MM-DD).")
+    end: str | None = Field(pattern=r"^\d{4}-\d{2}-\d{2}$", description="Last out-of-sample date, or null.")
+
+
+class SpecResearch(Strict):
+    evidence_standard: EvidenceStandard
+    objective: str = Field(min_length=1, max_length=500)
+    hypothesis: SpecHypothesis | None
+    method_ref: str | None = Field(pattern=r"^[a-z][a-z0-9_]{0,62}$",
+                                   description="AI_research_catalog method_id used as methodology reference, or null.")
+    followup_of: str | None = Field(pattern=SPEC_ID_PATTERN,
+                                    description="spec_id of the completed experiment this follows up, or null.")
+    candidates: int | None = Field(ge=1, le=1_000_000,
+                                   description="Conditions, lags or combinations this experiment evaluates; null = 1.")
+    holdout: SpecHoldout | None
+
+
 class CreateAnalysisSpecArgs(Strict):
     question: str = Field(min_length=1, max_length=1000, description="The analytical request, restated.")
     universe: SpecUniverse
@@ -165,6 +217,10 @@ class CreateAnalysisSpecArgs(Strict):
     calculations: list[SpecCalculation] = Field(min_length=1, max_length=12)
     outputs: list[SpecOutput] = Field(min_length=1, max_length=8)
     exclusion_rules: list[SpecExclusion] = Field(max_length=8)
+    research: SpecResearch | None = Field(
+        description="null for a plain calculation, screen, or description. For research (a historical pattern, "
+                    "predictive, exploratory, or scenario question) the experiment's evidence standard, hypothesis, "
+                    "and follow-up link; the Research Governor approves it against the run's budget.")
 
 
 # ---------------------------------------------------------------- run_python_analysis
@@ -218,35 +274,55 @@ SPEC_DESCRIPTION = (
     "Required before any Python analysis: propose the machine-readable contract of the calculation. The service "
     "checks it against the user's own messages and returns APPROVED (with spec_id), APPROVED_WITH_UNVERIFIED "
     "(spec_id plus requirements the user did not state, which must be disclosed), ANALYSIS_SPEC_MISMATCH (fix the "
-    "spec to match the request; never change the request to fit limits), NEEDS_CLARIFICATION (ask the user), or "
-    "INVALID_SPEC. It also returns the resolved analysis period and required_input: the warm-up history and the "
-    "date range to request with request_data. "
+    "spec to match the request; never change the request to fit limits), NEEDS_CLARIFICATION (ask the user), "
+    "INVALID_SPEC, or for research specs the Research Governor's REPLAN_REQUIRED (correct the experiment as the "
+    "governor.reason_code says) or REJECTED (the run's research budget is used: report what was found). It also "
+    "returns the resolved analysis period and required_input: the warm-up history and the date range to request "
+    "with request_data. Sending the same spec again returns the same spec_id. "
     "provenance per requirement: USER_EXPLICIT only for what the user stated, USER_CLARIFIED for answers to your "
     "clarification question, APPROVED_DEFAULT with default_id for a documented default, AI_INFERRED otherwise. "
+    "Definitions follow TA-Lib first, then AI_formula_reference, then your own formula (CUSTOM). "
     "Defaults: DEFAULT_TRAILING_CALENDAR_WINDOW ('last N months' = TRAILING), DEFAULT_TRADING_DAYS, DEFAULT_LATEST, "
     "DEFAULT_MONTH_WITHOUT_YEAR, DEFAULT_UNIVERSE_ALL_IN_SOURCE ('all stocks'), DEFAULT_FREQUENCY_DAILY, "
-    "DEFAULT_ROLLING_WINDOW_UNIT, DEFAULT_STD_DDOF (1), DEFAULT_ZSCORE_INCLUDES_CURRENT, DEFAULT_RETURN_KIND "
-    "(SIMPLE), DEFAULT_RETURN_HORIZON (1), DEFAULT_RETURN_AS_PERCENT (false), DEFAULT_RSI_PERIOD (14), "
-    "DEFAULT_RSI_SMOOTHING (WILDER), DEFAULT_CORRELATION_METHOD, DEFAULT_CORRELATION_TRANSFORM (SIMPLE_RETURN), "
-    "DEFAULT_CORRELATION_MIN_OVERLAP. Omitted method parameters get their default. "
+    "DEFAULT_ROLLING_WINDOW_UNIT, DEFAULT_STD_DDOF (0, TA-Lib STDDEV), DEFAULT_ZSCORE_DDOF (1), "
+    "DEFAULT_ZSCORE_INCLUDES_CURRENT (true for a price, false for a return series), DEFAULT_RETURN_KIND (SIMPLE), "
+    "DEFAULT_RETURN_HORIZON (1), DEFAULT_RETURN_AS_PERCENT (false), DEFAULT_RSI_PERIOD (14), DEFAULT_RSI_SMOOTHING "
+    "(WILDER, TA-Lib), DEFAULT_FORWARD_RETURN_ENTRY (NEXT_OPEN: close[t+h] / open[t+1] - 1; SIGNAL_CLOSE only when "
+    "the user asks), DEFAULT_CORRELATION_METHOD, DEFAULT_CORRELATION_TRANSFORM (SIMPLE_RETURN), "
+    "DEFAULT_CORRELATION_MIN_OVERLAP, DEFAULT_EVENT_OVERLAP_POLICY (NON_OVERLAPPING), DEFAULT_EVENT_BASELINE "
+    "(ALL_ELIGIBLE), DEFAULT_EVENT_MIN_EVENTS (30), DEFAULT_ZERO_DENOMINATOR (NULL). Omitted method parameters get "
+    "their default. "
     "Methods with independent recalculation (params): SMA(window), ROLLING_STD(window, ddof), "
     "ROLLING_ZSCORE(window, ddof, include_current), RETURN(horizon, kind SIMPLE|LOG, as_percent), "
-    "FORWARD_RETURN(horizon, kind, as_percent), RSI(period), ROLLING_CORRELATION(window, method, transform; two "
-    "columns), CORRELATION(method, transform, min_overlap; ENTITY_PAIR output over a TICKERS universe). Any other "
-    "research method is CUSTOM with a formula, time_alignment, optional warmup_observations param, and covers; "
-    "CUSTOM results are never independently recalculated. Chain a method on another calculation with "
+    "FORWARD_RETURN(horizon, kind, as_percent, entry NEXT_OPEN|SIGNAL_CLOSE; columns [close, open] for NEXT_OPEN, "
+    "[close] for SIGNAL_CLOSE), RSI(period), ROLLING_CORRELATION(window, method, transform; two columns), "
+    "CORRELATION(method, transform, min_overlap; ENTITY_PAIR output over a TICKERS universe), "
+    "EVENT_STUDY(min_events, overlap_policy, baseline; no columns; input_calculation = the FORWARD_RETURN outcome; "
+    "signal = predicates on earlier trailing calculations; one SUMMARY output with columns segment, event_count, mean, "
+    "median, hit_rate, baseline_count, baseline_mean, baseline_median, delta_mean, censored_count, "
+    "overlapping_dropped and rows ALL, plus IN_SAMPLE and OUT_OF_SAMPLE when research.holdout is set). "
+    "Any other formula is CUSTOM with formula, time_alignment, covers, and ideally an expression, which is "
+    "recalculated independently: input columns and earlier calculation ids with + - * / **, comparisons, & | ~, abs, "
+    "log, exp, sqrt, sign, min, max, where(c, a, b), lag(x, k), rolling_sum(x, n), rolling_mean(x, n) (past only). "
+    "A CUSTOM without an expression is never independently recalculated (optional warmup_observations param). Add "
+    "formula_refs (CALC_### ids it adapts), meaning, and unit to CUSTOM. Chain a method on another calculation with "
     "input_calculation (e.g. ROLLING_STD of a RETURN). "
     "outputs: each TABLE the code emits, by name. grain ENTITY_DATE (one row per entity and date in the period), "
-    "ENTITY (one row per entity at its latest observation in the period), ENTITY_PAIR, or UNSPECIFIED (not "
-    "checkable). coverage FULL (every entity/date in scope) or SELECTION (only rows meeting the selection "
-    "predicates, e.g. RSI < 30). Only declared outputs with a checkable grain can pass validation."
+    "ENTITY (one row per entity at its latest observation in the period), ENTITY_PAIR, SUMMARY (EVENT_STUDY), or "
+    "UNSPECIFIED (not checkable). coverage FULL (every entity/date in scope) or SELECTION (only rows meeting the "
+    "selection predicates, e.g. RSI < 30). Only declared outputs with a checkable grain can pass validation. "
+    "research: null for a calculation, screen, or description the user asked for. For a research question set "
+    "evidence_standard (HISTORICAL_PATTERN and PREDICTIVE need a hypothesis and an EVENT_STUDY; PREDICTIVE also a "
+    "holdout; EXPLORATORY for bounded exploration; SCENARIO for hypotheticals), objective, hypothesis {id H1.., "
+    "statement}, method_ref (AI_research_catalog method_id), candidates (conditions or lags tested), and "
+    "followup_of (spec_id of a completed experiment on the same hypothesis) for a follow-up."
 )
 
 RUN_DESCRIPTION = (
     "Run Python analysis in an isolated sandbox against an approved spec_id. Bind every logical input of the spec "
     "to the DATASET_READY dataset_ids that hold it (several dataset_ids may form one input only if they come from "
     "the same table with identical columns). The code runs without network, subprocess, or file access outside "
-    "its workspace. The helper module saniti and its functions are already imported (no import needed). Inputs "
+    "its workspace. The helper module saniti and its functions, pandas as pd and numpy as np are already imported. Inputs "
     "are DuckDB views named after the logical inputs. load(name, columns=[...]) returns the whole input as a "
     "pandas DataFrame sorted by entity and date (date columns hold datetime.date objects; use pd.to_datetime for "
     "Timestamps), including the warm-up history before the analysis period; "
@@ -264,7 +340,11 @@ RUN_DESCRIPTION = (
     "description), emit_artifact(name, data, format). print() is not a result, and nothing the code reports about "
     "itself counts as evidence. The result has execution_status and validation_status (PASS, INCOMPLETE, FAILED, "
     "UNVERIFIED) with validation_level, reason_codes, expected_scope, actual_scope and validation_evidence; a "
-    "CALCULATION_MISMATCH can carry a diagnosis naming the parameter or procedure the values match."
+    "CALCULATION_MISMATCH can carry a diagnosis naming the parameter or procedure the values match. "
+    "evidence_assessment says what the validated evidence supports for the spec's evidence standard (decision "
+    "SUPPORTED, PARTIALLY_SUPPORTED, INSUFFICIENT_EVIDENCE or INVALID, evidence_level, checks, the validator's own "
+    "statistics) and the reporting_constraints your answer must follow. CUSTOM code without an expression is re-run "
+    "on data truncated at a cutoff date: values that change reveal look-ahead (TEMPORAL_LEAKAGE_DETECTED)."
 )
 
 RESULT_DESCRIPTION = (
@@ -292,11 +372,13 @@ def model_view(result: dict[str, Any]) -> dict[str, Any]:
     view = {key: result.get(key) for key in (
         "analysis_id", "spec_id", "execution_status", "validation_status", "validation_level", "reason_codes",
         "next_action", "retry_after_seconds", "question", "inputs", "expected_outputs", "runtime_ms",
-        "expected_scope", "actual_scope", "outputs", "warnings", "error", "outputs_expire_at")}
+        "expected_scope", "actual_scope", "outputs", "warnings", "error", "outputs_expire_at", "evidence_assessment")}
+    if (result.get("leakage_check") or {}).get("result"):
+        view["leakage_check"] = {k: result["leakage_check"].get(k) for k in ("result", "cutoff", "reason")}
     view["validation_evidence"] = _compact_evidence(result.get("validation_evidence") or [])
     view["derived_features"] = [
         {k: f.get(k) for k in ("name", "method", "parameters", "output_grain", "independent_check_result", "status",
-                               "statistical_validation")} for f in (result.get("derived_features") or [])]
+                               "statistical_validation", "formula_status")} for f in (result.get("derived_features") or [])]
     if result.get("database_features"):
         view["database_features"] = result["database_features"]
     view["lineage"] = lineage
@@ -308,10 +390,12 @@ def model_view(result: dict[str, Any]) -> dict[str, Any]:
 
 def spec_view(result: dict[str, Any]) -> dict[str, Any]:
     keys = ("status", "spec_id", "reference", "resolved_period", "required_input", "output_contract", "mismatches",
-            "unverified_requirements", "clarification_needed", "problems", "next_action")
+            "unverified_requirements", "clarification_needed", "problems", "next_action", "governor", "replayed")
     view = {k: result.get(k) for k in keys if result.get(k) not in (None, [])}
     if result.get("derived_features"):
         view["derived_features"] = [f.get("name") for f in result["derived_features"]]
+    if result.get("convention_notes"):
+        view["convention_notes"] = result["convention_notes"]
     return view
 
 
@@ -395,6 +479,19 @@ class SandboxClient:
         if response.status_code == 200 and "analysis_id" in body:
             return model_view(body)
         raise ToolError(f"The Python sandbox is unavailable (HTTP {response.status_code}).")
+
+    def put_report(self, request_id: str, report: dict[str, Any]) -> dict[str, Any]:
+        """Audit: the orchestrator's final report of a run (not a model-facing tool)."""
+        response = self._client.post(f"/v1/runs/{request_id}/report", json=report, timeout=10)
+        response.raise_for_status()
+        return response.json()
+
+    def run_summary(self, request_id: str) -> dict[str, Any] | None:
+        response = self._client.get(f"/v1/runs/{request_id}", timeout=10)
+        if response.status_code == 404:
+            return None
+        response.raise_for_status()
+        return response.json()
 
     def close(self) -> None:
         self._client.close()

@@ -55,11 +55,13 @@ FAMILY_PATTERNS = {
     "RETURN": r"\breturns?\b|imbal hasil|perubahan harga",
     "FORWARD_RETURN": r"forward returns?|returns? (?:\d{1,3} )?(?:hari |day )?(?:ke depan|ahead)|future returns?",
     "CORRELATION": r"\bcorrelations?\b|\bkorelasi\b|\bcorr\b",
+    "EVENT_STUDY": r"\bevent[- ]stud(?:y|ies)\b|\bstudi peristiwa\b",
 }
 FAMILY_SATISFIED_BY = {
     "RSI": {"RSI"}, "SMA": {"SMA", "ROLLING_ZSCORE"}, "STD": {"ROLLING_STD", "ROLLING_ZSCORE"},
     "ZSCORE": {"ROLLING_ZSCORE"}, "RETURN": {"RETURN", "FORWARD_RETURN", "CORRELATION"},
-    "FORWARD_RETURN": {"FORWARD_RETURN"}, "CORRELATION": {"CORRELATION", "ROLLING_CORRELATION"},
+    "FORWARD_RETURN": {"FORWARD_RETURN", "EVENT_STUDY"}, "CORRELATION": {"CORRELATION", "ROLLING_CORRELATION"},
+    "EVENT_STUDY": {"EVENT_STUDY"},
 }
 WINDOW_PARAM = {"SMA": "window", "ROLLING_STD": "window", "ROLLING_ZSCORE": "window", "RSI": "period",
                 "ROLLING_CORRELATION": "window", "RETURN": "horizon", "FORWARD_RETURN": "horizon"}
@@ -639,6 +641,7 @@ def _review_parameters(spec: dict[str, Any], found: Extracted, result: Review) -
 def _review_thresholds(spec: dict[str, Any], found: Extracted, result: Review) -> None:
     calcs = {c["id"]: c for c in spec["calculations"]}
     predicates = [(o["name"], p) for o in spec["outputs"] for p in (o.get("selection") or [])]
+    predicates += [(f"calculation.{c['id']}", p) for c in spec["calculations"] for p in (c.get("signal") or [])]
     stated = _latest_turn_values(found.thresholds)
     for threshold in stated:
         family = threshold["family"]
@@ -667,7 +670,8 @@ def _review_thresholds(spec: dict[str, Any], found: Extracted, result: Review) -
     for name, predicate in predicates:
         family = set(calcs[predicate["calculation"]].get("covers") or [])
         if not family & stated_families:
-            result.add(f"output.{name}.selection", "UNVERIFIED", None, f"{predicate['op']} {predicate['value']:g}",
+            where = f"{name}.signal" if name.startswith("calculation.") else f"output.{name}.selection"
+            result.add(where, "UNVERIFIED", None, f"{predicate['op']} {predicate['value']:g}",
                        "A selection threshold chosen by the AI, not stated in the request.")
 
 

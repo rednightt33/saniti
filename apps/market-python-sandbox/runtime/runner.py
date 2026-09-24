@@ -98,8 +98,11 @@ def main(job_dir: str) -> int:
     with open(os.path.join(job_dir, "analysis.py"), encoding="utf-8") as handle:
         source = handle.read()
     # The helper module and its public names are pre-bound, so `saniti.load(...)`, `emit_table(...)` and
-    # `import saniti` all work.
-    namespace = {"__name__": "__main__", "__builtins__": __builtins__, "saniti": saniti,
+    # `import saniti` all work; pandas and numpy are pre-bound as pd and np (the conventional names).
+    import numpy
+    import pandas
+
+    namespace = {"__name__": "__main__", "__builtins__": __builtins__, "saniti": saniti, "pd": pandas, "np": numpy,
                  **{name: getattr(saniti, name) for name in saniti.__all__}}
     import linecache
 

@@ -148,19 +148,53 @@ market-ai-orc enforces the gate on the final answer; see its README.
 
 ### Supported methods and approved defaults
 
-| Method | Parameters (default) | Independent check |
-|---|---|---|
-| `SMA` | `window`, `window_unit` (`TRADING_OBSERVATIONS`) | reference recalculation |
-| `ROLLING_STD` | `window`, `ddof` (1) | reference recalculation |
-| `ROLLING_ZSCORE` | `window`, `ddof` (1), `include_current` (true) | reference recalculation |
-| `RETURN` | `horizon` (1), `kind` (`SIMPLE`/`LOG`), `as_percent` (false) | reference recalculation |
-| `FORWARD_RETURN` | `horizon`, `kind`, `as_percent` (look-ahead label) | reference recalculation |
-| `RSI` | `period` (14), `smoothing` (`WILDER`, TA-Lib convention) | reference recalculation (matches TA-Lib to ~1e-14) |
-| `ROLLING_CORRELATION` | `window`, `method` (`PEARSON`/`SPEARMAN`), `transform` | reference recalculation |
-| `CORRELATION` | `method`, `transform` (`SIMPLE_RETURN`), `min_overlap` (20); `ENTITY_PAIR` output | reference recalculation per pair |
-| `CUSTOM` | anything, plus a required `formula` and `time_alignment` | scope only; never `CALCULATION_VERIFIED` |
+Conventions follow a fixed order: **TA-Lib** where TA-Lib defines the calculation, else the
+**`AI_formula_reference`** entry named below, else an **AI-generated formula** (`CUSTOM`).
+`app/spec.py` `CONVENTIONS` records the source of every method, and the spec review returns
+`convention_notes` wherever Saniti deliberately differs from a formula-reference entry (for
+example RSI is 0, not 50, when average gain and loss are both 0, as in TA-Lib). A `CUSTOM`
+calculation that cites (`formula_refs`) an entry a tested method implements is refused: use the
+method.
+
+| Method | Parameters (default) | Convention | Independent check |
+|---|---|---|---|
+| `SMA` | `window`, `window_unit` (`TRADING_OBSERVATIONS`) | TA-Lib SMA | reference recalculation |
+| `ROLLING_STD` | `window`, `ddof` (0) | TA-Lib STDDEV (population) | reference recalculation |
+| `ROLLING_ZSCORE` | `window`, `ddof` (1), `include_current` (true for a level series, false for a return) | CALC_054 / CALC_053 | reference recalculation |
+| `RETURN` | `horizon` (1), `kind` (`SIMPLE`/`LOG`), `as_percent` (false) | TA-Lib ROCP | reference recalculation |
+| `FORWARD_RETURN` | `horizon`, `kind`, `as_percent`, `entry` (`NEXT_OPEN`: columns `[close, open]`; `SIGNAL_CLOSE`: `[close]`) — a look-ahead label | CALC_011 / CALC_010 | reference recalculation |
+| `RSI` | `period` (14), `smoothing` (`WILDER`) | TA-Lib RSI | reference recalculation (matches TA-Lib to ~1e-14) |
+| `ROLLING_CORRELATION` | `window`, `method` (`PEARSON`/`SPEARMAN`), `transform` | TA-Lib CORREL | reference recalculation |
+| `CORRELATION` | `method`, `transform` (`SIMPLE_RETURN`), `min_overlap` (20); `ENTITY_PAIR` output | TA-Lib CORREL | reference recalculation per pair |
+| `EVENT_STUDY` | `min_events` (30), `overlap_policy` (`NON_OVERLAPPING`), `baseline` (`ALL_ELIGIBLE`); `input_calculation` = the `FORWARD_RETURN` outcome; `signal` = predicates on earlier trailing calculations; one `SUMMARY` output | CALC_176–179 | events, outcomes and baseline recalculated |
+| `CUSTOM` with `expression` | the expression language below; `formula_refs`, `meaning`, `unit`, `data_policies` | AI-generated | expression re-evaluated (`VALIDATED_CUSTOM_FORMULA_RESULT` on a match) |
+| `CUSTOM` without `expression` | anything, plus a required `formula` and `time_alignment` | AI-generated | scope, units and the prefix leakage re-run only; never `CALCULATION_VERIFIED` |
 
 Calculations can chain through `input_calculation`, for example `ROLLING_STD` of a `RETURN`.
+
+**CUSTOM expressions** (`runtime/expression.py`, parsed with an AST allowlist when the spec is
+reviewed, evaluated independently by the validator):
+- Names: the calculation's input columns and ids of earlier calculations.
+- Operators: `+ - * / **`, comparisons, `& | ~`.
+- Functions: `abs log exp sqrt sign min max where(c, a, b)`, plus the per-entity past-only
+  functions `lag(x, k)`, `rolling_sum(x, n)`, `rolling_mean(x, n)`.
+- An expression can never look ahead, and its warm-up is derived from it.
+- A zero denominator follows `data_policies.zero_denominator` (`NULL` by default, never
+  infinity).
+- The preflight refuses additions, comparisons, `min`/`max` and `where` branches between
+  columns of different `AI_column_catalog` units (`UNIT_MISMATCH`). The Governor manifest
+  carries the units.
+
+**EVENT_STUDY** summary: one row per `segment` (`ALL`, plus `IN_SAMPLE` and `OUT_OF_SAMPLE`
+when the research block has a holdout). Columns:
+- `event_count`, `mean`, `median`, `hit_rate`;
+- `baseline_count`, `baseline_mean`, `baseline_median`, `delta_mean`;
+- `censored_count`, `overlapping_dropped`.
+
+An event is a period observation where every signal predicate holds. `NON_OVERLAPPING` keeps an
+entity's next event only once the previous event's horizon has passed. Events without a
+complete outcome are censored, not counted. A signal may not use a look-ahead calculation
+(`FUTURE_LABEL_IN_SIGNAL`).
 Approved defaults for interpreting requests:
 - The reference date is the request date in Asia/Jakarta.
 - "Last N days/weeks/months/years" is the trailing window `(reference − N units, reference]`.
@@ -174,6 +208,62 @@ Approved defaults for interpreting requests:
 Recursive indicators depend on where their input starts. Wilder RSI, for example, has a seed
 error that decays by (n−1)/n per observation. The recommended warm-up is therefore
 10 × period, and entities with less are reported as `PATH_DEPENDENT_WARMUP`.
+
+### Research Governor, evidence assessment, and leakage
+
+A spec may carry a `research` block. It holds:
+- `evidence_standard`: `CALCULATION`, `SCREEN`, `DESCRIPTIVE`, `HISTORICAL_PATTERN`, `EXPLORATORY`, `PREDICTIVE` or `SCENARIO`;
+- `objective`, `hypothesis {id, statement}`;
+- `method_ref`: an `AI_research_catalog` method_id;
+- `followup_of`, `candidates`, `holdout`.
+
+After the intent check approves such a spec, `app/research_policy.py` decides deterministically:
+- `APPROVED`: the spec_id is the reservation.
+- `REPLAN_REQUIRED`: correctable.
+- `REJECTED`: the run's research budget is used.
+
+Each decision carries `reason_code`, `budget_before`, `budget_after_reservation`, and the
+required validation for the standard. The ledger is the run's approved research specs (one run
+= one orchestrator `request_id`). It counts:
+- experiments;
+- distinct hypotheses;
+- follow-ups per hypothesis (a follow-up must name a completed experiment on the same hypothesis);
+- pairwise candidates (n choose 2 of a TICKERS universe);
+- declared candidates.
+
+Further rules:
+- `HISTORICAL_PATTERN` and `PREDICTIVE` need a hypothesis and an `EVENT_STUDY`.
+- `PREDICTIVE` also needs a temporal holdout inside the period, covering at least 20% of it.
+- Re-sending the same spec for the same request and user messages returns the stored spec_id
+  (`replayed: true`) and reserves nothing.
+
+After postflight the validator adds `evidence_assessment`:
+- `claim_type` and `decision`: `SUPPORTED`, `PARTIALLY_SUPPORTED`, `INSUFFICIENT_EVIDENCE` or `INVALID`.
+- `evidence_level`: `OBSERVATION`, `PATTERN`, `PREDICTIVE_SIGNAL`, `EXPLORATORY`, `SCENARIO` or `NONE`.
+- `checks` and `reporting_constraints`.
+- `statistics`: the validator's own numbers, never the analysis's.
+
+How each claim type is assessed:
+- Calculations, screens and descriptions skip the statistical checks (`NOT_APPLICABLE`).
+- Pattern claims need:
+  - `min_events` events and `min_baseline_observations` baseline observations;
+  - coverage;
+  - the 95% interval of the difference from the baseline (Welch) excluding zero;
+  - a Bonferroni-adjusted interval over every test run on the hypothesis.
+- Predictive claims also need an out-of-sample difference of the same sign.
+- An exploration is at most `PARTIALLY_SUPPORTED`.
+
+**Prefix leakage re-run.** For `CUSTOM` code without an expression in an `ENTITY_DATE` output
+(explicit or trailing period, at least 10 trading dates, enough CPU budget), the sandbox runs the
+same code again. That run uses inputs truncated at the date 60% into the period. Values at or
+before that date must be identical. Otherwise the result is `TEMPORAL_LEAKAGE_DETECTED`
+(validation `FAILED`, evidence `INVALID`). This generically catches `shift(-k)`, centred windows
+and full-sample normalisation. It costs about one more run and counts toward the request CPU
+budget.
+
+**Corporate actions.** Analyses of returns from the price tables carry the warning
+`CORPORATE_ACTIONS_NOT_ADJUSTED`. Prices are split-adjusted as fetched and not
+dividend-adjusted, and stored history is not re-adjusted after a later split.
 
 ### Derived features
 
@@ -239,7 +329,8 @@ Each job gets its own workspace. Every path is created by the harness:
   duckdb, scipy, statsmodels, matplotlib (Agg), and TA-Lib. pip is removed from the image.
 - **Namespace.** The `saniti` module and every public name in `saniti.__all__` (helpers, `INPUTS`,
   `SPEC`, the period constants, the exception classes) are pre-bound in the analysis namespace,
-  so `saniti.load(...)`, `emit_table(...)`, and `import saniti` all work. The first real-model
+  together with `pd` (pandas) and `np` (numpy), so `saniti.load(...)`, `emit_table(...)`,
+  `pd.DataFrame(...)`, and `import saniti` all work. The first real-model
   rehearsal showed that a model otherwise spends its analysis budget discovering the API.
 - **Inputs:** each logical input is a DuckDB view with the same name on a locked connection.
   - `saniti.sql(query, params, max_rows)` and `saniti.load(name, columns, start, end, entities,
@@ -353,6 +444,8 @@ The URL is never logged, stored, returned, or visible to any child process.
 | `GET /v1/results/{res_…}?offset&limit≤500` | Complete TABLE rows, paged |
 | `GET /v1/artifacts/{art_…}` | PNG / Parquet / CSV / JSON bytes, including the feature definitions |
 | `GET /v1/runtime` | Isolation checks, library versions, limits |
+| `GET /v1/runs/{request_id}` | Audit view of one orchestrator run: experiments with governor decisions, analyses with code/dataset fingerprints and evidence decisions, budgets, and the final report |
+| `POST /v1/runs/{request_id}/report` | market-ai-orc's final report of the run (answer and hash, evidence label, gate, experiments). Stored once; a retry keeps the first. |
 
 **Request-level budgets.** All analyses of one orchestrator request share:
 - `PY_SANDBOX_MAX_ANALYSES_PER_REQUEST`;
@@ -431,6 +524,11 @@ Logs never contain keys, dataset URLs, user messages, datasets, or tables.
 | `PY_SANDBOX_MAX_CPU_SECONDS_PER_REQUEST` | 1200 |
 | `PY_SANDBOX_MAX_INPUT_BYTES_PER_REQUEST` | 1 GiB |
 | `PY_SANDBOX_MAX_SPECS_PER_REQUEST` | 10 |
+| `PY_SANDBOX_RESEARCH_MAX_EXPERIMENTS` | `PY_SANDBOX_MAX_ANALYSES_PER_REQUEST` |
+| `PY_SANDBOX_RESEARCH_MAX_HYPOTHESES` / `_MAX_FOLLOWUPS_PER_HYPOTHESIS` | 4 / 5 |
+| `PY_SANDBOX_RESEARCH_MAX_PAIRWISE_CANDIDATES` / `_MAX_CANDIDATES` | 20,000 / 50 |
+| `PY_SANDBOX_RESEARCH_MIN_EVENTS` / `_MIN_BASELINE_OBSERVATIONS` / `_MIN_COVERAGE_PCT` / `_MIN_HOLDOUT_PCT` | 30 / 100 / 95 / 20 |
+| `PY_SANDBOX_LEAKAGE_CHECK` | true |
 | `PY_SANDBOX_MAX_TABLES` / `_TABLE_OUTPUT_ROWS` / `_TABLE_PREVIEW_ROWS` | 8 / 100,000 / 50 |
 | `PY_SANDBOX_MAX_METRICS` / `_METRICS_BYTES` / `_OUTPUT_BYTES` | 8 / 8000 / 24,000 |
 | `PY_SANDBOX_MAX_ARTIFACT_BYTES` / `_CHARTS` / `_ARTIFACTS` | 64 MiB / 8 / 8 |

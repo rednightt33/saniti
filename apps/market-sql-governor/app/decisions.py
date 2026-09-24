@@ -44,6 +44,7 @@ class OutputColumn(BaseModel):
     source_table: str
     source_column: str
     aggregation: str | None
+    unit: str | None = None
 
 
 class DatasetReference(BaseModel):

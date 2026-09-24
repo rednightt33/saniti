@@ -66,11 +66,21 @@ def returns(x: np.ndarray, horizon: int, kind: str, as_percent: bool) -> np.ndar
     return out * 100.0 if as_percent else out
 
 
-def forward_returns(x: np.ndarray, horizon: int, kind: str, as_percent: bool) -> np.ndarray:
+def forward_returns(x: np.ndarray, horizon: int, kind: str, as_percent: bool, entry: str = "SIGNAL_CLOSE",
+                    entry_prices: np.ndarray | None = None) -> np.ndarray:
+    """Value at t: exit close x[t+horizon] over the entry price, x[t] (SIGNAL_CLOSE, CALC_010) or the next
+    observation's open entry_prices[t+1] (NEXT_OPEN, CALC_011)."""
     out = _empty(len(x))
-    if len(x) > horizon:
-        out[:-horizon] = returns(x, horizon, kind, as_percent)[horizon:]
-    return out
+    n = len(x)
+    if n <= horizon:
+        return out
+    base = entry_prices[1:n - horizon + 1] if entry == "NEXT_OPEN" else x[:n - horizon]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ratio = x[horizon:] / base
+        values = np.log(np.where(ratio > 0, ratio, np.nan)) if kind == "LOG" else ratio - 1.0
+    values[~np.isfinite(values)] = np.nan
+    out[:n - horizon] = values
+    return out * 100.0 if as_percent else out
 
 
 def rsi_wilder(x: np.ndarray, period: int) -> np.ndarray:
@@ -152,7 +162,8 @@ def compute(method: str, params: dict, x: np.ndarray, y: np.ndarray | None = Non
     if method == "RETURN":
         return returns(x, params["horizon"], params["kind"], params["as_percent"])
     if method == "FORWARD_RETURN":
-        return forward_returns(x, params["horizon"], params["kind"], params["as_percent"])
+        return forward_returns(x, params["horizon"], params["kind"], params["as_percent"],
+                               params.get("entry", "SIGNAL_CLOSE"), y)
     if method == "RSI":
         return rsi_wilder(x, params["period"])
     if method == "ROLLING_CORRELATION":

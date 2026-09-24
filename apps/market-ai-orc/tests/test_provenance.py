@@ -85,6 +85,7 @@ def rejection_text(scripted: ScriptedClient) -> str:
     ("2.707 baris dan 1,234.5 serta 12.345.678,9", [[2.707, 2707.0], [1234.5], [12345678.9]]),
     ("RSI(14) di bawah 30, volume 1,25 juta", [[14.0], [30.0], [1250000.0]]),
     ("1. pertama\n2) kedua (3) ketiga", []),
+    ("interval 0,31%-2,15% dan 10–20 hari", [[0.31], [2.15], [10.0], [20.0]]),
     ("ticker T001, spec_3edb950c843bd9f9fab58b02, ds_1a2b, tahun 2026, 2026-08-31, Q3", []),
 ])
 def test_numbers_are_read_like_a_reader_would_and_dates_ids_and_markers_are_skipped(text, expected) -> None:

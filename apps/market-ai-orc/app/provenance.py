@@ -92,7 +92,9 @@ def parse_numbers(text: str) -> list[DisplayedNumber]:
         except ValueError:
             continue
         factor = MULTIPLIERS.get((unit or "").lower(), 1.0)
-        negative = sign in ("-", "−", "–")
+        # "0,31%-2,15%" or "10–20": a dash right after a number is a range separator, not a sign
+        range_dash = bool(sign) and match.start() > 0 and masked[match.start() - 1] in "0123456789%"
+        negative = sign in ("-", "−", "–") and not range_dash
         candidates = []
         for value, decimals in readings:
             value = -value if negative else value
@@ -213,6 +215,7 @@ FAMILY_PATTERNS = {
     "RETURN": r"\breturns?\b|imbal hasil|perubahan harga",
     "FORWARD_RETURN": r"forward returns?|returns? (?:\d{1,3} )?(?:hari |day )?(?:ke depan|ahead)|future returns?",
     "CORRELATION": r"\bcorrelations?\b|\bkorelasi\b|\bcorr\b",
+    "EVENT_STUDY": r"\bevent[- ]stud(?:y|ies)\b|\bstudi peristiwa\b",
 }
 # Orc-only additions: rankings and derived comparisons need the analysis path; a plain average over
 # an explicit scope may also come from a database aggregate (lookup_fact AVG).

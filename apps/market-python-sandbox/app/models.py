@@ -136,3 +136,26 @@ class AnalysisResult(BaseModel):
     lineage: dict[str, Any] = {}
     resource_usage: dict[str, Any] = {}
     outputs_expire_at: str | None = None
+
+
+class RunReport(BaseModel):
+    """market-ai-orc's final record of a run: what the AI finally reported, with the evidence it relied on."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["COMPLETED", "NEEDS_CLARIFICATION", "LIMITED", "FAILED"]
+    response_type: Literal["ANSWER", "CLARIFICATION", "LIMITATION"] | None
+    evidence_label: str | None = Field(default=None, max_length=40)
+    validation_gate: str = Field(max_length=40)
+    question_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    question: str = Field(max_length=16000)
+    answer_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    answer: str | None = Field(default=None, max_length=20000)
+    limitations: list[str] = Field(default_factory=list, max_length=60)
+    number_provenance: dict[str, Any] | None = None
+    experiments: list[dict[str, Any]] = Field(default_factory=list, max_length=60)
+    model: str = Field(max_length=200)
+    tool_call_count: int = Field(ge=0)
+    total_tokens: int = Field(ge=0)
+    duration_ms: int = Field(ge=0)
+    error_code: str | None = Field(default=None, max_length=80)

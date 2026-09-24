@@ -24,7 +24,7 @@ FROM public."AI_table_catalog" WHERE table_name = ANY(%s)
 '''
 COLUMNS_SQL = '''
 SELECT table_name, column_name, data_type, semantic_type, ai_allowed, is_sensitive, filter_allowed,
-       group_by_allowed, allowed_aggregations
+       group_by_allowed, allowed_aggregations, unit
 FROM public."AI_column_catalog" WHERE table_name = ANY(%s)
 '''
 RELATIONSHIPS_SQL = '''
@@ -89,6 +89,7 @@ class SelectItem:
     column: str
     function: str | None
     data_type: str
+    unit: str | None = None  # AI_column_catalog.unit; a COUNT has no unit
 
 
 @dataclass
@@ -191,7 +192,8 @@ class Validator:
             if (spec.aggregations or spec.group_by) and (ref.table, ref.column) not in group_keys:
                 raise rejected("COLUMN_NOT_GROUPED",
                                f"{ref.table}.{ref.column} must be listed in group_by when aggregating or grouping.")
-            select.append(SelectItem(ref.column, ref.table, alias_of[ref.table], ref.column, None, meta["data_type"]))
+            select.append(SelectItem(ref.column, ref.table, alias_of[ref.table], ref.column, None, meta["data_type"],
+                                     meta.get("unit")))
         for agg in spec.aggregations:
             meta = column(agg, "aggregate")
             allowed = list(meta["allowed_aggregations"] or [])
@@ -205,7 +207,8 @@ class Validator:
             result_type = "bigint" if agg.function in ("COUNT", "COUNT_DISTINCT") else (
                 "numeric" if agg.function in ("SUM", "AVG", "MEDIAN") else meta["data_type"])
             select.append(SelectItem(f"{SQL_FUNCTIONS[agg.function]}_{agg.column}", agg.table,
-                                     alias_of[agg.table], agg.column, agg.function, result_type))
+                                     alias_of[agg.table], agg.column, agg.function, result_type,
+                                     None if agg.function in ("COUNT", "COUNT_DISTINCT") else meta.get("unit")))
         self._unique_output_names(select)
 
         # Gate 3 - filters
