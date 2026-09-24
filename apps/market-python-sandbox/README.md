@@ -45,7 +45,14 @@ goes through these steps, all in backend code:
    deterministic English/Indonesian extractor builds the expected-requirements record: periods,
    trading-day counts, "latest", explicit dates and months, tickers, "all stocks", frequency,
    method keywords, and method-bound windows and thresholds. It then compares that record with
-   the spec. There are four outcomes:
+   the spec.
+   - **Dates:** day-level dates are read as one period. This covers "1 Juli sampai 31 Agustus
+     2026", "July 1 to August 31, 2026", "1-15 Juli 2026", "sejak 3 Maret 2026", and a single
+     "5 Agustus 2026"; the year may be stated only once.
+   - **Outcome horizons are not the analysis period:** "dalam 5 hari perdagangan berikutnya",
+     "5 days ahead", and a move "dalam sehari" are skipped.
+   - **Distributive words:** "tiap/setiap/every/each saham" means each named ticker when tickers are
+     named in the same message, and all stocks otherwise. There are four outcomes:
    - **`APPROVED`:** the spec is stored immutably and returned as `spec_id` plus `spec_sha256`.
    - **`APPROVED_WITH_UNVERIFIED`:** stored as well. The requirements the extractor could not
      confirm are listed as `UNVERIFIED_REQUIREMENT` and must be disclosed.
@@ -73,9 +80,15 @@ goes through these steps, all in backend code:
 
    Shortfalls that more data would fix stop the job before execution with
    `INPUT_VALIDATION_FAILED` and validation `INCOMPLETE`. These include
-   `INSUFFICIENT_WARMUP_HISTORY` (with the date to request from), the period or universe not
+   `INSUFFICIENT_WARMUP_HISTORY`, the period or universe not
    extracted, and `PERIOD_NOT_COVERED`. Unusable inputs (`DUPLICATE_CONFLICT`,
    `GRAIN_AMBIGUOUS`, `INCOMPATIBLE_LOGICAL_DATASET`) are `FAILED`.
+   - For `INSUFFICIENT_WARMUP_HISTORY` the refusal names the entities and a `suggested_from`
+     date. The date is the earlier of the spec's recommended range and an estimate from each
+     short entity's own trading density (a thinly traded ticker needs more calendar days per
+     observation), plus 25%. The refusal also offers excluding those tickers with an
+     `EXCLUDE_TICKERS` rule. The gate stays strict: undefined early values are never passed on
+     silently.
 5. **Execution** in the isolated analysis process (below).
 6. **Postflight** (validator process, after the analysis process has exited). The validator
    reads only harness-written files: the manifest, the spec, the read-only inputs, and harness

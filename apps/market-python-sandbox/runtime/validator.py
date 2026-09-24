@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import math
 import os
 import sys
 from datetime import timedelta
@@ -267,11 +268,15 @@ def preflight(job_dir: str, analysis_spec: dict[str, Any], manifest: dict[str, A
     warmup = _warmup(analysis_spec, manifest, frames, period, expected, requested, evidence)
     for name, info in warmup.items():
         if info["not_extracted"]:
+            earlier = info["suggested_from"]
             blocking.append({"code": "INSUFFICIENT_WARMUP_HISTORY", "classification": "NOT_EXTRACTED", "input": name,
+                             "entities": info["not_extracted"], "suggested_from": earlier,
                              "message": f"{info['not_extracted_count']} entities have fewer than "
-                                        f"{info['minimum']} observations before the analysis period because the "
-                                        f"bound data starts too late. Request data from "
-                                        f"{info['recommended_from']} or earlier."})
+                                        f"{info['minimum']} observations before the analysis period in the bound "
+                                        f"data; they trade on fewer days than the recommended range assumes. "
+                                        f"Request data from {earlier} or earlier (estimated from their own trading "
+                                        f"frequency), or exclude them with an EXCLUDE_TICKERS rule: "
+                                        f"{', '.join(info['not_extracted'][:20])}."})
     return {"mode": "preflight", "blocking": blocking, "evidence": evidence.items, "reasons": evidence.reasons,
             "period": _period_json(period), "expected_entities": len(expected),
             "expected_entities_sample": _sample(expected), "unavailable_entities": _sample(unavailable),
@@ -353,6 +358,7 @@ def _warmup(analysis_spec: dict[str, Any], manifest: dict[str, Any], frames: dic
         requested = _requested(logical)
         extraction_start = pd.Timestamp(requested["from"]) if requested["from"] else frame[time].min()
         source_limited, not_extracted, path_dependent, affected = [], [], [], 0
+        needed_from: list[Any] = []  # per not-extracted entity: the start its own trading density needs
         groups = frame.groupby(entity, sort=False)[time]
         for ent, dates in groups:
             if ent not in expected:
@@ -367,13 +373,20 @@ def _warmup(analysis_spec: dict[str, Any], manifest: dict[str, Any], frames: dic
                     affected += min(minimum - prior, in_period)
                 else:
                     not_extracted.append(ent)
+                    # A thinly traded entity needs more calendar days per observation than the recommended
+                    # range assumes; scale its bound pre-period span by its own density, with 25% margin.
+                    if prior:  # without any prior observation its density is unknown: the recommended range
+                        span = max((anchor - extraction_start).days, 1)
+                        needed_from.append(anchor - timedelta(days=math.ceil(span * minimum / prior * 1.25)))
             elif prior < recommended:
                 path_dependent.append(ent)
         info = {"minimum": minimum, "recommended": recommended, "source_limited": _sample(source_limited),
                 "source_limited_count": len(source_limited), "not_extracted": _sample(not_extracted),
                 "not_extracted_count": len(not_extracted), "affected_observations": affected,
                 "path_dependent_count": len(path_dependent),
-                "recommended_from": need["recommended_request_date_range"]["from"]}
+                "recommended_from": need["recommended_request_date_range"]["from"],
+                "suggested_from": min([need["recommended_request_date_range"]["from"]]
+                                      + [d.date().isoformat() for d in needed_from])}
         out[name] = info
         if not_extracted:
             evidence.add(f"warmup.{name}", "INCOMPLETE", "INSUFFICIENT_WARMUP_HISTORY", classification="NOT_EXTRACTED",

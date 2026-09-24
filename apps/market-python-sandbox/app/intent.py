@@ -71,9 +71,12 @@ AMBIGUOUS_PERIOD = (r"\b(?:recently|recent|lately|akhir-akhir ini|belakangan ini
 LATEST = (r"\b(?:latest|terbaru|terkini|most recent|hari ini|today|saat ini|sekarang|currently|current|last "
           r"(?:close|closing|price|bar|candle)|(?:closing|close|harga|penutupan|data|bar|candle|candlestick) "
           r"terakhir)\b")
-UNIVERSE_ALL = (r"\b(?:all|every|entire|whole|semua|seluruh|setiap|tiap)\b(?:\s+[\w-]+){0,3}?\s+(?:stocks?|saham|"
-                r"tickers?|emiten|equities|companies|perusahaan|symbols?|idx|bursa|market|pasar)\b|\buniverse\b|"
+UNIVERSE_NOUNS = r"(?:stocks?|saham|tickers?|emiten|equities|companies|perusahaan|symbols?|idx|bursa|market|pasar)"
+UNIVERSE_ALL = (rf"\b(?:all|entire|whole|semua|seluruh)\b(?:\s+[\w-]+){{0,3}}?\s+{UNIVERSE_NOUNS}\b|\buniverse\b|"
                 r"\bseluruh bursa\b")
+# "each/every stock" is distributive: with tickers named in the same message it means each of those tickers
+# ("nilai terakhir tiap saham"); without named tickers it still means all stocks.
+UNIVERSE_EACH = rf"\b(?:every|each|setiap|tiap|masing-masing)\b(?:\s+[\w-]+){{0,3}}?\s+{UNIVERSE_NOUNS}\b"
 OPS = {"<": "<", "<=": "<=", ">": ">", ">=": ">=", "below": "<", "under": "<", "less than": "<", "lower than": "<",
        "kurang dari": "<", "di bawah": "<", "dibawah": "<", "lebih rendah dari": "<", "above": ">", "over": ">",
        "greater than": ">", "more than": ">", "higher than": ">", "lebih dari": ">", "lebih besar dari": ">",
@@ -216,6 +219,40 @@ def _extract_turn(turn: Turn, ref: date, found: Extracted) -> None:
         if start:
             add_period({"mode": "EXPLICIT_DATES", "start": start.isoformat(), "end": ref.isoformat(),
                         "end_implied": True}, match)
+    def day(year: str | int, month: str, number: str) -> date | None:
+        try:
+            return date(int(year), MONTHS[month], int(number))
+        except (KeyError, ValueError):
+            return None
+
+    def add_day_range(start: date | None, end: date | None, match: re.Match, year_stated_once: bool) -> None:
+        if start and end and year_stated_once and start > end:  # "1 Desember sampai 31 Januari 2026"
+            start = day(start.year - 1, next(m for m, n in MONTHS.items() if n == start.month), str(start.day))
+        if start and end and start <= end:
+            add_period({"mode": "EXPLICIT_DATES", "start": start.isoformat(), "end": min(end, ref).isoformat()}, match)
+
+    suffix = r"(?:st|nd|rd|th)?"
+    for match in re.finditer(rf"\b(\d{{1,2}})\s+({MONTH_RE})\b\.?(?:\s+(\d{{4}}))?\s*{RANGE_SEP}\s*(\d{{1,2}})\s+"
+                             rf"({MONTH_RE})\b\.?\s+(\d{{4}})\b", text):
+        d1, m1, y1, d2, m2, y2 = match.groups()
+        add_day_range(day(y1 or y2, m1, d1), day(y2, m2, d2), match, y1 is None)
+    for match in re.finditer(rf"\b({MONTH_RE})\.?\s+(\d{{1,2}}){suffix},?(?:\s+(\d{{4}}))?\s*{RANGE_SEP}\s*"
+                             rf"({MONTH_RE})\.?\s+(\d{{1,2}}){suffix},?\s+(\d{{4}})\b", text):
+        m1, d1, y1, m2, d2, y2 = match.groups()
+        add_day_range(day(y1 or y2, m1, d1), day(y2, m2, d2), match, y1 is None)
+    for match in re.finditer(rf"\b(\d{{1,2}})\s*{RANGE_SEP}\s*(\d{{1,2}})\s+({MONTH_RE})\b\.?\s+(\d{{4}})\b", text):
+        d1, d2, month, year = match.groups()
+        add_day_range(day(year, month, d1), day(year, month, d2), match, False)
+    for match in re.finditer(rf"\b(?:since|sejak|from|dari|mulai)\s+(?:tanggal\s+)?(\d{{1,2}})\s+({MONTH_RE})\b\.?\s+"
+                             rf"(\d{{4}})\b", text):
+        start = day(match.group(3), match.group(2), match.group(1))
+        if start:
+            add_period({"mode": "EXPLICIT_DATES", "start": start.isoformat(), "end": ref.isoformat(),
+                        "end_implied": True}, match)
+    for match in re.finditer(rf"\b(\d{{1,2}})\s+({MONTH_RE})\b\.?\s+(\d{{4}})\b", text):
+        single = day(match.group(3), match.group(2), match.group(1))
+        if single:
+            add_period({"mode": "EXPLICIT_DATES", "start": single.isoformat(), "end": single.isoformat()}, match)
     month_range = rf"\b({MONTH_RE})\b\.?\s*(\d{{4}})?\s*{RANGE_SEP}\s*\b({MONTH_RE})\b\.?\s*(\d{{4}})?"
     for match in re.finditer(month_range, text):
         start, end, inferred = _month_range(match.group(1), match.group(2), match.group(3), match.group(4), ref)
@@ -247,6 +284,12 @@ def _extract_turn(turn: Turn, ref: date, found: Extracted) -> None:
     for pattern in relative:
         for match in re.finditer(pattern, text):
             count, unit = int(match.group(1)), _unit(match.group(2))
+            # "dalam 5 hari berikutnya" is an outcome horizon and "turun 7% dalam sehari" a move within one day;
+            # neither is the analysis period.
+            if re.match(r"\s*(?:berikutnya|ke ?depan|mendatang|setelahnya|selanjutnya|after|ahead|later)\b",
+                        text[match.end():]) or (match.group(0).startswith("dalam") and count == 1
+                                                 and unit in ("DAY", "DAY_UNQUALIFIED", "TRADING_DAY")):
+                continue
             if unit == "TRADING_DAY":
                 add_period({"mode": "TRADING_DAYS", "count": count}, match)
             else:
@@ -264,11 +307,11 @@ def _extract_turn(turn: Turn, ref: date, found: Extracted) -> None:
         found.latest.append(turn.index)
 
     # universe
-    if re.search(UNIVERSE_ALL, text):
+    named = [m.group(1) for m in re.finditer(r"\b([A-Z]{4})(?:\.JK)?\b", turn.original) if m.group(1) not in TICKER_STOP]
+    if re.search(UNIVERSE_ALL, text) or (not named and re.search(UNIVERSE_EACH, text)):
         found.universe_all.append(turn.index)
-    for match in re.finditer(r"\b([A-Z]{4})(?:\.JK)?\b", turn.original):
-        if match.group(1) not in TICKER_STOP:
-            found.tickers.setdefault(match.group(1), turn.index)
+    for ticker in named:
+        found.tickers.setdefault(ticker, turn.index)
 
     # frequency, method families, parameters
     for value, pattern in (("1D", r"\b(?:daily|harian|per hari|setiap hari)\b"),
