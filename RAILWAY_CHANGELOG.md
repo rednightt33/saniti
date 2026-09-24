@@ -1,5 +1,21 @@
 # Railway changelog
 
+## 2026-09-24 — Stress test: 10 price and sector questions (no deploy, no change)
+
+- Requested by the user before a full code review. The temporary job `stress-test-job` (`162aa153-fc78-4739-aecd-d4478f461e39`, deployment `e85a9fd1-6985-4a1d-bbc8-ba014487b241`) was deleted afterwards. It held references to `MARKET_AI_ORC_API_KEY` and `DATABASE_URL`, used the latter only in a read-only session, and printed no secrets.
+- It sent 10 questions to `market-ai-orc` (`3e06e8d6`) in sequence, and read ground truth for the checkable ones from PostgreSQL. Totals: 481 s, $0.12476, 629,120 of 875,714 prompt tokens cached (0.718).
+- **Results:**
+  - Correct numbers, equal to the database: BBRI and TLKM closes on 2026-09-23 (`FACT`), BBCA +15.625% from the 1 July to the 31 August close (`CALCULATION_VERIFIED`), and TLKM's September average close 2,589.375 (`DATABASE_AGGREGATE`).
+  - Appropriate behaviour: a clarification for "which sector is most attractive now", and a limitation for "technology versus IHSG", since IHSG is not in the data.
+  - Not answered, all five sector questions: tickers per sector, top sectors by August return, top 5 banks by one-month change, energy versus technology volatility, and banks versus property correlation.
+- **Why the sector questions failed, from the orc, sandbox and Governor logs:**
+  - Four ended with `LIMITATION` without calling `create_analysis_spec`. One called it once; the orc argument validation refused the call, and the model did not retry.
+  - The Analysis Spec cannot express a sector-filtered universe (only `ALL_IN_SOURCE` or a ticker list) or a per-sector output grain.
+  - The model has no path to enumerate a sector's tickers: datasets never reach it, previews are 20 rows, and `lookup_fact` takes at most 5 entities.
+  - The answers say the work "was not run yet" rather than that the path is unsupported.
+- **Data note:** `IDX_Stock_Universe` has 3 tickers whose `Sector` is the string `0`.
+- No service, variable, or data was changed. `railway config plan` reports the configuration up to date; the environment is back to 15 services.
+
 ## 2026-09-24 — Deploy the PoC fixes: sandbox intent dates and universe, warm-up remedy, cache-friendly final re-ask (commit 9085ee7)
 
 - Scope approved by the user: fix the defects found by the Research AI PoC, and act on the structured-final cache miss (F.2). Local suites: sandbox 225 (19 new), orc 383.
