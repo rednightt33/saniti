@@ -12,11 +12,11 @@ from .rows import CursorCodec, as_row, load_exact
 
 CATALOG_TABLES = (
     "AI_table_catalog", "AI_column_catalog", "AI_catalog_relationships",
-    "AI_calculation_catalog", "AI_data_coverage",
+    "AI_calculation_catalog", "AI_data_coverage", "AI_research_catalog",
 )
 CatalogName = Literal[
     "AI_table_catalog", "AI_column_catalog", "AI_catalog_relationships",
-    "AI_calculation_catalog", "AI_data_coverage",
+    "AI_calculation_catalog", "AI_data_coverage", "AI_research_catalog",
 ]
 
 COLUMNS_SQL = '''
@@ -76,7 +76,7 @@ def count_statement(table: str) -> sql.Composed:
 class ReadCatalogRowsArguments(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    catalog_name: CatalogName = Field(description="One of the five AI catalog tables.")
+    catalog_name: CatalogName = Field(description="One of the six AI catalog tables.")
     page_size: int | None = Field(description="Rows per page; null for the default.")
     cursor: str | None = Field(
         description="null for the first page, or the exact next_cursor from the previous page."

@@ -22,7 +22,7 @@ PREVIEW_GROUP = "market_ai_preview_reader"
 PREVIEW_FUNCTION = "public.ai_preview_table_rows(text)"
 CATALOG_TABLES = (
     "AI_table_catalog", "AI_column_catalog", "AI_catalog_relationships",
-    "AI_calculation_catalog", "AI_data_coverage",
+    "AI_calculation_catalog", "AI_data_coverage", "AI_research_catalog",
 )
 
 
