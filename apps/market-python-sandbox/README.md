@@ -26,6 +26,44 @@ The service holds **no PostgreSQL credential and no bucket credential**. It hold
 
 Analysis and validator processes hold no keys at all.
 
+## DataNeed flow (in progress, off unless `PY_SANDBOX_DATANEED_ENABLED=true`)
+
+The DataNeed architecture replaces the Analysis Spec with a data-only contract. It is built in phases next to the
+current flow; while the flag is off, its routes answer 404 and the service keeps no DataNeed state.
+
+**Phase 1 (implemented): DataNeedSpec validation.** `POST /v1/data-needs` takes
+`{request_id, reference_time, timezone, spec, research_governance}`.
+- `spec` is a `data_need_spec/v1` document (`app/data_need.py`). It lists logical data requests and catalog
+  relationships only:
+  - each request names one catalog table, its columns, a scope expression tree (ALL, PREDICATE, AND/OR with
+    children, NOT with child; depth ≤ 4, ≤ 40 nodes, IN lists ≤ 500 values), named time ranges, the source and
+    analysis frequencies with `resample`, history and future buffers, ordering and `sampling_allowed` (always
+    false);
+  - a relationship names a catalog `relationship_id`, INNER or LEFT, and the join semantics the catalog supports
+    (CURRENT_STATE, EXACT_DATE, AS_OF, EFFECTIVE_DATED; migration `20260925_003`).
+  - There is no formula, calculation, indicator, method, ranking or output grain.
+- The DataNeedValidator checks four layers: schema, catalog binding (Governor catalog contract), cross-request
+  relationships, and planning feasibility. It answers `APPROVED`, `REVISION_REQUIRED` or `CATALOG_UNAVAILABLE`.
+  Every issue is `{data_request_id, code, field_path, rejected_value}`; the validator never suggests a replacement.
+- Revisions: the first revision of a request group is 1 and each next one is the highest judged revision + 1. An
+  identical resubmission replays its answer. A different document under a used revision, or a skipped number, is
+  `REVISION_CONFLICT`. A catalog outage or a conflict does not use up a revision number. Every submission is
+  recorded in `/data/dataneed.sqlite3`.
+- An approved need stores the contract the later phases work from:
+  - per request: extract columns (keys first), column types, the canonical scope and its hash, one extraction
+    window per range (widened by the buffers, the future capped at the reference date), resample rules from the
+    catalog, and the restrictions that INNER relationships impose;
+  - the spec hash, the catalog hash and the reference date.
+  `GET /v1/data-needs/{need_id}` returns it.
+- `mode: RESEARCH` needs a ResearchGovernanceRequest (hypothesis, candidate count, pairwise comparisons, a
+  multiple-testing policy, an optional holdout range and minimum sample, `followup_of`). The Research Governor
+  (`app/research_governance.py`) answers `APPROVED`, `REPLAN_REQUIRED` or `REJECTED` with a reason code, from the
+  same research budgets as the Analysis Spec path. Revisions of one request group reuse its reservation.
+  `mode: ANALYSIS` with a governance request is `MODE_MISMATCH`.
+
+Later phases add the governed data bundle with its Data Quality Manifest, persistent analysis sessions, and the
+Coverage Validator.
+
 ## Analysis Spec V2 (two paths: ANALYSIS and RESEARCH)
 
 `POST /v1/specs` accepts two contract versions (`app/spec_v2.py SpecRequestAny`). A spec with
@@ -612,6 +650,7 @@ The URL is never logged, stored, returned, or visible to any child process.
 | `GET /v1/artifacts/{art_…}` | PNG / Parquet / CSV / JSON bytes, including the feature definitions |
 | `GET /v1/runtime` | Isolation checks, library versions, limits |
 | `GET /v1/runs/{request_id}` | Audit view of one orchestrator run: experiments with governor decisions, analyses with code/dataset fingerprints and evidence decisions, budgets, and the final report |
+| `POST /v1/data-needs`, `GET /v1/data-needs/{need_id}` | DataNeedSpec validation and the approved contract (only with `PY_SANDBOX_DATANEED_ENABLED`; see above) |
 | `POST /v1/runs/{request_id}/report` | market-ai-orc's final report of the run (answer and hash, evidence label, gate, experiments). Stored once; a retry keeps the first. |
 
 **Request-level budgets.** All analyses of one orchestrator request share:
@@ -703,6 +742,7 @@ Logs never contain keys, dataset URLs, user messages, datasets, or tables.
 | `PY_SANDBOX_RESULT_RETENTION_HOURS` / `_RECORD_RETENTION_DAYS` | 24 / 30 |
 | `PY_SANDBOX_FAILED_WORKSPACE_TTL_HOURS` / `_MAX_BYTES` | 6 / 64 MiB |
 | `PY_SANDBOX_CLEANUP_INTERVAL_SECONDS` | 900 |
+| `PY_SANDBOX_DATANEED_ENABLED` | false (the DataNeed routes answer 404) |
 
 **Paths:**
 - `PY_SANDBOX_DATA_DIR` (`/data`, the Railway volume)

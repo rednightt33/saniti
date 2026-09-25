@@ -33,6 +33,9 @@ class ToolSpec:
     timeout_seconds: float = 10.0
     enabled: bool = True
     max_result_bytes: int | None = None
+    # Renders an argument error (ValidationError or bad JSON, plus the raw arguments) as structured fields merged into
+    # the INVALID_ARGUMENTS error, for tools whose results use their own issue shape (submit_data_need_spec).
+    argument_errors: Callable[[Exception, Any], dict[str, Any]] | None = None
 
 
 @dataclass(frozen=True)
@@ -216,6 +219,7 @@ class ToolRegistry:
 
         ignored: list[str] = []
         assumed_null: list[str] = []
+        parsed: Any = None
         try:
             parsed = self._parse_arguments(raw_arguments)
             if not spec.arguments_model.model_fields and isinstance(parsed, dict) and parsed:
@@ -230,7 +234,13 @@ class ToolRegistry:
             logger.info(dumps({"event": "ai_tool_arguments_rejected", "tool": name,
                                "request_id": _current_request_id(),
                                "errors": self._argument_locations(exc)}))
-            return error_outcome(call_id, name, "INVALID_ARGUMENTS", self._argument_issue(exc))
+            outcome = error_outcome(call_id, name, "INVALID_ARGUMENTS", self._argument_issue(exc))
+            if spec.argument_errors is not None:
+                try:
+                    outcome.output["error"].update(spec.argument_errors(exc, parsed))
+                except Exception:  # the plain message stays; a renderer bug never hides the rejection
+                    pass
+            return outcome
 
         future = self._executor.submit(contextvars.copy_context().run, spec.handler, arguments)
         try:

@@ -198,6 +198,7 @@ Measured on `dev` (2026-09-24, see `RAILWAY_CHANGELOG.md`):
 | `AI_MAX_REPAIR_ATTEMPTS` | no | `3` | Repairs allowed per run for the same tool rejection (tool + reason code) before `REPAIR_BUDGET_EXHAUSTED` |
 | `AI_ENABLE_LOOKUP_FACT` | no | `true` | Register the model-facing `lookup_fact` tool and its prompt rule |
 | `AI_ENABLE_REQUEST_DATA` | no | `false` | Register the model-written `request_data` tool (rollback path; analysis data is prepared by `prepare_analysis_data`) |
+| `AI_ENABLE_DATANEED` | no | `false` | Register the DataNeed flow tools (`submit_data_need_spec` so far; see [DataNeed flow](#dataneed-flow-in-progress)). The sandbox must run with `PY_SANDBOX_DATANEED_ENABLED=true`, otherwise the tool reports the sandbox unavailable |
 | `AI_MAX_ANALYSIS_SECONDS` | no | `600` | Wall-clock limit per run |
 | `AI_MAX_CONTEXT_TOKENS` | no | `64000` | Hard context ceiling (estimated before the call, provider-reported after) |
 | `AI_CONTEXT_SOFT_LIMIT_RATIO` | no | `0.8` | 0.5–0.95. At `AI_MAX_CONTEXT_TOKENS ×` this ratio, tools are withdrawn and the run finalizes from what was already retrieved (see [Context budget](#context-budget)). `AI_MAX_OUTPUT_TOKENS` must stay below this soft limit |
@@ -406,6 +407,7 @@ Guarantees:
 | `prepare_analysis_data` | `spec_id` | `READY` with `input_bundle_id` and per-input row counts and completeness, or a structured rejection |
 | `run_python_analysis` | `spec_id`, `input_bundle_id`, `python_code` (≤ 20000), `expected_outputs` ⊆ {TABLE, METRICS, CHART, ARTIFACT} | The analysis record: `execution_status`, `validation_status`, `validation_level`, `reason_codes`, `next_action`, scopes, outputs, evidence, `evidence_assessment`, `leakage_check`, derived features with `formula_status`, error |
 | `get_analysis_result` | `analysis_id` | The same record for a queued/running/finished analysis |
+| `submit_data_need_spec` | only with `AI_ENABLE_DATANEED`: a `data_need_spec/v1` document (`request_group_id`, `revision`, `mode`, `question`, `subject`, `data_requests`, `relationships`) plus `research_governance` for RESEARCH | The DataNeedValidator's `APPROVED` (with `need_id`), `REVISION_REQUIRED` (issues) or `CATALOG_UNAVAILABLE`, the Research Governor decision, and `next_action` |
 
 Each capability flag is derived from the registry. It becomes `true` only when its providing
 tool is actually registered: `catalog_discovery` → `discover_catalog`, `full_catalog_read` →
@@ -454,6 +456,29 @@ Governor HTTP errors and timeouts become a generic `TOOL_ERROR`. The spec has no
 expression, join-key, or delivery-format field, and the row, scan, and byte ceilings exist
 only in Governor configuration. The DATA QUERY RULES block is appended after DATA DISCOVERY
 RULES in the system prompt; it contains no thresholds or credentials.
+
+## DataNeed flow (in progress)
+
+The DataNeed architecture replaces the Analysis Spec with a data-only contract. It is built in phases behind
+`AI_ENABLE_DATANEED` (orc) and `PY_SANDBOX_DATANEED_ENABLED` (sandbox); both are off, so the Analysis Spec path
+below is still the live one.
+
+**Phase 1 (implemented): `submit_data_need_spec`** (`app/tools/data_need.py`).
+- The model declares which data the answer needs: logical data requests (catalog table, columns, a scope expression
+  tree, named time ranges, source and analysis frequencies with `resample`, history and future buffers, ordering)
+  and catalog relationships (`relationship_id`, INNER/LEFT, join semantics). It never writes a formula, indicator,
+  method, ranking or output.
+- Strict tools cannot express a recursive schema, so the scope tree is unrolled to the validator's maximum depth
+  of 4 (`ScopeNode` → `ScopeNode2` → `ScopeNode3` → `ScopePredicate`). Nothing expressible is lost.
+- The tool enforces only types and enums. market-python-sandbox's DataNeedValidator is authoritative and answers
+  `APPROVED`, `REVISION_REQUIRED` or `CATALOG_UNAVAILABLE` with issues
+  `{data_request_id, code, field_path, rejected_value}` and no suggested replacement.
+- An argument that fails the tool's own schema (a wrong JSON type, an unknown field) comes back in the same issue
+  shape through the registry's `argument_errors` hook, so the model repairs both kinds the same way.
+- The tool sends the run's reference time and time zone, never model-supplied ones, and splits
+  `research_governance` from the spec.
+- Contract tests keep the tool's fields, operators, join semantics and resample values equal to the validator's,
+  and send the documented YTD example and a depth-4 scope through the real validator.
 
 ## Two-path analysis (Analysis Spec V2)
 

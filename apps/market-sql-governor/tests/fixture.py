@@ -15,6 +15,7 @@ CATALOG_MIGRATION = MIGRATIONS / "20260922_001_create_ai_catalogs.sql"
 READER_MIGRATION = MIGRATIONS / "20260923_005_create_market_ai_sql_reader.sql"
 DATE_AGGREGATION_MIGRATION = MIGRATIONS / "20260923_007_allow_min_max_on_date_columns.sql"
 SUBJECT_MIGRATION = MIGRATIONS / "20260925_001_add_ai_table_subject_metadata.sql"
+JOIN_SEMANTICS_MIGRATION = MIGRATIONS / "20260925_003_add_relationship_join_semantics.sql"
 SCHEMA_DOC = REPO_ROOT / "DATABASE_SCHEMA.md"
 
 MARKET_TABLES = (
@@ -53,6 +54,13 @@ def subject_metadata_sql() -> str:
     registration, which needs Table_Catalog and Column_Catalog)."""
     text = SUBJECT_MIGRATION.read_text()
     return text[text.index("-- BEGIN subject metadata"):text.index("-- END subject metadata")]
+
+
+def join_semantics_sql() -> str:
+    """The join-semantics section of migration 20260925_003 (relationship semantics and resample rules), without the
+    documentation-catalog registration."""
+    text = JOIN_SEMANTICS_MIGRATION.read_text()
+    return text[text.index("-- BEGIN join semantics"):text.index("-- END join semantics")]
 
 
 def relationships_sql() -> str:

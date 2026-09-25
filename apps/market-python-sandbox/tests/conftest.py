@@ -124,12 +124,13 @@ CATALOG = {
 }
 
 
-def catalog_subset(tables: list[str]) -> dict:
-    found = [t for t in tables if t in CATALOG["tables"]]
-    return {**CATALOG, "tables": {t: CATALOG["tables"][t] for t in found},
-            "columns": {t: CATALOG["columns"][t] for t in found},
-            "relationships": [r for r in CATALOG["relationships"] if r["left_table"] in found or r["right_table"] in found],
-            "unknown_tables": [t for t in tables if t not in CATALOG["tables"]]}
+def catalog_subset(tables: list[str], catalog: dict | None = None) -> dict:
+    catalog = catalog or CATALOG
+    found = [t for t in tables if t in catalog["tables"]]
+    return {**catalog, "tables": {t: catalog["tables"][t] for t in found},
+            "columns": {t: catalog["columns"][t] for t in found},
+            "relationships": [r for r in catalog["relationships"] if r["left_table"] in found or r["right_table"] in found],
+            "unknown_tables": [t for t in tables if t not in catalog["tables"]]}
 
 
 class FakeGovernor:
@@ -144,6 +145,8 @@ class FakeGovernor:
         self.calls: list[dict] = []
         self.checksum_override: dict[str, str] = {}
         self.catalog_requests: list[dict] = []
+        self.catalog: dict | None = None  # None: the shared CATALOG
+        self.catalog_down = False
 
     FRIENDLY = {"double": "float64", "float": "float32", "date32[day]": "date", "timestamp[us]": "timestamp",
                 "timestamp[ns]": "timestamp", "bool": "boolean", "string": "string", "large_string": "string",
@@ -204,7 +207,9 @@ class FakeGovernor:
 
             body = _json.loads(request.content)
             self.catalog_requests.append(body)
-            return httpx.Response(200, json=catalog_subset(body["tables"]))
+            if self.catalog_down:
+                return httpx.Response(503, json={"detail": "Governed database unavailable"})
+            return httpx.Response(200, json=catalog_subset(body["tables"], self.catalog))
         match = self.PATH.fullmatch(request.url.path)
         if request.method != "POST" or match is None:
             return httpx.Response(404, json={"detail": "Not Found"})

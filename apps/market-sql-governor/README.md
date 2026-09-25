@@ -89,6 +89,12 @@ read URL for one dataset. It **cannot** call `/v1/query`, and the orc key cannot
 
   market-python-sandbox approves an Analysis Spec V2 against this contract. Before migration
   20260925_001 is applied it answers with `subject_metadata: false` and null subject fields.
+
+  After migration 20260925_003, each relationship also carries `supported_join_semantics`
+  (CURRENT_STATE, EXACT_DATE, AS_OF, EFFECTIVE_DATED) with `left_time_column`, `right_time_column`,
+  `effective_from_column` and `effective_to_column`, and each column carries `resample_aggregation`
+  (FIRST, LAST, MAX, MIN, SUM or null). The sandbox's DataNeedValidator binds DataNeedSpecs to these
+  fields. Before that migration they are absent, and no relationship is joinable by a DataNeedSpec.
 - **Executed scope and the validator manifest.** Each dataset's full manifest (`manifest_version`
   v2) also records:
   - `request_sha256`;

@@ -5,6 +5,7 @@ import os
 from .analysis import SandboxClient, analysis_specs, manifest_spec
 from .catalog import CatalogReader, catalog_specs
 from .catalog_rows import catalog_rows_spec
+from .data_need import data_need_specs
 from .data_compiler import BundleStore, DataRequestCompiler, prepare_spec
 from .preview import preview_spec
 from .registry import ToolError, ToolOutcome, ToolRegistry, ToolSpec, error_outcome
@@ -31,6 +32,7 @@ def build_default_registry(
     lookup_fact_enabled: bool = True,
     request_data_enabled: bool = False,
     bundles: BundleStore | None = None,
+    dataneed_enabled: bool = False,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
@@ -68,6 +70,10 @@ def build_default_registry(
         for spec in analysis_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
                                    max_result_bytes=python_analysis_max_bytes, bundles=bundles)[1:]:
             registry.register(spec)
+        if dataneed_enabled:
+            for spec in data_need_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
+                                        max_result_bytes=python_analysis_max_bytes):
+                registry.register(spec)
     return registry
 
 

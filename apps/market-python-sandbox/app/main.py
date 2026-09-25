@@ -5,6 +5,8 @@ import logging
 import re
 import sys
 from contextlib import asynccontextmanager
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query, status
@@ -12,6 +14,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import ValidationError
 
 from .config import Settings
+from .dataneed_service import DataNeedError, DataNeedService
+from .dataneed_store import DataNeedStore
 from .models import ANALYSIS_ID, REQUEST_ID, AnalysisRequest, RunReport
 from .outputs import CONTENT_TYPES
 from .service import AnalysisService, ServiceUnavailable
@@ -19,6 +23,8 @@ from .spec import SPEC_ID
 from .spec_v2 import SpecRequestAny
 
 FILE_ID = re.compile(r"^(res|art)_[0-9a-f]{24}$")
+NEED_ID = re.compile(r"^need_[0-9a-f]{24}$")
+DATA_NEED_KEYS = {"request_id", "reference_time", "timezone", "spec", "research_governance"}
 PAGE_MAX = 500
 
 
@@ -33,11 +39,14 @@ def _configure_logging() -> None:
 
 
 def create_app(settings: Settings | None = None, service: AnalysisService | None = None,
-               run_workers: bool = True) -> FastAPI:
+               run_workers: bool = True, dataneed: DataNeedService | None = None) -> FastAPI:
     """Private analysis service for market-ai-orc. No public domain, no docs routes."""
     _configure_logging()
     settings = settings or Settings.from_env()
     service = service or AnalysisService(settings)
+    if dataneed is None and settings.dataneed_enabled:
+        # created only when the flow is enabled: with the flag off the service has no DataNeed state at all
+        dataneed = DataNeedService(service, DataNeedStore(Path(settings.data_dir) / "dataneed.sqlite3"))
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -48,6 +57,7 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
     app = FastAPI(title="Saniti Market Python Sandbox", version="2.0.0", docs_url=None, redoc_url=None,
                   openapi_url=None, lifespan=lifespan)
     app.state.service = service
+    app.state.dataneed = dataneed
     expected = f"Bearer {settings.api_key}"
 
     def authorize(authorization: str | None = Header(default=None)) -> None:
@@ -113,6 +123,45 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
         except ValidationError as exc:
             return invalid(exc, "analysis spec")
         return service.create_spec(request)
+
+    def dataneed_error(exc: DataNeedError) -> JSONResponse:
+        return JSONResponse(status_code=exc.http_status, content=exc.body())
+
+    def dataneed_enabled() -> None:
+        # the DataNeed flow ships dark: its routes do not exist until PY_SANDBOX_DATANEED_ENABLED is set
+        if not settings.dataneed_enabled or dataneed is None:
+            raise HTTPException(status_code=404, detail="Not Found")
+
+    dataneed_routes = [Depends(dataneed_enabled), Depends(authorize)]
+
+    @app.post("/v1/data-needs", dependencies=dataneed_routes)
+    def submit_data_need(body: Any = Body(...)) -> Any:
+        """Validate a DataNeedSpec revision (and its ResearchGovernanceRequest in mode RESEARCH)."""
+        if not isinstance(body, dict) or not {"request_id", "reference_time", "spec"} <= set(body) <= DATA_NEED_KEYS \
+                or not isinstance(body["request_id"], str) or not re.fullmatch(REQUEST_ID, body["request_id"]):
+            return JSONResponse(status_code=422, content={"status": "REJECTED", "error": {
+                "code": "INVALID_REQUEST", "message": "Body must be {request_id, reference_time, timezone, spec, "
+                                                      "research_governance}."}})
+        try:
+            reference_time = datetime.fromisoformat(str(body["reference_time"]))
+        except ValueError:
+            return JSONResponse(status_code=422, content={"status": "REJECTED", "error": {
+                "code": "INVALID_REQUEST", "message": "reference_time must be an ISO timestamp."}})
+        timezone = body.get("timezone") if isinstance(body.get("timezone"), str) else "Asia/Jakarta"
+        try:
+            return dataneed.submit(body["request_id"], reference_time, timezone[:64], body["spec"],
+                                   body.get("research_governance"))
+        except DataNeedError as exc:
+            return dataneed_error(exc)
+
+    @app.get("/v1/data-needs/{need_id}", dependencies=dataneed_routes)
+    def get_data_need(need_id: str) -> Any:
+        if not NEED_ID.fullmatch(need_id):
+            raise HTTPException(status_code=404, detail="Unknown need_id")
+        need = dataneed.get_need(need_id)
+        if need is None:
+            raise HTTPException(status_code=404, detail="Unknown need_id")
+        return need
 
     @app.get("/v1/runs/{request_id}", dependencies=[Depends(authorize)])
     def run_summary(request_id: str) -> Any:

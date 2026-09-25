@@ -86,6 +86,8 @@ class Settings:
     research_min_coverage_pct: int
     research_min_holdout_pct: int
     leakage_check: bool
+    # DataNeed flow (DataNeedSpec, governed bundles, analysis sessions); off until the orchestrator switches over
+    dataneed_enabled: bool
     # outputs
     max_tables: int
     max_table_output_rows: int
@@ -197,6 +199,7 @@ class Settings:
             research_min_coverage_pct=_integer(env, "PY_SANDBOX_RESEARCH_MIN_COVERAGE_PCT", 95, maximum=100),
             research_min_holdout_pct=_integer(env, "PY_SANDBOX_RESEARCH_MIN_HOLDOUT_PCT", 20, maximum=90),
             leakage_check=_boolean(env, "PY_SANDBOX_LEAKAGE_CHECK", True),
+            dataneed_enabled=_boolean(env, "PY_SANDBOX_DATANEED_ENABLED", False),
             max_tables=_integer(env, "PY_SANDBOX_MAX_TABLES", 8, maximum=32),
             max_table_output_rows=_integer(env, "PY_SANDBOX_MAX_TABLE_OUTPUT_ROWS", 100_000, maximum=5_000_000),
             max_table_preview_rows=_integer(env, "PY_SANDBOX_MAX_TABLE_PREVIEW_ROWS", 50, maximum=200),
@@ -241,6 +244,19 @@ class Settings:
             max_candidates=self.research_max_candidates, min_events=self.research_min_events,
             min_baseline_observations=self.research_min_baseline_observations,
             min_coverage_pct=self.research_min_coverage_pct, min_holdout_pct=self.research_min_holdout_pct)
+
+    def governance_policy(self):
+        """Budgets of the DataNeed Research Governor (the same run budgets as the Analysis Spec research governor)."""
+        from .research_governance import GovernancePolicy
+
+        return GovernancePolicy(
+            max_experiments=self.research_max_experiments, max_hypotheses=self.research_max_hypotheses,
+            max_followups_per_hypothesis=self.research_max_followups_per_hypothesis,
+            max_candidates=self.research_max_candidates, max_pairwise_comparisons=self.research_max_pairwise_candidates,
+            min_sample={"EVENTS": self.research_min_events, "OBSERVATIONS": self.research_min_baseline_observations,
+                        "ENTITIES": 10},
+            compute_seconds_per_experiment=max(60, self.max_cpu_seconds_per_request // max(1,
+                                                                                           self.research_max_experiments)))
 
     @property
     def cpu_seconds(self) -> int:

@@ -89,6 +89,9 @@ class Settings:
     # data requests are compiled by the backend from the approved spec (prepare_analysis_data).
     ai_enable_lookup_fact: bool = True
     ai_enable_request_data: bool = False
+    # DataNeed flow (DataNeedSpec -> governed bundle -> analysis session -> coverage): its tools are registered only
+    # when this is on; the sandbox must run with PY_SANDBOX_DATANEED_ENABLED as well.
+    ai_enable_dataneed: bool = False
     # The same tool rejection (tool + reason code) may be repaired this many times per run.
     ai_max_repair_attempts: int = 3
 
@@ -132,6 +135,7 @@ class Settings:
             sql_governor_url=_optional(env, "SQL_GOVERNOR_URL"),
             ai_enable_lookup_fact=_boolean(env, "AI_ENABLE_LOOKUP_FACT", True),
             ai_enable_request_data=_boolean(env, "AI_ENABLE_REQUEST_DATA", False),
+            ai_enable_dataneed=_boolean(env, "AI_ENABLE_DATANEED", False),
             ai_max_repair_attempts=_integer(env, "AI_MAX_REPAIR_ATTEMPTS", 3, minimum=1),
             sql_governor_api_key=_optional(env, "SQL_GOVERNOR_API_KEY"),
             sql_governor_timeout_seconds=_integer(env, "SQL_GOVERNOR_TIMEOUT_SECONDS", 90),

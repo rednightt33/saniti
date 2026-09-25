@@ -97,6 +97,7 @@ def create_app(
             python_analysis_max_bytes=settings.python_analysis_max_result_bytes,
             lookup_fact_enabled=settings.ai_enable_lookup_fact,
             request_data_enabled=settings.ai_enable_request_data,
+            dataneed_enabled=settings.ai_enable_dataneed,
         )
         auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
             if sandbox is not None or settings.research_audit_database_url else None
