@@ -138,11 +138,19 @@ APPROVED_DEFAULTS: dict[str, dict[str, Any]] = {
                                              "observation in the period (a sample standard deviation needs two)."},
     "DEFAULT_SERIES_ALIGNMENT": {"value": "COMMON_DATES", "meaning": "Two series are compared on the dates where both "
                                  "have a defined value; nothing is forward-filled or shifted (maximum lag 0)."},
+    "DEFAULT_GROUP_PER_DATE": {"value": False, "meaning": "A group aggregate uses each entity's value at its last "
+                               "observation in the period (one value per group); a per-date group series only when "
+                               "the request asks for one."},
+    "DEFAULT_ROLLING_CORRELATION_TRANSFORM": {"value": "NONE", "meaning": "A rolling correlation correlates the two "
+                                              "input columns as given, without a return transform, unless the request "
+                                              "asks for one."},
 }
 
 FAMILIES = ("RSI", "SMA", "STD", "ZSCORE", "RETURN", "FORWARD_RETURN", "CORRELATION", "EVENT_STUDY")
 AGGREGATE_FUNCTIONS = ("COUNT", "COUNT_DISTINCT", "SUM", "AVG", "MEDIAN", "MIN", "MAX")
-PERIOD_FUNCTIONS = ("MEAN", "MEDIAN", "STD", "MIN", "MAX", "SUM", "COUNT")
+PERIOD_FUNCTIONS = ("AVG", "MEDIAN", "STD", "MIN", "MAX", "SUM", "COUNT")
+# One vocabulary for averages: AVG. Synonyms a model commonly writes are accepted and stored as AVG.
+ENUM_ALIASES = {"MEAN": "AVG", "AVERAGE": "AVG"}
 GROUP_GRAINS = ("GROUP", "GROUP_DATE")
 GROUP_METHODS = ("GROUP_AGGREGATE", "GROUP_CORRELATION")
 SEGMENT_KEY = "segment"
@@ -222,7 +230,8 @@ METHODS: dict[str, MethodDef] = {
     "ROLLING_CORRELATION": MethodDef(
         "ROLLING_CORRELATION", ("CORRELATION",),
         {"window": WINDOW, "method": CORR_METHOD, "window_unit": WINDOW_UNIT,
-         "transform": ParamDef("enum", default="NONE", choices=("NONE", "SIMPLE_RETURN", "LOG_RETURN"))},
+         "transform": ParamDef("enum", default="NONE", default_id="DEFAULT_ROLLING_CORRELATION_TRANSFORM",
+                               choices=("NONE", "SIMPLE_RETURN", "LOG_RETURN"))},
         2, ENTITY_SERIES, "corr(f(x)[t-window+1 .. t], f(y)[t-window+1 .. t]) within one entity; f = transform",
         TRAILING_ALIGNMENT),
     "CORRELATION": MethodDef(
@@ -266,7 +275,7 @@ METHODS["PERIOD_RETURN"] = MethodDef(
 METHODS["GROUP_AGGREGATE"] = MethodDef(
     "GROUP_AGGREGATE", (),
     {"function": ParamDef("enum", required=True, choices=AGGREGATE_FUNCTIONS),
-     "per_date": ParamDef("bool", default=False),
+     "per_date": ParamDef("bool", default=False, default_id="DEFAULT_GROUP_PER_DATE"),
      "missing_group_policy": ParamDef("enum", default="SEPARATE_GROUP", default_id="DEFAULT_GROUP_MISSING_KEY",
                                       choices=("SEPARATE_GROUP", "EXCLUDE")),
      "unknown_group_values": ParamDef("list", default=[], default_id="DEFAULT_GROUP_UNKNOWN_VALUES"),
@@ -664,6 +673,8 @@ def _coerce(name: str, definition: ParamDef, value: Any) -> Any:
         return sorted({str(v) for v in value})
     else:
         value = str(value).upper() if isinstance(value, str) else value
+        if value not in definition.choices and ENUM_ALIASES.get(value) in definition.choices:
+            value = ENUM_ALIASES[value]
         if value not in definition.choices:
             raise ValueError(f"parameter {name} must be one of {list(definition.choices)}")
     if definition.minimum is not None and value < definition.minimum:
@@ -677,9 +688,9 @@ def _trace(item: dict[str, Any], where: str, problems: list[str]) -> None:
     default_id = item.get("default_id")
     if item.get("provenance") == "APPROVED_DEFAULT" and default_id not in APPROVED_DEFAULTS:
         problems.append(f"{where}: APPROVED_DEFAULT needs a default_id from the approved defaults "
-                        f"({', '.join(sorted(APPROVED_DEFAULTS))})")
+                        f"({', '.join(sorted(APPROVED_DEFAULTS))}) (DEFAULT_ID_INVALID)")
     elif default_id is not None and default_id not in APPROVED_DEFAULTS:
-        problems.append(f"{where}: unknown default_id {default_id!r}")
+        problems.append(f"{where}: unknown default_id {default_id!r} (DEFAULT_ID_INVALID)")
 
 
 def _looks_ahead(calc: dict[str, Any], calcs: dict[str, dict[str, Any]], depth: int = 0) -> bool:
@@ -713,7 +724,7 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
     problems = problems if problems is not None else []
     inputs = {i["name"]: i for i in raw["inputs"]}
     if len(inputs) != len(raw["inputs"]):
-        problems.append("inputs: names must be unique")
+        problems.append("inputs: names must be unique (DUPLICATE_NAME)")
     for item in raw["inputs"]:
         item["columns"] = list(dict.fromkeys(item["columns"]))
         for key in ("entity_column", "date_column"):
@@ -725,29 +736,30 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
     if universe["type"] == "TICKERS":
         tickers = sorted(set(universe["tickers"] or []))
         if not tickers:
-            problems.append("universe: TICKERS needs at least one ticker")
+            problems.append("universe: TICKERS needs at least one ticker (UNIVERSE_INVALID)")
         universe["tickers"] = tickers
     elif universe["tickers"]:
-        problems.append("universe: ALL_IN_SOURCE must not list tickers")
+        problems.append("universe: ALL_IN_SOURCE must not list tickers (UNIVERSE_INVALID)")
 
     period = raw["analysis_period"]
     _trace(period, "analysis_period", problems)
     mode = period["mode"]
     if mode == "EXPLICIT_DATES":
         if not period["start"] or not period["end"]:
-            problems.append("analysis_period: EXPLICIT_DATES needs start and end")
+            problems.append("analysis_period: EXPLICIT_DATES needs start and end (PERIOD_INVALID)")
         elif period["start"] > period["end"]:
-            problems.append("analysis_period: start is after end")
+            problems.append("analysis_period: start is after end (PERIOD_INVALID)")
         elif date.fromisoformat(period["end"]) > ref:
-            problems.append(f"analysis_period: end {period['end']} is after the reference date {ref.isoformat()}")
+            problems.append(f"analysis_period: end {period['end']} is after the reference date {ref.isoformat()}"
+                            " (PERIOD_AFTER_REFERENCE_DATE)")
         period["unit"] = period["count"] = None
     elif mode == "TRAILING":
         if not period["unit"] or not period["count"]:
-            problems.append("analysis_period: TRAILING needs unit and count")
+            problems.append("analysis_period: TRAILING needs unit and count (PERIOD_INVALID)")
         period["start"] = period["end"] = None
     elif mode == "TRADING_DAYS":
         if not period["count"]:
-            problems.append("analysis_period: TRADING_DAYS needs count")
+            problems.append("analysis_period: TRADING_DAYS needs count (PERIOD_INVALID)")
         period["start"] = period["end"] = period["unit"] = None
     else:  # LATEST, or STATIC (V2 without a time scope)
         period["start"] = period["end"] = period["unit"] = period["count"] = None
@@ -760,98 +772,118 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
         where = f"calculation {calc['id']}"
         _trace(calc, where, problems)
         if calc["id"] in calcs:
-            problems.append(f"{where}: duplicate id")
+            problems.append(f"{where}: duplicate id (DUPLICATE_NAME)")
         source = inputs.get(calc["dataset"])
         if source is None:
-            problems.append(f"{where}: dataset {calc['dataset']!r} is not one of the inputs")
+            problems.append(f"{where}: dataset {calc['dataset']!r} is not one of the inputs (UNKNOWN_DATASET)")
         if calc["output_column"] in outputs_of:
             problems.append(f"{where}: output_column {calc['output_column']!r} is already produced by "
-                            f"{outputs_of[calc['output_column']]}")
+                            f"{outputs_of[calc['output_column']]} (DUPLICATE_OUTPUT_COLUMN)")
         outputs_of[calc["output_column"]] = calc["id"]
         if calc["input_calculation"] is not None:
             upstream = calcs.get(calc["input_calculation"])
             if upstream is None:
-                problems.append(f"{where}: input_calculation must name an earlier calculation")
+                problems.append(f"{where}: input_calculation must name an earlier calculation"
+                                " (INPUT_CALCULATION_INVALID)")
             elif upstream["dataset"] != calc["dataset"]:
-                problems.append(f"{where}: input_calculation must use the same dataset")
+                problems.append(f"{where}: input_calculation must use the same dataset (INPUT_CALCULATION_INVALID)")
             elif upstream["method"] in GROUP_METHODS and calc["method"] != "GROUP_CORRELATION":
                 problems.append(f"{where}: {upstream['method']} values are per group, not per entity; only "
-                                f"GROUP_CORRELATION takes a group series as its input")
+                                f"GROUP_CORRELATION takes a group series as its input (GROUP_VALUES_NOT_PER_ENTITY)")
             if calc["columns"]:
-                problems.append(f"{where}: use either columns or input_calculation, not both")
+                problems.append(f"{where}: use either columns or input_calculation, not both"
+                                " (CALCULATION_INPUT_INVALID)")
         elif source is not None:
             missing = [c for c in calc["columns"] if c not in source["columns"]]
             if missing:
-                problems.append(f"{where}: columns {missing} are not listed in input {source['name']}")
+                problems.append(f"{where}: columns {missing} are not listed in input {source['name']}"
+                                " (COLUMN_NOT_IN_INPUT)")
         method = calc["method"]
         params = {}
+        known = METHODS[method].params if method in METHODS else {}
         for param in calc["params"]:
-            _trace(param, f"{where} parameter {param['name']}", problems)
+            pdef = known.get(param["name"])
+            if param.get("provenance") == "APPROVED_DEFAULT" and pdef is not None and \
+                    param.get("default_id") != pdef.default_id:
+                problems.append(
+                    f"{where} parameter {param['name']}: " + (
+                        f"its approved default is {pdef.default_id} ({pdef.default!r}); use that default_id, or set "
+                        f"the value null to apply it" if pdef.default_id else
+                        "has no approved default; set the value null to apply the method default, or use provenance "
+                        "AI_INFERRED") + " (DEFAULT_ID_INVALID)")
+            else:
+                _trace(param, f"{where} parameter {param['name']}", problems)
             if param["name"] in params:
-                problems.append(f"{where}: parameter {param['name']} is given twice")
+                problems.append(f"{where}: parameter {param['name']} is given twice (PARAMETER_DUPLICATE)")
             params[param["name"]] = param
         if method != "EVENT_STUDY" and calc["signal"]:
-            problems.append(f"{where}: signal predicates belong to EVENT_STUDY calculations")
+            problems.append(f"{where}: signal predicates belong to EVENT_STUDY calculations (FIELD_NOT_FOR_METHOD)")
         calc.setdefault("group_by", None)
         calc.setdefault("segments", None)
         if method != "GROUP_AGGREGATE" and (calc["group_by"] or calc["segments"]):
-            problems.append(f"{where}: group_by and segments belong to GROUP_AGGREGATE calculations")
+            problems.append(f"{where}: group_by and segments belong to GROUP_AGGREGATE calculations (GROUPING_INVALID)")
         if method == "GROUP_AGGREGATE":
             keys = calc["group_by"] or []
             segments = calc["segments"] or []
             if keys and segments:
-                problems.append(f"{where}: use either group_by or segments, not both")
+                problems.append(f"{where}: use either group_by or segments, not both (GROUPING_INVALID)")
             elif not keys and not segments:
                 problems.append(f"{where}: GROUP_AGGREGATE needs group_by (1-3 catalog grouping columns) or segments "
-                                f"(labelled predicates)")
+                                f"(labelled predicates) (GROUPING_INVALID)")
             for key in keys:
                 owner = inputs.get(key["input"])
                 if owner is None:
-                    problems.append(f"{where}: group_by input {key['input']!r} is not one of the inputs")
+                    problems.append(f"{where}: group_by input {key['input']!r} is not one of the inputs"
+                                    " (GROUPING_INVALID)")
                 elif key["column"] not in owner["columns"]:
-                    problems.append(f"{where}: group_by column {key['column']!r} is not listed in input {owner['name']}")
+                    problems.append(f"{where}: group_by column {key['column']!r} is not listed in input {owner['name']}"
+                                    " (GROUPING_INVALID)")
             if len({(k["input"], k["column"]) for k in keys}) != len(keys):
-                problems.append(f"{where}: group_by keys must be unique")
+                problems.append(f"{where}: group_by keys must be unique (GROUPING_INVALID)")
             labels = [segment["label"].strip().lower() for segment in segments]
             if len(set(labels)) != len(labels):
-                problems.append(f"{where}: segment labels must be unique")
+                problems.append(f"{where}: segment labels must be unique (SEGMENT_INVALID)")
             for segment in segments:
                 for predicate in segment["predicates"]:
                     owner = inputs.get(predicate["input"])
                     if owner is None:
                         problems.append(f"{where}: segment {segment['label']!r} input {predicate['input']!r} is not one "
-                                        f"of the inputs")
+                                        f"of the inputs (SEGMENT_INVALID)")
                     elif predicate["column"] not in owner["columns"]:
                         problems.append(f"{where}: segment {segment['label']!r} column {predicate['column']!r} is not "
-                                        f"listed in input {owner['name']}")
+                                        f"listed in input {owner['name']} (SEGMENT_INVALID)")
         if static and method not in ("GROUP_AGGREGATE", CUSTOM):
             problems.append(f"{where}: {method} works on dated observations; this spec has no time scope "
                             f"(TIME_SCOPE_REQUIRED)")
         if method == "PERIOD_RETURN" and mode not in ("EXPLICIT_DATES", "TRAILING"):
-            problems.append(f"{where}: PERIOD_RETURN needs a calendar period (EXPLICIT_DATES or TRAILING)")
+            problems.append(f"{where}: PERIOD_RETURN needs a calendar period (EXPLICIT_DATES or TRAILING)"
+                            " (PERIOD_NOT_SUPPORTED_BY_METHOD)")
         if method == "PERIOD_STAT" and not static and mode not in ("EXPLICIT_DATES", "TRAILING", "TRADING_DAYS"):
             problems.append(f"{where}: PERIOD_STAT needs a period with a start (EXPLICIT_DATES, TRAILING or "
-                            f"TRADING_DAYS), not {mode}")
+                            f"TRADING_DAYS), not {mode} (PERIOD_NOT_SUPPORTED_BY_METHOD)")
         if method != CUSTOM and any(calc[k] for k in ("expression", "formula_refs", "meaning", "unit",
                                                         "data_policies")):
             problems.append(f"{where}: expression, formula_refs, meaning, unit and data_policies belong to CUSTOM "
-                            f"calculations")
+                            f"calculations (FIELD_NOT_FOR_METHOD)")
         if method == CUSTOM:
             if not (calc["formula"] or "").strip() or not (calc["time_alignment"] or "").strip():
-                problems.append(f"{where}: CUSTOM calculations need a formula and a time_alignment rule")
+                problems.append(f"{where}: CUSTOM calculations need a formula and a time_alignment rule"
+                                " (CUSTOM_DEFINITION_INCOMPLETE)")
             if not calc["columns"] and calc["input_calculation"] is None and not calc["expression"]:
-                problems.append(f"{where}: CUSTOM calculations must name their input columns")
+                problems.append(f"{where}: CUSTOM calculations must name their input columns"
+                                " (CUSTOM_DEFINITION_INCOMPLETE)")
             implemented = sorted({REFERENCE_TO_METHOD[r] for r in calc["formula_refs"] or [] if r in REFERENCE_TO_METHOD})
             if implemented:
                 problems.append(f"{where}: formula_refs {calc['formula_refs']} are implemented by the tested method(s) "
-                                f"{implemented}; use that method (its convention takes precedence) instead of CUSTOM")
+                                f"{implemented}; use that method (its convention takes precedence) instead of CUSTOM"
+                                " (USE_TESTED_METHOD)")
             if calc["expression"]:
                 earlier = {cid for cid, c in calcs.items() if c["dataset"] == calc["dataset"]
                            and c["method"] not in LOOKAHEAD_METHODS + GROUP_METHODS}
                 try:
                     info = analyze_expression(calc["expression"], set(calc["columns"]) | earlier)
                 except ExpressionError as exc:
-                    problems.append(f"{where}: expression: {exc}")
+                    problems.append(f"{where}: expression: {exc} (EXPRESSION_INVALID)")
                 else:
                     used_calcs = sorted(info.names & earlier)
                     calc["expression_calcs"] = used_calcs
@@ -864,7 +896,7 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
                         params[name]["value"] = _coerce(name, ParamDef("int", minimum=0, maximum=5000),
                                                         params[name]["value"])
                     except ValueError as exc:
-                        problems.append(f"{where}: {exc}")
+                        problems.append(f"{where}: {exc} (PARAMETER_INVALID)")
             calc["params"] = [params[k] for k in sorted(params)]
         else:
             definition = METHODS[method]
@@ -877,40 +909,44 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
                 expected_inputs = 2 if entry == "NEXT_OPEN" else 1
                 if entry == "NEXT_OPEN" and calc["input_calculation"]:
                     problems.append(f"{where}: FORWARD_RETURN with entry NEXT_OPEN needs two input columns (the exit "
-                                    f"close and the entry open), not input_calculation")
+                                    f"close and the entry open), not input_calculation"
+                                    " (FORWARD_RETURN_COLUMNS_INVALID)")
                 elif entry == "NEXT_OPEN" and len(calc["columns"]) == 2:
                     opens = [c for c in calc["columns"] if "open" in c.lower()]
                     if len(opens) != 1:
                         problems.append(f"{where}: FORWARD_RETURN with entry NEXT_OPEN needs exactly one open column "
-                                        f"(entry) and one close column (exit); got {calc['columns']}")
+                                        f"(entry) and one close column (exit); got {calc['columns']}"
+                                        " (FORWARD_RETURN_COLUMNS_INVALID)")
                     else:
                         calc["columns"] = [c for c in calc["columns"] if c != opens[0]] + opens  # [exit, entry]
             if method == "EVENT_STUDY":
                 upstream = calcs.get(calc["input_calculation"] or "")
                 if calc["columns"] or upstream is None or upstream["method"] != "FORWARD_RETURN":
                     problems.append(f"{where}: EVENT_STUDY takes no columns; input_calculation must name an earlier "
-                                    f"FORWARD_RETURN calculation (the outcome)")
+                                    f"FORWARD_RETURN calculation (the outcome) (EVENT_STUDY_INVALID)")
                 if not calc["signal"]:
-                    problems.append(f"{where}: EVENT_STUDY needs signal predicates (the event definition)")
+                    problems.append(f"{where}: EVENT_STUDY needs signal predicates (the event definition)"
+                                    " (EVENT_STUDY_INVALID)")
                 for predicate in calc["signal"] or []:
                     _trace(predicate, f"{where} signal", problems)
                     source_calc = calcs.get(predicate["calculation"])
                     if source_calc is None or source_calc["dataset"] != calc["dataset"]:
                         problems.append(f"{where}: signal calculation {predicate['calculation']!r} must be an earlier "
-                                        f"calculation on the same input")
+                                        f"calculation on the same input (SIGNAL_INVALID)")
                     elif source_calc["method"] in GROUP_METHODS:
                         problems.append(f"{where}: signal calculation {predicate['calculation']!r} is per group, not "
-                                        f"per entity observation")
+                                        f"per entity observation (SIGNAL_INVALID)")
                     elif source_calc["method"] in LOOKAHEAD_METHODS or _looks_ahead(source_calc, calcs):
                         problems.append(f"{where}: FUTURE_LABEL_IN_SIGNAL: signal {predicate['calculation']!r} uses "
-                                        f"observations after t; an event may only use information available at t")
+                                        f"observations after t; an event may only use information available at t"
+                                        " (FUTURE_LABEL_IN_SIGNAL)")
                 expected_inputs = 1
             elif given != expected_inputs:
-                problems.append(f"{where}: {method} takes {expected_inputs} input column(s)")
+                problems.append(f"{where}: {method} takes {expected_inputs} input column(s) (INPUT_COUNT_INVALID)")
             unknown = sorted(set(params) - set(definition.params))
             if unknown:
                 problems.append(f"{where}: unknown parameters {unknown} for {method}; allowed "
-                                f"{sorted(definition.params)}")
+                                f"{sorted(definition.params)} (UNKNOWN_PARAMETER)")
             normalized = []
             dynamic: dict[str, Any] = {}
             if method == "ROLLING_ZSCORE":
@@ -928,16 +964,16 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
                     try:
                         value = _coerce(name, pdef, params[name]["value"])
                     except ValueError as exc:
-                        problems.append(f"{where}: {exc}")
+                        problems.append(f"{where}: {exc} (PARAMETER_INVALID)")
                         continue
                     entry = {**params[name], "value": value}
                     if entry["provenance"] == "APPROVED_DEFAULT" and (
                             entry["default_id"] != pdef.default_id or value != pdef.default):
                         problems.append(f"{where}: parameter {name} = {value!r} is not the approved default "
-                                        f"({pdef.default_id}: {pdef.default!r})")
+                                        f"({pdef.default_id}: {pdef.default!r}) (NOT_APPROVED_DEFAULT_VALUE)")
                     normalized.append(entry)
                 elif pdef.required:
-                    problems.append(f"{where}: parameter {name} is required for {method}")
+                    problems.append(f"{where}: parameter {name} is required for {method} (PARAMETER_REQUIRED)")
                 else:
                     normalized.append({"name": name, "value": pdef.default, "provenance": "APPROVED_DEFAULT",
                                        "default_id": pdef.default_id})
@@ -952,27 +988,30 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
                     raw["frequency"]["value"] == "STATIC" and method != "GROUP_AGGREGATE"):
                 if not static:
                     problems.append(f"{where}: {method} is defined on daily observations; use CUSTOM for "
-                                    f"{raw['frequency']['value']} resampled calculations")
+                                    f"{raw['frequency']['value']} resampled calculations"
+                                    " (FREQUENCY_NOT_SUPPORTED_BY_METHOD)")
             if method == "GROUP_AGGREGATE":
                 values = param_values(calc)
                 if values.get("per_date") and static:
-                    problems.append(f"{where}: per_date grouping needs a time scope")
+                    problems.append(f"{where}: per_date grouping needs a time scope (TIME_SCOPE_REQUIRED)")
                 if values.get("function") in ("SUM", "AVG", "MEDIAN") and not calc["input_calculation"] and \
                         calc["columns"] and source is not None and calc["columns"][0] == source.get("entity_column"):
                     problems.append(f"{where}: {values['function']} of the entity column is not meaningful; use "
-                                    f"COUNT or COUNT_DISTINCT")
+                                    f"COUNT or COUNT_DISTINCT (AGGREGATION_NOT_MEANINGFUL)")
                 if calc["segments"]:
                     # segments are explicit predicates: a missing attribute simply fails them
                     for name in ("missing_group_policy", "unknown_group_values"):
                         if name in params:
-                            problems.append(f"{where}: {name} applies to group_by keys, not to segments")
+                            problems.append(f"{where}: {name} applies to group_by keys, not to segments"
+                                            " (PARAMETER_NOT_FOR_SEGMENTS)")
                     calc["params"] = [p for p in calc["params"]
                                       if p["name"] not in ("missing_group_policy", "unknown_group_values")]
             if method == "PERIOD_STAT":
                 function = param_values(calc).get("function")
                 if function != "STD":
                     if "ddof" in params:
-                        problems.append(f"{where}: ddof applies to PERIOD_STAT function STD only")
+                        problems.append(f"{where}: ddof applies to PERIOD_STAT function STD only"
+                                        " (PARAMETER_NOT_FOR_FUNCTION)")
                     calc["params"] = [p for p in calc["params"] if p["name"] != "ddof"]
                 calc["covers"] = ["STD"] if function == "STD" else []
             if method == "GROUP_CORRELATION":
@@ -980,9 +1019,11 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
                 if calc["columns"] or upstream is None or upstream["method"] != "GROUP_AGGREGATE" or \
                         not param_values(upstream).get("per_date"):
                     problems.append(f"{where}: GROUP_CORRELATION takes no columns; input_calculation must name an "
-                                    f"earlier per_date GROUP_AGGREGATE (the aligned group series)")
+                                    f"earlier per_date GROUP_AGGREGATE (the aligned group series)"
+                                    " (GROUP_SERIES_INVALID)")
                 elif group_key_columns(upstream) == [] or len(group_key_columns(upstream)) > 1:
-                    problems.append(f"{where}: the group series must have exactly one grouping key or use segments")
+                    problems.append(f"{where}: the group series must have exactly one grouping key or use segments"
+                                    " (GROUP_SERIES_INVALID)")
         calc["convention"] = CONVENTIONS.get(method) or {"source": "AI_GENERATED", "function": None,
                                                          "formula_refs": list(calc.get("formula_refs") or [])}
         calcs[calc["id"]] = calc
@@ -991,21 +1032,23 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
     for output in raw["outputs"]:
         where = f"output {output['name']}"
         if output["name"] in output_names:
-            problems.append(f"{where}: duplicate output name")
+            problems.append(f"{where}: duplicate output name (DUPLICATE_NAME)")
         output_names.add(output["name"])
         for cid in output["calculations"]:
             if cid not in calcs:
-                problems.append(f"{where}: unknown calculation {cid!r}")
+                problems.append(f"{where}: unknown calculation {cid!r} (UNKNOWN_CALCULATION)")
         grain = output["grain"]
         refs = [calcs[c] for c in output["calculations"] if c in calcs]
         output.setdefault("key_columns", None)
         output.setdefault("ranking", None)
         if any(c["method"] == "EVENT_STUDY" for c in refs) and grain != "SUMMARY":
-            problems.append(f"{where}: EVENT_STUDY calculations produce SUMMARY outputs")
+            problems.append(f"{where}: EVENT_STUDY calculations produce SUMMARY outputs (OUTPUT_GRAIN_INVALID)")
         if any(c["method"] == "GROUP_AGGREGATE" for c in refs) and grain not in GROUP_GRAINS:
-            problems.append(f"{where}: GROUP_AGGREGATE calculations produce GROUP or GROUP_DATE outputs")
+            problems.append(f"{where}: GROUP_AGGREGATE calculations produce GROUP or GROUP_DATE outputs"
+                            " (OUTPUT_GRAIN_INVALID)")
         if any(c["method"] == "GROUP_CORRELATION" for c in refs) and grain != "GROUP_PAIR":
-            problems.append(f"{where}: GROUP_CORRELATION calculations produce GROUP_PAIR outputs")
+            problems.append(f"{where}: GROUP_CORRELATION calculations produce GROUP_PAIR outputs"
+                            " (OUTPUT_GRAIN_INVALID)")
         if grain in GROUP_GRAINS:
             _group_output(output, refs, inputs, where, problems)
         elif grain == "GROUP_PAIR":
@@ -1014,33 +1057,37 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
         if ranking is not None:
             _trace(ranking, f"{where} ranking", problems)
             if grain not in ("ENTITY", "GROUP"):
-                problems.append(f"{where}: ranking applies to ENTITY or GROUP outputs")
+                problems.append(f"{where}: ranking applies to ENTITY or GROUP outputs (RANKING_INVALID)")
             if ranking["calculation"] not in output["calculations"]:
                 problems.append(f"{where}: ranking calculation {ranking['calculation']!r} must be listed in the "
-                                f"output's calculations")
+                                f"output's calculations (RANKING_INVALID)")
             if output["coverage"] != "SELECTION" or output["selection"]:
                 problems.append(f"{where}: a ranked output has coverage SELECTION and no selection predicates (the "
-                                f"top-N is its selection)")
+                                f"top-N is its selection) (RANKING_INVALID)")
         if grain == "SUMMARY":
             if len(refs) != 1 or refs[0]["method"] != "EVENT_STUDY":
-                problems.append(f"{where}: a SUMMARY output lists exactly one EVENT_STUDY calculation")
+                problems.append(f"{where}: a SUMMARY output lists exactly one EVENT_STUDY calculation"
+                                " (OUTPUT_GRAIN_INVALID)")
             if output["coverage"] != "FULL" or output["selection"]:
-                problems.append(f"{where}: SUMMARY outputs have coverage FULL and no selection")
+                problems.append(f"{where}: SUMMARY outputs have coverage FULL and no selection (OUTPUT_GRAIN_INVALID)")
             output["at"] = None
             output["entity_column"] = output["date_column"] = output["pair_columns"] = None
         elif grain == "ENTITY_PAIR":
             if raw["universe"]["type"] != "TICKERS" or len(raw["universe"]["tickers"] or []) < 2:
-                problems.append(f"{where}: ENTITY_PAIR outputs need a TICKERS universe of at least two tickers")
+                problems.append(f"{where}: ENTITY_PAIR outputs need a TICKERS universe of at least two tickers"
+                                " (OUTPUT_GRAIN_INVALID)")
             if not output["pair_columns"]:
-                problems.append(f"{where}: ENTITY_PAIR outputs need pair_columns (two entity columns)")
+                problems.append(f"{where}: ENTITY_PAIR outputs need pair_columns (two entity columns)"
+                                " (OUTPUT_GRAIN_INVALID)")
             if any(c["method"] not in ("CORRELATION", CUSTOM) for c in refs):
-                problems.append(f"{where}: only CORRELATION or CUSTOM calculations have ENTITY_PAIR grain")
+                problems.append(f"{where}: only CORRELATION or CUSTOM calculations have ENTITY_PAIR grain"
+                                " (OUTPUT_GRAIN_INVALID)")
             output["at"] = None
         elif grain in GROUP_GRAINS + ("GROUP_PAIR",):
             pass
         elif grain in ("ENTITY_DATE", "ENTITY"):
             if any(c["method"] == "CORRELATION" for c in refs):
-                problems.append(f"{where}: CORRELATION produces ENTITY_PAIR outputs")
+                problems.append(f"{where}: CORRELATION produces ENTITY_PAIR outputs (OUTPUT_GRAIN_INVALID)")
             output["at"] = "EACH_DATE" if grain == "ENTITY_DATE" else "PERIOD_END"
             dataset = inputs.get(refs[0]["dataset"]) if refs else None
             if dataset is not None:
@@ -1048,48 +1095,51 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
                 output["date_column"] = output["date_column"] or dataset["date_column"]
                 if not dataset["entity_column"] or not dataset["date_column"]:
                     problems.append(f"{where}: input {dataset['name']} needs entity_column and date_column for "
-                                    f"{grain} outputs")
+                                    f"{grain} outputs (OUTPUT_KEYS_INVALID)")
             if not output["entity_column"] or (grain == "ENTITY_DATE" and not output["date_column"]):
-                problems.append(f"{where}: {grain} outputs need entity_column" +
-                                (" and date_column" if grain == "ENTITY_DATE" else ""))
+                problems.append((f"{where}: {grain} outputs need entity_column" +
+                                (" and date_column" if grain == "ENTITY_DATE" else "")) + " (OUTPUT_KEYS_INVALID)")
             expected_keys = [output["entity_column"]] + ([output["date_column"]] if grain == "ENTITY_DATE" else [])
             if output["key_columns"] and output["key_columns"] != expected_keys:
                 problems.append(f"{where}: key_columns {output['key_columns']} do not match the {grain} key "
-                                f"{expected_keys}")
+                                f"{expected_keys} (KEY_COLUMNS_MISMATCH)")
             output["key_columns"] = expected_keys
         else:
             output["at"] = None
         if output["coverage"] == "SELECTION":
             if not output["selection"] and not output.get("ranking"):
-                problems.append(f"{where}: SELECTION coverage needs selection predicates or a ranking")
+                problems.append(f"{where}: SELECTION coverage needs selection predicates or a ranking"
+                                " (SELECTION_INVALID)")
             for predicate in output["selection"] or []:
                 _trace(predicate, f"{where} selection", problems)
                 if predicate["calculation"] not in output["calculations"]:
                     problems.append(f"{where}: selection calculation {predicate['calculation']!r} must be listed in "
-                                    f"the output's calculations")
+                                    f"the output's calculations (SELECTION_INVALID)")
         elif output["selection"]:
-            problems.append(f"{where}: selection predicates need coverage SELECTION")
+            problems.append(f"{where}: selection predicates need coverage SELECTION (SELECTION_INVALID)")
         if grain != "UNSPECIFIED" and not output["calculations"]:
-            problems.append(f"{where}: list the calculations whose values this output contains")
+            problems.append(f"{where}: list the calculations whose values this output contains"
+                            " (OUTPUT_CALCULATIONS_REQUIRED)")
     research = raw.get("research")
     if research and research.get("holdout"):
         holdout = research["holdout"]
         if holdout.get("end") and holdout["end"] < holdout["start"]:
-            problems.append("research.holdout: end is before start")
+            problems.append("research.holdout: end is before start (HOLDOUT_INVALID)")
     if research:
         for key in ("design_type", "primary_metric", "observation_unit", "comparator", "multiple_testing_policy"):
             research.setdefault(key, None)
         if research["primary_metric"] and research["primary_metric"] not in calcs:
-            problems.append(f"research.primary_metric: {research['primary_metric']!r} is not a calculation id")
+            problems.append(f"research.primary_metric: {research['primary_metric']!r} is not a calculation id"
+                            " (UNKNOWN_CALCULATION)")
         if research["design_type"] and not research["observation_unit"] and research["primary_metric"] in calcs:
             research["observation_unit"] = observation_unit(research["design_type"], calcs[research["primary_metric"]])
     for rule in raw["exclusion_rules"]:
         _trace(rule, f"exclusion rule {rule['rule']}", problems)
         value = rule["value"]
         if rule["rule"] == "EXCLUDE_TICKERS" and not isinstance(value, list):
-            problems.append("exclusion rule EXCLUDE_TICKERS needs a list of tickers")
+            problems.append("exclusion rule EXCLUDE_TICKERS needs a list of tickers (EXCLUSION_RULE_INVALID)")
         if rule["rule"] != "EXCLUDE_TICKERS" and not (isinstance(value, int) and value >= 1):
-            problems.append(f"exclusion rule {rule['rule']} needs a positive integer")
+            problems.append(f"exclusion rule {rule['rule']} needs a positive integer (EXCLUSION_RULE_INVALID)")
     if problems:
         raise SpecInvalid(problems)
     return raw
@@ -1101,26 +1151,28 @@ def _group_output(output: dict[str, Any], refs: list[dict[str, Any]], inputs: di
     key columns are the grouping columns (plus the date column for GROUP_DATE)."""
     grain = output["grain"]
     if not refs or any(c["method"] != "GROUP_AGGREGATE" for c in refs):
-        problems.append(f"{where}: {grain} outputs list only GROUP_AGGREGATE calculations")
+        problems.append(f"{where}: {grain} outputs list only GROUP_AGGREGATE calculations (OUTPUT_GRAIN_INVALID)")
         return
     groupings = {grouping_identity(c) for c in refs}
     per_date = {bool(param_values(c).get("per_date")) for c in refs if c["params"]}
     if len(groupings) != 1:
-        problems.append(f"{where}: every calculation of a {grain} output groups by the same keys or segments")
+        problems.append(f"{where}: every calculation of a {grain} output groups by the same keys or segments"
+                        " (OUTPUT_GRAIN_INVALID)")
         return
     if per_date != {grain == "GROUP_DATE"}:
         problems.append(f"{where}: {grain} outputs need per_date {'true' if grain == 'GROUP_DATE' else 'false'} "
-                        f"calculations")
+                        f"calculations (OUTPUT_GRAIN_INVALID)")
     expected = group_key_columns(refs[0])
     if grain == "GROUP_DATE":
         dataset = inputs.get(refs[0]["dataset"]) or {}
         if not dataset.get("date_column"):
-            problems.append(f"{where}: GROUP_DATE needs a dated input")
+            problems.append(f"{where}: GROUP_DATE needs a dated input (OUTPUT_GRAIN_INVALID)")
         else:
             expected.append(dataset["date_column"])
             output["date_column"] = dataset["date_column"]
     if output.get("key_columns") and output["key_columns"] != expected:
-        problems.append(f"{where}: key_columns {output['key_columns']} do not match the grouping keys {expected}")
+        problems.append(f"{where}: key_columns {output['key_columns']} do not match the grouping keys {expected}"
+                        " (KEY_COLUMNS_MISMATCH)")
     output["key_columns"] = expected
     output["at"] = "EACH_DATE" if grain == "GROUP_DATE" else "PERIOD_END"
     output["entity_column"] = None
@@ -1131,11 +1183,12 @@ def _group_pair_output(output: dict[str, Any], refs: list[dict[str, Any]], calcs
                        where: str, problems: list[str]) -> None:
     """GROUP_PAIR outputs: GROUP_CORRELATION calculations of one group series; key columns <key>_a and <key>_b."""
     if not refs or any(c["method"] != "GROUP_CORRELATION" for c in refs):
-        problems.append(f"{where}: GROUP_PAIR outputs list only GROUP_CORRELATION calculations")
+        problems.append(f"{where}: GROUP_PAIR outputs list only GROUP_CORRELATION calculations (OUTPUT_GRAIN_INVALID)")
         return
     series = {c["input_calculation"] for c in refs}
     if len(series) != 1:
-        problems.append(f"{where}: every calculation of a GROUP_PAIR output correlates the same group series")
+        problems.append(f"{where}: every calculation of a GROUP_PAIR output correlates the same group series"
+                        " (OUTPUT_GRAIN_INVALID)")
         return
     upstream = calcs.get(next(iter(series)) or "")
     keys = group_key_columns(upstream) if upstream else []
@@ -1143,7 +1196,8 @@ def _group_pair_output(output: dict[str, Any], refs: list[dict[str, Any]], calcs
         return  # reported on the calculation
     expected = [f"{keys[0]}_a", f"{keys[0]}_b"]
     if output.get("key_columns") and output["key_columns"] != expected:
-        problems.append(f"{where}: key_columns {output['key_columns']} do not match the pair key {expected}")
+        problems.append(f"{where}: key_columns {output['key_columns']} do not match the pair key {expected}"
+                        " (KEY_COLUMNS_MISMATCH)")
     output["key_columns"] = expected
     output["at"] = None
     output["entity_column"] = output["date_column"] = output["pair_columns"] = None

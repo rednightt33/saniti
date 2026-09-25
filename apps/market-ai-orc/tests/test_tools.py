@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 from pydantic import BaseModel, ConfigDict
@@ -186,3 +186,67 @@ def test_capabilities_reflect_future_registered_tools() -> None:
     assert result["database_query"] is True
     assert result["python_analysis"] is False
     assert result["available_tools"] == ["get_system_capabilities", "request_data"]
+
+
+class NestedItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    note: str | None
+
+
+class SpecLike(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    version: Literal["2.0"]
+    items: list[NestedItem]
+    options: TickerArguments | None
+
+
+def test_single_value_literals_reach_the_provider_as_an_enum() -> None:
+    """Pydantic writes Literal["2.0"] as const; the provider must still see the only allowed value."""
+    registry = ToolRegistry()
+    registry.register(spec("make", lambda args: {"ok": True}, model=SpecLike))
+    parameters = registry.definitions()[0]["parameters"]
+    assert parameters["properties"]["version"] == {"type": "string", "enum": ["2.0"]}
+
+
+def test_omitted_nullable_fields_are_null_and_reported_but_required_values_are_not() -> None:
+    received: list[SpecLike] = []
+    registry = ToolRegistry()
+    registry.register(spec("make", lambda args: received.append(args) or {"ok": True}, model=SpecLike))
+    outcome = registry.execute("c1", "make", '{"version": "2.0", "items": [{"name": "a"}, {"name": "b", "note": "x"}]}')
+    assert outcome.ok, outcome.output
+    assert outcome.output["omitted_fields_set_to_null"] == ["items.0.note", "options"]
+    assert received[0].items[0].note is None and received[0].items[1].note == "x"
+    missing = registry.execute("c2", "make", '{"version": "2.0", "options": null}')
+    assert missing.error_code == "INVALID_ARGUMENTS" and "items" in missing.output["error"]["message"]
+    wrong = registry.execute("c3", "make", '{"version": "V2", "items": []}')
+    assert wrong.error_code == "INVALID_ARGUMENTS" and "version" in wrong.output["error"]["message"]
+
+
+def test_rejected_arguments_are_logged_by_field_path_without_values() -> None:
+    import json
+    import logging
+
+    records: list[str] = []
+
+    class Collect(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record.getMessage())
+
+    logger = logging.getLogger("market_ai_orc")
+    handler, level = Collect(level=logging.INFO), logger.level
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    try:
+        registry = ToolRegistry()
+        registry.register(spec("make", lambda args: {"ok": True}, model=SpecLike))
+        registry.execute("c1", "make", '{"version": "secret-value-V2", "items": []}')
+    finally:
+        logger.removeHandler(handler)
+        logger.setLevel(level)
+    events = [json.loads(r) for r in records if "ai_tool_arguments_rejected" in r]
+    assert events and events[0]["tool"] == "make"
+    assert {"loc": "version", "type": "literal_error"} in events[0]["errors"]
+    assert not any("secret-value-V2" in r for r in records)

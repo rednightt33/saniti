@@ -709,7 +709,7 @@ def _return_measure(calc_id: str | None, calcs: dict[str, dict[str, Any]]) -> st
         return "PERIOD"
     if calc["method"] == "RETURN" or (calc["method"] == "CUSTOM" and "RETURN" in (calc.get("covers") or [])):
         return "POINT"
-    if calc["method"] == "PERIOD_STAT" and param_values(calc).get("function") in ("MEAN", "MEDIAN", "SUM"):
+    if calc["method"] == "PERIOD_STAT" and param_values(calc).get("function") in ("AVG", "MEDIAN", "SUM"):
         return "DAILY" if _return_measure(calc.get("input_calculation"), calcs) == "POINT" else None
     return None
 
@@ -746,7 +746,7 @@ def _review_return_basis(calc: dict[str, Any], calcs: dict[str, dict[str, Any]],
             result.add(requirement, "MISMATCH", wanted, proposed,
                        "The request states a different return basis: " +
                        ("each entity's return over the whole period (PERIOD_RETURN)." if wanted == "PERIOD" else
-                        "the daily returns inside the period (PERIOD_STAT MEAN of a 1-observation RETURN, or a "
+                        "the daily returns inside the period (PERIOD_STAT AVG of a 1-observation RETURN, or a "
                         "per_date aggregation)."), "RETURN_BASIS_MISMATCH")
         return
     if upstream.get("provenance") == "USER_CLARIFIED" and found.clarified_turns:
@@ -758,7 +758,7 @@ def _review_return_basis(calc: dict[str, Any], calcs: dict[str, dict[str, Any]],
     result.clarifications.append(
         "The request averages a return across entities over a period without saying which return: (a) each entity's "
         "return over the whole period (PERIOD_RETURN), then averaged, or (b) each entity's average daily return in the "
-        "period (PERIOD_STAT MEAN of a 1-observation RETURN), then averaged. They can rank groups differently. Ask the "
+        "period (PERIOD_STAT AVG of a 1-observation RETURN), then averaged. They can rank groups differently. Ask the "
         "user which one; after the reply, mark the chosen per-entity calculation USER_CLARIFIED.")
 
 

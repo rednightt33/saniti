@@ -558,7 +558,7 @@ def _period_stat(frame, entity: str, time: str, x, params: dict[str, Any], perio
         if function == "STD":
             out = window.std(ddof=int(params.get("ddof", 1)))
         else:
-            out = {"MEAN": window.mean, "MEDIAN": window.median, "MIN": window.min, "MAX": window.max,
+            out = {"AVG": window.mean, "MEDIAN": window.median, "MIN": window.min, "MAX": window.max,
                    "SUM": window.sum, "COUNT": window.count}[function]()
         out = np.array(out, dtype=float)  # a writable copy
         out[series.notna().cumsum().to_numpy() < minimum] = np.nan

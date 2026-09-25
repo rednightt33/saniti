@@ -189,7 +189,7 @@ Measured on `dev` (2026-09-24, see `RAILWAY_CHANGELOG.md`):
 | `AI_MODEL` | no | `deepseek/deepseek-v4.1-flash` | OpenRouter model ID |
 | `AI_REASONING_EFFORT` | no | `high` | One of `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; the model must support it (`require_parameters` rejects it otherwise) |
 | `AI_REQUEST_TIMEOUT_SECONDS` | no | `180` | Timeout for one provider call |
-| `AI_MAX_OUTPUT_TOKENS` | no | `3000` | `max_output_tokens` per call |
+| `AI_MAX_OUTPUT_TOKENS` | no | `8000` | `max_output_tokens` per call, reasoning tokens included. A tool call that reaches it is treated as truncated and not run (`MODEL_OUTPUT_TRUNCATED`): OpenRouter closes a cut-off call's JSON and still reports it completed. |
 | `AI_MAX_TOOL_ITERATIONS` | no | `8` | Maximum model calls per run |
 | `AI_MAX_TOOL_CALLS` | no | `12` | Maximum tool calls per run; after that, tools are withdrawn |
 | `AI_MAX_IDENTICAL_TOOL_CALLS` | no | `2` | Executions allowed for the same tool and arguments while the result is unchanged |
@@ -478,6 +478,15 @@ never restates the scope as a data request.
   - `AI_ENABLE_REQUEST_DATA` (default `false`) registers the model-written `request_data` tool, a
     rollback path only.
   - The system prompt is fixed per deployment, so prompt caching keeps one prefix.
+- **Tool arguments** (the provider does not always enforce the strict schema, so validation stays in the orc):
+  - A single-value `Literal` (for example `spec_version`) reaches the provider as a one-value `enum`; Pydantic's
+    `const` is not a keyword the provider receives.
+  - An omitted nullable field is set to null before validation and listed in the result
+    (`omitted_fields_set_to_null`); an omitted non-nullable field is still `INVALID_ARGUMENTS`.
+  - Every rejection is logged as `ai_tool_arguments_rejected` with the field paths and error types, never values.
+  - A response whose `output_tokens` reaches `AI_MAX_OUTPUT_TOKENS` (reasoning included) is treated as truncated: its
+    tool calls are not run and each returns `MODEL_OUTPUT_TRUNCATED` (logged as `ai_output_truncated`). OpenRouter
+    closes a cut-off call's JSON and still reports it completed, so this is the only reliable signal.
 - **Repair ledger.**
   - The same rejection (tool + reason code, for example `INVALID_SPEC:UNKNOWN_COLUMN` or a failed
     analysis error code) may be repaired `AI_MAX_REPAIR_ATTEMPTS` times per run (default 3).

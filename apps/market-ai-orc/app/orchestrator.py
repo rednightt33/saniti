@@ -494,8 +494,16 @@ class AgentOrchestrator:
             if calls:
                 if state.final_reask_sent:
                     state.structured_only = True  # it was asked for the final response, not for a tool
+                # OpenRouter closes a tool call cut off at max_output_tokens and still reports it completed; its
+                # arguments are then a truncated object. Reaching the cap exactly is the only signal, so such calls
+                # are not run.
+                truncated = usage["output_tokens"] >= self.settings.ai_max_output_tokens
+                if truncated:
+                    log_event("ai_output_truncated", request_id=state.request_id, iteration=state.iterations,
+                              output_tokens=usage["output_tokens"], reasoning_tokens=usage["reasoning_tokens"],
+                              tools=[str(call.get("name")) for call in calls])
                 for call in calls:
-                    self._handle_call(state, call)
+                    self._handle_call(state, call, truncated=truncated)
                 continue
 
             raw = self._output_text(response)
@@ -560,7 +568,7 @@ class AgentOrchestrator:
         items.append({"role": "user", "content": request.message})
         return items, dropped
 
-    def _handle_call(self, state: RunState, call: dict[str, Any]) -> None:
+    def _handle_call(self, state: RunState, call: dict[str, Any], truncated: bool = False) -> None:
         call_id = str(call.get("call_id") or "")
         if not call_id:
             raise RunFailure("PROVIDER_PROTOCOL_ERROR", "Provider function_call is missing call_id")
@@ -574,7 +582,14 @@ class AgentOrchestrator:
             "name": name,
             "arguments": raw_arguments if isinstance(raw_arguments, str) else dumps(raw_arguments or {}),
         })
-        outcome = self._execute(state, call_id, name, raw_arguments)
+        if truncated:
+            outcome = self._repair_budget(state, call_id, name, error_outcome(
+                call_id, name, "MODEL_OUTPUT_TRUNCATED",
+                f"This call was cut off at the output limit ({self.settings.ai_max_output_tokens} tokens, reasoning "
+                "included) before its arguments were complete, so it was not run. Send the complete call again and "
+                "keep the reasoning before it short."))
+        else:
+            outcome = self._execute(state, call_id, name, raw_arguments)
         state.input_items.append({
             "type": "function_call_output",
             "call_id": outcome.call_id,

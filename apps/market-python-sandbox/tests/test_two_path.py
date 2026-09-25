@@ -542,7 +542,7 @@ def q3_spec(measure: str = "PERIOD", provenance: str = "AI_INFERRED") -> dict:
         per_stock = [calc("stock_return", "PERIOD_RETURN", columns=["close"], provenance=provenance)]
     else:
         per_stock = [calc("daily_return", "RETURN", columns=["close"], params=[param("horizon", 1, "AI_INFERRED")]),
-                     calc("stock_return", "PERIOD_STAT", upstream="daily_return", params=[param("function", "MEAN")],
+                     calc("stock_return", "PERIOD_STAT", upstream="daily_return", params=[param("function", "AVG")],
                           provenance=provenance)]
     return {
         "spec_version": "2.0", "analysis_type": "ANALYSIS", "question": Q3, "subject": dict(SUBJECT),
@@ -843,3 +843,69 @@ def test_q7_an_empty_segment_is_incomplete_not_an_answer(make_service, governor)
     code = Q7_CODE.replace('inside["Industry"] == "Banks"', 'inside["Industry"] == "Bank"')
     result = run(service, review, inputs, code)
     assert result["validation_status"] == "INCOMPLETE" and "SEGMENT_EMPTY" in result["reason_codes"]
+
+
+# ---------------------------------------------------------------- repair friction (root causes of the live test)
+
+def test_every_shared_spec_problem_names_a_machine_code() -> None:
+    """Uncoded problems made the orchestrator's repair ledger lump unrelated rejections into INVALID_SPEC:UNSPECIFIED."""
+    import ast
+    import re
+
+    source = (Path(__file__).resolve().parents[1] / "app" / "spec.py").read_text()
+    uncoded = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "append" \
+                and isinstance(node.func.value, ast.Name) and node.func.value.id == "problems":
+            argument = node.args[0]
+            while isinstance(argument, ast.BinOp):
+                argument = argument.right
+            if isinstance(argument, ast.JoinedStr):
+                argument = argument.values[-1]
+            text = argument.value if isinstance(argument, ast.Constant) else ""
+            if not re.search(r"\([A-Z][A-Z0-9_]+\)$", text):
+                uncoded.append(node.lineno)
+    assert uncoded == []
+
+
+def test_spec_review_returns_codes_for_shared_rules(make_service) -> None:
+    service = make_service()
+    spec = q7_spec()
+    spec["outputs"].append(dict(spec["outputs"][0]))  # duplicate output name
+    review = ask(service, spec, Q7)
+    assert review["status"] == "INVALID_SPEC" and "DUPLICATE_NAME" in review["problem_codes"]
+
+
+def test_parameters_with_a_method_default_have_an_approved_default_id() -> None:
+    spec = q7_spec()
+    spec["calculations"][1]["params"][1] = {"name": "per_date", "value": True, "provenance": "USER_EXPLICIT",
+                                            "default_id": None}
+    spec["calculations"][1]["params"].append({"name": "min_observations", "value": 1,
+                                              "provenance": "APPROVED_DEFAULT",
+                                              "default_id": "DEFAULT_GROUP_MIN_OBSERVATIONS"})
+    assert v2(spec)["calculations"][1]["segments"]
+    q6 = q6_spec()
+    q6["calculations"][2]["params"].append({"name": "per_date", "value": False, "provenance": "APPROVED_DEFAULT",
+                                            "default_id": "DEFAULT_GROUP_PER_DATE"})
+    grouped = next(c for c in v2(q6)["calculations"] if c["id"] == "sector_volatility")
+    assert {"name": "per_date", "value": False, "provenance": "APPROVED_DEFAULT",
+            "default_id": "DEFAULT_GROUP_PER_DATE"} in grouped["params"]
+    q6["calculations"][2]["params"][-1]["default_id"] = "DEFAULT_RETURN_HORIZON"
+    text = problems(q6)
+    assert "its approved default is DEFAULT_GROUP_PER_DATE (False)" in text and "(DEFAULT_ID_INVALID)" in text
+
+
+def test_mean_is_accepted_as_avg_everywhere() -> None:
+    spec = q7_spec()
+    spec["calculations"][1]["params"][0]["value"] = "MEAN"
+    grouped = next(c for c in v2(spec)["calculations"] if c["id"] == "group_return")
+    assert {p["name"]: p["value"] for p in grouped["params"]}["function"] == "AVG"
+    q6 = q6_spec("mean")
+    stat = next(c for c in v2(q6)["calculations"] if c["id"] == "volatility")
+    assert {p["name"]: p["value"] for p in stat["params"]}["function"] == "AVG"
+
+
+def test_a_scope_resolved_from_the_catalog_may_say_so() -> None:
+    spec = q5_spec()
+    spec["scope"]["provenance"] = "CATALOG_RESOLVED"
+    assert v2(spec)["scope"]["provenance"] == "CATALOG_RESOLVED"

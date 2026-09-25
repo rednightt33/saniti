@@ -122,7 +122,7 @@ class SpecScope(Strict):
     entities: list[str] | None = Field(max_length=200, description="ENTITY_LIST: entity values; else null.")
     predicates: list[SpecScopePredicate] | None = Field(
         max_length=8, description="ATTRIBUTE_FILTER: 1-8 predicates, all must hold; else null.")
-    provenance: Provenance
+    provenance: ScopeProvenance
     default_id: str | None
 
 
@@ -381,7 +381,9 @@ SPEC_DESCRIPTION = (
     "reference data (a count per group of a table without a time column); otherwise mode, dates or count/unit, and a "
     "frequency the tables support. "
     "provenance per requirement: USER_EXPLICIT only for what the user stated, USER_CLARIFIED for answers to your "
-    "clarification question, APPROVED_DEFAULT with default_id for a documented default, AI_INFERRED otherwise. "
+    "clarification question, APPROVED_DEFAULT with default_id for a documented default (a parameter without a "
+    "documented default is left null instead), AI_INFERRED otherwise; CATALOG_RESOLVED (user words mapped to catalog "
+    "values) only on scope, scope predicates and segments. "
     "Definitions follow TA-Lib first, then AI_formula_reference, then your own formula (CUSTOM). "
     "Defaults: DEFAULT_TRAILING_CALENDAR_WINDOW ('last N months' = TRAILING), DEFAULT_TRADING_DAYS, DEFAULT_LATEST, "
     "DEFAULT_MONTH_WITHOUT_YEAR, DEFAULT_UNIVERSE_ALL_IN_SOURCE ('all stocks'), DEFAULT_FREQUENCY_DAILY, "
@@ -395,14 +397,15 @@ SPEC_DESCRIPTION = (
     "(PREVIOUS_OBSERVATION), DEFAULT_GROUP_MISSING_KEY (SEPARATE_GROUP), DEFAULT_GROUP_UNKNOWN_VALUES ([]), "
     "DEFAULT_GROUP_MIN_OBSERVATIONS (1), DEFAULT_RANK_TIE_POLICY (INCLUDE_EXACTLY_N_STABLE), DEFAULT_PERIOD_STD_DDOF "
     "(1, not annualized), DEFAULT_PERIOD_STAT_MIN_OBSERVATIONS (1), DEFAULT_SERIES_ALIGNMENT (COMMON_DATES: no "
-    "forward fill, lag 0). Omitted method parameters get their default. "
+    "forward fill, lag 0), DEFAULT_GROUP_PER_DATE (false), DEFAULT_ROLLING_CORRELATION_TRANSFORM (NONE). Omitted "
+    "method parameters get their default. "
     "Methods with independent recalculation (params): SMA(window), ROLLING_STD(window, ddof), "
     "ROLLING_ZSCORE(window, ddof, include_current), RETURN(horizon, kind SIMPLE|LOG, as_percent), "
     "PERIOD_RETURN(kind, as_percent, base PREVIOUS_OBSERVATION|FIRST_IN_PERIOD; the change over the whole period, "
     "one column), FORWARD_RETURN(horizon, kind, as_percent, entry NEXT_OPEN|SIGNAL_CLOSE; columns [close, open] for "
     "NEXT_OPEN, [close] for SIGNAL_CLOSE), RSI(period), ROLLING_CORRELATION(window, method, transform; two columns), "
     "CORRELATION(method, transform, min_overlap; ENTITY_PAIR output over an ENTITY_LIST scope), "
-    "PERIOD_STAT(function MEAN|MEDIAN|STD|MIN|MAX|SUM|COUNT, ddof for STD, min_observations; one column or "
+    "PERIOD_STAT(function AVG|MEDIAN|STD|MIN|MAX|SUM|COUNT, ddof for STD, min_observations; one column or "
     "input_calculation; the statistic of each entity's observations inside the period, e.g. volatility = STD of a "
     "1-observation RETURN; never substitute a stored annualized or rolling feature column), "
     "GROUP_AGGREGATE(function COUNT|COUNT_DISTINCT|SUM|AVG|MEDIAN|MIN|MAX, per_date, missing_group_policy "
@@ -414,7 +417,7 @@ SPEC_DESCRIPTION = (
     "group), GROUP_CORRELATION(method, min_overlap, alignment; no columns; input_calculation = a per_date "
     "GROUP_AGGREGATE with one key or segments; GROUP_PAIR output with key_columns [<key>_a, <key>_b], one row per "
     "pair of groups; also emit the GROUP_DATE series). Averaging a return across entities over a period: say which "
-    "return the user asked for (PERIOD_RETURN = the return over the whole period, or PERIOD_STAT MEAN of a daily "
+    "return the user asked for (PERIOD_RETURN = the return over the whole period, or PERIOD_STAT AVG of a daily "
     "RETURN); when the user did not say, the service returns NEEDS_CLARIFICATION. "
     "EVENT_STUDY(min_events, overlap_policy, baseline; no columns; input_calculation = the FORWARD_RETURN outcome; "
     "signal = predicates on earlier trailing calculations; one SUMMARY output with columns segment, event_count, mean, "

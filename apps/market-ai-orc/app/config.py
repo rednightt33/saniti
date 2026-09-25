@@ -109,7 +109,7 @@ class Settings:
             ai_model=env.get("AI_MODEL", "").strip() or "deepseek/deepseek-v4.1-flash",
             ai_reasoning_effort=env.get("AI_REASONING_EFFORT", "").strip().lower() or "high",
             ai_request_timeout_seconds=_integer(env, "AI_REQUEST_TIMEOUT_SECONDS", 180),
-            ai_max_output_tokens=_integer(env, "AI_MAX_OUTPUT_TOKENS", 3000),
+            ai_max_output_tokens=_integer(env, "AI_MAX_OUTPUT_TOKENS", 8000),
             ai_max_tool_iterations=_integer(env, "AI_MAX_TOOL_ITERATIONS", 8),
             ai_max_tool_calls=_integer(env, "AI_MAX_TOOL_CALLS", 12),
             ai_max_identical_tool_calls=_integer(env, "AI_MAX_IDENTICAL_TOOL_CALLS", 2),

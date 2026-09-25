@@ -420,7 +420,7 @@ def test_only_unknown_tables_returns_recoverable_error() -> None:
         details_args(column_names=["c"] * 0),
         details_args(entity_ids=[f"T{i}" for i in range(21)]),
         {**details_args(), "sql": "SELECT * FROM \"Price_Stock_Indonesia_IDX\""},
-        {"table_names": ["Feature_02_Broker_Rolling"], "sections": ["COLUMNS"]},
+        {"sections": ["COLUMNS"], "column_names": None, "entity_ids": None},  # non-nullable table_names omitted
     ],
 )
 def test_invalid_arguments_never_reach_the_database(arguments: dict[str, Any]) -> None:

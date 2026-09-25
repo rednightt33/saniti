@@ -474,3 +474,19 @@ def test_oversized_initial_request_still_fails_with_context_limit() -> None:
                                  AI_MAX_HISTORY_TOKENS="100")
     result = agent.run(request("y" * 15000))
     assert result.error.code == "CONTEXT_LIMIT" and client.payloads == []
+
+
+def test_a_tool_call_cut_off_at_the_output_limit_is_not_run() -> None:
+    """OpenRouter closes a truncated call's JSON and reports it completed; reaching max_output_tokens is the signal."""
+    registry, calls = counting_registry()
+    truncated = tool_call_response("lookup", '{"ticker": "BB"}', call_id="call_cut", response_id="resp_1")
+    truncated["usage"] = {**truncated["usage"], "output_tokens": 8000}
+    complete = tool_call_response("lookup", '{"ticker": "BBCA"}', call_id="call_ok", response_id="resp_2")
+    agent, client = orchestrator([truncated, complete, final_response(ANSWER, response_id="resp_3")],
+                                 registry=registry)
+    result = agent.run(request())
+    assert result.status == "COMPLETED"
+    assert calls == ["BBCA"]  # the truncated call never reached the tool
+    cut = json.loads(outputs(client.payloads[1])[0]["output"])
+    assert cut["error"]["code"] == "MODEL_OUTPUT_TRUNCATED" and "8000" in cut["error"]["message"]
+    assert client.payloads[0]["max_output_tokens"] == 8000

@@ -78,7 +78,7 @@ class Scope(Loose):
     selection_type: Literal["ALL_ELIGIBLE", "ENTITY_LIST", "ATTRIBUTE_FILTER"]
     entities: list[Annotated[str, StringConstraints(pattern=ENTITY_VALUE)]] | None = Field(default=None, max_length=200)
     predicates: list[ScopePredicate] | None = Field(default=None, max_length=MAX_PREDICATES)
-    provenance: Provenance
+    provenance: ScopeProvenance
     default_id: str | None = None
 
 

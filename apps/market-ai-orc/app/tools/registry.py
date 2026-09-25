@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import contextvars
+import copy
 import json
+import logging
 import re
+import typing
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from dataclasses import dataclass
@@ -43,7 +46,10 @@ class ToolOutcome:
 
 # Keywords sent to the provider. These are the keywords verified live with OpenRouter strict tools;
 # value constraints (pattern, lengths, ranges) are still enforced by the Pydantic model on every call.
+# A single-value Literal is written by Pydantic as `const`, which is sent as a one-value `enum` so the model sees the
+# only allowed value. The provider does not always enforce the schema, so validation stays authoritative.
 PROVIDER_SCHEMA_KEYWORDS = {"type", "properties", "required", "additionalProperties", "items", "anyOf", "enum", "description"}
+logger = logging.getLogger("market_ai_orc")
 
 
 def _provider_schema(node: Any, defs: dict[str, Any], owner: str) -> Any:
@@ -58,6 +64,8 @@ def _provider_schema(node: Any, defs: dict[str, Any], owner: str) -> Any:
             resolved = {**resolved, "description": node["description"]}
         return resolved
     result: dict[str, Any] = {}
+    if "const" in node and "enum" not in node:
+        result["enum"] = [node["const"]]
     for key, value in node.items():
         if key not in PROVIDER_SCHEMA_KEYWORDS:
             continue
@@ -102,6 +110,55 @@ def strict_parameters_schema(model: type[BaseModel]) -> dict[str, Any]:
         "required": list(properties),
         "additionalProperties": False,
     }
+
+
+def _nullable(annotation: Any) -> bool:
+    return any(arg is type(None) for arg in typing.get_args(annotation))
+
+
+def _models_in(annotation: Any) -> list[type[BaseModel]]:
+    """Pydantic models reachable in an annotation (Optional[X], list[X], X | None, Annotated[...])."""
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return [annotation]
+    found: list[type[BaseModel]] = []
+    for arg in typing.get_args(annotation):
+        found.extend(_models_in(arg))
+    return found
+
+
+def fill_omitted_nulls(model: type[BaseModel], data: Any, path: str = "") -> list[str]:
+    """Strict tool schemas require every field, but a provider that does not enforce the schema lets the model omit
+    nullable ones. An omitted nullable field means null, so it is set to null (reported back to the model); a missing
+    non-nullable field is still a validation error. Returns the filled paths."""
+    if not isinstance(data, dict):
+        return []
+    filled: list[str] = []
+    for name, field in model.model_fields.items():
+        where = f"{path}.{name}" if path else name
+        if name not in data:
+            if field.is_required() and _nullable(field.annotation):
+                data[name] = None
+                filled.append(where)
+            continue
+        nested = _models_in(field.annotation)
+        if len(nested) != 1:
+            continue
+        value = data[name]
+        if isinstance(value, dict):
+            filled += fill_omitted_nulls(nested[0], value, where)
+        elif isinstance(value, list):
+            for index, item in enumerate(value):
+                filled += fill_omitted_nulls(nested[0], item, f"{where}.{index}")
+    return filled
+
+
+def _current_request_id() -> str | None:
+    try:
+        from .request_data import current_request_id
+
+        return current_request_id.get()
+    except (ImportError, LookupError):
+        return None
 
 
 def error_outcome(call_id: str, name: str, code: str, message: str) -> ToolOutcome:
@@ -158,6 +215,7 @@ class ToolRegistry:
                                  f"Tool {name!r} is not available. Use only the tools provided.")
 
         ignored: list[str] = []
+        assumed_null: list[str] = []
         try:
             parsed = self._parse_arguments(raw_arguments)
             if not spec.arguments_model.model_fields and isinstance(parsed, dict) and parsed:
@@ -165,8 +223,13 @@ class ToolRegistry:
                 # placeholder key (e.g. "request", "_dummy") for empty schemas; rejecting it only
                 # burns the tool-call budget, so the keys are ignored and reported back.
                 ignored, parsed = sorted(str(key) for key in parsed)[:20], {}
+            assumed_null = fill_omitted_nulls(spec.arguments_model, parsed)
             arguments = spec.arguments_model.model_validate(parsed)
         except (ValueError, ValidationError) as exc:
+            # Only field paths and error types are logged (never values), so rejections can be diagnosed from logs.
+            logger.info(dumps({"event": "ai_tool_arguments_rejected", "tool": name,
+                               "request_id": _current_request_id(),
+                               "errors": self._argument_locations(exc)}))
             return error_outcome(call_id, name, "INVALID_ARGUMENTS", self._argument_issue(exc))
 
         future = self._executor.submit(contextvars.copy_context().run, spec.handler, arguments)
@@ -186,6 +249,8 @@ class ToolRegistry:
         output = {"ok": True, "tool": name, "result": result}
         if ignored:
             output["ignored_arguments"] = ignored
+        if assumed_null:
+            output["omitted_fields_set_to_null"] = assumed_null[:20]
         try:
             size = len(dumps(output).encode("utf-8"))
         except (TypeError, ValueError):
@@ -204,13 +269,21 @@ class ToolRegistry:
         if raw is None or (isinstance(raw, str) and not raw.strip()):
             return {}
         if isinstance(raw, dict):
-            return raw
+            return copy.deepcopy(raw)  # omitted nullable fields are filled in place; never mutate the caller's object
         if not isinstance(raw, str):
             raise ValueError("Tool arguments must be a JSON object")
         value = json.loads(raw)
         if not isinstance(value, dict):
             raise ValueError("Tool arguments must be a JSON object")
         return value
+
+    @staticmethod
+    def _argument_locations(exc: Exception) -> list[dict[str, str]]:
+        if isinstance(exc, ValidationError):
+            return [{"loc": ".".join(str(part) for part in item.get("loc") or ()) or "root",
+                     "type": str(item.get("type") or "")}
+                    for item in exc.errors(include_url=False, include_input=False)[:10]]
+        return [{"loc": "root", "type": type(exc).__name__}]
 
     @staticmethod
     def _argument_issue(exc: Exception) -> str:

@@ -68,7 +68,7 @@ market-ai-orc sends V2 only.
 - **Generic operations.**
   - `PERIOD_RETURN` is the change over the whole period, with a base of `PREVIOUS_OBSERVATION` or
     `FIRST_IN_PERIOD`.
-  - `PERIOD_STAT` is a statistic (`MEAN`/`MEDIAN`/`STD`/`MIN`/`MAX`/`SUM`/`COUNT`) of one entity's
+  - `PERIOD_STAT` is a statistic (`AVG`/`MEDIAN`/`STD`/`MIN`/`MAX`/`SUM`/`COUNT`) of one entity's
     observations inside the period, for example the volatility of daily returns (`STD` of a
     1-observation `RETURN`; `ddof` 1 by default; never annualized). It does not use warm-up rows.
   - `GROUP_AGGREGATE` computes `COUNT`/`COUNT_DISTINCT`/`SUM`/`AVG`/`MEDIAN`/`MIN`/`MAX` of a column
@@ -90,7 +90,7 @@ market-ai-orc sends V2 only.
   - Averaging a return across entities over a multi-date period is materially ambiguous unless
     the request says which return is meant:
     - each entity's return over the whole period (`PERIOD_RETURN`); or
-    - each entity's daily returns inside the period (`PERIOD_STAT MEAN` of a `RETURN`).
+    - each entity's daily returns inside the period (`PERIOD_STAT AVG` of a `RETURN`).
 
     The intent review returns `NEEDS_CLARIFICATION` when the request does not say. A stated basis
     that differs from the spec is `RETURN_BASIS_MISMATCH`. A reply to the clarification settles
@@ -278,11 +278,11 @@ method.
 | `RETURN` | `horizon` (1), `kind` (`SIMPLE`/`LOG`), `as_percent` (false) | TA-Lib ROCP | reference recalculation |
 | `FORWARD_RETURN` | `horizon`, `kind`, `as_percent`, `entry` (`NEXT_OPEN`: columns `[close, open]`; `SIGNAL_CLOSE`: `[close]`) — a look-ahead label | CALC_011 / CALC_010 | reference recalculation |
 | `RSI` | `period` (14), `smoothing` (`WILDER`) | TA-Lib RSI | reference recalculation (matches TA-Lib to ~1e-14) |
-| `ROLLING_CORRELATION` | `window`, `method` (`PEARSON`/`SPEARMAN`), `transform` | TA-Lib CORREL | reference recalculation |
+| `ROLLING_CORRELATION` | `window`, `method` (`PEARSON`/`SPEARMAN`), `transform` (`NONE`, `DEFAULT_ROLLING_CORRELATION_TRANSFORM`) | TA-Lib CORREL | reference recalculation |
 | `CORRELATION` | `method`, `transform` (`SIMPLE_RETURN`), `min_overlap` (20); `ENTITY_PAIR` output | TA-Lib CORREL | reference recalculation per pair |
 | `PERIOD_RETURN` | `kind`, `as_percent`, `base` (`PREVIOUS_OBSERVATION`) | Saniti | reference recalculation |
-| `PERIOD_STAT` | `function` (`MEAN`/`MEDIAN`/`STD`/`MIN`/`MAX`/`SUM`/`COUNT`), `ddof` (1, `STD` only), `min_observations` (1) | Saniti | reference recalculation (expanding within the period) |
-| `GROUP_AGGREGATE` | `function`, `per_date` (false), `missing_group_policy` (`SEPARATE_GROUP`), `unknown_group_values` ([]), `min_observations` (1); `group_by` or `segments` | Saniti | groups recalculated from entity rows |
+| `PERIOD_STAT` | `function` (`AVG`/`MEDIAN`/`STD`/`MIN`/`MAX`/`SUM`/`COUNT`; `MEAN` is accepted as `AVG`), `ddof` (1, `STD` only), `min_observations` (1) | Saniti | reference recalculation (expanding within the period) |
+| `GROUP_AGGREGATE` | `function`, `per_date` (false, `DEFAULT_GROUP_PER_DATE`), `missing_group_policy` (`SEPARATE_GROUP`), `unknown_group_values` ([]), `min_observations` (1); `group_by` or `segments` | Saniti | groups recalculated from entity rows |
 | `GROUP_CORRELATION` | `method` (`PEARSON`), `min_overlap` (20), `alignment` (`COMMON_DATES`); input = a per-date `GROUP_AGGREGATE`; `GROUP_PAIR` output | Saniti | series and correlations recalculated |
 | `EVENT_STUDY` | `min_events` (30), `overlap_policy` (`NON_OVERLAPPING`), `baseline` (`ALL_ELIGIBLE`); `input_calculation` = the `FORWARD_RETURN` outcome; `signal` = predicates on earlier trailing calculations; one `SUMMARY` output | CALC_176–179 | events, outcomes and baseline recalculated |
 | `CUSTOM` with `expression` | the expression language below; `formula_refs`, `meaning`, `unit`, `data_policies` | AI-generated | expression re-evaluated (`VALIDATED_CUSTOM_FORMULA_RESULT` on a match) |
