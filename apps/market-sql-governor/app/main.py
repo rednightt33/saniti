@@ -17,11 +17,12 @@ from .datasets import DatasetError, DatasetService
 from .decisions import GovernorResponse, LookupResponse
 from .governor import Database, Governor, GovernorUnavailable
 from .janitor import DatasetJanitor
-from .spec import TABLE_PATTERN, DataPlanLineage
+from .spec import COLUMN_PATTERN, TABLE_PATTERN, DataPlanLineage
 from .store import build_store
 
 REQUEST_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 TABLE = re.compile(TABLE_PATTERN)
+COLUMN = re.compile(COLUMN_PATTERN)
 
 
 def _configure_logging() -> None:
@@ -111,6 +112,22 @@ def create_app(settings: Settings | None = None, governor: Governor | None = Non
                 raise HTTPException(status_code=422, detail="lineage part_index exceeds part_count")
         try:
             return governor.handle(request_id, body["spec"], lineage=lineage)
+        except GovernorUnavailable:
+            return JSONResponse(status_code=503, content={"detail": "Governed database unavailable"})
+
+    @app.post("/v1/catalog/dimension-values", dependencies=[Depends(authorize)])
+    def dimension_values(body: Any = Body(...)) -> Any:
+        """Exact category values of a static catalog dimension (values only; market-ai-orc key)."""
+        if not isinstance(body, dict) or set(body) != {"request_id", "table", "column", "match"} \
+                or not isinstance(body["table"], str) or not TABLE.fullmatch(body["table"]) \
+                or not isinstance(body["column"], str) or not COLUMN.fullmatch(body["column"]) \
+                or not (body["match"] is None or (isinstance(body["match"], str) and 1 <= len(body["match"]) <= 60)):
+            raise HTTPException(status_code=422, detail="Body must be {request_id, table, column, match (1-60 chars "
+                                                        "or null)}")
+        if not isinstance(body["request_id"], str) or not REQUEST_ID.fullmatch(body["request_id"]):
+            raise HTTPException(status_code=422, detail="request_id must match ^[A-Za-z0-9._:-]{1,128}$")
+        try:
+            return governor.dimension_values(body["request_id"], body["table"], body["column"], body["match"])
         except GovernorUnavailable:
             return JSONResponse(status_code=503, content={"detail": "Governed database unavailable"})
 

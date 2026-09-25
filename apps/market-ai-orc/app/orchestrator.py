@@ -114,7 +114,8 @@ entity_type, asset_type), relationships and frequencies only from
 the catalog tools. Do not write or submit raw SQL.
 For a scope such as a sector, industry or other classification, use
 an ATTRIBUTE_FILTER predicate on the catalog column with the exact
-data value; never type out a member list yourself.
+data value from get_dimension_values; never type out a member list
+yourself.
 If a tool rejects your arguments, correct them and call it again. If
 prepare_analysis_data or the SQL Governor refuses, follow its
 allowed_actions; never change the user's scope, drop entities,

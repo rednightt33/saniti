@@ -168,3 +168,41 @@ def test_the_catalog_contract_endpoint_takes_either_key_but_never_rows(governed_
 ])
 def test_canonical_values_have_one_text_form(value, text) -> None:
     assert canonical_value(value) == text
+
+
+# ---------------------------------------------------------------- dimension values
+
+def test_dimension_values_are_exact_stored_values_without_counts(governed_db) -> None:
+    gov = governor(governed_db, storage=False)
+    result = gov.dimension_values("r", UNIVERSE, "Industry", None)
+    assert result["status"] == "VALUES_READY" and result["truncated"] is False
+    assert result["values"] == sorted(result["values"]) and all(isinstance(v, str) for v in result["values"])
+    assert set(result) == {"status", "table", "column", "match", "values", "truncated", "note"}  # no counts
+    matched = gov.dimension_values("r", UNIVERSE, "Industry", "USTRY-1")
+    assert matched["values"] and all("ustry-1" in v.casefold() for v in matched["values"])
+
+
+@pytest.mark.parametrize(("table", "column", "code"), [
+    (PRICE, "ticker", "DIMENSION_VALUES_STATIC_ONLY"),
+    (UNIVERSE, "Ticker", "DIMENSION_IS_ENTITY"),
+    ("Unapproved_Market_Table", "ticker", "TABLE_NOT_APPROVED"),
+    ("Inactive_Table", "ticker", "TABLE_NOT_APPROVED"),
+    (UNIVERSE, "made_up", "UNKNOWN_COLUMN"),
+])
+def test_dimension_values_refuse_non_dimensions(governed_db, table, column, code) -> None:
+    result = governor(governed_db, storage=False).dimension_values("r", table, column, None)
+    assert result["status"] == "REJECTED" and result["reason_code"] == code
+
+
+def test_dimension_values_endpoint_takes_only_the_orchestrator_key(governed_db, tmp_path) -> None:
+    settings = Settings.from_env(base_env(GOVERNOR_DATABASE_URL=governed_db["login"], SQL_DATASET_LOCAL_DIR=str(tmp_path),
+                                          SQL_GOVERNOR_DATASET_ACCESS_KEY=ACCESS_KEY))
+    client = TestClient(create_app(settings))
+    body = {"request_id": "r1", "table": UNIVERSE, "column": "Sector", "match": None}
+    assert client.post("/v1/catalog/dimension-values", json=body,
+                       headers={"Authorization": f"Bearer {ACCESS_KEY}"}).status_code == 401
+    ok = client.post("/v1/catalog/dimension-values", json=body, headers={"Authorization": f"Bearer {API_KEY}"})
+    assert ok.status_code == 200 and ok.json()["status"] == "VALUES_READY"
+    bad = client.post("/v1/catalog/dimension-values", json={**body, "match": "x" * 61},
+                      headers={"Authorization": f"Bearer {API_KEY}"})
+    assert bad.status_code == 422

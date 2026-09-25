@@ -268,3 +268,36 @@ def test_repeated_identical_rejections_exhaust_the_repair_budget() -> None:
     outputs = [item for item in scripted.payloads[-1]["input"] if item.get("type") == "function_call_output"]
     codes = [json.loads(o["output"]).get("error", {}).get("code") for o in outputs]
     assert codes[:3] == [None, None, None] and codes[3:] == ["REPAIR_BUDGET_EXHAUSTED"] * 2
+
+
+def test_dimension_values_tool_returns_values_only() -> None:
+    seen: list = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json={"status": "VALUES_READY", "table": UNIVERSE, "column": "Industry",
+                                         "match": "bank", "values": ["Banks"], "truncated": False, "note": "n"})
+
+    governor = GovernorClient("http://governor.test", "g" * 40, 5, transport=httpx.MockTransport(handler))
+    registry = build_default_registry(None, governor_client=governor)
+    token = current_request_id.set("run-dim")
+    try:
+        outcome = registry.execute("c1", "get_dimension_values",
+                                   json.dumps({"table": UNIVERSE, "column": "Industry", "match": "bank"}))
+    finally:
+        current_request_id.reset(token)
+    assert outcome.ok and outcome.output["result"]["values"] == ["Banks"]
+    assert seen == [{"request_id": "run-dim", "table": UNIVERSE, "column": "Industry", "match": "bank"}]
+    bad = registry.execute("c2", "get_dimension_values", json.dumps({"table": UNIVERSE, "column": "x; drop",
+                                                                     "match": None}))
+    assert not bad.ok and bad.error_code == "INVALID_ARGUMENTS"
+
+
+def test_dimension_values_with_numbers_are_refused() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"status": "VALUES_READY", "values": [123]})
+
+    governor = GovernorClient("http://governor.test", "g" * 40, 5, transport=httpx.MockTransport(handler))
+    outcome = build_default_registry(None, governor_client=governor).execute(
+        "c1", "get_dimension_values", json.dumps({"table": UNIVERSE, "column": "Industry", "match": None}))
+    assert not outcome.ok

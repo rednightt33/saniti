@@ -8,7 +8,7 @@ from .catalog_rows import catalog_rows_spec
 from .data_compiler import BundleStore, DataRequestCompiler, prepare_spec
 from .preview import preview_spec
 from .registry import ToolError, ToolOutcome, ToolRegistry, ToolSpec, error_outcome
-from .request_data import GovernorClient, lookup_fact_spec, request_data_spec
+from .request_data import GovernorClient, dimension_values_spec, lookup_fact_spec, request_data_spec
 from .rows import CursorCodec
 from .system import capabilities_spec
 
@@ -55,6 +55,7 @@ def build_default_registry(
                 governor_client, timeout_seconds=min(governor_timeout_seconds, 30.0),
                 max_result_bytes=request_data_max_bytes))
         registry.register(manifest_spec(governor_client, timeout_seconds=min(governor_timeout_seconds, 20.0)))
+        registry.register(dimension_values_spec(governor_client, timeout_seconds=min(governor_timeout_seconds, 30.0)))
     if sandbox_client is not None:
         bundles = bundles if bundles is not None else BundleStore()
         registry.register(analysis_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,

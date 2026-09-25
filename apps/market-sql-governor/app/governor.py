@@ -35,6 +35,9 @@ from .store import ObjectStore
 
 logger = logging.getLogger("market_sql_governor")
 SEQ_SCAN_NODES = {"Seq Scan", "Parallel Seq Scan", "Sample Scan"}
+TEXT_TYPES = {"text", "character varying", "character", "varchar"}
+DIMENSION_VALUES_SCAN_LIMIT = 2000
+DIMENSION_VALUES_RETURN_LIMIT = 200
 FETCH_BATCH_ROWS = 10_000
 RELTUPLES_SQL = '''
 SELECT c.reltuples::bigint AS reltuples FROM pg_catalog.pg_class AS c
@@ -162,6 +165,69 @@ class Governor:
              unknown_tables=contract["unknown_tables"], catalog_sha256=contract["catalog_sha256"],
              runtime_ms=int((time.monotonic() - started) * 1000))
         return contract
+
+    def dimension_values(self, request_id: str, table: str, column: str, match: str | None) -> dict[str, Any]:
+        """Exact category values of one catalog dimension (a groupable text column of a static table), for scope
+        predicates and grouping keys. Values only: no counts, no measures, so it cannot answer an analytical question.
+        The request runs through the same catalog, compile and EXPLAIN gates as any extraction."""
+        started = time.monotonic()
+        query_id = f"qry_{uuid.uuid4().hex[:24]}"
+        state: dict[str, Any] = {"source_tables": []}
+        outcome: dict[str, Any]
+        try:
+            with self.database.session() as connection:
+                with connection.cursor(row_factory=dict_row) as cursor:
+                    meta = cursor.execute(TABLES_SQL, ([table],)).fetchone()
+                    column_meta = cursor.execute(
+                        'SELECT data_type, group_by_allowed, ai_allowed, is_sensitive FROM public."AI_column_catalog" '
+                        'WHERE table_name = %s AND column_name = %s', (table, column)).fetchone()
+                if meta is None or not meta["is_active"] or meta["ai_access_level"] != "BOUNDED_READ":
+                    raise rejected("TABLE_NOT_APPROVED", f"{table} is not an approved AI catalog table.")
+                if column_meta is None or not column_meta["ai_allowed"] or column_meta["is_sensitive"]:
+                    raise rejected("UNKNOWN_COLUMN", f"{table}.{column} is not an AI-allowed catalog column.")
+                if meta["time_column"]:
+                    raise rejected("DIMENSION_VALUES_STATIC_ONLY",
+                                   f"{table} is dated; dimension values come from static reference tables.")
+                if column == meta["entity_column"]:
+                    raise rejected("DIMENSION_IS_ENTITY", f"{column} identifies entities; list them in an "
+                                   "ENTITY_LIST scope instead.")
+                if not column_meta["group_by_allowed"] or str(column_meta["data_type"]).lower() not in TEXT_TYPES:
+                    raise rejected("NOT_A_DIMENSION", f"{table}.{column} is not a groupable text column.")
+                cap = DIMENSION_VALUES_SCAN_LIMIT + 1
+                spec = DataRequestSpec.model_validate({
+                    "purpose": "Dimension values", "from_table": table, "columns": [{"table": table, "column": column}],
+                    "joins": [], "filters": [], "group_by": [{"table": table, "column": column}], "aggregations": [],
+                    "order_by": [{"table": table, "column": column, "function": None, "direction": "ASC"}],
+                    "requested_limit": cap})
+                _, compiled, _, _ = self._prepare(connection, spec, state, cap)
+                with connection.cursor() as cursor:
+                    cursor.execute(compiled.statement, compiled.params)
+                    rows = cursor.fetchmany(cap)
+            if len(rows) > DIMENSION_VALUES_SCAN_LIMIT:
+                raise narrowing("HIGH_CARDINALITY", f"{table}.{column} has more than {DIMENSION_VALUES_SCAN_LIMIT} "
+                                "distinct values; it is not a category dimension.",
+                                limit=DIMENSION_VALUES_SCAN_LIMIT)
+            values = [str(row[0]) if row[0] is not None else None for row in rows]
+            if match:
+                needle = match.casefold()
+                values = [v for v in values if v is not None and needle in v.casefold()]
+            outcome = {"status": "VALUES_READY", "table": table, "column": column, "match": match,
+                       "values": values[:DIMENSION_VALUES_RETURN_LIMIT],
+                       "truncated": len(values) > DIMENSION_VALUES_RETURN_LIMIT,
+                       "note": "Exact stored values for scope predicates and grouping keys; not counts or facts."}
+        except GovernorStop as stop:
+            outcome = {"status": stop.decision, "reason_code": stop.reason_code, "message": stop.message,
+                       "table": table, "column": column, "details": _details(stop.details)}
+        except psycopg.OperationalError as exc:
+            raise GovernorUnavailable("The governed database is unavailable.") from exc
+        except psycopg.Error:
+            outcome = {"status": "REJECTED", "reason_code": "QUERY_FAILED", "table": table, "column": column,
+                       "message": "The database rejected the compiled query."}
+        _log("sql_governor_dimension_values", request_id=request_id, query_id=query_id, table=table, column=column,
+             status=outcome["status"], reason_code=outcome.get("reason_code"), returned=len(outcome.get("values") or []),
+             values_sha256=hashlib.sha256(json.dumps(outcome.get("values") or []).encode()).hexdigest(),
+             runtime_ms=int((time.monotonic() - started) * 1000))
+        return outcome
 
     def _stop(self, request_id: str, query_id: str, stop: GovernorStop, state: dict[str, Any]) -> GovernorResponse:
         return GovernorResponse(

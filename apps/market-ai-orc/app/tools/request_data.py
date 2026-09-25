@@ -204,6 +204,26 @@ class GovernorClient:
             raise ToolError("The SQL Governor returned an invalid response.")
         return result
 
+    def dimension_values(self, table: str, column: str, match: str | None) -> dict[str, Any]:
+        request_id = current_request_id.get() or f"orc-{uuid.uuid4().hex[:16]}"
+        try:
+            response = self._client.post("/v1/catalog/dimension-values", json={
+                "request_id": request_id, "table": table, "column": column, "match": match})
+        except httpx.TimeoutException as exc:
+            raise ToolError("The SQL Governor did not answer in time.") from exc
+        except httpx.HTTPError as exc:
+            raise ToolError("The SQL Governor is unreachable.") from exc
+        if response.status_code != 200:
+            raise ToolError(f"The SQL Governor is unavailable (HTTP {response.status_code}).")
+        try:
+            result = response.json()
+        except ValueError as exc:
+            raise ToolError("The SQL Governor returned an invalid response.") from exc
+        if not isinstance(result, dict) or "status" not in result or any(
+                isinstance(v, (int, float)) and not isinstance(v, bool) for v in result.get("values") or []):
+            raise ToolError("The SQL Governor returned an invalid response.")
+        return result
+
     def lookup(self, spec: "LookupFactSpec") -> dict[str, Any]:
         request_id = current_request_id.get() or f"orc-{uuid.uuid4().hex[:16]}"
         try:
@@ -256,6 +276,33 @@ def request_data_spec(client: GovernorClient, *, timeout_seconds: float, max_res
         timeout_seconds=timeout_seconds,
         max_result_bytes=max_result_bytes,
     )
+
+
+class DimensionValuesArgs(Strict):
+    table: str = Field(pattern=TABLE_PATTERN, description="A static catalog table (no time column), e.g. a reference "
+                                                          "table of classifications.")
+    column: str = Field(pattern=COLUMN_PATTERN, description="A groupable text column of that table (not its entity "
+                                                            "column).")
+    match: str | None = Field(min_length=1, max_length=60, description="Case-insensitive part of the value you look "
+                                                                       "for (e.g. a word from the request), or null "
+                                                                       "for every value.")
+
+
+DIMENSION_DESCRIPTION = (
+    "List the exact stored values of one category column (a groupable text column of a static catalog table), "
+    "optionally only those containing match. Use it to write a scope predicate or a grouping key with the exact data "
+    "value (for example the stored spelling of a classification the user named). Returns values only, at most 200, "
+    "never counts or measures: it is not a data answer."
+)
+
+
+def dimension_values_spec(client: GovernorClient, *, timeout_seconds: float) -> ToolSpec:
+    def handler(arguments: BaseModel) -> dict[str, Any]:
+        assert isinstance(arguments, DimensionValuesArgs)
+        return client.dimension_values(arguments.table, arguments.column, arguments.match)
+
+    return ToolSpec(name="get_dimension_values", description=DIMENSION_DESCRIPTION, arguments_model=DimensionValuesArgs,
+                    handler=handler, timeout_seconds=timeout_seconds, max_result_bytes=16000)
 
 
 def lookup_fact_spec(client: GovernorClient, *, timeout_seconds: float, max_result_bytes: int) -> ToolSpec:
