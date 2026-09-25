@@ -56,6 +56,12 @@
   - The IaC format keeps the root directory inside the source block, so it cannot represent a disconnected service that keeps its root directory.
   - Setting the backend's root directory to an empty value did not clear `source.type`, so the value was restored at once. No deployment was triggered.
   - The drift is left as is. Applying the plan would only clear the three root directories (0 add, 0 destroy).
+- **Autodeploy verified.** The documentation push `e8c3d47` changed the three services' READMEs and triggered their first GitHub deployments. Each reached `SUCCESS` with `/ready` 200:
+  - Governor `747732ed-2c6f-40f1-a116-23fc1cbc0d3d`;
+  - sandbox `035fd115-b064-4bab-bd27-278be3380413`, with `isolation_enforced=true` and 0 interrupted analyses;
+  - orc `a9128831-e7c0-4e9b-87d1-d220f5bd8b44`.
+  - The deactivated services created no deployment for that commit.
+  - The startup logs held no bearer token, OpenRouter key or DSN with a password.
 
 ## 2026-09-25 — Deploy the two-path release: migrations 20260925_001/002, market-sql-governor, market-python-sandbox, market-ai-orc (commit a5e11a4)
 
