@@ -103,7 +103,77 @@ where the plan lists every part: `partition_id`, `dataset_id`, `part_key`, windo
 The POST answer is the model view: no file paths and no dataset internals. Expired bundles are deleted, and the
 oldest are evicted above `PY_SANDBOX_BUNDLE_STORE_BYTES`.
 
-Later phases add persistent analysis sessions and processing coverage at completion.
+**Phase 3 (implemented): persistent analysis sessions** (`app/sessions.py`, `runtime/session_worker.py`,
+`runtime/saniti_session.py`). `POST /v1/sessions {request_id, bundle_id}` starts one long-lived worker on a READY
+bundle of the same request.
+- The worker runs as a dedicated session user (`PY_SANDBOX_SESSION_UID_BASE` + slot, users `session1..4` in the
+  image). It gets a constructed environment and a private response pipe. Before it reads any command it confines
+  itself: the session CPU budget as `RLIMIT_CPU`, virtual memory, file size, process count, CPU set, and seccomp (no
+  sockets, no new processes).
+- The workspace: the bundle files are copied read-only into `input/` with their checksums verified;
+  `intermediate/` and `output/` are private to the session user; `session.json` is root-owned. The bundle store,
+  the jobs root and other sessions are out of reach.
+- `POST /v1/sessions/{id}/execute {request_id, code}` runs code in the persistent namespace, one command at a time.
+  Variables and functions survive between executions. The result is `OK`, `SCRIPT_ERROR`, `TIMEOUT` or
+  `INSUFFICIENT_INPUT_DATA`:
+  - `SCRIPT_ERROR` carries `error_type`, `line`, `field` (for example a missing column), a traceback of the
+    session's own code, and next action `REVISE_PYTHON_CODE`;
+  - `TIMEOUT` means the wall clock (`PY_SANDBOX_SESSION_EXECUTION_SECONDS`) was reached. The harness sends SIGINT and
+    the session survives; if the code does not yield within 5 s, SIGKILL ends the session;
+  - `INSUFFICIENT_INPUT_DATA` comes from `saniti.insufficient_data(request, range_id, value, unit, reason)`, with
+    next action `REVISE_DATA_NEED_SPEC`.
+- Resident memory and the disk quotas are watched continuously; a breach ends the session. `MemoryError` under the
+  virtual-memory limit is an ordinary `SCRIPT_ERROR`.
+- `POST /v1/sessions/{id}/inspect {request_id, names?, max_rows?}` lists or describes variables with bounded
+  previews.
+- `GET /v1/sessions/{id}?request_id=` returns the session state, the execution log and the outputs.
+- `GET /v1/sessions/{id}/outputs/{output_id}?request_id=&offset=&limit=` reads an output back: table rows page by
+  page, JSON or text; charts and files give metadata only.
+- `POST /v1/sessions/{id}/close` closes the session.
+- Helpers (`saniti`, pre-bound by name with `pd` and `np`):
+  - `requests()`, `manifest()`, `quality(request)`;
+  - `load(request)` (the whole dataset in delivered order), `range(request, range_id, include_buffers=False)`,
+    `sql(query)` (one read-only DuckDB view per logical name), `relation(request)`;
+  - `join(relationship_id, left, right, how)`, the approved relationship with its point-in-time semantics
+    (CURRENT_STATE, EXACT_DATE, AS_OF backward, EFFECTIVE_DATED half-open);
+  - `resample(frame, request, frequency)` with the catalog rules;
+  - `insufficient_data(...)`, `intermediate_path(name)`;
+  - `emit_table`, `emit_chart`, `emit_json`, `emit_text`, `emit_file` (TABLE, CHART, JSON, TEXT, PARQUET, CSV, PNG,
+    ARTIFACT).
+- Every helper read is recorded per execution (call, request, range, rows) for processing coverage. Reads outside
+  the helpers are not recorded, so they count as not processed.
+- Every emitted output is copied into a root-only store with its checksum, and is `released: false` until the
+  analysis completes with coverage PASS (phase 4).
+- Budgets per session: executions, failed executions, CPU seconds, outputs, idle time and lifetime. Sessions are
+  bound to their request and do not survive a restart (`SANDBOX_RESTARTED`); bundles and outputs do. A janitor
+  closes idle and expired sessions and deletes expired outputs and bundles.
+
+**Phase 4 (implemented): completion.** `POST /v1/sessions/{id}/complete {request_id}` builds, from the harness's
+own records (never from anything the code reported about itself):
+
+- the **ExecutionManifest**: every execution with its code hash, status, CPU and outputs; what the helpers read per
+  request and range in successful executions; every output with its checksum;
+- **processing coverage**: an approved request is PROCESSED when a successful execution read it in full
+  (`load`, `sql` naming its view, `relation`, or `join` on the whole datasets), or read every one of its ranges with
+  `range`. Reads in failed executions and direct file reads do not count;
+- the **Coverage Validator** result: delivery coverage (from the bundle) and processing coverage per request and
+  range, with the partitions expected and delivered, `sampling` and `truncation`;
+- the **final status**:
+  - `data_need_validation`, `research_governance` (NOT_APPLICABLE for ANALYSIS), `sql_governance`,
+    `data_quality_profiling`, `data_coverage`;
+  - `sandbox_execution`: SUCCESS needs a successful execution with outputs, and no later
+    `INSUFFICIENT_INPUT_DATA`;
+  - `calculation_validation`: always `NOT_PERFORMED`;
+  - `data_complete`, `execution_complete`;
+  - `evidence_label`: `DATA_COVERAGE_VERIFIED` or `NOT_VALIDATED`;
+  - `warnings`: relationship warnings and quality flags;
+  - `claims_allowed` and `claims_forbidden`. For RESEARCH, the forbidden claims also include causal effects and
+    predictions.
+
+When coverage passes and the execution succeeded, the outputs of successful executions are **released**
+(`released: true`), the completion is stored, and the session closes (`COMPLETED`). Otherwise nothing is released
+and the session stays open. `next_action` is `RUN_PYTHON` with the requests and ranges not yet processed,
+`REVISE_DATA_NEED_SPEC` after insufficient data, or `REPORT_LIMITATION`. A passed completion replays.
 
 ## Analysis Spec V2 (two paths: ANALYSIS and RESEARCH)
 
@@ -693,6 +763,7 @@ The URL is never logged, stored, returned, or visible to any child process.
 | `GET /v1/runs/{request_id}` | Audit view of one orchestrator run: experiments with governor decisions, analyses with code/dataset fingerprints and evidence decisions, budgets, and the final report |
 | `POST /v1/data-needs`, `GET /v1/data-needs/{need_id}` | DataNeedSpec validation and the approved contract (only with `PY_SANDBOX_DATANEED_ENABLED`; see above) |
 | `POST /v1/bundles`, `GET /v1/bundles/{bundle_id}` | Governed data bundle: verification, profiling, delivery coverage (only with `PY_SANDBOX_DATANEED_ENABLED`) |
+| `POST /v1/sessions`, `POST /v1/sessions/{id}/execute`, `POST /v1/sessions/{id}/inspect`, `GET /v1/sessions/{id}`, `GET /v1/sessions/{id}/outputs/{output_id}`, `POST /v1/sessions/{id}/complete`, `POST /v1/sessions/{id}/close` | Persistent analysis sessions (only with `PY_SANDBOX_DATANEED_ENABLED`) |
 | `POST /v1/runs/{request_id}/report` | market-ai-orc's final report of the run (answer and hash, evidence label, gate, experiments). Stored once; a retry keeps the first. |
 
 **Request-level budgets.** All analyses of one orchestrator request share:
@@ -790,6 +861,11 @@ Logs never contain keys, dataset URLs, user messages, datasets, or tables.
 | `PY_SANDBOX_BUNDLE_MAX_ROWS` / `_MAX_BYTES` | `PY_SANDBOX_MAX_INPUT_ROWS` / `_MAX_INPUT_BYTES` |
 | `PY_SANDBOX_BUNDLE_MAX_PARTS` | 128 |
 | `PY_SANDBOX_BUNDLE_STORE_BYTES` | 8 GiB (oldest bundles evicted above it) |
+| `PY_SANDBOX_SESSION_UID_BASE` / `PY_SANDBOX_MAX_SESSIONS` | 20201 / 2 |
+| `PY_SANDBOX_SESSION_EXECUTION_SECONDS` | `PY_SANDBOX_MAX_RUNTIME_SECONDS` (per execution, SIGINT then SIGKILL) |
+| `PY_SANDBOX_SESSION_CPU_SECONDS` | 900 per session (a RESEARCH need uses its approved compute budget when lower) |
+| `PY_SANDBOX_SESSION_IDLE_SECONDS` / `_MAX_SECONDS` | 900 / 3600 |
+| `PY_SANDBOX_SESSION_MAX_EXECUTIONS` / `_MAX_FAILED` / `_MAX_OUTPUTS` | 40 / 15 / 40 |
 
 **Paths:**
 - `PY_SANDBOX_DATA_DIR` (`/data`, the Railway volume)

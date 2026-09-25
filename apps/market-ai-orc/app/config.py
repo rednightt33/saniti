@@ -92,6 +92,8 @@ class Settings:
     # DataNeed flow (DataNeedSpec -> governed bundle -> analysis session -> coverage): its tools are registered only
     # when this is on; the sandbox must run with PY_SANDBOX_DATANEED_ENABLED as well.
     ai_enable_dataneed: bool = False
+    # HTTP timeout of one run_python call: above the sandbox's PY_SANDBOX_SESSION_EXECUTION_SECONDS plus its grace
+    py_sandbox_session_timeout_seconds: int = 180
     # The same tool rejection (tool + reason code) may be repaired this many times per run.
     ai_max_repair_attempts: int = 3
 
@@ -136,6 +138,7 @@ class Settings:
             ai_enable_lookup_fact=_boolean(env, "AI_ENABLE_LOOKUP_FACT", True),
             ai_enable_request_data=_boolean(env, "AI_ENABLE_REQUEST_DATA", False),
             ai_enable_dataneed=_boolean(env, "AI_ENABLE_DATANEED", False),
+            py_sandbox_session_timeout_seconds=_integer(env, "PY_SANDBOX_SESSION_TIMEOUT_SECONDS", 180, minimum=20),
             ai_max_repair_attempts=_integer(env, "AI_MAX_REPAIR_ATTEMPTS", 3, minimum=1),
             sql_governor_api_key=_optional(env, "SQL_GOVERNOR_API_KEY"),
             sql_governor_timeout_seconds=_integer(env, "SQL_GOVERNOR_TIMEOUT_SECONDS", 90),
@@ -192,6 +195,8 @@ class Settings:
                 raise ConfigError("PY_SANDBOX_URL must be an http(s):// URL")
             if not settings.py_sandbox_api_key or len(settings.py_sandbox_api_key) < 32:
                 raise ConfigError("PY_SANDBOX_API_KEY (at least 32 characters) is required with PY_SANDBOX_URL")
+        if settings.py_sandbox_session_timeout_seconds > 960:
+            raise ConfigError("PY_SANDBOX_SESSION_TIMEOUT_SECONDS must be at most 960")
         if settings.py_sandbox_request_timeout_seconds > 300 or settings.python_analysis_max_result_bytes > 131072:
             raise ConfigError("PY_SANDBOX_REQUEST_TIMEOUT_SECONDS must be <= 300 and "
                               "PYTHON_ANALYSIS_MAX_RESULT_BYTES <= 131072")

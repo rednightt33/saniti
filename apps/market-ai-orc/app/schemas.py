@@ -144,7 +144,7 @@ class NumberProvenance(BaseModel):
 
 
 EvidenceLabel = Literal["FACT", "DATABASE_AGGREGATE", "CALCULATION_VERIFIED", "SCOPE_VERIFIED",
-                        "UNVERIFIED_EXPLORATORY", "NOT_VALIDATED"]
+                        "DATA_COVERAGE_VERIFIED", "UNVERIFIED_EXPLORATORY", "NOT_VALIDATED"]
 
 
 class ExperimentSummary(BaseModel):
@@ -202,6 +202,9 @@ class ExecutionMetadata(BaseModel):
     number_provenance: NumberProvenance | None = None
     # The run's analysis specs as research experiments (null when no spec was created).
     research: ResearchSummary | None = None
+    # DataNeed flow: the final status of the latest complete_analysis (data coverage, sandbox execution,
+    # calculation_validation NOT_PERFORMED, evidence label, warnings); null when no analysis was completed.
+    analysis_final_status: dict[str, Any] | None = None
 
 
 class RunError(BaseModel):

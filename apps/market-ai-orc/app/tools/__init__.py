@@ -7,6 +7,7 @@ from .catalog import CatalogReader, catalog_specs
 from .catalog_rows import catalog_rows_spec
 from .data_need import data_need_specs
 from .data_planner import ExecutionPlanner, prepare_bundle_spec
+from .session import session_specs
 from .data_compiler import BundleStore, DataRequestCompiler, prepare_spec
 from .preview import preview_spec
 from .registry import ToolError, ToolOutcome, ToolRegistry, ToolSpec, error_outcome
@@ -34,6 +35,7 @@ def build_default_registry(
     request_data_enabled: bool = False,
     bundles: BundleStore | None = None,
     dataneed_enabled: bool = False,
+    session_timeout_seconds: float = 180.0,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
@@ -57,9 +59,12 @@ def build_default_registry(
             registry.register(lookup_fact_spec(
                 governor_client, timeout_seconds=min(governor_timeout_seconds, 30.0),
                 max_result_bytes=request_data_max_bytes))
-        registry.register(manifest_spec(governor_client, timeout_seconds=min(governor_timeout_seconds, 20.0)))
+        if not dataneed_enabled:  # governed datasets of the Analysis Spec path
+            registry.register(manifest_spec(governor_client, timeout_seconds=min(governor_timeout_seconds, 20.0)))
         registry.register(dimension_values_spec(governor_client, timeout_seconds=min(governor_timeout_seconds, 30.0)))
-    if sandbox_client is not None:
+    if sandbox_client is not None and not dataneed_enabled:
+        # The Analysis Spec path (create_analysis_spec -> prepare_analysis_data -> run_python_analysis). The DataNeed
+        # flow replaces it when AI_ENABLE_DATANEED is on; switching the flag off is the rollback.
         bundles = bundles if bundles is not None else BundleStore()
         registry.register(analysis_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
                                          max_result_bytes=python_analysis_max_bytes, bundles=bundles)[0])
@@ -71,6 +76,7 @@ def build_default_registry(
         for spec in analysis_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
                                    max_result_bytes=python_analysis_max_bytes, bundles=bundles)[1:]:
             registry.register(spec)
+    if sandbox_client is not None:
         if dataneed_enabled:
             for spec in data_need_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
                                         max_result_bytes=python_analysis_max_bytes):
@@ -81,6 +87,10 @@ def build_default_registry(
                     ExecutionPlanner(sandbox_client, governor_client),
                     timeout_seconds=max(sandbox_timeout_seconds, governor_timeout_seconds) * 6,
                     max_result_bytes=python_analysis_max_bytes))
+                for spec in session_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
+                                          execution_timeout_seconds=session_timeout_seconds,
+                                          max_result_bytes=python_analysis_max_bytes):
+                    registry.register(spec)
     return registry
 
 

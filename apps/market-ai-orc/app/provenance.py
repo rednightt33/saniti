@@ -22,8 +22,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 # Evidence labels, strongest first. A mixed answer carries the weakest label it relies on.
-LABEL_ORDER = ["FACT", "DATABASE_AGGREGATE", "CALCULATION_VERIFIED", "SCOPE_VERIFIED", "UNVERIFIED_EXPLORATORY",
-               "NOT_VALIDATED"]
+LABEL_ORDER = ["FACT", "DATABASE_AGGREGATE", "CALCULATION_VERIFIED", "SCOPE_VERIFIED", "DATA_COVERAGE_VERIFIED",
+               "UNVERIFIED_EXPLORATORY", "NOT_VALIDATED"]
 CONTEXT = "CONTEXT"
 MULTIPLIERS = {"ribu": 1e3, "rb": 1e3, "k": 1e3, "thousand": 1e3, "juta": 1e6, "jt": 1e6, "million": 1e6, "m": 1e6,
                "mn": 1e6, "miliar": 1e9, "milyar": 1e9, "billion": 1e9, "b": 1e9, "bn": 1e9, "triliun": 1e12,
@@ -129,6 +129,24 @@ def numbers_in(value: Any, ints_only: bool = False, depth: int = 0) -> list[floa
     elif isinstance(value, (list, tuple)):
         for item in value:
             out.extend(numbers_in(item, ints_only, depth + 1))
+    return out
+
+
+def released_numbers(value: Any, depth: int = 0) -> list[float]:
+    """Numbers of released analysis content: numeric JSON leaves, plus the numbers written in its text (an
+    emit_text output, a JSON output returned as text chunks, a label in a table cell)."""
+    out = numbers_in(value)
+    stack: list[tuple[Any, int]] = [(value, depth)]
+    while stack:
+        item, level = stack.pop()
+        if level > 12:
+            continue
+        if isinstance(item, str) and not JSON_NUMBER_RE.match(item.strip()):
+            out.extend(number for shown in parse_numbers(item) for number, _ in shown.candidates)
+        elif isinstance(item, dict):
+            stack.extend((v, level + 1) for v in item.values())
+        elif isinstance(item, (list, tuple)):
+            stack.extend((v, level + 1) for v in item)
     return out
 
 

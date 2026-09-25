@@ -98,6 +98,7 @@ def create_app(
             lookup_fact_enabled=settings.ai_enable_lookup_fact,
             request_data_enabled=settings.ai_enable_request_data,
             dataneed_enabled=settings.ai_enable_dataneed,
+            session_timeout_seconds=settings.py_sandbox_session_timeout_seconds,
         )
         auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
             if sandbox is not None or settings.research_audit_database_url else None

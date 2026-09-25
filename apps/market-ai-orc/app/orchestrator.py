@@ -19,7 +19,7 @@ from .schemas import (
     ExecutionMetadata, ExperimentSummary, FinalResponse, NumberProvenance, ResearchSummary, RunError,
 )
 from .provenance import (CONTEXT, SourceIndex, analysis_label, check_answer, numbers_in, parse_numbers,
-                         requested_statistics, weakest)
+                         released_numbers, requested_statistics, weakest)
 from .tools import ToolOutcome, ToolRegistry, error_outcome
 from .tools.analysis import current_run_context, run_context
 from .tools.request_data import current_request_id
@@ -195,15 +195,74 @@ Data the catalog does not contain (for example macro data, yields,
 fundamentals, or news) is unavailable: say so and never substitute
 another dataset. A documented formula whose inputs are not in the
 catalog cannot be calculated."""
+DATANEED_RULES = """DATA NEED RULES
+Every answer that needs market data follows one path:
+1. submit_data_need_spec declares only the data needed: logical data
+requests (catalog table, columns, a scope expression tree, named time
+ranges, source and analysis frequency, history_buffer for warm-up
+before a range, future_buffer for observations after it, ordering) and
+the catalog relationships between them. Never put a formula,
+indicator, method, ranking or output in it. Compare periods with
+several named time ranges. A restriction by another table (for
+example banks only) is a second request on the reference table with
+its own scope, joined by an INNER relationship; take exact values from
+get_dimension_values and never type a member list yourself. On
+REVISION_REQUIRED fix every issue and resubmit with revision + 1;
+never change the user's scope, period or frequency to pass.
+2. prepare_data_bundle(need_id) extracts and verifies the data. Read
+the quality flags and relationship warnings; disclose those that
+affect the answer.
+3. open_analysis_session(input_bundle_id), then run_python as often as
+needed: read data only through the saniti helpers (load, range, sql,
+join, quality), inspect it, write the analysis yourself (TA-Lib first
+for standard indicators), fix errors and rerun, and emit results with
+emit_table, emit_json or emit_text. Read every approved request and
+range. If the data cannot support the analysis, call
+saniti.insufficient_data and revise the DataNeedSpec (for example more
+history).
+4. complete_analysis(session_id). Only a COMPLETED analysis releases
+outputs; on INCOMPLETE follow next_action.
+{lookup_rule}Numbers derived from data (statistics, comparisons, percentage changes,
+returns, rankings, counts per group, indicators, correlations) come
+only from released outputs of a completed analysis; never calculate
+them yourself. Every number in an answer must come from
+{number_sources}a released output, the user's message, the DataNeedSpec, or
+the bundle summary. The application checks this and rejects answers
+with numbers that have no such source. The backend verifies data
+coverage, not your formulas: never say a calculation was independently
+verified; state the method and parameters you used, and the approved
+ranges.
+Take table names, columns, subject values, relationships, join
+semantics and frequencies only from the catalog tools. Do not write
+or submit raw SQL. Do not claim data was retrieved unless a tool
+returned it. Preview rows show column formats only.
+
+MODES
+Use mode ANALYSIS for calculations, comparisons, rankings and
+aggregates. Use mode RESEARCH, with research_governance (hypothesis,
+candidate count, pairwise comparisons, multiple-testing policy, an
+optional holdout range and minimum sample), only for whether a
+condition historically precedes an outcome or for a bounded
+exploration. Report research results only as historical patterns
+(pola historis) with event counts, the baseline and the uncertainty:
+never as a cause, a prediction, a forecast or a trading signal.
+Data the catalog does not contain (for example macro data, yields,
+fundamentals, or news) is unavailable: say so and never substitute
+another dataset."""
 LOOKUP_RULE = ("Use lookup_fact only for a specific source fact: a value at explicit\n"
                "entities and dates, or a SUM, AVG, MIN, MAX, or COUNT the database\n"
                "computes over an explicit scope; each value carries a fact_id.\n")
 
 
-def build_system_prompt(lookup_fact: bool) -> str:
-    """The system prompt for the registered tools. It is fixed for a deployment (the AI_ENABLE_LOOKUP_FACT flag),
-    so every call of every run shares one byte-identical cacheable prefix."""
-    return (SYSTEM_PROMPT_TEMPLATE.replace("{lookup_rule}", LOOKUP_RULE if lookup_fact else "")
+def build_system_prompt(lookup_fact: bool, dataneed: bool = False) -> str:
+    """The system prompt for the registered tools. It is fixed for a deployment (AI_ENABLE_LOOKUP_FACT and
+    AI_ENABLE_DATANEED), so every call of every run shares one byte-identical cacheable prefix. With the DataNeed
+    flow its rules replace those of the Analysis Spec path."""
+    template = SYSTEM_PROMPT_TEMPLATE
+    if dataneed:
+        common, _ = SYSTEM_PROMPT_TEMPLATE.split("DATA QUERY RULES\n", 1)
+        template = common + DATANEED_RULES
+    return (template.replace("{lookup_rule}", LOOKUP_RULE if lookup_fact else "")
             .replace("{number_sources}", "a lookup_fact result, " if lookup_fact else ""))
 
 
@@ -254,7 +313,60 @@ CAUSAL_PATTERN = (r"\bcaus(?:e|es|ed|al|ally|ation)\b|\bdrives? (?:the )?(?:pric
                   r"\bmengakibatkan\b|\bpenyebab\b")
 NEGATION_PATTERN = (r"\b(?:not|no|never|cannot|can't|isn't|aren't|doesn't|don't|without|rather than|bukan|tidak|"
                     r"tanpa|belum|jangan)\b")
+# DataNeed flow: the backend verifies data coverage, never the formulas, so an answer may not say the calculation
+# was verified or validated (English and Indonesian).
+VERIFIED_CALCULATION_PATTERN = (
+    r"\b(?:calculations?|computations?|formulas?|results?|perhitungan|kalkulasi|hasil|rumus)\s+(?:\w+\s+){0,3}?"
+    r"(?:(?:has|have|was|were|is|are|been|telah|sudah|sudah\s+di|telah\s+di)\s+)*(?:independently\s+)?"
+    r"(?:verified|validated|diverifikasi|divalidasi|terverifikasi|tervalidasi)\b|"
+    r"\b(?:verified|validated|terverifikasi|tervalidasi)\s+(?:calculations?|results?|perhitungan|hasil)\b"
+)
 RESEARCH_CLAIMS = {"HISTORICAL_PATTERN", "PREDICTIVE", "EXPLORATORY", "SCENARIO"}
+DATANEED_GATE_INSTRUCTION = (
+    "Your answer relies on data analysis that did not complete: {findings}. Only outputs released by "
+    "complete_analysis may support an answer. Follow its next_action (process what was not read, revise the "
+    "DataNeedSpec, or complete the analysis), or return response_type \"LIMITATION\" that states what was not "
+    "completed."
+)
+DATANEED_ROUTING_INSTRUCTION = (
+    "The request asks for {families}, which only an analysis completed with complete_analysis can answer; numbers "
+    "must not be calculated by you. Use submit_data_need_spec, prepare_data_bundle, open_analysis_session, "
+    "run_python and complete_analysis, or return response_type \"LIMITATION\" stating what was not calculated."
+)
+DATANEED_PROVENANCE_INSTRUCTION = (
+    "These numbers in your answer have no governed source in this run: {numbers}. Every number must come from a "
+    "released output of a completed analysis{lookup}, the user's message, the DataNeedSpec, or the bundle summary; "
+    "run_python stdout, unreleased outputs and preview rows are not sources. Remove or correct those numbers, obtain "
+    "them from a released output, or return response_type \"LIMITATION\"."
+)
+DATANEED_CLAIM_INSTRUCTION = (
+    "Your answer makes a claim this architecture never supports: {problem}. Results describe the delivered data and "
+    "historical patterns only; they are never evidence of a cause, a prediction, a forecast or a trading signal, "
+    "and the backend verified data coverage, not your calculation. Rephrase, or return response_type "
+    "\"LIMITATION\"."
+)
+DATANEED_CLAIM_NOTICE = ("The evidence of this run does not support a causal, predictive or independently verified "
+                         "reading of the result below. ")
+DATANEED_GATE_NOTICE = ("The data analysis behind this response did not complete; any figures below are not a "
+                        "verified answer to the request. ")
+DATANEED_ROUTING_NOTICE = ("This request needs a completed analysis ({families}), and none supports this response; "
+                           "any figures below are not a verified answer. ")
+DATANEED_PROVENANCE_NOTICE = ("Some figures below could not be traced to a released analysis output or another "
+                              "governed source in this run: {numbers}. ")
+WARNING_LINES = {
+    "HISTORICAL_REFERENCE_USES_CURRENT_STATE": "Classifications come from the current state of the reference "
+                                               "table, not from the classification valid at each historical date.",
+    "HISTORY_BUFFER_SHORTFALL": "Some entities have fewer observations before a range than the requested warm-up "
+                                "history.",
+    "FUTURE_BUFFER_SHORTFALL": "Some entities have fewer observations after a range than requested (the data may "
+                               "end at the reference date).",
+    "FREQUENCY_GAPS": "Some entities miss dates of the dataset's own calendar inside a range.",
+    "EMPTY_RANGE": "A requested range has no data.",
+    "PARTIAL_RANGE_COVERAGE": "A requested range is only partly covered by the data.",
+    "EMPTY_ENTITY": "An entity named in the request has no data.",
+    "NULL_VALUES": "Some delivered values are missing (null).",
+    "DUPLICATE_KEYS": "Some rows repeat their key columns.",
+}
 
 RESPONSE_FORMAT_NAME = "saniti_agent_response"
 REJECTED_OUTPUT_ECHO_CHARS = 4000
@@ -360,6 +472,11 @@ class RunState:
     evidence: dict[str, dict[str, Any]] = field(default_factory=dict)
     warning_codes: set[str] = field(default_factory=set)
     experiments: list[dict[str, Any]] = field(default_factory=list)
+    # DataNeed flow: need_id -> {mode, governance}; session_id -> {bundle_id, executions}; session_id -> completion
+    needs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    sessions: dict[str, dict[str, Any]] = field(default_factory=dict)
+    completions: dict[str, dict[str, Any]] = field(default_factory=dict)
+    final_status: dict[str, Any] | None = None
 
 
 class AgentOrchestrator:
@@ -381,7 +498,8 @@ class AgentOrchestrator:
         self.auditor = auditor
         self.wall_clock = wall_clock
         self.clock = clock
-        self.system_prompt = build_system_prompt(settings.ai_enable_lookup_fact)
+        self.dataneed = settings.ai_enable_dataneed
+        self.system_prompt = build_system_prompt(settings.ai_enable_lookup_fact, self.dataneed)
 
     def run(self, request: AgentRunRequest) -> AgentRunResponse:
         moment = self.wall_clock()
@@ -421,7 +539,7 @@ class AgentOrchestrator:
         if self.auditor is not None:
             try:
                 self.auditor.record(request.request_id, request.message, result, state.experiments,
-                                    used_sandbox=bool(state.specs or state.analyses))
+                                    used_sandbox=bool(state.specs or state.analyses or state.needs or state.sessions))
             except Exception:  # noqa: BLE001 - auditing never changes the response
                 logger.warning(dumps({"event": "research_audit_failed", "request_id": request.request_id}))
         log_event(
@@ -630,6 +748,7 @@ class AgentOrchestrator:
         outcome = self._repair_budget(state, call_id, name, self.registry.execute(call_id, name, raw_arguments))
         self._track_analysis(state, name, outcome, self._normalized_arguments(raw_arguments))
         self._track_sources(state, name, self._normalized_arguments(raw_arguments), outcome)
+        self._track_dataneed(state, name, self._normalized_arguments(raw_arguments), outcome)
         result_hash = stable_hash(outcome.output)
         count = count + 1 if last_result in (None, result_hash) else 1
         state.call_history[key] = (count, result_hash)
@@ -822,6 +941,77 @@ class AgentOrchestrator:
             for part in (result.get("expected_scope"), result.get("actual_scope"), evidence):
                 state.context_numbers.extend(numbers_in(part, ints_only=True))
 
+    @staticmethod
+    def _track_dataneed(state: RunState, name: str, arguments: Any, outcome: ToolOutcome) -> None:
+        """DataNeed flow: needs, sessions, completions, and the numbers an answer may cite (released outputs)."""
+        if not outcome.ok:
+            return
+        result = outcome.output.get("result")
+        if not isinstance(result, dict):
+            return
+        if name == "submit_data_need_spec" and result.get("need_id"):
+            state.needs[result["need_id"]] = {
+                "mode": (arguments or {}).get("mode") if isinstance(arguments, dict) else None,
+                "governance": result.get("research_governance"),
+                "hypothesis_id": ((arguments or {}).get("research_governance") or {}).get("hypothesis_id")
+                if isinstance(arguments, dict) else None}
+            state.context_numbers.extend(numbers_in(arguments))
+        elif name == "prepare_data_bundle" and result.get("status") == "READY":
+            state.context_numbers.extend(numbers_in(result.get("datasets"), ints_only=True))
+            state.warning_codes |= {str(w.get("code")) for w in result.get("relationship_warnings") or []
+                                    if isinstance(w, dict)}
+        elif name == "open_analysis_session" and result.get("session_id"):
+            state.sessions[result["session_id"]] = {"need_id": result.get("need_id"),
+                                                    "bundle_id": result.get("bundle_id"), "executions": []}
+        elif name == "run_python" and result.get("execution_id"):
+            session = state.sessions.setdefault(result.get("session_id") or "", {"executions": []})
+            session["executions"].append(result.get("status"))
+        elif name == "get_session_output" and result.get("released"):
+            record = state.analysis_values.setdefault(f"released:{result.get('output_id')}",
+                                                      {"label": "DATA_COVERAGE_VERIFIED", "values": []})
+            record["values"].extend(released_numbers(result.get("rows")) + released_numbers(result.get("content")))
+        elif name == "complete_analysis" and result.get("final_status"):
+            session_id = result.get("session_id") or ((arguments or {}).get("session_id") if isinstance(
+                arguments, dict) else "")
+            state.completions[session_id] = {"status": result.get("status"), "final": result["final_status"],
+                                             "coverage": (result.get("coverage") or {}).get("coverage_status"),
+                                             "need_id": result.get("need_id"), "completion_id":
+                                             result.get("completion_id"), "next_action": result.get("next_action")}
+            state.final_status = {"completion_id": result.get("completion_id"), "session_id": session_id,
+                                  "need_id": result.get("need_id"), "status": result.get("status"),
+                                  **result["final_status"]}
+            if result.get("status") == "COMPLETED":
+                state.analysis_values[f"completion:{session_id}"] = {
+                    "label": "DATA_COVERAGE_VERIFIED", "values": released_numbers(result.get("released_contents"))}
+                state.context_numbers.extend(numbers_in(result.get("coverage"), ints_only=True))
+
+    def _dataneed_findings(self, state: RunState) -> tuple[list[str], list[str]]:
+        """(blocking findings, mandatory limitation lines) of the DataNeed flow."""
+        blocking, lines = [], []
+        for session_id, session in state.sessions.items():
+            completion = state.completions.get(session_id)
+            if completion is None:
+                if session.get("executions"):
+                    blocking.append(f"analysis session {session_id} was not completed with complete_analysis")
+                    lines.append(f"Analysis session {session_id} was not completed, so none of its outputs were "
+                                 "released.")
+            elif completion["status"] != "COMPLETED":
+                final = completion["final"]
+                blocking.append(f"analysis session {session_id} is INCOMPLETE (data_coverage "
+                                f"{final.get('data_coverage')}, sandbox_execution {final.get('sandbox_execution')})")
+                lines.append(f"Analysis session {session_id}: data coverage {final.get('data_coverage')}, sandbox "
+                             f"execution {final.get('sandbox_execution')}; its outputs were not released.")
+        completed = [c for c in state.completions.values() if c["status"] == "COMPLETED"]
+        if completed:
+            lines.append("Data coverage was verified against the approved DataNeedSpec; the calculations themselves "
+                         "were not independently recalculated by the backend (calculation_validation NOT_PERFORMED).")
+            codes = sorted({code for c in completed for code in c["final"].get("warnings") or []})
+            lines.extend(WARNING_LINES[code] for code in codes if code in WARNING_LINES)
+            if any((state.needs.get(c.get("need_id") or "") or {}).get("mode") == "RESEARCH" for c in completed):
+                lines.append("Research results describe a historical pattern only; they are not evidence of a cause "
+                             "or a prediction.")
+        return blocking, lines
+
     def _source_index(self, state: RunState) -> SourceIndex:
         index = SourceIndex()
         static = self.system_prompt + "\n" + "\n".join(str(d.get("description", "")) for d in self.registry.definitions())
@@ -854,6 +1044,8 @@ class AgentOrchestrator:
         if final.response_type == "CLARIFICATION":
             state.evidence_label = None
             return final
+        if self.dataneed:
+            return self._dataneed_gate(state, final)
         blocking, lines = self._gate_findings(state)
         if blocking and final.response_type == "ANSWER":
             self._gate_once(state, "ANALYSIS", VALIDATION_GATE_INSTRUCTION.format(findings="; ".join(blocking)))
@@ -896,15 +1088,58 @@ class AgentOrchestrator:
             return final
         return final.model_copy(update={"limitations": [*final.limitations, *missing_lines]})
 
+    def _dataneed_gate(self, state: RunState, final: FinalResponse) -> FinalResponse:
+        """The answer contract of the DataNeed flow: completed analysis, routing, released-output provenance, and no
+        causal or predictive claims. Each check rejects once (tools stay available), then forces LIMITATION."""
+        blocking, lines = self._dataneed_findings(state)
+        if blocking and final.response_type == "ANSWER":
+            self._gate_once(state, "ANALYSIS", DATANEED_GATE_INSTRUCTION.format(findings="; ".join(blocking)))
+            return self._forced(state, final, DATANEED_GATE_NOTICE, lines)
+        families, plain_average = requested_statistics(state.user_text)
+        usable = any(c["status"] == "COMPLETED" for c in state.completions.values())
+        average_fact = any(f["kind"] == "DATABASE_AGGREGATE" and f["aggregation"] == "AVG" for f in state.facts)
+        missing = sorted(families) if not usable else []
+        if not missing and plain_average and not usable and not average_fact:
+            missing = ["AVERAGE"]
+        if missing and final.response_type == "ANSWER":
+            names = ", ".join(missing)
+            self._gate_once(state, "ROUTING", DATANEED_ROUTING_INSTRUCTION.format(families=names))
+            return self._forced(state, final, DATANEED_ROUTING_NOTICE.format(families=names),
+                                [f"The request needs a completed analysis ({names}); none supports this "
+                                 f"response."] + lines)
+        provenance = check_answer(final.answer, self._source_index(state))
+        state.number_provenance = {"checked": provenance.checked, "unsupported": provenance.unsupported[:50]}
+        if provenance.unsupported:
+            numbers = ", ".join(provenance.unsupported[:20])
+            self._gate_once(state, "PROVENANCE", DATANEED_PROVENANCE_INSTRUCTION.format(
+                numbers=numbers, lookup=", a lookup_fact result" if self.settings.ai_enable_lookup_fact else ""))
+            return self._forced(state, final, DATANEED_PROVENANCE_NOTICE.format(numbers=numbers),
+                                [f"Figures without a governed source in this run: {numbers}."] + lines)
+        problem = self._claim_problem(state, final.answer, dataneed=True)
+        if problem and final.response_type == "ANSWER":
+            self._gate_once(state, "CLAIM", DATANEED_CLAIM_INSTRUCTION.format(problem=problem))
+            return self._forced(state, final, DATANEED_CLAIM_NOTICE, [f"Unsupported claim: {problem}."] + lines)
+        missing_lines = [line for line in lines if line not in final.limitations]
+        if state.sessions or state.completions:
+            state.validation_gate = "ANNOTATED" if missing_lines else "PASSED"
+        if final.response_type == "LIMITATION" and blocking:
+            state.evidence_label = "NOT_VALIDATED"
+        else:
+            state.evidence_label = weakest(provenance.data_kinds)
+        if not missing_lines:
+            return final
+        return final.model_copy(update={"limitations": [*final.limitations, *missing_lines]})
+
     @staticmethod
-    def _claim_problem(state: RunState, answer: str) -> str | None:
+    def _claim_problem(state: RunState, answer: str, dataneed: bool = False) -> str | None:
         """Causal wording is never supported by these analyses; predictive wording needs a PREDICTIVE analysis
-        whose evidence was SUPPORTED."""
+        whose evidence was SUPPORTED. In the DataNeed flow predictive wording is never supported, and neither is a
+        claim that the calculation was verified."""
         text = answer or ""
 
-        def asserted(pattern: str) -> str | None:
+        def asserted(pattern: str, negation_inside: bool = False) -> str | None:
             for match in re.finditer(pattern, text, re.IGNORECASE):
-                before = text[max(0, match.start() - 40):match.start()]
+                before = text[max(0, match.start() - 40):match.end() if negation_inside else match.start()]
                 if not re.search(NEGATION_PATTERN, before, re.IGNORECASE):
                     return match.group(0)
             return None
@@ -913,14 +1148,47 @@ class AgentOrchestrator:
         if causal:
             return f"causal wording ({causal!r}) for a historical association"
         predictive = asserted(PREDICTIVE_PATTERN)
-        supported = any(e.get("claim_type") == "PREDICTIVE" and e.get("decision") == "SUPPORTED"
-                        for e in state.evidence.values())
+        supported = not dataneed and any(e.get("claim_type") == "PREDICTIVE" and e.get("decision") == "SUPPORTED"
+                                         for e in state.evidence.values())
         if predictive and not supported:
             return f"predictive wording ({predictive!r}) without a supported predictive analysis"
+        verified = asserted(VERIFIED_CALCULATION_PATTERN, negation_inside=True) if dataneed else None
+        if verified:
+            return (f"verification wording ({verified!r}): the backend verifies data coverage, not the calculation "
+                    f"(calculation_validation NOT_PERFORMED)")
         return None
+
+    def _dataneed_research(self, state: RunState, answer: str) -> list[dict[str, Any]]:
+        """RESEARCH data needs of this run as experiments (spec_id carries the need_id, analysis_id the session)."""
+        experiments = []
+        for need_id, need in state.needs.items():
+            if need.get("mode") != "RESEARCH":
+                continue
+            session_id = next((sid for sid, s in state.sessions.items() if s.get("need_id") == need_id), None)
+            completion = state.completions.get(session_id or "")
+            retained = "NOT_RUN"
+            if completion:
+                record = state.analysis_values.get(f"completion:{session_id}") or {}
+                index = SourceIndex()
+                if record.get("label"):
+                    index.add(record["label"], record["values"])
+                cited = check_answer(answer or "", index)
+                retained = "RETAINED" if cited.checked > len(cited.unsupported) else "DISCARDED"
+            governance = need.get("governance") or {}
+            experiments.append({
+                "spec_id": need_id, "evidence_standard": "HISTORICAL_PATTERN", "hypothesis_id": need.get("hypothesis_id"),
+                "followup_of": (governance.get("constraints") or {}).get("followup_of"),
+                "governor_decision": governance.get("decision"), "analysis_id": session_id,
+                "execution_status": (completion or {}).get("final", {}).get("sandbox_execution"),
+                "validation_status": (completion or {}).get("coverage"),
+                "validation_level": (completion or {}).get("final", {}).get("evidence_label"),
+                "evidence_decision": None, "evidence_level": None, "retained": retained})
+        return experiments
 
     def _research_summary(self, state: RunState, answer: str) -> list[dict[str, Any]]:
         """Experiments of this run and whether the final answer relies on them (from the numbers it cites)."""
+        if self.dataneed:
+            return self._dataneed_research(state, answer)
         latest: dict[str, dict[str, Any]] = {}
         for summary in state.analyses.values():
             if summary.get("spec_id"):
@@ -1100,6 +1368,7 @@ class AgentOrchestrator:
             number_provenance=NumberProvenance(**state.number_provenance) if state.number_provenance else None,
             research=ResearchSummary(experiments=[ExperimentSummary(**e) for e in state.experiments])
             if state.experiments else None,
+            analysis_final_status=state.final_status,
         )
 
     def _failed(self, state: RunState, code: str, message: str) -> AgentRunResponse:

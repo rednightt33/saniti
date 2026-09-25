@@ -95,6 +95,15 @@ class Settings:
     bundle_max_bytes: int
     bundle_max_parts: int
     bundle_store_bytes: int
+    session_uid_base: int
+    max_sessions: int
+    session_execution_seconds: int
+    session_cpu_seconds: int
+    session_idle_seconds: int
+    session_max_seconds: int
+    session_max_executions: int
+    session_max_failed: int
+    session_max_outputs: int
     # outputs
     max_tables: int
     max_table_output_rows: int
@@ -219,6 +228,17 @@ class Settings:
             bundle_max_parts=_integer(env, "PY_SANDBOX_BUNDLE_MAX_PARTS", 128, maximum=1024),
             bundle_store_bytes=_integer(env, "PY_SANDBOX_BUNDLE_STORE_BYTES", 8_589_934_592, minimum=1 << 20,
                                         maximum=1 << 40),
+            session_uid_base=_integer(env, "PY_SANDBOX_SESSION_UID_BASE", 20201, minimum=1000, maximum=60000),
+            max_sessions=_integer(env, "PY_SANDBOX_MAX_SESSIONS", 2, maximum=4),
+            session_execution_seconds=_integer(env, "PY_SANDBOX_SESSION_EXECUTION_SECONDS",
+                                               _integer(env, "PY_SANDBOX_MAX_RUNTIME_SECONDS", 120, maximum=3600),
+                                               minimum=5, maximum=900),
+            session_cpu_seconds=_integer(env, "PY_SANDBOX_SESSION_CPU_SECONDS", 900, minimum=10, maximum=86400),
+            session_idle_seconds=_integer(env, "PY_SANDBOX_SESSION_IDLE_SECONDS", 900, minimum=30, maximum=86400),
+            session_max_seconds=_integer(env, "PY_SANDBOX_SESSION_MAX_SECONDS", 3600, minimum=60, maximum=86400),
+            session_max_executions=_integer(env, "PY_SANDBOX_SESSION_MAX_EXECUTIONS", 40, maximum=500),
+            session_max_failed=_integer(env, "PY_SANDBOX_SESSION_MAX_FAILED", 15, maximum=500),
+            session_max_outputs=_integer(env, "PY_SANDBOX_SESSION_MAX_OUTPUTS", 40, maximum=500),
             max_tables=_integer(env, "PY_SANDBOX_MAX_TABLES", 8, maximum=32),
             max_table_output_rows=_integer(env, "PY_SANDBOX_MAX_TABLE_OUTPUT_ROWS", 100_000, maximum=5_000_000),
             max_table_preview_rows=_integer(env, "PY_SANDBOX_MAX_TABLE_PREVIEW_ROWS", 50, maximum=200),
@@ -251,6 +271,11 @@ class Settings:
             raise ConfigError("PY_SANDBOX_MAX_THREADS must be at least 8x PY_SANDBOX_THREADS_PER_JOB")
         if settings.slot_uid_base <= settings.validator_uid < settings.slot_uid_base + settings.concurrency:
             raise ConfigError("PY_SANDBOX_VALIDATOR_UID must differ from every analysis slot user")
+        sessions = range(settings.session_uid_base, settings.session_uid_base + settings.max_sessions)
+        slots = range(settings.slot_uid_base, settings.slot_uid_base + settings.concurrency)
+        if settings.validator_uid in sessions or set(sessions) & set(slots):
+            raise ConfigError("PY_SANDBOX_SESSION_UID_BASE must give session users distinct from the analysis slot "
+                              "users and the validator user")
         return settings
 
     def research_policy(self):

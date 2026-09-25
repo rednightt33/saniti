@@ -16,6 +16,7 @@ from pydantic import ValidationError
 from .config import Settings
 from .bundles import BUNDLE_ID
 from .dataneed_service import DataNeedError, DataNeedService
+from .sessions import SessionError
 from .dataneed_store import DataNeedStore
 from .models import ANALYSIS_ID, REQUEST_ID, AnalysisRequest, RunReport
 from .outputs import CONTENT_TYPES
@@ -25,6 +26,8 @@ from .spec_v2 import SpecRequestAny
 
 FILE_ID = re.compile(r"^(res|art)_[0-9a-f]{24}$")
 NEED_ID = re.compile(r"^need_[0-9a-f]{24}$")
+SESSION_ID = re.compile(r"^sess_[0-9a-f]{24}$")
+OUTPUT_ID = re.compile(r"^out_[0-9a-f]{24}$")
 DATA_NEED_KEYS = {"request_id", "reference_time", "timezone", "spec", "research_governance"}
 PAGE_MAX = 500
 
@@ -52,7 +55,11 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         service.start(run_workers=run_workers)
+        if dataneed is not None:
+            dataneed.start(run_janitor=run_workers)
         yield
+        if dataneed is not None:
+            dataneed.stop()
         service.stop()
 
     app = FastAPI(title="Saniti Market Python Sandbox", version="2.0.0", docs_url=None, redoc_url=None,
@@ -186,6 +193,106 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
         if bundle is None:
             raise HTTPException(status_code=404, detail="Unknown bundle_id")
         return bundle
+
+    def session_error(exc: SessionError) -> JSONResponse:
+        body: dict[str, Any] = {"status": "REJECTED", "error": {"code": exc.code, "message": exc.message,
+                                                                 **exc.details}}
+        if exc.next_action:
+            body["next_action"] = exc.next_action
+        headers = {"Retry-After": str(exc.details["retry_after_seconds"])} \
+            if exc.details.get("retry_after_seconds") else None
+        return JSONResponse(status_code=exc.http_status, content=body, headers=headers)
+
+    def session_body(body: Any, required: set[str], optional: set[str] = frozenset()) -> dict[str, Any] | None:
+        if not isinstance(body, dict) or not required <= set(body) <= required | optional \
+                or not isinstance(body.get("request_id"), str) or not re.fullmatch(REQUEST_ID, body["request_id"]):
+            return None
+        return body
+
+    def invalid_body(shape: str) -> JSONResponse:
+        return JSONResponse(status_code=422, content={"status": "REJECTED", "error": {
+            "code": "INVALID_REQUEST", "message": f"Body must be {shape}."}})
+
+    def session_id_or_404(session_id: str) -> str:
+        if not SESSION_ID.fullmatch(session_id):
+            raise HTTPException(status_code=404, detail="Unknown session_id")
+        return session_id
+
+    @app.post("/v1/sessions", dependencies=dataneed_routes)
+    def open_session(body: Any = Body(...)) -> Any:
+        """A persistent analysis session on a READY bundle of the same request."""
+        body = session_body(body, {"request_id", "bundle_id"})
+        if body is None or not isinstance(body["bundle_id"], str) or not BUNDLE_ID.fullmatch(body["bundle_id"]):
+            return invalid_body("{request_id, bundle_id}")
+        try:
+            return dataneed.open_session(body["request_id"], body["bundle_id"])
+        except SessionError as exc:
+            return session_error(exc)
+
+    @app.post("/v1/sessions/{session_id}/execute", dependencies=dataneed_routes)
+    def execute(session_id: str, body: Any = Body(...)) -> Any:
+        """Run code in the session's persistent namespace (one execution at a time)."""
+        body = session_body(body, {"request_id", "code"})
+        if body is None:
+            return invalid_body("{request_id, code}")
+        try:
+            return dataneed.sessions.execute(session_id_or_404(session_id), body["request_id"], body["code"])
+        except SessionError as exc:
+            return session_error(exc)
+
+    @app.post("/v1/sessions/{session_id}/inspect", dependencies=dataneed_routes)
+    def inspect(session_id: str, body: Any = Body(...)) -> Any:
+        """Describe session variables (all names, or up to 20 with a bounded preview)."""
+        body = session_body(body, {"request_id"}, {"names", "max_rows"})
+        if body is None:
+            return invalid_body("{request_id, names?, max_rows?}")
+        rows = body.get("max_rows", 5)
+        if isinstance(rows, bool) or not isinstance(rows, int):
+            return invalid_body("{request_id, names?, max_rows: integer}")
+        try:
+            return dataneed.sessions.inspect(session_id_or_404(session_id), body["request_id"], body.get("names"),
+                                             rows)
+        except SessionError as exc:
+            return session_error(exc)
+
+    @app.get("/v1/sessions/{session_id}", dependencies=dataneed_routes)
+    def session_state(session_id: str, request_id: str = Query(..., max_length=128)) -> Any:
+        try:
+            return dataneed.sessions.state(session_id_or_404(session_id), request_id)
+        except SessionError as exc:
+            return session_error(exc)
+
+    @app.get("/v1/sessions/{session_id}/outputs/{output_id}", dependencies=dataneed_routes)
+    def session_output(session_id: str, output_id: str, request_id: str = Query(..., max_length=128),
+                       offset: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=500)) -> Any:
+        if not OUTPUT_ID.fullmatch(output_id):
+            raise HTTPException(status_code=404, detail="Unknown output_id")
+        try:
+            return dataneed.sessions.read_output(session_id_or_404(session_id), request_id, output_id, offset, limit)
+        except SessionError as exc:
+            return session_error(exc)
+
+    @app.post("/v1/sessions/{session_id}/complete", dependencies=dataneed_routes)
+    def complete_session(session_id: str, body: Any = Body(...)) -> Any:
+        """ExecutionManifest, Coverage Validator and final status; releases the outputs when coverage passes."""
+        body = session_body(body, {"request_id"})
+        if body is None:
+            return invalid_body("{request_id}")
+        try:
+            return dataneed.complete(session_id_or_404(session_id), body["request_id"])
+        except SessionError as exc:
+            return session_error(exc)
+
+    @app.post("/v1/sessions/{session_id}/close", dependencies=dataneed_routes)
+    def close_session(session_id: str, body: Any = Body(...)) -> Any:
+        body = session_body(body, {"request_id"})
+        if body is None:
+            return invalid_body("{request_id}")
+        try:
+            dataneed.sessions.state(session_id_or_404(session_id), body["request_id"])
+        except SessionError as exc:
+            return session_error(exc)
+        return dataneed.sessions.close(session_id, "CLOSED_BY_CALLER")
 
     @app.get("/v1/runs/{request_id}", dependencies=[Depends(authorize)])
     def run_summary(request_id: str) -> Any:

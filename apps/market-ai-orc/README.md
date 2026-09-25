@@ -198,7 +198,8 @@ Measured on `dev` (2026-09-24, see `RAILWAY_CHANGELOG.md`):
 | `AI_MAX_REPAIR_ATTEMPTS` | no | `3` | Repairs allowed per run for the same tool rejection (tool + reason code) before `REPAIR_BUDGET_EXHAUSTED` |
 | `AI_ENABLE_LOOKUP_FACT` | no | `true` | Register the model-facing `lookup_fact` tool and its prompt rule |
 | `AI_ENABLE_REQUEST_DATA` | no | `false` | Register the model-written `request_data` tool (rollback path; analysis data is prepared by `prepare_analysis_data`) |
-| `AI_ENABLE_DATANEED` | no | `false` | Register the DataNeed flow tools (`submit_data_need_spec`, and `prepare_data_bundle` when the Governor is configured; see [DataNeed flow](#dataneed-flow-in-progress)). The sandbox must run with `PY_SANDBOX_DATANEED_ENABLED=true`, otherwise the tool reports the sandbox unavailable |
+| `AI_ENABLE_DATANEED` | no | `false` | Switch to the DataNeed flow: register its tools (`submit_data_need_spec`; with the Governor also `prepare_data_bundle` and the session tools), drop the Analysis Spec tools, and use the DATA NEED RULES prompt and answer gate (see [DataNeed flow](#dataneed-flow-in-progress)). The sandbox must run with `PY_SANDBOX_DATANEED_ENABLED=true`, otherwise the tools report the sandbox unavailable. A DataNeed run needs more tool calls than the Analysis Spec path (spec, bundle, session, several `run_python`, completion): size `AI_MAX_TOOL_ITERATIONS` and `AI_MAX_TOOL_CALLS` for it |
+| `PY_SANDBOX_SESSION_TIMEOUT_SECONDS` | no | `180` | HTTP timeout of one `run_python` call (20–960); keep it above the sandbox's `PY_SANDBOX_SESSION_EXECUTION_SECONDS` plus 5 s |
 | `AI_MAX_ANALYSIS_SECONDS` | no | `600` | Wall-clock limit per run |
 | `AI_MAX_CONTEXT_TOKENS` | no | `64000` | Hard context ceiling (estimated before the call, provider-reported after) |
 | `AI_CONTEXT_SOFT_LIMIT_RATIO` | no | `0.8` | 0.5–0.95. At `AI_MAX_CONTEXT_TOKENS ×` this ratio, tools are withdrawn and the run finalizes from what was already retrieved (see [Context budget](#context-budget)). `AI_MAX_OUTPUT_TOKENS` must stay below this soft limit |
@@ -409,6 +410,11 @@ Guarantees:
 | `get_analysis_result` | `analysis_id` | The same record for a queued/running/finished analysis |
 | `submit_data_need_spec` | only with `AI_ENABLE_DATANEED`: a `data_need_spec/v1` document (`request_group_id`, `revision`, `mode`, `question`, `subject`, `data_requests`, `relationships`) plus `research_governance` for RESEARCH | The DataNeedValidator's `APPROVED` (with `need_id`), `REVISION_REQUIRED` (issues) or `CATALOG_UNAVAILABLE`, the Research Governor decision, and `next_action` |
 | `prepare_data_bundle` | only with `AI_ENABLE_DATANEED`: `need_id` | `READY` with `input_bundle_id` and, per data request, rows, entities, first/last date, each range's actual bounds and status, `quality_flags` and relationship warnings; or `REJECTED` naming the `data_request_id`, the Governor status, the code and the next action |
+| `open_analysis_session` | only with `AI_ENABLE_DATANEED`: `input_bundle_id` | `session_id`, datasets, relationships, helpers and limits |
+| `run_python` | `session_id`, `code` (≤ 20000) | `OK`, `SCRIPT_ERROR` (error type, line, field, traceback), `TIMEOUT` or `INSUFFICIENT_INPUT_DATA`, with stdout (diagnostics), outputs, changed variables and budgets |
+| `inspect_session` | `session_id`, `names` (null: all), `max_rows` | Variable descriptions with bounded previews |
+| `get_session_output` | `session_id`, `output_id`, `offset`, `limit` | Table rows page by page, JSON or text; `released` |
+| `complete_analysis` | `session_id` | The Coverage Validator's result and the final status (`data_coverage`, `sandbox_execution`, `calculation_validation` NOT_PERFORMED, `evidence_label`, warnings, allowed and forbidden claims); on PASS the released outputs with their content (JSON, first 200 table rows) |
 
 Each capability flag is derived from the registry. It becomes `true` only when its providing
 tool is actually registered: `catalog_discovery` → `discover_catalog`, `full_catalog_read` →
@@ -493,6 +499,42 @@ names only a `need_id`. The planner:
 5. names the parts deterministically: `<id>__<range>__part_NNN`, `<id>__part_NNN` for a merged envelope, or
    `<id>__static__part_NNN`;
 6. asks the sandbox to build the bundle, which verifies, profiles and checks coverage.
+
+**Phases 3 and 4 (implemented): analysis session tools** (`app/tools/session.py`): `open_analysis_session`,
+`run_python`, `inspect_session`, `get_session_output`, `complete_analysis`. `complete_analysis` fetches the content of
+the released outputs (JSON, and up to 200 rows of each of up to 10 tables), so the answer can cite them.
+- Each call carries the run's request id. `run_python` waits up to `PY_SANDBOX_SESSION_TIMEOUT_SECONDS` (default 180,
+  above the sandbox's execution limit and its grace period).
+- The sandbox's rejections (a closed session, capacity, budgets) come back as structured results with their next
+  action.
+
+**Phase 5 (implemented): the orchestrator in DataNeed mode** (`app/orchestrator.py`). With `AI_ENABLE_DATANEED`
+the DataNeed flow is exclusive:
+- The registry drops `get_dataset_manifest`, `create_analysis_spec`, `prepare_analysis_data`, `run_python_analysis`
+  and `get_analysis_result`. The capability flags `analysis_data_preparation` and `python_analysis` map to
+  `prepare_data_bundle` and `run_python`.
+- The system prompt keeps its common part and replaces DATA QUERY RULES with DATA NEED RULES:
+  `submit_data_need_spec` → `prepare_data_bundle` → `open_analysis_session` → `run_python` → `complete_analysis`,
+  analysis and research modes, and "pola historis" only for research. The prompt is still fixed per deployment,
+  so the cached prefix is byte-identical across runs.
+- The answer gate (`_dataneed_gate`) checks, in order, rejecting each problem once while tools are available and
+  forcing a LIMITATION after that:
+  1. an ANSWER may not rest on a session that ran code but was not completed, or whose completion is INCOMPLETE;
+  2. a request for a statistic, change, ranking or indicator needs a COMPLETED analysis;
+  3. every number traces to a released output (from `complete_analysis` or `get_session_output` with
+     `released: true`), a `lookup_fact` result when that tool is on, the user's message, the DataNeedSpec, or the
+     bundle summary. `run_python` stdout, unreleased outputs and preview rows are never sources;
+  4. causal and predictive wording is always refused, even in RESEARCH mode, and so is a claim that the
+     calculation was verified or validated (the backend verifies data coverage only;
+     `calculation_validation` is `NOT_PERFORMED`).
+- A number from a released output is labelled `DATA_COVERAGE_VERIFIED`, which ranks between `SCOPE_VERIFIED` and
+  `UNVERIFIED_EXPLORATORY`.
+- The final status of the latest `complete_analysis` is returned as `execution.analysis_final_status`.
+- The gate appends the mandatory limitations: calculation not recalculated, the quality warnings of the final
+  status in plain language, and "historical pattern only" for research.
+- RESEARCH needs appear in `execution.research.experiments` (`spec_id` is the `need_id`, `analysis_id` the session)
+  and in the run audit report.
+- With the flag off the Analysis Spec path and its gate are unchanged; switching the flag off is the rollback.
 
 Every extraction carries lineage: need, spec hash, scope and restriction hashes, plan id, part key, envelope,
 catalog hash, and the hash of the extraction body. Resampling is not pushed down; the catalog rules travel with the

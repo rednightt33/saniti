@@ -208,3 +208,55 @@ def delivery_coverage(approved: dict[str, Any], need: dict[str, Any], plan: dict
             "issues": issues[:25]})
     status = "PASS" if not global_issues and all(r["status"] == "PASS" for r in requests_out) else "FAIL"
     return {"coverage_status": status, "stage": "DELIVERY", "requests": requests_out, "issues": global_issues}
+
+
+# ---------------------------------------------------------------- processing coverage (at completion)
+
+FULL_READS = ("load", "sql", "relation")
+
+
+def execution_manifest(session: dict[str, Any], bundle: dict[str, Any], executions: list[dict[str, Any]],
+                       outputs: list[dict[str, Any]]) -> dict[str, Any]:
+    """What the session did: every execution (code hash, status, what the helpers read, outputs) and every output
+    with its checksum. Built by the harness from its own records, never from anything the code reported."""
+    reads: dict[str, dict[str, Any]] = {}
+    for execution in executions:
+        if execution["status"] != "OK":
+            continue  # a failed execution produced nothing that can be relied on
+        for entry in execution.get("access") or []:
+            rid = entry.get("data_request_id")
+            if not rid:
+                continue
+            record = reads.setdefault(rid, {"full_reads": 0, "ranges": {}, "rows_read": 0})
+            record["rows_read"] += int(entry.get("rows") or 0)
+            if entry.get("call") in FULL_READS:
+                record["full_reads"] += 1
+            elif entry.get("call") == "range":
+                ranges = record["ranges"].setdefault(entry["range_id"], {"reads": 0, "include_buffers": False})
+                ranges["reads"] += 1
+                ranges["include_buffers"] = ranges["include_buffers"] or bool(entry.get("include_buffers"))
+    return {
+        "execution_manifest_version": "v1", "session_id": session["session_id"], "bundle_id": bundle["input_bundle_id"],
+        "need_id": bundle["need_id"], "request_group_id": bundle["request_group_id"], "revision": bundle["revision"],
+        "executions": [{k: e.get(k) for k in ("execution_id", "seq", "status", "code_sha256", "runtime_ms",
+                                              "cpu_seconds", "outputs")} for e in executions],
+        "reads": reads,
+        "outputs": [{k: o.get(k) for k in ("output_id", "execution_id", "name", "type", "format", "row_count",
+                                           "columns", "byte_count", "checksum_sha256")} for o in outputs]}
+
+
+def processing_coverage(approved: dict[str, Any], manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    """Was every approved request and range read in full through the helpers in a successful execution?
+    A full read (load, sql, relation, or join on the whole datasets) covers every range; range() covers one."""
+    out = []
+    for rid in sorted(approved["requests"]):
+        request = approved["requests"][rid]
+        reads = manifest["reads"].get(rid) or {"full_reads": 0, "ranges": {}}
+        full = reads["full_reads"] > 0
+        ranges = [{"range_id": w["range_id"],
+                   "status": "PROCESSED" if full or w["range_id"] in reads["ranges"] else "NOT_PROCESSED"}
+                  for w in request.get("windows") or []]
+        processed = full or (bool(ranges) and all(r["status"] == "PROCESSED" for r in ranges))
+        out.append({"data_request_id": rid, "logical_name": request["logical_name"],
+                    "status": "PROCESSED" if processed else "NOT_PROCESSED", "ranges": ranges})
+    return out
