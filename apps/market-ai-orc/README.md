@@ -1,35 +1,32 @@
 # market-ai-orc
 
-AI orchestration service. It receives an AI request from a trusted backend, calls
+AI orchestration service. It receives an AI request from a trusted caller, calls
 OpenRouter, runs registered tools when the model asks for them, and returns a validated
-structured response. Phase 2 added read-only **catalog discovery** over Saniti's five
-`AI_*` metadata tables. Phase 3 adds **full catalog access** (every catalog row, paginated)
-and a fixed **20-row market-data preview** of seven approved tables. The SQL Governor milestone
-adds **`request_data`**. It forwards a structured Data Request Spec to the separate
+structured response. The model reads the `AI_*` catalogs, looks up bounded facts, and runs
+validated Python analyses. Market data reaches the model only through the separate
 `market-sql-governor` service, which is the only component that compiles and runs market-data
-SQL (see [`../market-sql-governor/README.md`](../market-sql-governor/README.md)).
+SQL (see [`../market-sql-governor/README.md`](../market-sql-governor/README.md)), and through
+`market-python-sandbox`, which runs and validates the analysis code (see
+[`../market-python-sandbox/README.md`](../market-python-sandbox/README.md)).
 
-It was derived from `apps/market-ai-backend`. It keeps that service's proven OpenRouter
-Responses transport, bounded retry, quota handling, usage accounting, strict final-schema
-validation with bounded retries, and bounded agent loop. It removes everything tied to
-market data: PostgreSQL, catalogs, SQL governance, query sandbox, statistical worker,
-S3 snapshots, evidence and completion gates, and analysis routing.
+It was derived from `apps/market-ai-backend`, the legacy analyst that is being retired. It keeps that service's
+proven OpenRouter Responses transport, bounded retry, quota handling, usage accounting, strict
+final-schema validation with bounded retries, and bounded agent loop. It shares no code, variable,
+endpoint, or table with that service at runtime.
 
-`market-ai-orc` has **no market-data query access and no bucket credentials**. Its only
-database access is optional and read-only: the `market_ai_orc` login can SELECT exactly the
-five `AI_*` catalog tables (see [Catalog discovery](#catalog-discovery)) and EXECUTE one
-database function that returns at most 20 example rows from one of seven approved tables
-(see [Market-data preview](#market-data-preview)). It has no SELECT privilege on any
-market-data table. `request_data` reaches market data only through the Governor's HTTP API
-(`SQL_GOVERNOR_URL` and `SQL_GOVERNOR_API_KEY`); this service holds no Governor database
-credential and no SQL logic. It is stateless: the caller owns conversation persistence.
+`market-ai-orc` has **no market-data query access and no bucket credentials**. Its database
+access is optional: the `market_ai_orc` login can SELECT the seven `AI_*` catalog tables (see
+[Catalog discovery](#catalog-discovery)), EXECUTE one database function that returns at most 20
+example rows from one of seven approved tables (see [Market-data preview](#market-data-preview)),
+and INSERT into `AI_research_run_audit` (see [Research run audit](#research-run-audit)). It has no
+SELECT privilege on any market-data table. It reaches market data only through the Governor's HTTP
+API (`SQL_GOVERNOR_URL` and `SQL_GOVERNOR_API_KEY`); it holds no Governor database credential and
+no SQL logic. It keeps no conversation state: the caller owns conversation persistence.
 
 ## Architecture
 
-Current (Phase 3):
-
 ```text
-Backend
+Caller (none deployed yet; only temporary test jobs have called it)
    ↓  POST /v1/agent/run  (Bearer MARKET_AI_ORC_API_KEY)
 market-ai-orc
    ↓  POST https://openrouter.ai/api/v1/responses
@@ -39,21 +36,26 @@ market-ai-orc executes a registered tool → function_call_output
    │    discover_catalog / get_catalog_details → targeted, visibility-filtered catalog metadata
    │    read_catalog_rows → complete AI_* catalog rows, keyset-paginated
    │    preview_table_rows → public.ai_preview_table_rows(): ≤ 20 fixed-order example rows
-   │    request_data → market-sql-governor POST /v1/query → DATASET_READY (reference, never rows) |
-   │                   NEEDS_NARROWING | REJECTED (with next_action)
    │    lookup_fact → market-sql-governor POST /v1/lookup → FACTS_READY (≤ 20 facts with fact_id) |
    │                   REJECTED (USE_ANALYSIS_PATH for statistics, rankings, or larger requests)
+   │    get_dimension_values → market-sql-governor POST /v1/catalog/dimension-values
+   │    create_analysis_spec → market-python-sandbox POST /v1/specs → approved spec_id | rejection
+   │    prepare_analysis_data → this service's compiler → market-sql-governor POST /v1/query
+   │                   (with data-plan lineage) → input_bundle_id (dataset references, never rows)
+   │    run_python_analysis / get_analysis_result → market-python-sandbox → validated record
    ↓  (repeat within limits)
 strict final response
-   ↓  validation gate (code): failed analyses, routing guard, number provenance, evidence_label
-Backend
+   ↓  validation gate (code): failed analyses, routing guard, number provenance, claim gate,
+   ↓  evidence_label
+Caller
 ```
 
-Python analysis (when the sandbox is configured) adds a validation path:
-`create_analysis_spec` → `request_data` → `run_python_analysis` → `get_analysis_result`, and a
-backend validation gate on the final response (see [Python analysis](#python-analysis)). When the
-analysis tools are not registered, `python_analysis` is `false` and the model must not claim an
-analysis ran.
+The analysis path is `create_analysis_spec` → `prepare_analysis_data` → `run_python_analysis` →
+`get_analysis_result`, followed by the validation gate on the final response (see
+[Two-path analysis](#two-path-analysis-analysis-spec-v2) and [Python analysis](#python-analysis)).
+The model-written `request_data` tool is a rollback path and is not registered unless
+`AI_ENABLE_REQUEST_DATA=true`. When the analysis tools are not registered, `python_analysis` is
+`false` and the model must not claim an analysis ran.
 
 ## Request flow
 
@@ -428,6 +430,10 @@ DATA DISCOVERY RULES prompt block:
 | `get_data_coverage()` | `get_catalog_details(sections=["COVERAGE"])`, with an explicit `availability_interpretation` per dataset |
 
 ## Data requests
+
+`request_data` is the rollback path: it is registered only with `AI_ENABLE_REQUEST_DATA=true`, and
+`dev` does not set it. Analysis data normally comes from `prepare_analysis_data`, whose compiler
+builds the same Data Request Spec from an approved analysis spec.
 
 `request_data` takes the Data Request Spec defined in `app/tools/request_data.py`. It is
 identical to the Governor's `app/spec.py`, and a contract test enforces this. The tool:
@@ -873,7 +879,7 @@ These are observed in the migration seed and reported, not changed:
 ## Currently unavailable capabilities
 
 These are not implemented, and no placeholder pretends they exist: model-written SQL (market
-data is reached only through `request_data` and the Governor), the legacy
+data is reached only through the Governor: `lookup_fact` facts and prepared datasets), the legacy
 `Table_Catalog`/`Column_Catalog`/`Feature_Catalog` catalogs, external data providers (the
 contract exists in market-sql-governor `app/external.py`, but no provider is registered and no
 credential is configured), causal inference or probabilistic forecasting beyond the event-study
@@ -884,19 +890,18 @@ frontend, and Telegram.
 
 - Service `market-ai-orc` (`41dc17ee-3bac-41ef-90ec-8b9356815c71`) runs in project `lucid-patience`, environment `dev`.
 - It is private: `http://market-ai-orc.railway.internal:8080`. There is no public domain.
-- `request_data` is live. `SQL_GOVERNOR_URL=http://market-sql-governor.railway.internal:8080`, and
-  `SQL_GOVERNOR_API_KEY` is a reference to `${{market-sql-governor.SQL_GOVERNOR_API_KEY}}`.
+- The Governor and sandbox connections are live. `SQL_GOVERNOR_URL=http://market-sql-governor.railway.internal:8080`,
+  and `SQL_GOVERNOR_API_KEY` is a reference to `${{market-sql-governor.SQL_GOVERNOR_API_KEY}}`.
+  `PY_SANDBOX_URL` points to `market-python-sandbox.railway.internal:8080`, and `PY_SANDBOX_API_KEY`
+  is a reference to `${{market-python-sandbox.PY_SANDBOX_API_KEY}}`. `dev` sets neither
+  `AI_ENABLE_REQUEST_DATA` nor `AI_ENABLE_LOOKUP_FACT`, so `request_data` is off and `lookup_fact` is on.
 - Its health check is `/ready`. The start command is
   `uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080`.
-- `OPENROUTER_API_KEY` is a Railway reference to `${{market-ai-backend.OPENROUTER_DEEPSEEK}}`,
-  so rotating that key updates both services.
-- A future backend caller should reference `${{market-ai-orc.MARKET_AI_ORC_API_KEY}}` rather
-  than copying it.
-- It is currently deployed by local upload. A GitHub `main` source is not connected yet.
-  The service watch path `/apps/market-ai-orc/**` also applies to CLI uploads, so a
-  `--path-as-root` upload of this folder is skipped as "No changes to watched files". Upload
-  a staging folder instead: it keeps the code under `apps/market-ai-orc/` and has a root
-  Dockerfile that copies `apps/market-ai-orc/requirements.txt` and `apps/market-ai-orc/app`.
+- `OPENROUTER_API_KEY` is this service's own secret since 2026-09-25. It used to be a reference to
+  `${{market-ai-backend.OPENROUTER_DEEPSEEK}}`. The value is unchanged; rotate it here.
+- A future caller should reference `${{market-ai-orc.MARKET_AI_ORC_API_KEY}}` rather than copying it.
+- It is deployed by local upload (`railway up apps/market-ai-orc --path-as-root`). Its watch path is
+  cleared (see `RAILWAY_CHANGELOG.md`, 2026-09-24) and no GitHub source is connected yet.
 - Catalog and preview access are live. Migrations `20260923_001`–`003` are applied, and the
   `market_ai_orc` login is provisioned. `CATALOG_DATABASE_URL` is a Railway reference built
   from `MARKET_AI_ORC_DB_PASSWORD` and the `Postgres` service's private domain.

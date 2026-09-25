@@ -1,5 +1,26 @@
 # Railway changelog
 
+## 2026-09-25 — Retire market-ai-backend, step 1: market-ai-orc no longer depends on it (in progress)
+
+- Scope approved by the user:
+  - migrate every market-ai-orc dependency on `market-ai-backend`;
+  - then deactivate `market-ai-backend`, `market-query-sandbox` and `market-analytics-worker` by removing their active deployments and disconnecting their GitHub source (services, variables and history kept);
+  - purge the retained provider reasoning in `Analysis_Model_Call` now, instead of the backend's 30-day hourly cleanup;
+  - leave `Tool_Catalog` unchanged;
+  - connect market-sql-governor, market-python-sandbox and market-ai-orc to GitHub `main`.
+- **Read-only inspection** (unrendered variables of every service, code, `Tool_Catalog` readers, logs):
+  - The only market-ai-orc dependency on the backend was `OPENROUTER_API_KEY = ${{market-ai-backend.OPENROUTER_DEEPSEEK}}`.
+  - No other service references a variable of `market-ai-backend`, `market-query-sandbox` or `market-analytics-worker`. The two workers depend only on the backend (literal `MARKET_AI_BACKEND_URL`).
+  - `Tool_Catalog` is read only by market-ai-backend. market-ai-orc, the Governor and the sandbox never read it.
+  - The backend has been idle since 2026-09-14; its log holds only the two workers' `claim` polls (HTTP 204).
+  - Bucket `market-analytics-input` holds 1 object (269 bytes, 2026-09-14).
+- **Done:** market-ai-orc `OPENROUTER_API_KEY` is now the service's own literal secret.
+  - It was set through the API with `skipDeploys`, read in-process from the backend value and never printed.
+  - A read-back confirmed that no market-ai-orc variable references `market-ai-backend`, and that the resolved value's hash equals the backend's `OPENROUTER_DEEPSEEK`.
+  - `GET https://openrouter.ai/api/v1/key` accepted the key; this makes no model call.
+  - The running deployment `3669447c` is unchanged and holds the same value. The literal takes effect at the next market-ai-orc deployment.
+- **Pending:** the GitHub source connections, the purge job and the deactivation. The first connection attempt was blocked by this session's permission policy before any change was made, and is waiting for the user.
+
 ## 2026-09-25 — Deploy the two-path release: migrations 20260925_001/002, market-sql-governor, market-python-sandbox, market-ai-orc (commit a5e11a4)
 
 - Scope approved by the user: apply both migrations, deploy the three services, refresh the catalog and schema documentation, delete the temporary service, and sync the configuration. The user skipped the 10-question stress test, so no model run was made on `dev` after the deploy. The same code was tested with the real model on a read-only copy of the live data earlier the same day (entry below). It was also tested in local real-model reproductions.
