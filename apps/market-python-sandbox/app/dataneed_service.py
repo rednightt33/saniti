@@ -13,6 +13,8 @@ from datetime import date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from .bundles import BundleBuilder, BundleError
+from .bundles import model_view as bundle_view
 from .data_need import Limits, contract_tables, sha256_json, validate
 from .datasets import DatasetFailure
 from .dataneed_store import DataNeedStore
@@ -35,7 +37,12 @@ class DataNeedError(Exception):
         self.details = details
 
     def body(self) -> dict[str, Any]:
-        return {"status": "REJECTED", "error": {"code": self.code, "message": self.message, **self.details}}
+        details = dict(self.details)
+        action = details.pop("next_action", None)
+        body: dict[str, Any] = {"status": "REJECTED", "error": {"code": self.code, "message": self.message, **details}}
+        if action:
+            body["next_action"] = action
+        return body
 
 
 def reference_date(reference_time: datetime, tz: str) -> date:
@@ -54,6 +61,7 @@ class DataNeedService:
         self.store = store
         self.limits = limits
         self.policy = self.settings.governance_policy()
+        self.bundles = BundleBuilder(analysis, store)
 
     @staticmethod
     def _log(event: str, **fields: Any) -> None:
@@ -170,4 +178,43 @@ class DataNeedService:
         record = self.store.get_need(need_id)
         if record is None or not record["extraction_allowed"]:
             return None
-        return {"need_id": need_id, "request_id": record["request_id"], **record["approved"]}
+        return {"need_id": need_id, "request_id": record["request_id"],
+                "warnings": record["result"].get("warnings") or [], **record["approved"]}
+
+    # ------------------------------------------------------------------------------------------ governed bundles
+
+    BUNDLE_ACTIONS = {"BUNDLE_TOO_LARGE": "REVISE_DATA_NEED_SPEC", "NEED_NOT_FOUND": "SUBMIT_DATA_NEED_SPEC",
+                      "REQUEST_BUDGET_EXCEEDED": "REPORT_LIMITATION", "DATA_QUALITY_PROFILING_FAILED": "RETRY_LATER",
+                      "DATASET_EXPIRED": "PREPARE_DATA_BUNDLE", "DATASET_NOT_FOUND": "PREPARE_DATA_BUNDLE"}
+
+    def build_bundle(self, request_id: str, need_id: str, plan: Any) -> dict[str, Any]:
+        """Verify, store, profile and cover the planner's extracted parts as one immutable bundle."""
+        need = self.get_need(need_id)
+        if need is None or need["request_id"] != request_id:
+            raise DataNeedError("NEED_NOT_FOUND", "No approved data need with this need_id exists for this request.",
+                                http_status=404, next_action="SUBMIT_DATA_NEED_SPEC")
+        try:
+            manifest = self.bundles.build(request_id, need, plan)
+        except BundleError as exc:
+            self._log("bundle_rejected", request_id=request_id, need_id=need_id, code=exc.code)
+            raise DataNeedError(exc.code, exc.message, http_status=exc.http_status,
+                                next_action=self.BUNDLE_ACTIONS.get(exc.code, "REPORT_LIMITATION"),
+                                **exc.details) from exc
+        view = bundle_view(manifest)
+        coverage = manifest.get("coverage") or {}
+        codes = sorted({i["code"] for r in coverage.get("requests") or [] for i in r.get("issues") or []})
+        if manifest["status"] == "READY":
+            view["next_action"] = "OPEN_ANALYSIS_SESSION"
+        else:
+            view["next_action"] = "REVISE_DATA_NEED_SPEC" if "CATALOG_CHANGED_SINCE_APPROVAL" in codes \
+                else "REPORT_LIMITATION"
+        self._log("bundle_built", request_id=request_id, need_id=need_id, bundle_id=manifest["input_bundle_id"],
+                  status=manifest["status"], coverage=coverage.get("coverage_status"), issues=codes,
+                  rows=manifest.get("row_count"), bytes=manifest.get("byte_count"),
+                  quality_flags={d["data_request_id"]: (d.get("quality") or {}).get("quality_flags")
+                                 for d in manifest["datasets"]}, replayed=manifest.get("replayed", False))
+        return view
+
+    def get_bundle(self, bundle_id: str) -> dict[str, Any] | None:
+        record = self.store.get_bundle(bundle_id)
+        return None if record is None else {**record["manifest"], "status": record["status"]}

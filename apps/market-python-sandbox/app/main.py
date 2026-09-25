@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import ValidationError
 
 from .config import Settings
+from .bundles import BUNDLE_ID
 from .dataneed_service import DataNeedError, DataNeedService
 from .dataneed_store import DataNeedStore
 from .models import ANALYSIS_ID, REQUEST_ID, AnalysisRequest, RunReport
@@ -162,6 +163,29 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
         if need is None:
             raise HTTPException(status_code=404, detail="Unknown need_id")
         return need
+
+    @app.post("/v1/bundles", dependencies=dataneed_routes)
+    def build_bundle(body: Any = Body(...)) -> Any:
+        """Verify, store, profile and cover the extracted parts of an approved need as one governed bundle."""
+        if not isinstance(body, dict) or set(body) != {"request_id", "need_id", "plan"} \
+                or not isinstance(body["request_id"], str) or not re.fullmatch(REQUEST_ID, body["request_id"]) \
+                or not isinstance(body["need_id"], str) or not NEED_ID.fullmatch(body["need_id"]):
+            return JSONResponse(status_code=422, content={"status": "REJECTED", "error": {
+                "code": "INVALID_REQUEST", "message": "Body must be {request_id, need_id, plan}."}})
+        try:
+            return dataneed.build_bundle(body["request_id"], body["need_id"], body["plan"])
+        except DataNeedError as exc:
+            return dataneed_error(exc)
+
+    @app.get("/v1/bundles/{bundle_id}", dependencies=dataneed_routes)
+    def get_bundle(bundle_id: str) -> Any:
+        """The complete bundle manifest with its Data Quality Manifests and delivery coverage (backend and audit)."""
+        if not BUNDLE_ID.fullmatch(bundle_id):
+            raise HTTPException(status_code=404, detail="Unknown bundle_id")
+        bundle = dataneed.get_bundle(bundle_id)
+        if bundle is None:
+            raise HTTPException(status_code=404, detail="Unknown bundle_id")
+        return bundle
 
     @app.get("/v1/runs/{request_id}", dependencies=[Depends(authorize)])
     def run_summary(request_id: str) -> Any:

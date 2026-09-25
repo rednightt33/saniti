@@ -15,7 +15,7 @@ from .catalog_contract import MAX_CONTRACT_TABLES
 from .config import Settings
 from .datasets import DatasetError, DatasetService
 from .decisions import GovernorResponse, LookupResponse
-from .governor import Database, Governor, GovernorUnavailable
+from .governor import Database, Extractor, Governor, GovernorUnavailable
 from .janitor import DatasetJanitor
 from .spec import COLUMN_PATTERN, TABLE_PATTERN, DataPlanLineage
 from .store import build_store
@@ -112,6 +112,27 @@ def create_app(settings: Settings | None = None, governor: Governor | None = Non
                 raise HTTPException(status_code=422, detail="lineage part_index exceeds part_count")
         try:
             return governor.handle(request_id, body["spec"], lineage=lineage)
+        except GovernorUnavailable:
+            return JSONResponse(status_code=503, content={"detail": "Governed database unavailable"})
+
+    extractor = Extractor(governor) if isinstance(governor, Governor) else getattr(governor, "extractor", None)
+
+    @app.post("/v1/extract", dependencies=[Depends(authorize)])
+    def extract(body: Any = Body(...)) -> Any:
+        """One physical part of an approved DataNeedSpec request (market-ai-orc's Execution Planner only)."""
+        if not isinstance(body, dict) or not {"request_id", "extraction", "lineage"} <= set(body) \
+                <= {"request_id", "extraction", "lineage", "planned_parts"}:
+            raise HTTPException(status_code=422, detail="Body must be {request_id, extraction, lineage[, planned_parts]}")
+        request_id = body["request_id"]
+        if not isinstance(request_id, str) or not REQUEST_ID.fullmatch(request_id):
+            raise HTTPException(status_code=422, detail="request_id must match ^[A-Za-z0-9._:-]{1,128}$")
+        planned = body.get("planned_parts", 1)
+        if isinstance(planned, bool) or not isinstance(planned, int) or not 1 <= planned <= 4096:
+            raise HTTPException(status_code=422, detail="planned_parts must be an integer from 1 to 4096")
+        if extractor is None:
+            raise HTTPException(status_code=404, detail="Not Found")
+        try:
+            return extractor.handle(request_id, body["extraction"], body["lineage"], part_count=planned)
         except GovernorUnavailable:
             return JSONResponse(status_code=503, content={"detail": "Governed database unavailable"})
 

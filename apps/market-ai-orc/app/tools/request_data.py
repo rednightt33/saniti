@@ -204,6 +204,29 @@ class GovernorClient:
             raise ToolError("The SQL Governor returned an invalid response.")
         return result
 
+    EXTRACT_STATUSES = ("APPROVED", "APPROVED_WITH_PARTITIONING", "REJECTED_COMPUTE_COST", "REJECTED_SCAN_SIZE",
+                        "REJECTED_ROW_LIMIT", "REJECTED_JOIN_COST", "REJECTED_TIMEOUT_RISK", "REJECTED_POLICY")
+
+    def extract(self, spec: dict[str, Any], lineage: dict[str, Any], *, planned_parts: int = 1) -> dict[str, Any]:
+        """One physical part of an approved DataNeedSpec (the Execution Planner only; never the model)."""
+        request_id = current_request_id.get() or f"orc-{uuid.uuid4().hex[:16]}"
+        try:
+            response = self._client.post("/v1/extract", json={"request_id": request_id, "extraction": spec,
+                                                              "lineage": lineage, "planned_parts": planned_parts})
+        except httpx.TimeoutException as exc:
+            raise ToolError("The SQL Governor did not answer in time.") from exc
+        except httpx.HTTPError as exc:
+            raise ToolError("The SQL Governor is unreachable.") from exc
+        if response.status_code != 200:
+            raise ToolError(f"The SQL Governor is unavailable (HTTP {response.status_code}).")
+        try:
+            result = response.json()
+        except ValueError as exc:
+            raise ToolError("The SQL Governor returned an invalid response.") from exc
+        if not isinstance(result, dict) or result.get("status") not in self.EXTRACT_STATUSES or result.get("rows"):
+            raise ToolError("The SQL Governor returned an invalid response.")
+        return result
+
     def dimension_values(self, table: str, column: str, match: str | None) -> dict[str, Any]:
         request_id = current_request_id.get() or f"orc-{uuid.uuid4().hex[:16]}"
         try:

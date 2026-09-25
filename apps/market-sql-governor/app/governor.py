@@ -24,7 +24,8 @@ from psycopg.rows import dict_row
 from pydantic import ValidationError
 
 from .compiler import CompiledQuery, compile_query
-from .catalog_contract import executed_scope, load_contract, source_contract
+from .catalog_contract import executed_scope, load_contract, sha256_json, source_contract
+from . import extract as ex
 from .config import Settings
 from .decisions import (NEXT_ACTION, DatasetReference, Fact, GovernorResponse, GovernorStop, LookupResponse,
                         OutputColumn, lookup_next_action, narrowing, rejected)
@@ -535,6 +536,192 @@ class Governor:
             message="Approved; each value is a governed fact with its own fact_id.", request_id=request_id,
             query_id=query_id, query_hash=compiled.query_hash, mode=spec.mode, table=spec.table, scope=scope,
             facts=facts, missing=missing, warnings=query.warnings)
+
+
+INDEX_LEADING_SQL = '''
+SELECT DISTINCT a.attname AS column_name
+FROM pg_catalog.pg_index AS i
+JOIN pg_catalog.pg_class AS c ON c.oid = i.indrelid
+JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+JOIN pg_catalog.pg_attribute AS a ON a.attrelid = c.oid AND a.attnum = i.indkey[0]
+WHERE n.nspname = 'public' AND c.relname = %s AND i.indisvalid
+'''
+
+
+class Extractor:
+    """POST /v1/extract (app/extract.py): one physical part of an approved DataNeedSpec request."""
+
+    def __init__(self, governor: Governor) -> None:
+        self.governor = governor
+        self.settings = governor.settings
+
+    def limits(self) -> ex.Limits:
+        s = self.settings
+        return ex.Limits(max_scan_rows=s.max_estimated_scan_rows, max_result_rows=s.max_dataset_rows,
+                         max_plan_cost=float(s.max_plan_cost), max_window_days=s.extract_max_window_days,
+                         max_parts=s.extract_max_parts)
+
+    def handle(self, request_id: str, raw_spec: Any, raw_lineage: Any, part_count: int = 1) -> dict[str, Any]:
+        started = time.monotonic()
+        query_id = f"qry_{uuid.uuid4().hex[:24]}"
+        state: dict[str, Any] = {"source_tables": [], "data_request_id": None}
+        try:
+            try:
+                spec = ex.ExtractionSpec.model_validate(raw_spec)
+                lineage = ex.ExtractionLineage.model_validate(raw_lineage)
+            except ValidationError as exc:
+                issues = "; ".join(f"{'.'.join(str(p) for p in e['loc']) or 'spec'}: {e['msg']}"
+                                   for e in exc.errors(include_url=False, include_input=False)[:8])
+                raise ex.policy("INVALID_EXTRACTION_SPEC", f"The extraction spec is invalid: {issues}") from exc
+            state["data_request_id"] = spec.data_request_id
+            if lineage.data_request_id != spec.data_request_id or lineage.extraction_sha256 != ex.extraction_sha256(
+                    raw_spec):
+                raise ex.policy("LINEAGE_MISMATCH", "The lineage does not describe this extraction spec.")
+            window = {"from": spec.window.start, "to": spec.window.end} if spec.window else None
+            partition = spec.entity_partition.model_dump() if spec.entity_partition else None
+            if lineage.part_key != ex.part_key(window, partition):
+                raise ex.policy("LINEAGE_MISMATCH", "part_key does not describe this extraction's window and partition.")
+            outcome = self._run(request_id, query_id, spec, lineage, state, part_count)
+        except ex.ExtractStop as stop:
+            outcome = self._stopped(request_id, query_id, stop, state)
+        except psycopg.errors.QueryCanceled:
+            outcome = self._stopped(request_id, query_id, self._runtime_stop(state, "TIME"), state)
+        except psycopg.errors.InsufficientPrivilege:
+            outcome = self._stopped(request_id, query_id, ex.policy(
+                "DATABASE_PERMISSION_DENIED", "The governed database role cannot read a requested table."), state)
+        except psycopg.OperationalError as exc:
+            raise GovernorUnavailable("The governed database is unavailable.") from exc
+        except psycopg.Error:
+            outcome = self._stopped(request_id, query_id, ex.policy(
+                "QUERY_FAILED", "The database rejected the compiled extraction."), state)
+        outcome["runtime_ms"] = int((time.monotonic() - started) * 1000)
+        dataset = outcome.get("dataset") or {}
+        _log("sql_governor_extract", request_id=request_id, query_id=query_id, status=outcome["status"],
+             code=outcome.get("code"), data_request_id=state.get("data_request_id"),
+             source_tables=state.get("source_tables"), query_hash=outcome.get("query_hash"),
+             estimates=outcome.get("estimates"), partitioning=outcome.get("partitioning"),
+             dataset_id=dataset.get("dataset_id"), rows=dataset.get("row_count"),
+             need_id=state.get("need_id"), plan_id=state.get("plan_id"), part_key=state.get("part_key"),
+             runtime_ms=outcome["runtime_ms"])
+        return outcome
+
+    def _runtime_stop(self, state: dict[str, Any], violation: str) -> ex.ExtractStop:
+        """A limit met while executing (rows, bytes, time): split further when possible, otherwise refuse."""
+        bound = state.get("bound")
+        if bound is not None:
+            decision = ex.partitioning(bound, None, self.limits(), state.get("index_columns") or set(),
+                                       part_count=state.get("part_count", 1), runtime_violation=violation)
+            if decision is not None:
+                return decision
+        status = {"TIME": "REJECTED_TIMEOUT_RISK", "ROWS": "REJECTED_ROW_LIMIT"}[violation]
+        return ex.ExtractStop(status, f"{violation}_LIMIT", "The extraction exceeded a runtime limit and cannot be "
+                                                            "split further.")
+
+    def _stopped(self, request_id: str, query_id: str, stop: ex.ExtractStop, state: dict[str, Any]) -> dict[str, Any]:
+        details = _details(stop.details)
+        partitioning = details.pop("partitioning", None)
+        return {"status": stop.status, "code": stop.code, "message": stop.message,
+                "next_action": ex.NEXT_ACTION.get(stop.status, ex.RESOURCE_NEXT_ACTION),
+                "data_request_id": state.get("data_request_id"), "request_id": request_id, "query_id": query_id,
+                "query_hash": state.get("query_hash"), "partitioning": partitioning,
+                "estimates": details.pop("estimates", None) or state.get("estimates"), "details": details,
+                "warnings": state.get("warnings") or []}
+
+    def _run(self, request_id: str, query_id: str, spec: ex.ExtractionSpec, lineage: ex.ExtractionLineage,
+             state: dict[str, Any], part_count: int) -> dict[str, Any]:
+        s = self.settings
+        state.update(need_id=lineage.need_id, plan_id=lineage.plan_id, part_key=lineage.part_key,
+                     part_count=part_count)
+        with self.governor.database.session() as connection:
+            def run(statement: str, params: tuple[Any, ...]) -> list[dict[str, Any]]:
+                with connection.cursor(row_factory=dict_row) as cursor:
+                    return list(cursor.execute(statement, params).fetchall())
+
+            tables = [spec.source_table, *(r.right_table for r in spec.restrictions)]
+            contract = load_contract(run, tables)
+            bound = ex.bind(spec, contract, max_in_values=s.extract_max_in_values, max_columns=s.extract_max_columns)
+            state.update(bound=bound, source_tables=bound.source_tables)
+            if lineage.catalog_sha256 is not None and lineage.catalog_sha256 != contract.get("catalog_sha256"):
+                # the catalog changed since approval: the table hashes in the executed scope let the sandbox decide
+                state.setdefault("warnings", []).append("CATALOG_CHANGED_SINCE_APPROVAL")
+            index_columns = {row["column_name"] for row in run(INDEX_LEADING_SQL, (spec.source_table,))}
+            state["index_columns"] = index_columns
+            explain = ex.compile_extraction(bound, None)
+            state["query_hash"] = explain.query_hash
+            scan_rows, cost, result_rows = self.governor._explain(connection, explain, run)
+            estimates = ex.Estimates(scan_rows=scan_rows, result_rows=result_rows, plan_cost=cost)
+            state["estimates"] = estimates.__dict__
+            decision = ex.partitioning(bound, estimates, self.limits(), index_columns, part_count=part_count)
+            if decision is not None:
+                raise decision
+            if self.governor.store is None:
+                raise ex.policy("DATASET_STORAGE_UNAVAILABLE", "Dataset storage is not configured.")
+            compiled = ex.compile_extraction(bound, s.max_dataset_rows + 1)
+            state["query_hash"] = compiled.query_hash
+            return self._extract(connection, run, request_id, query_id, bound, compiled, estimates, contract,
+                                 lineage, state)
+
+    def _extract(self, connection, run, request_id: str, query_id: str, bound: ex.BoundExtraction,
+                 compiled: CompiledQuery, estimates: ex.Estimates, contract: dict[str, Any],
+                 lineage: ex.ExtractionLineage, state: dict[str, Any]) -> dict[str, Any]:
+        s = self.settings
+        names = [c["name"] for c in bound.columns]
+        deadline = time.monotonic() + s.max_execution_seconds
+        with connection.cursor(name=f"extract_{query_id}") as cursor:
+            cursor.itersize = FETCH_BATCH_ROWS
+            cursor.execute(compiled.statement, compiled.params)
+            batch = cursor.fetchmany(FETCH_BATCH_ROWS)
+            oids = [column.type_code for column in cursor.description]
+            dataset_id = f"ds_{uuid.uuid4().hex[:24]}"
+            index = {name: position for position, name in enumerate(names)}
+            stats = ResultStats(index.get(bound.time_column), index.get(bound.entity_column))
+            builder = ParquetBuilder(names, oids, s.max_dataset_bytes,
+                                     {"dataset_id": dataset_id, "query_hash": compiled.query_hash})
+            try:
+                while batch:
+                    stats.add(batch)
+                    if stats.rows > s.max_dataset_rows:
+                        raise self._runtime_stop(state, "ROWS")  # never truncated: split or refuse
+                    builder.write(batch)
+                    if time.monotonic() > deadline:
+                        raise self._runtime_stop(state, "TIME")
+                    batch = cursor.fetchmany(FETCH_BATCH_ROWS)
+                payload = builder.finish()
+            except GovernorStop as stop:  # the snapshot byte limit
+                if stop.reason_code != "DATASET_TOO_LARGE":
+                    raise
+                raise self._runtime_stop(state, "ROWS") from None
+        checksum = hashlib.sha256(payload).hexdigest()
+        columns = [OutputColumn(name=c["name"], type=c["data_type"], source_table=bound.spec.source_table,
+                                source_column=c["name"], aggregation=None, unit=c.get("unit")).model_dump()
+                   for c in bound.columns]
+        executed = ex.executed_scope(bound)
+        spec_json = bound.spec.model_dump(mode="json", by_alias=True)
+        manifest = build_manifest(
+            dataset_id=dataset_id, payload=payload, checksum=checksum, columns=columns, oids=oids, stats=stats,
+            source_tables=bound.source_tables, query_id=query_id, query_hash=compiled.query_hash,
+            request_id=request_id, spec=spec_json,
+            requested_range={"from": bound.window[0].isoformat(), "to": bound.window[1].isoformat()}
+            if bound.window else None, requested_entities=None, retention_hours=s.dataset_retention_hours,
+            lineage=lineage.model_dump(mode="json", by_alias=True), executed=executed,
+            source_contracts={name: source_contract(meta) for name, meta in contract["tables"].items()})
+        manifest["estimates"] = estimates.__dict__
+        manifest_raw, manifest_checksum = manifest_bytes(manifest)
+        store = self.governor.store
+        store.put_immutable(f"datasets/{dataset_id}/data.parquet", payload, "application/vnd.apache.parquet", checksum)
+        store.put_immutable(f"datasets/{dataset_id}/manifest.json", manifest_raw, "application/json",
+                            manifest_checksum)
+        return {"status": "APPROVED", "code": "OK", "next_action": ex.NEXT_ACTION["APPROVED"],
+                "message": "Extracted as an immutable Parquet dataset; only its reference is returned.",
+                "data_request_id": bound.spec.data_request_id, "request_id": request_id, "query_id": query_id,
+                "query_hash": compiled.query_hash, "partitioning": None, "estimates": estimates.__dict__,
+                "details": {}, "warnings": state.get("warnings") or [],
+                "executed_scope_sha256": sha256_json(executed), "part_key": executed["part_key"],
+                "dataset": {"dataset_id": dataset_id, "format": "PARQUET", "row_count": manifest["row_count"],
+                            "column_count": manifest["column_count"], "byte_count": manifest["byte_count"],
+                            "checksum_sha256": checksum, "actual_date_range": manifest["actual_date_range"],
+                            "entities_present_count": manifest["entities_present_count"],
+                            "created_at": manifest["created_at"], "expires_at": manifest["expires_at"]}}
 
 
 def _details(details: dict[str, Any]) -> dict[str, Any]:

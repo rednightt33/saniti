@@ -619,6 +619,31 @@ class SandboxClient:
             raise ToolError(f"The Python sandbox is unavailable (HTTP {response.status_code}).")
         return body
 
+    def get_need(self, need_id: str) -> dict[str, Any] | None:
+        """The approved contract of a DataNeedSpec (backend use only: the Execution Planner reads it)."""
+        response = self._call("GET", f"/v1/data-needs/{need_id}")
+        if response.status_code == 404:
+            return None
+        body = self._json(response)
+        if response.status_code != 200:
+            raise ToolError(f"The Python sandbox is unavailable (HTTP {response.status_code}).")
+        return body
+
+    def build_bundle(self, request_id: str, need_id: str, plan: dict[str, Any]) -> dict[str, Any]:
+        """Hand the extracted parts to the sandbox, which verifies, profiles and covers them as one bundle."""
+        response = self._call("POST", "/v1/bundles", json={"request_id": request_id, "need_id": need_id,
+                                                           "plan": plan})
+        body = self._json(response)
+        if response.status_code == 200 and "status" in body:
+            return body
+        error = body.get("error") if isinstance(body.get("error"), dict) else None
+        if response.status_code in (404, 422, 429, 503) and error:
+            return {"status": "REJECTED", "stage": "BUNDLE", "code": error.get("code"),
+                    "message": str(error.get("message") or "")[:400],
+                    "next_action": body.get("next_action") or "REPORT_LIMITATION",
+                    "details": {k: v for k, v in error.items() if k not in ("code", "message")}}
+        raise ToolError(f"The Python sandbox is unavailable (HTTP {response.status_code}).")
+
     def submit(self, arguments: RunPythonAnalysisArgs, bindings: list[dict[str, Any]]) -> dict[str, Any]:
         payload = {k: v for k, v in arguments.model_dump(mode="json").items() if k != "input_bundle_id"}
         response = self._call("POST", "/v1/analyses", json={"request_id": self._request_id(), **payload,

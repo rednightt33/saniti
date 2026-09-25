@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 class ConfigError(RuntimeError):
@@ -88,6 +89,12 @@ class Settings:
     leakage_check: bool
     # DataNeed flow (DataNeedSpec, governed bundles, analysis sessions); off until the orchestrator switches over
     dataneed_enabled: bool
+    bundle_dir: str
+    bundle_retention_hours: int
+    bundle_max_rows: int
+    bundle_max_bytes: int
+    bundle_max_parts: int
+    bundle_store_bytes: int
     # outputs
     max_tables: int
     max_table_output_rows: int
@@ -200,6 +207,18 @@ class Settings:
             research_min_holdout_pct=_integer(env, "PY_SANDBOX_RESEARCH_MIN_HOLDOUT_PCT", 20, maximum=90),
             leakage_check=_boolean(env, "PY_SANDBOX_LEAKAGE_CHECK", True),
             dataneed_enabled=_boolean(env, "PY_SANDBOX_DATANEED_ENABLED", False),
+            bundle_dir=env.get("PY_SANDBOX_BUNDLE_DIR", "").strip() or str(
+                Path(env.get("PY_SANDBOX_DATA_DIR", "/data").strip()) / "bundles"),
+            bundle_retention_hours=_integer(env, "PY_SANDBOX_BUNDLE_RETENTION_HOURS", 24, maximum=168),
+            bundle_max_rows=_integer(env, "PY_SANDBOX_BUNDLE_MAX_ROWS",
+                                     _integer(env, "PY_SANDBOX_MAX_INPUT_ROWS", 2_000_000, maximum=20_000_000),
+                                     maximum=50_000_000),
+            bundle_max_bytes=_integer(env, "PY_SANDBOX_BUNDLE_MAX_BYTES",
+                                      _integer(env, "PY_SANDBOX_MAX_INPUT_BYTES", 268_435_456, minimum=1024,
+                                               maximum=4_294_967_296), minimum=1024, maximum=17_179_869_184),
+            bundle_max_parts=_integer(env, "PY_SANDBOX_BUNDLE_MAX_PARTS", 128, maximum=1024),
+            bundle_store_bytes=_integer(env, "PY_SANDBOX_BUNDLE_STORE_BYTES", 8_589_934_592, minimum=1 << 20,
+                                        maximum=1 << 40),
             max_tables=_integer(env, "PY_SANDBOX_MAX_TABLES", 8, maximum=32),
             max_table_output_rows=_integer(env, "PY_SANDBOX_MAX_TABLE_OUTPUT_ROWS", 100_000, maximum=5_000_000),
             max_table_preview_rows=_integer(env, "PY_SANDBOX_MAX_TABLE_PREVIEW_ROWS", 50, maximum=200),

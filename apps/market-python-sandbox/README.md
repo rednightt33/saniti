@@ -61,8 +61,49 @@ current flow; while the flag is off, its routes answer 404 and the service keeps
   same research budgets as the Analysis Spec path. Revisions of one request group reuse its reservation.
   `mode: ANALYSIS` with a governance request is `MODE_MISMATCH`.
 
-Later phases add the governed data bundle with its Data Quality Manifest, persistent analysis sessions, and the
-Coverage Validator.
+**Phase 2 (implemented): governed data bundles.** market-ai-orc's Execution Planner extracts every part of an
+approved need through the Governor's `/v1/extract`. It then sends `POST /v1/bundles {request_id, need_id, plan}`,
+where the plan lists every part: `partition_id`, `dataset_id`, `part_key`, window, and entity partition.
+`app/bundles.py` then:
+
+1. checks that the need is approved for this request and that the plan is well formed;
+2. obtains a Governor grant for every dataset and refuses before any download when the bundle would exceed
+   `PY_SANDBOX_BUNDLE_MAX_ROWS` / `_MAX_BYTES` (`BUNDLE_TOO_LARGE`, next action `REVISE_DATA_NEED_SPEC`) or the
+   request's input budget;
+3. downloads each file with its checksum verified and stores it read-only (0444) under
+   `PY_SANDBOX_BUNDLE_DIR` (`/data/bundles`, root only), where it survives restarts until the bundle expires;
+4. runs the **Data Quality Profiler** (`runtime/profiler.py`, DuckDB). It runs in a confined process as the
+   validator user, with the validator's limits and seccomp. It measures and never changes the data: no
+   recalculation, cleaning, imputation or outlier removal. Per data request it reports:
+   - rows, entities, first and last date;
+   - each requested range with its requested, extracted and actual bounds, rows, entities and status (OK,
+     PARTIAL, EMPTY);
+   - partitions with rows outside their window;
+   - duplicate primary keys and null counts per column;
+   - frequency gaps against the dataset's own calendar (listings and delistings are not gaps);
+   - history and future buffer shortfalls per range;
+   - empty entities the scope named explicitly;
+   - backward date steps;
+   - `quality_flags`, the codes of every finding that is not clean;
+5. runs **delivery coverage** (`app/coverage.py`). It compares the approved need, the SQL execution manifests
+   (lineage and executed scope), the Data Quality Manifests and the delivered files:
+   - the lineage and executed scope of every part: need, plan, request, part key, scope and restriction hashes,
+     columns, table, window;
+   - no sampling and no truncation;
+   - the catalog version each part ran under;
+   - partition tiling: on every date of every approved window, each entity residue is delivered exactly once;
+   - each part's delivered rows and entity set against its SQL manifest (an entity present in SQL but missing
+     downstream fails).
+   Quality findings are flags, not coverage failures.
+6. records the bundle with its manifest checksum. Coverage `PASS` gives `READY` (next action
+   `OPEN_ANALYSIS_SESSION`). `FAIL` gives `REJECTED` and removes the files; the next action is `REPORT_LIMITATION`,
+   or `REVISE_DATA_NEED_SPEC` when the catalog changed since approval. The same plan again replays the bundle.
+
+`GET /v1/bundles/{bundle_id}` returns the complete manifest, including the Data Quality Manifests and coverage.
+The POST answer is the model view: no file paths and no dataset internals. Expired bundles are deleted, and the
+oldest are evicted above `PY_SANDBOX_BUNDLE_STORE_BYTES`.
+
+Later phases add persistent analysis sessions and processing coverage at completion.
 
 ## Analysis Spec V2 (two paths: ANALYSIS and RESEARCH)
 
@@ -651,6 +692,7 @@ The URL is never logged, stored, returned, or visible to any child process.
 | `GET /v1/runtime` | Isolation checks, library versions, limits |
 | `GET /v1/runs/{request_id}` | Audit view of one orchestrator run: experiments with governor decisions, analyses with code/dataset fingerprints and evidence decisions, budgets, and the final report |
 | `POST /v1/data-needs`, `GET /v1/data-needs/{need_id}` | DataNeedSpec validation and the approved contract (only with `PY_SANDBOX_DATANEED_ENABLED`; see above) |
+| `POST /v1/bundles`, `GET /v1/bundles/{bundle_id}` | Governed data bundle: verification, profiling, delivery coverage (only with `PY_SANDBOX_DATANEED_ENABLED`) |
 | `POST /v1/runs/{request_id}/report` | market-ai-orc's final report of the run (answer and hash, evidence label, gate, experiments). Stored once; a retry keeps the first. |
 
 **Request-level budgets.** All analyses of one orchestrator request share:
@@ -743,6 +785,11 @@ Logs never contain keys, dataset URLs, user messages, datasets, or tables.
 | `PY_SANDBOX_FAILED_WORKSPACE_TTL_HOURS` / `_MAX_BYTES` | 6 / 64 MiB |
 | `PY_SANDBOX_CLEANUP_INTERVAL_SECONDS` | 900 |
 | `PY_SANDBOX_DATANEED_ENABLED` | false (the DataNeed routes answer 404) |
+| `PY_SANDBOX_BUNDLE_DIR` | `<data dir>/bundles` (root only, on the volume) |
+| `PY_SANDBOX_BUNDLE_RETENTION_HOURS` | 24 |
+| `PY_SANDBOX_BUNDLE_MAX_ROWS` / `_MAX_BYTES` | `PY_SANDBOX_MAX_INPUT_ROWS` / `_MAX_INPUT_BYTES` |
+| `PY_SANDBOX_BUNDLE_MAX_PARTS` | 128 |
+| `PY_SANDBOX_BUNDLE_STORE_BYTES` | 8 GiB (oldest bundles evicted above it) |
 
 **Paths:**
 - `PY_SANDBOX_DATA_DIR` (`/data`, the Railway volume)

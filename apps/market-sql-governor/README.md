@@ -199,6 +199,50 @@ The response always contains `decision`, `next_action`, `reason_code`, `message`
 
 The row, byte, and time bounds are cost limits, not a delivery choice.
 
+## DataNeed extractions (`POST /v1/extract`, `app/extract.py`)
+
+market-ai-orc's Execution Planner sends one physical part of an approved DataNeedSpec request:
+`{request_id, extraction, lineage, planned_parts}`, with the orc key only. The model never writes an extraction.
+The planner builds it from the sandbox's approved contract, which holds only catalog identifiers and canonical
+values:
+
+- the table and its pruned columns (the requested columns plus the key columns);
+- the canonical scope tree (ALL, PREDICATE, AND, OR, NOT);
+- restrictions: the INNER relationships of the DataNeedSpec, each compiled as an `EXISTS` semi-join on a catalog
+  relationship. The join semantics decide which reference row applies to each observation date:
+  - `CURRENT_STATE`: the key only;
+  - `EXACT_DATE`: the same date (the catalog's time columns);
+  - `AS_OF`: the latest reference row at or before the date, backward only;
+  - `EFFECTIVE_DATED`: `effective_from <= date < effective_to`, where a NULL `effective_to` is still valid;
+- the window (an envelope of approved ranges, or a date partition of it);
+- an optional entity partition `{modulus, remainder}` over `hashtextextended(entity)`: a complete, disjoint split
+  of the entities;
+- the requested ordering. The Governor appends the key columns, so the order is total and deterministic.
+
+The Governor re-validates everything against the catalog: tables, AI-allowed columns, filter permissions, value
+types (canonical text values must round-trip), relationship ids, `supported_join_semantics`, time and effective
+columns, and temporal direction. The lineage must describe the body it came with: `extraction_sha256` is the hash
+of the raw extraction and `part_key` the hash of its window and partition. The Governor compiles parameterized SQL,
+reads the leading index columns of the table, and EXPLAINs the query. The status is one of:
+
+| Status | Meaning | `next_action` |
+|---|---|---|
+| `APPROVED` | Extracted: an immutable Parquet dataset. The manifest carries the lineage and an `executed_scope` of version `extract/v1`, with the canonical scope, restrictions, their hashes, window, partition, `sampling: false` and `truncation: false`. | `ADD_TO_BUNDLE` |
+| `APPROVED_WITH_PARTITIONING` | Nothing extracted. The part fits only as `{kind DATE or ENTITY, parts}`. | `PARTITION_AND_RESUBMIT` |
+| `REJECTED_SCAN_SIZE`, `REJECTED_ROW_LIMIT`, `REJECTED_COMPUTE_COST`, `REJECTED_JOIN_COST`, `REJECTED_TIMEOUT_RISK` | No semantics-preserving split fits the limits. | `REPLAN_OR_REVISE_DATA_NEED_SPEC` |
+| `REJECTED_POLICY` | The request breaks catalog policy. | `REVISE_DATA_NEED_SPEC` |
+
+Every response names the logical `data_request_id`.
+
+How a limit is split:
+- A date split narrows the window. It reduces the scanned rows only when an index leads with the time column;
+  without one, a scan over the limit is `REJECTED_SCAN_SIZE`.
+- An entity split reduces result rows and sort cost, never scanned rows.
+- A result over the row cap during execution is never truncated. It becomes a partitioning answer, or a refusal
+  once `SQL_EXTRACT_MAX_PARTS` is reached.
+- Each call logs one JSON line (`event = sql_governor_extract`) with status, code, estimates, partitioning,
+  dataset id, row count, need, plan and part key. It holds no values.
+
 ## Lookup facts
 
 `POST /v1/lookup` answers specific factual questions (a close on a date, a week's total volume)
@@ -329,6 +373,10 @@ mistake.
 | `SQL_GOVERNOR_DATASET_ACCESS_KEY` | unset (secret, ≥ 32 chars, ≠ API key) | market-python-sandbox key for manifests and dataset access; the access endpoint is disabled (401) without it |
 | `SQL_DATASET_ACCESS_URL_TTL_SECONDS` | 120 | Presigned GET lifetime (30–900) |
 | `SQL_DATASET_TOMBSTONE_RETENTION_HOURS` | 720 | How long an expired dataset's manifest is kept as a tombstone (0 deletes it with the data) |
+| `SQL_EXTRACT_MAX_PARTS` | 64 | Partitions one DataNeed request may be split into (`/v1/extract`) |
+| `SQL_EXTRACT_MAX_IN_VALUES` | 500 | IN / NOT_IN values per scope predicate in an extraction |
+| `SQL_EXTRACT_MAX_COLUMNS` | 60 | Columns per extraction |
+| `SQL_EXTRACT_MAX_WINDOW_DAYS` | 3660 | Longest window of one extraction part; longer windows are split by date |
 
 These limits are not in any prompt or tool description, and no request field can raise them.
 

@@ -198,7 +198,7 @@ Measured on `dev` (2026-09-24, see `RAILWAY_CHANGELOG.md`):
 | `AI_MAX_REPAIR_ATTEMPTS` | no | `3` | Repairs allowed per run for the same tool rejection (tool + reason code) before `REPAIR_BUDGET_EXHAUSTED` |
 | `AI_ENABLE_LOOKUP_FACT` | no | `true` | Register the model-facing `lookup_fact` tool and its prompt rule |
 | `AI_ENABLE_REQUEST_DATA` | no | `false` | Register the model-written `request_data` tool (rollback path; analysis data is prepared by `prepare_analysis_data`) |
-| `AI_ENABLE_DATANEED` | no | `false` | Register the DataNeed flow tools (`submit_data_need_spec` so far; see [DataNeed flow](#dataneed-flow-in-progress)). The sandbox must run with `PY_SANDBOX_DATANEED_ENABLED=true`, otherwise the tool reports the sandbox unavailable |
+| `AI_ENABLE_DATANEED` | no | `false` | Register the DataNeed flow tools (`submit_data_need_spec`, and `prepare_data_bundle` when the Governor is configured; see [DataNeed flow](#dataneed-flow-in-progress)). The sandbox must run with `PY_SANDBOX_DATANEED_ENABLED=true`, otherwise the tool reports the sandbox unavailable |
 | `AI_MAX_ANALYSIS_SECONDS` | no | `600` | Wall-clock limit per run |
 | `AI_MAX_CONTEXT_TOKENS` | no | `64000` | Hard context ceiling (estimated before the call, provider-reported after) |
 | `AI_CONTEXT_SOFT_LIMIT_RATIO` | no | `0.8` | 0.5–0.95. At `AI_MAX_CONTEXT_TOKENS ×` this ratio, tools are withdrawn and the run finalizes from what was already retrieved (see [Context budget](#context-budget)). `AI_MAX_OUTPUT_TOKENS` must stay below this soft limit |
@@ -408,6 +408,7 @@ Guarantees:
 | `run_python_analysis` | `spec_id`, `input_bundle_id`, `python_code` (≤ 20000), `expected_outputs` ⊆ {TABLE, METRICS, CHART, ARTIFACT} | The analysis record: `execution_status`, `validation_status`, `validation_level`, `reason_codes`, `next_action`, scopes, outputs, evidence, `evidence_assessment`, `leakage_check`, derived features with `formula_status`, error |
 | `get_analysis_result` | `analysis_id` | The same record for a queued/running/finished analysis |
 | `submit_data_need_spec` | only with `AI_ENABLE_DATANEED`: a `data_need_spec/v1` document (`request_group_id`, `revision`, `mode`, `question`, `subject`, `data_requests`, `relationships`) plus `research_governance` for RESEARCH | The DataNeedValidator's `APPROVED` (with `need_id`), `REVISION_REQUIRED` (issues) or `CATALOG_UNAVAILABLE`, the Research Governor decision, and `next_action` |
+| `prepare_data_bundle` | only with `AI_ENABLE_DATANEED`: `need_id` | `READY` with `input_bundle_id` and, per data request, rows, entities, first/last date, each range's actual bounds and status, `quality_flags` and relationship warnings; or `REJECTED` naming the `data_request_id`, the Governor status, the code and the next action |
 
 Each capability flag is derived from the registry. It becomes `true` only when its providing
 tool is actually registered: `catalog_discovery` → `discover_catalog`, `full_catalog_read` →
@@ -479,6 +480,24 @@ below is still the live one.
   `research_governance` from the spec.
 - Contract tests keep the tool's fields, operators, join semantics and resample values equal to the validator's,
   and send the documented YTD example and a depth-4 scope through the real validator.
+
+**Phase 2 (implemented): `prepare_data_bundle` and the Execution Planner** (`app/tools/data_planner.py`). The model
+names only a `need_id`. The planner:
+1. reads the approved contract from the sandbox (same request only);
+2. merges each request's approved extraction windows into envelopes when they overlap or touch (the logical ranges
+   keep their ids);
+3. sends one ExtractionSpec per envelope to the Governor's `/v1/extract`: pruned columns, the canonical scope
+   pushed down, INNER relationships pushed down as point-in-time semi-joins, and the requested ordering;
+4. splits a part by date or by entity hash when the Governor answers `APPROVED_WITH_PARTITIONING`, and stops at
+   the first `REJECTED_*` with the logical request named. It never samples, truncates, narrows or re-scopes;
+5. names the parts deterministically: `<id>__<range>__part_NNN`, `<id>__part_NNN` for a merged envelope, or
+   `<id>__static__part_NNN`;
+6. asks the sandbox to build the bundle, which verifies, profiles and checks coverage.
+
+Every extraction carries lineage: need, spec hash, scope and restriction hashes, plan id, part key, envelope,
+catalog hash, and the hash of the extraction body. Resampling is not pushed down; the catalog rules travel with the
+bundle. Contract tests keep `part_key` and date splits equal to the Governor's and the sandbox's implementations,
+and check the plan against the sandbox's own plan check and partition tiling.
 
 ## Two-path analysis (Analysis Spec V2)
 

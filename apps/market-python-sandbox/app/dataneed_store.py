@@ -183,6 +183,12 @@ class DataNeedStore:
     def bundles_for(self, request_id: str) -> list[dict[str, Any]]:
         return self._all("SELECT * FROM bundles WHERE request_id = ? ORDER BY created_at", (request_id,))
 
+    def all_bundles(self) -> list[dict[str, Any]]:
+        return self._all("SELECT * FROM bundles ORDER BY created_at", ())
+
+    def set_bundle_status(self, bundle_id: str, status: str) -> None:
+        self._update("bundles", "bundle_id", bundle_id, {"status": status})
+
     def bundle_for_need(self, need_id: str) -> dict[str, Any] | None:
         return self._one("SELECT * FROM bundles WHERE need_id = ? AND status = 'READY' ORDER BY created_at DESC "
                          "LIMIT 1", (need_id,))

@@ -6,6 +6,7 @@ from .analysis import SandboxClient, analysis_specs, manifest_spec
 from .catalog import CatalogReader, catalog_specs
 from .catalog_rows import catalog_rows_spec
 from .data_need import data_need_specs
+from .data_planner import ExecutionPlanner, prepare_bundle_spec
 from .data_compiler import BundleStore, DataRequestCompiler, prepare_spec
 from .preview import preview_spec
 from .registry import ToolError, ToolOutcome, ToolRegistry, ToolSpec, error_outcome
@@ -74,6 +75,12 @@ def build_default_registry(
             for spec in data_need_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
                                         max_result_bytes=python_analysis_max_bytes):
                 registry.register(spec)
+            if governor_client is not None:
+                # many Governor extractions plus the sandbox's verification and profiling
+                registry.register(prepare_bundle_spec(
+                    ExecutionPlanner(sandbox_client, governor_client),
+                    timeout_seconds=max(sandbox_timeout_seconds, governor_timeout_seconds) * 6,
+                    max_result_bytes=python_analysis_max_bytes))
     return registry
 
 

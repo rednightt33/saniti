@@ -60,6 +60,11 @@ class Settings:
     dataset_access_key: str | None = field(default=None, repr=False)
     dataset_access_url_ttl_seconds: int = 120
     dataset_tombstone_retention_hours: int = 720
+    # POST /v1/extract (DataNeed extractions planned by market-ai-orc's backend)
+    extract_max_parts: int = 64
+    extract_max_in_values: int = 500
+    extract_max_columns: int = 60
+    extract_max_window_days: int = 3660
 
     @property
     def dataset_storage_configured(self) -> bool:
@@ -112,6 +117,10 @@ class Settings:
                                                     minimum=30, maximum=900),
             dataset_tombstone_retention_hours=_integer(env, "SQL_DATASET_TOMBSTONE_RETENTION_HOURS", 720,
                                                        minimum=0, maximum=8760),
+            extract_max_parts=_integer(env, "SQL_EXTRACT_MAX_PARTS", 64, maximum=256),
+            extract_max_in_values=_integer(env, "SQL_EXTRACT_MAX_IN_VALUES", 500, maximum=1000),
+            extract_max_columns=_integer(env, "SQL_EXTRACT_MAX_COLUMNS", 60, maximum=60),
+            extract_max_window_days=_integer(env, "SQL_EXTRACT_MAX_WINDOW_DAYS", 3660, maximum=7400),
         )
         if settings.max_unfiltered_date_range_days > settings.max_date_range_days:
             raise ConfigError("SQL_MAX_UNFILTERED_DATE_RANGE_DAYS must not exceed SQL_MAX_DATE_RANGE_DAYS")

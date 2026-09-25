@@ -112,6 +112,8 @@ def validator_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
         "requested_entities": scope.get("entities"),
         "entities_present": manifest.get("entities_present"),
         "entities_present_count": manifest.get("entities_present_count"),
+        "row_count": manifest.get("row_count"),
+        "truncated": manifest.get("truncated", False),
     }
 
 
