@@ -1,5 +1,18 @@
 # Railway changelog
 
+## 2026-09-25 — DataNeed architecture phase 1 deployed dark (commit d7d18ea)
+
+- Scope approved by the user: build the DataNeed architecture in phases, merge each phase to `main` with its flags off (GitHub `main` auto-deploys the three services to `dev`), and verify health.
+- Code: the sandbox's DataNeedSpec validator and Research Governor with `POST /v1/data-needs` and `GET /v1/data-needs/{need_id}`; the orc tool `submit_data_need_spec`; the Governor's catalog contract reading the join-semantics columns of migration `20260925_003` when they exist.
+- Flags, both unset on `dev` and read back by name: `PY_SANDBOX_DATANEED_ENABLED` (sandbox, default off: the routes answer 404 and no DataNeed state is created) and `AI_ENABLE_DATANEED` (orc, default off: the tool is not registered). No variable was added or changed.
+- Migration `20260925_003_add_relationship_join_semantics.sql` is in the repository but **not applied**. Until it is, the catalog contract is unchanged.
+- Automatic deployments of `d7d18ea`, each `SUCCESS`, `/ready` 200:
+  - market-sql-governor `a01d1535-83f4-42a0-aa69-3862b750cfe0`;
+  - market-python-sandbox `fa9a1576-8091-457b-a735-aef212be27a7`, with `isolation_enforced=true` and 0 interrupted analyses;
+  - market-ai-orc `a2bdd594-54b9-47f1-90ff-283c7ed8bb54`.
+- The deactivated backend and workers created no deployment. The startup logs held no bearer token, OpenRouter key or DSN with a password.
+- Rollback: redeploy the previous deployments (Governor `747732ed`, sandbox `035fd115`, orc `a9128831`), or revert `d7d18ea` on `main`. The flags are off, so the live Analysis Spec path did not change.
+
 ## 2026-09-25 — Retire market-ai-backend and its workers; connect market-sql-governor, market-python-sandbox and market-ai-orc to GitHub main
 
 - Scope approved by the user:
