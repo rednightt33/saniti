@@ -55,7 +55,9 @@
 - **Known drift.** `railway config plan` reports 3 changes, not "up to date", with exit code 0, so the daily state-tracking workflow still passes. For each deactivated service it proposes `source.rootDirectory` → null and `source.type` "github" → null.
   - The IaC format keeps the root directory inside the source block, so it cannot represent a disconnected service that keeps its root directory.
   - Setting the backend's root directory to an empty value did not clear `source.type`, so the value was restored at once. No deployment was triggered.
-  - The drift is left as is. Applying the plan would only clear the three root directories (0 add, 0 destroy).
+  - Cause, from the environment config: each deactivated service keeps a `source` block holding only `rootDirectory`, with no repository, and the IaC engine reads that as a GitHub source. The services are truly disconnected: push `e8c3d47` changed `apps/market-ai-backend/README.md` and created no deployment.
+  - The user first approved `railway config apply`. The pinned plan (0 add, 3 change, 0 destroy, not destructive) marks each of the three changes `deployEffect: deploy`, so applying it would also start a deployment of each deactivated service. With no source, that deployment would most likely rebuild the service's last deployment, a failed 2026-09-14 build, but it could also restart its old image.
+  - The plan was not applied. The user chose to keep the drift. Do not apply it without handling those deployments.
 - **Autodeploy verified.** The documentation push `e8c3d47` changed the three services' READMEs and triggered their first GitHub deployments. Each reached `SUCCESS` with `/ready` 200:
   - Governor `747732ed-2c6f-40f1-a116-23fc1cbc0d3d`;
   - sandbox `035fd115-b064-4bab-bd27-278be3380413`, with `isolation_enforced=true` and 0 interrupted analyses;
