@@ -1,5 +1,22 @@
 # Railway changelog
 
+## 2026-09-25 — DataNeed architecture phase 2 deployed dark (commit 07fd68b)
+
+- Same approved rollout as phase 1: merged to `main` with every DataNeed flag off; `main` auto-deployed the three services to `dev`.
+- Code:
+  - the Governor's `POST /v1/extract`, callable with the orc key only. Only the orc Execution Planner calls it, and the planner is registered only with `AI_ENABLE_DATANEED`;
+  - the Governor's validator manifest now also carries `row_count` and `truncated`;
+  - the orc Execution Planner and `prepare_data_bundle`;
+  - the sandbox's governed bundles, Data Quality Profiler and delivery coverage (`POST`/`GET /v1/bundles`, 404 without `PY_SANDBOX_DATANEED_ENABLED`).
+- No variable was added or changed; `AI_ENABLE_DATANEED` and `PY_SANDBOX_DATANEED_ENABLED` stay unset. The new limits use their code defaults: `SQL_EXTRACT_*` and `PY_SANDBOX_BUNDLE_*`. With the flag off the sandbox creates no bundle directory.
+- Migration `20260925_003` is still not applied.
+- Automatic deployments of `07fd68b`, each `SUCCESS` with `/ready` 200:
+  - market-sql-governor `a1db4a3e-02fa-4e82-9cd7-ed5af7aa3bf5`;
+  - market-python-sandbox `c2ab2125-6ba9-4d31-b74e-438d8060f054`, with `isolation_enforced=true` and 0 interrupted analyses;
+  - market-ai-orc `df85aac2-31d9-464b-bdf6-9d00484febd1`.
+- The startup logs held no secret-like values.
+- Rollback: redeploy the phase 1 deployments (Governor `a01d1535`, sandbox `fa9a1576`, orc `a2bdd594`), or revert `07fd68b` on `main`.
+
 ## 2026-09-25 — DataNeed architecture phase 1 deployed dark (commit d7d18ea)
 
 - Scope approved by the user: build the DataNeed architecture in phases, merge each phase to `main` with its flags off (GitHub `main` auto-deploys the three services to `dev`), and verify health.
