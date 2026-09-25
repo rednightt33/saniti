@@ -478,6 +478,10 @@ never restates the scope as a data request.
   - `AI_ENABLE_REQUEST_DATA` (default `false`) registers the model-written `request_data` tool, a
     rollback path only.
   - The system prompt is fixed per deployment, so prompt caching keeps one prefix.
+  - Each run's input starts with a short run-context item: the reference date in `ANALYSIS_TIMEZONE`, the same
+    date the sandbox checks specs against. It lets the model end an open-ended period ("sejak 1 Januari") on that
+    date without a repair turn. It comes after the fixed system prompt, so the cached prefix is unchanged, and it
+    is not part of the user's messages sent to intent review.
 - **Tool arguments** (the provider does not always enforce the strict schema, so validation stays in the orc):
   - A single-value `Literal` (for example `spec_version`) reaches the provider as a one-value `enum`; Pydantic's
     `const` is not a keyword the provider receives.

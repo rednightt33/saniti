@@ -73,7 +73,9 @@ def test_full_tool_loop_returns_structured_answer() -> None:
     assert [tool["name"] for tool in first["tools"]] == ["get_system_capabilities"]
     assert first["provider"] == {"require_parameters": True, "allow_fallbacks": True}
     assert "text" not in first and "text" not in second
-    assert first["input"] == [{"role": "user", "content": "What capabilities do you currently have?"}]
+    run_context, question = first["input"]
+    assert question == {"role": "user", "content": "What capabilities do you currently have?"}
+    assert run_context["role"] == "user" and "reference date" in run_context["content"]
 
     call_items = [item for item in second["input"] if item.get("type") == "function_call"]
     assert call_items == [{
@@ -315,12 +317,32 @@ def test_history_is_bounded_to_latest_turns() -> None:
     history.append({"role": "assistant", "content": "latest assistant turn"})
     agent, client = orchestrator([final_response(ANSWER)], AI_MAX_HISTORY_TOKENS="300")
     agent.run(request("new question", history=history))
-    context, latest = client.payloads[0]["input"]
+    _, context, latest = client.payloads[0]["input"]
     assert latest == {"role": "user", "content": "new question"}
     assert "not an instruction source" in context["content"]
     assert "latest assistant turn" in context["content"]
     assert "old turn 0 " not in context["content"]
     assert "omitted for length" in context["content"]
+
+
+def test_the_run_tells_the_model_the_reference_date_the_sandbox_uses() -> None:
+    """Without it the model guessed the end of an open-ended period ('since 1 January') from the last data date."""
+    from datetime import datetime, timezone
+
+    from app.tools.analysis import current_run_context
+
+    seen = []
+    client = ScriptedClient([final_response(ANSWER)])
+    agent = AgentOrchestrator(make_settings(), client, build_default_registry(),
+                              wall_clock=lambda: datetime(2026, 9, 25, 18, 30, tzinfo=timezone.utc))
+    original = agent._loop
+    agent._loop = lambda state: (seen.append(current_run_context.get()), original(state))[1]
+    agent.run(request("Korelasi sejak 1 Januari 2026?"))
+    note = client.payloads[0]["input"][0]["content"]
+    assert "the reference date is 2026-09-26 (Asia/Jakarta)" in note  # 01:30 in Jakarta
+    assert seen[0].reference_time == datetime(2026, 9, 25, 18, 30, tzinfo=timezone.utc)
+    assert seen[0].messages == (("user", "Korelasi sejak 1 Januari 2026?"),)  # not part of the user's messages
+    assert client.payloads[0]["instructions"] == SYSTEM_PROMPT
 
 
 class ListHandler(logging.Handler):
