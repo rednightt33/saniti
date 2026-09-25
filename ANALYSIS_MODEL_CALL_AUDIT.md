@@ -39,6 +39,10 @@ AI_REASONING_MAX_BYTES_PER_CALL=65536
 AI_REASONING_CLEANUP_INTERVAL_SECONDS=3600
 ```
 
+Since 2026-09-25 market-ai-backend is deactivated, so this cleanup no longer runs and no new rows are
+written. That day all 758 rows that still retained reasoning were purged ahead of their 2026-10-14
+expiry with the same statement (see `DATABASE_CHANGELOG.md`).
+
 The cleanup is idempotent and never deletes an `Analysis_Request`, evidence row,
 or model-call audit row. If a provider supplies no reasoning, the format is
 `NONE`; absence must not be interpreted as proof that the model performed no

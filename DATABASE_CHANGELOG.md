@@ -1,5 +1,23 @@
 # Database changelog
 
+## 2026-09-25 — Purge the retained provider reasoning of the deactivated market-ai-backend (data change, no schema change)
+
+- Approved by the user as part of retiring `market-ai-backend`. That service's hourly cleanup cleared `Analysis_Model_Call.reasoning_details` when `reasoning_expires_at` passed; with the service deactivated the cleanup no longer runs, so the remaining reasoning was purged now instead of on its 2026-10-14 expiry.
+- Statement: the backend's own `UPDATE` (`reasoning_details='[]'`, `reasoning_format='PURGED'`, `reasoning_purged_at=clock_timestamp()` for `reasoning_format NOT IN ('NONE','PURGED')`) without the expiry condition.
+  - It ran in one transaction through the backend's least-privilege login (`${{market-ai-backend.DATABASE_URL}}`), from the temporary service `legacy-retire-job`, deployment `582b8b26-e849-45c0-993f-847f76335391`.
+  - The transaction checked, before committing, that the updated row count equals the retained count, and that no retained or non-empty purged reasoning remains.
+  - It was rehearsed first on a scratch PostgreSQL 16 database with the exact DDL of migrations `20260914_037`/`038`, including a second run that updated nothing.
+- **Before:** 792 rows; 758 `TEXT` with about 725 KB of reasoning, expiring 2026-10-14; 34 `NONE`.
+- **After (read back):**
+  - 758 `PURGED` and 34 `NONE`.
+  - 0 rows still retain reasoning.
+  - Still 792 rows. No row was deleted, and usage, decision summaries and requests are unchanged.
+- The legacy queues were empty and were not changed:
+  - `Analysis_Request`: 52 `SUCCESS`, 65 `FAILED`, 5 `CANCELLED`.
+  - `Analytics_Job`: 14 `SUCCESS`, 5 `FAILED`.
+  - `Analytics_Dataset_Snapshot`: 19 `DELETED`.
+- No schema, catalog, role or `Tool_Catalog` change. `Tool_Catalog.is_active` is now read by no running service and was deliberately left as it was (see `DATABASE_CATALOG.md`).
+
 ## 2026-09-25 — Add AI_table_catalog subject metadata and the two-path tool contracts (migrations 20260925_001 and 20260925_002)
 
 - Status: **applied to `dev` at 11:15 UTC** as part of the approved two-path release. The temporary one-off service `two-path-deploy-job` (`437fba8c-a6a8-4347-b1d5-79c53d75f671`, deployment `b3a4370d-4217-48b4-8cb4-7b5c6137e814`) ran both files in order, each as one transaction, and neither was present before. Its preflight and `$verify$` blocks passed and it committed. The services that read the new columns are deployed separately (see `RAILWAY_CHANGELOG.md`). `DATABASE_SCHEMA.md` is regenerated after the deploys.

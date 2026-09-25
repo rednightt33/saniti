@@ -11,7 +11,8 @@ export default defineRailway(() => {
   const marketSqlDatasets = bucket("market-sql-datasets", { region: "sjc" });
   const marketAnalyticsInput = bucket("market-analytics-input", { region: "sin" });
   const marketSqlGovernor = service("market-sql-governor", {
-    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile" },
+    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-sql-governor" }),
+    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/market-sql-governor/**"] },
     start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080",
     healthcheck: "/ready",
     healthcheckTimeout: 120,
@@ -20,7 +21,8 @@ export default defineRailway(() => {
     env: { GOVERNOR_DATABASE_URL: preserve(), MARKET_SQL_GOVERNOR_DB_PASSWORD: preserve(), PORT: preserve(), SQL_DATASET_BUCKET_ACCESS_KEY_ID: preserve(), SQL_DATASET_BUCKET_ENDPOINT: preserve(), SQL_DATASET_BUCKET_NAME: preserve(), SQL_DATASET_BUCKET_REGION: preserve(), SQL_DATASET_BUCKET_SECRET_ACCESS_KEY: preserve(), SQL_GOVERNOR_API_KEY: preserve(), SQL_GOVERNOR_DATASET_ACCESS_KEY: preserve() },
   });
   const marketPythonSandbox = service("market-python-sandbox", {
-    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile" },
+    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-python-sandbox" }),
+    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/market-python-sandbox/**"] },
     start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080",
     healthcheck: "/ready",
     healthcheckTimeout: 300,
@@ -30,7 +32,6 @@ export default defineRailway(() => {
     env: { PORT: preserve(), PY_SANDBOX_API_KEY: preserve(), PY_SANDBOX_MAX_ANALYSES_PER_REQUEST: preserve(), PY_SANDBOX_MAX_CPU_SECONDS_PER_REQUEST: preserve(), PY_SANDBOX_MAX_SPECS_PER_REQUEST: preserve(), SQL_GOVERNOR_DATASET_ACCESS_KEY: preserve(), SQL_GOVERNOR_URL: preserve() },
   });
   const marketAiBackend = service("market-ai-backend", {
-    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-ai-backend" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/market-ai-backend/**"] },
     start: "uvicorn app.main:app --host 0.0.0.0 --port 8080",
     healthcheck: "/health",
@@ -40,7 +41,8 @@ export default defineRailway(() => {
     env: { AI_ANALYSIS_MODE: preserve(), AI_CONTEXT_COMPACTION_MODE: preserve(), AI_CONTEXT_COMPACTION_THRESHOLD_TOKENS: preserve(), AI_CONTEXT_RESERVE_TOKENS: preserve(), AI_CUMULATIVE_COMPACTION_THRESHOLD_PERCENT: preserve(), AI_FINALIZATION_OUTPUT_RESERVE_TOKENS: preserve(), AI_FINALIZATION_TOOL_RESULT_RESERVE_TOKENS: preserve(), AI_FINAL_RESPONSE_MAX_RETRIES: preserve(), AI_MAX_ANALYSIS_SECONDS: preserve(), AI_MAX_CONTEXT_TOKENS: preserve(), AI_MAX_CUMULATIVE_INPUT_TOKENS: preserve(), AI_MAX_CUMULATIVE_OUTPUT_TOKENS: preserve(), AI_MAX_DISCOVERY_CALLS: preserve(), AI_MAX_FEATURE_METADATA_TOKENS: preserve(), AI_MAX_HISTORY_TOKENS: preserve(), AI_MAX_OUTPUT_TOKENS: preserve(), AI_MAX_TOOL_CALLS: preserve(), AI_MAX_TOOL_ITERATIONS: preserve(), AI_MAX_TOOL_RESULT_TOKENS_PER_CALL: preserve(), AI_MAX_TOOL_RESULT_TOKENS_TOTAL: preserve(), AI_MIN_INSIGHT_DATA_CALLS: preserve(), AI_MODEL: preserve(), AI_PROVIDER: preserve(), AI_REASONING_CLEANUP_INTERVAL_SECONDS: preserve(), AI_REASONING_EFFORT: preserve(), AI_REASONING_MAX_BYTES_PER_CALL: preserve(), AI_REASONING_RETENTION_DAYS: preserve(), AI_REQUEST_TIMEOUT_SECONDS: preserve(), AI_STORE_REASONING_DETAILS: preserve(), AI_TARGET_CONTEXT_TOKENS: preserve(), ANALYTICS_BUCKET_ACCESS_KEY_ID: preserve(), ANALYTICS_BUCKET_ENDPOINT: preserve(), ANALYTICS_BUCKET_NAME: preserve(), ANALYTICS_BUCKET_REGION: preserve(), ANALYTICS_BUCKET_SECRET_ACCESS_KEY: preserve(), ANALYTICS_ENABLED: preserve(), ANALYTICS_JOB_POLL_MILLISECONDS: preserve(), ANALYTICS_JOB_WAIT_SECONDS: preserve(), ANALYTICS_MAX_COLUMNS: preserve(), ANALYTICS_MAX_DATASETS: preserve(), ANALYTICS_MAX_DATE_RANGE_DAYS: preserve(), ANALYTICS_MAX_ESTIMATED_ROWS: preserve(), ANALYTICS_MAX_INPUT_BYTES: preserve(), ANALYTICS_MAX_MEMORY_MB: preserve(), ANALYTICS_MAX_RESULT_BYTES: preserve(), ANALYTICS_MAX_RESULT_ROWS: preserve(), ANALYTICS_MAX_ROWS: preserve(), ANALYTICS_MAX_RUNTIME_SECONDS: preserve(), ANALYTICS_RESULT_RETENTION_DAYS: preserve(), ANALYTICS_SNAPSHOT_RETENTION_HOURS: preserve(), ANALYTICS_TERMINAL_SNAPSHOT_GRACE_SECONDS: preserve(), ANALYTICS_WORKER_API_KEY: preserve(), CONDITION_RUNS_MAX_DATE_RANGE_DAYS: preserve(), CONDITION_RUNS_MAX_EPISODES: preserve(), DATABASE_URL: preserve(), LLM_TOOL_RESULT_MAX_BYTES: preserve(), LLM_TOOL_RESULT_MAX_ROWS: preserve(), MARKET_AI_INTERNAL_API_KEY: preserve(), OPENAI_API_KEY: preserve(), OPENAI_MODEL: preserve(), OPENAI_REASONING_EFFORT: preserve(), OPENROUTER_DEEPSEEK: preserve(), QUERY_DEFAULT_ROWS: preserve(), QUERY_MAX_COLUMNS: preserve(), QUERY_MAX_DATE_RANGE_DAYS: preserve(), QUERY_MAX_ESTIMATED_ROWS: preserve(), QUERY_MAX_GROUPS: preserve(), QUERY_MAX_OUTPUT_BYTES: preserve(), QUERY_MAX_PERIODS: preserve(), QUERY_MAX_ROWS: preserve(), QUERY_MAX_TICKERS: preserve(), QUERY_MAX_UNFILTERED_DATE_RANGE_DAYS: preserve(), QUERY_SANDBOX_API_KEY: preserve(), QUERY_SANDBOX_MAX_COLUMNS: preserve(), QUERY_SANDBOX_MAX_DATASETS: preserve(), QUERY_SANDBOX_MAX_DATE_RANGE_DAYS: preserve(), QUERY_SANDBOX_MAX_ESTIMATED_ROWS: preserve(), QUERY_SANDBOX_MAX_INPUT_BYTES: preserve(), QUERY_SANDBOX_MAX_MEMORY_MB: preserve(), QUERY_SANDBOX_MAX_RESULT_BYTES: preserve(), QUERY_SANDBOX_MAX_RESULT_ROWS: preserve(), QUERY_SANDBOX_MAX_ROWS: preserve(), QUERY_SANDBOX_MAX_RUNTIME_SECONDS: preserve(), QUERY_SANDBOX_MAX_TICKERS: preserve(), QUERY_TIMEOUT_SECONDS: preserve(), STATISTICAL_MAX_COLUMNS: preserve(), STATISTICAL_MAX_DATASETS: preserve(), STATISTICAL_MAX_DATE_RANGE_DAYS: preserve(), STATISTICAL_MAX_ESTIMATED_ROWS: preserve(), STATISTICAL_MAX_INPUT_BYTES: preserve(), STATISTICAL_MAX_MEMORY_MB: preserve(), STATISTICAL_MAX_RESULT_BYTES: preserve(), STATISTICAL_MAX_RESULT_ROWS: preserve(), STATISTICAL_MAX_ROWS: preserve(), STATISTICAL_MAX_RUNTIME_SECONDS: preserve(), STATISTICAL_MAX_TICKERS: preserve(), STATISTICAL_WORKER_API_KEY: preserve(), WORKER_LEASE_SECONDS: preserve(), WORKER_POLL_SECONDS: preserve() },
   });
   const marketAiOrc = service("market-ai-orc", {
-    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile" },
+    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-ai-orc" }),
+    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/market-ai-orc/**"] },
     start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080",
     healthcheck: "/ready",
     healthcheckTimeout: 120,
@@ -72,7 +74,6 @@ export default defineRailway(() => {
     env: { COMMAND_COOLDOWN_SECONDS: preserve(), DATABASE_URL: preserve(), RAILWAY_DAILY_SERVICE_INSTANCE_ID: preserve(), RAILWAY_PROJECT_TOKEN: preserve(), RAILWAY_RECOVERY_SERVICE_INSTANCE_ID: preserve(), TELEGRAM_ALLOWED_CHAT_ID: preserve(), TELEGRAM_BOT_TOKEN: preserve(), TELEGRAM_WEBHOOK_SECRET: preserve() },
   });
   const marketAnalyticsWorker = service("market-analytics-worker", {
-    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-analytics-worker" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/market-analytics-worker/**"] },
     start: "python worker.py",
     healthcheck: "/health",
@@ -100,7 +101,6 @@ export default defineRailway(() => {
     env: { DATABASE_URL: preserve(), TELEGRAM_NOTIFY_ATTEMPTS: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_TIMEOUT: preserve(), TELEGRAM_NOTIFY_URL: preserve() },
   });
   const marketQuerySandbox = service("market-query-sandbox", {
-    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-query-sandbox" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/market-query-sandbox/**"] },
     start: "python worker.py",
     healthcheck: "/health",

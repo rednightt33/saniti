@@ -1,5 +1,9 @@
 # Market statistical validation worker
 
+> **Status: deactivated on `dev` since 2026-09-25**, together with `market-ai-backend`, the only
+> service it works for. The active deployment was removed and the GitHub source disconnected; the service
+> and its variables are kept. See `RAILWAY_CHANGELOG.md`.
+
 This isolated Railway service executes one explicitly classified, bounded statistical
 validation job over
 immutable snapshots created by `market-ai-backend`. It has no PostgreSQL URL and no

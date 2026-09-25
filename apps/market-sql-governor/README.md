@@ -343,7 +343,9 @@ themselves are not logged; the hash lets an audit confirm what was returned.
 - Service `market-sql-governor` (`1a322795-4f93-4c51-a25e-5fcfc5ab4722`), project `lucid-patience`, environment `dev`.
   It is private at `http://market-sql-governor.railway.internal:8080`, with no public domain.
   The health check is `/ready`, and restart is `ALWAYS`.
-- It is deployed by local upload of this folder with `--path-as-root`. There is no GitHub source and no watch path.
+- Since 2026-09-25 it deploys from GitHub `rednightt33/saniti` branch `main`, root `/apps/market-sql-governor`,
+  watch path `/apps/market-sql-governor/**`. A push to `main` that changes this folder deploys it. Earlier
+  versions were local uploads.
 - Variables:
   - `SQL_GOVERNOR_API_KEY` and `MARKET_SQL_GOVERNOR_DB_PASSWORD` are secrets set through stdin.
   - `GOVERNOR_DATABASE_URL` references that password and the `Postgres` private domain.

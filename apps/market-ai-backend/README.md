@@ -1,5 +1,14 @@
 # market-ai-backend
 
+> **Status: deactivated on `dev` since 2026-09-25.** The active deployment was removed and the GitHub
+> source disconnected; the service, its variables and its deployment history are kept. Its replacement
+> is `market-ai-orc` with `market-sql-governor` and `market-python-sandbox`. Its hourly reasoning cleanup
+> no longer runs: all retained `Analysis_Model_Call` reasoning was purged on 2026-09-25, and no new rows
+> are written. Its database objects, login and `Tool_Catalog` rows are unchanged. To reactivate it,
+> reconnect `rednightt33/saniti` `main` (root `/apps/market-ai-backend`, watch path
+> `/apps/market-ai-backend/**`), deploy, and then reactivate `market-query-sandbox` and
+> `market-analytics-worker`. See `RAILWAY_CHANGELOG.md`.
+
 Private asynchronous LLM analyst for catalog-registered Feature tables. The
 service exposes no public documentation route and accepts analysis calls only
 with `Authorization: Bearer $MARKET_AI_INTERNAL_API_KEY`.

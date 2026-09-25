@@ -9,7 +9,7 @@ SQL (see [`../market-sql-governor/README.md`](../market-sql-governor/README.md))
 `market-python-sandbox`, which runs and validates the analysis code (see
 [`../market-python-sandbox/README.md`](../market-python-sandbox/README.md)).
 
-It was derived from `apps/market-ai-backend`, the legacy analyst that is being retired. It keeps that service's
+It was derived from `apps/market-ai-backend`, the legacy analyst, deactivated on 2026-09-25. It keeps that service's
 proven OpenRouter Responses transport, bounded retry, quota handling, usage accounting, strict
 final-schema validation with bounded retries, and bounded agent loop. It shares no code, variable,
 endpoint, or table with that service at runtime.
@@ -898,10 +898,12 @@ frontend, and Telegram.
 - Its health check is `/ready`. The start command is
   `uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080`.
 - `OPENROUTER_API_KEY` is this service's own secret since 2026-09-25. It used to be a reference to
-  `${{market-ai-backend.OPENROUTER_DEEPSEEK}}`. The value is unchanged; rotate it here.
+  `${{market-ai-backend.OPENROUTER_DEEPSEEK}}` (that service is deactivated). The value is unchanged;
+  rotate it here.
 - A future caller should reference `${{market-ai-orc.MARKET_AI_ORC_API_KEY}}` rather than copying it.
-- It is deployed by local upload (`railway up apps/market-ai-orc --path-as-root`). Its watch path is
-  cleared (see `RAILWAY_CHANGELOG.md`, 2026-09-24) and no GitHub source is connected yet.
+- Since 2026-09-25 it deploys from GitHub `rednightt33/saniti` branch `main`, root `/apps/market-ai-orc`,
+  watch path `/apps/market-ai-orc/**`. A push to `main` that changes this folder deploys it. Earlier
+  versions were local uploads.
 - Catalog and preview access are live. Migrations `20260923_001`–`003` are applied, and the
   `market_ai_orc` login is provisioned. `CATALOG_DATABASE_URL` is a Railway reference built
   from `MARKET_AI_ORC_DB_PASSWORD` and the `Postgres` service's private domain.

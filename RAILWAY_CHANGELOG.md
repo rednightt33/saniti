@@ -1,25 +1,61 @@
 # Railway changelog
 
-## 2026-09-25 — Retire market-ai-backend, step 1: market-ai-orc no longer depends on it (in progress)
+## 2026-09-25 — Retire market-ai-backend and its workers; connect market-sql-governor, market-python-sandbox and market-ai-orc to GitHub main
 
 - Scope approved by the user:
   - migrate every market-ai-orc dependency on `market-ai-backend`;
-  - then deactivate `market-ai-backend`, `market-query-sandbox` and `market-analytics-worker` by removing their active deployments and disconnecting their GitHub source (services, variables and history kept);
-  - purge the retained provider reasoning in `Analysis_Model_Call` now, instead of the backend's 30-day hourly cleanup;
+  - deactivate `market-ai-backend`, `market-query-sandbox` and `market-analytics-worker` by removing their active deployments and disconnecting their GitHub source, keeping the services, variables and history;
+  - purge the retained provider reasoning in `Analysis_Model_Call` now, instead of waiting for the backend's 30-day hourly cleanup (see `DATABASE_CHANGELOG.md`);
   - leave `Tool_Catalog` unchanged;
-  - connect market-sql-governor, market-python-sandbox and market-ai-orc to GitHub `main`.
+  - connect the three market-ai-orc services to GitHub `main`.
 - **Read-only inspection** (unrendered variables of every service, code, `Tool_Catalog` readers, logs):
   - The only market-ai-orc dependency on the backend was `OPENROUTER_API_KEY = ${{market-ai-backend.OPENROUTER_DEEPSEEK}}`.
-  - No other service references a variable of `market-ai-backend`, `market-query-sandbox` or `market-analytics-worker`. The two workers depend only on the backend (literal `MARKET_AI_BACKEND_URL`).
-  - `Tool_Catalog` is read only by market-ai-backend. market-ai-orc, the Governor and the sandbox never read it.
-  - The backend has been idle since 2026-09-14; its log holds only the two workers' `claim` polls (HTTP 204).
-  - Bucket `market-analytics-input` holds 1 object (269 bytes, 2026-09-14).
-- **Done:** market-ai-orc `OPENROUTER_API_KEY` is now the service's own literal secret.
+  - No other service references a variable of the three legacy services. The two workers depend only on the backend, through a literal `MARKET_AI_BACKEND_URL`.
+  - `Tool_Catalog` is read only by market-ai-backend.
+  - The backend had been idle since 2026-09-14. Its log held only the two workers' `claim` polls (HTTP 204).
+  - Bucket `market-analytics-input` holds 1 object (269 bytes, 2026-09-14) that no `AVAILABLE` snapshot row references. It was left in place.
+- **market-ai-orc `OPENROUTER_API_KEY`** is now the service's own literal secret.
   - It was set through the API with `skipDeploys`, read in-process from the backend value and never printed.
-  - A read-back confirmed that no market-ai-orc variable references `market-ai-backend`, and that the resolved value's hash equals the backend's `OPENROUTER_DEEPSEEK`.
-  - `GET https://openrouter.ai/api/v1/key` accepted the key; this makes no model call.
-  - The running deployment `3669447c` is unchanged and holds the same value. The literal takes effect at the next market-ai-orc deployment.
-- **Pending:** the GitHub source connections, the purge job and the deactivation. The first connection attempt was blocked by this session's permission policy before any change was made, and is waiting for the user.
+  - Read-back: no market-ai-orc variable references `market-ai-backend`, and the resolved value's hash equals the backend's `OPENROUTER_DEEPSEEK`.
+  - `GET https://openrouter.ai/api/v1/key` accepted the key; this makes no model call. The key's remaining credit limit was about $2.27.
+- **GitHub sources:** `rednightt33/saniti` branch `main`, one service at a time, each after its root directory and watch path were set.
+  - Every other setting was compared before and after and was unchanged: Dockerfile, start command, health check, restart policy, replicas, region, schedule and sleep.
+  - Each connection deployed `f553258`, whose application code equals the deployed `a5e11a4`.
+
+  | Service | Root / watch path | Rollback reference | New deployment | Verified |
+  |---|---|---|---|---|
+  | market-sql-governor | `/apps/market-sql-governor` / `/apps/market-sql-governor/**` | `293ba2e2` | `4732bb12-a96c-439d-8b71-635e115a23be` `SUCCESS` | Health check `/ready` 200; dataset janitor ran |
+  | market-python-sandbox | `/apps/market-python-sandbox` / `/apps/market-python-sandbox/**` | `beec8e84` | `c24452ca-85b3-4473-874f-8ebc1bc700ab` `SUCCESS` | Volume mounted; `isolation_enforced=true`; 0 interrupted analyses; `/ready` 200 |
+  | market-ai-orc | `/apps/market-ai-orc` / `/apps/market-ai-orc/**` | `3669447c` | `643133af-c2a2-4992-9035-9565f3d08950` `SUCCESS` | Clean start; `/ready` 200; first deployment with its own `OPENROUTER_API_KEY` |
+
+- **Temporary one-off service** `legacy-retire-job` (`ad612a88-be0f-4a73-acfe-8acbcdc8a5a9`):
+  - It held only `DATABASE_URL = ${{market-ai-backend.DATABASE_URL}}`, the backend's own least-privilege login. The purge therefore ran with exactly the privileges of the backend's cleanup.
+  - Deployment `582b8b26-e849-45c0-993f-847f76335391` read the legacy queues, purged the reasoning, and read back.
+  - The service was then deleted with `railway service delete`. Its output held counts and timestamps only; no DSN or credential appeared.
+  - The queues were empty before the deactivation:
+    - `Analysis_Request`: 52 `SUCCESS`, 65 `FAILED`, 5 `CANCELLED`; the latest from 2026-09-14.
+    - `Analytics_Job`: 14 `SUCCESS`, 5 `FAILED`.
+    - `Analytics_Dataset_Snapshot`: 19 `DELETED`.
+    - No row was `PENDING`, `PROCESSING` or `AVAILABLE`.
+- **Deactivated**, in dependency order. Each source was disconnected first, then the active deployment removed:
+
+  | Service | Removed deployment | After |
+  |---|---|---|
+  | market-analytics-worker | `43c3a864-4851-4a01-a615-e532e9d42845` | `REMOVED`, no source |
+  | market-query-sandbox | `4ab6ebb2-e41c-4563-a573-241eb7b17f46` | `REMOVED`, no source |
+  | market-ai-backend | `8b423a58-19c7-4527-9fa5-12c7776ca815` | `REMOVED`, no source |
+
+  - None of the three has a running deployment left. Their remaining non-`REMOVED` deployments are `SKIPPED` watch-path events and `FAILED` builds from 2026-09-14.
+  - Root directory, watch path, all variables (99 on the backend, including `OPENROUTER_DEEPSEEK` and `OPENAI_API_KEY`) and deployment history are kept.
+  - Rollback: reconnect `main` and deploy the backend first, then the two workers. Their database objects, logins and `Tool_Catalog` rows were not changed.
+- Postgres, pgweb, db-ops-runner, the price crons, the Telegram services, `feature-01-worker` and `ai-data-coverage` were not touched. The environment has 15 services.
+- **Configuration sync.** `railway config pull --force` updated `.railway/railway.ts`:
+  - The three market-ai-orc services now carry `source: github(...)` with their root directories and watch paths.
+  - The three deactivated services have no `source`.
+- **Known drift.** `railway config plan` reports 3 changes, not "up to date", with exit code 0, so the daily state-tracking workflow still passes. For each deactivated service it proposes `source.rootDirectory` → null and `source.type` "github" → null.
+  - The IaC format keeps the root directory inside the source block, so it cannot represent a disconnected service that keeps its root directory.
+  - Setting the backend's root directory to an empty value did not clear `source.type`, so the value was restored at once. No deployment was triggered.
+  - The drift is left as is. Applying the plan would only clear the three root directories (0 add, 0 destroy).
 
 ## 2026-09-25 — Deploy the two-path release: migrations 20260925_001/002, market-sql-governor, market-python-sandbox, market-ai-orc (commit a5e11a4)
 

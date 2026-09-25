@@ -713,11 +713,17 @@ Logs never contain keys, dataset URLs, user messages, datasets, or tables.
 
 ## Railway service
 
-Deployed on `dev` as `market-python-sandbox` (v1, before the validation gate). It is a local
-upload with no public domain, and the Railway volume is mounted at `/data`, so it runs as a
-single replica. `RAILWAY_CHANGELOG.md` has the details. Version 2 (the validation gate) changes
-the API contract together with market-ai-orc, so both must be deployed together. The existing
-SQLite records are migrated in place (new columns and tables only).
+Deployed on `dev` as `market-python-sandbox`, with no public domain. The Railway volume is mounted
+at `/data`, so it runs as a single replica. `RAILWAY_CHANGELOG.md` has the details.
+
+- Since 2026-09-25 it deploys from GitHub `rednightt33/saniti` branch `main`, root
+  `/apps/market-python-sandbox`, watch path `/apps/market-python-sandbox/**`. Earlier versions were
+  local uploads.
+- A push to `main` that changes this folder redeploys it, and so restarts the service. At startup,
+  analyses that were still running are marked interrupted (`interrupted_analyses` in the
+  `sandbox_started` log event).
+- A change to the API contract shared with market-ai-orc must reach both services together.
+- The existing SQLite records are migrated in place (new columns and tables only).
 
 ## Tests
 
