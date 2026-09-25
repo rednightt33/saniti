@@ -1,8 +1,14 @@
 # Database changelog
 
-## 2026-09-25 — Add AI_table_catalog subject metadata and the two-path tool contracts (migrations 20260925_001 and 20260925_002; NOT applied)
+## 2026-09-25 — Add AI_table_catalog subject metadata and the two-path tool contracts (migrations 20260925_001 and 20260925_002)
 
-- Status: **written and rehearsed locally only; not applied to any Railway database.** They were merged to `main` with the two-path code on 2026-09-25 (no service deployed) and wait for a separate approval before they are applied.
+- Status: **applied to `dev` at 11:15 UTC** as part of the approved two-path release. The temporary one-off service `two-path-deploy-job` (`437fba8c-a6a8-4347-b1d5-79c53d75f671`, deployment `b3a4370d-4217-48b4-8cb4-7b5c6137e814`) ran both files in order, each as one transaction, and neither was present before. Its preflight and `$verify$` blocks passed and it committed. The services that read the new columns are deployed separately (see `RAILWAY_CHANGELOG.md`). `DATABASE_SCHEMA.md` is regenerated after the deploys.
+- Read back live in a read-only session by the same run:
+  - `AI_table_catalog`: the six columns with the expected types, nullability and default (`subject_metadata_status` `'INFERRED'`), and the five new check constraints (`data_domain`, `entity_type`, `asset_type`, frequencies, subject status).
+  - The seven rows as seeded below, all `INFERRED`; no row was `UNCLASSIFIED` (no notice raised).
+  - `Column_Catalog`: 6 rows, ordinal positions 16–21, `PARTIAL`. `Table_Catalog.source_code_paths` of `AI_table_catalog` now lists the migration.
+  - `market_sql_governor`, `market_ai_sql_reader`, `market_ai_orc` and `market_ai_catalog_reader` can SELECT the new columns; none can INSERT, UPDATE or DELETE the table.
+  - `Tool_Catalog`: 21 market-ai-orc rows. The four new rows are inactive; `create_analysis_spec` v2 and `run_python_analysis` v3 carry `superseded_by`; `request_data` v2 carries the `model_facing` note. The active market-ai-orc rows are still `discover_catalog`, `get_catalog_details` and `read_catalog_rows`, and the table still has 25 active rows, so market-ai-backend lists nothing new.
 - `database/migrations/20260925_001_add_ai_table_subject_metadata.sql` extends `public."AI_table_catalog"` with six columns:
   - `data_domain` (NOT NULL), `entity_type` (NOT NULL), `asset_type` (nullable).
   - `supported_frequencies` (NOT NULL; `{STATIC}` exactly when `time_column` is NULL).
