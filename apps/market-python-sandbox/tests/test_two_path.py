@@ -909,3 +909,64 @@ def test_a_scope_resolved_from_the_catalog_may_say_so() -> None:
     spec = q5_spec()
     spec["scope"]["provenance"] = "CATALOG_RESOLVED"
     assert v2(spec)["scope"]["provenance"] == "CATALOG_RESOLVED"
+
+
+def test_a_chained_calculation_on_another_dataset_is_told_which_dataset() -> None:
+    """The live repro: the grouping calculation named the table of its grouping column as its dataset. One message
+    names the dataset to use; the downstream calculation and the series output are not blamed for it."""
+    spec = q7_spec()
+    spec["calculations"][1]["dataset"] = "universe"
+    text = problems(spec)
+    assert ("calculation group_return: input_calculation 'daily_return' is computed on dataset 'prices'; set dataset "
+            "'prices' (a grouping column of another input goes in group_by[].input") in text
+    assert "calculation correlation" not in text
+    assert "GROUP_DATE needs a dated input; dataset 'universe' of group_return has no date column" in text
+    assert "KEY_COLUMNS_MISMATCH" not in text
+
+
+def test_key_column_problems_state_the_expected_keys() -> None:
+    spec = q7_spec()
+    spec["outputs"][0]["key_columns"] = ["segment"]
+    assert "set key_columns ['segment', 'date'] or null to derive them (KEY_COLUMNS_MISMATCH)" in problems(spec)
+    spec = q7_spec()
+    spec["outputs"][1]["key_columns"] = ["segment", "segment"]
+    assert "set key_columns ['segment_a', 'segment_b'] or null" in problems(spec)
+
+
+def test_an_open_ended_period_without_an_end_is_told_the_reference_date() -> None:
+    spec = q7_spec()
+    spec["time_scope"]["end"] = None
+    assert f"an open-ended period ('since <date>') ends at the reference date {REF.isoformat()}" in problems(spec)
+
+
+def test_a_grouping_column_given_as_an_input_column_is_told_where_it_goes() -> None:
+    spec = q2_spec()
+    grouped = next(c for c in spec["calculations"] if c["method"] == "GROUP_AGGREGATE")
+    grouped["columns"] = grouped["columns"] + ["Sector"]
+    assert "GROUP_AGGREGATE takes 1 input column(s), got 2; grouping columns go in group_by or segments" \
+        in problems(spec)
+
+
+def test_a_period_mismatch_says_how_to_state_the_requested_dates(make_service) -> None:
+    service = make_service()
+    last_data_date = q7_spec()
+    last_data_date["time_scope"]["end"] = "2026-09-19"
+    review = ask(service, last_data_date, Q7)
+    assert review["status"] == "ANALYSIS_SPEC_MISMATCH"
+    detail = next(m["detail"] for m in review["mismatches"] if m["requirement"] == "analysis_period")
+    assert f"Use EXPLICIT_DATES start 2026-07-01 end {REF.isoformat()}" in detail
+    assert f"ends at the reference date {REF.isoformat()}" in detail and "PERIOD_RETURN" not in detail
+    base_moved = q3_spec(provenance="USER_CLARIFIED")
+    base_moved["time_scope"]["start"] = "2026-07-31"
+    review = ask(service, base_moved, Q3, Q3_ASKED, "Yang (a).", request_id="req2")
+    assert review["status"] == "ANALYSIS_SPEC_MISMATCH"
+    detail = next(m["detail"] for m in review["mismatches"] if m["requirement"] == "analysis_period")
+    assert "start 2026-08-01 end 2026-08-31" in detail and "last observation before start" in detail
+    assert "reference date" not in detail
+
+
+def test_a_duplicate_id_that_closes_a_calculation_loop_is_reported_not_followed_forever() -> None:
+    spec = q7_spec()
+    spec["calculations"].append(calc("daily_return", "RETURN", upstream="group_return"))
+    spec["calculations"].append(calc("again", "RETURN", upstream="daily_return"))
+    assert "(DUPLICATE_NAME)" in problems(spec)

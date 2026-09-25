@@ -233,6 +233,18 @@ def test_segments_period_statistics_and_group_pairs_reach_the_sandbox_unchanged(
     assert parsed["outputs"][0]["grain"] == "GROUP_PAIR"
 
 
+def test_the_model_sees_that_a_calculation_is_never_catalog_resolved() -> None:
+    """The live repro: a GROUP_AGGREGATE over a catalog grouping column was marked CATALOG_RESOLVED (rejected)."""
+    schema = next(d["parameters"] for d in registry(sandbox=mock_sandbox({})).definitions()
+                  if d["name"] == "create_analysis_spec")
+    calculation = schema["properties"]["calculations"]["items"]
+    provenance = calculation["properties"]["provenance"]
+    assert "CATALOG_RESOLVED" not in provenance["enum"]
+    assert "CATALOG_RESOLVED is not valid here" in provenance["description"]
+    scope = schema["properties"]["scope"]["properties"]["provenance"]
+    assert "CATALOG_RESOLVED" in scope["enum"]
+
+
 # --- get_dataset_manifest ----------------------------------------------------------------------------
 
 @pytest.mark.parametrize(("status", "body"), [

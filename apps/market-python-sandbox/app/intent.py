@@ -546,6 +546,23 @@ def _period_equal(expected: dict[str, Any], resolved: dict[str, Any], spec_perio
     return resolved.get("start") == expected["start"] and resolved.get("end") == expected["end"]
 
 
+def _period_hint(spec: dict[str, Any], expected: dict[str, Any], proposed: dict[str, Any], ref: date) -> str:
+    """How to state the requested dates, for the two period mistakes a model cannot see from the request alone:
+    an open-ended period ends at the reference date, and a period return needs no earlier start for its base."""
+    if expected.get("mode") != "EXPLICIT_DATES":
+        return ""
+    hint = f" Use EXPLICIT_DATES start {expected['start']} end {expected['end']}"
+    if expected["end"] == ref.isoformat() and proposed.get("end") != expected["end"]:
+        hint += (f"; an open-ended period ends at the reference date {ref.isoformat()} (the data plan uses the "
+                 "dates that exist)")
+    base_before_start = any(c["method"] == "PERIOD_RETURN" and param_values(c).get("base") == "PREVIOUS_OBSERVATION"
+                            for c in spec["calculations"])
+    if base_before_start and (proposed.get("start") or "") < expected["start"]:
+        hint += ("; PERIOD_RETURN base PREVIOUS_OBSERVATION already takes the last observation before start, so "
+                 "start stays the period's first day")
+    return hint + "."
+
+
 def _review_period(spec: dict[str, Any], found: Extracted, resolved: dict[str, Any], ref: date,
                    result: Review) -> None:
     period = spec["analysis_period"]
@@ -575,8 +592,8 @@ def _review_period(spec: dict[str, Any], found: Extracted, resolved: dict[str, A
         shown = {k: v for k, v in expected.items() if k in ("mode", "unit", "count", "start", "end")}
         if same is False:
             result.add("analysis_period", "MISMATCH", shown, proposed,
-                       f"The user asked for '{expected['text']}' but the spec uses a different period.",
-                       "ANALYSIS_SCOPE_MISMATCH")
+                       f"The user asked for '{expected['text']}' but the spec uses a different period."
+                       + _period_hint(spec, expected, proposed, ref), "ANALYSIS_SCOPE_MISMATCH")
         elif same is None:
             result.add("analysis_period", "UNVERIFIED", shown, proposed,
                        f"'{expected['text']}' does not say trading or calendar days; the spec chose "

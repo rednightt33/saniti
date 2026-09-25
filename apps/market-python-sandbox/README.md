@@ -164,6 +164,16 @@ goes through these steps, all in backend code:
 
    The check never accepts the model's own confirmation as evidence, and anything it does not
    recognise is never assumed to match.
+
+   Every `INVALID_SPEC` problem ends with its machine code in parentheses. When the fix follows from
+   the spec itself, the message states it:
+   - the dataset a chained calculation must use (the dataset of the chain's first calculation, so
+     one wrong link is reported once);
+   - the expected `key_columns` of a group output;
+   - the reference date for an open-ended period ("sejak ...");
+   - for a period `ANALYSIS_SCOPE_MISMATCH`, the requested dates. A `PERIOD_RETURN` with base
+     `PREVIOUS_OBSERVATION` already takes its base from before the start, so the start is not
+     moved back.
 3. **Resolved period and required input.** Relative periods are resolved against the reference
    date. `TRAILING` periods get dates immediately; `TRADING_DAYS` and `LATEST` are resolved from
    the input calendar. The service computes each method's warm-up (minimum and recommended) and

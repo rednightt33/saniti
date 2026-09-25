@@ -208,7 +208,8 @@ class SpecCalculation(Strict):
     segments: list[SpecSegment] | None = Field(
         max_length=10, description="GROUP_AGGREGATE only, instead of group_by: labelled groups defined by predicates "
                                    "(for groups one column cannot express); else null.")
-    provenance: Provenance
+    provenance: Provenance = Field(description="Where the method choice comes from. CATALOG_RESOLVED is not valid "
+                                               "here, even when the calculation groups by a catalog column.")
     default_id: str | None
 
     @field_validator("formula_refs")
@@ -379,11 +380,12 @@ SPEC_DESCRIPTION = (
     "relationship_id that joins the two tables. Use the exact data value; provenance CATALOG_RESOLVED with "
     "user_text = the user's own words when you mapped words to a catalog value. time_scope: null for static "
     "reference data (a count per group of a table without a time column); otherwise mode, dates or count/unit, and a "
-    "frequency the tables support. "
+    "frequency the tables support; an open-ended period ('since <date>') ends at the reference date, not at the "
+    "last data date. "
     "provenance per requirement: USER_EXPLICIT only for what the user stated, USER_CLARIFIED for answers to your "
     "clarification question, APPROVED_DEFAULT with default_id for a documented default (a parameter without a "
     "documented default is left null instead), AI_INFERRED otherwise; CATALOG_RESOLVED (user words mapped to catalog "
-    "values) only on scope, scope predicates and segments. "
+    "values) only on scope, scope predicates and segments, never on a calculation. "
     "Definitions follow TA-Lib first, then AI_formula_reference, then your own formula (CUSTOM). "
     "Defaults: DEFAULT_TRAILING_CALENDAR_WINDOW ('last N months' = TRAILING), DEFAULT_TRADING_DAYS, DEFAULT_LATEST, "
     "DEFAULT_MONTH_WITHOUT_YEAR, DEFAULT_UNIVERSE_ALL_IN_SOURCE ('all stocks'), DEFAULT_FREQUENCY_DAILY, "
@@ -401,9 +403,10 @@ SPEC_DESCRIPTION = (
     "method parameters get their default. "
     "Methods with independent recalculation (params): SMA(window), ROLLING_STD(window, ddof), "
     "ROLLING_ZSCORE(window, ddof, include_current), RETURN(horizon, kind SIMPLE|LOG, as_percent), "
-    "PERIOD_RETURN(kind, as_percent, base PREVIOUS_OBSERVATION|FIRST_IN_PERIOD; the change over the whole period, "
-    "one column), FORWARD_RETURN(horizon, kind, as_percent, entry NEXT_OPEN|SIGNAL_CLOSE; columns [close, open] for "
-    "NEXT_OPEN, [close] for SIGNAL_CLOSE), RSI(period), ROLLING_CORRELATION(window, method, transform; two columns), "
+    "PERIOD_RETURN(kind, as_percent, base PREVIOUS_OBSERVATION (the last observation before start, so start stays "
+    "the period's first day)|FIRST_IN_PERIOD; the change over the whole period, one column), FORWARD_RETURN(horizon, "
+    "kind, as_percent, entry NEXT_OPEN|SIGNAL_CLOSE; columns [close, open] for NEXT_OPEN, [close] for SIGNAL_CLOSE), "
+    "RSI(period), ROLLING_CORRELATION(window, method, transform; two columns), "
     "CORRELATION(method, transform, min_overlap; ENTITY_PAIR output over an ENTITY_LIST scope), "
     "PERIOD_STAT(function AVG|MEDIAN|STD|MIN|MAX|SUM|COUNT, ddof for STD, min_observations; one column or "
     "input_calculation; the statistic of each entity's observations inside the period, e.g. volatility = STD of a "
@@ -428,7 +431,8 @@ SPEC_DESCRIPTION = (
     "log, exp, sqrt, sign, min, max, where(c, a, b), lag(x, k), rolling_sum(x, n), rolling_mean(x, n) (past only). "
     "A CUSTOM without an expression is never independently recalculated (optional warmup_observations param). Add "
     "formula_refs (CALC_### ids it adapts), meaning, and unit to CUSTOM. Chain a method on another calculation with "
-    "input_calculation (e.g. ROLLING_STD of a RETURN). "
+    "input_calculation (e.g. ROLLING_STD of a RETURN); every calculation of a chain keeps the dataset of its first "
+    "calculation (grouping columns of other inputs go in group_by[].input or segment predicates). "
     "outputs: each TABLE the code emits, by name. grain ENTITY_DATE (one row per entity and date in the period), "
     "ENTITY (one row per entity at its latest observation in the period), ENTITY_PAIR, GROUP (one row per group; "
     "key_columns = the group_by columns or [segment]), GROUP_DATE (per group and date; per_date true), GROUP_PAIR "

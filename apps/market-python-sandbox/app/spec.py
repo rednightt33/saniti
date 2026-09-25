@@ -746,7 +746,8 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
     mode = period["mode"]
     if mode == "EXPLICIT_DATES":
         if not period["start"] or not period["end"]:
-            problems.append("analysis_period: EXPLICIT_DATES needs start and end (PERIOD_INVALID)")
+            problems.append("analysis_period: EXPLICIT_DATES needs start and end; an open-ended period ('since "
+                            f"<date>') ends at the reference date {ref.isoformat()} (PERIOD_INVALID)")
         elif period["start"] > period["end"]:
             problems.append("analysis_period: start is after end (PERIOD_INVALID)")
         elif date.fromisoformat(period["end"]) > ref:
@@ -782,11 +783,17 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
         outputs_of[calc["output_column"]] = calc["id"]
         if calc["input_calculation"] is not None:
             upstream = calcs.get(calc["input_calculation"])
+            # The chain's first calculation, so one wrong link is reported once and not again downstream.
+            chain_dataset = _chain_dataset(upstream, calcs) if upstream else None
             if upstream is None:
                 problems.append(f"{where}: input_calculation must name an earlier calculation"
                                 " (INPUT_CALCULATION_INVALID)")
-            elif upstream["dataset"] != calc["dataset"]:
-                problems.append(f"{where}: input_calculation must use the same dataset (INPUT_CALCULATION_INVALID)")
+            elif chain_dataset != calc["dataset"]:
+                grouping = (" (a grouping column of another input goes in group_by[].input or a segment predicate's "
+                            "input)" if calc["method"] == "GROUP_AGGREGATE" else "")
+                problems.append(f"{where}: input_calculation {calc['input_calculation']!r} is computed on dataset "
+                                f"{chain_dataset!r}; set dataset {chain_dataset!r}{grouping}"
+                                " (INPUT_CALCULATION_INVALID)")
             elif upstream["method"] in GROUP_METHODS and calc["method"] != "GROUP_CORRELATION":
                 problems.append(f"{where}: {upstream['method']} values are per group, not per entity; only "
                                 f"GROUP_CORRELATION takes a group series as its input (GROUP_VALUES_NOT_PER_ENTITY)")
@@ -942,7 +949,9 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
                                         " (FUTURE_LABEL_IN_SIGNAL)")
                 expected_inputs = 1
             elif given != expected_inputs:
-                problems.append(f"{where}: {method} takes {expected_inputs} input column(s) (INPUT_COUNT_INVALID)")
+                grouping = "; grouping columns go in group_by or segments" if method == "GROUP_AGGREGATE" else ""
+                problems.append(f"{where}: {method} takes {expected_inputs} input column(s), got {given}{grouping}"
+                                " (INPUT_COUNT_INVALID)")
             unknown = sorted(set(params) - set(definition.params))
             if unknown:
                 problems.append(f"{where}: unknown parameters {unknown} for {method}; allowed "
@@ -1163,16 +1172,20 @@ def _group_output(output: dict[str, Any], refs: list[dict[str, Any]], inputs: di
         problems.append(f"{where}: {grain} outputs need per_date {'true' if grain == 'GROUP_DATE' else 'false'} "
                         f"calculations (OUTPUT_GRAIN_INVALID)")
     expected = group_key_columns(refs[0])
+    dated = True
     if grain == "GROUP_DATE":
         dataset = inputs.get(refs[0]["dataset"]) or {}
         if not dataset.get("date_column"):
-            problems.append(f"{where}: GROUP_DATE needs a dated input (OUTPUT_GRAIN_INVALID)")
+            # The expected keys are unknown until the dataset is fixed, so no key_columns comparison either.
+            problems.append(f"{where}: GROUP_DATE needs a dated input; dataset {refs[0]['dataset']!r} of "
+                            f"{refs[0]['id']} has no date column (OUTPUT_GRAIN_INVALID)")
+            dated = False
         else:
             expected.append(dataset["date_column"])
             output["date_column"] = dataset["date_column"]
-    if output.get("key_columns") and output["key_columns"] != expected:
-        problems.append(f"{where}: key_columns {output['key_columns']} do not match the grouping keys {expected}"
-                        " (KEY_COLUMNS_MISMATCH)")
+    if dated and output.get("key_columns") and output["key_columns"] != expected:
+        problems.append(f"{where}: key_columns {output['key_columns']} do not match the grouping keys {expected}; "
+                        f"set key_columns {expected} or null to derive them (KEY_COLUMNS_MISMATCH)")
     output["key_columns"] = expected
     output["at"] = "EACH_DATE" if grain == "GROUP_DATE" else "PERIOD_END"
     output["entity_column"] = None
@@ -1196,8 +1209,8 @@ def _group_pair_output(output: dict[str, Any], refs: list[dict[str, Any]], calcs
         return  # reported on the calculation
     expected = [f"{keys[0]}_a", f"{keys[0]}_b"]
     if output.get("key_columns") and output["key_columns"] != expected:
-        problems.append(f"{where}: key_columns {output['key_columns']} do not match the pair key {expected}"
-                        " (KEY_COLUMNS_MISMATCH)")
+        problems.append(f"{where}: key_columns {output['key_columns']} do not match the pair key {expected}; set "
+                        f"key_columns {expected} or null to derive them (KEY_COLUMNS_MISMATCH)")
     output["key_columns"] = expected
     output["at"] = None
     output["entity_column"] = output["date_column"] = output["pair_columns"] = None
@@ -1212,6 +1225,16 @@ def observation_unit(design: str, metric: dict[str, Any]) -> str | None:
     if design == "ASSOCIATION":
         return "GROUP_DATE" if metric["method"] == "GROUP_CORRELATION" else "ENTITY_DATE"
     return None
+
+
+def _chain_dataset(calc: dict[str, Any], calcs: dict[str, dict[str, Any]]) -> str:
+    """The dataset of the first calculation in calc's input_calculation chain (the data the chain is computed on).
+    Duplicate ids (reported separately) can close a loop, so each id is followed once."""
+    seen = {calc["id"]}
+    while calc["input_calculation"] in calcs and calc["input_calculation"] not in seen:
+        calc = calcs[calc["input_calculation"]]
+        seen.add(calc["id"])
+    return calc["dataset"]
 
 
 def group_key_columns(calc: dict[str, Any]) -> list[str]:
