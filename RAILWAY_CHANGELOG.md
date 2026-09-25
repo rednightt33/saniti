@@ -1,5 +1,30 @@
 # Railway changelog
 
+## 2026-09-25 — Two-path live test: temporary job with the feature-branch stack (no deploy, no live write)
+
+- Approved by the user as the live test of the two-path architecture (feature branch `claude/upbeat-dijkstra-iybq2f`, commit `1ae56c1`). A local run was not possible: this environment's egress allows HTTPS only, so PostgreSQL could not be reached through the existing TCP proxy.
+- The temporary service `two-path-live-job` (`b6b512f7-5c97-49c5-9b27-9ab7182b528a`) ran once and was deleted afterwards.
+  - Deployment `8b177cf0-00e8-4ab9-b3c8-149396e87716` did the run.
+  - The first deployment `5e1090df-8ce4-4eb6-ac90-2e937fb2ae33` crashed before reading anything: the image's `/tmp` was not writable for the in-container PostgreSQL socket.
+  - It held only references: `GOVERNOR_DATABASE_URL` (market-sql-governor), `CATALOG_DATABASE_URL` and `OPENROUTER_API_KEY` (market-ai-orc). It printed no secrets; a scan of the captured logs found none.
+- **What it did:**
+  - It read live PostgreSQL only in `default_transaction_read_only` sessions, with the Governor's least-privilege role and the orc catalog role. It copied into a PostgreSQL 16 cluster inside the container:
+    - the five AI catalogs, `AI_research_catalog` and `AI_formula_reference`;
+    - `IDX_Stock_Universe` (844 rows) and `IDX_Broker_Profile`;
+    - `Price_Stock_Indonesia_IDX` from 2025-01-01 (329,394 rows) and `Feature_01_Stock_Daily` from 2025-06-01 (257,280 rows).
+  - It applied migration `20260925_001` (subject metadata) to that copy only.
+  - It ran market-sql-governor, market-python-sandbox (isolation enforced, all checks PASS) and market-ai-orc from the branch, with the dev model `deepseek/deepseek-v4.1-flash` (reasoning `high`) and the dev limits.
+- **Results** (ground truth computed with SQL on the same copy):
+  - All five sector questions of the 2026-09-24 stress test were answered `CALCULATION_VERIFIED`, and every number equals the ground truth:
+    - counts per sector;
+    - top 3 sectors by August return, after one return-basis clarification: Transportation & Logistic +14.02%, Basic Materials +12.72%, Infrastructures +8.99%;
+    - top 5 banks over one month: BSIM +38.0%, BNBA +17.9%, BTPN +6.0%, NOBU +5.0%, BEKS +4.5%;
+    - Energy vs Technology mean daily-return volatility: 0.03275 vs 0.03547;
+    - banks vs property daily-return correlation since 1 January 2026: 0.7988 over 170 dates.
+  - Before (2026-09-24, deployed code): 5 of 5 ended in `LIMITATION`, 251 s, $0.0721, 67% of prompt tokens cached.
+  - After: 5 of 5 answered plus 1 clarification, 619 s, $0.0801, 87% cached.
+- The environment is back to 15 services. `railway config plan` reports the configuration up to date. No service, variable, deployment of an existing service, database row, or schema was changed.
+
 ## 2026-09-24 — Stress test: 10 price and sector questions (no deploy, no change)
 
 - Requested by the user before a full code review. The temporary job `stress-test-job` (`162aa153-fc78-4739-aecd-d4478f461e39`, deployment `e85a9fd1-6985-4a1d-bbc8-ba014487b241`) was deleted afterwards. It held references to `MARKET_AI_ORC_API_KEY` and `DATABASE_URL`, used the latter only in a read-only session, and printed no secrets.
