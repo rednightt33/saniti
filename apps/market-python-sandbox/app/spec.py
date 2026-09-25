@@ -131,11 +131,22 @@ APPROVED_DEFAULTS: dict[str, dict[str, Any]] = {
     "DEFAULT_GROUP_UNKNOWN_VALUES": {"value": [], "meaning": "No grouping value is treated as unknown unless listed."},
     "DEFAULT_RANK_TIE_POLICY": {"value": "INCLUDE_EXACTLY_N_STABLE", "meaning": "A top-N keeps exactly N rows; ties at "
                                 "the boundary are broken by the key columns in ascending order."},
+    "DEFAULT_PERIOD_STD_DDOF": {"value": 1, "meaning": "A standard deviation over the analysis period (for example the "
+                                "volatility of daily returns) is the sample standard deviation (ddof=1), not "
+                                "annualized."},
+    "DEFAULT_PERIOD_STAT_MIN_OBSERVATIONS": {"value": 1, "meaning": "A period statistic needs at least one non-null "
+                                             "observation in the period (a sample standard deviation needs two)."},
+    "DEFAULT_SERIES_ALIGNMENT": {"value": "COMMON_DATES", "meaning": "Two series are compared on the dates where both "
+                                 "have a defined value; nothing is forward-filled or shifted (maximum lag 0)."},
 }
 
 FAMILIES = ("RSI", "SMA", "STD", "ZSCORE", "RETURN", "FORWARD_RETURN", "CORRELATION", "EVENT_STUDY")
 AGGREGATE_FUNCTIONS = ("COUNT", "COUNT_DISTINCT", "SUM", "AVG", "MEDIAN", "MIN", "MAX")
+PERIOD_FUNCTIONS = ("MEAN", "MEDIAN", "STD", "MIN", "MAX", "SUM", "COUNT")
 GROUP_GRAINS = ("GROUP", "GROUP_DATE")
+GROUP_METHODS = ("GROUP_AGGREGATE", "GROUP_CORRELATION")
+SEGMENT_KEY = "segment"
+MAX_SEGMENTS = 10
 
 
 @dataclass(frozen=True)
@@ -262,8 +273,35 @@ METHODS["GROUP_AGGREGATE"] = MethodDef(
      "min_observations": ParamDef("int", default=1, default_id="DEFAULT_GROUP_MIN_OBSERVATIONS", minimum=1,
                                   maximum=100000)},
     1, GROUP_GRAINS, "function(values of the group's entities); null values excluded; a group with fewer than "
-                     "min_observations values has no value",
+                     "min_observations values has no value. Groups come from group_by (catalog columns) or from "
+                     "segments (labelled predicates; an entity belongs to every segment whose predicates all hold)",
     "Per entity the value at its last observation in the period (or each period date when per_date).")
+# A statistic of one entity's observations over the analysis period (for example the standard deviation of its daily
+# returns). The value at t covers the entity's period observations up to t (expanding within the period), so the
+# ENTITY value (last period observation) is the whole-period statistic. Nothing is annualized.
+METHODS["PERIOD_STAT"] = MethodDef(
+    "PERIOD_STAT", (),
+    {"function": ParamDef("enum", required=True, choices=PERIOD_FUNCTIONS),
+     "ddof": ParamDef("int", default=1, default_id="DEFAULT_PERIOD_STD_DDOF", minimum=0, maximum=1),
+     "min_observations": ParamDef("int", default=1, default_id="DEFAULT_PERIOD_STAT_MIN_OBSERVATIONS", minimum=1,
+                                  maximum=100000)},
+    1, ENTITY_SERIES, "function(x over the entity's observations from the period start up to t); null values "
+                      "excluded; STD uses ddof (not annualized); fewer than min_observations non-null values -> null",
+    "Value at t uses only the entity's observations inside the period up to t (no look-ahead, no warm-up rows); the "
+    "ENTITY value is the statistic over the whole period.")
+# Correlation between the per-date series of groups (a per_date GROUP_AGGREGATE with one key or segments): one value
+# per pair of groups.
+METHODS["GROUP_CORRELATION"] = MethodDef(
+    "GROUP_CORRELATION", ("CORRELATION",),
+    {"method": CORR_METHOD,
+     "min_overlap": ParamDef("int", default=20, default_id="DEFAULT_CORRELATION_MIN_OVERLAP", minimum=3,
+                             maximum=100000),
+     "alignment": ParamDef("enum", default="COMMON_DATES", default_id="DEFAULT_SERIES_ALIGNMENT",
+                           choices=("COMMON_DATES",))},
+    1, ("GROUP_PAIR",), "corr(s_a, s_b) for every pair of groups a < b (null-key groups excluded); s_g = the input "
+                        "per-date group series; fewer than min_overlap common dates -> null",
+    "Both series are aligned on the period dates where both are defined; no value is forward-filled or shifted "
+    "(lag 0).")
 CUSTOM = "CUSTOM"
 METHOD_NAMES = tuple(METHODS) + (CUSTOM,)
 # Every EVENT_STUDY summary output has these columns (key: segment).
@@ -286,6 +324,8 @@ CONVENTIONS: dict[str, dict[str, Any]] = {
                     "formula_refs": ["CALC_176", "CALC_177", "CALC_178", "CALC_179"]},
     "PERIOD_RETURN": {"source": "SANITI", "function": None, "formula_refs": []},
     "GROUP_AGGREGATE": {"source": "SANITI", "function": None, "formula_refs": []},
+    "PERIOD_STAT": {"source": "SANITI", "function": None, "formula_refs": []},
+    "GROUP_CORRELATION": {"source": "SANITI", "function": None, "formula_refs": []},
 }
 # AI_formula_reference entries a registered method implements: a CUSTOM formula citing one must use the method.
 REFERENCE_TO_METHOD = {ref: method for method, convention in CONVENTIONS.items() for ref in convention["formula_refs"]}
@@ -314,7 +354,7 @@ def method_warmup(method: str, params: dict[str, Any]) -> tuple[int, int, int]:
     if method == "PERIOD_RETURN":
         need = 1 if params.get("base", "PREVIOUS_OBSERVATION") == "PREVIOUS_OBSERVATION" else 0
         return need, need, 0
-    if method == "GROUP_AGGREGATE":
+    if method in ("GROUP_AGGREGATE", "GROUP_CORRELATION", "PERIOD_STAT"):
         return 0, 0, 0
     if method == "RSI":
         # Wilder smoothing depends on where the series starts; the seed effect decays by (n-1)/n per
@@ -386,10 +426,30 @@ class GroupKey(Loose):
     column: Column
 
 
+class SegmentPredicate(Loose):
+    """One condition of a segment: a filterable catalog column of an input compared with catalog-typed values."""
+
+    input: Ident
+    column: Column
+    operator: Literal["EQ", "NEQ", "IN", "GT", "GTE", "LT", "LTE", "IS_NULL", "IS_NOT_NULL"]
+    value: str | int | float | bool | list[str | int | float] | None
+
+
+class Segment(Loose):
+    """A labelled group defined by predicates (all must hold), for groups one catalog column cannot express (for
+    example two groups defined on different columns). Entities in no segment are not aggregated."""
+
+    label: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9 _.&()/-]{0,39}$")]
+    predicates: list[SegmentPredicate] = Field(min_length=1, max_length=4)
+    provenance: Literal["USER_EXPLICIT", "USER_CLARIFIED", "CATALOG_RESOLVED", "AI_INFERRED"] = "AI_INFERRED"
+    user_text: Annotated[str, StringConstraints(max_length=200)] | None = None
+
+
 class Calculation(Loose):
     id: Ident
     method: Literal["SMA", "ROLLING_STD", "ROLLING_ZSCORE", "RETURN", "FORWARD_RETURN", "RSI", "ROLLING_CORRELATION",
-                    "CORRELATION", "EVENT_STUDY", "PERIOD_RETURN", "GROUP_AGGREGATE", "CUSTOM"]
+                    "CORRELATION", "EVENT_STUDY", "PERIOD_RETURN", "PERIOD_STAT", "GROUP_AGGREGATE",
+                    "GROUP_CORRELATION", "CUSTOM"]
     dataset: Ident
     columns: list[Column] = Field(default_factory=list, max_length=4)
     input_calculation: Ident | None = None
@@ -409,8 +469,9 @@ class Calculation(Loose):
     meaning: Annotated[str, StringConstraints(max_length=300)] | None = None
     unit: Annotated[str, StringConstraints(max_length=40)] | None = None
     data_policies: DataPolicies | None = None
-    # GROUP_AGGREGATE: the grouping keys (1-3)
+    # GROUP_AGGREGATE: the grouping keys (1-3), or labelled segments (1-10) instead
     group_by: list[GroupKey] | None = Field(default=None, max_length=3)
+    segments: list[Segment] | None = Field(default=None, max_length=MAX_SEGMENTS)
     provenance: Provenance
     default_id: str | None = None
 
@@ -440,7 +501,8 @@ class Ranking(Loose):
 
 class OutputSpec(Loose):
     name: Annotated[str, StringConstraints(pattern=OUTPUT_NAME)]
-    grain: Literal["ENTITY_DATE", "ENTITY", "ENTITY_PAIR", "GROUP", "GROUP_DATE", "SUMMARY", "UNSPECIFIED"]
+    grain: Literal["ENTITY_DATE", "ENTITY", "ENTITY_PAIR", "GROUP", "GROUP_DATE", "GROUP_PAIR", "SUMMARY",
+                   "UNSPECIFIED"]
     at: Literal["EACH_DATE", "PERIOD_END"] | None = None
     coverage: Literal["FULL", "SELECTION"] = "FULL"
     calculations: list[Ident] = Field(default_factory=list, max_length=12)
@@ -621,7 +683,10 @@ def normalize(spec: AnalysisSpec, ref: date) -> dict[str, Any]:
 
     Raises SpecInvalid with every problem found.
     """
-    return normalize_raw(spec.model_dump(mode="json"), ref)
+    raw = spec.model_dump(mode="json")
+    if any(c.get("segments") for c in raw["calculations"]):
+        raise SpecInvalid(["segments need an Analysis Spec V2: their predicate values are typed against the catalog"])
+    return normalize_raw(raw, ref)
 
 
 def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = None) -> dict[str, Any]:
@@ -691,6 +756,9 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
                 problems.append(f"{where}: input_calculation must name an earlier calculation")
             elif upstream["dataset"] != calc["dataset"]:
                 problems.append(f"{where}: input_calculation must use the same dataset")
+            elif upstream["method"] in GROUP_METHODS and calc["method"] != "GROUP_CORRELATION":
+                problems.append(f"{where}: {upstream['method']} values are per group, not per entity; only "
+                                f"GROUP_CORRELATION takes a group series as its input")
             if calc["columns"]:
                 problems.append(f"{where}: use either columns or input_calculation, not both")
         elif source is not None:
@@ -707,12 +775,17 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
         if method != "EVENT_STUDY" and calc["signal"]:
             problems.append(f"{where}: signal predicates belong to EVENT_STUDY calculations")
         calc.setdefault("group_by", None)
-        if method != "GROUP_AGGREGATE" and calc["group_by"]:
-            problems.append(f"{where}: group_by belongs to GROUP_AGGREGATE calculations")
+        calc.setdefault("segments", None)
+        if method != "GROUP_AGGREGATE" and (calc["group_by"] or calc["segments"]):
+            problems.append(f"{where}: group_by and segments belong to GROUP_AGGREGATE calculations")
         if method == "GROUP_AGGREGATE":
             keys = calc["group_by"] or []
-            if not keys:
-                problems.append(f"{where}: GROUP_AGGREGATE needs group_by (1-3 catalog grouping columns)")
+            segments = calc["segments"] or []
+            if keys and segments:
+                problems.append(f"{where}: use either group_by or segments, not both")
+            elif not keys and not segments:
+                problems.append(f"{where}: GROUP_AGGREGATE needs group_by (1-3 catalog grouping columns) or segments "
+                                f"(labelled predicates)")
             for key in keys:
                 owner = inputs.get(key["input"])
                 if owner is None:
@@ -721,11 +794,26 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
                     problems.append(f"{where}: group_by column {key['column']!r} is not listed in input {owner['name']}")
             if len({(k["input"], k["column"]) for k in keys}) != len(keys):
                 problems.append(f"{where}: group_by keys must be unique")
+            labels = [segment["label"].strip().lower() for segment in segments]
+            if len(set(labels)) != len(labels):
+                problems.append(f"{where}: segment labels must be unique")
+            for segment in segments:
+                for predicate in segment["predicates"]:
+                    owner = inputs.get(predicate["input"])
+                    if owner is None:
+                        problems.append(f"{where}: segment {segment['label']!r} input {predicate['input']!r} is not one "
+                                        f"of the inputs")
+                    elif predicate["column"] not in owner["columns"]:
+                        problems.append(f"{where}: segment {segment['label']!r} column {predicate['column']!r} is not "
+                                        f"listed in input {owner['name']}")
         if static and method not in ("GROUP_AGGREGATE", CUSTOM):
             problems.append(f"{where}: {method} works on dated observations; this spec has no time scope "
                             f"(TIME_SCOPE_REQUIRED)")
         if method == "PERIOD_RETURN" and mode not in ("EXPLICIT_DATES", "TRAILING"):
             problems.append(f"{where}: PERIOD_RETURN needs a calendar period (EXPLICIT_DATES or TRAILING)")
+        if method == "PERIOD_STAT" and not static and mode not in ("EXPLICIT_DATES", "TRAILING", "TRADING_DAYS"):
+            problems.append(f"{where}: PERIOD_STAT needs a period with a start (EXPLICIT_DATES, TRAILING or "
+                            f"TRADING_DAYS), not {mode}")
         if method != CUSTOM and any(calc[k] for k in ("expression", "formula_refs", "meaning", "unit",
                                                         "data_policies")):
             problems.append(f"{where}: expression, formula_refs, meaning, unit and data_policies belong to CUSTOM "
@@ -741,7 +829,7 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
                                 f"{implemented}; use that method (its convention takes precedence) instead of CUSTOM")
             if calc["expression"]:
                 earlier = {cid for cid, c in calcs.items() if c["dataset"] == calc["dataset"]
-                           and c["method"] not in LOOKAHEAD_METHODS}
+                           and c["method"] not in LOOKAHEAD_METHODS + GROUP_METHODS}
                 try:
                     info = analyze_expression(calc["expression"], set(calc["columns"]) | earlier)
                 except ExpressionError as exc:
@@ -792,6 +880,9 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
                     if source_calc is None or source_calc["dataset"] != calc["dataset"]:
                         problems.append(f"{where}: signal calculation {predicate['calculation']!r} must be an earlier "
                                         f"calculation on the same input")
+                    elif source_calc["method"] in GROUP_METHODS:
+                        problems.append(f"{where}: signal calculation {predicate['calculation']!r} is per group, not "
+                                        f"per entity observation")
                     elif source_calc["method"] in LOOKAHEAD_METHODS or _looks_ahead(source_calc, calcs):
                         problems.append(f"{where}: FUTURE_LABEL_IN_SIGNAL: signal {predicate['calculation']!r} uses "
                                         f"observations after t; an event may only use information available at t")
@@ -848,13 +939,32 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
                 values = param_values(calc)
                 if values.get("per_date") and static:
                     problems.append(f"{where}: per_date grouping needs a time scope")
-                upstream = calcs.get(calc["input_calculation"] or "")
-                if upstream is not None and upstream["method"] == "GROUP_AGGREGATE":
-                    problems.append(f"{where}: GROUP_AGGREGATE cannot aggregate another group aggregate")
                 if values.get("function") in ("SUM", "AVG", "MEDIAN") and not calc["input_calculation"] and \
                         calc["columns"] and source is not None and calc["columns"][0] == source.get("entity_column"):
                     problems.append(f"{where}: {values['function']} of the entity column is not meaningful; use "
                                     f"COUNT or COUNT_DISTINCT")
+                if calc["segments"]:
+                    # segments are explicit predicates: a missing attribute simply fails them
+                    for name in ("missing_group_policy", "unknown_group_values"):
+                        if name in params:
+                            problems.append(f"{where}: {name} applies to group_by keys, not to segments")
+                    calc["params"] = [p for p in calc["params"]
+                                      if p["name"] not in ("missing_group_policy", "unknown_group_values")]
+            if method == "PERIOD_STAT":
+                function = param_values(calc).get("function")
+                if function != "STD":
+                    if "ddof" in params:
+                        problems.append(f"{where}: ddof applies to PERIOD_STAT function STD only")
+                    calc["params"] = [p for p in calc["params"] if p["name"] != "ddof"]
+                calc["covers"] = ["STD"] if function == "STD" else []
+            if method == "GROUP_CORRELATION":
+                upstream = calcs.get(calc["input_calculation"] or "")
+                if calc["columns"] or upstream is None or upstream["method"] != "GROUP_AGGREGATE" or \
+                        not param_values(upstream).get("per_date"):
+                    problems.append(f"{where}: GROUP_CORRELATION takes no columns; input_calculation must name an "
+                                    f"earlier per_date GROUP_AGGREGATE (the aligned group series)")
+                elif group_key_columns(upstream) == [] or len(group_key_columns(upstream)) > 1:
+                    problems.append(f"{where}: the group series must have exactly one grouping key or use segments")
         calc["convention"] = CONVENTIONS.get(method) or {"source": "AI_GENERATED", "function": None,
                                                          "formula_refs": list(calc.get("formula_refs") or [])}
         calcs[calc["id"]] = calc
@@ -876,8 +986,12 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
             problems.append(f"{where}: EVENT_STUDY calculations produce SUMMARY outputs")
         if any(c["method"] == "GROUP_AGGREGATE" for c in refs) and grain not in GROUP_GRAINS:
             problems.append(f"{where}: GROUP_AGGREGATE calculations produce GROUP or GROUP_DATE outputs")
+        if any(c["method"] == "GROUP_CORRELATION" for c in refs) and grain != "GROUP_PAIR":
+            problems.append(f"{where}: GROUP_CORRELATION calculations produce GROUP_PAIR outputs")
         if grain in GROUP_GRAINS:
             _group_output(output, refs, inputs, where, problems)
+        elif grain == "GROUP_PAIR":
+            _group_pair_output(output, refs, calcs, where, problems)
         ranking = output.get("ranking")
         if ranking is not None:
             _trace(ranking, f"{where} ranking", problems)
@@ -904,7 +1018,7 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
             if any(c["method"] not in ("CORRELATION", CUSTOM) for c in refs):
                 problems.append(f"{where}: only CORRELATION or CUSTOM calculations have ENTITY_PAIR grain")
             output["at"] = None
-        elif grain in GROUP_GRAINS:
+        elif grain in GROUP_GRAINS + ("GROUP_PAIR",):
             pass
         elif grain in ("ENTITY_DATE", "ENTITY"):
             if any(c["method"] == "CORRELATION" for c in refs):
@@ -964,15 +1078,15 @@ def _group_output(output: dict[str, Any], refs: list[dict[str, Any]], inputs: di
     if not refs or any(c["method"] != "GROUP_AGGREGATE" for c in refs):
         problems.append(f"{where}: {grain} outputs list only GROUP_AGGREGATE calculations")
         return
-    keys = {tuple((k["input"], k["column"]) for k in c.get("group_by") or []) for c in refs}
+    groupings = {grouping_identity(c) for c in refs}
     per_date = {bool(param_values(c).get("per_date")) for c in refs if c["params"]}
-    if len(keys) != 1:
-        problems.append(f"{where}: every calculation of a {grain} output groups by the same keys")
+    if len(groupings) != 1:
+        problems.append(f"{where}: every calculation of a {grain} output groups by the same keys or segments")
         return
     if per_date != {grain == "GROUP_DATE"}:
         problems.append(f"{where}: {grain} outputs need per_date {'true' if grain == 'GROUP_DATE' else 'false'} "
                         f"calculations")
-    expected = [column for _, column in next(iter(keys))]
+    expected = group_key_columns(refs[0])
     if grain == "GROUP_DATE":
         dataset = inputs.get(refs[0]["dataset"]) or {}
         if not dataset.get("date_column"):
@@ -986,6 +1100,39 @@ def _group_output(output: dict[str, Any], refs: list[dict[str, Any]], inputs: di
     output["at"] = "EACH_DATE" if grain == "GROUP_DATE" else "PERIOD_END"
     output["entity_column"] = None
     output["pair_columns"] = None
+
+
+def _group_pair_output(output: dict[str, Any], refs: list[dict[str, Any]], calcs: dict[str, dict[str, Any]],
+                       where: str, problems: list[str]) -> None:
+    """GROUP_PAIR outputs: GROUP_CORRELATION calculations of one group series; key columns <key>_a and <key>_b."""
+    if not refs or any(c["method"] != "GROUP_CORRELATION" for c in refs):
+        problems.append(f"{where}: GROUP_PAIR outputs list only GROUP_CORRELATION calculations")
+        return
+    series = {c["input_calculation"] for c in refs}
+    if len(series) != 1:
+        problems.append(f"{where}: every calculation of a GROUP_PAIR output correlates the same group series")
+        return
+    upstream = calcs.get(next(iter(series)) or "")
+    keys = group_key_columns(upstream) if upstream else []
+    if len(keys) != 1:
+        return  # reported on the calculation
+    expected = [f"{keys[0]}_a", f"{keys[0]}_b"]
+    if output.get("key_columns") and output["key_columns"] != expected:
+        problems.append(f"{where}: key_columns {output['key_columns']} do not match the pair key {expected}")
+    output["key_columns"] = expected
+    output["at"] = None
+    output["entity_column"] = output["date_column"] = output["pair_columns"] = None
+
+
+def group_key_columns(calc: dict[str, Any]) -> list[str]:
+    """The key columns a GROUP_AGGREGATE produces (without the date of per_date series)."""
+    if calc.get("segments"):
+        return [SEGMENT_KEY]
+    return [key["column"] for key in calc.get("group_by") or []]
+
+
+def grouping_identity(calc: dict[str, Any]) -> str:
+    return canonical_json({"group_by": calc.get("group_by") or [], "segments": calc.get("segments") or []})
 
 
 def convention_notes(spec: dict[str, Any]) -> list[dict[str, str]]:
@@ -1065,7 +1212,7 @@ def output_contract(spec: dict[str, Any]) -> list[dict[str, Any]]:
             keys = list(output["pair_columns"] or [])
         elif grain == "UNSPECIFIED":
             keys = []
-        elif grain in GROUP_GRAINS:
+        elif grain in GROUP_GRAINS + ("GROUP_PAIR",):
             keys = list(output.get("key_columns") or [])
         else:
             keys = [output["entity_column"]] + ([output["date_column"]] if grain == "ENTITY_DATE" else [])
@@ -1079,6 +1226,14 @@ def output_contract(spec: dict[str, Any]) -> list[dict[str, Any]]:
             item["selection"] = output["selection"]
         if output.get("ranking"):
             item["ranking"] = output["ranking"]
+        grouped = [calcs[c] for c in output["calculations"] if c in calcs and calcs[c].get("segments")]
+        if grouped:
+            item["segments"] = [{"label": s["label"], "predicates": s["predicates"]} for s in grouped[0]["segments"]]
+            item["segment_rule"] = ("An entity belongs to every segment whose predicates all hold; entities in no "
+                                    "segment are not aggregated. The key column 'segment' holds the label.")
+        if grain == "GROUP_PAIR":
+            item["pair_rule"] = ("One row per pair of groups with a non-null key, the smaller key in the _a column; "
+                                 "series aligned on dates where both are defined.")
         contract.append(item)
     return contract
 

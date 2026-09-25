@@ -41,8 +41,8 @@ from .research_policy import research_context as build_research_context
 from .research_policy import review as research_review
 from .spec import (SPEC_VERSION, SpecInvalid, SpecRequest, convention_notes, derived_feature_definitions, normalize,
                    output_contract, reference_date, required_input, resolve_period, sha256_json)
-from .spec_v2 import (SPEC_VERSION_V2, AnalysisSpecV2, catalog_tables, normalize_v2, review_scope, scope_document,
-                      scope_sha256)
+from .spec_v2 import (SPEC_VERSION_V2, AnalysisSpecV2, catalog_tables, normalize_v2, review_scope, review_segments,
+                      scope_document, scope_sha256)
 
 logger = logging.getLogger("market_python_sandbox")
 RUNTIME_VERSION = "market-python-sandbox/v2"
@@ -67,7 +67,7 @@ CHILD_ERRORS = {"PYTHON_EXCEPTION", "SYNTAX_ERROR", "MEMORY_LIMIT_EXCEEDED", "OU
                 "MATERIALIZATION_LIMIT_EXCEEDED"}
 # Preflight problems that more (or differently requested) data would fix, versus unusable inputs.
 DATA_SHORTFALL_CODES = {"INSUFFICIENT_WARMUP_HISTORY", "PERIOD_NOT_COVERED", "ANALYSIS_SCOPE_MISMATCH",
-                        "UNIVERSE_MISMATCH"}
+                        "UNIVERSE_MISMATCH", "SCOPE_EMPTY", "SEGMENT_EMPTY"}
 APPROVED = {"APPROVED", "APPROVED_WITH_UNVERIFIED"}
 EVIDENCE_ITEMS = 40
 RETAIN_MARKER = ".retain_until"
@@ -1261,6 +1261,8 @@ def _review_v2_scope(spec: dict[str, Any], found: Any, result: Any) -> None:
                    ranking["limit"] if stated else None, f"{ranking['direction']} top {ranking['limit']}",
                    "The request states how many to rank." if stated else
                    "The number of ranked rows is not stated in the request (chosen by the AI).")
+    for requirement, outcome, expected, proposed, detail, code in review_segments(spec, found.user_text):
+        result.add(requirement, outcome, expected, proposed, detail, code)
     if spec["scope"]["selection_type"] != "ATTRIBUTE_FILTER":
         return
     for bucket in (result.checks, result.mismatches, result.unverified):

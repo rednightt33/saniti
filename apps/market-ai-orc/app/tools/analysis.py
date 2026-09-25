@@ -42,7 +42,8 @@ TICKER_PATTERN = r"^[A-Z0-9]{2,6}$"
 OutputType = Literal["TABLE", "METRICS", "CHART", "ARTIFACT"]
 Provenance = Literal["USER_EXPLICIT", "USER_CLARIFIED", "APPROVED_DEFAULT", "AI_INFERRED"]
 Method = Literal["SMA", "ROLLING_STD", "ROLLING_ZSCORE", "RETURN", "FORWARD_RETURN", "RSI", "ROLLING_CORRELATION",
-                 "CORRELATION", "EVENT_STUDY", "PERIOD_RETURN", "GROUP_AGGREGATE", "CUSTOM"]
+                 "CORRELATION", "EVENT_STUDY", "PERIOD_RETURN", "PERIOD_STAT", "GROUP_AGGREGATE", "GROUP_CORRELATION",
+                 "CUSTOM"]
 ScopeProvenance = Literal["USER_EXPLICIT", "USER_CLARIFIED", "CATALOG_RESOLVED", "APPROVED_DEFAULT", "AI_INFERRED"]
 SUBJECT_ID_PATTERN = r"^[A-Z][A-Z0-9_]{1,39}$"
 ENTITY_VALUE_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,19}$"
@@ -157,6 +158,22 @@ class SpecGroupKey(Strict):
     column: str = Field(pattern=COLUMN_PATTERN)
 
 
+class SpecSegmentPredicate(Strict):
+    input: str = Field(pattern=IDENT_PATTERN, description="The input whose table holds the column.")
+    column: str = Field(pattern=COLUMN_PATTERN, description="A filterable catalog column.")
+    operator: Literal["EQ", "NEQ", "IN", "GT", "GTE", "LT", "LTE", "IS_NULL", "IS_NOT_NULL"]
+    value: str | int | float | bool | list[str | int | float] | None = Field(
+        description="Scalar; a list for IN; null for IS_NULL / IS_NOT_NULL. Use the exact catalog data value.")
+
+
+class SpecSegment(Strict):
+    label: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9 _.&()/-]{0,39}$", description="The group's key value.")
+    predicates: list[SpecSegmentPredicate] = Field(min_length=1, max_length=4, description="All must hold.")
+    provenance: ScopeProvenance
+    user_text: str | None = Field(max_length=200, description="CATALOG_RESOLVED: the user's words this segment "
+                                                              "stands for, verbatim; else null.")
+
+
 class SpecDataPolicies(Strict):
     zero_denominator: Literal["NULL", "ZERO"]
     missing: Literal["PROPAGATE"]
@@ -188,6 +205,9 @@ class SpecCalculation(Strict):
         description="CUSTOM only: zero_denominator NULL (default) or ZERO; missing PROPAGATE.")
     group_by: list[SpecGroupKey] | None = Field(
         max_length=3, description="GROUP_AGGREGATE only: 1-3 catalog grouping columns (group_by_allowed); else null.")
+    segments: list[SpecSegment] | None = Field(
+        max_length=10, description="GROUP_AGGREGATE only, instead of group_by: labelled groups defined by predicates "
+                                   "(for groups one column cannot express); else null.")
     provenance: Provenance
     default_id: str | None
 
@@ -212,7 +232,8 @@ class SpecRanking(Strict):
 
 class SpecOutput(Strict):
     name: str = Field(pattern=OUTPUT_NAME_PATTERN, description="The name the code passes to emit_table.")
-    grain: Literal["ENTITY_DATE", "ENTITY", "ENTITY_PAIR", "GROUP", "GROUP_DATE", "SUMMARY", "UNSPECIFIED"]
+    grain: Literal["ENTITY_DATE", "ENTITY", "ENTITY_PAIR", "GROUP", "GROUP_DATE", "GROUP_PAIR", "SUMMARY",
+                   "UNSPECIFIED"]
     coverage: Literal["FULL", "SELECTION"]
     calculations: list[str] = Field(max_length=12)
     selection: list[SpecPredicate] | None = Field(max_length=6, description="Predicates for SELECTION, else null.")
@@ -357,18 +378,29 @@ SPEC_DESCRIPTION = (
     "DEFAULT_CORRELATION_MIN_OVERLAP, DEFAULT_EVENT_OVERLAP_POLICY (NON_OVERLAPPING), DEFAULT_EVENT_BASELINE "
     "(ALL_ELIGIBLE), DEFAULT_EVENT_MIN_EVENTS (30), DEFAULT_ZERO_DENOMINATOR (NULL), DEFAULT_PERIOD_RETURN_BASE "
     "(PREVIOUS_OBSERVATION), DEFAULT_GROUP_MISSING_KEY (SEPARATE_GROUP), DEFAULT_GROUP_UNKNOWN_VALUES ([]), "
-    "DEFAULT_GROUP_MIN_OBSERVATIONS (1), DEFAULT_RANK_TIE_POLICY (INCLUDE_EXACTLY_N_STABLE). Omitted method "
-    "parameters get their default. "
+    "DEFAULT_GROUP_MIN_OBSERVATIONS (1), DEFAULT_RANK_TIE_POLICY (INCLUDE_EXACTLY_N_STABLE), DEFAULT_PERIOD_STD_DDOF "
+    "(1, not annualized), DEFAULT_PERIOD_STAT_MIN_OBSERVATIONS (1), DEFAULT_SERIES_ALIGNMENT (COMMON_DATES: no "
+    "forward fill, lag 0). Omitted method parameters get their default. "
     "Methods with independent recalculation (params): SMA(window), ROLLING_STD(window, ddof), "
     "ROLLING_ZSCORE(window, ddof, include_current), RETURN(horizon, kind SIMPLE|LOG, as_percent), "
     "PERIOD_RETURN(kind, as_percent, base PREVIOUS_OBSERVATION|FIRST_IN_PERIOD; the change over the whole period, "
     "one column), FORWARD_RETURN(horizon, kind, as_percent, entry NEXT_OPEN|SIGNAL_CLOSE; columns [close, open] for "
     "NEXT_OPEN, [close] for SIGNAL_CLOSE), RSI(period), ROLLING_CORRELATION(window, method, transform; two columns), "
     "CORRELATION(method, transform, min_overlap; ENTITY_PAIR output over an ENTITY_LIST scope), "
+    "PERIOD_STAT(function MEAN|MEDIAN|STD|MIN|MAX|SUM|COUNT, ddof for STD, min_observations; one column or "
+    "input_calculation; the statistic of each entity's observations inside the period, e.g. volatility = STD of a "
+    "1-observation RETURN; never substitute a stored annualized or rolling feature column), "
     "GROUP_AGGREGATE(function COUNT|COUNT_DISTINCT|SUM|AVG|MEDIAN|MIN|MAX, per_date, missing_group_policy "
     "SEPARATE_GROUP|EXCLUDE, unknown_group_values [values treated as unknown], min_observations; one column or "
-    "input_calculation = a per-entity calculation such as PERIOD_RETURN; group_by = catalog grouping columns of any "
-    "input, mapped to entities by entity column), "
+    "input_calculation = a per-entity calculation such as PERIOD_RETURN or PERIOD_STAT; group_by = catalog grouping "
+    "columns of any input, mapped to entities by entity column; or segments = [{label, predicates [{input, column, "
+    "operator, value}], provenance, user_text}] when the groups are defined on different columns (an entity belongs "
+    "to every segment whose predicates all hold; key column segment); per_date true gives one aligned series per "
+    "group), GROUP_CORRELATION(method, min_overlap, alignment; no columns; input_calculation = a per_date "
+    "GROUP_AGGREGATE with one key or segments; GROUP_PAIR output with key_columns [<key>_a, <key>_b], one row per "
+    "pair of groups; also emit the GROUP_DATE series). Averaging a return across entities over a period: say which "
+    "return the user asked for (PERIOD_RETURN = the return over the whole period, or PERIOD_STAT MEAN of a daily "
+    "RETURN); when the user did not say, the service returns NEEDS_CLARIFICATION. "
     "EVENT_STUDY(min_events, overlap_policy, baseline; no columns; input_calculation = the FORWARD_RETURN outcome; "
     "signal = predicates on earlier trailing calculations; one SUMMARY output with columns segment, event_count, mean, "
     "median, hit_rate, baseline_count, baseline_mean, baseline_median, delta_mean, censored_count, "
@@ -381,7 +413,8 @@ SPEC_DESCRIPTION = (
     "input_calculation (e.g. ROLLING_STD of a RETURN). "
     "outputs: each TABLE the code emits, by name. grain ENTITY_DATE (one row per entity and date in the period), "
     "ENTITY (one row per entity at its latest observation in the period), ENTITY_PAIR, GROUP (one row per group; "
-    "key_columns = the group_by columns), GROUP_DATE (per group and date; per_date true), SUMMARY (EVENT_STUDY), or "
+    "key_columns = the group_by columns or [segment]), GROUP_DATE (per group and date; per_date true), GROUP_PAIR "
+    "(GROUP_CORRELATION), SUMMARY (EVENT_STUDY), or "
     "UNSPECIFIED (not checkable). coverage FULL (every entity/date/group in scope) or SELECTION (rows meeting the "
     "selection predicates, e.g. RSI < 30, or the top-N of a ranking {calculation, direction, limit, tie_policy}). "
     "Only declared outputs with a checkable grain can pass validation. "

@@ -399,8 +399,10 @@ Guarantees:
 | `request_data` | `purpose`, `from_table`, `columns`, `joins`, `filters`, `group_by`, `aggregations`, `order_by`, `requested_limit` | The SQL Governor decision: always a dataset reference when approved, never rows (see [Data requests](#data-requests)) |
 | `lookup_fact` | `purpose`, `mode` (`VALUE`/`AGGREGATE`), `table`, `entities` (1–5), `dates` (≤ 10) or `date_range`, `columns` (1–4) or `aggregations` (1–4 of SUM/AVG/MIN/MAX/COUNT) with `per_entity` | At most 20 facts, each with `fact_id`, table, column, entity, date or scope, and value |
 | `get_dataset_manifest` | `dataset_id` | The Governor's bounded dataset manifest: `AVAILABLE`, or explicit `DATASET_EXPIRED` / `DATASET_NOT_FOUND` (see [Python analysis](#python-analysis)) |
-| `create_analysis_spec` | `question`, `universe`, `analysis_period`, `frequency`, `inputs`, `calculations` (optionally `signal`, `expression`, `formula_refs`, `meaning`, `unit`, `data_policies`), `outputs`, `exclusion_rules`, each requirement with its provenance, and an optional `research` block | The spec review: `status`, `spec_id` when approved, `resolved_period`, `required_input` (with warm-up), `output_contract`, mismatches, unverified requirements, clarification needed, `convention_notes`, the Research Governor decision (`governor`), and `replayed` for an idempotent resubmission |
-| `run_python_analysis` | `spec_id`, `inputs` (1–4 logical inputs, each `name`, `dataset_ids` 1–8, `duplicate_policy`), `python_code` (≤ 20000), `expected_outputs` ⊆ {TABLE, METRICS, CHART, ARTIFACT} | The analysis record: `execution_status`, `validation_status`, `validation_level`, `reason_codes`, `next_action`, scopes, outputs, evidence, `evidence_assessment`, `leakage_check`, derived features with `formula_status`, error |
+| `get_dimension_values` | `table`, `column`, `match` (optional substring) | The canonical values (at most 200, no counts) of one groupable text column of an approved static table, for writing exact scope predicates and segments |
+| `create_analysis_spec` | Analysis Spec V2: `spec_version`, `analysis_type`, `question`, `subject`, `inputs` (with roles), `relationships`, `scope`, `time_scope` (null for static data), `calculations` (optionally `signal`, `expression`, `formula_refs`, `meaning`, `unit`, `data_policies`, `group_by` or `segments`), `outputs` (with `key_columns`, `ranking`), `exclusion_rules`, each requirement with its provenance, and `research` for RESEARCH | The spec review: `status`, `spec_id` when approved, `validation_profile`, `scope_sha256`, `resolved_period`, `required_input` (with warm-up), `data_plan` summary, `output_contract`, mismatches, unverified requirements, clarification needed, `convention_notes`, the Research Governor decision (`governor`), and `replayed` for an idempotent resubmission |
+| `prepare_analysis_data` | `spec_id` | `READY` with `input_bundle_id` and per-input row counts and completeness, or a structured rejection |
+| `run_python_analysis` | `spec_id`, `input_bundle_id`, `python_code` (≤ 20000), `expected_outputs` ⊆ {TABLE, METRICS, CHART, ARTIFACT} | The analysis record: `execution_status`, `validation_status`, `validation_level`, `reason_codes`, `next_action`, scopes, outputs, evidence, `evidence_assessment`, `leakage_check`, derived features with `formula_status`, error |
 | `get_analysis_result` | `analysis_id` | The same record for a queued/running/finished analysis |
 
 Each capability flag is derived from the registry. It becomes `true` only when its providing
@@ -485,6 +487,20 @@ never restates the scope as a data request.
 - **Catalog discovery** includes each table's `subject` (data_domain, entity_type, asset_type,
   supported_frequencies, time_semantics, subject_metadata_status) once migration 20260925_001 is
   applied.
+- **`get_dimension_values`** lists the exact values of a groupable text dimension before the model
+  writes an attribute predicate or a segment. The Governor serves it from an approved static table
+  only (`POST /v1/catalog/dimension-values`, orc key), with a bounded scan, at most 200 values, and
+  no counts.
+- **Generic operations in the spec.** The sandbox validates all of these:
+  - `PERIOD_RETURN`, and `PERIOD_STAT` (a per-entity statistic over the period, for example the
+    standard deviation of daily returns, never an annualized stored feature);
+  - `GROUP_AGGREGATE` by catalog keys of any input or by labelled `segments` (predicates on
+    different columns), per group or per group and date;
+  - `GROUP_CORRELATION` of aligned group series (`GROUP_PAIR` output);
+  - top-N `ranking` over the complete population.
+
+  A return averaged across entities over a period needs a stated basis (period return versus
+  daily returns); otherwise the review asks the user.
 
 ## Python analysis
 

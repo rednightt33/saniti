@@ -502,3 +502,344 @@ def test_ordinary_analysis_does_not_consume_a_research_experiment(make_service, 
     approve(service, q5_spec(), Q5)
     summary = service.run_summary("req")
     assert summary["budget"]["research"]["experiments"]["used"] == 0
+
+
+# ---------------------------------------------------------------- period statistics, segments, group series (Q3/Q6/Q7)
+
+Q3 = "Sektor mana yang memiliki rata-rata return tertinggi selama Agustus 2026? Tampilkan 3 sektor teratas."
+Q3_ASKED = ("Apakah yang dimaksud (a) return total tiap saham selama Agustus lalu dirata-rata per sektor, atau (b) "
+            "rata-rata return harian tiap saham?")
+Q6 = ("Bandingkan volatilitas harian (standar deviasi return harian) rata-rata saham sektor energi dengan sektor "
+      "teknologi selama 3 bulan terakhir.")
+Q7 = ("Berapa korelasi return harian antara rata-rata sektor perbankan dan rata-rata sektor properti sejak 1 Juli "
+      "2026?")
+GROUPED = pd.DataFrame({
+    "Ticker": [f"B{i:02d}" for i in range(6)] + ["F00", "F01"] + [f"E{i:02d}" for i in range(4)] +
+              [f"T{i:02d}" for i in range(4)] + [f"P{i:02d}" for i in range(4)],
+    "Sector": ["Financials"] * 8 + ["Energy"] * 4 + ["Technology"] * 4 + ["Properties & Real Estate"] * 4,
+    "Industry": ["Banks"] * 6 + ["Insurance"] * 2 + ["Oil"] * 4 + ["Software"] * 4 + ["Real Estate"] * 4,
+})
+
+
+def grouped_prices() -> pd.DataFrame:
+    return price_frame({t: ("2026-06-01", 83) for t in GROUPED["Ticker"]}, seed=9)
+
+
+def two_inputs(universe_columns: list[str]) -> list[dict]:
+    return [{"name": "universe", "source_table": UNIVERSE, "role": "UNIVERSE", "entity_column": None,
+             "date_column": None, "columns": ["Ticker", *universe_columns]},
+            {"name": "prices", "source_table": PRICE, "role": "PRIMARY_DATA", "entity_column": None,
+             "date_column": None, "columns": ["ticker", "date", "close"]}]
+
+
+def calc(cid, method, *, columns=None, upstream=None, params=(), provenance="USER_EXPLICIT", **extra) -> dict:
+    return {"id": cid, "method": method, "dataset": "prices", "columns": columns or [], "input_calculation": upstream,
+            "params": list(params), "output_column": cid, "provenance": provenance, **extra}
+
+
+def q3_spec(measure: str = "PERIOD", provenance: str = "AI_INFERRED") -> dict:
+    if measure == "PERIOD":
+        per_stock = [calc("stock_return", "PERIOD_RETURN", columns=["close"], provenance=provenance)]
+    else:
+        per_stock = [calc("daily_return", "RETURN", columns=["close"], params=[param("horizon", 1, "AI_INFERRED")]),
+                     calc("stock_return", "PERIOD_STAT", upstream="daily_return", params=[param("function", "MEAN")],
+                          provenance=provenance)]
+    return {
+        "spec_version": "2.0", "analysis_type": "ANALYSIS", "question": Q3, "subject": dict(SUBJECT),
+        "inputs": two_inputs(["Sector"]), "relationships": [{"relationship_id": 2}], "scope": dict(SCOPE_ALL),
+        "time_scope": {"mode": "EXPLICIT_DATES", "start": "2026-08-01", "end": "2026-08-31", "frequency": "1D",
+                       "provenance": "USER_EXPLICIT"},
+        "calculations": per_stock + [calc("sector_avg", "GROUP_AGGREGATE", upstream="stock_return",
+                                          params=[param("function", "AVG")],
+                                          group_by=[{"input": "universe", "column": "Sector"}])],
+        "outputs": [{"name": "top_sectors", "grain": "GROUP", "coverage": "SELECTION", "calculations": ["sector_avg"],
+                     "key_columns": ["Sector"],
+                     "ranking": {"calculation": "sector_avg", "direction": "DESC", "limit": 3,
+                                 "provenance": "USER_EXPLICIT"}}],
+        "exclusion_rules": [], "research": None,
+    }
+
+
+def q6_spec(function: str = "STD") -> dict:
+    return {
+        "spec_version": "2.0", "analysis_type": "ANALYSIS", "question": Q6, "subject": dict(SUBJECT),
+        "inputs": two_inputs(["Sector"]), "relationships": [{"relationship_id": 2}],
+        "scope": {"selection_type": "ATTRIBUTE_FILTER", "entities": None, "provenance": "USER_EXPLICIT",
+                  "predicates": [{"input": "universe", "table": UNIVERSE, "column": "Sector", "operator": "IN",
+                                  "value": ["Energy", "Technology"], "provenance": "CATALOG_RESOLVED",
+                                  "user_text": "sektor energi dengan sektor teknologi"}]},
+        "time_scope": {"mode": "TRAILING", "count": 3, "unit": "MONTH", "frequency": "1D", "provenance": "USER_EXPLICIT"},
+        "calculations": [calc("daily_return", "RETURN", columns=["close"], params=[param("horizon", 1)]),
+                         calc("volatility", "PERIOD_STAT", upstream="daily_return", params=[param("function", function)]),
+                         calc("sector_volatility", "GROUP_AGGREGATE", upstream="volatility",
+                              params=[param("function", "AVG")], group_by=[{"input": "universe", "column": "Sector"}])],
+        "outputs": [{"name": "sector_volatility", "grain": "GROUP", "coverage": "FULL",
+                     "calculations": ["sector_volatility"], "key_columns": ["Sector"]}],
+        "exclusion_rules": [], "research": None,
+    }
+
+
+def segment(label: str, column: str, value, words: str) -> dict:
+    return {"label": label, "predicates": [{"input": "universe", "column": column, "operator": "EQ", "value": value}],
+            "provenance": "CATALOG_RESOLVED", "user_text": words}
+
+
+def q7_spec(segments: list | None = None) -> dict:
+    segments = segments or [segment("banks", "Industry", "Banks", "sektor perbankan"),
+                            segment("property", "Sector", "Properties & Real Estate", "sektor properti")]
+    return {
+        "spec_version": "2.0", "analysis_type": "ANALYSIS", "question": Q7, "subject": dict(SUBJECT),
+        "inputs": two_inputs(["Sector", "Industry"]), "relationships": [{"relationship_id": 2}],
+        "scope": dict(SCOPE_ALL),
+        "time_scope": {"mode": "EXPLICIT_DATES", "start": "2026-07-01", "end": "2026-09-23", "frequency": "1D",
+                       "provenance": "USER_EXPLICIT"},
+        "calculations": [calc("daily_return", "RETURN", columns=["close"], params=[param("horizon", 1)]),
+                         calc("group_return", "GROUP_AGGREGATE", upstream="daily_return",
+                              params=[param("function", "AVG"), param("per_date", True)], segments=segments),
+                         calc("correlation", "GROUP_CORRELATION", upstream="group_return")],
+        "outputs": [{"name": "group_series", "grain": "GROUP_DATE", "coverage": "FULL", "calculations": ["group_return"],
+                     "key_columns": ["segment", "date"]},
+                    {"name": "series_correlation", "grain": "GROUP_PAIR", "coverage": "FULL",
+                     "calculations": ["correlation"], "key_columns": ["segment_a", "segment_b"]}],
+        "exclusion_rules": [], "research": None,
+    }
+
+
+def ask(service, spec: dict, *messages: str, request_id: str = "req") -> dict:
+    roles = ["user", "assistant"] * len(messages)
+    return service.create_spec(SpecRequestAny.model_validate({
+        "request_id": request_id, "reference_time": REFERENCE, "spec": spec,
+        "user_messages": [{"role": role, "content": text} for role, text in zip(roles, messages)]}))
+
+
+PRICE_RETURNS = '''
+prices = saniti.load("prices", columns=["ticker", "date", "close"])
+uni = saniti.load("universe")
+prices["date"] = pd.to_datetime(prices["date"])
+prices = prices.sort_values(["ticker", "date"])
+prices["daily_return"] = prices.groupby("ticker")["close"].pct_change(fill_method=None)
+start, end = pd.Timestamp(ANALYSIS_START), pd.Timestamp(ANALYSIS_END)
+inside = prices[(prices["date"] >= start) & (prices["date"] <= end)].merge(uni, left_on="ticker", right_on="Ticker")
+'''
+Q3_CODE = '''
+prices = saniti.load("prices", columns=["ticker", "date", "close"])
+uni = saniti.load("universe")
+prices["date"] = pd.to_datetime(prices["date"])
+start, end = pd.Timestamp(ANALYSIS_START), pd.Timestamp(ANALYSIS_END)
+rows = []
+for ticker, g in prices.sort_values("date").groupby("ticker"):
+    before, inside = g[g["date"] < start], g[(g["date"] >= start) & (g["date"] <= end)]
+    if len(before) and len(inside):
+        rows.append({"ticker": ticker, "stock_return": inside["close"].iloc[-1] / before["close"].iloc[-1] - 1})
+per_stock = pd.DataFrame(rows).merge(uni, left_on="ticker", right_on="Ticker")
+out = per_stock.groupby("Sector")["stock_return"].mean().reset_index(name="sector_avg")
+out = out.sort_values(["sector_avg", "Sector"], ascending=[False, True]).head(3)
+saniti.emit_table("top_sectors", out)
+'''
+Q6_CODE = PRICE_RETURNS + '''
+vol = inside.groupby(["ticker", "Sector"])["daily_return"].std(ddof=1).reset_index(name="volatility")
+out = vol.groupby("Sector")["volatility"].mean().reset_index(name="sector_volatility")
+saniti.emit_table("sector_volatility", out)
+'''
+Q7_CODE = PRICE_RETURNS + '''
+members = {"banks": inside["Industry"] == "Banks", "property": inside["Sector"] == "Properties & Real Estate"}
+series = pd.concat([inside[m].groupby("date")["daily_return"].mean().rename(k) for k, m in members.items()], axis=1)
+long = series.reset_index().melt(id_vars="date", var_name="segment", value_name="group_return")
+saniti.emit_table("group_series", long)
+pair = pd.DataFrame([{"segment_a": "banks", "segment_b": "property",
+                      "correlation": series["banks"].corr(series["property"])}])
+saniti.emit_table("series_correlation", pair)
+'''
+
+
+def test_period_stat_and_group_correlation_normalize_generically() -> None:
+    q6 = v2(q6_spec())
+    vol = next(c for c in q6["calculations"] if c["id"] == "volatility")
+    assert vol["covers"] == ["STD"] and {p["name"]: p["value"] for p in vol["params"]}["ddof"] == 1
+    assert "annualized" in vol["formula"] and vol["params"][0]["default_id"] in (None, "DEFAULT_PERIOD_STD_DDOF")
+    mean = next(c for c in v2(q6_spec("MEAN"))["calculations"] if c["id"] == "volatility")
+    assert "ddof" not in {p["name"] for p in mean["params"]} and mean["covers"] == []
+    q7 = v2(q7_spec())
+    series = next(c for c in q7["calculations"] if c["id"] == "group_return")
+    assert [p["name"] for p in series["params"]] == ["function", "per_date", "min_observations"]
+    assert series["segments"][0]["predicates"] == [{"input": "universe", "column": "Industry", "operator": "EQ",
+                                                    "values": ["Banks"], "data_type": "text"}]
+    outputs = {o["name"]: o for o in q7["outputs"]}
+    assert outputs["group_series"]["key_columns"] == ["segment", "date"]
+    assert outputs["series_correlation"]["key_columns"] == ["segment_a", "segment_b"]
+    assert "Industry" in q7["data_plan"]["universe"]["columns"]
+
+
+@pytest.mark.parametrize(("change", "code"), [
+    (lambda s: s["calculations"][1].update(group_by=[{"input": "universe", "column": "Sector"}]), "either group_by"),
+    (lambda s: s["calculations"][1]["segments"][0]["predicates"][0].update(column="Invented"), "UNKNOWN_COLUMN"),
+    (lambda s: s["calculations"][1]["segments"][0]["predicates"][0].update(input="prices", column="query_date"),
+     "FILTER_NOT_ALLOWED"),
+    (lambda s: s["calculations"][1]["segments"][0]["predicates"][0].update(value=["Banks"]),
+     "INVALID_PREDICATE_VALUE"),
+    (lambda s: s["calculations"][1]["segments"][1].update(label="BANKS"), "labels must be unique"),
+    (lambda s: s["calculations"][1]["segments"][0].update(user_text=None), "PREDICATE_USER_TEXT_REQUIRED"),
+    (lambda s: s["calculations"][1]["params"].pop(), "per_date GROUP_AGGREGATE"),
+    (lambda s: s["calculations"][2].update(input_calculation="daily_return"), "per_date GROUP_AGGREGATE"),
+    (lambda s: s["outputs"][1].update(grain="GROUP"), "GROUP_CORRELATION calculations produce GROUP_PAIR"),
+    (lambda s: s["calculations"].append(calc("bad", "PERIOD_STAT", upstream="group_return",
+                                             params=[param("function", "MEAN")])), "per group, not per entity"),
+])
+def test_invalid_segments_and_group_series_are_rejected(change, code) -> None:
+    spec = q7_spec()
+    change(spec)
+    assert code in problems(spec)
+
+
+def test_period_stat_rejects_a_period_without_a_start_and_ddof_outside_std() -> None:
+    spec = q6_spec()
+    spec["time_scope"] = {"mode": "LATEST", "frequency": "1D", "provenance": "USER_EXPLICIT"}
+    assert "PERIOD_STAT needs a period with a start" in problems(spec)
+    spec = q6_spec("MEAN")
+    spec["calculations"][1]["params"].append(param("ddof", 1))
+    assert "ddof applies to PERIOD_STAT function STD only" in problems(spec)
+
+
+def test_v1_specs_cannot_use_segments() -> None:
+    spec = zscore_spec()
+    spec["calculations"].append({"id": "g", "method": "GROUP_AGGREGATE", "dataset": "prices", "columns": ["close"],
+                                 "input_calculation": None, "params": [param("function", "AVG")], "output_column": "g",
+                                 "provenance": "AI_INFERRED",
+                                 "segments": [{"label": "a", "predicates": [{"input": "prices", "column": "ticker",
+                                                                             "operator": "EQ", "value": "BBCA"}]}]})
+    from app.spec import normalize
+    with pytest.raises(SpecInvalid) as info:
+        normalize(AnalysisSpec.model_validate(spec), REF)
+    assert "segments need an Analysis Spec V2" in info.value.problems[0]
+
+
+def test_segment_membership_matches_the_governor_canonical_values() -> None:
+    import numpy as np
+    sys_path = str(Path(__file__).resolve().parents[1] / "runtime")
+    import sys
+    if sys_path not in sys.path:
+        sys.path.insert(0, sys_path)
+    import validator
+
+    for value in ("Banks", 5, 5.0, 0.1, 1e-7, -0.0, True, False, 12345678901234, np.int64(5), np.float64(5.0)):
+        assert validator._canonical(value, None) == canonical_value(value.item() if hasattr(value, "item") else value)
+    assert validator._canonical(pd.Timestamp("2026-09-01"), "date") == canonical_value(date(2026, 9, 1))
+    predicate = {"operator": "GTE", "values": ["10"], "data_type": "numeric"}
+    assert validator._segment_mask([9.5, 10, 10.0, None, 11], predicate).tolist() == [False, True, True, False, True]
+    predicate = {"operator": "IN", "values": ["Banks", "Oil"], "data_type": "text"}
+    assert validator._segment_mask(["Banks", "Bank", None, "Oil"], predicate).tolist() == [True, False, False, True]
+
+
+def test_q3_an_unstated_return_basis_needs_clarification(make_service) -> None:
+    service = make_service()
+    review = ask(service, q3_spec(), Q3)
+    assert review["status"] == "NEEDS_CLARIFICATION" and review["next_action"] == "ASK_USER_CLARIFICATION"
+    assert "PERIOD_RETURN" in review["clarification_needed"][0] and "spec_id" not in review
+    daily = ask(service, q3_spec("DAILY"), Q3)
+    assert daily["status"] == "NEEDS_CLARIFICATION"
+
+
+def test_q3_a_stated_basis_must_match_the_spec(make_service) -> None:
+    service = make_service()
+    stated = Q3.replace("rata-rata return", "rata-rata return harian")
+    review = ask(service, q3_spec("PERIOD"), stated)
+    assert review["status"] == "ANALYSIS_SPEC_MISMATCH"
+    assert [m["code"] for m in review["mismatches"]] == ["RETURN_BASIS_MISMATCH"]
+    assert ask(service, q3_spec("DAILY"), stated)["status"] in ("APPROVED", "APPROVED_WITH_UNVERIFIED")
+
+
+def test_q3_a_clarification_reply_settles_the_basis(make_service) -> None:
+    service = make_service()
+    worded = ask(service, q3_spec(), Q3, Q3_ASKED, "Return total tiap saham selama Agustus, lalu rata-rata per sektor.")
+    assert worded.get("spec_id"), worded
+    checks = {c["requirement"]: c for c in worded["checks"]}
+    assert checks["calculation.sector_avg.return_basis"]["result"] == "MATCH"
+    chosen = ask(service, q3_spec(provenance="USER_CLARIFIED"), Q3, Q3_ASKED, "Yang (a).", request_id="req2")
+    assert chosen.get("spec_id") and chosen["status"] == "APPROVED_WITH_UNVERIFIED"
+    unclaimed = ask(service, q3_spec(), Q3, Q3_ASKED, "Yang (a).", request_id="req3")
+    assert unclaimed["status"] == "NEEDS_CLARIFICATION"  # the reply exists, but the spec does not claim it
+
+
+def test_q6_volatility_must_be_a_standard_deviation_of_daily_returns(make_service) -> None:
+    service = make_service()
+    review = ask(service, q6_spec("MEAN"), Q6)  # a different endpoint statistic instead of the standard deviation
+    assert review["status"] == "ANALYSIS_SPEC_MISMATCH"
+    assert "MISSING_REQUESTED_CALCULATION" in {m["code"] for m in review["mismatches"]}
+
+
+@requires_root
+def test_q3_top_three_groups_of_period_returns_are_calculation_verified(make_service, governor) -> None:
+    service = make_service()
+    review = ask(service, q3_spec(), Q3, Q3_ASKED, "Return total tiap saham selama Agustus, lalu rata-rata per sektor.")
+    frames = {"universe": GROUPED[["Ticker", "Sector"]], "prices": grouped_prices()}
+    inputs = prepare(service, governor, review, frames)
+    result = run(service, review, inputs, Q3_CODE)
+    assert (result["validation_status"], result["validation_level"]) == ("PASS", "CALCULATION_VERIFIED"), \
+        result["validation_evidence"]
+    checks = {e["check"]: e for e in result["validation_evidence"]}
+    assert checks["output.top_sectors.ranking"]["candidates"] == 4
+    wrong = run(service, review, inputs, Q3_CODE.replace(".head(3)", ".iloc[1:4]"))
+    assert wrong["validation_status"] == "FAILED" and "RANKING_MISMATCH" in wrong["reason_codes"]
+
+
+@requires_root
+def test_q6_group_average_of_period_volatility_is_calculation_verified(make_service, governor) -> None:
+    service = make_service()
+    review = ask(service, q6_spec(), Q6)
+    assert review.get("spec_id"), review
+    kept = GROUPED[GROUPED["Sector"].isin(["Energy", "Technology"])]
+    prices = grouped_prices()
+    frames = {"universe": kept[["Ticker", "Sector"]], "prices": prices[prices["ticker"].isin(kept["Ticker"])]}
+    inputs = prepare(service, governor, review, frames)
+    result = run(service, review, inputs, Q6_CODE)
+    assert (result["validation_status"], result["validation_level"]) == ("PASS", "CALCULATION_VERIFIED"), \
+        result["validation_evidence"]
+    assert {e["check"]: e for e in result["validation_evidence"]}["output.sector_volatility.groups"]["groups"] == 2
+    annualized = run(service, review, inputs, Q6_CODE.replace('.std(ddof=1)', '.std(ddof=1).mul(252 ** 0.5)'))
+    assert annualized["validation_status"] == "FAILED"
+    failed = next(e for e in annualized["validation_evidence"] if e.get("code") == "CALCULATION_MISMATCH")
+    assert failed["diagnosis"]["factor"] == "ANNUALIZED_SQRT_252"
+    warmup_dropped = run(service, review, inputs, Q6_CODE.replace(
+        'prices["daily_return"] = prices.groupby("ticker")["close"].pct_change(fill_method=None)',
+        'prices = prices[prices["date"] >= pd.Timestamp(ANALYSIS_START)]\n'
+        'prices["daily_return"] = prices.groupby("ticker")["close"].pct_change(fill_method=None)'))
+    assert warmup_dropped["validation_status"] == "FAILED"
+
+
+@requires_root
+def test_q7_aligned_group_series_and_their_correlation_are_calculation_verified(make_service, governor) -> None:
+    service = make_service()
+    review = ask(service, q7_spec(), Q7)
+    assert review.get("spec_id"), review
+    frames = {"universe": GROUPED[["Ticker", "Sector", "Industry"]], "prices": grouped_prices()}
+    inputs = prepare(service, governor, review, frames)
+    result = run(service, review, inputs, Q7_CODE)
+    assert (result["validation_status"], result["validation_level"]) == ("PASS", "CALCULATION_VERIFIED"), \
+        result["validation_evidence"]
+    checks = {e["check"]: e for e in result["validation_evidence"]}
+    assert checks["output.series_correlation.series"]["groups"] == ["banks", "property"]
+    assert checks["output.group_series.segments"]["segment_members"] == {"banks": 6, "property": 4}
+    assert checks["calculation.correlation.series_correlation"]["result"] == "PASS"
+    # a bank counted in the property segment changes both series and the correlation
+    moved = run(service, review, inputs, Q7_CODE.replace('inside["Sector"] == "Properties & Real Estate"',
+                                                         '(inside["Sector"] == "Properties & Real Estate") | '
+                                                         '(inside["Ticker"] == "B00")'))
+    assert moved["validation_status"] == "FAILED" and "CALCULATION_MISMATCH" in moved["reason_codes"]
+    levels = run(service, review, inputs, Q7_CODE.replace('series["banks"].corr(series["property"])',
+                                                          'inside[members["banks"]].groupby("date")["close"].mean()'
+                                                          '.corr(inside[members["property"]].groupby("date")["close"]'
+                                                          '.mean())'))
+    assert levels["validation_status"] == "FAILED" and "CALCULATION_MISMATCH" in levels["reason_codes"]
+
+
+@requires_root
+def test_q7_an_empty_segment_is_incomplete_not_an_answer(make_service, governor) -> None:
+    service = make_service()
+    spec = q7_spec([segment("banks", "Industry", "Bank", "sektor perbankan"),
+                    segment("property", "Sector", "Properties & Real Estate", "sektor properti")])
+    review = ask(service, spec, Q7)
+    frames = {"universe": GROUPED[["Ticker", "Sector", "Industry"]], "prices": grouped_prices()}
+    inputs = prepare(service, governor, review, frames)
+    code = Q7_CODE.replace('inside["Industry"] == "Banks"', 'inside["Industry"] == "Bank"')
+    result = run(service, review, inputs, code)
+    assert result["validation_status"] == "INCOMPLETE" and "SEGMENT_EMPTY" in result["reason_codes"]

@@ -58,7 +58,8 @@ def spec_args(**overrides: Any) -> dict[str, Any]:
                                       "default_id": None}],
                           "output_column": "zscore_20", "formula": None, "time_alignment": None, "covers": None,
                           "signal": None, "expression": None, "formula_refs": None, "meaning": None, "unit": None,
-                          "data_policies": None, "group_by": None, "provenance": "USER_EXPLICIT", "default_id": None}],
+                          "data_policies": None, "group_by": None, "segments": None, "provenance": "USER_EXPLICIT",
+                          "default_id": None}],
         "outputs": [{"name": "zscores", "grain": "ENTITY_DATE", "coverage": "FULL", "calculations": ["z20"],
                      "selection": None, "entity_column": None, "date_column": None, "pair_columns": None,
                      "key_columns": None, "ranking": None}],
@@ -199,6 +200,33 @@ def test_request_models_match_the_sandbox_contract() -> None:
                                           "spec": args})
     assert type(parsed.spec).__name__ == "AnalysisSpecV2"
     assert set(sandbox_module("spec_v2").AnalysisSpecV2.model_fields) == set(CreateAnalysisSpecArgs.model_fields)
+    sandbox_spec = sandbox_module("spec")
+    assert set(sandbox_spec.Calculation.model_fields) == set(CreateAnalysisSpecArgs.model_fields["calculations"]
+                                                            .annotation.__args__[0].model_fields)
+
+
+def test_segments_period_statistics_and_group_pairs_reach_the_sandbox_unchanged() -> None:
+    base = spec_args()["calculations"][0]
+    segment = {"label": "banks", "predicates": [{"input": "universe", "column": "Industry", "operator": "EQ",
+                                                 "value": "Banks"}],
+               "provenance": "CATALOG_RESOLVED", "user_text": "perbankan"}
+    calcs = [
+        {**base, "id": "r1", "method": "RETURN", "params": []},
+        {**base, "id": "vol", "method": "PERIOD_STAT", "columns": [], "input_calculation": "r1", "output_column": "vol",
+         "params": [{"name": "function", "value": "STD", "provenance": "USER_EXPLICIT", "default_id": None}]},
+        {**base, "id": "series", "method": "GROUP_AGGREGATE", "columns": [], "input_calculation": "r1",
+         "output_column": "series", "segments": [segment],
+         "params": [{"name": "function", "value": "AVG", "provenance": "USER_EXPLICIT", "default_id": None},
+                    {"name": "per_date", "value": True, "provenance": "USER_EXPLICIT", "default_id": None}]},
+        {**base, "id": "corr", "method": "GROUP_CORRELATION", "columns": [], "input_calculation": "series",
+         "output_column": "corr", "params": []},
+    ]
+    output = {**spec_args()["outputs"][0], "name": "pairs", "grain": "GROUP_PAIR", "calculations": ["corr"],
+              "key_columns": ["segment_a", "segment_b"]}
+    args = CreateAnalysisSpecArgs.model_validate(spec_args(calculations=calcs, outputs=[output])).model_dump(mode="json")
+    parsed = sandbox_module("spec_v2").AnalysisSpecV2.model_validate(args).model_dump(mode="json")
+    assert parsed["calculations"][2]["segments"] == [segment]
+    assert parsed["outputs"][0]["grain"] == "GROUP_PAIR"
 
 
 # --- get_dataset_manifest ----------------------------------------------------------------------------

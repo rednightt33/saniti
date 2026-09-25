@@ -37,7 +37,9 @@ EVENT_COLUMNS = ("event_count", "mean", "median", "hit_rate", "baseline_count", 
 COUNT_COLUMNS = ("event_count", "baseline_count", "censored_count", "overlapping_dropped")
 DEFAULT_THRESHOLDS = {"min_events": 30, "min_baseline_observations": 100, "min_coverage_pct": 95}
 INCOMPLETE_CODES = ("INSUFFICIENT_WARMUP_HISTORY", "SOURCE_PERIOD_UNAVAILABLE", "UNIVERSE_SOURCE_UNAVAILABLE",
-                    "SCOPE_EMPTY")
+                    "SCOPE_EMPTY", "SEGMENT_EMPTY")
+NUMERIC_TYPES = ("smallint", "integer", "bigint", "numeric", "real", "double precision")
+PERIOD_MODES = ("EXPLICIT_DATES", "TRAILING", "TRADING_DAYS")
 TZ = "Asia/Jakarta"
 
 
@@ -89,6 +91,9 @@ def load_inputs(job_dir: str, manifest: dict[str, Any], spec: dict[str, Any], ev
         needed.setdefault(calc["dataset"], set()).update(calc["columns"])
         for key in calc.get("group_by") or []:
             needed.setdefault(key["input"], set()).add(key["column"])
+        for segment in calc.get("segments") or []:
+            for predicate in segment["predicates"]:
+                needed.setdefault(predicate["input"], set()).add(predicate["column"])
     frames: dict[str, Any] = {}
     for name, logical in manifest["logical_datasets"].items():
         columns = set(needed.get(name, set())) | set(logical["key_columns"]) | set(logical["series_key"])
@@ -246,6 +251,7 @@ def preflight(job_dir: str, analysis_spec: dict[str, Any], manifest: dict[str, A
     # universe
     expected, unavailable = _expected_universe(spec, frame, entity, time, period, requested, evidence)
     _population(spec, manifest, frames, expected, evidence, blocking)
+    _segments(spec, manifest, frames, expected, evidence, blocking)
     if universe["type"] == "ALL_IN_SOURCE" and requested["entities"] is not None:
         blocking.append({"code": "UNIVERSE_MISMATCH", "classification": "NOT_EXTRACTED",
                          "message": "The spec analyses every ticker, but the bound data was extracted for a subset of "
@@ -424,8 +430,8 @@ def _warmup(analysis_spec: dict[str, Any], manifest: dict[str, Any], frames: dic
 
 def reference_frames(spec: dict[str, Any], manifest: dict[str, Any], frames: dict[str, Any],
                      period: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Per input: entity, date, and one column per supported calculation (NaN where undefined). GROUP_AGGREGATE
-    values are recalculated per output by the group check."""
+    """Per input: entity, date, and one column per supported calculation (NaN where undefined). GROUP_AGGREGATE and
+    GROUP_CORRELATION values are recalculated per output by the group checks."""
     import numpy as np
     import expression
     import reference
@@ -437,7 +443,7 @@ def reference_frames(spec: dict[str, Any], manifest: dict[str, Any], frames: dic
         logical = manifest["logical_datasets"][name]
         entity, time = logical["entity_column"], logical["date_column"]
         upstream = calc["input_calculation"]
-        if calc["method"] == "GROUP_AGGREGATE":
+        if calc["method"] in ("GROUP_AGGREGATE", "GROUP_CORRELATION"):
             if upstream and upstream in unverifiable:
                 unverifiable.add(calc["id"])
             continue
@@ -456,6 +462,14 @@ def reference_frames(spec: dict[str, Any], manifest: dict[str, Any], frames: dic
             params = {p["name"]: p["value"] for p in calc["params"]}
             source = target[_calc_column(spec, upstream)] if upstream else frame[calc["columns"][0]]
             target[calc["output_column"]] = _period_return(frame, entity, time, _numeric(source), params, period)
+            continue
+        if calc["method"] == "PERIOD_STAT":
+            if period is None or period.get("mode") not in PERIOD_MODES or (upstream and upstream in unverifiable):
+                unverifiable.add(calc["id"])
+                continue
+            params = {p["name"]: p["value"] for p in calc["params"]}
+            source = target[_calc_column(spec, upstream)] if upstream else frame[calc["columns"][0]]
+            target[calc["output_column"]] = _period_stat(frame, entity, time, _numeric(source), params, period)
             continue
         if calc["method"] == "EVENT_STUDY":
             # summarised in check_output; verifiable when its outcome and every signal are
@@ -524,6 +538,34 @@ def _period_return(frame, entity: str, time: str, x, params: dict[str, Any], per
     return values
 
 
+def _period_stat(frame, entity: str, time: str, x, params: dict[str, Any], period: dict[str, Any]):
+    """function(x over the entity's period observations up to t) on period dates; null values excluded; fewer than
+    min_observations non-null values -> NaN. Nothing before the period start is used."""
+    import numpy as np
+    import pandas as pd
+
+    values = np.full(len(frame), np.nan)
+    dates = frame[time].to_numpy()
+    start, end = np.datetime64(period["start"]), np.datetime64(period["end"])
+    function, minimum = params["function"], int(params.get("min_observations") or 1)
+    for _, index in frame.groupby(entity, sort=False).indices.items():
+        own = dates[index]
+        inside = (own >= start) & (own <= end)
+        if not inside.any():
+            continue
+        series = pd.Series(x[index[inside]], dtype=float)
+        window = series.expanding(min_periods=1)
+        if function == "STD":
+            out = window.std(ddof=int(params.get("ddof", 1)))
+        else:
+            out = {"MEAN": window.mean, "MEDIAN": window.median, "MIN": window.min, "MAX": window.max,
+                   "SUM": window.sum, "COUNT": window.count}[function]()
+        out = np.array(out, dtype=float)  # a writable copy
+        out[series.notna().cumsum().to_numpy() < minimum] = np.nan
+        values[index[inside]] = out
+    return values
+
+
 def _population(spec: dict[str, Any], manifest: dict[str, Any], frames: dict[str, Any], expected: set[str],
                 evidence: Evidence, blocking: list[dict[str, Any]]) -> None:
     """V2 attribute scope: the candidate population is every member of the UNIVERSE input (extracted with the
@@ -557,6 +599,34 @@ def _population(spec: dict[str, Any], manifest: dict[str, Any], frames: dict[str
                      universe is not None else len(members),
                      predicates=[{k: p[k] for k in ("table", "column", "operator", "values")}
                                  for p in scope["predicates"]])
+
+
+def _segments(spec: dict[str, Any], manifest: dict[str, Any], frames: dict[str, Any], expected: set[str],
+              evidence: Evidence, blocking: list[dict[str, Any]]) -> None:
+    """Segments are checked before the analysis runs: a segment no in-scope entity satisfies cannot be answered, and a
+    segment attribute with several values per entity cannot assign entities."""
+    for calc in spec["calculations"]:
+        if not calc.get("segments"):
+            continue
+        entity = manifest["logical_datasets"][calc["dataset"]]["entity_column"]
+        frame = frames[calc["dataset"]]
+        base = frame[frame[entity].astype(str).isin(expected)] if entity else frame
+        attached = _attach_groups(calc, manifest, frames, base, entity, evidence, calc["id"])
+        if attached is None:
+            blocking.append({"code": "GROUP_KEY_AMBIGUOUS", "calculation": calc["id"],
+                             "message": f"A segment attribute of calculation {calc['id']} has several values for one "
+                                        f"entity; segments need one value per entity."})
+            continue
+        members = attached[2]["segment_members"]
+        empty = sorted(label for label, count in members.items() if count == 0)
+        if empty:
+            evidence.add(f"segments.{calc['id']}", "INCOMPLETE", "SEGMENT_EMPTY", members=members)
+            blocking.append({"code": "SEGMENT_EMPTY", "calculation": calc["id"], "segments": empty, "members": members,
+                             "message": f"Segments {empty} of calculation {calc['id']} contain no in-scope entity. "
+                                        f"Check their predicate values against the catalog (get_dimension_values) and "
+                                        f"revise the spec; do not report these segments."})
+        else:
+            evidence.add(f"segments.{calc['id']}", "PASS", **attached[2])
 
 
 def _ranked(values, keys, direction: str, limit: int, tie_policy: str):
@@ -702,6 +772,9 @@ def check_output(output: dict[str, Any], path: str | None, spec: dict[str, Any],
                               scope, research_context or {})
     if output["grain"] in ("GROUP", "GROUP_DATE"):
         return _check_groups(output, path, used, spec, manifest, frames, refs, period, expected_all, evidence, scope)
+    if output["grain"] == "GROUP_PAIR":
+        return _check_group_pairs(output, path, used, spec, manifest, frames, refs, period, expected_all, evidence,
+                                  scope)
     value_columns = [c["output_column"] for c in used]
     if output["grain"] == "ENTITY_PAIR":
         key_columns = list(output["pair_columns"])
@@ -937,6 +1010,7 @@ def check_output(output: dict[str, Any], path: str | None, spec: dict[str, Any],
                 columns={out_entity: entity, out_time: time})
             diagnosis = _diagnose(calc, frame, entity, time, period, key_frame.reset_index(drop=True),
                                   _numeric(bad[column])) if time in key_frame.columns else None
+            diagnosis = diagnosis or _diagnose_scale(calc, _numeric(bad[column]), _numeric(bad[ref_col[column]]))
             evidence.add(f"calculation.{calc['id']}.{name}", "FAIL", "CALCULATION_MISMATCH", method=calc["method"],
                          mismatched=int((~ok).sum()), checked=len(ok), examples=examples,
                          **({"diagnosis": diagnosis} if diagnosis else {}),
@@ -953,30 +1027,77 @@ def check_output(output: dict[str, Any], path: str | None, spec: dict[str, Any],
     return scope
 
 
-def _group_keys(calc: dict[str, Any], manifest: dict[str, Any], frames: dict[str, Any], base, entity: str,
-                evidence: Evidence, name: str):
-    """Attach each grouping key to the rows of base (entity rows of the aggregated input). A key from another
-    input is mapped by entity; an entity with more than one value there makes the grouping ambiguous."""
+def _canonical(value: Any, data_type: str | None) -> str | None:
+    """app/spec_v2.canonical_value for values read from Parquet (None for a missing value); tests compare them."""
+    from decimal import Decimal
+
+    import numpy as np
     import pandas as pd
 
-    columns = []
-    for key in calc.get("group_by") or []:
-        label = key["column"]
-        if key["input"] == calc["dataset"]:
-            base[label] = frames[key["input"]].loc[base.index, label].to_numpy()
-        else:
-            other = manifest["logical_datasets"][key["input"]]
-            mapping = frames[key["input"]][[other["entity_column"], label]].drop_duplicates()
-            ambiguous = mapping[mapping.duplicated(subset=[other["entity_column"]], keep=False)]
-            if len(ambiguous):
-                evidence.add(f"output.{name}.group_keys", "FAIL", "GROUP_KEY_AMBIGUOUS", key=label,
-                             entities=_sample(ambiguous[other["entity_column"]].astype(str)),
-                             detail="An entity has several values of the grouping key in its reference input.")
-                return None
-            lookup = dict(zip(mapping[other["entity_column"]].astype(str), mapping[label]))
-            base[label] = base[entity].astype(str).map(lookup)
-        columns.append(label)
-    return columns
+    if value is None or (isinstance(value, float) and value != value) or value is pd.NaT:
+        return None
+    if isinstance(value, np.datetime64):
+        value = pd.Timestamp(value)
+    elif isinstance(value, np.generic):
+        value = value.item()
+    if isinstance(value, float) and value != value:
+        return None
+    kind = (data_type or "").lower()
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if kind == "date" and hasattr(value, "isoformat"):
+        return value.date().isoformat() if hasattr(value, "hour") else value.isoformat()
+    if isinstance(value, (int, float, Decimal)):
+        text = format(Decimal(str(value)).normalize(), "f")
+        return "0" if text in ("-0", "") else text
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
+def _segment_mask(values, predicate: dict[str, Any]):
+    """Rows whose attribute satisfies one segment predicate (a missing value satisfies only IS_NULL)."""
+    from decimal import Decimal
+
+    import numpy as np
+
+    kind = predicate.get("data_type")
+    canon = [_canonical(v, kind) for v in values]
+    wanted = predicate["values"]
+    op = predicate["operator"]
+    if op == "IS_NULL":
+        return np.array([c is None for c in canon], dtype=bool)
+    if op == "IS_NOT_NULL":
+        return np.array([c is not None for c in canon], dtype=bool)
+    if op in ("EQ", "IN"):
+        allowed = set(wanted)
+        return np.array([c is not None and c in allowed for c in canon], dtype=bool)
+    if op == "NEQ":
+        return np.array([c is not None and c != wanted[0] for c in canon], dtype=bool)
+    numeric = (kind or "").lower() in NUMERIC_TYPES
+    order = (lambda text: Decimal(text)) if numeric else (lambda text: text)
+    bound = order(wanted[0])
+    test = {"GT": lambda a: a > bound, "GTE": lambda a: a >= bound, "LT": lambda a: a < bound,
+            "LTE": lambda a: a <= bound}[op]
+    return np.array([c is not None and test(order(c)) for c in canon], dtype=bool)
+
+
+def _entity_attribute(input_name: str, column: str, calc: dict[str, Any], manifest: dict[str, Any],
+                      frames: dict[str, Any], base, entity: str, evidence: Evidence, name: str):
+    """The value of an input column for every row of base (rows of the aggregated input). A column of another input is
+    mapped by entity; an entity with more than one value there makes the grouping ambiguous (None)."""
+    if input_name == calc["dataset"]:
+        return frames[input_name].loc[base.index, column].to_numpy(dtype=object)
+    other = manifest["logical_datasets"][input_name]
+    mapping = frames[input_name][[other["entity_column"], column]].drop_duplicates()
+    ambiguous = mapping[mapping.duplicated(subset=[other["entity_column"]], keep=False)]
+    if len(ambiguous):
+        evidence.add(f"output.{name}.group_keys", "FAIL", "GROUP_KEY_AMBIGUOUS", key=column,
+                     entities=_sample(ambiguous[other["entity_column"]].astype(str)),
+                     detail="An entity has several values of the grouping attribute in its reference input.")
+        return None
+    lookup = dict(zip(mapping[other["entity_column"]].astype(str), mapping[column]))
+    return base[entity].astype(str).map(lookup).to_numpy(dtype=object)
 
 
 def _normalized_key(value: Any, unknown: set[str]) -> str:
@@ -986,40 +1107,59 @@ def _normalized_key(value: Any, unknown: set[str]) -> str:
     return NULL_KEY if not text.strip() or text in unknown else text
 
 
-def _check_groups(output, path, used, spec, manifest, frames, refs, period, expected_all, evidence, scope):
-    """GROUP / GROUP_DATE outputs: recompute every group from the entity rows (membership from the catalog grouping
-    column, values from the input column or the independently recalculated per-entity calculation), then compare
-    keys (omitted or extra groups) and values (cross-group contamination shows as a value mismatch)."""
+def _attach_groups(calc: dict[str, Any], manifest: dict[str, Any], frames: dict[str, Any], base, entity: str,
+                   evidence: Evidence, name: str):
+    """(work, key columns, membership) for base (entity rows): work holds '_row' (the base index) and one column per
+    key. group_by maps each row to one group (a missing value: the NULL_KEY group, or dropped with
+    missing_group_policy EXCLUDE); segments map a row to every segment whose predicates all hold (rows in no segment
+    are not aggregated). None when a grouping attribute is ambiguous."""
     import numpy as np
     import pandas as pd
-    import pyarrow.parquet as pq
 
-    name = output["name"]
-    keys = list(output["key_columns"])
-    value_columns = [c["output_column"] for c in used]
-    schema = pq.read_schema(path).names
-    missing = [c for c in keys + value_columns if c not in schema]
-    if missing:
-        evidence.add(f"output.{name}", "FAIL", "REQUIRED_OUTPUT_MISSING", missing_columns=missing,
-                     detail="Declared key or value columns are missing from the output.")
-        return scope
-    table = pq.read_table(path, columns=list(dict.fromkeys(keys + value_columns))).to_pandas()
-    scope.update(rows=len(table), checked=True)
-    calc = used[0]
     params = {p["name"]: p["value"] for p in calc["params"]}
+    if calc.get("segments"):
+        parts, members, membership = [], np.zeros(len(base), dtype=bool), {}
+        for segment in calc["segments"]:
+            mask = np.ones(len(base), dtype=bool)
+            for predicate in segment["predicates"]:
+                values = _entity_attribute(predicate["input"], predicate["column"], calc, manifest, frames, base,
+                                           entity, evidence, name)
+                if values is None:
+                    return None
+                mask &= _segment_mask(values, predicate)
+            members |= mask
+            membership[segment["label"]] = int(base.loc[mask, entity].nunique()) if entity else int(mask.sum())
+            parts.append(pd.DataFrame({"_row": base.index[mask], "segment": segment["label"]}))
+        work = pd.concat(parts, ignore_index=True)
+        outside = int(base.loc[~members, entity].nunique()) if entity else int((~members).sum())
+        return work, ["segment"], {"segment_members": membership, "entities_in_no_segment": outside}
     unknown = set(params.get("unknown_group_values") or [])
-    per_date = bool(params.get("per_date"))
-    date_key = output.get("date_column") if per_date else None
-    for column in keys:
-        if column == date_key:
-            table[column] = _dates(table[column]).dt.date.astype(str)
-        else:
-            table[column] = [_normalized_key(v, unknown) for v in table[column]]
-    duplicates = int(table.duplicated(subset=keys, keep=False).sum())
-    if duplicates:
-        evidence.add(f"output.{name}.grain", "FAIL", "OUTPUT_GRAIN_VIOLATION", rows=duplicates, key=keys,
-                     detail="Several output rows share one group key.")
-        return scope
+    work = pd.DataFrame({"_row": base.index})
+    columns = []
+    for key in calc.get("group_by") or []:
+        values = _entity_attribute(key["input"], key["column"], calc, manifest, frames, base, entity, evidence, name)
+        if values is None:
+            return None
+        work[key["column"]] = [_normalized_key(v, unknown) for v in values]
+        columns.append(key["column"])
+    if params.get("missing_group_policy") == "EXCLUDE":
+        mask = np.ones(len(work), dtype=bool)
+        for column in columns:
+            mask &= (work[column] != NULL_KEY).to_numpy()
+        work = work[mask]
+    return work, columns, {}
+
+
+def _group_expected(items: list[dict[str, Any]], date_key: str | None, spec, manifest, frames, refs, period,
+                    expected_all: set[str], evidence: Evidence, name: str) -> dict[str, Any] | None:
+    """Recalculate GROUP_AGGREGATE items (one grouping) from the entity rows: membership from the catalog attribute
+    (group_by column or segment predicates), values from the input column or the independently recalculated
+    per-entity calculation. Rows: every in-scope entity's last period observation, or every period date (per_date,
+    keyed by date_key)."""
+    import pandas as pd
+
+    calc = items[0]
+    per_date = bool({p["name"]: p["value"] for p in calc["params"]}.get("per_date"))
     dataset = calc["dataset"]
     logical = manifest["logical_datasets"][dataset]
     entity, time = logical["entity_column"], logical["date_column"]
@@ -1032,58 +1172,112 @@ def _check_groups(output, path, used, spec, manifest, frames, refs, period, expe
                                                      else True)]
         if not per_date:
             rows = rows.sort_values([entity, time]).groupby(entity, sort=False).tail(1)
-    base = rows.copy()
-    group_columns = _group_keys(calc, manifest, frames, base, entity, evidence, name)
-    if group_columns is None:
-        return scope
+    base = rows
+    attached = _attach_groups(calc, manifest, frames, base, entity, evidence, name)
+    if attached is None:
+        return None
+    work, group_columns, membership = attached
     if per_date:
-        base[date_key] = base[time].dt.date.astype(str)
+        work[date_key] = base.loc[work["_row"], time].dt.date.astype(str).to_numpy()
         group_columns = group_columns + [date_key]
-    verified, unverified = [], []
-    expected_frames = []
-    for item in used:
-        item_params = {p["name"]: p["value"] for p in item["params"]}
+    verified, unverified, expected_frames = [], [], []
+    for item in items:
+        params = {p["name"]: p["value"] for p in item["params"]}
         upstream = item["input_calculation"]
+        if item["id"] in refs["unverifiable"]:
+            unverified.append(item["id"])
+            continue
         if upstream:
-            if item["id"] in refs["unverifiable"]:
-                unverified.append(item["id"])
-                continue
-            reference = refs["frames"][dataset]
-            values = reference.loc[base.index, _calc_column(spec, upstream)].to_numpy(dtype=float)
+            values = refs["frames"][dataset].loc[work["_row"], _calc_column(spec, upstream)].to_numpy(dtype=float)
         else:
-            values = base[item["columns"][0]].to_numpy()
-        work = base[group_columns].copy()
-        for column in group_columns:
-            if column != date_key:
-                work[column] = [_normalized_key(v, unknown) for v in work[column]]
-        if item_params.get("missing_group_policy") == "EXCLUDE":
-            mask = np.ones(len(work), dtype=bool)
-            for column in group_columns:
-                mask &= (work[column] != NULL_KEY).to_numpy()
-            work, values = work[mask], values[mask]
-        work["_value"] = values
-        function = item_params["function"]
-        grouped = work.groupby(group_columns, sort=True, dropna=False)["_value"]
+            values = base.loc[work["_row"], item["columns"][0]].to_numpy()
+        grouping = work[group_columns].copy()
+        grouping["_value"] = values
+        function = params["function"]
+        grouped = grouping.groupby(group_columns, sort=True, dropna=False)["_value"]
         if function == "COUNT":
             result = grouped.count()
         elif function == "COUNT_DISTINCT":
             result = grouped.nunique()
         else:
-            numeric = work.assign(_value=pd.to_numeric(work["_value"], errors="coerce")).groupby(
+            numeric = grouping.assign(_value=pd.to_numeric(grouping["_value"], errors="coerce")).groupby(
                 group_columns, sort=True, dropna=False)["_value"]
             result = {"SUM": numeric.sum, "AVG": numeric.mean, "MEDIAN": numeric.median, "MIN": numeric.min,
                       "MAX": numeric.max}[function]()
             if function == "SUM":
                 result = result.where(numeric.count() > 0)
         contributors = grouped.count()
-        result = result.astype(float).where(contributors >= int(item_params.get("min_observations") or 1))
+        result = result.astype(float).where(contributors >= int(params.get("min_observations") or 1))
         expected_frames.append(result.rename(item["output_column"] + "_ref"))
         verified.append(item["id"])
-    if not expected_frames:
+    expected = None
+    if expected_frames:
+        expected = pd.concat(expected_frames, axis=1).reset_index()
+        expected.columns = group_columns + list(expected.columns[len(group_columns):])
+    empty = sorted(label for label, count in membership.get("segment_members", {}).items() if count == 0)
+    if empty:
+        evidence.add(f"output.{name}.segments", "INCOMPLETE", "SEGMENT_EMPTY", segments=empty,
+                     members=membership["segment_members"],
+                     detail="No in-scope entity satisfies these segments' predicates in the period; check the values "
+                            "against the catalog (get_dimension_values) instead of reporting the segment.")
+        return None  # nothing to compare an empty segment with
+    if membership:
+        evidence.add(f"output.{name}.segments", "PASS", **membership)
+    return {"expected": expected, "keys": group_columns, "verified": verified, "unverified": unverified,
+            "entities": int(base[entity].nunique()) if entity else len(base), "membership": membership}
+
+
+def _group_table(path: str, keys: list[str], value_columns: list[str], date_key: str | None, unknown: set[str],
+                 evidence: Evidence, name: str):
+    import pyarrow.parquet as pq
+
+    schema = pq.read_schema(path).names
+    missing = [c for c in keys + value_columns if c not in schema]
+    if missing:
+        evidence.add(f"output.{name}", "FAIL", "REQUIRED_OUTPUT_MISSING", missing_columns=missing,
+                     detail="Declared key or value columns are missing from the output.")
+        return None
+    table = pq.read_table(path, columns=list(dict.fromkeys(keys + value_columns))).to_pandas()
+    for column in keys:
+        if column == date_key:
+            table[column] = _dates(table[column]).dt.date.astype(str)
+        else:
+            table[column] = [_normalized_key(v, unknown) for v in table[column]]
+    return table
+
+
+def _check_groups(output, path, used, spec, manifest, frames, refs, period, expected_all, evidence, scope):
+    """GROUP / GROUP_DATE outputs: recompute every group from the entity rows, then compare keys (omitted or extra
+    groups), the top-N over every recalculated group, and values (cross-group contamination shows as a value
+    mismatch)."""
+    import numpy as np
+
+    name = output["name"]
+    keys = list(output["key_columns"])
+    value_columns = [c["output_column"] for c in used]
+    calc = used[0]
+    params = {p["name"]: p["value"] for p in calc["params"]}
+    per_date = bool(params.get("per_date"))
+    date_key = output.get("date_column") if per_date else None
+    table = _group_table(path, keys, value_columns, date_key, set(params.get("unknown_group_values") or []),
+                         evidence, name)
+    if table is None:
+        return scope
+    scope.update(rows=len(table), checked=True)
+    duplicates = int(table.duplicated(subset=keys, keep=False).sum())
+    if duplicates:
+        evidence.add(f"output.{name}.grain", "FAIL", "OUTPUT_GRAIN_VIOLATION", rows=duplicates, key=keys,
+                     detail="Several output rows share one group key.")
+        return scope
+    result = _group_expected(used, date_key, spec, manifest, frames, refs, period, expected_all, evidence, name)
+    if result is None:
+        return scope
+    verified, unverified = result["verified"], result["unverified"]
+    if result["expected"] is None:
         evidence.add(f"output.{name}", "SKIPPED", detail="No independent reference for these group values.")
         scope["scope_unverifiable"] = True
         return scope
-    expected = pd.concat(expected_frames, axis=1).reset_index()
+    expected = result["expected"]
     expected.columns = keys + list(expected.columns[len(keys):])
     merged = expected.merge(table, on=keys, how="outer", indicator=True)
     in_ref, in_out = merged["_merge"] != "right_only", merged["_merge"] != "left_only"
@@ -1117,9 +1311,8 @@ def _check_groups(output, path, used, spec, manifest, frames, refs, period, expe
                          detail="Groups in the recalculated result are missing from the output, or the output has "
                                 "groups the scope does not produce.")
         else:
-            evidence.add(f"output.{name}.groups", "PASS", groups=int(in_ref.sum()), entities=int(base[entity].nunique())
-                         if entity else len(base), null_key_groups=int((merged[keys] == NULL_KEY).any(axis=1).sum()),
-                         key=keys)
+            evidence.add(f"output.{name}.groups", "PASS", groups=int(in_ref.sum()), entities=result["entities"],
+                         null_key_groups=int((merged[keys] == NULL_KEY).any(axis=1).sum()), key=keys)
         compare = merged[in_ref & in_out]
     checked_total = 0
     for item in used:
@@ -1131,10 +1324,13 @@ def _check_groups(output, path, used, spec, manifest, frames, refs, period, expe
         checked_total += len(ok)
         if not ok.all():
             bad = compare[~ok]
+            upstream = next((c for c in spec["calculations"] if c["id"] == item["input_calculation"]), None)
+            diagnosis = _diagnose_scale(upstream, actual[~ok], reference[~ok]) if upstream else None
             evidence.add(f"calculation.{item['id']}.{name}", "FAIL", "CALCULATION_MISMATCH", method=item["method"],
                          mismatched=int((~ok).sum()), checked=len(ok),
                          examples=[{**{k: r[k] for k in keys}, "expected": _round(r[column + "_ref"]),
                                     "actual": _round(r[column])} for _, r in bad.head(MAX_EXAMPLES).iterrows()],
+                         **({"diagnosis": diagnosis} if diagnosis else {}),
                          detail="Group values differ from the independent recalculation (for example entities counted "
                                 "in the wrong group).")
         else:
@@ -1145,6 +1341,96 @@ def _check_groups(output, path, used, spec, manifest, frames, refs, period, expe
     scope.update(groups=int(in_ref.sum()), values_checked=checked_total, verified_calculations=verified,
                  unverified_calculations=unverified)
     return scope
+
+
+def _check_group_pairs(output, path, used, spec, manifest, frames, refs, period, expected_all, evidence, scope):
+    """GROUP_PAIR outputs: recompute the aligned per-date group series from the entity rows (the same group check as
+    GROUP_DATE outputs), then the correlation of every pair of non-null groups on their common dates."""
+    import numpy as np
+    import reference
+
+    name = output["name"]
+    calcs = {c["id"]: c for c in spec["calculations"]}
+    series_calc = calcs[used[0]["input_calculation"]]
+    keys = list(output["key_columns"])
+    series_params = {p["name"]: p["value"] for p in series_calc["params"]}
+    table = _group_table(path, keys, [c["output_column"] for c in used], None,
+                         set(series_params.get("unknown_group_values") or []), evidence, name)
+    if table is None:
+        return scope
+    scope.update(rows=len(table), checked=True)
+    if any(c["id"] in refs["unverifiable"] for c in used) or series_calc["id"] in refs["unverifiable"]:
+        evidence.add(f"output.{name}", "SKIPPED", detail="The group series has no independent reference; the "
+                                                         "correlations cannot be recalculated.")
+        scope.update(scope_unverifiable=True, unverified_calculations=[c["id"] for c in used])
+        return scope
+    result = _group_expected([series_calc], "_date", spec, manifest, frames, refs, period, expected_all, evidence,
+                             name)
+    if result is None or result["expected"] is None:
+        return scope
+    key = result["keys"][0]
+    wide = result["expected"].pivot(index="_date", columns=key, values=series_calc["output_column"] + "_ref")
+    groups = sorted(g for g in wide.columns if g != NULL_KEY)
+    series = {g: wide[g].to_numpy(dtype=float) for g in groups}
+    overlap = {(a, b): int((np.isfinite(series[a]) & np.isfinite(series[b])).sum())
+               for a, b in itertools.combinations(groups, 2)}
+    evidence.add(f"output.{name}.series", "PASS", calculation=series_calc["id"], groups=groups,
+                 dates={g: int(np.isfinite(series[g]).sum()) for g in groups},
+                 common_dates={f"{a}|{b}": n for (a, b), n in overlap.items()},
+                 detail="Per-date group series recalculated from the entity rows and aligned on common dates.")
+    left, right = keys
+    checked_total = 0
+    verified = [series_calc["id"]]
+    for calc in used:
+        params = {p["name"]: p["value"] for p in calc["params"]}
+        expected = {pair: reference.pair_correlation(series[pair[0]], series[pair[1]], params["method"],
+                                                     int(params["min_overlap"])) for pair in overlap}
+        actual: dict[tuple[str, str], float] = {}
+        for _, row in table.iterrows():
+            pair = tuple(sorted((row[left], row[right])))
+            if pair[0] != pair[1]:
+                actual.setdefault(pair, float(_numeric(np.array([row[calc["output_column"]]]))[0]))
+        missing, extra = sorted(set(expected) - set(actual)), sorted(set(actual) - set(expected))
+        if missing or extra:
+            evidence.add(f"output.{name}.pairs", "FAIL", "GROUP_COVERAGE_MISMATCH", missing=[list(p) for p in missing[:10]],
+                         unexpected=[list(p) for p in extra[:10]],
+                         detail="The group pairs differ from every pair of recalculated groups.")
+        common = sorted(set(expected) & set(actual))
+        ok = _compare(np.array([actual[p] for p in common], dtype=float),
+                      np.array([expected[p] for p in common], dtype=float))
+        checked_total += len(ok)
+        if len(ok) and not ok.all():
+            evidence.add(f"calculation.{calc['id']}.{name}", "FAIL", "CALCULATION_MISMATCH", method=calc["method"],
+                         mismatched=int((~ok).sum()), checked=len(ok),
+                         examples=[{"pair": list(p), "expected": _round(expected[p]), "actual": _round(actual[p]),
+                                    "common_dates": overlap[p]} for p, good in zip(common, ok) if not good][:MAX_EXAMPLES],
+                         detail="Correlations differ from the recalculation on the aligned group series (check the "
+                                "group membership, the per-date aggregate, and that only common dates are used).")
+        else:
+            evidence.add(f"calculation.{calc['id']}.{name}", "PASS", method=calc["method"], checked=len(ok))
+        verified.append(calc["id"])
+    scope.update(groups=len(groups), pairs=len(overlap), values_checked=checked_total, verified_calculations=verified,
+                 unverified_calculations=[])
+    return scope
+
+
+def _diagnose_scale(calc: dict[str, Any], actual, expected) -> dict | None:
+    """A period statistic that differs from the reference by a constant factor: annualized or percent-scaled."""
+    import numpy as np
+
+    if calc["method"] != "PERIOD_STAT":
+        return None
+    usable = np.isfinite(actual) & np.isfinite(expected) & (np.abs(expected) > 0)
+    if not usable.any():
+        return None
+    ratio = actual[usable] / expected[usable]
+    for label, factor in (("ANNUALIZED_SQRT_252", math.sqrt(252)), ("ANNUALIZED_SQRT_252_PERCENT", 100 * math.sqrt(252)),
+                          ("PERCENT_SCALE", 100.0), ("FRACTION_SCALE", 0.01)):
+        if np.allclose(ratio, factor, rtol=1e-6):
+            return {"finding": "SCALE_DIFFERS", "factor": label,
+                    "detail": "The values equal the period statistic times a constant; the spec asks for the plain "
+                              "statistic of the input values (not annualized, same unit)."}
+    return None
 
 
 def _pair_series(frame, entity: str, time: str, tickers: list[str], column: str, kind: str, period: dict[str, Any],

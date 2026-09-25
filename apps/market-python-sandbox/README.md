@@ -68,11 +68,33 @@ market-ai-orc sends V2 only.
 - **Generic operations.**
   - `PERIOD_RETURN` is the change over the whole period, with a base of `PREVIOUS_OBSERVATION` or
     `FIRST_IN_PERIOD`.
+  - `PERIOD_STAT` is a statistic (`MEAN`/`MEDIAN`/`STD`/`MIN`/`MAX`/`SUM`/`COUNT`) of one entity's
+    observations inside the period, for example the volatility of daily returns (`STD` of a
+    1-observation `RETURN`; `ddof` 1 by default; never annualized). It does not use warm-up rows.
   - `GROUP_AGGREGATE` computes `COUNT`/`COUNT_DISTINCT`/`SUM`/`AVG`/`MEDIAN`/`MIN`/`MAX` of a column
-    or of a per-entity calculation, by 1-3 catalog grouping keys of any input (mapped by entity).
-    Its parameters are `per_date`, `missing_group_policy`, `unknown_group_values`, and
-    `min_observations`.
-  - The `GROUP` / `GROUP_DATE` output grains take generic `key_columns`.
+    or of a per-entity calculation. It groups either by 1-3 catalog grouping keys of any input
+    (mapped by entity), or by up to 10 labelled `segments`. Its parameters are `per_date`,
+    `missing_group_policy`, `unknown_group_values`, and `min_observations`.
+    - A segment is a set of up to four predicates, all of which must hold. Each predicate is on a
+      filterable catalog column, with values typed like scope predicates.
+    - An entity belongs to every segment whose predicates all hold. Entities in no segment are not
+      aggregated. The output's key column is `segment`.
+    - A segment that no in-scope entity satisfies stops the analysis in preflight with
+      `SEGMENT_EMPTY` (INCOMPLETE).
+  - With `per_date`, a `GROUP_AGGREGATE` is one aligned series per group.
+  - `GROUP_CORRELATION` correlates those series for every pair of non-null groups. The series are
+    aligned on common dates (`DEFAULT_SERIES_ALIGNMENT`: no forward fill, lag 0), with `method` and
+    `min_overlap` as for `CORRELATION`.
+  - The `GROUP`, `GROUP_DATE` and `GROUP_PAIR` output grains take generic `key_columns`
+    (`<key>_a` / `<key>_b` for pairs).
+  - Averaging a return across entities over a multi-date period is materially ambiguous unless
+    the request says which return is meant:
+    - each entity's return over the whole period (`PERIOD_RETURN`); or
+    - each entity's daily returns inside the period (`PERIOD_STAT MEAN` of a `RETURN`).
+
+    The intent review returns `NEEDS_CLARIFICATION` when the request does not say. A stated basis
+    that differs from the spec is `RETURN_BASIS_MISMATCH`. A reply to the clarification settles
+    it.
   - A `ranking` is a top-N (`direction`, `limit`, `tie_policy`) over the complete candidate
     population.
 - **Scope proof** (`app/logical.py verify_scope`). The approved contract holds `scope_sha256`
@@ -89,8 +111,14 @@ market-ai-orc sends V2 only.
 
   The PASS evidence (`scope.lineage.<input>`) is part of the validation evidence.
 - **Validator** (profile Y):
-  - It recomputes every group from entity rows (`GROUP_COVERAGE_MISMATCH` for omitted or extra
-    groups, `CALCULATION_MISMATCH` for contaminated values).
+  - It recomputes every group from entity rows, taking membership from the catalog attribute
+    (grouping column or segment predicates). An omitted or extra group is
+    `GROUP_COVERAGE_MISMATCH`; a contaminated value is `CALCULATION_MISMATCH`.
+  - It recomputes the aligned group series of a `GROUP_CORRELATION` from entity rows, then the
+    correlation of every pair. A result is `CALCULATION_VERIFIED` only when both the series and
+    the correlations match.
+  - A period statistic that differs from the reference by a constant factor is diagnosed
+    (`SCALE_DIFFERS`, for example `ANNUALIZED_SQRT_252`).
   - It recomputes `PERIOD_RETURN` for every candidate and checks the top-N against the whole
     population (`RANKING_MISMATCH`, even when the output has exactly N rows).
   - It reports the attribute scope's population (`scope.population`; `SCOPE_EMPTY` when no member
@@ -252,6 +280,10 @@ method.
 | `RSI` | `period` (14), `smoothing` (`WILDER`) | TA-Lib RSI | reference recalculation (matches TA-Lib to ~1e-14) |
 | `ROLLING_CORRELATION` | `window`, `method` (`PEARSON`/`SPEARMAN`), `transform` | TA-Lib CORREL | reference recalculation |
 | `CORRELATION` | `method`, `transform` (`SIMPLE_RETURN`), `min_overlap` (20); `ENTITY_PAIR` output | TA-Lib CORREL | reference recalculation per pair |
+| `PERIOD_RETURN` | `kind`, `as_percent`, `base` (`PREVIOUS_OBSERVATION`) | Saniti | reference recalculation |
+| `PERIOD_STAT` | `function` (`MEAN`/`MEDIAN`/`STD`/`MIN`/`MAX`/`SUM`/`COUNT`), `ddof` (1, `STD` only), `min_observations` (1) | Saniti | reference recalculation (expanding within the period) |
+| `GROUP_AGGREGATE` | `function`, `per_date` (false), `missing_group_policy` (`SEPARATE_GROUP`), `unknown_group_values` ([]), `min_observations` (1); `group_by` or `segments` | Saniti | groups recalculated from entity rows |
+| `GROUP_CORRELATION` | `method` (`PEARSON`), `min_overlap` (20), `alignment` (`COMMON_DATES`); input = a per-date `GROUP_AGGREGATE`; `GROUP_PAIR` output | Saniti | series and correlations recalculated |
 | `EVENT_STUDY` | `min_events` (30), `overlap_policy` (`NON_OVERLAPPING`), `baseline` (`ALL_ELIGIBLE`); `input_calculation` = the `FORWARD_RETURN` outcome; `signal` = predicates on earlier trailing calculations; one `SUMMARY` output | CALC_176–179 | events, outcomes and baseline recalculated |
 | `CUSTOM` with `expression` | the expression language below; `formula_refs`, `meaning`, `unit`, `data_policies` | AI-generated | expression re-evaluated (`VALIDATED_CUSTOM_FORMULA_RESULT` on a match) |
 | `CUSTOM` without `expression` | anything, plus a required `formula` and `time_alignment` | AI-generated | scope, units and the prefix leakage re-run only; never `CALCULATION_VERIFIED` |

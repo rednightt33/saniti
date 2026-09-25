@@ -60,7 +60,8 @@ FAMILY_PATTERNS = {
 FAMILY_SATISFIED_BY = {
     "RSI": {"RSI"}, "SMA": {"SMA", "ROLLING_ZSCORE"}, "STD": {"ROLLING_STD", "ROLLING_ZSCORE"},
     "ZSCORE": {"ROLLING_ZSCORE"}, "RETURN": {"RETURN", "FORWARD_RETURN", "CORRELATION", "PERIOD_RETURN"},
-    "FORWARD_RETURN": {"FORWARD_RETURN", "EVENT_STUDY"}, "CORRELATION": {"CORRELATION", "ROLLING_CORRELATION"},
+    "FORWARD_RETURN": {"FORWARD_RETURN", "EVENT_STUDY"},
+    "CORRELATION": {"CORRELATION", "ROLLING_CORRELATION", "GROUP_CORRELATION"},
     "EVENT_STUDY": {"EVENT_STUDY"},
 }
 WINDOW_PARAM = {"SMA": "window", "ROLLING_STD": "window", "ROLLING_ZSCORE": "window", "RSI": "period",
@@ -83,6 +84,16 @@ OPS = {"<": "<", "<=": "<=", ">": ">", ">=": ">=", "below": "<", "under": "<", "
        "di atas": ">", "diatas": ">", "lebih tinggi dari": ">", "at least": ">=", "minimal": ">=", "minimum": ">=",
        "paling sedikit": ">=", "at most": "<=", "maksimal": "<=", "maximum": "<=", "paling banyak": "<="}
 OP_RE = "|".join(re.escape(k) for k in sorted(OPS, key=len, reverse=True))
+# Generic return-basis vocabulary (metric semantics, not topics): whether a return summarised over a period means the
+# return over the whole period, or the daily returns inside it.
+RETURN_BASIS = {
+    "DAILY": (r"\b(?:daily returns?|returns? harian|imbal hasil harian|average daily|rata-rata harian|returns? per "
+              r"hari|per trading day|per hari perdagangan)\b"),
+    "PERIOD": (r"\b(?:total returns?|returns? total|cumulative returns?|returns? kumulatif|kumulatif|period returns?|"
+               r"returns? (?:periode|keseluruhan|sepanjang periode|selama periode|bulanan|mingguan|tahunan|1 bulan "
+               r"penuh)|monthly returns?|weekly returns?|annual returns?|yearly returns?|point-to-point|"
+               r"perubahan harga|kenaikan harga|penurunan harga|price change|dari awal (?:hingga|sampai) akhir)\b"),
+}
 NUMBER = r"(-?\d+(?:[.,]\d+)?)"
 
 
@@ -109,6 +120,7 @@ class Extracted:
     thresholds: list[dict[str, Any]] = field(default_factory=list)
     ddof: list[dict[str, Any]] = field(default_factory=list)
     return_kind: list[dict[str, Any]] = field(default_factory=list)
+    return_basis: list[dict[str, Any]] = field(default_factory=list)
     clarified_turns: list[int] = field(default_factory=list)
     user_text: str = ""
 
@@ -119,7 +131,8 @@ class Extracted:
             "ambiguous_periods": self.ambiguous_periods, "tickers": sorted(self.tickers),
             "universe_all_requested": bool(self.universe_all), "frequency": self.frequency,
             "method_families": sorted(self.families), "windows": self.windows, "thresholds": self.thresholds,
-            "ddof": self.ddof, "return_kind": self.return_kind, "clarified_turns": self.clarified_turns,
+            "ddof": self.ddof, "return_kind": self.return_kind, "return_basis": self.return_basis,
+            "clarified_turns": self.clarified_turns,
         }
 
 
@@ -398,6 +411,9 @@ def _extract_turn(turn: Turn, ref: date, found: Extracted) -> None:
         found.return_kind.append({"value": "LOG", "turn": turn.index})
     if re.search(r"\bsimple returns?\b|\breturn sederhana\b|\barithmetic returns?\b", text):
         found.return_kind.append({"value": "SIMPLE", "turn": turn.index})
+    for basis, pattern in RETURN_BASIS.items():
+        for match in re.finditer(pattern, text):
+            found.return_basis.append({"value": basis, "turn": turn.index, "text": match.group(0)[:60]})
 
 
 def _threshold(subject: str, op: str, number: str, turn: Turn, match: re.Match) -> dict[str, Any]:
@@ -461,7 +477,7 @@ def review(spec: dict[str, Any], messages: list[dict[str, str]], ref: date) -> t
     _review_universe(spec, found, result)
     _review_period(spec, found, resolved, ref, result)
     _review_frequency(spec, found, result)
-    _review_methods(spec, found, result)
+    _review_methods(spec, found, result, resolved)
     _review_parameters(spec, found, result)
     _review_thresholds(spec, found, result)
     for rule in spec["exclusion_rules"]:
@@ -625,8 +641,9 @@ def _review_frequency(spec: dict[str, Any], found: Extracted, result: Review) ->
         result.add("frequency", "UNVERIFIED", None, frequency["value"], "Frequency chosen by the AI.")
 
 
-def _review_methods(spec: dict[str, Any], found: Extracted, result: Review) -> None:
+def _review_methods(spec: dict[str, Any], found: Extracted, result: Review, resolved: dict[str, Any]) -> None:
     calcs = spec["calculations"]
+    by_id = {c["id"]: c for c in calcs}
     for family in sorted(found.families):
         satisfied = [c["id"] for c in calcs
                      if c["method"] in FAMILY_SATISFIED_BY[family] or family in (c.get("covers") or [])]
@@ -640,6 +657,7 @@ def _review_methods(spec: dict[str, Any], found: Extracted, result: Review) -> N
         families = set(calc.get("covers") or [])
         if calc["method"] == "GROUP_AGGREGATE":
             _review_aggregate(calc, found, result)
+            _review_return_basis(calc, by_id, found, resolved, result)
             continue
         if not families & set(found.families):
             result.add(f"calculation.{calc['id']}", "UNVERIFIED", None, calc["method"],
@@ -678,6 +696,70 @@ def _review_aggregate(calc: dict[str, Any], found: Extracted, result: Review) ->
                    key["column"] if named else None, f"{key['input']}.{key['column']}",
                    "The request names this grouping column." if named else
                    "Grouping column chosen by the AI from the catalog to match the request.")
+
+
+def _return_measure(calc_id: str | None, calcs: dict[str, dict[str, Any]]) -> str | None:
+    """What a per-entity value is when it is a return level: PERIOD (the return over the whole period), DAILY (a mean,
+    median or sum of one entity's short-horizon returns inside the period), POINT (a return at the entity's last
+    observation). None when it is not a return level (for example a standard deviation of returns)."""
+    calc = calcs.get(calc_id or "")
+    if calc is None:
+        return None
+    if calc["method"] == "PERIOD_RETURN":
+        return "PERIOD"
+    if calc["method"] == "RETURN" or (calc["method"] == "CUSTOM" and "RETURN" in (calc.get("covers") or [])):
+        return "POINT"
+    if calc["method"] == "PERIOD_STAT" and param_values(calc).get("function") in ("MEAN", "MEDIAN", "SUM"):
+        return "DAILY" if _return_measure(calc.get("input_calculation"), calcs) == "POINT" else None
+    return None
+
+
+def _review_return_basis(calc: dict[str, Any], calcs: dict[str, dict[str, Any]], found: Extracted,
+                         resolved: dict[str, Any], result: Review) -> None:
+    """Averaging a return across entities over a multi-date period is materially ambiguous unless the request says
+    which return: each entity's return over the whole period, or its (average) daily return inside the period. The
+    two can order groups differently, so an unstated basis is a clarification, not an AI choice."""
+    values = param_values(calc)
+    if values.get("function") not in ("AVG", "MEDIAN", "SUM") or values.get("per_date"):
+        return
+    measure = _return_measure(calc.get("input_calculation"), calcs)
+    if measure is None or resolved.get("mode") in ("LATEST", "STATIC") or resolved.get("trading_days") == 1:
+        return
+    upstream = calcs[calc["input_calculation"]]
+    requirement = f"calculation.{calc['id']}.return_basis"
+    stated = {b["value"] for b in _latest_turn_values(found.return_basis)}
+    proposed = {"PERIOD": "return over the whole period (PERIOD_RETURN)",
+                "DAILY": "the entity's daily returns summarised over the period (PERIOD_STAT of RETURN)",
+                "POINT": "the entity's return at its last observation"}[measure]
+    if measure == "POINT":
+        horizon = param_values(upstream).get("horizon")
+        horizons = {w["value"] for w in _latest_turn_values(found.windows) if w["family"] == "RETURN"}
+        if horizon in horizons and "DAILY" not in stated:
+            result.add(requirement, "MATCH", f"{horizon}-observation return", proposed,
+                       "The request states this return horizon.")
+            return
+    if stated:
+        wanted = "PERIOD" if stated == {"PERIOD"} else "DAILY" if stated == {"DAILY"} else None
+        if wanted is None or wanted == measure:
+            result.add(requirement, "MATCH", sorted(stated), proposed, "The request states the return basis.")
+        else:
+            result.add(requirement, "MISMATCH", wanted, proposed,
+                       "The request states a different return basis: " +
+                       ("each entity's return over the whole period (PERIOD_RETURN)." if wanted == "PERIOD" else
+                        "the daily returns inside the period (PERIOD_STAT MEAN of a 1-observation RETURN, or a "
+                        "per_date aggregation)."), "RETURN_BASIS_MISMATCH")
+        return
+    if upstream.get("provenance") == "USER_CLARIFIED" and found.clarified_turns:
+        result.add(requirement, "UNVERIFIED", None, proposed,
+                   "The return basis was settled in a clarification reply; disclose it with the answer.")
+        return
+    result.add(requirement, "UNVERIFIED", None, proposed, "The request does not say which return is averaged.",
+               "RETURN_BASIS_AMBIGUOUS")
+    result.clarifications.append(
+        "The request averages a return across entities over a period without saying which return: (a) each entity's "
+        "return over the whole period (PERIOD_RETURN), then averaged, or (b) each entity's average daily return in the "
+        "period (PERIOD_STAT MEAN of a 1-observation RETURN), then averaged. They can rank groups differently. Ask the "
+        "user which one; after the reply, mark the chosen per-entity calculation USER_CLARIFIED.")
 
 
 def _review_parameters(spec: dict[str, Any], found: Extracted, result: Review) -> None:

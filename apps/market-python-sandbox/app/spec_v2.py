@@ -9,8 +9,9 @@ The model writes one spec; nothing downstream lets it restate the scope. A V2 sp
   bounded typed predicates, each on a filterable catalog column), with provenance;
 * an optional time scope: static reference questions (a count per group) have none; dated analysis must have
   one, with a frequency the source tables support;
-* calculations and outputs (the V1 rules, plus generic GROUP_AGGREGATE, PERIOD_RETURN, GROUP/GROUP_DATE
-  outputs with key columns, and top-N rankings).
+* calculations and outputs (the V1 rules, plus generic PERIOD_RETURN, PERIOD_STAT, GROUP_AGGREGATE by catalog
+  keys or labelled segments, GROUP_CORRELATION of aligned group series, GROUP/GROUP_DATE/GROUP_PAIR outputs with key
+  columns, and top-N rankings).
 
 normalize_v2() returns the canonical spec: the V2 fields plus the V1-shaped fields (universe, analysis_period,
 frequency) the reviewer and validator already understand, so both versions share one implementation. It also
@@ -316,6 +317,7 @@ def normalize_v2(spec: AnalysisSpecV2, ref: date, catalog: dict[str, Any]) -> di
                 _catalog_problem(problems, f"input {item['name']}: its entities are {meta.get('entity_type')}, not "
                                            f"the listed {subject['entity_type']} entities", "ENTITY_TYPE_MISMATCH")
 
+    _type_segments(raw["calculations"], inputs, columns, problems)
     plan = _data_plan(inputs, predicates, declared, scope, columns, problems)
 
     # V1-shaped fields for the shared rules, reviewer and validator
@@ -357,6 +359,47 @@ def normalize_v2(spec: AnalysisSpecV2, ref: date, catalog: dict[str, Any]) -> di
                "default_id": scope["default_id"]},
         time_scope=time_scope, data_plan=plan)
     return canonical
+
+
+def _type_segments(calculations: list[dict[str, Any]], inputs: dict[str, dict[str, Any]], columns: dict[str, Any],
+                   problems: list[str]) -> None:
+    """Segment predicates are typed against the catalog like scope predicates (filterable columns, canonical values);
+    their columns are extracted so the validator can re-check every entity's segment membership."""
+    for calc in calculations:
+        for segment in calc.get("segments") or []:
+            typed = []
+            for index, predicate in enumerate(segment["predicates"]):
+                where = f"calculation {calc['id']} segment {segment['label']!r} predicate {index + 1}"
+                owner = inputs.get(predicate["input"])
+                if owner is None:
+                    _catalog_problem(problems, f"{where}: input {predicate['input']!r} is not one of the inputs",
+                                     "PREDICATE_INPUT_MISMATCH")
+                    continue
+                meta = (columns.get(owner["source_table"]) or {}).get(predicate["column"])
+                if meta is None:
+                    _catalog_problem(problems, f"{where}: {owner['source_table']}.{predicate['column']} is not an "
+                                               f"AI-allowed catalog column", "UNKNOWN_COLUMN")
+                    continue
+                if not meta["filter_allowed"]:
+                    _catalog_problem(problems, f"{where}: the catalog does not allow filtering "
+                                               f"{owner['source_table']}.{predicate['column']}", "FILTER_NOT_ALLOWED")
+                    continue
+                if owner["name"] != calc["dataset"] and not owner.get("entity_column"):
+                    _catalog_problem(problems, f"{where}: input {owner['name']} has no entity column to map entities "
+                                               f"to segments", "GROUP_KEY_NOT_MAPPABLE")
+                    continue
+                if predicate["column"] not in owner["columns"]:
+                    owner["columns"].append(predicate["column"])
+                values = _predicate_values(predicate, meta["data_type"], where, problems)
+                if values is None:
+                    continue
+                typed.append({"input": predicate["input"], "column": predicate["column"],
+                              "operator": predicate["operator"], "values": values, "data_type": meta["data_type"]})
+            if segment["provenance"] == "CATALOG_RESOLVED" and not (segment.get("user_text") or "").strip():
+                _catalog_problem(problems, f"calculation {calc['id']} segment {segment['label']!r}: a CATALOG_RESOLVED "
+                                           f"segment names the user's words it resolves (user_text)",
+                                 "PREDICATE_USER_TEXT_REQUIRED")
+            segment["predicates"] = typed
 
 
 def _predicate_values(predicate: dict[str, Any], data_type: str, where: str, problems: list[str]) -> list[str] | None:
@@ -496,6 +539,37 @@ def review_scope(spec: dict[str, Any], user_text: str) -> list[tuple[str, str, A
         else:
             checks.append((name, "UNVERIFIED", None, shown, "A scope restriction chosen by the AI, not stated by the "
                                                             "user.", None))
+    return checks
+
+
+def review_segments(spec: dict[str, Any], user_text: str) -> list[tuple[str, str, Any, Any, str, str | None]]:
+    """Provenance of segment definitions (labelled groups), checked like attribute predicates: which user words each
+    segment stands for, and that those words appear in the request."""
+    text = user_text.lower()
+    checks = []
+    for calc in spec["calculations"]:
+        for segment in calc.get("segments") or []:
+            name = f"calculation.{calc['id']}.segment.{segment['label']}"
+            shown = [f"{p['column']} {p['operator']} {p['values']}" for p in segment["predicates"]]
+            words = (segment.get("user_text") or "").strip().lower()
+            provenance = segment["provenance"]
+            if provenance in ("USER_EXPLICIT", "USER_CLARIFIED"):
+                values = [v for p in segment["predicates"] for v in p["values"]]
+                stated = bool(values) and all(re.search(rf"(?<!\w){re.escape(v.lower())}(?!\w)", text) for v in values)
+                checks.append((name, "MATCH" if stated else "UNVERIFIED", values if stated else None, shown,
+                               "The request states this segment's values." if stated else
+                               "Marked as stated by the user, but its values do not appear in the request.", None))
+            elif provenance == "CATALOG_RESOLVED" and words and re.search(rf"(?<!\w){re.escape(words)}(?!\w)", text):
+                checks.append((name, "UNVERIFIED", segment["user_text"], shown,
+                               f"'{segment['user_text']}' in the request was resolved to {shown}; disclose this "
+                               f"interpretation.", None))
+            elif provenance == "CATALOG_RESOLVED":
+                checks.append((name, "MISMATCH", segment.get("user_text"), shown,
+                               "The words this segment claims to resolve do not appear in the request.",
+                               "SCOPE_PREDICATE_UNSUPPORTED"))
+            else:
+                checks.append((name, "UNVERIFIED", None, shown, "A segment defined by the AI, not stated by the user.",
+                               None))
     return checks
 
 

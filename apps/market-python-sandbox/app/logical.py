@@ -281,11 +281,11 @@ def _column_uses(spec: dict[str, Any]) -> dict[str, set[str]]:
     """Columns that verified calculations read as numbers, per logical input."""
     uses: dict[str, set[str]] = {}
     for calc in spec["calculations"]:
-        if calc["method"] == "GROUP_AGGREGATE":
-            # counts and extremes accept any column type; sums and averages need numbers
-            function = next((p["value"] for p in calc["params"] if p["name"] == "function"), None)
-            if function not in ("SUM", "AVG", "MEDIAN"):
-                continue
+        function = next((p["value"] for p in calc["params"] if p["name"] == "function"), None)
+        if calc["method"] == "GROUP_AGGREGATE" and function not in ("SUM", "AVG", "MEDIAN"):
+            continue  # counts and extremes accept any column type; sums and averages need numbers
+        if calc["method"] == "PERIOD_STAT" and function == "COUNT":
+            continue
         if calc["method"] != "CUSTOM":
             uses.setdefault(calc["dataset"], set()).update(calc["columns"])
     return uses
