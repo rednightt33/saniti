@@ -263,6 +263,13 @@ class SpecHoldout(Strict):
     end: str | None = Field(pattern=r"^\d{4}-\d{2}-\d{2}$", description="Last out-of-sample date, or null.")
 
 
+class SpecComparator(Strict):
+    type: Literal["GROUPS", "ALL_OTHERS"] = Field(
+        description="GROUPS: every pair of the compared groups; ALL_OTHERS: each compared group versus every other "
+                    "in-scope entity.")
+    groups: list[str] | None = Field(max_length=10, description="The group key values compared (null = every group).")
+
+
 class SpecResearch(Strict):
     evidence_standard: EvidenceStandard
     objective: str = Field(min_length=1, max_length=500)
@@ -274,6 +281,14 @@ class SpecResearch(Strict):
     candidates: int | None = Field(ge=1, le=1_000_000,
                                    description="Conditions, lags or combinations this experiment evaluates; null = 1.")
     holdout: SpecHoldout | None
+    design_type: Literal["EVENT_STUDY", "COMPARATIVE", "ASSOCIATION", "PREDICTIVE_TEMPORAL", "EXPLORATORY_SEARCH"] | \
+        None = Field(description="The research design; required for HISTORICAL_PATTERN, PREDICTIVE and EXPLORATORY.")
+    primary_metric: str | None = Field(pattern=IDENT_PATTERN, description="id of the calculation the claim is about.")
+    observation_unit: Literal["ENTITY", "ENTITY_DATE", "GROUP", "GROUP_DATE", "PAIR", "EVENT"] | None = Field(
+        description="The unit one observation of the evidence is; null derives it from the design.")
+    comparator: SpecComparator | None = Field(description="COMPARATIVE: what the groups are compared with; else null.")
+    multiple_testing_policy: Literal["NONE", "BONFERRONI"] | None = Field(
+        description="BONFERRONI when the design makes more than one comparison; NONE only for a single test.")
 
 
 class CreateAnalysisSpecArgs(Strict):
@@ -418,11 +433,16 @@ SPEC_DESCRIPTION = (
     "UNSPECIFIED (not checkable). coverage FULL (every entity/date/group in scope) or SELECTION (rows meeting the "
     "selection predicates, e.g. RSI < 30, or the top-N of a ranking {calculation, direction, limit, tie_policy}). "
     "Only declared outputs with a checkable grain can pass validation. "
-    "research: null when analysis_type is ANALYSIS. For RESEARCH set evidence_standard (HISTORICAL_PATTERN and "
-    "PREDICTIVE need a hypothesis and an EVENT_STUDY; PREDICTIVE also a holdout; EXPLORATORY for bounded exploration; "
-    "SCENARIO for hypotheticals), objective, hypothesis {id H1.., statement}, method_ref (AI_research_catalog "
-    "method_id), candidates (conditions or lags tested), and followup_of (spec_id of a completed experiment on the "
-    "same hypothesis) for a follow-up."
+    "research: null when analysis_type is ANALYSIS. For RESEARCH set evidence_standard (HISTORICAL_PATTERN, "
+    "PREDICTIVE, EXPLORATORY, DESCRIPTIVE, SCENARIO for hypotheticals), objective, hypothesis {id H1.., statement} "
+    "(required for HISTORICAL_PATTERN and PREDICTIVE), design_type and primary_metric (the calculation the claim is "
+    "about): EVENT_STUDY (an EVENT_STUDY calculation), COMPARATIVE (a GROUP_AGGREGATE AVG of a per-entity metric in a "
+    "GROUP output; comparator GROUPS or ALL_OTHERS), ASSOCIATION (a CORRELATION or GROUP_CORRELATION), "
+    "PREDICTIVE_TEMPORAL (evidence_standard PREDICTIVE: an EVENT_STUDY with holdout {start} inside the period), "
+    "EXPLORATORY_SEARCH (evidence_standard EXPLORATORY; candidates = the size of the search space). A design with more "
+    "than one comparison needs candidates >= the number of comparisons and multiple_testing_policy BONFERRONI. "
+    "method_ref (AI_research_catalog method_id), and followup_of (spec_id of a completed experiment on the same "
+    "hypothesis) for a follow-up; a non-significant result is reported, never searched again until it passes."
 )
 
 PREPARE_DESCRIPTION = (

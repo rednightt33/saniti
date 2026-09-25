@@ -771,10 +771,11 @@ def check_output(output: dict[str, Any], path: str | None, spec: dict[str, Any],
         return _check_summary(output, path, used[0], spec, manifest, frames, refs, period, expected_all, evidence,
                               scope, research_context or {})
     if output["grain"] in ("GROUP", "GROUP_DATE"):
-        return _check_groups(output, path, used, spec, manifest, frames, refs, period, expected_all, evidence, scope)
+        return _check_groups(output, path, used, spec, manifest, frames, refs, period, expected_all, evidence, scope,
+                             research_context or {})
     if output["grain"] == "GROUP_PAIR":
         return _check_group_pairs(output, path, used, spec, manifest, frames, refs, period, expected_all, evidence,
-                                  scope)
+                                  scope, research_context or {})
     value_columns = [c["output_column"] for c in used]
     if output["grain"] == "ENTITY_PAIR":
         key_columns = list(output["pair_columns"])
@@ -803,7 +804,8 @@ def check_output(output: dict[str, Any], path: str | None, spec: dict[str, Any],
                      detail="Several output rows share one key; the output does not have the declared grain.")
         return scope
     if output["grain"] == "ENTITY_PAIR":
-        return _check_pairs(output, table, key_columns, used, spec, manifest, frames, period, evidence, scope)
+        return _check_pairs(output, table, key_columns, used, spec, manifest, frames, period, evidence, scope,
+                            research_context or {})
 
     dataset = used[0]["dataset"]
     logical = manifest["logical_datasets"][dataset]
@@ -1156,6 +1158,7 @@ def _group_expected(items: list[dict[str, Any]], date_key: str | None, spec, man
     (group_by column or segment predicates), values from the input column or the independently recalculated
     per-entity calculation. Rows: every in-scope entity's last period observation, or every period date (per_date,
     keyed by date_key)."""
+    import numpy as np
     import pandas as pd
 
     calc = items[0]
@@ -1180,7 +1183,7 @@ def _group_expected(items: list[dict[str, Any]], date_key: str | None, spec, man
     if per_date:
         work[date_key] = base.loc[work["_row"], time].dt.date.astype(str).to_numpy()
         group_columns = group_columns + [date_key]
-    verified, unverified, expected_frames = [], [], []
+    verified, unverified, expected_frames, samples = [], [], [], {}
     for item in items:
         params = {p["name"]: p["value"] for p in item["params"]}
         upstream = item["input_calculation"]
@@ -1193,6 +1196,11 @@ def _group_expected(items: list[dict[str, Any]], date_key: str | None, spec, man
             values = base.loc[work["_row"], item["columns"][0]].to_numpy()
         grouping = work[group_columns].copy()
         grouping["_value"] = values
+        if not per_date:  # per-entity values of each group: the observations of a group comparison
+            numbers = pd.to_numeric(pd.Series(values), errors="coerce").to_numpy(dtype=float)
+            labels = grouping[group_columns].astype(str).agg("|".join, axis=1).to_numpy()
+            samples[item["id"]] = {label: numbers[(labels == label) & np.isfinite(numbers)]
+                                   for label in sorted(set(labels))}
         function = params["function"]
         grouped = grouping.groupby(group_columns, sort=True, dropna=False)["_value"]
         if function == "COUNT":
@@ -1224,7 +1232,8 @@ def _group_expected(items: list[dict[str, Any]], date_key: str | None, spec, man
     if membership:
         evidence.add(f"output.{name}.segments", "PASS", **membership)
     return {"expected": expected, "keys": group_columns, "verified": verified, "unverified": unverified,
-            "entities": int(base[entity].nunique()) if entity else len(base), "membership": membership}
+            "entities": int(base[entity].nunique()) if entity else len(base), "membership": membership,
+            "samples": samples}
 
 
 def _group_table(path: str, keys: list[str], value_columns: list[str], date_key: str | None, unknown: set[str],
@@ -1246,7 +1255,8 @@ def _group_table(path: str, keys: list[str], value_columns: list[str], date_key:
     return table
 
 
-def _check_groups(output, path, used, spec, manifest, frames, refs, period, expected_all, evidence, scope):
+def _check_groups(output, path, used, spec, manifest, frames, refs, period, expected_all, evidence, scope,
+                  context=None):
     """GROUP / GROUP_DATE outputs: recompute every group from the entity rows, then compare keys (omitted or extra
     groups), the top-N over every recalculated group, and values (cross-group contamination shows as a value
     mismatch)."""
@@ -1340,10 +1350,51 @@ def _check_groups(output, path, used, spec, manifest, frames, refs, period, expe
                                                                          "calculation.")
     scope.update(groups=int(in_ref.sum()), values_checked=checked_total, verified_calculations=verified,
                  unverified_calculations=unverified)
+    context = context or {}
+    metric = context.get("primary_metric")
+    if context.get("design_type") in ("COMPARATIVE", "EXPLORATORY_SEARCH") and metric in result["samples"]:
+        scope["comparison"] = _comparison(result["samples"][metric], context.get("comparator") or {})
     return scope
 
 
-def _check_group_pairs(output, path, used, spec, manifest, frames, refs, period, expected_all, evidence, scope):
+def _comparison(samples: dict[str, Any], comparator: dict[str, Any]) -> dict[str, Any]:
+    """Welch statistics of the compared groups from the validator's own per-entity values (the null-key group is not
+    compared)."""
+    import numpy as np
+
+    groups = {g: v for g, v in samples.items() if g != NULL_KEY}
+    listed = list(comparator.get("groups") or sorted(groups))
+    summary = {g: {"n": int(len(v)), "mean": _round(np.mean(v)) if len(v) else None,
+                   "std": _round(np.std(v, ddof=1)) if len(v) > 1 else None} for g, v in groups.items()}
+    present = [g for g in listed if g in groups]
+    rows = []
+    if comparator.get("type") == "ALL_OTHERS":
+        for g in present:
+            others = [v for o, v in groups.items() if o != g]
+            rows.append(_welch(g, groups[g], "ALL_OTHERS", np.concatenate(others) if others else np.array([])))
+    else:
+        rows = [_welch(a, groups[a], b, groups[b]) for a, b in itertools.combinations(present, 2)]
+    return {"type": comparator.get("type") or "GROUPS", "groups": summary, "comparisons": rows,
+            "missing_groups": [g for g in listed if g not in groups]}
+
+
+def _welch(a: str, x, b: str, y) -> dict[str, Any]:
+    import numpy as np
+
+    row: dict[str, Any] = {"a": a, "b": b, "n_a": int(len(x)), "n_b": int(len(y)), "mean_a": None, "mean_b": None,
+                           "difference": None, "standard_error": None, "df": None}
+    if len(x) < 2 or len(y) < 2:
+        return row
+    va, vb = float(np.var(x, ddof=1)) / len(x), float(np.var(y, ddof=1)) / len(y)
+    se = math.sqrt(va + vb)
+    df = (va + vb) ** 2 / (va ** 2 / (len(x) - 1) + vb ** 2 / (len(y) - 1)) if se > 0 else len(x) + len(y) - 2
+    row.update(mean_a=float(np.mean(x)), mean_b=float(np.mean(y)), difference=float(np.mean(x) - np.mean(y)),
+               standard_error=se, df=float(df))
+    return row
+
+
+def _check_group_pairs(output, path, used, spec, manifest, frames, refs, period, expected_all, evidence, scope,
+                       context=None):
     """GROUP_PAIR outputs: recompute the aligned per-date group series from the entity rows (the same group check as
     GROUP_DATE outputs), then the correlation of every pair of non-null groups on their common dates."""
     import numpy as np
@@ -1409,6 +1460,10 @@ def _check_group_pairs(output, path, used, spec, manifest, frames, refs, period,
         else:
             evidence.add(f"calculation.{calc['id']}.{name}", "PASS", method=calc["method"], checked=len(ok))
         verified.append(calc["id"])
+        if (context or {}).get("primary_metric") == calc["id"]:
+            scope["association"] = {"method": params["method"], "unit": "GROUP_DATE",
+                                    "pairs": [{"pair": list(p), "r": _round(expected[p]), "n": overlap[p]}
+                                              for p in sorted(expected)]}
     scope.update(groups=len(groups), pairs=len(overlap), values_checked=checked_total, verified_calculations=verified,
                  unverified_calculations=[])
     return scope
@@ -1500,7 +1555,7 @@ def _diagnose_pairs(frame, entity, time, tickers, column, params, period, actual
     return None
 
 
-def _check_pairs(output, table, key_columns, used, spec, manifest, frames, period, evidence, scope):
+def _check_pairs(output, table, key_columns, used, spec, manifest, frames, period, evidence, scope, context=None):
     import numpy as np
 
     calc = used[0]
@@ -1540,6 +1595,16 @@ def _check_pairs(output, table, key_columns, used, spec, manifest, frames, perio
     else:
         evidence.add(f"calculation.{calc['id']}.{output['name']}", "PASS", method="CORRELATION", checked=len(ok))
     scope.update(values_checked=len(ok), verified_calculations=[calc["id"]], unverified_calculations=[])
+    if (context or {}).get("primary_metric") == calc["id"]:
+        import numpy as np
+
+        def common(a: str, b: str) -> int:
+            shared = set(series.get(a, {})) & set(series.get(b, {}))
+            return sum(1 for d in shared if np.isfinite(series[a][d]) and np.isfinite(series[b][d]))
+
+        scope["association"] = {"method": params["method"], "unit": "ENTITY_DATE",
+                                 "pairs": [{"pair": list(p), "r": _round(expected[p]), "n": common(*p)}
+                                           for p in sorted(expected)]}
     return scope
 
 
@@ -1762,6 +1827,11 @@ def assess(context: dict[str, Any], status: str, level: str, scopes: list[dict[s
                 "evidence_level": "SCENARIO" if claim == "SCENARIO" else "OBSERVATION", "checks": checks,
                 "reporting_constraints": constraints, "statistics": {}, "source": "VALIDATOR"}
 
+    design = context.get("design_type")
+    if design == "COMPARATIVE" or (design == "EXPLORATORY_SEARCH" and any(s.get("comparison") for s in scopes)):
+        return _assess_comparison(context, claim, thresholds, checks, scopes)
+    if design == "ASSOCIATION" or (design == "EXPLORATORY_SEARCH" and any(s.get("association") for s in scopes)):
+        return _assess_association(context, claim, thresholds, checks, scopes)
     study = next((s["event_study"] for s in scopes if s.get("event_study")), None)
     constraints.append("Describe the result as a historical association, not causation.")
     if claim != "PREDICTIVE":
@@ -1834,6 +1904,132 @@ def assess(context: dict[str, Any], status: str, level: str, scopes: list[dict[s
     return {"claim_type": claim, "decision": decision, "evidence_level": level_name, "checks": checks,
             "reporting_constraints": constraints, "statistics": _clean(statistics), "source": "VALIDATOR",
             "holdout": holdout}
+
+
+def _tests(context: dict[str, Any], actual: int) -> int:
+    """Tests on this hypothesis for the multiple-testing adjustment: the earlier experiments' candidates plus this
+    experiment's comparisons, counted from the data when there are more than it declared."""
+    declared = int(context.get("candidates") or 1)
+    earlier = max(0, int(context.get("tests_on_hypothesis") or declared) - declared)
+    return max(1, earlier + max(declared, actual))
+
+
+def _design_decision(claim: str, checks: dict[str, str], keys: tuple[str, ...]) -> tuple[str, str]:
+    if checks.get("minimum_sample") == "FAIL":
+        decision = "INSUFFICIENT_EVIDENCE"
+    elif all(checks.get(k) == "PASS" for k in ("calculation",) + keys):
+        decision = "SUPPORTED"
+    else:
+        decision = "PARTIALLY_SUPPORTED"
+    if claim == "EXPLORATORY" and decision == "SUPPORTED":
+        decision = "PARTIALLY_SUPPORTED"
+    level = {"HISTORICAL_PATTERN": "PATTERN", "EXPLORATORY": "EXPLORATORY"}.get(claim, "OBSERVATION") \
+        if decision != "INSUFFICIENT_EVIDENCE" else "NONE"
+    return decision, level
+
+
+def _assess_comparison(context: dict[str, Any], claim: str, thresholds: dict[str, Any], checks: dict[str, str],
+                       scopes: list[dict[str, Any]]) -> dict[str, Any]:
+    """Profile X for a COMPARATIVE design: group sizes, the differences of group means with Welch intervals, and the
+    multiple-testing adjustment over every comparison actually made."""
+    from scipy import stats
+
+    comparison = next((s["comparison"] for s in scopes if s.get("comparison")), None)
+    constraints = ["Describe differences between groups as historical associations, not causes.",
+                   "Group membership is the catalog classification used by the spec (current, not point-in-time, "
+                   "unless the catalog says otherwise)."]
+    checks.update(baseline="NOT_APPLICABLE", temporal_holdout="NOT_APPLICABLE", overlap="NOT_APPLICABLE",
+                  censoring="NOT_APPLICABLE")
+    if comparison is None or not comparison["comparisons"]:
+        checks.update(minimum_sample="NOT_VERIFIABLE", comparator="NOT_VERIFIABLE", uncertainty="NOT_VERIFIABLE",
+                      multiple_testing="NOT_VERIFIABLE")
+        constraints.append("No independently recalculated group comparison supports this claim.")
+        return {"claim_type": claim, "decision": "INSUFFICIENT_EVIDENCE", "evidence_level": "NONE", "checks": checks,
+                "reporting_constraints": constraints, "statistics": {}, "source": "VALIDATOR"}
+    tests = _tests(context, len(comparison["comparisons"]))
+    rows = []
+    for row in comparison["comparisons"]:
+        ci = adjusted = None
+        if row["standard_error"]:
+            half = float(stats.t.ppf(0.975, row["df"])) * row["standard_error"]
+            wide = float(stats.t.ppf(1 - 0.05 / (2 * tests), row["df"])) * row["standard_error"]
+            ci = [row["difference"] - half, row["difference"] + half]
+            adjusted = [row["difference"] - wide, row["difference"] + wide]
+        rows.append({**row, "ci95": ci, "ci_adjusted": adjusted})
+    minimum = int(thresholds.get("min_group_observations") or 10)
+    small = sorted({g for r in rows for g, n in ((r["a"], r["n_a"]), (r["b"], r["n_b"])) if n < minimum})
+    checks["minimum_sample"] = "FAIL" if small else "PASS"
+    checks["comparator"] = "PARTIAL" if comparison["missing_groups"] else "PASS"
+    checks["coverage"] = "PASS" if checks["scope"] == "PASS" else "PARTIAL"
+    checks["uncertainty"] = "PASS" if any(_excludes_zero(r["ci95"]) for r in rows) else "PARTIAL"
+    checks["multiple_testing"] = "PASS" if any(_excludes_zero(r["ci_adjusted"]) for r in rows) else "PARTIAL"
+    decision, level = _design_decision(claim, checks, ("minimum_sample", "comparator", "uncertainty",
+                                                       "multiple_testing"))
+    if small:
+        constraints.append(f"Groups {small} have fewer than {minimum} entities; no difference can be supported.")
+    if comparison["missing_groups"]:
+        constraints.append(f"Groups {comparison['missing_groups']} had no in-scope entity and were not compared.")
+    constraints.append("Report each group's size and mean, and each difference with its interval.")
+    if tests > 1:
+        constraints.append(f"{tests} comparisons were tested on this hypothesis; use the adjusted intervals.")
+    if checks["multiple_testing"] != "PASS":
+        constraints.append("No difference is distinguishable from zero after the multiple-testing adjustment.")
+    if claim == "EXPLORATORY":
+        constraints.append("Label the finding as exploratory and hypothesis-generating.")
+    statistics = {"test": "Welch t on per-entity values", "comparator": comparison["type"],
+                  "groups": comparison["groups"], "comparisons": rows, "tests_on_hypothesis": tests,
+                  "confidence_level": 0.95}
+    return {"claim_type": claim, "decision": decision, "evidence_level": level, "checks": checks,
+            "reporting_constraints": constraints, "statistics": _clean(statistics), "source": "VALIDATOR"}
+
+
+def _assess_association(context: dict[str, Any], claim: str, thresholds: dict[str, Any], checks: dict[str, str],
+                        scopes: list[dict[str, Any]]) -> dict[str, Any]:
+    """Profile X for an ASSOCIATION design: each recalculated correlation with its overlap, a Fisher-z interval, and
+    the multiple-testing adjustment over every pair actually evaluated."""
+    from scipy import stats
+
+    association = next((s["association"] for s in scopes if s.get("association")), None)
+    constraints = ["Describe the correlation as an association, not causation.",
+                   "Observations of a time series are autocorrelated; the interval assumes independent observations "
+                   "and can be too narrow."]
+    checks.update(baseline="NOT_APPLICABLE", temporal_holdout="NOT_APPLICABLE", comparator="NOT_APPLICABLE")
+    if association is None or not association["pairs"]:
+        checks.update(minimum_sample="NOT_VERIFIABLE", uncertainty="NOT_VERIFIABLE", multiple_testing="NOT_VERIFIABLE")
+        constraints.append("No independently recalculated correlation supports this claim.")
+        return {"claim_type": claim, "decision": "INSUFFICIENT_EVIDENCE", "evidence_level": "NONE", "checks": checks,
+                "reporting_constraints": constraints, "statistics": {}, "source": "VALIDATOR"}
+    tests = _tests(context, len(association["pairs"]))
+    factor = 1.06 if association["method"] == "SPEARMAN" else 1.0
+    normal, wide = float(stats.norm.ppf(0.975)), float(stats.norm.ppf(1 - 0.05 / (2 * tests)))
+    rows = []
+    for item in association["pairs"]:
+        r, n = item["r"], item["n"]
+        ci = adjusted = None
+        if r is not None and n > 3 and abs(r) < 1:
+            z, se = math.atanh(r), math.sqrt(factor / (n - 3))
+            ci = [math.tanh(z - normal * se), math.tanh(z + normal * se)]
+            adjusted = [math.tanh(z - wide * se), math.tanh(z + wide * se)]
+        rows.append({**item, "ci95": ci, "ci_adjusted": adjusted})
+    minimum = int(thresholds.get("min_association_observations") or 30)
+    short = [r["pair"] for r in rows if (r["n"] or 0) < minimum or r["r"] is None]
+    checks["minimum_sample"] = "FAIL" if short and len(short) == len(rows) else "PARTIAL" if short else "PASS"
+    checks["uncertainty"] = "PASS" if any(_excludes_zero(r["ci95"]) for r in rows) else "PARTIAL"
+    checks["multiple_testing"] = "PASS" if any(_excludes_zero(r["ci_adjusted"]) for r in rows) else "PARTIAL"
+    decision, level = _design_decision(claim, checks, ("minimum_sample", "uncertainty", "multiple_testing"))
+    if short:
+        constraints.append(f"Pairs {short[:5]} have fewer than {minimum} common observations.")
+    constraints.append("Report each correlation with its number of common observations and interval.")
+    if tests > 1:
+        constraints.append(f"{tests} correlations were tested on this hypothesis; use the adjusted intervals.")
+    if checks["multiple_testing"] != "PASS":
+        constraints.append("No correlation is distinguishable from zero after the multiple-testing adjustment.")
+    if claim == "EXPLORATORY":
+        constraints.append("Label the finding as exploratory and hypothesis-generating.")
+    statistics = {"test": "Fisher z interval", "method": association["method"], "unit": association["unit"],
+                  "pairs": rows, "tests_on_hypothesis": tests, "confidence_level": 0.95}
+    return {"claim_type": claim, "decision": decision, "evidence_level": level, "checks": checks,
+            "reporting_constraints": constraints, "statistics": _clean(statistics), "source": "VALIDATOR"}
 
 
 def _round(value: Any) -> Any:

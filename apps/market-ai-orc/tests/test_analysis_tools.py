@@ -203,6 +203,10 @@ def test_request_models_match_the_sandbox_contract() -> None:
     sandbox_spec = sandbox_module("spec")
     assert set(sandbox_spec.Calculation.model_fields) == set(CreateAnalysisSpecArgs.model_fields["calculations"]
                                                             .annotation.__args__[0].model_fields)
+    from app.tools.analysis import SpecComparator, SpecResearch
+
+    assert set(sandbox_spec.ResearchBlock.model_fields) == set(SpecResearch.model_fields)
+    assert set(sandbox_spec.Comparator.model_fields) == set(SpecComparator.model_fields)
 
 
 def test_segments_period_statistics_and_group_pairs_reach_the_sandbox_unchanged() -> None:

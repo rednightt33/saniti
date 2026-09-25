@@ -604,7 +604,10 @@ One research run is one `request_id`; there is still one orchestrator and no sec
 model marks a research question with `research` in `create_analysis_spec`:
 `evidence_standard` (`CALCULATION`, `SCREEN`, `DESCRIPTIVE`, `HISTORICAL_PATTERN`, `EXPLORATORY`,
 `PREDICTIVE`, `SCENARIO`), `objective`, `hypothesis`, `method_ref` (an `AI_research_catalog`
-method as methodology reference), `followup_of`, `candidates`, and `holdout`. The deterministic
+method as methodology reference), `followup_of`, `candidates`, `holdout`, and the design
+(`design_type` `EVENT_STUDY` / `COMPARATIVE` / `ASSOCIATION` / `PREDICTIVE_TEMPORAL` /
+`EXPLORATORY_SEARCH`, `primary_metric`, `observation_unit`, `comparator`,
+`multiple_testing_policy`). The deterministic
 Research Governor in the sandbox (see
 [`../market-python-sandbox/README.md`](../market-python-sandbox/README.md#research-governor-evidence-assessment-and-leakage))
 answers `APPROVED`, `REPLAN_REQUIRED`, or `REJECTED` with a `reason_code` and the run's budget;

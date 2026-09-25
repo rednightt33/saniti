@@ -538,6 +538,18 @@ class Holdout(Loose):
     end: date | None = None
 
 
+DesignType = Literal["EVENT_STUDY", "COMPARATIVE", "ASSOCIATION", "PREDICTIVE_TEMPORAL", "EXPLORATORY_SEARCH"]
+
+
+class Comparator(Loose):
+    """COMPARATIVE designs: GROUPS compares every pair of the listed groups (all groups when null); ALL_OTHERS compares
+    each listed group with every other in-scope entity."""
+
+    type: Literal["GROUPS", "ALL_OTHERS"]
+    groups: list[Annotated[str, StringConstraints(min_length=1, max_length=80)]] | None = Field(default=None,
+                                                                                              max_length=10)
+
+
 class ResearchBlock(Loose):
     evidence_standard: EvidenceStandard
     objective: Annotated[str, StringConstraints(min_length=1, max_length=500)]
@@ -546,6 +558,12 @@ class ResearchBlock(Loose):
     followup_of: Annotated[str, StringConstraints(pattern=SPEC_ID)] | None = None
     candidates: int | None = Field(default=None, ge=1, le=1_000_000)
     holdout: Holdout | None = None
+    # the declared research design (the evidence contract the Research Governor and profile X check)
+    design_type: DesignType | None = None
+    primary_metric: Ident | None = None
+    observation_unit: Literal["ENTITY", "ENTITY_DATE", "GROUP", "GROUP_DATE", "PAIR", "EVENT"] | None = None
+    comparator: Comparator | None = None
+    multiple_testing_policy: Literal["NONE", "BONFERRONI"] | None = None
 
 
 class AnalysisSpec(Loose):
@@ -1058,6 +1076,13 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
         holdout = research["holdout"]
         if holdout.get("end") and holdout["end"] < holdout["start"]:
             problems.append("research.holdout: end is before start")
+    if research:
+        for key in ("design_type", "primary_metric", "observation_unit", "comparator", "multiple_testing_policy"):
+            research.setdefault(key, None)
+        if research["primary_metric"] and research["primary_metric"] not in calcs:
+            problems.append(f"research.primary_metric: {research['primary_metric']!r} is not a calculation id")
+        if research["design_type"] and not research["observation_unit"] and research["primary_metric"] in calcs:
+            research["observation_unit"] = observation_unit(research["design_type"], calcs[research["primary_metric"]])
     for rule in raw["exclusion_rules"]:
         _trace(rule, f"exclusion rule {rule['rule']}", problems)
         value = rule["value"]
@@ -1122,6 +1147,17 @@ def _group_pair_output(output: dict[str, Any], refs: list[dict[str, Any]], calcs
     output["key_columns"] = expected
     output["at"] = None
     output["entity_column"] = output["date_column"] = output["pair_columns"] = None
+
+
+def observation_unit(design: str, metric: dict[str, Any]) -> str | None:
+    """The unit one observation of the evidence is, derived from the design and its primary metric."""
+    if design in ("EVENT_STUDY", "PREDICTIVE_TEMPORAL"):
+        return "EVENT"
+    if design == "COMPARATIVE":
+        return "ENTITY"
+    if design == "ASSOCIATION":
+        return "GROUP_DATE" if metric["method"] == "GROUP_CORRELATION" else "ENTITY_DATE"
+    return None
 
 
 def group_key_columns(calc: dict[str, Any]) -> list[str]:

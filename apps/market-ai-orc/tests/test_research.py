@@ -20,7 +20,9 @@ from test_provenance import answer, governor
 SPEC2 = "spec_" + "2" * 24
 RESEARCH = {"evidence_standard": "HISTORICAL_PATTERN", "objective": "Is weakness followed by recovery?",
             "hypothesis": {"id": "H1", "statement": "Deep z-scores precede above-baseline returns."},
-            "method_ref": "event_study", "followup_of": None, "candidates": None, "holdout": None}
+            "method_ref": "event_study", "followup_of": None, "candidates": None, "holdout": None,
+            "design_type": "EVENT_STUDY", "primary_metric": None, "observation_unit": None, "comparator": None,
+            "multiple_testing_policy": None}
 
 
 def assessment(claim: str = "HISTORICAL_PATTERN", decision: str = "PARTIALLY_SUPPORTED", level: str = "PATTERN",

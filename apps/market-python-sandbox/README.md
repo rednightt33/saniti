@@ -333,7 +333,14 @@ A spec may carry a `research` block. It holds:
 - `evidence_standard`: `CALCULATION`, `SCREEN`, `DESCRIPTIVE`, `HISTORICAL_PATTERN`, `EXPLORATORY`, `PREDICTIVE` or `SCENARIO`;
 - `objective`, `hypothesis {id, statement}`;
 - `method_ref`: an `AI_research_catalog` method_id;
-- `followup_of`, `candidates`, `holdout`.
+- `followup_of`, `candidates`, `holdout`;
+- the design (the evidence contract):
+  - `design_type`: `EVENT_STUDY`, `COMPARATIVE`, `ASSOCIATION`, `PREDICTIVE_TEMPORAL` or
+    `EXPLORATORY_SEARCH`;
+  - `primary_metric`: the calculation the claim is about;
+  - `observation_unit` (derived when null);
+  - `comparator`: `GROUPS` or `ALL_OTHERS`, optionally with the compared `groups`;
+  - `multiple_testing_policy`: `NONE` or `BONFERRONI`.
 
 After the intent check approves such a spec, `app/research_policy.py` decides deterministically:
 - `APPROVED`: the spec_id is the reservation.
@@ -350,8 +357,29 @@ required validation for the standard. The ledger is the run's approved research 
 - declared candidates.
 
 Further rules:
-- `HISTORICAL_PATTERN` and `PREDICTIVE` need a hypothesis and an `EVENT_STUDY`.
+- `HISTORICAL_PATTERN` and `PREDICTIVE` need a hypothesis.
+- A V2 `HISTORICAL_PATTERN`, `PREDICTIVE` or `EXPLORATORY` claim declares its design
+  (`RESEARCH_DESIGN_REQUIRED`). The design must fit the claim (`DESIGN_STANDARD_MISMATCH`):
+  - `PREDICTIVE` claims need `PREDICTIVE_TEMPORAL`;
+  - `EXPLORATORY_SEARCH` is for `EXPLORATORY` claims only;
+  - `EVENT_STUDY`, `COMPARATIVE` and `ASSOCIATION` support pattern, exploratory and descriptive
+    claims.
+- Design requirements, none of them topic-specific:
+  - `EVENT_STUDY` and `PREDICTIVE_TEMPORAL` need an `EVENT_STUDY` calculation, the implemented
+    temporal evaluator.
+  - `COMPARATIVE` needs a `GROUP_AGGREGATE AVG` (not per date) of a per-entity metric in a `GROUP`
+    output (`PRIMARY_METRIC_INVALID`), and a comparator (`COMPARATOR_REQUIRED`).
+  - `ASSOCIATION` needs a `CORRELATION` or `GROUP_CORRELATION`.
+  - `EXPLORATORY_SEARCH` declares its search space as `candidates` of at least 2
+    (`SEARCH_SPACE_REQUIRED`).
+- A design with more than one comparison declares them:
+  - `candidates` must be at least the comparisons the spec determines (`CANDIDATES_UNDERSTATED`);
+  - `multiple_testing_policy` must be `BONFERRONI` (`MULTIPLE_TESTING_POLICY_REQUIRED`).
+- A V1 spec without a design keeps the earlier rule: pattern and predictive claims need an
+  `EVENT_STUDY`.
 - `PREDICTIVE` also needs a temporal holdout inside the period, covering at least 20% of it.
+- The physical date partitions of one approved data plan are not experiments: one approved spec
+  is one experiment.
 - Re-sending the same spec for the same request and user messages returns the stored spec_id
   (`replayed: true`) and reserves nothing.
 
@@ -369,7 +397,18 @@ How each claim type is assessed:
   - the 95% interval of the difference from the baseline (Welch) excluding zero;
   - a Bonferroni-adjusted interval over every test run on the hypothesis.
 - Predictive claims also need an out-of-sample difference of the same sign.
+- `COMPARATIVE` designs (profile X) use the validator's own per-entity values of each group:
+  - group sizes of at least `min_group_observations` (10);
+  - Welch 95% intervals of each difference of group means;
+  - a Bonferroni adjustment over every comparison actually made. When the data yields more
+    comparisons than declared, the larger count is used.
+- `ASSOCIATION` designs use each recalculated correlation with its common observations:
+  - at least `min_association_observations` (30) observations;
+  - a Fisher-z interval and the same adjustment over every evaluated pair;
+  - a reporting constraint that time-series autocorrelation can make the interval too narrow.
 - An exploration is at most `PARTIALLY_SUPPORTED`.
+- A non-significant result is reported as such. Another look at the same hypothesis is an
+  explicit, budgeted follow-up of a completed experiment, and it widens the adjustment.
 
 **Prefix leakage re-run.** For `CUSTOM` code without an expression in an `ENTITY_DATE` output
 (explicit or trailing period, at least 10 trading dates, enough CPU budget), the sandbox runs the
