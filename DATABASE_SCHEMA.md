@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-24T12:33:35+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-25T11:41:34+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -22,27 +22,27 @@ Generated from PostgreSQL schema `public` at `2026-09-24T12:33:35+00:00`.
 | `Analysis_Step_Log` | System | After each AI analysis tool or compaction step | — | `2026-09-13 15:02:15+00:00` | Baseline only | Audit record for every query, tool, compaction, or analytical step in an AI request. |
 | `Analytics_Dataset_Snapshot` | System | Per bounded analytics input; remove private object after terminal grace or expiry | — | `2026-09-14 07:39:52+00:00` | Baseline only | Metadata and retention state for immutable bounded raw or Feature analytical input snapshots stored in a private Railway bucket. |
 | `Analytics_Job` | System | Per generic analytics submission, lease, result, or failure | — | `2026-09-14 07:39:52+00:00` | Baseline only | Durable queue, lease, resource contract, result, and failure audit for separately authenticated query-sandbox and statistical-validation workers. |
-| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-24 12:33:35.336331+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-24 12:33:35+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
-| `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-24` | `2026-09-24 10:04:45.474392+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
+| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-25 11:41:34.130730+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-25 11:41:34+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-25` | `2026-09-25 10:05:52.026462+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
 | `Feature_02_Broker_Rolling` | Feature | After validated broker-summary changes; manual v2 ticker rebuild | `2026-08-31` | `2026-09-14 14:26:33.580099+00:00` | Derived from IDX_Broker_Summary; Investor-Type Feature 02 v2 refresh is manual | Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata. |
 | `Feature_03_Stock_Broker_Daily` | Feature | After Feature 02 refresh; manual Investor-Type v2 refresh | `2026-08-31` | `2026-09-14 15:17:23.131992+00:00` | Derived from Investor-Type Feature_02_Broker_Rolling; Feature 03 v2 refresh is manual | Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate. |
-| `Feature_Calculation_Log` | System | After completed worker attempts | `2026-09-24` | `2026-09-24 10:04:45.480600+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
-| `Feature_Calculation_Queue` | System | After committed price inserts/updates and worker transitions | `2026-09-24` | `2026-09-24 10:04:45.414475+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
+| `Feature_Calculation_Log` | System | After completed worker attempts | `2026-09-25` | `2026-09-25 10:05:52.033286+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
+| `Feature_Calculation_Queue` | System | After committed price inserts/updates and worker transitions | `2026-09-25` | `2026-09-25 10:05:51.975669+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
 | `Feature_Catalog` | Reference | After each validated Feature schema change | — | `2026-09-14 15:17:06.460831+00:00` | Tracked automatically | Versioned, machine-readable formula, interpretation, recommended-use, misuse, availability, point-in-time safety and validation-evidence contract for every validated Feature column. |
 | `Feature_Relationship_Catalog` | Reference | After a validated Feature join contract changes | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned safe-join and grain contracts between verified Feature tables. |
-| `Feature_Status` | System | After enqueue and worker state transitions | `2026-09-24` | `2026-09-24 10:04:45.414475+00:00` | Derived from per-ticker status rows | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
+| `Feature_Status` | System | After enqueue and worker state transitions | `2026-09-25` | `2026-09-25 10:05:51.975669+00:00` | Derived from per-ticker status rows | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
 | `Golden_Analysis_Test` | System | After a versioned golden analytical expectation changes | — | `2026-09-13 15:08:56+00:00` | Baseline only | Versioned analytical regression-test definitions with reproducible conditions and tolerances. |
 | `Golden_Analysis_Test_Result` | System | After each test in a golden-suite run | — | `2026-09-13 15:08:56+00:00` | Baseline only | Per-test correctness, methodology, evidence, warning, latency and token outcome. |
 | `Golden_Analysis_Test_Run` | System | Before major releases and material model, prompt, Feature, or tool changes | — | `2026-09-13 15:08:56+00:00` | Baseline only | Historical execution record for one complete golden analytical regression suite. |
 | `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-10 07:23:34.854803+00:00` | Tracked automatically | Broker code and name, domestic/foreign type, and usage profile such as Institutional-heavy, Retail-heavy, Mixed, or Niche. |
 | `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 14:41:15.160142+00:00` | Derived from table data and load log | Daily broker buy/sell values and lots by symbol, broker, investor type, and market board. |
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-12 13:34:43.352522+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
-| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-24` | `2026-09-24 10:01:46.967932+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
-| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-24` | `2026-09-24 10:03:00.813285+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
-| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-24 12:11:33.596785+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
+| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-25` | `2026-09-25 10:02:17.660498+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
+| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-25` | `2026-09-25 10:03:41.345502+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
+| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-25 11:15:31.051167+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
 | `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
-| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-24 10:03:04.004554+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
+| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-25 10:03:50.557217+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
 | `Tool_Catalog` | Reference | With each approved backend or analytics tool release | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned generic AI tool metadata, activation state, schemas, and advertised operational ceilings. |
 | `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-09-06 13:21:52.115381+00:00` | Loaded from Universe_Equity_Description.xlsx; future changes tracked automatically | Issuer descriptions and TradingView/curated sector and industry classifications. |
 | `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-08-31` | `2026-09-09 16:55:55.713468+00:00` | Derived from load log | Per-trading-date Stockbit broker-summary load progress, retries, and review state. |
@@ -401,15 +401,26 @@ AI-facing master list and bounded-access contract for seven approved source and 
 | `documentation_status` | `text` | No | — | Governed documentation_status field of AI_table_catalog; see the creating migration for its exact contract. |
 | `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed created_at field of AI_table_catalog; see the creating migration for its exact contract. |
 | `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed updated_at field of AI_table_catalog; see the creating migration for its exact contract. |
+| `data_domain` | `text` | No | — | Catalog-managed subject area of the table (MARKET, MACRO, RATES, FUNDAMENTAL, ...); validated by syntax, resolved from catalog rows, never a code enum. |
+| `entity_type` | `text` | No | — | Catalog-managed type of the entity identified by entity_column (STOCK, BROKER, ...). |
+| `asset_type` | `text` | Yes | — | Asset type of the entities when they are assets (IDX_EQUITY); NULL for non-asset entities such as brokers or macro series. |
+| `supported_frequencies` | `ARRAY` | No | — | Observation frequencies the table supports; {STATIC} exactly when time_column is NULL. |
+| `time_semantics` | `text` | Yes | — | Meaning of time_column values (exchange trading date, observation date) or that the table holds current-state reference data. |
+| `subject_metadata_status` | `text` | No | `'INFERRED'::text` | Review state of the subject values: INFERRED (seeded by migration 20260925_001), REVIEWED, or VERIFIED after a person confirms them. |
 
 ### Constraints
 
 | Name | Type | Definition |
 |---|---|---|
 | `AI_table_catalog_access_check` | Check | `CHECK (ai_access_level = ANY (ARRAY['BOUNDED_READ'::text, 'DENIED'::text]))` |
+| `AI_table_catalog_asset_type_check` | Check | `CHECK (asset_type IS NULL OR asset_type ~ '^[A-Z][A-Z0-9_]{1,39}$'::text)` |
 | `AI_table_catalog_category_check` | Check | `CHECK (category = ANY (ARRAY['REFERENCE'::text, 'TRANSACTIONAL'::text, 'FEATURE'::text]))` |
+| `AI_table_catalog_data_domain_check` | Check | `CHECK (data_domain ~ '^[A-Z][A-Z0-9_]{1,39}$'::text)` |
 | `AI_table_catalog_documentation_check` | Check | `CHECK (documentation_status = ANY (ARRAY['VERIFIED'::text, 'PARTIAL'::text, 'NEEDS_REVIEW'::text]))` |
+| `AI_table_catalog_entity_type_check` | Check | `CHECK (entity_type ~ '^[A-Z][A-Z0-9_]{1,39}$'::text)` |
+| `AI_table_catalog_frequencies_check` | Check | `CHECK (cardinality(supported_frequencies) >= 1 AND cardinality(supported_frequencies) <= 8 AND supported_frequencies <@ ARRAY['STATIC'::text, '1MIN'::text, '5MIN'::text, '15MIN'::text, '1H'::text, '1D'::text, '1W'::text, '1M'::text, '1Q'::text, '1Y'::text] AND (time_column IS NULL) = (supported_frequencies = ARRAY['STATIC'::text]))` |
 | `AI_table_catalog_name_check` | Check | `CHECK (btrim(table_name) <> ''::text)` |
+| `AI_table_catalog_subject_status_check` | Check | `CHECK (subject_metadata_status = ANY (ARRAY['INFERRED'::text, 'REVIEWED'::text, 'VERIFIED'::text]))` |
 | `AI_table_catalog_timestamp_check` | Check | `CHECK (updated_at >= created_at)` |
 | `AI_table_catalog_pkey` | Primary key | `PRIMARY KEY (table_name)` |
 

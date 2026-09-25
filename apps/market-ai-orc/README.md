@@ -498,8 +498,8 @@ never restates the scope as a data request.
     LIMITATION.
   - The counters are logged with `ai_run_completed` (`repair_ledger`).
 - **Catalog discovery** includes each table's `subject` (data_domain, entity_type, asset_type,
-  supported_frequencies, time_semantics, subject_metadata_status) once migration 20260925_001 is
-  applied.
+  supported_frequencies, time_semantics, subject_metadata_status) from migration 20260925_001 (applied
+  to `dev` on 2026-09-25).
 - **`get_dimension_values`** lists the exact values of a groupable text dimension before the model
   writes an attribute predicate or a segment. The Governor serves it from an approved static table
   only (`POST /v1/catalog/dimension-values`, orc key), with a bounded scan, at most 200 values, and

@@ -1,5 +1,31 @@
 # Railway changelog
 
+## 2026-09-25 — Deploy the two-path release: migrations 20260925_001/002, market-sql-governor, market-python-sandbox, market-ai-orc (commit a5e11a4)
+
+- Scope approved by the user: apply both migrations, deploy the three services, refresh the catalog and schema documentation, delete the temporary service, and sync the configuration. The user skipped the 10-question stress test, so no model run was made on `dev` after the deploy. The same code was tested with the real model on a read-only copy of the live data earlier the same day (entry below). It was also tested in local real-model reproductions.
+- **Pre-deploy checks:**
+  - No new Railway variable is needed. The code defaults `AI_MAX_OUTPUT_TOKENS=8000`, `AI_ENABLE_LOOKUP_FACT=true`, `AI_ENABLE_REQUEST_DATA=false` and `AI_MAX_REPAIR_ATTEMPTS=3` now apply to market-ai-orc: the model-facing `request_data` is off, and analysis data comes from `prepare_analysis_data`.
+  - The sandbox SQLite schema did not change.
+  - The migrations were rehearsed again on a scratch database with the job's own code.
+- **Rollback references**, recorded before deploying: Governor `8682d991-986d-4c4d-8916-d3f9335dabb6`, sandbox `3cd9de07-73d0-4a73-8dc8-7f6fcba298a2`, orc `3e06e8d6-dfa5-4826-b7c2-28e4e7ac171b`.
+  - The three roll back together: the orc's V2 spec tools need the sandbox's V2 parser and the Governor's catalog contract and scope lineage.
+  - The migrations are additive: older versions ignore the new columns and inactive rows.
+- **Temporary one-off service** `two-path-deploy-job` (`437fba8c-a6a8-4347-b1d5-79c53d75f671`):
+  - It held reference variables only (`DATABASE_URL`, `MARKET_AI_ORC_API_KEY`, `PY_SANDBOX_API_KEY`, `SQL_GOVERNOR_API_KEY`), redacted from its output, and was deleted with `railway service delete`.
+  - Deployment `b3a4370d-4217-48b4-8cb4-7b5c6137e814` applied the migrations (see `DATABASE_CHANGELOG.md`).
+  - Deployment `746ed7b0-9fcf-47f5-9e52-16863544bce6` ran the smoke checks and the catalog/schema refresh.
+- **Deployed** by local upload (`railway up <app> --path-as-root`, clean `git archive` of `a5e11a4`), one at a time. Each deployment reached `SUCCESS`:
+  - Governor `293ba2e2-11e3-47f5-b272-16c43bea25e6`: clean start, Railway health check on `/ready` passed, and the dataset janitor ran.
+  - Sandbox `beec8e84-d84a-4f33-89cd-f6497f1d6c7c`: `isolation_enforced=true`, 0 interrupted analyses, `/ready` 200.
+  - Orc `3669447c-a5e4-4913-aead-f66131a97961`: clean start, `/ready` 200.
+  - No variable, secret, volume, domain, schedule or restart policy was changed.
+- **Smoke checks** over the private network (read-only, no model call):
+  - `/ready` returned 200 on all three services, and the sandbox runtime reports `isolation_enforced=true`.
+  - The Governor's new `POST /v1/catalog/dimension-values` (`IDX_Stock_Universe.Sector`) returned `VALUES_READY` with the 12 stored values, including the string `0`.
+  - The sandbox read the catalog contract from the Governor and refused a deliberately wrong V2 spec with `INVALID_SPEC` / `UNKNOWN_COLUMN`. Refused specs are not stored.
+- The job's output (both deployments) and the three new deployments' startup logs were scanned. There was no bearer token, OpenRouter key, DSN with a password, AWS key id, or presigned-URL signature. An in-process comparison against the three services' secret and URL variable values also found none.
+- **Wrap-up:** the environment is back to 15 services. `railway config pull --force` left `.railway/railway.ts` unchanged, and `railway config plan` reports the configuration up to date.
+
 ## 2026-09-25 — Two-path live test: temporary job with the feature-branch stack (no deploy, no live write)
 
 - Approved by the user as the live test of the two-path architecture (feature branch `claude/upbeat-dijkstra-iybq2f`, commit `1ae56c1`). A local run was not possible: this environment's egress allows HTTPS only, so PostgreSQL could not be reached through the existing TCP proxy.
@@ -44,7 +70,7 @@
     - cost: $0.094, then $0.084, then $0.090;
     - uncoded rejections: 8, then 0.
   - Every answer was `CALCULATION_VERIFIED`. The remaining rejections are ordinary model mistakes, each repaired in one turn.
-- The two-path code was merged to `main` on 2026-09-25 without a deploy. market-sql-governor, market-python-sandbox and market-ai-orc still run the deployments recorded on 2026-09-24 (`8682d991`, `3cd9de07` and `3e06e8d6`, all `SUCCESS`, read back from Railway). Migrations `20260925_001` and `20260925_002` are not applied.
+- At that point the two-path code was merged to `main` without a deploy (deployed later the same day; see the release entry above). market-sql-governor, market-python-sandbox and market-ai-orc still ran the deployments recorded on 2026-09-24 (`8682d991`, `3cd9de07` and `3e06e8d6`, all `SUCCESS`, read back from Railway), and migrations `20260925_001` and `20260925_002` were not yet applied.
 
 ## 2026-09-24 — Stress test: 10 price and sector questions (no deploy, no change)
 

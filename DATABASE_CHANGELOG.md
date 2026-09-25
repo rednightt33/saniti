@@ -9,6 +9,9 @@
   - `Column_Catalog`: 6 rows, ordinal positions 16–21, `PARTIAL`. `Table_Catalog.source_code_paths` of `AI_table_catalog` now lists the migration.
   - `market_sql_governor`, `market_ai_sql_reader`, `market_ai_orc` and `market_ai_catalog_reader` can SELECT the new columns; none can INSERT, UPDATE or DELETE the table.
   - `Tool_Catalog`: 21 market-ai-orc rows. The four new rows are inactive; `create_analysis_spec` v2 and `run_python_analysis` v3 carry `superseded_by`; `request_data` v2 carries the `model_facing` note. The active market-ai-orc rows are still `discover_catalog`, `get_catalog_details` and `read_catalog_rows`, and the table still has 25 active rows, so market-ai-backend lists nothing new.
+- After the three services were deployed, a second run of the same service (deployment `746ed7b0-9fcf-47f5-9e52-16863544bce6`) ran the standard refresh against live `dev`:
+  - `scripts/sync_database_catalog.py`: `Catalog reconciled: 634 physical columns, 21 updated`. The 21 updates are the `source_code_paths` of the `AI_table_catalog` columns, which follow the path the migration appended to `Table_Catalog`.
+  - `scripts/sync_database_schema.py`: `Synchronized 38 tables`. The regenerated `DATABASE_SCHEMA.md` came back as gzip+base64 chunks and was verified by sha256 (`f92d762c…`, 155,711 bytes). Its only changes are timestamp drift and the six new `AI_table_catalog` columns with their five check constraints.
 - `database/migrations/20260925_001_add_ai_table_subject_metadata.sql` extends `public."AI_table_catalog"` with six columns:
   - `data_domain` (NOT NULL), `entity_type` (NOT NULL), `asset_type` (nullable).
   - `supported_frequencies` (NOT NULL; `{STATIC}` exactly when `time_column` is NULL).
@@ -33,7 +36,7 @@
     - The checks refused a lowercase domain, `{1D}` on a static table, an unknown frequency, and a NULL `entity_type`.
     - A second run was refused by the preflight.
   - **20260925_002**, on a `Tool_Catalog` built from its documented structure and check constraints: four inactive rows inserted; the superseded and `request_data` notes were written. The file was regenerated after the dimension-values tool and the Q3/Q6/Q7 and research-design contract changes, and again after the repair-friction fixes (`spec_version` now reaches the model as an enum, scope provenance accepts `CATALOG_RESOLVED`, two new approved defaults), and again after the actionable-message changes (the calculation `provenance` field now tells the model that `CATALOG_RESOLVED` is not valid there; the description covers chained datasets, open-ended periods and the `PERIOD_RETURN` base). It had never been applied. Each regeneration was rehearsed again with the same result.
-- No Railway database, market-data table, Governor grant, or source row was changed.
+- No market-data table, market-data row, Governor grant or role was changed; the only live changes are the `AI_table_catalog` columns and rows above, their catalog rows, the four inactive `Tool_Catalog` rows, and the refresh's own `Column_Catalog` physical facts and `Database_Table_Status` rows.
 
 ## 2026-09-24 — Create AI_research_run_audit and register the Research AI tool contracts (migration 20260924_004)
 
