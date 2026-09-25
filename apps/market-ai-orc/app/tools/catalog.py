@@ -59,6 +59,11 @@ WITH visible AS ({VISIBLE_TABLES})
 SELECT t.table_name, t.description, t.category, t.grain, t.primary_key_columns,
        t.time_column, t.entity_column, t.documentation_status, t.coverage_enabled,
        t.freshness_sla::text AS freshness_sla,
+       -- subject metadata (migration 20260925_001); to_jsonb keeps this query valid before that migration
+       to_jsonb(t) ->> 'data_domain' AS data_domain, to_jsonb(t) ->> 'entity_type' AS entity_type,
+       to_jsonb(t) ->> 'asset_type' AS asset_type, to_jsonb(t) -> 'supported_frequencies' AS supported_frequencies,
+       to_jsonb(t) ->> 'time_semantics' AS time_semantics,
+       to_jsonb(t) ->> 'subject_metadata_status' AS subject_metadata_status,
        (SELECT count(*) FROM public."AI_column_catalog" c
          WHERE c.table_name = t.table_name AND c.ai_allowed AND NOT c.is_sensitive) AS column_count,
        (SELECT count(*) FROM public."AI_calculation_catalog" k
@@ -414,6 +419,9 @@ class CatalogTools:
                     "time_column", "entity_column", "documentation_status", "freshness_sla",
                     "coverage_enabled",
                 ), keep_null=("description",)),
+                **({"subject": _entry(row, ("data_domain", "entity_type", "asset_type", "supported_frequencies",
+                                            "time_semantics", "subject_metadata_status"), keep_null=("asset_type",))}
+                   if row.get("data_domain") else {}),
                 "available_metadata": {
                     "columns": int(row["column_count"]),
                     "calculations": int(row["calculation_count"]),

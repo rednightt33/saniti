@@ -57,7 +57,7 @@ def mock_governor(response: dict[str, Any] | int, seen: list[dict] | None = None
 
 
 def registry_with(client: GovernorClient):
-    return build_default_registry(None, governor_client=client, governor_timeout_seconds=5)
+    return build_default_registry(None, governor_client=client, governor_timeout_seconds=5, request_data_enabled=True)
 
 
 # --- schema ------------------------------------------------------------------------------------------
@@ -90,7 +90,7 @@ def test_existing_tool_schemas_use_only_provider_verified_keywords() -> None:
         def read_only(self):  # pragma: no cover - never called
             raise AssertionError
     allowed = {"type", "properties", "required", "additionalProperties", "items", "anyOf", "enum", "description"}
-    registry = build_default_registry(Reader(), governor_client=mock_governor({}))
+    registry = build_default_registry(Reader(), governor_client=mock_governor({}), request_data_enabled=True)
 
     def keys(node: Any, inside_properties: bool = False) -> set[str]:
         found: set[str] = set()

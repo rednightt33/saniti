@@ -29,12 +29,15 @@ MAX_LIST = 20
 MAX_EXAMPLES = 5
 STALE_GRACE_DAYS = 7
 FAILED_CODES = ("REQUIRED_OUTPUT_MISSING", "OUTPUT_GRAIN_VIOLATION", "ANALYSIS_SCOPE_MISMATCH", "UNIVERSE_MISMATCH",
-                "CALCULATION_MISMATCH", "SELECTION_MISMATCH", "TEMPORAL_LEAKAGE_DETECTED")
+                "CALCULATION_MISMATCH", "SELECTION_MISMATCH", "TEMPORAL_LEAKAGE_DETECTED", "GROUP_COVERAGE_MISMATCH",
+                "GROUP_KEY_AMBIGUOUS", "RANKING_MISMATCH")
+NULL_KEY = "<NULL>"
 EVENT_COLUMNS = ("event_count", "mean", "median", "hit_rate", "baseline_count", "baseline_mean", "baseline_median",
                  "delta_mean", "censored_count", "overlapping_dropped")
 COUNT_COLUMNS = ("event_count", "baseline_count", "censored_count", "overlapping_dropped")
 DEFAULT_THRESHOLDS = {"min_events": 30, "min_baseline_observations": 100, "min_coverage_pct": 95}
-INCOMPLETE_CODES = ("INSUFFICIENT_WARMUP_HISTORY", "SOURCE_PERIOD_UNAVAILABLE", "UNIVERSE_SOURCE_UNAVAILABLE")
+INCOMPLETE_CODES = ("INSUFFICIENT_WARMUP_HISTORY", "SOURCE_PERIOD_UNAVAILABLE", "UNIVERSE_SOURCE_UNAVAILABLE",
+                    "SCOPE_EMPTY")
 TZ = "Asia/Jakarta"
 
 
@@ -84,6 +87,8 @@ def load_inputs(job_dir: str, manifest: dict[str, Any], spec: dict[str, Any], ev
     needed: dict[str, set[str]] = {}
     for calc in spec["calculations"]:
         needed.setdefault(calc["dataset"], set()).update(calc["columns"])
+        for key in calc.get("group_by") or []:
+            needed.setdefault(key["input"], set()).add(key["column"])
     frames: dict[str, Any] = {}
     for name, logical in manifest["logical_datasets"].items():
         columns = set(needed.get(name, set())) | set(logical["key_columns"]) | set(logical["series_key"])
@@ -234,8 +239,13 @@ def preflight(job_dir: str, analysis_spec: dict[str, Any], manifest: dict[str, A
             evidence.add("period.source_coverage", "PASS", expected=[str(start.date()), str(end.date())],
                          trading_dates=period["trading_dates"])
 
+    # data-plan lineage checked by the harness at binding (V2): the executed scope equals the approved scope
+    for item in manifest.get("scope_evidence") or []:
+        evidence.add(item["check"], item["result"], **{k: v for k, v in item.items() if k not in ("check", "result")})
+
     # universe
     expected, unavailable = _expected_universe(spec, frame, entity, time, period, requested, evidence)
+    _population(spec, manifest, frames, expected, evidence, blocking)
     if universe["type"] == "ALL_IN_SOURCE" and requested["entities"] is not None:
         blocking.append({"code": "UNIVERSE_MISMATCH", "classification": "NOT_EXTRACTED",
                          "message": "The spec analyses every ticker, but the bound data was extracted for a subset of "
@@ -412,8 +422,10 @@ def _warmup(analysis_spec: dict[str, Any], manifest: dict[str, Any], frames: dic
 
 # ---------------------------------------------------------------- reference values
 
-def reference_frames(spec: dict[str, Any], manifest: dict[str, Any], frames: dict[str, Any]) -> dict[str, Any]:
-    """Per input: entity, date, and one column per supported calculation (NaN where undefined)."""
+def reference_frames(spec: dict[str, Any], manifest: dict[str, Any], frames: dict[str, Any],
+                     period: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Per input: entity, date, and one column per supported calculation (NaN where undefined). GROUP_AGGREGATE
+    values are recalculated per output by the group check."""
     import numpy as np
     import expression
     import reference
@@ -424,6 +436,11 @@ def reference_frames(spec: dict[str, Any], manifest: dict[str, Any], frames: dic
         name = calc["dataset"]
         logical = manifest["logical_datasets"][name]
         entity, time = logical["entity_column"], logical["date_column"]
+        upstream = calc["input_calculation"]
+        if calc["method"] == "GROUP_AGGREGATE":
+            if upstream and upstream in unverifiable:
+                unverifiable.add(calc["id"])
+            continue
         if not entity or not time:
             unverifiable.add(calc["id"])
             continue
@@ -431,7 +448,15 @@ def reference_frames(spec: dict[str, Any], manifest: dict[str, Any], frames: dic
         if name not in by_dataset:
             by_dataset[name] = frame[[entity, time]].copy()
         target = by_dataset[name]
-        upstream = calc["input_calculation"]
+        if calc["method"] == "PERIOD_RETURN":
+            if period is None or period.get("mode") not in ("EXPLICIT_DATES", "TRAILING") or \
+                    (upstream and upstream in unverifiable):
+                unverifiable.add(calc["id"])
+                continue
+            params = {p["name"]: p["value"] for p in calc["params"]}
+            source = target[_calc_column(spec, upstream)] if upstream else frame[calc["columns"][0]]
+            target[calc["output_column"]] = _period_return(frame, entity, time, _numeric(source), params, period)
+            continue
         if calc["method"] == "EVENT_STUDY":
             # summarised in check_output; verifiable when its outcome and every signal are
             deps = [upstream] + [p["calculation"] for p in calc.get("signal") or []]
@@ -470,6 +495,81 @@ def reference_frames(spec: dict[str, Any], manifest: dict[str, Any], frames: dic
 
 def _calc_column(spec: dict[str, Any], calc_id: str) -> str:
     return next(c["output_column"] for c in spec["calculations"] if c["id"] == calc_id)
+
+
+def _period_return(frame, entity: str, time: str, x, params: dict[str, Any], period: dict[str, Any]):
+    """x_t / x_base - 1 on period dates (x_base: last observation before the period, or first in it)."""
+    import numpy as np
+
+    values = np.full(len(frame), np.nan)
+    dates = frame[time].to_numpy()
+    start, end = np.datetime64(period["start"]), np.datetime64(period["end"])
+    for _, index in frame.groupby(entity, sort=False).indices.items():
+        own = dates[index]
+        inside = (own >= start) & (own <= end)
+        if not inside.any():
+            continue
+        if params.get("base", "PREVIOUS_OBSERVATION") == "PREVIOUS_OBSERVATION":
+            before = np.where(own < start)[0]
+            if not len(before):
+                continue
+            base = x[index[before[-1]]]
+        else:
+            base = x[index[np.where(inside)[0][0]]]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            ratio = x[index[inside]] / base
+            change = np.log(ratio) if params.get("kind") == "LOG" else ratio - 1.0
+        change[~np.isfinite(change)] = np.nan
+        values[index[inside]] = change * (100.0 if params.get("as_percent") else 1.0)
+    return values
+
+
+def _population(spec: dict[str, Any], manifest: dict[str, Any], frames: dict[str, Any], expected: set[str],
+                evidence: Evidence, blocking: list[dict[str, Any]]) -> None:
+    """V2 attribute scope: the candidate population is every member of the UNIVERSE input (extracted with the
+    approved predicates); members without data in the period are reported, and an empty scope is not a result."""
+    scope = spec.get("scope") or {}
+    if scope.get("selection_type") != "ATTRIBUTE_FILTER":
+        return
+    universe = next((i for i in spec["inputs"] if i.get("role") == "UNIVERSE"), None)
+    if universe is None:
+        members = expected
+    else:
+        logical = manifest["logical_datasets"][universe["name"]]
+        members = set(frames[universe["name"]][logical["entity_column"]].astype(str)) \
+            if logical["entity_column"] else set()
+    if not members:
+        blocking.append({"code": "SCOPE_EMPTY", "classification": "SOURCE_UNAVAILABLE",
+                         "message": "No entity satisfies the approved scope predicates "
+                                    f"{[(p['column'], p['operator'], p['values']) for p in scope['predicates']]}; check "
+                                    "the values against the catalog data."})
+        evidence.add("scope.population", "INCOMPLETE", "SCOPE_EMPTY", members=0)
+        return
+    without = members - expected if universe is not None and universe["name"] != _primary(spec, manifest) else set()
+    if without:
+        evidence.add("scope.population", "WARN", "UNIVERSE_MEMBERS_WITHOUT_DATA", classification="SOURCE_UNAVAILABLE",
+                     members=len(members), with_data=len(members & expected), count=len(without),
+                     entities=_sample(without),
+                     detail="Members of the approved scope without observations in the analysis period are not "
+                            "candidates.")
+    else:
+        evidence.add("scope.population", "PASS", members=len(members), with_data=len(members & expected) if
+                     universe is not None else len(members),
+                     predicates=[{k: p[k] for k in ("table", "column", "operator", "values")}
+                                 for p in scope["predicates"]])
+
+
+def _ranked(values, keys, direction: str, limit: int, tie_policy: str):
+    """Indices chosen by a top-N over the complete candidate population (NaN values are not candidates)."""
+    import numpy as np
+
+    order = sorted(range(len(values)), key=lambda i: (values[i] if direction == "ASC" else -values[i], keys[i]))
+    order = [i for i in order if np.isfinite(values[i])]
+    chosen = order[:limit]
+    if tie_policy == "INCLUDE_TIES" and chosen:
+        boundary = values[chosen[-1]]
+        chosen = [i for i in order if (values[i] >= boundary if direction == "DESC" else values[i] <= boundary)]
+    return set(chosen), (values[order[limit - 1]] if len(order) >= limit else None), len(order)
 
 
 # ---------------------------------------------------------------- postflight
@@ -600,6 +700,8 @@ def check_output(output: dict[str, Any], path: str | None, spec: dict[str, Any],
     if output["grain"] == "SUMMARY":
         return _check_summary(output, path, used[0], spec, manifest, frames, refs, period, expected_all, evidence,
                               scope, research_context or {})
+    if output["grain"] in ("GROUP", "GROUP_DATE"):
+        return _check_groups(output, path, used, spec, manifest, frames, refs, period, expected_all, evidence, scope)
     value_columns = [c["output_column"] for c in used]
     if output["grain"] == "ENTITY_PAIR":
         key_columns = list(output["pair_columns"])
@@ -641,7 +743,7 @@ def check_output(output: dict[str, Any], path: str | None, spec: dict[str, Any],
     out_entity = output["entity_column"]
     start, end = period["start"], period["end"]
     selection = output["coverage"] == "SELECTION"
-    selectable = not selection or all(p["calculation"] not in refs["unverifiable"] for p in output["selection"])
+    selectable = not selection or all(p["calculation"] not in refs["unverifiable"] for p in output["selection"] or [])
 
     if output["grain"] == "ENTITY_DATE":
         out_time = output["date_column"]
@@ -710,7 +812,37 @@ def check_output(output: dict[str, Any], path: str | None, spec: dict[str, Any],
             chosen &= np.nan_to_num(test, nan=False).astype(bool)
         return chosen
 
-    if selection and selectable:
+    ranking = output.get("ranking")
+    if ranking and ranking["calculation"] in {c["id"] for c in verifiable}:
+        column = ref_col[calcs[ranking["calculation"]]["output_column"]]
+        candidates = in_ref & defined
+        values = _numeric(merged[column])
+        keys = merged[out_entity].astype(str).to_numpy()
+        index = np.where(candidates)[0]
+        picked, boundary, population = _ranked(values[index], keys[index], ranking["direction"], ranking["limit"],
+                                               ranking["tie_policy"])
+        chosen = np.zeros(len(merged), dtype=bool)
+        chosen[index[sorted(picked)]] = True
+        false_negative = merged[chosen & ~in_out]
+        false_positive = merged[in_out & ~chosen]
+        detail = {"candidates": population, "limit": ranking["limit"], "direction": ranking["direction"],
+                  "tie_policy": ranking["tie_policy"], "boundary_value": _round(boundary),
+                  "population": "every in-scope entity with a defined value (recalculated)"}
+        if len(false_negative) or len(false_positive):
+            evidence.add(f"output.{name}.ranking", "FAIL", "RANKING_MISMATCH", missing=len(false_negative),
+                         unexpected=len(false_positive), missing_examples=_keys(false_negative, out_entity, out_time),
+                         unexpected_examples=_keys(false_positive, out_entity, out_time), **detail,
+                         detail="The emitted rows are not the top-N of the complete candidate population when every "
+                                "candidate is recalculated independently.")
+        else:
+            evidence.add(f"output.{name}.ranking", "PASS", selected=int(chosen.sum()), **detail)
+        scope["selected"] = int(in_out.sum())
+    elif ranking:
+        evidence.add(f"output.{name}.ranking", "SKIPPED",
+                     detail="The ranked calculation has no independent reference; the top-N cannot be checked.")
+        scope["scope_unverifiable"] = True
+        scope["selected"] = int(in_out.sum())
+    elif selection and selectable:
         chosen = satisfies(output["selection"])
         false_negative = merged[in_ref & chosen & ~in_out]
         false_positive = merged[in_out & ~(in_ref & chosen)]
@@ -818,6 +950,200 @@ def check_output(output: dict[str, Any], path: str | None, spec: dict[str, Any],
                          detail="No independent reference implementation for this calculation.")
     scope.update(values_checked=checked_total, verified_calculations=[c["id"] for c in verifiable],
                  unverified_calculations=[c["id"] for c in used if c["id"] in refs["unverifiable"]])
+    return scope
+
+
+def _group_keys(calc: dict[str, Any], manifest: dict[str, Any], frames: dict[str, Any], base, entity: str,
+                evidence: Evidence, name: str):
+    """Attach each grouping key to the rows of base (entity rows of the aggregated input). A key from another
+    input is mapped by entity; an entity with more than one value there makes the grouping ambiguous."""
+    import pandas as pd
+
+    columns = []
+    for key in calc.get("group_by") or []:
+        label = key["column"]
+        if key["input"] == calc["dataset"]:
+            base[label] = frames[key["input"]].loc[base.index, label].to_numpy()
+        else:
+            other = manifest["logical_datasets"][key["input"]]
+            mapping = frames[key["input"]][[other["entity_column"], label]].drop_duplicates()
+            ambiguous = mapping[mapping.duplicated(subset=[other["entity_column"]], keep=False)]
+            if len(ambiguous):
+                evidence.add(f"output.{name}.group_keys", "FAIL", "GROUP_KEY_AMBIGUOUS", key=label,
+                             entities=_sample(ambiguous[other["entity_column"]].astype(str)),
+                             detail="An entity has several values of the grouping key in its reference input.")
+                return None
+            lookup = dict(zip(mapping[other["entity_column"]].astype(str), mapping[label]))
+            base[label] = base[entity].astype(str).map(lookup)
+        columns.append(label)
+    return columns
+
+
+def _normalized_key(value: Any, unknown: set[str]) -> str:
+    if value is None or (isinstance(value, float) and value != value):
+        return NULL_KEY
+    text = str(value.date()) if hasattr(value, "date") and hasattr(value, "hour") else str(value)
+    return NULL_KEY if not text.strip() or text in unknown else text
+
+
+def _check_groups(output, path, used, spec, manifest, frames, refs, period, expected_all, evidence, scope):
+    """GROUP / GROUP_DATE outputs: recompute every group from the entity rows (membership from the catalog grouping
+    column, values from the input column or the independently recalculated per-entity calculation), then compare
+    keys (omitted or extra groups) and values (cross-group contamination shows as a value mismatch)."""
+    import numpy as np
+    import pandas as pd
+    import pyarrow.parquet as pq
+
+    name = output["name"]
+    keys = list(output["key_columns"])
+    value_columns = [c["output_column"] for c in used]
+    schema = pq.read_schema(path).names
+    missing = [c for c in keys + value_columns if c not in schema]
+    if missing:
+        evidence.add(f"output.{name}", "FAIL", "REQUIRED_OUTPUT_MISSING", missing_columns=missing,
+                     detail="Declared key or value columns are missing from the output.")
+        return scope
+    table = pq.read_table(path, columns=list(dict.fromkeys(keys + value_columns))).to_pandas()
+    scope.update(rows=len(table), checked=True)
+    calc = used[0]
+    params = {p["name"]: p["value"] for p in calc["params"]}
+    unknown = set(params.get("unknown_group_values") or [])
+    per_date = bool(params.get("per_date"))
+    date_key = output.get("date_column") if per_date else None
+    for column in keys:
+        if column == date_key:
+            table[column] = _dates(table[column]).dt.date.astype(str)
+        else:
+            table[column] = [_normalized_key(v, unknown) for v in table[column]]
+    duplicates = int(table.duplicated(subset=keys, keep=False).sum())
+    if duplicates:
+        evidence.add(f"output.{name}.grain", "FAIL", "OUTPUT_GRAIN_VIOLATION", rows=duplicates, key=keys,
+                     detail="Several output rows share one group key.")
+        return scope
+    dataset = calc["dataset"]
+    logical = manifest["logical_datasets"][dataset]
+    entity, time = logical["entity_column"], logical["date_column"]
+    frame = frames[dataset]
+    rows = frame[frame[entity].astype(str).isin(expected_all)] if entity else frame
+    excluded = _exclusions(spec, frame, entity, time, period, expected_all, evidence) if entity and time else set()
+    rows = rows[~rows[entity].isin(excluded)] if excluded else rows
+    if time:
+        rows = rows[(rows[time] <= period["end"]) & ((rows[time] >= period["start"]) if period["mode"] != "LATEST"
+                                                     else True)]
+        if not per_date:
+            rows = rows.sort_values([entity, time]).groupby(entity, sort=False).tail(1)
+    base = rows.copy()
+    group_columns = _group_keys(calc, manifest, frames, base, entity, evidence, name)
+    if group_columns is None:
+        return scope
+    if per_date:
+        base[date_key] = base[time].dt.date.astype(str)
+        group_columns = group_columns + [date_key]
+    verified, unverified = [], []
+    expected_frames = []
+    for item in used:
+        item_params = {p["name"]: p["value"] for p in item["params"]}
+        upstream = item["input_calculation"]
+        if upstream:
+            if item["id"] in refs["unverifiable"]:
+                unverified.append(item["id"])
+                continue
+            reference = refs["frames"][dataset]
+            values = reference.loc[base.index, _calc_column(spec, upstream)].to_numpy(dtype=float)
+        else:
+            values = base[item["columns"][0]].to_numpy()
+        work = base[group_columns].copy()
+        for column in group_columns:
+            if column != date_key:
+                work[column] = [_normalized_key(v, unknown) for v in work[column]]
+        if item_params.get("missing_group_policy") == "EXCLUDE":
+            mask = np.ones(len(work), dtype=bool)
+            for column in group_columns:
+                mask &= (work[column] != NULL_KEY).to_numpy()
+            work, values = work[mask], values[mask]
+        work["_value"] = values
+        function = item_params["function"]
+        grouped = work.groupby(group_columns, sort=True, dropna=False)["_value"]
+        if function == "COUNT":
+            result = grouped.count()
+        elif function == "COUNT_DISTINCT":
+            result = grouped.nunique()
+        else:
+            numeric = work.assign(_value=pd.to_numeric(work["_value"], errors="coerce")).groupby(
+                group_columns, sort=True, dropna=False)["_value"]
+            result = {"SUM": numeric.sum, "AVG": numeric.mean, "MEDIAN": numeric.median, "MIN": numeric.min,
+                      "MAX": numeric.max}[function]()
+            if function == "SUM":
+                result = result.where(numeric.count() > 0)
+        contributors = grouped.count()
+        result = result.astype(float).where(contributors >= int(item_params.get("min_observations") or 1))
+        expected_frames.append(result.rename(item["output_column"] + "_ref"))
+        verified.append(item["id"])
+    if not expected_frames:
+        evidence.add(f"output.{name}", "SKIPPED", detail="No independent reference for these group values.")
+        scope["scope_unverifiable"] = True
+        return scope
+    expected = pd.concat(expected_frames, axis=1).reset_index()
+    expected.columns = keys + list(expected.columns[len(keys):])
+    merged = expected.merge(table, on=keys, how="outer", indicator=True)
+    in_ref, in_out = merged["_merge"] != "right_only", merged["_merge"] != "left_only"
+    omitted, extra = merged[in_ref & ~in_out], merged[in_out & ~in_ref]
+    ranking = output.get("ranking")
+    if ranking:
+        column = next(c["output_column"] for c in used if c["id"] == ranking["calculation"]) + "_ref"
+        values = _numeric(merged[column])
+        labels = merged[keys].astype(str).agg("|".join, axis=1).to_numpy()
+        index = np.where(in_ref.to_numpy())[0]
+        picked, boundary, population = _ranked(values[index], labels[index], ranking["direction"], ranking["limit"],
+                                               ranking["tie_policy"])
+        chosen = np.zeros(len(merged), dtype=bool)
+        chosen[index[sorted(picked)]] = True
+        wrong_missing, wrong_extra = merged[chosen & ~in_out], merged[in_out & ~chosen]
+        if len(wrong_missing) or len(wrong_extra):
+            evidence.add(f"output.{name}.ranking", "FAIL", "RANKING_MISMATCH", missing=len(wrong_missing),
+                         unexpected=len(wrong_extra), candidates=population, limit=ranking["limit"],
+                         missing_examples=wrong_missing[keys].head(MAX_EXAMPLES).to_dict("records"),
+                         unexpected_examples=wrong_extra[keys].head(MAX_EXAMPLES).to_dict("records"),
+                         detail="The emitted groups are not the top-N of every recalculated group.")
+        else:
+            evidence.add(f"output.{name}.ranking", "PASS", candidates=population, limit=ranking["limit"],
+                         direction=ranking["direction"], boundary_value=_round(boundary))
+        compare = merged[in_out & chosen]
+    else:
+        if len(omitted) or len(extra):
+            evidence.add(f"output.{name}.groups", "FAIL", "GROUP_COVERAGE_MISMATCH", omitted=len(omitted),
+                         unexpected=len(extra), omitted_examples=omitted[keys].head(MAX_EXAMPLES).to_dict("records"),
+                         unexpected_examples=extra[keys].head(MAX_EXAMPLES).to_dict("records"),
+                         detail="Groups in the recalculated result are missing from the output, or the output has "
+                                "groups the scope does not produce.")
+        else:
+            evidence.add(f"output.{name}.groups", "PASS", groups=int(in_ref.sum()), entities=int(base[entity].nunique())
+                         if entity else len(base), null_key_groups=int((merged[keys] == NULL_KEY).any(axis=1).sum()),
+                         key=keys)
+        compare = merged[in_ref & in_out]
+    checked_total = 0
+    for item in used:
+        if item["id"] not in verified:
+            continue
+        column = item["output_column"]
+        actual, reference = _numeric(compare[column]), _numeric(compare[column + "_ref"])
+        ok = _compare(actual, reference)
+        checked_total += len(ok)
+        if not ok.all():
+            bad = compare[~ok]
+            evidence.add(f"calculation.{item['id']}.{name}", "FAIL", "CALCULATION_MISMATCH", method=item["method"],
+                         mismatched=int((~ok).sum()), checked=len(ok),
+                         examples=[{**{k: r[k] for k in keys}, "expected": _round(r[column + "_ref"]),
+                                    "actual": _round(r[column])} for _, r in bad.head(MAX_EXAMPLES).iterrows()],
+                         detail="Group values differ from the independent recalculation (for example entities counted "
+                                "in the wrong group).")
+        else:
+            evidence.add(f"calculation.{item['id']}.{name}", "PASS", method=item["method"], checked=len(ok))
+    for item_id in unverified:
+        evidence.add(f"calculation.{item_id}.{name}", "SKIPPED", detail="No independent reference for the aggregated "
+                                                                         "calculation.")
+    scope.update(groups=int(in_ref.sum()), values_checked=checked_total, verified_calculations=verified,
+                 unverified_calculations=unverified)
     return scope
 
 
@@ -1250,10 +1576,13 @@ def postflight(job_dir: str, analysis_spec: dict[str, Any], manifest: dict[str, 
     period = resolve_period(analysis_spec, manifest, frames, blocking)
     primary = manifest["logical_datasets"][period["primary_input"]]
     requested = _requested(primary)
+    for item in manifest.get("scope_evidence") or []:
+        evidence.add(item["check"], item["result"], **{k: v for k, v in item.items() if k not in ("check", "result")})
     expected, _ = _expected_universe(spec, frames[period["primary_input"]], primary["entity_column"],
                                      primary["date_column"], period, requested, evidence)
+    _population(spec, manifest, frames, expected, evidence, [])
     _warmup(analysis_spec, manifest, frames, period, expected, requested, evidence)
-    refs = reference_frames(spec, manifest, frames)
+    refs = reference_frames(spec, manifest, frames, period)
     warmups = {name: need["minimum_warmup_observations"] for name, need in analysis_spec["required_input"].items()}
     scopes = []
     for output in spec["outputs"]:
@@ -1265,6 +1594,7 @@ def postflight(job_dir: str, analysis_spec: dict[str, Any], manifest: dict[str, 
     for scope in scopes:
         scope.pop("event_study", None)  # the assessment carries the validator's statistics
     return {"mode": "postflight", "validation_status": status, "validation_level": level,
+            "validation_profile": manifest.get("validation_profile") or "Y_ANALYSIS",
             "reasons": evidence.reasons, "evidence": evidence.items, "period": _period_json(period),
             "expected_entities": len(expected), "outputs": scopes, "evidence_assessment": assessment}
 
@@ -1282,7 +1612,8 @@ def aggregate(spec: dict[str, Any], evidence: Evidence, scopes: list[dict[str, A
     else:
         status = "PASS"
     scope_ok = bool(checked) and not ({"ANALYSIS_SCOPE_MISMATCH", "UNIVERSE_MISMATCH", "REQUIRED_OUTPUT_MISSING",
-                                        "OUTPUT_GRAIN_VIOLATION", "SELECTION_MISMATCH"} & set(evidence.reasons))
+                                        "OUTPUT_GRAIN_VIOLATION", "SELECTION_MISMATCH", "GROUP_COVERAGE_MISMATCH",
+                                        "GROUP_KEY_AMBIGUOUS", "RANKING_MISMATCH"} & set(evidence.reasons))
     # Each output check reports which calculations it actually recalculated (pair correlations are recalculated by
     # the pair check even though they have no per-entity reference series).
     verified = {c for s in checked for c in s.get("verified_calculations", [])}

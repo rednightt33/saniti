@@ -7,9 +7,10 @@ structured outputs (TABLE, METRICS, CHART, ARTIFACT), and then checks, independe
 code, whether those outputs match the analysis the user asked for.
 
 ```text
-user request ─► market-ai-orc ─► POST /v1/specs     Structured Analysis Spec ─► intent check ─► immutable spec_id
-                              ─► request_data        SQL Governor datasets (with warm-up history)
-                              ─► POST /v1/analyses   spec_id + logical inputs + code
+user request ─► market-ai-orc ─► POST /v1/specs     Analysis Spec V2 ─► catalog contract (Governor) + intent check
+                                                     ─► immutable spec_id with scope_sha256 and a data plan
+                              ─► prepare_analysis_data  backend compiler ─► SQL Governor datasets with lineage
+                              ─► POST /v1/analyses   spec_id + prepared input bundle + code
                                      │
          market-python-sandbox harness (root) ─► Governor /v1/datasets/{id}/access ─► verified local Parquet
                                      │
@@ -24,6 +25,78 @@ The service holds **no PostgreSQL credential and no bucket credential**. It hold
   URLs. It cannot submit queries.
 
 Analysis and validator processes hold no keys at all.
+
+## Analysis Spec V2 (two paths: ANALYSIS and RESEARCH)
+
+`POST /v1/specs` accepts two contract versions (`app/spec_v2.py SpecRequestAny`). A spec with
+`spec_version: "2.0"` is V2; a spec without it is V1 and is never reinterpreted.
+market-ai-orc sends V2 only.
+
+- **One base contract.**
+  - `analysis_type` is `ANALYSIS` (research must be null) or `RESEARCH` (research block
+    required).
+  - `ANALYSIS` validates with profile **Y**. `RESEARCH` validates with profile **X**: the Y checks
+    plus the Research Governor and evidence assessment.
+  - Only RESEARCH specs reach the Research Governor, so counts, rankings and correlations never
+    consume a research experiment.
+- **Catalog-bound, no dictionaries.**
+  - The service fetches the catalog contract of every named table from the Governor
+    (`POST /v1/catalog/contract`) and rejects, with a code per problem, any of these:
+    - an unknown table or column (`UNKNOWN_TABLE`, `UNKNOWN_COLUMN`);
+    - a subject that differs from the tables' `data_domain` / `entity_type` / `asset_type`
+      (`SUBJECT_TABLE_MISMATCH`);
+    - an entity or time column other than the catalog's (`KEY_COLUMN_MISMATCH`);
+    - an unknown, disallowed, pre-aggregation or non-input relationship;
+    - an unsupported frequency (`FREQUENCY_NOT_SUPPORTED`);
+    - a non-filterable predicate column (`FILTER_NOT_ALLOWED`) or a mistyped predicate value;
+    - a non-groupable grouping key (`GROUP_BY_NOT_ALLOWED`).
+  - The per-table catalog hashes are stored with the approved contract.
+- **Scope.**
+  - The selection types are `ALL_ELIGIBLE`, `ENTITY_LIST`, and `ATTRIBUTE_FILTER`. The last one
+    takes 1-8 predicates, all of which must hold, each on a filterable catalog column with typed
+    values and provenance.
+  - A predicate on another input's table reaches an input through exactly one declared catalog
+    relationship; otherwise the spec is rejected with `SCOPE_NOT_APPLICABLE_TO_INPUT`.
+  - `CATALOG_RESOLVED` predicates must quote the user's words (`user_text`), and those words must
+    appear in the request. They are disclosed as unverified interpretations.
+  - The code has no topic vocabulary.
+- **Time.**
+  - `time_scope` is null exactly when every input is static reference data (mode `STATIC`, no
+    period, no warm-up).
+  - A dated input without a time scope is `TIME_SCOPE_REQUIRED`.
+  - A static-only spec with a time scope is `TIME_SCOPE_NOT_APPLICABLE`.
+- **Generic operations.**
+  - `PERIOD_RETURN` is the change over the whole period, with a base of `PREVIOUS_OBSERVATION` or
+    `FIRST_IN_PERIOD`.
+  - `GROUP_AGGREGATE` computes `COUNT`/`COUNT_DISTINCT`/`SUM`/`AVG`/`MEDIAN`/`MIN`/`MAX` of a column
+    or of a per-entity calculation, by 1-3 catalog grouping keys of any input (mapped by entity).
+    Its parameters are `per_date`, `missing_group_policy`, `unknown_group_values`, and
+    `min_observations`.
+  - The `GROUP` / `GROUP_DATE` output grains take generic `key_columns`.
+  - A `ranking` is a top-N (`direction`, `limit`, `tie_policy`) over the complete candidate
+    population.
+- **Scope proof** (`app/logical.py verify_scope`). The approved contract holds `scope_sha256`
+  and a data plan per logical input: its exact filters, joins, and warm-up date range. Before any
+  analysis runs, every bound dataset must pass these checks through the Governor's internal
+  validator manifest. Each is refused with its own code:
+  - the lineage names this spec, its sha256, its scope hash and this input
+    (`SCOPE_LINEAGE_MISSING` / `SCOPE_LINEAGE_MISMATCH`);
+  - its executed scope has exactly the approved filters and joins, and nothing else
+    (`EXECUTED_SCOPE_MISMATCH`);
+  - it was extracted under the approved catalog version (`CATALOG_VERSION_MISMATCH`);
+  - its partitions cover the approved date range without gaps or overlaps (`PARTITION_MISSING` /
+    `PARTITION_GAP` / `DATE_RANGE_NOT_COVERED` → INCOMPLETE, `PARTITION_OVERLAP` → FAILED).
+
+  The PASS evidence (`scope.lineage.<input>`) is part of the validation evidence.
+- **Validator** (profile Y):
+  - It recomputes every group from entity rows (`GROUP_COVERAGE_MISMATCH` for omitted or extra
+    groups, `CALCULATION_MISMATCH` for contaminated values).
+  - It recomputes `PERIOD_RETURN` for every candidate and checks the top-N against the whole
+    population (`RANKING_MISMATCH`, even when the output has exactly N rows).
+  - It reports the attribute scope's population (`scope.population`; `SCOPE_EMPTY` when no member
+    matches).
+- Source semantics come from the Governor's `source_contracts` (catalog). No per-table dictionary
+  remains in this service.
 
 ## Execution Validation Gate
 

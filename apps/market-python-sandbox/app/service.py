@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import queue
+import re
 import secrets
 import shutil
 import threading
@@ -31,7 +32,7 @@ from .datasets import DatasetFailure, DatasetProvider
 from .executor import Executor, Outcome, disk_usage, read_child_json
 from .intent import messages_sha256, review
 from .isolation import IsolationReport, run_selftest
-from .logical import BindingError, GrantedFile, bind
+from .logical import PARTITION_INCOMPLETE, BindingError, GrantedFile, bind
 from .models import TERMINAL, AnalysisRequest, AnalysisResult, next_action
 from .outputs import OutputRejected, OutputStore
 from .policy import check_source
@@ -40,6 +41,8 @@ from .research_policy import research_context as build_research_context
 from .research_policy import review as research_review
 from .spec import (SPEC_VERSION, SpecInvalid, SpecRequest, convention_notes, derived_feature_definitions, normalize,
                    output_contract, reference_date, required_input, resolve_period, sha256_json)
+from .spec_v2 import (SPEC_VERSION_V2, AnalysisSpecV2, catalog_tables, normalize_v2, review_scope, scope_document,
+                      scope_sha256)
 
 logger = logging.getLogger("market_python_sandbox")
 RUNTIME_VERSION = "market-python-sandbox/v2"
@@ -225,12 +228,28 @@ class AnalysisService:
             return {"status": "INVALID_SPEC", "problems": [f"unknown timezone {request.timezone!r}"],
                     "next_action": "REVISE_SPEC"}
         ref = reference_date(request.reference_time, request.timezone)
+        v2 = isinstance(request.spec, AnalysisSpecV2)
+        catalog = None
         try:
-            spec = normalize(request.spec, ref)
+            if v2:
+                # Every table, column, relationship, frequency and subject is checked against the Governor's catalog
+                # contract; the approved contract keeps the per-table catalog hashes.
+                try:
+                    catalog = self.datasets.catalog_contract(catalog_tables(request.spec),
+                                                             request_id=request.request_id)
+                except DatasetFailure as failure:
+                    self._log("sandbox_spec_review", request_id=request.request_id, status="CATALOG_UNAVAILABLE")
+                    return {"status": "CATALOG_UNAVAILABLE", "problems": [failure.message], "next_action": "RETRY_LATER"}
+                spec = normalize_v2(request.spec, ref, catalog)
+                data_plan = spec.pop("data_plan")
+            else:
+                spec = normalize(request.spec, ref)
         except SpecInvalid as exc:
             self._log("sandbox_spec_review", request_id=request.request_id, status="INVALID_SPEC",
-                      problems=len(exc.problems))
-            return {"status": "INVALID_SPEC", "problems": exc.problems[:30], "next_action": "REVISE_SPEC"}
+                      problems=len(exc.problems), spec_version="2.0" if v2 else "1")
+            return {"status": "INVALID_SPEC", "problems": exc.problems[:30], "next_action": "REVISE_SPEC",
+                    "problem_codes": sorted({m.group(1) for p in exc.problems
+                                             for m in [re.search(r"\(([A-Z][A-Z0-9_]+)\)$", p)] if m})}
         messages = [m.model_dump() for m in request.user_messages]
         # The same spec for the same request and user messages is the same experiment: a retry returns the
         # stored spec_id and reserves nothing again.
@@ -242,6 +261,8 @@ class AnalysisService:
                       spec_id=existing["spec_id"], replayed=True)
             return {**existing["review"], "replayed": True}
         result, found = review(spec, messages, ref)
+        if v2:
+            _review_v2_scope(spec, found, result)
         resolved = resolve_period(spec["analysis_period"], ref)
         needs = required_input(spec, resolved, ref)
         features = derived_feature_definitions(spec)
@@ -254,17 +275,38 @@ class AnalysisService:
             "unverified_requirements": result.unverified, "clarification_needed": result.clarifications,
             "expected_requirements": found.record(), "output_contract": output_contract(spec),
             "derived_features": features, "convention_notes": convention_notes(spec),
-            "next_action": {"APPROVED": "REQUEST_DATA_THEN_RUN_ANALYSIS",
-                            "APPROVED_WITH_UNVERIFIED": "REQUEST_DATA_THEN_RUN_ANALYSIS",
+            "next_action": {"APPROVED": "PREPARE_DATA_THEN_RUN_ANALYSIS" if v2 else "REQUEST_DATA_THEN_RUN_ANALYSIS",
+                            "APPROVED_WITH_UNVERIFIED": "PREPARE_DATA_THEN_RUN_ANALYSIS" if v2
+                            else "REQUEST_DATA_THEN_RUN_ANALYSIS",
                             "ANALYSIS_SPEC_MISMATCH": "REVISE_SPEC_TO_MATCH_REQUEST",
                             "NEEDS_CLARIFICATION": "ASK_USER_CLARIFICATION"}[status],
         }
+        v2_contract: dict[str, Any] = {}
+        if v2:
+            profile = "X_RESEARCH" if spec["analysis_type"] == "RESEARCH" else "Y_ANALYSIS"
+            plan = data_plan
+            for name, entry in plan.items():
+                window = needs[name]["recommended_request_date_range"]
+                entry["date_range"] = {"column": entry["time_column"], "from": window["from"], "to": window["to"]} \
+                    if window and entry["time_column"] else None
+            digest_scope = scope_sha256(spec, resolved)
+            source_contracts = {name: source_contract(meta) for name, meta in catalog["tables"].items()}
+            v2_contract = {"analysis_type": spec["analysis_type"], "validation_profile": profile,
+                           "scope_sha256": digest_scope, "scope": scope_document(spec, resolved), "data_plan": plan,
+                           "catalog": {"catalog_sha256": catalog.get("catalog_sha256"),
+                                       "catalog_version": catalog.get("catalog_version"),
+                                       "tables": {n: m.get("catalog_table_sha256") for n, m in catalog["tables"].items()},
+                                       "source_contracts": source_contracts}}
+            body.update(analysis_type=spec["analysis_type"], validation_profile=profile, scope_sha256=digest_scope,
+                        data_plan=[{"input": e["input"], "source_table": e["source_table"], "role": e["role"],
+                                    "joins": e["joins"], "filters": len(e["filters"]), "date_range": e["date_range"]}
+                                   for e in plan.values()])
         governor = None
         if status in APPROVED:
             if self.records.count_specs(request.request_id) >= self.settings.max_specs_per_request:
                 return {"status": "REQUEST_BUDGET_EXCEEDED", "next_action": "REPORT_LIMITATION",
                         "problems": ["This request has reached its limit of analysis specs."]}
-            if spec.get("research"):
+            if (spec.get("analysis_type") == "RESEARCH") if v2 else spec.get("research"):
                 with self._submit_lock:  # one reservation at a time per service
                     governor, context = self._govern(request.request_id, spec, resolved)
                 body["governor"] = governor
@@ -278,7 +320,8 @@ class AnalysisService:
                     return body
             else:
                 context = {"evidence_standard": "CALCULATION"}
-            contract = {"spec_version": SPEC_VERSION, "request_id": request.request_id, "reference": body["reference"],
+            contract = {"spec_version": SPEC_VERSION_V2 if v2 else SPEC_VERSION, **v2_contract,
+                        "request_id": request.request_id, "reference": body["reference"],
                         "spec": spec, "resolved_period": resolved, "required_input": needs,
                         "review": {"status": status, "checks": result.checks,
                                    "unverified_requirements": result.unverified},
@@ -535,14 +578,20 @@ class AnalysisService:
             return True
         download_ms = round((time.monotonic() - started) * 1000)
         try:
-            logical = bind(contract["spec"], record["logical_inputs"], granted, s.max_input_files)
+            logical = bind(contract["spec"], record["logical_inputs"], granted, s.max_input_files,
+                           {"spec_id": record["spec_id"], "spec_sha256": record["spec_sha256"], **contract})
         except BindingError as exc:
+            status = "INCOMPLETE" if exc.code in PARTITION_INCOMPLETE else "FAILED"
             self._finish(analysis_id, "FAILED", error=("INPUT_VALIDATION_FAILED", exc.message),
-                         validation=("FAILED", [exc.code]), evidence=[{"check": "input.binding", "result": "FAIL",
-                                                                      "code": exc.code, **exc.details}])
+                         validation=(status, [exc.code]), evidence=[{"check": "input.binding",
+                                                                     "result": "INCOMPLETE" if status == "INCOMPLETE"
+                                                                     else "FAIL", "code": exc.code, **exc.details}])
             return True
         manifest = {"job_id": analysis_id, "analysis_id": analysis_id, "spec_id": record["spec_id"],
-                    "logical_datasets": logical}
+                    "logical_datasets": logical,
+                    "scope_evidence": [info["scope_evidence"] for info in logical.values() if info["scope_evidence"]],
+                    "validation_profile": contract.get("validation_profile") or (
+                        "X_RESEARCH" if contract["spec"].get("research") else "Y_ANALYSIS")}
         self.records.update(analysis_id, database_features={
             name: info["database_features"] for name, info in logical.items() if info["database_features"]})
         analysis_spec = {"spec_id": record["spec_id"], "spec_sha256": record["spec_sha256"], **contract}
@@ -1102,7 +1151,7 @@ class AnalysisService:
         evidence = record.get("validation_evidence") or []
         important = [e for e in evidence if e.get("result") not in ("PASS", "SKIPPED")]
         summary = [e for e in evidence if e.get("result") in ("PASS", "SKIPPED")
-                   and e.get("check", "").startswith(("calculation.", "output.", "universe.", "period."))]
+                   and e.get("check", "").startswith(("calculation.", "output.", "universe.", "period.", "scope."))]
         logical = {b["name"]: b["dataset_ids"] for b in (record.get("logical_inputs") or [])}
         warnings = list(record.get("warnings") or [])
         result = AnalysisResult(
@@ -1184,3 +1233,37 @@ def _validator_detail(result: dict[str, Any] | None, outcome: Outcome) -> str:
     if outcome.kind != "OK":
         return f" (validator process ended with {outcome.kind}: {outcome.stderr_tail[-200:]})"
     return ""
+
+
+def source_contract(meta: dict[str, Any]) -> dict[str, Any]:
+    """Source semantics of one catalog table (the same shape the Governor puts in validator manifests)."""
+    frequencies = meta.get("supported_frequencies")
+    return {"table": meta["table_name"], "grain": list(meta.get("primary_key_columns") or []),
+            "grain_description": meta.get("grain"), "entity_column": meta.get("entity_column"),
+            "time_column": meta.get("time_column"), "supported_frequencies": frequencies,
+            "frequency": (frequencies[0] if frequencies and len(frequencies) == 1 else None),
+            "time_semantics": meta.get("time_semantics"), "data_domain": meta.get("data_domain"),
+            "entity_type": meta.get("entity_type"), "asset_type": meta.get("asset_type"),
+            "subject_metadata_status": meta.get("subject_metadata_status"),
+            "catalog_table_sha256": meta.get("catalog_table_sha256")}
+
+
+def _review_v2_scope(spec: dict[str, Any], found: Any, result: Any) -> None:
+    """V2 scope review: attribute predicates are checked against the user's own words (their provenance); the
+    V1 universe check applies to entity lists and all-eligible scopes only."""
+    for output in spec["outputs"]:
+        ranking = output.get("ranking")
+        if not ranking:
+            continue
+        stated = ranking["provenance"] in ("USER_EXPLICIT", "USER_CLARIFIED") and \
+            re.search(rf"(?<!\d){ranking['limit']}(?!\d)", found.user_text)
+        result.add(f"output.{output['name']}.ranking", "MATCH" if stated else "UNVERIFIED",
+                   ranking["limit"] if stated else None, f"{ranking['direction']} top {ranking['limit']}",
+                   "The request states how many to rank." if stated else
+                   "The number of ranked rows is not stated in the request (chosen by the AI).")
+    if spec["scope"]["selection_type"] != "ATTRIBUTE_FILTER":
+        return
+    for bucket in (result.checks, result.mismatches, result.unverified):
+        bucket[:] = [item for item in bucket if item["requirement"] != "universe"]
+    for requirement, outcome, expected, proposed, detail, code in review_scope(spec, found.user_text):
+        result.add(requirement, outcome, expected, proposed, detail, code)

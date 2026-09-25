@@ -120,14 +120,27 @@ APPROVED_DEFAULTS: dict[str, dict[str, Any]] = {
                                       "computed on simple returns, not on price levels."},
     "DEFAULT_CORRELATION_MIN_OVERLAP": {"value": 20, "meaning": "A correlation needs at least 20 overlapping "
                                         "observations."},
+    "DEFAULT_PERIOD_RETURN_BASE": {"value": "PREVIOUS_OBSERVATION", "meaning": "A return over a period compares the "
+                                   "last observation in the period with the last observation before the period "
+                                   "starts (the change during the period)."},
+    "DEFAULT_GROUP_MISSING_KEY": {"value": "SEPARATE_GROUP", "meaning": "Entities whose grouping value is missing (or "
+                                  "listed in unknown_group_values) form their own group with a null key; they are "
+                                  "reported, not dropped."},
+    "DEFAULT_GROUP_MIN_OBSERVATIONS": {"value": 1, "meaning": "A group value needs at least one contributing "
+                                       "non-null value."},
+    "DEFAULT_GROUP_UNKNOWN_VALUES": {"value": [], "meaning": "No grouping value is treated as unknown unless listed."},
+    "DEFAULT_RANK_TIE_POLICY": {"value": "INCLUDE_EXACTLY_N_STABLE", "meaning": "A top-N keeps exactly N rows; ties at "
+                                "the boundary are broken by the key columns in ascending order."},
 }
 
 FAMILIES = ("RSI", "SMA", "STD", "ZSCORE", "RETURN", "FORWARD_RETURN", "CORRELATION", "EVENT_STUDY")
+AGGREGATE_FUNCTIONS = ("COUNT", "COUNT_DISTINCT", "SUM", "AVG", "MEDIAN", "MIN", "MAX")
+GROUP_GRAINS = ("GROUP", "GROUP_DATE")
 
 
 @dataclass(frozen=True)
 class ParamDef:
-    kind: Literal["int", "bool", "enum", "float"]
+    kind: Literal["int", "bool", "enum", "float", "list"]
     required: bool = False
     default: Any = None
     default_id: str | None = None
@@ -224,6 +237,33 @@ METHODS["EVENT_STUDY"] = MethodDef(
     "previous event's horizon",
     "Signals at t use only trailing values at or before t; the outcome starts after the signal. Events whose "
     "outcome horizon runs past the data are censored, not counted.")
+# A return over the whole analysis period, per entity: the value on each period date t is x_t / x_base - 1, so the
+# value at an entity's last period observation is its period return (ENTITY grain) and ENTITY_DATE outputs hold the
+# cumulative path.
+METHODS["PERIOD_RETURN"] = MethodDef(
+    "PERIOD_RETURN", ("RETURN",),
+    {"kind": RETURN_KIND, "as_percent": AS_PERCENT,
+     "base": ParamDef("enum", default="PREVIOUS_OBSERVATION", default_id="DEFAULT_PERIOD_RETURN_BASE",
+                      choices=("PREVIOUS_OBSERVATION", "FIRST_IN_PERIOD"))},
+    1, ENTITY_SERIES, "x_t / x_base - 1 (SIMPLE) or ln(x_t / x_base) (LOG) for period dates t; x_base = last observation "
+                      "before the period (PREVIOUS_OBSERVATION) or first observation in it (FIRST_IN_PERIOD); x100 when "
+                      "as_percent",
+    "Value at t uses the entity's observations from x_base up to t (no look-ahead).")
+# Aggregation of an input column or of an earlier per-entity calculation by catalog-approved grouping keys. The
+# aggregated value per entity is its value at its last observation in the period (static inputs: its only row);
+# per_date aggregates each period date separately (GROUP_DATE outputs, aligned series).
+METHODS["GROUP_AGGREGATE"] = MethodDef(
+    "GROUP_AGGREGATE", (),
+    {"function": ParamDef("enum", required=True, choices=AGGREGATE_FUNCTIONS),
+     "per_date": ParamDef("bool", default=False),
+     "missing_group_policy": ParamDef("enum", default="SEPARATE_GROUP", default_id="DEFAULT_GROUP_MISSING_KEY",
+                                      choices=("SEPARATE_GROUP", "EXCLUDE")),
+     "unknown_group_values": ParamDef("list", default=[], default_id="DEFAULT_GROUP_UNKNOWN_VALUES"),
+     "min_observations": ParamDef("int", default=1, default_id="DEFAULT_GROUP_MIN_OBSERVATIONS", minimum=1,
+                                  maximum=100000)},
+    1, GROUP_GRAINS, "function(values of the group's entities); null values excluded; a group with fewer than "
+                     "min_observations values has no value",
+    "Per entity the value at its last observation in the period (or each period date when per_date).")
 CUSTOM = "CUSTOM"
 METHOD_NAMES = tuple(METHODS) + (CUSTOM,)
 # Every EVENT_STUDY summary output has these columns (key: segment).
@@ -244,6 +284,8 @@ CONVENTIONS: dict[str, dict[str, Any]] = {
     "CORRELATION": {"source": "TA_LIB", "function": "CORREL", "formula_refs": ["CALC_101", "CALC_102"]},
     "EVENT_STUDY": {"source": "FORMULA_REFERENCE", "function": None,
                     "formula_refs": ["CALC_176", "CALC_177", "CALC_178", "CALC_179"]},
+    "PERIOD_RETURN": {"source": "SANITI", "function": None, "formula_refs": []},
+    "GROUP_AGGREGATE": {"source": "SANITI", "function": None, "formula_refs": []},
 }
 # AI_formula_reference entries a registered method implements: a CUSTOM formula citing one must use the method.
 REFERENCE_TO_METHOD = {ref: method for method, convention in CONVENTIONS.items() for ref in convention["formula_refs"]}
@@ -268,6 +310,11 @@ def method_warmup(method: str, params: dict[str, Any]) -> tuple[int, int, int]:
     if method == "FORWARD_RETURN":
         return 0, 0, params["horizon"]
     if method == "EVENT_STUDY":
+        return 0, 0, 0
+    if method == "PERIOD_RETURN":
+        need = 1 if params.get("base", "PREVIOUS_OBSERVATION") == "PREVIOUS_OBSERVATION" else 0
+        return need, need, 0
+    if method == "GROUP_AGGREGATE":
         return 0, 0, 0
     if method == "RSI":
         # Wilder smoothing depends on where the series starts; the seed effect decays by (n-1)/n per
@@ -322,7 +369,7 @@ class InputSpec(Loose):
 
 class Param(Loose):
     name: Ident
-    value: int | float | str | bool | None
+    value: int | float | str | bool | list[str | int | float] | None
     provenance: Provenance
     default_id: str | None = None
 
@@ -332,10 +379,17 @@ class DataPolicies(Loose):
     missing: Literal["PROPAGATE"] = "PROPAGATE"
 
 
+class GroupKey(Loose):
+    """A grouping key: a catalog column (group_by_allowed) of an input; mapped to entities by entity column."""
+
+    input: Ident
+    column: Column
+
+
 class Calculation(Loose):
     id: Ident
     method: Literal["SMA", "ROLLING_STD", "ROLLING_ZSCORE", "RETURN", "FORWARD_RETURN", "RSI", "ROLLING_CORRELATION",
-                    "CORRELATION", "EVENT_STUDY", "CUSTOM"]
+                    "CORRELATION", "EVENT_STUDY", "PERIOD_RETURN", "GROUP_AGGREGATE", "CUSTOM"]
     dataset: Ident
     columns: list[Column] = Field(default_factory=list, max_length=4)
     input_calculation: Ident | None = None
@@ -355,6 +409,8 @@ class Calculation(Loose):
     meaning: Annotated[str, StringConstraints(max_length=300)] | None = None
     unit: Annotated[str, StringConstraints(max_length=40)] | None = None
     data_policies: DataPolicies | None = None
+    # GROUP_AGGREGATE: the grouping keys (1-3)
+    group_by: list[GroupKey] | None = Field(default=None, max_length=3)
     provenance: Provenance
     default_id: str | None = None
 
@@ -370,9 +426,21 @@ class Predicate(Loose):
 Calculation.model_rebuild()
 
 
+class Ranking(Loose):
+    """Top-N of one calculation over the complete candidate population (every in-scope entity or group with a
+    defined value), checked by the validator after recalculating all candidates."""
+
+    calculation: Ident
+    direction: Literal["ASC", "DESC"]
+    limit: int = Field(ge=1, le=100)
+    tie_policy: Literal["INCLUDE_EXACTLY_N_STABLE", "INCLUDE_TIES"] = "INCLUDE_EXACTLY_N_STABLE"
+    provenance: Provenance = "AI_INFERRED"
+    default_id: str | None = None
+
+
 class OutputSpec(Loose):
     name: Annotated[str, StringConstraints(pattern=OUTPUT_NAME)]
-    grain: Literal["ENTITY_DATE", "ENTITY", "ENTITY_PAIR", "SUMMARY", "UNSPECIFIED"]
+    grain: Literal["ENTITY_DATE", "ENTITY", "ENTITY_PAIR", "GROUP", "GROUP_DATE", "SUMMARY", "UNSPECIFIED"]
     at: Literal["EACH_DATE", "PERIOD_END"] | None = None
     coverage: Literal["FULL", "SELECTION"] = "FULL"
     calculations: list[Ident] = Field(default_factory=list, max_length=12)
@@ -380,6 +448,9 @@ class OutputSpec(Loose):
     entity_column: Column | None = None
     date_column: Column | None = None
     pair_columns: list[Column] | None = Field(default=None, min_length=2, max_length=2)
+    # V2: the output's key columns (entity, grouping columns, date) and an optional top-N
+    key_columns: list[Column] | None = Field(default=None, max_length=4)
+    ranking: Ranking | None = None
 
 
 class ExclusionRule(Loose):
@@ -466,6 +537,9 @@ def reference_date(reference_time: datetime, tz: str) -> date:
 def resolve_period(period: dict[str, Any], ref: date) -> dict[str, Any]:
     """Calendar-resolved periods get dates now; TRADING_DAYS and LATEST are resolved from the input calendar."""
     mode = period["mode"]
+    if mode == "STATIC":
+        return {"mode": mode, "start": None, "end": None, "resolution": "NOT_TEMPORAL",
+                "rule": "static reference data: no analysis period"}
     if mode == "EXPLICIT_DATES":
         return {"mode": mode, "start": period["start"], "end": period["end"], "resolution": "RESOLVED"}
     if mode == "TRAILING":
@@ -504,6 +578,10 @@ def _coerce(name: str, definition: ParamDef, value: Any) -> Any:
     elif definition.kind == "bool":
         if not isinstance(value, bool):
             raise ValueError(f"parameter {name} must be true or false")
+    elif definition.kind == "list":
+        if not isinstance(value, list) or len(value) > 20 or any(isinstance(v, bool) for v in value):
+            raise ValueError(f"parameter {name} must be a list of at most 20 values")
+        return sorted({str(v) for v in value})
     else:
         value = str(value).upper() if isinstance(value, str) else value
         if value not in definition.choices:
@@ -543,8 +621,13 @@ def normalize(spec: AnalysisSpec, ref: date) -> dict[str, Any]:
 
     Raises SpecInvalid with every problem found.
     """
-    raw = spec.model_dump(mode="json")
-    problems: list[str] = []
+    return normalize_raw(spec.model_dump(mode="json"), ref)
+
+
+def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = None) -> dict[str, Any]:
+    """normalize() on a JSON-shaped spec. Analysis Spec V2 (app/spec_v2.py) builds this shape from its own fields
+    (analysis_period mode STATIC when there is no time scope) and reuses every calculation and output rule."""
+    problems = problems if problems is not None else []
     inputs = {i["name"]: i for i in raw["inputs"]}
     if len(inputs) != len(raw["inputs"]):
         problems.append("inputs: names must be unique")
@@ -583,9 +666,10 @@ def normalize(spec: AnalysisSpec, ref: date) -> dict[str, Any]:
         if not period["count"]:
             problems.append("analysis_period: TRADING_DAYS needs count")
         period["start"] = period["end"] = period["unit"] = None
-    else:
+    else:  # LATEST, or STATIC (V2 without a time scope)
         period["start"] = period["end"] = period["unit"] = period["count"] = None
     _trace(raw["frequency"], "frequency", problems)
+    static = mode == "STATIC"
 
     calcs: dict[str, dict[str, Any]] = {}
     outputs_of: dict[str, str] = {}
@@ -622,6 +706,26 @@ def normalize(spec: AnalysisSpec, ref: date) -> dict[str, Any]:
             params[param["name"]] = param
         if method != "EVENT_STUDY" and calc["signal"]:
             problems.append(f"{where}: signal predicates belong to EVENT_STUDY calculations")
+        calc.setdefault("group_by", None)
+        if method != "GROUP_AGGREGATE" and calc["group_by"]:
+            problems.append(f"{where}: group_by belongs to GROUP_AGGREGATE calculations")
+        if method == "GROUP_AGGREGATE":
+            keys = calc["group_by"] or []
+            if not keys:
+                problems.append(f"{where}: GROUP_AGGREGATE needs group_by (1-3 catalog grouping columns)")
+            for key in keys:
+                owner = inputs.get(key["input"])
+                if owner is None:
+                    problems.append(f"{where}: group_by input {key['input']!r} is not one of the inputs")
+                elif key["column"] not in owner["columns"]:
+                    problems.append(f"{where}: group_by column {key['column']!r} is not listed in input {owner['name']}")
+            if len({(k["input"], k["column"]) for k in keys}) != len(keys):
+                problems.append(f"{where}: group_by keys must be unique")
+        if static and method not in ("GROUP_AGGREGATE", CUSTOM):
+            problems.append(f"{where}: {method} works on dated observations; this spec has no time scope "
+                            f"(TIME_SCOPE_REQUIRED)")
+        if method == "PERIOD_RETURN" and mode not in ("EXPLICIT_DATES", "TRAILING"):
+            problems.append(f"{where}: PERIOD_RETURN needs a calendar period (EXPLICIT_DATES or TRAILING)")
         if method != CUSTOM and any(calc[k] for k in ("expression", "formula_refs", "meaning", "unit",
                                                         "data_policies")):
             problems.append(f"{where}: expression, formula_refs, meaning, unit and data_policies belong to CUSTOM "
@@ -735,9 +839,22 @@ def normalize(spec: AnalysisSpec, ref: date) -> dict[str, Any]:
             if method == "FORWARD_RETURN" and param_values(calc).get("entry") == "SIGNAL_CLOSE":
                 calc["formula"] = ("close_(t+horizon) / close_t - 1 (SIMPLE) or the log of the ratio (LOG); x100 when "
                                    "as_percent (AI_formula_reference CALC_010, signal-close entry)")
-            if raw["frequency"]["value"] != "1D":
-                problems.append(f"{where}: {method} is defined on daily observations; use CUSTOM for "
-                                f"{raw['frequency']['value']} resampled calculations")
+            if raw["frequency"]["value"] not in ("1D", "STATIC") or (
+                    raw["frequency"]["value"] == "STATIC" and method != "GROUP_AGGREGATE"):
+                if not static:
+                    problems.append(f"{where}: {method} is defined on daily observations; use CUSTOM for "
+                                    f"{raw['frequency']['value']} resampled calculations")
+            if method == "GROUP_AGGREGATE":
+                values = param_values(calc)
+                if values.get("per_date") and static:
+                    problems.append(f"{where}: per_date grouping needs a time scope")
+                upstream = calcs.get(calc["input_calculation"] or "")
+                if upstream is not None and upstream["method"] == "GROUP_AGGREGATE":
+                    problems.append(f"{where}: GROUP_AGGREGATE cannot aggregate another group aggregate")
+                if values.get("function") in ("SUM", "AVG", "MEDIAN") and not calc["input_calculation"] and \
+                        calc["columns"] and source is not None and calc["columns"][0] == source.get("entity_column"):
+                    problems.append(f"{where}: {values['function']} of the entity column is not meaningful; use "
+                                    f"COUNT or COUNT_DISTINCT")
         calc["convention"] = CONVENTIONS.get(method) or {"source": "AI_GENERATED", "function": None,
                                                          "formula_refs": list(calc.get("formula_refs") or [])}
         calcs[calc["id"]] = calc
@@ -753,8 +870,25 @@ def normalize(spec: AnalysisSpec, ref: date) -> dict[str, Any]:
                 problems.append(f"{where}: unknown calculation {cid!r}")
         grain = output["grain"]
         refs = [calcs[c] for c in output["calculations"] if c in calcs]
+        output.setdefault("key_columns", None)
+        output.setdefault("ranking", None)
         if any(c["method"] == "EVENT_STUDY" for c in refs) and grain != "SUMMARY":
             problems.append(f"{where}: EVENT_STUDY calculations produce SUMMARY outputs")
+        if any(c["method"] == "GROUP_AGGREGATE" for c in refs) and grain not in GROUP_GRAINS:
+            problems.append(f"{where}: GROUP_AGGREGATE calculations produce GROUP or GROUP_DATE outputs")
+        if grain in GROUP_GRAINS:
+            _group_output(output, refs, inputs, where, problems)
+        ranking = output.get("ranking")
+        if ranking is not None:
+            _trace(ranking, f"{where} ranking", problems)
+            if grain not in ("ENTITY", "GROUP"):
+                problems.append(f"{where}: ranking applies to ENTITY or GROUP outputs")
+            if ranking["calculation"] not in output["calculations"]:
+                problems.append(f"{where}: ranking calculation {ranking['calculation']!r} must be listed in the "
+                                f"output's calculations")
+            if output["coverage"] != "SELECTION" or output["selection"]:
+                problems.append(f"{where}: a ranked output has coverage SELECTION and no selection predicates (the "
+                                f"top-N is its selection)")
         if grain == "SUMMARY":
             if len(refs) != 1 or refs[0]["method"] != "EVENT_STUDY":
                 problems.append(f"{where}: a SUMMARY output lists exactly one EVENT_STUDY calculation")
@@ -770,6 +904,8 @@ def normalize(spec: AnalysisSpec, ref: date) -> dict[str, Any]:
             if any(c["method"] not in ("CORRELATION", CUSTOM) for c in refs):
                 problems.append(f"{where}: only CORRELATION or CUSTOM calculations have ENTITY_PAIR grain")
             output["at"] = None
+        elif grain in GROUP_GRAINS:
+            pass
         elif grain in ("ENTITY_DATE", "ENTITY"):
             if any(c["method"] == "CORRELATION" for c in refs):
                 problems.append(f"{where}: CORRELATION produces ENTITY_PAIR outputs")
@@ -784,11 +920,16 @@ def normalize(spec: AnalysisSpec, ref: date) -> dict[str, Any]:
             if not output["entity_column"] or (grain == "ENTITY_DATE" and not output["date_column"]):
                 problems.append(f"{where}: {grain} outputs need entity_column" +
                                 (" and date_column" if grain == "ENTITY_DATE" else ""))
+            expected_keys = [output["entity_column"]] + ([output["date_column"]] if grain == "ENTITY_DATE" else [])
+            if output["key_columns"] and output["key_columns"] != expected_keys:
+                problems.append(f"{where}: key_columns {output['key_columns']} do not match the {grain} key "
+                                f"{expected_keys}")
+            output["key_columns"] = expected_keys
         else:
             output["at"] = None
         if output["coverage"] == "SELECTION":
-            if not output["selection"]:
-                problems.append(f"{where}: SELECTION coverage needs selection predicates")
+            if not output["selection"] and not output.get("ranking"):
+                problems.append(f"{where}: SELECTION coverage needs selection predicates or a ranking")
             for predicate in output["selection"] or []:
                 _trace(predicate, f"{where} selection", problems)
                 if predicate["calculation"] not in output["calculations"]:
@@ -813,6 +954,38 @@ def normalize(spec: AnalysisSpec, ref: date) -> dict[str, Any]:
     if problems:
         raise SpecInvalid(problems)
     return raw
+
+
+def _group_output(output: dict[str, Any], refs: list[dict[str, Any]], inputs: dict[str, dict[str, Any]], where: str,
+                  problems: list[str]) -> None:
+    """GROUP / GROUP_DATE outputs: every listed calculation is a GROUP_AGGREGATE with the same keys; the output's
+    key columns are the grouping columns (plus the date column for GROUP_DATE)."""
+    grain = output["grain"]
+    if not refs or any(c["method"] != "GROUP_AGGREGATE" for c in refs):
+        problems.append(f"{where}: {grain} outputs list only GROUP_AGGREGATE calculations")
+        return
+    keys = {tuple((k["input"], k["column"]) for k in c.get("group_by") or []) for c in refs}
+    per_date = {bool(param_values(c).get("per_date")) for c in refs if c["params"]}
+    if len(keys) != 1:
+        problems.append(f"{where}: every calculation of a {grain} output groups by the same keys")
+        return
+    if per_date != {grain == "GROUP_DATE"}:
+        problems.append(f"{where}: {grain} outputs need per_date {'true' if grain == 'GROUP_DATE' else 'false'} "
+                        f"calculations")
+    expected = [column for _, column in next(iter(keys))]
+    if grain == "GROUP_DATE":
+        dataset = inputs.get(refs[0]["dataset"]) or {}
+        if not dataset.get("date_column"):
+            problems.append(f"{where}: GROUP_DATE needs a dated input")
+        else:
+            expected.append(dataset["date_column"])
+            output["date_column"] = dataset["date_column"]
+    if output.get("key_columns") and output["key_columns"] != expected:
+        problems.append(f"{where}: key_columns {output['key_columns']} do not match the grouping keys {expected}")
+    output["key_columns"] = expected
+    output["at"] = "EACH_DATE" if grain == "GROUP_DATE" else "PERIOD_END"
+    output["entity_column"] = None
+    output["pair_columns"] = None
 
 
 def convention_notes(spec: dict[str, Any]) -> list[dict[str, str]]:
@@ -852,6 +1025,13 @@ def required_input(spec: dict[str, Any], resolved: dict[str, Any], ref: date) ->
         minimum = max((m[0] for m in mine), default=0)
         recommended = max((m[1] for m in mine), default=0)
         lookahead = max((m[2] for m in mine), default=0)
+        if resolved["mode"] == "STATIC" or item.get("is_static"):
+            # no time column: nothing to warm up and no date range to request
+            per_input[item["name"]] = {
+                "source_table": item["source_table"], "required_columns": item["columns"],
+                "minimum_warmup_observations": 0, "recommended_warmup_observations": 0, "lookahead_observations": 0,
+                "recommended_request_date_range": None}
+            continue
         end = date.fromisoformat(resolved["end"])
         if resolved.get("start"):
             start = date.fromisoformat(resolved["start"])
@@ -885,6 +1065,8 @@ def output_contract(spec: dict[str, Any]) -> list[dict[str, Any]]:
             keys = list(output["pair_columns"] or [])
         elif grain == "UNSPECIFIED":
             keys = []
+        elif grain in GROUP_GRAINS:
+            keys = list(output.get("key_columns") or [])
         else:
             keys = [output["entity_column"]] + ([output["date_column"]] if grain == "ENTITY_DATE" else [])
         item = {"name": output["name"], "grain": grain, "key_columns": keys,
@@ -895,6 +1077,8 @@ def output_contract(spec: dict[str, Any]) -> list[dict[str, Any]]:
             item["at"] = output.get("at")
         if output.get("selection"):
             item["selection"] = output["selection"]
+        if output.get("ranking"):
+            item["ranking"] = output["ranking"]
         contract.append(item)
     return contract
 

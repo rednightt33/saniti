@@ -14,7 +14,7 @@ from app.schemas import AgentRunRequest, HistoryMessage
 from app.tools import ToolSpec, build_default_registry
 from app.tools.request_data import GovernorClient
 from conftest import ScriptedClient, final_response, make_settings, tool_call_response
-from test_analysis_tools import (ANA, REFERENCE, approved, completed, mock_sandbox, run_args, sandbox_module,
+from test_analysis_tools import (ANA, AnyRunBundles, REFERENCE, approved, completed, mock_sandbox, run_args, sandbox_module,
                                  spec_args)
 
 PRICE = "Price_Stock_Indonesia_IDX"
@@ -54,7 +54,8 @@ def preview_tool() -> ToolSpec:
 
 def run(script: list, message: str, *, lookup: dict | None = None, sandbox: dict | None = None,
         history: list[HistoryMessage] | None = None):
-    registry = build_default_registry(None, governor_client=governor(lookup),
+    registry = build_default_registry(None, bundles=AnyRunBundles(), request_data_enabled=True,
+                                      governor_client=governor(lookup),
                                       sandbox_client=mock_sandbox(sandbox or {}), sandbox_timeout_seconds=5)
     registry.register(preview_tool())
     scripted = ScriptedClient(script)

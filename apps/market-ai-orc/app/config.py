@@ -84,6 +84,13 @@ class Settings:
     analysis_timezone: str = "Asia/Jakarta"
     # PostgreSQL DSN whose login may INSERT into "AI_research_run_audit"; unset disables the copy.
     research_audit_database_url: str | None = None
+    # Model-facing tool flags (two-path migration). lookup_fact stays on until the prepared-analysis path has
+    # parity for single source values and grouped counts; request_data (model-written data requests) is off:
+    # data requests are compiled by the backend from the approved spec (prepare_analysis_data).
+    ai_enable_lookup_fact: bool = True
+    ai_enable_request_data: bool = False
+    # The same tool rejection (tool + reason code) may be repaired this many times per run.
+    ai_max_repair_attempts: int = 3
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -123,6 +130,9 @@ class Settings:
             catalog_page_max_bytes=_integer(env, "CATALOG_PAGE_MAX_BYTES", 16000, minimum=4096),
             market_data_preview_enabled=_boolean(env, "MARKET_DATA_PREVIEW_ENABLED", True),
             sql_governor_url=_optional(env, "SQL_GOVERNOR_URL"),
+            ai_enable_lookup_fact=_boolean(env, "AI_ENABLE_LOOKUP_FACT", True),
+            ai_enable_request_data=_boolean(env, "AI_ENABLE_REQUEST_DATA", False),
+            ai_max_repair_attempts=_integer(env, "AI_MAX_REPAIR_ATTEMPTS", 3, minimum=1),
             sql_governor_api_key=_optional(env, "SQL_GOVERNOR_API_KEY"),
             sql_governor_timeout_seconds=_integer(env, "SQL_GOVERNOR_TIMEOUT_SECONDS", 90),
             request_data_max_result_bytes=_integer(env, "REQUEST_DATA_MAX_RESULT_BYTES", 40000, minimum=8192),

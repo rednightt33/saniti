@@ -59,7 +59,7 @@ FAMILY_PATTERNS = {
 }
 FAMILY_SATISFIED_BY = {
     "RSI": {"RSI"}, "SMA": {"SMA", "ROLLING_ZSCORE"}, "STD": {"ROLLING_STD", "ROLLING_ZSCORE"},
-    "ZSCORE": {"ROLLING_ZSCORE"}, "RETURN": {"RETURN", "FORWARD_RETURN", "CORRELATION"},
+    "ZSCORE": {"ROLLING_ZSCORE"}, "RETURN": {"RETURN", "FORWARD_RETURN", "CORRELATION", "PERIOD_RETURN"},
     "FORWARD_RETURN": {"FORWARD_RETURN", "EVENT_STUDY"}, "CORRELATION": {"CORRELATION", "ROLLING_CORRELATION"},
     "EVENT_STUDY": {"EVENT_STUDY"},
 }
@@ -535,6 +535,14 @@ def _review_period(spec: dict[str, Any], found: Extracted, resolved: dict[str, A
     period = spec["analysis_period"]
     proposed = {k: v for k, v in resolved.items() if k in ("mode", "start", "end", "trading_days")}
     candidates = _latest_turn_values(found.periods)
+    if period["mode"] == "STATIC":
+        if candidates:
+            result.add("analysis_period", "MISMATCH", [c["text"] for c in candidates], "NO_TIME_SCOPE",
+                       "The request states a period but the spec has no time scope.", "TIME_SCOPE_MISSING")
+        else:
+            result.add("analysis_period", "NOT_APPLICABLE", None, "NO_TIME_SCOPE",
+                       "Static reference data: the request states no period and the spec has none.")
+        return
     if candidates:
         distinct = {tuple(sorted((k, v) for k, v in c.items() if k in ("mode", "unit", "count", "start", "end")))
                     for c in candidates}
@@ -593,6 +601,9 @@ def _review_period(spec: dict[str, Any], found: Extracted, resolved: dict[str, A
 
 def _review_frequency(spec: dict[str, Any], found: Extracted, result: Review) -> None:
     frequency = spec["frequency"]
+    if frequency["value"] == "STATIC":
+        result.add("frequency", "NOT_APPLICABLE", None, "STATIC", "Static reference data has no frequency.")
+        return
     stated = {f["value"] for f in _latest_turn_values(found.frequency)}
     if len(stated) == 1:
         (value,) = stated
@@ -627,12 +638,46 @@ def _review_methods(spec: dict[str, Any], found: Extracted, result: Review) -> N
                        "MISSING_REQUESTED_CALCULATION")
     for calc in calcs:
         families = set(calc.get("covers") or [])
+        if calc["method"] == "GROUP_AGGREGATE":
+            _review_aggregate(calc, found, result)
+            continue
         if not families & set(found.families):
             result.add(f"calculation.{calc['id']}", "UNVERIFIED", None, calc["method"],
                        "This calculation is not mentioned in the request (chosen by the AI).")
         elif calc["method"] == "CUSTOM":
             result.add(f"calculation.{calc['id']}", "UNVERIFIED", sorted(families & set(found.families)), "CUSTOM",
                        "A CUSTOM method cannot be checked against the request or recalculated independently.")
+
+
+# Generic aggregation vocabulary (not topic words): which aggregate the request asks for.
+AGGREGATE_WORDS = {
+    "COUNT": r"\b(?:jumlah|berapa banyak|banyaknya|how many|number of|count)\b",
+    "COUNT_DISTINCT": r"\b(?:jumlah|berapa banyak|banyaknya|how many|number of|count)\b",
+    "AVG": r"\b(?:rata-rata|rerata|average|mean|avg)\b",
+    "SUM": r"\b(?:total|sum|jumlah total)\b",
+    "MEDIAN": r"\b(?:median)\b",
+    "MIN": r"\b(?:minimum|terendah|terkecil|lowest|smallest|min)\b",
+    "MAX": r"\b(?:maximum|tertinggi|terbesar|highest|largest|max)\b",
+}
+
+
+def _review_aggregate(calc: dict[str, Any], found: Extracted, result: Review) -> None:
+    """A group aggregate: its function is checked against generic aggregation words; its grouping keys are catalog
+    columns the AI chose (disclosed unless the column name itself appears in the request)."""
+    function = param_values(calc).get("function")
+    pattern = AGGREGATE_WORDS.get(function or "")
+    if pattern and re.search(pattern, found.user_text):
+        result.add(f"calculation.{calc['id']}.function", "MATCH", function, function,
+                   "The request asks for this aggregate.")
+    else:
+        result.add(f"calculation.{calc['id']}.function", "UNVERIFIED", None, function,
+                   "The aggregate function is not stated in the request (chosen by the AI).")
+    for key in calc.get("group_by") or []:
+        named = re.search(rf"\b{re.escape(key['column'].lower())}\b", found.user_text)
+        result.add(f"calculation.{calc['id']}.group_by.{key['column']}", "MATCH" if named else "UNVERIFIED",
+                   key["column"] if named else None, f"{key['input']}.{key['column']}",
+                   "The request names this grouping column." if named else
+                   "Grouping column chosen by the AI from the catalog to match the request.")
 
 
 def _review_parameters(spec: dict[str, Any], found: Extracted, result: Review) -> None:

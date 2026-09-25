@@ -42,7 +42,11 @@ TICKER_PATTERN = r"^[A-Z0-9]{2,6}$"
 OutputType = Literal["TABLE", "METRICS", "CHART", "ARTIFACT"]
 Provenance = Literal["USER_EXPLICIT", "USER_CLARIFIED", "APPROVED_DEFAULT", "AI_INFERRED"]
 Method = Literal["SMA", "ROLLING_STD", "ROLLING_ZSCORE", "RETURN", "FORWARD_RETURN", "RSI", "ROLLING_CORRELATION",
-                 "CORRELATION", "EVENT_STUDY", "CUSTOM"]
+                 "CORRELATION", "EVENT_STUDY", "PERIOD_RETURN", "GROUP_AGGREGATE", "CUSTOM"]
+ScopeProvenance = Literal["USER_EXPLICIT", "USER_CLARIFIED", "CATALOG_RESOLVED", "APPROVED_DEFAULT", "AI_INFERRED"]
+SUBJECT_ID_PATTERN = r"^[A-Z][A-Z0-9_]{1,39}$"
+ENTITY_VALUE_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,19}$"
+BUNDLE_ID_PATTERN = r"^bundle_[0-9a-f]{24}$"
 Family = Literal["RSI", "SMA", "STD", "ZSCORE", "RETURN", "FORWARD_RETURN", "CORRELATION", "EVENT_STUDY"]
 EvidenceStandard = Literal["CALCULATION", "SCREEN", "DESCRIPTIVE", "HISTORICAL_PATTERN", "EXPLORATORY", "PREDICTIVE",
                            "SCENARIO"]
@@ -78,40 +82,63 @@ class GetDatasetManifestArgs(Strict):
 
 # ---------------------------------------------------------------- create_analysis_spec
 
-class SpecUniverse(Strict):
-    type: Literal["ALL_IN_SOURCE", "TICKERS"]
-    tickers: list[str] | None = Field(max_length=200, description="Upper-case tickers for TICKERS, else null.")
-    provenance: Provenance
-    default_id: str | None
-
-
-class SpecPeriod(Strict):
-    mode: Literal["EXPLICIT_DATES", "TRAILING", "TRADING_DAYS", "LATEST"]
-    start: str | None = Field(description="YYYY-MM-DD for EXPLICIT_DATES, else null.")
-    end: str | None = Field(description="YYYY-MM-DD for EXPLICIT_DATES, else null.")
-    unit: Literal["DAY", "WEEK", "MONTH", "YEAR"] | None = Field(description="TRAILING calendar unit, else null.")
-    count: int | None = Field(ge=1, le=3650, description="Units for TRAILING, dates for TRADING_DAYS, else null.")
-    provenance: Provenance
-    default_id: str | None
-
-
-class SpecFrequency(Strict):
-    value: Literal["1D", "1W", "1M"]
-    provenance: Provenance
-    default_id: str | None
+class SpecSubject(Strict):
+    data_domain: str = Field(pattern=SUBJECT_ID_PATTERN, description="The tables' data_domain from discover_catalog.")
+    entity_type: str = Field(pattern=SUBJECT_ID_PATTERN, description="The tables' entity_type from discover_catalog.")
+    asset_type: str | None = Field(pattern=SUBJECT_ID_PATTERN,
+                                   description="The tables' asset_type from discover_catalog; null when it has none.")
 
 
 class SpecInput(Strict):
     name: str = Field(pattern=IDENT_PATTERN, description="Logical input name, e.g. prices.")
     source_table: str = Field(pattern=TABLE_PATTERN, description="Catalog table the data comes from.")
-    entity_column: str | None = Field(description="Entity column (e.g. ticker); null uses the table's default.")
-    date_column: str | None = Field(description="Date column; null uses the table's default.")
+    role: Literal["PRIMARY_DATA", "UNIVERSE", "REFERENCE"] = Field(
+        description="PRIMARY_DATA (measured observations), UNIVERSE (defines the entities in scope), or REFERENCE "
+                    "(unscoped lookup table).")
+    entity_column: str | None = Field(description="null: the catalog entity_column.")
+    date_column: str | None = Field(description="null: the catalog time_column.")
     columns: list[str] = Field(min_length=1, max_length=50, description="Columns the analysis needs.")
+
+
+class SpecRelationship(Strict):
+    relationship_id: int = Field(ge=1, description="Catalog relationship_id joining two input tables.")
+
+
+class SpecScopePredicate(Strict):
+    input: str = Field(pattern=IDENT_PATTERN, description="The input whose table holds the column.")
+    table: str = Field(pattern=TABLE_PATTERN)
+    column: str = Field(pattern=COLUMN_PATTERN, description="A filterable catalog column.")
+    operator: Literal["EQ", "NEQ", "IN", "GT", "GTE", "LT", "LTE", "IS_NULL", "IS_NOT_NULL"]
+    value: str | int | float | bool | list[str | int | float] | None = Field(
+        description="Scalar; a list for IN; null for IS_NULL / IS_NOT_NULL. Use the exact catalog data value.")
+    provenance: ScopeProvenance
+    user_text: str | None = Field(max_length=200, description="CATALOG_RESOLVED: the user's words this value "
+                                                              "resolves, verbatim; else null.")
+
+
+class SpecScope(Strict):
+    selection_type: Literal["ALL_ELIGIBLE", "ENTITY_LIST", "ATTRIBUTE_FILTER"]
+    entities: list[str] | None = Field(max_length=200, description="ENTITY_LIST: entity values; else null.")
+    predicates: list[SpecScopePredicate] | None = Field(
+        max_length=8, description="ATTRIBUTE_FILTER: 1-8 predicates, all must hold; else null.")
+    provenance: Provenance
+    default_id: str | None
+
+
+class SpecTimeScope(Strict):
+    mode: Literal["EXPLICIT_DATES", "TRAILING", "TRADING_DAYS", "LATEST"]
+    start: str | None = Field(description="YYYY-MM-DD for EXPLICIT_DATES, else null.")
+    end: str | None = Field(description="YYYY-MM-DD for EXPLICIT_DATES, else null.")
+    unit: Literal["DAY", "WEEK", "MONTH", "YEAR"] | None = Field(description="TRAILING calendar unit, else null.")
+    count: int | None = Field(ge=1, le=3650, description="Units for TRAILING, dates for TRADING_DAYS, else null.")
+    frequency: Literal["1D", "1W", "1M"] = Field(description="Must be a supported_frequencies value of the tables.")
+    provenance: Provenance
+    default_id: str | None
 
 
 class SpecParam(Strict):
     name: str = Field(pattern=IDENT_PATTERN)
-    value: int | float | str | bool | None = Field(
+    value: int | float | str | bool | list[str | int | float] | None = Field(
         description="The parameter value; null applies the method's approved default (recorded as APPROVED_DEFAULT).")
     provenance: Provenance
     default_id: str | None
@@ -123,6 +150,11 @@ class SpecPredicate(Strict):
     value: float
     provenance: Provenance
     default_id: str | None
+
+
+class SpecGroupKey(Strict):
+    input: str = Field(pattern=IDENT_PATTERN, description="Input holding the grouping column.")
+    column: str = Field(pattern=COLUMN_PATTERN)
 
 
 class SpecDataPolicies(Strict):
@@ -154,6 +186,8 @@ class SpecCalculation(Strict):
     unit: str | None = Field(max_length=40, description="CUSTOM only: unit of the value (ratio, IDR, percent).")
     data_policies: SpecDataPolicies | None = Field(
         description="CUSTOM only: zero_denominator NULL (default) or ZERO; missing PROPAGATE.")
+    group_by: list[SpecGroupKey] | None = Field(
+        max_length=3, description="GROUP_AGGREGATE only: 1-3 catalog grouping columns (group_by_allowed); else null.")
     provenance: Provenance
     default_id: str | None
 
@@ -167,15 +201,28 @@ class SpecCalculation(Strict):
         return values
 
 
+class SpecRanking(Strict):
+    calculation: str = Field(pattern=IDENT_PATTERN)
+    direction: Literal["ASC", "DESC"]
+    limit: int = Field(ge=1, le=100)
+    tie_policy: Literal["INCLUDE_EXACTLY_N_STABLE", "INCLUDE_TIES"]
+    provenance: Provenance
+    default_id: str | None
+
+
 class SpecOutput(Strict):
     name: str = Field(pattern=OUTPUT_NAME_PATTERN, description="The name the code passes to emit_table.")
-    grain: Literal["ENTITY_DATE", "ENTITY", "ENTITY_PAIR", "SUMMARY", "UNSPECIFIED"]
+    grain: Literal["ENTITY_DATE", "ENTITY", "ENTITY_PAIR", "GROUP", "GROUP_DATE", "SUMMARY", "UNSPECIFIED"]
     coverage: Literal["FULL", "SELECTION"]
     calculations: list[str] = Field(max_length=12)
     selection: list[SpecPredicate] | None = Field(max_length=6, description="Predicates for SELECTION, else null.")
     entity_column: str | None
     date_column: str | None
     pair_columns: list[str] | None = Field(description="Two entity columns for ENTITY_PAIR, else null.")
+    key_columns: list[str] | None = Field(max_length=4, description="The output's key columns (entity, grouping "
+                                                                    "columns, date); null derives them.")
+    ranking: SpecRanking | None = Field(description="Top-N of one calculation over every in-scope candidate "
+                                                    "(ENTITY or GROUP grain, coverage SELECTION); else null.")
 
 
 class SpecExclusion(Strict):
@@ -209,11 +256,19 @@ class SpecResearch(Strict):
 
 
 class CreateAnalysisSpecArgs(Strict):
+    spec_version: Literal["2.0"]
+    analysis_type: Literal["ANALYSIS", "RESEARCH"] = Field(
+        description="ANALYSIS for a calculation, statistic, ranking or aggregate (research null); RESEARCH for a "
+                    "historical-pattern, predictive, exploratory or scenario question (research block required).")
     question: str = Field(min_length=1, max_length=1000, description="The analytical request, restated.")
-    universe: SpecUniverse
-    analysis_period: SpecPeriod
-    frequency: SpecFrequency
+    subject: SpecSubject
     inputs: list[SpecInput] = Field(min_length=1, max_length=4)
+    relationships: list[SpecRelationship] = Field(max_length=5, description="Catalog relationships joining input "
+                                                                            "tables (needed when a scope predicate "
+                                                                            "is on another input's table).")
+    scope: SpecScope
+    time_scope: SpecTimeScope | None = Field(
+        description="null for static reference data (no period invented); required when any input is dated.")
     calculations: list[SpecCalculation] = Field(min_length=1, max_length=12)
     outputs: list[SpecOutput] = Field(min_length=1, max_length=8)
     exclusion_rules: list[SpecExclusion] = Field(max_length=8)
@@ -245,7 +300,8 @@ class InputBindingArgs(Strict):
 
 class RunPythonAnalysisArgs(Strict):
     spec_id: str = Field(pattern=SPEC_ID_PATTERN, description="spec_id of an approved analysis spec.")
-    inputs: list[InputBindingArgs] = Field(min_length=1, max_length=4)
+    input_bundle_id: str = Field(pattern=BUNDLE_ID_PATTERN,
+                                 description="input_bundle_id from prepare_analysis_data for this spec_id.")
     python_code: str = Field(min_length=1, max_length=20000, description="Python source to run in the sandbox.")
     expected_outputs: list[OutputType] = Field(
         min_length=1, max_length=4, description="Output types the code will emit (unique).")
@@ -263,7 +319,7 @@ class GetAnalysisResultArgs(Strict):
 
 
 MANIFEST_DESCRIPTION = (
-    "Describe exactly what one governed dataset contains (a dataset_id from a DATASET_READY request_data "
+    "Describe exactly what one governed dataset contains (a dataset_id from prepare_analysis_data or a DATASET_READY "
     "result): columns and types, row count, source tables, requested versus actual date range, entities "
     "present and missing, completeness, checksum, numeric-precision warnings, and expiry. This is the "
     "extracted dataset itself, not the catalog's coverage estimate. status is AVAILABLE, or explicitly "
@@ -271,14 +327,23 @@ MANIFEST_DESCRIPTION = (
 )
 
 SPEC_DESCRIPTION = (
-    "Required before any Python analysis: propose the machine-readable contract of the calculation. The service "
-    "checks it against the user's own messages and returns APPROVED (with spec_id), APPROVED_WITH_UNVERIFIED "
-    "(spec_id plus requirements the user did not state, which must be disclosed), ANALYSIS_SPEC_MISMATCH (fix the "
-    "spec to match the request; never change the request to fit limits), NEEDS_CLARIFICATION (ask the user), "
-    "INVALID_SPEC, or for research specs the Research Governor's REPLAN_REQUIRED (correct the experiment as the "
-    "governor.reason_code says) or REJECTED (the run's research budget is used: report what was found). It also "
-    "returns the resolved analysis period and required_input: the warm-up history and the date range to request "
-    "with request_data. Sending the same spec again returns the same spec_id. "
+    "Required before any analysis: propose the one machine-readable contract (Analysis Spec V2) of the calculation. "
+    "The service checks every table, column, relationship, frequency and subject against the catalog and the spec "
+    "against the user's own messages, and returns APPROVED (with spec_id), APPROVED_WITH_UNVERIFIED (spec_id plus "
+    "interpretations the user did not state, which must be disclosed), ANALYSIS_SPEC_MISMATCH (fix the spec to match "
+    "the request; never change the request to fit limits), NEEDS_CLARIFICATION (ask the user), INVALID_SPEC (fix "
+    "each problem; its code is in parentheses), or for RESEARCH specs the Research Governor's REPLAN_REQUIRED or "
+    "REJECTED. The same spec again returns the same spec_id. After approval call prepare_analysis_data(spec_id): the "
+    "backend compiles and extracts exactly the approved scope; you never restate the scope as a data request. "
+    "subject and source tables: copy data_domain, entity_type and asset_type from discover_catalog; every "
+    "PRIMARY_DATA and UNIVERSE input table must have that subject. scope: ALL_ELIGIBLE (every entity in the "
+    "source), ENTITY_LIST (entities), or ATTRIBUTE_FILTER (predicates on filterable catalog columns, all must hold; "
+    "e.g. a classification column EQ a value). A predicate names the input whose table has the column; when it "
+    "restricts another input (for example prices restricted by a column of a reference table), list the catalog "
+    "relationship_id that joins the two tables. Use the exact data value; provenance CATALOG_RESOLVED with "
+    "user_text = the user's own words when you mapped words to a catalog value. time_scope: null for static "
+    "reference data (a count per group of a table without a time column); otherwise mode, dates or count/unit, and a "
+    "frequency the tables support. "
     "provenance per requirement: USER_EXPLICIT only for what the user stated, USER_CLARIFIED for answers to your "
     "clarification question, APPROVED_DEFAULT with default_id for a documented default, AI_INFERRED otherwise. "
     "Definitions follow TA-Lib first, then AI_formula_reference, then your own formula (CUSTOM). "
@@ -290,13 +355,20 @@ SPEC_DESCRIPTION = (
     "(WILDER, TA-Lib), DEFAULT_FORWARD_RETURN_ENTRY (NEXT_OPEN: close[t+h] / open[t+1] - 1; SIGNAL_CLOSE only when "
     "the user asks), DEFAULT_CORRELATION_METHOD, DEFAULT_CORRELATION_TRANSFORM (SIMPLE_RETURN), "
     "DEFAULT_CORRELATION_MIN_OVERLAP, DEFAULT_EVENT_OVERLAP_POLICY (NON_OVERLAPPING), DEFAULT_EVENT_BASELINE "
-    "(ALL_ELIGIBLE), DEFAULT_EVENT_MIN_EVENTS (30), DEFAULT_ZERO_DENOMINATOR (NULL). Omitted method parameters get "
-    "their default. "
+    "(ALL_ELIGIBLE), DEFAULT_EVENT_MIN_EVENTS (30), DEFAULT_ZERO_DENOMINATOR (NULL), DEFAULT_PERIOD_RETURN_BASE "
+    "(PREVIOUS_OBSERVATION), DEFAULT_GROUP_MISSING_KEY (SEPARATE_GROUP), DEFAULT_GROUP_UNKNOWN_VALUES ([]), "
+    "DEFAULT_GROUP_MIN_OBSERVATIONS (1), DEFAULT_RANK_TIE_POLICY (INCLUDE_EXACTLY_N_STABLE). Omitted method "
+    "parameters get their default. "
     "Methods with independent recalculation (params): SMA(window), ROLLING_STD(window, ddof), "
     "ROLLING_ZSCORE(window, ddof, include_current), RETURN(horizon, kind SIMPLE|LOG, as_percent), "
-    "FORWARD_RETURN(horizon, kind, as_percent, entry NEXT_OPEN|SIGNAL_CLOSE; columns [close, open] for NEXT_OPEN, "
-    "[close] for SIGNAL_CLOSE), RSI(period), ROLLING_CORRELATION(window, method, transform; two columns), "
-    "CORRELATION(method, transform, min_overlap; ENTITY_PAIR output over a TICKERS universe), "
+    "PERIOD_RETURN(kind, as_percent, base PREVIOUS_OBSERVATION|FIRST_IN_PERIOD; the change over the whole period, "
+    "one column), FORWARD_RETURN(horizon, kind, as_percent, entry NEXT_OPEN|SIGNAL_CLOSE; columns [close, open] for "
+    "NEXT_OPEN, [close] for SIGNAL_CLOSE), RSI(period), ROLLING_CORRELATION(window, method, transform; two columns), "
+    "CORRELATION(method, transform, min_overlap; ENTITY_PAIR output over an ENTITY_LIST scope), "
+    "GROUP_AGGREGATE(function COUNT|COUNT_DISTINCT|SUM|AVG|MEDIAN|MIN|MAX, per_date, missing_group_policy "
+    "SEPARATE_GROUP|EXCLUDE, unknown_group_values [values treated as unknown], min_observations; one column or "
+    "input_calculation = a per-entity calculation such as PERIOD_RETURN; group_by = catalog grouping columns of any "
+    "input, mapped to entities by entity column), "
     "EVENT_STUDY(min_events, overlap_policy, baseline; no columns; input_calculation = the FORWARD_RETURN outcome; "
     "signal = predicates on earlier trailing calculations; one SUMMARY output with columns segment, event_count, mean, "
     "median, hit_rate, baseline_count, baseline_mean, baseline_median, delta_mean, censored_count, "
@@ -308,21 +380,33 @@ SPEC_DESCRIPTION = (
     "formula_refs (CALC_### ids it adapts), meaning, and unit to CUSTOM. Chain a method on another calculation with "
     "input_calculation (e.g. ROLLING_STD of a RETURN). "
     "outputs: each TABLE the code emits, by name. grain ENTITY_DATE (one row per entity and date in the period), "
-    "ENTITY (one row per entity at its latest observation in the period), ENTITY_PAIR, SUMMARY (EVENT_STUDY), or "
-    "UNSPECIFIED (not checkable). coverage FULL (every entity/date in scope) or SELECTION (only rows meeting the "
-    "selection predicates, e.g. RSI < 30). Only declared outputs with a checkable grain can pass validation. "
-    "research: null for a calculation, screen, or description the user asked for. For a research question set "
-    "evidence_standard (HISTORICAL_PATTERN and PREDICTIVE need a hypothesis and an EVENT_STUDY; PREDICTIVE also a "
-    "holdout; EXPLORATORY for bounded exploration; SCENARIO for hypotheticals), objective, hypothesis {id H1.., "
-    "statement}, method_ref (AI_research_catalog method_id), candidates (conditions or lags tested), and "
-    "followup_of (spec_id of a completed experiment on the same hypothesis) for a follow-up."
+    "ENTITY (one row per entity at its latest observation in the period), ENTITY_PAIR, GROUP (one row per group; "
+    "key_columns = the group_by columns), GROUP_DATE (per group and date; per_date true), SUMMARY (EVENT_STUDY), or "
+    "UNSPECIFIED (not checkable). coverage FULL (every entity/date/group in scope) or SELECTION (rows meeting the "
+    "selection predicates, e.g. RSI < 30, or the top-N of a ranking {calculation, direction, limit, tie_policy}). "
+    "Only declared outputs with a checkable grain can pass validation. "
+    "research: null when analysis_type is ANALYSIS. For RESEARCH set evidence_standard (HISTORICAL_PATTERN and "
+    "PREDICTIVE need a hypothesis and an EVENT_STUDY; PREDICTIVE also a holdout; EXPLORATORY for bounded exploration; "
+    "SCENARIO for hypotheticals), objective, hypothesis {id H1.., statement}, method_ref (AI_research_catalog "
+    "method_id), candidates (conditions or lags tested), and followup_of (spec_id of a completed experiment on the "
+    "same hypothesis) for a follow-up."
+)
+
+PREPARE_DESCRIPTION = (
+    "Prepare the governed input data of an approved spec: the backend compiles the spec's approved scope (tables, "
+    "relationships, predicates, entities, warm-up date range) into data requests, the SQL Governor validates and "
+    "extracts them, and large extractions are split into date partitions without changing the scope. Returns "
+    "status READY with input_bundle_id (pass it to run_python_analysis) and, per logical input, row counts and "
+    "completeness; or NEEDS_NARROWING / REJECTED with a structured rejection (stage, reason_code, observed, limit, "
+    "allowed_actions, forbidden_actions, retryable). Never change the user's scope to pass a limit: revise the spec "
+    "only when the rejection says the spec itself is wrong, otherwise report the limitation."
 )
 
 RUN_DESCRIPTION = (
-    "Run Python analysis in an isolated sandbox against an approved spec_id. Bind every logical input of the spec "
-    "to the DATASET_READY dataset_ids that hold it (several dataset_ids may form one input only if they come from "
-    "the same table with identical columns). The code runs without network, subprocess, or file access outside "
-    "its workspace. The helper module saniti and its functions, pandas as pd and numpy as np are already imported. Inputs "
+    "Run Python analysis in an isolated sandbox against an approved spec_id and the input_bundle_id that "
+    "prepare_analysis_data returned for it (the prepared datasets are bound to the spec's logical inputs by the "
+    "backend). The code runs without network, subprocess, or file access outside its workspace. The helper module "
+    "saniti and its functions, pandas as pd and numpy as np are already imported. Inputs "
     "are DuckDB views named after the logical inputs. load(name, columns=[...]) returns the whole input as a "
     "pandas DataFrame sorted by entity and date (date columns hold datetime.date objects; use pd.to_datetime for "
     "Timestamps), including the warm-up history before the analysis period; "
@@ -335,11 +419,13 @@ RUN_DESCRIPTION = (
     "(groupby().apply drops the grouping columns; prefer groupby()[col].transform), polars, pyarrow, duckdb, scipy, "
     "statsmodels, matplotlib, TA-Lib (import talib). Helpers: iter_series, prepare_panel, panel_check, add_warning. "
     "Emit every spec output with emit_table(output_name, dataframe, description='') (no other arguments); the "
-    "dataframe's columns must include the output's entity_column, date_column or pair_columns, and the "
-    "output_column of each calculation it lists. Also emit_metrics(dict), emit_chart(figure, name, title, "
+    "dataframe's columns must include the output's key columns (entity_column, date_column, pair_columns, or the "
+    "group key columns) and the output_column of each calculation it lists; a ranked output holds exactly its top-N "
+    "rows. Also emit_metrics(dict), emit_chart(figure, name, title, "
     "description), emit_artifact(name, data, format). print() is not a result, and nothing the code reports about "
     "itself counts as evidence. The result has execution_status and validation_status (PASS, INCOMPLETE, FAILED, "
-    "UNVERIFIED) with validation_level, reason_codes, expected_scope, actual_scope and validation_evidence; a "
+    "UNVERIFIED) with validation_level, reason_codes, expected_scope, actual_scope and validation_evidence (including "
+    "scope.lineage: the executed scope equals the approved scope); a "
     "CALCULATION_MISMATCH can carry a diagnosis naming the parameter or procedure the values match. "
     "evidence_assessment says what the validated evidence supports for the spec's evidence standard (decision "
     "SUPPORTED, PARTIALLY_SUPPORTED, INSUFFICIENT_EVIDENCE or INVALID, evidence_level, checks, the validator's own "
@@ -389,8 +475,9 @@ def model_view(result: dict[str, Any]) -> dict[str, Any]:
 
 
 def spec_view(result: dict[str, Any]) -> dict[str, Any]:
-    keys = ("status", "spec_id", "reference", "resolved_period", "required_input", "output_contract", "mismatches",
-            "unverified_requirements", "clarification_needed", "problems", "next_action", "governor", "replayed")
+    keys = ("status", "spec_id", "analysis_type", "validation_profile", "scope_sha256", "reference", "resolved_period",
+            "required_input", "data_plan", "output_contract", "mismatches", "unverified_requirements",
+            "clarification_needed", "problems", "problem_codes", "next_action", "governor", "replayed")
     view = {k: result.get(k) for k in keys if result.get(k) not in (None, [])}
     if result.get("derived_features"):
         view["derived_features"] = [f.get("name") for f in result["derived_features"]]
@@ -462,9 +549,20 @@ class SandboxClient:
             return spec_view(body)
         return self._rejected(response, body)
 
-    def submit(self, arguments: RunPythonAnalysisArgs) -> dict[str, Any]:
-        response = self._call("POST", "/v1/analyses", json={"request_id": self._request_id(),
-                                                            **arguments.model_dump(mode="json")})
+    def get_spec(self, spec_id: str) -> dict[str, Any] | None:
+        """The approved contract of a spec (backend use only: the compiler reads the approved data plan)."""
+        response = self._call("GET", f"/v1/specs/{spec_id}")
+        if response.status_code == 404:
+            return None
+        body = self._json(response)
+        if response.status_code != 200:
+            raise ToolError(f"The Python sandbox is unavailable (HTTP {response.status_code}).")
+        return body
+
+    def submit(self, arguments: RunPythonAnalysisArgs, bindings: list[dict[str, Any]]) -> dict[str, Any]:
+        payload = {k: v for k, v in arguments.model_dump(mode="json").items() if k != "input_bundle_id"}
+        response = self._call("POST", "/v1/analyses", json={"request_id": self._request_id(), **payload,
+                                                            "inputs": bindings})
         body = self._json(response)
         if response.status_code == 200 and "analysis_id" in body:
             return model_view(body)
@@ -511,14 +609,24 @@ def manifest_spec(client: GovernorClient, *, timeout_seconds: float) -> ToolSpec
                     arguments_model=GetDatasetManifestArgs, handler=handler, timeout_seconds=timeout_seconds)
 
 
-def analysis_specs(client: SandboxClient, *, timeout_seconds: float, max_result_bytes: int) -> list[ToolSpec]:
+def analysis_specs(client: SandboxClient, *, timeout_seconds: float, max_result_bytes: int,
+                   bundles: Any = None) -> list[ToolSpec]:
     def create(arguments: BaseModel) -> dict[str, Any]:
         assert isinstance(arguments, CreateAnalysisSpecArgs)
         return client.create_spec(arguments)
 
     def run(arguments: BaseModel) -> dict[str, Any]:
         assert isinstance(arguments, RunPythonAnalysisArgs)
-        return client.submit(arguments)
+        bundle = bundles.resolve(arguments.input_bundle_id, current_request_id.get() or "", arguments.spec_id) \
+            if bundles is not None else None
+        if bundle is None:
+            return {"status": "REJECTED", "next_action": "PREPARE_ANALYSIS_DATA", "error": {
+                "code": "INPUT_BUNDLE_MISMATCH",
+                "message": "input_bundle_id is not a bundle prepare_analysis_data returned for this spec_id in this "
+                           "request. Call prepare_analysis_data(spec_id) and use its input_bundle_id."}}
+        bindings = [{"name": name, "dataset_ids": ids, "duplicate_policy": "ERROR_ON_CONFLICT"}
+                    for name, ids in sorted(bundle.inputs.items())]
+        return client.submit(arguments, bindings)
 
     def result(arguments: BaseModel) -> dict[str, Any]:
         assert isinstance(arguments, GetAnalysisResultArgs)

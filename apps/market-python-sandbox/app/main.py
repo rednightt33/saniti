@@ -15,7 +15,8 @@ from .config import Settings
 from .models import ANALYSIS_ID, REQUEST_ID, AnalysisRequest, RunReport
 from .outputs import CONTENT_TYPES
 from .service import AnalysisService, ServiceUnavailable
-from .spec import SPEC_ID, SpecRequest
+from .spec import SPEC_ID
+from .spec_v2 import SpecRequestAny
 
 FILE_ID = re.compile(r"^(res|art)_[0-9a-f]{24}$")
 PAGE_MAX = 500
@@ -108,7 +109,7 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
     def create_spec(body: Any = Body(...)) -> Any:
         """Review a proposed Analysis Spec against the user's messages; an approved spec becomes immutable."""
         try:
-            request = SpecRequest.model_validate(body)
+            request = SpecRequestAny.model_validate(body)
         except ValidationError as exc:
             return invalid(exc, "analysis spec")
         return service.create_spec(request)

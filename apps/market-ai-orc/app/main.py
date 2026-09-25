@@ -95,6 +95,8 @@ def create_app(
             sandbox_client=sandbox,
             sandbox_timeout_seconds=settings.py_sandbox_request_timeout_seconds + 5,
             python_analysis_max_bytes=settings.python_analysis_max_result_bytes,
+            lookup_fact_enabled=settings.ai_enable_lookup_fact,
+            request_data_enabled=settings.ai_enable_request_data,
         )
         auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
             if sandbox is not None or settings.research_audit_database_url else None

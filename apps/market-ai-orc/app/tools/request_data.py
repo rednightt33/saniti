@@ -184,6 +184,26 @@ class GovernorClient:
             raise ToolError("The SQL Governor returned rows instead of a dataset reference; request refused.")
         return result
 
+    def submit(self, spec: dict[str, Any], lineage: dict[str, Any]) -> dict[str, Any]:
+        """A backend-compiled Data Request Spec with its data-plan lineage (prepare_analysis_data only)."""
+        request_id = current_request_id.get() or f"orc-{uuid.uuid4().hex[:16]}"
+        try:
+            response = self._client.post("/v1/query", json={"request_id": request_id, "spec": spec,
+                                                            "lineage": lineage})
+        except httpx.TimeoutException as exc:
+            raise ToolError("The SQL Governor did not answer in time.") from exc
+        except httpx.HTTPError as exc:
+            raise ToolError("The SQL Governor is unreachable.") from exc
+        if response.status_code != 200:
+            raise ToolError(f"The SQL Governor is unavailable (HTTP {response.status_code}).")
+        try:
+            result = response.json()
+        except ValueError as exc:
+            raise ToolError("The SQL Governor returned an invalid response.") from exc
+        if not isinstance(result, dict) or result.get("decision") not in DATASET_DECISIONS or result.get("rows"):
+            raise ToolError("The SQL Governor returned an invalid response.")
+        return result
+
     def lookup(self, spec: "LookupFactSpec") -> dict[str, Any]:
         request_id = current_request_id.get() or f"orc-{uuid.uuid4().hex[:16]}"
         try:

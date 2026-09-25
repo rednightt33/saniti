@@ -90,8 +90,9 @@ class FakeGovernor:
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict]] = []
 
-    def handle(self, request_id: str, spec: dict) -> GovernorResponse:
+    def handle(self, request_id: str, spec: dict, lineage: dict | None = None) -> GovernorResponse:
         self.calls.append((request_id, spec))
+        self.lineage = lineage
         return GovernorResponse(decision="REJECTED", next_action="STOP_OR_REFORMULATE", reason_code="X",
                                 message="m", request_id=request_id, query_id="qry_1")
 

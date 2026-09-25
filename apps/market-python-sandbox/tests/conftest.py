@@ -41,6 +41,97 @@ def base_env(root: Path, **overrides: str) -> dict[str, str]:
     }
 
 
+# The catalog source contracts the Governor attaches to every dataset (AI_table_catalog subject metadata, migration
+# 20260925_001); the sandbox has no table dictionary of its own.
+def _contract(table: str, grain: list[str], entity: str, time: str | None, entity_type: str = "STOCK",
+              asset_type: str | None = "IDX_EQUITY") -> dict:
+    frequencies = ["1D"] if time else ["STATIC"]
+    return {"table": table, "grain": grain, "grain_description": " x ".join(grain), "entity_column": entity,
+            "time_column": time, "supported_frequencies": frequencies, "frequency": frequencies[0],
+            "time_semantics": "Asia/Jakarta exchange trading date" if time else "Current-state reference data",
+            "data_domain": "MARKET", "entity_type": entity_type, "asset_type": asset_type,
+            "subject_metadata_status": "INFERRED", "catalog_table_sha256": "0" * 63 + str(len(table) % 10)}
+
+
+SOURCE_CONTRACTS = {
+    "Price_Stock_Indonesia_IDX": _contract("Price_Stock_Indonesia_IDX", ["ticker", "date"], "ticker", "date"),
+    "Feature_01_Stock_Daily": _contract("Feature_01_Stock_Daily", ["ticker", "date"], "ticker", "date"),
+    "Feature_02_Broker_Rolling": _contract("Feature_02_Broker_Rolling",
+                                           ["ticker", "market_board", "broker", "investor_type", "date"], "ticker",
+                                           "date"),
+    "Feature_03_Stock_Broker_Daily": _contract("Feature_03_Stock_Broker_Daily", ["ticker", "market_board", "date"],
+                                               "ticker", "date"),
+    "IDX_Broker_Summary": _contract("IDX_Broker_Summary", ["Date", "Symbol", "Broker", "Investor Type",
+                                                           "Market Board"], "Symbol", "Date"),
+    "IDX_Stock_Universe": _contract("IDX_Stock_Universe", ["Ticker"], "Ticker", None),
+    "IDX_Broker_Profile": _contract("IDX_Broker_Profile", ["broker_code"], "broker_code", None, "BROKER", None),
+}
+
+
+def _columns(spec: dict[str, tuple[str, bool, bool]]) -> dict[str, dict]:
+    """{column: (data_type, filter_allowed, group_by_allowed)} -> catalog contract columns."""
+    numeric = ("numeric", "double precision", "bigint", "integer")
+    return {name: {"data_type": kind, "semantic_type": "MEASURE" if kind in numeric else "DIMENSION", "unit": None,
+                   "filter_allowed": filt, "group_by_allowed": group,
+                   "allowed_aggregations": ["AVG", "MAX", "MIN", "SUM"] if kind in numeric else ["COUNT",
+                                                                                                "COUNT_DISTINCT"]}
+            for name, (kind, filt, group) in spec.items()}
+
+
+def _catalog_table(contract: dict, description: str) -> dict:
+    return {"table_name": contract["table"], "description": description, "grain": contract["grain_description"],
+            "primary_key_columns": contract["grain"], "entity_column": contract["entity_column"],
+            "time_column": contract["time_column"], "data_domain": contract["data_domain"],
+            "entity_type": contract["entity_type"], "asset_type": contract["asset_type"],
+            "supported_frequencies": contract["supported_frequencies"], "time_semantics": contract["time_semantics"],
+            "subject_metadata_status": "INFERRED", "catalog_table_sha256": contract["catalog_table_sha256"]}
+
+
+SOURCE_CONTRACTS["Macro_Series_Monthly"] = _contract("Macro_Series_Monthly", ["series_id", "period"], "series_id",
+                                                     "period", "SERIES", None)
+SOURCE_CONTRACTS["Macro_Series_Monthly"].update(data_domain="MACRO", supported_frequencies=["1M"], frequency="1M")
+CATALOG = {
+    "catalog_version": "ai_catalog_contract/v1", "subject_metadata": True,
+    "tables": {name: _catalog_table(SOURCE_CONTRACTS[name], "Synthetic catalog table.") for name in (
+        "Price_Stock_Indonesia_IDX", "IDX_Stock_Universe", "IDX_Broker_Profile", "Feature_01_Stock_Daily",
+        "Macro_Series_Monthly")},
+    "columns": {
+        "Price_Stock_Indonesia_IDX": _columns({"ticker": ("text", True, True), "date": ("date", True, True),
+                                               "open": ("numeric", True, False), "high": ("numeric", True, False),
+                                               "low": ("numeric", True, False), "close": ("numeric", True, False),
+                                               "volume": ("numeric", True, False),
+                                               "query_date": ("date", False, False)}),
+        "IDX_Stock_Universe": _columns({"Ticker": ("text", True, True), "Sector": ("text", True, True),
+                                        "Industry": ("text", True, True), "Name": ("text", True, False),
+                                        "Shares": ("bigint", True, False)}),
+        "IDX_Broker_Profile": _columns({"broker_code": ("text", True, True), "broker_name": ("text", True, False)}),
+        "Feature_01_Stock_Daily": _columns({"ticker": ("text", True, True), "date": ("date", True, True),
+                                            "return_20d_pct": ("numeric", True, False)}),
+        "Macro_Series_Monthly": _columns({"series_id": ("text", True, True), "period": ("date", True, True),
+                                          "value": ("numeric", True, False)}),
+    },
+    "relationships": [
+        {"relationship_id": 1, "left_table": "Price_Stock_Indonesia_IDX", "left_columns": ["ticker", "date"],
+         "right_table": "Feature_01_Stock_Daily", "right_columns": ["ticker", "date"], "relationship_type": "ONE_TO_ONE",
+         "temporal_rule": "Exact trading date", "safe_output_grain": "date x ticker", "requires_preaggregation": False,
+         "is_allowed": True, "version": "v1"},
+        {"relationship_id": 2, "left_table": "IDX_Stock_Universe", "left_columns": ["Ticker"],
+         "right_table": "Price_Stock_Indonesia_IDX", "right_columns": ["ticker"], "relationship_type": "ONE_TO_MANY",
+         "temporal_rule": "Current-state reference metadata", "safe_output_grain": "date x ticker",
+         "requires_preaggregation": False, "is_allowed": True, "version": "v1"},
+    ],
+    "catalog_sha256": "c" * 64,
+}
+
+
+def catalog_subset(tables: list[str]) -> dict:
+    found = [t for t in tables if t in CATALOG["tables"]]
+    return {**CATALOG, "tables": {t: CATALOG["tables"][t] for t in found},
+            "columns": {t: CATALOG["columns"][t] for t in found},
+            "relationships": [r for r in CATALOG["relationships"] if r["left_table"] in found or r["right_table"] in found],
+            "unknown_tables": [t for t in tables if t not in CATALOG["tables"]]}
+
+
 class FakeGovernor:
     """Answers /v1/datasets/{id}/access like market-sql-governor, granting file:// URLs to local Parquet."""
 
@@ -52,6 +143,7 @@ class FakeGovernor:
         self.datasets: dict[str, dict] = {}
         self.calls: list[dict] = []
         self.checksum_override: dict[str, str] = {}
+        self.catalog_requests: list[dict] = []
 
     FRIENDLY = {"double": "float64", "float": "float32", "date32[day]": "date", "timestamp[us]": "timestamp",
                 "timestamp[ns]": "timestamp", "bool": "boolean", "string": "string", "large_string": "string",
@@ -62,7 +154,8 @@ class FakeGovernor:
             requested_from: str | None = None, requested_to: str | None = None, entities: list[str] | None = None,
             missing: list[str] | None = None, created_at: datetime | None = None,
             aggregation: dict[str, str] | None = None, source_columns: dict[str, str] | None = None,
-            units: dict[str, str] | None = None) -> str:
+            units: dict[str, str] | None = None, lineage: dict | None = None,
+            executed_scope: dict | None = None, source_contracts: dict | None = None) -> str:
         dataset_id = dataset_id or f"ds_{uuid.uuid4().hex[:24]}"
         table = data if isinstance(data, pa.Table) else pa.Table.from_pandas(data, preserve_index=False)
         path = self.root / f"{dataset_id}.parquet"
@@ -90,6 +183,15 @@ class FakeGovernor:
                 "completeness_status": completeness if not missing else "MISSING_REQUESTED_ENTITIES",
                 "checksum_sha256": hashlib.sha256(raw).hexdigest(), "numeric_float64_columns": list(numeric),
                 "created_at": now.isoformat(), "expires_at": (now + timedelta(days=7)).isoformat(),
+                "validator_manifest": {
+                    "manifest_version": "v2", "dataset_id": dataset_id, "lineage": lineage,
+                    "executed_scope": executed_scope,
+                    "source_contracts": source_contracts if source_contracts is not None else (
+                        {source_table: SOURCE_CONTRACTS[source_table]} if source_table in SOURCE_CONTRACTS else {}),
+                    "query_hash": "q" * 64, "request_sha256": (lineage or {}).get("request_sha256", "r" * 64),
+                    "checksum_sha256": hashlib.sha256(raw).hexdigest(), "requested_entities": entities,
+                    "entities_present": present if entity_column else None,
+                    "entities_present_count": len(present) if entity_column else None},
             }}
         return dataset_id
 
@@ -97,6 +199,12 @@ class FakeGovernor:
         self.calls.append({"path": request.url.path, "authorization": request.headers.get("authorization")})
         if request.headers.get("authorization") != f"Bearer {ACCESS_KEY}":
             return httpx.Response(401, json={"detail": "Unauthorized"})
+        if request.method == "POST" and request.url.path == "/v1/catalog/contract":
+            import json as _json
+
+            body = _json.loads(request.content)
+            self.catalog_requests.append(body)
+            return httpx.Response(200, json=catalog_subset(body["tables"]))
         match = self.PATH.fullmatch(request.url.path)
         if request.method != "POST" or match is None:
             return httpx.Response(404, json={"detail": "Not Found"})

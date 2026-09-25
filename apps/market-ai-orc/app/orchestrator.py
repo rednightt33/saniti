@@ -26,7 +26,7 @@ from .tools.request_data import current_request_id
 
 logger = logging.getLogger("market_ai_orc")
 
-SYSTEM_PROMPT = """You are the Saniti AI orchestration agent.
+SYSTEM_PROMPT_TEMPLATE = """You are the Saniti AI orchestration agent.
 Your role is to understand the user's request, use the capabilities explicitly made available to you, and produce a clear and accurate response.
 General rules:
 1. Answer the user's actual request directly.
@@ -95,39 +95,41 @@ return a LIMITATION response explaining what has
 been identified and what remains unexecuted.
 
 DATA QUERY RULES
-There are two data paths.
-Use lookup_fact for specific source facts: values at explicit
-entities and dates (for example yesterday's close of one ticker),
-or a SUM, AVG, MIN, MAX, or COUNT that the database computes over
-an explicit scope (for example this week's total volume).
-Use request_data only to obtain analysis input. An approved
-request is always a dataset reference (DATASET_READY), never rows;
-a dataset is not an answer.
-Numbers derived from data (statistics, comparisons between values,
-percentage changes, returns, rankings, indicators, correlations)
-come only from a Python analysis whose validation passed. Never
-calculate them yourself from facts, datasets, or preview rows.
-Every number in an answer must come from a lookup_fact result, the
-output of a validated analysis, the user's message, the approved
-spec, or a dataset manifest. The application checks this and
-rejects answers with numbers that have no such source.
-Build requests only from identifiers and semantics returned by
+Every analysis, statistic, ranking or aggregate follows one path:
+create_analysis_spec (one Analysis Spec V2 naming the subject,
+source tables, scope, time scope, calculations and outputs), then
+prepare_analysis_data(spec_id), then run_python_analysis with the
+returned input_bundle_id. The backend compiles the approved scope
+into governed data requests; never restate the scope yourself.
+{lookup_rule}Numbers derived from data (statistics, comparisons between values,
+percentage changes, returns, rankings, counts per group, indicators,
+correlations) come only from an analysis whose validation passed.
+Never calculate them yourself from facts, datasets, or preview rows.
+Every number in an answer must come from {number_sources}the output
+of a validated analysis, the user's message, the approved spec, or
+a prepared dataset. The application checks this and rejects answers
+with numbers that have no such source.
+Take table names, columns, subject values (data_domain,
+entity_type, asset_type), relationships and frequencies only from
 the catalog tools. Do not write or submit raw SQL.
-If lookup_fact returns next_action USE_ANALYSIS_PATH, use
-create_analysis_spec, request_data, and run_python_analysis.
-If a request is rejected or requires narrowing, use the governor
-response to revise it when a reliable bounded alternative exists.
+For a scope such as a sector, industry or other classification, use
+an ATTRIBUTE_FILTER predicate on the catalog column with the exact
+data value; never type out a member list yourself.
+If a tool rejects your arguments, correct them and call it again. If
+prepare_analysis_data or the SQL Governor refuses, follow its
+allowed_actions; never change the user's scope, drop entities,
+sample, or shorten the period to pass a limit.
 Do not claim data was retrieved unless a tool returned it.
 Preview rows show column formats only; never use their values in
 an answer.
 
 PYTHON ANALYSIS RULES
 Use run_python_analysis when the answer needs a number derived
-from data: a statistic, comparison, change, ranking, or indicator.
-Only analyze datasets returned through the governed data
-workflow.
+from data: a statistic, comparison, change, ranking, count per
+group, or indicator.
+Only analyze data prepared for the approved spec.
 Use get_dataset_manifest when the exact contents or coverage
-of a dataset must be checked before analysis.
+of a prepared dataset must be checked before analysis.
 Python analysis executes in an isolated bounded sandbox.
 Do not claim a calculation was performed unless the sandbox
 returns a successful analytical result.
@@ -142,32 +144,32 @@ execution failure, or another limitation, preserve that
 limitation in the final answer.
 
 ANALYSIS VALIDATION RULES
-Before running Python, call create_analysis_spec with a structured
-contract of the requested calculation: universe, analysis period,
-frequency, inputs, calculations with their parameters, and the
-outputs your code will emit.
+analysis_type is ANALYSIS for a calculation, statistic, ranking or
+aggregate, and RESEARCH only for a historical-pattern, predictive,
+exploratory or scenario question (with a research block).
 Mark each requirement's provenance truthfully: USER_EXPLICIT only
 for what the user stated, USER_CLARIFIED for answers to your
-clarification question, APPROVED_DEFAULT with its default_id, and
-AI_INFERRED for anything else.
+clarification question, CATALOG_RESOLVED for a scope value you
+mapped from the user's words (with those words), APPROVED_DEFAULT
+with its default_id, and AI_INFERRED for anything else.
 Never change the user's requested period, universe, timeframe,
 method, or parameters to fit a limit. If the spec result is
-ANALYSIS_SPEC_MISMATCH, correct the spec; if it is
+ANALYSIS_SPEC_MISMATCH or INVALID_SPEC, correct the spec; if it is
 NEEDS_CLARIFICATION, ask the user.
-Request data that covers the returned required_input, including
-the warm-up history before the analysis period.
-Run the analysis with the approved spec_id and emit every declared
-output with its declared name and columns.
+Run the analysis with the approved spec_id and its input bundle,
+and emit every declared output with its declared name and columns.
 execution_status and validation_status are independent. Only
 validation PASS supports presenting a result as the answer to the
 request. On FAILED, revise and rerun or report the limitation; on
-INCOMPLETE, request the missing data or state exactly what is not
-covered; on UNVERIFIED, state that the result could not be
-independently validated.
+INCOMPLETE, state exactly what is not covered; on UNVERIFIED, state
+that the result could not be independently validated.
 State the validation level, and disclose unverified requirements
 and approved defaults that shaped the result.
 Features derived during an analysis are exploratory and are not
 statistically validated.
+A LIMITATION names the capability or data that is actually
+missing, from the tools' reason codes; never describe a path you
+did not attempt as unavailable.
 
 RESEARCH RULES
 Keep the work proportional to the request: a calculation, screen,
@@ -191,6 +193,20 @@ Data the catalog does not contain (for example macro data, yields,
 fundamentals, or news) is unavailable: say so and never substitute
 another dataset. A documented formula whose inputs are not in the
 catalog cannot be calculated."""
+LOOKUP_RULE = ("Use lookup_fact only for a specific source fact: a value at explicit\n"
+               "entities and dates, or a SUM, AVG, MIN, MAX, or COUNT the database\n"
+               "computes over an explicit scope; each value carries a fact_id.\n")
+
+
+def build_system_prompt(lookup_fact: bool) -> str:
+    """The system prompt for the registered tools. It is fixed for a deployment (the AI_ENABLE_LOOKUP_FACT flag),
+    so every call of every run shares one byte-identical cacheable prefix."""
+    return (SYSTEM_PROMPT_TEMPLATE.replace("{lookup_rule}", LOOKUP_RULE if lookup_fact else "")
+            .replace("{number_sources}", "a lookup_fact result, " if lookup_fact else ""))
+
+
+SYSTEM_PROMPT = build_system_prompt(True)
+
 VALIDATION_GATE_INSTRUCTION = (
     "Your answer relies on Python analyses that did not pass validation: {findings}. A result that failed "
     "validation must not be presented as a valid answer. Fix the analysis and run it again, request the missing "
@@ -201,14 +217,15 @@ GATE_NOTICE = ("Validation did not pass for the analysis behind this response; a
 ROUTING_INSTRUCTION = (
     "The request asks for {families}, which only a Python analysis whose validation passed can answer; source "
     "facts alone are not enough and numbers must not be calculated by you. Use create_analysis_spec, "
-    "request_data, and run_python_analysis, or return response_type \"LIMITATION\" stating what was not calculated."
+    "prepare_analysis_data, and run_python_analysis, or return response_type \"LIMITATION\" stating what was not "
+    "calculated."
 )
 ROUTING_NOTICE = ("This request needs a validated analysis ({families}), and none supports this response; any "
                   "figures below are not a validated answer. ")
 PROVENANCE_INSTRUCTION = (
     "These numbers in your answer have no governed source in this run: {numbers}. Every number must come from a "
     "lookup_fact result, the output of an analysis whose validation passed, the user's message, the approved spec, "
-    "or a dataset manifest; outputs of failed or incomplete analyses and preview rows are not sources. Remove or "
+    "or a prepared dataset; outputs of failed or incomplete analyses and preview rows are not sources. Remove or "
     "correct those numbers, obtain them with the right tool, or return response_type \"LIMITATION\"."
 )
 PROVENANCE_NOTICE = ("Some figures below could not be traced to a governed source in this run and are not "
@@ -331,6 +348,8 @@ class RunState:
     analysis_values: dict[str, dict[str, Any]] = field(default_factory=dict)  # analysis_id -> {label, values}
     gate_kinds_rejected: set[str] = field(default_factory=set)
     number_provenance: dict[str, Any] | None = None
+    # Repair ledger: "tool:reason_code" -> rejections seen this run (bounded retries, see _repair_budget)
+    repairs: dict[str, int] = field(default_factory=dict)
     evidence_label: str | None = None
     # analysis_id -> the validator's evidence assessment (compact); warning codes the sandbox attached
     evidence: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -357,6 +376,7 @@ class AgentOrchestrator:
         self.auditor = auditor
         self.wall_clock = wall_clock
         self.clock = clock
+        self.system_prompt = build_system_prompt(settings.ai_enable_lookup_fact)
 
     def run(self, request: AgentRunRequest) -> AgentRunResponse:
         input_items, dropped = self._build_input(request)
@@ -415,6 +435,7 @@ class AgentOrchestrator:
             reasoning_tokens=state.reasoning_tokens,
             total_tokens=state.total_tokens,
             duration_ms=result.execution.duration_ms,
+            repair_ledger=state.repairs or None,
         )
         log_event("ai_model_usage_summary", **self._usage_summary(state))
         return result
@@ -500,7 +521,7 @@ class AgentOrchestrator:
             # One session per run: OpenRouter uses it as the sticky-routing key, so every call of the run
             # goes to the same provider endpoint and can reuse its implicit prompt cache.
             "session_id": state.request_id,
-            "instructions": SYSTEM_PROMPT,
+            "instructions": self.system_prompt,
             "input": state.input_items,
             "reasoning": {"effort": self.settings.ai_reasoning_effort},
             "max_output_tokens": self.settings.ai_max_output_tokens,
@@ -581,7 +602,7 @@ class AgentOrchestrator:
                 "Use the earlier result instead of repeating it.",
             )
 
-        outcome = self.registry.execute(call_id, name, raw_arguments)
+        outcome = self._repair_budget(state, call_id, name, self.registry.execute(call_id, name, raw_arguments))
         self._track_analysis(state, name, outcome, self._normalized_arguments(raw_arguments))
         self._track_sources(state, name, self._normalized_arguments(raw_arguments), outcome)
         result_hash = stable_hash(outcome.output)
@@ -589,9 +610,44 @@ class AgentOrchestrator:
         state.call_history[key] = (count, result_hash)
         return outcome
 
+    @staticmethod
+    def _rejection_code(name: str, outcome: ToolOutcome) -> str | None:
+        """The machine-readable reason a tool call did not succeed, or None for a success or a result to report."""
+        if not outcome.ok:
+            return outcome.error_code
+        result = outcome.output.get("result")
+        if not isinstance(result, dict):
+            return None
+        status = result.get("status") or result.get("decision")
+        if name == "create_analysis_spec" and status in ("INVALID_SPEC", "ANALYSIS_SPEC_MISMATCH"):
+            codes = result.get("problem_codes") or [m.get("code") for m in result.get("mismatches") or []]
+            return f"{status}:{','.join(sorted(c for c in codes if c)) or 'UNSPECIFIED'}"
+        if name == "prepare_analysis_data" and status not in (None, "READY"):
+            return f"{status}:{(result.get('rejection') or {}).get('reason_code')}"
+        if name == "run_python_analysis" and result.get("execution_status") == "FAILED":
+            return f"FAILED:{(result.get('error') or {}).get('code')}"
+        if name == "run_python_analysis" and result.get("status") == "REJECTED":
+            return f"REJECTED:{(result.get('error') or {}).get('code')}"
+        return None
+
+    def _repair_budget(self, state: RunState, call_id: str, name: str, outcome: ToolOutcome) -> ToolOutcome:
+        """Bounded repair: the same rejection may be repaired a limited number of times per run, then the model
+        must report it. Counters live in the run state and are logged with the run (auditable)."""
+        code = self._rejection_code(name, outcome)
+        if code is None:
+            return outcome
+        key = f"{name}:{code}"
+        state.repairs[key] = state.repairs.get(key, 0) + 1
+        if state.repairs[key] <= self.settings.ai_max_repair_attempts:
+            return outcome
+        return error_outcome(call_id, name, "REPAIR_BUDGET_EXHAUSTED",
+                             f"{name} was rejected {state.repairs[key]} times for the same reason ({code}). Do not "
+                             "retry it: return response_type \"LIMITATION\" naming this reason code and what it "
+                             "means for the request.")
+
     def _estimate_context(self, state: RunState, tools: list[dict[str, Any]]) -> int:
         return estimate_tokens({
-            "instructions": SYSTEM_PROMPT, "input": state.input_items,
+            "instructions": self.system_prompt, "input": state.input_items,
             "tools": tools, "schema": FINAL_RESPONSE_SCHEMA,
         })
 
@@ -719,6 +775,8 @@ class AgentOrchestrator:
                                     "values": numbers_in(fact.get("value"))})
         elif name == "request_data" and result.get("decision") == "DATASET_READY":
             state.context_numbers.extend(numbers_in(result.get("dataset"), ints_only=True))
+        elif name == "prepare_analysis_data" and result.get("status") == "READY":
+            state.context_numbers.extend(numbers_in(result.get("inputs"), ints_only=True))
         elif name == "get_dataset_manifest" and result.get("status") == "AVAILABLE":
             state.context_numbers.extend(numbers_in(result, ints_only=True))
         elif name == "create_analysis_spec" and result.get("spec_id"):
@@ -741,7 +799,7 @@ class AgentOrchestrator:
 
     def _source_index(self, state: RunState) -> SourceIndex:
         index = SourceIndex()
-        static = SYSTEM_PROMPT + "\n" + "\n".join(str(d.get("description", "")) for d in self.registry.definitions())
+        static = self.system_prompt + "\n" + "\n".join(str(d.get("description", "")) for d in self.registry.definitions())
         index.add(CONTEXT, state.context_numbers
                   + [value for shown in parse_numbers(static) for value, _ in shown.candidates])
         for fact in state.facts:

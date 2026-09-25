@@ -42,7 +42,13 @@ read URL for one dataset. It **cannot** call `/v1/query`, and the orc key cannot
 - `GET /health`: liveness.
 - `GET /ready`: returns 200 only when the governed database is reachable.
 - `POST /v1/query`: requires `Authorization: Bearer ${SQL_GOVERNOR_API_KEY}`. The body is
-  exactly `{"request_id": "...", "spec": DataRequestSpec}`. Any other key gets a 422.
+  `{"request_id": "...", "spec": DataRequestSpec}` plus an optional `lineage` object. Any other
+  key gets a 422.
+  - `lineage` is sent only by market-ai-orc's backend compiler (`prepare_analysis_data`), never by
+    the model. Fields: `spec_id`, `spec_sha256`, `scope_sha256`, `data_plan_id`, the logical input
+    name, `part_index` of `part_count`, `request_sha256`, and an optional date partition.
+  - It is validated (`app/spec.py DataPlanLineage`; malformed or `part_index > part_count` gets
+    422) and stored in the dataset's full manifest. It never changes what is compiled.
 - `POST /v1/lookup`: the same key and body shape with a `LookupFactSpec` (see
   [Lookup facts](#lookup-facts)).
 
@@ -70,6 +76,31 @@ read URL for one dataset. It **cannot** call `/v1/query`, and the orc key cannot
     manifest's byte count (`DATASET_UNAVAILABLE` / `DATASET_INTEGRITY_ERROR` otherwise).
   - Each call logs `sql_governor_dataset_access` (request_id, analysis_id, dataset_id, outcome,
     byte_count). The URL is never logged.
+
+- `POST /v1/catalog/contract`: requires either key. The body is `{request_id, tables: 1-10 names}`.
+  It returns catalog metadata only, never rows (`app/catalog_contract.py`):
+  - for each active, AI-readable table: its keys and time column, the subject metadata of
+    migration 20260925_001 (`data_domain`, `entity_type`, `asset_type`, `supported_frequencies`,
+    `time_semantics`, `subject_metadata_status`), and its AI-allowed columns with types, units and
+    filter/group/aggregation permissions;
+  - the relationships touching those tables;
+  - a per-table content hash (`catalog_table_sha256`) and `catalog_sha256`;
+  - `unknown_tables`.
+
+  market-python-sandbox approves an Analysis Spec V2 against this contract. Before migration
+  20260925_001 is applied it answers with `subject_metadata: false` and null subject fields.
+- **Executed scope and the validator manifest.** Each dataset's full manifest (`manifest_version`
+  v2) also records:
+  - `request_sha256`;
+  - the caller's `lineage`;
+  - `executed_scope`, derived from the validated query itself: source table, joined tables with
+    relationship ids, every filter with its type-coerced values in canonical text form, grouping,
+    aggregations, and the requested range;
+  - `source_contracts` with the catalog hash of every table read.
+
+  Only the sandbox's access grant returns them, as `validator_manifest`. `/manifest` and
+  market-ai-orc never see them, and none of them is SQL text, an object key, or a credential.
+  The sandbox refuses to analyse a dataset whose executed scope differs from the approved spec.
 
 There is no SQL endpoint and no OpenAPI or docs route.
 

@@ -2,8 +2,9 @@
 
 market-ai-orc reads a bounded, safe subset of a dataset manifest (get_dataset_manifest).
 market-python-sandbox additionally obtains a presigned GET URL for exactly one dataset's
-Parquet file. Neither caller ever receives an object key, a bucket credential, or the full
-manifest (which holds the request spec and up to 5000 entity names).
+Parquet file and the internal validator manifest (executed scope, data-plan lineage, source
+contracts). Neither caller ever receives an object key, a bucket credential, SQL text, or the
+full manifest.
 """
 from __future__ import annotations
 
@@ -93,6 +94,27 @@ def safe_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def validator_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
+    """The internal manifest the sandbox validator checks an approved spec against. Returned only with a dataset
+    access grant (sandbox key), never through /manifest or to market-ai-orc: it carries the executed scope
+    (filters with their values, relationships), the data-plan lineage, and the source contracts. It holds no SQL
+    text, object key, credential, or row."""
+    scope = manifest.get("requested_scope") or {}
+    return {
+        "manifest_version": manifest.get("manifest_version", "v1"),
+        "dataset_id": manifest["dataset_id"],
+        "lineage": manifest.get("lineage"),
+        "executed_scope": manifest.get("executed_scope"),
+        "source_contracts": manifest.get("source_contracts") or {},
+        "query_hash": manifest.get("query_hash"),
+        "request_sha256": manifest.get("request_sha256"),
+        "checksum_sha256": manifest.get("checksum_sha256"),
+        "requested_entities": scope.get("entities"),
+        "entities_present": manifest.get("entities_present"),
+        "entities_present_count": manifest.get("entities_present_count"),
+    }
+
+
 @dataclass
 class DatasetService:
     settings: Settings
@@ -145,7 +167,7 @@ class DatasetService:
             ttl = self.settings.dataset_access_url_ttl_seconds
             url = self.store.presigned_get(key, ttl)
             outcome, byte_count = "GRANTED", size
-            return {"status": "AVAILABLE", **safe_manifest(manifest),
+            return {"status": "AVAILABLE", **safe_manifest(manifest), "validator_manifest": validator_manifest(manifest),
                     "download": {"url": url, "expires_in_seconds": ttl}}
         except DatasetError as exc:
             outcome = exc.status

@@ -5,6 +5,7 @@ import os
 from .analysis import SandboxClient, analysis_specs, manifest_spec
 from .catalog import CatalogReader, catalog_specs
 from .catalog_rows import catalog_rows_spec
+from .data_compiler import BundleStore, DataRequestCompiler, prepare_spec
 from .preview import preview_spec
 from .registry import ToolError, ToolOutcome, ToolRegistry, ToolSpec, error_outcome
 from .request_data import GovernorClient, lookup_fact_spec, request_data_spec
@@ -27,6 +28,9 @@ def build_default_registry(
     sandbox_client: SandboxClient | None = None,
     sandbox_timeout_seconds: float = 50.0,
     python_analysis_max_bytes: int = 40000,
+    lookup_fact_enabled: bool = True,
+    request_data_enabled: bool = False,
+    bundles: BundleStore | None = None,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
@@ -42,14 +46,26 @@ def build_default_registry(
         if preview_enabled:
             registry.register(preview_spec(catalog_reader, timeout_seconds=catalog_timeout_seconds))
     if governor_client is not None:
-        registry.register(request_data_spec(
-            governor_client, timeout_seconds=governor_timeout_seconds, max_result_bytes=request_data_max_bytes))
-        registry.register(lookup_fact_spec(
-            governor_client, timeout_seconds=min(governor_timeout_seconds, 30.0), max_result_bytes=request_data_max_bytes))
+        # Model-written data requests are a rollback path only: the approved spec is compiled by the backend.
+        if request_data_enabled:
+            registry.register(request_data_spec(
+                governor_client, timeout_seconds=governor_timeout_seconds, max_result_bytes=request_data_max_bytes))
+        if lookup_fact_enabled:
+            registry.register(lookup_fact_spec(
+                governor_client, timeout_seconds=min(governor_timeout_seconds, 30.0),
+                max_result_bytes=request_data_max_bytes))
         registry.register(manifest_spec(governor_client, timeout_seconds=min(governor_timeout_seconds, 20.0)))
     if sandbox_client is not None:
+        bundles = bundles if bundles is not None else BundleStore()
+        registry.register(analysis_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
+                                         max_result_bytes=python_analysis_max_bytes, bundles=bundles)[0])
+        if governor_client is not None:
+            # a partitioned extraction may take several Governor calls
+            registry.register(prepare_spec(DataRequestCompiler(sandbox_client, governor_client, bundles),
+                                           timeout_seconds=max(sandbox_timeout_seconds, governor_timeout_seconds) * 4,
+                                           max_result_bytes=python_analysis_max_bytes))
         for spec in analysis_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
-                                   max_result_bytes=python_analysis_max_bytes):
+                                   max_result_bytes=python_analysis_max_bytes, bundles=bundles)[1:]:
             registry.register(spec)
     return registry
 

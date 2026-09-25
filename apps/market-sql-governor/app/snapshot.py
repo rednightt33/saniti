@@ -16,6 +16,7 @@ from typing import Any
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from .catalog_contract import sha256_json
 from .decisions import narrowing
 
 GOVERNOR_VERSION = "market-sql-governor/v1"
@@ -117,6 +118,9 @@ def build_manifest(
     requested_range: dict[str, str | None] | None,
     requested_entities: list[str] | None,
     retention_hours: int,
+    lineage: dict[str, Any] | None = None,
+    executed: dict[str, Any] | None = None,
+    source_contracts: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     created = datetime.now(timezone.utc).replace(microsecond=0)
     missing = None
@@ -125,7 +129,7 @@ def build_manifest(
     entities = sorted(stats.entities) if stats.entity_index is not None else None
     completeness = "COMPLETE" if not missing else "MISSING_REQUESTED_ENTITIES"
     return {
-        "manifest_version": "v1",
+        "manifest_version": "v2",
         "dataset_id": dataset_id,
         "format": "PARQUET",
         "compression": "zstd",
@@ -144,6 +148,11 @@ def build_manifest(
         "query_hash": query_hash,
         "request_id": request_id,
         "request_spec": spec,
+        "request_sha256": sha256_json(spec),
+        # internal only: returned to the sandbox in the validator manifest, never to the model
+        "lineage": lineage,
+        "executed_scope": executed,
+        "source_contracts": source_contracts or {},
         "requested_scope": {"date_range": requested_range, "entities": requested_entities},
         "actual_date_range": {"from": iso(stats.min_time), "to": iso(stats.max_time)}
         if stats.time_index is not None else None,

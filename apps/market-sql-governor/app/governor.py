@@ -24,6 +24,7 @@ from psycopg.rows import dict_row
 from pydantic import ValidationError
 
 from .compiler import CompiledQuery, compile_query
+from .catalog_contract import executed_scope, load_contract, source_contract
 from .config import Settings
 from .decisions import (NEXT_ACTION, DatasetReference, Fact, GovernorResponse, GovernorStop, LookupResponse,
                         OutputColumn, lookup_next_action, narrowing, rejected)
@@ -104,10 +105,10 @@ class Governor:
         self.store = store
         self.validator = Validator(settings)
 
-    def handle(self, request_id: str, raw_spec: Any) -> GovernorResponse:
+    def handle(self, request_id: str, raw_spec: Any, lineage: dict[str, Any] | None = None) -> GovernorResponse:
         started = time.monotonic()
         query_id = f"qry_{uuid.uuid4().hex[:24]}"
-        state: dict[str, Any] = {"source_tables": [], "requested_columns": []}
+        state: dict[str, Any] = {"source_tables": [], "requested_columns": [], "lineage": lineage}
         try:
             try:
                 spec = DataRequestSpec.model_validate(raw_spec)
@@ -141,8 +142,26 @@ class Governor:
              reason_code=response.reason_code, next_action=response.next_action,
              estimated_scan_rows=response.estimated_scan_rows, estimated_plan_cost=response.estimated_plan_cost,
              returned_rows=response.returned_rows, output_bytes=response.output_bytes,
-             dataset_id=response.dataset.dataset_id if response.dataset else None, runtime_ms=response.runtime_ms)
+             dataset_id=response.dataset.dataset_id if response.dataset else None, runtime_ms=response.runtime_ms,
+             data_plan_id=(lineage or {}).get("data_plan_id"), spec_id=(lineage or {}).get("spec_id"),
+             logical_input=(lineage or {}).get("logical_input_name"), part=(lineage or {}).get("part_index"))
         return response
+
+    def catalog_contract(self, request_id: str, tables: list[str]) -> dict[str, Any]:
+        """Catalog metadata of the named tables (no rows), for Analysis Spec V2 approval."""
+        started = time.monotonic()
+        with self.database.session() as connection:
+            def run(statement: str, params: tuple[Any, ...]) -> list[dict[str, Any]]:
+                with connection.cursor(row_factory=dict_row) as cursor:
+                    return list(cursor.execute(statement, params).fetchall())
+            try:
+                contract = load_contract(run, tables)
+            except psycopg.OperationalError as exc:
+                raise GovernorUnavailable("The governed database is unavailable.") from exc
+        _log("sql_governor_catalog_contract", request_id=request_id, tables=sorted(contract["tables"]),
+             unknown_tables=contract["unknown_tables"], catalog_sha256=contract["catalog_sha256"],
+             runtime_ms=int((time.monotonic() - started) * 1000))
+        return contract
 
     def _stop(self, request_id: str, query_id: str, stop: GovernorStop, state: dict[str, Any]) -> GovernorResponse:
         return GovernorResponse(
@@ -165,7 +184,8 @@ class Governor:
                 raise rejected("DATASET_STORAGE_UNAVAILABLE",
                                "Approved data requests are delivered only as datasets, and dataset storage is not "
                                "configured. Use lookup_fact for specific source values.")
-            return self._execute(connection, request_id, query_id, spec, query, compiled, scan_rows, cost)  # gate 10
+            return self._execute(connection, request_id, query_id, spec, query, compiled, scan_rows, cost,
+                                 state.get("lineage"))  # gate 10
 
     def _prepare(self, connection: psycopg.Connection, spec: DataRequestSpec, state: dict[str, Any],
                  cap: int) -> tuple[ValidatedQuery, CompiledQuery, int, float]:
@@ -219,8 +239,16 @@ class Governor:
         return largest, float(plan.get("Total Cost") or 0.0), int(plan.get("Plan Rows") or 0)
 
     def _execute(self, connection, request_id, query_id, spec, query: ValidatedQuery,
-                 compiled: CompiledQuery, scan_rows: int, cost: float) -> GovernorResponse:
+                 compiled: CompiledQuery, scan_rows: int, cost: float,
+                 lineage: dict[str, Any] | None = None) -> GovernorResponse:
         s = self.settings
+
+        def run(statement: str, params: tuple[Any, ...]) -> list[dict[str, Any]]:
+            with connection.cursor(row_factory=dict_row) as cursor:
+                return list(cursor.execute(statement, params).fetchall())
+
+        # the catalog version and source semantics this extraction ran under (same snapshot as the data)
+        contract = load_contract(run, query.source_tables)
         names = [item.name for item in query.select]
         output_columns = [OutputColumn(name=item.name, type=item.data_type, source_table=item.table,
                                        source_column=item.column, aggregation=item.function, unit=item.unit)
@@ -260,7 +288,9 @@ class Governor:
             dataset_id=dataset_id, payload=payload, checksum=checksum, columns=columns, oids=oids, stats=stats,
             source_tables=query.source_tables, query_id=query_id, query_hash=compiled.query_hash,
             request_id=request_id, spec=spec.model_dump(), requested_range=query.requested_range,
-            requested_entities=query.requested_entities, retention_hours=s.dataset_retention_hours)
+            requested_entities=query.requested_entities, retention_hours=s.dataset_retention_hours,
+            lineage=lineage, executed=executed_scope(query),
+            source_contracts={name: source_contract(meta) for name, meta in contract["tables"].items()})
         manifest_raw, manifest_checksum = manifest_bytes(manifest)
         self.store.put_immutable(f"datasets/{dataset_id}/data.parquet", payload,
                                  "application/vnd.apache.parquet", checksum)

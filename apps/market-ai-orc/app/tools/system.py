@@ -13,6 +13,7 @@ CAPABILITY_TOOLS = {
     "full_catalog_read": "read_catalog_rows",
     "market_data_preview": "preview_table_rows",
     "database_query": "request_data",
+    "analysis_data_preparation": "prepare_analysis_data",
     "fact_lookup": "lookup_fact",
     "python_analysis": "run_python_analysis",
     "web_search": "search_web",

@@ -13,7 +13,7 @@ from app.schemas import AgentRunRequest
 from app.tools import build_default_registry
 from app.tools.analysis import CreateAnalysisSpecArgs
 from conftest import ScriptedClient, final_response, make_settings, tool_call_response
-from test_analysis_tools import (ANA, ANA2, REFERENCE, SPEC, approved, completed, mock_sandbox, run_args,
+from test_analysis_tools import (ANA, AnyRunBundles, ANA2, REFERENCE, SPEC, approved, completed, mock_sandbox, run_args,
                                  sandbox_module, spec_args)
 from test_provenance import answer, governor
 
@@ -34,7 +34,8 @@ def assessment(claim: str = "HISTORICAL_PATTERN", decision: str = "PARTIALLY_SUP
 
 
 def run(script: list, message: str, sandbox: dict, *, auditor=None):
-    registry = build_default_registry(None, governor_client=governor(), sandbox_client=mock_sandbox(sandbox),
+    registry = build_default_registry(None, bundles=AnyRunBundles(), governor_client=governor(),
+                                      sandbox_client=mock_sandbox(sandbox),
                                       sandbox_timeout_seconds=5)
     scripted = ScriptedClient(script)
     result = AgentOrchestrator(make_settings(), scripted, registry, wall_clock=lambda: REFERENCE,
@@ -65,7 +66,7 @@ def sandbox_for(*results: dict[str, Any], reviews: list | None = None) -> dict:
 def test_research_specs_cross_the_tool_boundary_unchanged() -> None:
     args = CreateAnalysisSpecArgs.model_validate(spec_args(research={**RESEARCH, "holdout": {
         "start": "2026-01-02", "end": None}, "evidence_standard": "PREDICTIVE", "candidates": 3}))
-    request = sandbox_module("spec").SpecRequest.model_validate({
+    request = sandbox_module("spec_v2").SpecRequestAny.model_validate({
         "request_id": "r", "reference_time": REFERENCE.isoformat(), "timezone": "Asia/Jakarta",
         "user_messages": [{"role": "user", "content": "x"}], "spec": args.model_dump(mode="json")})
     assert request.spec.research.holdout.start.isoformat() == "2026-01-02"

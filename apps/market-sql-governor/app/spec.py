@@ -72,6 +72,27 @@ class DataRequestSpec(Strict):
     requested_limit: int | None = Field(ge=1, le=5_000_000, description="Optional row limit; null for none.")
 
 
+# ---------------------------------------------------------------- data-plan lineage
+# Sent by market-ai-orc's backend DataRequestCompiler (never by the model) next to a compiled Data Request
+# Spec. The Governor validates its shape, stores it in the dataset's full manifest, and returns it to the
+# sandbox only in the internal validator manifest. It never changes what the Governor compiles: the executed
+# scope is always derived from the validated query itself.
+SHA256_PATTERN = r"^[0-9a-f]{64}$"
+
+
+class DataPlanLineage(Strict):
+    spec_id: str = Field(pattern=r"^spec_[0-9a-f]{24}$")
+    spec_sha256: str = Field(pattern=SHA256_PATTERN)
+    scope_sha256: str = Field(pattern=SHA256_PATTERN)
+    data_plan_id: str = Field(pattern=r"^plan_[0-9a-f]{24}$")
+    logical_input_name: str = Field(pattern=r"^[a-z][a-z0-9_]{0,39}$")
+    part_index: int = Field(ge=1, le=64)
+    part_count: int = Field(ge=1, le=64)
+    request_sha256: str = Field(pattern=SHA256_PATTERN)
+    catalog_sha256: str | None = Field(default=None, pattern=SHA256_PATTERN)
+    partition: dict[str, str] | None = None  # {"column", "from", "to"} of a physical date partition
+
+
 # ---------------------------------------------------------------- lookup_fact
 # A narrow path for specific source facts. Limits are part of the contract (and repeated in the
 # Governor after execution): at most 5 entities, 10 dates, 4 columns, and 20 returned values.

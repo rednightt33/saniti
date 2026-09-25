@@ -19,6 +19,7 @@ from app.schemas import AgentRunRequest, HistoryMessage
 from app.tools import build_default_registry
 from app.tools.analysis import (CreateAnalysisSpecArgs, RunPythonAnalysisArgs, SandboxClient, current_run_context,
                                 run_context)
+from app.tools.data_compiler import Bundle, BundleStore
 from app.tools.request_data import GovernorClient, current_request_id
 from conftest import ScriptedClient, final_response, make_settings, tool_call_response
 
@@ -41,27 +42,42 @@ def sandbox_module(name: str):
 
 def spec_args(**overrides: Any) -> dict[str, Any]:
     base = {
+        "spec_version": "2.0", "analysis_type": "RESEARCH" if overrides.get("research") else "ANALYSIS",
         "question": "Rolling 20-day z-scores for all IDX stocks over the last three months.",
-        "universe": {"type": "ALL_IN_SOURCE", "tickers": None, "provenance": "USER_EXPLICIT",
-                     "default_id": "DEFAULT_UNIVERSE_ALL_IN_SOURCE"},
-        "analysis_period": {"mode": "TRAILING", "start": None, "end": None, "unit": "MONTH", "count": 3,
-                            "provenance": "USER_EXPLICIT", "default_id": "DEFAULT_TRAILING_CALENDAR_WINDOW"},
-        "frequency": {"value": "1D", "provenance": "APPROVED_DEFAULT", "default_id": "DEFAULT_FREQUENCY_DAILY"},
-        "inputs": [{"name": "prices", "source_table": "Price_Stock_Indonesia_IDX", "entity_column": "ticker",
-                    "date_column": "date", "columns": ["ticker", "date", "close"]}],
+        "subject": {"data_domain": "MARKET", "entity_type": "STOCK", "asset_type": "IDX_EQUITY"},
+        "inputs": [{"name": "prices", "source_table": "Price_Stock_Indonesia_IDX", "role": "PRIMARY_DATA",
+                    "entity_column": "ticker", "date_column": "date", "columns": ["ticker", "date", "close"]}],
+        "relationships": [],
+        "scope": {"selection_type": "ALL_ELIGIBLE", "entities": None, "predicates": None,
+                  "provenance": "USER_EXPLICIT", "default_id": "DEFAULT_UNIVERSE_ALL_IN_SOURCE"},
+        "time_scope": {"mode": "TRAILING", "start": None, "end": None, "unit": "MONTH", "count": 3, "frequency": "1D",
+                       "provenance": "USER_EXPLICIT", "default_id": "DEFAULT_TRAILING_CALENDAR_WINDOW"},
         "calculations": [{"id": "z20", "method": "ROLLING_ZSCORE", "dataset": "prices", "columns": ["close"],
                           "input_calculation": None,
                           "params": [{"name": "window", "value": 20, "provenance": "USER_EXPLICIT",
                                       "default_id": None}],
                           "output_column": "zscore_20", "formula": None, "time_alignment": None, "covers": None,
                           "signal": None, "expression": None, "formula_refs": None, "meaning": None, "unit": None,
-                          "data_policies": None, "provenance": "USER_EXPLICIT", "default_id": None}],
+                          "data_policies": None, "group_by": None, "provenance": "USER_EXPLICIT", "default_id": None}],
         "outputs": [{"name": "zscores", "grain": "ENTITY_DATE", "coverage": "FULL", "calculations": ["z20"],
-                     "selection": None, "entity_column": None, "date_column": None, "pair_columns": None}],
+                     "selection": None, "entity_column": None, "date_column": None, "pair_columns": None,
+                     "key_columns": None, "ranking": None}],
         "exclusion_rules": [],
         "research": None,
     }
     return {**base, **overrides}
+
+
+BUNDLE = "bundle_" + "e" * 24
+
+
+class AnyRunBundles(BundleStore):
+    """Test double: BUNDLE resolves for any request and spec, bound to one prices dataset."""
+
+    def resolve(self, bundle_id: str, request_id: str, spec_id: str) -> Bundle | None:
+        if bundle_id != BUNDLE:
+            return None
+        return Bundle(BUNDLE, request_id, spec_id, "plan_" + "0" * 24, {"prices": [DS]})
 
 
 def completed(**overrides: Any) -> dict[str, Any]:
@@ -123,13 +139,13 @@ def mock_governor(status: int, body: dict) -> GovernorClient:
 
 
 def registry(sandbox: SandboxClient | None = None, governor: GovernorClient | None = None):
-    return build_default_registry(None, governor_client=governor, sandbox_client=sandbox, sandbox_timeout_seconds=5)
+    return build_default_registry(None, governor_client=governor, sandbox_client=sandbox, sandbox_timeout_seconds=5,
+                                  bundles=AnyRunBundles())
 
 
 def run_args(**overrides: Any) -> dict[str, Any]:
-    return {"spec_id": SPEC, "inputs": [{"name": "prices", "dataset_ids": [DS],
-                                         "duplicate_policy": "ERROR_ON_CONFLICT"}],
-            "python_code": "print(1)", "expected_outputs": ["TABLE", "METRICS"], **overrides}
+    return {"spec_id": SPEC, "input_bundle_id": BUNDLE, "python_code": "print(1)",
+            "expected_outputs": ["TABLE", "METRICS"], **overrides}
 
 
 # --- schemas and contracts ---------------------------------------------------------------------------
@@ -137,9 +153,11 @@ def run_args(**overrides: Any) -> dict[str, Any]:
 def test_tool_schemas_are_strict_and_expose_no_limits_paths_or_user_context() -> None:
     definitions = {d["name"]: d for d in registry(mock_sandbox({}), mock_governor(200, {})).definitions()}
     expected = {"get_dataset_manifest": {"dataset_id"}, "get_analysis_result": {"analysis_id"},
-                "run_python_analysis": {"spec_id", "inputs", "python_code", "expected_outputs"},
-                "create_analysis_spec": {"question", "universe", "analysis_period", "frequency", "inputs",
-                                         "calculations", "outputs", "exclusion_rules", "research"}}
+                "run_python_analysis": {"spec_id", "input_bundle_id", "python_code", "expected_outputs"},
+                "prepare_analysis_data": {"spec_id"},
+                "create_analysis_spec": {"spec_version", "analysis_type", "question", "subject", "inputs",
+                                         "relationships", "scope", "time_scope", "calculations", "outputs",
+                                         "exclusion_rules", "research"}}
     for name, fields in expected.items():
         params = definitions[name]["parameters"]
         assert definitions[name]["strict"] is True and set(params["properties"]) == fields
@@ -153,10 +171,8 @@ def test_tool_schemas_are_strict_and_expose_no_limits_paths_or_user_context() ->
 
 
 @pytest.mark.parametrize("bad", [
-    {"inputs": []}, {"spec_id": "spec_1"}, {"inputs": [{"name": "Prices", "dataset_ids": [DS],
-                                                         "duplicate_policy": "ERROR_ON_CONFLICT"}]},
-    {"inputs": [{"name": "prices", "dataset_ids": [DS, DS], "duplicate_policy": "ERROR_ON_CONFLICT"}]},
-    {"inputs": [{"name": "prices", "dataset_ids": ["ds_1"], "duplicate_policy": "ERROR_ON_CONFLICT"}]},
+    {"input_bundle_id": "bundle_1"}, {"spec_id": "spec_1"}, {"input_bundle_id": DS},
+    {"inputs": [{"name": "prices", "dataset_ids": [DS], "duplicate_policy": "ERROR_ON_CONFLICT"}]},
     {"python_code": "x" * 20001}, {"expected_outputs": ["TEXT"]}, {"expected_outputs": ["TABLE", "TABLE"]},
     {"max_runtime_seconds": 900}, {"purpose": "old contract"},
 ])
@@ -168,14 +184,21 @@ def test_run_python_analysis_rejects_invalid_or_limit_raising_arguments(bad: dic
 
 def test_request_models_match_the_sandbox_contract() -> None:
     sandbox_request = sandbox_module("models").AnalysisRequest
-    assert set(sandbox_request.model_fields) - {"request_id"} == set(RunPythonAnalysisArgs.model_fields)
-    sandbox_request.model_validate({"request_id": "r1", **RunPythonAnalysisArgs.model_validate(run_args()).model_dump()})
-    spec_request = sandbox_module("spec").SpecRequest
+    # the model names a prepared bundle; the backend sends the sandbox the bundle's input bindings
+    assert set(sandbox_request.model_fields) - {"request_id", "inputs"} == \
+        set(RunPythonAnalysisArgs.model_fields) - {"input_bundle_id"}
+    payload = {k: v for k, v in RunPythonAnalysisArgs.model_validate(run_args()).model_dump().items()
+               if k != "input_bundle_id"}
+    sandbox_request.model_validate({"request_id": "r1", **payload, "inputs": [
+        {"name": "prices", "dataset_ids": [DS], "duplicate_policy": "ERROR_ON_CONFLICT"}]})
+    spec_request = sandbox_module("spec_v2").SpecRequestAny
     args = CreateAnalysisSpecArgs.model_validate(spec_args()).model_dump(mode="json")
-    spec_request.model_validate({"request_id": "r1", "reference_time": REFERENCE.isoformat(),
-                                 "timezone": "Asia/Jakarta", "user_messages": [{"role": "user", "content": "x"}],
-                                 "spec": args})
-    assert set(sandbox_module("spec").AnalysisSpec.model_fields) == set(CreateAnalysisSpecArgs.model_fields)
+    parsed = spec_request.model_validate({"request_id": "r1", "reference_time": REFERENCE.isoformat(),
+                                          "timezone": "Asia/Jakarta", "user_messages": [{"role": "user",
+                                                                                         "content": "x"}],
+                                          "spec": args})
+    assert type(parsed.spec).__name__ == "AnalysisSpecV2"
+    assert set(sandbox_module("spec_v2").AnalysisSpecV2.model_fields) == set(CreateAnalysisSpecArgs.model_fields)
 
 
 # --- get_dataset_manifest ----------------------------------------------------------------------------
@@ -255,7 +278,10 @@ def test_submission_forwards_request_id_and_returns_both_statuses_compactly() ->
         outcome = registry(sandbox).execute("c1", "run_python_analysis", json.dumps(run_args()))
     finally:
         current_request_id.reset(token)
-    assert seen[0]["auth"] == f"Bearer {SANDBOX_KEY}" and seen[0]["body"] == {"request_id": "agent-run-7", **run_args()}
+    expected = {k: v for k, v in run_args().items() if k != "input_bundle_id"}
+    assert seen[0]["auth"] == f"Bearer {SANDBOX_KEY}" and seen[0]["body"] == {
+        "request_id": "agent-run-7", **expected,
+        "inputs": [{"name": "prices", "dataset_ids": [DS], "duplicate_policy": "ERROR_ON_CONFLICT"}]}
     result = outcome.output["result"]
     assert (result["execution_status"], result["validation_status"], result["validation_level"]) == (
         "COMPLETED", "PASS", "CALCULATION_VERIFIED")

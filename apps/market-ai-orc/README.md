@@ -193,6 +193,9 @@ Measured on `dev` (2026-09-24, see `RAILWAY_CHANGELOG.md`):
 | `AI_MAX_TOOL_ITERATIONS` | no | `8` | Maximum model calls per run |
 | `AI_MAX_TOOL_CALLS` | no | `12` | Maximum tool calls per run; after that, tools are withdrawn |
 | `AI_MAX_IDENTICAL_TOOL_CALLS` | no | `2` | Executions allowed for the same tool and arguments while the result is unchanged |
+| `AI_MAX_REPAIR_ATTEMPTS` | no | `3` | Repairs allowed per run for the same tool rejection (tool + reason code) before `REPAIR_BUDGET_EXHAUSTED` |
+| `AI_ENABLE_LOOKUP_FACT` | no | `true` | Register the model-facing `lookup_fact` tool and its prompt rule |
+| `AI_ENABLE_REQUEST_DATA` | no | `false` | Register the model-written `request_data` tool (rollback path; analysis data is prepared by `prepare_analysis_data`) |
 | `AI_MAX_ANALYSIS_SECONDS` | no | `600` | Wall-clock limit per run |
 | `AI_MAX_CONTEXT_TOKENS` | no | `64000` | Hard context ceiling (estimated before the call, provider-reported after) |
 | `AI_CONTEXT_SOFT_LIMIT_RATIO` | no | `0.8` | 0.5–0.95. At `AI_MAX_CONTEXT_TOKENS ×` this ratio, tools are withdrawn and the run finalizes from what was already retrieved (see [Context budget](#context-budget)). `AI_MAX_OUTPUT_TOKENS` must stay below this soft limit |
@@ -443,6 +446,45 @@ Governor HTTP errors and timeouts become a generic `TOOL_ERROR`. The spec has no
 expression, join-key, or delivery-format field, and the row, scan, and byte ceilings exist
 only in Governor configuration. The DATA QUERY RULES block is appended after DATA DISCOVERY
 RULES in the system prompt; it contains no thresholds or credentials.
+
+## Two-path analysis (Analysis Spec V2)
+
+The model writes **one** Analysis Spec V2 (`create_analysis_spec`). It then names only the spec_id to
+`prepare_analysis_data`, and only the returned `input_bundle_id` to `run_python_analysis`. The model
+never restates the scope as a data request.
+
+- **`prepare_analysis_data`** (`app/tools/data_compiler.py`, DataRequestCompiler):
+  - It reads the approved contract from the sandbox (same request only, V2 only).
+  - It compiles each logical input's data plan into a Data Request Spec: the columns, the catalog
+    relationship joins, the attribute/entity filters with values typed by the catalog, and the
+    warm-up date range. It submits each request to the Governor with data-plan lineage.
+  - On a size refusal (`DATE_RANGE_TOO_LARGE`, scan, result, cost, time) it splits the date range
+    into contiguous partitions, at most 16, without changing entities, predicates, metric or
+    period.
+  - Anything it cannot fix comes back as a structured rejection: `stage`, `reason_code`,
+    `observed`, `limit`, `allowed_actions`, `forbidden_actions` (for example `CHANGE_USER_SCOPE`,
+    `DROP_ENTITIES`, `SAMPLE_WITHOUT_PERMISSION`), and `retryable`.
+- **Input bundles.**
+  - `run_python_analysis` takes `input_bundle_id`, and the backend binds that bundle's datasets.
+  - A bundle resolves only for the request and spec it was prepared for (`INPUT_BUNDLE_MISMATCH`
+    otherwise).
+  - The sandbox independently proves each dataset's executed scope equals the approved plan.
+- **Flags.**
+  - `AI_ENABLE_LOOKUP_FACT` (default `true`) registers `lookup_fact` and its prompt rule. With
+    `false`, the tool and the rule leave the tool schema and the prompt; `/v1/lookup` stays in the
+    Governor for rollback.
+  - `AI_ENABLE_REQUEST_DATA` (default `false`) registers the model-written `request_data` tool, a
+    rollback path only.
+  - The system prompt is fixed per deployment, so prompt caching keeps one prefix.
+- **Repair ledger.**
+  - The same rejection (tool + reason code, for example `INVALID_SPEC:UNKNOWN_COLUMN` or a failed
+    analysis error code) may be repaired `AI_MAX_REPAIR_ATTEMPTS` times per run (default 3).
+  - After that, the tool answers `REPAIR_BUDGET_EXHAUSTED` and the model must report a
+    LIMITATION.
+  - The counters are logged with `ai_run_completed` (`repair_ledger`).
+- **Catalog discovery** includes each table's `subject` (data_domain, entity_type, asset_type,
+  supported_frequencies, time_semantics, subject_metadata_status) once migration 20260925_001 is
+  applied.
 
 ## Python analysis
 

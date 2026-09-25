@@ -1,5 +1,33 @@
 # Database changelog
 
+## 2026-09-25 — Add AI_table_catalog subject metadata and the two-path tool contracts (migrations 20260925_001 and 20260925_002; NOT applied)
+
+- Status: **written and rehearsed locally only; not applied to any Railway database.** They ship with the two-path analysis checkpoint on the feature branch `claude/upbeat-dijkstra-iybq2f` and wait for a separate approval.
+- `database/migrations/20260925_001_add_ai_table_subject_metadata.sql` extends `public."AI_table_catalog"` with six columns:
+  - `data_domain` (NOT NULL), `entity_type` (NOT NULL), `asset_type` (nullable).
+  - `supported_frequencies` (NOT NULL; `{STATIC}` exactly when `time_column` is NULL).
+  - `time_semantics`.
+  - `subject_metadata_status` (NOT NULL, default `INFERRED`).
+  - Values are syntax-checked (`^[A-Z][A-Z0-9_]{1,39}$`, a bounded frequency list), not enumerated in code.
+  - It seeds the seven approved tables:
+    - `MARKET / STOCK / IDX_EQUITY` with `{1D}` for the price, feature and broker-summary tables.
+    - `MARKET / STOCK / IDX_EQUITY` with `{STATIC}` for `IDX_Stock_Universe`.
+    - `MARKET / BROKER / NULL` with `{STATIC}` for `IDX_Broker_Profile`.
+    - Every seeded row stays `INFERRED`; nothing is marked VERIFIED.
+  - Registers the six columns in `Column_Catalog` (`NEEDS_REVIEW`) and adds the migration to `Table_Catalog.source_code_paths`.
+- `database/migrations/20260925_002_register_two_path_tools.sql` inserts three `Tool_Catalog` rows, all `is_active=false`. They are generated from the market-ai-orc tool definitions:
+  - `create_analysis_spec` v3 (Analysis Spec V2);
+  - `prepare_analysis_data` v1 (backend DataRequestCompiler);
+  - `run_python_analysis` v4 (input bundle).
+  - It also marks `create_analysis_spec` v2 and `run_python_analysis` v3 `superseded_by`, and records that model-facing `request_data` is behind `AI_ENABLE_REQUEST_DATA`.
+- Local rehearsal on disposable PostgreSQL 16 databases, both dropped afterwards:
+  - **20260925_001**, on the catalog DDL of migration 20260922_001 with documented `Table_Catalog`/`Column_Catalog` structures.
+    - Seeded values read back as listed above; 6 `Column_Catalog` rows; the `Table_Catalog` path was appended.
+    - The checks refused a lowercase domain, `{1D}` on a static table, an unknown frequency, and a NULL `entity_type`.
+    - A second run was refused by the preflight.
+  - **20260925_002**, on a `Tool_Catalog` built from its documented structure and check constraints: three inactive rows inserted; the superseded and `request_data` notes were written.
+- No Railway database, market-data table, Governor grant, or source row was changed.
+
 ## 2026-09-24 — Create AI_research_run_audit and register the Research AI tool contracts (migration 20260924_004)
 
 - Applied `database/migrations/20260924_004_create_research_run_audit.sql` to `dev` at 12:11 UTC. It was run by the temporary one-off service `research-deploy-job` (`8a6534be-787a-4971-8666-6de0b60c9537`, deployment `539a778e-2b47-411f-a42a-c19ee919334f`), which was deleted afterwards. The migration is one transaction; its preflight and `$verify$` blocks passed and it committed.

@@ -154,10 +154,11 @@ been identified and what remains unexecuted."""
     query_block = SYSTEM_PROMPT[SYSTEM_PROMPT.index("DATA QUERY RULES"):SYSTEM_PROMPT.index("PYTHON ANALYSIS RULES")]
     python_block = SYSTEM_PROMPT[SYSTEM_PROMPT.index("PYTHON ANALYSIS RULES"):SYSTEM_PROMPT.index(
         "ANALYSIS VALIDATION RULES")]
-    for rule in ("Use lookup_fact for specific source facts", "never rows", "a dataset is not an answer",
-                 "come only from a Python analysis whose validation passed", "Never\ncalculate them yourself",
-                 "Every number in an answer must come from", "USE_ANALYSIS_PATH", "Do not write or submit raw SQL",
-                 "never use their values"):
+    for rule in ("create_analysis_spec (one Analysis Spec V2", "prepare_analysis_data(spec_id)",
+                 "never restate the scope yourself", "Use lookup_fact only for a specific source fact",
+                 "come only from an analysis whose validation passed", "Never calculate them yourself",
+                 "Every number in an answer must come from", "ATTRIBUTE_FILTER", "never type out a member list",
+                 "Do not write or submit raw SQL", "never change the user's scope", "never use their values"):
         assert rule in query_block, rule
     assert "INLINE" not in SYSTEM_PROMPT and "inline" not in SYSTEM_PROMPT
     for rule in ("Use run_python_analysis when the answer needs a number derived", "TA-Lib",
@@ -166,8 +167,8 @@ been identified and what remains unexecuted."""
     validation_block = SYSTEM_PROMPT[SYSTEM_PROMPT.index("ANALYSIS VALIDATION RULES"):]
     assert SYSTEM_PROMPT.endswith("strict output schema.\n\n" + block + "\n\n" + query_block
                                   + python_block + validation_block)
-    for rule in ("call create_analysis_spec", "provenance", "Never change the user's requested period",
-                 "required_input", "execution_status and validation_status are independent",
+    for rule in ("analysis_type is ANALYSIS", "provenance", "CATALOG_RESOLVED", "Never change the user's requested period",
+                 "execution_status and validation_status are independent", "never describe a path you\ndid not attempt",
                  "Only\nvalidation PASS supports presenting a result", "not\nstatistically validated"):
         assert rule in validation_block, rule
     for secret_limit in ("SQL_MAX", "INLINE_ROWS", "password", "200 rows", "PY_SANDBOX", "railway.internal",

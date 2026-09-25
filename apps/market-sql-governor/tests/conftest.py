@@ -10,7 +10,7 @@ import pytest
 
 from fixture import (
     DATE_AGGREGATION_MIGRATION, MARKET_TABLES, POLICY_CASES_SQL, READER_MIGRATION, REPO_ROOT, TRIGGER_FUNCTION_STUB, catalog_ddl,
-    catalog_rows_sql, market_insert, relationships_sql, table_ddl,
+    catalog_rows_sql, market_insert, relationships_sql, subject_metadata_sql, table_ddl,
 )
 
 ADMIN_URL = os.environ.get("GOVERNOR_TEST_POSTGRES_URL") or os.environ.get("ORC_TEST_POSTGRES_URL", "")
@@ -50,6 +50,7 @@ def governed_db() -> Iterator[dict[str, str]]:
             connection.execute(table_ddl(table))
             connection.execute(market_insert(table))
         connection.execute(POLICY_CASES_SQL)
+        connection.execute(subject_metadata_sql())
         connection.execute(DATE_AGGREGATION_MIGRATION.read_text())
         connection.execute(READER_MIGRATION.read_text())
         connection.execute("ANALYZE")

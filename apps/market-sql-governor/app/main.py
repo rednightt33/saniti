@@ -9,15 +9,19 @@ from typing import Any
 
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, status
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
+from .catalog_contract import MAX_CONTRACT_TABLES
 from .config import Settings
 from .datasets import DatasetError, DatasetService
 from .decisions import GovernorResponse, LookupResponse
 from .governor import Database, Governor, GovernorUnavailable
 from .janitor import DatasetJanitor
+from .spec import TABLE_PATTERN, DataPlanLineage
 from .store import build_store
 
 REQUEST_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
+TABLE = re.compile(TABLE_PATTERN)
 
 
 def _configure_logging() -> None:
@@ -34,9 +38,9 @@ def create_app(settings: Settings | None = None, governor: Governor | None = Non
     """App factory. The query endpoints accept structured specs (Data Request, Lookup Fact), never SQL.
 
     Two bearer keys with disjoint purposes:
-    - SQL_GOVERNOR_API_KEY (market-ai-orc): /v1/query, /v1/lookup, and dataset manifests.
-    - SQL_GOVERNOR_DATASET_ACCESS_KEY (market-python-sandbox): dataset manifests and a
-      short-lived read URL for one dataset. It cannot submit queries.
+    - SQL_GOVERNOR_API_KEY (market-ai-orc): /v1/query, /v1/lookup, dataset manifests, catalog contracts.
+    - SQL_GOVERNOR_DATASET_ACCESS_KEY (market-python-sandbox): dataset manifests, catalog contracts, and a
+      short-lived read URL for one dataset with its internal validator manifest. It cannot submit queries.
     """
     _configure_logging()
     settings = settings or Settings.from_env()
@@ -91,13 +95,37 @@ def create_app(settings: Settings | None = None, governor: Governor | None = Non
 
     @app.post("/v1/query", response_model=GovernorResponse, dependencies=[Depends(authorize)])
     def query(body: Any = Body(...)) -> Any:
-        if not isinstance(body, dict) or set(body) != {"request_id", "spec"}:
-            raise HTTPException(status_code=422, detail="Body must be exactly {request_id, spec}")
+        # lineage is optional: market-ai-orc's backend compiler sends it with every compiled request
+        if not isinstance(body, dict) or not {"request_id", "spec"} <= set(body) <= {"request_id", "spec", "lineage"}:
+            raise HTTPException(status_code=422, detail="Body must be exactly {request_id, spec[, lineage]}")
         request_id = body["request_id"]
         if not isinstance(request_id, str) or not REQUEST_ID.fullmatch(request_id):
             raise HTTPException(status_code=422, detail="request_id must match ^[A-Za-z0-9._:-]{1,128}$")
+        lineage = None
+        if body.get("lineage") is not None:
+            try:
+                lineage = DataPlanLineage.model_validate(body["lineage"]).model_dump()
+            except ValidationError:
+                raise HTTPException(status_code=422, detail="lineage does not match the data-plan lineage contract")
+            if lineage["part_index"] > lineage["part_count"]:
+                raise HTTPException(status_code=422, detail="lineage part_index exceeds part_count")
         try:
-            return governor.handle(request_id, body["spec"])
+            return governor.handle(request_id, body["spec"], lineage=lineage)
+        except GovernorUnavailable:
+            return JSONResponse(status_code=503, content={"detail": "Governed database unavailable"})
+
+    @app.post("/v1/catalog/contract", dependencies=[Depends(authorize_manifest)])
+    def catalog_contract(body: Any = Body(...)) -> Any:
+        """Catalog metadata (never rows) that an Analysis Spec V2 is approved against."""
+        if not isinstance(body, dict) or set(body) != {"request_id", "tables"} or not isinstance(body["tables"], list) \
+                or not 1 <= len(body["tables"]) <= MAX_CONTRACT_TABLES \
+                or not all(isinstance(t, str) and TABLE.fullmatch(t) for t in body["tables"]):
+            raise HTTPException(status_code=422, detail=f"Body must be {{request_id, tables: 1-{MAX_CONTRACT_TABLES} "
+                                                        f"table names}}")
+        if not isinstance(body["request_id"], str) or not REQUEST_ID.fullmatch(body["request_id"]):
+            raise HTTPException(status_code=422, detail="request_id must match ^[A-Za-z0-9._:-]{1,128}$")
+        try:
+            return governor.catalog_contract(body["request_id"], body["tables"])
         except GovernorUnavailable:
             return JSONResponse(status_code=503, content={"detail": "Governed database unavailable"})
 

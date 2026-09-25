@@ -89,6 +89,21 @@ class DatasetProvider:
         return Grant(dataset_id=dataset_id, manifest=body, url=url, checksum=str(body.get("checksum_sha256")),
                      byte_count=int(body.get("byte_count") or 0), row_count=int(body.get("row_count") or 0))
 
+    def catalog_contract(self, tables: list[str], *, request_id: str) -> dict[str, Any]:
+        """Catalog metadata (never rows) an Analysis Spec V2 is approved against, from the Governor."""
+        try:
+            response = self.governor.post("/v1/catalog/contract", json={"request_id": request_id, "tables": tables})
+        except httpx.HTTPError:
+            raise DatasetFailure("CATALOG_UNAVAILABLE", "The SQL Governor could not be reached for catalog metadata.")
+        try:
+            body = response.json()
+        except ValueError:
+            body = None
+        if response.status_code != 200 or not isinstance(body, dict) or not isinstance(body.get("tables"), dict):
+            raise DatasetFailure("CATALOG_UNAVAILABLE",
+                                 f"The SQL Governor refused the catalog request (HTTP {response.status_code}).")
+        return body
+
     def fetch(self, grant: Grant) -> Path:
         """Return a verified, read-only local copy of the granted dataset."""
         target = self.cache / f"{grant.dataset_id}-{grant.checksum}.parquet"
