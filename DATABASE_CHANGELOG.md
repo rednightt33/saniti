@@ -14,7 +14,7 @@
     - `MARKET / STOCK / IDX_EQUITY` with `{STATIC}` for `IDX_Stock_Universe`.
     - `MARKET / BROKER / NULL` with `{STATIC}` for `IDX_Broker_Profile`.
     - Every seeded row stays `INFERRED`; nothing is marked VERIFIED.
-  - Registers the six columns in `Column_Catalog` (`NEEDS_REVIEW`) and adds the migration to `Table_Catalog.source_code_paths`.
+  - Registers the six columns in `Column_Catalog` (`PARTIAL`: defined by this migration, not verified end-to-end; the earlier draft used `NEEDS_REVIEW`, which `DATABASE_CATALOG.md` reserves for columns without an established meaning) and adds the migration to `Table_Catalog.source_code_paths`.
 - `database/migrations/20260925_002_register_two_path_tools.sql` inserts four `Tool_Catalog` rows, all `is_active=false`. They are generated from the market-ai-orc tool definitions:
   - `get_dimension_values` v1 (`DISCOVERY`: the canonical values of a groupable text dimension of a static table; at most 200 values, a 2000-value scan limit, no counts);
   - `create_analysis_spec` v3 (Analysis Spec V2, including `PERIOD_STAT`, segments, `GROUP_CORRELATION`/`GROUP_PAIR`, and the research designs);
@@ -23,7 +23,7 @@
   - It also marks `create_analysis_spec` v2 and `run_python_analysis` v3 `superseded_by`, and records that model-facing `request_data` is behind `AI_ENABLE_REQUEST_DATA`.
 - Local rehearsal on disposable PostgreSQL 16 databases, both dropped afterwards:
   - **20260925_001**, on the catalog DDL of migration 20260922_001 with documented `Table_Catalog`/`Column_Catalog` structures.
-    - Seeded values read back as listed above; 6 `Column_Catalog` rows; the `Table_Catalog` path was appended.
+    - Seeded values read back as listed above; 6 `Column_Catalog` rows (`PARTIAL`, rehearsed again after the status change); the `Table_Catalog` path was appended.
     - The checks refused a lowercase domain, `{1D}` on a static table, an unknown frequency, and a NULL `entity_type`.
     - A second run was refused by the preflight.
   - **20260925_002**, on a `Tool_Catalog` built from its documented structure and check constraints: four inactive rows inserted; the superseded and `request_data` notes were written. The file was regenerated after the dimension-values tool and the Q3/Q6/Q7 and research-design contract changes, and again after the repair-friction fixes (`spec_version` now reaches the model as an enum, scope provenance accepts `CATALOG_RESOLVED`, two new approved defaults), and again after the actionable-message changes (the calculation `provenance` field now tells the model that `CATALOG_RESOLVED` is not valid there; the description covers chained datasets, open-ended periods and the `PERIOD_RETURN` base). It had never been applied. Each regeneration was rehearsed again with the same result.

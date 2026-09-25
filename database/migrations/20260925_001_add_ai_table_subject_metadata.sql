@@ -127,7 +127,7 @@ SELECT columns.table_schema, columns.table_name, columns.column_name, columns.or
             ELSE 'NULL is not permitted.' END,
        ARRAY['database/migrations/20260925_001_add_ai_table_subject_metadata.sql',
              'apps/market-sql-governor/app/catalog_contract.py'],
-       'NEEDS_REVIEW'
+       'PARTIAL'
 FROM information_schema.columns AS columns
 WHERE columns.table_schema = 'public' AND columns.table_name = 'AI_table_catalog'
   AND columns.column_name IN ('data_domain', 'entity_type', 'asset_type', 'supported_frequencies',
