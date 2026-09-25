@@ -24,6 +24,27 @@
   - Before (2026-09-24, deployed code): 5 of 5 ended in `LIMITATION`, 251 s, $0.0721, 67% of prompt tokens cached.
   - After: 5 of 5 answered plus 1 clarification, 619 s, $0.0801, 87% cached.
 - The environment is back to 15 services. `railway config plan` reports the configuration up to date. No service, variable, deployment of an existing service, database row, or schema was changed.
+- **Follow-up: repair friction (local only; Railway was only read).**
+  - In every live run the first `create_analysis_spec` call was rejected, and several spec rejections had no machine code.
+  - A local reproduction with the dev model found the causes:
+    - `const` was dropped from the provider schema;
+    - OpenRouter closes a tool call cut off at `AI_MAX_OUTPUT_TOKENS` (3000, reasoning included) and still reports it completed;
+    - the provider does not enforce the strict schema;
+    - two parameters had defaults without a `default_id`;
+    - `MEAN` and `AVG` were both in use;
+    - the shared spec rules had no machine codes.
+  - `OPENROUTER_API_KEY` was read in-process from the Railway variables and never printed.
+  - Commits `6b6a52f` and `ab38c50` fix these:
+    - a truncation guard (`MODEL_OUTPUT_TRUNCATED`);
+    - an `AI_MAX_OUTPUT_TOKENS` code default of 8000. `dev` does not set the variable, so the new default takes effect at the next market-ai-orc deploy;
+    - coded, actionable spec rejections.
+  - The same six runs (five questions plus the Q3 follow-up) on a synthetic fixture:
+    - `create_analysis_spec` repair calls: 14, then 8 after the first fix, then 6 after the second;
+    - model iterations: 64, then 58, then 55;
+    - cost: $0.094, then $0.084, then $0.090;
+    - uncoded rejections: 8, then 0.
+  - Every answer was `CALCULATION_VERIFIED`. The remaining rejections are ordinary model mistakes, each repaired in one turn.
+- The two-path code was merged to `main` on 2026-09-25 without a deploy. market-sql-governor, market-python-sandbox and market-ai-orc still run the deployments recorded on 2026-09-24 (`8682d991`, `3cd9de07` and `3e06e8d6`, all `SUCCESS`, read back from Railway). Migrations `20260925_001` and `20260925_002` are not applied.
 
 ## 2026-09-24 — Stress test: 10 price and sector questions (no deploy, no change)
 

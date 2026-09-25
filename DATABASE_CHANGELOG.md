@@ -2,7 +2,7 @@
 
 ## 2026-09-25 — Add AI_table_catalog subject metadata and the two-path tool contracts (migrations 20260925_001 and 20260925_002; NOT applied)
 
-- Status: **written and rehearsed locally only; not applied to any Railway database.** They ship with the two-path analysis checkpoint on the feature branch `claude/upbeat-dijkstra-iybq2f` and wait for a separate approval.
+- Status: **written and rehearsed locally only; not applied to any Railway database.** They were merged to `main` with the two-path code on 2026-09-25 (no service deployed) and wait for a separate approval before they are applied.
 - `database/migrations/20260925_001_add_ai_table_subject_metadata.sql` extends `public."AI_table_catalog"` with six columns:
   - `data_domain` (NOT NULL), `entity_type` (NOT NULL), `asset_type` (nullable).
   - `supported_frequencies` (NOT NULL; `{STATIC}` exactly when `time_column` is NULL).
