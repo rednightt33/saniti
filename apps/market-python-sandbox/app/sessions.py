@@ -43,6 +43,13 @@ SESSION_ID_PREFIX = "sess_"
 OUTPUT_EXTENSIONS = {"PARQUET": "parquet", "CSV": "csv", "PNG": "png", "JSON": "json", "TEXT": "txt", "BIN": "bin"}
 READ_LIMIT = 16 << 20
 GRACE_SECONDS = 5.0
+# The value types of every frame the helpers return (DuckDB .df(date_as_object=True)). Most failed executions in the
+# 2026-09-26 stress test were pandas date idioms applied to these date objects (TypeError, KeyError, AttributeError).
+DATA_TYPES = ("Frames from load, range, sql and join: the time column holds datetime.date "
+              "objects (object dtype), numeric columns are float64, text columns are pandas strings. Compare dates "
+              "with datetime.date(2026, 1, 2) (import datetime) or select a period with range(); before .dt, "
+              ".resample(), .loc['2026-01-02'] or a comparison with a date string, convert first: "
+              "frame[col] = pd.to_datetime(frame[col]).")
 HELPERS = ["requests()", "manifest()", "quality(request)", "load(request, columns=None)",
            "range(request, range_id, columns=None, include_buffers=False)", "sql(query, params=None)",
            "relation(request)", "join(relationship_id, left=None, right=None, how=None)",
@@ -300,14 +307,16 @@ class SessionManager:
                   cpu_budget=budget)
         return {"session_id": session_id, "status": "ACTIVE", "bundle_id": bundle_id, "need_id": manifest["need_id"],
                 "datasets": [{"data_request_id": d["data_request_id"], "logical_name": d["logical_name"],
-                              "columns": [c["name"] for c in d.get("columns") or []], "rows": d["rows"],
+                              "columns": [c["name"] for c in d.get("columns") or []],
+                              "time_column": d.get("time_column"), "rows": d["rows"],
                               "ranges": [w["range_id"] for w in d.get("ranges") or []],
                               "quality_flags": (d.get("quality") or {}).get("quality_flags") or []}
                              for d in manifest["datasets"]],
                 "relationships": [{k: r.get(k) for k in ("relationship_id", "left_request_id", "right_request_id",
                                                          "join_type", "join_semantics")}
                                   for r in manifest.get("relationships") or []],
-                "helpers": HELPERS, "preloaded": ["saniti", "pd", "np", "every saniti helper by name"],
+                "helpers": HELPERS, "data_types": DATA_TYPES,
+                "preloaded": ["saniti", "pd", "np", "every saniti helper by name"],
                 "limits": {"execution_seconds": s.session_execution_seconds, "cpu_seconds": budget,
                            "memory_mb": s.max_memory_mb, "max_executions": s.session_max_executions,
                            "max_failed_executions": s.session_max_failed, "idle_seconds": s.session_idle_seconds,
@@ -511,7 +520,8 @@ class SessionManager:
                   runtime_ms=runtime_ms, cpu_seconds=cpu, outputs=len(outputs),
                   access=[{k: a.get(k) for k in ("call", "data_request_id", "range_id", "rows")}
                           for a in (answer.get("access") or [])[:20]],
-                  error_type=(answer.get("error") or {}).get("error_type"))
+                  error_type=(answer.get("error") or {}).get("error_type"),
+                  error_message=str((answer.get("error") or {}).get("message") or "")[:200] or None)
         return view
 
     def inspect(self, session_id: str, request_id: str, names: list[str] | None, max_rows: int) -> dict[str, Any]:

@@ -104,6 +104,20 @@ class Settings:
     ai_research_plan_ttl_seconds: int = 3600
     # Named calendar-period returns use saniti.period_return (base: last valid value before the period start).
     ai_enable_standard_period_return: bool = False
+    # OpenRouter provider routing for the agent's model calls: provider.sort "price", "throughput" or "latency". Unset
+    # keeps OpenRouter's default load balancing, which is weighted to the lowest price.
+    ai_provider_sort: str | None = None
+    # After a run, look up the provider that served each model call (OpenRouter /generation, in the background) and
+    # log it as ai_model_call_provider; the Responses API does not return it.
+    ai_log_provider: bool = False
+    # The final-response JSON contract (and, with Research Plan confirmation, the plan's field skeleton) is part of the
+    # system prompt, so a finished run answers in JSON at once instead of a prose draft that is re-asked as JSON.
+    ai_final_contract_in_prompt: bool = False
+    # A compact summary of the AI catalog (tables, columns, relationships, coverage, capabilities) is part of the
+    # system prompt, so most runs skip the discovery round trips. Refreshed at most every
+    # AI_CATALOG_SUMMARY_TTL_SECONDS; the prompt changes only when the catalog does.
+    ai_catalog_summary_in_prompt: bool = False
+    ai_catalog_summary_ttl_seconds: int = 900
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -152,6 +166,11 @@ class Settings:
             ai_research_plan_signing_key=env.get("AI_RESEARCH_PLAN_SIGNING_KEY") or None,
             ai_research_plan_ttl_seconds=_integer(env, "AI_RESEARCH_PLAN_TTL_SECONDS", 3600, minimum=60),
             ai_enable_standard_period_return=_boolean(env, "AI_ENABLE_STANDARD_PERIOD_RETURN", False),
+            ai_provider_sort=(env.get("AI_PROVIDER_SORT") or "").strip().lower() or None,
+            ai_log_provider=_boolean(env, "AI_LOG_PROVIDER", False),
+            ai_final_contract_in_prompt=_boolean(env, "AI_FINAL_CONTRACT_IN_PROMPT", False),
+            ai_catalog_summary_in_prompt=_boolean(env, "AI_CATALOG_SUMMARY_IN_PROMPT", False),
+            ai_catalog_summary_ttl_seconds=_integer(env, "AI_CATALOG_SUMMARY_TTL_SECONDS", 900, minimum=60),
             sql_governor_api_key=_optional(env, "SQL_GOVERNOR_API_KEY"),
             sql_governor_timeout_seconds=_integer(env, "SQL_GOVERNOR_TIMEOUT_SECONDS", 90),
             request_data_max_result_bytes=_integer(env, "REQUEST_DATA_MAX_RESULT_BYTES", 40000, minimum=8192),
@@ -219,6 +238,10 @@ class Settings:
             raise ConfigError("AI_REQUEST_TIMEOUT_SECONDS must not exceed AI_MAX_ANALYSIS_SECONDS")
         if settings.ai_research_plan_ttl_seconds > MAX_TTL_SECONDS:
             raise ConfigError(f"AI_RESEARCH_PLAN_TTL_SECONDS must be at most {MAX_TTL_SECONDS}")
+        if settings.ai_provider_sort not in (None, "price", "throughput", "latency"):
+            raise ConfigError("AI_PROVIDER_SORT must be price, throughput or latency")
+        if settings.ai_catalog_summary_in_prompt and not settings.catalog_database_url:
+            raise ConfigError("AI_CATALOG_SUMMARY_IN_PROMPT needs CATALOG_DATABASE_URL")
         if settings.ai_require_research_plan_confirmation:
             problem = weak_key_problem(settings.ai_research_plan_signing_key)
             if problem:

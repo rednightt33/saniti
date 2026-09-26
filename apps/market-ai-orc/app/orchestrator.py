@@ -26,6 +26,7 @@ from .provenance import (CONTEXT, SourceIndex, analysis_label, check_answer, num
                          released_numbers, requested_statistics, weakest)
 from .tools import ToolOutcome, ToolRegistry, error_outcome
 from .tools.analysis import current_run_context, run_context
+from .tools.registry import strict_parameters_schema
 from .tools.request_data import current_request_id
 
 
@@ -302,17 +303,51 @@ LOOKUP_RULE = ("Use lookup_fact only for a specific source fact: a value at expl
                "computes over an explicit scope; each value carries a fact_id.\n")
 
 
+def schema_skeleton(schema: dict[str, Any]) -> str:
+    """A compact JSON-like form of a strict JSON schema: field names in order, value types, enum values, constants."""
+    if "anyOf" in schema:
+        options = [schema_skeleton(option) for option in schema["anyOf"] if option.get("type") != "null"]
+        return " | ".join(options) + (" | null" if any(o.get("type") == "null" for o in schema["anyOf"]) else "")
+    if "enum" in schema:
+        return " | ".join(json.dumps(value) for value in schema["enum"])
+    kind = schema.get("type")
+    if kind == "object":
+        return "{" + ", ".join(f'"{name}": {schema_skeleton(field_schema)}'
+                               for name, field_schema in (schema.get("properties") or {}).items()) + "}"
+    if kind == "array":
+        return "[" + schema_skeleton(schema.get("items") or {}) + ", ...]"
+    return str(kind or "value")
+
+
+def final_contract_block(contract: str, plan_confirmation: bool) -> str:
+    """The final-response contract for the system prompt (AI_FINAL_CONTRACT_IN_PROMPT). Tool turns carry no output
+    schema, so without it a finished run often answered in prose first and was re-asked for JSON (the 2026-09-26
+    stress test: 15% of model time and 20% of cost). With Research Plan confirmation it adds the plan's exact field
+    form, generated from the ResearchPlan model, so a plan validates the first time. It contains no digits: numbers
+    in the system prompt count as sources for the provenance check."""
+    block = FINAL_CONTRACT_PREFIX + contract
+    if plan_confirmation:
+        block += ("\nresearch_plan has exactly this form: "
+                  + schema_skeleton(strict_parameters_schema(ResearchPlan)) + "\n" + PLAN_FIELD_RULES)
+    return block
+
+
 def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirmation: bool = False,
-                        period_return: bool = False) -> str:
+                        period_return: bool = False, final_contract: bool = False) -> str:
     """The system prompt for the registered tools. It is fixed for a deployment (AI_ENABLE_LOOKUP_FACT,
-    AI_ENABLE_DATANEED, AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION, AI_ENABLE_STANDARD_PERIOD_RETURN), so every call of
-    every run shares one byte-identical cacheable prefix. With the DataNeed flow its rules replace those of the Analysis
-    Spec path; the Research Plan and named-period-return rules exist only in the DataNeed flow."""
+    AI_ENABLE_DATANEED, AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION, AI_ENABLE_STANDARD_PERIOD_RETURN,
+    AI_FINAL_CONTRACT_IN_PROMPT), so every call of every run shares one byte-identical cacheable prefix. With the
+    DataNeed flow its rules replace those of the Analysis Spec path; the Research Plan and named-period-return rules
+    exist only in the DataNeed flow."""
     template = SYSTEM_PROMPT_TEMPLATE
     if dataneed:
         common, _ = SYSTEM_PROMPT_TEMPLATE.split("DATA QUERY RULES\n", 1)
         template = common + DATANEED_RULES + (RESEARCH_PLAN_RULES if plan_confirmation else "") \
             + (PERIOD_RETURN_RULES if period_return else "")
+    if final_contract:
+        # plan_confirmation reaches here only together with dataneed (see AgentOrchestrator.__init__)
+        contract = PLAN_RESPONSE_CONTRACT if plan_confirmation else RESPONSE_CONTRACT
+        template = template.replace(STRICT_SCHEMA_LINE, final_contract_block(contract, plan_confirmation))
     return (template.replace("{lookup_rule}", LOOKUP_RULE if lookup_fact else "")
             .replace("{number_sources}", "a lookup_fact result, " if lookup_fact else ""))
 
@@ -440,6 +475,18 @@ PLAN_RESPONSE_CONTRACT = RESPONSE_CONTRACT.replace(
     "assumptions: list of strings; limitations: list of strings. ",
     "assumptions: list of strings; limitations: list of strings; research_plan: the Research Plan object for "
     "RESEARCH_PLAN_CONFIRMATION (answer then presents it and asks to approve, revise or cancel), otherwise null. ")
+STRICT_SCHEMA_LINE = "Return only the response defined by the provided strict output schema."
+FINAL_CONTRACT_PREFIX = (
+    "When no further tool call is needed, your reply is the final response itself: one JSON object and nothing "
+    "else, with no text before or after it and no code fence. The application parses it as JSON, so a prose draft "
+    "is rejected and costs another turn. "
+)
+PLAN_FIELD_RULES = (
+    "experiment_id and hypothesis_id are lower-case identifiers (a letter, then letters, digits or underscores), "
+    "each unique in the plan; one to four experiments; multiple_testing_policy is NONE only when candidate_count and "
+    "pairwise_comparisons are both at most one; minimum_sample_value and minimum_sample_unit are both set or both "
+    "null; no SQL, Python, helper calls or table names anywhere in the plan."
+)
 FINALIZE_PREFIX = (
     "Provide your final response to my latest message now, based only on the conversation and "
     "tool results above. Do not call tools. "
@@ -541,6 +588,11 @@ class RunState:
     cost_calls: int = 0
     model_latency_ms: int = 0
     static_prefixes: list[str] = field(default_factory=list)
+    # The instructions every model call of this run sends (system prompt, plus the catalog summary when enabled),
+    # fixed at the start so the cacheable prefix cannot change inside a run.
+    instructions: str = ""
+    # {iteration, provider_response_id} of every model call, for the provider lookup (AI_LOG_PROVIDER)
+    model_calls: list[dict[str, Any]] = field(default_factory=list)
     provider_response_id: str | None = None
     final_rejections: int = 0
     tools_offered: bool = False
@@ -604,11 +656,16 @@ class AgentOrchestrator:
         clock: Callable[[], float] = time.monotonic,
         wall_clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
         auditor: Any | None = None,
+        catalog_summary: Any | None = None,
+        provider_logger: Any | None = None,
     ) -> None:
         self.settings = settings
         self.client = client
         self.registry = registry
         self.auditor = auditor
+        # CatalogSummary (AI_CATALOG_SUMMARY_IN_PROMPT) and ProviderLogger (AI_LOG_PROVIDER), when enabled
+        self.catalog_summary = catalog_summary
+        self.provider_logger = provider_logger
         self.wall_clock = wall_clock
         self.clock = clock
         self.dataneed = settings.ai_enable_dataneed
@@ -621,12 +678,37 @@ class AgentOrchestrator:
                                  wall_clock) if self.plan_confirmation else None
         period_return = settings.ai_enable_standard_period_return and self.dataneed
         self.system_prompt = build_system_prompt(settings.ai_enable_lookup_fact, self.dataneed,
-                                                 self.plan_confirmation, period_return)
+                                                 self.plan_confirmation, period_return,
+                                                 settings.ai_final_contract_in_prompt)
         self.final_schema = final_response_schema(self.plan_confirmation)
         contract = PLAN_RESPONSE_CONTRACT if self.plan_confirmation else RESPONSE_CONTRACT
         self.response_contract = contract
         self.finalize_instruction = FINALIZE_PREFIX + contract
         self.context_budget_instruction = CONTEXT_BUDGET_PREFIX + contract
+
+    def close(self) -> None:
+        if self.provider_logger is not None:
+            self.provider_logger.close()
+
+    def _instructions(self) -> str:
+        """The system prompt, followed by the catalog summary when one is available. The summary is documentation for
+        planning only; its numbers (dates, counts) are not answer sources, so _source_index reads the system prompt
+        alone."""
+        summary = ""
+        if self.catalog_summary is not None:
+            try:
+                summary = self.catalog_summary.text()
+            except Exception:  # noqa: BLE001 - without a summary the model uses the discovery tools
+                summary = ""
+        return self.system_prompt + ("\n\n" + summary if summary else "")
+
+    def _provider(self) -> dict[str, Any]:
+        """OpenRouter provider preferences. provider.sort (AI_PROVIDER_SORT) turns load balancing off and tries the
+        endpoints in that order; without it OpenRouter balances load weighted to the lowest price."""
+        provider: dict[str, Any] = {"require_parameters": True, "allow_fallbacks": True}
+        if self.settings.ai_provider_sort:
+            provider["sort"] = self.settings.ai_provider_sort
+        return provider
 
     def run(self, request: AgentRunRequest) -> AgentRunResponse:
         moment = self.wall_clock()
@@ -637,6 +719,7 @@ class AgentOrchestrator:
             input_items=input_items,
             history_turns_dropped=dropped,
             user_text=self._routing_text(request),
+            instructions=self._instructions(),
         )
         for text in [turn.content for turn in request.history if turn.role == "user"] + [request.message]:
             state.context_numbers.extend(value for shown in parse_numbers(text) for value, _ in shown.candidates)
@@ -703,6 +786,11 @@ class AgentOrchestrator:
             repair_ledger=state.repairs or None,
         )
         log_event("ai_model_usage_summary", **self._usage_summary(state))
+        if self.provider_logger is not None:
+            try:
+                self.provider_logger.submit(state.request_id, state.model_calls)
+            except Exception:  # noqa: BLE001 - logging never changes the response
+                logger.warning(dumps({"event": "ai_model_call_provider_failed", "request_id": state.request_id}))
         return result
 
     # ------------------------------------------------------------------------------------------ Research Plan turns
@@ -793,7 +881,7 @@ class AgentOrchestrator:
             "input": [{"role": "user", "content": dumps({"research_plan": plan_digest(plan),
                                                          "user_reply": message[:4000]})}],
             "reasoning": {"effort": "low"}, "max_output_tokens": min(2000, self.settings.ai_max_output_tokens),
-            "store": False, "provider": {"require_parameters": True, "allow_fallbacks": True},
+            "store": False, "provider": self._provider(),
             "text": {"format": {"type": "json_schema", "name": "research_plan_reply", "strict": True,
                                 "schema": CLASSIFIER_SCHEMA}},
         }
@@ -804,6 +892,8 @@ class AgentOrchestrator:
         try:
             response = self.client.create(payload)
             usage = self._add_usage(state, response)
+            state.model_calls.append({"iteration": 0, "call": "plan_reply_classifier",
+                                      "provider_response_id": response.get("id")})
             record.update(input_tokens=usage["input_tokens"], output_tokens=usage["output_tokens"], cost=usage["cost"])
             parsed = ReplyClassification.model_validate_json(self._output_text(response).strip() or "{}")
             action, instruction = parsed.action, parsed.revision_instruction
@@ -847,6 +937,8 @@ class AgentOrchestrator:
             state.model_latency_ms += latency_ms
             prefix = static_prefix_hash(payload)
             state.static_prefixes.append(prefix)
+            state.model_calls.append({"iteration": state.iterations, "provider_response_id": response.get("id"),
+                                      "latency_ms": latency_ms})
             calls = [
                 item for item in response.get("output", [])
                 if isinstance(item, dict) and item.get("type") == "function_call"
@@ -898,7 +990,7 @@ class AgentOrchestrator:
                 state.final_reask_sent = False
             except ValueError as exc:
                 if tools:
-                    self._request_structured_final(state, raw)
+                    self._request_structured_final(state, raw, str(exc))
                 else:
                     self._reject_final(state, raw, str(exc))
         raise RunFailure("MAX_ITERATIONS", "AI_MAX_TOOL_ITERATIONS reached before a final answer")
@@ -926,12 +1018,12 @@ class AgentOrchestrator:
             # One session per run: OpenRouter uses it as the sticky-routing key, so every call of the run
             # goes to the same provider endpoint and can reuse its implicit prompt cache.
             "session_id": state.request_id,
-            "instructions": self.system_prompt,
+            "instructions": state.instructions or self.system_prompt,
             "input": state.input_items,
             "reasoning": {"effort": self.settings.ai_reasoning_effort},
             "max_output_tokens": self.settings.ai_max_output_tokens,
             "store": False,
-            "provider": {"require_parameters": True, "allow_fallbacks": True},
+            "provider": self._provider(),
         }
         if tools:
             # Strict text.format is withheld on tool turns: OpenRouter providers enforce it by
@@ -1084,7 +1176,7 @@ class AgentOrchestrator:
 
     def _estimate_context(self, state: RunState, tools: list[dict[str, Any]]) -> int:
         return estimate_tokens({
-            "instructions": self.system_prompt, "input": state.input_items,
+            "instructions": state.instructions or self.system_prompt, "input": state.input_items,
             "tools": tools, "schema": self.final_schema,
         })
 
@@ -1320,7 +1412,13 @@ class AgentOrchestrator:
     def _gate_once(self, state: RunState, kind: str, message: str) -> None:
         """Reject a final answer once per kind of problem while the model can still repair it with tools."""
         no_tools_this_turn = state.tool_filter is not None and not state.tool_filter
-        if kind not in state.gate_kinds_rejected and not state.tools_locked and not no_tools_this_turn:
+        repairable = kind not in state.gate_kinds_rejected and not state.tools_locked and not no_tools_this_turn
+        log_event("ai_final_gate", request_id=state.request_id, iteration=state.iterations, kind=kind,
+                  outcome="REJECTED_FOR_REPAIR" if repairable else "FORCED_LIMITATION",
+                  reason=None if repairable else ("already_rejected" if kind in state.gate_kinds_rejected
+                                                  else "tools_withdrawn" if state.tools_locked else "no_tools"),
+                  detail=message[:300])
+        if repairable:
             state.gate_kinds_rejected.add(kind)
             state.gate_rejections += 1
             raise GateRejection(message)
@@ -1552,7 +1650,7 @@ class AgentOrchestrator:
                 return raw
         return raw or {}
 
-    def _request_structured_final(self, state: RunState, raw: str) -> None:
+    def _request_structured_final(self, state: RunState, raw: str, issue: str = "") -> None:
         """A tool turn ended with a draft answer; ask for the final response as JSON.
 
         The first re-ask keeps the tool-turn request unchanged (same tools, no text.format), so it stays on the
@@ -1568,10 +1666,15 @@ class AgentOrchestrator:
         if state.final_reask_sent:
             state.structured_only = True
         state.final_reask_sent = True
+        log_event("ai_final_reask", request_id=state.request_id, iteration=state.iterations,
+                  next_turn="STRICT_SCHEMA" if state.structured_only else "SAME_PREFIX",
+                  looked_like_json=raw.strip().startswith(("{", "```")), output_chars=len(raw), issue=issue[:300])
 
     def _reject_final(self, state: RunState, raw: str, issue: str) -> None:
         state.final_rejections += 1
         limit = self.settings.ai_final_response_max_retries
+        log_event("ai_final_rejected", request_id=state.request_id, iteration=state.iterations,
+                  rejections=state.final_rejections, issue=issue[:300])
         if state.final_rejections > limit:
             raise RunFailure(
                 "INVALID_FINAL_RESPONSE",

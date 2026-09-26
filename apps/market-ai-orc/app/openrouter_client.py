@@ -106,6 +106,21 @@ class OpenRouterClient:
             detail += f" {labels}"
         return f"{detail}: {safe_message}", error_type, error_code
 
+    def generation(self, generation_id: str) -> dict[str, Any] | None:
+        """OpenRouter's record of one generation (provider_name, generation_time, native token counts), or None while
+        it is not available yet (HTTP 404) or on any failure. One attempt; the caller decides whether to retry."""
+        try:
+            response = self.client.get("/generation", params={"id": generation_id})
+        except httpx.HTTPError:
+            return None
+        if response.status_code != 200:
+            return None
+        try:
+            data = response.json().get("data")
+        except (AttributeError, ValueError):
+            return None
+        return data if isinstance(data, dict) else None
+
     def create(self, payload: dict[str, Any]) -> dict[str, Any]:
         last_error: ProviderError | None = None
         for attempt in range(MAX_ATTEMPTS):

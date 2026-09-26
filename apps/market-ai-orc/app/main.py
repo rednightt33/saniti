@@ -4,19 +4,23 @@ import hashlib
 import hmac
 import logging
 import sys
+import threading
 import time
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 
 from .catalog_store import CatalogStore
+from .catalog_summary import CatalogSummary
 from .config import Settings
 from .openrouter_client import OpenRouterClient
 from .audit import RunAuditor
-from .orchestrator import AgentOrchestrator
+from .orchestrator import AgentOrchestrator, log_event
+from .provider_log import ProviderLogger
 from .schemas import AgentRunRequest, AgentRunResponse
 from .tools import build_default_registry
 from .tools.analysis import SandboxClient
+from .tools.catalog import CatalogTools
 from .tools.request_data import GovernorClient
 
 
@@ -103,7 +107,16 @@ def create_app(
         )
         auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
             if sandbox is not None or settings.research_audit_database_url else None
-        orchestrator = AgentOrchestrator(settings, owned_client, registry, auditor=auditor)
+        summary = None
+        if settings.ai_catalog_summary_in_prompt and catalog is not None:
+            summary = CatalogSummary(
+                CatalogTools(catalog), registry.names, settings.ai_catalog_summary_ttl_seconds,
+                on_refresh=lambda **fields: log_event("ai_catalog_summary_refreshed", **fields))
+            # built in the background at startup; a request arriving before it is ready runs without a summary
+            threading.Thread(target=summary.text, name="catalog-summary", daemon=True).start()
+        provider_logger = ProviderLogger(owned_client) if settings.ai_log_provider else None
+        orchestrator = AgentOrchestrator(settings, owned_client, registry, auditor=auditor,
+                                         catalog_summary=summary, provider_logger=provider_logger)
     ready = {"value": False}
 
     @asynccontextmanager
@@ -111,6 +124,9 @@ def create_app(
         ready["value"] = True
         yield
         ready["value"] = False
+        close = getattr(orchestrator, "close", None)
+        if callable(close):
+            close()
         orchestrator.registry.close()
         if owned_client is not None:
             owned_client.close()

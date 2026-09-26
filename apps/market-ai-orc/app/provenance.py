@@ -44,8 +44,11 @@ DATE_PATTERNS = [
 ]
 DATE_RE = re.compile("|".join(DATE_PATTERNS), re.IGNORECASE)
 LIST_MARKER_RE = re.compile(r"(?m)^\s*(?:\(?\d{1,2}[.)]|\d{1,2}\.)\s+|(?:(?<=\s)|^)\(\d{1,2}\)\s")
+# A sign may stand before a currency symbol ("−Rp 34.756.780.567"): the symbol is read as part of the number, so
+# the sign is kept and "Rp1.000" (no space) is checked like "Rp 1.000".
 NUMBER_RE = re.compile(
-    r"(?<![\w.,/])([+\-−–]?)(\d{1,3}(?:[.,\s]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)(?![\w]|[.,]\d)"
+    r"(?<![\w.,/])([+\-−–]?)(?:(?:rp\.?|idr|usd|us\$|\$)\s?)?"
+    r"(\d{1,3}(?:[.,\s]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)(?![\w]|[.,]\d)"
     r"(\s?%)?(?:\s?(ribu|rb|k|thousand|juta|jt|million|mn|m|miliar|milyar|billion|bn|b|triliun|trillion|t)\b)?",
     re.IGNORECASE)
 JSON_NUMBER_RE = re.compile(r"^[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$")

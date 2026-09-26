@@ -151,6 +151,15 @@ bundle of the same request.
   - `insufficient_data(...)`, `intermediate_path(name)`;
   - `emit_table`, `emit_chart`, `emit_json`, `emit_text`, `emit_file` (TABLE, CHART, JSON, TEXT, PARQUET, CSV, PNG,
     ARTIFACT).
+- Value types of every frame from `load`, `range`, `sql` and `join`:
+  - the time column holds `datetime.date` objects (object dtype);
+  - numeric columns are float64, and text columns are pandas strings.
+
+  The open-session response states this in `data_types` and names each dataset's `time_column`. Code should therefore
+  compare dates with `datetime.date(...)` or select a period with `range()`, or convert with `pd.to_datetime` before
+  using `.dt`, `.resample()` or a string comparison. In the 2026-09-26 stress test, 15 of 106 executions failed with
+  `SCRIPT_ERROR`, mostly from pandas date idioms applied to these objects. The `session_execution` log event carries
+  the first 200 characters of a failed execution's error message (`error_message`).
 - Every helper read is recorded per execution (call, request, range, rows) for processing coverage. Reads outside
   the helpers are not recorded, so they count as not processed.
 - `period_return` applies one boundary convention to named calendar periods (YTD, month, quarter, year, a comparable

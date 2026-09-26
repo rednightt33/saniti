@@ -133,7 +133,8 @@ reuse the prefix of one run's calls:
 - **One session per run.** Every model call of a run sends `session_id` = the run's `request_id` in the
   Responses body. OpenRouter uses it as the sticky-routing key, so the calls of a run go to the same
   provider endpoint. A new request is a new session.
-- **Stable prefix.** `instructions` is the constant `SYSTEM_PROMPT` (it holds no time, id, or count).
+- **Stable prefix.** `instructions` is the constant `SYSTEM_PROMPT` (it holds no time, id, or count), followed by
+  the catalog summary when `AI_CATALOG_SUMMARY_IN_PROMPT` is on (fixed for the run).
   Tools are sent in registration order with schemas built once at registration. The conversation only
   grows at the end: earlier items are never rewritten, and dynamic notes (a gate's rejection, the
   context-budget instruction) are appended after them. The prefix legitimately changes when tools are
@@ -182,6 +183,59 @@ Measured on `dev` (2026-09-24, see `RAILWAY_CHANGELOG.md`):
   on Relace with 9,728 of about 10,400 prompt tokens cached. It returned a valid final JSON and no tool
   call every time. The strict-format turn moved to another provider every time, in 6 of 6 trials.
 
+### Run-time and cost controls
+
+The 2026-09-26 stress test (22 requests, 320 model calls, 2,851 s of model time, $0.369) showed where a run spends
+its time and money. The backend was under 1% of wall time. The rest broke down like this:
+- **The provider OpenRouter picks.** One provider served 165 calls at about 49 output tokens/s and took 85% of model
+  time; another served 149 calls at about 197 tokens/s.
+- **Prose drafts re-asked as JSON.** Tool turns carry no output schema, so a finished run often answered in prose and
+  was asked again for JSON: 15% of model time and 20% of cost.
+- **Catalog discovery.** 73 calls, 28% of cost.
+
+Four flags address this. All default off, and with all of them off the requests are byte-identical to before.
+
+- **`AI_PROVIDER_SORT`** adds `provider.sort` to every model call, the Research Plan reply classifier included.
+  - OpenRouter documents that `sort` turns load balancing off and tries the endpoints in sorted order, and that it
+    measures throughput over a rolling window.
+  - It does not document how `sort` interacts with sticky routing (`session_id`); it only says an explicit
+    `provider.order` disables it. So watch the cache ratio (`ai_model_usage_summary`) and the served provider
+    (`ai_model_call_provider`) when this is on.
+  - `throughput` costs more per token on this model: the fast providers price it about twice as high.
+- **`AI_LOG_PROVIDER`** logs, after the response is sent, one `ai_model_call_provider` event per model call, from
+  OpenRouter's `GET /api/v1/generation?id=<provider_response_id>`. The Responses body carries no provider.
+  - Fields: `provider`, `model_version`, `provider_attempts` and `failed_providers` (fallbacks), `first_token_ms`,
+    `generation_time_ms`, `native_output_tokens`, `native_cached_tokens`, `output_tokens_per_second`,
+    `finish_reason`, `total_cost`.
+  - A record that is not published yet is retried after 5, 10, 20 and 40 s, then logged with `lookup: NOT_FOUND`.
+  - No prompt or output content is logged.
+- **`AI_FINAL_CONTRACT_IN_PROMPT`** replaces the line "Return only the response defined by the provided strict output
+  schema" with the contract itself. When no further tool call is needed, the reply is one JSON object with the
+  contract's fields. With Research Plan confirmation, the block adds the exact field form of `research_plan`, generated
+  from the `ResearchPlan` model (field names, types, enum values, constants), plus its cross-field rules.
+  - It fixes the plan turns in particular. They had failed validation twice before being forced onto the strict
+    schema turn, which leaves the run's cached prefix.
+  - The block contains no digits, because numbers in the system prompt count as provenance sources.
+  - The final re-ask stays as the fallback.
+- **`AI_CATALOG_SUMMARY_IN_PROMPT`** appends a `CATALOG SUMMARY` block to the instructions (`app/catalog_summary.py`).
+  - Contents: the available tools, the research method and formula counts, then one line per table with its
+    description, grain, time and entity columns, frequencies, coverage and columns (type, unit, short description),
+    then the relationships.
+  - It is built by calling the catalog tool handlers themselves, so the visibility rules apply unchanged.
+  - Size cap: above 24,000 characters it drops the column descriptions; if still above, it is left out.
+  - The text is fixed per run (`RunState.instructions`), so a refresh never changes a run's prefix.
+  - The first build happens at startup in the background; after that a stale summary is served while one refresh
+    runs. A failed refresh keeps the last text and is retried after 60 s. Each refresh logs
+    `ai_catalog_summary_refreshed` (`ok`, `changed`, `chars`, `sha256`).
+  - The summary is documentation: its numbers (dates, counts) are not answer sources, and the provenance check still
+    reads the system prompt alone.
+
+Gate and final-response log events (always on):
+- `ai_final_gate`: `kind` (ANALYSIS, ROUTING, PROVENANCE, CLAIM, PLAN_PROVENANCE), `outcome` (`REJECTED_FOR_REPAIR`
+  or `FORCED_LIMITATION` with a `reason`), and the first 300 characters of the instruction;
+- `ai_final_reask`: `next_turn` `SAME_PREFIX` or `STRICT_SCHEMA`, `looked_like_json`, `output_chars`, `issue`;
+- `ai_final_rejected`: after an invalid strict-turn answer.
+
 ## Environment variables
 
 | Variable | Required | Default | Purpose |
@@ -203,6 +257,11 @@ Measured on `dev` (2026-09-24, see `RAILWAY_CHANGELOG.md`):
 | `AI_RESEARCH_PLAN_SIGNING_KEY` | with confirmation (secret) | — | HMAC-SHA256 key of the plan continuation tokens: at least 32 characters, at least 10 distinct, no surrounding whitespace (use a random 64-hex value). The service refuses to start with confirmation on and no usable key. Rotating it invalidates every open plan |
 | `AI_RESEARCH_PLAN_TTL_SECONDS` | no | `3600` | Lifetime of a plan continuation (60–86400) |
 | `AI_ENABLE_STANDARD_PERIOD_RETURN` | no | `false` | DataNeed flow only: teach the named-period return convention (NAMED-PERIOD RETURNS prompt rule and one `run_python` sentence about `saniti.period_return`); see [Named-period returns](#named-period-returns) |
+| `AI_PROVIDER_SORT` | no | unset | OpenRouter `provider.sort` for every model call: `price`, `throughput` or `latency`. Unset keeps OpenRouter's load balancing (weighted to the lowest price). Setting it turns load balancing off; see [Run-time and cost controls](#run-time-and-cost-controls) |
+| `AI_LOG_PROVIDER` | no | `false` | After each run, look up which provider served each model call (OpenRouter `/generation`, in a background thread) and log it as `ai_model_call_provider` |
+| `AI_FINAL_CONTRACT_IN_PROMPT` | no | `false` | Put the final-response JSON contract (and, with Research Plan confirmation, the plan's exact field form) in the system prompt, so a finished run answers in JSON at once |
+| `AI_CATALOG_SUMMARY_IN_PROMPT` | no | `false` | Append a compact summary of the AI catalog (tables, columns, relationships, coverage, tools) to the system prompt, so most runs skip the discovery round trips. Needs `CATALOG_DATABASE_URL` |
+| `AI_CATALOG_SUMMARY_TTL_SECONDS` | no | `900` | Refresh interval of the catalog summary (≥ 60). A stale summary is served while it refreshes in the background |
 | `PY_SANDBOX_SESSION_TIMEOUT_SECONDS` | no | `180` | HTTP timeout of one `run_python` call (20–960); keep it above the sandbox's `PY_SANDBOX_SESSION_EXECUTION_SECONDS` plus 5 s |
 | `AI_MAX_ANALYSIS_SECONDS` | no | `600` | Wall-clock limit per run |
 | `AI_MAX_CONTEXT_TOKENS` | no | `64000` | Hard context ceiling (estimated before the call, provider-reported after) |
@@ -426,7 +485,7 @@ Guarantees:
 | `get_analysis_result` | `analysis_id` | The same record for a queued/running/finished analysis |
 | `submit_data_need_spec` | only with `AI_ENABLE_DATANEED`: a `data_need_spec/v1` document (`request_group_id`, `revision`, `mode`, `question`, `subject`, `data_requests`, `relationships`) plus `research_governance` for RESEARCH | The DataNeedValidator's `APPROVED` (with `need_id`), `REVISION_REQUIRED` (issues) or `CATALOG_UNAVAILABLE`, the Research Governor decision, and `next_action` |
 | `prepare_data_bundle` | only with `AI_ENABLE_DATANEED`: `need_id` | `READY` with `input_bundle_id` and, per data request, rows, entities, first/last date, each range's actual bounds and status, `quality_flags` and relationship warnings; or `REJECTED` naming the `data_request_id`, the Governor status, the code and the next action |
-| `open_analysis_session` | only with `AI_ENABLE_DATANEED`: `input_bundle_id` | `session_id`, datasets, relationships, helpers and limits |
+| `open_analysis_session` | only with `AI_ENABLE_DATANEED`: `input_bundle_id` | `session_id`, datasets (with their `time_column`), relationships, helpers, `data_types` (the value types the helpers return) and limits |
 | `run_python` | `session_id`, `code` (≤ 20000) | `OK`, `SCRIPT_ERROR` (error type, line, field, traceback), `TIMEOUT` or `INSUFFICIENT_INPUT_DATA`, with stdout (diagnostics), outputs, changed variables and budgets |
 | `inspect_session` | `session_id`, `names` (null: all), `max_rows` | Variable descriptions with bounded previews |
 | `get_session_output` | `session_id`, `output_id`, `offset`, `limit` | Table rows page by page, JSON or text; `released` |
@@ -822,7 +881,8 @@ spec is checked:
   prompt and tool descriptions. Outputs of `FAILED`/`INCOMPLETE` analyses, mismatch examples, and
   `preview_table_rows` values are never sources. A match allows rounding to the displayed
   decimals, decimal ↔ percent, Indonesian and English separators, "ribu/juta/miliar" style
-  multipliers, and a sign stated in words ("turun 2,4%"). Dates, years, list markers, and digits
+  multipliers, a sign stated in words ("turun 2,4%"), and a sign before a currency symbol
+  ("−Rp 34.756.780.567" is negative; "Rp1.000" reads like "Rp 1.000"). Dates, years, list markers, and digits
   inside identifiers (T001, ids) are not checked. Unsupported numbers are rejected once with
   their list, then the response is forced to `LIMITATION` with a notice (this also applies to a
   `LIMITATION` that quotes them). The statistics of an evidence assessment (for example the

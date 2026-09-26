@@ -88,6 +88,10 @@ def rejection_text(scripted: ScriptedClient) -> str:
     ("1. pertama\n2) kedua (3) ketiga", []),
     ("interval 0,31%-2,15% dan 10–20 hari", [[0.31], [2.15], [10.0], [20.0]]),
     ("ticker T001, spec_3edb950c843bd9f9fab58b02, ds_1a2b, tahun 2026, 2026-08-31, Q3", []),
+    # a sign before the currency symbol stays with the number; "Rp1.000" is read like "Rp 1.000"
+    ("Nego **−Rp 34756780567**, Regular Rp 893071572500", [[-34756780567.0], [893071572500.0]]),
+    ("net -Rp34,7 miliar dan IDR 1,5 miliar, harga Rp1.000", [[-34.7e9], [1.5e9], [1.0, 1000.0]]),
+    ("Rp 10–Rp 20 per lembar", [[10.0], [20.0]]),
 ])
 def test_numbers_are_read_like_a_reader_would_and_dates_ids_and_markers_are_skipped(text, expected) -> None:
     assert [sorted(v for v, _ in n.candidates) for n in parse_numbers(text)] == [sorted(e) for e in expected]
@@ -99,6 +103,9 @@ def test_numbers_are_read_like_a_reader_would_and_dates_ids_and_markers_are_skip
     ("turun 2,44%", -0.0244, True), ("naik 2,44%", -0.0244, False),     # a sign stated in words
     ("9.137,50", 9137.5, True), ("9,137.50", 9137.5, True), ("9136", 9137.5, False),
     ("-0.031", -0.03095364981854117, True), ("-0.030", -0.03095364981854117, False),
+    # the 20-question stress test (b13): a negative released value shown with its currency symbol
+    ("−Rp 34756780567", -34756780567.0, True), ("−Rp 34756780567", 34756780567.0, False),
+    ("-Rp 34,76 miliar", -34756780567.0, True),
 ])
 def test_matching_allows_display_rounding_and_percent_but_not_other_values(shown, source, ok) -> None:
     index = SourceIndex()

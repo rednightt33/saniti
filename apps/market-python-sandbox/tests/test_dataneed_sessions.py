@@ -44,6 +44,20 @@ def ok(env, code: str) -> dict:  # noqa: F811
     return body
 
 
+def test_the_opened_session_states_the_value_types_the_helpers_really_return(session) -> None:
+    opened = session["opened"]
+    prices = next(d for d in opened["datasets"] if d["logical_name"] == "prices")
+    time_column = prices["time_column"]
+    assert time_column in prices["columns"] and "datetime.date" in opened["data_types"]
+    body = ok(session, "import datetime\n"
+                       f"frame = saniti.load('prices')\nvalue = frame[{time_column!r}].iloc[0]\n"
+                       "print(type(value).__name__, frame['close'].dtype)\n"
+                       f"converted = pd.to_datetime(frame[{time_column!r}])\nprint(converted.dt.year.iloc[0])")
+    assert body["stdout"].split("\n")[0] == "date float64"  # the contract DATA_TYPES describes
+    failed = run(session, f"frame[frame[{time_column!r}] >= '2025-01-01']").json()
+    assert failed["status"] == "SCRIPT_ERROR" and failed["error_type"] == "TypeError"  # the idiom DATA_TYPES warns of
+
+
 def test_the_namespace_persists_and_helpers_read_the_whole_bundle(session) -> None:
     opened = session["opened"]
     assert {d["logical_name"] for d in opened["datasets"]} == {"prices", "stock_classification"}

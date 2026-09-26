@@ -17,6 +17,7 @@ import pytest
 psycopg = pytest.importorskip("psycopg")
 
 from app.catalog_store import CatalogStore  # noqa: E402
+from app.catalog_summary import build_summary  # noqa: E402
 from app.tools import ToolError, build_default_registry  # noqa: E402
 from catalog_fixture import (  # noqa: E402
     FIXTURE_SQL, MARKET_DATA_STUBS, READER_MIGRATION, REPO_ROOT, TRIGGER_FUNCTION_STUB, catalog_ddl,
@@ -152,6 +153,20 @@ def test_coverage_dataset_status_entities_and_disabled(database: str) -> None:
     assert [entity["entity_id"] for entity in coverage["entities"]["Feature_02_Broker_Rolling"]] == ["BBCA"]
     assert coverage["unknown_entities"] == ["ZZZZ"]
     assert coverage["coverage_disabled_tables"] == ["IDX_Broker_Profile"]
+
+
+def test_the_catalog_summary_follows_the_same_visibility_rules(database: str) -> None:
+    from app.tools.catalog import CatalogTools
+    store = CatalogStore(database, connect_timeout_seconds=5, statement_timeout_ms=5000)
+    text = build_summary(CatalogTools(store), ["discover_catalog"])
+    tables = [line.split(":")[0][2:] for line in text.splitlines() if line.startswith("- ") and " -> " not in line]
+    assert tables == ["Feature_02_Broker_Rolling", "Feature_03_Stock_Broker_Daily", "IDX_Broker_Profile",
+                      "IDX_Broker_Summary"]
+    assert "Hidden_Inactive_Table" not in text and "Denied_Table" not in text and "Internal Note" not in text
+    assert "Undocumented Field (" in text  # visible but undocumented columns stay, without a description
+    assert "IDX_Broker_Summary(Date, Symbol, Broker, Investor Type, Market Board) -> Feature_02_Broker_Rolling(" in text
+    assert "Feature_02_Broker_Rolling: " in text and "expected data 2018-01-02 to " in text
+    assert "coverage not tracked (current-state reference)" in text  # IDX_Broker_Profile
 
 
 @pytest.mark.parametrize("hidden", ["Hidden_Inactive_Table", "Denied_Table"])
