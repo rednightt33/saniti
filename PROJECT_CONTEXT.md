@@ -11,10 +11,10 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - Environment: `dev`
 - Environment ID: `4d3e5af2-302b-4a2e-84e2-7d7476d6ff49`
 - PostgreSQL service ID: `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`
-- Market AI backend service ID (deactivated since 2026-09-25): `2cefa0cd-c9fc-4b84-992e-fdf08535a064`
-- Statistical validation worker service (deactivated since 2026-09-25): `market-analytics-worker`
+- Market AI backend service ID (deactivated 2026-09-25, service deleted 2026-09-26): `2cefa0cd-c9fc-4b84-992e-fdf08535a064`
+- Statistical validation worker service (deactivated 2026-09-25, service deleted 2026-09-26): `market-analytics-worker`
 - Statistical validation worker service ID: `75fc5bbc-2ff9-4850-b007-011735506ce6`
-- Query sandbox service (deactivated since 2026-09-25): `market-query-sandbox`
+- Query sandbox service (deactivated 2026-09-25, service deleted 2026-09-26): `market-query-sandbox`
 - Query sandbox service ID: `c6bf3085-4784-43f3-90a1-da74456f6c4d`
 - IDX price cron service: `idx-price-cron`
 - IDX price cron service ID: `43c86c6f-3221-4403-83c3-cd3056441558`
@@ -29,10 +29,10 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - Telegram command service: `telegram-trigger`
 - Telegram command service ID: `5a3f820c-2bb2-494b-b771-15fa6a5eb48a`
 - Telegram command service instance ID: `78bd93d5-f74a-42fb-ad25-2be856bbda07`
-- Market AI backend service (deactivated since 2026-09-25; replaced by `market-ai-orc`): `market-ai-backend`
+- Market AI backend service (deactivated 2026-09-25, service deleted 2026-09-26; replaced by `market-ai-orc`): `market-ai-backend`
 - Market AI orchestrator (stateless; `market_ai_orc` login: SELECT on the `AI_*` catalogs, EXECUTE on the 20-row preview function `public.ai_preview_table_rows`, and INSERT only on `AI_research_run_audit` through `market_ai_research_audit_writer`; no direct market-data table access): `market-ai-orc`
 - Market AI orchestrator service ID: `41dc17ee-3bac-41ef-90ec-8b9356815c71` (private: `market-ai-orc.railway.internal:8080`)
-- Market AI analysis flow in `dev` since 2026-09-26: DataNeed. It is enabled by `AI_ENABLE_DATANEED=true` on the orchestrator and `PY_SANDBOX_DATANEED_ENABLED=true` on the sandbox, with `AI_ENABLE_LOOKUP_FACT=false`. The Analysis Spec path stays in the code as the rollback until the dev soak test ends; see `DATANEED_ARCHITECTURE.md` for the design, the rollback steps and the exit plan.
+- Market AI analysis flow in `dev` since 2026-09-26: DataNeed. It is enabled by `AI_ENABLE_DATANEED=true` on the orchestrator and `PY_SANDBOX_DATANEED_ENABLED=true` on the sandbox, with `AI_ENABLE_LOOKUP_FACT=false`. The Analysis Spec path stays in the code as the rollback until the dev soak test ends; see `DATANEED_ARCHITECTURE.md` for the design, the rollback steps and the exit plan. Since 2026-09-26 the orchestrator in `dev` also runs with `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION=true` (a research question first returns a Research Plan for the user's approval; the secret `AI_RESEARCH_PLAN_SIGNING_KEY` signs its continuation) and `AI_ENABLE_STANDARD_PERIOD_RETURN=true` (one named-period return convention); see the addendum in `DATANEED_ARCHITECTURE.md`.
 - Market SQL Governor (the only path from the AI to market-data SQL; login `market_sql_governor`, SELECT on 5 AI catalogs + 7 approved market tables): `market-sql-governor`
 - Market SQL Governor service ID: `1a322795-4f93-4c51-a25e-5fcfc5ab4722` (private: `market-sql-governor.railway.internal:8080`)
 - Governor dataset bucket: `market-sql-datasets` (`62b028ba-313f-4c6a-81b3-48a9645411c1`, region `sjc`; immutable Parquet snapshots + manifests)
@@ -60,7 +60,7 @@ All active application services deploy from `rednightt33/saniti` on branch `main
 | `market-sql-governor` | `/apps/market-sql-governor` (GitHub source since 2026-09-25) | `/apps/market-sql-governor/**` |
 | `market-python-sandbox` | `/apps/market-python-sandbox` (GitHub source since 2026-09-25; one replica because of the volume, so a push that changes this folder restarts it) | `/apps/market-python-sandbox/**` |
 
-Deactivated on 2026-09-25: `market-ai-backend`, `market-analytics-worker` and `market-query-sandbox` have no active deployment and no source. Their root directory and watch path settings are kept, so they can be restored by reconnecting `main` and deploying: the backend first, then the two workers. Services, variables, secrets and deployment history are preserved. Because the IaC format cannot represent a disconnected service that keeps its root directory, `railway config plan` reports three expected changes for them: `source.rootDirectory` and `source.type` to null. Do not apply that plan as is: each change carries `deployEffect: deploy` and would start a deployment of a deactivated service. See `RAILWAY_CHANGELOG.md`.
+Deleted on 2026-09-26: `market-ai-backend`, `market-analytics-worker` and `market-query-sandbox` (deactivated on 2026-09-25) were deleted by the user from Railway between 06:29 and 06:30 UTC, and the `market-analytics-input` bucket is no longer in the project either. Their code stays in `apps/` for history; restoring one would mean creating a new service. `.railway/railway.ts` no longer lists them, and `railway config plan` reports the configuration up to date (the three expected source drifts of the deactivated services are gone). See `RAILWAY_CHANGELOG.md`.
 
 Connecting or changing a service source must preserve its environment variables and secrets, cron schedule, start command, health check, domain, private networking, restart/serverless policy, and database references. Source-configuration work must not use **Run now** on either price service and must not issue a TradingView query. Record the currently active deployment ID before each change so it remains available as the rollback reference, then wait for the new deployment to reach `SUCCESS` before changing the next service.
 
@@ -133,7 +133,7 @@ Telegram owner -> telegram-trigger webhook -> validate webhook secret and Chat I
 - `Feature_Calculation_Log`: completed calculation attempt and retry history. The Railway worker is deployed and a live re-ingestion test passed.
 - `Feature_Catalog`: machine-readable formula and semantic-governance layer for validated Feature columns. All 91 active definitions across Feature 01–03 include interpretation, recommended use, misuse warnings, semantic review status, and validation evidence; Feature 01 remains `v1`, Feature 02 and Feature 03 use active `v2`. The backend requires relevant definitions to be loaded before data retrieval or aggregation.
 - `Feature_Relationship_Catalog`: safe join keys, cardinality, output grain, and preaggregation requirements between validated Feature tables.
-- `Tool_Catalog`: generic AI tool schemas, versions, activation state, and advertised database/worker/LLM-facing limits. `is_active` is read only by the deactivated `market-ai-backend` (it is left unchanged so that service can be restored as it was). The tools `market-ai-orc` actually registers are decided by its own registry and environment flags, not by this table. `route_analysis` selects built-in, query-sandbox, or statistical execution from declared operation classes for the legacy backend.
+- `Tool_Catalog`: generic AI tool schemas, versions, activation state, and advertised database/worker/LLM-facing limits. `is_active` was read only by `market-ai-backend`, deleted on 2026-09-26, so no running service reads it; the values were left as they were. The tools `market-ai-orc` actually registers are decided by its own registry and environment flags, not by this table. `route_analysis` selects built-in, query-sandbox, or statistical execution from declared operation classes for the legacy backend.
 - `Analytics_Dataset_Snapshot` / `Analytics_Job`: immutable short-lived raw/Feature input provenance plus durable class-separated worker lease/result audit. Neither worker has PostgreSQL or bucket credentials.
 - `Analysis_Request`, `Analysis_Model_Call`, `Analysis_Step_Log`, and `Analysis_Evidence`: durable request lifecycle, per-provider-call usage and bounded reasoning retention, progressive tool exposure, cumulative token/context usage, immutable version/methodology snapshot, compact steps, and reproducible claim evidence.
 - `Golden_Analysis_Test`, `Golden_Analysis_Test_Run`, and `Golden_Analysis_Test_Result`: permanent analytical regression expectations and historical outcomes across data correctness, methodology, safety, and token behavior.

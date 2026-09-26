@@ -1,5 +1,30 @@
 # Railway changelog
 
+## 2026-09-26 — Research Plan confirmation and named-period returns rolled out on dev
+
+- Scope approved by the user (Phase 3–6 prompt): deploy with both new flags off, apply migration `20260926_002`, set the signing key, enable the flags one at a time, run live tests and the 20-question regression. The fix for a regression found on the way was approved separately.
+- **Code, flags off**, commit `8a78aec` pushed to `main` (auto-deploy):
+  - market-python-sandbox `918245ef-01b5-494c-9eb1-b7bc358c0715`: `SUCCESS`, `/ready` 200 (it returns 200 only after the isolation self-test passes);
+  - market-ai-orc `dbd12006-0f80-484e-a2c3-284f37397917`: `SUCCESS`, `/ready` 200;
+  - market-sql-governor `e3e04ec2-0356-4715-a881-023f14d6a32f`: `SKIPPED` (no change). The active Governor deployment is still `2136ce9e-f54f-4d5a-80e6-611df5348647`.
+- **Migration** `20260926_002` through the temporary service `plan-migrate-job` (`251281c4-9dac-46e2-9e3a-f0008b28aa9f`), deployment `7a507c80-0f0f-428e-a40a-5619fe03cb0d`, with only the reference `DATABASE_URL=${{Postgres.DATABASE_URL}}`; deleted afterwards. See `DATABASE_CHANGELOG.md`.
+- **Variables on market-ai-orc** (values not recorded):
+
+  | Variable | Action | Deployment | Status |
+  |---|---|---|---|
+  | `AI_RESEARCH_PLAN_SIGNING_KEY` | set as a secret: 64 random hex characters generated in-process and passed on stdin, never printed; `--skip-deploys` | — | verified present, 64 hex; absent from the startup logs |
+  | `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION` | set `true` | `31f66bab-366e-4c9d-8610-27e38e0122af` | `SUCCESS`, `/ready` 200 |
+  | `AI_ENABLE_STANDARD_PERIOD_RETURN` | set `true` | `98963bb9-27b0-4bb9-a64a-51b87f1d4145` | `SUCCESS`, `/ready` 200 |
+
+  `AI_RESEARCH_PLAN_TTL_SECONDS` is not set (default 3600). Rollback: delete the two flags (the key may stay).
+- **Live scenarios** through the temporary service `plan-live-job` (`4e6b9d86-1f19-497f-88e8-032346d91f95`, deployment `18ef7374-e3aa-4f99-a822-b1a546aab03a`; reference variables `DATABASE_URL` and `MARKET_AI_ORC_API_KEY`, redacted; plan tokens redacted in its output; deleted afterwards). Plan, tampered token, other conversation, altered plan, cancel, revise, explicit approval, free-text approval, bypass attempt and an analysis question behaved as designed; the Governor and sandbox logged no event for any request without an approved plan. Details: `DATANEED_ARCHITECTURE.md`, addendum. Cost about $0.10.
+- **20-question regression** through the temporary service `plan-q20-job` (`2e9b4989-4b28-4341-8159-13b1ef6d6c8e`, deployment `7522a9a6-c734-40ee-ac7a-49af3de521f2`; same reference variables; deleted afterwards). $0.33, 409 numbers checked, 0 unsupported. Q4, Q5 and Q8 matched the ground truth on the standard basis. Q20 regressed to LIMITATION (`TOOL_RESULT_TOO_LARGE`).
+- **Fix** `37ef2d4` (orc only; approved by the user): market-ai-orc `f6e2069f-db0b-4149-b802-67ea54a99c83` `SUCCESS`, `/ready` 200; sandbox `d045e51e-ba9a-4f26-81c5-a61883557cd1` and Governor `a7ce5f88-e487-46e4-b1e9-85ce3ad35d77` `SKIPPED`. Rerun of Q20 and Q5 through the temporary service `plan-q20-rerun-job` (`24919bdc-a176-4196-8d2d-84f3770af6bd`, deployment `d3ca8a40-555f-4f3f-8b2c-af9aca575d6b`, deleted): Q20 `ANSWER`, Q5 16/16 exact, $0.03.
+- **Read-only check** of the boundary finding through the temporary service `buffer-check-job` (`d7a06428-1ebf-4937-a65e-532d64c5cbce`, deployment `06d2a32d-3a73-4bd4-abdd-9032fcac60c8`, reference `DATABASE_URL` only, one read-only query; deleted).
+- **Observed, not done by this work:** `market-ai-backend` (`2cefa0cd-…`), `market-query-sandbox` (`c6bf3085-…`) and `market-analytics-worker` (`75fc5bbc-…`) were deleted between 06:29 and 06:30 UTC by the user (confirmed by the user), and the `market-analytics-input` bucket is no longer in the project.
+- **Configuration sync.** `railway config pull --force` updated `.railway/railway.ts`: it added `AI_ENABLE_STANDARD_PERIOD_RETURN`, `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION` and `AI_RESEARCH_PLAN_SIGNING_KEY` to market-ai-orc as `preserve()`, and removed the three deleted services and the bucket. `railway config plan` reports the configuration up to date; the three accepted source drifts of the deactivated services are gone with them.
+- The project is back to its 13 services; every temporary service was deleted.
+
 ## 2026-09-26 — 20-question live test of the DataNeed flow on dev (temporary job)
 
 - Requested by the user. It also counts toward the dev soak test (see `DATANEED_ARCHITECTURE.md`, Exit plan).

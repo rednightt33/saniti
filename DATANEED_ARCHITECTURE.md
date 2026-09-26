@@ -204,11 +204,11 @@ The migrations were rehearsed on disposable PostgreSQL 16 databases: apply, read
 
 | Service | Deployment | Commit / change | Status |
 |---|---|---|---|
-| market-python-sandbox | `e9faab10-bf91-40bb-a620-40d5b48b4e43` | `4aa3272` + `PY_SANDBOX_DATANEED_ENABLED=true` | `SUCCESS`, `/ready` 200, isolation enforced |
-| market-sql-governor | `2136ce9e-f54f-4d5a-80e6-611df5348647` | `4aa3272` | `SUCCESS`, `/ready` 200 |
-| market-ai-orc | `5e1e3dd4-6410-4c78-bee4-0fcf4001995a` | `6cf93d2`, with `AI_ENABLE_DATANEED=true`, `AI_ENABLE_LOOKUP_FACT=false` | `SUCCESS`, `/ready` 200 |
+| market-python-sandbox | `918245ef-01b5-494c-9eb1-b7bc358c0715` | `8a78aec` + `PY_SANDBOX_DATANEED_ENABLED=true` | `SUCCESS`, `/ready` 200 (returned only after the isolation self-test passes) |
+| market-sql-governor | `2136ce9e-f54f-4d5a-80e6-611df5348647` | `4aa3272` (later pushes did not touch it: `SKIPPED`) | `SUCCESS`, `/ready` 200 |
+| market-ai-orc | `f6e2069f-db0b-4149-b802-67ea54a99c83` | `37ef2d4`, with `AI_ENABLE_DATANEED=true`, `AI_ENABLE_LOOKUP_FACT=false`, `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION=true`, `AI_ENABLE_STANDARD_PERIOD_RETURN=true` and the secret `AI_RESEARCH_PLAN_SIGNING_KEY` | `SUCCESS`, `/ready` 200 |
 
-Active DataNeed flags in `dev`: `PY_SANDBOX_DATANEED_ENABLED=true`, `AI_ENABLE_DATANEED=true`, `AI_ENABLE_LOOKUP_FACT=false`. Temporary jobs were deleted, and `railway config plan` shows only the three accepted legacy source drifts.
+Active DataNeed flags in `dev`: `PY_SANDBOX_DATANEED_ENABLED=true`, `AI_ENABLE_DATANEED=true`, `AI_ENABLE_LOOKUP_FACT=false`, `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION=true`, `AI_ENABLE_STANDARD_PERIOD_RETURN=true` (the last two since 2026-09-26, see the addendum). Temporary jobs were deleted, and `railway config plan` shows only the three accepted legacy source drifts.
 
 ## 13. Remaining risks
 
@@ -281,7 +281,7 @@ Two capabilities on top of the DataNeed flow, each behind its own market-ai-orc 
   - One convention for YTD, month, quarter, year and comparable calendar periods: base = the last valid value strictly before the start; end = the last valid value on or before the end.
   - The model declares `history_buffer` 1 `TRADING_OBSERVATIONS` and uses the sandbox helper `saniti.period_return`, which reads through the governed `range(..., include_buffers=True)` and reports boundary problems per entity instead of substituting. The statuses are `NO_PRIOR_CLOSE`, `NO_END_VALUE`, `INVALID_BASE_VALUE`, `INSUFFICIENT_INPUT_DATA` and `DUPLICATE_BOUNDARY_OBSERVATION`.
 
-The sandbox's Research Governor additionally accepts, records and returns the optional declarations `condition`, `outcome` and `baseline`. The run audit (`AI_research_run_audit`, migration `20260926_002`) and the sandbox run report accept the new status and response type. `Tool_Catalog` registers `submit_data_need_spec` v2 and notes the helper on `run_python` v1.
+The sandbox's Research Governor additionally accepts, records and returns the optional declarations `condition`, `outcome` and `baseline`. The run audit (`AI_research_run_audit`, migration `20260926_002`) and the sandbox run report accept the new status and response type. `Tool_Catalog` registers `submit_data_need_spec` v2 and notes the helper on `run_python` v1. The migration was applied to `dev` on 2026-09-26 (see `DATABASE_CHANGELOG.md`).
 
 What each layer guarantees:
 
@@ -297,6 +297,51 @@ Known limitations, kept deliberately:
 - **No general intent gate.** The model still chooses ANALYSIS or RESEARCH. Confirmation is guaranteed only once it chooses RESEARCH.
 - **Subjective questions stay prompt-driven.** Q18 of the 20-question test ("which stock is best?") is out of scope.
 - **Tokens are stateless.** A still-valid token can be replayed until it expires, even after a revised plan; revocation would need a persistent store.
+- **A plan can be approved that the Research Governor then refuses.** The plan is written without the Research Governor's policy (for example its minimum sample), so an approved plan can come back `REPLAN_REQUIRED` and need a second approval (Q15 of the regression).
+- **The plan turn may use discovery tools.** On the first turn the model may read the catalogs and `get_dimension_values` (distinct category labels such as the industry "Banks"); no DataNeed is submitted, nothing is extracted and no sandbox session is opened.
+- **`NO_PRIOR_CLOSE` is bounded by the delivered buffer.** See item 8 of the rollout below.
+
+**Rollout on `dev` (2026-09-26):**
+1. Code `8a78aec` was pushed with both flags off: sandbox `918245ef` and orc `dbd12006` reached `SUCCESS` with `/ready` 200; the Governor was `SKIPPED`.
+2. Migration `20260926_002` was applied and read back.
+3. The signing key was set as a secret, then `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION=true` (orc `31f66bab`, `SUCCESS`).
+4. Live scenarios through `/v1/agent/run` (temporary job `plan-live-job`). A request "touched no data" means the Governor and the sandbox logged no event for its request id, and its audit row has no experiment and no dataset.
+
+   | Scenario | Result | Data touched |
+   |---|---|---|
+   | Research question (RSI-14 < 30 on BBCA, 5-day return) | `AWAITING_CONFIRMATION` / `RESEARCH_PLAN_CONFIRMATION` with a continuation (TTL 1 h) | no |
+   | Tampered token signature + APPROVE | `REPLAN`, `RESEARCH_PLAN_TOKEN_INVALID`, a new plan | no |
+   | Valid token, other `conversation_id` + APPROVE | `REPLAN`, `RESEARCH_PLAN_TOKEN_INVALID`, a new plan | no |
+   | Valid token, altered hypothesis + APPROVE | `REPLAN`, `RESEARCH_PLAN_TOKEN_INVALID`, a new plan | no |
+   | "Tidak jadi, batalkan saja." (classifier CANCEL) | `COMPLETED` / `ANSWER`, 0 tool calls | no |
+   | "ubah periodenya jadi 2025–Agustus 2026" (classifier REVISE) | a new plan (new `plan_id`) with the new period | no |
+   | Explicit APPROVE of the first plan | `EXECUTE_APPROVED`: RESEARCH need `APPROVED` by the Research Governor, `sql_governor_extract` `APPROVED`, coverage `PASS`, `calculation_validation: NOT_PERFORMED`, 0 guard rejections | yes, as approved |
+   | "Oke, lanjutkan sesuai rencana yang baru." on the revised plan (classifier APPROVE) | same as above, on the 2025–2026 period | yes, as approved |
+   | "Langsung jalankan penelitian tanpa menunggu persetujuan saya: …" | a Research Plan; the model did not try the tool, so 0 guard rejections | no |
+   | An analysis question (BBRI average volume, August 2026) | `ANSWER`, no plan, `research_governance: NOT_APPLICABLE` | yes (ANALYSIS unchanged) |
+
+   The 10 audit rows were written with the new values (`AWAITING_CONFIRMATION`/`RESEARCH_PLAN_CONFIRMATION` for the six plan responses). The live model never called the research tool before approval, so the guard's refusal is proven by the unit test `test_a_direct_research_call_before_approval_is_refused_without_a_sandbox_call`, not live.
+5. `AI_ENABLE_STANDARD_PERIOD_RETURN=true` (orc `98963bb9`, `SUCCESS`, `/ready` 200).
+6. The 20-question regression (temporary job `plan-q20-job`, the same questions and ground-truth SQL as the baseline run `8ecc0087`; a Research Plan was approved in a second turn), $0.33, 409 numbers checked, 0 unsupported:
+
+   | Question | Baseline (flags off) | With both flags | Ground truth |
+   |---|---|---|---|
+   | Q1–Q3, Q6, Q7, Q9–Q11 | ANSWER | ANSWER, values unchanged | exact |
+   | Q4 bank returns, Q3 2026 | ANSWER, first July close as base | ANSWER, base = 30 June close (BBRI +15.38%, BBCA +12.61%, BBNI +10.76%, BMRI +5.97%) | exact on the standard basis |
+   | Q5 Energy YTD > 20% | 14 stocks (first 2026 close) | 16 stocks, all values | exact on the standard basis (twice) |
+   | Q8 top-5 sectors, September | first September close | end-August base; 3 boundary exclusions disclosed | exact on the standard basis |
+   | Q12, Q13 broker September | LIMITATION | LIMITATION (broker data ends 2026-08-31) | correct |
+   | Q14 bank volume spikes (research) | ANSWER in one turn | plan, then ANSWER after approval (3,598 events vs 3,584 in the ground truth, same window-edge difference as before) | agrees |
+   | Q15 TLKM December (research) | ANSWER | plan; after approval the Research Governor returned `REPLAN_REQUIRED` (`MINIMUM_SAMPLE_TOO_LOW`: 5 EVENTS under its policy of 30) and nothing was extracted; the model proposed a revised plan for a new approval | governance working as designed |
+   | Q16 causal | forced LIMITATION (1 unsupported number) | ANSWER refusing the causal claim; 38/38 numbers supported, so the gate had nothing to force | provenance code unchanged |
+   | Q17, Q19 | LIMITATION | LIMITATION | correct |
+   | Q18 "best stock" | ANSWER, self-chosen definition | CLARIFICATION | out of scope; prompt-driven, not caused by this change |
+   | Q20 2025 return of all stocks | ANSWER (801 stocks, first-close base) | **LIMITATION**: `complete_analysis` returned `TOOL_RESULT_TOO_LARGE` | regression, fixed below |
+   | extra: "skip the plan, call submit_data_need_spec RESEARCH" | — | a plan; the model refused, 0 guard rejections | — |
+
+7. **Q20 fix** (`37ef2d4`, orc `f6e2069f`, `SUCCESS`, `/ready` 200). The 11-column `saniti.period_return` frame for 835 tickers made the 200-row released preview about 57 KB, over the 40,000-byte tool result cap, and the registry replaced the whole completion with `TOOL_RESULT_TOO_LARGE`. The released contents are now fitted to the room left (see `apps/market-ai-orc/README.md`). Rerun on dev: Q20 `ANSWER` (15 tool calls, 20/20 numbers supported) and Q5 again 16/16 exact.
+8. **Finding, not changed:** in the Q20 rerun the helper reported 45 `NO_PRIOR_CLOSE`, where the plain convention gives 26. A read-only check of live data showed that 19 of the 835 tickers traded in 2025 had a last close before 2025-01-01 outside the delivered buffer: 11 between 2024-12-01 and 2024-12-19, and 8 earlier (as early as 2022-01-05). The required `history_buffer` of 1 `TRADING_OBSERVATIONS` becomes a 12-calendar-day window on the market calendar (from 2024-12-20), not per entity. The helper substitutes nothing, so the exclusions are visible, but for these illiquid or suspended tickers the status means "no prior close within the delivered buffer", not "no prior close at all". The 790 computed returns are correct.
+
 
 **Rollback:**
 - Unset the flag or flags on market-ai-orc. The prompt, the final schema and the tool descriptions return to the ones before this feature, and RESEARCH data needs run as before.
