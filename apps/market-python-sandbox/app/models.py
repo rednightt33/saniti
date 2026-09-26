@@ -143,8 +143,8 @@ class RunReport(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    status: Literal["COMPLETED", "NEEDS_CLARIFICATION", "LIMITED", "FAILED"]
-    response_type: Literal["ANSWER", "CLARIFICATION", "LIMITATION"] | None
+    status: Literal["COMPLETED", "NEEDS_CLARIFICATION", "AWAITING_CONFIRMATION", "LIMITED", "FAILED"]
+    response_type: Literal["ANSWER", "CLARIFICATION", "RESEARCH_PLAN_CONFIRMATION", "LIMITATION"] | None
     evidence_label: str | None = Field(default=None, max_length=40)
     validation_gate: str = Field(max_length=40)
     question_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")

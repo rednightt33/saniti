@@ -5,17 +5,20 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from .research_plan import ContinuationIn, ContinuationOut, ResearchPlan
+
 
 MAX_MESSAGE_CHARACTERS = 16000
 MAX_HISTORY_ITEMS = 50
 MAX_METADATA_BYTES = 8192
 
-ResponseType = Literal["ANSWER", "CLARIFICATION", "LIMITATION"]
-RunStatus = Literal["COMPLETED", "NEEDS_CLARIFICATION", "LIMITED", "FAILED"]
+ResponseType = Literal["ANSWER", "CLARIFICATION", "RESEARCH_PLAN_CONFIRMATION", "LIMITATION"]
+RunStatus = Literal["COMPLETED", "NEEDS_CLARIFICATION", "AWAITING_CONFIRMATION", "LIMITED", "FAILED"]
 
 STATUS_BY_RESPONSE_TYPE: dict[str, str] = {
     "ANSWER": "COMPLETED",
     "CLARIFICATION": "NEEDS_CLARIFICATION",
+    "RESEARCH_PLAN_CONFIRMATION": "AWAITING_CONFIRMATION",
     "LIMITATION": "LIMITED",
 }
 
@@ -37,6 +40,9 @@ class AgentRunRequest(BaseModel):
     message: str = Field(min_length=1, max_length=MAX_MESSAGE_CHARACTERS)
     history: list[HistoryMessage] = Field(default_factory=list, max_length=MAX_HISTORY_ITEMS)
     metadata: dict[str, Any] = Field(default_factory=dict)
+    # The user's reply to a Research Plan: the exact plan, plan_id, origin_request_id and token of the latest
+    # RESEARCH_PLAN_CONFIRMATION response, plus an explicit action when the caller has one (APPROVE, REVISE, CANCEL).
+    continuation: ContinuationIn | None = None
 
     @field_validator("message")
     @classmethod
@@ -67,9 +73,22 @@ class FinalResponse(BaseModel):
     clarification_question: str | None
     assumptions: list[str]
     limitations: list[str]
+    # Only for RESEARCH_PLAN_CONFIRMATION; every other response carries null. A model that omits the field (the
+    # schema without Research Plan confirmation does not list it) is read as null.
+    research_plan: ResearchPlan | None = None
 
     @model_validator(mode="after")
     def _consistent_with_type(self) -> "FinalResponse":
+        if self.response_type == "RESEARCH_PLAN_CONFIRMATION":
+            if self.research_plan is None:
+                raise ValueError("RESEARCH_PLAN_CONFIRMATION requires research_plan")
+            if self.clarification_question is not None:
+                raise ValueError("RESEARCH_PLAN_CONFIRMATION requires clarification_question to be null")
+            if not self.answer.strip():
+                raise ValueError("RESEARCH_PLAN_CONFIRMATION requires the plan rendered for the user in answer")
+            return self
+        if self.research_plan is not None:
+            raise ValueError(f"{self.response_type} requires research_plan to be null")
         if self.response_type == "CLARIFICATION":
             if not (self.clarification_question or "").strip():
                 raise ValueError("CLARIFICATION requires a non-empty clarification_question")
@@ -119,6 +138,31 @@ FINAL_RESPONSE_SCHEMA: dict[str, Any] = {
     },
     "required": ["response_type", "answer", "clarification_question", "assumptions", "limitations"],
 }
+
+
+def final_response_schema(research_plan_confirmation: bool) -> dict[str, Any]:
+    """FINAL_RESPONSE_SCHEMA, or with Research Plan confirmation the same schema plus RESEARCH_PLAN_CONFIRMATION and a
+    required nullable research_plan. Without the flag the schema is byte-identical to the one before the feature."""
+    if not research_plan_confirmation:
+        return FINAL_RESPONSE_SCHEMA
+    from .tools.registry import strict_parameters_schema
+
+    plan = strict_parameters_schema(ResearchPlan)
+    properties = dict(FINAL_RESPONSE_SCHEMA["properties"])
+    properties["response_type"] = {
+        "type": "string", "enum": ["ANSWER", "CLARIFICATION", "RESEARCH_PLAN_CONFIRMATION", "LIMITATION"],
+        "description": (
+            "ANSWER when the request is answered; CLARIFICATION when a material ambiguity prevents a reliable "
+            "answer; RESEARCH_PLAN_CONFIRMATION when a research question needs the user's approval of a Research "
+            "Plan before any data is used; LIMITATION when a required capability is unavailable."),
+    }
+    properties["research_plan"] = {
+        "anyOf": [plan, {"type": "null"}],
+        "description": "The Research Plan for RESEARCH_PLAN_CONFIRMATION (answer renders it for the user); "
+                       "otherwise null.",
+    }
+    return {**FINAL_RESPONSE_SCHEMA, "properties": properties,
+            "required": [*FINAL_RESPONSE_SCHEMA["required"], "research_plan"]}
 
 
 class AnalysisSummary(BaseModel):
@@ -205,6 +249,38 @@ class ExecutionMetadata(BaseModel):
     # DataNeed flow: the final status of the latest complete_analysis (data coverage, sandbox execution,
     # calculation_validation NOT_PERFORMED, evidence label, warnings); null when no analysis was completed.
     analysis_final_status: dict[str, Any] | None = None
+    # Research Plan confirmation: what this request did with a plan (null when confirmation is off or unused).
+    research_plan: "ResearchPlanExecution | None" = None
+
+
+class ReplyClassifierUsage(BaseModel):
+    """The small classifier that reads a free-text reply to a Research Plan (no tools). Its tokens and cost are also
+    included in the run totals above."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["COMPLETED", "FAILED"]
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost: float | None = None
+    latency_ms: int = 0
+
+
+class ResearchPlanExecution(BaseModel):
+    """Produced by code. turn: what this request was allowed to do (PROPOSE: no plan yet; EXECUTE_APPROVED: a verified
+    approval; REVISE; REPLAN: the approval could not be verified; CANCEL; UNRELATED). verification: of the
+    continuation the caller sent (NOT_PRESENTED without one). guard_rejections: research data needs the guard refused."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    turn: Literal["PROPOSE", "EXECUTE_APPROVED", "REVISE", "REPLAN", "CANCEL", "UNRELATED"]
+    verification: Literal["NOT_PRESENTED", "VERIFIED", "RESEARCH_PLAN_TOKEN_INVALID", "RESEARCH_PLAN_TOKEN_EXPIRED"]
+    action: Literal["APPROVE", "REVISE", "CANCEL", "UNRELATED"] | None = None
+    action_source: Literal["EXPLICIT", "CLASSIFIER"] | None = None
+    approved_plan_id: str | None = None
+    issued_plan_id: str | None = None
+    guard_rejections: int = 0
+    classifier: ReplyClassifierUsage | None = None
 
 
 class RunError(BaseModel):
@@ -225,3 +301,9 @@ class AgentRunResponse(BaseModel):
     # Set by code from the evidence the answer's numbers trace to (weakest wins), never by the model.
     # null for clarifications and answers without data-derived numbers.
     evidence_label: EvidenceLabel | None = None
+    # Backend-signed continuation of a RESEARCH_PLAN_CONFIRMATION response (never generated by the model); null
+    # otherwise. The caller sends plan_id, origin_request_id, the exact plan and the token back with the reply.
+    continuation: ContinuationOut | None = None
+
+
+ExecutionMetadata.model_rebuild()

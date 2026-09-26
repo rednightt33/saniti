@@ -14,9 +14,13 @@ from zoneinfo import ZoneInfo
 from .compaction import dumps, estimate_tokens, stable_hash, trim_history
 from .config import Settings
 from .openrouter_client import ProviderError, response_usage
+from .research_plan import (CLASSIFIER_INSTRUCTIONS, CLASSIFIER_SCHEMA, ContinuationOut, PlanSigner,
+                            PlanVerificationError, ReplyClassification, ResearchGuard, ResearchPlan,
+                            current_research_guard, plan_digest)
 from .schemas import (
     FINAL_RESPONSE_SCHEMA, STATUS_BY_RESPONSE_TYPE, AgentRunRequest, AgentRunResponse, AnalysisSummary,
-    ExecutionMetadata, ExperimentSummary, FinalResponse, NumberProvenance, ResearchSummary, RunError,
+    ExecutionMetadata, ExperimentSummary, FinalResponse, NumberProvenance, ReplyClassifierUsage,
+    ResearchPlanExecution, ResearchSummary, RunError, final_response_schema,
 )
 from .provenance import (CONTEXT, SourceIndex, analysis_label, check_answer, numbers_in, parse_numbers,
                          released_numbers, requested_statistics, weakest)
@@ -249,19 +253,66 @@ never as a cause, a prediction, a forecast or a trading signal.
 Data the catalog does not contain (for example macro data, yields,
 fundamentals, or news) is unavailable: say so and never substitute
 another dataset."""
+RESEARCH_PLAN_RULES = """
+
+RESEARCH PLAN CONFIRMATION
+A question for mode RESEARCH starts with a Research Plan, not with
+data:
+1. Before the user approved the plan, do not call
+submit_data_need_spec, prepare_data_bundle or any session tool for it.
+You may read the catalog to check that the data exists.
+2. Return response_type RESEARCH_PLAN_CONFIRMATION with research_plan:
+the objective, the universe and time scope in plain words, the analysis
+frequency, and one to four experiments, each with its hypothesis_id,
+hypothesis, objective, condition, outcome, baseline, candidate_count,
+pairwise_comparisons, multiple_testing_policy, whether a holdout is
+required, and the minimum sample; then assumptions, limitations and a
+confirmation_question. No table names, SQL or Python in the plan.
+answer presents the plan to the user in their language and asks them
+to approve, revise or cancel it.
+3. Wait for the user's reply. Only the application tells you that a
+plan was approved; silence, an unrelated reply or your own reading of
+the conversation is never an approval.
+4. After approval, each RESEARCH data need copies research_governance
+from its approved experiment: hypothesis_id, hypothesis, objective,
+condition, outcome, baseline and multiple_testing_policy exactly;
+candidate_count and pairwise_comparisons at most the approved values;
+minimum_sample at least the approved value in the same unit; a holdout
+when the plan requires one. Any other change needs a revised plan and a
+new approval (RESEARCH_PLAN_CONFIRMATION).
+Mode ANALYSIS needs no plan and proceeds directly."""
+PERIOD_RETURN_RULES = """
+
+NAMED-PERIOD RETURNS
+A return over a named calendar period (YTD, a month, a quarter, a year,
+or a comparable calendar period) uses one convention: the base is the
+last valid value strictly before the period start, the end is the last
+valid value on or before the period end, and return = end / base - 1.
+Declare history_buffer 1 TRADING_OBSERVATIONS on that data request and
+compute it with saniti.period_return(request, range_id, value_column).
+Never use the first observation inside the period as the base. An
+entity whose calculation_status is not COMPLETE (for example
+NO_PRIOR_CLOSE) is left out of rankings and statistics but stays in the
+emitted table; state how many were left out and why. Returns use prices
+as stored, not adjusted for dividends. A date-to-date formula the user
+gives, event forward returns, rolling returns and intraday open-to-close
+returns follow their own definitions, not this convention."""
 LOOKUP_RULE = ("Use lookup_fact only for a specific source fact: a value at explicit\n"
                "entities and dates, or a SUM, AVG, MIN, MAX, or COUNT the database\n"
                "computes over an explicit scope; each value carries a fact_id.\n")
 
 
-def build_system_prompt(lookup_fact: bool, dataneed: bool = False) -> str:
-    """The system prompt for the registered tools. It is fixed for a deployment (AI_ENABLE_LOOKUP_FACT and
-    AI_ENABLE_DATANEED), so every call of every run shares one byte-identical cacheable prefix. With the DataNeed
-    flow its rules replace those of the Analysis Spec path."""
+def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirmation: bool = False,
+                        period_return: bool = False) -> str:
+    """The system prompt for the registered tools. It is fixed for a deployment (AI_ENABLE_LOOKUP_FACT,
+    AI_ENABLE_DATANEED, AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION, AI_ENABLE_STANDARD_PERIOD_RETURN), so every call of
+    every run shares one byte-identical cacheable prefix. With the DataNeed flow its rules replace those of the Analysis
+    Spec path; the Research Plan and named-period-return rules exist only in the DataNeed flow."""
     template = SYSTEM_PROMPT_TEMPLATE
     if dataneed:
         common, _ = SYSTEM_PROMPT_TEMPLATE.split("DATA QUERY RULES\n", 1)
-        template = common + DATANEED_RULES
+        template = common + DATANEED_RULES + (RESEARCH_PLAN_RULES if plan_confirmation else "") \
+            + (PERIOD_RETURN_RULES if period_return else "")
     return (template.replace("{lookup_rule}", LOOKUP_RULE if lookup_fact else "")
             .replace("{number_sources}", "a lookup_fact result, " if lookup_fact else ""))
 
@@ -381,11 +432,20 @@ RESPONSE_CONTRACT = (
     "assumptions: list of strings; limitations: list of strings. "
     "The output format is already defined by the application; never ask the user about it."
 )
-FINALIZE_INSTRUCTION = (
+# With Research Plan confirmation the contract gains one response type and one field.
+PLAN_RESPONSE_CONTRACT = RESPONSE_CONTRACT.replace(
+    "or \"LIMITATION\" when a required capability is unavailable; ",
+    "\"RESEARCH_PLAN_CONFIRMATION\" when a research question needs the user's approval of a Research Plan before "
+    "any data is used, or \"LIMITATION\" when a required capability is unavailable; ").replace(
+    "assumptions: list of strings; limitations: list of strings. ",
+    "assumptions: list of strings; limitations: list of strings; research_plan: the Research Plan object for "
+    "RESEARCH_PLAN_CONFIRMATION (answer then presents it and asks to approve, revise or cancel), otherwise null. ")
+FINALIZE_PREFIX = (
     "Provide your final response to my latest message now, based only on the conversation and "
-    "tool results above. Do not call tools. " + RESPONSE_CONTRACT
+    "tool results above. Do not call tools. "
 )
-CONTEXT_BUDGET_INSTRUCTION = (
+FINALIZE_INSTRUCTION = FINALIZE_PREFIX + RESPONSE_CONTRACT
+CONTEXT_BUDGET_PREFIX = (
     "Tool access has ended because this run reached its context budget; no further tools can be "
     "called. Answer my latest message using only the information already retrieved in the tool "
     "results above, and do not state anything about records that were not retrieved. Return "
@@ -393,8 +453,47 @@ CONTEXT_BUDGET_INSTRUCTION = (
     "the request. In both cases, limitations must state that tool access ended because the context "
     "budget was reached, what was read (for example which catalogs and pages, using "
     "rows_before_this_page, returned_rows and total_rows), and what remains unread (for example "
-    "catalogs whose last page had has_more=true). " + RESPONSE_CONTRACT
+    "catalogs whose last page had has_more=true). "
 )
+CONTEXT_BUDGET_INSTRUCTION = CONTEXT_BUDGET_PREFIX + RESPONSE_CONTRACT
+
+# Research Plan turns. The notes are application context placed before the user's reply; the guard in
+# submit_data_need_spec, not these notes, is what prevents unapproved research.
+BASE_TYPES = frozenset({"ANSWER", "CLARIFICATION", "LIMITATION"})
+ALL_TYPES = BASE_TYPES | {"RESEARCH_PLAN_CONFIRMATION"}
+PLAN_TYPES = frozenset({"RESEARCH_PLAN_CONFIRMATION", "CLARIFICATION", "LIMITATION"})
+DISCOVERY_TOOLS = frozenset({"get_system_capabilities", "discover_catalog", "get_catalog_details",
+                             "read_catalog_rows", "get_dimension_values"})
+PLAN_NOTE_PREFIX = "Application note, not from the user: "
+APPROVED_NOTE = (PLAN_NOTE_PREFIX + "the user approved Research Plan {plan_id}; the approval was verified. Carry out "
+                 "its experiments now. Each RESEARCH data need copies research_governance from its experiment as the "
+                 "RESEARCH PLAN CONFIRMATION rules say; a change beyond them needs a revised plan and a new approval. "
+                 "The approved plan: {plan}")
+REVISE_NOTE = (PLAN_NOTE_PREFIX + "the user asked to revise Research Plan {plan_id}: {instruction}\nReturn the revised "
+               "plan as RESEARCH_PLAN_CONFIRMATION (it needs a new approval), or CLARIFICATION if the change is "
+               "unclear. No data may be used in this turn; you may read the catalog. The previous plan{unverified}: "
+               "{plan}")
+REPLAN_NOTES = {
+    "RESEARCH_PLAN_TOKEN_EXPIRED": (
+        PLAN_NOTE_PREFIX + "the user's reply to Research Plan {plan_id} arrived after the plan expired, so it cannot "
+        "be used. Present the plan again as RESEARCH_PLAN_CONFIRMATION for a new approval, unchanged unless the "
+        "dates or data require a change. No data may be used in this turn. The expired plan: {plan}"),
+    "RESEARCH_PLAN_TOKEN_INVALID": (
+        PLAN_NOTE_PREFIX + "the Research Plan approval sent with this message could not be verified, so no plan is "
+        "approved. Present a Research Plan again as RESEARCH_PLAN_CONFIRMATION, from the conversation, for a new "
+        "approval. No data may be used in this turn."),
+}
+CANCEL_NOTE = (PLAN_NOTE_PREFIX + "the user cancelled the Research Plan. Nothing was run. Acknowledge it briefly in "
+               "the user's language with response_type ANSWER and do not start any analysis.")
+UNRELATED_NOTE = (PLAN_NOTE_PREFIX + "Research Plan {plan_id} is waiting for the user's decision, and this message "
+                  "neither approves, revises nor cancels it. Return response_type CLARIFICATION that asks whether to "
+                  "approve, revise or cancel the plan. Do not run anything.")
+PLAN_PROVENANCE_INSTRUCTION = (
+    "These numbers in your Research Plan answer have no source: {numbers}. A plan uses no data: its numbers come "
+    "from the research_plan itself, the user's message or released outputs of this run. Put them in the plan, remove "
+    "them, or return response_type \"LIMITATION\"."
+)
+PLAN_PROVENANCE_NOTICE = "Some figures below could not be traced to the Research Plan or another source: {numbers}. "
 
 
 class ResponsesTransport(Protocol):
@@ -477,6 +576,20 @@ class RunState:
     sessions: dict[str, dict[str, Any]] = field(default_factory=dict)
     completions: dict[str, dict[str, Any]] = field(default_factory=dict)
     final_status: dict[str, Any] | None = None
+    # Research Plan confirmation: what this request may do (turn), which final response types and tools it allows
+    # (None: every registered tool), the guard for submit_data_need_spec, and the continuation to return.
+    plan_turn: str | None = None
+    allowed_types: frozenset[str] = BASE_TYPES
+    tool_filter: frozenset[str] | None = None
+    guard: ResearchGuard = field(default_factory=lambda: ResearchGuard(required=False))
+    plan_meta: dict[str, Any] = field(default_factory=dict)
+    classifier: dict[str, Any] | None = None
+    guard_rejections: int = 0
+    continuation: ContinuationOut | None = None
+
+
+class TurnRuleError(ValueError):
+    """The final response type is not allowed in this turn (for example a plan while it is cancelled)."""
 
 
 class AgentOrchestrator:
@@ -499,7 +612,21 @@ class AgentOrchestrator:
         self.wall_clock = wall_clock
         self.clock = clock
         self.dataneed = settings.ai_enable_dataneed
-        self.system_prompt = build_system_prompt(settings.ai_enable_lookup_fact, self.dataneed)
+        # Research Plan confirmation guards the DataNeed flow only; the Analysis Spec path (the DataNeed rollback)
+        # has no plan step, so the flag has no effect there.
+        self.plan_confirmation = settings.ai_require_research_plan_confirmation and self.dataneed
+        if settings.ai_require_research_plan_confirmation and not self.dataneed:
+            log_event("research_plan_confirmation_inactive", reason="AI_ENABLE_DATANEED is off")
+        self.signer = PlanSigner(settings.ai_research_plan_signing_key or "", settings.ai_research_plan_ttl_seconds,
+                                 wall_clock) if self.plan_confirmation else None
+        period_return = settings.ai_enable_standard_period_return and self.dataneed
+        self.system_prompt = build_system_prompt(settings.ai_enable_lookup_fact, self.dataneed,
+                                                 self.plan_confirmation, period_return)
+        self.final_schema = final_response_schema(self.plan_confirmation)
+        contract = PLAN_RESPONSE_CONTRACT if self.plan_confirmation else RESPONSE_CONTRACT
+        self.response_contract = contract
+        self.finalize_instruction = FINALIZE_PREFIX + contract
+        self.context_budget_instruction = CONTEXT_BUDGET_PREFIX + contract
 
     def run(self, request: AgentRunRequest) -> AgentRunResponse:
         moment = self.wall_clock()
@@ -517,15 +644,28 @@ class AgentOrchestrator:
         context = current_run_context.set(run_context(
             moment, self.settings.analysis_timezone,
             [(turn.role, turn.content) for turn in request.history], request.message))
+        guard = current_research_guard.set(state.guard)
         try:
+            self._prepare_plan_turn(request, state)
+            current_research_guard.set(state.guard)
             final = self._loop(state)
             state.experiments = self._research_summary(state, final.answer)
+            if final.response_type == "RESEARCH_PLAN_CONFIRMATION" and self.signer is not None \
+                    and final.research_plan is not None:
+                # The plan id, token and expiry come from the backend only; the model never produces them.
+                state.continuation = self.signer.issue(final.research_plan, request.request_id,
+                                                       request.conversation_id)
+                state.plan_meta["issued_plan_id"] = state.continuation.plan_id
+                log_event("research_plan_issued", request_id=request.request_id,
+                          plan_id=state.continuation.plan_id, experiments=len(final.research_plan.experiments),
+                          expires_at=state.continuation.expires_at)
             result = AgentRunResponse(
                 request_id=request.request_id,
                 status=STATUS_BY_RESPONSE_TYPE[final.response_type],
                 response=final,
                 execution=self._execution(state),
                 evidence_label=state.evidence_label,
+                continuation=state.continuation,
             )
         except (RunFailure, ProviderError) as exc:
             result = self._failed(state, exc.code, str(exc))
@@ -536,6 +676,7 @@ class AgentOrchestrator:
         finally:
             current_request_id.reset(token)
             current_run_context.reset(context)
+            current_research_guard.reset(guard)
         if self.auditor is not None:
             try:
                 self.auditor.record(request.request_id, request.message, result, state.experiments,
@@ -564,17 +705,130 @@ class AgentOrchestrator:
         log_event("ai_model_usage_summary", **self._usage_summary(state))
         return result
 
+    # ------------------------------------------------------------------------------------------ Research Plan turns
+
+    def _prepare_plan_turn(self, request: AgentRunRequest, state: RunState) -> None:
+        """Decide what this request may do with research: propose a plan (no continuation), execute a verified
+        approved plan, revise, re-plan after a failed verification, cancel, or ask again (unrelated reply). Sets the
+        allowed final response types, the tool filter, the guard and an application note."""
+        if not self.plan_confirmation:
+            if request.continuation is not None:
+                log_event("research_plan_continuation_ignored", request_id=request.request_id,
+                          reason="AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION is off")
+            return
+        continuation = request.continuation
+        if continuation is None:
+            self._set_turn(state, "PROPOSE", ALL_TYPES, None, ResearchGuard(required=True), verification="NOT_PRESENTED")
+            return
+        assert self.signer is not None
+        verified, verification = None, "VERIFIED"
+        try:
+            verified = self.signer.verify(continuation, request.conversation_id)
+        except PlanVerificationError as exc:
+            verification = exc.code
+            log_event("research_plan_verification_failed", request_id=request.request_id, code=exc.code,
+                      reason=exc.reason, plan_id=continuation.plan_id)
+        action, instruction, source = continuation.action, continuation.revision_instruction, "EXPLICIT"
+        if action is None:
+            action, instruction = self._classify_reply(state, request.message, continuation.plan)
+            source = "CLASSIFIER"
+        if action == "REVISE" and not (instruction or "").strip():
+            instruction = request.message[:2000]
+        state.plan_meta.update(action=action, action_source=source, verification=verification,
+                               approved_plan_id=verified.plan_id if verified and action == "APPROVE" else None)
+        plan_json = dumps(continuation.plan.model_dump(mode="json"))
+        numbers = [value for shown in parse_numbers(plan_json) for value, _ in shown.candidates]
+        guard = ResearchGuard(required=True, verification=verification)
+        if action in ("CANCEL", "UNRELATED"):
+            state.user_text = request.message  # the reply itself, not the research question it answers
+        if action == "CANCEL":
+            self._set_turn(state, "CANCEL", frozenset({"ANSWER", "LIMITATION"}), frozenset(), guard,
+                           note=CANCEL_NOTE)
+        elif action == "APPROVE" and verified is not None:
+            # The approved plan becomes the guard's reference for this request only.
+            self._set_turn(state, "EXECUTE_APPROVED", ALL_TYPES, None,
+                           ResearchGuard(required=True, plan=verified.plan, plan_id=verified.plan_id,
+                                         verification=verification),
+                           note=APPROVED_NOTE.format(plan_id=verified.plan_id, plan=plan_json))
+            state.user_text = verified.plan.original_question + "\n" + state.user_text
+            state.context_numbers.extend(numbers)
+        elif action == "UNRELATED" and verified is not None:
+            self._set_turn(state, "UNRELATED", frozenset({"CLARIFICATION"}), frozenset(), guard,
+                           note=UNRELATED_NOTE.format(plan_id=verified.plan_id))
+            # The same continuation goes back unchanged (same token and expiry), so asking again never extends it.
+            state.continuation = ContinuationOut(plan_id=verified.plan_id, origin_request_id=verified.origin_request_id,
+                                                 conversation_id=verified.conversation_id, token=verified.token,
+                                                 expires_at=verified.expires_at.isoformat())
+        elif action == "REVISE":
+            self._set_turn(state, "REVISE", PLAN_TYPES, DISCOVERY_TOOLS, guard, note=REVISE_NOTE.format(
+                plan_id=continuation.plan_id, instruction=instruction,
+                unverified="" if verified is not None else " (sent back by the caller; it could not be verified)",
+                plan=plan_json))
+            if verified is not None:
+                state.context_numbers.extend(numbers)
+        else:  # an approval or unrelated reply whose continuation did not verify: nothing is approved
+            note = REPLAN_NOTES[verification].format(plan_id=continuation.plan_id, plan=plan_json)
+            self._set_turn(state, "REPLAN", PLAN_TYPES, DISCOVERY_TOOLS, guard, note=note)
+            if verification == "RESEARCH_PLAN_TOKEN_EXPIRED":
+                state.context_numbers.extend(numbers)
+        log_event("research_plan_turn", request_id=request.request_id, turn=state.plan_turn, action=action,
+                  action_source=source, verification=verification, plan_id=continuation.plan_id)
+
+    @staticmethod
+    def _set_turn(state: RunState, turn: str, allowed: frozenset[str], tools: frozenset[str] | None,
+                  guard: ResearchGuard, note: str | None = None, verification: str | None = None) -> None:
+        state.plan_turn, state.allowed_types, state.tool_filter, state.guard = turn, allowed, tools, guard
+        if verification is not None:
+            state.plan_meta.setdefault("verification", verification)
+        if note:
+            # before the user's reply, after the run context and the history
+            state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": note})
+
+    def _classify_reply(self, state: RunState, message: str, plan: ResearchPlan) -> tuple[str, str | None]:
+        """A free-text reply to a plan, read by one small tool-free model call constrained to APPROVE, REVISE, CANCEL
+        or UNRELATED. Any failure is UNRELATED, which never approves anything."""
+        payload: dict[str, Any] = {
+            "model": self.settings.ai_model, "session_id": f"{state.request_id}:plan-reply",
+            "instructions": CLASSIFIER_INSTRUCTIONS,
+            "input": [{"role": "user", "content": dumps({"research_plan": plan_digest(plan),
+                                                         "user_reply": message[:4000]})}],
+            "reasoning": {"effort": "low"}, "max_output_tokens": min(2000, self.settings.ai_max_output_tokens),
+            "store": False, "provider": {"require_parameters": True, "allow_fallbacks": True},
+            "text": {"format": {"type": "json_schema", "name": "research_plan_reply", "strict": True,
+                                "schema": CLASSIFIER_SCHEMA}},
+        }
+        started = time.monotonic()
+        record: dict[str, Any] = {"status": "FAILED", "input_tokens": 0, "output_tokens": 0, "cost": None,
+                                  "latency_ms": 0}
+        action, instruction = "UNRELATED", None
+        try:
+            response = self.client.create(payload)
+            usage = self._add_usage(state, response)
+            record.update(input_tokens=usage["input_tokens"], output_tokens=usage["output_tokens"], cost=usage["cost"])
+            parsed = ReplyClassification.model_validate_json(self._output_text(response).strip() or "{}")
+            action, instruction = parsed.action, parsed.revision_instruction
+            record["status"] = "COMPLETED"
+        except Exception as exc:  # noqa: BLE001 - a failed classification approves nothing
+            log_event("research_plan_classifier_failed", request_id=state.request_id, error=type(exc).__name__)
+        record["latency_ms"] = int((time.monotonic() - started) * 1000)
+        state.model_latency_ms += record["latency_ms"]
+        state.classifier = record
+        log_event("research_plan_reply_classified", request_id=state.request_id, action=action,
+                  status=record["status"], latency_ms=record["latency_ms"], input_tokens=record["input_tokens"],
+                  output_tokens=record["output_tokens"])
+        return action, instruction
+
     def _loop(self, state: RunState) -> FinalResponse:
         while state.iterations < self.settings.ai_max_tool_iterations:
             if self.clock() - state.started >= self.settings.ai_max_analysis_seconds:
                 raise RunFailure("ANALYSIS_TIMEOUT", "AI_MAX_ANALYSIS_SECONDS exhausted before a final answer")
 
-            tools = [] if state.tools_locked or state.structured_only else self.registry.definitions()
+            tools = [] if state.tools_locked or state.structured_only else self._turn_tools(state)
             context_tokens = self._estimate_context(state, tools)
             if tools and context_tokens + self.settings.ai_max_output_tokens >= self._soft_context_limit():
                 # Degrade instead of failing: stop tool use and finalize from what was retrieved.
                 self._withdraw_tools(state, "CONTEXT_BUDGET")
-                state.input_items.append({"role": "user", "content": CONTEXT_BUDGET_INSTRUCTION})
+                state.input_items.append({"role": "user", "content": self.context_budget_instruction})
                 tools = []
                 context_tokens = self._estimate_context(state, tools)
             # On the final re-ask the tools are still sent, so the request prefix and the provider stay the same,
@@ -631,8 +885,10 @@ class AgentOrchestrator:
 
             raw = self._output_text(response)
             try:
-                final = self._check_budget_limitations(state, self._parse_final_output(raw))
+                final = self._check_budget_limitations(state, self._turn_type(state, self._parse_final_output(raw)))
                 return self._validation_gate(state, final)
+            except TurnRuleError as exc:
+                self._reject_final(state, raw, str(exc))
             except GateRejection as exc:
                 # The model may still repair the analysis, so tools stay available for this turn.
                 if raw.strip():
@@ -646,6 +902,23 @@ class AgentOrchestrator:
                 else:
                     self._reject_final(state, raw, str(exc))
         raise RunFailure("MAX_ITERATIONS", "AI_MAX_TOOL_ITERATIONS reached before a final answer")
+
+    def _turn_tools(self, state: RunState) -> list[dict[str, Any]]:
+        definitions = self.registry.definitions()
+        if state.tool_filter is None:
+            return definitions
+        return [d for d in definitions if d["name"] in state.tool_filter]
+
+    @staticmethod
+    def _turn_type(state: RunState, final: FinalResponse) -> FinalResponse:
+        if final.response_type not in state.allowed_types:
+            allowed = ", ".join(sorted(state.allowed_types))
+            reason = {"CANCEL": "the user cancelled the Research Plan", "UNRELATED": "a Research Plan awaits the "
+                      "user's decision", "REVISE": "the user asked to revise the Research Plan", "REPLAN": "no "
+                      "Research Plan is approved"}.get(state.plan_turn or "", "this response type is not enabled")
+            raise TurnRuleError(f"response_type {final.response_type} is not allowed here ({reason}); use one of: "
+                                f"{allowed}.")
+        return final
 
     def _payload(self, state: RunState, tools: list[dict[str, Any]]) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -673,7 +946,7 @@ class AgentOrchestrator:
                     "type": "json_schema",
                     "name": RESPONSE_FORMAT_NAME,
                     "strict": True,
-                    "schema": FINAL_RESPONSE_SCHEMA,
+                    "schema": self.final_schema,
                 }
             }
         return payload
@@ -727,6 +1000,11 @@ class AgentOrchestrator:
         if not state.tools_offered:
             return error_outcome(call_id, name, "TOOLS_NOT_AVAILABLE",
                                  "No tools are available in this step. Return the final response.")
+        if state.tool_filter is not None and name not in state.tool_filter:
+            # a registered tool that this turn does not offer (for example a data tool while a plan is revised)
+            return error_outcome(call_id, name, "TOOL_NOT_AVAILABLE_IN_THIS_TURN",
+                                 f"{name} is not available while the Research Plan awaits the user's decision; only "
+                                 f"{', '.join(sorted(state.tool_filter)) or 'no tools'} can be used now.")
         if state.tool_calls >= self.settings.ai_max_tool_calls:
             self._withdraw_tools(state, "TOOL_CALL_BUDGET")
             return error_outcome(
@@ -746,6 +1024,7 @@ class AgentOrchestrator:
             )
 
         outcome = self._repair_budget(state, call_id, name, self.registry.execute(call_id, name, raw_arguments))
+        self._track_plan_guard(state, name, outcome)
         self._track_analysis(state, name, outcome, self._normalized_arguments(raw_arguments))
         self._track_sources(state, name, self._normalized_arguments(raw_arguments), outcome)
         self._track_dataneed(state, name, self._normalized_arguments(raw_arguments), outcome)
@@ -753,6 +1032,17 @@ class AgentOrchestrator:
         count = count + 1 if last_result in (None, result_hash) else 1
         state.call_history[key] = (count, result_hash)
         return outcome
+
+    @staticmethod
+    def _track_plan_guard(state: RunState, name: str, outcome: ToolOutcome) -> None:
+        result = outcome.output.get("result") if outcome.ok else None
+        if name == "submit_data_need_spec" and isinstance(result, dict) and result.get("status") == "REJECTED":
+            code = str((result.get("error") or {}).get("code") or "")
+            if code.startswith("RESEARCH_PLAN_"):
+                state.guard_rejections += 1
+                log_event("research_plan_guard_rejected", request_id=state.request_id, code=code,
+                          plan_id=state.guard.plan_id, fields=[i.get("field_path") for i in
+                                                            (result.get("error") or {}).get("issues") or []][:20])
 
     @staticmethod
     def _rejection_code(name: str, outcome: ToolOutcome) -> str | None:
@@ -772,6 +1062,9 @@ class AgentOrchestrator:
             return f"FAILED:{(result.get('error') or {}).get('code')}"
         if name == "run_python_analysis" and result.get("status") == "REJECTED":
             return f"REJECTED:{(result.get('error') or {}).get('code')}"
+        code = str((result.get("error") or {}).get("code") or "") if isinstance(result.get("error"), dict) else ""
+        if name == "submit_data_need_spec" and result.get("status") == "REJECTED" and code.startswith("RESEARCH_PLAN_"):
+            return f"REJECTED:{code}"  # the research guard's refusals are bounded like other repairs
         return None
 
     def _repair_budget(self, state: RunState, call_id: str, name: str, outcome: ToolOutcome) -> ToolOutcome:
@@ -792,7 +1085,7 @@ class AgentOrchestrator:
     def _estimate_context(self, state: RunState, tools: list[dict[str, Any]]) -> int:
         return estimate_tokens({
             "instructions": self.system_prompt, "input": state.input_items,
-            "tools": tools, "schema": FINAL_RESPONSE_SCHEMA,
+            "tools": tools, "schema": self.final_schema,
         })
 
     def _soft_context_limit(self) -> float:
@@ -1026,7 +1319,8 @@ class AgentOrchestrator:
 
     def _gate_once(self, state: RunState, kind: str, message: str) -> None:
         """Reject a final answer once per kind of problem while the model can still repair it with tools."""
-        if kind not in state.gate_kinds_rejected and not state.tools_locked:
+        no_tools_this_turn = state.tool_filter is not None and not state.tool_filter
+        if kind not in state.gate_kinds_rejected and not state.tools_locked and not no_tools_this_turn:
             state.gate_kinds_rejected.add(kind)
             state.gate_rejections += 1
             raise GateRejection(message)
@@ -1044,6 +1338,8 @@ class AgentOrchestrator:
         if final.response_type == "CLARIFICATION":
             state.evidence_label = None
             return final
+        if final.response_type == "RESEARCH_PLAN_CONFIRMATION":
+            return self._plan_gate(state, final)
         if self.dataneed:
             return self._dataneed_gate(state, final)
         blocking, lines = self._gate_findings(state)
@@ -1129,6 +1425,24 @@ class AgentOrchestrator:
         if not missing_lines:
             return final
         return final.model_copy(update={"limitations": [*final.limitations, *missing_lines]})
+
+    def _plan_gate(self, state: RunState, final: FinalResponse) -> FinalResponse:
+        """A Research Plan uses no data: its answer may cite only the plan's own numbers, the user's messages and
+        released outputs of this run. Hypotheses are phrased as questions to test, so the claim check does not apply;
+        the plan carries no evidence label."""
+        assert final.research_plan is not None
+        index = self._source_index(state)
+        plan_json = dumps(final.research_plan.model_dump(mode="json"))
+        index.add(CONTEXT, [value for shown in parse_numbers(plan_json) for value, _ in shown.candidates])
+        provenance = check_answer(final.answer, index)
+        state.number_provenance = {"checked": provenance.checked, "unsupported": provenance.unsupported[:50]}
+        if provenance.unsupported:
+            numbers = ", ".join(provenance.unsupported[:20])
+            self._gate_once(state, "PLAN_PROVENANCE", PLAN_PROVENANCE_INSTRUCTION.format(numbers=numbers))
+            return self._forced(state, final, PLAN_PROVENANCE_NOTICE.format(numbers=numbers),
+                                [f"Figures without a source in this Research Plan: {numbers}."])
+        state.evidence_label = None
+        return final
 
     @staticmethod
     def _claim_problem(state: RunState, answer: str, dataneed: bool = False) -> str | None:
@@ -1250,7 +1564,7 @@ class AgentOrchestrator:
         """
         if raw.strip():
             state.input_items.append({"role": "assistant", "content": raw[:REJECTED_OUTPUT_ECHO_CHARS]})
-        state.input_items.append({"role": "user", "content": FINALIZE_INSTRUCTION})
+        state.input_items.append({"role": "user", "content": self.finalize_instruction})
         if state.final_reask_sent:
             state.structured_only = True
         state.final_reask_sent = True
@@ -1269,7 +1583,7 @@ class AgentOrchestrator:
             "role": "user",
             "content": (
                 f"Your previous response was rejected ({state.final_rejections}/{limit} retries): "
-                f"{issue} Correct exactly this issue. Do not call tools. " + RESPONSE_CONTRACT
+                f"{issue} Correct exactly this issue. Do not call tools. " + self.response_contract
             ),
         })
         state.structured_only = True
@@ -1308,6 +1622,7 @@ class AgentOrchestrator:
             "cost": round(state.cost, 8) if state.cost_calls else None,
             "cost_reported_calls": state.cost_calls,
             "average_latency_ms": round(state.model_latency_ms / state.iterations) if state.iterations else None,
+            "plan_reply_classifier_calls": 1 if state.classifier else 0,
             "distinct_static_prefixes": len(dict.fromkeys(state.static_prefixes)),
         }
 
@@ -1369,7 +1684,20 @@ class AgentOrchestrator:
             research=ResearchSummary(experiments=[ExperimentSummary(**e) for e in state.experiments])
             if state.experiments else None,
             analysis_final_status=state.final_status,
+            research_plan=self._plan_execution(state),
         )
+
+    @staticmethod
+    def _plan_execution(state: RunState) -> ResearchPlanExecution | None:
+        if state.plan_turn is None:
+            return None
+        meta = state.plan_meta
+        return ResearchPlanExecution(
+            turn=state.plan_turn, verification=meta.get("verification") or "NOT_PRESENTED",
+            action=meta.get("action"), action_source=meta.get("action_source"),
+            approved_plan_id=meta.get("approved_plan_id"), issued_plan_id=meta.get("issued_plan_id"),
+            guard_rejections=state.guard_rejections,
+            classifier=ReplyClassifierUsage(**state.classifier) if state.classifier else None)
 
     def _failed(self, state: RunState, code: str, message: str) -> AgentRunResponse:
         return AgentRunResponse(

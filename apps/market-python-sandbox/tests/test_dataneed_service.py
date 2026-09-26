@@ -165,6 +165,32 @@ def test_an_approved_research_need_reserves_one_experiment_and_its_revisions_reu
     assert other["next_action"] == "REVISE_DATA_NEED_SPEC" and other["need_id"] is None
 
 
+def test_condition_outcome_and_baseline_are_optional_bounded_declarations_recorded_and_returned(api) -> None:
+    declared = {"condition": "RSI(14) below 30 together with a bullish engulfing candle",
+                "outcome": "Return over the next 10 trading days",
+                "baseline": "Return over 10 trading days from every other day of the same stocks"}
+    result = submit(api, research_spec(), research(**declared))
+    assert result["status"] == "APPROVED" and result["extraction_allowed"] is True, result
+    constraints = result["research_governance"]["constraints"]
+    assert constraints["declarations"] == declared
+    # they are declarations only: the governor still says it does not check the analysis code against them
+    assert "does not verify the analysis code" in constraints["note"]
+    stored = api.app.state.dataneed.store.get_need(result["need_id"])
+    assert {k: stored["governance"][k] for k in declared} == declared  # persisted with the need
+    assert stored["approved"]["research_governance"]["constraints"]["declarations"] == declared
+    # absent or null: accepted and not returned, as before the fields existed
+    plain = submit(api, research_spec(group="data_request_3"), research(hypothesis_id="plain", condition=None))
+    assert plain["extraction_allowed"] is True and "declarations" not in plain["research_governance"]["constraints"]
+    # blank, too long or not text: a structured issue on the field path
+    bad = submit(api, research_spec(group="data_request_4"),
+                 research(hypothesis_id="bad", condition=" ", outcome="x" * 1001, baseline=7))
+    assert bad["status"] == "REVISION_REQUIRED"
+    assert {(i["code"], i["field_path"]) for i in bad["issues"]} == {
+        ("INVALID_FIELD_VALUE", "research_governance.condition"),
+        ("INVALID_FIELD_VALUE", "research_governance.outcome"),
+        ("INVALID_FIELD_VALUE", "research_governance.baseline")}
+
+
 @pytest.mark.parametrize("governance, code", [
     (research(candidate_count=5), "MULTIPLE_TESTING_POLICY_REQUIRED"),
     (research(candidate_count=500, multiple_testing_policy="HOLM"), "CANDIDATE_LIMIT_EXCEEDED"),
@@ -226,3 +252,16 @@ def test_records_survive_a_restart_of_the_service(api, make_service) -> None:
     assert reopened.get_need(result["need_id"])["spec_sha256"] == result["approved"]["spec_sha256"]
     rows = reopened.store.needs_for_request("req_dataneed_1")
     assert [r["status"] for r in rows] == ["APPROVED"]
+
+
+def test_the_run_report_accepts_a_research_plan_confirmation() -> None:
+    from pydantic import ValidationError
+
+    from app.models import RunReport
+
+    report = {"status": "AWAITING_CONFIRMATION", "response_type": "RESEARCH_PLAN_CONFIRMATION",
+              "validation_gate": "NOT_APPLICABLE", "question_sha256": "a" * 64, "question": "q", "model": "m",
+              "tool_call_count": 2, "total_tokens": 10, "duration_ms": 5}
+    assert RunReport.model_validate(report).status == "AWAITING_CONFIRMATION"
+    with pytest.raises(ValidationError):
+        RunReport.model_validate({**report, "status": "APPROVED_BY_MODEL"})

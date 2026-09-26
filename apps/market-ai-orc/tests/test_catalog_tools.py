@@ -560,7 +560,7 @@ def test_agent_loop_discovers_then_reads_details_then_limits() -> None:
     agent = AgentOrchestrator(make_settings(), client, build_default_registry(reader))
     result = agent.run(AgentRunRequest(request_id="r1", message="What broker accumulation data exists?"))
 
-    assert result.status == "LIMITED" and result.response.model_dump() == limitation
+    assert result.status == "LIMITED" and result.response.model_dump(exclude={"research_plan"}) == limitation
     assert result.execution.tool_call_count == 2 and result.execution.iterations == 3
     first = client.payloads[0]
     assert [tool["name"] for tool in first["tools"]] == ["get_system_capabilities", "discover_catalog", "get_catalog_details", "read_catalog_rows", "preview_table_rows"]

@@ -47,6 +47,7 @@ HELPERS = ["requests()", "manifest()", "quality(request)", "load(request, column
            "range(request, range_id, columns=None, include_buffers=False)", "sql(query, params=None)",
            "relation(request)", "join(relationship_id, left=None, right=None, how=None)",
            "resample(frame, request, frequency=None)",
+           "period_return(request, range_id, value_column='close', entity_column=None, date_column=None)",
            "insufficient_data(request, range_id=None, value=None, unit='TRADING_OBSERVATIONS', "
            "requirement_type='ADDITIONAL_HISTORY', reason='')", "intermediate_path(name)",
            "emit_table(name, frame, description='')", "emit_chart(figure=None, name='chart', title='', description='')",

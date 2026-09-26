@@ -302,3 +302,37 @@ def test_a_dataneed_run_is_audited_with_its_final_report() -> None:
                       auditor=auditor).run(AgentRunRequest(request_id="dn", message="Pola RSI < 30?"))
     [record] = auditor.calls
     assert record["used_sandbox"] is True and record["experiments"][0]["spec_id"] == NEED
+
+
+# --- named-period returns (AI_ENABLE_STANDARD_PERIOD_RETURN) ------------------------------------------------------
+
+def test_the_period_return_convention_is_taught_only_behind_its_flag() -> None:
+    from app.orchestrator import PERIOD_RETURN_RULES
+    from app.tools.session import PERIOD_RETURN_SENTENCE
+
+    sandbox = SandboxClient("http://sandbox.test", "s" * 40, 10, 0, transport=httpx.MockTransport(
+        lambda r: httpx.Response(404)))
+    governor = GovernorClient("http://governor.test", "g" * 40, 10, transport=httpx.MockTransport(
+        lambda r: httpx.Response(404)))
+
+    def run_python(flag: bool) -> str:
+        registry = build_default_registry(sandbox_client=sandbox, governor_client=governor, dataneed_enabled=True,
+                                          standard_period_return=flag)
+        return next(d["description"] for d in registry.definitions() if d["name"] == "run_python")
+
+    assert "period_return" not in run_python(False) and run_python(True).endswith(PERIOD_RETURN_SENTENCE)
+    off, on = build_system_prompt(False, True), build_system_prompt(False, True, period_return=True)
+    assert "NAMED-PERIOD RETURNS" not in off and on == off + PERIOD_RETURN_RULES
+    # the convention: base strictly before the start, end on or before the end, a declared history buffer
+    assert "last valid value strictly before the period start" in on.replace("\n", " ")
+    assert "history_buffer 1 TRADING_OBSERVATIONS" in on.replace("\n", " ")
+    assert "Never use the first observation inside the period as the base" in on.replace("\n", " ")
+    # explicit date-to-date formulas, event forward, rolling and intraday returns are not routed to it
+    for excluded in ("date-to-date formula", "event forward returns", "rolling returns", "intraday open-to-close"):
+        assert excluded in on.replace("\n", " ")
+    # the Analysis Spec path (DataNeed off) never carries it
+    assert "NAMED-PERIOD RETURNS" not in build_system_prompt(False, False, period_return=True)
+    scripted = ScriptedClient([final_response(answer("Halo."))])
+    AgentOrchestrator(make_settings(AI_ENABLE_DATANEED="true", AI_ENABLE_STANDARD_PERIOD_RETURN="true"), scripted,
+                      Tools([]).registry()).run(AgentRunRequest(request_id="pr", message="Halo"))
+    assert "NAMED-PERIOD RETURNS" in scripted.payloads[0]["instructions"]

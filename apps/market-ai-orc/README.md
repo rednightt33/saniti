@@ -199,6 +199,10 @@ Measured on `dev` (2026-09-24, see `RAILWAY_CHANGELOG.md`):
 | `AI_ENABLE_LOOKUP_FACT` | no | `true` | Register the model-facing `lookup_fact` tool and its prompt rule |
 | `AI_ENABLE_REQUEST_DATA` | no | `false` | Register the model-written `request_data` tool (rollback path; analysis data is prepared by `prepare_analysis_data`) |
 | `AI_ENABLE_DATANEED` | no | `false` | Switch to the DataNeed flow: register its tools (`submit_data_need_spec`; with the Governor also `prepare_data_bundle` and the session tools), drop the Analysis Spec tools, and use the DATA NEED RULES prompt and answer gate (see [DataNeed flow](#dataneed-flow-in-progress)). The sandbox must run with `PY_SANDBOX_DATANEED_ENABLED=true`, otherwise the tools report the sandbox unavailable. A DataNeed run needs more tool calls than the Analysis Spec path (spec, bundle, session, several `run_python`, completion): size `AI_MAX_TOOL_ITERATIONS` and `AI_MAX_TOOL_CALLS` for it |
+| `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION` | no | `false` | DataNeed flow only: a research question first returns a Research Plan (`RESEARCH_PLAN_CONFIRMATION`, status `AWAITING_CONFIRMATION`) with a backend-signed continuation, and `submit_data_need_spec(mode="RESEARCH")` is refused unless the user approved that plan (see [Research Plan confirmation](#research-plan-confirmation)). Without `AI_ENABLE_DATANEED` it has no effect (logged at startup) |
+| `AI_RESEARCH_PLAN_SIGNING_KEY` | with confirmation (secret) | — | HMAC-SHA256 key of the plan continuation tokens: at least 32 characters, at least 10 distinct, no surrounding whitespace (use a random 64-hex value). The service refuses to start with confirmation on and no usable key. Rotating it invalidates every open plan |
+| `AI_RESEARCH_PLAN_TTL_SECONDS` | no | `3600` | Lifetime of a plan continuation (60–86400) |
+| `AI_ENABLE_STANDARD_PERIOD_RETURN` | no | `false` | DataNeed flow only: teach the named-period return convention (NAMED-PERIOD RETURNS prompt rule and one `run_python` sentence about `saniti.period_return`); see [Named-period returns](#named-period-returns) |
 | `PY_SANDBOX_SESSION_TIMEOUT_SECONDS` | no | `180` | HTTP timeout of one `run_python` call (20–960); keep it above the sandbox's `PY_SANDBOX_SESSION_EXECUTION_SECONDS` plus 5 s |
 | `AI_MAX_ANALYSIS_SECONDS` | no | `600` | Wall-clock limit per run |
 | `AI_MAX_CONTEXT_TOKENS` | no | `64000` | Hard context ceiling (estimated before the call, provider-reported after) |
@@ -249,11 +253,13 @@ Request:
   "conversation_id": null,
   "message": "What capabilities do you currently have?",
   "history": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}],
-  "metadata": {}
+  "metadata": {},
+  "continuation": null
 }
 ```
 
 - `request_id` (1–200 characters) and `message` (1–16,000 characters, not blank) are required.
+- `continuation` is optional: the reply to a Research Plan (see [Research Plan confirmation](#research-plan-confirmation)).
 - `history` is optional, with at most 50 turns. Roles other than `user`/`assistant` are rejected (`422`).
 - `metadata` is optional, at most 8 KB of JSON. It is not sent to the model.
 - Unknown fields, including any attempt to pass `instructions` or a system prompt, are rejected (`422`).
@@ -269,7 +275,8 @@ Response (HTTP `200` for every agent outcome, including `FAILED`):
     "answer": "...",
     "clarification_question": null,
     "assumptions": [],
-    "limitations": []
+    "limitations": [],
+    "research_plan": null
   },
   "execution": {
     "provider": "openrouter",
@@ -289,12 +296,17 @@ Response (HTTP `200` for every agent outcome, including `FAILED`):
     "analyses": [],
     "validation_gate": "NOT_APPLICABLE",
     "number_provenance": {"checked": 0, "unsupported": []},
-    "research": null
+    "research": null,
+    "analysis_final_status": null,
+    "research_plan": null
   },
   "error": null,
-  "evidence_label": null
+  "evidence_label": null,
+  "continuation": null
 }
 ```
+
+Every response carries `response.research_plan` and `continuation`; both are `null` except for a Research Plan.
 
 `execution.analyses` lists every Python analysis of the run with `analysis_id`, `spec_id`,
 `execution_status`, `validation_status`, `validation_level`, and `reason_codes`, taken from the
@@ -331,7 +343,8 @@ capability questions. "Terverifikasi" means recalculated independently and match
 `assumptions`/`limitations`.
 
 The model produces only `response`. Code sets `status` from `response_type`:
-`ANSWER → COMPLETED`, `CLARIFICATION → NEEDS_CLARIFICATION`, `LIMITATION → LIMITED`.
+`ANSWER → COMPLETED`, `CLARIFICATION → NEEDS_CLARIFICATION`, `RESEARCH_PLAN_CONFIRMATION → AWAITING_CONFIRMATION`,
+`LIMITATION → LIMITED`.
 On failure, `status` is `FAILED`, `response` is `null`, and `error` is `{code, message}`.
 The error codes are:
 
@@ -342,7 +355,10 @@ The error codes are:
 
 Final-response rules: `CLARIFICATION` needs a non-empty `clarification_question`. The other
 types need it to be `null`. `ANSWER` needs a non-empty `answer`, and `LIMITATION` needs at
-least one limitation. No extra fields are allowed.
+least one limitation. `RESEARCH_PLAN_CONFIRMATION` needs `research_plan` and a non-empty `answer` (the plan rendered
+for the user); every other type needs `research_plan` to be `null`. No extra fields are allowed. Without
+`AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION` the schema sent to the model is the one before the feature and a
+`RESEARCH_PLAN_CONFIRMATION` from the model is refused as a final response.
 
 Provider retries: `408`, `409`, `429` (except `credit_balance_exhausted` and
 `insufficient_quota`), `5xx`, timeouts, and network errors are retried up to 3 attempts with
@@ -541,6 +557,127 @@ Every extraction carries lineage: need, spec hash, scope and restriction hashes,
 catalog hash, and the hash of the extraction body. Resampling is not pushed down; the catalog rules travel with the
 bundle. Contract tests keep `part_key` and date splits equal to the Governor's and the sandbox's implementations,
 and check the plan against the sandbox's own plan check and partition tiling.
+
+### Research Plan confirmation
+
+Behind `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION` (DataNeed flow only, default off). The code is `app/research_plan.py`
+(plan model, signing, the guard) and the plan turns of `app/orchestrator.py`.
+
+**Lifecycle.**
+1. The model still chooses between modes ANALYSIS and RESEARCH itself (prompt rules). For a research question the
+   RESEARCH PLAN CONFIRMATION rules make it return `response_type: RESEARCH_PLAN_CONFIRMATION` with a
+   `research_plan` and no data access (it may read the catalog). Status: `AWAITING_CONFIRMATION`.
+2. The backend, never the model, adds `continuation`: a random `plan_id` (`rp_` + 24 hex), the `origin_request_id`,
+   the `conversation_id` when the request had one, the `token` and `expires_at` (TTL `AI_RESEARCH_PLAN_TTL_SECONDS`).
+3. The caller shows the plan and sends the user's reply as a new request with `continuation` = the exact `plan`,
+   `plan_id`, `origin_request_id` and `token` of the **latest** plan, the `action` when it has one (buttons
+   APPROVE / REVISE / CANCEL), and the relevant `history`. The caller must keep and resend these unchanged.
+4. The orchestrator verifies the continuation and decides the turn:
+
+| Reply | Verified | Turn (`execution.research_plan.turn`) | Tools offered | Allowed response types |
+|---|---|---|---|---|
+| APPROVE | yes | `EXECUTE_APPROVED`: the plan becomes this request's approved plan | all | all four |
+| APPROVE or UNRELATED | no (invalid or expired) | `REPLAN`: nothing is approved; the model presents a plan again | catalog discovery only | plan, clarification, limitation |
+| REVISE (with `revision_instruction`, or the message) | either | `REVISE`: a revised plan, newly signed, needs a new approval | catalog discovery only | plan, clarification, limitation |
+| CANCEL | either | `CANCEL`: nothing runs | none | answer, limitation |
+| UNRELATED | yes | `UNRELATED`: the model asks whether to approve, revise or cancel; the same continuation is returned unchanged (same token and expiry) | none | clarification |
+
+Without `action`, one small tool-free model call classifies the reply as APPROVE, REVISE, CANCEL or UNRELATED
+(strict JSON schema, reasoning `low`, at most 2,000 output tokens; it sees the plan's objective, universe, time scope,
+hypotheses and the reply, never the token). Any failure means UNRELATED, which approves nothing. Its tokens and cost
+are in the run totals and in `execution.research_plan.classifier`. Prefer the explicit `action`: no extra call.
+
+**Request continuation** (`AgentRunRequest.continuation`):
+
+```json
+{"kind": "RESEARCH_PLAN", "plan_id": "rp_0123456789abcdef01234567", "origin_request_id": "run_001",
+ "plan": {"plan_version": "research_plan/v1", "...": "the exact research_plan returned"},
+ "token": "rpc1.<payload>.<signature>", "action": "APPROVE", "revision_instruction": null}
+```
+
+**Response continuation** (only with `RESEARCH_PLAN_CONFIRMATION`, and echoed on an UNRELATED reply):
+
+```json
+{"kind": "RESEARCH_PLAN", "plan_id": "rp_0123456789abcdef01234567", "origin_request_id": "run_001",
+ "conversation_id": "conversation_001", "token": "rpc1.<payload>.<signature>", "expires_at": "2026-09-26T13:00:00+00:00"}
+```
+
+**The plan** (`research_plan/v1`, strict, bounded): `original_question`, `objective`, `universe`, `time_scope`,
+`analysis_frequency`, 1–4 `experiments` (each `experiment_id`, `hypothesis_id`, `hypothesis`, `objective`, `condition`,
+`outcome`, `baseline`, `candidate_count` 1–50, `pairwise_comparisons` 0–20,000, `multiple_testing_policy`,
+`holdout_required`, `minimum_sample_value`/`minimum_sample_unit`), `assumptions`, `limitations`,
+`confirmation_question`. The bounds are the Research Governor's defaults; `NONE` is allowed only for a single
+comparison. The plan is conceptual: text with SQL, Python or helper calls is refused, and table names are not
+needed. The plan answer may cite only numbers from the plan, the user's messages or released outputs.
+
+**Token.** `rpc1.<base64url(canonical claims)>.<base64url(HMAC-SHA256)>`; the claims are the version, kind, `plan_id`,
+the SHA-256 of the canonical plan (sorted keys, compact separators, UTF-8), `origin_request_id`, `conversation_id`
+(or null), issued-at and expiry. Verification checks the format and size (at most 2,048 characters), the signature
+(constant-time) before anything else is read, the claims, then plan id, origin, conversation (exact equality,
+including null) and plan hash, then the time window against an injected clock (`RESEARCH_PLAN_TOKEN_EXPIRED` only for
+an authentic, correctly bound token). Neither the key nor a token is ever logged; failures log a short reason
+(`SIGNATURE`, `PLAN_HASH`, `ORIGIN`, `CONVERSATION`, `EXPIRED`, ...).
+
+**Stateless replay.** Tokens are not stored. A token stays valid until it expires even after a revised plan was
+issued, so replaying it within the TTL is possible; the caller must always use the newest continuation. Revoking a
+token before its expiry needs a persistent store, which this release deliberately does not add.
+
+**The guard** runs inside `submit_data_need_spec` after its arguments were validated and before the
+`POST /v1/data-needs` call, from a per-request context (not global state). A RESEARCH submission is refused, with no
+sandbox call, when:
+
+| Code | When | next_action |
+|---|---|---|
+| `RESEARCH_PLAN_REQUIRED` | no plan was approved in this request | `RETURN_RESEARCH_PLAN_CONFIRMATION` |
+| `RESEARCH_PLAN_TOKEN_INVALID` / `RESEARCH_PLAN_TOKEN_EXPIRED` | the continuation of this request did not verify | `RETURN_RESEARCH_PLAN_CONFIRMATION` |
+| `RESEARCH_PLAN_REAPPROVAL_REQUIRED` | the `hypothesis_id` is not in the approved plan | `RETURN_RESEARCH_PLAN_CONFIRMATION` |
+| `RESEARCH_PLAN_MISMATCH` | a declared field differs from its approved experiment (issues carry `experiment_id`, `field_path`, `rule`, approved and submitted values) | `RESUBMIT_WITH_APPROVED_VALUES_OR_REQUEST_REAPPROVAL` |
+
+Enforced fields: `hypothesis_id`, `hypothesis`, `objective`, `condition`, `outcome`, `baseline` and
+`multiple_testing_policy` must equal the approved experiment (texts compared after NFKC, case folding and whitespace
+collapsing). Allowed without reapproval, because only stricter: fewer candidates, fewer pairwise comparisons, a
+larger minimum sample in the same unit, a holdout the plan did not require. Everything else (more candidates or
+comparisons, another policy, a smaller or removed minimum sample, another unit, a removed required holdout, an
+unknown hypothesis) needs a revised plan and a new approval. No ordering among BONFERRONI, HOLM and
+BENJAMINI_HOCHBERG is assumed. Table and column names, relationship ids, partitioning, buffers, ordering and SQL
+pushdown are catalog-resolved details and need no approval. The guard's refusals count against
+`AI_MAX_REPAIR_ATTEMPTS` like other repairs, and `execution.research_plan.guard_rejections` counts them. ANALYSIS
+submissions are never checked.
+
+**What is and is not verified.**
+- User-approved research meaning: the Research Plan.
+- Enforceable research declaration: the `research_governance` fields above, bound to the plan by the guard.
+- Actual requested data: the DataNeedSpec approved by the DataNeedValidator.
+- Actual processed coverage: the ExecutionManifest and the Coverage Validator.
+- Calculation semantics: not independently validated (`calculation_validation: NOT_PERFORMED`). `condition`,
+  `outcome` and `baseline` are declarations that the Research Governor records and returns; nothing checks the
+  Python code against them. Free-text `universe` and `time_scope` are not compared with the DataNeedSpec.
+- Mode selection stays with the model: without a general intent gate the backend guarantees confirmation only once
+  the model chooses mode RESEARCH; it cannot prevent a research question from being handled as ANALYSIS.
+
+After approval the order is unchanged: guard → DataNeedValidator → Research Governor (its budgets still apply;
+approval never replaces it) → Execution Planner → SQL Governor → bundle → session → Coverage Validator → provenance
+gate.
+
+**Audit.** `AI_research_run_audit` stores `AWAITING_CONFIRMATION` / `RESEARCH_PLAN_CONFIRMATION` rows (migration
+`20260926_002`); the sandbox run report accepts them too.
+
+**Rollback.** Unset `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION`: the prompt, final schema and response contract return
+to the ones before the feature, a continuation in a request is ignored (logged), and RESEARCH data needs run as
+before. The new `research_governance` fields stay optional and are sent to the sandbox only when set.
+
+### Named-period returns
+
+Behind `AI_ENABLE_STANDARD_PERIOD_RETURN` (DataNeed flow only, default off). The NAMED-PERIOD RETURNS rule tells the
+model that a return over a named calendar period (YTD, a month, a quarter, a year, a comparable calendar period)
+uses one convention: base = the last valid value strictly before the period start, end = the last valid value on or
+before the period end, return = end / base − 1. The data request declares `history_buffer` 1
+`TRADING_OBSERVATIONS`, and the session computes it with the sandbox helper `saniti.period_return` (see the
+market-python-sandbox README). Entities that are not `COMPLETE` (for example `NO_PRIOR_CLOSE`) stay in the emitted
+table, are left out of rankings, and the answer states how many. A date-to-date formula the user gives, event forward
+returns, rolling returns and intraday returns keep their own definitions. With the flag on, `run_python`'s description
+gains one sentence about the helper; with it off, the prompt and tool descriptions are unchanged (the helper is
+still deployed and listed by `open_analysis_session`).
 
 ## Two-path analysis (Analysis Spec V2)
 

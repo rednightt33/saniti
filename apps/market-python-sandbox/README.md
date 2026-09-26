@@ -64,6 +64,11 @@ current flow; while the flag is off, its routes answer 404 and the service keeps
   (`app/research_governance.py`) answers `APPROVED`, `REPLAN_REQUIRED` or `REJECTED` with a reason code, from the
   same research budgets as the Analysis Spec path. Revisions of one request group reuse its reservation.
   `mode: ANALYSIS` with a governance request is `MODE_MISMATCH`.
+- The request may also declare `condition`, `outcome` and `baseline`: optional (absent or null), otherwise
+  non-blank text of at most 1,000 characters (`INVALID_FIELD_VALUE` otherwise). They are recorded with the need and
+  returned in `research_governance.constraints.declarations`. They are declarations only: the governor never
+  checks the analysis code against them. market-ai-orc binds them to the user's approved Research Plan before it
+  calls this endpoint (see its README, Research Plan confirmation); the sandbox itself does not know about plans.
 
 **Phase 2 (implemented): governed data bundles.** market-ai-orc's Execution Planner extracts every part of an
 approved need through the Governor's `/v1/extract`. It then sends `POST /v1/bundles {request_id, need_id, plan}`,
@@ -141,11 +146,35 @@ bundle of the same request.
   - `join(relationship_id, left, right, how)`, the approved relationship with its point-in-time semantics
     (CURRENT_STATE, EXACT_DATE, AS_OF backward, EFFECTIVE_DATED half-open);
   - `resample(frame, request, frequency)` with the catalog rules;
+  - `period_return(request, range_id, value_column='close', entity_column=None, date_column=None)`, a named
+    calendar-period return per entity (see below);
   - `insufficient_data(...)`, `intermediate_path(name)`;
   - `emit_table`, `emit_chart`, `emit_json`, `emit_text`, `emit_file` (TABLE, CHART, JSON, TEXT, PARQUET, CSV, PNG,
     ARTIFACT).
 - Every helper read is recorded per execution (call, request, range, rows) for processing coverage. Reads outside
   the helpers are not recorded, so they count as not processed.
+- `period_return` applies one boundary convention to named calendar periods (YTD, month, quarter, year, a comparable
+  calendar period):
+  - base = the last valid (non-null, finite) value strictly before the range start; end = the last valid value on or
+    before the range end, observed inside the range (a value from before the start is never reused as the end);
+    `return_decimal = end / base - 1`, `return_pct = return_decimal * 100`, never rounded;
+  - it reads through `range(request, range_id, include_buffers=True)`, so the range and its history buffer are
+    recorded for coverage; without a history buffer before the range it refuses (`PeriodReturnError`: declare
+    `history_buffer` 1 `TRADING_OBSERVATIONS`) instead of using the first value inside the period;
+  - one row per entity of the delivered range window, plus entities the scope named without data, sorted by entity:
+    `entity, base_date, base_value, end_date, end_value, return_decimal, return_pct, calculation_status, range_id,
+    period_start, period_end`; input order does not matter;
+  - `calculation_status`: `COMPLETE`; `NO_PRIOR_CLOSE` (no valid value before the start within the delivered
+    buffer); `NO_END_VALUE` (no valid value inside the period); `INVALID_BASE_VALUE` (a zero or negative base: no
+    division); `INSUFFICIENT_INPUT_DATA` (no valid value, or an entity the scope named that has no row);
+    `DUPLICATE_BOUNDARY_OBSERVATION` (different valid values for one entity on the base or end date: none is
+    picked; identical duplicates are fine). A summary warning `PERIOD_RETURN_EXCLUSIONS` counts the entities that are
+    not `COMPLETE`;
+  - arguments are validated (range, value column numeric, entity column, the date column must be the request's time
+    column) with a bounded `PeriodReturnError`. The entity and time columns default to the request's catalog columns;
+  - it is a standard calculation utility, not a validator: the Coverage Validator still checks only data coverage,
+    and custom formulas, TA-Lib, pandas and DuckDB stay available. market-ai-orc teaches the convention only with its
+    `AI_ENABLE_STANDARD_PERIOD_RETURN` flag.
 - Every emitted output is copied into a root-only store with its checksum, and is `released: false` until the
   analysis completes with coverage PASS (phase 4).
 - Budgets per session: executions, failed executions, CPU seconds, outputs, idle time and lifetime. Sessions are
@@ -768,7 +797,7 @@ The URL is never logged, stored, returned, or visible to any child process.
 | `POST /v1/data-needs`, `GET /v1/data-needs/{need_id}` | DataNeedSpec validation and the approved contract (only with `PY_SANDBOX_DATANEED_ENABLED`; see above) |
 | `POST /v1/bundles`, `GET /v1/bundles/{bundle_id}` | Governed data bundle: verification, profiling, delivery coverage (only with `PY_SANDBOX_DATANEED_ENABLED`) |
 | `POST /v1/sessions`, `POST /v1/sessions/{id}/execute`, `POST /v1/sessions/{id}/inspect`, `GET /v1/sessions/{id}`, `GET /v1/sessions/{id}/outputs/{output_id}`, `POST /v1/sessions/{id}/complete`, `POST /v1/sessions/{id}/close` | Persistent analysis sessions (only with `PY_SANDBOX_DATANEED_ENABLED`) |
-| `POST /v1/runs/{request_id}/report` | market-ai-orc's final report of the run (answer and hash, evidence label, gate, experiments). Stored once; a retry keeps the first. |
+| `POST /v1/runs/{request_id}/report` | market-ai-orc's final report of the run (answer and hash, evidence label, gate, experiments). Stored once; a retry keeps the first. `status` may also be `AWAITING_CONFIRMATION` with `response_type` `RESEARCH_PLAN_CONFIRMATION` (a Research Plan awaiting the user's approval). |
 
 **Request-level budgets.** All analyses of one orchestrator request share:
 - `PY_SANDBOX_MAX_ANALYSES_PER_REQUEST`;

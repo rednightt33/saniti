@@ -388,7 +388,7 @@ def test_agent_loop_uses_all_four_tools_and_returns_structured_answer(db: dict) 
     ])
     agent = AgentOrchestrator(make_settings(), client, registry(db["login"]))
     result = agent.run(AgentRunRequest(request_id="e2e", message="Show broker accumulation data and examples."))
-    assert result.status == "COMPLETED" and result.response.model_dump() == answer
+    assert result.status == "COMPLETED" and result.response.model_dump(exclude={"research_plan"}) == answer
     assert result.execution.tool_call_count == 4 and result.execution.iterations == 5
     outputs = [json.loads(item["output"]) for item in client.payloads[4]["input"]
                if item.get("type") == "function_call_output"]

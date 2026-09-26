@@ -16,6 +16,8 @@ needs; nothing here computes an indicator or checks a formula.
                                     the approved relationship as an analytic join with its point-in-time semantics
     resample(frame, request, frequency=None)
                                     the catalog's resample rules (FIRST/LAST/MAX/MIN/SUM) per entity and period
+    period_return(request, range_id, value_column="close", entity_column=None, date_column=None)
+                                    a named calendar-period return per entity with one boundary convention
     insufficient_data(request, range_id=None, value=None, unit=..., requirement_type=..., reason="")
                                     stop: the data cannot support the analysis; revise the DataNeedSpec
     intermediate_path(name)         a private file path for intermediate results
@@ -37,9 +39,9 @@ from typing import Any
 
 __all__ = [
     "REQUESTS", "REFERENCE_DATE", "SEED", "requests", "manifest", "quality", "load", "range", "sql", "relation",
-    "join", "resample", "insufficient_data", "intermediate_path", "duckdb_connection", "emit_table", "emit_chart",
-    "emit_json", "emit_text", "emit_file", "emit_artifact", "add_warning", "SanitiError", "InsufficientInputData",
-    "OutputLimitExceeded", "InvalidOutput", "ResampleRuleMissing",
+    "join", "resample", "period_return", "insufficient_data", "intermediate_path", "duckdb_connection", "emit_table",
+    "emit_chart", "emit_json", "emit_text", "emit_file", "emit_artifact", "add_warning", "SanitiError",
+    "InsufficientInputData", "OutputLimitExceeded", "InvalidOutput", "ResampleRuleMissing", "PeriodReturnError",
 ]
 
 REQUESTS: dict[str, dict[str, Any]] = {}
@@ -87,6 +89,10 @@ class InvalidOutput(SanitiError):
 
 class ResampleRuleMissing(SanitiError):
     code = "RESAMPLE_RULE_MISSING"
+
+
+class PeriodReturnError(SanitiError):
+    code = "PERIOD_RETURN_INVALID_ARGUMENTS"
 
 
 # ---------------------------------------------------------------- configuration (harness only)
@@ -347,6 +353,157 @@ def resample(frame, request: str, frequency: str | None = None):
     out = out[out["observations"] > 0].reset_index()
     out[time] = out[time].dt.date
     return out
+
+
+PERIOD_RETURN_STATUSES = ("COMPLETE", "NO_PRIOR_CLOSE", "NO_END_VALUE", "INVALID_BASE_VALUE",
+                          "INSUFFICIENT_INPUT_DATA", "DUPLICATE_BOUNDARY_OBSERVATION")
+PERIOD_RETURN_COLUMNS = ["entity", "base_date", "base_value", "end_date", "end_value", "return_decimal", "return_pct",
+                         "calculation_status", "range_id", "period_start", "period_end"]
+
+
+def _period_values(series) -> Any:
+    """The value column as float64 (NaN for null); a non-numeric value is an argument error, not a silent NaN."""
+    import decimal
+
+    import numpy as np
+    import pandas as pd
+
+    if pd.api.types.is_bool_dtype(series):
+        raise PeriodReturnError("value_column must be numeric, not boolean.")
+    if pd.api.types.is_numeric_dtype(series):
+        return series.astype("float64")
+    out = []
+    for value in series.tolist():
+        if value is None or (isinstance(value, float) and _math.isnan(value)) or value is pd.NA:
+            out.append(float("nan"))
+        elif isinstance(value, (int, float, decimal.Decimal, np.number)) and not isinstance(value, (bool, np.bool_)):
+            out.append(float(value))
+        else:
+            raise PeriodReturnError(f"value_column holds a non-numeric value ({type(value).__name__}).")
+    return pd.Series(out, index=series.index, dtype="float64")
+
+
+def period_return(request: str, range_id: str, value_column: str = "close", entity_column: str | None = None,
+                  date_column: str | None = None):
+    """A named calendar-period return (YTD, month, quarter, year, a comparable calendar period), one row per entity.
+
+    Convention: base = the last valid value strictly before the range start; end = the last valid value on or
+    before the range end, observed inside the range (a value from before the start is never reused as the end);
+    return_decimal = end / base - 1; return_pct = return_decimal * 100. Valid means non-null and finite. Values are
+    never rounded. The rows are read through range(request, range_id, include_buffers=True), so the Coverage Validator
+    records the range and its history buffer; the request needs a history_buffer (1 TRADING_OBSERVATIONS).
+
+    calculation_status per entity: COMPLETE; NO_PRIOR_CLOSE (no valid value before the start within the delivered
+    history buffer: the first value inside the period is never used instead); NO_END_VALUE (no valid value inside the
+    period); INVALID_BASE_VALUE (the base is zero or negative: no division); INSUFFICIENT_INPUT_DATA (no valid value
+    at all, or an entity the scope named that has no row); DUPLICATE_BOUNDARY_OBSERVATION (two different valid values
+    for the entity on the base or end date: none is chosen). Entities come from the delivered rows of this range and
+    its buffers plus those the scope named without data; the other statuses keep base/end details when known. Leave
+    entities that are not COMPLETE out of rankings and report how many were left out.
+
+    Not for a date-to-date formula the user gives, event forward returns, rolling returns or intraday returns."""
+    import numpy as np
+    import pandas as pd
+
+    r = _request(request)
+    window = next((w for w in r.get("ranges") or [] if w["range_id"] == range_id), None)
+    if window is None:
+        raise PeriodReturnError(f"{range_id!r} is not a range of {r['logical_name']}. Ranges: "
+                                f"{[w['range_id'] for w in r.get('ranges') or []]}")
+    entity = entity_column or r.get("entity_column")
+    time = date_column or r.get("time_column")
+    if not entity:
+        raise PeriodReturnError(f"{r['logical_name']} has no catalog entity column: pass entity_column.")
+    if not time:
+        raise PeriodReturnError(f"{r['logical_name']} has no time column, so it has no calendar period.")
+    if time != r.get("time_column"):
+        raise PeriodReturnError(f"date_column must be the request's time column {r.get('time_column')!r}: the range "
+                                "and its buffers are defined on it.")
+    for role, column in (("value_column", value_column), ("entity_column", entity)):
+        if column not in r["columns"]:
+            raise PeriodReturnError(f"{role} {column!r} is not a column of {r['logical_name']}. Columns: "
+                                    f"{r['columns']}")
+    if len({value_column, entity, time}) < 3:
+        raise PeriodReturnError("value_column, entity_column and date_column must be three different columns.")
+    start, end = _dt.date.fromisoformat(window["start"]), _dt.date.fromisoformat(window["end"])
+    if _dt.date.fromisoformat(window["extract_from"]) >= start:
+        raise PeriodReturnError(f"{r['data_request_id']} has no history buffer before {range_id}: declare "
+                                "history_buffer 1 TRADING_OBSERVATIONS on the request, prepare the bundle again and "
+                                "rerun. The first value inside the period is never used as the base.")
+
+    frame = range(request, range_id, columns=[entity, time, value_column], include_buffers=True)
+    values = _period_values(frame[value_column])
+    try:
+        stamps = pd.to_datetime(frame[time])
+    except (TypeError, ValueError) as exc:
+        raise PeriodReturnError(f"date_column {time!r} does not hold dates.") from exc
+    if getattr(stamps.dt, "tz", None) is not None:
+        stamps = stamps.dt.tz_localize(None)
+    work = pd.DataFrame({"entity": frame[entity], "date": stamps.dt.normalize(), "value": values})
+    dropped = int(work["entity"].isna().sum())
+    if dropped:
+        add_warning("PERIOD_RETURN_NULL_ENTITY", f"{dropped} rows of {r['logical_name']} have no {entity}; they were "
+                                                 "not assigned to any entity.")
+        work = work[work["entity"].notna()]
+    # input order never matters: every boundary is chosen from the dates, and duplicates are compared, not picked
+    work = work.assign(_key=work["entity"].astype(str)).sort_values(["_key", "date"], kind="mergesort")
+    valid = work[np.isfinite(work["value"].to_numpy(dtype="float64"))]
+    start_ts, after_end = pd.Timestamp(start), pd.Timestamp(end) + pd.Timedelta(days=1)
+
+    def boundary(rows) -> tuple[Any, Any, bool]:
+        """(date, value, conflicting) of the last date in rows; conflicting when it holds different valid values."""
+        if rows.empty:
+            return None, None, False
+        last = rows["date"].max()
+        found = pd.unique(rows.loc[rows["date"] == last, "value"])
+        return last.date(), float(found[0]), len(found) > 1
+
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    valid_by_entity = {key: rows for key, rows in valid.groupby("_key", sort=False)}
+    empty = valid.iloc[0:0]
+    for key, group in work.groupby("_key", sort=True):
+        seen.add(key)
+        rows = valid_by_entity.get(key, empty)
+        base_date, base_value, base_conflict = boundary(rows[rows["date"] < start_ts])
+        end_date, end_value, end_conflict = boundary(rows[(rows["date"] >= start_ts) & (rows["date"] < after_end)])
+        result = None
+        if rows.empty:
+            status = "INSUFFICIENT_INPUT_DATA"
+        elif base_date is None:
+            status = "NO_PRIOR_CLOSE"
+        elif base_conflict:
+            status, base_value = "DUPLICATE_BOUNDARY_OBSERVATION", None
+        elif base_value <= 0:
+            status = "INVALID_BASE_VALUE"
+        elif end_date is None:
+            status = "NO_END_VALUE"
+        elif end_conflict:
+            status, end_value = "DUPLICATE_BOUNDARY_OBSERVATION", None
+        else:
+            status, result = "COMPLETE", end_value / base_value - 1.0
+        if end_conflict:
+            end_value = None
+        out.append({"entity": group["entity"].iloc[0], "base_date": base_date, "base_value": base_value,
+                    "end_date": end_date, "end_value": end_value, "return_decimal": result,
+                    "return_pct": result * 100.0 if result is not None else None, "calculation_status": status})
+    for named in (r.get("quality") or {}).get("empty_entities") or []:
+        if str(named) not in seen:
+            seen.add(str(named))
+            out.append({"entity": named, "base_date": None, "base_value": None, "end_date": None, "end_value": None,
+                        "return_decimal": None, "return_pct": None, "calculation_status": "INSUFFICIENT_INPUT_DATA"})
+    table = pd.DataFrame(out, columns=PERIOD_RETURN_COLUMNS[:8])
+    table["range_id"], table["period_start"], table["period_end"] = range_id, start, end
+    table = table.assign(_key=table["entity"].astype(str)).sort_values("_key", kind="mergesort") \
+        .drop(columns="_key").reset_index(drop=True)
+    for column in ("base_value", "end_value", "return_decimal", "return_pct"):
+        table[column] = pd.to_numeric(table[column], errors="coerce").astype("float64")
+    excluded = table[table["calculation_status"] != "COMPLETE"]
+    if len(excluded):
+        counts = excluded["calculation_status"].value_counts().sort_index().to_dict()
+        add_warning("PERIOD_RETURN_EXCLUSIONS", f"{len(excluded)} of {len(table)} entities in {range_id} have no "
+                                                f"period return: {counts}. Leave them out of rankings and say so.")
+    return table
 
 
 def insufficient_data(request: str, range_id: str | None = None, value: int | None = None,

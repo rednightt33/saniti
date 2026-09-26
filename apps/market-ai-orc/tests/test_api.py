@@ -58,7 +58,8 @@ def test_run_returns_deterministic_envelope(api: TestClient) -> None:
     body = response.json()
     assert body["request_id"] == "abc123"
     assert body["status"] == "COMPLETED"
-    assert body["response"] == ANSWER
+    # existing response types keep their fields and carry research_plan null (additive contract)
+    assert body["response"] == {**ANSWER, "research_plan": None}
     assert body["error"] is None
     assert body["execution"]["provider"] == "openrouter"
     assert body["execution"]["provider_response_id"] == "resp_final"
@@ -67,11 +68,13 @@ def test_run_returns_deterministic_envelope(api: TestClient) -> None:
         "provider", "model", "provider_response_id", "iterations", "tool_call_count",
         "input_tokens", "output_tokens", "reasoning_tokens", "total_tokens", "cached_input_tokens",
         "cache_write_tokens", "cost", "duration_ms", "tools_withdrawn_reason", "analyses", "validation_gate", "number_provenance", "research",
-        "analysis_final_status",
+        "analysis_final_status", "research_plan",
     }
     assert body["execution"]["tools_withdrawn_reason"] is None
     assert body["execution"]["analyses"] == [] and body["execution"]["validation_gate"] == "NOT_APPLICABLE"
-    assert set(body) == {"request_id", "status", "response", "execution", "error", "evidence_label"}
+    assert body["execution"]["research_plan"] is None
+    assert set(body) == {"request_id", "status", "response", "execution", "error", "evidence_label", "continuation"}
+    assert body["continuation"] is None
 
 
 @pytest.mark.parametrize(

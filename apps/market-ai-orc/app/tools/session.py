@@ -93,6 +93,15 @@ RUN_DESCRIPTION = (
     "saniti.insufficient_data(request, range_id, value, unit, reason): revise the DataNeedSpec (for example more "
     "history). No network, database, subprocess or writes outside intermediate_path(name)."
 )
+# Appended to RUN_DESCRIPTION only with AI_ENABLE_STANDARD_PERIOD_RETURN, so the description is unchanged without it.
+PERIOD_RETURN_SENTENCE = (
+    " Named calendar-period returns (YTD, month, quarter, year, a comparable calendar period) use "
+    "period_return(request, range_id, value_column='close'): one row per entity with base_date, base_value (the last "
+    "valid value strictly before the range start), end_date, end_value (the last valid value on or before the range "
+    "end), return_decimal, return_pct (full precision) and calculation_status (COMPLETE, NO_PRIOR_CLOSE, "
+    "NO_END_VALUE, INVALID_BASE_VALUE, INSUFFICIENT_INPUT_DATA, DUPLICATE_BOUNDARY_OBSERVATION); it needs "
+    "history_buffer 1 TRADING_OBSERVATIONS on the request."
+)
 
 INSPECT_DESCRIPTION = (
     "Describe session variables: with names null, every variable (name, type, shape); with names, up to 20 variables "
@@ -142,7 +151,7 @@ def released_contents(client: SandboxClient, session_id: str, outputs: list[dict
 
 
 def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_timeout_seconds: float,
-                  max_result_bytes: int) -> list[ToolSpec]:
+                  max_result_bytes: int, standard_period_return: bool = False) -> list[ToolSpec]:
     def request_id() -> str:
         return current_request_id.get() or ""
 
@@ -185,7 +194,9 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
                  handler=complete, timeout_seconds=timeout_seconds * 4, max_result_bytes=max_result_bytes),
         ToolSpec(name="open_analysis_session", description=OPEN_DESCRIPTION, arguments_model=OpenAnalysisSessionArgs,
                  handler=open_session, timeout_seconds=timeout_seconds + 30, max_result_bytes=max_result_bytes),
-        ToolSpec(name="run_python", description=RUN_DESCRIPTION, arguments_model=RunPythonArgs, handler=run,
+        ToolSpec(name="run_python", description=RUN_DESCRIPTION + (PERIOD_RETURN_SENTENCE if standard_period_return
+                                                                   else ""),
+                 arguments_model=RunPythonArgs, handler=run,
                  timeout_seconds=execution_timeout_seconds + 5, max_result_bytes=max_result_bytes),
         ToolSpec(name="inspect_session", description=INSPECT_DESCRIPTION, arguments_model=InspectSessionArgs,
                  handler=inspect, timeout_seconds=timeout_seconds + 5, max_result_bytes=max_result_bytes),

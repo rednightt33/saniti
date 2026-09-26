@@ -57,7 +57,7 @@ def test_full_tool_loop_returns_structured_answer() -> None:
     result = agent.run(request())
 
     assert result.status == "COMPLETED"
-    assert result.response.model_dump() == ANSWER
+    assert result.response.model_dump(exclude={"research_plan"}) == ANSWER
     assert result.error is None
     execution = result.execution
     assert (execution.provider, execution.iterations, execution.tool_call_count) == ("openrouter", 2, 1)
@@ -226,7 +226,7 @@ def test_prose_answer_on_tool_turn_is_finalized_under_strict_schema() -> None:
     ], AI_FINAL_RESPONSE_MAX_RETRIES="0")
     result = agent.run(request())
 
-    assert result.status == "COMPLETED" and result.response.model_dump() == ANSWER
+    assert result.status == "COMPLETED" and result.response.model_dump(exclude={"research_plan"}) == ANSWER
     assert result.execution.iterations == 3 and result.execution.tool_call_count == 1
     finalize = client.payloads[2]
     # the re-ask keeps the tool-turn request (same prefix and provider); the JSON contract is in the instruction
@@ -435,7 +435,7 @@ def test_soft_context_limit_withdraws_tools_and_finalizes_instead_of_failing() -
         service_logger.setLevel(previous_level)
 
     assert result.status == "LIMITED" and result.error is None
-    assert result.response.model_dump() == LIMITATION
+    assert result.response.model_dump(exclude={"research_plan"}) == LIMITATION
     assert result.execution.tools_withdrawn_reason == "CONTEXT_BUDGET"
     assert result.execution.tool_call_count == 2 and result.execution.iterations == 3
     assert "tools" in client.payloads[1] and "text" not in client.payloads[1]

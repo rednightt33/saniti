@@ -2,7 +2,9 @@
 
 A research data need carries a companion ResearchGovernanceRequest. It declares what the experiment will search and
 how it will guard against false discovery, never how it computes anything: there is no formula, method enum, design
-enum or output grain, so a new formula is never refused because the backend has no implementation of it.
+enum or output grain, so a new formula is never refused because the backend has no implementation of it. The optional
+condition, outcome and baseline are plain-language declarations (market-ai-orc binds them to the user's approved
+Research Plan); they are validated as bounded text, recorded and returned, never matched against the analysis code.
 
 The governor decides, deterministically and before any data is extracted, whether the experiment fits the run's
 budgets: experiments, hypotheses, follow-ups, candidates, pairwise comparisons, revisions (retries), a declared
@@ -24,9 +26,11 @@ HYPOTHESIS_ID = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 GROUP_ID = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 POLICIES = ("NONE", "BONFERRONI", "HOLM", "BENJAMINI_HOCHBERG")
 SAMPLE_UNITS = ("EVENTS", "OBSERVATIONS", "ENTITIES")
+DECLARATIONS = ("condition", "outcome", "baseline")
 FIELDS = {"hypothesis_id", "hypothesis", "objective", "candidate_count", "pairwise_comparisons", "holdout",
-          "minimum_sample", "multiple_testing_policy", "followup_of"}
-NULLABLE = {"holdout", "minimum_sample", "followup_of"}
+          "minimum_sample", "multiple_testing_policy", "followup_of", *DECLARATIONS}
+# The declarations are optional (absent or null) so a request without them is unchanged.
+NULLABLE = {"holdout", "minimum_sample", "followup_of", *DECLARATIONS}
 
 
 @dataclass(frozen=True)
@@ -75,6 +79,10 @@ def check_request(raw: Any) -> list[dict[str, Any]]:
     for key in ("hypothesis", "objective"):
         value = raw.get(key)
         if not isinstance(value, str) or not value.strip() or len(value) > 1000:
+            add("INVALID_FIELD_VALUE", f".{key}", value)
+    for key in DECLARATIONS:
+        value = raw.get(key)
+        if value is not None and (not isinstance(value, str) or not value.strip() or len(value) > 1000):
             add("INVALID_FIELD_VALUE", f".{key}", value)
     for key, low in (("candidate_count", 1), ("pairwise_comparisons", 0)):
         value = raw.get(key)
@@ -188,10 +196,14 @@ def review(governance: dict[str, Any], spec: dict[str, Any], history: list[dict[
 
 
 def _constraints(governance: dict[str, Any], policy: GovernancePolicy, *, reused: bool) -> dict[str, Any]:
-    return {"hypothesis_id": governance["hypothesis_id"], "candidate_count": governance["candidate_count"],
-            "pairwise_comparisons": governance["pairwise_comparisons"],
-            "multiple_testing_policy": governance["multiple_testing_policy"], "holdout": governance.get("holdout"),
-            "minimum_sample": governance.get("minimum_sample"),
-            "compute_seconds": policy.compute_seconds_per_experiment, "reservation_reused": reused,
-            "note": "Declared design constraints; the backend records them and does not verify the analysis code "
-                    "against them."}
+    constraints = {"hypothesis_id": governance["hypothesis_id"], "candidate_count": governance["candidate_count"],
+                   "pairwise_comparisons": governance["pairwise_comparisons"],
+                   "multiple_testing_policy": governance["multiple_testing_policy"],
+                   "holdout": governance.get("holdout"), "minimum_sample": governance.get("minimum_sample"),
+                   "compute_seconds": policy.compute_seconds_per_experiment, "reservation_reused": reused,
+                   "note": "Declared design constraints; the backend records them and does not verify the analysis "
+                           "code against them."}
+    declared = {key: governance[key] for key in DECLARATIONS if governance.get(key) is not None}
+    if declared:
+        constraints["declarations"] = declared
+    return constraints

@@ -36,6 +36,7 @@ def build_default_registry(
     bundles: BundleStore | None = None,
     dataneed_enabled: bool = False,
     session_timeout_seconds: float = 180.0,
+    standard_period_return: bool = False,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
@@ -89,7 +90,8 @@ def build_default_registry(
                     max_result_bytes=python_analysis_max_bytes))
                 for spec in session_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
                                           execution_timeout_seconds=session_timeout_seconds,
-                                          max_result_bytes=python_analysis_max_bytes):
+                                          max_result_bytes=python_analysis_max_bytes,
+                                          standard_period_return=standard_period_return):
                     registry.register(spec)
     return registry
 

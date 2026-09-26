@@ -266,3 +266,38 @@ Until then no new feature is added to the Analysis Spec path.
 | 25 | Isolation and resource limits enforced | Met | `isolation_enforced=true`; session uid/seccomp tests |
 | 26 | Analysis and research PoCs end-to-end | Met | dev PoC |
 | 27 | Unrelated services and data untouched | Met | only the catalog columns and rows and the `Tool_Catalog` rows above changed |
+
+## Addendum: Research Plan confirmation and named-period returns
+
+Two capabilities on top of the DataNeed flow, each behind its own market-ai-orc flag (both default off):
+
+- **Research Plan confirmation** (`AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION`, with `AI_RESEARCH_PLAN_SIGNING_KEY` and `AI_RESEARCH_PLAN_TTL_SECONDS`).
+  - A research question first returns a user-visible Research Plan (`RESEARCH_PLAN_CONFIRMATION`, status `AWAITING_CONFIRMATION`) and touches no data.
+  - The backend signs the plan into a stateless continuation token (HMAC-SHA256 over the plan hash, plan id, origin request, optional conversation, issue and expiry time).
+  - The caller sends the exact plan and token back with the user's APPROVE, REVISE or CANCEL; a free-text reply is read by a small tool-free classifier (APPROVE, REVISE, CANCEL, UNRELATED).
+  - The guard in `submit_data_need_spec` refuses a RESEARCH data need, before any sandbox call, unless a verified plan was approved in the same request and its `research_governance` matches the approved experiment. Allowed without reapproval, because only stricter: fewer candidates or comparisons, a larger minimum sample in the same unit, an added holdout.
+  - Details, API shapes and codes: `apps/market-ai-orc/README.md`, *Research Plan confirmation*.
+- **Named-period returns** (`AI_ENABLE_STANDARD_PERIOD_RETURN`).
+  - One convention for YTD, month, quarter, year and comparable calendar periods: base = the last valid value strictly before the start; end = the last valid value on or before the end.
+  - The model declares `history_buffer` 1 `TRADING_OBSERVATIONS` and uses the sandbox helper `saniti.period_return`, which reads through the governed `range(..., include_buffers=True)` and reports boundary problems per entity instead of substituting. The statuses are `NO_PRIOR_CLOSE`, `NO_END_VALUE`, `INVALID_BASE_VALUE`, `INSUFFICIENT_INPUT_DATA` and `DUPLICATE_BOUNDARY_OBSERVATION`.
+
+The sandbox's Research Governor additionally accepts, records and returns the optional declarations `condition`, `outcome` and `baseline`. The run audit (`AI_research_run_audit`, migration `20260926_002`) and the sandbox run report accept the new status and response type. `Tool_Catalog` registers `submit_data_need_spec` v2 and notes the helper on `run_python` v1.
+
+What each layer guarantees:
+
+| Layer | Guarantees |
+|---|---|
+| Research Plan | the research meaning the user approved |
+| Research guard | the enforceable declaration (`research_governance`) equals the approved experiment |
+| DataNeedValidator | the data requested |
+| ExecutionManifest + Coverage Validator | the data processed |
+| — | calculation semantics: not validated (`calculation_validation: NOT_PERFORMED`); `condition`/`outcome`/`baseline` are declarations nobody checks against the code; free-text universe and time scope are not compared with the DataNeedSpec |
+
+Known limitations, kept deliberately:
+- **No general intent gate.** The model still chooses ANALYSIS or RESEARCH. Confirmation is guaranteed only once it chooses RESEARCH.
+- **Subjective questions stay prompt-driven.** Q18 of the 20-question test ("which stock is best?") is out of scope.
+- **Tokens are stateless.** A still-valid token can be replayed until it expires, even after a revised plan; revocation would need a persistent store.
+
+**Rollback:**
+- Unset the flag or flags on market-ai-orc. The prompt, the final schema and the tool descriptions return to the ones before this feature, and RESEARCH data needs run as before.
+- The migration is additive: wider checks and an inactive tool row.

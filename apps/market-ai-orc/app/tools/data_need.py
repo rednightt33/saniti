@@ -21,6 +21,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from ..research_plan import guard_research_submission
 from .analysis import SandboxClient, current_run_context
 from .registry import ToolError, ToolSpec
 
@@ -152,6 +153,10 @@ class ResearchGovernance(Strict):
     hypothesis_id: str = Field(description="Lower-case id; revisions of a request group keep it.")
     hypothesis: str
     objective: str
+    condition: str | None = Field(description="The condition or event, in plain words; a declaration only. With an "
+                                              "approved Research Plan: its experiment's text.")
+    outcome: str | None = Field(description="The outcome measured after the condition, in plain words.")
+    baseline: str | None = Field(description="What the outcome is compared with, in plain words.")
     candidate_count: int = Field(description="Conditions, lags or parameter combinations the experiment evaluates.")
     pairwise_comparisons: int
     holdout: Holdout | None
@@ -226,12 +231,27 @@ def argument_issues(exc: Exception, raw: Any) -> dict[str, Any]:
 
 # ---------------------------------------------------------------- client and tool
 
+DECLARATION_FIELDS = ("condition", "outcome", "baseline")
+
+
 def submit_data_need(client: SandboxClient, arguments: SubmitDataNeedSpecArgs) -> dict[str, Any]:
     context = current_run_context.get()
     if context is None:
         raise ToolError("No user request is available to anchor the data need's reference date.")
     payload = arguments.model_dump(mode="json")
     governance = payload.pop("research_governance")
+    if arguments.mode == "RESEARCH":
+        # The research execution guard: arguments are validated, nothing has reached the sandbox yet. Without a
+        # verified approved Research Plan (when confirmation is on), or with a declaration that differs from its
+        # approved experiment, the call ends here.
+        refused = guard_research_submission(governance)
+        if refused is not None:
+            return refused
+    if governance is not None:
+        # The declaration fields are sent only when set, so a sandbox without them still accepts the request.
+        for key in DECLARATION_FIELDS:
+            if governance.get(key) is None:
+                governance.pop(key, None)
     body: dict[str, Any] = {"request_id": client._request_id(), "reference_time": context.reference_time.isoformat(),
                             "timezone": context.timezone, "spec": payload}
     if governance is not None:
@@ -258,9 +278,11 @@ SUBMIT_DESCRIPTION = (
     "data_request_id, code, field_path and rejected_value; fix each and resubmit with revision + 1, same "
     "request_group_id and data_request_ids), or CATALOG_UNAVAILABLE (stop and report temporarily). It never suggests "
     "a replacement: read the catalog again instead of guessing. mode RESEARCH also needs research_governance "
-    "(hypothesis, candidate_count, pairwise_comparisons, multiple_testing_policy, optional holdout range and "
-    "minimum sample); the Research Governor answers APPROVED, REPLAN_REQUIRED or REJECTED with a reason code. The "
-    "same revision sent again returns the same answer."
+    "(hypothesis, objective, the condition, outcome and baseline as plain-language declarations, candidate_count, "
+    "pairwise_comparisons, multiple_testing_policy, optional holdout range and minimum sample); the Research "
+    "Governor answers APPROVED, REPLAN_REQUIRED or REJECTED with a reason code. When research needs an approved "
+    "Research Plan, a RESEARCH submission without one, or one that differs from its approved experiment, is refused "
+    "with RESEARCH_PLAN_* codes before anything is extracted. The same revision sent again returns the same answer."
 )
 
 

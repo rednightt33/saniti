@@ -4,6 +4,7 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from .research_plan import MAX_TTL_SECONDS, weak_key_problem
 
 REASONING_EFFORTS = {"minimal", "low", "medium", "high", "xhigh", "max"}
 
@@ -96,6 +97,13 @@ class Settings:
     py_sandbox_session_timeout_seconds: int = 180
     # The same tool rejection (tool + reason code) may be repaired this many times per run.
     ai_max_repair_attempts: int = 3
+    # Research Plan confirmation (DataNeed flow): research-mode data needs run only after the user approved a
+    # backend-signed Research Plan. The key signs the plan continuation tokens (HMAC-SHA256); tokens expire after the TTL.
+    ai_require_research_plan_confirmation: bool = False
+    ai_research_plan_signing_key: str | None = field(default=None, repr=False)
+    ai_research_plan_ttl_seconds: int = 3600
+    # Named calendar-period returns use saniti.period_return (base: last valid value before the period start).
+    ai_enable_standard_period_return: bool = False
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -140,6 +148,10 @@ class Settings:
             ai_enable_dataneed=_boolean(env, "AI_ENABLE_DATANEED", False),
             py_sandbox_session_timeout_seconds=_integer(env, "PY_SANDBOX_SESSION_TIMEOUT_SECONDS", 180, minimum=20),
             ai_max_repair_attempts=_integer(env, "AI_MAX_REPAIR_ATTEMPTS", 3, minimum=1),
+            ai_require_research_plan_confirmation=_boolean(env, "AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION", False),
+            ai_research_plan_signing_key=env.get("AI_RESEARCH_PLAN_SIGNING_KEY") or None,
+            ai_research_plan_ttl_seconds=_integer(env, "AI_RESEARCH_PLAN_TTL_SECONDS", 3600, minimum=60),
+            ai_enable_standard_period_return=_boolean(env, "AI_ENABLE_STANDARD_PERIOD_RETURN", False),
             sql_governor_api_key=_optional(env, "SQL_GOVERNOR_API_KEY"),
             sql_governor_timeout_seconds=_integer(env, "SQL_GOVERNOR_TIMEOUT_SECONDS", 90),
             request_data_max_result_bytes=_integer(env, "REQUEST_DATA_MAX_RESULT_BYTES", 40000, minimum=8192),
@@ -205,4 +217,10 @@ class Settings:
                               "PY_SANDBOX_REQUEST_TIMEOUT_SECONDS")
         if settings.ai_request_timeout_seconds > settings.ai_max_analysis_seconds:
             raise ConfigError("AI_REQUEST_TIMEOUT_SECONDS must not exceed AI_MAX_ANALYSIS_SECONDS")
+        if settings.ai_research_plan_ttl_seconds > MAX_TTL_SECONDS:
+            raise ConfigError(f"AI_RESEARCH_PLAN_TTL_SECONDS must be at most {MAX_TTL_SECONDS}")
+        if settings.ai_require_research_plan_confirmation:
+            problem = weak_key_problem(settings.ai_research_plan_signing_key)
+            if problem:
+                raise ConfigError(problem)
         return settings
