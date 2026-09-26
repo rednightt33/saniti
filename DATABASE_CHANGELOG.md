@@ -1,5 +1,33 @@
 # Database changelog
 
+## 2026-09-26 — Add point-in-time join semantics and resample rules to the AI catalogs (migration 20260925_003)
+
+- Status: **applied to `dev` at about 04:56 UTC**, approved by the user as part of the DataNeed rollout. It was run by the temporary one-off service `dataneed-migrate-job` (`e567e0e8-c9ed-4dbf-a72c-de95420de2ae`), deleted afterwards (see `RAILWAY_CHANGELOG.md`).
+- Before applying, a read-only run (deployment `9144cfee-1d9b-402e-b8fc-7d00fcccb899`) confirmed:
+  - none of the six columns existed;
+  - `AI_catalog_relationships` held five rows;
+  - each of the five seeds matched exactly one relationship, and no relationship of the verified left tables was left without a seed;
+  - `AI_column_catalog` held 138 rows, and no `Column_Catalog` row existed for the new columns.
+- Deployment `f6ef3174-a00a-4823-ae30-0588cb18279b` repeated that preflight and applied the file as one transaction. Its own preflight and `$verify$` blocks passed, it committed, and no notice was raised.
+- `database/migrations/20260925_003_add_relationship_join_semantics.sql`:
+  - adds `AI_catalog_relationships.supported_join_semantics` (`text[]`, not null, default `'{}'`), `left_time_column`, `right_time_column`, `effective_from_column` and `effective_to_column`, with three check constraints (allowed semantics, time columns for `EXACT_DATE`/`AS_OF`, validity columns for `EFFECTIVE_DATED`);
+  - adds `AI_column_catalog.resample_aggregation` (`FIRST`, `LAST`, `MAX`, `MIN`, `SUM`, or `NULL`), with a check constraint;
+  - seeds `CURRENT_STATE` on `IDX_Stock_Universe` → `Price_Stock_Indonesia_IDX` and `IDX_Broker_Profile` → `IDX_Broker_Summary`, and `EXACT_DATE` with their date columns on the three same-date relationships. It seeds no resample rule;
+  - inserts six `Column_Catalog` rows (`PARTIAL`) and appends the migration to `Table_Catalog.source_code_paths` of both tables.
+- Read back live in a read-only session by the same run:
+  - the six columns with the expected types, nullability and default, and the four check constraints;
+  - the relationships: 1 `Price_Stock_Indonesia_IDX`→`Feature_01_Stock_Daily` `EXACT_DATE` (`date`/`date`); 2 `IDX_Stock_Universe`→`Price_Stock_Indonesia_IDX` `CURRENT_STATE`; 3 `IDX_Broker_Profile`→`IDX_Broker_Summary` `CURRENT_STATE`; 4 `IDX_Broker_Summary`→`Feature_02_Broker_Rolling` `EXACT_DATE` (`Date`/`date`); 5 `Feature_02_Broker_Rolling`→`Feature_03_Stock_Broker_Daily` `EXACT_DATE` (`date`/`date`);
+  - `resample_aggregation`: 0 of 138 rows set;
+  - `Column_Catalog`: 6 rows, ordinal positions 15–19 and 21, `PARTIAL`;
+  - `market_sql_governor`, `market_ai_sql_reader`, `market_ai_orc` and `market_ai_catalog_reader` can SELECT the new columns; none can INSERT, UPDATE or DELETE either table.
+- The deployed SQL Governor's `POST /v1/catalog/contract` now returns the relationships with their join semantics and time columns. It detects the columns on every call, so no redeploy was needed.
+- The same run then did the standard refresh against live `dev`:
+  - `scripts/sync_database_catalog.py`: `Catalog reconciled: 640 physical columns, 40 updated`. The 40 updates are the `source_code_paths` of the 19 `AI_catalog_relationships` and 21 `AI_column_catalog` columns, which follow the path the migration appended to `Table_Catalog`;
+  - `scripts/sync_database_schema.py`: `Synchronized 38 tables`. The regenerated `DATABASE_SCHEMA.md` was returned as gzip+base64 chunks and verified by sha256 (`9e4b6f05…`, 157,454 bytes). Its only changes are timestamp drift and the six new columns with their four check constraints.
+- Rehearsed first on a disposable local PostgreSQL 16 database: apply, readback, a refused second run, and refusal of unknown semantics, `AS_OF` or `EFFECTIVE_DATED` without their columns, and an unknown resample rule.
+- No market-data table, market-data row, grant or role was changed. The only live changes are the six catalog columns and their seeded values, their `Column_Catalog` rows and `Table_Catalog` paths, and the refresh's own physical facts and `Database_Table_Status` rows.
+- Rollback (forward-only): a new migration that drops the six columns, their constraints and their `Column_Catalog` rows. The deployed services read the columns only when present.
+
 ## 2026-09-25 — Purge the retained provider reasoning of the deactivated market-ai-backend (data change, no schema change)
 
 - Approved by the user as part of retiring `market-ai-backend`. That service's hourly cleanup cleared `Analysis_Model_Call.reasoning_details` when `reasoning_expires_at` passed; with the service deactivated the cleanup no longer runs, so the remaining reasoning was purged now instead of on its 2026-10-14 expiry.

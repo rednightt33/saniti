@@ -37,6 +37,12 @@ The market-AI foundation adds `Feature_Relationship_Catalog`, `Tool_Catalog`, fo
 
 The legacy `Table_Catalog`, `Column_Catalog`, `Feature_Catalog`, and relationship catalog remain authoritative and are not replaced. The AI-facing layer contains seven table rows, 138 column rows, five relationship rows, and 91 active calculation rows. Only `AI_data_coverage` is automated. Its job scans raw price and Broker Summary for actual date coverage, uses `Feature_Status` only to confirm Feature 01 pipeline completion, and derives expected Feature 02/03 coverage from Broker Summary without scanning the Feature tables themselves.
 
+Migration `20260925_003` (applied to `dev` on 2026-09-26) adds the point-in-time contract the DataNeed flow reads through the SQL Governor's catalog contract:
+- `AI_catalog_relationships.supported_join_semantics` is the subset of `CURRENT_STATE`, `EXACT_DATE`, `AS_OF` and `EFFECTIVE_DATED` a DataNeedSpec may request; an empty array means the DataNeed planner cannot use the relationship. `left_time_column`/`right_time_column` name the time columns of `EXACT_DATE` and `AS_OF` joins, and `effective_from_column`/`effective_to_column` the validity interval of `EFFECTIVE_DATED` rows. Check constraints refuse unknown semantics and temporal semantics without their columns.
+- The two current-state reference relationships (`IDX_Stock_Universe` → price, `IDX_Broker_Profile` → Broker Summary) support `CURRENT_STATE` only: a historical question joined to them uses today's classification, and the sandbox reports that as `HISTORICAL_REFERENCE_USES_CURRENT_STATE`. The three same-date relationships support `EXACT_DATE`. No relationship is `AS_OF` or `EFFECTIVE_DATED`, because no catalog table keeps a history of reference values yet.
+- `AI_column_catalog.resample_aggregation` (`FIRST`, `LAST`, `MAX`, `MIN`, `SUM`) is the exact rule for aggregating a column to a coarser frequency. It is `NULL` for every column: no rule is established, so resampling is never pushed down and the analysis session resamples source-frequency data itself.
+- The six columns are documented in `Column_Catalog` as `PARTIAL`.
+
 ## Complete public-table documentation map
 
 Every current public table is listed here so GitHub readers can find its semantic

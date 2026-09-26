@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-09-26 — Apply migration 20260925_003 on dev through a temporary job
+
+- Scope approved by the user: apply the DataNeed catalog migration on `dev` through a temporary one-off service, as in earlier releases.
+- **Temporary one-off service** `dataneed-migrate-job` (`e567e0e8-c9ed-4dbf-a72c-de95420de2ae`):
+  - it held reference variables only (`DATABASE_URL=${{Postgres.DATABASE_URL}}`, `MARKET_AI_ORC_API_KEY`, `PY_SANDBOX_API_KEY`, `SQL_GOVERNOR_API_KEY`), all redacted from its output;
+  - it was deployed by `railway up --path-as-root` from a local directory and deleted with `railway service delete`.
+- Deployment `9144cfee-1d9b-402e-b8fc-7d00fcccb899` (read-only):
+  - inspected the catalog state before the migration;
+  - `/ready` returned 200 on market-sql-governor, market-python-sandbox and market-ai-orc;
+  - the sandbox reported `isolation_enforced=true` for the phases 3–5 deployment `e03c61f8`;
+  - `POST /v1/data-needs` answered 404 because the flag is off.
+- Deployment `f6ef3174-a00a-4823-ae30-0588cb18279b` applied the migration, read it back, checked the Governor's catalog contract, and ran the catalog/schema refresh (see `DATABASE_CHANGELOG.md`).
+- No variable, deployment, volume, domain or restart policy of another service was changed. The job's logs held no secret-like values.
+
 ## 2026-09-26 — DataNeed architecture phases 3–5 deployed dark (commit daa05cc)
 
 - Same approved rollout: merged to `main` (fast-forward) with every DataNeed flag off; `main` auto-deployed the changed services to `dev`.
@@ -12,8 +26,8 @@
   - market-python-sandbox `e03c61f8-37ec-4d8a-803f-e26605950867`: `SUCCESS`; the Railway health check on `/ready` returned 200;
   - market-ai-orc `48b22523-0828-4981-97b4-d55756deda07`: `SUCCESS`; `/ready` 200;
   - market-sql-governor `72078656-8cd9-4af6-a097-2563132b03fb`: `SKIPPED` (no change under its watch path).
-- The startup logs held no secret-like values. The sandbox's `isolation_enforced` flag was **not** re-read for this deployment.
-- Migration `20260925_003` is still **not applied**. The temporary migration service was not created; see the task report.
+- The startup logs held no secret-like values. The sandbox's `isolation_enforced=true` was read back afterwards by the migration job's read-only run (entry above).
+- Migration `20260925_003` was applied afterwards (entry above).
 - Rollback: redeploy the phase 2 deployments (sandbox `c2ab2125`, orc `df85aac2`), or revert `daa05cc` on `main`. The flags are off, so the live Analysis Spec path did not change.
 
 ## 2026-09-25 — DataNeed architecture phase 2 deployed dark (commit 07fd68b)
