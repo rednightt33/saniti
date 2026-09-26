@@ -49,6 +49,28 @@ def test_the_documented_ytd_spec_is_approved_with_two_requests_and_two_ranges() 
     assert approved["requests"]["data_request_1_A"]["extract_columns"][:2] == ["ticker", "date"]
 
 
+def test_an_inner_relationship_restricts_both_requests_whichever_side_is_left() -> None:
+    """INNER keeps only matching rows on both sides; the model may write the relationship in either direction."""
+    forward = run(ytd_spec()).approved["requests"]
+    reversed_spec = ytd_spec(data_requests=[classification("data_request_1_A"), prices("data_request_1_B")],
+                             relationships=[current_state(left_column="Ticker", right_column="ticker")])
+    outcome = run(reversed_spec)
+    assert outcome.status == "APPROVED", outcome.issues
+    requests = outcome.approved["requests"]
+    [on_prices] = requests["data_request_1_B"]["restrictions"]
+    assert on_prices == forward["data_request_1_A"]["restrictions"][0]  # the same pushdown in either direction
+    assert on_prices["left_column"] == "ticker" and on_prices["right_table"] == "IDX_Stock_Universe"
+    assert on_prices["right_scope"] == {"type": "PREDICATE", "column": "Industry", "operator": "EQ",
+                                        "values": ["Banks"]}
+    [on_universe] = requests["data_request_1_A"]["restrictions"]
+    assert on_universe["left_column"] == "Ticker" and on_universe["right_table"] == "Price_Stock_Indonesia_IDX"
+    assert on_universe["right_scope"] == {"type": "ALL"}
+    # the prices side holds the historical observations, whichever side of the relationship it is
+    assert [(w["code"], w["data_request_id"]) for w in outcome.warnings] == [
+        ("HISTORICAL_REFERENCE_USES_CURRENT_STATE", "data_request_1_B")]
+    assert forward["data_request_1_B"]["restrictions"][0]["right_table"] == "Price_Stock_Indonesia_IDX"
+
+
 def test_issues_carry_request_code_path_and_rejected_value_and_never_candidates() -> None:
     spec = ytd_spec()
     spec["data_requests"][0]["columns"].append("adj_clsoe")

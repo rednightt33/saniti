@@ -209,7 +209,9 @@ values:
 - the table and its pruned columns (the requested columns plus the key columns);
 - the canonical scope tree (ALL, PREDICATE, AND, OR, NOT);
 - restrictions: the INNER relationships of the DataNeedSpec, each compiled as an `EXISTS` semi-join on a catalog
-  relationship. The join semantics decide which reference row applies to each observation date:
+  relationship. Either table of a `CURRENT_STATE` or `EXACT_DATE` relationship can be the restricted one; a
+  point-in-time restriction always restricts the relationship's left (observation) table. The join semantics decide
+  which reference row applies to each observation date:
   - `CURRENT_STATE`: the key only;
   - `EXACT_DATE`: the same date (the catalog's time columns);
   - `AS_OF`: the latest reference row at or before the date, backward only;

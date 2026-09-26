@@ -52,7 +52,11 @@ current flow; while the flag is off, its routes answer 404 and the service keeps
 - An approved need stores the contract the later phases work from:
   - per request: extract columns (keys first), column types, the canonical scope and its hash, one extraction
     window per range (widened by the buffers, the future capped at the reference date), resample rules from the
-    catalog, and the restrictions that INNER relationships impose;
+    catalog, and the restrictions that INNER relationships impose. An INNER relationship restricts both of its
+    requests, each to rows with a match in the other request's own scope, whichever side the spec puts left.
+    Restrictions are one level deep, a superset of the exact join, which `saniti.join` performs in the session.
+    For `AS_OF` and `EFFECTIVE_DATED`, only the observation side is restricted; the reference history keeps its
+    own scope. `HISTORICAL_REFERENCE_USES_CURRENT_STATE` names the request that holds the historical observations;
   - the spec hash, the catalog hash and the reference date.
   `GET /v1/data-needs/{need_id}` returns it.
 - `mode: RESEARCH` needs a ResearchGovernanceRequest (hypothesis, candidate count, pairwise comparisons, a

@@ -660,9 +660,12 @@ def cross_request(spec: dict[str, Any], contract: dict[str, Any], issues: Issues
             for side in ("effective_from_column", "effective_to_column"):
                 if rel.get(side) is not None:
                     issues.add(rid, "EFFECTIVE_DATE_COLUMNS_REQUIRED", f"{path}.{side}", rel[side])
-        if semantics == "CURRENT_STATE" and left_timed is not None:
+        right_timed = tables.get(right["source_table"], {}).get("time_column")
+        if semantics == "CURRENT_STATE" and (left_timed is not None or right_timed is not None):
+            # whichever side holds the historical observations is joined to today's reference values
             warnings.append({"code": "HISTORICAL_REFERENCE_USES_CURRENT_STATE", "relationship_id": rel["relationship_id"],
-                             "data_request_id": rel["left_request_id"],
+                             "data_request_id": rel["left_request_id"] if left_timed is not None
+                             else rel["right_request_id"],
                              "message": "Historical observations are joined to the current state of the reference "
                                         "table; past classifications may have differed."})
         bound.append(BoundRelationship(
@@ -673,11 +676,6 @@ def cross_request(spec: dict[str, Any], contract: dict[str, Any], issues: Issues
             right_time_column=rel.get("right_time_column"),
             effective_from_column=rel.get("effective_from_column"), effective_to_column=rel.get("effective_to_column"),
             catalog_left_is_spec_left=forward))
-    restricted = {b.left for b in bound if b.join_type == "INNER"}
-    for b in bound:
-        if b.join_type == "INNER" and b.right in restricted:
-            # a restriction is one level deep: the reference request is selected by its own scope only
-            issues.add(b.left, "RELATIONSHIP_NOT_ALLOWED", f"relationships[{b.index}].right_request_id", b.right)
     return bound
 
 
@@ -826,13 +824,25 @@ def approved_contract(spec: dict[str, Any], contract: dict[str, Any], bound: lis
                  "effective_to_column": b.effective_to_column}
         relationships.append(entry)
         if b.join_type == "INNER":
-            # the left request is restricted to rows that have a match in the right request's scope
+            # An INNER join keeps only rows with a match on the other side, so the restriction is pushed down on
+            # both sides, each selected by the other request's own scope. Restrictions are one level deep (a
+            # superset of the exact join, which saniti.join performs in the session). The reference side of a
+            # point-in-time join (AS_OF, EFFECTIVE_DATED) is delivered by its own scope only.
             requests[b.left]["restrictions"].append({
                 **{k: entry[k] for k in ("relationship_id", "join_semantics", "left_column", "right_column",
                                          "left_time_column", "right_time_column", "as_of_direction",
                                          "effective_from_column", "effective_to_column")},
                 "right_table": right["source_table"], "right_scope": right["scope"],
                 "right_scope_sha256": right["scope_sha256"]})
+            if b.semantics in ("CURRENT_STATE", "EXACT_DATE"):
+                left = requests[b.left]
+                requests[b.right]["restrictions"].append({
+                    "relationship_id": b.relationship_id, "join_semantics": b.semantics,
+                    "left_column": b.right_column, "right_column": b.left_column,
+                    "left_time_column": b.right_time_column, "right_time_column": b.left_time_column,
+                    "as_of_direction": None, "effective_from_column": None, "effective_to_column": None,
+                    "right_table": left["source_table"], "right_scope": left["scope"],
+                    "right_scope_sha256": left["scope_sha256"]})
     for entry in requests.values():
         entry["restriction_sha256"] = sha256_json(entry["restrictions"])
     normalized = {**spec, "relationships": list(spec.get("relationships") or [])}
