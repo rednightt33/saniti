@@ -1,5 +1,21 @@
 # Database changelog
 
+## 2026-09-26 — Register the DataNeed tools in Tool_Catalog (migration 20260926_001)
+
+- Status: **applied to `dev`** as part of the approved DataNeed rollout (phase 6). It was run by the temporary one-off service `dataneed-tools-job` (`65be8872-aa0b-4466-86f2-592a212545bd`), deleted afterwards.
+- Generated from the market-ai-orc tool definitions as deployed at `daa05cc` (description, strict input schema). The output schemas and limits are summaries of the sandbox and planner contracts.
+- The read-only run first (deployment `f32c1d3a-3d77-4329-b3bd-d6c0070612e9`) found a `complete_analysis` v1 row that belongs to market-ai-backend (`META`, still `is_active` for that deactivated service). Because the primary key is `(tool_name, version)`, the file was regenerated to register market-ai-orc's unrelated `complete_analysis` as version `orc-v1`. The backend row is untouched, and `max(version)` for that name is still `v1`.
+- Deployment `c4c3d6c2-7690-4652-b353-bf7acb86a89c` applied it as one transaction. Its preflight (none of the seven `(tool_name, version)` pairs exists) and `$verify$` blocks passed, and it committed.
+  - Inserts seven inactive `ORCHESTRATOR` rows: `submit_data_need_spec` v1, `prepare_data_bundle` v1, `open_analysis_session` v1, `run_python` v1, `inspect_session` v1, `get_session_output` v1 and `complete_analysis` orc-v1. Their `tool_specific_limits` record the runtime service, `runtime_commit`, the feature flags, executor endpoints and contract limits.
+  - Adds `tool_specific_limits.dataneed_flow` to the latest market-ai-orc versions of `create_analysis_spec` (v3), `prepare_analysis_data` (v1), `run_python_analysis` (v4), `get_analysis_result` (v3) and `get_dataset_manifest` (v1). The note names the DataNeed tool that replaces each one while `AI_ENABLE_DATANEED` is on. The key is new, so existing `model_facing` notes are kept.
+- Read back live in a read-only session by the same run:
+  - `Tool_Catalog` went from 55 to 62 rows, and the number of active rows is still 25;
+  - the seven new rows are inactive, `ADVANCED`, `ORCHESTRATOR`, with object input and output schemas and `feature_flag = AI_ENABLE_DATANEED`;
+  - the five notes are on the latest versions only;
+  - older versions and every other row are unchanged.
+- Rehearsed first on a disposable local PostgreSQL 16 database built from the documented `Tool_Catalog` structure, including an active backend `complete_analysis` v1: apply, readback, and a refused second run.
+- No schema, market-data, catalog-table or role change.
+
 ## 2026-09-26 — Add point-in-time join semantics and resample rules to the AI catalogs (migration 20260925_003)
 
 - Status: **applied to `dev` at about 04:56 UTC**, approved by the user as part of the DataNeed rollout. It was run by the temporary one-off service `dataneed-migrate-job` (`e567e0e8-c9ed-4dbf-a72c-de95420de2ae`), deleted afterwards (see `RAILWAY_CHANGELOG.md`).

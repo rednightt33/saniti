@@ -35,6 +35,17 @@ The market-AI foundation adds `Feature_Relationship_Catalog`, `Tool_Catalog`, fo
 
 `Tool_Catalog` also holds nine `ORCHESTRATOR` rows for `market-ai-orc`: `get_system_capabilities`, `discover_catalog`, `get_catalog_details`, `read_catalog_rows`, `preview_table_rows`, `request_data` and `get_dataset_manifest` (both executed by `market-sql-governor`), and `run_python_analysis` and `get_analysis_result` (executed by `market-python-sandbox`). They are registered with `is_active = false` so market-ai-backend, which lists every active `META`/`DISCOVERY`/`QUALITY` row to its model, does not advertise tools it cannot execute. Their runtime activation is owned by the market-ai-orc registry and recorded in `tool_specific_limits.runtime_service = 'market-ai-orc'`. Since market-ai-backend was deactivated on 2026-09-25, no running service reads `is_active`. The flags are left as they were, so the backend could be restored unchanged, and they do not describe what market-ai-orc currently exposes. The function `public.ai_preview_table_rows(text)` is listed in `related_functions` of the seven tables it serves.
 
+Migration `20260926_001` (applied to `dev` on 2026-09-26) registers the seven tools of the DataNeed flow, which market-ai-orc exposes only with `AI_ENABLE_DATANEED`. All seven are `is_active = false`, with `runtime_commit = "daa05cc"`:
+- `submit_data_need_spec`;
+- `prepare_data_bundle`;
+- `open_analysis_session`;
+- `run_python`;
+- `inspect_session`;
+- `get_session_output`;
+- `complete_analysis`, registered as version `orc-v1`. market-ai-backend's retired `complete_analysis` v1 is an unrelated tool of the same name; its row, which is still `is_active` for that deactivated service, is unchanged.
+
+The latest market-ai-orc versions of `create_analysis_spec`, `prepare_analysis_data`, `run_python_analysis`, `get_analysis_result` and `get_dataset_manifest` carry `tool_specific_limits.dataneed_flow`, naming the DataNeed tool that replaces them while the flag is on.
+
 The legacy `Table_Catalog`, `Column_Catalog`, `Feature_Catalog`, and relationship catalog remain authoritative and are not replaced. The AI-facing layer contains seven table rows, 138 column rows, five relationship rows, and 91 active calculation rows. Only `AI_data_coverage` is automated. Its job scans raw price and Broker Summary for actual date coverage, uses `Feature_Status` only to confirm Feature 01 pipeline completion, and derives expected Feature 02/03 coverage from Broker Summary without scanning the Feature tables themselves.
 
 Migration `20260925_003` (applied to `dev` on 2026-09-26) adds the point-in-time contract the DataNeed flow reads through the SQL Governor's catalog contract:

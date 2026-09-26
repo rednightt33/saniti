@@ -32,6 +32,7 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - Market AI backend service (deactivated since 2026-09-25; replaced by `market-ai-orc`): `market-ai-backend`
 - Market AI orchestrator (stateless; `market_ai_orc` login: SELECT on the `AI_*` catalogs, EXECUTE on the 20-row preview function `public.ai_preview_table_rows`, and INSERT only on `AI_research_run_audit` through `market_ai_research_audit_writer`; no direct market-data table access): `market-ai-orc`
 - Market AI orchestrator service ID: `41dc17ee-3bac-41ef-90ec-8b9356815c71` (private: `market-ai-orc.railway.internal:8080`)
+- Market AI analysis flow in `dev` since 2026-09-26: DataNeed. It is enabled by `AI_ENABLE_DATANEED=true` on the orchestrator and `PY_SANDBOX_DATANEED_ENABLED=true` on the sandbox, with `AI_ENABLE_LOOKUP_FACT=false`. The Analysis Spec path stays in the code as the rollback until the dev soak test ends; see `DATANEED_ARCHITECTURE.md` for the design, the rollback steps and the exit plan.
 - Market SQL Governor (the only path from the AI to market-data SQL; login `market_sql_governor`, SELECT on 5 AI catalogs + 7 approved market tables): `market-sql-governor`
 - Market SQL Governor service ID: `1a322795-4f93-4c51-a25e-5fcfc5ab4722` (private: `market-sql-governor.railway.internal:8080`)
 - Governor dataset bucket: `market-sql-datasets` (`62b028ba-313f-4c6a-81b3-48a9645411c1`, region `sjc`; immutable Parquet snapshots + manifests)

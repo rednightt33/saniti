@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-09-26 — Apply Tool_Catalog migration 20260926_001 on dev through a temporary job
+
+- **Temporary one-off service** `dataneed-tools-job` (`65be8872-aa0b-4466-86f2-592a212545bd`):
+  - its only variable was the reference `DATABASE_URL=${{Postgres.DATABASE_URL}}`, redacted from its output;
+  - it was deployed by `railway up --path-as-root` and deleted with `railway service delete`.
+- Deployment `f32c1d3a-3d77-4329-b3bd-d6c0070612e9` was read-only. Deployment `c4c3d6c2-7690-4652-b353-bf7acb86a89c` applied the migration and read it back (see `DATABASE_CHANGELOG.md`).
+- No other service, variable or deployment was changed. The project's service list is back to what it was before the job.
+
 ## 2026-09-26 — DataNeed switched on in dev; lookup_fact disabled after the parity test
 
 - Scope approved by the user (DataNeed rollout, phase 5): switch the flags on in `dev`, run the PoCs, and disable `lookup_fact` after a parity test.
