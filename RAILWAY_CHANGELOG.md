@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-09-26 — Technical-indicator and broker-flow stress test on dev (temporary jobs)
+
+- Requested by the user: 20 questions that need history before the asked period (warm-up for RSI, MACD, Bollinger, SMA200, ATR, Stochastic and EMA; rolling broker and foreign flows; two research questions answered after an approved plan), plus the user's Pine Script `ta.dmi(14, 14)` ADX question. The model computed everything in the sandbox; answers were then checked against a read-only ground truth.
+- Temporary one-off services, each deleted afterwards:
+  - `stress-tech-job` (`517f5ea5-b62b-4a9d-bb5a-11e583468ec8`, deployment `9b5ccd9d-88de-41eb-af67-7e61d023373d`): the 20 questions; reference variable `MARKET_AI_ORC_API_KEY` only;
+  - `stress-truth-job` (`cd655926-5bac-48e0-bec0-ae21909a250f`, deployment `e7ce66ef-0ed0-47aa-8b35-480ffa674e68`): read-only ground truth with TA-Lib 0.8.1, numpy 2.4.6 and pandas 3.0.6 (the sandbox's versions); reference `DATABASE_URL` only;
+  - `adx-job` (`7a9d157e-bfab-4753-94fa-cc108e72cb15`, deployment `68a5e133-f184-4c5c-a5e5-b9d15e88a121`): the ADX question and its read-only ground truth (a Pine `ta.dmi` replica and TA-Lib ADX); references `DATABASE_URL` and `MARKET_AI_ORC_API_KEY`.
+- **Outcome:** 20/20 completed without a run error; cost $0.369 (ADX question $0.016).
+  - Exact against the ground truth: RSI BBCA, MACD TLKM, Bollinger ASII, SMA200 BMRI, the 10 bank golden crosses, the 16 bank 52-week highs, the BBRI volume spikes, Stochastic ADRO, all six broker questions, both research answers, and ADX (177 days below 30 in 2025).
+  - Small deviations from a short warm-up chosen by the model (the prompt gives no rule): RSI BBRI January (53.27 vs 53.33), ATR UNVR (72.67 vs 73.14), the RSI values of the IDX-wide oversold list (same 9 stocks and the same 10 lowest), and EMA50 ANTM (3,264.11 vs 3,159.10; the conclusion is unchanged).
+  - The foreign-flow answer for BBCA had correct numbers but was forced to LIMITATION by the provenance gate: a negative value written as `−Rp 34756780567` was read as positive.
+- **Performance:** extraction (17 s) and Python execution (6 s) were under 1% of 2,932 s wall time. Model calls took the rest: 320 calls, average latency 1.3–23.8 s depending on the moment; about 15% of model time and 19.5% of cost regenerated a final answer (a prose answer re-asked in the structured format, plus gate re-asks).
+- No service, variable, deployment of an existing service, schema or data was changed. The project is back to its 13 services.
+
 ## 2026-09-26 — Research Plan confirmation and named-period returns rolled out on dev
 
 - Scope approved by the user (Phase 3–6 prompt): deploy with both new flags off, apply migration `20260926_002`, set the signing key, enable the flags one at a time, run live tests and the 20-question regression. The fix for a regression found on the way was approved separately.
