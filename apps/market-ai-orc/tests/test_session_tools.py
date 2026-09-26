@@ -112,6 +112,71 @@ def test_complete_analysis_attaches_the_released_contents() -> None:
                                                f"/v1/sessions/{SESSION}/outputs/{table}"]
 
 
+def period_return_rows(count: int) -> list[dict[str, Any]]:
+    """Rows shaped like saniti.period_return's frame (11 columns, full precision): 200 of them take about 57 KB."""
+    return [{"entity": f"T{i:03d}X", "base_date": "2024-12-30", "base_value": 1315.0 + i, "end_date": "2025-12-30",
+             "end_value": 5575.0 - i, "return_decimal": 3.2395437262357416 - i / 997, "return_pct":
+             323.95437262357416 - i / 9.97, "calculation_status": "COMPLETE", "range_id": "data_request_1_A_r1",
+             "period_start": "2025-01-01", "period_end": "2025-12-31"} for i in range(count)]
+
+
+def test_a_wide_released_table_is_cut_to_fit_the_result_limit_instead_of_hiding_the_completion() -> None:
+    table, summary = "out_" + "1" * 24, "out_" + "2" * 24
+    rows = period_return_rows(200)
+    assert len(json.dumps(rows, separators=(",", ":")).encode()) > 40000  # the dev failure: TOOL_RESULT_TOO_LARGE
+    fake = FakeSandbox({
+        f"/v1/sessions/{SESSION}/complete": (200, {
+            "status": "COMPLETED", "final_status": {"evidence_label": "DATA_COVERAGE_VERIFIED"},
+            "released_outputs": [{"output_id": table, "name": "returns", "type": "TABLE"},
+                                 {"output_id": summary, "name": "summary", "type": "JSON"}]}),
+        f"/v1/sessions/{SESSION}/outputs/{table}": (200, {"released": True, "rows": rows, "row_count": 835,
+                                                          "next_offset": 200}),
+        f"/v1/sessions/{SESSION}/outputs/{summary}": (200, {"released": True, "content": {"up": 586, "down": 210},
+                                                            "next_offset": None})})
+    outcome = call(registry(fake), "complete_analysis", {"session_id": SESSION})
+    assert outcome.ok, outcome.output
+    assert len(json.dumps(outcome.output, separators=(",", ":"), ensure_ascii=False).encode()) <= 40000
+    first, second = outcome.output["result"]["released_contents"]
+    assert 0 < len(first["rows"]) < 200 and first["rows"] == rows[:len(first["rows"])]
+    assert first["row_count"] == 835 and first["truncated"] is True and "get_session_output" in first["note"]
+    assert not any(ch.isdigit() for ch in first["note"])  # provenance reads the numbers of released content
+    # the small summary is kept whole; the wide table takes what is left
+    assert second == {"output_id": summary, "name": "summary", "type": "JSON", "content": {"up": 586, "down": 210},
+                      "truncated": False}
+
+
+def test_two_wide_tables_share_the_result_budget() -> None:
+    first_id, second_id = "out_" + "4" * 24, "out_" + "5" * 24
+    rows = period_return_rows(200)
+    fake = FakeSandbox({
+        f"/v1/sessions/{SESSION}/complete": (200, {
+            "status": "COMPLETED", "final_status": {"evidence_label": "DATA_COVERAGE_VERIFIED"},
+            "released_outputs": [{"output_id": first_id, "name": "a", "type": "TABLE"},
+                                 {"output_id": second_id, "name": "b", "type": "TABLE"}]}),
+        f"/v1/sessions/{SESSION}/outputs/{first_id}": (200, {"released": True, "rows": rows, "row_count": 200,
+                                                             "next_offset": None}),
+        f"/v1/sessions/{SESSION}/outputs/{second_id}": (200, {"released": True, "rows": rows, "row_count": 200,
+                                                              "next_offset": None})})
+    outcome = call(registry(fake), "complete_analysis", {"session_id": SESSION})
+    assert outcome.ok
+    a, b = outcome.output["result"]["released_contents"]
+    assert a["truncated"] and b["truncated"] and abs(len(a["rows"]) - len(b["rows"])) <= 1 and len(b["rows"]) > 20
+
+
+def test_a_released_json_too_large_for_the_result_is_left_to_get_session_output() -> None:
+    blob = "out_" + "3" * 24
+    fake = FakeSandbox({
+        f"/v1/sessions/{SESSION}/complete": (200, {
+            "status": "COMPLETED", "final_status": {"evidence_label": "DATA_COVERAGE_VERIFIED"},
+            "released_outputs": [{"output_id": blob, "name": "blob", "type": "JSON"}]}),
+        f"/v1/sessions/{SESSION}/outputs/{blob}": (200, {"released": True, "content": {"x": ["y" * 100] * 600},
+                                                         "next_offset": None})})
+    outcome = call(registry(fake), "complete_analysis", {"session_id": SESSION})
+    assert outcome.ok
+    (entry,) = outcome.output["result"]["released_contents"]
+    assert entry["content"] is None and entry["truncated"] is True and "get_session_output" in entry["note"]
+
+
 def test_an_incomplete_analysis_fetches_nothing() -> None:
     fake = FakeSandbox({f"/v1/sessions/{SESSION}/complete": (200, {
         "status": "INCOMPLETE", "released_outputs": [], "next_action": "RUN_PYTHON"})})

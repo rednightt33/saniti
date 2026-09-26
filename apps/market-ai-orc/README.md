@@ -430,7 +430,7 @@ Guarantees:
 | `run_python` | `session_id`, `code` (≤ 20000) | `OK`, `SCRIPT_ERROR` (error type, line, field, traceback), `TIMEOUT` or `INSUFFICIENT_INPUT_DATA`, with stdout (diagnostics), outputs, changed variables and budgets |
 | `inspect_session` | `session_id`, `names` (null: all), `max_rows` | Variable descriptions with bounded previews |
 | `get_session_output` | `session_id`, `output_id`, `offset`, `limit` | Table rows page by page, JSON or text; `released` |
-| `complete_analysis` | `session_id` | The Coverage Validator's result and the final status (`data_coverage`, `sandbox_execution`, `calculation_validation` NOT_PERFORMED, `evidence_label`, warnings, allowed and forbidden claims); on PASS the released outputs with their content (JSON, first 200 table rows) |
+| `complete_analysis` | `session_id` | The Coverage Validator's result and the final status (`data_coverage`, `sandbox_execution`, `calculation_validation` NOT_PERFORMED, `evidence_label`, warnings, allowed and forbidden claims); on PASS the released outputs with their content (JSON, first 200 table rows, bounded by the result size) |
 
 Each capability flag is derived from the registry. It becomes `true` only when its providing
 tool is actually registered: `catalog_discovery` → `discover_catalog`, `full_catalog_read` →
@@ -520,6 +520,12 @@ names only a `need_id`. The planner:
 **Phases 3 and 4 (implemented): analysis session tools** (`app/tools/session.py`): `open_analysis_session`,
 `run_python`, `inspect_session`, `get_session_output`, `complete_analysis`. `complete_analysis` fetches the content of
 the released outputs (JSON, and up to 200 rows of each of up to 10 tables), so the answer can cite them.
+- The contents are bounded so that the whole result stays under `PYTHON_ANALYSIS_MAX_RESULT_BYTES`. When they do not
+  fit, non-table contents stay whole (the largest dropped first if needed) and the tables share the rest, each cut to
+  its first rows. A cut entry has `truncated: true` and a note; the model reads the rest with `get_session_output`,
+  whose released rows the number-provenance gate also accepts. Before this bound a wide table (for example the
+  11-column `saniti.period_return` frame for about 835 tickers, about 57 KB for 200 rows) made the whole result
+  `TOOL_RESULT_TOO_LARGE`, which hid the completion from the model.
 - Each call carries the run's request id. `run_python` waits up to `PY_SANDBOX_SESSION_TIMEOUT_SECONDS` (default 180,
   above the sandbox's execution limit and its grace period).
 - The sandbox's rejections (a closed session, capacity, budgets) come back as structured results with their next

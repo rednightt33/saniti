@@ -13,6 +13,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..compaction import dumps
 from .analysis import SandboxClient
 from .registry import ToolError, ToolSpec
 from .request_data import current_request_id
@@ -127,12 +128,65 @@ COMPLETE_DESCRIPTION = (
 )
 RELEASED_PREVIEW_ROWS = 200
 RELEASED_PREVIEW_OUTPUTS = 10
+# Room left in the tool result for fields the registry adds (ignored_arguments, omitted_fields_set_to_null).
+RESULT_ENVELOPE_MARGIN = 1024
+
+
+def _size(value: Any) -> int:
+    return len(dumps(value).encode("utf-8"))
+
+
+def _fit(entry: dict[str, Any], budget: int) -> dict[str, Any]:
+    """The entry within budget bytes: the longest prefix of its rows, or no content, with a note saying how to read
+    the rest (released outputs can be paged with get_session_output). The notes hold no digits, because provenance
+    reads the numbers of released content."""
+    if _size(entry) < budget:
+        return entry
+    if "rows" not in entry:
+        return {**entry, "content": None, "truncated": True,
+                "note": "The content did not fit the tool result size limit; read it with get_session_output."}
+    rows = entry["rows"]
+    note = ("Only the rows shown fit the tool result size limit; read the rest with get_session_output, with offset "
+            "equal to the number of rows shown.")
+
+    def cut(count: int) -> dict[str, Any]:
+        return {**entry, "rows": rows[:count], "truncated": True, "note": note}
+
+    low, high = 0, len(rows)
+    while low < high:
+        middle = (low + high + 1) // 2
+        if _size(cut(middle)) < budget:
+            low = middle
+        else:
+            high = middle - 1
+    return cut(low)
+
+
+def _within(contents: list[dict[str, Any]], budget: int) -> list[dict[str, Any]]:
+    """The contents within budget bytes. Non-table contents (often a small summary) stay whole when they fit, the
+    largest dropped first when they do not; the tables share what is left, each cut to its rows' longest prefix."""
+    if _size(contents) < budget:
+        return contents
+    out = list(contents)
+    tables = [i for i, entry in enumerate(out) if "rows" in entry]
+    for i in tables:
+        out[i] = _fit(out[i], 0)
+    for i in sorted((i for i, entry in enumerate(out) if "rows" not in entry), key=lambda i: -_size(out[i])):
+        if _size(out) < budget:
+            break
+        out[i] = _fit(out[i], 0)
+    for n, i in enumerate(tables):
+        share = (budget - _size(out)) // (len(tables) - n)
+        out[i] = _fit(contents[i], _size(out[i]) + share)
+    return out
 
 
 def released_contents(client: SandboxClient, session_id: str, outputs: list[dict[str, Any]], timeout: float,
-                      request_id: str) -> list[dict[str, Any]]:
-    """The content of released outputs (bounded), so the answer can cite them and provenance can check them."""
-    contents = []
+                      request_id: str, byte_budget: int | None = None) -> list[dict[str, Any]]:
+    """The content of released outputs (bounded), so the answer can cite them and provenance can check them.
+    With byte_budget the contents together stay within it, so a wide table cannot push the whole complete_analysis
+    result over the tool result limit (which would hide the completion from the model)."""
+    contents: list[dict[str, Any]] = []
     for output in outputs[:RELEASED_PREVIEW_OUTPUTS]:
         if output.get("type") not in ("TABLE", "PARQUET", "CSV", "JSON", "TEXT"):
             continue
@@ -147,7 +201,7 @@ def released_contents(client: SandboxClient, session_id: str, outputs: list[dict
         else:
             entry.update(content=body.get("content"), truncated=body.get("next_offset") is not None)
         contents.append(entry)
-    return contents
+    return contents if byte_budget is None else _within(contents, byte_budget)
 
 
 def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_timeout_seconds: float,
@@ -185,8 +239,10 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
         result = _call(client, "POST", f"/v1/sessions/{arguments.session_id}/complete", timeout=timeout_seconds * 2,
                        json={"request_id": request_id()})
         if result.get("status") == "COMPLETED" and result.get("released_outputs"):
-            result["released_contents"] = released_contents(client, arguments.session_id, result["released_outputs"],
-                                                            timeout_seconds, request_id())
+            envelope = _size({"ok": True, "tool": "complete_analysis", "result": {**result, "released_contents": []}})
+            result["released_contents"] = released_contents(
+                client, arguments.session_id, result["released_outputs"], timeout_seconds, request_id(),
+                byte_budget=max(0, max_result_bytes - envelope - RESULT_ENVELOPE_MARGIN))
         return result
 
     return [
