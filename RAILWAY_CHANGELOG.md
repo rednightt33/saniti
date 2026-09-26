@@ -1,5 +1,22 @@
 # Railway changelog
 
+## 2026-09-26 — 20-question live test of the DataNeed flow on dev (temporary job)
+
+- Requested by the user. It also counts toward the dev soak test (see `DATANEED_ARCHITECTURE.md`, Exit plan).
+- **Temporary one-off service** `dataneed-q20-job` (`79e79613-96e8-4237-b7b4-bd085bfe0032`):
+  - reference variables only (`DATABASE_URL=${{Postgres.DATABASE_URL}}` for read-only ground-truth sessions, `MARKET_AI_ORC_API_KEY`, `PY_SANDBOX_API_KEY`), all redacted;
+  - deployment `8ecc0087-6a02-4949-b3a9-8a73f6d71f0e`;
+  - deleted with `railway service delete`.
+- 20 questions through `/v1/agent/run`, sequentially, with the flags unchanged (`AI_ENABLE_DATANEED=true`, `AI_ENABLE_LOOKUP_FACT=false`). The questions covered facts, sums, counts, multi-ticker and sector analyses, volatility, correlation, moving averages, broker flows, two research questions, and causal, predictive, ambiguous and out-of-catalog questions.
+- **Outcome:** 20/20 completed without error, 15 ANSWER (`DATA_COVERAGE_VERIFIED`) and 5 LIMITATION.
+  - The 13 answers with a deterministic ground truth match it exactly, and the research answer on volume spikes agrees within its window boundaries.
+  - The broker questions for September correctly answered LIMITATION: broker data ends 2026-08-31.
+  - Prediction and fundamentals were correctly refused.
+  - The causal question refused the causal claim. The provenance gate then forced a LIMITATION over one self-computed figure.
+  - The ambiguous "best stock" question was answered with a self-chosen definition instead of a clarification.
+- **Usage:** 586 numbers checked, 1 unsupported; total cost $0.28; median 46 s (14–438 s); median 11.5 tool calls; input cache ratio 91.6%.
+- Findings, not yet acted on: clarification for subjective criteria, one default period-return convention, allow display rounding, localize the gate notices.
+
 ## 2026-09-26 — Apply Tool_Catalog migration 20260926_001 on dev through a temporary job
 
 - **Temporary one-off service** `dataneed-tools-job` (`65be8872-aa0b-4466-86f2-592a212545bd`):
