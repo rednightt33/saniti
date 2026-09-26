@@ -46,6 +46,8 @@ Migration `20260926_001` (applied to `dev` on 2026-09-26) registers the seven to
 
 The latest market-ai-orc versions of `create_analysis_spec`, `prepare_analysis_data`, `run_python_analysis`, `get_analysis_result` and `get_dataset_manifest` carry `tool_specific_limits.dataneed_flow`, naming the DataNeed tool that replaces them while the flag is on.
 
+Migration `20260926_002` (applied to `dev` on 2026-09-26) registers `submit_data_need_spec` v2 (`is_active = false`, `runtime_commit = "be59c68"`). Its `research_governance` adds the `condition`, `outcome` and `baseline` declarations, and the tool refuses a RESEARCH data need without an approved Research Plan when `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION` is on. v1 carries `superseded_by = "v2"`. `run_python` v1 records the `saniti.period_return` helper and its flag `AI_ENABLE_STANDARD_PERIOD_RETURN` in `tool_specific_limits.standard_period_return`. The same migration lets `AI_research_run_audit` record status `AWAITING_CONFIRMATION` and response type `RESEARCH_PLAN_CONFIRMATION`.
+
 The legacy `Table_Catalog`, `Column_Catalog`, `Feature_Catalog`, and relationship catalog remain authoritative and are not replaced. The AI-facing layer contains seven table rows, 138 column rows, five relationship rows, and 91 active calculation rows. Only `AI_data_coverage` is automated. Its job scans raw price and Broker Summary for actual date coverage, uses `Feature_Status` only to confirm Feature 01 pipeline completion, and derives expected Feature 02/03 coverage from Broker Summary without scanning the Feature tables themselves.
 
 Migration `20260925_003` (applied to `dev` on 2026-09-26) adds the point-in-time contract the DataNeed flow reads through the SQL Governor's catalog contract:

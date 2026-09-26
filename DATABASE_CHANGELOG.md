@@ -1,5 +1,33 @@
 # Database changelog
 
+## 2026-09-26 — Research Plan confirmation: audit values and submit_data_need_spec v2 (migration 20260926_002)
+
+- Status: **applied to `dev` at about 12:40 UTC**, approved by the user as part of the Research Plan rollout. It was run by the temporary one-off service `plan-migrate-job` (`251281c4-9dac-46e2-9e3a-f0008b28aa9f`), deleted afterwards (see `RAILWAY_CHANGELOG.md`).
+- Deployment `7a507c80-0f0f-428e-a40a-5619fe03cb0d` inspected the live state read-only, applied the file as one transaction, and read it back. Its own preflight and `$verify$` blocks passed, it committed, and no notice was raised.
+- Before (read-only):
+  - `ai_research_run_audit_status_check` allowed `COMPLETED`, `NEEDS_CLARIFICATION`, `LIMITED`, `FAILED`;
+  - `ai_research_run_audit_response_check` allowed `NULL`, `ANSWER`, `CLARIFICATION`, `LIMITATION`;
+  - audit rows: 35 `COMPLETED`/`ANSWER`, 14 `LIMITED`/`LIMITATION`, 2 `NEEDS_CLARIFICATION`/`CLARIFICATION`;
+  - `Tool_Catalog`: 62 rows, 25 active; `submit_data_need_spec` v1 and `run_python` v1 inactive at `runtime_commit = "daa05cc"`.
+- `database/migrations/20260926_002_research_plan_confirmation.sql`:
+  - widens both check constraints: status `AWAITING_CONFIRMATION` and response type `RESEARCH_PLAN_CONFIRMATION` (a Research Plan response is a run outcome like the others);
+  - updates the `Column_Catalog` definitions of `status` and `response_type`, and appends the migration to their `source_code_paths` and to `Table_Catalog.source_code_paths` of `AI_research_run_audit`;
+  - inserts `submit_data_need_spec` v2 (`is_active = false`, `runtime_commit = "be59c68"`). Its input schema adds the `condition`/`outcome`/`baseline` declarations to `research_governance`, and its limits record the `RESEARCH_PLAN_*` refusals and the `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION` flag;
+  - sets `tool_specific_limits.superseded_by = "v2"` on `submit_data_need_spec` v1;
+  - adds `tool_specific_limits.standard_period_return` to `run_python` v1 (helper `saniti.period_return`, flag `AI_ENABLE_STANDARD_PERIOD_RETURN`). Its input schema is unchanged.
+- Read back live by the same run:
+  - both constraints list the new values;
+  - the audit rows are unchanged (35/14/2);
+  - the two `Column_Catalog` definitions and the three path arrays carry the migration;
+  - `Tool_Catalog`: 63 rows, still 25 active. v2 is inactive with the 12 `research_governance` fields; v1 has `superseded_by = "v2"`; `run_python` v1 has the note;
+  - a probe `INSERT` of an `AWAITING_CONFIRMATION`/`RESEARCH_PLAN_CONFIRMATION` row was accepted inside a transaction that was rolled back; 0 probe rows remain.
+- The same run then did the standard refresh against live `dev`:
+  - `scripts/sync_database_catalog.py`: `Catalog reconciled: 640 physical columns, 19 updated`. `AI_research_run_audit` has 21 columns; the migration had already appended the path to `status` and `response_type`, so the 19 updates are consistent with the refresh copying the new `Table_Catalog` path to the other 19, as in the two previous runs;
+  - `scripts/sync_database_schema.py`: `Synchronized 38 tables`. The regenerated `DATABASE_SCHEMA.md` was returned as gzip+base64 chunks and verified by sha256 (`e9b22272…`, 157,617 bytes). Its only changes are timestamp drift and the two constraints and two column definitions above.
+- Rehearsed first on a disposable local PostgreSQL 16 database built from the documented structures: a plan row refused before and accepted after, unknown values still refused, readback, and a refused second run.
+- No market-data table, market-data row, grant or role was changed.
+- Rollback (forward-only): a new migration that narrows the checks again. It would fail while `AWAITING_CONFIRMATION` rows exist, so they would have to be kept or the checks left wide. The `Tool_Catalog` rows are inactive and read by no running service.
+
 ## 2026-09-26 — Register the DataNeed tools in Tool_Catalog (migration 20260926_001)
 
 - Status: **applied to `dev`** as part of the approved DataNeed rollout (phase 6). It was run by the temporary one-off service `dataneed-tools-job` (`65be8872-aa0b-4466-86f2-592a212545bd`), deleted afterwards.
