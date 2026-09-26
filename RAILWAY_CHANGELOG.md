@@ -1,5 +1,21 @@
 # Railway changelog
 
+## 2026-09-26 — DataNeed architecture phases 3–5 deployed dark (commit daa05cc)
+
+- Same approved rollout: merged to `main` (fast-forward) with every DataNeed flag off; `main` auto-deployed the changed services to `dev`.
+- Code:
+  - sandbox: persistent analysis sessions (`/v1/sessions`, execute, inspect, outputs, complete, close), the ExecutionManifest, processing coverage and the final status. The routes answer 404 without `PY_SANDBOX_DATANEED_ENABLED`. The image adds the session users `session1`…`session4` (uid 20201–20204);
+  - orc: the session tools and the DataNeed mode of the orchestrator (exclusive tools, DATA NEED RULES, the DataNeed answer gate, `execution.analysis_final_status`), all behind `AI_ENABLE_DATANEED`.
+- Tests before the merge: market-ai-orc 453 passed; market-python-sandbox 435 passed.
+- No variable was added or changed. `AI_ENABLE_DATANEED` and `PY_SANDBOX_DATANEED_ENABLED` stay unset (read back by name on 2026-09-25). `PY_SANDBOX_SESSION_*` and the orc's `PY_SANDBOX_SESSION_TIMEOUT_SECONDS` use their code defaults.
+- Automatic deployments of `daa05cc`:
+  - market-python-sandbox `e03c61f8-37ec-4d8a-803f-e26605950867`: `SUCCESS`; the Railway health check on `/ready` returned 200;
+  - market-ai-orc `48b22523-0828-4981-97b4-d55756deda07`: `SUCCESS`; `/ready` 200;
+  - market-sql-governor `72078656-8cd9-4af6-a097-2563132b03fb`: `SKIPPED` (no change under its watch path).
+- The startup logs held no secret-like values. The sandbox's `isolation_enforced` flag was **not** re-read for this deployment.
+- Migration `20260925_003` is still **not applied**. The temporary migration service was not created; see the task report.
+- Rollback: redeploy the phase 2 deployments (sandbox `c2ab2125`, orc `df85aac2`), or revert `daa05cc` on `main`. The flags are off, so the live Analysis Spec path did not change.
+
 ## 2026-09-25 — DataNeed architecture phase 2 deployed dark (commit 07fd68b)
 
 - Same approved rollout as phase 1: merged to `main` with every DataNeed flag off; `main` auto-deployed the three services to `dev`.
