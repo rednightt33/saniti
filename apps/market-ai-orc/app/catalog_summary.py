@@ -63,8 +63,14 @@ def _render(tables: list[dict[str, Any]], columns: dict[str, list[dict[str, Any]
             parts.append(f"time column {table['time_column']}")
         if table.get("entity_column"):
             parts.append(f"entity column {table['entity_column']}")
+        if subject.get("data_domain"):
+            # the DataNeedSpec subject takes these exact values
+            parts.append(f"subject data_domain {subject['data_domain']}, entity_type {subject.get('entity_type')}, "
+                         f"asset_type {subject.get('asset_type') or 'null'}")
         if subject.get("supported_frequencies"):
             parts.append("frequencies " + "/".join(subject["supported_frequencies"]))
+        if subject.get("time_semantics"):
+            parts.append(f"time semantics: {_short(subject['time_semantics'])}")
         found = coverage.get(name)
         if found and found.get("actual_min_date"):
             parts.append(f"data {found['actual_min_date']} to {found.get('actual_max_date')} "

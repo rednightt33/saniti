@@ -262,7 +262,9 @@ class FakeCatalog:
         self.calls.append(("discover", ()))
         return {"tables": [{"table_name": n, "description": f"{n} description", "grain": "stock x date",
                             "time_column": "date", "entity_column": "symbol",
-                            "subject": {"supported_frequencies": ["DAILY"]}} for n in self.names],
+                            "subject": {"data_domain": "MARKET", "entity_type": "STOCK", "asset_type": None,
+                                        "supported_frequencies": ["DAILY"],
+                                        "time_semantics": "exchange trading date"}} for n in self.names],
                 "truncated": False, "research_catalog": {"method_count": 7}, "formula_catalog": {"formula_count": 3}}
 
     def details(self, arguments: Any) -> dict[str, Any]:
@@ -290,7 +292,8 @@ def test_the_summary_lists_tables_columns_coverage_and_relationships_in_bounded_
     assert text.startswith(HEADER)
     assert "Available tools: discover_catalog, submit_data_need_spec." in text
     assert ("- Table_A: Table_A description; grain stock x date; time column date; entity column symbol; "
-            "frequencies DAILY; data 2021-01-04 to 2026-09-25 (VERIFIED). Columns: close (numeric, IDR; Daily "
+            "subject data_domain MARKET, entity_type STOCK, asset_type null; frequencies DAILY; time semantics: "
+            "exchange trading date; data 2021-01-04 to 2026-09-25 (VERIFIED). Columns: close (numeric, IDR; Daily "
             "closing prices per stock), symbol (text).") in text
     assert "- 11: Table_A(symbol) -> Table_Z(symbol), MANY_TO_ONE, AS_OF, output grain stock x date." in text
     assert "Documented research methods: 7; documented formulas: 3" in text
