@@ -29,7 +29,7 @@ export default defineRailway(() => {
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "ALWAYS" },
     volumeMounts: { "/data": marketPythonSandboxData },
-    env: { PORT: preserve(), PY_SANDBOX_API_KEY: preserve(), PY_SANDBOX_MAX_ANALYSES_PER_REQUEST: preserve(), PY_SANDBOX_MAX_CPU_SECONDS_PER_REQUEST: preserve(), PY_SANDBOX_MAX_SPECS_PER_REQUEST: preserve(), SQL_GOVERNOR_DATASET_ACCESS_KEY: preserve(), SQL_GOVERNOR_URL: preserve() },
+    env: { PORT: preserve(), PY_SANDBOX_API_KEY: preserve(), PY_SANDBOX_DATANEED_ENABLED: preserve(), PY_SANDBOX_MAX_ANALYSES_PER_REQUEST: preserve(), PY_SANDBOX_MAX_CPU_SECONDS_PER_REQUEST: preserve(), PY_SANDBOX_MAX_SPECS_PER_REQUEST: preserve(), SQL_GOVERNOR_DATASET_ACCESS_KEY: preserve(), SQL_GOVERNOR_URL: preserve() },
   });
   const marketAiBackend = service("market-ai-backend", {
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/market-ai-backend/**"] },
@@ -48,7 +48,7 @@ export default defineRailway(() => {
     healthcheckTimeout: 120,
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "ALWAYS" },
-    env: { AI_MAX_ANALYSIS_SECONDS: preserve(), AI_MAX_CONTEXT_TOKENS: preserve(), AI_MAX_TOOL_CALLS: preserve(), AI_MAX_TOOL_ITERATIONS: preserve(), AI_MODEL: preserve(), AI_REASONING_EFFORT: preserve(), CATALOG_DATABASE_URL: preserve(), MARKET_AI_ORC_API_KEY: preserve(), MARKET_AI_ORC_DB_PASSWORD: preserve(), OPENROUTER_API_KEY: preserve(), PORT: preserve(), PY_SANDBOX_API_KEY: preserve(), PY_SANDBOX_URL: preserve(), RESEARCH_AUDIT_DATABASE_URL: preserve(), SQL_GOVERNOR_API_KEY: preserve(), SQL_GOVERNOR_URL: preserve() },
+    env: { AI_ENABLE_DATANEED: preserve(), AI_ENABLE_LOOKUP_FACT: preserve(), AI_MAX_ANALYSIS_SECONDS: preserve(), AI_MAX_CONTEXT_TOKENS: preserve(), AI_MAX_TOOL_CALLS: preserve(), AI_MAX_TOOL_ITERATIONS: preserve(), AI_MODEL: preserve(), AI_REASONING_EFFORT: preserve(), CATALOG_DATABASE_URL: preserve(), MARKET_AI_ORC_API_KEY: preserve(), MARKET_AI_ORC_DB_PASSWORD: preserve(), OPENROUTER_API_KEY: preserve(), PORT: preserve(), PY_SANDBOX_API_KEY: preserve(), PY_SANDBOX_URL: preserve(), RESEARCH_AUDIT_DATABASE_URL: preserve(), SQL_GOVERNOR_API_KEY: preserve(), SQL_GOVERNOR_URL: preserve() },
   });
   const idxPriceCron = service("idx-price-cron", {
     source: saniti,

@@ -467,8 +467,9 @@ RULES in the system prompt; it contains no thresholds or credentials.
 ## DataNeed flow (in progress)
 
 The DataNeed architecture replaces the Analysis Spec with a data-only contract. It is built in phases behind
-`AI_ENABLE_DATANEED` (orc) and `PY_SANDBOX_DATANEED_ENABLED` (sandbox); both are off, so the Analysis Spec path
-below is still the live one.
+`AI_ENABLE_DATANEED` (orc) and `PY_SANDBOX_DATANEED_ENABLED` (sandbox). Both default to off. In `dev` both have been
+on since 2026-09-26, with `AI_ENABLE_LOOKUP_FACT=false`: the DataNeed flow answers fact questions too; see the
+parity test in `RAILWAY_CHANGELOG.md`. With the flags off, the Analysis Spec path below is the live one.
 
 **Phase 1 (implemented): `submit_data_need_spec`** (`app/tools/data_need.py`).
 - The model declares which data the answer needs: logical data requests (catalog table, columns, a scope expression

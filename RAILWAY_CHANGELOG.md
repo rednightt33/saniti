@@ -1,5 +1,52 @@
 # Railway changelog
 
+## 2026-09-26 — DataNeed switched on in dev; lookup_fact disabled after the parity test
+
+- Scope approved by the user (DataNeed rollout, phase 5): switch the flags on in `dev`, run the PoCs, and disable `lookup_fact` after a parity test.
+- **Fix deployed first**, commit `4aa3272` (code only): an INNER relationship now restricts both requests. A real-model rehearsal against the local Governor and sandbox had found that a spec written reference-left delivered prices for every ticker. Automatic deployments, each `SUCCESS`:
+  - market-python-sandbox `181527f0-20a8-4c09-af7e-70e91f3bbaa6`;
+  - market-sql-governor `2136ce9e-f54f-4d5a-80e6-611df5348647` (README only);
+  - market-ai-orc: `SKIPPED` (no change).
+- **Variables** (set with `railway variable set`, each triggering a redeploy):
+
+  | Service | Variable | Value | Deployment | Status |
+  |---|---|---|---|---|
+  | market-python-sandbox | `PY_SANDBOX_DATANEED_ENABLED` | `true` | `e9faab10-bf91-40bb-a620-40d5b48b4e43` | `SUCCESS` |
+  | market-ai-orc | `AI_ENABLE_DATANEED` | `true` | `84f5470c-45be-456d-96b3-605e1113244e` | `SUCCESS` |
+  | market-ai-orc | `AI_ENABLE_LOOKUP_FACT` | `false` | `d21aefdf-c134-4f21-9b75-a44cc7eacf2c` | `SUCCESS` |
+
+  - The sandbox was switched on first, so the orchestrator's startup readiness check saw it ready.
+  - The sandbox started with `isolation_enforced=true`, and `sessions_started` closed 0 orphan sessions.
+  - The orc logged no `python_sandbox_not_ready`, and `/ready` returned 200.
+  - Startup logs held no secret-like values.
+  - `railway config pull --force` added the three names to `.railway/railway.ts` as `preserve()`. `railway config plan` shows only the three accepted source drifts of the deactivated legacy services, which were not applied.
+- **Temporary one-off service** `dataneed-poc-job` (`15021c62-c3d8-41ab-ba28-e2e91eb74eb8`):
+  - reference variables only (`DATABASE_URL=${{Postgres.DATABASE_URL}}` for read-only ground-truth sessions, `MARKET_AI_ORC_API_KEY`, `PY_SANDBOX_API_KEY`), all redacted from its output;
+  - deployed by `railway up --path-as-root` and deleted with `railway service delete`.
+- **PoC on dev** (deployment `1260d059-ebd4-4ea5-8250-3f8109bb72bf`): real model, real data, reference date 2026-09-25, with `lookup_fact` still on. The ground truth comes from read-only SQL and pandas.
+
+  | Question | Result | Label | Tool calls | Seconds | Cost (USD) | Ground truth |
+  |---|---|---|---|---|---|---|
+  | YTD of bank stocks vs. the same period last year | ANSWER; coverage PASS; warnings FREQUENCY_GAPS, HISTORICAL_REFERENCE_USES_CURRENT_STATE, HISTORY_BUFFER_SHORTFALL | DATA_COVERAGE_VERIFIED | 18 | 237 | 0.0168 | 48 `Banks` tickers, both requests restricted. Every figure equals the ground truth with the model's stated base, the previous year's last close (deployment `c1f86a6a`) |
+  | Research: BBCA's 10-day return after RSI-14 falls below 30 | ANSWER as a historical pattern; unmet minimum sample, no holdout and no correction disclosed | DATA_COVERAGE_VERIFIED | 16 | 240 | 0.0166 | 10 event days in the same 5 episodes |
+  | Stocks per sector | ANSWER | DATA_COVERAGE_VERIFIED | 10 | 22 | 0.0110 | exact (844 tickers, 12 values) |
+  | BBRI's average weekly volume in August 2026 | ANSWER | DATA_COVERAGE_VERIFIED | 11 | 37 | 0.0124 | exact (5 ISO weeks, mean 693,500,400) |
+  | Top 10 one-month returns across the IDX | ANSWER; FREQUENCY_GAPS disclosed | DATA_COVERAGE_VERIFIED | 12 | 140 | 0.0089 | the all-ticker ranking is exact; the headline ranking also excludes tickers without a full month, as stated |
+  | BBCA close on 2026-09-25 | ANSWER via `lookup_fact` | FACT | 4 | 22 | 0.0022 | exact (6,250) |
+
+  Every answer passed the number-provenance gate with 0 unsupported numbers.
+- **`lookup_fact` parity** (deployments `c1f86a6a-788c-49c7-ba47-314d36b98cd1` with the tool on and `8e5bfa0f-a59f-4082-817c-037b88d019f6` with it off). All six answers equal the ground truth:
+
+  | Question | `lookup_fact` on | DataNeed only |
+  |---|---|---|
+  | BBCA close on 2026-09-25 | 6,250, FACT, 3 calls, 14 s, $0.0009 | 6,250, DATA_COVERAGE_VERIFIED, 9 calls, 35 s, $0.0060 |
+  | BBRI average daily volume, 22–25 Sep 2026 | 173,824,325, DATABASE_AGGREGATE, $0.0026 | 173,824,325, DATA_COVERAGE_VERIFIED, $0.0029 |
+  | TLKM's highest high in September 2026 | 2,720 on 15 Sep, DATABASE_AGGREGATE, $0.0084 | 2,720 on 15 Sep, DATA_COVERAGE_VERIFIED, $0.0082 |
+
+  `AI_ENABLE_LOOKUP_FACT=false` stays set in `dev`. `/v1/lookup` stays in the Governor, so setting the variable back to `true` (or deleting it) is the rollback.
+- Rollback of the whole switch: delete `AI_ENABLE_DATANEED` on market-ai-orc, which restores the Analysis Spec path, then `PY_SANDBOX_DATANEED_ENABLED` on market-python-sandbox. Sessions and bundles in `/data` are kept; no database change is involved.
+- OpenRouter usage for the PoC, parity and local rehearsals: about $0.2 of the $10 key limit.
+
 ## 2026-09-26 — Apply migration 20260925_003 on dev through a temporary job
 
 - Scope approved by the user: apply the DataNeed catalog migration on `dev` through a temporary one-off service, as in earlier releases.
