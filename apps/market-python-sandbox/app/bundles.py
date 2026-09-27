@@ -328,7 +328,8 @@ class BundleBuilder:
                 "rows": sum(files[p["partition_id"]]["rows"] for p in parts),
                 "ranges": entry.get("windows") or [], "source_frequency": entry.get("source_frequency"),
                 "analysis_frequency": entry.get("analysis_frequency"), "resample": entry.get("resample"),
-                "resample_rules": entry.get("resample_rules") or {}, "scope_sha256": entry["scope_sha256"],
+                "resample_rules": entry.get("resample_rules") or {},
+                "aggregation_rules": entry.get("aggregation_rules") or {}, "scope_sha256": entry["scope_sha256"],
                 "restricted_by": [r["relationship_id"] for r in entry.get("restrictions") or []],
                 "quality_manifest_id": quality_id, "quality": profile})
         warnings = [w for w in (need.get("warnings") or [])]

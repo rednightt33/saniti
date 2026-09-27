@@ -261,3 +261,24 @@ def test_the_governor_client_accepts_an_estimate_only_answer_only_for_an_estimat
     with pytest.raises(ToolError):
         client.extract({"x": 1}, {"y": 2})  # a real extraction never answers WITHIN_LIMITS
     assert "estimate_only" not in sent[-1]
+
+
+def test_composite_keys_switch_both_tools_to_data_need_spec_v2() -> None:
+    # IP1 Stage B: with AI_ENABLE_COMPOSITE_KEYS the model names every key pair; off, the v1 schema is unchanged
+    from app.tools import build_default_registry
+    from app.tools.request_data import GovernorClient
+
+    t = httpx.MockTransport(lambda r: httpx.Response(404))
+    kwargs = dict(cursor_secret=b"x" * 32, governor_client=GovernorClient("http://g", "k" * 40, 90, transport=t),
+                  sandbox_client=SandboxClient("http://s", "s" * 40, 45, 20, transport=t), dataneed_enabled=True,
+                  plan_feasibility=True)
+    for composite in (False, True):
+        defs = {d["name"]: d["parameters"] for d in build_default_registry(object(), composite_keys=composite,
+                                                                           **kwargs).definitions()}
+        for name in ("submit_data_need_spec", "check_data_feasibility"):
+            rel = defs[name]["properties"]["relationships"]["items"]["properties"]
+            version = defs[name]["properties"]["spec_version"]["enum"]
+            if composite:
+                assert "left_columns" in rel and "left_column" not in rel and version == ["data_need_spec/v2"]
+            else:
+                assert "left_column" in rel and "left_columns" not in rel and version == ["data_need_spec/v1"]

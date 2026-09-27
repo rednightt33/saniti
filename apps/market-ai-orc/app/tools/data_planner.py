@@ -351,15 +351,17 @@ def check_feasibility(client: Any, planner: ExecutionPlanner, arguments: BaseMod
 
 
 def feasibility_spec(client: Any, planner: ExecutionPlanner, *, timeout_seconds: float,
-                     max_result_bytes: int) -> ToolSpec:
-    from .data_need import CheckDataFeasibilityArgs, argument_issues
+                     max_result_bytes: int, composite_keys: bool = False) -> ToolSpec:
+    from .data_need import CheckDataFeasibilityArgs, CheckDataFeasibilityArgsV2, argument_issues
+
+    model = CheckDataFeasibilityArgsV2 if composite_keys else CheckDataFeasibilityArgs
 
     def handler(arguments: BaseModel) -> dict[str, Any]:
-        assert isinstance(arguments, CheckDataFeasibilityArgs)
+        assert isinstance(arguments, (CheckDataFeasibilityArgs, CheckDataFeasibilityArgsV2))
         return check_feasibility(client, planner, arguments)
 
     return ToolSpec(name="check_data_feasibility", description=CHECK_FEASIBILITY_DESCRIPTION,
-                    arguments_model=CheckDataFeasibilityArgs, handler=handler, timeout_seconds=timeout_seconds,
+                    arguments_model=model, handler=handler, timeout_seconds=timeout_seconds,
                     max_result_bytes=max_result_bytes, argument_errors=argument_issues)
 
 

@@ -31,6 +31,9 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 SPEC_VERSION = "data_need_spec/v1"
+# v2 (IP1 Stage B): a relationship names every entity key pair, left_columns / right_columns; v1's single
+# left_column / right_column stays readable (a v2 relationship may repeat them only when they agree)
+SPEC_VERSIONS = ("data_need_spec/v1", "data_need_spec/v2")
 GROUP_ID = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 REQUEST_SUFFIX = re.compile(r"^[A-Za-z0-9]{1,12}$")
 NAME = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
@@ -67,6 +70,9 @@ RELATIONSHIP_FIELDS = {"relationship_id", "left_request_id", "left_column", "rig
                        "effective_from_column", "effective_to_column"}
 NULLABLE_RELATIONSHIP = {"left_time_column", "right_time_column", "as_of_direction", "effective_from_column",
                          "effective_to_column"}
+RELATIONSHIP_FIELDS_V2 = RELATIONSHIP_FIELDS | {"left_columns", "right_columns"}
+NULLABLE_RELATIONSHIP_V2 = NULLABLE_RELATIONSHIP | {"left_column", "right_column"}
+MAX_KEY_COLUMNS = 8
 
 
 @dataclass(frozen=True)
@@ -244,7 +250,7 @@ def check_schema(raw: Any, limits: Limits, issues: Issues) -> bool:
     if not isinstance(raw, dict):
         issues.add(None, "INVALID_FIELD_TYPE", "", "spec must be an object")
         return False
-    if raw.get("spec_version") != SPEC_VERSION:
+    if raw.get("spec_version") not in SPEC_VERSIONS:
         issues.add(None, "UNSUPPORTED_SPEC_VERSION" if "spec_version" in raw else "MISSING_REQUIRED_FIELD",
                    "spec_version", raw.get("spec_version"))
     _fields(raw, TOP_FIELDS, {"relationships"}, "", None, issues)
@@ -396,16 +402,16 @@ def check_schema(raw: Any, limits: Limits, issues: Issues) -> bool:
                 issues.add(None, "INVALID_FIELD_TYPE", path, rel)
                 continue
             rid = rel.get("left_request_id") if isinstance(rel.get("left_request_id"), str) else None
-            _fields(rel, RELATIONSHIP_FIELDS, NULLABLE_RELATIONSHIP, path, rid, issues)
+            v2 = raw.get("spec_version") == "data_need_spec/v2"
+            _fields(rel, RELATIONSHIP_FIELDS_V2 if v2 else RELATIONSHIP_FIELDS,
+                    NULLABLE_RELATIONSHIP_V2 if v2 else NULLABLE_RELATIONSHIP, path, rid, issues)
             if isinstance(rel.get("relationship_id"), bool) or not isinstance(rel.get("relationship_id"), int) \
                     or rel["relationship_id"] < 1:
                 issues.add(rid, "UNKNOWN_RELATIONSHIP", f"{path}.relationship_id", rel.get("relationship_id"))
             for key in ("left_request_id", "right_request_id"):
                 if rel.get(key) not in seen_ids:
                     issues.add(rid, "INVALID_REQUEST_ID", f"{path}.{key}", rel.get(key))
-            for key in ("left_column", "right_column"):
-                if not isinstance(rel.get(key), str) or not COLUMN.fullmatch(rel[key]):
-                    issues.add(rid, "RELATIONSHIP_KEY_MISMATCH", f"{path}.{key}", rel.get(key))
+            _key_schema(rel, v2, path, rid, issues)
             if rel.get("join_type") not in JOIN_TYPES:
                 issues.add(rid, "INVALID_FIELD_VALUE", f"{path}.join_type", rel.get("join_type"))
             if rel.get("join_semantics") not in JOIN_SEMANTICS:
@@ -417,6 +423,45 @@ def check_schema(raw: Any, limits: Limits, issues: Issues) -> bool:
                 if value is not None and (not isinstance(value, str) or not COLUMN.fullmatch(value)):
                     issues.add(rid, "TIME_COLUMN_MISMATCH", f"{path}.{key}", value)
     return not issues
+
+
+def _key_schema(rel: dict[str, Any], v2: bool, path: str, rid: str | None, issues: Issues) -> None:
+    """v1: one left_column / right_column pair. v2: left_columns / right_columns of equal length (1-8); the v1 fields
+    may be repeated only when they agree with a single pair (RELATIONSHIP_KEY_FORMAT_CONFLICT otherwise)."""
+    if not v2:
+        for key in ("left_column", "right_column"):
+            if not isinstance(rel.get(key), str) or not COLUMN.fullmatch(rel[key]):
+                issues.add(rid, "RELATIONSHIP_KEY_MISMATCH", f"{path}.{key}", rel.get(key))
+        return
+    lists = {}
+    for key in ("left_columns", "right_columns"):
+        value = rel.get(key)
+        if not isinstance(value, list) or not 1 <= len(value) <= MAX_KEY_COLUMNS \
+                or not all(isinstance(c, str) and COLUMN.fullmatch(c) for c in value) or len(set(value)) != len(value):
+            issues.add(rid, "RELATIONSHIP_KEY_MISMATCH", f"{path}.{key}", value)
+            return
+        lists[key] = value
+    if len(lists["left_columns"]) != len(lists["right_columns"]):
+        issues.add(rid, "RELATIONSHIP_KEY_MISMATCH", f"{path}.right_columns", lists["right_columns"])
+        return
+    for single, plural in (("left_column", "left_columns"), ("right_column", "right_columns")):
+        if rel.get(single) is not None and [rel[single]] != lists[plural]:
+            issues.add(rid, "RELATIONSHIP_KEY_FORMAT_CONFLICT", f"{path}.{single}", rel[single])
+
+
+def relationship_keys(rel: dict[str, Any]) -> list[tuple[str, str]]:
+    """The entity key pairs a relationship of either spec version (or an approved entry) names."""
+    if isinstance(rel.get("left_columns"), list):
+        return list(zip(rel["left_columns"], rel.get("right_columns") or []))
+    return [(rel["left_column"], rel["right_column"])]
+
+
+def key_fields(pairs: list[tuple[str, str]]) -> dict[str, Any]:
+    """The canonical key form: one pair as left_column / right_column (the v1 form, so single-key hashes never change),
+    two or more as left_columns / right_columns."""
+    if len(pairs) == 1:
+        return {"left_column": pairs[0][0], "right_column": pairs[0][1]}
+    return {"left_columns": [p[0] for p in pairs], "right_columns": [p[1] for p in pairs]}
 
 
 def _date(text: str) -> date | None:
@@ -572,13 +617,22 @@ class BoundRelationship:
     right: str
     join_type: str
     semantics: str
-    left_column: str
-    right_column: str
+    pairs: list[tuple[str, str]]  # entity key pairs in the catalog's order, in the spec's orientation
     left_time_column: str | None
     right_time_column: str | None
     effective_from_column: str | None
     effective_to_column: str | None
     catalog_left_is_spec_left: bool
+    relationship_type: str | None = None  # in the spec's orientation (ONE_TO_MANY read left to right)
+    requires_preaggregation: bool = False
+
+    @property
+    def left_column(self) -> str:
+        return self.pairs[0][0]
+
+    @property
+    def right_column(self) -> str:
+        return self.pairs[0][1]
 
 
 def cross_request(spec: dict[str, Any], contract: dict[str, Any], issues: Issues,
@@ -613,9 +667,11 @@ def cross_request(spec: dict[str, Any], contract: dict[str, Any], issues: Issues
         else:
             issues.add(rid, "RELATIONSHIP_KEY_MISMATCH", f"{path}.relationship_id", rel["relationship_id"])
             continue
-        if not entry.get("is_allowed") or entry.get("requires_preaggregation"):
+        if not entry.get("is_allowed"):
             issues.add(rid, "RELATIONSHIP_NOT_ALLOWED", f"{path}.relationship_id", rel["relationship_id"])
             continue
+        # requires_preaggregation (IP1 Stage C): allowed; the INNER restriction is a semi-join and never multiplies
+        # rows, and saniti.join refuses a row join until the many side was aggregated with saniti.preaggregate
         supported = entry.get("supported_join_semantics") or []
         if rel["join_semantics"] not in supported:
             issues.add(rid, "JOIN_SEMANTICS_UNAVAILABLE", f"{path}.join_semantics", rel["join_semantics"])
@@ -626,9 +682,13 @@ def cross_request(spec: dict[str, Any], contract: dict[str, Any], issues: Issues
         ltime, rtime = (entry.get("left_time_column"), entry.get("right_time_column")) if forward else \
             (entry.get("right_time_column"), entry.get("left_time_column"))
         pairs = [(lc, rc) for lc, rc in zip(lcols, rcols) if not (lc == ltime and rc == rtime)]
-        if pairs != [(rel["left_column"], rel["right_column"])]:
-            issues.add(rid, "RELATIONSHIP_KEY_MISMATCH", f"{path}.left_column",
-                       f"{rel['left_column']} = {rel['right_column']}")
+        requested = relationship_keys(rel)
+        if sorted(requested) != sorted(pairs):
+            # every entity key of the catalog relationship: a missing one would mix partitions (Domestic and Foreign,
+            # Regular and Nego rows), an extra one is not a documented key
+            field = "left_columns" if isinstance(rel.get("left_columns"), list) else "left_column"
+            issues.add(rid, "RELATIONSHIP_KEY_MISMATCH", f"{path}.{field}",
+                       ", ".join(f"{a} = {b}" for a, b in requested))
             continue
         semantics = rel["join_semantics"]
         left_timed = tables.get(left["source_table"], {}).get("time_column")
@@ -670,13 +730,21 @@ def cross_request(spec: dict[str, Any], contract: dict[str, Any], issues: Issues
                                         "table; past classifications may have differed."})
         bound.append(BoundRelationship(
             index=index, relationship_id=rel["relationship_id"], left=rel["left_request_id"],
-            right=rel["right_request_id"], join_type=rel["join_type"], semantics=semantics,
-            left_column=rel["left_column"], right_column=rel["right_column"],
+            right=rel["right_request_id"], join_type=rel["join_type"], semantics=semantics, pairs=pairs,
             left_time_column=rel.get("left_time_column") or (left_timed if semantics == "EFFECTIVE_DATED" else None),
             right_time_column=rel.get("right_time_column"),
             effective_from_column=rel.get("effective_from_column"), effective_to_column=rel.get("effective_to_column"),
-            catalog_left_is_spec_left=forward))
+            catalog_left_is_spec_left=forward,
+            relationship_type=_oriented_type(entry.get("relationship_type"), forward),
+            requires_preaggregation=bool(entry.get("requires_preaggregation"))))
     return bound
+
+
+def _oriented_type(relationship_type: str | None, forward: bool) -> str | None:
+    """The catalog cardinality read in the spec's orientation (a reversed ONE_TO_MANY is MANY_TO_ONE)."""
+    if forward or relationship_type not in ("ONE_TO_MANY", "MANY_TO_ONE"):
+        return relationship_type
+    return "MANY_TO_ONE" if relationship_type == "ONE_TO_MANY" else "ONE_TO_MANY"
 
 
 # ------------------------------------------------------------------------------------ layer 4: planning feasibility
@@ -810,6 +878,11 @@ def approved_contract(spec: dict[str, Any], contract: dict[str, Any], bound: lis
             "windows": extraction_windows(request, reference) if meta.get("time_column") else [],
             "source_frequency": request["source_frequency"], "analysis_frequency": request["analysis_frequency"],
             "resample": request.get("resample"), "resample_rules": resample_rules,
+            # IP1 Stage C: how each column may be aggregated across entities of a finer grain (saniti.preaggregate);
+            # a column without a rule is never aggregated automatically
+            "aggregation_rules": {c: rule for c in request["columns"] if c not in keys
+                                  and (rule := (columns[request["source_table"]].get(c) or {}).get(
+                                      "cross_entity_aggregation"))},
             "history_buffer": request.get("history_buffer"), "future_buffer": request.get("future_buffer"),
             "ordering": list(request["ordering"]), "sampling_allowed": False,
             "catalog_table_sha256": meta.get("catalog_table_sha256"), "restrictions": []}
@@ -817,8 +890,9 @@ def approved_contract(spec: dict[str, Any], contract: dict[str, Any], bound: lis
     for b in bound:
         right = requests[b.right]
         entry = {"relationship_id": b.relationship_id, "left_request_id": b.left, "right_request_id": b.right,
-                 "join_type": b.join_type, "join_semantics": b.semantics, "left_column": b.left_column,
-                 "right_column": b.right_column, "left_time_column": b.left_time_column,
+                 "join_type": b.join_type, "join_semantics": b.semantics, **key_fields(b.pairs),
+                 "relationship_type": b.relationship_type, "requires_preaggregation": b.requires_preaggregation,
+                 "left_time_column": b.left_time_column,
                  "right_time_column": b.right_time_column, "as_of_direction": "BACKWARD" if b.semantics == "AS_OF"
                  else None, "effective_from_column": b.effective_from_column,
                  "effective_to_column": b.effective_to_column}
@@ -829,16 +903,16 @@ def approved_contract(spec: dict[str, Any], contract: dict[str, Any], bound: lis
             # superset of the exact join, which saniti.join performs in the session). The reference side of a
             # point-in-time join (AS_OF, EFFECTIVE_DATED) is delivered by its own scope only.
             requests[b.left]["restrictions"].append({
-                **{k: entry[k] for k in ("relationship_id", "join_semantics", "left_column", "right_column",
-                                         "left_time_column", "right_time_column", "as_of_direction",
-                                         "effective_from_column", "effective_to_column")},
+                **{k: entry[k] for k in ("relationship_id", "join_semantics", "left_time_column", "right_time_column",
+                                         "as_of_direction", "effective_from_column", "effective_to_column")},
+                **key_fields(b.pairs),
                 "right_table": right["source_table"], "right_scope": right["scope"],
                 "right_scope_sha256": right["scope_sha256"]})
             if b.semantics in ("CURRENT_STATE", "EXACT_DATE"):
                 left = requests[b.left]
                 requests[b.right]["restrictions"].append({
                     "relationship_id": b.relationship_id, "join_semantics": b.semantics,
-                    "left_column": b.right_column, "right_column": b.left_column,
+                    **key_fields([(r, l) for l, r in b.pairs]),
                     "left_time_column": b.right_time_column, "right_time_column": b.left_time_column,
                     "as_of_direction": None, "effective_from_column": None, "effective_to_column": None,
                     "right_table": left["source_table"], "right_scope": left["scope"],
@@ -846,7 +920,8 @@ def approved_contract(spec: dict[str, Any], contract: dict[str, Any], bound: lis
     for entry in requests.values():
         entry["restriction_sha256"] = sha256_json(entry["restrictions"])
     normalized = {**spec, "relationships": list(spec.get("relationships") or [])}
-    return {"spec_version": SPEC_VERSION, "spec": normalized, "spec_sha256": sha256_json(normalized),
+    return {"spec_version": spec.get("spec_version") or SPEC_VERSION, "spec": normalized,
+            "spec_sha256": sha256_json(normalized),
             "request_group_id": spec["request_group_id"], "revision": spec["revision"], "mode": spec["mode"],
             "requests": requests, "relationships": relationships, "reference_date": reference.isoformat(),
             "catalog_sha256": contract.get("catalog_sha256"), "catalog_version": contract.get("catalog_version")}

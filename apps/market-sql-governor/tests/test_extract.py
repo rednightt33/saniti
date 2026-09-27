@@ -467,3 +467,53 @@ def test_estimate_only_answers_like_an_extraction_without_reading_or_storing(gov
     never = ext.handle("test-extract", spec, draft)
     assert (never["status"], never["code"]) == ("REJECTED_POLICY", "LINEAGE_MISMATCH")
     assert not list(tmp_path.glob("datasets/*"))
+
+
+def test_a_composite_key_restriction_uses_every_key_pair(governed_db, tmp_path) -> None:
+    # IP1 Stage B: Broker Summary <-> Feature 02 joins on date plus ticker, broker, investor type and market board
+    ext = extractor(governed_db, tmp_path)
+    rel = admin(governed_db, '''SELECT relationship_id FROM public."AI_catalog_relationships"
+                                WHERE left_table = 'IDX_Broker_Summary'
+                                  AND right_table = 'Feature_02_Broker_Rolling' ''')[0][0]
+    scope = {"type": "AND", "children": [pred("Broker", "EQ", "AK"), pred("Investor Type", "EQ", "Foreign")]}
+    keys = {"left_columns": ["ticker", "broker", "investor_type", "market_board"],
+            "right_columns": ["Symbol", "Broker", "Investor Type", "Market Board"]}
+    rule = {**{k: v for k, v in restriction(rel, "EXACT_DATE", "IDX_Broker_Summary", scope, left_time="date",
+                                            right_time="Date").items() if k not in ("left_column", "right_column")},
+            **keys}
+    spec = extraction(table="Feature_02_Broker_Rolling",
+                      columns=("ticker", "date", "broker", "investor_type", "market_board"), restrictions=[rule],
+                      window=("2025-01-02", "2025-01-10"))
+    outcome = submit(ext, spec)
+    rows = rows_of(ext, outcome)
+    assert rows and {(r["broker"], r["investor_type"]) for r in rows} == {("AK", "Foreign")}
+    executed = manifest_of(ext, outcome)["executed_scope"]
+    assert executed["restriction_sha256"] == sha256_json([rule])  # the canonical form keeps the key lists
+    # one key pair is not the relationship: refused before any SQL
+    single = restriction(rel, "EXACT_DATE", "IDX_Broker_Summary", scope, left_column="ticker", right_column="Symbol",
+                         left_time="date", right_time="Date")
+    partial = {**rule, "left_columns": keys["left_columns"][:3], "right_columns": keys["right_columns"][:3]}
+    for bad in (single, partial):
+        refused = submit(ext, extraction(table="Feature_02_Broker_Rolling", columns=("ticker", "date"),
+                                         restrictions=[bad], window=("2025-01-02", "2025-01-10")))
+        assert (refused["status"], refused["code"]) == ("REJECTED_POLICY", "RELATIONSHIP_KEY_MISMATCH"), refused
+    both = {**rule, "left_column": "ticker", "right_column": "Symbol"}
+    invalid = submit(ext, extraction(table="Feature_02_Broker_Rolling", columns=("ticker", "date"),
+                                     restrictions=[both], window=("2025-01-02", "2025-01-10")))
+    assert (invalid["status"], invalid["code"]) == ("REJECTED_POLICY", "INVALID_EXTRACTION_SPEC")
+
+
+def test_a_relationship_that_needs_preaggregation_may_still_restrict(governed_db, tmp_path) -> None:
+    # a semi-join never multiplies rows (IP1 Stage C): Feature 02 -> Feature 03 restricts Feature 03 rows
+    ext = extractor(governed_db, tmp_path)
+    rel = admin(governed_db, '''SELECT relationship_id FROM public."AI_catalog_relationships"
+                                WHERE left_table = 'Feature_02_Broker_Rolling'
+                                  AND right_table = 'Feature_03_Stock_Broker_Daily' ''')[0][0]
+    rule = {**{k: v for k, v in restriction(rel, "EXACT_DATE", "Feature_02_Broker_Rolling", pred("ticker", "EQ", "BBCA"),
+                                            left_time="date", right_time="date").items()
+               if k not in ("left_column", "right_column")},
+            "left_columns": ["ticker", "market_board"], "right_columns": ["ticker", "market_board"]}
+    rows = rows_of(ext, submit(ext, extraction(table="Feature_03_Stock_Broker_Daily",
+                                               columns=("ticker", "date", "market_board"), restrictions=[rule],
+                                               window=("2025-01-02", "2025-01-10"))))
+    assert rows and {r["ticker"] for r in rows} == {"BBCA"}

@@ -104,13 +104,18 @@ def load_contract(run: Runner, tables: list[str]) -> dict[str, Any]:
     found = {row["table_name"]: row for row in rows if row["is_active"] and row["ai_access_level"] == "BOUNDED_READ"}
     columns: dict[str, dict[str, Any]] = {name: {} for name in found}
     resample = _present(run, "AI_column_catalog", ("resample_aggregation",))
-    for row in run(COLUMNS_SQL.format(resample=", resample_aggregation" if resample else ""), (sorted(found),)):
+    # IP1 Stage C (migration 20260927_005): the rule for aggregating a column across entities of a finer grain (for
+    # example brokers into a ticker-date-board row); absent before that migration
+    cross = _present(run, "AI_column_catalog", ("cross_entity_aggregation",))
+    extra = (", resample_aggregation" if resample else "") + (", cross_entity_aggregation" if cross else "")
+    for row in run(COLUMNS_SQL.format(resample=extra), (sorted(found),)):
         if row["ai_allowed"] and not row["is_sensitive"]:
             columns[row["table_name"]][row["column_name"]] = {
                 "data_type": row["data_type"], "semantic_type": row["semantic_type"], "unit": row["unit"],
                 "filter_allowed": bool(row["filter_allowed"]), "group_by_allowed": bool(row["group_by_allowed"]),
                 "allowed_aggregations": sorted(row["allowed_aggregations"] or []),
-                **({"resample_aggregation": row["resample_aggregation"]} if resample else {})}
+                **({"resample_aggregation": row["resample_aggregation"]} if resample else {}),
+                **({"cross_entity_aggregation": row["cross_entity_aggregation"]} if cross else {})}
     relationships = [_relationship(row) for row in run(relationships_sql(run), (sorted(found), sorted(found)))]
     described: dict[str, Any] = {}
     for name, row in found.items():

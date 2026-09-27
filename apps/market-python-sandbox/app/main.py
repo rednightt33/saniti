@@ -16,6 +16,7 @@ from pydantic import ValidationError
 from .config import Settings
 from .bundles import BUNDLE_ID
 from .dataneed_service import DataNeedError, DataNeedService
+from .data_need import SPEC_VERSIONS
 from .sessions import SessionError
 from .dataneed_store import DataNeedStore
 from .models import ANALYSIS_ID, REQUEST_ID, AnalysisRequest, RunReport
@@ -111,6 +112,8 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                                        "version": REUSE_VERSION},
                 # POST /v1/data-needs/check and GET /v1/data-need-drafts/{draft_id} (Research Plan feasibility)
                 "plan_feasibility": {"enabled": dataneed is not None, "version": FEASIBILITY_VERSION},
+                # IP1 Stage B: data_need_spec/v2 names every key pair of a composite relationship
+                "data_need_spec_versions": list(SPEC_VERSIONS) if dataneed is not None else [],
                 "limits": {**settings.child_limits(), "max_runtime_seconds": settings.max_runtime_seconds,
                            "max_memory_mb": settings.max_memory_mb, "duckdb_memory_mb": settings.duckdb_memory_mb,
                            "max_logical_datasets": settings.max_logical_datasets,

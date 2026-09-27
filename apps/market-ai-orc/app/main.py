@@ -103,6 +103,12 @@ def create_app(
             if not feasibility:
                 log_event("plan_feasibility_inactive", reason="the sandbox does not report plan_feasibility "
                                                               f"version {FEASIBILITY_VERSION}")
+        composite = False
+        if settings.ai_enable_composite_keys and settings.ai_enable_dataneed and sandbox is not None:
+            versions = sandbox.runtime().get("data_need_spec_versions") or []
+            composite = "data_need_spec/v2" in versions
+            if not composite:
+                log_event("composite_keys_inactive", reason="the sandbox does not accept data_need_spec/v2")
         registry = build_default_registry(
             catalog,
             catalog_timeout_seconds=(
@@ -130,6 +136,7 @@ def create_app(
             standard_period_return=settings.ai_enable_standard_period_return,
             catalog_discovery_v2=settings.ai_enable_catalog_discovery_v2,
             plan_feasibility=feasibility,
+            composite_keys=composite,
         )
         auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
             if sandbox is not None or settings.research_audit_database_url else None

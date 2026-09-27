@@ -440,7 +440,8 @@ class SessionManager:
                 "order_by": self._order(dataset), "rows": dataset["rows"],
                 "source_frequency": dataset.get("source_frequency"),
                 "analysis_frequency": dataset.get("analysis_frequency"), "resample": dataset.get("resample"),
-                "resample_rules": dataset.get("resample_rules") or {}, "quality": quality}
+                "resample_rules": dataset.get("resample_rules") or {},
+                "aggregation_rules": dataset.get("aggregation_rules") or {}, "quality": quality}
         session = {
             "session_id": session_id, "limits": s.child_limits(budget), "cpus": cpus, "require_seccomp": True,
             "seed": s.random_seed, "reference_date": manifest["reference_date"],

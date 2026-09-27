@@ -142,6 +142,10 @@ class Settings:
     # estimated by the Governor without extraction (check_data_feasibility); a plan is issued only after a FEASIBLE
     # check and the approved turn starts from that draft. Needs Research Plan confirmation and the DataNeed flow.
     ai_enable_plan_feasibility: bool = False
+    # data_need_spec/v2 (IP1 Stage B): submit_data_need_spec and check_data_feasibility name every entity key pair of
+    # a relationship (left_columns / right_columns), so composite keys such as Broker Summary <-> Feature 02 are
+    # usable. Needs a sandbox that reports data_need_spec/v2 in GET /v1/runtime (otherwise inactive).
+    ai_enable_composite_keys: bool = False
 
     @property
     def conversation_lease_seconds(self) -> int:
@@ -209,6 +213,7 @@ class Settings:
             ai_enable_conversation_reuse=_boolean(env, "AI_ENABLE_CONVERSATION_REUSE", False),
             ai_enable_methodology=_boolean(env, "AI_ENABLE_METHODOLOGY", False),
             ai_enable_plan_feasibility=_boolean(env, "AI_ENABLE_PLAN_FEASIBILITY", False),
+            ai_enable_composite_keys=_boolean(env, "AI_ENABLE_COMPOSITE_KEYS", False),
             sql_governor_api_key=_optional(env, "SQL_GOVERNOR_API_KEY"),
             sql_governor_timeout_seconds=_integer(env, "SQL_GOVERNOR_TIMEOUT_SECONDS", 90),
             request_data_max_result_bytes=_integer(env, "REQUEST_DATA_MAX_RESULT_BYTES", 40000, minimum=8192),

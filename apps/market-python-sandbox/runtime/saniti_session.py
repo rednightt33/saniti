@@ -13,7 +13,11 @@ needs; nothing here computes an indicator or checks a formula.
     sql(query, params=None)         DuckDB SQL over one view per logical name (read-only)
     relation(request)               a lazy DuckDB relation over one dataset
     join(relationship_id, left=None, right=None, how=None)
-                                    the approved relationship as an analytic join with its point-in-time semantics
+                                    the approved relationship as an analytic join with its point-in-time semantics,
+                                    on every key pair, with cardinality checks (join_report() describes the last one)
+    preaggregate(relationship_id, frame=None, measures=None)
+                                    the many side of a relationship aggregated to its key grain with the catalog's
+                                    cross-entity rules (required before a join that needs preaggregation)
     resample(frame, request, frequency=None)
                                     the catalog's resample rules (FIRST/LAST/MAX/MIN/SUM) per entity and period
     period_return(request, range_id, value_column="close", entity_column=None, date_column=None)
@@ -39,9 +43,10 @@ from typing import Any
 
 __all__ = [
     "REQUESTS", "REFERENCE_DATE", "SEED", "requests", "manifest", "quality", "load", "range", "sql", "relation",
-    "join", "resample", "period_return", "insufficient_data", "intermediate_path", "duckdb_connection", "emit_table",
+    "join", "join_report", "preaggregate", "resample", "period_return", "insufficient_data", "intermediate_path", "duckdb_connection", "emit_table",
     "emit_chart", "emit_json", "emit_text", "emit_file", "emit_artifact", "add_warning", "SanitiError",
     "InsufficientInputData", "OutputLimitExceeded", "InvalidOutput", "ResampleRuleMissing", "PeriodReturnError",
+    "JoinCardinalityError", "AggregationRuleMissing",
 ]
 
 REQUESTS: dict[str, dict[str, Any]] = {}
@@ -89,6 +94,16 @@ class InvalidOutput(SanitiError):
 
 class ResampleRuleMissing(SanitiError):
     code = "RESAMPLE_RULE_MISSING"
+
+
+class JoinCardinalityError(SanitiError):
+    """A join would break its relationship's cardinality: duplicate keys on a side declared "one", a many-to-many
+    result, or a raw join where the catalog requires the many side to be aggregated first."""
+    code = "JOIN_CARDINALITY"
+
+
+class AggregationRuleMissing(SanitiError):
+    code = "AGGREGATION_RULE_MISSING"
 
 
 class PeriodReturnError(SanitiError):
@@ -204,7 +219,7 @@ def requests() -> list[dict[str, Any]]:
     """Every data request of the bundle: ids, logical name, table, columns, keys, ranges, rows, quality flags."""
     return [{k: r.get(k) for k in ("data_request_id", "logical_name", "source_table", "columns", "key_columns",
                                    "entity_column", "time_column", "source_frequency", "analysis_frequency",
-                                   "resample", "resample_rules", "rows")}
+                                   "resample", "resample_rules", "aggregation_rules", "rows")}
             | {"ranges": [{k: w[k] for k in ("range_id", "start", "end", "extract_from", "extract_to")}
                           for w in r.get("ranges") or []],
                "quality_flags": (r.get("quality") or {}).get("quality_flags") or []}
@@ -282,11 +297,38 @@ def _relationship(relationship_id: int) -> dict[str, Any]:
                       f"{[r['relationship_id'] for r in _BUNDLE.get('relationships') or []]}")
 
 
+def _keys(rel: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """The entity key columns of a relationship (one pair, or a composite key), in the spec's orientation."""
+    if isinstance(rel.get("left_columns"), list):
+        return list(rel["left_columns"]), list(rel.get("right_columns") or [])
+    return [rel["left_column"]], [rel["right_column"]]
+
+
+_JOIN_REPORT: dict[str, Any] = {}
+
+
+def join_report() -> dict[str, Any]:
+    """What the last saniti.join did: rows on each side and out, null keys, unmatched rows, the checked grain."""
+    return dict(_JOIN_REPORT)
+
+
+def _duplicates(frame, columns: list[str]) -> tuple[int, list[Any]]:
+    keyed = frame.dropna(subset=columns)
+    dup = keyed[keyed.duplicated(subset=columns, keep=False)]
+    return int(len(dup)), dup[columns].drop_duplicates().head(5).to_dict("records")
+
+
 def join(relationship_id: int, left=None, right=None, how: str | None = None):
     """Join two datasets on an approved relationship with its join semantics, per observation date:
     CURRENT_STATE on the key, EXACT_DATE on key and date, AS_OF the latest right row at or before each left date,
     EFFECTIVE_DATED the right row valid on each left date (effective_from <= date < effective_to, open end = NULL).
-    left/right default to the whole datasets; how defaults to the approved join type (INNER or LEFT)."""
+    Every entity key pair of the relationship is used (a composite key never joins on part of itself).
+    left/right default to the whole datasets; how defaults to the approved join type (INNER or LEFT).
+
+    Checks (IP1 Stage B): a side the relationship declares "one" must be unique on its key (and date), otherwise
+    JoinCardinalityError; rows with a null key never match; a LEFT join keeps every left row and marks it in
+    _saniti_match (matched / unmatched); a result larger than the declared grain allows is refused. A relationship that
+    requires preaggregation joins only a many side produced by saniti.preaggregate. join_report() has the counts."""
     import pandas as pd
 
     rel = _relationship(relationship_id)
@@ -296,37 +338,132 @@ def join(relationship_id: int, left=None, right=None, how: str | None = None):
     kind = (how or rel["join_type"]).lower()
     if kind not in ("inner", "left"):
         raise SanitiError("how must be 'inner' or 'left'.")
-    lc, rc = rel["left_column"], rel["right_column"]
+    lc, rc = _keys(rel)
     semantics = rel["join_semantics"]
+    rtype = rel.get("relationship_type")
     suffixes = ("", f"_{right_request['logical_name']}")
-    if semantics == "CURRENT_STATE":
-        return left.merge(right, left_on=lc, right_on=rc, how=kind, suffixes=suffixes)
     lt = rel.get("left_time_column") or left_request.get("time_column")
-    if semantics == "EXACT_DATE":
-        return left.merge(right, left_on=[lc, lt], right_on=[rc, rel["right_time_column"]], how=kind,
-                          suffixes=suffixes)
-    if semantics == "AS_OF":
-        rt = rel["right_time_column"]
+    rt = rel.get("right_time_column")
+    left_grain = lc + ([lt] if semantics in ("EXACT_DATE", "AS_OF") and lt else [])
+    right_grain = rc + ([rt] if semantics in ("EXACT_DATE", "AS_OF") and rt else []) + (
+        [rel["effective_from_column"]] if semantics == "EFFECTIVE_DATED" else [])
+    if rel.get("requires_preaggregation"):
+        many = left if rtype == "MANY_TO_ONE" else right
+        if many.attrs.get("saniti_preaggregated") != relationship_id:
+            raise JoinCardinalityError(
+                f"Relationship {relationship_id} requires the many side to be aggregated to the key grain first: "
+                f"call saniti.preaggregate({relationship_id}, frame, measures) and join its result.")
+    one_sides = {"ONE_TO_MANY": ["left"], "MANY_TO_ONE": ["right"], "ONE_TO_ONE": ["left", "right"]}.get(rtype, [])
+    if semantics in ("AS_OF", "EFFECTIVE_DATED"):
+        one_sides = [s for s in one_sides if s == "left"] + ["right"]  # one history row per key and time
+    for side in one_sides:
+        frame, grain = (left, left_grain) if side == "left" else (right, right_grain)
+        count, examples = _duplicates(frame, grain)
+        if count:
+            raise JoinCardinalityError(
+                f"Relationship {relationship_id} ({rtype}) needs the {side} side unique on {grain}; {count} rows "
+                f"repeat a key, e.g. {examples}. Aggregate or deduplicate that side first.")
+    null_left = int(left[lc].isna().any(axis=1).sum())
+    null_right = int(right[rc].isna().any(axis=1).sum())
+    if semantics == "CURRENT_STATE":
+        merged = left.merge(right, left_on=lc, right_on=rc, how="left", suffixes=suffixes, indicator=True)
+    elif semantics == "EXACT_DATE":
+        merged = left.merge(right, left_on=lc + [lt], right_on=rc + [rt], how="left", suffixes=suffixes,
+                            indicator=True)
+    elif semantics == "AS_OF":
         l_sorted = left.assign(_t=pd.to_datetime(left[lt])).sort_values("_t", kind="mergesort")
-        r_sorted = right.assign(_t=pd.to_datetime(right[rt])).sort_values("_t", kind="mergesort")
+        r_sorted = right.assign(_t=pd.to_datetime(right[rt]), _m=1).sort_values("_t", kind="mergesort")
         merged = pd.merge_asof(l_sorted, r_sorted, on="_t", left_by=lc, right_by=rc, direction="backward",
                                suffixes=suffixes)
+        merged["_merge"] = merged.pop("_m").map({1: "both"}).fillna("left_only")
         merged = merged.drop(columns="_t")
-        if kind == "inner":
-            probe = rt if rt in merged.columns else f"{rt}{suffixes[1]}"
-            merged = merged[merged[probe].notna()]
-        return merged.reset_index(drop=True)
-    start, end = rel["effective_from_column"], rel["effective_to_column"]
-    candidates = left.reset_index(drop=True).reset_index(names="_row").merge(right, left_on=lc, right_on=rc,
-                                                                              how="inner", suffixes=suffixes)
-    t = pd.to_datetime(candidates[lt])
-    valid = (pd.to_datetime(candidates[start]) <= t) & (candidates[end].isna() | (t < pd.to_datetime(candidates[end])))
-    matched = candidates[valid]
-    if kind == "left":
-        missing = left.reset_index(drop=True).reset_index(names="_row")
-        missing = missing[~missing["_row"].isin(matched["_row"])]
-        matched = pd.concat([matched, missing], ignore_index=True).sort_values("_row", kind="mergesort")
-    return matched.drop(columns="_row").reset_index(drop=True)
+    else:
+        start, end = rel["effective_from_column"], rel["effective_to_column"]
+        base = left.reset_index(drop=True).reset_index(names="_row")
+        candidates = base.merge(right, left_on=lc, right_on=rc, how="inner", suffixes=suffixes)
+        t = pd.to_datetime(candidates[lt])
+        valid = (pd.to_datetime(candidates[start]) <= t) & (candidates[end].isna()
+                                                             | (t < pd.to_datetime(candidates[end])))
+        matched = candidates[valid].assign(_merge="both")
+        missing = base[~base["_row"].isin(matched["_row"])].assign(_merge="left_only")
+        merged = pd.concat([matched, missing], ignore_index=True).sort_values("_row", kind="mergesort")
+        merged = merged.drop(columns="_row")
+    matched_mask = merged["_merge"].astype(str) == "both"
+    left_unmatched = int((~matched_mask).sum())
+    merged = merged.drop(columns="_merge")
+    if kind == "inner":
+        out = merged[matched_mask.values].reset_index(drop=True)
+    else:
+        out = merged.assign(_saniti_match=["matched" if m else "unmatched" for m in matched_mask]).reset_index(
+            drop=True)
+    limit = len(right) if rtype == "ONE_TO_MANY" else len(left)
+    if rtype in ("ONE_TO_MANY", "MANY_TO_ONE", "ONE_TO_ONE") and kind == "inner" and len(out) > max(limit, 0) \
+            and semantics in ("CURRENT_STATE", "EXACT_DATE"):
+        raise JoinCardinalityError(f"Relationship {relationship_id} produced {len(out)} rows, more than its "
+                                   f"{rtype} grain allows ({limit}): an unexpected many-to-many match.")
+    if len(out) > len(left) and rtype in ("MANY_TO_ONE", "ONE_TO_ONE"):
+        raise JoinCardinalityError(f"Relationship {relationship_id} ({rtype}) multiplied the left rows "
+                                   f"({len(left)} -> {len(out)}).")
+    _JOIN_REPORT.clear()
+    _JOIN_REPORT.update({"relationship_id": relationship_id, "join_semantics": semantics, "relationship_type": rtype,
+                         "how": kind, "keys": list(zip(lc, rc)), "rows_left": int(len(left)),
+                         "rows_right": int(len(right)), "rows_out": int(len(out)),
+                         "left_unmatched": left_unmatched, "left_null_keys": null_left,
+                         "right_null_keys": null_right, "grain_checked": one_sides})
+    _log({"call": "join", "data_request_id": left_request["data_request_id"],
+          "right_request_id": right_request["data_request_id"],
+          **{k: v for k, v in _JOIN_REPORT.items() if k != "keys"}})
+    return out
+
+
+def preaggregate(relationship_id: int, frame=None, measures=None):
+    """The many side of a relationship aggregated to the relationship's key grain (its entity keys and date), with
+    the catalog's cross-entity rule per column (AI_column_catalog.cross_entity_aggregation, IP1 Stage C).
+
+    measures: a list of columns, or {column: rule}; every column needs a catalog rule and a given rule must equal it.
+    Only additive measures have one (SUM): ratios, percentiles, z-scores, day counts and values repeated from a
+    coarser grain have none and are refused (AggregationRuleMissing). The result has one row per key and date, a
+    source_rows count, and is marked so saniti.join accepts it for a relationship that requires preaggregation."""
+    rel = _relationship(relationship_id)
+    rtype = rel.get("relationship_type")
+    if rtype not in ("MANY_TO_ONE", "ONE_TO_MANY"):
+        raise SanitiError(f"Relationship {relationship_id} ({rtype}) has no many side to aggregate.")
+    left_many = rtype == "MANY_TO_ONE"
+    request = _request(rel["left_request_id"] if left_many else rel["right_request_id"])
+    frame = load(request["data_request_id"]) if frame is None else frame
+    lc, rc = _keys(rel)
+    keys = lc if left_many else rc
+    time = (rel.get("left_time_column") if left_many else rel.get("right_time_column")) \
+        if rel["join_semantics"] in ("EXACT_DATE", "AS_OF") else None
+    grain = keys + ([time] if time else [])
+    rules = request.get("aggregation_rules") or {}
+    wanted = dict.fromkeys(measures) if isinstance(measures, (list, tuple)) else dict(measures or {})
+    if not wanted:
+        raise SanitiError("measures names the columns to aggregate, e.g. ['net_value_1d'].")
+    plan = {}
+    for column, given in wanted.items():
+        if column in grain:
+            raise SanitiError(f"{column} is a key of the target grain {grain}, not a measure.")
+        rule = rules.get(column)
+        if rule is None:
+            raise AggregationRuleMissing(
+                f"{column} has no cross-entity aggregation rule in the catalog, so it cannot be aggregated across "
+                f"{request['logical_name']} rows (ratios, percentiles, z-scores, day counts and repeated values are "
+                f"not additive). Columns with a rule: {sorted(rules)}")
+        if given is not None and str(given).upper() != rule:
+            raise AggregationRuleMissing(f"{column} aggregates with {rule} in the catalog, not {given}.")
+        plan[column] = AGGREGATIONS[rule]
+    missing = [c for c in grain + list(plan) if c not in frame.columns]
+    if missing:
+        raise SanitiError(f"The frame lacks {missing}.")
+    grouped = frame.groupby(grain, dropna=False, sort=True)
+    out = grouped.agg(plan)
+    out["source_rows"] = grouped.size()
+    out = out.reset_index()
+    out.attrs["saniti_preaggregated"] = relationship_id
+    _log({"call": "preaggregate", "relationship_id": relationship_id, "data_request_id": request["data_request_id"],
+          "rows_in": int(len(frame)), "rows_out": int(len(out)), "grain": grain, "measures": plan})
+    return out
 
 
 def resample(frame, request: str, frequency: str | None = None):

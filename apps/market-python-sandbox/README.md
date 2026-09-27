@@ -41,6 +41,20 @@ current flow; while the flag is off, its routes answer 404 and the service keeps
     false);
   - a relationship names a catalog `relationship_id`, INNER or LEFT, and the join semantics the catalog supports
     (CURRENT_STATE, EXACT_DATE, AS_OF, EFFECTIVE_DATED; migration `20260925_003`).
+  - **Composite keys (IP1 Stage B).** `data_need_spec/v1` names one key pair (`left_column`, `right_column`);
+    `data_need_spec/v2` names every entity key pair (`left_columns`, `right_columns`, 1–8 each, any order). Both are
+    accepted (`GET /v1/runtime` reports `data_need_spec_versions`). The pairs must equal the catalog relationship's
+    keys without its time column: leaving one out (for example Broker Summary ↔ Feature 02 on ticker and date only,
+    which would mix brokers, investor types and boards) or adding one is `RELATIONSHIP_KEY_MISMATCH`; a v2
+    relationship may repeat `left_column` / `right_column` only when they equal its single pair
+    (`RELATIONSHIP_KEY_FORMAT_CONFLICT` otherwise). The approved contract keeps one canonical form: a single pair as
+    `left_column` / `right_column` (so single-key contracts and their hashes do not change between v1 and v2), two or
+    more as `left_columns` / `right_columns` in catalog order; restrictions follow the same rule. Approved
+    relationships also carry `relationship_type` (read in the spec's orientation) and `requires_preaggregation`.
+  - **Preaggregation (IP1 Stage C).** A relationship with `requires_preaggregation = true` (Feature 02 → Feature 03)
+    is no longer refused: its INNER restriction is a semi-join that never multiplies rows, and in the session
+    `saniti.join` refuses a row join until the many side came from `saniti.preaggregate`. Each approved request
+    carries `aggregation_rules`, the catalog's `cross_entity_aggregation` per column (migration `20260927_005`).
   - There is no formula, calculation, indicator, method, ranking or output grain.
 - The DataNeedValidator checks four layers: schema, catalog binding (Governor catalog contract), cross-request
   relationships, and planning feasibility. It answers `APPROVED`, `REVISION_REQUIRED` or `CATALOG_UNAVAILABLE`.
@@ -152,7 +166,16 @@ bundle of the same request.
   - `load(request)` (the whole dataset in delivered order), `range(request, range_id, include_buffers=False)`,
     `sql(query)` (one read-only DuckDB view per logical name), `relation(request)`;
   - `join(relationship_id, left, right, how)`, the approved relationship with its point-in-time semantics
-    (CURRENT_STATE, EXACT_DATE, AS_OF backward, EFFECTIVE_DATED half-open);
+    (CURRENT_STATE, EXACT_DATE, AS_OF backward, EFFECTIVE_DATED half-open), on every key pair. It checks the
+    declared cardinality: a side declared "one" (and an AS_OF / EFFECTIVE_DATED history per key and time) must be
+    unique, otherwise `JoinCardinalityError`; a result larger than the grain allows is refused; a LEFT join keeps
+    every left row with `_saniti_match` = `matched` / `unmatched`; null keys never match. `join_report()` gives the
+    rows on each side and out, unmatched rows, null keys and the grain checked (also in the access log);
+  - `preaggregate(relationship_id, frame, measures)`: the many side aggregated to the relationship's key grain
+    (entity keys and date) with each column's catalog cross-entity rule. A column without one (ratios, percentiles,
+    z-scores, day counts, repeated stock-level values) raises `AggregationRuleMissing`; a given rule must equal the
+    catalog's. The result has `source_rows` and is the only input `join` accepts for a relationship that requires
+    preaggregation;
   - `resample(frame, request, frequency)` with the catalog rules;
   - `period_return(request, range_id, value_column='close', entity_column=None, date_column=None)`, a named
     calendar-period return per entity (see below);

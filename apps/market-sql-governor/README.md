@@ -245,6 +245,15 @@ How a limit is split:
 - Each call logs one JSON line (`event = sql_governor_extract`) with status, code, estimates, partitioning,
   dataset id, row count, need, plan and part key. It holds no values.
 
+**Composite keys and preaggregation** (IP1 Stages B and C). A restriction names its key as one pair
+(`left_column`, `right_column`) or, for a composite key, two or more pairs (`left_columns`, `right_columns`), never
+both. The pairs must equal the catalog relationship's keys without its time column, in catalog order
+(`RELATIONSHIP_KEY_MISMATCH` otherwise), and the `EXISTS` condition joins on all of them. The canonical executed
+scope keeps the form it was sent in, so single-key hashes are unchanged. A relationship with
+`requires_preaggregation = true` may restrict: a semi-join never multiplies the source rows; the row join that would
+is refused in the sandbox until the many side is aggregated. The catalog contract carries
+`cross_entity_aggregation` per column once migration `20260927_005` is applied.
+
 **Estimate only** (`"estimate_only": true` in the body; Research Plan feasibility, market-ai-orc
 `check_data_feasibility`). The spec is validated, bound, compiled and EXPLAINed exactly as for an extraction, and the
 answer is `WITHIN_LIMITS` with the estimates, or the same `APPROVED_WITH_PARTITIONING` / `REJECTED_*` an extraction

@@ -36,10 +36,10 @@ import math
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from psycopg import sql
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from .catalog_contract import canonical_json, canonical_value, sha256_json
 from .compiler import CompiledQuery
@@ -83,10 +83,18 @@ class ScopeNode(Strict):
 
 
 class Restriction(Strict):
+    """One INNER relationship pushed down as a semi-join. The entity key is one pair (left_column, right_column) or,
+    for a composite key (IP1 Stage B), two or more pairs (left_columns, right_columns), in the catalog's order; never
+    both forms, so the canonical form (and its hash) stays unique and single-key restrictions keep their old form."""
+
     relationship_id: int = Field(ge=1)
     join_semantics: Literal["CURRENT_STATE", "EXACT_DATE", "AS_OF", "EFFECTIVE_DATED"]
-    left_column: str = Field(pattern=COLUMN_PATTERN)
-    right_column: str = Field(pattern=COLUMN_PATTERN)
+    left_column: str | None = Field(default=None, pattern=COLUMN_PATTERN)
+    right_column: str | None = Field(default=None, pattern=COLUMN_PATTERN)
+    left_columns: list[Annotated[str, StringConstraints(pattern=COLUMN_PATTERN)]] | None = Field(
+        default=None, min_length=2, max_length=8)
+    right_columns: list[Annotated[str, StringConstraints(pattern=COLUMN_PATTERN)]] | None = Field(
+        default=None, min_length=2, max_length=8)
     left_time_column: str | None = Field(pattern=COLUMN_PATTERN)
     right_time_column: str | None = Field(pattern=COLUMN_PATTERN)
     as_of_direction: Literal["BACKWARD"] | None
@@ -95,6 +103,25 @@ class Restriction(Strict):
     right_table: str = Field(pattern=TABLE_PATTERN)
     right_scope: ScopeNode
     right_scope_sha256: str = Field(pattern=SHA256_PATTERN)
+
+    @model_validator(mode="after")
+    def _one_key_form(self) -> "Restriction":
+        single = self.left_column is not None or self.right_column is not None
+        composite = self.left_columns is not None or self.right_columns is not None
+        if single == composite:
+            raise ValueError("give either left_column and right_column, or left_columns and right_columns")
+        if single and (self.left_column is None or self.right_column is None):
+            raise ValueError("left_column and right_column go together")
+        if composite and (self.left_columns is None or self.right_columns is None
+                          or len(self.left_columns) != len(self.right_columns)):
+            raise ValueError("left_columns and right_columns must have the same length")
+        return self
+
+    @property
+    def pairs(self) -> list[tuple[str, str]]:
+        if self.left_columns is not None and self.right_columns is not None:
+            return list(zip(self.left_columns, self.right_columns))
+        return [(str(self.left_column), str(self.right_column))]
 
 
 class Window(Strict):
@@ -342,8 +369,10 @@ def _bind_restriction(index: int, item: Restriction, source_meta: dict[str, Any]
     forward = _relationship_orientation(rel, source, item.right_table)
     if forward is None:
         raise policy("RELATIONSHIP_KEY_MISMATCH", f"{label} does not join {source} to {item.right_table}.")
-    if not rel.get("is_allowed") or rel.get("requires_preaggregation"):
-        raise policy("RELATIONSHIP_NOT_ALLOWED", f"{label} is not approved for row-level restriction.")
+    # A semi-join (EXISTS) never multiplies the source rows, so a relationship that needs preaggregation before a row
+    # join (IP1 Stage C) may still restrict; only a relationship that is not allowed at all is refused.
+    if not rel.get("is_allowed"):
+        raise policy("RELATIONSHIP_NOT_ALLOWED", f"{label} is not an allowed catalog relationship.")
     semantics = item.join_semantics
     if semantics not in (rel.get("supported_join_semantics") or []):
         raise policy("JOIN_SEMANTICS_UNAVAILABLE", f"{label} does not support {semantics}.")
@@ -356,9 +385,10 @@ def _bind_restriction(index: int, item: Restriction, source_meta: dict[str, Any]
     ltime, rtime = (rel.get("left_time_column"), rel.get("right_time_column")) if forward else (
         rel.get("right_time_column"), rel.get("left_time_column"))
     pairs = [(lc, rc) for lc, rc in zip(lcols, rcols) if not (lc == ltime and rc == rtime)]
-    if pairs != [(item.left_column, item.right_column)]:
-        raise policy("RELATIONSHIP_KEY_MISMATCH", f"{label}: the key pair is {pairs}, not "
-                                                  f"{(item.left_column, item.right_column)}.")
+    if pairs != item.pairs:
+        # every entity key of the catalog relationship, in its order: a missing key would mix partitions (for example
+        # Domestic and Foreign, or Regular and Nego rows)
+        raise policy("RELATIONSHIP_KEY_MISMATCH", f"{label}: the key pairs are {pairs}, not {item.pairs}.")
     source_time = source_meta.get("time_column")
     if semantics in ("AS_OF", "EFFECTIVE_DATED") and not forward:
         raise policy("TEMPORAL_DIRECTION_NOT_ALLOWED", f"{label}: point-in-time reference data must be the "
@@ -388,8 +418,9 @@ def _bind_restriction(index: int, item: Restriction, source_meta: dict[str, Any]
     right_canonical = canonical(scope)
     if sha256_json(right_canonical) != item.right_scope_sha256:
         raise policy("SCOPE_HASH_MISMATCH", f"{label}: right_scope_sha256 does not match the right scope.")
-    entry = {"relationship_id": item.relationship_id, "join_semantics": semantics,
-             "left_column": item.left_column, "right_column": item.right_column,
+    keys = {"left_column": item.left_column, "right_column": item.right_column} if item.left_columns is None else {
+        "left_columns": list(item.left_columns), "right_columns": list(item.right_columns or [])}
+    entry = {"relationship_id": item.relationship_id, "join_semantics": semantics, **keys,
              "left_time_column": item.left_time_column, "right_time_column": item.right_time_column,
              "as_of_direction": item.as_of_direction, "effective_from_column": item.effective_from_column,
              "effective_to_column": item.effective_to_column, "right_table": item.right_table,
@@ -486,7 +517,8 @@ def _restriction_sql(r: BoundRestriction, base: str, time_column: str | None, pa
     item = r.spec
     alias = f"r{r.index}"
     table = sql.Identifier("public", r.right_table)
-    key = sql.SQL("{} = {}").format(_column(alias, item.right_column), _column(base, item.left_column))
+    key = sql.SQL(" AND ").join(sql.SQL("{} = {}").format(_column(alias, right), _column(base, left))
+                                for left, right in item.pairs)
     semantics = item.join_semantics
     if semantics == "AS_OF":
         # the latest reference row at or before the observation date must satisfy the reference scope

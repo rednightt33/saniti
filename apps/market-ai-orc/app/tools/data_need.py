@@ -133,6 +133,32 @@ class Relationship(Strict):
     effective_to_column: str | None = Field(description="EFFECTIVE_DATED only: catalog column; else null.")
 
 
+KEY_COLUMNS_DESCRIPTION = ("Every entity key column of the catalog relationship on this side, in the order of its "
+                           "left_columns / right_columns without the time column (a composite key such as ticker, "
+                           "broker, investor_type and market_board names all of them).")
+
+
+class RelationshipV2(Strict):
+    """data_need_spec/v2 (AI_ENABLE_COMPOSITE_KEYS, IP1 Stage B): a relationship names every entity key pair."""
+
+    relationship_id: int = Field(description="Catalog relationship_id between the two requests' tables.")
+    left_request_id: str
+    left_columns: list[str] = Field(description=KEY_COLUMNS_DESCRIPTION)
+    right_request_id: str
+    right_columns: list[str] = Field(description="The matching right-side key columns, pair by pair with "
+                                                 "left_columns.")
+    join_type: Literal["INNER", "LEFT"] = Field(
+        description="INNER restricts the left request to rows with a match in the right request's scope; LEFT "
+                    "leaves it unrestricted. Each request is delivered as its own dataset; the analysis joins them.")
+    join_semantics: Literal["CURRENT_STATE", "EXACT_DATE", "AS_OF", "EFFECTIVE_DATED"] = Field(
+        description="One of the relationship's supported_join_semantics in the catalog.")
+    left_time_column: str | None = Field(description="EXACT_DATE / AS_OF: the catalog left time column; else null.")
+    right_time_column: str | None = Field(description="EXACT_DATE / AS_OF: the catalog right time column; else null.")
+    as_of_direction: Literal["BACKWARD"] | None = Field(description="AS_OF only; else null.")
+    effective_from_column: str | None = Field(description="EFFECTIVE_DATED only: catalog column; else null.")
+    effective_to_column: str | None = Field(description="EFFECTIVE_DATED only: catalog column; else null.")
+
+
 class Subject(Strict):
     data_domain: str
     entity_type: str
@@ -190,6 +216,20 @@ class CheckDataFeasibilityArgs(DataNeedSpecBody):
     approved plan runs)."""
 
 
+class DataNeedSpecBodyV2(DataNeedSpecBody):
+    spec_version: Literal["data_need_spec/v2"]  # type: ignore[assignment]
+    relationships: list[RelationshipV2] = Field(  # type: ignore[assignment]
+        description="Catalog relationships between requests ([] for none), each with every key pair.")
+
+
+class SubmitDataNeedSpecArgsV2(DataNeedSpecBodyV2):
+    research_governance: ResearchGovernance | None = Field(description="Required for RESEARCH; null for ANALYSIS.")
+
+
+class CheckDataFeasibilityArgsV2(DataNeedSpecBodyV2):
+    """check_data_feasibility with data_need_spec/v2."""
+
+
 # ---------------------------------------------------------------- argument errors in the validator's issue shape
 
 def _walk(data: Any, loc: tuple[Any, ...], missing: bool) -> tuple[str, Any, Any]:
@@ -244,7 +284,8 @@ def argument_issues(exc: Exception, raw: Any) -> dict[str, Any]:
 DECLARATION_FIELDS = ("condition", "outcome", "baseline")
 
 
-def submit_data_need(client: SandboxClient, arguments: SubmitDataNeedSpecArgs) -> dict[str, Any]:
+def submit_data_need(client: SandboxClient, arguments: "SubmitDataNeedSpecArgs | SubmitDataNeedSpecArgsV2"
+                     ) -> dict[str, Any]:
     context = current_run_context.get()
     if context is None:
         raise ToolError("No user request is available to anchor the data need's reference date.")
@@ -296,11 +337,14 @@ SUBMIT_DESCRIPTION = (
 )
 
 
-def data_need_specs(client: SandboxClient, *, timeout_seconds: float, max_result_bytes: int) -> list[ToolSpec]:
+def data_need_specs(client: SandboxClient, *, timeout_seconds: float, max_result_bytes: int,
+                    composite_keys: bool = False) -> list[ToolSpec]:
+    model = SubmitDataNeedSpecArgsV2 if composite_keys else SubmitDataNeedSpecArgs
+
     def submit(arguments: BaseModel) -> dict[str, Any]:
-        assert isinstance(arguments, SubmitDataNeedSpecArgs)
+        assert isinstance(arguments, (SubmitDataNeedSpecArgs, SubmitDataNeedSpecArgsV2))
         return submit_data_need(client, arguments)
 
     return [ToolSpec(name="submit_data_need_spec", description=SUBMIT_DESCRIPTION,
-                     arguments_model=SubmitDataNeedSpecArgs, handler=submit, timeout_seconds=timeout_seconds,
+                     arguments_model=model, handler=submit, timeout_seconds=timeout_seconds,
                      max_result_bytes=max_result_bytes, argument_errors=argument_issues)]
