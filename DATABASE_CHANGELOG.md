@@ -5,21 +5,24 @@
 - Status: **added to the repository, not applied to `dev`.** It waits for the user's approval, planned together with
   enabling `AI_ENABLE_CATALOG_DISCOVERY_V2` after the local A/B. Until then the live `Tool_Catalog` still documents the
   v1 contracts, which are the ones market-ai-orc serves while the flag is off.
-- Generated from the market-ai-orc tool definitions at `df76c77` (description and strict input schema of the registry
+- Generated from the market-ai-orc tool definitions at `35e5db0` (description and strict input schema of the registry
   built with `catalog_discovery_v2=True`). The output schemas and limits summarize the v2 contracts (implementation
-  plan of 2026-09-27, phases C1–C2).
+  plan of 2026-09-27, phases C1–C2). First generated at `df76c77`; regenerated before any application after the local
+  A/B found that phrase queries matched nothing (`ERRORS_AND_SOLUTIONS.md` M17): keyword matching, ranking by matched
+  keywords, formula matches in discovery.
 - `database/migrations/20260927_001_register_catalog_discovery_v2.sql`:
   - preflight: `discover_catalog` v1 and `get_catalog_details` v1 of market-ai-orc exist, and neither tool has a v2;
-  - inserts `discover_catalog` v2 (filters, keyset paging 20/50, cursor bound to the filters and a catalog
-    fingerprint, codes `CURSOR_INVALID` and `CATALOG_CHANGED_RESTART_DISCOVERY`) and `get_catalog_details` v2
-    (`table_metadata`, column completeness and `recovery_calls`, resample and join-semantics fields, `formula_query`),
+  - inserts `discover_catalog` v2 (keyword query and subject filters, keyset paging 20/50 ranked by matched keywords,
+    up to five matching formulas, cursor bound to the filters and a catalog fingerprint, codes `CURSOR_INVALID` and
+    `CATALOG_CHANGED_RESTART_DISCOVERY`) and `get_catalog_details` v2 (`table_metadata`, column completeness and
+    `recovery_calls`, resample and join-semantics fields, keyword `formula_query`),
     both `is_active = false` with `feature_flag = AI_ENABLE_CATALOG_DISCOVERY_V2`;
   - adds `successor_version`, `successor_flag` and `successor_note` to both v1 rows. It does not set `superseded_by`:
     v1 remains the active contract, and `Tool_Catalog_one_active_version_idx` allows one active version per tool. The
     switch of `is_active` is a later migration, once the flag is on in dev.
 - Rehearsed on a disposable local PostgreSQL 16 database built from the documented `Tool_Catalog` structure (check
   constraints and the one-active-version index), with both v1 rows active as in dev:
-  - applied; the two v2 rows are inactive with 6 and 7 input properties, `runtime_commit = "df76c77"`, 27 s timeout
+  - applied; the two v2 rows are inactive with 6 and 7 input properties, `runtime_commit = "35e5db0"`, 27 s timeout
     and 32,768-byte caps; both v1 rows carry `successor_version = "v2"`; one active row per tool;
   - a second run and a run on a catalog without v1 were refused by the preflight;
   - a trial switch (v2 active, v1 inactive) satisfied the unique index and was rolled back.
