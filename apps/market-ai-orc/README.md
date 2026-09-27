@@ -231,6 +231,8 @@ Four flags address this. All default off, and with all of them off the requests 
     `ai_catalog_summary_refreshed` (`ok`, `changed`, `chars`, `sha256`).
   - The summary is documentation: its numbers (dates, counts) are not answer sources, and the provenance check still
     reads the system prompt alone.
+  - Decision (2026-09-27): off in dev and not planned (tables stay out of the system prompt). Discovery cost is
+    addressed by [the discovery protocol](#catalog-discovery-v2-and-the-discovery-protocol) instead.
 
 Gate and final-response log events (always on):
 - `ai_final_gate`: `kind` (ANALYSIS, ROUTING, PROVENANCE, CLAIM, PLAN_PROVENANCE), `outcome` (`REJECTED_FOR_REPAIR`
@@ -263,6 +265,8 @@ Gate and final-response log events (always on):
 | `AI_LOG_PROVIDER` | no | `false` | After each run, look up which provider served each model call (OpenRouter `/generation`, in a background thread) and log it as `ai_model_call_provider` |
 | `AI_FINAL_CONTRACT_IN_PROMPT` | no | `false` | Put the final-response JSON contract (and, with Research Plan confirmation, the plan's exact field form) in the system prompt, so a finished run answers in JSON at once |
 | `AI_CATALOG_SUMMARY_IN_PROMPT` | no | `false` | Append a compact summary of the AI catalog (tables, columns, relationships, coverage, tools) to the system prompt, so most runs skip the discovery round trips. Needs `CATALOG_DATABASE_URL` |
+| `AI_ENABLE_CATALOG_DISCOVERY_V2` | no | `false` | Catalog discovery v2: `discover_catalog` filters and keyset paging with a bound cursor; `get_catalog_details` adds `table_metadata`, per-table column completeness with `recovery_calls`, resample and join-semantics fields, and `formula_query`. See [Catalog discovery v2 and the discovery protocol](#catalog-discovery-v2-and-the-discovery-protocol) |
+| `AI_ENABLE_CATALOG_PROTOCOL` | no | `false` | The discovery protocol: a fixed prompt rule, reuse of identical catalog results within a run (`cache_hit`), and `CATALOG_DETAILS_REQUIRED` before `submit_data_need_spec` for metadata the run has not read. Needs `AI_ENABLE_CATALOG_DISCOVERY_V2` (startup refuses otherwise); inactive without `AI_ENABLE_DATANEED` |
 | `AI_CATALOG_SUMMARY_TTL_SECONDS` | no | `900` | Refresh interval of the catalog summary (≥ 60). A stale summary is served while it refreshes in the background |
 | `PY_SANDBOX_SESSION_TIMEOUT_SECONDS` | no | `180` | HTTP timeout of one `run_python` call (20–960); keep it above the sandbox's `PY_SANDBOX_SESSION_EXECUTION_SECONDS` plus 5 s |
 | `AI_MAX_ANALYSIS_SECONDS` | no | `600` | Wall-clock limit per run |
@@ -1041,6 +1045,60 @@ Other cases are reported explicitly:
 - **Database session:** one read-only transaction per tool call, opened with
   `default_transaction_read_only=on`, `statement_timeout`, and a connect timeout. Database
   errors return a generic `TOOL_ERROR` with no server message or DSN.
+
+
+### Catalog discovery v2 and the discovery protocol
+
+Implementation plan of 2026-09-27, phases C1–C3 (`ERRORS_AND_SOLUTIONS.md` M09). Both flags default off; with them off
+the tool schemas, results and prompt are unchanged. The tool rows are registered by
+`database/migrations/20260927_001_register_catalog_discovery_v2.sql` as inactive `v2`; `v1` stays the active row while
+the flag is off.
+
+**`AI_ENABLE_CATALOG_DISCOVERY_V2`** (C1, C2):
+- `discover_catalog(query, data_domain, entity_type, asset_type, page_size, cursor)`. Every argument may be null;
+  `discover_catalog({})` lists the first page.
+  - `query`: case-insensitive substring of `table_name` or `description` (at most 100 characters; `%`, `_` and `\`
+    are matched literally). The subject filters are exact upper-case catalog values.
+  - One keyset page ordered by `table_name`: `page_size` 1–50, default 20. A page may end earlier to stay within the
+    24 KB budget.
+  - The result adds `returned_count`, `total_matching`, `has_more`, `next_cursor`, `applied_filters` and
+    `catalog_fingerprint`; each table entry carries its subject values.
+  - The cursor is HMAC-signed and bound to the tool, the filters and a fingerprint of the visible `AI_table_catalog`
+    rows. A forged cursor, another tool's or one issued for other filters: `CURSOR_INVALID`. A catalog change while
+    paging: `CATALOG_CHANGED_RESTART_DISCOVERY` (restart with `cursor` null).
+- `get_catalog_details` gains `formula_query` and returns more:
+  - `table_metadata` per requested table: `grain`, `primary_key_columns`, `time_column`, `entity_column` and the
+    `subject` values a DataNeedSpec copies.
+  - `COLUMNS` adds `resample_aggregation`. It picks the `FULL`, `COMPACT` or `MINIMAL` tier that fits; every tier
+    keeps names, types, units, permissions and resample rules, and only prose is shortened or dropped.
+    `completeness` per table (`columns_returned`, `columns_total`, `complete`); when cut, `incomplete: true` and
+    `recovery_calls` with the exact arguments that read the rest.
+  - `RELATIONSHIPS` adds `supported_join_semantics`, `left_time_column`, `right_time_column`,
+    `effective_from_column` and `effective_to_column`.
+  - A NULL catalog value is returned as `null` and `null_meaning` says it is not recorded: a null
+    `resample_aggregation` is never a default `LAST`. Where the catalog has no such rules at all:
+    `resample_rules_recorded: false` or `join_semantics_recorded: false`.
+  - `FORMULAS` with `formula_query` (never together with `formula_ids`): up to 20 matches ranked `EXACT`,
+    `NAME_PREFIX`, `NAME_CONTAINS`, `DESCRIPTION_CONTAINS`, ties by `calculation_id`; then read the chosen ones with
+    `formula_ids`.
+
+**`AI_ENABLE_CATALOG_PROTOCOL`** (C3, `app/catalog_protocol.py`), per run only; nothing is kept across runs:
+- A `CATALOG DISCOVERY PROTOCOL` block in the DataNeed rules: filtered discovery, one `get_catalog_details` call per
+  up to three tables with every needed section, `get_dimension_values` only for unknown category values, no routine
+  `get_system_capabilities`, `preview_table_rows` only for a concrete doubt, no repeated calls. It has a fixed size,
+  names no table and contains no numbers.
+- Reuse: an identical successful call of `discover_catalog`, `get_catalog_details`, `read_catalog_rows`,
+  `get_dimension_values` or `get_system_capabilities` returns the stored result with `cache_hit: true`, without a
+  query. Set-valued arguments are compared as sets, text with whitespace collapsed and null as omitted. Errors are not
+  stored. A reused call still counts toward `AI_MAX_TOOL_CALLS` and the repeated-call guard.
+- Metadata guard: before the sandbox, `submit_data_need_spec` is refused with `CATALOG_DETAILS_REQUIRED` when a table
+  contract, a column it uses (requested, in scope, ordering, time or entity column) or a relationship it names was not
+  received in this run from `discover_catalog`, `get_catalog_details` or exact `read_catalog_rows` records. The error
+  lists `missing`, `missing_relationship_ids` and `suggested_calls`. Refusals count toward the repair budget. The
+  Research Plan guard answers first for a RESEARCH submission it would refuse. The DataNeedValidator still decides
+  whether the values are right.
+- Logs: `catalog_details_required` per refusal; `ai_catalog_usage` at run end (`calls` per tool, `cache_hits`,
+  `catalog_queries`, `refusals`, `tables_read`).
 
 ## Full catalog access
 
