@@ -76,3 +76,33 @@ class CursorCodec:
         ):
             raise invalid
         return keys
+
+    def encode_bound(self, tool: str, binding: str, fingerprint: str, key_values: list[Any]) -> str:
+        """A cursor bound to one tool, one set of filters (binding) and one catalog snapshot (fingerprint)."""
+        payload = json.dumps({"v": 2, "t": tool, "b": binding, "f": fingerprint, "k": key_values},
+                             separators=(",", ":")).encode()
+        return f"{_b64(payload)}.{_b64(self._mac(payload))}"
+
+    def decode_bound(self, token: str, tool: str, binding: str, fingerprint: str, key_length: int) -> list[Any]:
+        """The key values of a bound cursor. A forged or foreign cursor, or one issued for other filters, is
+        CURSOR_INVALID; one issued for an earlier catalog snapshot is CATALOG_CHANGED_RESTART_DISCOVERY."""
+        invalid = ToolError(
+            "The cursor is invalid for this tool and these filters. Use the exact next_cursor returned with the same "
+            "filters, or pass cursor null to start from the first page.", code="CURSOR_INVALID")
+        try:
+            payload_text, mac_text = token.split(".", 1)
+            payload = _unb64(payload_text)
+            if not hmac.compare_digest(self._mac(payload), _unb64(mac_text)):
+                raise invalid
+            data = json.loads(payload)
+        except (ValueError, TypeError) as exc:
+            raise invalid from exc
+        keys = data.get("k") if isinstance(data, dict) else None
+        if (not isinstance(data, dict) or data.get("v") != 2 or data.get("t") != tool or data.get("b") != binding
+                or not isinstance(keys, list) or len(keys) != key_length
+                or not all(isinstance(value, (str, int)) and not isinstance(value, bool) for value in keys)):
+            raise invalid
+        if data.get("f") != fingerprint:
+            raise ToolError("The catalog changed while you were paging, so pages would mix two versions. Restart "
+                            "discovery with cursor null.", code="CATALOG_CHANGED_RESTART_DISCOVERY")
+        return keys

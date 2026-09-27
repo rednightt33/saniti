@@ -118,6 +118,12 @@ class Settings:
     # AI_CATALOG_SUMMARY_TTL_SECONDS; the prompt changes only when the catalog does.
     ai_catalog_summary_in_prompt: bool = False
     ai_catalog_summary_ttl_seconds: int = 900
+    # Catalog discovery v2: discover_catalog filters and paging, formula search, join-semantics and resample fields,
+    # table metadata and completeness in get_catalog_details (implementation plan 2026-09-27, phases C1-C2).
+    ai_enable_catalog_discovery_v2: bool = False
+    # The discovery protocol (phase C3): a short prompt rule, reuse of successful catalog results within a run, and a
+    # guard that refuses submit_data_need_spec for tables, columns or relationships not read in the run. Needs v2.
+    ai_enable_catalog_protocol: bool = False
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -171,6 +177,8 @@ class Settings:
             ai_final_contract_in_prompt=_boolean(env, "AI_FINAL_CONTRACT_IN_PROMPT", False),
             ai_catalog_summary_in_prompt=_boolean(env, "AI_CATALOG_SUMMARY_IN_PROMPT", False),
             ai_catalog_summary_ttl_seconds=_integer(env, "AI_CATALOG_SUMMARY_TTL_SECONDS", 900, minimum=60),
+            ai_enable_catalog_discovery_v2=_boolean(env, "AI_ENABLE_CATALOG_DISCOVERY_V2", False),
+            ai_enable_catalog_protocol=_boolean(env, "AI_ENABLE_CATALOG_PROTOCOL", False),
             sql_governor_api_key=_optional(env, "SQL_GOVERNOR_API_KEY"),
             sql_governor_timeout_seconds=_integer(env, "SQL_GOVERNOR_TIMEOUT_SECONDS", 90),
             request_data_max_result_bytes=_integer(env, "REQUEST_DATA_MAX_RESULT_BYTES", 40000, minimum=8192),
@@ -242,6 +250,9 @@ class Settings:
             raise ConfigError("AI_PROVIDER_SORT must be price, throughput or latency")
         if settings.ai_catalog_summary_in_prompt and not settings.catalog_database_url:
             raise ConfigError("AI_CATALOG_SUMMARY_IN_PROMPT needs CATALOG_DATABASE_URL")
+        if settings.ai_enable_catalog_protocol and not settings.ai_enable_catalog_discovery_v2:
+            # the protocol tells the model to filter discovery and read completeness, which only v2 provides
+            raise ConfigError("AI_ENABLE_CATALOG_PROTOCOL needs AI_ENABLE_CATALOG_DISCOVERY_V2")
         if settings.ai_require_research_plan_confirmation:
             problem = weak_key_problem(settings.ai_research_plan_signing_key)
             if problem:

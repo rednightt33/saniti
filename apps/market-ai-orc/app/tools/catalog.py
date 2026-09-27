@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from ..compaction import dumps
 from .registry import ToolError, ToolSpec
+from .rows import CursorCodec
 from .system import NoArguments
 
 
@@ -40,6 +41,14 @@ COLUMN_NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_ ]{0,62}$")
 ENTITY_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")
 METHOD_ID = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,62}$")
 FORMULA_ID = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,62}$")
+SUBJECT_VALUE = re.compile(r"^[A-Z][A-Z0-9_]{1,39}$")
+
+# Discovery v2 (AI_ENABLE_CATALOG_DISCOVERY_V2): filters, paging, formula search, complete join/resample contracts.
+DISCOVER_PAGE_DEFAULT = 20
+FORMULA_SEARCH_LIMIT = 20
+MAX_QUERY_CHARS = 100
+SHORT_TEXT_CHARS = 160
+DISCOVER_KEY_LENGTH = 1
 
 METADATA_NOTICE = "Catalog metadata is documentation. It contains no observed market values or calculation results."
 VISIBILITY_NOTE = (
@@ -78,6 +87,61 @@ ORDER BY t.table_name
 LIMIT %s
 '''
 
+# Discovery v2: the same columns over the filtered visible tables, one keyset page ordered by table_name, and the
+# number of matching tables before paging. Subject filters read to_jsonb so the query stays valid before migration
+# 20260925_001 (then no table matches a subject filter).
+DISCOVER_V2_SQL = f'''
+WITH visible AS ({VISIBLE_TABLES}),
+filtered AS (
+    SELECT t.* FROM public."AI_table_catalog" t
+    WHERE t.table_name IN (SELECT table_name FROM visible)
+      AND (%s::text IS NULL OR t.table_name ILIKE %s ESCAPE '\\' OR t.description ILIKE %s ESCAPE '\\')
+      AND (%s::text IS NULL OR to_jsonb(t) ->> 'data_domain' = %s)
+      AND (%s::text IS NULL OR to_jsonb(t) ->> 'entity_type' = %s)
+      AND (%s::text IS NULL OR to_jsonb(t) ->> 'asset_type' = %s)
+)
+SELECT t.table_name, t.description, t.category, t.grain, t.primary_key_columns,
+       t.time_column, t.entity_column, t.documentation_status, t.coverage_enabled,
+       t.freshness_sla::text AS freshness_sla,
+       to_jsonb(t) ->> 'data_domain' AS data_domain, to_jsonb(t) ->> 'entity_type' AS entity_type,
+       to_jsonb(t) ->> 'asset_type' AS asset_type, to_jsonb(t) -> 'supported_frequencies' AS supported_frequencies,
+       to_jsonb(t) ->> 'time_semantics' AS time_semantics,
+       to_jsonb(t) ->> 'subject_metadata_status' AS subject_metadata_status,
+       (SELECT count(*) FROM public."AI_column_catalog" c
+         WHERE c.table_name = t.table_name AND c.ai_allowed AND NOT c.is_sensitive) AS column_count,
+       (SELECT count(*) FROM public."AI_calculation_catalog" k
+         WHERE k.target_table = t.table_name AND k.status = 'ACTIVE') AS calculation_count,
+       (SELECT count(*) FROM public."AI_catalog_relationships" r
+         WHERE r.is_allowed AND t.table_name IN (r.left_table, r.right_table)
+           AND r.left_table IN (SELECT table_name FROM visible)
+           AND r.right_table IN (SELECT table_name FROM visible)) AS relationship_count,
+       (SELECT count(*) FROM filtered) AS total_matching
+FROM filtered t
+WHERE %s::text IS NULL OR t.table_name > %s
+ORDER BY t.table_name
+LIMIT %s
+'''
+
+# A light fingerprint of the visible table rows only (no scan of market data or coverage rows): a cursor issued for
+# one fingerprint is refused after the table catalog changed.
+CATALOG_FINGERPRINT_SQL = f'''
+SELECT md5(coalesce(string_agg(to_jsonb(t)::text, '|' ORDER BY t.table_name), '')) AS fingerprint
+FROM public."AI_table_catalog" t
+WHERE t.table_name IN ({VISIBLE_TABLES})
+'''
+
+# get_catalog_details v2: the table-level contract a DataNeedSpec copies (grain, keys, time/entity columns, subject).
+TABLE_META_SQL = '''
+SELECT t.table_name, t.grain, t.primary_key_columns, t.time_column, t.entity_column,
+       to_jsonb(t) ->> 'data_domain' AS data_domain, to_jsonb(t) ->> 'entity_type' AS entity_type,
+       to_jsonb(t) ->> 'asset_type' AS asset_type, to_jsonb(t) -> 'supported_frequencies' AS supported_frequencies,
+       to_jsonb(t) ->> 'time_semantics' AS time_semantics,
+       to_jsonb(t) ->> 'subject_metadata_status' AS subject_metadata_status
+FROM public."AI_table_catalog" t
+WHERE t.table_name = ANY(%s)
+ORDER BY t.table_name
+'''
+
 RESEARCH_COUNTS_SQL = '''
 SELECT implementation_status, count(*) AS method_count
 FROM public."AI_research_catalog"
@@ -102,6 +166,23 @@ ORDER BY table_name, ordinal_position
 LIMIT %s
 '''
 
+# v2 adds the resample rule (migration 20260925_003; to_jsonb keeps the query valid before it, and resample_recorded
+# tells the two apart) and each table's own column count, which LIMIT does not cut.
+COLUMNS_V2_SQL = '''
+SELECT c.table_name, c.column_name, c.description, c.data_type, c.semantic_type, c.unit, c.nullable,
+       c.is_primary_key, c.source_column_or_expression, c.allowed_aggregations, c.filter_allowed,
+       c.group_by_allowed, c.example_value, c.documentation_status,
+       to_jsonb(c) ->> 'resample_aggregation' AS resample_aggregation,
+       (to_jsonb(c) ? 'resample_aggregation') AS resample_recorded,
+       count(*) OVER (PARTITION BY c.table_name) AS table_total,
+       count(*) OVER () AS total_matching
+FROM public."AI_column_catalog" c
+WHERE c.table_name = ANY(%s) AND c.ai_allowed AND NOT c.is_sensitive
+  AND (%s::text[] IS NULL OR c.column_name = ANY(%s::text[]))
+ORDER BY c.table_name, c.ordinal_position
+LIMIT %s
+'''
+
 FOUND_COLUMNS_SQL = '''
 SELECT DISTINCT column_name FROM public."AI_column_catalog"
 WHERE table_name = ANY(%s) AND ai_allowed AND NOT is_sensitive AND column_name = ANY(%s)
@@ -117,6 +198,28 @@ WHERE is_allowed AND (left_table = ANY(%s) OR right_table = ANY(%s))
   AND left_table IN (SELECT table_name FROM visible)
   AND right_table IN (SELECT table_name FROM visible)
 ORDER BY relationship_id
+LIMIT %s
+'''
+
+# v2 adds the join-semantics contract of migration 20260925_003 (to_jsonb: valid before it; join_semantics_recorded
+# tells a NULL apart from a catalog without those columns).
+RELATIONSHIPS_V2_SQL = f'''
+WITH visible AS ({VISIBLE_TABLES})
+SELECT r.relationship_id, r.left_table, r.left_columns, r.right_table, r.right_columns,
+       r.relationship_type, r.temporal_rule, r.safe_output_grain, r.requires_preaggregation,
+       r.description, r.version,
+       to_jsonb(r) -> 'supported_join_semantics' AS supported_join_semantics,
+       to_jsonb(r) ->> 'left_time_column' AS left_time_column,
+       to_jsonb(r) ->> 'right_time_column' AS right_time_column,
+       to_jsonb(r) ->> 'effective_from_column' AS effective_from_column,
+       to_jsonb(r) ->> 'effective_to_column' AS effective_to_column,
+       (to_jsonb(r) ? 'supported_join_semantics') AS join_semantics_recorded,
+       count(*) OVER () AS total_matching
+FROM public."AI_catalog_relationships" r
+WHERE r.is_allowed AND (r.left_table = ANY(%s) OR r.right_table = ANY(%s))
+  AND r.left_table IN (SELECT table_name FROM visible)
+  AND r.right_table IN (SELECT table_name FROM visible)
+ORDER BY r.relationship_id
 LIMIT %s
 '''
 
@@ -151,6 +254,23 @@ FROM public."AI_formula_reference"
 WHERE (%s::text[] IS NULL OR calculation_id = ANY(%s::text[]))
 ORDER BY calculation_id LIMIT %s
 '''
+
+# Formula search (v2): exact id or name first, then name prefix, name substring, description substring; ties by
+# calculation_id. The patterns are parameters with LIKE wildcards escaped, so the query text is data, never SQL.
+FORMULA_SEARCH_SQL = '''
+SELECT calculation_id, calculation_name, description, required_inputs,
+       CASE WHEN lower(calculation_id) = lower(%s) OR lower(calculation_name) = lower(%s) THEN 0
+            WHEN calculation_name ILIKE %s ESCAPE '\\' THEN 1
+            WHEN calculation_name ILIKE %s ESCAPE '\\' THEN 2
+            ELSE 3 END AS match_rank,
+       count(*) OVER () AS total_matching
+FROM public."AI_formula_reference"
+WHERE lower(calculation_id) = lower(%s) OR calculation_name ILIKE %s ESCAPE '\\'
+   OR description ILIKE %s ESCAPE '\\'
+ORDER BY match_rank, calculation_id
+LIMIT %s
+'''
+MATCH_LABELS = {0: "EXACT", 1: "NAME_PREFIX", 2: "NAME_CONTAINS", 3: "DESCRIPTION_CONTAINS"}
 
 COVERAGE_DATASET_SQL = '''
 SELECT dataset_name, coverage_mode, reference_dataset_name, actual_min_date, actual_max_date,
@@ -290,6 +410,116 @@ class CatalogDetailsArguments(BaseModel):
         return None if value is None else _checked(value, FORMULA_ID, "formula id", MAX_FORMULA_IDS)
 
 
+def _text_query(value: str | None, label: str) -> str | None:
+    if value is None:
+        return None
+    value = " ".join(value.split())
+    if not value:
+        return None
+    if len(value) > MAX_QUERY_CHARS:
+        raise ValueError(f"{label} is at most {MAX_QUERY_CHARS} characters")
+    return value
+
+
+def _like_pattern(value: str, prefix_only: bool = False) -> str:
+    escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"{escaped}%" if prefix_only else f"%{escaped}%"
+
+
+class CatalogDetailsArgumentsV2(CatalogDetailsArguments):
+    """get_catalog_details with discovery v2: formula search, and FORMULAS named in the sections description."""
+
+    sections: list[Section] = Field(
+        description="Metadata sections, every one you need in one call: COLUMNS (types, units, permissions, resample "
+                    "rules), COVERAGE (recorded date coverage), RELATIONSHIPS (join keys and join semantics), "
+                    "CALCULATIONS, RESEARCH, FORMULAS."
+    )
+    formula_query: str | None = Field(
+        description=f"FORMULAS only: words to search formula names and descriptions (case-insensitive substring; an "
+                    f"exact calculation_id also matches). Returns up to {FORMULA_SEARCH_LIMIT} matches with their ids; "
+                    "then pass formula_ids for full definitions. Null when not searching; never together with "
+                    "formula_ids."
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy_query(cls, value: Any) -> Any:
+        return {"formula_query": None, **value} if isinstance(value, dict) else value
+
+    @field_validator("formula_query")
+    @classmethod
+    def _query(cls, value: str | None) -> str | None:
+        return _text_query(value, "formula_query")
+
+    @model_validator(mode="after")
+    def _search_rules(self) -> "CatalogDetailsArgumentsV2":
+        if self.formula_query is not None and self.formula_ids is not None:
+            raise ValueError("formula_query and formula_ids are exclusive: search with formula_query, then read the "
+                             "chosen definitions with formula_ids")
+        if self.formula_query is not None and "FORMULAS" not in self.sections:
+            raise ValueError("formula_query applies to the FORMULAS section; add FORMULAS to sections")
+        return self
+
+
+class DiscoverArguments(BaseModel):
+    """discover_catalog with discovery v2. Every field is optional: discover_catalog({}) lists the first page."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    query: str | None = Field(
+        description="Optional words matched against table names and descriptions (case-insensitive substring); null "
+                    "for every table.")
+    data_domain: str | None = Field(description="Optional exact subject data_domain, for example MARKET; null for any.")
+    entity_type: str | None = Field(description="Optional exact subject entity_type, for example STOCK; null for any.")
+    asset_type: str | None = Field(description="Optional exact subject asset_type; null for any.")
+    page_size: int | None = Field(
+        description=f"Tables per page, 1-{MAX_DISCOVERED_TABLES}; null for {DISCOVER_PAGE_DEFAULT}. A page may hold "
+                    "fewer when the byte budget is reached; has_more and next_cursor tell.")
+    cursor: str | None = Field(
+        description="Null for the first page, or the exact next_cursor of the previous page with the same filters.")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _defaults(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            return {name: None for name in ("query", "data_domain", "entity_type", "asset_type", "page_size",
+                                            "cursor")} | value
+        return value
+
+    @field_validator("query")
+    @classmethod
+    def _query(cls, value: str | None) -> str | None:
+        return _text_query(value, "query")
+
+    @field_validator("data_domain", "entity_type", "asset_type")
+    @classmethod
+    def _subject(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip().upper()
+        if not SUBJECT_VALUE.fullmatch(value):
+            raise ValueError("a subject filter is an upper-case catalog identifier such as MARKET or STOCK")
+        return value
+
+    @field_validator("page_size")
+    @classmethod
+    def _page(cls, value: int | None) -> int | None:
+        if value is not None and not 1 <= value <= MAX_DISCOVERED_TABLES:
+            raise ValueError(f"page_size must be between 1 and {MAX_DISCOVERED_TABLES}")
+        return value
+
+    @field_validator("cursor")
+    @classmethod
+    def _cursor(cls, value: str | None) -> str | None:
+        if value is not None and (not value.strip() or len(value) > 2048):
+            raise ValueError("cursor must be the exact next_cursor value")
+        return value
+
+    def filters(self) -> dict[str, Any]:
+        return {name: getattr(self, name) for name in ("query", "data_domain", "entity_type", "asset_type")
+                if getattr(self, name) is not None}
+
+
 def _plain(value: Any) -> Any:
     if isinstance(value, (date, datetime)):
         return value.isoformat()
@@ -339,6 +569,18 @@ COLUMN_FULL = (
     "group_by_allowed", "example_value", "documentation_status",
 )
 COLUMN_SUMMARY = ("table_name", "column_name", "description", "data_type", "semantic_type", "unit")
+# v2 tiers: prose is shortened, then dropped, before any identifier, permission, unit or resample rule is.
+COLUMN_FULL_V2 = (*COLUMN_FULL, "resample_aggregation")
+COLUMN_COMPACT_V2 = (
+    "table_name", "column_name", "description", "data_type", "semantic_type", "unit", "nullable", "is_primary_key",
+    "allowed_aggregations", "filter_allowed", "group_by_allowed", "resample_aggregation",
+)
+COLUMN_MINIMAL_V2 = (
+    "table_name", "column_name", "data_type", "unit", "is_primary_key", "allowed_aggregations", "filter_allowed",
+    "group_by_allowed", "resample_aggregation",
+)
+COLUMN_NULLS_V2 = ("description", "unit", "resample_aggregation")
+JOIN_FIELDS_V2 = ("left_time_column", "right_time_column", "effective_from_column", "effective_to_column")
 CALCULATION_FULL = (
     "target_table", "calculation_name", "version", "status", "target_columns", "definition",
     "required_inputs", "parameters", "defaults", "alignment_rules", "missing_data_policy",
@@ -403,11 +645,129 @@ def _tiered_section(
     return section
 
 
-class CatalogTools:
-    def __init__(self, reader: CatalogReader) -> None:
-        self.reader = reader
+def _short(value: Any) -> Any:
+    if not isinstance(value, str) or len(value) <= SHORT_TEXT_CHARS:
+        return value
+    return value[:SHORT_TEXT_CHARS - 1].rstrip() + "…"
 
-    def discover(self, _: BaseModel) -> dict[str, Any]:
+
+def _column_entry_v2(row: dict[str, Any], fields: tuple[str, ...], shorten: bool) -> dict[str, Any]:
+    entry = _entry(row, fields, keep_null=COLUMN_NULLS_V2)
+    if shorten and "description" in entry:
+        entry["description"] = _short(entry["description"])
+    return entry
+
+
+def _columns_v2(rows: list[dict[str, Any]], tables: list[str], column_filter: list[str] | None,
+                budget: int) -> dict[str, Any]:
+    """COLUMNS with discovery v2: the FULL, COMPACT or MINIMAL tier that fits (all keep names, types, units,
+    permissions and resample rules), per-table completeness, and the exact call that fetches what was cut."""
+    total = int(rows[0]["total_matching"]) if rows else 0
+    table_totals = {row["table_name"]: int(row["table_total"]) for row in rows}
+    rows = rows[:ROW_CAPS["COLUMNS"]]
+    detail, entries = "FULL", []
+    for detail, fields in (("FULL", COLUMN_FULL_V2), ("COMPACT", COLUMN_COMPACT_V2), ("MINIMAL", COLUMN_MINIMAL_V2)):
+        entries = [_column_entry_v2(row, fields, shorten=detail != "FULL") for row in rows]
+        if _size(entries) <= budget:
+            break
+    kept, _ = _fit(entries, budget)
+    by_table = _group(kept, "table_name")
+    fetched: dict[str, list[str]] = {}
+    for row in rows:
+        fetched.setdefault(row["table_name"], []).append(row["column_name"])
+    completeness: dict[str, Any] = {}
+    recovery = []
+    for table in tables:
+        returned = [entry["column_name"] for entry in by_table.get(table, [])]
+        known_total = table_totals.get(table)
+        complete = known_total is not None and len(returned) == known_total
+        completeness[table] = {"columns_returned": len(returned), "columns_total": known_total, "complete": complete}
+        if not complete and (known_total is None or known_total > 0):
+            missing = [name for name in fetched.get(table, []) if name not in returned][:MAX_COLUMN_FILTER]
+            recovery.append({"table_names": [table], "sections": ["COLUMNS"],
+                             "column_names": missing or None, "entity_ids": None})
+    section: dict[str, Any] = {
+        "detail": detail,
+        "by_table": by_table,
+        "returned": len(kept),
+        "total_matching": total,
+        "completeness": completeness,
+        "null_meaning": "A null unit, description or resample_aggregation is not recorded in the catalog. A null "
+                        "resample_aggregation means no established rule: never assume LAST or any other default.",
+    }
+    if detail != "FULL":
+        section["detail_note"] = ("Descriptions were shortened (COMPACT) or left out (MINIMAL) to fit; names, types, "
+                                  "units, permissions and resample rules are complete for every returned column.")
+    if recovery:
+        section["incomplete"] = True
+        section["recovery_calls"] = recovery[:MAX_TABLES_PER_CALL]
+        section["hint"] = "Call get_catalog_details with each recovery_calls entry to read the columns that were cut."
+    if rows and not any(row.get("resample_recorded") for row in rows):
+        section["resample_rules_recorded"] = False
+    if not kept:
+        section["note"] = "No matching catalog records."
+    return section
+
+
+def _relationships_v2(rows: list[dict[str, Any]], budget: int) -> dict[str, Any]:
+    total = int(rows[0]["total_matching"]) if rows else 0
+    recorded = any(row.get("join_semantics_recorded") for row in rows)
+    entries = []
+    for row in rows[: ROW_CAPS["RELATIONSHIPS"]]:
+        entry = _entry(row, RELATIONSHIP_FIELDS)
+        if recorded:
+            entry["supported_join_semantics"] = list(row.get("supported_join_semantics") or [])
+            entry.update({name: row.get(name) for name in JOIN_FIELDS_V2})
+        entries.append(entry)
+    kept, _ = _fit(entries, budget)
+    result: dict[str, Any] = {
+        "entries": kept,
+        "returned": len(kept),
+        "total_matching": total,
+        "join_rule": "left_columns[i] joins right_columns[i]; safe_output_grain is the documented result grain.",
+    }
+    if recorded:
+        result["join_semantics_note"] = (
+            "A data need may use only a relationship's supported_join_semantics (empty: not joinable). EXACT_DATE and "
+            "AS_OF use left_time_column/right_time_column; EFFECTIVE_DATED uses effective_from_column/"
+            "effective_to_column. A null field is not recorded in the catalog, not a default.")
+    elif rows:
+        result["join_semantics_recorded"] = False
+    if len(kept) < total:
+        result["truncated"] = True
+    if not kept:
+        result["note"] = "No documented relationships for the requested tables."
+    return result
+
+
+def _table_entry(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        **_entry(row, ("table_name", "description", "category", "grain", "primary_key_columns", "time_column",
+                       "entity_column", "documentation_status", "freshness_sla", "coverage_enabled"),
+                 keep_null=("description",)),
+        **({"subject": _entry(row, ("data_domain", "entity_type", "asset_type", "supported_frequencies",
+                                    "time_semantics", "subject_metadata_status"), keep_null=("asset_type",))}
+           if row.get("data_domain") else {}),
+        "available_metadata": {
+            "columns": int(row["column_count"]),
+            "calculations": int(row["calculation_count"]),
+            "relationships": int(row["relationship_count"]),
+        },
+    }
+
+
+class CatalogTools:
+    def __init__(self, reader: CatalogReader, *, discovery_v2: bool = False,
+                 codec: CursorCodec | None = None) -> None:
+        self.reader = reader
+        self.discovery_v2 = discovery_v2
+        self.codec = codec
+        if discovery_v2 and codec is None:
+            raise ValueError("discovery v2 needs a cursor codec")
+
+    def discover(self, arguments: BaseModel) -> dict[str, Any]:
+        if self.discovery_v2 and isinstance(arguments, DiscoverArguments):
+            return self._discover_v2(arguments)
         with self.reader.read_only() as run:
             rows = run(DISCOVER_SQL, (MAX_DISCOVERED_TABLES + 1,))
             research = run(RESEARCH_COUNTS_SQL, ())
@@ -455,6 +815,67 @@ class CatalogTools:
             result["note"] = "The AI catalog currently exposes no tables."
         return result
 
+    def _discover_v2(self, arguments: DiscoverArguments) -> dict[str, Any]:
+        assert self.codec is not None
+        filters = arguments.filters()
+        binding = dumps(filters)
+        page_size = arguments.page_size or DISCOVER_PAGE_DEFAULT
+        pattern = _like_pattern(arguments.query) if arguments.query else None
+        with self.reader.read_only() as run:
+            fingerprint = str(run(CATALOG_FINGERPRINT_SQL, ())[0]["fingerprint"])[:16]
+            after = None
+            if arguments.cursor is not None:
+                after = str(self.codec.decode_bound(arguments.cursor, "discover_catalog", binding, fingerprint,
+                                                    DISCOVER_KEY_LENGTH)[0])
+            rows = run(DISCOVER_V2_SQL, (
+                arguments.query, pattern, pattern,
+                arguments.data_domain, arguments.data_domain, arguments.entity_type, arguments.entity_type,
+                arguments.asset_type, arguments.asset_type, after, after, page_size + 1))
+            research = run(RESEARCH_COUNTS_SQL, ())
+            formulas = run(FORMULA_COUNT_SQL, ())
+        total = int(rows[0]["total_matching"]) if rows else 0
+        base: dict[str, Any] = {
+            "research_catalog": {
+                "catalog_name": "AI_research_catalog",
+                "method_count": sum(int(row["method_count"]) for row in research),
+                "implementation_status_counts": {row["implementation_status"]: int(row["method_count"])
+                                                 for row in research},
+                "scope": "GLOBAL_METHOD_REFERENCE",
+            },
+            "formula_catalog": {
+                "catalog_name": "AI_formula_reference",
+                "formula_count": int(formulas[0]["formula_count"]) if formulas else 0,
+                "scope": "GLOBAL_FORMULA_REFERENCE",
+                "note": "Documented formula definitions, not verified or executable implementations. Search them with "
+                        "get_catalog_details sections [FORMULAS] and formula_query.",
+            },
+            "applied_filters": filters,
+            "catalog_fingerprint": fingerprint,
+            "notice": METADATA_NOTICE + " Use get_catalog_details for columns, relationships, calculations, "
+                      "coverage, research methods, and formulas. " + VISIBILITY_NOTE,
+        }
+        entries = [_table_entry(row) for row in rows[:page_size]]
+        kept, cut = _fit(entries, RESULT_BUDGET_BYTES - _size(base) - 400)
+        has_more = cut or len(rows) > page_size
+        last = kept[-1]["table_name"] if kept else None
+        if has_more and not kept:
+            raise ToolError("A single catalog table entry exceeds the result budget; narrow the filters.")
+        result = {
+            "tables": kept,
+            "table_count": len(kept),
+            "returned_count": len(kept),
+            "total_matching": total,
+            "has_more": has_more,
+            "next_cursor": self.codec.encode_bound("discover_catalog", binding, fingerprint, [last])
+            if has_more and last else None,
+            "truncated": has_more,
+            **base,
+        }
+        if not kept:
+            result["note"] = ("No table matches these filters." if filters else
+                              "The AI catalog currently exposes no tables.")
+        return result
+
     def details(self, arguments: BaseModel) -> dict[str, Any]:
         assert isinstance(arguments, CatalogDetailsArguments)
         with self.reader.read_only() as run:
@@ -474,6 +895,19 @@ class CatalogTools:
             }
             if unknown:
                 base["unknown_tables"] = unknown
+            if self.discovery_v2 and tables:
+                # the table-level contract a data need copies: grain, keys, time/entity columns, subject values
+                base["table_metadata"] = {
+                    row["table_name"]: {
+                        **_entry(row, ("grain", "primary_key_columns", "time_column", "entity_column"),
+                                 keep_null=("time_column", "entity_column")),
+                        **({"subject": _entry(row, ("data_domain", "entity_type", "asset_type",
+                                                    "supported_frequencies", "time_semantics",
+                                                    "subject_metadata_status"), keep_null=("asset_type",))}
+                           if row.get("data_domain") else {}),
+                    }
+                    for row in run(TABLE_META_SQL, (tables,))
+                }
             remaining = RESULT_BUDGET_BYTES - _size(base) - 200
             built: dict[str, Any] = {}
             ordered = [section for section in ALLOCATION_ORDER if section in arguments.sections]
@@ -494,6 +928,16 @@ class CatalogTools:
         budget: int,
     ) -> dict[str, Any]:
         columns = arguments.column_names
+        if section == "COLUMNS" and self.discovery_v2:
+            rows = run(COLUMNS_V2_SQL, (tables, columns, columns, ROW_CAPS["COLUMNS"] + 1))
+            result = _columns_v2(rows, tables, columns, budget)
+            if columns:
+                present = {row["column_name"] for row in run(FOUND_COLUMNS_SQL, (tables, columns))}
+                missing = [name for name in columns if name not in present]
+                if missing:
+                    result["unknown_columns"] = missing
+            return result
+
         if section == "COLUMNS":
             rows = run(COLUMNS_SQL, (tables, columns, columns, ROW_CAPS["COLUMNS"] + 1))
             result = _tiered_section(
@@ -533,6 +977,9 @@ class CatalogTools:
                 result["hint"] = "Pass method_ids to retrieve full definitions for specific research methods."
             return result
 
+        if section == "FORMULAS" and getattr(arguments, "formula_query", None):
+            return self._formula_search(run, str(getattr(arguments, "formula_query")), budget)
+
         if section == "FORMULAS":
             rows = run(FORMULAS_SQL, (arguments.formula_ids, arguments.formula_ids, ROW_CAPS["FORMULAS"] + 1))
             total = int(rows[0]["total_matching"]) if rows else 0
@@ -548,6 +995,9 @@ class CatalogTools:
                 result["truncated"] = len(kept) < total
                 result["hint"] = "Pass formula_ids to retrieve full definitions for specific formulas."
             return result
+
+        if section == "RELATIONSHIPS" and self.discovery_v2:
+            return _relationships_v2(run(RELATIONSHIPS_V2_SQL, (tables, tables, ROW_CAPS["RELATIONSHIPS"] + 1)), budget)
 
         if section == "RELATIONSHIPS":
             rows = run(RELATIONSHIPS_SQL, (tables, tables, ROW_CAPS["RELATIONSHIPS"] + 1))
@@ -567,6 +1017,35 @@ class CatalogTools:
             return result
 
         return self._coverage(run, tables, found, arguments.entity_ids, budget)
+
+    @staticmethod
+    def _formula_search(run: QueryRunner, query: str, budget: int) -> dict[str, Any]:
+        exact, prefix, contains = query, _like_pattern(query, prefix_only=True), _like_pattern(query)
+        rows = run(FORMULA_SEARCH_SQL, (exact, exact, prefix, contains, exact, contains, contains,
+                                        FORMULA_SEARCH_LIMIT + 1))
+        total = int(rows[0]["total_matching"]) if rows else 0
+        entries = [{
+            "calculation_id": row["calculation_id"],
+            "calculation_name": row.get("calculation_name"),
+            "description": _short(row.get("description")),
+            "required_inputs": _short(row.get("required_inputs")),
+            "match": MATCH_LABELS.get(int(row["match_rank"]), "DESCRIPTION_CONTAINS"),
+        } for row in rows[:FORMULA_SEARCH_LIMIT]]
+        kept, _ = _fit(entries, budget)
+        result: dict[str, Any] = {
+            "mode": "SEARCH", "query": query, "entries": kept, "returned": len(kept), "total_matching": total,
+            "note": "Documented formula definitions, not verified or executable implementations. Pass the chosen "
+                    "calculation_id values as formula_ids for full definitions.",
+        }
+        if len(kept) < total:
+            result["truncated"] = True
+            result["hint"] = ("More formulas match: make formula_query more specific, or page through "
+                              "AI_formula_reference with read_catalog_rows.")
+        if not kept:
+            result["note"] = ("No formula matches. The search compares text only, not synonyms (for example "
+                              "'Wilder' does not find 'RSI'): try another term, or ask the user which formula is "
+                              "meant. Never substitute a similar formula.")
+        return result
 
     @staticmethod
     def _coverage(
@@ -622,8 +1101,46 @@ class CatalogTools:
         return result
 
 
-def catalog_specs(reader: CatalogReader, *, timeout_seconds: float) -> list[ToolSpec]:
-    tools = CatalogTools(reader)
+def catalog_specs(reader: CatalogReader, *, timeout_seconds: float, discovery_v2: bool = False,
+                  codec: CursorCodec | None = None) -> list[ToolSpec]:
+    tools = CatalogTools(reader, discovery_v2=discovery_v2, codec=codec)
+    if discovery_v2:
+        return [
+            ToolSpec(
+                name="discover_catalog",
+                description=(
+                    "Find data tables in Saniti's AI catalog. Each entry gives the description, category, grain, "
+                    "keys, time and entity columns, subject values (data_domain, entity_type, asset_type, "
+                    "supported_frequencies, time_semantics), documentation status and how much column, calculation "
+                    "and relationship metadata exists; plus the research-method and formula catalog counts. Filter "
+                    "with query and the subject fields; page with next_cursor while has_more is true. Returns "
+                    "catalog metadata only, never data rows."
+                ),
+                arguments_model=DiscoverArguments,
+                handler=tools.discover,
+                timeout_seconds=timeout_seconds,
+            ),
+            ToolSpec(
+                name="get_catalog_details",
+                description=(
+                    f"Retrieve catalog metadata for up to {MAX_TABLES_PER_CALL} tables returned by discover_catalog, "
+                    "with every section you need in one call. The result starts with table_metadata (grain, keys, "
+                    "time/entity columns, subject values). COLUMNS: meanings, types, units, allowed aggregations, "
+                    "filter/group permissions and resample rules, with per-table completeness and recovery_calls "
+                    "when cut. RELATIONSHIPS: join keys, temporal rules, supported join semantics and their time or "
+                    "validity columns, output grain. CALCULATIONS: documented calculation definitions. COVERAGE: "
+                    "recorded date coverage and verification status. RESEARCH: global reference methods (table_names "
+                    "[] for RESEARCH only; method_ids to narrow). FORMULAS: global documented formulas (table_names [] "
+                    "for FORMULAS only); search them by name or description with formula_query, then read chosen ones "
+                    "with formula_ids. Documented definitions are not verified or executable implementations. Large "
+                    "sections are shortened or truncated and say so. Returns documentation only, never observed "
+                    "values."
+                ),
+                arguments_model=CatalogDetailsArgumentsV2,
+                handler=tools.details,
+                timeout_seconds=timeout_seconds,
+            ),
+        ]
     return [
         ToolSpec(
             name="discover_catalog",

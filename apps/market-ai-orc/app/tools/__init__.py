@@ -37,15 +37,18 @@ def build_default_registry(
     dataneed_enabled: bool = False,
     session_timeout_seconds: float = 180.0,
     standard_period_return: bool = False,
+    catalog_discovery_v2: bool = False,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
     registry.register(capabilities_spec(registry))
     if catalog_reader is not None:
-        for spec in catalog_specs(catalog_reader, timeout_seconds=catalog_timeout_seconds):
+        codec = CursorCodec(cursor_secret or os.urandom(32))
+        for spec in catalog_specs(catalog_reader, timeout_seconds=catalog_timeout_seconds,
+                                  discovery_v2=catalog_discovery_v2, codec=codec):
             registry.register(spec)
         registry.register(catalog_rows_spec(
-            catalog_reader, CursorCodec(cursor_secret or os.urandom(32)),
+            catalog_reader, codec,
             default_page_size=page_size_default, max_page_size=page_size_max,
             page_max_bytes=page_max_bytes, timeout_seconds=catalog_timeout_seconds,
         ))

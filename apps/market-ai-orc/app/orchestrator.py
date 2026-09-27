@@ -11,12 +11,13 @@ from datetime import datetime, timezone
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
+from .catalog_protocol import CACHE_NOTE, CACHEABLE_TOOLS, CatalogLedger, cache_key, gaps, record
 from .compaction import dumps, estimate_tokens, stable_hash, trim_history
 from .config import Settings
 from .openrouter_client import ProviderError, response_usage
 from .research_plan import (CLASSIFIER_INSTRUCTIONS, CLASSIFIER_SCHEMA, ContinuationOut, PlanSigner,
                             PlanVerificationError, ReplyClassification, ResearchGuard, ResearchPlan,
-                            current_research_guard, plan_digest)
+                            current_research_guard, guard_research_submission, plan_digest)
 from .schemas import (
     FINAL_RESPONSE_SCHEMA, STATUS_BY_RESPONSE_TYPE, AgentRunRequest, AgentRunResponse, AnalysisSummary,
     ExecutionMetadata, ExperimentSummary, FinalResponse, NumberProvenance, ReplyClassifierUsage,
@@ -298,6 +299,36 @@ emitted table; state how many were left out and why. Returns use prices
 as stored, not adjusted for dividends. A date-to-date formula the user
 gives, event forward returns, rolling returns and intraday open-to-close
 returns follow their own definitions, not this convention."""
+CATALOG_PROTOCOL_RULES = """
+
+CATALOG DISCOVERY PROTOCOL
+Read the catalog only as far as the question needs, and reuse what this
+run already received:
+1. For data not yet read in this run, call discover_catalog with the
+filters that fit the question (query, data_domain, entity_type,
+asset_type). Follow next_cursor only while has_more is true and the
+table you need is not listed yet.
+2. Call get_catalog_details for the tables you will use, up to three
+per call, with every section you need in the same call: COLUMNS for
+each column you will request, filter or order by; COVERAGE for the time
+you need; RELATIONSHIPS when requests are joined. Its table_metadata
+gives the subject values, grain and time and entity columns. Add
+CALCULATIONS, FORMULAS or RESEARCH only when the method needs them.
+3. Use get_dimension_values for an exact category value you do not
+know yet.
+4. get_system_capabilities is not a routine first step: the tool list
+already shows what is available. Call preview_table_rows only for a
+concrete doubt about a column's format or content.
+5. Do not repeat a call whose successful result you already have and
+that covers the need; an identical call returns the same result, marked
+cache_hit. Further calls are right for the next page, a section marked
+incomplete (use its recovery_calls), a new field, a changed catalog, or
+an error repair.
+6. submit_data_need_spec is refused with CATALOG_DETAILS_REQUIRED when a
+table contract, a column it uses or a relationship it names was not read
+in this run; the refusal lists the exact call to make.
+A Research Plan needs only enough discovery to judge that the data and
+methods exist."""
 LOOKUP_RULE = ("Use lookup_fact only for a specific source fact: a value at explicit\n"
                "entities and dates, or a SUM, AVG, MIN, MAX, or COUNT the database\n"
                "computes over an explicit scope; each value carries a fact_id.\n")
@@ -333,7 +364,8 @@ def final_contract_block(contract: str, plan_confirmation: bool) -> str:
 
 
 def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirmation: bool = False,
-                        period_return: bool = False, final_contract: bool = False) -> str:
+                        period_return: bool = False, final_contract: bool = False,
+                        catalog_protocol: bool = False) -> str:
     """The system prompt for the registered tools. It is fixed for a deployment (AI_ENABLE_LOOKUP_FACT,
     AI_ENABLE_DATANEED, AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION, AI_ENABLE_STANDARD_PERIOD_RETURN,
     AI_FINAL_CONTRACT_IN_PROMPT), so every call of every run shares one byte-identical cacheable prefix. With the
@@ -343,7 +375,7 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
     if dataneed:
         common, _ = SYSTEM_PROMPT_TEMPLATE.split("DATA QUERY RULES\n", 1)
         template = common + DATANEED_RULES + (RESEARCH_PLAN_RULES if plan_confirmation else "") \
-            + (PERIOD_RETURN_RULES if period_return else "")
+            + (PERIOD_RETURN_RULES if period_return else "") + (CATALOG_PROTOCOL_RULES if catalog_protocol else "")
     if final_contract:
         # plan_confirmation reaches here only together with dataneed (see AgentOrchestrator.__init__)
         contract = PLAN_RESPONSE_CONTRACT if plan_confirmation else RESPONSE_CONTRACT
@@ -593,6 +625,8 @@ class RunState:
     instructions: str = ""
     # {iteration, provider_response_id} of every model call, for the provider lookup (AI_LOG_PROVIDER)
     model_calls: list[dict[str, Any]] = field(default_factory=list)
+    # catalog metadata received in this run, reusable catalog results and discovery counters (AI_ENABLE_CATALOG_PROTOCOL)
+    catalog: CatalogLedger = field(default_factory=CatalogLedger)
     provider_response_id: str | None = None
     final_rejections: int = 0
     tools_offered: bool = False
@@ -677,9 +711,13 @@ class AgentOrchestrator:
         self.signer = PlanSigner(settings.ai_research_plan_signing_key or "", settings.ai_research_plan_ttl_seconds,
                                  wall_clock) if self.plan_confirmation else None
         period_return = settings.ai_enable_standard_period_return and self.dataneed
+        # The protocol guards submit_data_need_spec, so it exists only in the DataNeed flow.
+        self.catalog_protocol = settings.ai_enable_catalog_protocol and self.dataneed
+        if settings.ai_enable_catalog_protocol and not self.dataneed:
+            log_event("catalog_protocol_inactive", reason="AI_ENABLE_DATANEED is off")
         self.system_prompt = build_system_prompt(settings.ai_enable_lookup_fact, self.dataneed,
                                                  self.plan_confirmation, period_return,
-                                                 settings.ai_final_contract_in_prompt)
+                                                 settings.ai_final_contract_in_prompt, self.catalog_protocol)
         self.final_schema = final_response_schema(self.plan_confirmation)
         contract = PLAN_RESPONSE_CONTRACT if self.plan_confirmation else RESPONSE_CONTRACT
         self.response_contract = contract
@@ -786,6 +824,11 @@ class AgentOrchestrator:
             repair_ledger=state.repairs or None,
         )
         log_event("ai_model_usage_summary", **self._usage_summary(state))
+        if self.catalog_protocol:
+            ledger = state.catalog
+            log_event("ai_catalog_usage", request_id=state.request_id, calls=ledger.calls,
+                      cache_hits=ledger.cache_hits, catalog_queries=sum(ledger.calls.values()) - ledger.cache_hits,
+                      refusals=ledger.refusals, tables_read=sorted(t for t, v in ledger.tables.items() if v.contract))
         if self.provider_logger is not None:
             try:
                 self.provider_logger.submit(state.request_id, state.model_calls)
@@ -1115,7 +1158,42 @@ class AgentOrchestrator:
                 "Use the earlier result instead of repeating it.",
             )
 
+        arguments = self._normalized_arguments(raw_arguments)
+        stored_hash = None
+        if self.catalog_protocol and name in CACHEABLE_TOOLS:
+            state.catalog.calls[name] = state.catalog.calls.get(name, 0) + 1
+            cached = state.catalog.cache.get(cache_key(name, arguments))
+            if cached is not None:
+                # no database query; the repeated-call count sees the original result, so repeats stay bounded
+                state.catalog.cache_hits += 1
+                stored_hash = stable_hash(cached)
+                outcome = ToolOutcome(call_id=call_id, name=name, ok=True,
+                                      output={**cached, "cache_hit": True, "cache_note": CACHE_NOTE})
+                state.call_history[key] = (count + 1 if last_result in (None, stored_hash) else 1, stored_hash)
+                return outcome
+        if self.catalog_protocol and name == "submit_data_need_spec" and not self._plan_guard_refuses(arguments):
+            missing = gaps(state.catalog, arguments)
+            if missing is not None:
+                state.catalog.refusals += 1
+                outcome = error_outcome(
+                    call_id, name, "CATALOG_DETAILS_REQUIRED",
+                    "This data need uses catalog metadata that this run has not read, so it was not submitted. "
+                    "Make the calls listed in suggested_calls, check the data need against their results, then "
+                    "submit it again.")
+                outcome.output["error"].update(missing=missing["tables"],
+                                               missing_relationship_ids=missing["relationship_ids"],
+                                               suggested_calls=missing["calls"])
+                log_event("catalog_details_required", request_id=state.request_id,
+                          tables=[m["table"] for m in missing["tables"]],
+                          relationships=missing["relationship_ids"])
+                return self._repair_budget(state, call_id, name, outcome)
+
         outcome = self._repair_budget(state, call_id, name, self.registry.execute(call_id, name, raw_arguments))
+        if self.catalog_protocol and name in CACHEABLE_TOOLS and outcome.ok:
+            result = outcome.output.get("result")
+            if isinstance(result, dict):
+                record(state.catalog, name, result)
+            state.catalog.cache[cache_key(name, arguments)] = outcome.output
         self._track_plan_guard(state, name, outcome)
         self._track_analysis(state, name, outcome, self._normalized_arguments(raw_arguments))
         self._track_sources(state, name, self._normalized_arguments(raw_arguments), outcome)
@@ -1124,6 +1202,15 @@ class AgentOrchestrator:
         count = count + 1 if last_result in (None, result_hash) else 1
         state.call_history[key] = (count, result_hash)
         return outcome
+
+    @staticmethod
+    def _plan_guard_refuses(arguments: Any) -> bool:
+        """True when the Research Plan guard inside submit_data_need_spec will refuse this RESEARCH submission; that
+        refusal then comes first, so the model is not sent to read the catalog for a spec that needs a plan."""
+        if not isinstance(arguments, dict) or arguments.get("mode") != "RESEARCH":
+            return False
+        governance = arguments.get("research_governance")
+        return guard_research_submission(governance if isinstance(governance, dict) else None) is not None
 
     @staticmethod
     def _track_plan_guard(state: RunState, name: str, outcome: ToolOutcome) -> None:

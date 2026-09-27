@@ -21,7 +21,12 @@ DEFAULT_MAX_RESULT_BYTES = 32768
 
 
 class ToolError(ValueError):
-    """Raised by a handler for an expected, model-recoverable failure."""
+    """Raised by a handler for an expected, model-recoverable failure. code, when given, replaces the generic
+    TOOL_ERROR so the model and the repair ledger see the specific reason."""
+
+    def __init__(self, message: str, *, code: str | None = None) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 @dataclass(frozen=True)
@@ -250,7 +255,7 @@ class ToolRegistry:
             return error_outcome(call_id, name, "TOOL_TIMEOUT",
                                  f"Tool {name} exceeded its {spec.timeout_seconds:g}s time limit.")
         except ToolError as exc:
-            return error_outcome(call_id, name, "TOOL_ERROR", str(exc))
+            return error_outcome(call_id, name, exc.code or "TOOL_ERROR", str(exc))
         except Exception as exc:
             return error_outcome(call_id, name, "TOOL_FAILED", f"Tool {name} failed ({type(exc).__name__}).")
 

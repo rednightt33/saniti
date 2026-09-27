@@ -104,6 +104,7 @@ def create_app(
             dataneed_enabled=settings.ai_enable_dataneed,
             session_timeout_seconds=settings.py_sandbox_session_timeout_seconds,
             standard_period_return=settings.ai_enable_standard_period_return,
+            catalog_discovery_v2=settings.ai_enable_catalog_discovery_v2,
         )
         auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
             if sandbox is not None or settings.research_audit_database_url else None
