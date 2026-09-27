@@ -1,5 +1,24 @@
 # Railway changelog
 
+## 2026-09-27 — market-ai-orc: final-response contract in the prompt and provider logging switched on in dev
+
+- Approved by the user: `AI_FINAL_CONTRACT_IN_PROMPT=true` and `AI_LOG_PROVIDER=true`, both set in one `railway variable set` on market-ai-orc.
+- Not set, by the user's decisions:
+  - `AI_PROVIDER_SORT`: the model stays `deepseek/deepseek-v4.1-flash` on OpenRouter's default routing;
+  - `AI_CATALOG_SUMMARY_IN_PROMPT`: no catalog tables in the system prompt.
+- Redeploy `018b6d6d-9cff-4649-89d1-cc983972a277` (application code `baa6454`, docs `9025b6f`): `SUCCESS`, `/ready` 200.
+- Read back by name after the change:
+  - the two flags are `true`;
+  - `AI_PROVIDER_SORT` and `AI_CATALOG_SUMMARY_IN_PROMPT` are unset;
+  - `AI_MODEL` is `deepseek/deepseek-v4.1-flash`.
+- Effects:
+  - the system prompt now carries the final JSON contract and the Research Plan field form (about 550 tokens, no digits);
+  - after each response, a background thread looks up every model call on OpenRouter `/generation` and logs `ai_model_call_provider`.
+- `railway config pull --force` added both names to `.railway/railway.ts` as `preserve()`. `railway config plan` reports the configuration up to date.
+  - The first `plan` run failed with the known false CLI-version error (`ERRORS_AND_SOLUTIONS.md` R06).
+  - Running it with `_` set to the Railway CLI 5.59.0 binary succeeded. The three legacy source drifts are gone because those services were deleted on 2026-09-26.
+- Rollback: delete the two variables (one redeploy).
+
 ## 2026-09-26 — Stress-test fixes and run-time/cost controls deployed with the new flags off (commits 86d23ad, baa6454)
 
 - Requested by the user after the stress test:
