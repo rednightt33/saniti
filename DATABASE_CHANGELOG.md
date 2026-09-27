@@ -1,10 +1,19 @@
 # Database changelog
 
-## 2026-09-27 — Catalog discovery v2 tool contracts in Tool_Catalog (migration 20260927_001, not applied)
+## 2026-09-27 — Catalog discovery v2 tool contracts in Tool_Catalog (migration 20260927_001)
 
-- Status: **added to the repository, not applied to `dev`.** It waits for the user's approval, planned together with
-  enabling `AI_ENABLE_CATALOG_DISCOVERY_V2` after the local A/B. Until then the live `Tool_Catalog` still documents the
-  v1 contracts, which are the ones market-ai-orc serves while the flag is off.
+- Status: **applied to `dev` at 07:53 UTC**, approved by the user together with enabling the catalog flags. It was run
+  by the temporary one-off service `catv2-migrate-job` (`4241e0be-b969-4a22-b104-3f21749f9fd0`, deployment
+  `3d9641ba-0ac7-466a-9756-8453014e51f8`, reference `DATABASE_URL` only, deleted afterwards). The job read the rows
+  read-only, applied the file as one transaction (its preflight and `$verify$` blocks passed, no notice) and read them
+  back.
+  - Before: `Tool_Catalog` 63 rows, 25 active; `discover_catalog` v1 and `get_catalog_details` v1 active at
+    `runtime_commit = "cb97fac"`; `Tool_Catalog_one_active_version_idx` present.
+  - After: 65 rows, still 25 active; both v2 rows inactive at `runtime_commit = "35e5db0"` with
+    `feature_flag = AI_ENABLE_CATALOG_DISCOVERY_V2` and 6 and 7 input properties; both v1 rows still active with
+    `successor_version = "v2"`.
+  - The flag is on in dev since 07:53 UTC (`RAILWAY_CHANGELOG.md`), so market-ai-orc now serves the v2 contracts while
+    the active rows still document v1. Switching `is_active` needs a further migration and the user's approval.
 - Generated from the market-ai-orc tool definitions at `35e5db0` (description and strict input schema of the registry
   built with `catalog_discovery_v2=True`). The output schemas and limits summarize the v2 contracts (implementation
   plan of 2026-09-27, phases C1–C2). First generated at `df76c77`; regenerated before any application after the local

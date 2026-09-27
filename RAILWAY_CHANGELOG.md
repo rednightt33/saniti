@@ -1,5 +1,45 @@
 # Railway changelog
 
+## 2026-09-27 — market-ai-orc: P02 fix, keyword discovery, catalog flags switched on in dev
+
+- Approved by the user: execute P02; run the local A/B; apply migration `20260927_001`; switch on both catalog flags;
+  run the 20-question stress test.
+- **P02** (`f8a924c`, provenance gate: a table's row-number column is not checked as a figure): market-ai-orc
+  `e227431b-93b0-41e8-9ae9-f4a296f32e97` `SUCCESS`; Governor and sandbox `SKIPPED`. Tests 602 passed.
+- **Local A/B** (no Railway change; real model, local Governor and sandbox, synthetic `dataneed_e2e` catalog of 8
+  tables, 6 questions per arm). A = the dev flags (`AI_FINAL_CONTRACT_IN_PROMPT` on); B = A plus both catalog flags.
+
+  | | A | B1 | B2 | B3 |
+  |---|---|---|---|---|
+  | Discovery calls | 24 | 24 | 22 | 25 |
+  | First DataNeed refused | 0 | 0 | 0 | 0 |
+  | Guard refusals / cache hits | — | 0 / 0 | 0 / 0 | 0 / 0 |
+  | Cost | $0.057 | $0.060 | $0.078 | $0.070 |
+  | Sum of run times | 164 s | 145 s | 236 s | 327 s |
+
+  - B1 exposed M17: a phrase query matched nothing, so the model rediscovered without filters. B2 ran after the
+    keyword fix, B3 after adding formula matches to discovery (`35e5db0`).
+  - The protocol did not reduce discovery calls with this model: it still called `get_system_capabilities`, split
+    `get_catalog_details` per table or section, and resolved tickers with `get_dimension_values`. The guard never
+    fired because every run read the details before submitting.
+  - Run-time differences follow the provider (model time 157 s in A against 231–320 s in B2/B3 for a similar number
+    of model calls), so time and cost are within noise. Every arm gave 5 answers and 1 Research Plan.
+  - The user chose to switch the flags on in dev anyway, as the stronger measurement on the real catalog.
+- **Keyword discovery** (`35e5db0`) and the regenerated migration (`5e55228`): market-ai-orc
+  `217c3e55-7828-4635-a484-a4bb6cc33919` `SUCCESS`, `/ready` 200; Governor and sandbox `SKIPPED`. Tests 606 passed;
+  with the flags off the tool definitions and prompt were byte-identical to before.
+- **Migration** `20260927_001` through the temporary service `catv2-migrate-job` (`4241e0be-b969-4a22-b104-3f21749f9fd0`,
+  deployment `3d9641ba-0ac7-466a-9756-8453014e51f8`, reference `DATABASE_URL` only, deleted). See
+  `DATABASE_CHANGELOG.md`.
+- **Variables on market-ai-orc**: `AI_ENABLE_CATALOG_DISCOVERY_V2=true` and `AI_ENABLE_CATALOG_PROTOCOL=true` in one
+  `railway variable set`. Redeploy `8b118d1b-4c8b-42aa-a252-a934b753321f` (commit `5e55228`): `SUCCESS`, `/ready` 200,
+  no `catalog_protocol_inactive` event. Read back by name: both `true`; `AI_FINAL_CONTRACT_IN_PROMPT` and
+  `AI_LOG_PROVIDER` `true`; `AI_PROVIDER_SORT` and `AI_CATALOG_SUMMARY_IN_PROMPT` unset; `AI_MODEL`
+  `deepseek/deepseek-v4.1-flash`.
+- `railway config pull --force` added both names to `.railway/railway.ts` as `preserve()`; `railway config plan`
+  (with the R06 workaround) reports the configuration up to date. The project is back to its 13 services.
+- Rollback: delete the two variables (one redeploy). The `Tool_Catalog` v2 rows stay, inactive.
+
 ## 2026-09-27 — market-ai-orc: catalog discovery v2 and the discovery protocol deployed dark (commits df76c77, d01414d)
 
 - Requested by the user: apply the implementation plan of 2026-09-27. This deploys phases C1–C3 only, behind two new
