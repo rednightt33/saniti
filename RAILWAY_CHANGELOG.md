@@ -36,6 +36,7 @@
   - Every configuration answered the same questions: 5 answers and 1 Research Plan.
   - The first B/C run found that the summary lacked each table's subject values, so every first DataNeedSpec failed with three `INVALID_FIELD_VALUE`; `baa6454` fixed it.
   - OpenRouter's documentation does not say whether `provider.sort` keeps `session_id` sticky routing. In C every run stayed on one provider.
+- The documentation commit `14c9b3e` touched the market-ai-orc README, so it redeployed the same application code: market-ai-orc `843c89c3-dc16-4338-a20b-5c642f87b059` `SUCCESS`, `/ready` 200; the sandbox and the Governor were `SKIPPED`.
 - No temporary service was created and no configuration changed, so `railway config pull`/`plan` was not needed.
 
 ## 2026-09-26 — Technical-indicator and broker-flow stress test on dev (temporary jobs)
