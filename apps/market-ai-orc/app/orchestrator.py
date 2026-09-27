@@ -26,7 +26,7 @@ from .schemas import (
 from .provenance import (CONTEXT, SourceIndex, analysis_label, check_answer, numbers_in, parse_numbers,
                          released_numbers, requested_statistics, weakest)
 from .tools import ToolOutcome, ToolRegistry, error_outcome
-from .tools.analysis import current_run_context, run_context
+from .tools.analysis import current_conversation_key, current_run_context, run_context
 from .tools.registry import strict_parameters_schema
 from .tools.request_data import current_request_id
 
@@ -339,6 +339,64 @@ table contract, a column it uses or a relationship it names was not read
 in this run; the refusal lists the exact call to make.
 A Research Plan needs only enough discovery to judge that the data and
 methods exist."""
+CONVERSATION_REUSE_RULES = """
+
+CONVERSATION REUSE
+A message of a kept conversation may begin with CONVERSATION RESOURCES:
+what earlier messages of the same conversation left in the sandbox.
+1. To show again, filter, sort or explain a result already computed,
+read its released output with get_session_output(session_id,
+output_id). A released output of an earlier message is a source for
+this answer, with its original evidence label and warnings; say when it
+was computed. Do not compute it again.
+2. For a new computation on the same data, submit the listed
+data_need_spec unchanged (any request_group_id, revision one).
+prepare_data_bundle then reuses the earlier bundle without a new
+extraction (reused true), and open_analysis_session reattaches the warm
+session when it is still alive (reused_session true, listing the
+variables of the earlier message). Run the new code, emit new outputs
+and call complete_analysis as usual; it releases only this message's
+outputs.
+3. A warm session may be gone (idle timeout, eviction, restart): then
+run the code that is needed again on the reused bundle.
+4. Newer data, another period, other columns, entities or filters need
+a different DataNeedSpec, and the backend extracts again. Never present
+an earlier result as the latest data without its computation date."""
+MAX_RESOURCES_NOTE_CHARS = 12000
+
+
+def conversation_resources_note(resources: dict[str, Any]) -> str:
+    """The CONVERSATION RESOURCES note: released outputs first (reading them needs no computation), then bundles with
+    the approved data_need_spec to resubmit; the specs of older bundles are dropped first to stay within the bound."""
+    head = ("CONVERSATION RESOURCES (application context from earlier messages of this conversation, not from the "
+            "user; the ids are for tool calls only):")
+    outputs = ["Released outputs (read with get_session_output(session_id, output_id)):"]
+    for o in resources.get("released_outputs") or []:
+        outputs.append("- " + dumps({k: o.get(k) for k in ("output_id", "session_id", "name", "type", "columns",
+                                                            "row_count", "description", "completed_at",
+                                                            "evidence_label", "warnings", "expires_at")
+                                     if o.get(k) not in (None, [])}))
+    bundles = resources.get("bundles") or []
+    specs = [b.get("data_need_spec") for b in bundles]
+
+    def render(with_specs: list[Any]) -> str:
+        lines = ["Data of earlier data needs (submit the data_need_spec unchanged to reuse it without extraction):"]
+        for bundle, spec in zip(bundles, with_specs):
+            lines.append("- " + dumps({"bundle_id": bundle.get("bundle_id"), "extracted_at": bundle.get("extracted_at"),
+                                       "expires_at": bundle.get("expires_at"), "mode": bundle.get("mode"),
+                                       "warm_session": bundle.get("warm_session"),
+                                       "datasets": bundle.get("datasets"), "data_need_spec": spec}))
+        return "\n".join([head, *(outputs if len(outputs) > 1 else []), *(lines if bundles else [])])
+
+    note = render(specs)
+    for index in range(len(specs) - 1, -1, -1):
+        if len(note) <= MAX_RESOURCES_NOTE_CHARS:
+            break
+        specs[index] = "omitted for size"
+        note = render(specs)
+    return note[:MAX_RESOURCES_NOTE_CHARS]
+
+
 LOOKUP_RULE = ("Use lookup_fact only for a specific source fact: a value at explicit\n"
                "entities and dates, or a SUM, AVG, MIN, MAX, or COUNT the database\n"
                "computes over an explicit scope; each value carries a fact_id.\n")
@@ -375,7 +433,7 @@ def final_contract_block(contract: str, plan_confirmation: bool) -> str:
 
 def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirmation: bool = False,
                         period_return: bool = False, final_contract: bool = False,
-                        catalog_protocol: bool = False) -> str:
+                        catalog_protocol: bool = False, conversation_reuse: bool = False) -> str:
     """The system prompt for the registered tools. It is fixed for a deployment (AI_ENABLE_LOOKUP_FACT,
     AI_ENABLE_DATANEED, AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION, AI_ENABLE_STANDARD_PERIOD_RETURN,
     AI_FINAL_CONTRACT_IN_PROMPT), so every call of every run shares one byte-identical cacheable prefix. With the
@@ -385,7 +443,8 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
     if dataneed:
         common, _ = SYSTEM_PROMPT_TEMPLATE.split("DATA QUERY RULES\n", 1)
         template = common + DATANEED_RULES + (RESEARCH_PLAN_RULES if plan_confirmation else "") \
-            + (PERIOD_RETURN_RULES if period_return else "") + (CATALOG_PROTOCOL_RULES if catalog_protocol else "")
+            + (PERIOD_RETURN_RULES if period_return else "") + (CATALOG_PROTOCOL_RULES if catalog_protocol else "") \
+            + (CONVERSATION_REUSE_RULES if conversation_reuse else "")
     if final_contract:
         # plan_confirmation reaches here only together with dataneed (see AgentOrchestrator.__init__)
         contract = PLAN_RESPONSE_CONTRACT if plan_confirmation else RESPONSE_CONTRACT
@@ -683,6 +742,10 @@ class RunState:
     classifier: dict[str, Any] | None = None
     guard_rejections: int = 0
     continuation: ContinuationOut | None = None
+    # conversation reuse: what the resources note offered, and released outputs of earlier messages read in this run
+    # (output_id -> the completion that released it)
+    reuse: dict[str, Any] = field(default_factory=dict)
+    inherited: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 class TurnRuleError(ValueError):
@@ -704,8 +767,12 @@ class AgentOrchestrator:
         catalog_summary: Any | None = None,
         provider_logger: Any | None = None,
         session_closer: Callable[[str, list[str]], dict[str, str]] | None = None,
+        conversation_resources: Callable[[str], dict[str, Any] | None] | None = None,
     ) -> None:
         self.settings = settings
+        # conversation reuse (S1/S2): reads what earlier messages of a SERVER conversation left in the sandbox; set
+        # only when the sandbox reports the capability
+        self.conversation_resources = conversation_resources
         # closes the analysis sessions a run leaves open (S05): (request_id, session_ids) -> {session_id: reason}
         self.session_closer = session_closer
         self.client = client
@@ -729,9 +796,15 @@ class AgentOrchestrator:
         self.catalog_protocol = settings.ai_enable_catalog_protocol and self.dataneed
         if settings.ai_enable_catalog_protocol and not self.dataneed:
             log_event("catalog_protocol_inactive", reason="AI_ENABLE_DATANEED is off")
+        self.conversation_reuse = settings.ai_enable_conversation_reuse and self.dataneed \
+            and conversation_resources is not None
+        if settings.ai_enable_conversation_reuse and not self.conversation_reuse:
+            log_event("conversation_reuse_inactive", reason="AI_ENABLE_DATANEED is off or the sandbox does not "
+                                                            "report conversation_reuse")
         self.system_prompt = build_system_prompt(settings.ai_enable_lookup_fact, self.dataneed,
                                                  self.plan_confirmation, period_return,
-                                                 settings.ai_final_contract_in_prompt, self.catalog_protocol)
+                                                 settings.ai_final_contract_in_prompt, self.catalog_protocol,
+                                                 self.conversation_reuse)
         self.final_schema = final_response_schema(self.plan_confirmation)
         contract = PLAN_RESPONSE_CONTRACT if self.plan_confirmation else RESPONSE_CONTRACT
         self.response_contract = contract
@@ -762,7 +835,9 @@ class AgentOrchestrator:
             provider["sort"] = self.settings.ai_provider_sort
         return provider
 
-    def run(self, request: AgentRunRequest) -> AgentRunResponse:
+    def run(self, request: AgentRunRequest, conversation_key: str | None = None) -> AgentRunResponse:
+        """One request. conversation_key (history_mode SERVER with conversation reuse only) is derived by the
+        application from the conversation and its owner; it scopes what earlier messages left in the sandbox."""
         moment = self.wall_clock()
         input_items, dropped = self._build_input(request, moment)
         state = RunState(
@@ -780,7 +855,10 @@ class AgentOrchestrator:
             moment, self.settings.analysis_timezone,
             [(turn.role, turn.content) for turn in request.history], request.message))
         guard = current_research_guard.set(state.guard)
+        key = current_conversation_key.set(conversation_key if self.conversation_reuse else None)
         try:
+            if self.conversation_reuse and conversation_key and request.history:
+                self._add_conversation_resources(state, conversation_key)
             self._prepare_plan_turn(request, state)
             current_research_guard.set(state.guard)
             final = self._loop(state)
@@ -812,7 +890,9 @@ class AgentOrchestrator:
             current_request_id.reset(token)
             current_run_context.reset(context)
             current_research_guard.reset(guard)
+        # the closes still carry the conversation key, so an attached session that ran nothing is detached, not lost
         self._close_sessions(state)
+        current_conversation_key.reset(key)
         if self.auditor is not None:
             try:
                 self.auditor.record(request.request_id, request.message, result, state.experiments,
@@ -839,6 +919,9 @@ class AgentOrchestrator:
             repair_ledger=state.repairs or None,
         )
         log_event("ai_model_usage_summary", **self._usage_summary(state))
+        if state.reuse or state.inherited:
+            log_event("conversation_reuse_summary", request_id=state.request_id, **state.reuse,
+                      released_outputs_read=sorted(state.inherited))
         if self.catalog_protocol:
             ledger = state.catalog
             log_event("ai_catalog_usage", request_id=state.request_id, calls=ledger.calls,
@@ -850,6 +933,26 @@ class AgentOrchestrator:
             except Exception:  # noqa: BLE001 - logging never changes the response
                 logger.warning(dumps({"event": "ai_model_call_provider_failed", "request_id": state.request_id}))
         return result
+
+    def _add_conversation_resources(self, state: RunState, conversation_key: str) -> None:
+        """Conversation reuse: a bounded application note listing what earlier messages of the conversation left in
+        the sandbox (released outputs, bundles with the data_need_spec to resubmit, warm sessions). Its numbers are
+        not answer sources; the sandbox checks every later use."""
+        try:
+            resources = self.conversation_resources(conversation_key) if self.conversation_resources else None
+        except Exception:  # noqa: BLE001 - without the note the run works as a fresh one
+            resources = None
+        if not resources or not (resources.get("released_outputs") or resources.get("bundles")):
+            log_event("conversation_resources", request_id=state.request_id, outputs=0, bundles=0)
+            return
+        note = conversation_resources_note(resources)
+        state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": note})
+        state.reuse = {"offered_outputs": len(resources.get("released_outputs") or []),
+                       "offered_bundles": len(resources.get("bundles") or []),
+                       "warm_sessions": resources.get("warm_sessions") or 0}
+        log_event("conversation_resources", request_id=state.request_id, outputs=state.reuse["offered_outputs"],
+                  bundles=state.reuse["offered_bundles"], warm_sessions=state.reuse["warm_sessions"],
+                  note_chars=len(note))
 
     def _close_sessions(self, state: RunState) -> None:
         """Close every analysis session this run opened that did not complete (S05). The sandbox closes a session
@@ -1463,16 +1566,23 @@ class AgentOrchestrator:
                 if isinstance(arguments, dict) else None}
             state.context_numbers.extend(numbers_in(arguments))
         elif name == "prepare_data_bundle" and result.get("status") == "READY":
+            if result.get("reused"):
+                state.reuse["bundles_reused"] = state.reuse.get("bundles_reused", 0) + 1
             state.context_numbers.extend(numbers_in(result.get("datasets"), ints_only=True))
             state.warning_codes |= {str(w.get("code")) for w in result.get("relationship_warnings") or []
                                     if isinstance(w, dict)}
         elif name == "open_analysis_session" and result.get("session_id"):
             state.sessions[result["session_id"]] = {"need_id": result.get("need_id"),
                                                     "bundle_id": result.get("bundle_id"), "executions": []}
+            if result.get("reused_session"):
+                state.reuse["sessions_reused"] = state.reuse.get("sessions_reused", 0) + 1
         elif name == "run_python" and result.get("execution_id"):
             session = state.sessions.setdefault(result.get("session_id") or "", {"executions": []})
             session["executions"].append(result.get("status"))
         elif name == "get_session_output" and result.get("released"):
+            if result.get("read_mode") == "READ_RELEASED" and isinstance(result.get("origin"), dict):
+                # released by an earlier completion (an earlier message, or an earlier epoch of this session)
+                state.inherited[str(result.get("output_id"))] = {"name": result.get("name"), **result["origin"]}
             record = state.analysis_values.setdefault(f"released:{result.get('output_id')}",
                                                       {"label": "DATA_COVERAGE_VERIFIED", "values": []})
             record["values"].extend(released_numbers(result.get("rows")) + released_numbers(result.get("content")))
@@ -1516,6 +1626,17 @@ class AgentOrchestrator:
             if any((state.needs.get(c.get("need_id") or "") or {}).get("mode") == "RESEARCH" for c in completed):
                 lines.append("Research results describe a historical pattern only; they are not evidence of a cause "
                              "or a prediction.")
+        if state.inherited:
+            for output_id, origin in state.inherited.items():
+                lines.append(f"Figures from {origin.get('name') or output_id} were computed in an earlier message "
+                             f"(completion {origin.get('completion_id')}, {origin.get('completed_at')}) and were not "
+                             "recomputed in this message.")
+            if not completed:
+                lines.append("Data coverage was verified when those results were computed; the calculations were "
+                             "not independently recalculated by the backend (calculation_validation NOT_PERFORMED).")
+            codes = sorted({code for origin in state.inherited.values() for code in origin.get("warnings") or []})
+            lines.extend(line for line in (WARNING_LINES[code] for code in codes if code in WARNING_LINES)
+                         if line not in lines)
         return blocking, lines
 
     def _source_index(self, state: RunState) -> SourceIndex:
@@ -1611,7 +1732,8 @@ class AgentOrchestrator:
             self._gate_once(state, "ANALYSIS", DATANEED_GATE_INSTRUCTION.format(findings="; ".join(blocking)))
             return self._forced(state, final, DATANEED_GATE_NOTICE, lines)
         families, plain_average = requested_statistics(state.user_text)
-        usable = any(c["status"] == "COMPLETED" for c in state.completions.values())
+        # a released output of an earlier message read in this run is a completed analysis's result (reuse)
+        usable = any(c["status"] == "COMPLETED" for c in state.completions.values()) or bool(state.inherited)
         average_fact = any(f["kind"] == "DATABASE_AGGREGATE" and f["aggregation"] == "AVG" for f in state.facts)
         missing = sorted(families) if not usable else []
         if not missing and plain_average and not usable and not average_fact:
@@ -1635,7 +1757,7 @@ class AgentOrchestrator:
             self._gate_once(state, "CLAIM", DATANEED_CLAIM_INSTRUCTION.format(problem=problem))
             return self._forced(state, final, DATANEED_CLAIM_NOTICE, [f"Unsupported claim: {problem}."] + lines)
         missing_lines = [line for line in lines if line not in final.limitations]
-        if state.sessions or state.completions:
+        if state.sessions or state.completions or state.inherited:
             state.validation_gate = "ANNOTATED" if missing_lines else "PASSED"
         if final.response_type == "LIMITATION" and blocking:
             state.evidence_label = "NOT_VALIDATED"

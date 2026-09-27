@@ -104,6 +104,9 @@ class Settings:
     session_max_executions: int
     session_max_failed: int
     session_max_outputs: int
+    # Conversation reuse (implementation plan 2026-09-27, phases S1/S2): released outputs, bundles and warm sessions
+    # of earlier messages of the same conversation, for an authenticated orchestrator request only; off by default
+    conversation_reuse: bool
     # outputs
     max_tables: int
     max_table_output_rows: int
@@ -239,6 +242,7 @@ class Settings:
             session_max_executions=_integer(env, "PY_SANDBOX_SESSION_MAX_EXECUTIONS", 40, maximum=500),
             session_max_failed=_integer(env, "PY_SANDBOX_SESSION_MAX_FAILED", 15, maximum=500),
             session_max_outputs=_integer(env, "PY_SANDBOX_SESSION_MAX_OUTPUTS", 40, maximum=500),
+            conversation_reuse=_boolean(env, "PY_SANDBOX_ENABLE_CONVERSATION_REUSE", False),
             max_tables=_integer(env, "PY_SANDBOX_MAX_TABLES", 8, maximum=32),
             max_table_output_rows=_integer(env, "PY_SANDBOX_MAX_TABLE_OUTPUT_ROWS", 100_000, maximum=5_000_000),
             max_table_preview_rows=_integer(env, "PY_SANDBOX_MAX_TABLE_PREVIEW_ROWS", 50, maximum=200),

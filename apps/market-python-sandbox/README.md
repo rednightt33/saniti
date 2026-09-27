@@ -215,7 +215,79 @@ own records (never from anything the code reported about itself):
 When coverage passes and the execution succeeded, the outputs of successful executions are **released**
 (`released: true`), the completion is stored, and the session closes (`COMPLETED`). Otherwise nothing is released
 and the session stays open. `next_action` is `RUN_PYTHON` with the requests and ranges not yet processed,
-`REVISE_DATA_NEED_SPEC` after insufficient data, or `REPORT_LIMITATION`. A passed completion replays.
+`REVISE_DATA_NEED_SPEC` after insufficient data, or `REPORT_LIMITATION`. A COMPLETED completion replays; an
+INCOMPLETE one is evaluated again at the next call, so an analysis that read its data but had no output yet can finish
+after the fix (`ERRORS_AND_SOLUTIONS.md` S06; before, an INCOMPLETE result with coverage PASS was replayed forever).
+
+### Conversation reuse (`PY_SANDBOX_ENABLE_CONVERSATION_REUSE`, off by default)
+
+Implementation plan of 2026-09-27, phases S1 and S2, for market-ai-orc's `history_mode: SERVER` conversations.
+Everything below needs the flag; without it the header is ignored and nothing changes (sessions close on a passed
+completion, completion responses keep their shape).
+
+- **Conversation key.** market-ai-orc sends `X-Saniti-Conversation-Key: ck_<32 hex>` on every call of a run. It
+  derives the key from the conversation and its owner; the model can neither see nor set it. A need submitted with
+  the key records it together with `contract_sha256`, the hash of its **data contract** (`data_need.py`
+  `data_contract_sha256`): mode, subject, every request's `data_request_id`, `logical_name`, table, columns, column
+  types, canonical scope and restrictions, extraction windows, frequencies, resample rules, buffers, ordering and
+  catalog table version, the relationships, and the catalog version. The request group, revision and question are
+  left out. A bundle built for such a need belongs to the same conversation.
+- **Bundle reuse (S1).** `POST /v1/bundles/reuse {request_id, need_id}` binds this request's own approved need to the
+  newest READY, unexpired bundle of the conversation from an earlier request whose need has exactly the same
+  `contract_sha256`, when all its files are still present. The binding (`bundle_bindings`) records the source need
+  and request. The bundle's manifest and checksum never change. The answer is the bundle view with the current
+  `need_id`, `reused: true` and `reused_from` (`bundle_id`, source `need_id` and `request_id`, `extracted_at`,
+  `expires_at`, `equal_candidates`). Otherwise the answer is `NO_MATCH` with a reason (`NO_EQUAL_CONTRACT`,
+  `EXPIRED`, `NEED_NOT_IN_CONVERSATION`). There is no subset or superset matching: any change in the contract
+  extracts again. A changed catalog changes `catalog_sha256`, so it never reuses.
+- **Warm sessions (S2).** A passed completion of a session with a conversation key leaves the worker `WARM_IDLE`
+  instead of closing it, unless an execution of that epoch timed out, which leaves the namespace uncertain.
+  - `POST /v1/sessions` on a bound bundle (or the request's own) first looks for a `WARM_IDLE` session on it in the
+    conversation. If one exists, it is **attached**: a new epoch starts for the current request and its approved
+    need (`session_epochs`), and the answer carries `reused_session: true`, `epoch`, `origin_request_id`,
+    `parent_completion_id`, the earlier `variables` and `session_budget`.
+  - Otherwise a new worker opens on the bundle, and the RAM of the earlier message is gone.
+  - After an attach, the earlier request can no longer use the session.
+  - Execution count, failed count, CPU and lifetime are cumulative and never reset by an attach.
+  - Running code in a `WARM_IDLE` session of the same request (after its own completion passed) starts a new epoch.
+  - With no free slot, the least recently used `WARM_IDLE` session is closed (`EVICTED`); an `ACTIVE` or `BUSY`
+    session never is. `WARM_IDLE` sessions close after the idle time like any other.
+  - A caller's close of an attached session that ran nothing in its epoch returns it to `WARM_IDLE`
+    (`DETACHED_UNCHANGED`); any other close ends it.
+- **Per-epoch completion.** `complete` works on the current epoch only: its executions (sequence after the epoch
+  start) and their outputs.
+  - A COMPLETED result of an earlier epoch never completes a later one.
+  - An epoch with no successful execution and output is INCOMPLETE.
+  - Only the epoch's own outputs are released; earlier completions and outputs are never changed.
+  - A request that this epoch did not read again but that an earlier PASS epoch of the same session and bundle read
+    in full counts as `INHERITED` (coverage `processing: INHERITED`). The final status then names
+    `inherited_coverage` (`parent_completion_id`, `parent_request_id`, `data_request_ids`).
+  - The completion carries `epoch` and `session_status` (`WARM_IDLE` or `CLOSED`).
+- **Released outputs across requests (READ_RELEASED).** `GET /v1/sessions/{id}/outputs/{output_id}` with the
+  conversation key also serves a **released** output of an earlier request of the conversation, or of an earlier
+  epoch. The answer adds `read_mode: READ_RELEASED` and `origin`: the completion that released it, its request,
+  need, time, `evidence_label` and warnings. The label is never raised. An unreleased output of another request or
+  epoch, a wrong key or no key: `OUTPUT_NOT_FOUND`.
+- **Resources.** `GET /v1/conversations/{key}/resources` lists, for market-ai-orc's note to the model, ids and
+  summaries only, no data:
+  - up to 3 unexpired READY bundles, each with its approved `data_need_spec` to resubmit and its warm session;
+  - up to 12 unexpired released outputs, each with the completion that released it.
+- **Recovery.** A restart closes every session, `WARM_IDLE` included (`SANDBOX_RESTARTED`). Bundles and released
+  outputs survive within their retention (24 h), so a later message reuses the bundle and computes again, or reads
+  the released outputs.
+- **Research.** Reuse never replaces approval. An attach needs this request's own approved need, and a RESEARCH need
+  is approved only with its Research Governor decision. Mode is part of the contract, so an ANALYSIS session never
+  serves a RESEARCH need or the other way round.
+- **SQLite.** Schema version 1 (`PRAGMA user_version`), applied at startup in one transaction per version, adds
+  nullable or defaulted columns and two tables:
+  - columns: `conversation_key` and `contract_sha256` on needs, `conversation_key` on bundles,
+    `origin_request_id`, `conversation_key`, `need_id`, `epoch` and `epoch_start_seq` on sessions, `epoch` and
+    `request_id` on executions, `epoch` and `parent_completion_id` on completions;
+  - tables: `bundle_bindings` and `session_epochs`.
+  Existing rows keep epoch 1. Code without these columns still reads and writes the database, so a rollback of the
+  code is safe (`WARM_IDLE` rows are then only closed by the next restart).
+- `GET /v1/runtime` reports `conversation_reuse: {enabled, version: 1}`. market-ai-orc turns its reuse on only when
+  both are right.
 
 ## Analysis Spec V2 (two paths: ANALYSIS and RESEARCH)
 
@@ -908,6 +980,7 @@ Logs never contain keys, dataset URLs, user messages, datasets, or tables.
 | `PY_SANDBOX_SESSION_CPU_SECONDS` | 900 per session (a RESEARCH need uses its approved compute budget when lower) |
 | `PY_SANDBOX_SESSION_IDLE_SECONDS` / `_MAX_SECONDS` | 900 / 3600 |
 | `PY_SANDBOX_SESSION_MAX_EXECUTIONS` / `_MAX_FAILED` / `_MAX_OUTPUTS` | 40 / 15 / 40 |
+| `PY_SANDBOX_ENABLE_CONVERSATION_REUSE` | false ([conversation reuse](#conversation-reuse-py_sandbox_enable_conversation_reuse-off-by-default): bundle binding, warm sessions, per-epoch completion, READ_RELEASED) |
 
 **Paths:**
 - `PY_SANDBOX_DATA_DIR` (`/data`, the Railway volume)

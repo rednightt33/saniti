@@ -16,7 +16,8 @@ from .catalog_store import CatalogStore
 from .catalog_summary import CatalogSummary
 from .config import Settings
 from .conversation_plans import summary as plan_summary
-from .conversations import ConversationError, ConversationStore, UpkeepThread, fingerprint, owner_from_header
+from .conversations import (ConversationError, ConversationStore, UpkeepThread, fingerprint, owner_from_header,
+                            reuse_key)
 from .openrouter_client import OpenRouterClient
 from .audit import RunAuditor
 from .orchestrator import AgentOrchestrator, log_event
@@ -27,6 +28,8 @@ from .tools.analysis import SandboxClient
 from .tools.catalog import CatalogTools
 from .tools.request_data import GovernorClient
 from .tools.session import close_sessions
+
+REUSE_VERSION = 1  # the conversation reuse contract both services must report
 
 
 def _configure_logging() -> None:
@@ -129,9 +132,18 @@ def create_app(
         provider_logger = ProviderLogger(owned_client) if settings.ai_log_provider else None
         # (request_id, session_ids): the sessions a run leaves open are closed when it ends (S05)
         closer = partial(close_sessions, sandbox) if sandbox is not None and settings.ai_enable_dataneed else None
+        resources = None
+        if settings.ai_enable_conversation_reuse and sandbox is not None and settings.ai_enable_dataneed:
+            # both services must have reuse on, at the same version; otherwise reuse stays off (fail closed)
+            capability = (sandbox.runtime().get("conversation_reuse") or {})
+            if capability.get("enabled") is True and capability.get("version") == REUSE_VERSION:
+                resources = sandbox.conversation_resources
+            else:
+                log_event("conversation_reuse_inactive", reason="the sandbox does not report conversation_reuse "
+                                                                f"version {REUSE_VERSION}")
         orchestrator = AgentOrchestrator(settings, owned_client, registry, auditor=auditor,
                                          catalog_summary=summary, provider_logger=provider_logger,
-                                         session_closer=closer)
+                                         session_closer=closer, conversation_resources=resources)
     ready = {"value": False}
 
     @asynccontextmanager
@@ -205,7 +217,10 @@ def create_app(
         request = payload.model_copy(update={"conversation_id": start.conversation_id, "history": start.history,
                                              "continuation": start.continuation})
         try:
-            result = orchestrator.run(request)
+            if getattr(orchestrator, "conversation_reuse", False):
+                result = orchestrator.run(request, conversation_key=reuse_key(owner, start.conversation_id))
+            else:
+                result = orchestrator.run(request)
         except Exception:
             conversations.abandon(start, payload.request_id, "INTERNAL_ERROR")
             raise

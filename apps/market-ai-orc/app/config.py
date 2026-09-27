@@ -132,6 +132,9 @@ class Settings:
     ai_conversation_retention_days: int = 30
     ai_conversation_lease_seconds: int = 0
     ai_conversation_upkeep_seconds: int = 3600
+    # Conversation reuse (phases S1/S2): in history_mode SERVER, released outputs, bundles and warm Python sessions of
+    # earlier messages of the conversation. Needs the conversation store and a sandbox that reports the capability.
+    ai_enable_conversation_reuse: bool = False
 
     @property
     def conversation_lease_seconds(self) -> int:
@@ -196,6 +199,7 @@ class Settings:
             ai_conversation_retention_days=_integer(env, "AI_CONVERSATION_RETENTION_DAYS", 30),
             ai_conversation_lease_seconds=_integer(env, "AI_CONVERSATION_LEASE_SECONDS", 0, minimum=0),
             ai_conversation_upkeep_seconds=_integer(env, "AI_CONVERSATION_UPKEEP_SECONDS", 3600, minimum=60),
+            ai_enable_conversation_reuse=_boolean(env, "AI_ENABLE_CONVERSATION_REUSE", False),
             sql_governor_api_key=_optional(env, "SQL_GOVERNOR_API_KEY"),
             sql_governor_timeout_seconds=_integer(env, "SQL_GOVERNOR_TIMEOUT_SECONDS", 90),
             request_data_max_result_bytes=_integer(env, "REQUEST_DATA_MAX_RESULT_BYTES", 40000, minimum=8192),
@@ -267,6 +271,8 @@ class Settings:
             raise ConfigError("AI_PROVIDER_SORT must be price, throughput or latency")
         if settings.ai_catalog_summary_in_prompt and not settings.catalog_database_url:
             raise ConfigError("AI_CATALOG_SUMMARY_IN_PROMPT needs CATALOG_DATABASE_URL")
+        if settings.ai_enable_conversation_reuse and not settings.ai_enable_conversation_store:
+            raise ConfigError("AI_ENABLE_CONVERSATION_REUSE needs AI_ENABLE_CONVERSATION_STORE")
         if settings.ai_enable_conversation_store and not settings.conversation_database_url:
             raise ConfigError("AI_ENABLE_CONVERSATION_STORE needs CONVERSATION_DATABASE_URL")
         if settings.conversation_database_url and not settings.conversation_database_url.startswith(

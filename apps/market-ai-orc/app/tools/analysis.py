@@ -71,6 +71,12 @@ class RunContext:
 
 current_run_context: contextvars.ContextVar[RunContext | None] = contextvars.ContextVar("current_run_context",
                                                                                          default=None)
+# Conversation reuse (AI_ENABLE_CONVERSATION_REUSE): the key of the current SERVER conversation, derived by the
+# application from the conversation and its owner. The sandbox client sends it as a header on every call of the run;
+# no tool argument can set it.
+current_conversation_key: contextvars.ContextVar[str | None] = contextvars.ContextVar("current_conversation_key",
+                                                                                      default=None)
+CONVERSATION_HEADER = "X-Saniti-Conversation-Key"
 
 
 class Strict(BaseModel):
@@ -561,6 +567,9 @@ class SandboxClient:
             return False
 
     def _call(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+        key = current_conversation_key.get()
+        if key:
+            kwargs["headers"] = {**(kwargs.get("headers") or {}), CONVERSATION_HEADER: key}
         try:
             return self._client.request(method, path, **kwargs)
         except httpx.TimeoutException as exc:
@@ -618,6 +627,32 @@ class SandboxClient:
         if response.status_code != 200:
             raise ToolError(f"The Python sandbox is unavailable (HTTP {response.status_code}).")
         return body
+
+    def runtime(self) -> dict[str, Any]:
+        """The sandbox's runtime description (capabilities such as conversation_reuse); {} when unreadable."""
+        try:
+            response = self._client.get("/v1/runtime", timeout=10)
+            body = response.json() if response.status_code == 200 else {}
+        except (httpx.HTTPError, ValueError):
+            return {}
+        return body if isinstance(body, dict) else {}
+
+    def reuse_bundle(self, request_id: str, need_id: str) -> dict[str, Any] | None:
+        """Conversation reuse: the earlier bundle of this conversation bound to the approved need, or None (no match,
+        reuse unavailable). Backend use only: the Execution Planner calls it before planning an extraction."""
+        response = self._call("POST", "/v1/bundles/reuse", json={"request_id": request_id, "need_id": need_id})
+        body = self._json(response) if response.status_code in (200, 404) else {}
+        if response.status_code == 200 and body.get("reused") and body.get("status") == "READY":
+            return body
+        return None
+
+    def conversation_resources(self, key: str) -> dict[str, Any] | None:
+        """What earlier messages of the conversation left for reuse; None when unavailable."""
+        response = self._call("GET", f"/v1/conversations/{key}/resources", timeout=15)
+        if response.status_code != 200:
+            return None
+        body = self._json(response)
+        return body if body.get("conversation_reuse") else None
 
     def get_need(self, need_id: str) -> dict[str, Any] | None:
         """The approved contract of a DataNeedSpec (backend use only: the Execution Planner reads it)."""

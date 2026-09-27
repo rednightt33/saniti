@@ -97,3 +97,15 @@ def test_insufficient_data_after_the_last_success_asks_for_a_revision(session) -
     result = complete(session)
     assert result["final_status"]["sandbox_execution"] == "INSUFFICIENT_INPUT_DATA"
     assert result["next_action"] == "REVISE_DATA_NEED_SPEC" and result["released_outputs"] == []
+
+
+def test_an_incomplete_completion_with_coverage_pass_is_evaluated_again(session) -> None:
+    # S06: data read in full but no output yet: coverage PASS, execution FAILED, so INCOMPLETE; after the output is
+    # emitted, completing again must evaluate the new executions instead of replaying the INCOMPLETE result
+    ok(session, "prices = load('prices')\nbanks = load('stock_classification')")
+    first = complete(session)
+    assert first["status"] == "INCOMPLETE" and first["coverage"]["coverage_status"] == "PASS"
+    ok(session, "emit_table('last_close', prices.groupby('ticker', as_index=False)['close'].last())")
+    second = complete(session)
+    assert second["status"] == "COMPLETED" and not second.get("replayed")
+    assert second["completion_id"] != first["completion_id"]

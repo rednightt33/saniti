@@ -850,3 +850,25 @@ def approved_contract(spec: dict[str, Any], contract: dict[str, Any], bound: lis
             "request_group_id": spec["request_group_id"], "revision": spec["revision"], "mode": spec["mode"],
             "requests": requests, "relationships": relationships, "reference_date": reference.isoformat(),
             "catalog_sha256": contract.get("catalog_sha256"), "catalog_version": contract.get("catalog_version")}
+
+
+# ----------------------------------------------------------------------------------------------- data contract
+
+CONTRACT_REQUEST_FIELDS = ("data_request_id", "logical_name", "source_table", "entity_column", "time_column",
+                           "columns", "extract_columns", "column_types", "scope_sha256", "restriction_sha256",
+                           "windows", "source_frequency", "analysis_frequency", "resample", "resample_rules",
+                           "history_buffer", "future_buffer", "ordering", "catalog_table_sha256")
+
+
+def data_contract_sha256(approved: dict[str, Any]) -> str:
+    """The data an approved need delivers, without the identity of the request that asked for it (conversation reuse,
+    implementation plan 2026-09-27, S1): mode, subject, every request's table, columns, canonical scope and
+    restrictions, extraction windows, frequencies, resample rules, buffers, ordering and catalog table version, the
+    relationships, and the catalog version. The request group, revision and question are left out; the logical ids
+    (data_request_id, logical_name) stay in, because the session's helpers address the data by them."""
+    spec = approved.get("spec") or {}
+    return sha256_json({
+        "mode": approved.get("mode"), "subject": spec.get("subject"),
+        "requests": {rid: {k: request.get(k) for k in CONTRACT_REQUEST_FIELDS}
+                     for rid, request in sorted((approved.get("requests") or {}).items())},
+        "relationships": approved.get("relationships") or [], "catalog_sha256": approved.get("catalog_sha256")})

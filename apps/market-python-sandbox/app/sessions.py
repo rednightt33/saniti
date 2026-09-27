@@ -270,10 +270,15 @@ class SessionManager:
 
     # ------------------------------------------------------------------ open
 
-    def open(self, request_id: str, bundle_id: str, cpu_seconds: int | None = None) -> dict[str, Any]:
+    def open(self, request_id: str, bundle_id: str, cpu_seconds: int | None = None, *,
+             conversation_key: str | None = None, need_id: str | None = None, bound: bool = False
+             ) -> dict[str, Any]:
+        """A new session on a READY bundle of this request, or (bound) on an earlier bundle of the same conversation
+        that the service bound to this request's approved need. With no free slot, the least recently used WARM_IDLE
+        session is evicted; an ACTIVE or BUSY session never is."""
         s = self.settings
         record = self.store.get_bundle(bundle_id)
-        if record is None or record["request_id"] != request_id or record["status"] != "READY":
+        if record is None or (record["request_id"] != request_id and not bound) or record["status"] != "READY":
             raise SessionError("BUNDLE_NOT_READY", "No READY bundle with this id exists for this request.", 404,
                                "PREPARE_DATA_BUNDLE")
         manifest = record["manifest"]
@@ -281,8 +286,13 @@ class SessionManager:
             raise SessionError("BUNDLE_EXPIRED", "The bundle has expired; prepare it again.", 410,
                                "PREPARE_DATA_BUNDLE")
         with self._lock:
-            used = {w.uid for w in self.workers.values() if w.alive}
-            free = [slot for slot in self.slots if slot[0] not in used]
+            free = self._free_slots()
+            if not free:
+                for warm in self.store.warm_sessions():
+                    if warm["session_id"] in self.workers:
+                        self._close_locked(warm["session_id"], "EVICTED")
+                        break
+                free = self._free_slots()
             if not free:
                 raise SessionError("SESSION_CAPACITY_EXCEEDED", "Every analysis session slot is in use.", 429,
                                    "RETRY_LATER", retry_after_seconds=s.retry_after_seconds)
@@ -298,14 +308,28 @@ class SessionManager:
             self.workers[session_id] = worker
         now = datetime.now(timezone.utc).replace(microsecond=0)
         expires = min(now + timedelta(seconds=s.session_max_seconds), datetime.fromisoformat(manifest["expires_at"]))
+        need_id = need_id or manifest["need_id"]
         self.store.insert_session({"session_id": session_id, "request_id": request_id, "bundle_id": bundle_id,
                                    "status": "ACTIVE", "slot": uid, "created_at": now.isoformat(),
                                    "last_active_at": now.isoformat(), "expires_at": expires.isoformat(),
                                    "executions": 0, "failed_executions": 0,
-                                   "usage": {"cpu_seconds": 0.0, "cpu_budget": budget}})
+                                   "usage": {"cpu_seconds": 0.0, "cpu_budget": budget},
+                                   "origin_request_id": request_id, "conversation_key": conversation_key,
+                                   "need_id": need_id, "epoch": 1, "epoch_start_seq": 0})
+        self.store.insert_epoch({"session_id": session_id, "epoch": 1, "request_id": request_id, "need_id": need_id,
+                                 "start_seq": 0, "attached_at": now.isoformat()})
         self._log("session_opened", request_id=request_id, session_id=session_id, bundle_id=bundle_id, uid=uid,
-                  cpu_budget=budget)
-        return {"session_id": session_id, "status": "ACTIVE", "bundle_id": bundle_id, "need_id": manifest["need_id"],
+                  cpu_budget=budget, bound_bundle=bound, conversation=bool(conversation_key))
+        return self._view(session_id, bundle_id, need_id, manifest, budget, expires.isoformat())
+
+    def _free_slots(self) -> list[tuple[int, list[int]]]:
+        used = {w.uid for w in self.workers.values() if w.alive}
+        return [slot for slot in self.slots if slot[0] not in used]
+
+    def _view(self, session_id: str, bundle_id: str, need_id: str, manifest: dict[str, Any], budget: Any,
+              expires_at: str) -> dict[str, Any]:
+        s = self.settings
+        return {"session_id": session_id, "status": "ACTIVE", "bundle_id": bundle_id, "need_id": need_id,
                 "datasets": [{"data_request_id": d["data_request_id"], "logical_name": d["logical_name"],
                               "columns": [c["name"] for c in d.get("columns") or []],
                               "time_column": d.get("time_column"), "rows": d["rows"],
@@ -320,8 +344,56 @@ class SessionManager:
                 "limits": {"execution_seconds": s.session_execution_seconds, "cpu_seconds": budget,
                            "memory_mb": s.max_memory_mb, "max_executions": s.session_max_executions,
                            "max_failed_executions": s.session_max_failed, "idle_seconds": s.session_idle_seconds,
-                           "max_outputs": s.session_max_outputs, "expires_at": expires.isoformat()},
+                           "max_outputs": s.session_max_outputs, "expires_at": expires_at},
                 "next_action": "RUN_PYTHON"}
+
+    def attach(self, session_id: str, request_id: str, need_id: str) -> dict[str, Any]:
+        """A later request of the same conversation takes over a WARM_IDLE session (conversation reuse, S2): a new
+        epoch starts for this request and its approved need. The namespace, the cumulative execution, failure and CPU
+        counters and the expiry stay; earlier completions and released outputs are never changed."""
+        record = self.store.get_session(session_id)
+        worker = self.workers.get(session_id)
+        if record is None or record["status"] != "WARM_IDLE" or worker is None or not worker.alive:
+            raise SessionError("SESSION_NOT_REUSABLE", "The earlier session is no longer alive; open a new session on "
+                                                       "the bundle.", 409, "OPEN_ANALYSIS_SESSION")
+        epoch = self._new_epoch(record, request_id, need_id)
+        bundle = self.store.get_bundle(record["bundle_id"])["manifest"]
+        usage = record.get("usage") or {}
+        view = self._view(session_id, record["bundle_id"], need_id, bundle, usage.get("cpu_budget"),
+                          record["expires_at"])
+        variables: list[Any] = []
+        if worker.lock.acquire(blocking=False):
+            try:
+                variables = (worker.request({"op": "inspect", "names": None, "max_rows": 0}, 30).get("variables")
+                             or [])[:60]
+            except (EOFError, ValueError):
+                variables = []
+            finally:
+                worker.lock.release()
+        passed = [c for c in self.store.passed_completions(session_id)
+                  if (c.get("final_status") or {}).get("status") == "COMPLETED"]
+        view.update({"reused_session": True, "epoch": epoch, "origin_request_id": record.get("origin_request_id"),
+                     "parent_completion_id": passed[-1]["completion_id"] if passed else None,
+                     "variables": variables,
+                     "session_budget": {"executions_used": record["executions"],
+                                        "failed_used": record["failed_executions"],
+                                        "cpu_seconds_used": usage.get("cpu_seconds")},
+                     "note": "The variables of the earlier message are still defined. Data read before counts for "
+                             "coverage only with a successful execution and an output in this message."})
+        self._log("session_attached", request_id=request_id, session_id=session_id, epoch=epoch, need_id=need_id,
+                  origin_request_id=record.get("origin_request_id"))
+        return view
+
+    def _new_epoch(self, record: dict[str, Any], request_id: str, need_id: str | None) -> int:
+        epoch = int(record.get("epoch") or 1) + 1
+        now = utc_now()
+        self.store.update_session(record["session_id"], request_id=request_id, status="ACTIVE", epoch=epoch,
+                                  epoch_start_seq=record["executions"], need_id=need_id or record.get("need_id"),
+                                  last_active_at=now)
+        self.store.insert_epoch({"session_id": record["session_id"], "epoch": epoch, "request_id": request_id,
+                                 "need_id": need_id or record.get("need_id"), "start_seq": record["executions"],
+                                 "attached_at": now})
+        return epoch
 
     def _launch(self, session_id: str, uid: int, cpus: list[int], directory: Path, manifest: dict[str, Any],
                 budget: int) -> Worker:
@@ -422,11 +494,15 @@ class SessionManager:
 
     # ------------------------------------------------------------------ commands
 
-    def _session(self, session_id: str, request_id: str) -> tuple[dict[str, Any], Worker]:
+    def _session(self, session_id: str, request_id: str, reopen: bool = False) -> tuple[dict[str, Any], Worker]:
         record = self.store.get_session(session_id)
         if record is None or record["request_id"] != request_id:
             raise SessionError("SESSION_NOT_FOUND", "No session with this id exists for this request.", 404,
                                "OPEN_ANALYSIS_SESSION")
+        if record["status"] == "WARM_IDLE" and reopen and session_id in self.workers:
+            # an execution after complete_analysis passed: a new epoch, not released until it completes again
+            self._new_epoch(record, request_id, record.get("need_id"))
+            record = self.store.get_session(session_id)
         worker = self.workers.get(session_id)
         if record["status"] == "CLOSED" or worker is None:
             raise SessionError("SESSION_CLOSED", f"The session is closed ({record.get('close_reason')}); its "
@@ -441,10 +517,10 @@ class SessionManager:
 
     def execute(self, session_id: str, request_id: str, code: str) -> dict[str, Any]:
         s = self.settings
-        record, worker = self._session(session_id, request_id)
         if not isinstance(code, str) or not code.strip() or len(code) > s.max_code_chars:
             raise SessionError("INVALID_CODE", f"Code must be 1 to {s.max_code_chars} characters.", 422,
                                "REVISE_PYTHON_CODE")
+        record, worker = self._session(session_id, request_id, reopen=True)
         if record["executions"] >= s.session_max_executions:
             raise SessionError("SESSION_EXECUTION_LIMIT", f"The session has used its {s.session_max_executions} "
                                                           "executions.", 429, "COMPLETE_ANALYSIS")
@@ -461,7 +537,8 @@ class SessionManager:
         self.store.update_session(session_id, status="BUSY", last_active_at=utc_now())
         self.store.insert_execution({"execution_id": execution_id, "session_id": session_id, "seq": seq,
                                      "kind": "EXECUTE", "code_sha256": hashlib.sha256(code.encode()).hexdigest(),
-                                     "status": "RUNNING", "started_at": utc_now()})
+                                     "status": "RUNNING", "started_at": utc_now(),
+                                     "epoch": int(record.get("epoch") or 1), "request_id": request_id})
         try:
             answer = worker.request({"op": "execute", "execution_id": execution_id, "code": code},
                                     s.session_execution_seconds)
@@ -546,6 +623,9 @@ class SessionManager:
         return {"session_id": session_id, "variables": variables, "truncated": len(text) > 60_000}
 
     def close(self, session_id: str, reason: str = "CLOSED_BY_CALLER") -> dict[str, Any]:
+        return self._close_locked(session_id, reason)
+
+    def _close_locked(self, session_id: str, reason: str) -> dict[str, Any]:
         worker = self.workers.pop(session_id, None)
         if worker is not None:
             worker.kill(reason if worker.death is None else worker.death)
@@ -634,19 +714,32 @@ class SessionManager:
                              "description": record["meta"].get("description")})
         return accepted, rejected
 
-    def read_output(self, session_id: str, request_id: str, output_id: str, offset: int, limit: int
-                    ) -> dict[str, Any]:
+    def read_output(self, session_id: str, request_id: str, output_id: str, offset: int, limit: int,
+                    conversation_key: str | None = None) -> dict[str, Any]:
+        """An output of this request's session; with conversation reuse also a RELEASED output of an earlier
+        request of the same conversation (READ_RELEASED), with the evidence of the completion that released it."""
         record = self.store.get_session(session_id)
         output = self.store.get_output(output_id)
-        if record is None or record["request_id"] != request_id or output is None \
-                or output["session_id"] != session_id:
+        if record is None or output is None or output["session_id"] != session_id:
             raise SessionError("OUTPUT_NOT_FOUND", "No output with this id exists in this session.", 404)
+        origin: dict[str, Any] | None = None
+        if record["request_id"] != request_id or self._epoch_of(output) != int(record.get("epoch") or 1):
+            # another request's output, or an earlier epoch's: only a released one, only within the conversation
+            same_request = record["request_id"] == request_id
+            if not (same_request or (self.settings.conversation_reuse and conversation_key
+                                     and record.get("conversation_key") == conversation_key)) \
+                    or not output["released"]:
+                raise SessionError("OUTPUT_NOT_FOUND", "No output with this id exists in this session.", 404)
+            origin = self._release_origin(session_id, output_id)
         path = self.outputs_root / output["relative_path"]
         if not path.is_file():
             raise SessionError("OUTPUT_EXPIRED", "The output has expired.", 410)
         base = {k: output[k] for k in ("output_id", "name", "type", "format", "row_count", "columns", "byte_count",
                                        "checksum_sha256")} | {"released": bool(output["released"]),
                                                               "meta": output.get("meta") or {}}
+        if origin is not None:
+            base["read_mode"] = "READ_RELEASED"
+            base["origin"] = origin
         offset, limit = max(0, int(offset)), max(1, min(int(limit), 500))
         if output["format"] == "PARQUET":
             import pyarrow.parquet as pq
@@ -671,6 +764,23 @@ class SessionManager:
             return {**base, "offset": offset, "content": value,
                     "next_offset": offset + limit if offset * 100 + limit * 100 < len(text) else None}
         return {**base, "note": "Binary output (chart or file): metadata only."}
+
+    def _epoch_of(self, output: dict[str, Any]) -> int:
+        execution = self.store.get_execution(output["execution_id"]) or {}
+        return int(execution.get("epoch") or 1)
+
+    def _release_origin(self, session_id: str, output_id: str) -> dict[str, Any] | None:
+        """The completion that released an output: its id, request, evidence label, warnings and time (the as-of of
+        the result). Its label is never raised."""
+        for completion in reversed(self.store.passed_completions(session_id)):
+            final = completion.get("final_status") or {}
+            if any(o.get("output_id") == output_id for o in final.get("released_outputs") or []):
+                status = final.get("final_status") or {}
+                return {"completion_id": completion["completion_id"], "request_id": completion["request_id"],
+                        "need_id": completion["need_id"], "completed_at": completion["created_at"],
+                        "evidence_label": status.get("evidence_label"), "warnings": status.get("warnings") or [],
+                        "calculation_validation": status.get("calculation_validation")}
+        return None
 
     def outputs(self, session_id: str) -> list[dict[str, Any]]:
         return [{k: o[k] for k in ("output_id", "execution_id", "name", "type", "format", "row_count", "columns",

@@ -7,8 +7,15 @@ sessions     persistent analysis sessions bound to one request and one bundle
 executions   one row per code execution in a session (status, error, data access log, outputs)
 outputs      outputs emitted by sessions; released only after a coverage PASS
 completions  ExecutionManifest + coverage result + final status of a completed session
+bundle_bindings   (conversation reuse) an approved need of a later request bound to an earlier, immutable bundle with
+                  the same data contract; the bundle's manifest and checksum are never changed
+session_epochs    (conversation reuse) each request a session served: epoch, request, approved need, first execution
 
 Analysis processes never reach this database. Hidden model reasoning is never stored.
+
+Schema versions (PRAGMA user_version): 0 is the original layout (CREATE TABLE IF NOT EXISTS); 1 adds the conversation
+reuse columns and tables of the implementation plan 2026-09-27 (S1/S2). Upgrades only add nullable or defaulted columns
+and new tables, so code without them still reads and writes the database.
 """
 from __future__ import annotations
 
@@ -119,6 +126,30 @@ CREATE INDEX IF NOT EXISTS completions_request ON completions (request_id);
 """
 
 
+SCHEMA_VERSION = 1
+# version -> (table, column, declaration) additions and statements; applied in order, each column only when missing
+UPGRADES: dict[int, tuple[list[tuple[str, str, str]], list[str]]] = {
+    1: ([("data_needs", "conversation_key", "TEXT"), ("data_needs", "contract_sha256", "TEXT"),
+         ("bundles", "conversation_key", "TEXT"),
+         ("sessions", "origin_request_id", "TEXT"), ("sessions", "conversation_key", "TEXT"),
+         ("sessions", "need_id", "TEXT"), ("sessions", "epoch", "INTEGER NOT NULL DEFAULT 1"),
+         ("sessions", "epoch_start_seq", "INTEGER NOT NULL DEFAULT 0"),
+         ("executions", "epoch", "INTEGER NOT NULL DEFAULT 1"), ("executions", "request_id", "TEXT"),
+         ("completions", "epoch", "INTEGER NOT NULL DEFAULT 1"), ("completions", "parent_completion_id", "TEXT")],
+        ["""CREATE TABLE IF NOT EXISTS bundle_bindings (
+               need_id TEXT PRIMARY KEY, request_id TEXT NOT NULL, bundle_id TEXT NOT NULL,
+               source_need_id TEXT NOT NULL, source_request_id TEXT NOT NULL, conversation_key TEXT NOT NULL,
+               created_at TEXT NOT NULL)""",
+         "CREATE INDEX IF NOT EXISTS bundle_bindings_request ON bundle_bindings (request_id, bundle_id)",
+         """CREATE TABLE IF NOT EXISTS session_epochs (
+               session_id TEXT NOT NULL, epoch INTEGER NOT NULL, request_id TEXT NOT NULL, need_id TEXT,
+               start_seq INTEGER NOT NULL, attached_at TEXT NOT NULL, PRIMARY KEY (session_id, epoch))""",
+         "CREATE INDEX IF NOT EXISTS session_epochs_request ON session_epochs (request_id)",
+         "CREATE INDEX IF NOT EXISTS bundles_conversation ON bundles (conversation_key)",
+         "CREATE INDEX IF NOT EXISTS sessions_conversation ON sessions (conversation_key)"]),
+}
+
+
 class DataNeedStore:
     def __init__(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -127,6 +158,29 @@ class DataNeedStore:
         self._db.row_factory = sqlite3.Row
         self._db.execute("PRAGMA journal_mode=WAL")
         self._db.executescript(SCHEMA)
+        self.schema_version = self._upgrade()
+
+    def _upgrade(self) -> int:
+        """Bring an existing database to SCHEMA_VERSION in one transaction per version; never drops or rewrites."""
+        with self._lock:
+            version = int(self._db.execute("PRAGMA user_version").fetchone()[0])
+            for target in sorted(v for v in UPGRADES if v > version):
+                columns, statements = UPGRADES[target]
+                self._db.execute("BEGIN IMMEDIATE")
+                try:
+                    for table, column, declaration in columns:
+                        present = {row[1] for row in self._db.execute(f"PRAGMA table_info({table})")}
+                        if column not in present:
+                            self._db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {declaration}")
+                    for statement in statements:
+                        self._db.execute(statement)
+                    self._db.execute(f"PRAGMA user_version = {target}")
+                    self._db.execute("COMMIT")
+                except Exception:
+                    self._db.execute("ROLLBACK")
+                    raise
+                version = target
+            return version
 
     @staticmethod
     def _encode(fields: dict[str, Any]) -> dict[str, Any]:
@@ -189,6 +243,9 @@ class DataNeedStore:
     def set_bundle_status(self, bundle_id: str, status: str) -> None:
         self._update("bundles", "bundle_id", bundle_id, {"status": status})
 
+    def set_bundle_conversation(self, bundle_id: str, conversation_key: str) -> None:
+        self._update("bundles", "bundle_id", bundle_id, {"conversation_key": conversation_key})
+
     def bundle_for_need(self, need_id: str) -> dict[str, Any] | None:
         return self._one("SELECT * FROM bundles WHERE need_id = ? AND status = 'READY' ORDER BY created_at DESC "
                          "LIMIT 1", (need_id,))
@@ -207,13 +264,64 @@ class DataNeedStore:
         return self._all("SELECT * FROM sessions WHERE request_id = ? ORDER BY created_at", (request_id,))
 
     def open_sessions(self) -> list[dict[str, Any]]:
-        return self._all("SELECT * FROM sessions WHERE status IN ('ACTIVE', 'BUSY') ORDER BY created_at", ())
+        return self._all("SELECT * FROM sessions WHERE status IN ('ACTIVE', 'BUSY', 'WARM_IDLE') ORDER BY created_at",
+                         ())
+
+    def warm_sessions(self, conversation_key: str | None = None) -> list[dict[str, Any]]:
+        """WARM_IDLE sessions, least recently used first (all of them, or those of one conversation)."""
+        if conversation_key is None:
+            return self._all("SELECT * FROM sessions WHERE status = 'WARM_IDLE' ORDER BY last_active_at", ())
+        return self._all("SELECT * FROM sessions WHERE status = 'WARM_IDLE' AND conversation_key = ? "
+                         "ORDER BY last_active_at", (conversation_key,))
 
     def close_orphans(self, now: str) -> int:
         with self._lock:
             cursor = self._db.execute("UPDATE sessions SET status = 'CLOSED', closed_at = ?, "
-                                      "close_reason = 'SANDBOX_RESTARTED' WHERE status IN ('ACTIVE', 'BUSY')", (now,))
+                                      "close_reason = 'SANDBOX_RESTARTED' "
+                                      "WHERE status IN ('ACTIVE', 'BUSY', 'WARM_IDLE')", (now,))
             return cursor.rowcount
+
+    # conversation reuse (schema version 1)
+    def insert_epoch(self, record: dict[str, Any]) -> None:
+        self._insert("session_epochs", record)
+
+    def epochs_for(self, session_id: str) -> list[dict[str, Any]]:
+        return self._all("SELECT * FROM session_epochs WHERE session_id = ? ORDER BY epoch", (session_id,))
+
+    def insert_binding(self, record: dict[str, Any]) -> None:
+        self._insert("bundle_bindings", record)
+
+    def get_binding(self, need_id: str) -> dict[str, Any] | None:
+        return self._one("SELECT * FROM bundle_bindings WHERE need_id = ?", (need_id,))
+
+    def binding_for(self, request_id: str, bundle_id: str) -> dict[str, Any] | None:
+        return self._one("SELECT * FROM bundle_bindings WHERE request_id = ? AND bundle_id = ? ORDER BY created_at "
+                         "DESC LIMIT 1", (request_id, bundle_id))
+
+    def conversation_bundles(self, conversation_key: str) -> list[dict[str, Any]]:
+        """READY bundles of one conversation with their need's data contract hash, newest first."""
+        return self._all("SELECT b.*, n.contract_sha256 AS contract_sha256, n.mode AS mode FROM bundles b "
+                         "JOIN data_needs n ON n.need_id = b.need_id "
+                         "WHERE b.conversation_key = ? AND b.status = 'READY' ORDER BY b.created_at DESC",
+                         (conversation_key,))
+
+    def conversation_sessions(self, conversation_key: str) -> list[dict[str, Any]]:
+        return self._all("SELECT * FROM sessions WHERE conversation_key = ? ORDER BY created_at DESC",
+                         (conversation_key,))
+
+    def released_outputs(self, conversation_key: str, limit: int) -> list[dict[str, Any]]:
+        """Released outputs of the conversation's sessions, newest first."""
+        return self._all("SELECT o.* FROM outputs o JOIN sessions s ON s.session_id = o.session_id "
+                         "WHERE s.conversation_key = ? AND o.released = 1 ORDER BY o.created_at DESC LIMIT ?",
+                         (conversation_key, limit))
+
+    def completion_for_epoch(self, session_id: str, epoch: int) -> dict[str, Any] | None:
+        return self._one("SELECT * FROM completions WHERE session_id = ? AND epoch = ? ORDER BY created_at DESC "
+                         "LIMIT 1", (session_id, epoch))
+
+    def passed_completions(self, session_id: str) -> list[dict[str, Any]]:
+        return self._all("SELECT * FROM completions WHERE session_id = ? AND coverage_status = 'PASS' "
+                         "ORDER BY epoch, created_at", (session_id,))
 
     # executions
     def insert_execution(self, record: dict[str, Any]) -> None:

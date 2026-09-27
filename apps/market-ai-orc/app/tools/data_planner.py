@@ -33,6 +33,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from .registry import ToolSpec
+from .analysis import current_conversation_key
 from .request_data import current_request_id
 
 NEED_ID_PATTERN = r"^need_[0-9a-f]{24}$"
@@ -132,6 +133,11 @@ class ExecutionPlanner:
         if need is None or need.get("request_id") != request_id:
             return {"status": "REJECTED", "code": "NEED_NOT_FOUND", "next_action": "SUBMIT_DATA_NEED_SPEC",
                     "message": "No approved data need with this need_id exists for this request."}
+        if current_conversation_key.get() and hasattr(self.sandbox, "reuse_bundle"):
+            # conversation reuse (S1): an earlier bundle of this conversation with exactly the same data contract
+            reused = self.sandbox.reuse_bundle(request_id, need_id)
+            if reused is not None:
+                return {**reused, "plan": {"reused": True, "extractions": 0}}
         plan_id = f"plan_{secrets.token_hex(12)}"
         planned, decisions = [], []
         try:

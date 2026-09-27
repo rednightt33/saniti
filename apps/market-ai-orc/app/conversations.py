@@ -70,6 +70,12 @@ def owner_from_header(value: str | None) -> str:
     return value
 
 
+def reuse_key(owner: str, conversation_id: str) -> str:
+    """The key the sandbox scopes conversation reuse by (S1/S2): derived from the owner and the conversation, so it
+    is not the conversation id and another owner's key never matches. Set by the application, never by the model."""
+    return "ck_" + hashlib.sha256(f"{owner}\n{conversation_id}".encode()).hexdigest()[:32]
+
+
 def fingerprint(request: AgentRunRequest) -> str:
     """The content a retry of the same request_id must repeat: conversation, message, metadata, continuation and
     plan_reply."""

@@ -268,6 +268,7 @@ Gate and final-response log events (always on):
 | `AI_ENABLE_CATALOG_DISCOVERY_V2` | no | `false` | Catalog discovery v2: `discover_catalog` filters and keyset paging with a bound cursor; `get_catalog_details` adds `table_metadata`, per-table column completeness with `recovery_calls`, resample and join-semantics fields, and `formula_query`. See [Catalog discovery v2 and the discovery protocol](#catalog-discovery-v2-and-the-discovery-protocol) |
 | `AI_ENABLE_CATALOG_PROTOCOL` | no | `false` | The discovery protocol: a fixed prompt rule, reuse of identical catalog results within a run (`cache_hit`), and `CATALOG_DETAILS_REQUIRED` before `submit_data_need_spec` for metadata the run has not read. Needs `AI_ENABLE_CATALOG_DISCOVERY_V2` (startup refuses otherwise); inactive without `AI_ENABLE_DATANEED` |
 | `AI_ENABLE_CONVERSATION_STORE` | no | `false` | Server-side conversation history for `history_mode: SERVER` (see [Server-side conversation history](#server-side-conversation-history)). Needs `CONVERSATION_DATABASE_URL` |
+| `AI_ENABLE_CONVERSATION_REUSE` | no | `false` | Reuse of released outputs, bundles and warm Python sessions of earlier messages in `SERVER` conversations (see [Conversation reuse](#conversation-reuse)). Needs `AI_ENABLE_CONVERSATION_STORE` (startup refuses otherwise) and a sandbox reporting `conversation_reuse` version 1; otherwise inactive (log `conversation_reuse_inactive`) |
 | `CONVERSATION_DATABASE_URL` | with the store (secret) | unset | DSN of the `market_ai_conversation` login (conversation tables only) |
 | `AI_CONVERSATION_RETENTION_DAYS` | no | `30` | Days after the last activity before a conversation is deleted |
 | `AI_CONVERSATION_LEASE_SECONDS` | no | `AI_MAX_ANALYSIS_SECONDS` + 120 | How long a running message holds its conversation; must exceed `AI_MAX_ANALYSIS_SECONDS` |
@@ -494,6 +495,47 @@ requests are unchanged in either case.
   whose lease lapsed and deletes up to 500 expired conversations per pass, with their turns.
 - **Errors** of `SERVER` mode are `{"detail": {"code", "message"}}` with the HTTP status above; agent outcomes stay
   HTTP `200` as in `CLIENT` mode.
+
+#### Conversation reuse
+
+Implementation plan of 2026-09-27, phases S1/S2 (`AI_ENABLE_CONVERSATION_REUSE`, with
+`PY_SANDBOX_ENABLE_CONVERSATION_REUSE` on the sandbox; `apps/market-python-sandbox/README.md` has the sandbox
+contract). It works only for `history_mode: SERVER`; `CLIENT` requests never carry a conversation key.
+
+- **Startup:** reuse turns on only when the sandbox's `GET /v1/runtime` reports `conversation_reuse: {enabled: true,
+  version: 1}`. Otherwise it stays off (fail closed) and the prompt and tools are unchanged.
+- **Key:** for each `SERVER` turn the application derives `ck_` + the first 32 hex characters of
+  SHA-256(owner, conversation_id) (`conversations.reuse_key`). The sandbox client sends it as the header
+  `X-Saniti-Conversation-Key` on every sandbox call of the run. No tool argument can set it, so another owner or
+  conversation never matches.
+- **Note:** a turn with history first reads the sandbox's resources for the key and inserts a `CONVERSATION RESOURCES`
+  application note before the message, bounded to 12,000 characters (older bundle specs are dropped first). It lists:
+  - released outputs, with the completion time, evidence label and warnings;
+  - bundles, with the approved `data_need_spec` to resubmit and the warm session.
+  Numbers in the note are not answer sources.
+- **Prompt:** a fixed `CONVERSATION REUSE` block (no digits besides list markers) teaches three paths:
+  - read a released output again to show, filter or explain a result;
+  - resubmit the listed spec unchanged for a new computation on the same data;
+  - write a different spec for newer or other data, which extracts again.
+- **Planner:** `prepare_data_bundle` first asks the sandbox to bind the need to an earlier bundle with the same data
+  contract (`POST /v1/bundles/reuse`). A match returns that bundle (`reused: true`, `reused_from`,
+  `plan: {reused: true, extractions: 0}`) with no Governor call. `NO_MATCH` plans and extracts as before.
+  `open_analysis_session` then reattaches the warm session when it is alive: `reused_session: true`, a new `epoch`,
+  and the earlier variables.
+- **Evidence:** a released output of an earlier message read with `get_session_output` (`read_mode: READ_RELEASED`)
+  is a source with its own label; the label is never raised.
+  - It also satisfies the routing gate as a completed analysis's result, so a redisplay needs no new Python run.
+  - The response adds limitation lines naming the earlier completion and its time, its warnings, and the
+    not-recalculated line.
+  - A computation in a reattached session is completed per epoch by the sandbox. Data read in an earlier passed epoch
+    counts as `INHERITED` coverage, but this epoch still needs a successful execution and its own output.
+- **Session close:** at run end the S05 close still carries the key. The sandbox returns an attached session that
+  ran nothing to `WARM_IDLE` instead of closing it.
+- **Logs:**
+  - `conversation_resources` per turn (outputs, bundles, warm sessions, note size);
+  - `conversation_reuse_summary` (bundles and sessions reused, earlier released outputs read).
+- **Research:** reuse never replaces approval. A reused bundle or session serves only this request's own approved
+  need, and an approval is used once (phase H2). A new research computation therefore needs a new or revised plan.
 
 `GET /v1/conversations/{conversation_id}/messages?after=<turn_index>&limit=<1-50>` (bearer and `X-Saniti-Owner` as
 above) returns the conversation's turns in order: `turn_index`, `request_id`, `status` (`RUNNING`, `COMPLETED`,

@@ -29,6 +29,11 @@ NEED_ID = re.compile(r"^need_[0-9a-f]{24}$")
 SESSION_ID = re.compile(r"^sess_[0-9a-f]{24}$")
 OUTPUT_ID = re.compile(r"^out_[0-9a-f]{24}$")
 DATA_NEED_KEYS = {"request_id", "reference_time", "timezone", "spec", "research_governance"}
+# Conversation reuse (S1/S2): market-ai-orc derives the key from the conversation and its owner and sends it as a
+# header, never from the model. Ignored while PY_SANDBOX_ENABLE_CONVERSATION_REUSE is off.
+CONVERSATION_HEADER = "X-Saniti-Conversation-Key"
+CONVERSATION_KEY = re.compile(r"^ck_[0-9a-f]{32}$")
+REUSE_VERSION = 1
 PAGE_MAX = 500
 
 
@@ -100,6 +105,8 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                 "network_isolation": "seccomp: socket creation denied in analysis processes (not a network namespace)",
                 "duckdb": "locked connection: files only inside the job's input/ and intermediate/ directories, "
                           "no extensions or attachments, configuration locked",
+                "conversation_reuse": {"enabled": settings.conversation_reuse and dataneed is not None,
+                                       "version": REUSE_VERSION},
                 "limits": {**settings.child_limits(), "max_runtime_seconds": settings.max_runtime_seconds,
                            "max_memory_mb": settings.max_memory_mb, "duckdb_memory_mb": settings.duckdb_memory_mb,
                            "max_logical_datasets": settings.max_logical_datasets,
@@ -142,8 +149,14 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
 
     dataneed_routes = [Depends(dataneed_enabled), Depends(authorize)]
 
+    def conversation_key(x_saniti_conversation_key: str | None = Header(default=None)) -> str | None:
+        """The caller's conversation key, or None: absent, malformed, or reuse disabled."""
+        if not settings.conversation_reuse or not x_saniti_conversation_key:
+            return None
+        return x_saniti_conversation_key if CONVERSATION_KEY.fullmatch(x_saniti_conversation_key) else None
+
     @app.post("/v1/data-needs", dependencies=dataneed_routes)
-    def submit_data_need(body: Any = Body(...)) -> Any:
+    def submit_data_need(body: Any = Body(...), key: str | None = Depends(conversation_key)) -> Any:
         """Validate a DataNeedSpec revision (and its ResearchGovernanceRequest in mode RESEARCH)."""
         if not isinstance(body, dict) or not {"request_id", "reference_time", "spec"} <= set(body) <= DATA_NEED_KEYS \
                 or not isinstance(body["request_id"], str) or not re.fullmatch(REQUEST_ID, body["request_id"]):
@@ -158,7 +171,7 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
         timezone = body.get("timezone") if isinstance(body.get("timezone"), str) else "Asia/Jakarta"
         try:
             return dataneed.submit(body["request_id"], reference_time, timezone[:64], body["spec"],
-                                   body.get("research_governance"))
+                                   body.get("research_governance"), conversation_key=key)
         except DataNeedError as exc:
             return dataneed_error(exc)
 
@@ -181,6 +194,30 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                 "code": "INVALID_REQUEST", "message": "Body must be {request_id, need_id, plan}."}})
         try:
             return dataneed.build_bundle(body["request_id"], body["need_id"], body["plan"])
+        except DataNeedError as exc:
+            return dataneed_error(exc)
+
+    @app.post("/v1/bundles/reuse", dependencies=dataneed_routes)
+    def reuse_bundle(body: Any = Body(...), key: str | None = Depends(conversation_key)) -> Any:
+        """Conversation reuse (S1): bind an approved need to an earlier bundle of the conversation with exactly the
+        same data contract, or NO_MATCH."""
+        if not isinstance(body, dict) or set(body) != {"request_id", "need_id"} \
+                or not isinstance(body["request_id"], str) or not re.fullmatch(REQUEST_ID, body["request_id"]) \
+                or not isinstance(body["need_id"], str) or not NEED_ID.fullmatch(body["need_id"]):
+            return JSONResponse(status_code=422, content={"status": "REJECTED", "error": {
+                "code": "INVALID_REQUEST", "message": "Body must be {request_id, need_id}."}})
+        try:
+            return dataneed.reuse_bundle(body["request_id"], body["need_id"], key)
+        except DataNeedError as exc:
+            return dataneed_error(exc)
+
+    @app.get("/v1/conversations/{key}/resources", dependencies=dataneed_routes)
+    def conversation_resources(key: str) -> Any:
+        """What earlier messages of the conversation left for reuse (ids and summaries, no data)."""
+        if not CONVERSATION_KEY.fullmatch(key):
+            raise HTTPException(status_code=404, detail="Unknown conversation")
+        try:
+            return dataneed.resources(key)
         except DataNeedError as exc:
             return dataneed_error(exc)
 
@@ -219,13 +256,13 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
         return session_id
 
     @app.post("/v1/sessions", dependencies=dataneed_routes)
-    def open_session(body: Any = Body(...)) -> Any:
+    def open_session(body: Any = Body(...), key: str | None = Depends(conversation_key)) -> Any:
         """A persistent analysis session on a READY bundle of the same request."""
         body = session_body(body, {"request_id", "bundle_id"})
         if body is None or not isinstance(body["bundle_id"], str) or not BUNDLE_ID.fullmatch(body["bundle_id"]):
             return invalid_body("{request_id, bundle_id}")
         try:
-            return dataneed.open_session(body["request_id"], body["bundle_id"])
+            return dataneed.open_session(body["request_id"], body["bundle_id"], conversation_key=key)
         except SessionError as exc:
             return session_error(exc)
 
@@ -264,11 +301,13 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
 
     @app.get("/v1/sessions/{session_id}/outputs/{output_id}", dependencies=dataneed_routes)
     def session_output(session_id: str, output_id: str, request_id: str = Query(..., max_length=128),
-                       offset: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=500)) -> Any:
+                       offset: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=500),
+                       key: str | None = Depends(conversation_key)) -> Any:
         if not OUTPUT_ID.fullmatch(output_id):
             raise HTTPException(status_code=404, detail="Unknown output_id")
         try:
-            return dataneed.sessions.read_output(session_id_or_404(session_id), request_id, output_id, offset, limit)
+            return dataneed.sessions.read_output(session_id_or_404(session_id), request_id, output_id, offset, limit,
+                                                 conversation_key=key)
         except SessionError as exc:
             return session_error(exc)
 
@@ -284,15 +323,14 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
             return session_error(exc)
 
     @app.post("/v1/sessions/{session_id}/close", dependencies=dataneed_routes)
-    def close_session(session_id: str, body: Any = Body(...)) -> Any:
+    def close_session(session_id: str, body: Any = Body(...), key: str | None = Depends(conversation_key)) -> Any:
         body = session_body(body, {"request_id"})
         if body is None:
             return invalid_body("{request_id}")
         try:
-            dataneed.sessions.state(session_id_or_404(session_id), body["request_id"])
+            return dataneed.close_session(session_id_or_404(session_id), body["request_id"], conversation_key=key)
         except SessionError as exc:
             return session_error(exc)
-        return dataneed.sessions.close(session_id, "CLOSED_BY_CALLER")
 
     @app.get("/v1/runs/{request_id}", dependencies=[Depends(authorize)])
     def run_summary(request_id: str) -> Any:
