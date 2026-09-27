@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from .research_plan import ContinuationIn, ContinuationOut, ResearchPlan
+from .research_plan import Action, ContinuationIn, ContinuationOut, ResearchPlan
 
 
 MAX_MESSAGE_CHARACTERS = 16000
@@ -30,6 +30,23 @@ class HistoryMessage(BaseModel):
     content: str = Field(max_length=MAX_MESSAGE_CHARACTERS)
 
 
+class PlanReply(BaseModel):
+    """history_mode SERVER: the user's explicit decision on the conversation's latest Research Plan. The server keeps
+    the plan and token and builds the continuation itself (phase H2)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    plan_id: str = Field(pattern=r"^rp_[0-9a-f]{24}$")
+    action: Action
+    revision_instruction: str | None = Field(default=None, max_length=2000)
+
+    @model_validator(mode="after")
+    def _instruction(self) -> "PlanReply":
+        if self.revision_instruction is not None and self.action != "REVISE":
+            raise ValueError("revision_instruction is only for action REVISE")
+        return self
+
+
 class AgentRunRequest(BaseModel):
     """Caller input. extra="forbid" means callers cannot smuggle in system prompts."""
 
@@ -46,6 +63,9 @@ class AgentRunRequest(BaseModel):
     # CLIENT (default): the caller sends the history, as before. SERVER (AI_ENABLE_CONVERSATION_STORE): the service
     # keeps it; send conversation_id (null for a new conversation), a new request_id and the message, no history.
     history_mode: Literal["CLIENT", "SERVER"] = "CLIENT"
+    # SERVER only: an explicit APPROVE, REVISE or CANCEL of the latest Research Plan; a free-text reply without it is
+    # read by the reply classifier.
+    plan_reply: PlanReply | None = None
 
     @field_validator("message")
     @classmethod

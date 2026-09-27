@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from .catalog_store import CatalogStore
 from .catalog_summary import CatalogSummary
 from .config import Settings
+from .conversation_plans import summary as plan_summary
 from .conversations import ConversationError, ConversationStore, UpkeepThread, fingerprint, owner_from_header
 from .openrouter_client import OpenRouterClient
 from .audit import RunAuditor
@@ -178,6 +179,9 @@ def create_app(
     def run_agent(payload: AgentRunRequest,
                   x_saniti_owner: str | None = Header(default=None)) -> AgentRunResponse | JSONResponse:
         if payload.history_mode == "CLIENT":
+            if payload.plan_reply is not None:
+                return refuse(ConversationError("PLAN_REPLY_NEEDS_SERVER_MODE", "plan_reply is for history_mode "
+                                                "SERVER; with CLIENT send the continuation of the plan.", 400))
             return orchestrator.run(payload)
         try:
             if conversations is None:
@@ -186,6 +190,10 @@ def create_app(
             if payload.history:
                 raise ConversationError("HISTORY_SOURCE_CONFLICT", "history_mode SERVER keeps the history itself; "
                                         "send only the new message.", 400)
+            if payload.continuation is not None:
+                raise ConversationError("CONTINUATION_SOURCE_CONFLICT", "history_mode SERVER keeps the Research "
+                                        "Plan itself; reply with the message, or with plan_reply for an explicit "
+                                        "APPROVE, REVISE or CANCEL.", 400)
             owner = owner_from_header(x_saniti_owner)
             start = conversations.begin(owner, payload, fingerprint(payload))
         except ConversationError as error:
@@ -193,8 +201,9 @@ def create_app(
         if start.replay is not None:
             return JSONResponse(content={**start.replay, "conversation": {
                 "conversation_id": start.conversation_id, "turn_index": start.turn_index, "persistence": "SAVED",
-                "replayed": True}})
-        request = payload.model_copy(update={"conversation_id": start.conversation_id, "history": start.history})
+                "replayed": True, "research_plan": plan_summary(start.state)}})
+        request = payload.model_copy(update={"conversation_id": start.conversation_id, "history": start.history,
+                                             "continuation": start.continuation})
         try:
             result = orchestrator.run(request)
         except Exception:
@@ -203,7 +212,8 @@ def create_app(
         saved = conversations.finish(start, payload.request_id, result)
         return JSONResponse(content={**result.model_dump(mode="json"), "conversation": {
             "conversation_id": start.conversation_id, "turn_index": start.turn_index,
-            "persistence": "SAVED" if saved else "NOT_SAVED", "replayed": False}})
+            "persistence": "SAVED" if saved else "NOT_SAVED", "replayed": False,
+            "research_plan": plan_summary(start.state)}})
 
     @app.get("/v1/conversations/{conversation_id}/messages", dependencies=[Depends(authorize)])
     def conversation_messages(conversation_id: str, after: int | None = None, limit: int | None = None,

@@ -14,8 +14,10 @@ declaration can express (hypothesis id and text, objective, condition, outcome, 
 counts, multiple-testing policy, minimum sample, holdout). condition, outcome and baseline are declarations: nothing
 here or in the sandbox inspects the Python code to prove the calculation implements them.
 
-Tokens are stateless. A token that is still valid cannot be revoked before it expires, even after a revised plan was
-issued, so a replay within the TTL is possible; server-side revocation needs a persistent store (not built).
+Tokens are stateless. In history_mode CLIENT a token that is still valid cannot be revoked before it expires, even
+after a revised plan was issued, so a replay within the TTL is possible. In history_mode SERVER the conversation store
+keeps the latest plan and its status (app/conversation_plans.py) and refuses a superseded, cancelled or executed plan
+before any run.
 """
 from __future__ import annotations
 

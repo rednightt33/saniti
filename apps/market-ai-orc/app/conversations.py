@@ -13,6 +13,10 @@ only with the generation it started with (compare-and-set), so a runner whose le
 overwrite the newer state. A retry of the same request_id with the same content returns the stored response without
 a new run; different content under the same request_id is refused.
 
+Research Plans (phase H2, app/conversation_plans.py): the conversation state keeps the latest plan the backend
+issued, so the caller sends only the reply (free text, or plan_reply with an explicit action); the plan_reply is
+checked against that state before the turn is allocated, and the state moves with the stored response.
+
 Retention: a conversation expires AI_CONVERSATION_RETENTION_DAYS after its last activity; cleanup deletes it with
 its turns in bounded batches. Only completed turns with an assistant text become history; tool traces, datasets and
 hidden reasoning are never stored here.
@@ -32,6 +36,8 @@ import psycopg
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
+from . import conversation_plans as plans
+from .research_plan import ContinuationIn
 from .schemas import MAX_HISTORY_ITEMS, MAX_MESSAGE_CHARACTERS, AgentRunRequest, AgentRunResponse, HistoryMessage
 
 logger = logging.getLogger("market_ai_orc")
@@ -65,9 +71,12 @@ def owner_from_header(value: str | None) -> str:
 
 
 def fingerprint(request: AgentRunRequest) -> str:
-    """The content a retry of the same request_id must repeat: conversation, message, metadata and continuation."""
+    """The content a retry of the same request_id must repeat: conversation, message, metadata, continuation and
+    plan_reply."""
     body = {"conversation_id": request.conversation_id, "message": request.message, "metadata": request.metadata,
             "continuation": request.continuation.model_dump(mode="json") if request.continuation else None}
+    if request.plan_reply is not None:  # absent from the fingerprints stored before phase H2
+        body["plan_reply"] = request.plan_reply.model_dump(mode="json")
     return hashlib.sha256(json.dumps(body, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
@@ -90,6 +99,8 @@ class TurnStart:
     created: bool
     history: list[HistoryMessage] = field(default_factory=list)
     replay: dict[str, Any] | None = None          # the stored response of an identical earlier request
+    state: dict[str, Any] = field(default_factory=dict)   # the conversation state when the turn started
+    continuation: ContinuationIn | None = None    # the latest pending Research Plan, built by the server (H2)
 
 
 class ConversationStore:
@@ -130,7 +141,7 @@ class ConversationStore:
                request_fingerprint: str) -> TurnStart:
         existing = connection.execute(
             '''SELECT t.conversation_id, t.turn_index, t.status, t.request_fingerprint, t.response,
-                      t.lease_generation, c.owner_key,
+                      t.lease_generation, c.owner_key, c.state,
                       c.active_request_id = t.request_id AND c.lease_generation = t.lease_generation
                           AND c.lease_expires_at > CURRENT_TIMESTAMP AS lease_held
                FROM public."AI_conversation_turn" t JOIN public."AI_conversation" c USING (conversation_id)
@@ -143,7 +154,8 @@ class ConversationStore:
                                         "request; send a new request_id for a new message.", 409)
             if existing["status"] == "COMPLETED":
                 return TurnStart(existing["conversation_id"], existing["turn_index"], existing["lease_generation"],
-                                 False, replay=existing["response"])
+                                 False, replay=existing["response"],
+                                 state=existing["state"] if isinstance(existing["state"], dict) else {})
             if existing["status"] == "RUNNING" and existing["lease_held"]:
                 raise ConversationError("TURN_IN_PROGRESS", "This request is still running; retry the same "
                                         "request_id later to receive its response.", 409)
@@ -167,12 +179,18 @@ class ConversationStore:
             if not CONVERSATION_ID_RE.fullmatch(conversation_id or ""):
                 raise ConversationError("CONVERSATION_NOT_FOUND", "No such conversation for this owner.", 404)
         row = connection.execute(
-            '''SELECT next_turn_index, active_request_id, lease_generation,
+            '''SELECT next_turn_index, active_request_id, lease_generation, state,
                       lease_expires_at IS NOT NULL AND lease_expires_at > CURRENT_TIMESTAMP AS leased
                FROM public."AI_conversation" WHERE conversation_id = %s AND owner_key = %s FOR UPDATE''',
             (conversation_id, owner)).fetchone()
         if row is None:
             raise ConversationError("CONVERSATION_NOT_FOUND", "No such conversation for this owner.", 404)
+        state = row["state"] if isinstance(row["state"], dict) else {}
+        try:
+            # before the turn is allocated, so a refused plan_reply leaves no turn behind
+            continuation = plans.continuation_for(state, request)
+        except plans.PlanReplyError as error:
+            raise ConversationError(error.code, error.message, error.http_status) from None
         if row["active_request_id"] is not None:
             if row["leased"]:
                 raise ConversationError("CONVERSATION_BUSY", "Another message of this conversation is still "
@@ -208,7 +226,8 @@ class ConversationStore:
             history.append(HistoryMessage(role="user", content=item["user_message"][:MAX_MESSAGE_CHARACTERS]))
             history.append(HistoryMessage(role="assistant",
                                           content=item["assistant_text"][:MAX_MESSAGE_CHARACTERS]))
-        return TurnStart(conversation_id, turn_index, generation, created, history=history)
+        return TurnStart(conversation_id, turn_index, generation, created, history=history, state=state,
+                         continuation=continuation)
 
     @staticmethod
     def _interrupt(connection: psycopg.Connection, conversation_id: str, request_id: str, generation: int) -> None:
@@ -222,10 +241,12 @@ class ConversationStore:
             (conversation_id, request_id, generation))
 
     def finish(self, start: TurnStart, request_id: str, result: AgentRunResponse) -> bool:
-        """Store the response and release the lease, only with the generation the turn started with. False when the
-        turn was taken over (its lease lapsed) or the store failed: the caller is told it was not saved."""
+        """Store the response, the conversation state (the latest Research Plan, H2) and release the lease, only with
+        the generation the turn started with. False when the turn was taken over (its lease lapsed) or the store
+        failed: the caller is told it was not saved."""
         body = result.model_dump(mode="json")
         response = result.response
+        state = plans.advance(start.state, result, request_id, start.turn_index)
         try:
             with self._connect() as connection:
                 stored = connection.execute(
@@ -245,9 +266,10 @@ class ConversationStore:
                 connection.execute(
                     '''UPDATE public."AI_conversation"
                        SET active_request_id = NULL, lease_expires_at = NULL, updated_at = CURRENT_TIMESTAMP,
-                           expires_at = CURRENT_TIMESTAMP + make_interval(days => %s)
+                           expires_at = CURRENT_TIMESTAMP + make_interval(days => %s), state = %s
                        WHERE conversation_id = %s AND active_request_id = %s AND lease_generation = %s''',
-                    (self.retention_days, start.conversation_id, request_id, start.generation))
+                    (self.retention_days, Jsonb(state), start.conversation_id, request_id, start.generation))
+            start.state = state
             return True
         except (psycopg.Error, ConversationError):
             logger.exception(json.dumps({"event": "conversation_store_failed", "request_id": request_id,
@@ -280,7 +302,7 @@ class ConversationStore:
         try:
             with self._connect() as connection:
                 conversation = connection.execute(
-                    '''SELECT conversation_id, created_at, updated_at, expires_at, next_turn_index,
+                    '''SELECT conversation_id, created_at, updated_at, expires_at, next_turn_index, state,
                               active_request_id IS NOT NULL AS running
                        FROM public."AI_conversation" WHERE conversation_id = %s AND owner_key = %s''',
                     (conversation_id, owner)).fetchone()
@@ -306,6 +328,7 @@ class ConversationStore:
             "expires_at": conversation["expires_at"].isoformat(),
             "turn_count": int(conversation["next_turn_index"]),
             "running": bool(conversation["running"]),
+            "research_plan": plans.summary(conversation["state"]),
             "messages": items,
             "has_more": has_more,
             "next_after": items[-1]["turn_index"] if has_more and items else None,

@@ -451,14 +451,36 @@ requests are unchanged in either case.
   of another owner reads as `CONVERSATION_NOT_FOUND`. The header is only as trustworthy as the caller: never forward
   a browser-supplied value without authenticating it.
 - **Response:** the usual body plus
-  `"conversation": {"conversation_id", "turn_index", "persistence": "SAVED" | "NOT_SAVED", "replayed"}`. `NOT_SAVED`
+  `"conversation": {"conversation_id", "turn_index", "persistence": "SAVED" | "NOT_SAVED", "replayed",
+  "research_plan"}`. `NOT_SAVED`
   means the answer was produced but not stored (the store failed, or the turn's lease was taken over); the next
   message will not see it as history. `CLIENT` responses carry no `conversation` key.
 - **History:** the latest completed turns (at most 25 pairs; the answer, or the clarification question of a
   CLARIFICATION) become the run's history, trimmed by `AI_MAX_HISTORY_TOKENS` like a caller history. Failed and
   interrupted turns, tool traces and datasets are never history. `conversation_id` is passed to the run, so a
-  Research Plan binds to the conversation; the caller still sends the plan reply in `continuation` (automatic
-  continuation is phase H2).
+  Research Plan's token binds to the conversation.
+- **Research Plans** (phase H2, `app/conversation_plans.py`): the server keeps the latest plan it issued in the
+  conversation (`AI_conversation.state.research_plan`: plan, `plan_id`, origin request, token, expiry, status), and
+  `conversation.research_plan` shows `{plan_id, status, expires_at}` (never the token). Status: `PENDING`, `EXPIRED`
+  (pending past its expiry), `EXECUTED`, `CANCELLED`; a replaced plan is kept as `SUPERSEDED` in
+  `state.earlier_plans` (the last 10).
+  - Reply with the message only: while the latest plan is `PENDING` and unexpired, the server builds the
+    continuation from it and the existing reply classifier reads the message (APPROVE, REVISE, CANCEL, UNRELATED;
+    "setuju, tetapi ubah periode" is a revision, and any doubt approves nothing).
+  - Or add `plan_reply: {"plan_id", "action": "APPROVE" | "REVISE" | "CANCEL", "revision_instruction"}` for an
+    explicit decision. It must name the latest plan while it is `PENDING`: an older plan →
+    `409 RESEARCH_PLAN_STALE` (even when its token has not expired), an executed or cancelled one →
+    `409 RESEARCH_PLAN_NOT_PENDING`, an unknown one → `404 RESEARCH_PLAN_NOT_FOUND`. The check runs before the turn
+    is allocated, so a refused reply leaves no turn. An explicit reply to an expired plan is attached, and the run
+    presents the plan again for a new approval; a free-text message after expiry runs as an ordinary turn.
+  - A new plan (a proposal, a revision, a re-plan) replaces the latest one. An approval is used once: the approving
+    turn marks the plan `EXECUTED` whatever its outcome, and a later approval of it never re-runs the experiments (a
+    retry of the same `request_id` returns the stored response). A later research computation needs a new or
+    revised plan and a new approval. An `UNRELATED` reply returns the same continuation, so the plan is never
+    extended.
+  - `continuation` in a `SERVER` request → `400 CONTINUATION_SOURCE_CONFLICT`; `plan_reply` in a `CLIENT` request
+    → `400 PLAN_REPLY_NEEDS_SERVER_MODE`. `CLIENT` mode keeps the stateless token and its documented limit (a valid
+    token cannot be revoked before it expires).
 - **One message at a time** per conversation: a second message while one runs gets `409 CONVERSATION_BUSY`. The
   running turn holds a lease of `AI_CONVERSATION_LEASE_SECONDS` (default `AI_MAX_ANALYSIS_SECONDS` + 120 s). After it
   lapses the next message takes over and the old turn ends `INTERRUPTED`; the old runner cannot store its response
@@ -476,7 +498,7 @@ requests are unchanged in either case.
 `GET /v1/conversations/{conversation_id}/messages?after=<turn_index>&limit=<1-50>` (bearer and `X-Saniti-Owner` as
 above) returns the conversation's turns in order: `turn_index`, `request_id`, `status` (`RUNNING`, `COMPLETED`,
 `FAILED`, `INTERRUPTED`), `run_status`, `response_type`, `user_message`, the stored `response`, `error_code`,
-timestamps, plus `has_more` and `next_after`.
+timestamps, plus `research_plan` (as in the response), `has_more` and `next_after`.
 
 Database access: the login `market_ai_conversation` (`scripts/provision_market_ai_conversation_login.py`, password
 secret `MARKET_AI_CONVERSATION_DB_PASSWORD`) holds only `market_ai_conversation_store`: SELECT, INSERT, UPDATE and
