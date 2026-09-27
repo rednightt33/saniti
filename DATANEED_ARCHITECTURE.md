@@ -204,9 +204,9 @@ The migrations were rehearsed on disposable PostgreSQL 16 databases: apply, read
 
 | Service | Deployment | Commit / change | Status |
 |---|---|---|---|
-| market-python-sandbox | `86eb4ddf-bba6-4d31-8c46-1dd04e91224d` | `86d23ad` (the open-session response states the helpers' value types) + `PY_SANDBOX_DATANEED_ENABLED=true` | `SUCCESS`, `/ready` 200 (returned only after the isolation self-test passes) |
+| market-python-sandbox | `c989d7f8-b6c9-437b-9ebb-f07d9b698579` | `23290ad` (conversation reuse, S06) + `PY_SANDBOX_DATANEED_ENABLED=true`, `PY_SANDBOX_ENABLE_CONVERSATION_REUSE=true` | `SUCCESS`, `/ready` 200 (returned only after the isolation self-test passes); dataneed SQLite at schema version 1 |
 | market-sql-governor | `2136ce9e-f54f-4d5a-80e6-611df5348647` | `4aa3272` (later pushes did not touch it: `SKIPPED`) | `SUCCESS`, `/ready` 200 |
-| market-ai-orc | `4024ed1b-1848-42d4-8690-b4c25070e3e0` | `0b87d96`, with `AI_ENABLE_DATANEED=true`, `AI_ENABLE_LOOKUP_FACT=false`, `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION=true`, `AI_ENABLE_STANDARD_PERIOD_RETURN=true`, `AI_FINAL_CONTRACT_IN_PROMPT=true`, `AI_LOG_PROVIDER=true`, `AI_ENABLE_CATALOG_DISCOVERY_V2=true`, `AI_ENABLE_CATALOG_PROTOCOL=false`, `AI_ENABLE_CONVERSATION_STORE=true` and the secrets `AI_RESEARCH_PLAN_SIGNING_KEY`, `MARKET_AI_CONVERSATION_DB_PASSWORD` and `CONVERSATION_DATABASE_URL` | `SUCCESS`, `/ready` 200 |
+| market-ai-orc | `4f821959-3d3e-47ca-9211-4d3f1511777d` | `23290ad`, with `AI_ENABLE_DATANEED=true`, `AI_ENABLE_LOOKUP_FACT=false`, `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION=true`, `AI_ENABLE_STANDARD_PERIOD_RETURN=true`, `AI_FINAL_CONTRACT_IN_PROMPT=true`, `AI_LOG_PROVIDER=true`, `AI_ENABLE_CATALOG_DISCOVERY_V2=true`, `AI_ENABLE_CATALOG_PROTOCOL=false`, `AI_ENABLE_CONVERSATION_STORE=true`, `AI_ENABLE_CONVERSATION_REUSE=true` and the secrets `AI_RESEARCH_PLAN_SIGNING_KEY`, `MARKET_AI_CONVERSATION_DB_PASSWORD` and `CONVERSATION_DATABASE_URL` | `SUCCESS`, `/ready` 200 |
 
 Active DataNeed flags in `dev`: `PY_SANDBOX_DATANEED_ENABLED=true`, `AI_ENABLE_DATANEED=true`, `AI_ENABLE_LOOKUP_FACT=false`, `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION=true`, `AI_ENABLE_STANDARD_PERIOD_RETURN=true` (the last two since 2026-09-26, see the addendum). Temporary jobs were deleted, and `railway config plan` shows only the three accepted legacy source drifts.
 
