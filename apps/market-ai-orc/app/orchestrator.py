@@ -1589,15 +1589,19 @@ class AgentOrchestrator:
         elif name == "complete_analysis" and result.get("final_status"):
             session_id = result.get("session_id") or ((arguments or {}).get("session_id") if isinstance(
                 arguments, dict) else "")
+            # a session can complete more than once in a run (conversation reuse: code run after a passed completion
+            # starts a new epoch), so the released values of every completion stay sources
+            earlier = (state.completions.get(session_id) or {}).get("completion_ids") or []
             state.completions[session_id] = {"status": result.get("status"), "final": result["final_status"],
                                              "coverage": (result.get("coverage") or {}).get("coverage_status"),
                                              "need_id": result.get("need_id"), "completion_id":
-                                             result.get("completion_id"), "next_action": result.get("next_action")}
+                                             result.get("completion_id"), "next_action": result.get("next_action"),
+                                             "completion_ids": [*earlier, result.get("completion_id") or session_id]}
             state.final_status = {"completion_id": result.get("completion_id"), "session_id": session_id,
                                   "need_id": result.get("need_id"), "status": result.get("status"),
                                   **result["final_status"]}
             if result.get("status") == "COMPLETED":
-                state.analysis_values[f"completion:{session_id}"] = {
+                state.analysis_values[f"completion:{result.get('completion_id') or session_id}"] = {
                     "label": "DATA_COVERAGE_VERIFIED", "values": released_numbers(result.get("released_contents"))}
                 state.context_numbers.extend(numbers_in(result.get("coverage"), ints_only=True))
 
@@ -1823,10 +1827,11 @@ class AgentOrchestrator:
             completion = state.completions.get(session_id or "")
             retained = "NOT_RUN"
             if completion:
-                record = state.analysis_values.get(f"completion:{session_id}") or {}
                 index = SourceIndex()
-                if record.get("label"):
-                    index.add(record["label"], record["values"])
+                for completion_id in completion.get("completion_ids") or []:
+                    record = state.analysis_values.get(f"completion:{completion_id}") or {}
+                    if record.get("label"):
+                        index.add(record["label"], record["values"])
                 cited = check_answer(answer or "", index)
                 retained = "RETAINED" if cited.checked > len(cited.unsupported) else "DISCARDED"
             governance = need.get("governance") or {}

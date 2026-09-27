@@ -417,3 +417,16 @@ def test_both_number_rules_allow_display_rounding_without_adding_number_sources(
         assert sentence in " ".join(build_system_prompt(False, dataneed).split())
     # the system prompt is a number source (CONTEXT), so the rule carries no digits
     assert not any(ch.isdigit() for ch in sentence)
+
+
+def test_every_completion_of_a_session_stays_a_source() -> None:
+    # conversation reuse: code run after a passed completion starts a new epoch of the same session, whose completion
+    # must not replace the released values of the first one (found in the 2026-09-27 reuse PoC)
+    second = completed(rows=[{"ticker": "BBCA", "gaps": 7}])
+    second["completion_id"] = "cmp_2"
+    script = [*flow(), call("run_python", {"session_id": SESSION}, "c6"), call("complete_analysis",
+                                                                                 {"session_id": SESSION}, "c7"),
+              final_response(answer("Return YTD BBCA 12,35% dan BBRI -4,32%; BBCA punya 7 celah."))]
+    result, _ = run(script, Tools([completed(), second]), AI_MAX_TOOL_ITERATIONS="12")
+    assert result.response.response_type == "ANSWER", result.response
+    assert result.execution.number_provenance.unsupported == []
