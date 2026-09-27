@@ -411,13 +411,19 @@ class DataNeedService:
         if self.settings.conversation_reuse:
             manifest.update(epoch=epoch, need_id=need_id)
         processing = processing_coverage(need, manifest)
-        # data read in full by an earlier epoch of this session that completed with PASS on the same bundle stays in
-        # the namespace: it counts as INHERITED, labelled with its completion, never as read again in this epoch
-        parent = next((c for c in reversed(self.store.passed_completions(session_id))
-                       if int(c.get("epoch") or 1) < epoch
-                       and (c.get("final_status") or {}).get("status") == "COMPLETED"), None) if epoch > 1 else None
-        inherited = {i["data_request_id"]: i for i in processing_coverage(need, parent["execution_manifest"])} \
-            if parent is not None else {}
+        # data read in full by any earlier epoch of this session that completed with PASS (same bundle, same
+        # namespace) stays in the namespace: it counts as INHERITED, labelled with the completions, never as read again
+        # in this epoch. Every earlier passed epoch counts, not only the last one: an epoch that only reused variables
+        # read nothing itself (S07)
+        ancestors = [c for c in self.store.passed_completions(session_id)
+                     if int(c.get("epoch") or 1) < epoch
+                     and (c.get("final_status") or {}).get("status") == "COMPLETED"] if epoch > 1 else []
+        parent = ancestors[-1] if ancestors else None
+        inherited: dict[str, dict[str, Any]] = {}
+        for ancestor in ancestors:
+            for item in processing_coverage(need, ancestor["execution_manifest"]):
+                if item["status"] == "PROCESSED":
+                    inherited[item["data_request_id"]] = item
         delivery = bundle.get("coverage") or {}
         by_request = {r["data_request_id"]: r for r in delivery.get("requests") or []}
         requests = []
@@ -474,6 +480,7 @@ class DataNeedService:
         if parent is not None:
             final["inherited_coverage"] = {
                 "parent_completion_id": parent["completion_id"], "parent_request_id": parent["request_id"],
+                "ancestor_completion_ids": [c["completion_id"] for c in ancestors],
                 "data_request_ids": sorted(r["data_request_id"] for r in requests if r["processing"] == "INHERITED")}
         coverage = {"coverage_status": coverage_status, "requests": requests,
                     "delivery_issues": [i for r in delivery.get("requests") or [] for i in r.get("issues") or []][:10]}

@@ -230,3 +230,18 @@ def test_the_sqlite_upgrade_keeps_legacy_rows(tmp_path) -> None:
     assert store.completion_for_epoch("sess_old", 1)["completion_id"] == "cmp_old"
     store.close()
     assert DataNeedStore(path).schema_version == 1  # idempotent on reopen
+
+
+def test_coverage_is_inherited_from_every_earlier_passed_epoch(reuse) -> None:
+    # S07 (the 2026-09-27 PoC): epoch 2 only reused variables, so it read nothing itself; epoch 3 must still inherit
+    # the data epoch 1 read in full in the same namespace
+    one = first_turn(reuse)
+    attach(reuse, "req_turn_2")
+    execute(reuse, one["session_id"], "req_turn_2", "emit_json('count', {'n': int(len(last))})")
+    assert complete(reuse, one["session_id"], "req_turn_2")["status"] == "COMPLETED"
+    attach(reuse, "req_turn_3")
+    execute(reuse, one["session_id"], "req_turn_3", "emit_json('top', {'close': float(last['close'].max())})")
+    done = complete(reuse, one["session_id"], "req_turn_3")
+    assert done["status"] == "COMPLETED", done
+    assert {r["processing"] for r in done["coverage"]["requests"]} == {"INHERITED"}
+    assert done["final_status"]["inherited_coverage"]["ancestor_completion_ids"][0] == one["completion_id"]

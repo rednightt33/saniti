@@ -259,9 +259,10 @@ completion, completion responses keep their shape).
   - A COMPLETED result of an earlier epoch never completes a later one.
   - An epoch with no successful execution and output is INCOMPLETE.
   - Only the epoch's own outputs are released; earlier completions and outputs are never changed.
-  - A request that this epoch did not read again but that an earlier PASS epoch of the same session and bundle read
+  - A request that this epoch did not read again but that any earlier PASS epoch of the same session and bundle read
     in full counts as `INHERITED` (coverage `processing: INHERITED`). The final status then names
-    `inherited_coverage` (`parent_completion_id`, `parent_request_id`, `data_request_ids`).
+    `inherited_coverage` (`parent_completion_id`, `parent_request_id`, `ancestor_completion_ids`,
+    `data_request_ids`). Every earlier passed epoch counts, because they share one namespace (S07).
   - The completion carries `epoch` and `session_status` (`WARM_IDLE` or `CLOSED`).
 - **Released outputs across requests (READ_RELEASED).** `GET /v1/sessions/{id}/outputs/{output_id}` with the
   conversation key also serves a **released** output of an earlier request of the conversation, or of an earlier
