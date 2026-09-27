@@ -50,6 +50,7 @@ MAX_CANDIDATES = 50
 MAX_PAIRWISE = 20_000
 IDENTIFIER = r"^[a-z][a-z0-9_]{0,39}$"
 PLAN_ID = re.compile(r"^rp_[0-9a-f]{24}$")
+DRAFT_ID = re.compile(r"^draft_[0-9a-f]{24}$")
 TOKEN = re.compile(r"^rpc1\.[A-Za-z0-9_-]{16,1900}\.[A-Za-z0-9_-]{43}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 # Code in a plan (SQL, Python, helper calls). The plan is conceptual: tables, SQL and formulas come after approval.
@@ -219,6 +220,8 @@ class VerifiedPlan:
     conversation_id: str | None
     expires_at: datetime
     token: str
+    # the feasibility draft the plan was checked against (AI_ENABLE_PLAN_FEASIBILITY), bound by the signature
+    draft_id: str | None = None
 
 
 def _utc(moment: datetime) -> datetime:
@@ -243,11 +246,14 @@ class PlanSigner:
     def _signature(self, payload: str) -> str:
         return _b64encode(hmac.new(self._key, f"{TOKEN_VERSION}.{payload}".encode("ascii"), hashlib.sha256).digest())
 
-    def issue(self, plan: ResearchPlan, origin_request_id: str, conversation_id: str | None) -> ContinuationOut:
+    def issue(self, plan: ResearchPlan, origin_request_id: str, conversation_id: str | None,
+              draft_id: str | None = None) -> ContinuationOut:
         now = int(_utc(self.clock()).timestamp())
         plan_id = f"rp_{secrets.token_hex(12)}"
         claims = {"v": 1, "typ": TOKEN_KIND, "pid": plan_id, "ph": plan_sha256(plan), "org": origin_request_id,
                   "cid": conversation_id, "iat": now, "exp": now + self.ttl_seconds}
+        if draft_id is not None:
+            claims["did"] = draft_id  # only when a feasibility draft exists, so earlier tokens keep their form
         payload = _b64encode(canonical_json(claims))
         token = f"{TOKEN_VERSION}.{payload}.{self._signature(payload)}"
         return ContinuationOut(plan_id=plan_id, origin_request_id=origin_request_id, conversation_id=conversation_id,
@@ -264,6 +270,10 @@ class PlanSigner:
         except (ValueError, binascii.Error, UnicodeDecodeError):
             raise PlanVerificationError("RESEARCH_PLAN_TOKEN_INVALID", "CLAIMS") from None
         expected = {"v", "typ", "pid", "ph", "org", "cid", "iat", "exp"}
+        if isinstance(claims, dict) and "did" in claims:
+            if not isinstance(claims["did"], str) or not DRAFT_ID.fullmatch(claims["did"]):
+                raise PlanVerificationError("RESEARCH_PLAN_TOKEN_INVALID", "CLAIMS")
+            expected = expected | {"did"}
         if not isinstance(claims, dict) or set(claims) != expected or claims["v"] != 1 or claims["typ"] != TOKEN_KIND \
                 or not isinstance(claims["pid"], str) or not PLAN_ID.fullmatch(claims["pid"]) \
                 or not isinstance(claims["ph"], str) or not SHA256.fullmatch(claims["ph"]) \
@@ -292,7 +302,8 @@ class PlanSigner:
             raise PlanVerificationError("RESEARCH_PLAN_TOKEN_EXPIRED", "EXPIRED")
         return VerifiedPlan(plan=continuation.plan, plan_id=claims["pid"], plan_sha256=claims["ph"],
                             origin_request_id=claims["org"], conversation_id=claims["cid"],
-                            expires_at=datetime.fromtimestamp(claims["exp"], timezone.utc), token=continuation.token)
+                            expires_at=datetime.fromtimestamp(claims["exp"], timezone.utc), token=continuation.token,
+                            draft_id=claims.get("did"))
 
 
 def _no_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:

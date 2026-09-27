@@ -138,7 +138,8 @@ class ExtractionLineage(Strict):
     """Sent by the planner next to the spec; recorded in the dataset manifest and returned only to the sandbox.
     The Governor checks that extraction_sha256 and part_key describe the spec it compiled."""
 
-    need_id: str = Field(pattern=r"^need_[0-9a-f]{24}$")
+    # a draft_ id: an estimate-only extraction of a Research Plan's feasibility draft (never extracted)
+    need_id: str = Field(pattern=r"^(?:need|draft)_[0-9a-f]{24}$")
     spec_sha256: str = Field(pattern=SHA256_PATTERN)
     request_group_id: str = Field(pattern=r"^[a-z][a-z0-9_]{0,39}$")
     revision: int = Field(ge=1)

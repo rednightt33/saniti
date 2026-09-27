@@ -10,11 +10,13 @@ completions  ExecutionManifest + coverage result + final status of a completed s
 bundle_bindings   (conversation reuse) an approved need of a later request bound to an earlier, immutable bundle with
                   the same data contract; the bundle's manifest and checksum are never changed
 session_epochs    (conversation reuse) each request a session served: epoch, request, approved need, first execution
+data_need_drafts  (Research Plan feasibility) a DataNeedSpec the validator approved before any plan was approved; it
+                  is never extracted (the Governor only estimates it) and is kept seven days
 
 Analysis processes never reach this database. Hidden model reasoning is never stored.
 
 Schema versions (PRAGMA user_version): 0 is the original layout (CREATE TABLE IF NOT EXISTS); 1 adds the conversation
-reuse columns and tables of the implementation plan 2026-09-27 (S1/S2). Upgrades only add nullable or defaulted columns
+reuse columns and tables of the implementation plan 2026-09-27 (S1/S2); 2 adds data_need_drafts. Upgrades only add nullable or defaulted columns
 and new tables, so code without them still reads and writes the database.
 """
 from __future__ import annotations
@@ -126,7 +128,8 @@ CREATE INDEX IF NOT EXISTS completions_request ON completions (request_id);
 """
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+DRAFT_RETENTION_DAYS = 7
 # version -> (table, column, declaration) additions and statements; applied in order, each column only when missing
 UPGRADES: dict[int, tuple[list[tuple[str, str, str]], list[str]]] = {
     1: ([("data_needs", "conversation_key", "TEXT"), ("data_needs", "contract_sha256", "TEXT"),
@@ -147,6 +150,10 @@ UPGRADES: dict[int, tuple[list[tuple[str, str, str]], list[str]]] = {
          "CREATE INDEX IF NOT EXISTS session_epochs_request ON session_epochs (request_id)",
          "CREATE INDEX IF NOT EXISTS bundles_conversation ON bundles (conversation_key)",
          "CREATE INDEX IF NOT EXISTS sessions_conversation ON sessions (conversation_key)"]),
+    2: ([], ["""CREATE TABLE IF NOT EXISTS data_need_drafts (
+                   draft_id TEXT PRIMARY KEY, request_id TEXT NOT NULL, submitted TEXT NOT NULL, approved TEXT NOT NULL,
+                   result TEXT NOT NULL, contract_sha256 TEXT, created_at TEXT NOT NULL)""",
+             "CREATE INDEX IF NOT EXISTS data_need_drafts_created ON data_need_drafts (created_at)"]),
 }
 
 
@@ -212,6 +219,15 @@ class DataNeedStore:
     def _all(self, sql: str, params: tuple[Any, ...]) -> list[dict[str, Any]]:
         with self._lock:
             return [self._decode(row) for row in self._db.execute(sql, params).fetchall()]
+
+    # feasibility drafts
+    def insert_draft(self, record: dict[str, Any], purge_before: str) -> None:
+        self._insert("data_need_drafts", record)
+        with self._lock:
+            self._db.execute("DELETE FROM data_need_drafts WHERE created_at < ?", (purge_before,))
+
+    def get_draft(self, draft_id: str) -> dict[str, Any] | None:
+        return self._one("SELECT * FROM data_need_drafts WHERE draft_id = ?", (draft_id,))
 
     # data needs
     def insert_need(self, record: dict[str, Any]) -> None:

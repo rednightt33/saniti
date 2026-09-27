@@ -289,6 +289,14 @@ minimum_sample at least the approved value in the same unit; a holdout
 when the plan requires one. Any other change needs a revised plan and a
 new approval (RESEARCH_PLAN_CONFIRMATION).
 Mode ANALYSIS needs no plan and proceeds directly."""
+PLAN_FEASIBILITY_RULES = """
+5. Before presenting a plan, call check_data_feasibility with the
+DataNeedSpec the plan will need (no research_governance). Present the
+plan only after a FEASIBLE check. When the check is NOT_FEASIBLE or
+REVISION_REQUIRED and the catalog offers no fix, return LIMITATION: say
+what is missing (for example no documented relationship between two
+tables, or data too large for one run) and offer alternatives such as a
+shorter period, a narrower universe or other available data."""
 PERIOD_RETURN_RULES = """
 
 NAMED-PERIOD RETURNS
@@ -339,6 +347,24 @@ table contract, a column it uses or a relationship it names was not read
 in this run; the refusal lists the exact call to make.
 A Research Plan needs only enough discovery to judge that the data and
 methods exist."""
+METHODOLOGY_RULES = """
+
+METHODOLOGY
+An ANSWER or LIMITATION that rests on a completed analysis, or on a
+released output of an earlier message, carries methodology: a short
+account in the user's language that lets a reader audit how the answer
+was reached:
+1. the data: the datasets, universe, period and frequency, and the
+filters and exclusions applied;
+2. the steps: how each measure was computed, in order, with the
+windows, thresholds and parameters the code used;
+3. the statistics: tests, baselines, sample sizes and how uncertainty
+was measured;
+4. what was left out and why.
+Describe only what actually ran, never a method that did not run. Its
+numbers come from the same sources as the answer, the approved plan,
+the DataNeedSpec or the code that ran. No code, SQL or helper calls.
+Every other response carries methodology null."""
 CONVERSATION_REUSE_RULES = """
 
 CONVERSATION REUSE
@@ -433,7 +459,8 @@ def final_contract_block(contract: str, plan_confirmation: bool) -> str:
 
 def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirmation: bool = False,
                         period_return: bool = False, final_contract: bool = False,
-                        catalog_protocol: bool = False, conversation_reuse: bool = False) -> str:
+                        catalog_protocol: bool = False, conversation_reuse: bool = False,
+                        methodology: bool = False, plan_feasibility: bool = False) -> str:
     """The system prompt for the registered tools. It is fixed for a deployment (AI_ENABLE_LOOKUP_FACT,
     AI_ENABLE_DATANEED, AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION, AI_ENABLE_STANDARD_PERIOD_RETURN,
     AI_FINAL_CONTRACT_IN_PROMPT), so every call of every run shares one byte-identical cacheable prefix. With the
@@ -443,11 +470,12 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
     if dataneed:
         common, _ = SYSTEM_PROMPT_TEMPLATE.split("DATA QUERY RULES\n", 1)
         template = common + DATANEED_RULES + (RESEARCH_PLAN_RULES if plan_confirmation else "") \
+            + (PLAN_FEASIBILITY_RULES if plan_confirmation and plan_feasibility else "") \
             + (PERIOD_RETURN_RULES if period_return else "") + (CATALOG_PROTOCOL_RULES if catalog_protocol else "") \
-            + (CONVERSATION_REUSE_RULES if conversation_reuse else "")
+            + (CONVERSATION_REUSE_RULES if conversation_reuse else "") + (METHODOLOGY_RULES if methodology else "")
     if final_contract:
-        # plan_confirmation reaches here only together with dataneed (see AgentOrchestrator.__init__)
-        contract = PLAN_RESPONSE_CONTRACT if plan_confirmation else RESPONSE_CONTRACT
+        # plan_confirmation and methodology reach here only together with dataneed (see AgentOrchestrator.__init__)
+        contract = response_contract(plan_confirmation, methodology)
         template = template.replace(STRICT_SCHEMA_LINE, final_contract_block(contract, plan_confirmation))
     return (template.replace("{lookup_rule}", LOOKUP_RULE if lookup_fact else "")
             .replace("{number_sources}", "a lookup_fact result, " if lookup_fact else ""))
@@ -538,6 +566,14 @@ DATANEED_GATE_NOTICE = ("The data analysis behind this response did not complete
                         "verified answer to the request. ")
 DATANEED_ROUTING_NOTICE = ("This request needs a completed analysis ({families}), and none supports this response; "
                            "any figures below are not a verified answer. ")
+METHODOLOGY_INSTRUCTION = (
+    "Your response rests on a completed analysis but methodology is empty. Add methodology: the data, the steps, the "
+    "methods and their parameters in plain words, describing only what actually ran.")
+METHODOLOGY_PROVENANCE_INSTRUCTION = (
+    "These numbers in methodology have no source in this run: {numbers}. Its numbers must come from the same sources "
+    "as the answer, the approved plan, the DataNeedSpec or the code that ran. Remove or correct them.")
+METHODOLOGY_MISSING_LINE = "No methodology note was provided for this response."
+METHODOLOGY_WITHHELD_LINE = "The methodology note was withheld because it cited figures without a source: {numbers}."
 DATANEED_PROVENANCE_NOTICE = ("Some figures below could not be traced to a released analysis output or another "
                               "governed source in this run: {numbers}. ")
 WARNING_LINES = {
@@ -576,6 +612,19 @@ PLAN_RESPONSE_CONTRACT = RESPONSE_CONTRACT.replace(
     "assumptions: list of strings; limitations: list of strings. ",
     "assumptions: list of strings; limitations: list of strings; research_plan: the Research Plan object for "
     "RESEARCH_PLAN_CONFIRMATION (answer then presents it and asks to approve, revise or cancel), otherwise null. ")
+METHODOLOGY_CONTRACT = ("methodology: for an ANSWER or LIMITATION that rests on an analysis, how it was reached in "
+                        "plain words (data, steps, methods, parameters); otherwise null. ")
+
+
+def response_contract(plan_confirmation: bool, methodology: bool = False) -> str:
+    """The final-response contract text: RESPONSE_CONTRACT, with the Research Plan and methodology fields when on."""
+    contract = PLAN_RESPONSE_CONTRACT if plan_confirmation else RESPONSE_CONTRACT
+    if methodology:
+        contract = contract.replace("The output format is already defined", METHODOLOGY_CONTRACT
+                                    + "The output format is already defined")
+    return contract
+
+
 STRICT_SCHEMA_LINE = "Return only the response defined by the provided strict output schema."
 FINAL_CONTRACT_PREFIX = (
     "When no further tool call is needed, your reply is the final response itself: one JSON object and nothing "
@@ -618,6 +667,23 @@ APPROVED_NOTE = (PLAN_NOTE_PREFIX + "the user approved Research Plan {plan_id}; 
                  "its experiments now. Each RESEARCH data need copies research_governance from its experiment as the "
                  "RESEARCH PLAN CONFIRMATION rules say; a change beyond them needs a revised plan and a new approval. "
                  "The approved plan: {plan}")
+FEASIBLE_DRAFT_NOTE = (" Before approval this plan's data passed check_data_feasibility (draft {draft_id}): start from "
+                       "this DataNeedSpec for each experiment (revision one of a new request_group_id per experiment, "
+                       "with research_governance); keep its tables, columns, scopes, ranges and relationships, so no "
+                       "catalog reading is needed unless the validator asks for a change: {spec}")
+PLAN_FEASIBILITY_INSTRUCTION = (
+    "A Research Plan is presented only after its data passed check_data_feasibility in this run (FEASIBLE). Call "
+    "check_data_feasibility with the DataNeedSpec the plan needs; when the check cannot pass, return response_type "
+    "\"LIMITATION\" saying what is missing and which alternatives exist.")
+PLAN_NOT_FEASIBLE_NOTICE = ("A Research Plan was not issued: its data could not be confirmed as available and within "
+                            "the limits of one run. ")
+PLAN_NOT_EXECUTED_INSTRUCTION = (
+    "The user approved the Research Plan, but no RESEARCH data need was submitted in this run. Carry out the approved "
+    "experiments now (submit_data_need_spec with mode RESEARCH, then prepare the bundle, run and complete the "
+    "analysis), or, only if the data truly cannot be obtained, return response_type \"LIMITATION\" naming the exact "
+    "tool result that blocks it.")
+PLAN_NOT_EXECUTED_LINE = ("The approved Research Plan was not executed in this message, so it remains pending; "
+                          "approving it again runs it.")
 REVISE_NOTE = (PLAN_NOTE_PREFIX + "the user asked to revise Research Plan {plan_id}: {instruction}\nReturn the revised "
                "plan as RESEARCH_PLAN_CONFIRMATION (it needs a new approval), or CLARIFICATION if the change is "
                "unclear. No data may be used in this turn; you may read the catalog. The previous plan{unverified}: "
@@ -720,6 +786,17 @@ class RunState:
     analysis_values: dict[str, dict[str, Any]] = field(default_factory=dict)  # analysis_id -> {label, values}
     gate_kinds_rejected: set[str] = field(default_factory=set)
     number_provenance: dict[str, Any] | None = None
+    # AI_ENABLE_METHODOLOGY: numbers in the code of successful run_python calls (parameters that actually ran; a
+    # source for methodology only, never for the answer) and the methodology's own provenance result
+    code_numbers: list[float] = field(default_factory=list)
+    # Research Plan feasibility and execution: the last FEASIBLE draft of this run, the checks made, whether a RESEARCH
+    # data need was submitted (an attempt consumes an approval), the verified approval, and a plan left unexecuted
+    feasible_draft: str | None = None
+    feasibility_checks: list[dict[str, Any]] = field(default_factory=list)
+    research_attempted: bool = False
+    verified_plan: Any = None
+    plan_unexecuted: bool = False
+    methodology_provenance: dict[str, Any] | None = None
     # Repair ledger: "tool:reason_code" -> rejections seen this run (bounded retries, see _repair_budget)
     repairs: dict[str, int] = field(default_factory=dict)
     evidence_label: str | None = None
@@ -768,8 +845,12 @@ class AgentOrchestrator:
         provider_logger: Any | None = None,
         session_closer: Callable[[str, list[str]], dict[str, str]] | None = None,
         conversation_resources: Callable[[str], dict[str, Any] | None] | None = None,
+        draft_reader: Callable[[str], dict[str, Any] | None] | None = None,
     ) -> None:
         self.settings = settings
+        # Research Plan feasibility (AI_ENABLE_PLAN_FEASIBILITY): reads a feasibility draft back from the sandbox; set
+        # only when the sandbox reports the capability
+        self.draft_reader = draft_reader
         # conversation reuse (S1/S2): reads what earlier messages of a SERVER conversation left in the sandbox; set
         # only when the sandbox reports the capability
         self.conversation_resources = conversation_resources
@@ -801,12 +882,22 @@ class AgentOrchestrator:
         if settings.ai_enable_conversation_reuse and not self.conversation_reuse:
             log_event("conversation_reuse_inactive", reason="AI_ENABLE_DATANEED is off or the sandbox does not "
                                                             "report conversation_reuse")
+        self.plan_feasibility = self.plan_confirmation and draft_reader is not None \
+            and "check_data_feasibility" in registry.names()
+        if settings.ai_enable_plan_feasibility and not self.plan_feasibility:
+            log_event("plan_feasibility_inactive", reason="Research Plan confirmation, the DataNeed flow or the "
+                                                          "sandbox capability is missing")
+        self.plan_tools = DISCOVERY_TOOLS | ({"check_data_feasibility"} if self.plan_feasibility else set())
+        # the methodology note is checked against released outputs, which exist only in the DataNeed flow
+        self.methodology = settings.ai_enable_methodology and self.dataneed
+        if settings.ai_enable_methodology and not self.dataneed:
+            log_event("methodology_inactive", reason="AI_ENABLE_DATANEED is off")
         self.system_prompt = build_system_prompt(settings.ai_enable_lookup_fact, self.dataneed,
                                                  self.plan_confirmation, period_return,
                                                  settings.ai_final_contract_in_prompt, self.catalog_protocol,
-                                                 self.conversation_reuse)
-        self.final_schema = final_response_schema(self.plan_confirmation)
-        contract = PLAN_RESPONSE_CONTRACT if self.plan_confirmation else RESPONSE_CONTRACT
+                                                 self.conversation_reuse, self.methodology, self.plan_feasibility)
+        self.final_schema = final_response_schema(self.plan_confirmation, self.methodology)
+        contract = response_contract(self.plan_confirmation, self.methodology)
         self.response_contract = contract
         self.finalize_instruction = FINALIZE_PREFIX + contract
         self.context_budget_instruction = CONTEXT_BUDGET_PREFIX + contract
@@ -867,11 +958,18 @@ class AgentOrchestrator:
                     and final.research_plan is not None:
                 # The plan id, token and expiry come from the backend only; the model never produces them.
                 state.continuation = self.signer.issue(final.research_plan, request.request_id,
-                                                       request.conversation_id)
+                                                       request.conversation_id, state.feasible_draft)
                 state.plan_meta["issued_plan_id"] = state.continuation.plan_id
                 log_event("research_plan_issued", request_id=request.request_id,
                           plan_id=state.continuation.plan_id, experiments=len(final.research_plan.experiments),
-                          expires_at=state.continuation.expires_at)
+                          expires_at=state.continuation.expires_at, draft_id=state.feasible_draft)
+            elif state.plan_unexecuted and state.verified_plan is not None:
+                # M19: an approval is consumed by an attempt, not by a turn; the same continuation goes back unchanged
+                verified = state.verified_plan
+                state.continuation = ContinuationOut(
+                    plan_id=verified.plan_id, origin_request_id=verified.origin_request_id,
+                    conversation_id=verified.conversation_id, token=verified.token,
+                    expires_at=verified.expires_at.isoformat())
             result = AgentRunResponse(
                 request_id=request.request_id,
                 status=STATUS_BY_RESPONSE_TYPE[final.response_type],
@@ -1011,10 +1109,12 @@ class AgentOrchestrator:
                            note=CANCEL_NOTE)
         elif action == "APPROVE" and verified is not None:
             # The approved plan becomes the guard's reference for this request only.
+            state.verified_plan = verified
             self._set_turn(state, "EXECUTE_APPROVED", ALL_TYPES, None,
                            ResearchGuard(required=True, plan=verified.plan, plan_id=verified.plan_id,
                                          verification=verification),
-                           note=APPROVED_NOTE.format(plan_id=verified.plan_id, plan=plan_json))
+                           note=APPROVED_NOTE.format(plan_id=verified.plan_id, plan=plan_json)
+                           + self._draft_note(state, verified.draft_id))
             state.user_text = verified.plan.original_question + "\n" + state.user_text
             state.context_numbers.extend(numbers)
         elif action == "UNRELATED" and verified is not None:
@@ -1025,7 +1125,7 @@ class AgentOrchestrator:
                                                  conversation_id=verified.conversation_id, token=verified.token,
                                                  expires_at=verified.expires_at.isoformat())
         elif action == "REVISE":
-            self._set_turn(state, "REVISE", PLAN_TYPES, DISCOVERY_TOOLS, guard, note=REVISE_NOTE.format(
+            self._set_turn(state, "REVISE", PLAN_TYPES, self.plan_tools, guard, note=REVISE_NOTE.format(
                 plan_id=continuation.plan_id, instruction=instruction,
                 unverified="" if verified is not None else " (sent back by the caller; it could not be verified)",
                 plan=plan_json))
@@ -1033,7 +1133,7 @@ class AgentOrchestrator:
                 state.context_numbers.extend(numbers)
         else:  # an approval or unrelated reply whose continuation did not verify: nothing is approved
             note = REPLAN_NOTES[verification].format(plan_id=continuation.plan_id, plan=plan_json)
-            self._set_turn(state, "REPLAN", PLAN_TYPES, DISCOVERY_TOOLS, guard, note=note)
+            self._set_turn(state, "REPLAN", PLAN_TYPES, self.plan_tools, guard, note=note)
             if verification == "RESEARCH_PLAN_TOKEN_EXPIRED":
                 state.context_numbers.extend(numbers)
         log_event("research_plan_turn", request_id=request.request_id, turn=state.plan_turn, action=action,
@@ -1323,6 +1423,11 @@ class AgentOrchestrator:
                 return self._repair_budget(state, call_id, name, outcome)
 
         outcome = self._repair_budget(state, call_id, name, self.registry.execute(call_id, name, raw_arguments))
+        normalized = self._normalized_arguments(raw_arguments)
+        if name == "submit_data_need_spec" and isinstance(normalized, dict) and normalized.get("mode") == "RESEARCH":
+            state.research_attempted = True  # an attempt, whatever its outcome (M19)
+        if name == "check_data_feasibility":
+            self._track_feasibility(state, outcome)
         if self.catalog_protocol and name in CACHEABLE_TOOLS and outcome.ok:
             result = outcome.output.get("result")
             if isinstance(result, dict):
@@ -1336,6 +1441,40 @@ class AgentOrchestrator:
         count = count + 1 if last_result in (None, result_hash) else 1
         state.call_history[key] = (count, result_hash)
         return outcome
+
+    @staticmethod
+    def _track_feasibility(state: RunState, outcome: ToolOutcome) -> None:
+        result = outcome.output.get("result") if outcome.ok else None
+        if not isinstance(result, dict):
+            state.feasibility_checks.append({"status": outcome.error_code or "ERROR"})
+            return
+        entry = {"status": result.get("status"), "draft_id": result.get("draft_id"),
+                 "issues": [i.get("code") for i in result.get("issues") or [] if isinstance(i, dict)][:10],
+                 "requests": [{k: r.get(k) for k in ("data_request_id", "governor_status", "code", "message")}
+                              for r in result.get("requests") or [] if isinstance(r, dict)
+                              and r.get("governor_status") not in ("WITHIN_LIMITS", "NEEDS_PARTITIONING")]}
+        state.feasibility_checks.append(entry)
+        # the plan binds the last FEASIBLE draft; a later failing check does not unbind it (the model may present
+        # the plan it checked), but a later FEASIBLE one replaces it
+        if result.get("status") == "FEASIBLE" and result.get("draft_id"):
+            state.feasible_draft = result["draft_id"]
+        log_event("research_plan_feasibility", request_id=state.request_id, status=entry["status"],
+                  draft_id=entry["draft_id"], issues=entry["issues"], refused=entry["requests"])
+
+    def _draft_note(self, state: RunState, draft_id: str | None) -> str:
+        """The approved turn starts from the plan's feasibility draft: its spec goes into the approval note."""
+        if not self.plan_feasibility or not draft_id or self.draft_reader is None:
+            return ""
+        try:
+            draft = self.draft_reader(draft_id)
+        except Exception:  # noqa: BLE001 - without the draft the model reads the catalog as before
+            draft = None
+        spec = (draft or {}).get("spec")
+        if not isinstance(spec, dict):
+            log_event("research_plan_draft_unavailable", request_id=state.request_id, draft_id=draft_id)
+            return ""
+        state.plan_meta["draft_id"] = draft_id
+        return FEASIBLE_DRAFT_NOTE.format(draft_id=draft_id, spec=dumps({**spec, "revision": 1}))
 
     @staticmethod
     def _plan_guard_refuses(arguments: Any) -> bool:
@@ -1579,6 +1718,9 @@ class AgentOrchestrator:
         elif name == "run_python" and result.get("execution_id"):
             session = state.sessions.setdefault(result.get("session_id") or "", {"executions": []})
             session["executions"].append(result.get("status"))
+            code = (arguments or {}).get("code") if isinstance(arguments, dict) else None
+            if result.get("status") == "OK" and isinstance(code, str):
+                state.code_numbers.extend(value for shown in parse_numbers(code) for value, _ in shown.candidates)
         elif name == "get_session_output" and result.get("released"):
             if result.get("read_mode") == "READ_RELEASED" and isinstance(result.get("origin"), dict):
                 # released by an earlier completion (an earlier message, or an earlier epoch of this session)
@@ -1684,6 +1826,13 @@ class AgentOrchestrator:
             return final
         if final.response_type == "RESEARCH_PLAN_CONFIRMATION":
             return self._plan_gate(state, final)
+        if state.plan_turn == "EXECUTE_APPROVED" and not state.research_attempted:
+            # M19: an approved plan is executed, or the model names what blocks it after one reminder; either way an
+            # approval without any attempt is not consumed
+            self._gate_once(state, "PLAN_NOT_EXECUTED", PLAN_NOT_EXECUTED_INSTRUCTION)
+            state.plan_unexecuted = True
+            if PLAN_NOT_EXECUTED_LINE not in final.limitations:
+                final = final.model_copy(update={"limitations": [*final.limitations, PLAN_NOT_EXECUTED_LINE]})
         if self.dataneed:
             return self._dataneed_gate(state, final)
         blocking, lines = self._gate_findings(state)
@@ -1767,15 +1916,45 @@ class AgentOrchestrator:
             state.evidence_label = "NOT_VALIDATED"
         else:
             state.evidence_label = weakest(provenance.data_kinds)
+        final = self._methodology_gate(state, final)
         if not missing_lines:
             return final
         return final.model_copy(update={"limitations": [*final.limitations, *missing_lines]})
+
+    def _methodology_gate(self, state: RunState, final: FinalResponse) -> FinalResponse:
+        """AI_ENABLE_METHODOLOGY: an answer resting on a completed analysis (or on released outputs of an earlier
+        message) needs a methodology note, and its numbers must trace to the answer's sources, the approved plan, the
+        DataNeedSpec or the code of a successful run_python call. Each problem rejects once; then the answer stands
+        without the note and a limitation says why (the note never forces a LIMITATION on a sound answer)."""
+        if not self.methodology:
+            return final.model_copy(update={"methodology": None}) if final.methodology is not None else final
+        analysed = any(c["status"] == "COMPLETED" for c in state.completions.values()) or bool(state.inherited)
+        text = (final.methodology or "").strip()
+        if not text:
+            if not analysed:
+                return final.model_copy(update={"methodology": None})
+            self._gate_once(state, "METHODOLOGY", METHODOLOGY_INSTRUCTION)
+            return final.model_copy(update={"methodology": None,
+                                            "limitations": [*final.limitations, METHODOLOGY_MISSING_LINE]})
+        index = self._source_index(state)
+        index.add(CONTEXT, state.code_numbers)
+        provenance = check_answer(text, index)
+        state.methodology_provenance = {"checked": provenance.checked, "unsupported": provenance.unsupported[:50]}
+        if provenance.unsupported:
+            numbers = ", ".join(provenance.unsupported[:20])
+            self._gate_once(state, "METHODOLOGY_PROVENANCE", METHODOLOGY_PROVENANCE_INSTRUCTION.format(numbers=numbers))
+            return final.model_copy(update={"methodology": None, "limitations": [
+                *final.limitations, METHODOLOGY_WITHHELD_LINE.format(numbers=numbers)]})
+        return final.model_copy(update={"methodology": text})
 
     def _plan_gate(self, state: RunState, final: FinalResponse) -> FinalResponse:
         """A Research Plan uses no data: its answer may cite only the plan's own numbers, the user's messages and
         released outputs of this run. Hypotheses are phrased as questions to test, so the claim check does not apply;
         the plan carries no evidence label."""
         assert final.research_plan is not None
+        if self.plan_feasibility and state.feasible_draft is None:
+            self._gate_once(state, "PLAN_FEASIBILITY", PLAN_FEASIBILITY_INSTRUCTION)
+            return self._plan_not_feasible(state, final)
         index = self._source_index(state)
         plan_json = dumps(final.research_plan.model_dump(mode="json"))
         index.add(CONTEXT, [value for shown in parse_numbers(plan_json) for value, _ in shown.candidates])
@@ -1788,6 +1967,24 @@ class AgentOrchestrator:
                                 [f"Figures without a source in this Research Plan: {numbers}."])
         state.evidence_label = None
         return final
+
+    @staticmethod
+    def _plan_not_feasible(state: RunState, final: FinalResponse) -> FinalResponse:
+        """A plan presented without a FEASIBLE check after the reminder becomes a LIMITATION: no plan id, no token."""
+        state.validation_gate = "FORCED_LIMITATION"
+        state.evidence_label = None
+        reasons = []
+        for check in state.feasibility_checks[-3:]:
+            refused = "; ".join(f"{r.get('data_request_id')}: {r.get('governor_status')} {r.get('code') or ''}".strip()
+                                for r in check.get("requests") or [])
+            reasons.append(f"Feasibility check {check.get('status')}"
+                           + (f" (issues: {', '.join(check['issues'])})" if check.get("issues") else "")
+                           + (f" ({refused})" if refused else "") + ".")
+        if not reasons:
+            reasons.append("The plan's data was not checked with check_data_feasibility.")
+        return FinalResponse(response_type="LIMITATION", answer=PLAN_NOT_FEASIBLE_NOTICE + " ".join(reasons),
+                             clarification_question=None, assumptions=final.assumptions,
+                             limitations=reasons + [x for x in final.limitations if x not in reasons])
 
     @staticmethod
     def _claim_problem(state: RunState, answer: str, dataneed: bool = False) -> str | None:
@@ -2032,6 +2229,8 @@ class AgentOrchestrator:
                       for a in state.analyses.values()],
             validation_gate=state.validation_gate,
             number_provenance=NumberProvenance(**state.number_provenance) if state.number_provenance else None,
+            methodology_provenance=NumberProvenance(**state.methodology_provenance)
+            if state.methodology_provenance else None,
             research=ResearchSummary(experiments=[ExperimentSummary(**e) for e in state.experiments])
             if state.experiments else None,
             analysis_final_status=state.final_status,
@@ -2048,6 +2247,8 @@ class AgentOrchestrator:
             action=meta.get("action"), action_source=meta.get("action_source"),
             approved_plan_id=meta.get("approved_plan_id"), issued_plan_id=meta.get("issued_plan_id"),
             guard_rejections=state.guard_rejections,
+            research_submitted=state.research_attempted if state.plan_turn == "EXECUTE_APPROVED" else None,
+            draft_id=meta.get("draft_id") or (meta.get("issued_plan_id") and state.feasible_draft) or None,
             classifier=ReplyClassifierUsage(**state.classifier) if state.classifier else None)
 
     def _failed(self, state: RunState, code: str, message: str) -> AgentRunResponse:

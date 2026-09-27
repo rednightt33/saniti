@@ -315,3 +315,17 @@ def test_analysis_evidence_counts_are_context_but_mismatch_examples_are_not() ->
     assert "0,777" in rejection_text(scripted) and "300" not in rejection_text(scripted).split(":")[1]
     assert result.response.response_type == "ANSWER" and result.evidence_label == "CALCULATION_VERIFIED"
     assert ANA in json.dumps(result.model_dump(mode="json"))
+
+
+def test_scientific_notation_is_one_number() -> None:
+    # P06: "1,14e-22" was split and its exponent "22" reported as a number without a source
+    for text in ("p-value 1,14e-22", "p-value 1.14E-22", "p = 1.14 × 10^-22", "p = 1,14 x 10⁻²²"):
+        shown = parse_numbers(text)
+        assert len(shown) == 1 and shown[0].candidates == [(pytest.approx(1.14e-22), 24)], (text, shown)
+    index = SourceIndex()
+    index.add("CALCULATION_VERIFIED", [1.1403e-22, 320412.0])
+    result = check_answer("Selisihnya signifikan (p-value 1,14e-22); n = 3,2E+05.", index)
+    assert result.unsupported == [] and result.checked == 2
+    assert check_answer("p-value 9,99e-22", index).unsupported == ["9,99e-22"]
+    # a multiplication without a power of ten is still two numbers
+    assert [n.text for n in parse_numbers("beli 5 x 10 lot")] == ["5", "10"]

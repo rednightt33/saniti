@@ -135,6 +135,13 @@ class Settings:
     # Conversation reuse (phases S1/S2): in history_mode SERVER, released outputs, bundles and warm Python sessions of
     # earlier messages of the conversation. Needs the conversation store and a sandbox that reports the capability.
     ai_enable_conversation_reuse: bool = False
+    # A model-written methodology note beside a DataNeed answer: data, steps, methods and parameters in plain words,
+    # its numbers checked like the answer's (plus the parameters of the code that ran). Only in the DataNeed flow.
+    ai_enable_methodology: bool = False
+    # Research Plan feasibility: before a plan is presented, its DataNeedSpec is validated (sandbox draft) and
+    # estimated by the Governor without extraction (check_data_feasibility); a plan is issued only after a FEASIBLE
+    # check and the approved turn starts from that draft. Needs Research Plan confirmation and the DataNeed flow.
+    ai_enable_plan_feasibility: bool = False
 
     @property
     def conversation_lease_seconds(self) -> int:
@@ -200,6 +207,8 @@ class Settings:
             ai_conversation_lease_seconds=_integer(env, "AI_CONVERSATION_LEASE_SECONDS", 0, minimum=0),
             ai_conversation_upkeep_seconds=_integer(env, "AI_CONVERSATION_UPKEEP_SECONDS", 3600, minimum=60),
             ai_enable_conversation_reuse=_boolean(env, "AI_ENABLE_CONVERSATION_REUSE", False),
+            ai_enable_methodology=_boolean(env, "AI_ENABLE_METHODOLOGY", False),
+            ai_enable_plan_feasibility=_boolean(env, "AI_ENABLE_PLAN_FEASIBILITY", False),
             sql_governor_api_key=_optional(env, "SQL_GOVERNOR_API_KEY"),
             sql_governor_timeout_seconds=_integer(env, "SQL_GOVERNOR_TIMEOUT_SECONDS", 90),
             request_data_max_result_bytes=_integer(env, "REQUEST_DATA_MAX_RESULT_BYTES", 40000, minimum=8192),

@@ -76,7 +76,7 @@ def test_invalid_or_oversized_request_is_rejected(payload: dict) -> None:
 )
 def test_valid_final_output_parses(body: dict) -> None:
     # research_plan is additive: an existing response without it parses with research_plan null
-    assert FinalResponse.model_validate(body).model_dump() == {**body, "research_plan": None}
+    assert FinalResponse.model_validate(body).model_dump() == {**body, "research_plan": None, "methodology": None}
 
 
 @pytest.mark.parametrize(
@@ -99,12 +99,17 @@ def test_invalid_final_output_is_rejected(body: dict) -> None:
 def test_json_schema_matches_model_and_is_strict() -> None:
     # without Research Plan confirmation the schema is the one before the feature (no research_plan)
     assert FINAL_RESPONSE_SCHEMA["additionalProperties"] is False
-    assert set(FINAL_RESPONSE_SCHEMA["properties"]) == set(FinalResponse.model_fields) - {"research_plan"}
-    assert set(FINAL_RESPONSE_SCHEMA["required"]) == set(FinalResponse.model_fields) - {"research_plan"}
+    added = {"research_plan", "methodology"}
+    assert set(FINAL_RESPONSE_SCHEMA["properties"]) == set(FinalResponse.model_fields) - added
+    assert set(FINAL_RESPONSE_SCHEMA["required"]) == set(FinalResponse.model_fields) - added
     assert all("description" in spec for spec in FINAL_RESPONSE_SCHEMA["properties"].values())
     assert final_response_schema(False) is FINAL_RESPONSE_SCHEMA
     extended = final_response_schema(True)
-    assert set(extended["properties"]) == set(extended["required"]) == set(FinalResponse.model_fields)
+    assert set(extended["properties"]) == set(extended["required"]) == set(FinalResponse.model_fields) - {"methodology"}
+    # AI_ENABLE_METHODOLOGY adds one required nullable field to either schema
+    full = final_response_schema(True, methodology=True)
+    assert set(full["properties"]) == set(full["required"]) == set(FinalResponse.model_fields)
+    assert final_response_schema(False, methodology=True)["properties"]["methodology"]["type"] == ["string", "null"]
     assert "RESEARCH_PLAN_CONFIRMATION" in extended["properties"]["response_type"]["enum"]
     assert "$ref" not in json.dumps(extended) and extended["additionalProperties"] is False
 

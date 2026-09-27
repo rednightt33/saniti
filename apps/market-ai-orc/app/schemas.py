@@ -99,9 +99,14 @@ class FinalResponse(BaseModel):
     # Only for RESEARCH_PLAN_CONFIRMATION; every other response carries null. A model that omits the field (the
     # schema without Research Plan confirmation does not list it) is read as null.
     research_plan: ResearchPlan | None = None
+    # AI_ENABLE_METHODOLOGY: how an answer resting on an analysis was reached, in plain words (model-written; its
+    # numbers are checked by the provenance gate). Null for clarifications, plans and answers without an analysis.
+    methodology: str | None = Field(default=None, max_length=6000)
 
     @model_validator(mode="after")
     def _consistent_with_type(self) -> "FinalResponse":
+        if self.methodology is not None and self.response_type in ("CLARIFICATION", "RESEARCH_PLAN_CONFIRMATION"):
+            raise ValueError(f"{self.response_type} requires methodology to be null")
         if self.response_type == "RESEARCH_PLAN_CONFIRMATION":
             if self.research_plan is None:
                 raise ValueError("RESEARCH_PLAN_CONFIRMATION requires research_plan")
@@ -163,9 +168,27 @@ FINAL_RESPONSE_SCHEMA: dict[str, Any] = {
 }
 
 
-def final_response_schema(research_plan_confirmation: bool) -> dict[str, Any]:
+METHODOLOGY_PROPERTY: dict[str, Any] = {
+    "type": ["string", "null"],
+    "description": (
+        "For an ANSWER or LIMITATION that rests on an analysis: how it was reached, in plain words (the data and "
+        "period used, filters and exclusions, the calculation steps, statistical methods and their parameters). "
+        "Otherwise null."),
+}
+
+
+def final_response_schema(research_plan_confirmation: bool, methodology: bool = False) -> dict[str, Any]:
     """FINAL_RESPONSE_SCHEMA, or with Research Plan confirmation the same schema plus RESEARCH_PLAN_CONFIRMATION and a
-    required nullable research_plan. Without the flag the schema is byte-identical to the one before the feature."""
+    required nullable research_plan, and with AI_ENABLE_METHODOLOGY a required nullable methodology. Without the flags
+    the schema is byte-identical to the one before the features."""
+    schema = _plan_schema(research_plan_confirmation)
+    if not methodology:
+        return schema
+    return {**schema, "properties": {**schema["properties"], "methodology": METHODOLOGY_PROPERTY},
+            "required": [*schema["required"], "methodology"]}
+
+
+def _plan_schema(research_plan_confirmation: bool) -> dict[str, Any]:
     if not research_plan_confirmation:
         return FINAL_RESPONSE_SCHEMA
     from .tools.registry import strict_parameters_schema
@@ -267,6 +290,8 @@ class ExecutionMetadata(BaseModel):
     validation_gate: Literal["NOT_APPLICABLE", "PASSED", "ANNOTATED", "FORCED_LIMITATION"] = "NOT_APPLICABLE"
     # The answer's numbers checked against governed sources (null when the gate did not check numbers).
     number_provenance: NumberProvenance | None = None
+    # AI_ENABLE_METHODOLOGY: the numbers of the methodology note checked the same way (null when there is no note).
+    methodology_provenance: NumberProvenance | None = None
     # The run's analysis specs as research experiments (null when no spec was created).
     research: ResearchSummary | None = None
     # DataNeed flow: the final status of the latest complete_analysis (data coverage, sandbox execution,
@@ -304,6 +329,11 @@ class ResearchPlanExecution(BaseModel):
     issued_plan_id: str | None = None
     guard_rejections: int = 0
     classifier: ReplyClassifierUsage | None = None
+    # EXECUTE_APPROVED only: whether a RESEARCH data need was submitted (M19: an approval without any attempt stays
+    # pending); null on other turns
+    research_submitted: bool | None = None
+    # the feasibility draft the issued plan was bound to, or the one the approved turn started from
+    draft_id: str | None = None
 
 
 class RunError(BaseModel):

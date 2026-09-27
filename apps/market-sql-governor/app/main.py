@@ -121,8 +121,12 @@ def create_app(settings: Settings | None = None, governor: Governor | None = Non
     def extract(body: Any = Body(...)) -> Any:
         """One physical part of an approved DataNeedSpec request (market-ai-orc's Execution Planner only)."""
         if not isinstance(body, dict) or not {"request_id", "extraction", "lineage"} <= set(body) \
-                <= {"request_id", "extraction", "lineage", "planned_parts"}:
-            raise HTTPException(status_code=422, detail="Body must be {request_id, extraction, lineage[, planned_parts]}")
+                <= {"request_id", "extraction", "lineage", "planned_parts", "estimate_only"}:
+            raise HTTPException(status_code=422, detail="Body must be {request_id, extraction, lineage[, planned_parts, "
+                                                        "estimate_only]}")
+        estimate_only = body.get("estimate_only", False)
+        if not isinstance(estimate_only, bool):
+            raise HTTPException(status_code=422, detail="estimate_only must be a boolean")
         request_id = body["request_id"]
         if not isinstance(request_id, str) or not REQUEST_ID.fullmatch(request_id):
             raise HTTPException(status_code=422, detail="request_id must match ^[A-Za-z0-9._:-]{1,128}$")
@@ -132,7 +136,8 @@ def create_app(settings: Settings | None = None, governor: Governor | None = Non
         if extractor is None:
             raise HTTPException(status_code=404, detail="Not Found")
         try:
-            return extractor.handle(request_id, body["extraction"], body["lineage"], part_count=planned)
+            return extractor.handle(request_id, body["extraction"], body["lineage"], part_count=planned,
+                                    estimate_only=estimate_only)
         except GovernorUnavailable:
             return JSONResponse(status_code=503, content={"detail": "Governed database unavailable"})
 

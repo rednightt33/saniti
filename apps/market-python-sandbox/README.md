@@ -59,6 +59,14 @@ current flow; while the flag is off, its routes answer 404 and the service keeps
     own scope. `HISTORICAL_REFERENCE_USES_CURRENT_STATE` names the request that holds the historical observations;
   - the spec hash, the catalog hash and the reference date.
   `GET /v1/data-needs/{need_id}` returns it.
+- **Feasibility drafts** (Research Plan feasibility). `POST /v1/data-needs/check` takes `{request_id, reference_time,
+  timezone, spec}` and runs the same four validator layers without a revision, a `research_governance` or a Research
+  Governor review. An approved spec is stored as a draft (`draft_` + 24 hex, table `data_need_drafts`, SQLite schema
+  version 2, kept seven days) and answers `{status: APPROVED, draft_id, next_action: ESTIMATE_EXTRACTION}`; otherwise
+  `REVISION_REQUIRED` / `CATALOG_UNAVAILABLE` with issues. `GET /v1/data-need-drafts/{draft_id}` returns the draft in
+  the planner's need shape (`need_id` = the draft id), so market-ai-orc can have the Governor estimate it. A draft is
+  never a need: `GET /v1/data-needs/{draft_id}` is 404 and nothing can be extracted from it. `GET /v1/runtime` reports
+  `plan_feasibility: {enabled, version: 1}`.
 - `mode: RESEARCH` needs a ResearchGovernanceRequest (hypothesis, candidate count, pairwise comparisons, a
   multiple-testing policy, an optional holdout range and minimum sample, `followup_of`). The Research Governor
   (`app/research_governance.py`) answers `APPROVED`, `REPLAN_REQUIRED` or `REJECTED` with a reason code, from the
@@ -877,6 +885,7 @@ The URL is never logged, stored, returned, or visible to any child process.
 | `GET /v1/runtime` | Isolation checks, library versions, limits |
 | `GET /v1/runs/{request_id}` | Audit view of one orchestrator run: experiments with governor decisions, analyses with code/dataset fingerprints and evidence decisions, budgets, and the final report |
 | `POST /v1/data-needs`, `GET /v1/data-needs/{need_id}` | DataNeedSpec validation and the approved contract (only with `PY_SANDBOX_DATANEED_ENABLED`; see above) |
+| `POST /v1/data-needs/check`, `GET /v1/data-need-drafts/{draft_id}` | Research Plan feasibility drafts: validated, never extracted (only with `PY_SANDBOX_DATANEED_ENABLED`; see above) |
 | `POST /v1/bundles`, `GET /v1/bundles/{bundle_id}` | Governed data bundle: verification, profiling, delivery coverage (only with `PY_SANDBOX_DATANEED_ENABLED`) |
 | `POST /v1/sessions`, `POST /v1/sessions/{id}/execute`, `POST /v1/sessions/{id}/inspect`, `GET /v1/sessions/{id}`, `GET /v1/sessions/{id}/outputs/{output_id}`, `POST /v1/sessions/{id}/complete`, `POST /v1/sessions/{id}/close` | Persistent analysis sessions (only with `PY_SANDBOX_DATANEED_ENABLED`) |
 | `POST /v1/runs/{request_id}/report` | market-ai-orc's final report of the run (answer and hash, evidence label, gate, experiments). Stored once; a retry keeps the first. `status` may also be `AWAITING_CONFIRMATION` with `response_type` `RESEARCH_PLAN_CONFIRMATION` (a Research Plan awaiting the user's approval). |

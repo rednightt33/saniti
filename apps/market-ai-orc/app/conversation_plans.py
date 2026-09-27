@@ -14,7 +14,8 @@ state moves after a turn.
   cancelled or executed plan is refused even when its token has not expired: the server knows the plan's state,
   which a stateless token cannot express (CLIENT mode keeps that documented limit).
 - A newly issued plan (a first proposal, a revision, a re-plan) replaces the latest plan; the previous one becomes
-  SUPERSEDED. A CANCEL turn marks it CANCELLED. An EXECUTE_APPROVED turn marks it EXECUTED whatever the outcome: an
+  SUPERSEDED. A CANCEL turn marks it CANCELLED. An EXECUTE_APPROVED turn that submitted a RESEARCH data need marks it
+  EXECUTED whatever the outcome (one that submitted none leaves it PENDING, M19): an
   approval is used once and a new approval never re-runs the experiments by itself (a retry of the same request_id is
   answered from the stored response). A later computation needs a new or revised plan and a new approval. An UNRELATED
   turn returns the same continuation (same token and expiry), so the plan stays PENDING and is never extended.
@@ -123,7 +124,8 @@ def advance(state: dict[str, Any] | None, result: AgentRunResponse, request_id: 
         return state
     if plan is None or plan.get("status") != PENDING:
         return state
-    if execution.turn == "EXECUTE_APPROVED" and execution.approved_plan_id == plan.get("plan_id"):
+    if execution.turn == "EXECUTE_APPROVED" and execution.approved_plan_id == plan.get("plan_id") \
+            and execution.research_submitted is not False:  # M19: an approval without any attempt stays pending
         state[STATE_KEY] = {**plan, "status": EXECUTED, "executed_request_id": request_id,
                             "executed_turn_index": turn_index, "run_status": result.status}
     elif execution.turn == "CANCEL":

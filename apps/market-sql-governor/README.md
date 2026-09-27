@@ -245,6 +245,13 @@ How a limit is split:
 - Each call logs one JSON line (`event = sql_governor_extract`) with status, code, estimates, partitioning,
   dataset id, row count, need, plan and part key. It holds no values.
 
+**Estimate only** (`"estimate_only": true` in the body; Research Plan feasibility, market-ai-orc
+`check_data_feasibility`). The spec is validated, bound, compiled and EXPLAINed exactly as for an extraction, and the
+answer is `WITHIN_LIMITS` with the estimates, or the same `APPROVED_WITH_PARTITIONING` / `REJECTED_*` an extraction
+would get. No row is read and nothing is stored. The lineage may then name a feasibility draft (`draft_…` instead of
+`need_…`); a draft sent without `estimate_only` is refused with `LINEAGE_MISMATCH`. The log line carries
+`estimate_only`.
+
 ## Lookup facts
 
 `POST /v1/lookup` answers specific factual questions (a close on a date, a week's total volume)

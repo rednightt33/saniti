@@ -167,7 +167,9 @@ class ResearchGovernance(Strict):
                                                 "this one follows up; else null.")
 
 
-class SubmitDataNeedSpecArgs(Strict):
+class DataNeedSpecBody(Strict):
+    """The DataNeedSpec fields shared by submit_data_need_spec and check_data_feasibility."""
+
     spec_version: Literal["data_need_spec/v1"]
     request_group_id: str = Field(description="Lower-case id of this data need, e.g. data_request_1; revisions keep "
                                               "it.")
@@ -177,7 +179,15 @@ class SubmitDataNeedSpecArgs(Strict):
     subject: Subject
     data_requests: list[DataRequest] = Field(description="1-8 logical data requests.")
     relationships: list[Relationship] = Field(description="Catalog relationships between requests ([] for none).")
+
+
+class SubmitDataNeedSpecArgs(DataNeedSpecBody):
     research_governance: ResearchGovernance | None = Field(description="Required for RESEARCH; null for ANALYSIS.")
+
+
+class CheckDataFeasibilityArgs(DataNeedSpecBody):
+    """A Research Plan's data, checked before the plan is presented (no research_governance: it is declared when the
+    approved plan runs)."""
 
 
 # ---------------------------------------------------------------- argument errors in the validator's issue shape

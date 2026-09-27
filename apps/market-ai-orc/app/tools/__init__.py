@@ -6,7 +6,7 @@ from .analysis import SandboxClient, analysis_specs, manifest_spec
 from .catalog import CatalogReader, catalog_specs
 from .catalog_rows import catalog_rows_spec
 from .data_need import data_need_specs
-from .data_planner import ExecutionPlanner, prepare_bundle_spec
+from .data_planner import ExecutionPlanner, feasibility_spec, prepare_bundle_spec
 from .session import session_specs
 from .data_compiler import BundleStore, DataRequestCompiler, prepare_spec
 from .preview import preview_spec
@@ -38,6 +38,7 @@ def build_default_registry(
     session_timeout_seconds: float = 180.0,
     standard_period_return: bool = False,
     catalog_discovery_v2: bool = False,
+    plan_feasibility: bool = False,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
@@ -96,6 +97,12 @@ def build_default_registry(
                                           max_result_bytes=python_analysis_max_bytes,
                                           standard_period_return=standard_period_return):
                     registry.register(spec)
+                if plan_feasibility:
+                    # validation plus one estimate-only Governor call per extraction envelope
+                    registry.register(feasibility_spec(
+                        sandbox_client, ExecutionPlanner(sandbox_client, governor_client),
+                        timeout_seconds=max(sandbox_timeout_seconds, governor_timeout_seconds) * 3,
+                        max_result_bytes=python_analysis_max_bytes))
     return registry
 
 

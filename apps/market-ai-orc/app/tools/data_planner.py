@@ -32,8 +32,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .registry import ToolSpec
-from .analysis import current_conversation_key
+from .registry import ToolError, ToolSpec
+from .analysis import current_conversation_key, current_run_context
 from .request_data import current_request_id
 
 NEED_ID_PATTERN = r"^need_[0-9a-f]{24}$"
@@ -157,6 +157,50 @@ class ExecutionPlanner:
             "decisions": sorted({d["kind"] for d in decisions})}
         return bundle
 
+    def estimate(self, draft: dict[str, Any]) -> dict[str, Any]:
+        """Research Plan feasibility: every extraction envelope of a validated draft goes to the Governor as an
+        estimate-only extraction (its checks and EXPLAIN, no rows read). Feasible when every envelope is WITHIN_LIMITS
+        or needs a partitioning whose parts fit the per-request budget; a REJECTED_* status names the request."""
+        plan_id = f"plan_{secrets.token_hex(12)}"
+        requests, feasible = [], True
+        for rid in sorted(draft["requests"]):
+            entry = draft["requests"][rid]
+            envelopes = merge_windows(entry.get("windows") or []) if entry.get("time_column") else []
+            summary: dict[str, Any] = {"data_request_id": rid, "source_table": entry["source_table"],
+                                       "envelopes": len(envelopes) or None, "estimated_rows": 0,
+                                       "extraction_parts": 0, "governor_status": "WITHIN_LIMITS"}
+            for envelope in envelopes or [None]:
+                part = Part({"from": envelope["from"], "to": envelope["to"]} if envelope else None, None, envelope)
+                spec = extraction_spec(entry, part)
+                lineage = {"need_id": draft["need_id"], "spec_sha256": draft["spec_sha256"],
+                           "request_group_id": draft["request_group_id"], "revision": draft["revision"],
+                           "data_request_id": rid, "logical_name": entry["logical_name"],
+                           "scope_sha256": entry["scope_sha256"], "restriction_sha256": entry["restriction_sha256"],
+                           "plan_id": plan_id, "part_key": part_key(part.window, part.entity_partition),
+                           "envelope": part.envelope, "catalog_sha256": draft.get("catalog_sha256"),
+                           "extraction_sha256": sha256_json(spec)}
+                response = self.governor.extract(spec, lineage, planned_parts=1, estimate_only=True)
+                status = response.get("status")
+                rows = (response.get("estimates") or {}).get("result_rows") or 0
+                summary["estimated_rows"] += int(rows)
+                if status == "WITHIN_LIMITS":
+                    summary["extraction_parts"] += 1
+                elif status == "APPROVED_WITH_PARTITIONING":
+                    summary["extraction_parts"] += int((response.get("partitioning") or {}).get("parts") or 2)
+                    summary["governor_status"] = "NEEDS_PARTITIONING"
+                else:
+                    feasible = False
+                    summary.update(governor_status=status or "REJECTED_POLICY", code=response.get("code"),
+                                   message=str(response.get("message") or "")[:400])
+                    break
+            if summary["extraction_parts"] > self.max_parts:
+                feasible = False
+                summary.update(governor_status="REJECTED_ROW_LIMIT", code="TOO_MANY_PARTS",
+                               message=f"The data would need {summary['extraction_parts']} extraction parts; at most "
+                                       f"{self.max_parts} fit one request.")
+            requests.append(summary)
+        return {"feasible": feasible, "requests": requests}
+
     def _request_parts(self, need: dict[str, Any], plan_id: str, entry: dict[str, Any]
                        ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         rid = entry["data_request_id"]
@@ -272,6 +316,53 @@ PREPARE_BUNDLE_DESCRIPTION = (
 )
 
 
+CHECK_FEASIBILITY_DESCRIPTION = (
+    "Before presenting a Research Plan, check that its data exists, joins and fits: send the DataNeedSpec the plan "
+    "will need (the same fields as submit_data_need_spec, without research_governance). The validator checks tables, "
+    "columns, scopes, periods and catalog relationships, and the SQL Governor estimates each extraction without "
+    "reading data. Returns FEASIBLE with draft_id and, per data request, the estimated rows and extraction parts; "
+    "NOT_FEASIBLE naming the request whose data is too large or refused (narrow the period or universe, or report "
+    "the limitation with alternatives); or REVISION_REQUIRED with issues (fix them, or report that the catalog "
+    "offers no path, for example no documented relationship between two tables). Nothing is extracted and no "
+    "revision is consumed. A Research Plan is presented only after a FEASIBLE check."
+)
+
+
+def check_feasibility(client: Any, planner: ExecutionPlanner, arguments: BaseModel) -> dict[str, Any]:
+    context = current_run_context.get()
+    if context is None:
+        raise ToolError("No user request is available to anchor the data need's reference date.")
+    body = {"request_id": client._request_id(), "reference_time": context.reference_time.isoformat(),
+            "timezone": context.timezone, "spec": arguments.model_dump(mode="json")}
+    checked = client.check_data_need(body)
+    if checked.get("status") != "APPROVED" or not checked.get("draft_id"):
+        return {"status": checked.get("status") or "REJECTED", "draft_id": None,
+                "issues": checked.get("issues") or [], "warnings": checked.get("warnings") or [],
+                **({"error": checked["error"]} if checked.get("error") else {}),
+                "next_action": "REVISE_DATA_NEED_SPEC_OR_REPORT_LIMITATION"}
+    draft = client.get_draft(checked["draft_id"])
+    if draft is None:
+        raise ToolError("The feasibility draft could not be read back from the Python sandbox.")
+    estimate = planner.estimate(draft)
+    return {"status": "FEASIBLE" if estimate["feasible"] else "NOT_FEASIBLE", "draft_id": checked["draft_id"],
+            "requests": estimate["requests"], "warnings": checked.get("warnings") or [],
+            "next_action": "PRESENT_RESEARCH_PLAN" if estimate["feasible"]
+            else "NARROW_THE_PLAN_OR_REPORT_LIMITATION"}
+
+
+def feasibility_spec(client: Any, planner: ExecutionPlanner, *, timeout_seconds: float,
+                     max_result_bytes: int) -> ToolSpec:
+    from .data_need import CheckDataFeasibilityArgs, argument_issues
+
+    def handler(arguments: BaseModel) -> dict[str, Any]:
+        assert isinstance(arguments, CheckDataFeasibilityArgs)
+        return check_feasibility(client, planner, arguments)
+
+    return ToolSpec(name="check_data_feasibility", description=CHECK_FEASIBILITY_DESCRIPTION,
+                    arguments_model=CheckDataFeasibilityArgs, handler=handler, timeout_seconds=timeout_seconds,
+                    max_result_bytes=max_result_bytes, argument_errors=argument_issues)
+
+
 def prepare_bundle_spec(planner: ExecutionPlanner, *, timeout_seconds: float, max_result_bytes: int) -> ToolSpec:
     def handler(arguments: BaseModel) -> dict[str, Any]:
         assert isinstance(arguments, PrepareDataBundleArgs)
@@ -282,5 +373,5 @@ def prepare_bundle_spec(planner: ExecutionPlanner, *, timeout_seconds: float, ma
                     max_result_bytes=max_result_bytes)
 
 
-__all__ = ["ExecutionPlanner", "PrepareDataBundleArgs", "merge_windows", "part_key", "prepare_bundle_spec",
+__all__ = ["ExecutionPlanner", "PrepareDataBundleArgs", "feasibility_spec", "merge_windows", "part_key", "prepare_bundle_spec",
            "split_entities", "split_window"]

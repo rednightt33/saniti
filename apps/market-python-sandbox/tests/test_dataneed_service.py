@@ -265,3 +265,40 @@ def test_the_run_report_accepts_a_research_plan_confirmation() -> None:
     assert RunReport.model_validate(report).status == "AWAITING_CONFIRMATION"
     with pytest.raises(ValidationError):
         RunReport.model_validate({**report, "status": "APPROVED_BY_MODEL"})
+
+
+def check(api, spec, request_id="req_plan_1"):
+    body = {"request_id": request_id, "reference_time": REFERENCE, "timezone": "Asia/Jakarta", "spec": spec}
+    response = api.post("/v1/data-needs/check", json=body, headers=HEADERS)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_a_feasibility_draft_is_validated_but_never_a_need(api) -> None:
+    # Research Plan feasibility (market-ai-orc check_data_feasibility): the four validator layers, no revision, no
+    # Research Governor review, no research_governance required, and nothing a planner may extract
+    result = check(api, research_spec())
+    assert result["status"] == "APPROVED" and result["draft_id"].startswith("draft_")
+    assert result["next_action"] == "ESTIMATE_EXTRACTION"
+    draft = api.get(f"/v1/data-need-drafts/{result['draft_id']}", headers=HEADERS).json()
+    assert draft["need_id"] == draft["draft_id"] == result["draft_id"] and draft["spec"] == research_spec()
+    assert draft["request_id"] == "req_plan_1" and set(draft["requests"]) == {"data_request_2_A"}
+    assert draft["contract_sha256"] and draft["spec_sha256"]
+    # a draft is not a need: no need_id, the same revision stays free for the approved run, and nothing is reviewed
+    assert api.get(f"/v1/data-needs/{result['draft_id']}", headers=HEADERS).status_code == 404
+    assert api.app.state.dataneed.store.needs_for_request("req_plan_1") == []
+    assert check(api, research_spec())["draft_id"] != result["draft_id"]
+    approved = submit(api, research_spec(), research(), request_id="req_plan_1")
+    assert approved["status"] == "APPROVED" and approved["revision"] == 1
+
+
+def test_an_infeasible_draft_names_its_issues(api) -> None:
+    spec = research_spec()
+    spec["data_requests"][0]["source_table"] = "No_Such_Table"
+    result = check(api, spec)
+    assert result["status"] == "REVISION_REQUIRED" and result["draft_id"] is None
+    assert result["issues"] and result["next_action"] == "REVISE_DATA_NEED_SPEC"
+    assert api.get("/v1/data-need-drafts/draft_" + "0" * 24, headers=HEADERS).status_code == 404
+    bad = api.post("/v1/data-needs/check", json={"request_id": "r", "reference_time": REFERENCE, "spec": spec,
+                                                 "research_governance": research()}, headers=HEADERS)
+    assert bad.status_code == 422  # a draft carries no governance

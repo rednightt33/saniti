@@ -30,6 +30,7 @@ from .tools.request_data import GovernorClient
 from .tools.session import close_sessions
 
 REUSE_VERSION = 1  # the conversation reuse contract both services must report
+FEASIBILITY_VERSION = 1  # the Research Plan feasibility endpoints of the sandbox
 
 
 def _configure_logging() -> None:
@@ -93,6 +94,15 @@ def create_app(
                     '{"event":"python_sandbox_not_ready","python_analysis":false}')
                 sandbox.close()
                 sandbox = None
+        # Research Plan feasibility needs both services' endpoints: the sandbox reports the capability (fail closed)
+        feasibility = False
+        if settings.ai_enable_plan_feasibility and settings.ai_require_research_plan_confirmation \
+                and settings.ai_enable_dataneed and sandbox is not None and governor is not None:
+            capability = (sandbox.runtime().get("plan_feasibility") or {})
+            feasibility = capability.get("enabled") is True and capability.get("version") == FEASIBILITY_VERSION
+            if not feasibility:
+                log_event("plan_feasibility_inactive", reason="the sandbox does not report plan_feasibility "
+                                                              f"version {FEASIBILITY_VERSION}")
         registry = build_default_registry(
             catalog,
             catalog_timeout_seconds=(
@@ -119,6 +129,7 @@ def create_app(
             session_timeout_seconds=settings.py_sandbox_session_timeout_seconds,
             standard_period_return=settings.ai_enable_standard_period_return,
             catalog_discovery_v2=settings.ai_enable_catalog_discovery_v2,
+            plan_feasibility=feasibility,
         )
         auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
             if sandbox is not None or settings.research_audit_database_url else None
@@ -143,7 +154,8 @@ def create_app(
                                                                 f"version {REUSE_VERSION}")
         orchestrator = AgentOrchestrator(settings, owned_client, registry, auditor=auditor,
                                          catalog_summary=summary, provider_logger=provider_logger,
-                                         session_closer=closer, conversation_resources=resources)
+                                         session_closer=closer, conversation_resources=resources,
+                                         draft_reader=sandbox.get_draft if feasibility else None)
     ready = {"value": False}
 
     @asynccontextmanager

@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import secrets
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -18,7 +18,7 @@ from .bundles import model_view as bundle_view
 from .coverage import execution_manifest, processing_coverage
 from .data_need import Limits, contract_tables, data_contract_sha256, sha256_json, validate
 from .datasets import DatasetFailure
-from .dataneed_store import DataNeedStore
+from .dataneed_store import DRAFT_RETENTION_DAYS, DataNeedStore
 from .records import utc_now
 from .research_governance import check_request
 from .sessions import SessionError, SessionManager
@@ -178,6 +178,45 @@ class DataNeedService:
                   mode=mode, research=(research or {}).get("decision"), issues=[i["code"] for i in result["issues"]],
                   warnings=[w["code"] for w in result["warnings"]])
         return result
+
+    def check(self, request_id: str, reference_time: datetime, tz: str, spec: Any) -> dict[str, Any]:
+        """Research Plan feasibility: validate a DataNeedSpec with all four layers before any plan is approved, without
+        a revision, a Research Governor review or anything extractable. An approved spec is kept as a draft (draft_id)
+        whose approved contract the backend planner sends to the Governor as estimate-only extractions; mode RESEARCH
+        needs no research_governance here (the governance is declared, and reviewed, when the approved plan runs)."""
+        ref = reference_date(reference_time, tz)
+        contract: dict[str, Any] | None = {"tables": {}, "columns": {}, "relationships": []}
+        tables = contract_tables(spec) if isinstance(spec, dict) else []
+        if tables:
+            try:
+                contract = self.analysis.datasets.catalog_contract(tables, request_id=request_id)
+            except DatasetFailure:
+                contract = None
+        outcome = validate(spec, contract, ref, self.limits)
+        body = outcome.body()
+        result: dict[str, Any] = {"status": body["status"], "draft_id": None, "issues": body["issues"],
+                                  "warnings": body["warnings"], "next_action": NEXT_ACTION[body["status"]]}
+        if body["status"] == "APPROVED" and outcome.approved is not None:
+            draft_id = f"draft_{secrets.token_hex(12)}"
+            result.update(draft_id=draft_id, next_action="ESTIMATE_EXTRACTION")
+            now = datetime.now(timezone.utc)
+            self.store.insert_draft({
+                "draft_id": draft_id, "request_id": request_id, "submitted": {"spec": spec},
+                "approved": outcome.approved, "result": result, "contract_sha256": data_contract_sha256(outcome.approved),
+                "created_at": now.isoformat()}, purge_before=(now - timedelta(days=DRAFT_RETENTION_DAYS)).isoformat())
+        self._log("data_need_draft_checked", request_id=request_id, draft_id=result["draft_id"], status=body["status"],
+                  issues=[i["code"] for i in body["issues"]], warnings=[w["code"] for w in body["warnings"]])
+        return result
+
+    def get_draft(self, draft_id: str) -> dict[str, Any] | None:
+        """A feasibility draft: its spec and approved contract, in the planner's need shape (need_id = draft_id)."""
+        record = self.store.get_draft(draft_id)
+        if record is None:
+            return None
+        return {"need_id": draft_id, "draft_id": draft_id, "request_id": record["request_id"],
+                "spec": record["submitted"]["spec"], "created_at": record["created_at"],
+                "contract_sha256": record["contract_sha256"], "warnings": record["result"].get("warnings") or [],
+                **record["approved"]}
 
     def get_need(self, need_id: str) -> dict[str, Any] | None:
         """The approved contract (backend use: the planner and the bundle builder)."""

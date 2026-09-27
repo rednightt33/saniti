@@ -9,7 +9,7 @@ import sqlite3
 import pytest
 from fastapi.testclient import TestClient
 
-from app.dataneed_store import SCHEMA, DataNeedStore
+from app.dataneed_store import SCHEMA, SCHEMA_VERSION, DataNeedStore
 from app.main import create_app
 from conftest import requires_root
 from dataneed_fixtures import data_need_catalog, ytd_spec
@@ -224,12 +224,13 @@ def test_the_sqlite_upgrade_keeps_legacy_rows(tmp_path) -> None:
     legacy.commit()
     legacy.close()
     store = DataNeedStore(path)
-    assert store.schema_version == 1
+    assert store.schema_version == SCHEMA_VERSION == 2
+    assert store.get_draft("draft_none") is None  # version 2 adds the feasibility drafts
     session = store.get_session("sess_old")
     assert (session["epoch"], session["epoch_start_seq"], session["conversation_key"]) == (1, 0, None)
     assert store.completion_for_epoch("sess_old", 1)["completion_id"] == "cmp_old"
     store.close()
-    assert DataNeedStore(path).schema_version == 1  # idempotent on reopen
+    assert DataNeedStore(path).schema_version == SCHEMA_VERSION  # idempotent on reopen
 
 
 def test_coverage_is_inherited_from_every_earlier_passed_epoch(reuse) -> None:

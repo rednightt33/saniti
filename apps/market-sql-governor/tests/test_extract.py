@@ -445,3 +445,25 @@ def test_the_extraction_log_has_decisions_and_no_values(governed_db, tmp_path) -
     assert event["status"] == "APPROVED" and event["data_request_id"] == "data_request_1_A"
     assert event["need_id"] == NEED and event["rows"] > 0
     assert "BBCA" not in json.dumps(event) and "password" not in json.dumps(event).lower()
+
+
+def test_estimate_only_answers_like_an_extraction_without_reading_or_storing(governed_db, tmp_path) -> None:
+    # a Research Plan's feasibility draft (market-ai-orc check_data_feasibility): the same checks and EXPLAIN, no data
+    ext = extractor(governed_db, tmp_path)
+    spec = extraction()
+    draft = lineage(spec, need_id="draft_" + "a" * 24)
+    fits = ext.handle("test-extract", spec, draft, estimate_only=True)
+    assert fits["status"] == "WITHIN_LIMITS" and fits["estimate_only"] is True
+    assert fits["estimates"]["result_rows"] > 0 and "dataset" not in fits
+    assert not list(tmp_path.glob("datasets/*"))
+    small = extractor(governed_db, tmp_path, SQL_MAX_DATASET_ROWS="500")
+    split = small.handle("test-extract", spec, draft, estimate_only=True)
+    assert split["status"] == "APPROVED_WITH_PARTITIONING" and split["partitioning"]["parts"] >= 2
+    refused = ext.handle("test-extract", extraction(columns=("ticker", "date", "source")),
+                         lineage(extraction(columns=("ticker", "date", "source")), need_id="draft_" + "a" * 24),
+                         estimate_only=True)
+    assert (refused["status"], refused["code"]) == ("REJECTED_POLICY", "COLUMN_NOT_ALLOWED")
+    # a draft is never extracted
+    never = ext.handle("test-extract", spec, draft)
+    assert (never["status"], never["code"]) == ("REJECTED_POLICY", "LINEAGE_MISMATCH")
+    assert not list(tmp_path.glob("datasets/*"))

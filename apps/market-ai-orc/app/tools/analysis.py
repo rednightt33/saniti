@@ -664,6 +664,24 @@ class SandboxClient:
             raise ToolError(f"The Python sandbox is unavailable (HTTP {response.status_code}).")
         return body
 
+    def check_data_need(self, body: dict[str, Any]) -> dict[str, Any]:
+        """Research Plan feasibility: validate a DataNeedSpec into a never-extracted draft (POST /v1/data-needs/check)."""
+        response = self._call("POST", "/v1/data-needs/check", json=body)
+        result = self._json(response)
+        if response.status_code == 200 and "status" in result:
+            return result
+        return self._rejected(response, result)
+
+    def get_draft(self, draft_id: str) -> dict[str, Any] | None:
+        """A feasibility draft in the planner's need shape (backend use only)."""
+        response = self._call("GET", f"/v1/data-need-drafts/{draft_id}")
+        if response.status_code == 404:
+            return None
+        body = self._json(response)
+        if response.status_code != 200:
+            raise ToolError(f"The Python sandbox is unavailable (HTTP {response.status_code}).")
+        return body
+
     def build_bundle(self, request_id: str, need_id: str, plan: dict[str, Any]) -> dict[str, Any]:
         """Hand the extracted parts to the sandbox, which verifies, profiles and covers them as one bundle."""
         response = self._call("POST", "/v1/bundles", json={"request_id": request_id, "need_id": need_id,

@@ -268,6 +268,8 @@ Gate and final-response log events (always on):
 | `AI_ENABLE_CATALOG_DISCOVERY_V2` | no | `false` | Catalog discovery v2: `discover_catalog` filters and keyset paging with a bound cursor; `get_catalog_details` adds `table_metadata`, per-table column completeness with `recovery_calls`, resample and join-semantics fields, and `formula_query`. See [Catalog discovery v2 and the discovery protocol](#catalog-discovery-v2-and-the-discovery-protocol) |
 | `AI_ENABLE_CATALOG_PROTOCOL` | no | `false` | The discovery protocol: a fixed prompt rule, reuse of identical catalog results within a run (`cache_hit`), and `CATALOG_DETAILS_REQUIRED` before `submit_data_need_spec` for metadata the run has not read. Needs `AI_ENABLE_CATALOG_DISCOVERY_V2` (startup refuses otherwise); inactive without `AI_ENABLE_DATANEED` |
 | `AI_ENABLE_CONVERSATION_STORE` | no | `false` | Server-side conversation history for `history_mode: SERVER` (see [Server-side conversation history](#server-side-conversation-history)). Needs `CONVERSATION_DATABASE_URL` |
+| `AI_ENABLE_METHODOLOGY` | no | `false` | Required nullable `methodology` note on DataNeed answers, checked for number provenance (see [Methodology note](#methodology-note)); DataNeed flow only |
+| `AI_ENABLE_PLAN_FEASIBILITY` | no | `false` | `check_data_feasibility` before a Research Plan and the draft bound into its token (see [Research Plan feasibility](#research-plan-feasibility-and-approval-use-m19)); needs Research Plan confirmation, the Governor and a sandbox reporting `plan_feasibility` version 1 |
 | `AI_ENABLE_CONVERSATION_REUSE` | no | `false` | Reuse of released outputs, bundles and warm Python sessions of earlier messages in `SERVER` conversations (see [Conversation reuse](#conversation-reuse)). Needs `AI_ENABLE_CONVERSATION_STORE` (startup refuses otherwise) and a sandbox reporting `conversation_reuse` version 1; otherwise inactive (log `conversation_reuse_inactive`) |
 | `CONVERSATION_DATABASE_URL` | with the store (secret) | unset | DSN of the `market_ai_conversation` login (conversation tables only) |
 | `AI_CONVERSATION_RETENTION_DAYS` | no | `30` | Days after the last activity before a conversation is deleted |
@@ -619,6 +621,7 @@ Guarantees:
 | `run_python` | `session_id`, `code` (≤ 20000) | `OK`, `SCRIPT_ERROR` (error type, line, field, traceback), `TIMEOUT` or `INSUFFICIENT_INPUT_DATA`, with stdout (diagnostics), outputs, changed variables and budgets |
 | `inspect_session` | `session_id`, `names` (null: all), `max_rows` | Variable descriptions with bounded previews |
 | `get_session_output` | `session_id`, `output_id`, `offset`, `limit` | Table rows page by page, JSON or text; `released` |
+| `check_data_feasibility` | the DataNeedSpec fields without `research_governance` | `AI_ENABLE_PLAN_FEASIBILITY`: validator draft plus Governor estimate, no extraction; `FEASIBLE` / `NOT_FEASIBLE` / `REVISION_REQUIRED` with `draft_id` and per-request estimates |
 | `complete_analysis` | `session_id` | The Coverage Validator's result and the final status (`data_coverage`, `sandbox_execution`, `calculation_validation` NOT_PERFORMED, `evidence_label`, warnings, allowed and forbidden claims); on PASS the released outputs with their content (JSON, first 200 table rows, bounded by the result size) |
 
 Each capability flag is derived from the registry. It becomes `true` only when its providing
@@ -868,6 +871,65 @@ gate.
 **Rollback.** Unset `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION`: the prompt, final schema and response contract return
 to the ones before the feature, a continuation in a request is ignored (logged), and RESEARCH data needs run as
 before. The new `research_governance` fields stay optional and are sent to the sandbox only when set.
+
+### Research Plan feasibility and approval use (M19)
+
+Behind `AI_ENABLE_PLAN_FEASIBILITY` (default off; needs Research Plan confirmation, the DataNeed flow, the Governor
+and a sandbox that reports `plan_feasibility` version 1 in `GET /v1/runtime`, otherwise inactive with log
+`plan_feasibility_inactive`). A plan used to be presented after the model had only checked that tables and columns
+exist; whether the data joins as the plan needs and fits one run was first tested after approval (test suite
+2026-09-27, C05: approved twice, never executable).
+
+1. **Check before the plan.** The tool `check_data_feasibility` takes the DataNeedSpec the plan needs (the
+   `submit_data_need_spec` fields without `research_governance`). The sandbox validates it with all four validator
+   layers (`POST /v1/data-needs/check`) into a draft (`draft_…`) that is never a need: no revision is consumed and no
+   Research Governor review happens. The Execution Planner then sends every extraction envelope of the draft to the
+   Governor with `estimate_only` (its policy checks, compilation and EXPLAIN; no row is read or stored). The result is
+   `FEASIBLE` (per request: estimated rows and extraction parts), `NOT_FEASIBLE` (the refused request, e.g.
+   `REJECTED_SCAN_SIZE` or more than 64 parts), or `REVISION_REQUIRED` with the validator's issues (e.g. an unknown
+   or not-allowed relationship). The tool is offered in PROPOSE, REVISE and REPLAN turns.
+2. **Only a checked plan is issued.** A `RESEARCH_PLAN_CONFIRMATION` without a `FEASIBLE` check in the run is rejected
+   once (the model is told to check); a second one becomes a `LIMITATION` that names the failed checks, with no plan
+   id and no token. The prompt tells the model to offer alternatives (shorter period, narrower universe, other data).
+3. **The draft travels with the plan.** The signed token carries the draft id (claim `did`, only when a draft exists,
+   so earlier tokens keep their form); `execution.research_plan.draft_id` shows it. On approval the orchestrator reads
+   the draft back and adds its spec to the approval note, so the approved turn starts from a validated spec instead of
+   reading the catalog again. The spec is resubmitted as usual (guard, validator, Research Governor still apply).
+
+**M19: an approval is used by an attempt, not by a turn.** In an `EXECUTE_APPROVED` turn, an ANSWER or LIMITATION
+without any RESEARCH `submit_data_need_spec` call is rejected once (the model is told to run the experiments or name
+the exact blocking tool result). If it still submits nothing, the response carries the limitation "The approved
+Research Plan was not executed in this message, so it remains pending; approving it again runs it.",
+`execution.research_plan.research_submitted` is `false`, the same continuation is returned unchanged, and in history
+mode `SERVER` the stored plan stays `PENDING` (a submission, whatever its outcome, still marks it `EXECUTED`). This
+rule applies whenever Research Plan confirmation is on.
+
+**Rollback.** Unset `AI_ENABLE_PLAN_FEASIBILITY`: the tool, the prompt rule and the plan gate disappear (prompt and
+tool definitions are byte-identical to the ones before). Tokens with a `did` claim still verify.
+
+### Methodology note
+
+Behind `AI_ENABLE_METHODOLOGY` (DataNeed flow only; default off). The final response gains a required nullable
+`methodology`: for an ANSWER or LIMITATION that rests on a completed analysis (or on released outputs of an earlier
+message), a plain-language account of the data, filters, steps, statistical methods and parameters that actually
+ran. It is model-written, so it is checked, not trusted:
+
+- A missing note on such an answer is asked for once; after that the answer stands without it and gets the
+  limitation "No methodology note was provided for this response."
+- Its numbers must trace to the answer's sources, the approved plan, the DataNeedSpec, or the code of a successful
+  (`OK`) `run_python` call (a window of 20 days that ran is a valid parameter). Code numbers are never sources for
+  the answer itself. An unsourced number is rejected once; after that the note is withheld with a limitation naming
+  the numbers. The note never forces a LIMITATION on a sound answer.
+- `execution.methodology_provenance` reports the check (`checked`, `unsupported`); clarifications and plans carry
+  `methodology: null`.
+
+The response envelope always carries `response.methodology` (null when off), as it does `research_plan`.
+
+### Scientific notation in the provenance check (P06)
+
+`1,14e-22`, `3.2E+05`, `1.14 × 10^-22` and `1.14 x 10⁻²²` are read as one number with the rounding step of the shown
+mantissa scaled by the exponent (before, `1,14e-22` was split and its exponent `22` reported as a number without a
+source). The float guard of the comparison is relative, so a p-value near zero no longer matches any other tiny source.
 
 ### Named-period returns
 

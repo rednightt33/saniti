@@ -26,6 +26,8 @@ from .spec_v2 import SpecRequestAny
 
 FILE_ID = re.compile(r"^(res|art)_[0-9a-f]{24}$")
 NEED_ID = re.compile(r"^need_[0-9a-f]{24}$")
+DRAFT_ID = re.compile(r"^draft_[0-9a-f]{24}$")
+FEASIBILITY_VERSION = 1
 SESSION_ID = re.compile(r"^sess_[0-9a-f]{24}$")
 OUTPUT_ID = re.compile(r"^out_[0-9a-f]{24}$")
 DATA_NEED_KEYS = {"request_id", "reference_time", "timezone", "spec", "research_governance"}
@@ -107,6 +109,8 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                           "no extensions or attachments, configuration locked",
                 "conversation_reuse": {"enabled": settings.conversation_reuse and dataneed is not None,
                                        "version": REUSE_VERSION},
+                # POST /v1/data-needs/check and GET /v1/data-need-drafts/{draft_id} (Research Plan feasibility)
+                "plan_feasibility": {"enabled": dataneed is not None, "version": FEASIBILITY_VERSION},
                 "limits": {**settings.child_limits(), "max_runtime_seconds": settings.max_runtime_seconds,
                            "max_memory_mb": settings.max_memory_mb, "duckdb_memory_mb": settings.duckdb_memory_mb,
                            "max_logical_datasets": settings.max_logical_datasets,
@@ -174,6 +178,34 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                                    body.get("research_governance"), conversation_key=key)
         except DataNeedError as exc:
             return dataneed_error(exc)
+
+    @app.post("/v1/data-needs/check", dependencies=dataneed_routes)
+    def check_data_need(body: Any = Body(...)) -> Any:
+        """Research Plan feasibility: validate a DataNeedSpec into a never-extracted draft (no revision, no review)."""
+        if not isinstance(body, dict) or not {"request_id", "reference_time", "spec"} <= set(body) \
+                <= {"request_id", "reference_time", "timezone", "spec"} \
+                or not isinstance(body["request_id"], str) or not re.fullmatch(REQUEST_ID, body["request_id"]):
+            return JSONResponse(status_code=422, content={"status": "REJECTED", "error": {
+                "code": "INVALID_REQUEST", "message": "Body must be {request_id, reference_time, timezone, spec}."}})
+        try:
+            reference_time = datetime.fromisoformat(str(body["reference_time"]))
+        except ValueError:
+            return JSONResponse(status_code=422, content={"status": "REJECTED", "error": {
+                "code": "INVALID_REQUEST", "message": "reference_time must be an ISO timestamp."}})
+        timezone = body.get("timezone") if isinstance(body.get("timezone"), str) else "Asia/Jakarta"
+        try:
+            return dataneed.check(body["request_id"], reference_time, timezone[:64], body["spec"])
+        except DataNeedError as exc:
+            return dataneed_error(exc)
+
+    @app.get("/v1/data-need-drafts/{draft_id}", dependencies=dataneed_routes)
+    def get_data_need_draft(draft_id: str) -> Any:
+        if not DRAFT_ID.fullmatch(draft_id):
+            raise HTTPException(status_code=404, detail="Unknown draft_id")
+        draft = dataneed.get_draft(draft_id)
+        if draft is None:
+            raise HTTPException(status_code=404, detail="Unknown draft_id")
+        return draft
 
     @app.get("/v1/data-needs/{need_id}", dependencies=dataneed_routes)
     def get_data_need(need_id: str) -> Any:

@@ -561,7 +561,11 @@ class Extractor:
                          max_plan_cost=float(s.max_plan_cost), max_window_days=s.extract_max_window_days,
                          max_parts=s.extract_max_parts)
 
-    def handle(self, request_id: str, raw_spec: Any, raw_lineage: Any, part_count: int = 1) -> dict[str, Any]:
+    def handle(self, request_id: str, raw_spec: Any, raw_lineage: Any, part_count: int = 1,
+               estimate_only: bool = False) -> dict[str, Any]:
+        """estimate_only: validate, bind, compile and EXPLAIN exactly as an extraction, and answer WITHIN_LIMITS (the
+        estimates) or the same APPROVED_WITH_PARTITIONING / REJECTED_* an extraction would get; nothing is read or
+        stored. A draft_ need_id is accepted only here."""
         started = time.monotonic()
         query_id = f"qry_{uuid.uuid4().hex[:24]}"
         state: dict[str, Any] = {"source_tables": [], "data_request_id": None}
@@ -574,6 +578,8 @@ class Extractor:
                                    for e in exc.errors(include_url=False, include_input=False)[:8])
                 raise ex.policy("INVALID_EXTRACTION_SPEC", f"The extraction spec is invalid: {issues}") from exc
             state["data_request_id"] = spec.data_request_id
+            if lineage.need_id.startswith("draft_") and not estimate_only:
+                raise ex.policy("LINEAGE_MISMATCH", "A feasibility draft can only be estimated, never extracted.")
             if lineage.data_request_id != spec.data_request_id or lineage.extraction_sha256 != ex.extraction_sha256(
                     raw_spec):
                 raise ex.policy("LINEAGE_MISMATCH", "The lineage does not describe this extraction spec.")
@@ -581,7 +587,7 @@ class Extractor:
             partition = spec.entity_partition.model_dump() if spec.entity_partition else None
             if lineage.part_key != ex.part_key(window, partition):
                 raise ex.policy("LINEAGE_MISMATCH", "part_key does not describe this extraction's window and partition.")
-            outcome = self._run(request_id, query_id, spec, lineage, state, part_count)
+            outcome = self._run(request_id, query_id, spec, lineage, state, part_count, estimate_only)
         except ex.ExtractStop as stop:
             outcome = self._stopped(request_id, query_id, stop, state)
         except psycopg.errors.QueryCanceled:
@@ -597,6 +603,7 @@ class Extractor:
         outcome["runtime_ms"] = int((time.monotonic() - started) * 1000)
         dataset = outcome.get("dataset") or {}
         _log("sql_governor_extract", request_id=request_id, query_id=query_id, status=outcome["status"],
+             estimate_only=estimate_only,
              code=outcome.get("code"), data_request_id=state.get("data_request_id"),
              source_tables=state.get("source_tables"), query_hash=outcome.get("query_hash"),
              estimates=outcome.get("estimates"), partitioning=outcome.get("partitioning"),
@@ -628,7 +635,7 @@ class Extractor:
                 "warnings": state.get("warnings") or []}
 
     def _run(self, request_id: str, query_id: str, spec: ex.ExtractionSpec, lineage: ex.ExtractionLineage,
-             state: dict[str, Any], part_count: int) -> dict[str, Any]:
+             state: dict[str, Any], part_count: int, estimate_only: bool = False) -> dict[str, Any]:
         s = self.settings
         state.update(need_id=lineage.need_id, plan_id=lineage.plan_id, part_key=lineage.part_key,
                      part_count=part_count)
@@ -654,6 +661,11 @@ class Extractor:
             decision = ex.partitioning(bound, estimates, self.limits(), index_columns, part_count=part_count)
             if decision is not None:
                 raise decision
+            if estimate_only:
+                return {"status": "WITHIN_LIMITS", "estimate_only": True, "code": None, "message": None,
+                        "data_request_id": spec.data_request_id, "request_id": request_id, "query_id": query_id,
+                        "query_hash": explain.query_hash, "estimates": estimates.__dict__,
+                        "warnings": state.get("warnings") or []}
             if self.governor.store is None:
                 raise ex.policy("DATASET_STORAGE_UNAVAILABLE", "Dataset storage is not configured.")
             compiled = ex.compile_extraction(bound, s.max_dataset_rows + 1)

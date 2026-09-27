@@ -52,10 +52,15 @@ TABLE_HEADER_FIRST_RE = re.compile(r"^\s*\|?\s*([^|]*?)\s*\|")
 TABLE_ROW_FIRST_RE = re.compile(r"^\s*\|?\s*(\*{0,2})(\d{1,3}\.?)\1\s*\|")
 # A sign may stand before a currency symbol ("−Rp 34.756.780.567"): the symbol is read as part of the number, so
 # the sign is kept and "Rp1.000" (no space) is checked like "Rp 1.000".
+# Scientific notation is one number (P06): "1,14e-22", "3.2E+05", "1.14 × 10^-22", "1.14 x 10⁻²²". The exponent is
+# read with the mantissa, so its digits are never checked as a separate figure.
+SUPERSCRIPTS = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻⁺", "0123456789-+")
 NUMBER_RE = re.compile(
-    r"(?<![\w.,/])([+\-−–]?)(?:(?:rp\.?|idr|usd|us\$|\$)\s?)?"
-    r"(\d{1,3}(?:[.,\s]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)(?![\w]|[.,]\d)"
-    r"(\s?%)?(?:\s?(ribu|rb|k|thousand|juta|jt|million|mn|m|miliar|milyar|billion|bn|b|triliun|trillion|t)\b)?",
+    r"(?<![\w.,/])(?P<sign>[+\-−–]?)(?:(?:rp\.?|idr|usd|us\$|\$)\s?)?"
+    r"(?P<body>\d{1,3}(?:[.,\s]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)"
+    r"(?:[eE](?P<exp>[+\-−]?\d{1,3})|\s?[×x*·]\s?10(?:\^\(?(?P<pexp>[+\-−]?\d{1,3})\)?|(?P<sexp>[⁻⁺]?[⁰¹²³⁴⁵⁶⁷⁸⁹]{1,3})))?"
+    r"(?![\w]|[.,]\d)"
+    r"(?P<percent>\s?%)?(?:\s?(?P<unit>ribu|rb|k|thousand|juta|jt|million|mn|m|miliar|milyar|billion|bn|b|triliun|trillion|t)\b)?",
     re.IGNORECASE)
 JSON_NUMBER_RE = re.compile(r"^[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$")
 NEGATIVE_WORDS = re.compile(r"(turun|melemah|minus|negatif|down|fell|declin|drop|lost|rugi|koreksi)", re.IGNORECASE)
@@ -123,12 +128,19 @@ def parse_numbers(text: str) -> list[DisplayedNumber]:
     masked = _mask_row_numbers(masked)
     found: list[DisplayedNumber] = []
     for match in NUMBER_RE.finditer(masked):
-        sign, body, percent, unit = match.group(1), match.group(2), match.group(3), match.group(4)
+        sign, body, percent, unit = match.group("sign"), match.group("body"), match.group("percent"), \
+            match.group("unit")
         try:
             readings = _interpretations(body)
         except ValueError:
             continue
         factor = MULTIPLIERS.get((unit or "").lower(), 1.0)
+        exponent = match.group("exp") or match.group("pexp") or (match.group("sexp") or "").translate(SUPERSCRIPTS)
+        if exponent:
+            # "1,14e-22" shows two decimals of 1e-22: the value scales and the rounding step shrinks with it
+            power = int(exponent.replace("−", "-"))
+            readings = [(value * 10.0 ** power, decimals - power) for value, decimals in readings
+                        if decimals > 0 or "." not in body and "," not in body]
         # "0,31%-2,15%" or "10–20": a dash right after a number is a range separator, not a sign
         range_dash = bool(sign) and match.start() > 0 and masked[match.start() - 1] in "0123456789%"
         negative = sign in ("-", "−", "–") and not range_dash
@@ -202,7 +214,8 @@ class SourceIndex:
     def kinds_matching(self, shown: DisplayedNumber, negative_in_words: bool) -> set[str]:
         kinds: set[str] = set()
         for value, decimals in shown.candidates:
-            tolerance = 0.5 * 10.0 ** (-decimals) * (1 + 1e-9) + 1e-12
+            # the float guard is relative: an absolute one would swallow values like a p-value of 1e-22
+            tolerance = 0.5 * 10.0 ** (-decimals) * (1 + 1e-9) + 1e-12 * abs(value)
             targets = {value}
             if negative_in_words and value > 0:
                 targets.add(-value)
