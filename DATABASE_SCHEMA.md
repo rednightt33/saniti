@@ -190,11 +190,13 @@ AI-facing column semantics and bounded-query permissions for the seven approved 
 | `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed created_at field of AI_column_catalog; see the creating migration for its exact contract. |
 | `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed updated_at field of AI_column_catalog; see the creating migration for its exact contract. |
 | `resample_aggregation` | `text` | Yes | — | Exact aggregation rule to a coarser frequency (FIRST, LAST, MAX, MIN, SUM); NULL means no established rule, so resampling is never pushed down. |
+| `cross_entity_aggregation` | `text` | Yes | — | Rule for aggregating this column across entities of a finer grain (for example brokers into a ticker-date-board row) before a relationship join (saniti.preaggregate); NULL = not additive, never aggregated automatically. |
 
 ### Constraints
 
 | Name | Type | Definition |
 |---|---|---|
+| `AI_column_catalog_cross_entity_aggregation_check` | Check | `CHECK (cross_entity_aggregation IS NULL OR (cross_entity_aggregation = ANY (ARRAY['SUM'::text, 'MIN'::text, 'MAX'::text])))` |
 | `AI_column_catalog_aggregations_check` | Check | `CHECK (allowed_aggregations <@ ARRAY['SUM'::text, 'AVG'::text, 'MEDIAN'::text, 'MIN'::text, 'MAX'::text, 'COUNT'::text, 'COUNT_DISTINCT'::text, 'PERCENTILE'::text, 'WEIGHTED_AVG'::text])` |
 | `AI_column_catalog_documentation_check` | Check | `CHECK (documentation_status = ANY (ARRAY['VERIFIED'::text, 'PARTIAL'::text, 'NEEDS_REVIEW'::text]))` |
 | `AI_column_catalog_position_check` | Check | `CHECK (ordinal_position > 0)` |

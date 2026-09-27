@@ -1,5 +1,26 @@
 # Railway changelog
 
+## 2026-09-27 — IP1 Stages B and C on dev: composite keys, preaggregation, aggregation rules
+
+- **Code** `9262fd8` (flag `AI_ENABLE_COMPOSITE_KEYS`, default off; with it off the tool definitions and system prompt
+  are identical to the previous deploy), deployed by the GitHub connection: market-sql-governor
+  `921e67dd-b95f-4385-9d95-a73c1e1e747f` `SUCCESS` (composite restrictions, draft lineage), market-python-sandbox
+  `a8009715-a414-4cfa-8222-d2ae275e7341` `SUCCESS` (`data_need_spec/v2`, `join`/`preaggregate` helpers), market-ai-orc
+  `a477521d-f3e6-4885-834d-f66ed17c1883` (replaced by the flag redeploy below, same commit).
+- **Migration** `20260927_005` through `relcat-job`: dry run `1331bc3c-53d8-455c-b09b-7ca478360f99`, apply
+  `91eac33f-2dc7-44d1-800d-f2d5e51aa091`; golden check `603d3578-ff2e-4a78-8c81-1ba8bf8e35d2` `SUCCESS` (see
+  DATABASE_CHANGELOG).
+- **Flag**: `AI_ENABLE_COMPOSITE_KEYS=true` on market-ai-orc (dev) with the CLI; redeploy
+  `052c9e06-6326-4df1-9990-e3a74c45f98f` `SUCCESS`, no `*_inactive` log (the sandbox reports `data_need_spec_versions`
+  v1 and v2). `.railway/railway.ts` lists it as `preserve()`. `railway config pull --force` also added the temporary
+  `relcat-job` block; it stays in `.railway/railway.ts` until the service is deleted after IP1 Stage D.
+- **suite5** on `orc-test-runner` (`d57b5c15-fea8-4708-9102-679d435d6769`), both `COMPLETED` / `ANSWER`, data coverage
+  `PASS`, methodology provenance 0 unsupported:
+  - k01: Feature 02 foreign net value summed per day vs Feature 03 `foreign_net_value`, BBCA Regular, August 2026:
+    19 days identical, total 1,244,364,610,000 IDR; $0.020, 137 s.
+  - k02: Broker Summary ↔ Feature 02 joined on five keys (broker AK, BBRI, Regular, August 2026): 33 rows, Foreign and
+    Domestic kept apart; $0.025, 39 s.
+
 ## 2026-09-27 — Research Plan feasibility, methodology note, M19/P06 fixes and IP1 Stage A on dev
 
 - **Code** `fd23d12` (all new flags default off, prompt and tool definitions unchanged with them off), deployed by the

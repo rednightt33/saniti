@@ -1,5 +1,34 @@
 # Database changelog
 
+## 2026-09-27 — IP1 Stages B and C: cross-entity aggregation rules and data_need_spec/v2 tool contracts (migration 20260927_005)
+
+- Scope approved by the user: implementation plan IP1, Stages B (composite keys) and C (separate enrichment from
+  aggregation), with the user's choice of 2026-09-27 to add a catalog column for the aggregation rule rather than
+  hard-code it.
+- New column `AI_column_catalog.cross_entity_aggregation` (`SUM` / `MIN` / `MAX` or NULL, check constraint
+  `AI_column_catalog_cross_entity_aggregation_check`), separate from `resample_aggregation` (time). NULL means the
+  column is never aggregated automatically. `Column_Catalog` row added (`PARTIAL`); `Table_Catalog.source_code_paths`
+  of `AI_column_catalog` extended.
+- Rules (`SUM`, 26 columns): Feature 02 daily buy/sell/net values and lots and the 5/20/60-date net value and lot sums
+  (12); Broker Summary Buy/Sell/Net Value and Lots (6); Feature 03 total buy/sell value and the investor-type and
+  classification net values, across boards (8). No rule, on purpose: ratios, z-scores, percentiles, day counts, broker
+  counts, averages, concentration and top-broker values, positive-flow totals, and values repeated from a coarser grain.
+- `Tool_Catalog`: `submit_data_need_spec` `v3` and `check_data_feasibility` `v2` with the `data_need_spec/v2` input
+  (every key pair: `left_columns` / `right_columns`), inactive, `runtime_commit` `9262fd8`; other columns copied from the
+  previous version.
+- Status: **applied to `dev` at 16:05 UTC** by the temporary service `relcat-job` (`DATABASE_URL` reference only):
+  dry run `1331bc3c-53d8-455c-b09b-7ca478360f99` (preflight and `$verify$` passed, rolled back), apply
+  `91eac33f-2dc7-44d1-800d-f2d5e51aa091`. No notice.
+  - Before: column absent; 66 `Tool_Catalog` rows, 25 active.
+  - Read back: the column present; rules Feature 02 12, Feature 03 8, Broker Summary 6; `submit_data_need_spec` v3 and
+    `check_data_feasibility` v2 inactive with `spec_version` enum `data_need_spec/v2`; 68 rows, 25 active.
+- **Golden check on live data** (IP1 Stage E, read-only, deployment `603d3578-ff2e-4a78-8c81-1ba8bf8e35d2`): Feature 02
+  aggregated by ticker, date and board with these rules against the Feature 03 totals, 2026-08-18 to 2026-08-31:
+  12,915 keys from 238,235 Feature 02 rows, 0 keys on one side only, 0 mismatches in total buy value, total sell value,
+  domestic net value and foreign net value (tolerance 0.005). The SUM rules reproduce Feature 03's documented
+  definitions exactly.
+- `DATABASE_SCHEMA.md`: the new column and its check constraint in `AI_column_catalog`.
+
 ## 2026-09-27 — IP1 Stage A: complete the AI relationship catalog, register check_data_feasibility (migration 20260927_004)
 
 - Scope approved by the user: implementation plan IP1 (Stage A) and the Research Plan feasibility check. C05: a sector
