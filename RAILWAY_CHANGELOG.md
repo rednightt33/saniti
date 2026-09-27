@@ -1,5 +1,30 @@
 # Railway changelog
 
+## 2026-09-27 — Research Plan feasibility, methodology note, M19/P06 fixes and IP1 Stage A on dev
+
+- **Code** `fd23d12` (all new flags default off, prompt and tool definitions unchanged with them off), deployed by the
+  GitHub connection: market-ai-orc `888e758d-420e-4201-8beb-65657871a271`, market-python-sandbox
+  `e38b7356-bb22-4558-9a3d-5b2828b1e215` (SQLite schema version 2, `data_need_drafts`), market-sql-governor
+  `34dbc458-dbbb-4890-bb26-62babbd91767` (`estimate_only`); each reached `SUCCESS`.
+- **Flags**: set `AI_ENABLE_METHODOLOGY=true` and `AI_ENABLE_PLAN_FEASIBILITY=true` on market-ai-orc (dev) with the CLI;
+  redeploy `d5a5c5c4-ffac-41c0-bdd1-0dadd93b0052` `SUCCESS`, no `*_inactive` log at startup (the sandbox reports
+  `plan_feasibility` version 1). `.railway/railway.ts` lists both as `preserve()`; `railway config pull --force` and
+  `railway config plan` reported no drift.
+- **G09** found by the first live run (suite3 on `orc-test-runner`, deployment `3392d5cc-365f-45a9-a0a9-49e897b8a32a`):
+  every feasibility check failed because the orc Governor client refused `WITHIN_LIMITS`. Fix `834fc18`; market-ai-orc
+  `62154ade-8b06-47b1-b51f-287c88058bd8` `SUCCESS`.
+- **Before the catalog change** (suite3b, `db4dcf10-a681-4eda-b0ce-5a906a9265a8`): a bank volume-spike question went
+  FEASIBLE check → plan bound to its draft → approval executed with a methodology note (provenance 8 checked, 0
+  unsupported; 100 answer numbers checked, 0 unsupported). The mining question asked which broker was meant
+  (CLARIFICATION).
+- **IP1 Stage A migration** `20260927_004` through the temporary service `relcat-job`
+  (`bce027de-84d9-4320-a055-fd5aee485adb`, `DATABASE_URL` reference only): dry run `ee637bf6-…`, apply
+  `d02876fe-e2e4-493d-8c7f-9d49c841fbb0` (see DATABASE_CHANGELOG). `relcat-job` is kept, idle, for the Stage B–D
+  migrations of this plan and is deleted after them.
+- **After** (suite4, `366cb0f4-6366-4ad4-a1ea-4ac080d32794`, with one scripted clarification answer "test every
+  broker"): the mining question got a FEASIBLE plan (73 stocks, 2024-09 to 2026-08) and, on approval, statistics
+  (C05 FIXED). Costs: plan $0.041, execution $0.019.
+
 ## 2026-09-27 — `orc-test-runner` (kept) and the first test suite on dev
 
 - Requested by the user: 10 technical-screening questions, 5 deep research questions, 5 multi-turn conversations and

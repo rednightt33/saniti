@@ -1,5 +1,45 @@
 # Database changelog
 
+## 2026-09-27 — IP1 Stage A: complete the AI relationship catalog, register check_data_feasibility (migration 20260927_004)
+
+- Scope approved by the user: implementation plan IP1 (Stage A) and the Research Plan feasibility check. C05: a sector
+  scope could not restrict broker flows because no catalog relationship led from `IDX_Stock_Universe` to the broker
+  tables, and the prompt forbids a typed member list.
+- Eleven rows in `AI_catalog_relationships` (ids 17–27; ids 6–16 were used by the rolled-back dry run, identity
+  values are not reused):
+
+  | Group | Relationship | Semantics | Declared grain (the many side) |
+  |---|---|---|---|
+  | Sector/industry filter | `IDX_Stock_Universe."Ticker"` → `IDX_Broker_Summary."Symbol"`, `Feature_01_Stock_Daily.ticker`, `Feature_02_Broker_Rolling.ticker`, `Feature_03_Stock_Broker_Daily.ticker` | `CURRENT_STATE` | Broker Summary key; date × ticker; F02 key; date × ticker × board |
+  | Broker profile | `IDX_Broker_Profile.broker_code` → `Feature_02_Broker_Rolling.broker` | `CURRENT_STATE` | F02 key |
+  | Price + broker | `Price_Stock_Indonesia_IDX (ticker, date)` → Broker Summary `(Symbol, Date)`, F02, F03 | `EXACT_DATE` | the broker-side key |
+  | Features + broker | `Feature_01_Stock_Daily (ticker, date)` → Broker Summary, F02, F03 | `EXACT_DATE` | the broker-side key |
+
+  Each reduces to one entity key besides the date, so the single-key DataNeed contract uses it now; the composite
+  Broker Summary ↔ F02 and F02 ↔ F03 rows wait for IP1 Stage B. `requires_preaggregation` is false for all eleven:
+  the declared grain is always the many side (one-side values repeat per row) and each description says what to
+  aggregate before a coarser result. As a Governor semi-join restriction none multiplies rows. The `CURRENT_STATE`
+  rows use today's classification (`HISTORICAL_REFERENCE_USES_CURRENT_STATE`; point-in-time history is IP1 Stage D).
+- Alignment with `Feature_Relationship_Catalog` (checked in `$verify$`): Feature 01 → Feature 02 (v2) and Feature 01 →
+  Feature 03 (v1) have active Feature rows with the same key columns whose safe grain allows the many-side grain
+  without aggregation; their `requires_preaggregation=true` describes a ticker-date result, which the AI rows do not
+  claim. Feature 02 → Feature 03 stays `requires_preaggregation=true` in both catalogs. No Feature row changed.
+- `Tool_Catalog`: `check_data_feasibility` `v1`, inactive like the other DataNeed tools (market-ai-orc registers it in
+  code with `AI_ENABLE_PLAN_FEASIBILITY`), `runtime_commit` `fd23d12`, input schema generated from the tool definition.
+- Status: **applied to `dev` at 15:39 UTC** by the temporary service `relcat-job`
+  (`bce027de-84d9-4320-a055-fd5aee485adb`; references `DATABASE_URL` only, redacted): first `inspect+dryrun`
+  (deployment `ee637bf6-3822-4e0e-8844-67162a19fa16`: the file in one transaction with its preflight and `$verify$`
+  blocks, then `ROLLBACK`), then `migrate` (deployment `d02876fe-e2e4-493d-8c7f-9d49c841fbb0`). No notice.
+  - Before (read-only): relationships 1–5 only; the three active Feature relationships above; 65 `Tool_Catalog` rows,
+    25 active; key uniqueness: 0 duplicate `Ticker`, 0 duplicate `broker_code`; estimates: F02 45.2 M rows, Broker
+    Summary 43.7 M, F03 2.25 M, F01 1.30 M, Price 1.30 M, universe 844, broker profile 112. Mining in the universe:
+    Basic Materials / Metals & Minerals 32, Energy / Coal 41 (and Energy / Oil, Gas & Coal Support 20). Of 1,510 tickers
+    in F02 since 2026-08-01, 666 are not in the universe (rights, warrants and other symbols); an INNER universe
+    restriction leaves them out.
+  - Read back: rows 17–27 as above, all `is_allowed`, one supported semantics each; `check_data_feasibility` v1
+    inactive at `fd23d12` (timeout 285 s, 40,000 bytes, 8 input properties); 66 `Tool_Catalog` rows, 25 active.
+- No table, column, grant or market-data row changed, so `DATABASE_SCHEMA.md` is unchanged.
+
 ## 2026-09-27 — Catalog discovery v2 becomes the active Tool_Catalog contract (migration 20260927_003)
 
 - Scope approved by the user: keep `AI_ENABLE_CATALOG_DISCOVERY_V2` on and turn `AI_ENABLE_CATALOG_PROTOCOL` off.
