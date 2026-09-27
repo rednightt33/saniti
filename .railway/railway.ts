@@ -9,6 +9,10 @@ export default defineRailway(() => {
   const postgresVolume = volume("postgres-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
   const marketPythonSandboxData = volume("market-python-sandbox-data", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
   const marketSqlDatasets = bucket("market-sql-datasets", { region: "sjc" });
+  const orcTestRunner = service("orc-test-runner", {
+    replicas: { "sfo": 1 },
+    env: { MARKET_AI_ORC_API_KEY: preserve() },
+  });
   const marketSqlGovernor = service("market-sql-governor", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-sql-governor" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/market-sql-governor/**"] },
@@ -106,6 +110,6 @@ export default defineRailway(() => {
   });
 
   return project("lucid-patience", {
-    resources: [marketSqlGovernor, marketPythonSandbox, marketAiOrc, idxPriceCron, pgweb, telegramTrigger, telegramMonitor, idxPriceRecoveryCron, Postgres, aiDataCoverage, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, marketSqlDatasets],
+    resources: [orcTestRunner, marketSqlGovernor, marketPythonSandbox, marketAiOrc, idxPriceCron, pgweb, telegramTrigger, telegramMonitor, idxPriceRecoveryCron, Postgres, aiDataCoverage, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, marketSqlDatasets],
   });
 });

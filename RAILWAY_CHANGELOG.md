@@ -1,5 +1,23 @@
 # Railway changelog
 
+## 2026-09-27 — `orc-test-runner` (kept) and the first test suite on dev
+
+- Requested by the user: 10 technical-screening questions, 5 deep research questions, 5 multi-turn conversations and
+  one broker/mining research question; the service is kept for reuse.
+- **Service** `orc-test-runner` (`09358b92-09d4-4da2-b547-bf8f621e226c`): a one-off runner, restart policy `NEVER`,
+  reference `MARKET_AI_ORC_API_KEY` only. `suite.json` lists items (`single`, `research` with one automatic approval,
+  `multi`), all in `history_mode: SERVER`, with two workers. Run a new suite with
+  `railway up <dir> --path-as-root --service orc-test-runner`. Added to `.railway/railway.ts` by `railway config pull`.
+- **suite1** (deployment `812e54fe-3069-43a3-a016-034d0b5ccf29`): 37 turns, $0.70, 2,413 s of run time.
+  - 34 `ANSWER` or plan turns; every screening question and every multi-turn follow-up answered with provenance clean.
+    Redisplay turns needed 1–2 tool calls.
+  - Two forced LIMITATIONs: m04.2 (the gate was right: board and sector totals not in a released output) and r04 (P06,
+    a gate false positive on scientific notation).
+  - The broker/mining question was approved but never executed (C05, M19).
+- **suite2** (deployment `f18c80aa-12c9-4eac-8b4b-5c491f56110a`): the broker/mining question again with an explicit
+  approval, $0.07. It stopped again before any data need and named the missing catalog relationship (C05).
+- `railway config plan`: up to date.
+
 ## 2026-09-27 — market-ai-orc and market-python-sandbox: conversation reuse on in dev (phases S1/S2)
 
 - Approved by the user: phase S05, then H2 and S1/S2. Implementation plan of 2026-09-27, sections 9–10.
