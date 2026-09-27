@@ -10,8 +10,8 @@ preview_table_rows results are never sources: previews explain column formats, n
 
 A displayed number matches a source when they agree after rounding to the displayed number of
 decimals, allowing decimal <-> percent conversion and a sign stated in words ("turun 2,4%").
-Dates, years, list markers, and digits inside identifiers (tickers such as T001, ids) are not
-checked.
+Dates, years, list markers (a Markdown table's leading row-number column included), and digits inside
+identifiers (tickers such as T001, ids) are not checked.
 """
 from __future__ import annotations
 
@@ -44,6 +44,12 @@ DATE_PATTERNS = [
 ]
 DATE_RE = re.compile("|".join(DATE_PATTERNS), re.IGNORECASE)
 LIST_MARKER_RE = re.compile(r"(?m)^\s*(?:\(?\d{1,2}[.)]|\d{1,2}\.)\s+|(?:(?<=\s)|^)\(\d{1,2}\)\s")
+# A Markdown table whose first column numbers its rows: the header is a row-number label and the cells count 1, 2, 3,
+# ... (or 0, 1, 2, ... for a pasted DataFrame index) in row order. Those cells are list markers, not figures (P02).
+ROW_NUMBER_HEADERS = frozenset({"", "#", "no", "nomor", "urut", "urutan", "rank", "ranking", "peringkat"})
+TABLE_SEPARATOR_RE = re.compile(r"^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)+\|?\s*$")
+TABLE_HEADER_FIRST_RE = re.compile(r"^\s*\|?\s*([^|]*?)\s*\|")
+TABLE_ROW_FIRST_RE = re.compile(r"^\s*\|?\s*(\*{0,2})(\d{1,3}\.?)\1\s*\|")
 # A sign may stand before a currency symbol ("−Rp 34.756.780.567"): the symbol is read as part of the number, so
 # the sign is kept and "Rp1.000" (no space) is checked like "Rp 1.000".
 NUMBER_RE = re.compile(
@@ -83,10 +89,38 @@ def _interpretations(body: str) -> list[tuple[float, int]]:
     return sorted(out)
 
 
+def _mask_row_numbers(text: str) -> str:
+    """Blank the row-number cells of Markdown tables (same length, so positions stay valid)."""
+    lines = text.split("\n")
+    index = 0
+    while index + 1 < len(lines):
+        header = TABLE_HEADER_FIRST_RE.match(lines[index])
+        if not header or not TABLE_SEPARATOR_RE.match(lines[index + 1]):
+            index += 1
+            continue
+        label = header.group(1).strip().strip("*").strip().rstrip(".").lower()
+        rows = []
+        end = index + 2
+        while end < len(lines) and "|" in lines[end] and lines[end].strip():
+            rows.append(end)
+            end += 1
+        matches = [TABLE_ROW_FIRST_RE.match(lines[row]) for row in rows]
+        if label in ROW_NUMBER_HEADERS and rows and all(matches):
+            numbers = [int(m.group(2).rstrip(".")) for m in matches if m]
+            if numbers[0] in (0, 1) and numbers == list(range(numbers[0], numbers[0] + len(numbers))):
+                for row, m in zip(rows, matches):
+                    if m:
+                        start, stop = m.span(2)
+                        lines[row] = lines[row][:start] + " " * (stop - start) + lines[row][stop:]
+        index = end
+    return "\n".join(lines)
+
+
 def parse_numbers(text: str) -> list[DisplayedNumber]:
     """Numbers a reader would take as data values in free text (tables included)."""
     masked = DATE_RE.sub(lambda m: " " * len(m.group(0)), text or "")
     masked = LIST_MARKER_RE.sub(lambda m: " " * len(m.group(0)), masked)
+    masked = _mask_row_numbers(masked)
     found: list[DisplayedNumber] = []
     for match in NUMBER_RE.finditer(masked):
         sign, body, percent, unit = match.group(1), match.group(2), match.group(3), match.group(4)

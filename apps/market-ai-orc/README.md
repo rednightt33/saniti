@@ -889,7 +889,10 @@ spec is checked:
   decimals, decimal ↔ percent, Indonesian and English separators, "ribu/juta/miliar" style
   multipliers, a sign stated in words ("turun 2,4%"), and a sign before a currency symbol
   ("−Rp 34.756.780.567" is negative; "Rp1.000" reads like "Rp 1.000"). Dates, years, list markers, and digits
-  inside identifiers (T001, ids) are not checked. Unsupported numbers are rejected once with
+  inside identifiers (T001, ids) are not checked. A Markdown table's first column counts as list markers when its
+  header is a row-number label (`#`, `No`, `Nomor`, `Urutan`, `Rank`, `Ranking`, `Peringkat` or empty) and its
+  cells number the rows 1, 2, 3, … (or 0, 1, 2, … for a pasted DataFrame index); any other first column is
+  checked. Unsupported numbers are rejected once with
   their list, then the response is forced to `LIMITATION` with a notice (this also applies to a
   `LIMITATION` that quotes them). The statistics of an evidence assessment (for example the
   interval of a mean difference) are validator outputs and count as sources;

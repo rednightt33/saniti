@@ -97,6 +97,53 @@ def test_numbers_are_read_like_a_reader_would_and_dates_ids_and_markers_are_skip
     assert [sorted(v for v, _ in n.candidates) for n in parse_numbers(text)] == [sorted(e) for e in expected]
 
 
+# P02 (the stress-test YTD table): a leading row-number column is a list marker, not a figure
+P02_TABLE = """Return YTD 2026, dari tertinggi:
+
+| # | Saham | Harga awal | Return YTD |
+|---|-------|------------|------------|
+| 1 | T001 | 4683.83 | +82.66% |
+| 2 | T007 | 3023.23 | +35.85% |
+| 3 | T024 | 4563.63 | +20.16% |
+| 4 | T002 | 7732.32 | +4.99% |
+
+Ringkasan: 4 saham."""
+
+
+def shown(text: str) -> list[str]:
+    return [n.text for n in parse_numbers(text)]
+
+
+def test_a_leading_row_number_column_of_a_table_is_not_checked() -> None:
+    assert shown(P02_TABLE) == ["4683.83", "+82.66%", "3023.23", "+35.85%", "4563.63", "+20.16%", "7732.32",
+                                "+4.99%", "4"]  # the count in the summary is still a figure
+
+
+@pytest.mark.parametrize("header", ["#", "No", "No.", "**No**", "Rank", "Peringkat", "Urutan", ""])
+def test_row_number_headers_and_table_forms(header) -> None:
+    table = f"| {header} | Saham | Return |\n|:--|---|--:|\n| 1 | BBCA | 5% |\n| 2 | BBRI | 3% |"
+    assert shown(table) == ["5%", "3%"]
+    bare = f"{header or 'No'} | Saham | Return\n---|---|---\n1 | BBCA | 5%\n2 | BBRI | 3%"
+    assert shown(bare) == ["5%", "3%"]
+    index = "|    | ticker | return |\n|---:|:---|---:|\n|  0 | BBCA | 0.05 |\n|  1 | BBRI | 0.03 |"
+    assert shown(index) == ["0.05", "0.03"]  # a pasted DataFrame index counts from zero
+
+
+@pytest.mark.parametrize("table", [
+    # a data column, even one that counts 1, 2, 3
+    "| Hari | Saham | Volume |\n|---|---|---|\n| 1 | BBCA | 700 |\n| 2 | BBCA | 800 |",
+    # a row-number header whose cells do not count the rows
+    "| # | Saham | Return |\n|---|---|---|\n| 1 | BBCA | 5% |\n| 3 | BBRI | 3% |",
+    "| Rank | Saham | Return |\n|---|---|---|\n| 5 | BBCA | 5% |\n| 6 | BBRI | 3% |",
+    "| Rank | Saham | Return |\n|---|---|---|\n| 1 | BBCA | 5% |\n| 1 | BBRI | 5% |",
+    # no separator line: not a table
+    "| # | Saham | Return |\n| 1 | BBCA | 5% |\n| 2 | BBRI | 3% |",
+])
+def test_other_first_columns_are_still_checked(table) -> None:
+    first = [line.split("|")[1].strip() for line in table.split("\n") if line.split("|")[1].strip().isdigit()]
+    assert all(value in shown(table) for value in first)
+
+
 @pytest.mark.parametrize(("shown", "source", "ok"), [
     ("0.0112", 0.011158, True), ("0.0111", 0.011158, False),            # rounding to the displayed decimals
     ("1.12%", 0.011158, True), ("1,12%", 0.011158, True),              # decimal <-> percent, ID and EN separators

@@ -193,7 +193,7 @@ A new table (any asset class, any frequency) is ready for the AI only when every
 | ID | Found | Symptom | Root cause | Solution | Status |
 |---|---|---|---|---|---|
 | P01 | 2026-09-26 | A correct foreign net-sell answer (`−Rp 34.756.780.567`) forced to LIMITATION | The number parser dropped a sign placed before a currency symbol and read the value as positive | The sign is kept before `Rp`/`IDR`/`USD`, and `Rp1.000` reads like `Rp 1.000` (`86d23ad`) | FIXED |
-| P02 | 2026-09-26 | A correct YTD answer forced to LIMITATION: "4, 6, 7, 8, 10, 11 have no source" | Row numbers in a Markdown table's `#` column are parsed as figures; list markers are skipped only at line start | Proposed: treat a leading row-number column as list markers | OPEN (needs approval) |
+| P02 | 2026-09-26 | A correct YTD answer forced to LIMITATION: "4, 6, 7, 8, 10, 11 have no source" | Row numbers in a Markdown table's `#` column are parsed as figures; list markers are skipped only at line start | A table's first column is treated as list markers when its header is a row-number label (`#`, `No`, `Urutan`, `Rank`, `Peringkat`, empty, ...) and its cells number the rows 1..N (0..N−1 for a pasted DataFrame index); any other first column is still checked (approved 2026-09-27, market-ai-orc `app/provenance.py`) | FIXED |
 | P03 | 2026-09-26 | Answers show full precision | The model believes rounding fails the gate; it does not | Proposed: one prompt sentence that display rounding is allowed | OPEN |
 | P04 | 2026-09-26 | A causal question forced to LIMITATION over one self-computed figure | The provenance gate works as designed | — | BY DESIGN |
 
