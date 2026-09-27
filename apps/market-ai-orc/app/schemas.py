@@ -43,6 +43,9 @@ class AgentRunRequest(BaseModel):
     # The user's reply to a Research Plan: the exact plan, plan_id, origin_request_id and token of the latest
     # RESEARCH_PLAN_CONFIRMATION response, plus an explicit action when the caller has one (APPROVE, REVISE, CANCEL).
     continuation: ContinuationIn | None = None
+    # CLIENT (default): the caller sends the history, as before. SERVER (AI_ENABLE_CONVERSATION_STORE): the service
+    # keeps it; send conversation_id (null for a new conversation), a new request_id and the message, no history.
+    history_mode: Literal["CLIENT", "SERVER"] = "CLIENT"
 
     @field_validator("message")
     @classmethod

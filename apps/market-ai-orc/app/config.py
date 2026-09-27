@@ -124,6 +124,18 @@ class Settings:
     # The discovery protocol (phase C3): a short prompt rule, reuse of successful catalog results within a run, and a
     # guard that refuses submit_data_need_spec for tables, columns or relationships not read in the run. Needs v2.
     ai_enable_catalog_protocol: bool = False
+    # Server-side conversation history (phase H1): history_mode SERVER reads earlier turns from PostgreSQL through
+    # CONVERSATION_DATABASE_URL (the market_ai_conversation login). Conversations expire after the retention days;
+    # one message runs at a time per conversation under a lease (0: AI_MAX_ANALYSIS_SECONDS + 120 s).
+    ai_enable_conversation_store: bool = False
+    conversation_database_url: str | None = field(default=None, repr=False)
+    ai_conversation_retention_days: int = 30
+    ai_conversation_lease_seconds: int = 0
+    ai_conversation_upkeep_seconds: int = 3600
+
+    @property
+    def conversation_lease_seconds(self) -> int:
+        return self.ai_conversation_lease_seconds or self.ai_max_analysis_seconds + 120
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -179,6 +191,11 @@ class Settings:
             ai_catalog_summary_ttl_seconds=_integer(env, "AI_CATALOG_SUMMARY_TTL_SECONDS", 900, minimum=60),
             ai_enable_catalog_discovery_v2=_boolean(env, "AI_ENABLE_CATALOG_DISCOVERY_V2", False),
             ai_enable_catalog_protocol=_boolean(env, "AI_ENABLE_CATALOG_PROTOCOL", False),
+            ai_enable_conversation_store=_boolean(env, "AI_ENABLE_CONVERSATION_STORE", False),
+            conversation_database_url=_optional(env, "CONVERSATION_DATABASE_URL"),
+            ai_conversation_retention_days=_integer(env, "AI_CONVERSATION_RETENTION_DAYS", 30),
+            ai_conversation_lease_seconds=_integer(env, "AI_CONVERSATION_LEASE_SECONDS", 0, minimum=0),
+            ai_conversation_upkeep_seconds=_integer(env, "AI_CONVERSATION_UPKEEP_SECONDS", 3600, minimum=60),
             sql_governor_api_key=_optional(env, "SQL_GOVERNOR_API_KEY"),
             sql_governor_timeout_seconds=_integer(env, "SQL_GOVERNOR_TIMEOUT_SECONDS", 90),
             request_data_max_result_bytes=_integer(env, "REQUEST_DATA_MAX_RESULT_BYTES", 40000, minimum=8192),
@@ -250,6 +267,16 @@ class Settings:
             raise ConfigError("AI_PROVIDER_SORT must be price, throughput or latency")
         if settings.ai_catalog_summary_in_prompt and not settings.catalog_database_url:
             raise ConfigError("AI_CATALOG_SUMMARY_IN_PROMPT needs CATALOG_DATABASE_URL")
+        if settings.ai_enable_conversation_store and not settings.conversation_database_url:
+            raise ConfigError("AI_ENABLE_CONVERSATION_STORE needs CONVERSATION_DATABASE_URL")
+        if settings.conversation_database_url and not settings.conversation_database_url.startswith(
+            ("postgresql://", "postgres://")
+        ):
+            raise ConfigError("CONVERSATION_DATABASE_URL must be a postgresql:// connection URL")
+        if settings.ai_conversation_lease_seconds and \
+                settings.ai_conversation_lease_seconds <= settings.ai_max_analysis_seconds:
+            # a lease shorter than a run would let a second message take over a conversation still running
+            raise ConfigError("AI_CONVERSATION_LEASE_SECONDS must exceed AI_MAX_ANALYSIS_SECONDS")
         if settings.ai_enable_catalog_protocol and not settings.ai_enable_catalog_discovery_v2:
             # the protocol tells the model to filter discovery and read completeness, which only v2 provides
             raise ConfigError("AI_ENABLE_CATALOG_PROTOCOL needs AI_ENABLE_CATALOG_DISCOVERY_V2")

@@ -267,6 +267,11 @@ Gate and final-response log events (always on):
 | `AI_CATALOG_SUMMARY_IN_PROMPT` | no | `false` | Append a compact summary of the AI catalog (tables, columns, relationships, coverage, tools) to the system prompt, so most runs skip the discovery round trips. Needs `CATALOG_DATABASE_URL` |
 | `AI_ENABLE_CATALOG_DISCOVERY_V2` | no | `false` | Catalog discovery v2: `discover_catalog` filters and keyset paging with a bound cursor; `get_catalog_details` adds `table_metadata`, per-table column completeness with `recovery_calls`, resample and join-semantics fields, and `formula_query`. See [Catalog discovery v2 and the discovery protocol](#catalog-discovery-v2-and-the-discovery-protocol) |
 | `AI_ENABLE_CATALOG_PROTOCOL` | no | `false` | The discovery protocol: a fixed prompt rule, reuse of identical catalog results within a run (`cache_hit`), and `CATALOG_DETAILS_REQUIRED` before `submit_data_need_spec` for metadata the run has not read. Needs `AI_ENABLE_CATALOG_DISCOVERY_V2` (startup refuses otherwise); inactive without `AI_ENABLE_DATANEED` |
+| `AI_ENABLE_CONVERSATION_STORE` | no | `false` | Server-side conversation history for `history_mode: SERVER` (see [Server-side conversation history](#server-side-conversation-history)). Needs `CONVERSATION_DATABASE_URL` |
+| `CONVERSATION_DATABASE_URL` | with the store (secret) | unset | DSN of the `market_ai_conversation` login (conversation tables only) |
+| `AI_CONVERSATION_RETENTION_DAYS` | no | `30` | Days after the last activity before a conversation is deleted |
+| `AI_CONVERSATION_LEASE_SECONDS` | no | `AI_MAX_ANALYSIS_SECONDS` + 120 | How long a running message holds its conversation; must exceed `AI_MAX_ANALYSIS_SECONDS` |
+| `AI_CONVERSATION_UPKEEP_SECONDS` | no | `3600` | Interval of the lease recovery and expired-conversation cleanup |
 | `AI_CATALOG_SUMMARY_TTL_SECONDS` | no | `900` | Refresh interval of the catalog summary (≥ 60). A stale summary is served while it refreshes in the background |
 | `PY_SANDBOX_SESSION_TIMEOUT_SECONDS` | no | `180` | HTTP timeout of one `run_python` call (20–960); keep it above the sandbox's `PY_SANDBOX_SESSION_EXECUTION_SECONDS` plus 5 s |
 | `AI_MAX_ANALYSIS_SECONDS` | no | `600` | Wall-clock limit per run |
@@ -325,6 +330,8 @@ Request:
 
 - `request_id` (1–200 characters) and `message` (1–16,000 characters, not blank) are required.
 - `continuation` is optional: the reply to a Research Plan (see [Research Plan confirmation](#research-plan-confirmation)).
+- `history_mode` is optional: `CLIENT` (default; the caller sends `history`, as before) or `SERVER` (the service keeps
+  the history; see [Server-side conversation history](#server-side-conversation-history)).
 - `history` is optional, with at most 50 turns. Roles other than `user`/`assistant` are rejected (`422`).
 - `metadata` is optional, at most 8 KB of JSON. It is not sent to the model.
 - Unknown fields, including any attempt to pass `instructions` or a system prompt, are rejected (`422`).
@@ -429,6 +436,52 @@ Provider retries: `408`, `409`, `429` (except `credit_balance_exhausted` and
 `insufficient_quota`), `5xx`, timeouts, and network errors are retried up to 3 attempts with
 backoff. Quota or billing failures and other `4xx` errors are not retried. A `2xx` response
 with malformed JSON is not retried, because tokens were already consumed.
+
+### Server-side conversation history
+
+Implementation plan of 2026-09-27, phase H1 (`app/conversations.py`, migration
+`database/migrations/20260927_002_create_ai_conversation_store.sql`). Needs `AI_ENABLE_CONVERSATION_STORE=true` and
+`CONVERSATION_DATABASE_URL`; without them a `SERVER` request is refused with `HISTORY_MODE_UNAVAILABLE`, and `CLIENT`
+requests are unchanged in either case.
+
+- **Request:** `history_mode: "SERVER"`, a new `request_id` per message, the `message`, and `conversation_id`
+  (`null` for a new conversation). Sending `history` as well is refused (`HISTORY_SOURCE_CONFLICT`).
+- **Owner:** header `X-Saniti-Owner` (`^[A-Za-z0-9._:@-]{1,128}$`), set by the trusted server-side caller that holds
+  the bearer key, for example its authenticated user id. Without the header the owner is `default`. A conversation
+  of another owner reads as `CONVERSATION_NOT_FOUND`. The header is only as trustworthy as the caller: never forward
+  a browser-supplied value without authenticating it.
+- **Response:** the usual body plus
+  `"conversation": {"conversation_id", "turn_index", "persistence": "SAVED" | "NOT_SAVED", "replayed"}`. `NOT_SAVED`
+  means the answer was produced but not stored (the store failed, or the turn's lease was taken over); the next
+  message will not see it as history. `CLIENT` responses carry no `conversation` key.
+- **History:** the latest completed turns (at most 25 pairs; the answer, or the clarification question of a
+  CLARIFICATION) become the run's history, trimmed by `AI_MAX_HISTORY_TOKENS` like a caller history. Failed and
+  interrupted turns, tool traces and datasets are never history. `conversation_id` is passed to the run, so a
+  Research Plan binds to the conversation; the caller still sends the plan reply in `continuation` (automatic
+  continuation is phase H2).
+- **One message at a time** per conversation: a second message while one runs gets `409 CONVERSATION_BUSY`. The
+  running turn holds a lease of `AI_CONVERSATION_LEASE_SECONDS` (default `AI_MAX_ANALYSIS_SECONDS` + 120 s). After it
+  lapses the next message takes over and the old turn ends `INTERRUPTED`; the old runner cannot store its response
+  (compare-and-set on the lease generation).
+- **Retries:** the same `request_id` with the same content returns the stored response without a new run
+  (`replayed: true`); different content → `409 REQUEST_ID_CONFLICT`; still running → `409 TURN_IN_PROGRESS`; ended
+  without a response → `409 TURN_NOT_COMPLETED` (send it again with a new `request_id`).
+- **Store unavailable:** `503 CONVERSATION_STORE_UNAVAILABLE`; the model is not called.
+- **Retention:** a conversation expires `AI_CONVERSATION_RETENTION_DAYS` (default 30) after its last activity. An
+  in-process upkeep thread (at startup, then every `AI_CONVERSATION_UPKEEP_SECONDS`, default 3600) interrupts turns
+  whose lease lapsed and deletes up to 500 expired conversations per pass, with their turns.
+- **Errors** of `SERVER` mode are `{"detail": {"code", "message"}}` with the HTTP status above; agent outcomes stay
+  HTTP `200` as in `CLIENT` mode.
+
+`GET /v1/conversations/{conversation_id}/messages?after=<turn_index>&limit=<1-50>` (bearer and `X-Saniti-Owner` as
+above) returns the conversation's turns in order: `turn_index`, `request_id`, `status` (`RUNNING`, `COMPLETED`,
+`FAILED`, `INTERRUPTED`), `run_status`, `response_type`, `user_message`, the stored `response`, `error_code`,
+timestamps, plus `has_more` and `next_after`.
+
+Database access: the login `market_ai_conversation` (`scripts/provision_market_ai_conversation_login.py`, password
+secret `MARKET_AI_CONVERSATION_DB_PASSWORD`) holds only `market_ai_conversation_store`: SELECT, INSERT, UPDATE and
+DELETE on `AI_conversation` and `AI_conversation_turn`. It cannot read the catalogs, market data or the run audit, and
+the `market_ai_orc` login cannot read conversations.
 
 ## Tool registration pattern
 

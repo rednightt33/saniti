@@ -9,10 +9,12 @@ import time
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi.responses import JSONResponse
 
 from .catalog_store import CatalogStore
 from .catalog_summary import CatalogSummary
 from .config import Settings
+from .conversations import ConversationError, ConversationStore, UpkeepThread, fingerprint, owner_from_header
 from .openrouter_client import OpenRouterClient
 from .audit import RunAuditor
 from .orchestrator import AgentOrchestrator, log_event
@@ -46,10 +48,16 @@ def _sandbox_ready(sandbox: SandboxClient, attempts: int = 3, delay_seconds: flo
 def create_app(
     settings: Settings | None = None,
     orchestrator: AgentOrchestrator | None = None,
+    conversations: ConversationStore | None = None,
 ) -> FastAPI:
     """App factory; uvicorn runs it with --factory so config is validated at startup, not import."""
     _configure_logging()
     settings = settings or Settings.from_env()
+    if conversations is None and settings.ai_enable_conversation_store and settings.conversation_database_url:
+        conversations = ConversationStore(settings.conversation_database_url,
+                                          retention_days=settings.ai_conversation_retention_days,
+                                          lease_seconds=settings.conversation_lease_seconds)
+    upkeep = UpkeepThread(conversations, settings.ai_conversation_upkeep_seconds) if conversations else None
     owned_client: OpenRouterClient | None = None
     if orchestrator is None:
         owned_client = OpenRouterClient(
@@ -122,9 +130,13 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
+        if upkeep is not None:
+            upkeep.start()  # releases lapsed leases and deletes expired conversations, then hourly
         ready["value"] = True
         yield
         ready["value"] = False
+        if upkeep is not None:
+            upkeep.stop()
         close = getattr(orchestrator, "close", None)
         if callable(close):
             close()
@@ -153,8 +165,50 @@ def create_app(
             raise HTTPException(status_code=503, detail="Not ready")
         return {"status": "ready"}
 
+    def refuse(error: ConversationError) -> JSONResponse:
+        return JSONResponse(status_code=error.http_status,
+                            content={"detail": {"code": error.code, "message": error.message}})
+
     @app.post("/v1/agent/run", response_model=AgentRunResponse, dependencies=[Depends(authorize)])
-    def run_agent(payload: AgentRunRequest) -> AgentRunResponse:
-        return orchestrator.run(payload)
+    def run_agent(payload: AgentRunRequest,
+                  x_saniti_owner: str | None = Header(default=None)) -> AgentRunResponse | JSONResponse:
+        if payload.history_mode == "CLIENT":
+            return orchestrator.run(payload)
+        try:
+            if conversations is None:
+                raise ConversationError("HISTORY_MODE_UNAVAILABLE", "history_mode SERVER needs "
+                                        "AI_ENABLE_CONVERSATION_STORE; send the history with history_mode CLIENT.", 400)
+            if payload.history:
+                raise ConversationError("HISTORY_SOURCE_CONFLICT", "history_mode SERVER keeps the history itself; "
+                                        "send only the new message.", 400)
+            owner = owner_from_header(x_saniti_owner)
+            start = conversations.begin(owner, payload, fingerprint(payload))
+        except ConversationError as error:
+            return refuse(error)
+        if start.replay is not None:
+            return JSONResponse(content={**start.replay, "conversation": {
+                "conversation_id": start.conversation_id, "turn_index": start.turn_index, "persistence": "SAVED",
+                "replayed": True}})
+        request = payload.model_copy(update={"conversation_id": start.conversation_id, "history": start.history})
+        try:
+            result = orchestrator.run(request)
+        except Exception:
+            conversations.abandon(start, payload.request_id, "INTERNAL_ERROR")
+            raise
+        saved = conversations.finish(start, payload.request_id, result)
+        return JSONResponse(content={**result.model_dump(mode="json"), "conversation": {
+            "conversation_id": start.conversation_id, "turn_index": start.turn_index,
+            "persistence": "SAVED" if saved else "NOT_SAVED", "replayed": False}})
+
+    @app.get("/v1/conversations/{conversation_id}/messages", dependencies=[Depends(authorize)])
+    def conversation_messages(conversation_id: str, after: int | None = None, limit: int | None = None,
+                              x_saniti_owner: str | None = Header(default=None)) -> JSONResponse:
+        try:
+            if conversations is None:
+                raise ConversationError("HISTORY_MODE_UNAVAILABLE", "The conversation store is not enabled.", 404)
+            return JSONResponse(content=conversations.messages(owner_from_header(x_saniti_owner), conversation_id,
+                                                               after, limit))
+        except ConversationError as error:
+            return refuse(error)
 
     return app

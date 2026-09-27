@@ -1,5 +1,32 @@
 # Database changelog
 
+## 2026-09-27 — Conversation store for market-ai-orc (migration 20260927_002, not applied yet)
+
+- Scope approved by the user (implementation plan of 2026-09-27, phase H1): a new role, secret and migration for
+  server-side conversation history; owner from the caller's `X-Saniti-Owner` header; retention 30 days.
+- `database/migrations/20260927_002_create_ai_conversation_store.sql`:
+  - `AI_conversation` (10 columns): `conversation_id` (`conv_` + 32 hex), `owner_key`, timestamps, `expires_at`,
+    `next_turn_index`, the lease (`active_request_id`, `lease_generation`, `lease_expires_at`) and `state` (jsonb
+    object); indexes on `(owner_key, updated_at DESC)` and `expires_at`;
+  - `AI_conversation_turn` (14 columns): `request_id` (primary key), `conversation_id` (FK, `ON DELETE CASCADE`),
+    `turn_index` (unique per conversation), `request_fingerprint`, `user_message`, `status` (`RUNNING`, `COMPLETED`,
+    `FAILED`, `INTERRUPTED`), `lease_generation`, `run_status`, `response_type`, `assistant_text`, `response`,
+    `error_code`, timestamps; check constraints on ids, text lengths, statuses and finished-state consistency;
+  - NOLOGIN role `market_ai_conversation_store` with SELECT, INSERT, UPDATE and DELETE on the two tables only;
+    PUBLIC revoked;
+  - `Table_Catalog` (category `System`) and `Column_Catalog` rows for all 24 columns;
+  - a `$verify$` block: column counts, definitions, the role's privileges on exactly these two tables, and no access
+    for the Governor, catalog reader or `market_ai_orc` roles.
+- The third table of the plan (`AI_conversation_resource`) belongs to the reuse phases S1/S2 and is not created.
+- The login `market_ai_conversation` is created by `scripts/provision_market_ai_conversation_login.py`
+  (`MARKET_AI_CONVERSATION_DB_PASSWORD`, connection limit 10, statement timeout 5 s, lock timeout 2 s, idle-in-transaction
+  timeout 15 s), which checks that it reaches the two tables and nothing else.
+- Rehearsed on a disposable local PostgreSQL 16 database built from the documented `Table_Catalog`, `Column_Catalog`
+  and `AI_research_run_audit` structures with their check constraints (9 and 5 on the catalog tables): applied,
+  catalog rows and grants read back, `market_ai_orc` reaches neither table, a second run refused, and the provisioning
+  script run twice (a rotation is idempotent). The market-ai-orc tests (12) run the same migration and login.
+- No market-data table, catalog reader, SQL Governor grant or existing row is changed.
+
 ## 2026-09-27 — Catalog discovery v2 tool contracts in Tool_Catalog (migration 20260927_001)
 
 - Status: **applied to `dev` at 07:53 UTC**, approved by the user together with enabling the catalog flags. It was run
