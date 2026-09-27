@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-26T12:40:09+00:00`.
+Generated from PostgreSQL schema `public` at `2026-09-27T08:23:59+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -11,6 +11,8 @@ Generated from PostgreSQL schema `public` at `2026-09-26T12:40:09+00:00`.
 | `AI_calculation_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing calculation contracts derived from active, validated Feature definitions. |
 | `AI_catalog_relationships` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing safe join, temporal alignment, preaggregation, and output-grain contracts. |
 | `AI_column_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing column semantics and bounded-query permissions for the seven approved tables. |
+| `AI_conversation` | Unclassified | Unknown | — | `2026-09-27 08:23:59+00:00` | Baseline only | market-ai-orc conversations kept by the server (history_mode SERVER): one row per chat box with its owner, retention and the lease that allows one active run at a time. |
+| `AI_conversation_turn` | Unclassified | Unknown | — | `2026-09-27 08:23:59+00:00` | Baseline only | One message of a market-ai-orc conversation: the user message, the run status and the response returned to the caller. |
 | `AI_data_coverage` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | Automated actual raw-source coverage plus explicitly inferred expectations for derived Feature tables. |
 | `AI_formula_reference` | Unclassified | Unknown | — | `2026-09-24 09:22:02+00:00` | Baseline only | Global reference catalog of calculation formulas for the orchestrator; entries document a formula, not a verified or executable implementation. |
 | `AI_research_catalog` | Unclassified | Unknown | — | `2026-09-24 07:24:52+00:00` | Baseline only | Global reference catalog of research methods for the orchestrator; entries do not enable sandbox execution. |
@@ -22,8 +24,8 @@ Generated from PostgreSQL schema `public` at `2026-09-26T12:40:09+00:00`.
 | `Analysis_Step_Log` | System | After each AI analysis tool or compaction step | — | `2026-09-13 15:02:15+00:00` | Baseline only | Audit record for every query, tool, compaction, or analytical step in an AI request. |
 | `Analytics_Dataset_Snapshot` | System | Per bounded analytics input; remove private object after terminal grace or expiry | — | `2026-09-14 07:39:52+00:00` | Baseline only | Metadata and retention state for immutable bounded raw or Feature analytical input snapshots stored in a private Railway bucket. |
 | `Analytics_Job` | System | Per generic analytics submission, lease, result, or failure | — | `2026-09-14 07:39:52+00:00` | Baseline only | Durable queue, lease, resource contract, result, and failure audit for separately authenticated query-sandbox and statistical-validation workers. |
-| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-26 12:40:09.539042+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-26 12:40:09+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-27 08:23:59.528979+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-27 08:23:59+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
 | `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-25` | `2026-09-25 10:05:52.026462+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
 | `Feature_02_Broker_Rolling` | Feature | After validated broker-summary changes; manual v2 ticker rebuild | `2026-08-31` | `2026-09-14 14:26:33.580099+00:00` | Derived from IDX_Broker_Summary; Investor-Type Feature 02 v2 refresh is manual | Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata. |
 | `Feature_03_Stock_Broker_Daily` | Feature | After Feature 02 refresh; manual Investor-Type v2 refresh | `2026-08-31` | `2026-09-14 15:17:23.131992+00:00` | Derived from Investor-Type Feature_02_Broker_Rolling; Feature 03 v2 refresh is manual | Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate. |
@@ -38,11 +40,11 @@ Generated from PostgreSQL schema `public` at `2026-09-26T12:40:09+00:00`.
 | `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-10 07:23:34.854803+00:00` | Tracked automatically | Broker code and name, domestic/foreign type, and usage profile such as Institutional-heavy, Retail-heavy, Mixed, or Niche. |
 | `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 14:41:15.160142+00:00` | Derived from table data and load log | Daily broker buy/sell values and lots by symbol, broker, investor type, and market board. |
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-12 13:34:43.352522+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
-| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-26` | `2026-09-26 10:01:17.749816+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
+| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-26` | `2026-09-26 23:02:23.329680+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
 | `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-25` | `2026-09-25 10:03:41.345502+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
-| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-26 12:40:08.577578+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
+| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-27 08:23:58.234557+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
 | `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
-| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-26 10:01:20.821594+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
+| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-26 23:02:28.308482+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
 | `Tool_Catalog` | Reference | With each approved backend or analytics tool release | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned generic AI tool metadata, activation state, schemas, and advertised operational ceilings. |
 | `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-09-06 13:21:52.115381+00:00` | Loaded from Universe_Equity_Description.xlsx; future changes tracked automatically | Issuer descriptions and TradingView/curated sector and industry classifications. |
 | `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-08-31` | `2026-09-09 16:55:55.713468+00:00` | Derived from load log | Per-trading-date Stockbit broker-summary load progress, retries, and review state. |
@@ -207,6 +209,90 @@ AI-facing column semantics and bounded-query permissions for the seven approved 
 | Name | Definition |
 |---|---|
 | `AI_column_catalog_pkey` | `CREATE UNIQUE INDEX "AI_column_catalog_pkey" ON public."AI_column_catalog" USING btree (table_name, column_name)` |
+
+## AI_conversation
+
+market-ai-orc conversations kept by the server (history_mode SERVER): one row per chat box with its owner, retention and the lease that allows one active run at a time.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `conversation_id` | `text` | No | — | Server-generated id of the chat box (conv_ + 32 hex). Not a credential: every lookup also checks owner_key. |
+| `owner_key` | `text` | No | — | The owner given by the trusted server-side caller in the X-Saniti-Owner header (default when absent); never taken from the model. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | When the conversation was created. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Last activity: a turn started or finished. |
+| `expires_at` | `timestamp with time zone` | No | — | When the cleanup may delete the conversation and its turns: updated_at plus AI_CONVERSATION_RETENTION_DAYS. |
+| `next_turn_index` | `integer` | No | `0` | The turn_index the next message receives. |
+| `active_request_id` | `text` | Yes | — | request_id of the running turn; NULL when no turn runs. |
+| `lease_generation` | `bigint` | No | `0` | Incremented by every turn start; a turn may finish only with the generation it started with (fencing). |
+| `lease_expires_at` | `timestamp with time zone` | Yes | — | When a running turn's lease lapses and another message may take over; NULL when no turn runs. |
+| `state` | `jsonb` | No | `'{}'::jsonb` | Structured conversation state kept by the orchestrator (for example the latest Research Plan reference); never model-written text. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `ai_conversation_expiry_check` | Check | `CHECK (expires_at > created_at)` |
+| `ai_conversation_id_check` | Check | `CHECK (conversation_id ~ '^conv_[0-9a-f]{32}$'::text)` |
+| `ai_conversation_lease_check` | Check | `CHECK ((active_request_id IS NULL) = (lease_expires_at IS NULL))` |
+| `ai_conversation_owner_check` | Check | `CHECK (owner_key ~ '^[A-Za-z0-9._:@-]{1,128}$'::text)` |
+| `ai_conversation_state_check` | Check | `CHECK (jsonb_typeof(state) = 'object'::text)` |
+| `ai_conversation_turn_index_check` | Check | `CHECK (next_turn_index >= 0 AND lease_generation >= 0)` |
+| `AI_conversation_pkey` | Primary key | `PRIMARY KEY (conversation_id)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `AI_conversation_pkey` | `CREATE UNIQUE INDEX "AI_conversation_pkey" ON public."AI_conversation" USING btree (conversation_id)` |
+| `ai_conversation_expiry_idx` | `CREATE INDEX ai_conversation_expiry_idx ON public."AI_conversation" USING btree (expires_at)` |
+| `ai_conversation_owner_idx` | `CREATE INDEX ai_conversation_owner_idx ON public."AI_conversation" USING btree (owner_key, updated_at DESC)` |
+
+## AI_conversation_turn
+
+One message of a market-ai-orc conversation: the user message, the run status and the response returned to the caller.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `request_id` | `text` | No | — | The market-ai-orc request_id of the turn; unique across all conversations. |
+| `conversation_id` | `text` | No | — | The conversation the turn belongs to. |
+| `turn_index` | `integer` | No | — | Position of the turn in its conversation, from 0. |
+| `request_fingerprint` | `text` | No | — | SHA-256 of the request content; a retry with the same request_id must match it. |
+| `user_message` | `text` | No | — | The user's message. |
+| `status` | `text` | No | — | RUNNING, COMPLETED (a response was returned), FAILED (the run raised no response) or INTERRUPTED (the lease lapsed before the turn finished). |
+| `lease_generation` | `bigint` | No | — | The conversation lease generation the turn started with. |
+| `run_status` | `text` | Yes | — | The status returned to the caller (COMPLETED, NEEDS_CLARIFICATION, AWAITING_CONFIRMATION, LIMITED, FAILED); NULL while running. |
+| `response_type` | `text` | Yes | — | ANSWER, CLARIFICATION, RESEARCH_PLAN_CONFIRMATION or LIMITATION; NULL without a response. |
+| `assistant_text` | `text` | Yes | — | The text that later turns see as the assistant message: the answer, or the clarification question for a CLARIFICATION. |
+| `response` | `jsonb` | Yes | — | The complete response returned to the caller, so a retry of the same request_id returns it without a new run. |
+| `error_code` | `text` | Yes | — | Error code of a failed or interrupted turn; NULL otherwise. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | When the turn started. |
+| `completed_at` | `timestamp with time zone` | Yes | — | When the turn finished; NULL while RUNNING. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `ai_conversation_turn_fingerprint_check` | Check | `CHECK (request_fingerprint ~ '^[0-9a-f]{64}$'::text)` |
+| `ai_conversation_turn_finished_check` | Check | `CHECK ((status = 'RUNNING'::text) = (completed_at IS NULL))` |
+| `ai_conversation_turn_index_check` | Check | `CHECK (turn_index >= 0 AND lease_generation >= 0)` |
+| `ai_conversation_turn_request_id_check` | Check | `CHECK (request_id ~ '^[A-Za-z0-9._:-]{1,200}$'::text)` |
+| `ai_conversation_turn_response_check` | Check | `CHECK (response IS NULL OR jsonb_typeof(response) = 'object'::text)` |
+| `ai_conversation_turn_status_check` | Check | `CHECK (status = ANY (ARRAY['RUNNING'::text, 'COMPLETED'::text, 'FAILED'::text, 'INTERRUPTED'::text]))` |
+| `ai_conversation_turn_text_check` | Check | `CHECK (length(user_message) >= 1 AND length(user_message) <= 20000 AND (assistant_text IS NULL OR length(assistant_text) <= 40000))` |
+| `AI_conversation_turn_conversation_id_fkey` | Foreign key | `FOREIGN KEY (conversation_id) REFERENCES "AI_conversation"(conversation_id) ON DELETE CASCADE` |
+| `AI_conversation_turn_pkey` | Primary key | `PRIMARY KEY (request_id)` |
+| `ai_conversation_turn_position_key` | Unique | `UNIQUE (conversation_id, turn_index)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `AI_conversation_turn_pkey` | `CREATE UNIQUE INDEX "AI_conversation_turn_pkey" ON public."AI_conversation_turn" USING btree (request_id)` |
+| `ai_conversation_turn_position_key` | `CREATE UNIQUE INDEX ai_conversation_turn_position_key ON public."AI_conversation_turn" USING btree (conversation_id, turn_index)` |
 
 ## AI_data_coverage
 

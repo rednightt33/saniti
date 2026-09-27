@@ -1,5 +1,41 @@
 # Railway changelog
 
+## 2026-09-27 — market-ai-orc: server-side conversation history switched on in dev (phase H1)
+
+- Approved by the user: phase H1 with a new role, secret and migration; owner from the caller's `X-Saniti-Owner`
+  header (default without it); retention 30 days.
+- **Code, store off** (`f479714`, pushed with `2ea9324`): market-ai-orc `5d726604-2983-4164-8eec-b484601d58a3`
+  `SUCCESS`, `/ready` 200; Governor and sandbox `SKIPPED`. Tests 618 passed; `CLIENT` requests unchanged.
+- **Secret** `MARKET_AI_CONVERSATION_DB_PASSWORD` on market-ai-orc: 48 random hex characters generated in-process and
+  passed on stdin, never printed; `--skip-deploys`; verified present by name and length.
+- **Migration** `20260927_002`, login provisioning and the catalog/schema refresh through the temporary service
+  `conv-migrate-job` (deleted). See `DATABASE_CHANGELOG.md`.
+- **Variables on market-ai-orc** in one `railway variable set`:
+  - `CONVERSATION_DATABASE_URL` (secret): a reference template,
+    `postgresql://market_ai_conversation:${{MARKET_AI_CONVERSATION_DB_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:5432/${{Postgres.PGDATABASE}}`.
+    Read back: it resolves for the new login with the same password and has no unresolved reference. Its value was
+    never printed.
+  - `AI_ENABLE_CONVERSATION_STORE=true`. `AI_CONVERSATION_RETENTION_DAYS`, `AI_CONVERSATION_LEASE_SECONDS` and
+    `AI_CONVERSATION_UPKEEP_SECONDS` are not set (30 days, `AI_MAX_ANALYSIS_SECONDS` + 120 s, 3600 s).
+  - Redeploy `628cbaff-031f-4f17-b47a-db071e202b7d` (commit `2ea9324`): `SUCCESS`, `/ready` 200, no upkeep error.
+- **Live PoC** through the temporary service `conv-poc-job` (`28b6b235-ec8d-4eb7-94d7-92e82beed592`, deployment
+  `af9df419-d6a9-4faf-951f-69f11ff9e85d`, reference `MARKET_AI_ORC_API_KEY` only, deleted), about $0.04:
+  - turn 0 (new conversation): BBCA close on 2026-08-28, 6,475; `persistence: SAVED`;
+  - turn 1, "Bagaimana dengan BBRI pada tanggal yang sama?" with no caller history: BBRI 3,190 on 2026-08-28, so the
+    server history carried the date;
+  - the same request again: the stored response in 0.1 s (`replayed: true`, identical); other content under the same
+    `request_id`: `409 REQUEST_ID_CONFLICT`;
+  - another owner: `404 CONVERSATION_NOT_FOUND` for the message and for `GET …/messages`; the owner's `GET …/messages`:
+    both turns `COMPLETED`;
+  - `SERVER` with a caller history: `400 HISTORY_SOURCE_CONFLICT`;
+  - two messages two seconds apart: the first answered (turn 2), the second `409 CONVERSATION_BUSY`;
+  - a `CLIENT` request: answered, no `conversation` key.
+- `railway config pull --force` added `AI_ENABLE_CONVERSATION_STORE`, `CONVERSATION_DATABASE_URL` and
+  `MARKET_AI_CONVERSATION_DB_PASSWORD` to `.railway/railway.ts` as `preserve()`; `railway config plan` reports the
+  configuration up to date. The project is back to its 13 services.
+- Rollback: set `AI_ENABLE_CONVERSATION_STORE=false` (one redeploy): `SERVER` requests get `HISTORY_MODE_UNAVAILABLE`,
+  stored conversations stay until their retention ends.
+
 ## 2026-09-27 — market-ai-orc: P02 fix, keyword discovery, catalog flags switched on in dev
 
 - Approved by the user: execute P02; run the local A/B; apply migration `20260927_001`; switch on both catalog flags;

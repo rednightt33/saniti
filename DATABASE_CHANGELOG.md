@@ -1,9 +1,28 @@
 # Database changelog
 
-## 2026-09-27 — Conversation store for market-ai-orc (migration 20260927_002, not applied yet)
+## 2026-09-27 — Conversation store for market-ai-orc (migration 20260927_002)
 
 - Scope approved by the user (implementation plan of 2026-09-27, phase H1): a new role, secret and migration for
   server-side conversation history; owner from the caller's `X-Saniti-Owner` header; retention 30 days.
+- Status: **applied to `dev` at 08:23 UTC** by the temporary one-off service `conv-migrate-job`
+  (`ab4ece53-1faa-48f1-aa2b-669175978ac5`, deployment `d70c7615-e873-483e-a8a9-fc43413d4c15`; references `DATABASE_URL`
+  and `MARKET_AI_CONVERSATION_DB_PASSWORD`, both redacted; deleted afterwards).
+  - Before (read-only): neither table, neither role, no `Table_Catalog` or `Column_Catalog` row.
+  - The migration applied as one transaction; its preflight and `$verify$` blocks passed, no notice.
+  - `scripts/provision_market_ai_conversation_login.py` created `market_ai_conversation` (connection limit 10) and
+    confirmed it reaches exactly the two tables.
+  - Read back: 10 and 14 columns; `market_ai_conversation_store` has SELECT, INSERT, UPDATE and DELETE on both tables;
+    `Table_Catalog` rows `System`/`VERIFIED`; 10 and 14 `Column_Catalog` definitions; `market_ai_orc` reaches neither
+    table; both tables empty.
+  - A session as `market_ai_conversation` ran with statement timeout 5 s, lock timeout 2 s and idle-in-transaction
+    timeout 15 s; it was refused on `Table_Catalog`, `AI_research_run_audit` and `AI_table_catalog`.
+  - **Also found:** `pgweb_reader` has SELECT on both new tables. The migration did not grant it; it comes from the
+    default privileges for tables created by `postgres`, set outside this repository for the `pgweb` viewer (the same
+    as for `AI_research_run_audit`). The conversation tables hold user messages, so this is reported to the user and
+    not changed.
+  - The standard refresh against live `dev`: `scripts/sync_database_catalog.py` (`Catalog reconciled: 664 physical
+    columns, 24 updated`) and `scripts/sync_database_schema.py` (`Synchronized 40 tables`). The regenerated
+    `DATABASE_SCHEMA.md` came back as gzip+base64 chunks, verified by sha256 (`d3cbcac6…`, 164,503 bytes).
 - `database/migrations/20260927_002_create_ai_conversation_store.sql`:
   - `AI_conversation` (10 columns): `conversation_id` (`conv_` + 32 hex), `owner_key`, timestamps, `expires_at`,
     `next_turn_index`, the lease (`active_request_id`, `lease_generation`, `lease_expires_at`) and `state` (jsonb
