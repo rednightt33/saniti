@@ -648,6 +648,14 @@ the released outputs (JSON, and up to 200 rows of each of up to 10 tables), so t
   above the sandbox's execution limit and its grace period).
 - The sandbox's rejections (a closed session, capacity, budgets) come back as structured results with their next
   action.
+- Capacity (`ERRORS_AND_SOLUTIONS.md` S05): `SESSION_CAPACITY_EXCEEDED` comes back to the model with next action
+  `REPORT_LIMITATION` instead of the sandbox's `RETRY_LATER` (a retry within the run meets the same slots), and
+  `open_analysis_session` rejections count toward the repair budget (`AI_MAX_REPAIR_ATTEMPTS`), so a run stops after
+  three instead of retrying until its tool budget runs out.
+- When a run ends, however it ends, market-ai-orc closes every session it opened that did not complete with
+  `COMPLETED` (`POST /v1/sessions/{id}/close`, best effort, log `analysis_sessions_closed` with each close reason).
+  The sandbox closes a session itself only when `complete_analysis` passes; before this, a failed or abandoned
+  session held one of its `PY_SANDBOX_MAX_SESSIONS` slots until the idle timeout (900 s).
 
 **Phase 5 (implemented): the orchestrator in DataNeed mode** (`app/orchestrator.py`). With `AI_ENABLE_DATANEED`
 the DataNeed flow is exclusive:
@@ -945,7 +953,9 @@ spec is checked:
   inside identifiers (T001, ids) are not checked. A Markdown table's first column counts as list markers when its
   header is a row-number label (`#`, `No`, `Nomor`, `Urutan`, `Rank`, `Ranking`, `Peringkat` or empty) and its
   cells number the rows 1, 2, 3, … (or 0, 1, 2, … for a pasted DataFrame index); any other first column is
-  checked. Unsupported numbers are rejected once with
+  checked. Both number rules of the system prompt say that display rounding is allowed (rounded, not truncated, to
+  the decimals shown, or a decimal shown as a percentage), because answers showed full precision on the belief that
+  rounding fails this check (P03); the sentence has no digits. Unsupported numbers are rejected once with
   their list, then the response is forced to `LIMITATION` with a notice (this also applies to a
   `LIMITATION` that quotes them). The statistics of an evidence assessment (for example the
   interval of a mean difference) are validator outputs and count as sources;
@@ -1106,9 +1116,14 @@ Other cases are reported explicitly:
 ### Catalog discovery v2 and the discovery protocol
 
 Implementation plan of 2026-09-27, phases C1–C3 (`ERRORS_AND_SOLUTIONS.md` M09). Both flags default off; with them off
-the tool schemas, results and prompt are unchanged. The tool rows are registered by
-`database/migrations/20260927_001_register_catalog_discovery_v2.sql` as inactive `v2`; `v1` stays the active row while
-the flag is off.
+the tool schemas, results and prompt are unchanged. The tool rows were registered by
+`database/migrations/20260927_001_register_catalog_discovery_v2.sql` as inactive `v2`;
+`20260927_003_activate_catalog_discovery_v2.sql` made `v2` the active row and `v1` superseded (market-ai-orc still
+serves `v1` when the flag is off).
+
+Decision (2026-09-27, after the A/B and the 20-question stress test): `AI_ENABLE_CATALOG_DISCOVERY_V2` stays on in
+dev; `AI_ENABLE_CATALOG_PROTOCOL` is off. The protocol showed no measured saving: 55 discovery calls with and without
+it on 13 comparable questions, no cache hit, and two extra details calls after guard refusals.
 
 **`AI_ENABLE_CATALOG_DISCOVERY_V2`** (C1, C2):
 - `discover_catalog(query, data_domain, entity_type, asset_type, page_size, cursor)`. Every argument may be null;

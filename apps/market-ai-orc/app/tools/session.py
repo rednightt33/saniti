@@ -126,6 +126,11 @@ COMPLETE_DESCRIPTION = (
     "(read what was not processed, then complete again), REVISE_DATA_NEED_SPEC, or REPORT_LIMITATION. The backend "
     "does not recalculate your formulas: never say a calculation was independently verified."
 )
+CAPACITY_MESSAGE = (
+    "Every analysis session slot of the sandbox is in use by other requests. Do not retry open_analysis_session or "
+    "prepare_data_bundle in this run: return response_type \"LIMITATION\" saying that the analysis could not start "
+    "because the analysis sandbox was busy and that the question can be asked again later."
+)
 RELEASED_PREVIEW_ROWS = 200
 RELEASED_PREVIEW_OUTPUTS = 10
 # Room left in the tool result for fields the registry adds (ignored_arguments, omitted_fields_set_to_null).
@@ -204,6 +209,22 @@ def released_contents(client: SandboxClient, session_id: str, outputs: list[dict
     return contents if byte_budget is None else _within(contents, byte_budget)
 
 
+def close_sessions(client: SandboxClient, request_id: str, session_ids: list[str], timeout: float = 15.0
+                   ) -> dict[str, str]:
+    """Close sessions of this request (S05): session_id -> close_reason, or CLOSE_FAILED. The sandbox closes a
+    session itself only when complete_analysis passes; any other session would hold one of its few slots until the
+    idle timeout. Closing an already closed session is harmless."""
+    closed: dict[str, str] = {}
+    for session_id in session_ids:
+        try:
+            body = _call(client, "POST", f"/v1/sessions/{session_id}/close", timeout=timeout,
+                         json={"request_id": request_id})
+            closed[session_id] = str(body.get("close_reason") or body.get("code") or body.get("status"))
+        except Exception:  # noqa: BLE001 - best effort; the sandbox's idle timeout still closes it
+            closed[session_id] = "CLOSE_FAILED"
+    return closed
+
+
 def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_timeout_seconds: float,
                   max_result_bytes: int, standard_period_return: bool = False) -> list[ToolSpec]:
     def request_id() -> str:
@@ -211,8 +232,13 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
 
     def open_session(arguments: BaseModel) -> dict[str, Any]:
         assert isinstance(arguments, OpenAnalysisSessionArgs)
-        return _call(client, "POST", "/v1/sessions", timeout=timeout_seconds,
-                     json={"request_id": request_id(), "bundle_id": arguments.input_bundle_id})
+        result = _call(client, "POST", "/v1/sessions", timeout=timeout_seconds,
+                       json={"request_id": request_id(), "bundle_id": arguments.input_bundle_id})
+        if result.get("status") == "REJECTED" and result.get("code") == "SESSION_CAPACITY_EXCEEDED":
+            # The sandbox's RETRY_LATER is for callers that can wait; a retry within this run meets the same slots.
+            result.pop("retry_after_seconds", None)
+            result.update(message=CAPACITY_MESSAGE, next_action="REPORT_LIMITATION")
+        return result
 
     def run(arguments: BaseModel) -> dict[str, Any]:
         assert isinstance(arguments, RunPythonArgs)

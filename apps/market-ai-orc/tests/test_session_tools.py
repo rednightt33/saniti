@@ -182,3 +182,33 @@ def test_an_incomplete_analysis_fetches_nothing() -> None:
         "status": "INCOMPLETE", "released_outputs": [], "next_action": "RUN_PYTHON"})})
     result = call(registry(fake), "complete_analysis", {"session_id": SESSION}).output["result"]
     assert "released_contents" not in result and len(fake.calls) == 1
+
+
+# --- S05: capacity refusals and closing the sessions a run leaves open --------------------------------------------
+
+def test_a_capacity_refusal_tells_the_model_not_to_retry_in_this_run() -> None:
+    fake = FakeSandbox({"/v1/sessions": (429, {
+        "status": "REJECTED", "error": {"code": "SESSION_CAPACITY_EXCEEDED", "message": "Every slot is in use.",
+                                        "retry_after_seconds": 30}, "next_action": "RETRY_LATER"})})
+    result = call(registry(fake), "open_analysis_session", {"input_bundle_id": BUNDLE}).output["result"]
+    assert result["code"] == "SESSION_CAPACITY_EXCEEDED" and result["next_action"] == "REPORT_LIMITATION"
+    assert "retry_after_seconds" not in result and "Do not retry" in result["message"]
+    assert not any(ch.isdigit() for ch in result["message"])  # provenance reads the numbers of tool results
+
+
+def test_close_sessions_closes_each_session_of_the_request_and_never_raises() -> None:
+    from app.tools.session import close_sessions
+
+    other = "sess_" + "d" * 24
+    fake = FakeSandbox({
+        f"/v1/sessions/{SESSION}/close": (200, {"session_id": SESSION, "status": "CLOSED",
+                                               "close_reason": "CLOSED_BY_CALLER"}),
+        f"/v1/sessions/{other}/close": (404, {"status": "REJECTED", "error": {"code": "SESSION_NOT_FOUND",
+                                                                              "message": "no"}})})
+    sandbox = SandboxClient("http://sandbox.test", SANDBOX_KEY, 10, 0, transport=httpx.MockTransport(fake.handler))
+    assert close_sessions(sandbox, "run-1", [SESSION, other]) == {SESSION: "CLOSED_BY_CALLER",
+                                                                  other: "SESSION_NOT_FOUND"}
+    assert [c["body"] for c in fake.calls] == [{"request_id": "run-1"}] * 2
+    down = SandboxClient("http://sandbox.test", SANDBOX_KEY, 10, 0, transport=httpx.MockTransport(
+        lambda r: httpx.Response(502, text="bad gateway")))
+    assert close_sessions(down, "run-1", [SESSION]) == {SESSION: "CLOSE_FAILED"}

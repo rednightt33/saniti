@@ -7,6 +7,7 @@ import sys
 import threading
 import time
 from contextlib import asynccontextmanager
+from functools import partial
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.responses import JSONResponse
@@ -24,6 +25,7 @@ from .tools import build_default_registry
 from .tools.analysis import SandboxClient
 from .tools.catalog import CatalogTools
 from .tools.request_data import GovernorClient
+from .tools.session import close_sessions
 
 
 def _configure_logging() -> None:
@@ -124,8 +126,11 @@ def create_app(
             # built in the background at startup; a request arriving before it is ready runs without a summary
             threading.Thread(target=summary.text, name="catalog-summary", daemon=True).start()
         provider_logger = ProviderLogger(owned_client) if settings.ai_log_provider else None
+        # (request_id, session_ids): the sessions a run leaves open are closed when it ends (S05)
+        closer = partial(close_sessions, sandbox) if sandbox is not None and settings.ai_enable_dataneed else None
         orchestrator = AgentOrchestrator(settings, owned_client, registry, auditor=auditor,
-                                         catalog_summary=summary, provider_logger=provider_logger)
+                                         catalog_summary=summary, provider_logger=provider_logger,
+                                         session_closer=closer)
     ready = {"value": False}
 
     @asynccontextmanager

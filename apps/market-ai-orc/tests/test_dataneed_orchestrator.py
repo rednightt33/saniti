@@ -336,3 +336,84 @@ def test_the_period_return_convention_is_taught_only_behind_its_flag() -> None:
     AgentOrchestrator(make_settings(AI_ENABLE_DATANEED="true", AI_ENABLE_STANDARD_PERIOD_RETURN="true"), scripted,
                       Tools([]).registry()).run(AgentRunRequest(request_id="pr", message="Halo"))
     assert "NAMED-PERIOD RETURNS" in scripted.payloads[0]["instructions"]
+
+
+# --- S05: sessions a run leaves open are closed; capacity refusals are bounded --------------------------------------
+
+class Closer:
+    def __init__(self, fail: bool = False) -> None:
+        self.calls: list[tuple[str, list[str]]] = []
+        self.fail = fail
+
+    def __call__(self, request_id: str, session_ids: list[str]) -> dict[str, str]:
+        self.calls.append((request_id, list(session_ids)))
+        if self.fail:
+            raise RuntimeError("sandbox down")
+        return {s: "CLOSED_BY_CALLER" for s in session_ids}
+
+
+def closing_run(script: list, tools: Tools, closer: Closer, **settings: str):
+    scripted = ScriptedClient(script)
+    orchestrator = AgentOrchestrator(make_settings(AI_ENABLE_DATANEED="true", **settings), scripted,
+                                     tools.registry(), session_closer=closer)
+    closing_run.scripted = scripted
+    return orchestrator.run(AgentRunRequest(request_id="dn", message="Berapa return YTD BBCA dan BBRI?"))
+
+
+def test_a_session_left_incomplete_is_closed_when_the_run_ends() -> None:
+    closer = Closer()
+    result = closing_run([*flow(), final_response(answer("x", "LIMITATION"))], Tools([incomplete()]), closer)
+    assert result.response.response_type == "LIMITATION" and closer.calls == [("dn", [SESSION])]
+
+
+def test_a_session_opened_but_never_run_is_closed_and_a_completed_one_is_not() -> None:
+    closer = Closer()
+    closing_run([*flow(run=False, complete=False), final_response(answer("x", "LIMITATION"))], Tools([]), closer)
+    assert closer.calls == [("dn", [SESSION])]
+    closer = Closer()
+    result = closing_run([*flow(), final_response(answer("Return YTD BBCA 12,35%."))], Tools([completed()]), closer)
+    assert result.evidence_label == "DATA_COVERAGE_VERIFIED" and closer.calls == []
+
+
+def test_a_failed_close_or_a_failed_run_still_returns_the_response() -> None:
+    closer = Closer(fail=True)
+    result = closing_run([*flow(complete=False), final_response(answer("x", "LIMITATION"))], Tools([]), closer)
+    assert result.response.response_type == "LIMITATION" and closer.calls == [("dn", [SESSION])]
+    closer = Closer()
+    # the provider script ends after the session opened: the run fails, the session is still closed
+    result = closing_run(flow(run=False, complete=False), Tools([]), closer)
+    assert result.status == "FAILED" and closer.calls == [("dn", [SESSION])]
+
+
+def test_capacity_refusals_are_bounded_by_the_repair_budget() -> None:
+    class Busy(Tools):
+        def registry(self) -> ToolRegistry:
+            registry = super().registry()
+            spec = registry._tools["open_analysis_session"]
+            registry._tools["open_analysis_session"] = ToolSpec(
+                name=spec.name, description=spec.description, arguments_model=spec.arguments_model,
+                handler=lambda a: {"status": "REJECTED", "code": "SESSION_CAPACITY_EXCEEDED", "message": "busy",
+                                   "next_action": "REPORT_LIMITATION"})
+            return registry
+
+    bundles = ["bundle_" + str(i) * 24 for i in range(5, 10)]
+    script = [call("submit_data_need_spec", {"mode": "ANALYSIS", "research_governance": None}, "c1")]
+    for i, bundle in enumerate(bundles):  # distinct bundles, so the identical-call guard does not apply
+        script.append(call("open_analysis_session", {"input_bundle_id": bundle}, f"o{i}"))
+    script.append(final_response(answer("x", "LIMITATION")))
+    closing_run(script, Busy([]), Closer(), AI_MAX_TOOL_ITERATIONS="12")
+    outputs = [json.loads(item["output"]) for item in closing_run.scripted.payloads[-1]["input"]
+               if item.get("type") == "function_call_output"][1:]
+    codes = [o["result"]["code"] if o["ok"] else o["error"]["code"] for o in outputs]
+    # AI_MAX_REPAIR_ATTEMPTS (default 3) refusals reach the model, then the budget stops the retries
+    assert codes == ["SESSION_CAPACITY_EXCEEDED"] * 3 + ["REPAIR_BUDGET_EXHAUSTED"] * 2
+
+
+def test_both_number_rules_allow_display_rounding_without_adding_number_sources() -> None:
+    # P03: the model showed full precision, believing rounding fails the provenance gate; it does not
+    sentence = ("Round figures for display as a reader needs: a source value shown with fewer decimals, rounded "
+                "(not truncated) to the decimals shown, or a decimal shown as a percentage, still matches its source.")
+    for dataneed in (False, True):
+        assert sentence in " ".join(build_system_prompt(False, dataneed).split())
+    # the system prompt is a number source (CONTEXT), so the rule carries no digits
+    assert not any(ch.isdigit() for ch in sentence)

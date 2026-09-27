@@ -115,7 +115,10 @@ Never calculate them yourself from facts, datasets, or preview rows.
 Every number in an answer must come from {number_sources}the output
 of a validated analysis, the user's message, the approved spec, or
 a prepared dataset. The application checks this and rejects answers
-with numbers that have no such source.
+with numbers that have no such source. Round figures for display as a
+reader needs: a source value shown with fewer decimals, rounded (not
+truncated) to the decimals shown, or a decimal shown as a percentage,
+still matches its source.
 Take table names, columns, subject values (data_domain,
 entity_type, asset_type), relationships and frequencies only from
 the catalog tools. Do not write or submit raw SQL.
@@ -234,7 +237,10 @@ only from released outputs of a completed analysis; never calculate
 them yourself. Every number in an answer must come from
 {number_sources}a released output, the user's message, the DataNeedSpec, or
 the bundle summary. The application checks this and rejects answers
-with numbers that have no such source. The backend verifies data
+with numbers that have no such source. Round figures for display as a
+reader needs: a source value shown with fewer decimals, rounded (not
+truncated) to the decimals shown, or a decimal shown as a percentage,
+still matches its source. The backend verifies data
 coverage, not your formulas: never say a calculation was independently
 verified; state the method and parameters you used, and the approved
 ranges.
@@ -543,6 +549,7 @@ CONTEXT_BUDGET_INSTRUCTION = CONTEXT_BUDGET_PREFIX + RESPONSE_CONTRACT
 # Research Plan turns. The notes are application context placed before the user's reply; the guard in
 # submit_data_need_spec, not these notes, is what prevents unapproved research.
 BASE_TYPES = frozenset({"ANSWER", "CLARIFICATION", "LIMITATION"})
+SESSION_ID_RE = re.compile(r"^sess_[0-9a-f]{24}$")
 ALL_TYPES = BASE_TYPES | {"RESEARCH_PLAN_CONFIRMATION"}
 PLAN_TYPES = frozenset({"RESEARCH_PLAN_CONFIRMATION", "CLARIFICATION", "LIMITATION"})
 DISCOVERY_TOOLS = frozenset({"get_system_capabilities", "discover_catalog", "get_catalog_details",
@@ -696,8 +703,11 @@ class AgentOrchestrator:
         auditor: Any | None = None,
         catalog_summary: Any | None = None,
         provider_logger: Any | None = None,
+        session_closer: Callable[[str, list[str]], dict[str, str]] | None = None,
     ) -> None:
         self.settings = settings
+        # closes the analysis sessions a run leaves open (S05): (request_id, session_ids) -> {session_id: reason}
+        self.session_closer = session_closer
         self.client = client
         self.registry = registry
         self.auditor = auditor
@@ -802,6 +812,7 @@ class AgentOrchestrator:
             current_request_id.reset(token)
             current_run_context.reset(context)
             current_research_guard.reset(guard)
+        self._close_sessions(state)
         if self.auditor is not None:
             try:
                 self.auditor.record(request.request_id, request.message, result, state.experiments,
@@ -839,6 +850,22 @@ class AgentOrchestrator:
             except Exception:  # noqa: BLE001 - logging never changes the response
                 logger.warning(dumps({"event": "ai_model_call_provider_failed", "request_id": state.request_id}))
         return result
+
+    def _close_sessions(self, state: RunState) -> None:
+        """Close every analysis session this run opened that did not complete (S05). The sandbox closes a session
+        itself only when complete_analysis passes; a failed, incomplete or abandoned session would otherwise hold
+        one of its few slots until the idle timeout, and later runs would meet SESSION_CAPACITY_EXCEEDED."""
+        if self.session_closer is None:
+            return
+        open_ids = [session_id for session_id in state.sessions if SESSION_ID_RE.fullmatch(session_id)
+                    and (state.completions.get(session_id) or {}).get("status") != "COMPLETED"]
+        if not open_ids:
+            return
+        try:
+            closed = self.session_closer(state.request_id, open_ids)
+        except Exception:  # noqa: BLE001 - closing is best effort; the sandbox's idle timeout remains
+            closed = {session_id: "CLOSE_FAILED" for session_id in open_ids}
+        log_event("analysis_sessions_closed", request_id=state.request_id, sessions=closed)
 
     # ------------------------------------------------------------------------------------------ Research Plan turns
 
@@ -1245,6 +1272,9 @@ class AgentOrchestrator:
             return f"FAILED:{(result.get('error') or {}).get('code')}"
         if name == "run_python_analysis" and result.get("status") == "REJECTED":
             return f"REJECTED:{(result.get('error') or {}).get('code')}"
+        if name == "open_analysis_session" and status == "REJECTED":
+            # bounded like other repairs: a capacity refusal was retried until the run's budget ran out (S05)
+            return f"REJECTED:{result.get('code') or 'UNSPECIFIED'}"
         code = str((result.get("error") or {}).get("code") or "") if isinstance(result.get("error"), dict) else ""
         if name == "submit_data_need_spec" and result.get("status") == "REJECTED" and code.startswith("RESEARCH_PLAN_"):
             return f"REJECTED:{code}"  # the research guard's refusals are bounded like other repairs

@@ -18,8 +18,8 @@
     timeout 15 s; it was refused on `Table_Catalog`, `AI_research_run_audit` and `AI_table_catalog`.
   - **Also found:** `pgweb_reader` has SELECT on both new tables. The migration did not grant it; it comes from the
     default privileges for tables created by `postgres`, set outside this repository for the `pgweb` viewer (the same
-    as for `AI_research_run_audit`). The conversation tables hold user messages, so this is reported to the user and
-    not changed.
+    as for `AI_research_run_audit`). The conversation tables hold user messages, so this was reported to the user; the
+    user decided on 2026-09-27 to leave it as is.
   - The standard refresh against live `dev`: `scripts/sync_database_catalog.py` (`Catalog reconciled: 664 physical
     columns, 24 updated`) and `scripts/sync_database_schema.py` (`Synchronized 40 tables`). The regenerated
     `DATABASE_SCHEMA.md` came back as gzip+base64 chunks, verified by sha256 (`d3cbcac6…`, 164,503 bytes).
