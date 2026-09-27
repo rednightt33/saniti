@@ -1,5 +1,26 @@
 # Railway changelog
 
+## 2026-09-27 — market-ai-orc: Research Plan continuation kept by the server (phase H2)
+
+- Approved by the user: phase H2. No new variable, secret or migration: the plan lives in the existing
+  `AI_conversation.state` column; `CLIENT` mode is unchanged.
+- **Code** `0b87d96` (auto-deploy from `main`): market-ai-orc `4024ed1b-1848-42d4-8690-b4c25070e3e0` `SUCCESS`,
+  `/ready` 200. Tests 630 passed.
+- **Live PoC** through the temporary service `h2-poc-job` (`5f3d3c97-a2bf-48fc-8c57-c187085852f3`, deployment
+  `db5726c9-fe7c-4b3f-8768-b884cb1d1995`, reference `MARKET_AI_ORC_API_KEY` only, deleted), one conversation, the
+  r19 research question (RSI(14) BBRI below 30, 10-day return), about $0.039:
+  - turn 0: a Research Plan, 12.4 s; `conversation.research_plan` `PENDING`;
+  - turn 1, "Setuju, tetapi ubah periodenya menjadi Januari 2024 sampai Agustus 2026." with no plan or token from
+    the caller: the classifier read `REVISE`, a revised plan (new `plan_id`, period from January 2024) replaced the
+    first, 16.4 s;
+  - `plan_reply` APPROVE of the first plan: `409 RESEARCH_PLAN_STALE` naming the latest plan, 0.1 s, no turn stored;
+  - turn 2, "Oke, setuju. Jalankan rencana yang terbaru.": `EXECUTE_APPROVED` (classifier), the experiment ran on
+    the revised period, data coverage `PASS`, `DATA_COVERAGE_VERIFIED`, 14 tool calls, 50.8 s;
+  - `plan_reply` APPROVE of the executed plan: `409 RESEARCH_PLAN_NOT_PENDING`, 0.1 s, nothing re-ran;
+  - `GET …/messages`: 3 turns, `research_plan` `EXECUTED`.
+  - An incomplete `continuation` object in a `SERVER` request was refused by the request schema (`422`) before the
+    `CONTINUATION_SOURCE_CONFLICT` check; that check is covered by the tests.
+
 ## 2026-09-27 — market-ai-orc: S05 and P03 fixes, catalog protocol off, discovery v2 active
 
 - Approved by the user: fix S05, turn `AI_ENABLE_CATALOG_PROTOCOL` off and keep catalog discovery v2, leave
