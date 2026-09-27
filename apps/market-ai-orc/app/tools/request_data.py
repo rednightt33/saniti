@@ -227,7 +227,10 @@ class GovernorClient:
             result = response.json()
         except ValueError as exc:
             raise ToolError("The SQL Governor returned an invalid response.") from exc
-        if not isinstance(result, dict) or result.get("status") not in self.EXTRACT_STATUSES or result.get("rows"):
+        # an estimate answers WITHIN_LIMITS instead of APPROVED, and never a dataset
+        allowed = (*self.EXTRACT_STATUSES, "WITHIN_LIMITS") if estimate_only else self.EXTRACT_STATUSES
+        if not isinstance(result, dict) or result.get("status") not in allowed or result.get("rows") \
+                or (estimate_only and result.get("dataset")):
             raise ToolError("The SQL Governor returned an invalid response.")
         return result
 

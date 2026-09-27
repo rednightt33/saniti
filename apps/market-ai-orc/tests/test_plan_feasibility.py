@@ -242,3 +242,22 @@ def test_a_submission_consumes_the_approval_whatever_its_outcome() -> None:
     assert result.continuation is None
     state = {"research_plan": {"plan_id": issued.plan_id, "status": "PENDING", "expires_at": issued.expires_at}}
     assert advance(state, result, "run_002", 1)["research_plan"]["status"] == "EXECUTED"
+
+
+def test_the_governor_client_accepts_an_estimate_only_answer_only_for_an_estimate() -> None:
+    # found live (suite3): WITHIN_LIMITS was refused as an invalid Governor response, so every check failed
+    from app.tools import ToolError
+    from app.tools.request_data import GovernorClient
+
+    sent: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(json.loads(request.content))
+        return httpx.Response(200, json=fits())
+
+    client = GovernorClient("http://governor.test", "k" * 40, 10, transport=httpx.MockTransport(handler))
+    assert client.extract({"x": 1}, {"y": 2}, estimate_only=True)["status"] == "WITHIN_LIMITS"
+    assert sent[-1]["estimate_only"] is True
+    with pytest.raises(ToolError):
+        client.extract({"x": 1}, {"y": 2})  # a real extraction never answers WITHIN_LIMITS
+    assert "estimate_only" not in sent[-1]
