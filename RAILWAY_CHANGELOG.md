@@ -39,6 +39,29 @@
 - `railway config pull --force` added both names to `.railway/railway.ts` as `preserve()`; `railway config plan`
   (with the R06 workaround) reports the configuration up to date. The project is back to its 13 services.
 - Rollback: delete the two variables (one redeploy). The `Tool_Catalog` v2 rows stay, inactive.
+- **20-question stress test** (the technical-indicator and broker-flow questions of 2026-09-26) through the temporary
+  service `catalog-q20-job` (`8bef25b2-e7bf-421b-8610-fa586e86ba02`, deployment
+  `29543684-2ab3-46aa-a8d6-37ddcb0dae48`, reference `MARKET_AI_ORC_API_KEY` only, deleted afterwards), 07:56–08:17 UTC.
+  Compared with the run of 2026-09-26 (`9b5ccd9d`), which had both catalog flags and the final contract off:
+  - Outcome of the 21 collected responses: 11 ANSWER, 8 LIMITATION, 2 Research Plans; cost $0.469 in 1,132 s of wall
+    time (before: 20/20 answered, $0.369, 2,932 s). The r19 approval turn failed (60 model calls, 33 attempts to open
+    a session) and its response line was not collected; its $0.031 is included in the orchestrator's usage logs.
+  - The failures are sandbox capacity: two analysis sessions whose executions failed (t11, b14) were never closed and
+    held both sandbox slots until their 900 s idle timeout. b15–b18 and r20 then got `SESSION_CAPACITY_EXCEEDED` on
+    every attempt, and r19 retried until its budget ran out. This is a session lifecycle defect exposed by the faster
+    run, not a catalog effect (`ERRORS_AND_SOLUTIONS.md` S05). t11's values were correct (%K 46.67, %D 63.55) but its
+    failed session made the answer a LIMITATION.
+  - t01 was forced to LIMITATION by the provenance gate over the warm-up lengths it quoted (P05), with a correct value.
+  - Of the answers checked against the 2026-09-26 ground truth: t02, t04, t05, t06, t10 and b13 exact; t07 (73.15 against
+    73.14) and t12 (EMA50 3,159.17 against 3,159.10) now match where the earlier run deviated; t03 and the t08 RSI values
+    still differ by warm-up (E2); t09 found 15 of 16 banks. b13, forced to LIMITATION before (E1), is now an answer.
+  - Discovery on the 13 comparable questions (t01–t12, b13): 55 discovery tool calls before and after, 175 against 179
+    model calls, 4.25 M input tokens in both. The guard refused two data needs (t01, t05), each followed by one more
+    details call; no cache hit. The protocol saved no discovery calls.
+  - The cost difference comes from the provider, not the flags: OpenRouter served this run from Novita, Parasail and
+    Together (before: DeepInfra and Together), with a cache ratio of 0.82 against 0.92 and model time 545 s against
+    1,404 s for the same questions.
+  - The catalog flags stay on in dev until the user decides; switching them off is one redeploy.
 
 ## 2026-09-27 — market-ai-orc: catalog discovery v2 and the discovery protocol deployed dark (commits df76c77, d01414d)
 
