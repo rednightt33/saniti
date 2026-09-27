@@ -2,7 +2,9 @@
 
 ## Required reading
 
-Before touching Railway or PostgreSQL, read `README.md`, `PROJECT_CONTEXT.md`, `DATABASE_SCHEMA.md`, `DATABASE_CATALOG.md`, `DATABASE_CHANGELOG.md`, and `RAILWAY_CHANGELOG.md` completely. Read the relevant files under `database/migrations/` before changing an existing table.
+Before touching Railway or PostgreSQL, read `README.md`, `PROJECT_CONTEXT.md`, `DATABASE_SCHEMA.md`, `DATABASE_CATALOG.md`, `DATABASE_CHANGELOG.md`, `RAILWAY_CHANGELOG.md`, and `ERRORS_AND_SOLUTIONS.md` completely. Read the relevant files under `database/migrations/` before changing an existing table.
+
+`ERRORS_AND_SOLUTIONS.md` lists every error found so far, with its root cause, solution and status. Check it before diagnosing a failure: the error may already be known. Its Part A is the data-format standard. Before adding a new data source or table (for example cross-asset or macro data), confirm that it meets every item of Part A, and settle any gap with the user before loading.
 
 ## Mandatory workflow
 
@@ -17,9 +19,14 @@ Before touching Railway or PostgreSQL, read `README.md`, `PROJECT_CONTEXT.md`, `
    - Data: append source metadata and verification results to `DATABASE_CHANGELOG.md`.
    - Railway infrastructure/config/deployment: update `.railway/railway.ts` if applicable and append `RAILWAY_CHANGELOG.md`.
    - Documentation/process: update the relevant Markdown file.
+   - Errors: record every new error, defect or data problem in `ERRORS_AND_SOLUTIONS.md`: symptom, verified root cause, solution, status and lesson for new data (Part D). When a fix lands, update the entry's status in place; never delete entries. If the lesson changes how data must be shaped, update Part A too.
    - After a direct Railway dashboard or CLI configuration change, run `railway config pull --force` and `railway config plan` so `.railway/railway.ts` matches the live project.
 6. Run `git diff --check`, review the diff, commit, push `main`, and verify the branch matches `origin/main`.
 7. If the GitHub push fails, report the task as incomplete and explain what remains unpushed.
+
+## Model and provider
+
+The user decided on 2026-09-27 that `market-ai-orc` keeps the model `deepseek/deepseek-v4.1-flash` through OpenRouter's default provider routing. Do not set `AI_PROVIDER_SORT`, do not change `AI_MODEL`, and do not switch provider without the user's explicit approval.
 
 ## Security
 

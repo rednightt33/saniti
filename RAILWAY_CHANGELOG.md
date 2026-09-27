@@ -1,5 +1,43 @@
 # Railway changelog
 
+## 2026-09-26 — Stress-test fixes and run-time/cost controls deployed with the new flags off (commits 86d23ad, baa6454)
+
+- Requested by the user after the stress test:
+  - fix the currency-sign misreading in the provenance gate (E1);
+  - reduce `run_python` script errors (E4);
+  - implement the run-time and cost controls R1–R4, each behind a market-ai-orc flag that defaults off.
+
+  The indicator warm-up issue (E2) was only documented. All errors and their status are in `ERRORS_AND_SOLUTIONS.md`.
+- **Tests before the push:** market-ai-orc 560 passed (local PostgreSQL 16), market-python-sandbox 463 passed. After `baa6454`, the efficiency and catalog tests (31) passed again.
+- **Automatic deployments** from `main`:
+  - `86d23ad`:
+    - market-ai-orc `fa0493d8-68c9-4d14-a271-1243d04c14bc`: `SUCCESS`, `/ready` 200;
+    - market-python-sandbox `86eb4ddf-bba6-4d31-8c46-1dd04e91224d`: `SUCCESS`, `/ready` 200;
+    - market-sql-governor `e8003028`: `SKIPPED` (no change).
+  - `baa6454` (the catalog summary also states each table's subject values):
+    - market-ai-orc `9491c5e8-c793-4b61-b9bf-a3c104d51ae0`: `SUCCESS`; its `/ready` line was not read back;
+    - market-python-sandbox `bfd06a07`: `SKIPPED`, so `86eb4ddf` stays active;
+    - the Governor was not changed, and its event for this commit was not read back.
+- **No variable was changed.**
+  - Setting `AI_LOG_PROVIDER`, `AI_FINAL_CONTRACT_IN_PROMPT`, `AI_CATALOG_SUMMARY_IN_PROMPT` and `AI_PROVIDER_SORT` on market-ai-orc was refused by the agent's permission check before anything was sent. All four flags are unset in `dev`, so every model request is unchanged.
+  - The user then decided (2026-09-27) not to use `AI_PROVIDER_SORT`: the model stays `deepseek/deepseek-v4.1-flash` on OpenRouter's default routing (see `AGENTS.md`).
+  - `CATALOG_DATABASE_URL`, which the catalog summary needs, is present on market-ai-orc (checked by name).
+- **Local A/B rehearsal** (no Railway change): real model, local Governor and sandbox, the synthetic `dataneed_e2e` database, six questions per configuration. A is the `dev` flags. B adds the final contract and the catalog summary. C is B plus `AI_PROVIDER_SORT=throughput`.
+
+  | | A | B | C |
+  |---|---|---|---|
+  | Time (sum) | 161 s | 124 s | 118 s |
+  | Cost | $0.0689 | $0.0537 | $0.0540 |
+  | Model calls | 65 | 44 | 54 |
+  | Discovery calls | 23 | 11 | 20 |
+  | Final re-asks | 7 | 0 | 0 |
+  | Cache ratio | 0.923 | 0.924 | 0.958 |
+
+  - Every configuration answered the same questions: 5 answers and 1 Research Plan.
+  - The first B/C run found that the summary lacked each table's subject values, so every first DataNeedSpec failed with three `INVALID_FIELD_VALUE`; `baa6454` fixed it.
+  - OpenRouter's documentation does not say whether `provider.sort` keeps `session_id` sticky routing. In C every run stayed on one provider.
+- No temporary service was created and no configuration changed, so `railway config pull`/`plan` was not needed.
+
 ## 2026-09-26 — Technical-indicator and broker-flow stress test on dev (temporary jobs)
 
 - Requested by the user: 20 questions that need history before the asked period (warm-up for RSI, MACD, Bollinger, SMA200, ATR, Stochastic and EMA; rolling broker and foreign flows; two research questions answered after an approved plan), plus the user's Pine Script `ta.dmi(14, 14)` ADX question. The model computed everything in the sandbox; answers were then checked against a read-only ground truth.

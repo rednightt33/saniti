@@ -204,9 +204,9 @@ The migrations were rehearsed on disposable PostgreSQL 16 databases: apply, read
 
 | Service | Deployment | Commit / change | Status |
 |---|---|---|---|
-| market-python-sandbox | `918245ef-01b5-494c-9eb1-b7bc358c0715` | `8a78aec` + `PY_SANDBOX_DATANEED_ENABLED=true` | `SUCCESS`, `/ready` 200 (returned only after the isolation self-test passes) |
+| market-python-sandbox | `86eb4ddf-bba6-4d31-8c46-1dd04e91224d` | `86d23ad` (the open-session response states the helpers' value types) + `PY_SANDBOX_DATANEED_ENABLED=true` | `SUCCESS`, `/ready` 200 (returned only after the isolation self-test passes) |
 | market-sql-governor | `2136ce9e-f54f-4d5a-80e6-611df5348647` | `4aa3272` (later pushes did not touch it: `SKIPPED`) | `SUCCESS`, `/ready` 200 |
-| market-ai-orc | `f6e2069f-db0b-4149-b802-67ea54a99c83` | `37ef2d4`, with `AI_ENABLE_DATANEED=true`, `AI_ENABLE_LOOKUP_FACT=false`, `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION=true`, `AI_ENABLE_STANDARD_PERIOD_RETURN=true` and the secret `AI_RESEARCH_PLAN_SIGNING_KEY` | `SUCCESS`, `/ready` 200 |
+| market-ai-orc | `9491c5e8-c793-4b61-b9bf-a3c104d51ae0` | `baa6454` (run-time and cost controls present, their four flags unset), with `AI_ENABLE_DATANEED=true`, `AI_ENABLE_LOOKUP_FACT=false`, `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION=true`, `AI_ENABLE_STANDARD_PERIOD_RETURN=true` and the secret `AI_RESEARCH_PLAN_SIGNING_KEY` | `SUCCESS` (`/ready` 200 read on `fa0493d8`, the `86d23ad` deployment) |
 
 Active DataNeed flags in `dev`: `PY_SANDBOX_DATANEED_ENABLED=true`, `AI_ENABLE_DATANEED=true`, `AI_ENABLE_LOOKUP_FACT=false`, `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION=true`, `AI_ENABLE_STANDARD_PERIOD_RETURN=true` (the last two since 2026-09-26, see the addendum). Temporary jobs were deleted, and `railway config plan` shows only the three accepted legacy source drifts.
 

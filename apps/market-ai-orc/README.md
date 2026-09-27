@@ -202,6 +202,8 @@ Four flags address this. All default off, and with all of them off the requests 
     `provider.order` disables it. So watch the cache ratio (`ai_model_usage_summary`) and the served provider
     (`ai_model_call_provider`) when this is on.
   - `throughput` costs more per token on this model: the fast providers price it about twice as high.
+  - Decision (2026-09-27): not used. The model stays `deepseek/deepseek-v4.1-flash` on OpenRouter's default
+    routing; do not set this flag without the user's approval.
 - **`AI_LOG_PROVIDER`** logs, after the response is sent, one `ai_model_call_provider` event per model call, from
   OpenRouter's `GET /api/v1/generation?id=<provider_response_id>`. The Responses body carries no provider.
   - Fields: `provider`, `model_version`, `provider_attempts` and `failed_providers` (fallbacks), `first_token_ms`,
@@ -257,7 +259,7 @@ Gate and final-response log events (always on):
 | `AI_RESEARCH_PLAN_SIGNING_KEY` | with confirmation (secret) | — | HMAC-SHA256 key of the plan continuation tokens: at least 32 characters, at least 10 distinct, no surrounding whitespace (use a random 64-hex value). The service refuses to start with confirmation on and no usable key. Rotating it invalidates every open plan |
 | `AI_RESEARCH_PLAN_TTL_SECONDS` | no | `3600` | Lifetime of a plan continuation (60–86400) |
 | `AI_ENABLE_STANDARD_PERIOD_RETURN` | no | `false` | DataNeed flow only: teach the named-period return convention (NAMED-PERIOD RETURNS prompt rule and one `run_python` sentence about `saniti.period_return`); see [Named-period returns](#named-period-returns) |
-| `AI_PROVIDER_SORT` | no | unset | OpenRouter `provider.sort` for every model call: `price`, `throughput` or `latency`. Unset keeps OpenRouter's load balancing (weighted to the lowest price). Setting it turns load balancing off; see [Run-time and cost controls](#run-time-and-cost-controls) |
+| `AI_PROVIDER_SORT` | no | unset | OpenRouter `provider.sort` for every model call: `price`, `throughput` or `latency`. Unset keeps OpenRouter's load balancing (weighted to the lowest price). Setting it turns load balancing off; see [Run-time and cost controls](#run-time-and-cost-controls). **Not used:** the user decided on 2026-09-27 to keep OpenRouter's default routing (`AGENTS.md`) |
 | `AI_LOG_PROVIDER` | no | `false` | After each run, look up which provider served each model call (OpenRouter `/generation`, in a background thread) and log it as `ai_model_call_provider` |
 | `AI_FINAL_CONTRACT_IN_PROMPT` | no | `false` | Put the final-response JSON contract (and, with Research Plan confirmation, the plan's exact field form) in the system prompt, so a finished run answers in JSON at once |
 | `AI_CATALOG_SUMMARY_IN_PROMPT` | no | `false` | Append a compact summary of the AI catalog (tables, columns, relationships, coverage, tools) to the system prompt, so most runs skip the discovery round trips. Needs `CATALOG_DATABASE_URL` |
