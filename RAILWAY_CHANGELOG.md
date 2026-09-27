@@ -1,5 +1,29 @@
 # Railway changelog
 
+## 2026-09-27 — market-ai-orc: catalog discovery v2 and the discovery protocol deployed dark (commits df76c77, d01414d)
+
+- Requested by the user: apply the implementation plan of 2026-09-27. This deploys phases C1–C3 only, behind two new
+  flags that default off; the conversation and sandbox-reuse phases (H1, H2, S1, S2) wait for the user's decisions.
+- New flags, **not set in dev**:
+  - `AI_ENABLE_CATALOG_DISCOVERY_V2`: discovery filters and paging, formula search, table metadata, column
+    completeness, join-semantics and resample fields;
+  - `AI_ENABLE_CATALOG_PROTOCOL`: the prompt rule, per-run reuse of catalog results and the `CATALOG_DETAILS_REQUIRED`
+    guard. Startup refuses it without the v2 flag.
+- **Before the push:**
+  - market-ai-orc: 588 passed (local PostgreSQL 16);
+  - with both flags off, the tool definitions and the system prompt were compared byte for byte with `59e9443`
+    (DataNeed, Research Plan confirmation, named-period returns and the final contract on): identical.
+- Auto-deploy from `main`:
+  - market-ai-orc `1e1f4739-3769-41a6-8612-36b133925da4` (commit `d01414d`): `SUCCESS`, healthcheck `/ready` 200,
+    startup without error;
+  - Governor `bac076b9` and sandbox `d218855c`: `SKIPPED` (outside their watch paths).
+- Variables read back by name: both new flags unset; `AI_FINAL_CONTRACT_IN_PROMPT` and `AI_LOG_PROVIDER` `true`;
+  `AI_PROVIDER_SORT` and `AI_CATALOG_SUMMARY_IN_PROMPT` unset; `AI_MODEL` `deepseek/deepseek-v4.1-flash`.
+- No variable, service or configuration change, so `.railway/railway.ts` is unchanged.
+- Database: migration `20260927_001` (Tool_Catalog v2 rows, inactive) is in the repository and **not applied**; see
+  `DATABASE_CHANGELOG.md`.
+- Rollback: none needed while the flags are off; otherwise delete the flag variables (one redeploy).
+
 ## 2026-09-27 — market-ai-orc: final-response contract in the prompt and provider logging switched on in dev
 
 - Approved by the user: `AI_FINAL_CONTRACT_IN_PROMPT=true` and `AI_LOG_PROVIDER=true`, both set in one `railway variable set` on market-ai-orc.

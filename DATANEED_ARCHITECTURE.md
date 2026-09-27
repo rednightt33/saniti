@@ -206,7 +206,7 @@ The migrations were rehearsed on disposable PostgreSQL 16 databases: apply, read
 |---|---|---|---|
 | market-python-sandbox | `86eb4ddf-bba6-4d31-8c46-1dd04e91224d` | `86d23ad` (the open-session response states the helpers' value types) + `PY_SANDBOX_DATANEED_ENABLED=true` | `SUCCESS`, `/ready` 200 (returned only after the isolation self-test passes) |
 | market-sql-governor | `2136ce9e-f54f-4d5a-80e6-611df5348647` | `4aa3272` (later pushes did not touch it: `SKIPPED`) | `SUCCESS`, `/ready` 200 |
-| market-ai-orc | `843c89c3-dc16-4338-a20b-5c642f87b059` | `14c9b3e` (README only; application code of `baa6454`: run-time and cost controls present, their four flags unset), with `AI_ENABLE_DATANEED=true`, `AI_ENABLE_LOOKUP_FACT=false`, `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION=true`, `AI_ENABLE_STANDARD_PERIOD_RETURN=true` and the secret `AI_RESEARCH_PLAN_SIGNING_KEY` | `SUCCESS`, `/ready` 200 |
+| market-ai-orc | `1e1f4739-3769-41a6-8612-36b133925da4` | `d01414d` (catalog discovery v2 and the discovery protocol present, their two flags unset), with `AI_ENABLE_DATANEED=true`, `AI_ENABLE_LOOKUP_FACT=false`, `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION=true`, `AI_ENABLE_STANDARD_PERIOD_RETURN=true`, `AI_FINAL_CONTRACT_IN_PROMPT=true`, `AI_LOG_PROVIDER=true` and the secret `AI_RESEARCH_PLAN_SIGNING_KEY` | `SUCCESS`, `/ready` 200 |
 
 Active DataNeed flags in `dev`: `PY_SANDBOX_DATANEED_ENABLED=true`, `AI_ENABLE_DATANEED=true`, `AI_ENABLE_LOOKUP_FACT=false`, `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION=true`, `AI_ENABLE_STANDARD_PERIOD_RETURN=true` (the last two since 2026-09-26, see the addendum). Temporary jobs were deleted, and `railway config plan` shows only the three accepted legacy source drifts.
 
