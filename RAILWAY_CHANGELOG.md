@@ -53,6 +53,7 @@
   - Not exercised live: artifact expiry after 24 h (covered by tests: `NO_MATCH` `EXPIRED`, expired outputs
     unreadable), eviction under slot pressure, and the S05 close of an unfinished session (covered by tests).
 - `railway config pull --force` and `railway config plan` after deleting the temporary service: up to date.
+- The docs commit `3ac92f2` touched `apps/market-ai-orc/README.md`, so it redeployed market-ai-orc `db6d8dcf-4d3e-412e-a666-61b77689c004` (`SUCCESS`, same code as `dbceac3`).
 
 ## 2026-09-27 — market-ai-orc: Research Plan continuation kept by the server (phase H2)
 
