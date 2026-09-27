@@ -1,5 +1,59 @@
 # Railway changelog
 
+## 2026-09-27 — market-ai-orc and market-python-sandbox: conversation reuse on in dev (phases S1/S2)
+
+- Approved by the user: phase S05, then H2 and S1/S2. Implementation plan of 2026-09-27, sections 9–10.
+- **Code, flags off** (`23290ad`, auto-deploy from `main`): market-python-sandbox `d8017f23-89c5-429e-86e4-434cf34d7b6b`
+  and market-ai-orc `46a2633d-37d7-4492-a060-e6a6445e919f`, both `SUCCESS`, `/ready` 200.
+  - The sandbox upgraded its dataneed SQLite to schema version 1 at startup (additive columns, two new tables) with
+    no error.
+  - Tests: orc 639 passed, sandbox 473 passed. Flag-off tool definitions and system prompt were identical to the
+    previous deploy.
+- **Variables:**
+  - market-python-sandbox `PY_SANDBOX_ENABLE_CONVERSATION_REUSE=true`, redeploy `c989d7f8-b6c9-437b-9ebb-f07d9b698579`
+    `SUCCESS`;
+  - then market-ai-orc `AI_ENABLE_CONVERSATION_REUSE=true`, redeploy `4f821959-3d3e-47ca-9211-4d3f1511777d`
+    `SUCCESS`; no `conversation_reuse_inactive` log, so the capability handshake passed.
+  - `railway config pull --force` and `railway config plan`: clean after the two names were added to
+    `.railway/railway.ts`.
+- **Fixes found by the PoC** (`b19872f`, `dbceac3`): M18 (released values of a session's second completion replaced
+  the first's) and S07 (inherited coverage came only from the last passed epoch). Redeploys: market-ai-orc
+  `95a3afe3-b5fb-41ec-a0ed-4c2ed2ad7377` and market-python-sandbox `bd2af73d-5065-46c5-a3ee-c615dea03bbe`, both
+  `SUCCESS`. Both services restarted, which the PoC used as the recovery case.
+- **Live PoC** through the temporary service `reuse-poc-job` (`d2835c1e-1251-4f97-b406-84801e53c115`, deployments
+  `56d1da0e…`, `1971041f…`, `3020a7de…`, `c2544717…`, `f9aef565…`; references `MARKET_AI_ORC_API_KEY` only;
+  deleted). All turns ran in `history_mode: SERVER` with no caller history. About $0.15 in total. Verified from the
+  responses and from the orc and sandbox logs (`conversation_resources`, `conversation_reuse_summary`,
+  `bundle_reused`, `session_attached`, `bundle_built`).
+  - **A, analysis continuation** (one conversation):
+    - A1 "return YTD 2026 semua saham bank sampai 28 Agustus 2026": one extraction (`bundle_built`), two completions
+      in one session. The answer was forced to LIMITATION by M18, since fixed.
+    - A2 "ambil yang return YTD-nya minimal 10%": 4 banks, `ANSWER`, 23 s, 4 tool calls, $0.004. It read the
+      released outputs of A1 (`READ_RELEASED`), with no extraction and no Python run. Provenance 28 numbers checked,
+      0 unsupported.
+    - A3 "tampilkan tanggal basis dan harga akhirnya": `ANSWER` from the same released outputs, 19 s, 3 tool calls.
+  - **D, warm session** (same conversation), "volatilitas harian YTD 4 saham tadi":
+    - `bundle_reused` and no `bundle_built`, so no extraction;
+    - `session_attached` on A1's session `sess_a8de…`, epoch 3, with the request's own approved need;
+    - `COMPLETED` with `inherited_coverage` naming A1's completions, `ANSWER`, 59 s, $0.036, provenance clean.
+    - Its first completion failed coverage (S07, since fixed).
+  - **C, recovery** after both services restarted (the M18 and S07 redeploys; the warm session was closed by the
+    restart):
+    - C1 "ambil yang minimal 5%" and C2 "tabel return YTD lengkap": `ANSWER` from A1's released outputs. The
+      history came from PostgreSQL after the orc restart. C2 checked 148 numbers, 0 unsupported.
+    - C3 "volatilitas AMAR, BTPN, BBTN": `bundle_reused` (the bundle survived the restart), then a new session on
+      the bound bundle (`bound_bundle: true`), coverage `PASS`, `ANSWER`, 26 s, $0.014.
+  - **B, research** (new conversation, the r19 question):
+    - plan `PENDING`;
+    - "Setuju, jalankan.": `EXECUTE_APPROVED`, coverage `PASS`, three completions in the request, provenance 99
+      checked, 0 unsupported; plan `EXECUTED`;
+    - "Tampilkan lagi rincian angka hasil eksperimen tadi": `READ_RELEASED`, no new experiment;
+    - "ubah ambangnya: RSI(14) di bawah 25": a **new plan** awaiting approval, with no tool call and nothing run in
+      the warm session.
+  - Not exercised live: artifact expiry after 24 h (covered by tests: `NO_MATCH` `EXPIRED`, expired outputs
+    unreadable), eviction under slot pressure, and the S05 close of an unfinished session (covered by tests).
+- `railway config pull --force` and `railway config plan` after deleting the temporary service: up to date.
+
 ## 2026-09-27 — market-ai-orc: Research Plan continuation kept by the server (phase H2)
 
 - Approved by the user: phase H2. No new variable, secret or migration: the plan lives in the existing

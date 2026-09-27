@@ -536,6 +536,13 @@ contract). It works only for `history_mode: SERVER`; `CLIENT` requests never car
   - `conversation_reuse_summary` (bundles and sessions reused, earlier released outputs read).
 - **Research:** reuse never replaces approval. A reused bundle or session serves only this request's own approved
   need, and an approval is used once (phase H2). A new research computation therefore needs a new or revised plan.
+- **Differences from the implementation plan** (2026-09-27, sections 8–10), reported to the user:
+  - Research continuation uses an approval once (H2) instead of a cumulative research ledger across turns (10.5):
+    no follow-up research computation runs without a new approval. The Research Governor still counts per request.
+  - `saniti.load_output` (10.4) and a caller `data_refresh` option (9.1) are not built. A dead session recomputes
+    from the reused bundle. Freshness follows from the exact data contract (absolute windows and catalog hash) and
+    the disclosed extraction time.
+  - Bundles and released outputs keep their 24 h retention, so reuse works within 24 h of a 30-day conversation.
 
 `GET /v1/conversations/{conversation_id}/messages?after=<turn_index>&limit=<1-50>` (bearer and `X-Saniti-Owner` as
 above) returns the conversation's turns in order: `turn_index`, `request_id`, `status` (`RUNNING`, `COMPLETED`,
