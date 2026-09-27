@@ -304,16 +304,20 @@ CATALOG_PROTOCOL_RULES = """
 CATALOG DISCOVERY PROTOCOL
 Read the catalog only as far as the question needs, and reuse what this
 run already received:
-1. For data not yet read in this run, call discover_catalog with the
-filters that fit the question (query, data_domain, entity_type,
-asset_type). Follow next_cursor only while has_more is true and the
-table you need is not listed yet.
-2. Call get_catalog_details for the tables you will use, up to three
-per call, with every section you need in the same call: COLUMNS for
-each column you will request, filter or order by; COVERAGE for the time
-you need; RELATIONSHIPS when requests are joined. Its table_metadata
-gives the subject values, grain and time and entity columns. Add
-CALCULATIONS, FORMULAS or RESEARCH only when the method needs them.
+1. For data not yet read in this run, call discover_catalog once with
+keywords of the question in query (the measure, the indicator, the
+entity kind) and the subject filters that fit. The result ranks the
+matching tables and lists the documented formulas matching the same
+keywords. Follow next_cursor only while has_more is true and the table
+you need is not listed yet.
+2. Call get_catalog_details once for the tables you will use, up to
+three per call, with every section you need in the same call: COLUMNS
+for each column you will request, filter or order by; COVERAGE for the
+time you need; RELATIONSHIPS when requests are joined; FORMULAS with
+the formula_ids from discover_catalog when the method follows a
+documented formula. Its table_metadata gives the subject values, grain
+and time and entity columns. Add CALCULATIONS or RESEARCH only when the
+method needs them.
 3. Use get_dimension_values for an exact category value you do not
 know yet.
 4. get_system_capabilities is not a routine first step: the tool list

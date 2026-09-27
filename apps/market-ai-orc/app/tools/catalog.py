@@ -46,9 +46,18 @@ SUBJECT_VALUE = re.compile(r"^[A-Z][A-Z0-9_]{1,39}$")
 # Discovery v2 (AI_ENABLE_CATALOG_DISCOVERY_V2): filters, paging, formula search, complete join/resample contracts.
 DISCOVER_PAGE_DEFAULT = 20
 FORMULA_SEARCH_LIMIT = 20
+DISCOVER_FORMULA_MATCHES = 5          # formulas matching a discover_catalog query, listed with the tables
 MAX_QUERY_CHARS = 100
 SHORT_TEXT_CHARS = 160
-DISCOVER_KEY_LENGTH = 1
+DISCOVER_KEY_LENGTH = 2              # keyset (matched keyword count, table_name)
+MAX_QUERY_WORDS = 8
+MIN_QUERY_WORD = 3
+# words that would match almost every table or formula; they are dropped from a keyword query
+QUERY_STOPWORDS = frozenset({
+    "the", "and", "for", "per", "with", "from", "are", "was", "all", "any", "each", "every", "data", "table", "tables",
+    "tabel", "kolom", "column", "columns", "value", "values", "nilai", "dan", "yang", "dari", "untuk", "atau", "pada",
+    "dengan", "setiap", "semua"})
+NULL_WORDS = frozenset({"null", "none", "nil", "n/a"})
 
 METADATA_NOTICE = "Catalog metadata is documentation. It contains no observed market values or calculation results."
 VISIBILITY_NOTE = (
@@ -87,19 +96,33 @@ ORDER BY t.table_name
 LIMIT %s
 '''
 
-# Discovery v2: the same columns over the filtered visible tables, one keyset page ordered by table_name, and the
-# number of matching tables before paging. Subject filters read to_jsonb so the query stays valid before migration
-# 20260925_001 (then no table matches a subject filter).
+# Discovery v2: the same columns over the visible tables that pass the subject filters and match at least one query
+# keyword (none given: all), one keyset page ordered by matched keywords then table_name, and the number of matching
+# tables before paging. A keyword matches the table name, description, category, grain, or a visible column's name or
+# description. Keywords are lower-case letters and digits only, so they carry no LIKE wildcard. Subject filters read
+# to_jsonb so the query stays valid before migration 20260925_001 (then no table matches a subject filter).
 DISCOVER_V2_SQL = f'''
 WITH visible AS ({VISIBLE_TABLES}),
-filtered AS (
-    SELECT t.* FROM public."AI_table_catalog" t
+scored AS (
+    SELECT t.*, m.matched_words, cardinality(m.matched_words) AS query_hits
+    FROM public."AI_table_catalog" t
+    CROSS JOIN LATERAL (
+        SELECT lower(concat_ws(' ', t.table_name, t.description, t.category, t.grain,
+               (SELECT string_agg(concat_ws(' ', c.column_name, c.description), ' ')
+                FROM public."AI_column_catalog" c
+                WHERE c.table_name = t.table_name AND c.ai_allowed AND NOT c.is_sensitive))) AS haystack
+    ) h
+    CROSS JOIN LATERAL (
+        SELECT coalesce(array_agg(w.word ORDER BY w.ord), '{{}}'::text[]) AS matched_words
+        FROM unnest(%s::text[]) WITH ORDINALITY AS w(word, ord)
+        WHERE h.haystack LIKE '%%' || w.word || '%%'
+    ) m
     WHERE t.table_name IN (SELECT table_name FROM visible)
-      AND (%s::text IS NULL OR t.table_name ILIKE %s ESCAPE '\\' OR t.description ILIKE %s ESCAPE '\\')
       AND (%s::text IS NULL OR to_jsonb(t) ->> 'data_domain' = %s)
       AND (%s::text IS NULL OR to_jsonb(t) ->> 'entity_type' = %s)
       AND (%s::text IS NULL OR to_jsonb(t) ->> 'asset_type' = %s)
-)
+),
+filtered AS (SELECT * FROM scored WHERE cardinality(%s::text[]) = 0 OR query_hits > 0)
 SELECT t.table_name, t.description, t.category, t.grain, t.primary_key_columns,
        t.time_column, t.entity_column, t.documentation_status, t.coverage_enabled,
        t.freshness_sla::text AS freshness_sla,
@@ -107,6 +130,7 @@ SELECT t.table_name, t.description, t.category, t.grain, t.primary_key_columns,
        to_jsonb(t) ->> 'asset_type' AS asset_type, to_jsonb(t) -> 'supported_frequencies' AS supported_frequencies,
        to_jsonb(t) ->> 'time_semantics' AS time_semantics,
        to_jsonb(t) ->> 'subject_metadata_status' AS subject_metadata_status,
+       t.matched_words, t.query_hits,
        (SELECT count(*) FROM public."AI_column_catalog" c
          WHERE c.table_name = t.table_name AND c.ai_allowed AND NOT c.is_sensitive) AS column_count,
        (SELECT count(*) FROM public."AI_calculation_catalog" k
@@ -117,9 +141,20 @@ SELECT t.table_name, t.description, t.category, t.grain, t.primary_key_columns,
            AND r.right_table IN (SELECT table_name FROM visible)) AS relationship_count,
        (SELECT count(*) FROM filtered) AS total_matching
 FROM filtered t
-WHERE %s::text IS NULL OR t.table_name > %s
-ORDER BY t.table_name
+WHERE %s::int IS NULL OR t.query_hits < %s OR (t.query_hits = %s AND t.table_name > %s)
+ORDER BY t.query_hits DESC, t.table_name
 LIMIT %s
+'''
+
+# The subject values that exist, returned only when no table matched, so the model can correct a filter.
+SUBJECT_VALUES_SQL = f'''
+SELECT to_jsonb(t) ->> 'data_domain' AS data_domain, to_jsonb(t) ->> 'entity_type' AS entity_type,
+       to_jsonb(t) ->> 'asset_type' AS asset_type, count(*) AS table_count
+FROM public."AI_table_catalog" t
+WHERE t.table_name IN ({VISIBLE_TABLES})
+GROUP BY 1, 2, 3
+ORDER BY 1, 2, 3
+LIMIT 30
 '''
 
 # A light fingerprint of the visible table rows only (no scan of market data or coverage rows): a cursor issued for
@@ -255,22 +290,29 @@ WHERE (%s::text[] IS NULL OR calculation_id = ANY(%s::text[]))
 ORDER BY calculation_id LIMIT %s
 '''
 
-# Formula search (v2): exact id or name first, then name prefix, name substring, description substring; ties by
-# calculation_id. The patterns are parameters with LIKE wildcards escaped, so the query text is data, never SQL.
+# Formula search (v2): a formula matches when a query keyword appears in its id, name or description. The whole
+# query equal to an id or name comes first, then the score (a keyword equal to the id or name 3, inside it 2, only in
+# the description 1), ties by calculation_id. Keywords are lower-case letters and digits only (no LIKE wildcard).
 FORMULA_SEARCH_SQL = '''
-SELECT calculation_id, calculation_name, description, required_inputs,
-       CASE WHEN lower(calculation_id) = lower(%s) OR lower(calculation_name) = lower(%s) THEN 0
-            WHEN calculation_name ILIKE %s ESCAPE '\\' THEN 1
-            WHEN calculation_name ILIKE %s ESCAPE '\\' THEN 2
-            ELSE 3 END AS match_rank,
+SELECT f.calculation_id, f.calculation_name, f.description, f.required_inputs, m.matched_words, m.name_hit,
+       (lower(f.calculation_id) = %s OR lower(f.calculation_name) = %s) AS exact,
        count(*) OVER () AS total_matching
-FROM public."AI_formula_reference"
-WHERE lower(calculation_id) = lower(%s) OR calculation_name ILIKE %s ESCAPE '\\'
-   OR description ILIKE %s ESCAPE '\\'
-ORDER BY match_rank, calculation_id
+FROM public."AI_formula_reference" f
+CROSS JOIN LATERAL (
+    SELECT coalesce(array_agg(w.word ORDER BY w.ord), '{}'::text[]) AS matched_words,
+           coalesce(sum(CASE WHEN lower(f.calculation_id) = w.word OR lower(f.calculation_name) = w.word THEN 3
+                             WHEN lower(concat_ws(' ', f.calculation_id, f.calculation_name))
+                                  LIKE '%%' || w.word || '%%' THEN 2
+                             ELSE 1 END), 0) AS score,
+           coalesce(bool_or(lower(concat_ws(' ', f.calculation_id, f.calculation_name))
+                            LIKE '%%' || w.word || '%%'), false) AS name_hit
+    FROM unnest(%s::text[]) WITH ORDINALITY AS w(word, ord)
+    WHERE lower(concat_ws(' ', f.calculation_id, f.calculation_name, f.description)) LIKE '%%' || w.word || '%%'
+) m
+WHERE lower(f.calculation_id) = %s OR lower(f.calculation_name) = %s OR cardinality(m.matched_words) > 0
+ORDER BY (lower(f.calculation_id) = %s OR lower(f.calculation_name) = %s) DESC, m.score DESC, f.calculation_id
 LIMIT %s
 '''
-MATCH_LABELS = {0: "EXACT", 1: "NAME_PREFIX", 2: "NAME_CONTAINS", 3: "DESCRIPTION_CONTAINS"}
 
 COVERAGE_DATASET_SQL = '''
 SELECT dataset_name, coverage_mode, reference_dataset_name, actual_min_date, actual_max_date,
@@ -411,19 +453,32 @@ class CatalogDetailsArguments(BaseModel):
 
 
 def _text_query(value: str | None, label: str) -> str | None:
+    """Whitespace-normalized query text; empty or the word null (a model writing null as a string) means no query."""
     if value is None:
         return None
     value = " ".join(value.split())
-    if not value:
+    if not value or value.lower() in NULL_WORDS:
         return None
     if len(value) > MAX_QUERY_CHARS:
         raise ValueError(f"{label} is at most {MAX_QUERY_CHARS} characters")
+    if not query_words(value):
+        raise ValueError(f"{label} needs at least one keyword of {MIN_QUERY_WORD}+ letters or digits that is not a "
+                         "generic word such as data or table")
     return value
 
 
-def _like_pattern(value: str, prefix_only: bool = False) -> str:
-    escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    return f"{escaped}%" if prefix_only else f"%{escaped}%"
+def query_words(text: str | None) -> list[str]:
+    """The keywords of a query: lower-case runs of letters and digits, at least MIN_QUERY_WORD long, without generic
+    words, a plural s removed (a keyword matches as a substring, so "prices" becomes "price"), at most
+    MAX_QUERY_WORDS, in order."""
+    words: list[str] = []
+    for raw in re.split(r"[^0-9a-z]+", (text or "").lower()):
+        if len(raw) < MIN_QUERY_WORD or raw in QUERY_STOPWORDS:
+            continue
+        word = raw[:-1] if len(raw) > MIN_QUERY_WORD and raw.endswith("s") and not raw.endswith("ss") else raw
+        if word not in words:
+            words.append(word)
+    return words[:MAX_QUERY_WORDS]
 
 
 class CatalogDetailsArgumentsV2(CatalogDetailsArguments):
@@ -435,10 +490,11 @@ class CatalogDetailsArgumentsV2(CatalogDetailsArguments):
                     "CALCULATIONS, RESEARCH, FORMULAS."
     )
     formula_query: str | None = Field(
-        description=f"FORMULAS only: words to search formula names and descriptions (case-insensitive substring; an "
-                    f"exact calculation_id also matches). Returns up to {FORMULA_SEARCH_LIMIT} matches with their ids; "
-                    "then pass formula_ids for full definitions. Null when not searching; never together with "
-                    "formula_ids."
+        description=f"FORMULAS only: keywords to search formula ids, names and descriptions, for example 'rsi relative "
+                    f"strength'. A formula matches when any keyword appears; an exact id or name comes first, then "
+                    f"formulas matching more keywords in their name. Returns up to {FORMULA_SEARCH_LIMIT} matches with "
+                    "their ids; then pass formula_ids for full definitions. Null when not searching; never together "
+                    "with formula_ids."
     )
 
     @model_validator(mode="before")
@@ -467,8 +523,9 @@ class DiscoverArguments(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     query: str | None = Field(
-        description="Optional words matched against table names and descriptions (case-insensitive substring); null "
-                    "for every table.")
+        description="Optional keywords, for example 'daily price volume'. A table matches when any keyword appears in "
+                    "its name, description or column names and descriptions; tables matching more keywords come "
+                    "first. Null for every table.")
     data_domain: str | None = Field(description="Optional exact subject data_domain, for example MARKET; null for any.")
     entity_type: str | None = Field(description="Optional exact subject entity_type, for example STOCK; null for any.")
     asset_type: str | None = Field(description="Optional exact subject asset_type; null for any.")
@@ -494,7 +551,7 @@ class DiscoverArguments(BaseModel):
     @field_validator("data_domain", "entity_type", "asset_type")
     @classmethod
     def _subject(cls, value: str | None) -> str | None:
-        if value is None:
+        if value is None or value.strip().lower() in NULL_WORDS or not value.strip():
             return None
         value = value.strip().upper()
         if not SUBJECT_VALUE.fullmatch(value):
@@ -820,19 +877,29 @@ class CatalogTools:
         filters = arguments.filters()
         binding = dumps(filters)
         page_size = arguments.page_size or DISCOVER_PAGE_DEFAULT
-        pattern = _like_pattern(arguments.query) if arguments.query else None
+        words = query_words(arguments.query)
         with self.reader.read_only() as run:
             fingerprint = str(run(CATALOG_FINGERPRINT_SQL, ())[0]["fingerprint"])[:16]
-            after = None
+            after_hits, after_name = None, None
             if arguments.cursor is not None:
-                after = str(self.codec.decode_bound(arguments.cursor, "discover_catalog", binding, fingerprint,
-                                                    DISCOVER_KEY_LENGTH)[0])
+                key = self.codec.decode_bound(arguments.cursor, "discover_catalog", binding, fingerprint,
+                                              DISCOVER_KEY_LENGTH)
+                if not isinstance(key[0], int) or not isinstance(key[1], str):
+                    raise ToolError("The cursor is invalid for this tool and these filters. Use the exact next_cursor "
+                                    "returned with the same filters, or pass cursor null to start from the first "
+                                    "page.", code="CURSOR_INVALID")
+                after_hits, after_name = key
             rows = run(DISCOVER_V2_SQL, (
-                arguments.query, pattern, pattern,
+                words,
                 arguments.data_domain, arguments.data_domain, arguments.entity_type, arguments.entity_type,
-                arguments.asset_type, arguments.asset_type, after, after, page_size + 1))
+                arguments.asset_type, arguments.asset_type, words,
+                after_hits, after_hits, after_hits, after_name, page_size + 1))
             research = run(RESEARCH_COUNTS_SQL, ())
             formulas = run(FORMULA_COUNT_SQL, ())
+            subjects = run(SUBJECT_VALUES_SQL, ()) if not rows and filters else []
+            query = (arguments.query or "").lower()
+            formula_rows = run(FORMULA_SEARCH_SQL, (query, query, words, query, query, query, query,
+                                                    DISCOVER_FORMULA_MATCHES)) if words else []
         total = int(rows[0]["total_matching"]) if rows else 0
         base: dict[str, Any] = {
             "research_catalog": {
@@ -854,10 +921,22 @@ class CatalogTools:
             "notice": METADATA_NOTICE + " Use get_catalog_details for columns, relationships, calculations, "
                       "coverage, research methods, and formulas. " + VISIBILITY_NOTE,
         }
-        entries = [_table_entry(row) for row in rows[:page_size]]
-        kept, cut = _fit(entries, RESULT_BUDGET_BYTES - _size(base) - 400)
+        if words:
+            base["query_words"] = words
+            base["formula_catalog"]["matches"] = [
+                {"calculation_id": row["calculation_id"], "calculation_name": row.get("calculation_name"),
+                 "match": "EXACT" if row["exact"] else "NAME" if row["name_hit"] else "DESCRIPTION",
+                 "matched_words": list(row["matched_words"])} for row in formula_rows]
+            base["formula_catalog"]["note"] = (
+                "Documented formula definitions, not verified or executable implementations. matches lists the "
+                "formulas matching the query keywords, best first; read full definitions with get_catalog_details "
+                "sections [FORMULAS] and formula_ids, in the same call as the tables.")
+        entries = [{**_table_entry(row), **({"matched_words": list(row["matched_words"])} if words else {})}
+                   for row in rows[:page_size]]
+        kept, cut = _fit(entries, RESULT_BUDGET_BYTES - _size(base) - 1200)
         has_more = cut or len(rows) > page_size
-        last = kept[-1]["table_name"] if kept else None
+        hits = {row["table_name"]: int(row["query_hits"]) for row in rows}
+        last = [hits[kept[-1]["table_name"]], kept[-1]["table_name"]] if kept else None
         if has_more and not kept:
             raise ToolError("A single catalog table entry exceeds the result budget; narrow the filters.")
         result = {
@@ -866,14 +945,19 @@ class CatalogTools:
             "returned_count": len(kept),
             "total_matching": total,
             "has_more": has_more,
-            "next_cursor": self.codec.encode_bound("discover_catalog", binding, fingerprint, [last])
+            "next_cursor": self.codec.encode_bound("discover_catalog", binding, fingerprint, last)
             if has_more and last else None,
             "truncated": has_more,
             **base,
         }
-        if not kept:
-            result["note"] = ("No table matches these filters." if filters else
-                              "The AI catalog currently exposes no tables.")
+        if not kept and filters:
+            result["note"] = ("No table matches these filters. Use other keywords or drop the query, or use a subject "
+                              "value exactly as listed in available_subjects.")
+            result["available_subjects"] = [
+                {key: row[key] for key in ("data_domain", "entity_type", "asset_type") if row.get(key)}
+                | {"tables": int(row["table_count"])} for row in subjects]
+        elif not kept:
+            result["note"] = "The AI catalog currently exposes no tables."
         return result
 
     def details(self, arguments: BaseModel) -> dict[str, Any]:
@@ -1020,20 +1104,21 @@ class CatalogTools:
 
     @staticmethod
     def _formula_search(run: QueryRunner, query: str, budget: int) -> dict[str, Any]:
-        exact, prefix, contains = query, _like_pattern(query, prefix_only=True), _like_pattern(query)
-        rows = run(FORMULA_SEARCH_SQL, (exact, exact, prefix, contains, exact, contains, contains,
-                                        FORMULA_SEARCH_LIMIT + 1))
+        exact, words = query.lower(), query_words(query)
+        rows = run(FORMULA_SEARCH_SQL, (exact, exact, words, exact, exact, exact, exact, FORMULA_SEARCH_LIMIT + 1))
         total = int(rows[0]["total_matching"]) if rows else 0
         entries = [{
             "calculation_id": row["calculation_id"],
             "calculation_name": row.get("calculation_name"),
             "description": _short(row.get("description")),
             "required_inputs": _short(row.get("required_inputs")),
-            "match": MATCH_LABELS.get(int(row["match_rank"]), "DESCRIPTION_CONTAINS"),
+            "match": "EXACT" if row["exact"] else "NAME" if row["name_hit"] else "DESCRIPTION",
+            "matched_words": list(row["matched_words"]),
         } for row in rows[:FORMULA_SEARCH_LIMIT]]
         kept, _ = _fit(entries, budget)
         result: dict[str, Any] = {
-            "mode": "SEARCH", "query": query, "entries": kept, "returned": len(kept), "total_matching": total,
+            "mode": "SEARCH", "query": query, "query_words": words, "entries": kept, "returned": len(kept),
+            "total_matching": total,
             "note": "Documented formula definitions, not verified or executable implementations. Pass the chosen "
                     "calculation_id values as formula_ids for full definitions.",
         }
@@ -1113,8 +1198,9 @@ def catalog_specs(reader: CatalogReader, *, timeout_seconds: float, discovery_v2
                     "keys, time and entity columns, subject values (data_domain, entity_type, asset_type, "
                     "supported_frequencies, time_semantics), documentation status and how much column, calculation "
                     "and relationship metadata exists; plus the research-method and formula catalog counts. Filter "
-                    "with query and the subject fields; page with next_cursor while has_more is true. Returns "
-                    "catalog metadata only, never data rows."
+                    "with query keywords and the subject fields; with a query the result also lists the documented "
+                    "formulas matching the keywords. Page with next_cursor while has_more is true. Returns catalog "
+                    "metadata only, never data rows."
                 ),
                 arguments_model=DiscoverArguments,
                 handler=tools.discover,

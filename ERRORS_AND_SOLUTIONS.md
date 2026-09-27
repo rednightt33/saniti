@@ -93,16 +93,17 @@ A new table (any asset class, any frequency) is ready for the AI only when every
 
     Joins across calendars (a daily stock versus a monthly macro series, or IDX dates versus FX dates) use `AS_OF` backward on the availability date. Grains that differ need pre-aggregation. (G05, G02, G03)
 18. **Resample rules** (`resample_aggregation`: last, sum, mean, OHLC) for every column that can be resampled. Today they are NULL everywhere, so all resampling happens in the model's code. (D09)
-19. **Column names**: new tables use lower-case `snake_case`. Some existing tables use quoted names with spaces or capitals (`"Investor Type"`, `"Market Board"`, `"Ticker"`); they work through the catalog, but every consumer must quote them exactly.
+19. **Searchable descriptions**: discovery matches keywords against table and visible column names and descriptions (M17). Write the words a user would search for into them: the asset class, the source, the measure and its common abbreviation (for example `CPI consumer price index inflation`, `USD IDR exchange rate`). A table that describes itself only as "Series table" cannot be found by keyword.
+20. **Column names**: new tables use lower-case `snake_case`. Some existing tables use quoted names with spaces or capitals (`"Investor Type"`, `"Market Board"`, `"Ticker"`); they work through the catalog, but every consumer must quote them exactly.
 
 ### A5. Loading and operations
 
-20. **Idempotent upsert on the natural key**, with `ingestion_time` set by the database (`statement_timestamp()`) and the source plus query date recorded.
+21. **Idempotent upsert on the natural key**, with `ingestion_time` set by the database (`statement_timestamp()`) and the source plus query date recorded.
     - Load results go to a PostgreSQL load log.
     - Source metadata and verification go to `DATABASE_CHANGELOG.md`.
-21. **Authentication failures stop the load.** They must not mark the remaining dates `NEEDS_REVIEW`. Rate limits are respected by bounded concurrency. (D15, D16)
-22. **Large reconciliations run in partitions** (per ticker range, per period), not as one query that exhausts PostgreSQL temporary space. (D17)
-23. **Query patterns and indexes.** Define the high-frequency query patterns, and run a bounded `EXPLAIN (ANALYZE, BUFFERS)` before adding a large index.
+22. **Authentication failures stop the load.** They must not mark the remaining dates `NEEDS_REVIEW`. Rate limits are respected by bounded concurrency. (D15, D16)
+23. **Large reconciliations run in partitions** (per ticker range, per period), not as one query that exhausts PostgreSQL temporary space. (D17)
+24. **Query patterns and indexes.** Define the high-frequency query patterns, and run a bounded `EXPLAIN (ANALYZE, BUFFERS)` before adding a large index.
     - The Governor refuses unfiltered requests longer than 400 days (`DATE_RANGE_TOO_LARGE`).
     - The sandbox bundle holds at most 2,000,000 rows / 256 MB by default.
 
@@ -187,6 +188,7 @@ A new table (any asset class, any frequency) is ready for the AI only when every
 | M14 | 2026-09-26 | Gate notices in English inside Indonesian answers | The notices are fixed English strings | None yet | OPEN |
 | M15 | 2026-09-13/14 | Retired `market-ai-backend`: OpenAI quota 429, a missing `record_evidence` field raised `KeyError`, truncated JSON arguments, Markdown-wrapped finals | Provider quota and unvalidated tool arguments | Quota codes not retried, recoverable argument errors, a strict final parser; the service was retired on 2026-09-25 | FIXED (retired) |
 | M16 | 2026-09-27 | (Found in review, before release.) The catalog metadata guard would refuse a RESEARCH `submit_data_need_spec` with `CATALOG_DETAILS_REQUIRED` before the Research Plan guard, sending the model to read the catalog for a spec that first needs an approved plan | Two guards on one tool call, and the new one ran first | The orchestrator skips the catalog guard when the Research Plan guard will refuse the submission, so the plan refusal comes first (`df76c77`, test `test_the_research_plan_refusal_comes_before_the_catalog_guard`) | FIXED |
+| M17 | 2026-09-27 | (Found in the local A/B, before release.) With the catalog protocol on, `discover_catalog` was still called two or three times per run: the first call returned no table | `query` was matched as one substring, so a phrase such as "stock daily price" matched nothing; `formula_query` behaved the same. The model also sent `data_domain: "null"` as text | Keyword matching: any keyword of 3+ letters or digits, generic words dropped, against table name, description and visible column names/descriptions, ranked by matched keywords; formulas the same. `"null"` text means no filter. A zero result lists `available_subjects` | FIXED |
 
 ### B6. Answer gates (P)
 

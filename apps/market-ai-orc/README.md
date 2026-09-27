@@ -1060,10 +1060,15 @@ the flag is off.
 **`AI_ENABLE_CATALOG_DISCOVERY_V2`** (C1, C2):
 - `discover_catalog(query, data_domain, entity_type, asset_type, page_size, cursor)`. Every argument may be null;
   `discover_catalog({})` lists the first page.
-  - `query`: case-insensitive substring of `table_name` or `description` (at most 100 characters; `%`, `_` and `\`
-    are matched literally). The subject filters are exact upper-case catalog values.
-  - One keyset page ordered by `table_name`: `page_size` 1–50, default 20. A page may end earlier to stay within the
-    24 KB budget.
+  - `query`: keywords (at most 100 characters). The text is split into lower-case runs of letters and digits of 3+
+    characters; generic words (`data`, `table`, `kolom`, `dan`, ...) are dropped and a plural `s` is removed; at most
+    8 keywords. A table matches when any keyword appears in its name, description, category, grain, or a visible
+    column's name or description; hidden and sensitive columns are never searched. A query without a usable keyword
+    is refused. The subject filters are exact upper-case catalog values. `null` written as text (`"null"`,
+    `"None"`) means no filter.
+  - One keyset page ordered by the number of matched keywords (descending), then `table_name`: `page_size` 1–50,
+    default 20. A page may end earlier to stay within the 24 KB budget. Each entry carries `matched_words`.
+  - No match: the note says which filter to change, and `available_subjects` lists the subject values that exist.
   - The result adds `returned_count`, `total_matching`, `has_more`, `next_cursor`, `applied_filters` and
     `catalog_fingerprint`; each table entry carries its subject values.
   - The cursor is HMAC-signed and bound to the tool, the filters and a fingerprint of the visible `AI_table_catalog`
@@ -1081,8 +1086,10 @@ the flag is off.
   - A NULL catalog value is returned as `null` and `null_meaning` says it is not recorded: a null
     `resample_aggregation` is never a default `LAST`. Where the catalog has no such rules at all:
     `resample_rules_recorded: false` or `join_semantics_recorded: false`.
-  - `FORMULAS` with `formula_query` (never together with `formula_ids`): up to 20 matches ranked `EXACT`,
-    `NAME_PREFIX`, `NAME_CONTAINS`, `DESCRIPTION_CONTAINS`, ties by `calculation_id`; then read the chosen ones with
+  - `FORMULAS` with `formula_query` (never together with `formula_ids`): the same keywords against the formula id,
+    name and description. The whole query equal to an id or name comes first (`EXACT`), then the score (a keyword
+    equal to the id or name 3, inside it 2, only in the description 1), ties by `calculation_id`; each entry says
+    `match` (`EXACT`, `NAME`, `DESCRIPTION`) and `matched_words`. Up to 20 matches; then read the chosen ones with
     `formula_ids`.
 
 **`AI_ENABLE_CATALOG_PROTOCOL`** (C3, `app/catalog_protocol.py`), per run only; nothing is kept across runs:

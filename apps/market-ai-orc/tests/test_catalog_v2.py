@@ -246,11 +246,16 @@ def test_formula_search_finds_a_definition_beyond_the_first_fifty_ids(migrated_d
     registry = registry_for(migrated_db)
     found = details(registry, [], ["FORMULAS"], formula_query="relative STRENGTH")["sections"]["FORMULAS"]
     assert found["mode"] == "SEARCH" and [e["calculation_id"] for e in found["entries"]] == ["zz_rsi_wilder"]
-    assert found["entries"][0]["match"] == "NAME_PREFIX"
-    by_description = details(registry, [], ["FORMULAS"], formula_query="wilder smoothing")["sections"]["FORMULAS"]
-    assert by_description["entries"][0]["match"] == "DESCRIPTION_CONTAINS"
+    assert found["entries"][0]["match"] == "NAME" and found["entries"][0]["matched_words"] == ["relative", "strength"]
+    by_description = details(registry, [], ["FORMULAS"], formula_query="smoothing gains")["sections"]["FORMULAS"]
+    assert by_description["entries"][0]["match"] == "DESCRIPTION"
     exact = details(registry, [], ["FORMULAS"], formula_query="ZZ_RSI_WILDER")["sections"]["FORMULAS"]
     assert exact["entries"][0]["match"] == "EXACT"
+    # a descriptive query (the A/B run of 2026-09-27 asked "RSI relative strength index"): any keyword matches, the
+    # formula matching most of them in its name comes first
+    phrase = details(registry, [], ["FORMULAS"], formula_query="RSI relative strength index")["sections"]["FORMULAS"]
+    assert phrase["entries"][0]["calculation_id"] == "zz_rsi_wilder"
+    assert phrase["query_words"] == ["rsi", "relative", "strength", "index"]
     full = details(registry, [], ["FORMULAS"], formula_ids=["zz_rsi_wilder"])["sections"]["FORMULAS"]
     assert full["entries"][0]["formula_method"] == "Wilder"
 
@@ -258,17 +263,19 @@ def test_formula_search_finds_a_definition_beyond_the_first_fifty_ids(migrated_d
 def test_formula_search_is_bounded_and_says_when_nothing_or_too_much_matches(migrated_db: str) -> None:
     registry = registry_for(migrated_db)
     many = details(registry, [], ["FORMULAS"], formula_query="synthetic metric")["sections"]["FORMULAS"]
-    assert many["returned"] == 20 and many["total_matching"] == EXTRA_FORMULAS and many["truncated"] is True
+    assert many["returned"] == 20 and many["total_matching"] >= EXTRA_FORMULAS and many["truncated"] is True
     assert [e["calculation_id"] for e in many["entries"]][:2] == ["f_001", "f_002"]
+    assert all(e["matched_words"] == ["synthetic", "metric"] for e in many["entries"])  # full matches first
     none = details(registry, [], ["FORMULAS"], formula_query="stochastic kalman")["sections"]["FORMULAS"]
     assert none["entries"] == [] and "not synonyms" in none["note"]
 
 
-def test_formula_query_text_is_data_and_its_wildcards_are_literal(migrated_db: str) -> None:
+def test_formula_query_text_is_data_and_punctuation_only_separates_keywords(migrated_db: str) -> None:
     registry = registry_for(migrated_db)
     hostile = details(registry, [], ["FORMULAS"],
                       formula_query="x'; DROP TABLE \"AI_formula_reference\"; --")["sections"]["FORMULAS"]
-    assert hostile["entries"] == []
+    assert hostile["mode"] == "SEARCH" and hostile["query_words"] == ["drop", "formula", "reference"]
+    assert call(registry, "discover_catalog", {})["formula_catalog"]["formula_count"] == EXTRA_FORMULAS + 3
     literal = details(registry, [], ["FORMULAS"], formula_query="100%")["sections"]["FORMULAS"]
     assert [e["calculation_id"] for e in literal["entries"]] == ["zz_odd_name"]
     underscore = details(registry, [], ["FORMULAS"], formula_query="odd_")["sections"]["FORMULAS"]
@@ -328,9 +335,52 @@ def test_filters_narrow_discovery_and_are_reported(migrated_db: str) -> None:
     assert {t["table_name"] for t in brokers["tables"]} == {
         "Feature_02_Broker_Rolling", "Feature_03_Stock_Broker_Daily", "IDX_Broker_Summary"}
     nothing = call(registry, "discover_catalog", {"query": "no such table anywhere"})
-    assert nothing["tables"] == [] and nothing["note"] == "No table matches these filters."
+    assert nothing["tables"] == [] and nothing["note"].startswith("No table matches these filters.")
+    assert {"data_domain": "MACRO", "entity_type": "SERIES", "tables": EXTRA_TABLES} in nothing["available_subjects"]
     bad = failure(registry, "discover_catalog", {"data_domain": "market data"})
     assert bad["code"] == "INVALID_ARGUMENTS"
+
+
+def test_a_keyword_query_matches_any_keyword_and_ranks_tables_matching_more(migrated_db: str) -> None:
+    registry = registry_for(migrated_db)
+    # the A/B run of 2026-09-27 sent phrases such as "stock daily price volume"; a whole-phrase match found nothing
+    page = call(registry, "discover_catalog", {"query": "synthetic paging 003", "page_size": 5})
+    assert page["query_words"] == ["synthetic", "paging", "003"] and page["total_matching"] == EXTRA_TABLES
+    assert page["tables"][0]["table_name"] == "Paging_Table_003"
+    assert page["tables"][0]["matched_words"] == ["synthetic", "paging", "003"]
+    assert all(t["matched_words"] == ["synthetic", "paging"] for t in page["tables"][1:])
+    names, _ = walk(registry, {"query": "synthetic paging 003", "page_size": 20})
+    assert len(names) == len(set(names)) == EXTRA_TABLES and names[0] == "Paging_Table_003"
+    assert names[1:] == sorted(names[1:])
+
+
+def test_a_query_also_lists_the_documented_formulas_matching_its_keywords(migrated_db: str) -> None:
+    registry = registry_for(migrated_db)
+    # the A/B run of 2026-09-27 searched "RSI relative strength index" with discover_catalog and found no table
+    page = call(registry, "discover_catalog", {"query": "RSI relative strength index"})
+    matches = page["formula_catalog"]["matches"]
+    assert matches[0] == {"calculation_id": "zz_rsi_wilder", "calculation_name": "Relative Strength Index",
+                          "match": "NAME", "matched_words": ["rsi", "relative", "strength", "index"]}
+    assert len(matches) <= 5 and "formula_ids" in page["formula_catalog"]["note"]
+    assert "matches" not in call(registry, "discover_catalog", {})["formula_catalog"]
+
+
+def test_keywords_match_visible_column_names_and_descriptions_only(migrated_db: str) -> None:
+    registry = registry_for(migrated_db)
+    foreign = call(registry, "discover_catalog", {"query": "foreign investors"})
+    assert [t["table_name"] for t in foreign["tables"]][0] == "IDX_Broker_Summary"
+    assert foreign["tables"][0]["matched_words"] == ["foreign", "investor"]  # plural s removed
+    hidden = call(registry, "discover_catalog", {"query": "holder"})  # a sensitive column's name
+    assert "IDX_Broker_Summary" not in [t["table_name"] for t in hidden["tables"]]
+
+
+def test_null_written_as_text_means_no_filter_and_generic_queries_are_refused(migrated_db: str) -> None:
+    registry = registry_for(migrated_db)
+    unfiltered = call(registry, "discover_catalog", {"query": "null", "data_domain": "null", "entity_type": "None",
+                                                     "page_size": 5})
+    assert unfiltered["applied_filters"] == {} and unfiltered["total_matching"] == 4 + EXTRA_TABLES
+    generic = failure(registry, "discover_catalog", {"query": "data table"})
+    assert generic["code"] == "INVALID_ARGUMENTS" and "keyword" in generic["message"]
 
 
 def test_cursors_are_bound_to_their_filters_and_refuse_forgery(migrated_db: str) -> None:
