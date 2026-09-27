@@ -1,5 +1,23 @@
 # Database changelog
 
+## 2026-09-27 — Catalog discovery v2 becomes the active Tool_Catalog contract (migration 20260927_003)
+
+- Scope approved by the user: keep `AI_ENABLE_CATALOG_DISCOVERY_V2` on and turn `AI_ENABLE_CATALOG_PROTOCOL` off.
+  With v2 staying on, the `v2` rows registered inactive by `20260927_001` become the active ones, as that migration
+  said a later one would.
+- Rehearsed on a disposable local database (`20260927_001` then `20260927_003`): v2 active, v1 inactive with
+  `superseded_by`, a second run refused by the preflight.
+- Status: **applied to `dev` at 09:11 UTC** by the temporary one-off service `catv2act-migrate-job`
+  (`9898bd29-440f-4024-853b-b91f18d564b0`, deployment `1ec73049-bbad-4484-a452-a6355e57c803`; references
+  `DATABASE_URL` only, redacted; deleted afterwards). One transaction; preflight and `$verify$` passed, no notice.
+  - Before (read-only): `discover_catalog` and `get_catalog_details` `v1` active at `cb97fac` with
+    `successor_version=v2`; both `v2` inactive at `35e5db0`; 65 rows, 25 active.
+  - Read back: both `v2` active at `35e5db0` with the new `registry_state`; both `v1` inactive with
+    `superseded_by=v2` and no `successor_note`; still 65 rows and 25 active; one active version per tool.
+- `database/migrations/20260927_003_activate_catalog_discovery_v2.sql`: `v1` deactivated first
+  (`Tool_Catalog_one_active_version_idx`), then `v2` activated. No table, column, grant or market-data row changed, so
+  `DATABASE_SCHEMA.md` is unchanged.
+
 ## 2026-09-27 — Conversation store for market-ai-orc (migration 20260927_002)
 
 - Scope approved by the user (implementation plan of 2026-09-27, phase H1): a new role, secret and migration for

@@ -1,5 +1,21 @@
 # Railway changelog
 
+## 2026-09-27 — market-ai-orc: S05 and P03 fixes, catalog protocol off, discovery v2 active
+
+- Approved by the user: fix S05, turn `AI_ENABLE_CATALOG_PROTOCOL` off and keep catalog discovery v2, leave
+  `pgweb_reader` as is, and fix P03.
+- **Variable** on market-ai-orc: `AI_ENABLE_CATALOG_PROTOCOL=false` (was `true`), set with `--skip-deploys`;
+  `AI_ENABLE_CATALOG_DISCOVERY_V2` stays `true`.
+- **Code** `7778795` (auto-deploy from `main`): market-ai-orc `3550dfb6-5fb9-4dd2-aba8-892440f7a321` `SUCCESS`,
+  `/ready` 200, with the variable above. Tests 625 passed. The tool definitions are identical to the previous deploy;
+  the system prompt changes only by the P03 rounding sentence.
+  - S05: a run closes the sessions it opened that did not complete; capacity refusals are bounded.
+  - P03: display rounding allowed in both number rules.
+- **Migration** `20260927_003` through the temporary service `catv2act-migrate-job`
+  (`9898bd29-440f-4024-853b-b91f18d564b0`, deployment `1ec73049-bbad-4484-a452-a6355e57c803`, references
+  `DATABASE_URL` only, deleted). See `DATABASE_CHANGELOG.md`.
+- `railway config pull --force` and `railway config plan`: already up to date (no new variable name).
+
 ## 2026-09-27 — market-ai-orc: server-side conversation history switched on in dev (phase H1)
 
 - Approved by the user: phase H1 with a new role, secret and migration; owner from the caller's `X-Saniti-Owner`
