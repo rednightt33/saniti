@@ -1,5 +1,21 @@
 # Railway changelog
 
+## 2026-09-28 — IP2 merged into main; Governor dependency fix (R19)
+
+- **Approval:** the user approved pushing the IP2 branch to `main` so `main` carries the S09 fix while the resample
+  rules exist on dev (Audit Store flags stay off).
+- `main` fast-forwarded `5229423..c403f27` (IP2 + the web-governor PRs; only conflict `RAILWAY_CHANGELOG.md`, both
+  sides kept). Tests after the merge: orc 678, Governor 209, sandbox IP2 subset 25 passed.
+  - market-sql-governor `d0f9fb31-64a0-4884-a56f-1a95024d1a10` **FAILED** its `/ready` health check:
+    `ModuleNotFoundError: httpx` (R19). The previous deployment kept serving.
+  - market-python-sandbox `f85accbf` and market-ai-orc `60d19e42` `SKIPPED` (watch paths); they keep running the
+    identical IP2 code from the CLI uploads `e7d4ce58` / `9d8e9182`.
+- Fix `b42e72e` (`httpx==0.28.1` in the Governor requirements, verified by importing `app.main` in a clean
+  virtualenv): market-sql-governor `d9f39bd9-139f-43c0-91a7-caeed39a2309` `SUCCESS`, `/ready` 200, no error or
+  secret in the start-up log. Sandbox `33ec5ab2` and orc `2f129f07` `SKIPPED`.
+- `main` and `claude/upbeat-dijkstra-iybq2f` now point to the same code; the next change under
+  `apps/market-python-sandbox` or `apps/market-ai-orc` on `main` redeploys IP2, not the pre-IP2 code.
+
 ## 2026-09-28 — market-web-governor: evidence retention 30 days (user-approved)
 
 - `WEB_RETENTION_HOURS` 168 → 720 on market-web-governor only; redeploy `f60ae1a1-365d-4c11-9dcd-4cd57cd9ce46` `SUCCESS`
