@@ -47,7 +47,7 @@ export default defineRailway(() => {
   const marketWebGovernor = service("market-web-governor", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-web-governor" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/market-web-governor/**"] },
-    start: "uvicorn app.main:create_app --factory --host :: --port 8080",
+    start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080",
     healthcheck: "/ready",
     healthcheckTimeout: 120,
     replicas: { "sfo": 1 },

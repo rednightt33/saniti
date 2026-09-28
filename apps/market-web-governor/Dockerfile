@@ -9,4 +9,4 @@ COPY app ./app
 RUN mkdir -p /data && chown -R 65532:65532 /data /app
 USER 65532:65532
 
-CMD ["uvicorn", "app.main:create_app", "--factory", "--host", "::", "--port", "8080"]
+CMD ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8080"]
