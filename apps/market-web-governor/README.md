@@ -144,8 +144,8 @@ and `:online` model suffix are not used.
 
 `/v1/fetch` records evidence only from a citation of the requested URL. OpenRouter's `openrouter:web_fetch` tool
 currently returns no URL citations, so an exact fetch reports `EXACT_URL_NOT_CITED`, withholds the provider summary and
-returns `REVIEW_FETCH` (ERRORS_AND_SOLUTIONS W03). Known open limits from the 2026-09-28 live test: the output budget
-of 1800 tokens is too small for this model's reasoning in multi-search criteria (W02); `/v1/search` always requires two
+returns `REVIEW_FETCH` (ERRORS_AND_SOLUTIONS W03). Known open limits from the 2026-09-28 live test: the evidence and response limits fill before every
+criterion is served when results and excerpts are large (W09); `/v1/search` always requires two
 distinct domains (W06); citations carry no publication date and evidence has no per-item stance (W07).
 
 The adapter accepts both documented OpenRouter citation shapes and ignores unknown response fields. Provider errors
@@ -166,12 +166,13 @@ Configured on Railway:
 - `WEB_OPENROUTER_MODEL=deepseek/deepseek-v4.1-flash`
 - `WEB_OPENROUTER_ENGINE=exa`
 - `WEB_OPENROUTER_TIMEOUT_SECONDS=40`
+- `WEB_OPENROUTER_MAX_OUTPUT_TOKENS=4000` (includes reasoning tokens)
 - `WEB_MAX_CRITERIA=6`
 - `WEB_MAX_SEARCHES=6`
-- `WEB_MAX_RESULTS_PER_SEARCH=5`
+- `WEB_MAX_RESULTS_PER_SEARCH=10`
 - `WEB_MAX_EVIDENCE_ITEMS=20`
 - `WEB_MAX_OUTPUT_CHARACTERS=32000`
-- `WEB_MAX_EXCERPT_CHARACTERS=2500`
+- `WEB_MAX_EXCERPT_CHARACTERS=5000`
 - `WEB_RETENTION_HOURS=168`
 - `WEB_CLEANUP_INTERVAL_SECONDS=3600`
 

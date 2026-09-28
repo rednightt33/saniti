@@ -1,5 +1,18 @@
 # Railway changelog
 
+## 2026-09-28 — market-web-governor: deeper retrieval and a larger output budget (user-approved)
+
+- **Variables** (market-web-governor only, set with the API; model and provider unchanged,
+  `deepseek/deepseek-v4.1-flash` through OpenRouter/Exa): `WEB_OPENROUTER_MAX_OUTPUT_TOKENS` 1800 → 4000,
+  `WEB_MAX_RESULTS_PER_SEARCH` 5 → 10, `WEB_MAX_EXCERPT_CHARACTERS` 2500 → 5000. Rollback reference
+  `254e5f0b-e3d8-48d6-8e65-9e4d162ad2a7`; redeploy `23d0a4f6-5c78-48f1-8707-baf8a94aacba` `SUCCESS` (volume mounted,
+  `GET /ready` 200).
+- **Live T6** (`live-smoke-20260928-r5-t6-bbca-webneed`, 10 results per search, runner `webneed` phase): 5 of 5
+  provider calls completed (W02 fixed; output 3,318–4,033 tokens, so the margin is thin); 17 web searches; USD 0.068
+  (was 0.054). New limit W09: the 20-item evidence budget was used by the first two criteria and the 32,000-character
+  response cap emptied every excerpt, so criteria 4 and 5 have no evidence. Not changed; proposed to the user.
+- **Runner:** `webneed` phase; Test 8 now probes limits above the new maxima.
+
 ## 2026-09-28 — market-web-governor live end-to-end test on dev; three fixes (AI-Orc unchanged)
 
 - **Scope:** live test of `market-web-governor` (`1c43a00e-9deb-4b17-84f0-acfa35142ac6`) through OpenRouter/Exa.
