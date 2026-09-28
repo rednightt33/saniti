@@ -34,9 +34,14 @@ All `/v1/*` endpoints require `Authorization: Bearer $WEB_GOVERNOR_API_KEY`.
 | `POST /v1/web-needs` | Validate and persist a v1 `WebNeedSpec`; return the planned criterion tasks. |
 | `POST /v1/web-needs/{web_need_id}/execute` | Execute the approved tasks and return structured evidence. |
 | `GET /v1/web-needs/{web_need_id}` | Read the plan or terminal execution response. |
-| `GET /v1/evidence/{evidence_id}` | Read one persisted evidence record. |
+| `GET /v1/evidence/{evidence_id}` | Read one persisted evidence record, with its full stored excerpt. |
+| `GET /v1/documents/{document_id}` | Read one document the governor fetched: metadata, hashes and extracted text. |
 | `POST /v1/search` | Fast path: create and execute a single-criterion web need. |
-| `POST /v1/fetch` | Fetch one exact public HTTPS URL through the provider adapter. |
+| `POST /v1/fetch` | The governor downloads one exact public HTTPS URL, a model reads it, and only verified quotes become evidence. |
+
+`POST /v1/web-needs` (inside `web_need`), `POST /v1/search` and `POST /v1/fetch` accept an optional `model_slot`
+(1–7). Without it the default slot is used. The slot and its model are recorded in the plan when the need is created,
+so a later configuration change does not alter an approved plan.
 
 ### WebNeedSpec example
 
@@ -128,8 +133,8 @@ root-owned mount. The evidence store survives container restarts and redeploys.
 terminal response. Reusing it with different content returns HTTP 409 `IDEMPOTENCY_CONFLICT`. Evidence is persisted
 before a terminal response is returned.
 
-The model-facing response is bounded independently of provider context. Excerpts are shortened before persistence
-when required to meet the requested response budget, so the stored excerpt always matches what the caller received.
+The response is bounded independently of provider context. When it must be compacted, only the response copy of an
+excerpt is shortened; the stored evidence keeps the full excerpt.
 
 ## Provider behavior
 
@@ -142,10 +147,33 @@ Document-type and source-tier preferences are reported as `BEST_EFFORT` when the
 The default engine is Exa because it supports explicit result and domain constraints. The deprecated `web` plugin
 and `:online` model suffix are not used.
 
-`/v1/fetch` records evidence only from a citation of the requested URL. OpenRouter's `openrouter:web_fetch` tool
-currently returns no URL citations, so an exact fetch reports `EXACT_URL_NOT_CITED`, withholds the provider summary and
-returns `REVIEW_FETCH` (ERRORS_AND_SOLUTIONS W03). Known open limits from the 2026-09-28 live test: the evidence and response limits fill before every
-criterion is served when results and excerpts are large (W09); `/v1/search` always requires two
+## Exact-URL fetch
+
+`/v1/fetch` no longer relies on a provider fetch tool (it returned no citations, ERRORS_AND_SOLUTIONS W03):
+
+1. The governor downloads the URL itself: HTTPS only; every DNS answer, including after each redirect, must be a
+   public address; at most `WEB_FETCH_MAX_REDIRECTS` redirects and `WEB_FETCH_MAX_BYTES` bytes; HTML, PDF (first
+   `WEB_FETCH_MAX_PDF_PAGES` pages, via `pypdf`) and plain text.
+2. The extracted text (up to `WEB_FETCH_MAX_CHARACTERS`) is stored with the SHA-256 of the downloaded bytes and of
+   the text, the final URL, HTTP status and media type (`GET /v1/documents/{document_id}`).
+3. The model receives the first `WEB_FETCH_MODEL_CHARACTERS` characters with no web tool and returns ASSESSMENT,
+   SUMMARY and QUOTE lines.
+4. A quote becomes evidence (`excerpt_kind` `VERIFIED_QUOTE`, with `document_id`, `quote_start`, `quote_end`) only if
+   it appears verbatim in the stored text (whitespace- and typography-insensitive). Others are discarded with
+   `QUOTE_NOT_IN_SOURCE`.
+
+Other outcomes: `SOURCE_HTTP_ERROR`, `SOURCE_TIMEOUT`, `SOURCE_TOO_LARGE`, `PRIVATE_ADDRESS_BLOCKED`,
+`UNSUPPORTED_CONTENT_TYPE`, `PDF_UNREADABLE`, `DYNAMIC_PAGE_OR_EMPTY` (no model call), `REDIRECTED_TO_OTHER_DOMAIN`,
+`DOCUMENT_TRUNCATED` and `DOCUMENT_TRUNCATED_FOR_MODEL`. A script-rendered page is not executed.
+
+## Evidence budget
+
+The evidence budget is shared across criteria in turn, so an early criterion cannot use all of it; a citation already
+kept for another criterion is linked again without using budget. When the response must be compacted, excerpts are
+shortened only in the response (`TRUNCATED_IN_RESPONSE`, `NOT_INCLUDED_IN_RESPONSE`); the store keeps the full
+excerpt. `RESPONSE_BUDGET_EXCEEDED` reports a response that stays above its budget even without excerpts.
+
+Known open limits from the 2026-09-28 live test: `/v1/search` always requires two
 distinct domains (W06); citations carry no publication date and evidence has no per-item stance (W07).
 
 The adapter accepts both documented OpenRouter citation shapes and ignores unknown response fields. Provider errors
@@ -163,18 +191,28 @@ Configured on Railway:
 - `PORT=8080`
 - `WEB_PROVIDER=openrouter`
 - `WEB_GOVERNOR_STORE_PATH=/data/web-governor.sqlite3`
-- `WEB_OPENROUTER_MODEL=deepseek/deepseek-v4.1-flash`
+- `WEB_OPENROUTER_MODEL=deepseek/deepseek-v4.1-flash` (model slot 1 unless `WEB_SLOT_1_MODEL` is set)
 - `WEB_OPENROUTER_ENGINE=exa`
-- `WEB_OPENROUTER_TIMEOUT_SECONDS=40`
-- `WEB_OPENROUTER_MAX_OUTPUT_TOKENS=4000` (includes reasoning tokens)
+- `WEB_OPENROUTER_TIMEOUT_SECONDS=90` (an 8,000-token answer needs more than 40 s)
+- `WEB_OPENROUTER_MAX_OUTPUT_TOKENS=8000` (includes reasoning tokens; default for every slot)
 - `WEB_MAX_CRITERIA=6`
 - `WEB_MAX_SEARCHES=6`
-- `WEB_MAX_RESULTS_PER_SEARCH=10`
-- `WEB_MAX_EVIDENCE_ITEMS=20`
-- `WEB_MAX_OUTPUT_CHARACTERS=32000`
+- `WEB_MAX_RESULTS_PER_SEARCH=30`
+- `WEB_MAX_EVIDENCE_ITEMS=40`
+- `WEB_MAX_OUTPUT_CHARACTERS=64000`
 - `WEB_MAX_EXCERPT_CHARACTERS=5000`
 - `WEB_RETENTION_HOURS=168`
 - `WEB_CLEANUP_INTERVAL_SECONDS=3600`
+
+Model slots (1–7): `WEB_SLOT_<n>_MODEL`, `_LABEL`, `_ENABLED` (default true when a model is set),
+`_MAX_OUTPUT_TOKENS` (256–8000, default `WEB_OPENROUTER_MAX_OUTPUT_TOKENS`), `_REASONING_EFFORT`
+(`minimal`, `low`, `medium`, `high`; unset sends no reasoning parameter) and `_ENGINE`; `WEB_DEFAULT_SLOT=1`. Every slot
+uses OpenRouter's default provider routing. On dev: slot 1 `deepseek/deepseek-v4.1-flash`, slot 2 `xiaomi/mimo-v2.5`,
+slot 3 `z-ai/glm-5.3-flashx`; slots 4–7 are empty.
+
+Fetch limits (defaults): `WEB_FETCH_TIMEOUT_SECONDS=20`, `WEB_FETCH_MAX_BYTES=5000000`, `WEB_FETCH_MAX_REDIRECTS=3`,
+`WEB_FETCH_MAX_PDF_PAGES=60`, `WEB_FETCH_MAX_CHARACTERS=200000`, `WEB_FETCH_MODEL_CHARACTERS=60000`,
+`WEB_FETCH_MAX_QUOTES=8`.
 
 No request can raise the service's configured hard limits.
 

@@ -13,7 +13,7 @@ from app.models import EvidenceCriterion, SourcePolicy, WebNeedSpec
 from app.provider import OpenRouterProvider
 from app.store import SqliteStore
 
-from conftest import API_KEY, make_settings
+from conftest import API_KEY, fake_fetcher, make_settings
 from test_api import request_body
 
 FETCH_URL = "https://www.bi.go.id/id/statistik/indikator/bi-rate.aspx"
@@ -54,9 +54,10 @@ def auth():
     return {"Authorization": f"Bearer {API_KEY}"}
 
 
-def client_for(tmp_path, responses):
+def client_for(tmp_path, responses, pages=None):
     settings, provider = provider_for(tmp_path, responses)
-    return TestClient(create_app(settings=settings, store=SqliteStore(settings.store_path), provider=provider))
+    return TestClient(create_app(settings=settings, store=SqliteStore(settings.store_path), provider=provider,
+                                 fetcher=fake_fetcher(settings, pages)))
 
 
 def spec_one():
@@ -114,37 +115,6 @@ def test_incomplete_criterion_is_blocked_and_asks_for_retry(tmp_path, auth):
     calls = result["execution"]["provider_calls"]
     assert [call["status"] for call in calls] == ["SUCCEEDED", "INCOMPLETE"]
     assert "Filing found." not in json.dumps(calls)
-
-
-def test_fetch_uses_the_requested_url_citation_even_if_not_first(tmp_path, auth):
-    # Live T5: only the first annotation was considered, so the exact URL's citation could be dropped.
-    responses = [response_json(
-        "ASSESSMENT: SUPPORTED\nSUMMARY: BI-Rate 5.75%.",
-        [citation("https://www.bi.go.id/id/default.aspx"), citation(FETCH_URL, "BI-Rate 5,75%")],
-        items=("openrouter:web_fetch",),
-    )]
-    with client_for(tmp_path, responses) as client:
-        result = client.post("/v1/fetch", headers=auth, json={
-            "contract_version": "v1", "request_id": "req-fetch-1", "url": FETCH_URL, "objective": "rate"}).json()
-    assert result["status"] == "EVIDENCE_READY"
-    assert [e["canonical_url"] for e in result["evidence"]] == [FETCH_URL]
-    assert result["applied_policy"][0]["fetch_tool_observed"] is True
-
-
-def test_fetch_without_exact_citation_withholds_the_uncited_summary(tmp_path, auth):
-    responses = [response_json("ASSESSMENT: SUPPORTED\nSUMMARY: BI-Rate 5.75% on 19 August 2026.", [],
-                               items=())]
-    with client_for(tmp_path, responses) as client:
-        result = client.post("/v1/fetch", headers=auth, json={
-            "contract_version": "v1", "request_id": "req-fetch-2", "url": FETCH_URL, "objective": "rate"}).json()
-    coverage = result["coverage"][0]
-    assert result["evidence"] == []
-    assert coverage["status"] == "NOT_FOUND"
-    assert "NO_USABLE_CITATION" in coverage["gaps"]
-    assert "5.75" not in coverage["summary"]
-    codes = {w["code"] for w in result["warnings"]}
-    assert {"EXACT_URL_NOT_CITED", "EXACT_FETCH_NOT_OBSERVED"} <= codes
-    assert result["next_action"] == "REVIEW_FETCH"
 
 
 def test_policy_rejected_citations_are_reported(tmp_path, auth):

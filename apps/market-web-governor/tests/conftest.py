@@ -3,7 +3,10 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+import httpx
+
 from app.config import Settings
+from app.fetcher import DocumentFetcher
 from app.main import create_app
 from app.provider import ProviderResult
 from app.store import SqliteStore
@@ -31,8 +34,9 @@ class FakeProvider:
     def __init__(self):
         self.prompts = []
 
-    def research_criterion(self, web_need_id, spec, criterion, provider_call_id):
+    def research_criterion(self, web_need_id, spec, criterion, provider_call_id, slot=None):
         self.prompts.append((spec, criterion))
+        self.slots = getattr(self, "slots", []) + [slot]
         return ProviderResult(
             assessment="SUPPORTED",
             summary="The filing supports the criterion.",
@@ -61,13 +65,33 @@ class FakeProvider:
                             "allowed_domains": [], "excluded_domains": []},
         )
 
-    def fetch_url(self, url, objective, locale, provider_call_id):
+    def read_document(self, url, objective, locale, document_text, provider_call_id, slot=None, *, max_quotes=8):
         result = self.research_criterion(
-            "fetch", type("Spec", (), {})(), type("Criterion", (), {"criterion_id": "fetch"})(), provider_call_id
+            "fetch", type("Spec", (), {})(), type("Criterion", (), {"criterion_id": "fetch"})(), provider_call_id, slot
         )
-        return ProviderResult(result.assessment, result.summary, [{
-            "url": url, "title": "Fetched page", "content": "Fetched source excerpt.", "published_at": None
-        }], result.provider_call | {"operation": "FETCH"}, {"exact_url": url})
+        return ProviderResult(
+            result.assessment, "The page states the rate.", [], result.provider_call | {"operation": "READ_DOCUMENT"},
+            {}, quotes=["BI-Rate held at 5.75 percent in September 2026."],
+        )
+
+
+def public_resolver(host, port):
+    return ["93.184.216.34"]
+
+
+def fake_fetcher(settings, pages=None):
+    """A DocumentFetcher whose network is a mock transport; tests never reach the internet."""
+    pages = pages or {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        page = pages.get(str(request.url))
+        if page is None:
+            return httpx.Response(404, request=request)
+        status, headers, body = page
+        return httpx.Response(status, request=request, headers=headers, content=body)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=False)
+    return DocumentFetcher(settings, client=client, resolver=public_resolver)
 
 
 @pytest.fixture
@@ -78,7 +102,8 @@ def provider():
 @pytest.fixture
 def client(tmp_path, provider):
     settings = make_settings(str(tmp_path / "web.sqlite3"))
-    app = create_app(settings=settings, store=SqliteStore(settings.store_path), provider=provider)
+    app = create_app(settings=settings, store=SqliteStore(settings.store_path), provider=provider,
+                     fetcher=fake_fetcher(settings))
     with TestClient(app) as test_client:
         yield test_client
 

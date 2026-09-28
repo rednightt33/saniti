@@ -16,6 +16,9 @@ ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1
 Domain = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=253)]
 
 
+ModelSlotNumber = Annotated[int, Field(ge=1, le=7)]
+
+
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -120,7 +123,7 @@ class EvidenceCriterion(StrictModel):
 
 class WebBudget(StrictModel):
     max_searches: int = Field(default=3, ge=1, le=8)
-    max_results_per_search: int = Field(default=5, ge=1, le=10)
+    max_results_per_search: int = Field(default=5, ge=1, le=30)
     max_evidence_items: int = Field(default=12, ge=1, le=40)
     max_output_characters: int = Field(default=32000, ge=4000, le=64000)
 
@@ -142,6 +145,7 @@ class WebNeedSpec(StrictModel):
     stop_conditions: StopConditions = Field(default_factory=StopConditions)
     locale: Annotated[str, StringConstraints(pattern=r"^[a-z]{2}(?:-[A-Z]{2})?$")] = "id-ID"
     timezone: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)] = "Asia/Jakarta"
+    model_slot: ModelSlotNumber | None = None
 
     @model_validator(mode="after")
     def unique_criteria(self) -> "WebNeedSpec":
@@ -175,6 +179,7 @@ class FastSearchRequest(StrictModel):
     budget: WebBudget = Field(default_factory=WebBudget)
     locale: Annotated[str, StringConstraints(pattern=r"^[a-z]{2}(?:-[A-Z]{2})?$")] = "id-ID"
     timezone: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)] = "Asia/Jakarta"
+    model_slot: ModelSlotNumber | None = None
 
 
 def validate_fetch_url(value: str) -> str:
@@ -201,6 +206,7 @@ class FetchRequest(StrictModel):
     url: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2048)]
     objective: ShortText
     locale: Annotated[str, StringConstraints(pattern=r"^[a-z]{2}(?:-[A-Z]{2})?$")] = "id-ID"
+    model_slot: ModelSlotNumber | None = None
 
     @field_validator("url")
     @classmethod
