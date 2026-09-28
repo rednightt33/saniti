@@ -541,6 +541,15 @@ class WebGovernor:
                            f"'{sources.UNVERIFIED_NOTE}'.",
             })
 
+        if spec.anchor_event is not None and evidence:
+            resolved = self._resolve_undated(spec, evidence, web_need_id)
+            if resolved:
+                warnings.append({
+                    "code": "DATES_READ_FROM_PAGES",
+                    "message": f"Publication dates of {resolved} undated source(s) were read from the pages' own "
+                               "metadata (no model call).",
+                })
+
         coverage = []
         for criterion in spec.criteria:
             if criterion.criterion_id in failures:
@@ -603,100 +612,176 @@ class WebGovernor:
             "tickers": tickers,
         })
 
+    def _resolve_undated(self, spec: WebNeedSpec, evidence: list[dict[str, Any]], web_need_id: str) -> int:
+        """Pre-event timing needs dates. For undated sources, download the page (no model call) and read the
+        publication date from its own metadata or dateline."""
+        urls = list(dict.fromkeys(item["canonical_url"] for item in evidence
+                                  if item.get("temporal_status") == "UNDATED"))[: self.settings.date_lookup_max]
+        if not urls:
+            return 0
+
+        def lookup(url: str) -> tuple[str, dict[str, Any] | None]:
+            try:
+                document = self.fetcher.fetch(url)
+            except FetchError:
+                return url, None
+            found = dates.resolve(None, document.published_at, document.final_url, document.text[:400],
+                                  dates.today())
+            return url, found if found["published_at"] else None
+
+        started = time.monotonic()
+        pool = ThreadPoolExecutor(max_workers=4)
+        futures = [pool.submit(lookup, url) for url in urls]
+        done, _ = wait(futures, timeout=self.settings.fetch_timeout_seconds * 3)
+        pool.shutdown(wait=False, cancel_futures=True)
+        found_by_url = {url: found for url, found in (future.result() for future in done) if found}
+        anchor_date = spec.anchor_event.event_date if spec.anchor_event else None
+        for item in evidence:
+            found = found_by_url.get(item["canonical_url"])
+            if found and item.get("temporal_status") == "UNDATED":
+                status, lead = dates.temporal_status(found["published_at"], found["published_precision"], anchor_date)
+                item.update(found, temporal_status=status, lead_time_days=lead)
+        _progress("dates_resolved", web_need_id=web_need_id, looked_up=len(urls), resolved=len(found_by_url),
+                  seconds=round(time.monotonic() - started, 1))
+        return len(found_by_url)
+
     # --- classification -----------------------------------------------------------------------------------------
 
     def _classify_all(
         self, spec: WebNeedSpec, evidence: list[dict[str, Any]], web_need_id: str = ""
     ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+        """Classify each distinct source once (items citing the same URL share one classification), several
+        sources per structured-output call, in parallel, under one deadline."""
         slot = self._resolve_slot(self.settings.classifier_slot)
         check_slot = self._resolve_slot(self.settings.classifier_check_slot) \
             if self.settings.classifier_check_slot else None
         material, critical = self.settings.rubric_material_pct, self.settings.rubric_critical_pct
         system = rubric.system_prompt(material, critical)
-        schema = rubric.json_schema(material, critical)
+        schema = rubric.batch_schema(material, critical)
         anchor = spec.anchor_event
 
-        def ask(item: dict[str, Any], use_slot: ModelSlot) -> tuple[dict[str, Any] | None, str | None, list]:
-            context = {
-                "task": "Classify the corporate event described by the quote.",
-                "issuer_tickers": spec.tickers,
-                "entities": [entity.model_dump(mode="json") for entity in spec.entities],
-                "anchor_event": anchor.model_dump(mode="json") if anchor else None,
-                "source": {"publisher": item["domain"], "title": item["title"],
-                           "published_at": item.get("published_at"), "source_tier": item["source_tier"]},
-                "quote": item["excerpt"],
-            }
-            user = json.dumps(context, ensure_ascii=False)
+        groups: dict[str, list[dict[str, Any]]] = {}
+        for item in evidence:
+            if item.get("excerpt"):
+                groups.setdefault(item["canonical_url"], []).append(item)
+            else:
+                item["classification"] = {"status": "UNCLASSIFIED", "reason": "NO_QUOTE"}
+        indexed = list(enumerate(groups.values(), start=1))
+        quotes: dict[int, str] = {}
+        for index, members in indexed:
+            seen: list[str] = []
+            for member in members:
+                if member["excerpt"] not in seen:
+                    seen.append(member["excerpt"])
+            quotes[index] = " … ".join(seen)[: max(self.settings.max_excerpt_characters, 3000)]
+
+        def ask(indices: list[int], use_slot: ModelSlot) -> tuple[dict[int, dict[str, Any]], dict[int, str], list]:
+            results: dict[int, dict[str, Any]] = {}
+            errors: dict[int, str] = {}
             calls: list[dict[str, Any]] = []
-            error: str | None = None
-            for _ in range(2):
+            pending = list(indices)
+            for attempt in range(2):
+                members = {index: dict(indexed)[index][0] for index in pending}
+                context: dict[str, Any] = {
+                    "task": "Classify each item independently. Return exactly one entry per item_index in 'items'.",
+                    "issuer_tickers": spec.tickers,
+                    "entities": [entity.model_dump(mode="json") for entity in spec.entities],
+                    "anchor_event": anchor.model_dump(mode="json") if anchor else None,
+                    "items": [{"item_index": index,
+                               "source": {"publisher": first["domain"], "title": first["title"],
+                                          "published_at": first.get("published_at"),
+                                          "source_tier": first["source_tier"]},
+                               "quote": quotes[index]} for index, first in members.items()],
+                }
+                if attempt:
+                    context["previous_errors"] = {str(index): errors[index] for index in pending}
                 call_id = f"pc_{uuid.uuid4().hex}"
                 try:
-                    parsed, call = self.provider.classify(system, user, schema, call_id, use_slot)
+                    parsed, call = self.provider.classify(system, json.dumps(context, ensure_ascii=False), schema,
+                                                          call_id, use_slot)
                 except ProviderError as exc:
                     calls.append(self._failed_call(call_id, "classify", "CLASSIFY", exc, _now(), use_slot))
-                    return None, exc.code, calls
+                    errors.update({index: exc.code for index in pending})
+                    break
                 calls.append(call)
-                try:
-                    return rubric.validate(parsed, item["excerpt"], anchor=anchor is not None,
-                                           material_pct=material, critical_pct=critical), None, calls
-                except rubric.ClassificationInvalid as exc:
-                    error = f"INVALID: {exc}"
-                    user = (json.dumps(context, ensure_ascii=False) + f"\n\nYour previous answer was rejected: {exc}. "
-                            "Answer again with a JSON object that follows the schema and the rules.")
-            return None, error, calls
+                valid, invalid = rubric.validate_batch(parsed, {index: quotes[index] for index in pending},
+                                                       anchor=anchor is not None, material_pct=material,
+                                                       critical_pct=critical)
+                results.update(valid)
+                for index in valid:
+                    errors.pop(index, None)
+                errors.update({index: f"INVALID: {message}" for index, message in invalid.items()})
+                pending = [index for index in pending if index not in valid]
+                if not pending:
+                    break
+            return results, errors, calls
 
-        def one(item: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-            if not item.get("excerpt"):
-                return [], {"status": "UNCLASSIFIED", "reason": "NO_QUOTE"}
-            result, error, calls = ask(item, slot)
-            if result is None:
-                return calls, {"status": "UNCLASSIFIED", "reason": error, "model": slot.model}
-            certainty = rubric.certainty(item["source_tier"], item.get("source_verified", True), result["attribution"])
-            capped = rubric.apply_caps(result, certainty)
-            classification = {
-                "status": "CLASSIFIED", **capped, "capped": bool(capped.get("capped")), "certainty": certainty,
-                "rubric_version": rubric.RUBRIC_VERSION, "model": slot.model, "model_slot": slot.slot,
-                "review_status": "UNREVIEWED", "review_reason": None, "interpretation": True,
-            }
-            if check_slot and capped["impact_level"] >= 4:
-                check, check_error, check_calls = ask(item, check_slot)
+        def batch_job(indices: list[int]) -> tuple[list[dict[str, Any]], dict[int, dict[str, Any]]]:
+            results, errors, calls = ask(indices, slot)
+            classifications: dict[int, dict[str, Any]] = {}
+            high: list[int] = []
+            for index in indices:
+                first = dict(indexed)[index][0]
+                if index not in results:
+                    classifications[index] = {"status": "UNCLASSIFIED", "reason": errors.get(index), "model": slot.model}
+                    continue
+                certainty = rubric.certainty(first["source_tier"], first.get("source_verified", True),
+                                             results[index]["attribution"])
+                capped = rubric.apply_caps(results[index], certainty)
+                classifications[index] = {
+                    "status": "CLASSIFIED", **capped, "capped": bool(capped.get("capped")), "certainty": certainty,
+                    "rubric_version": rubric.RUBRIC_VERSION, "model": slot.model, "model_slot": slot.slot,
+                    "review_status": "UNREVIEWED", "review_reason": None, "interpretation": True,
+                }
+                if capped["impact_level"] >= 4:
+                    high.append(index)
+            if check_slot and high:
+                checks, check_errors, check_calls = ask(high, check_slot)
                 calls.extend(check_calls)
-                if check is None:
-                    classification.update(review_status="NEEDS_REVIEW",
-                                          review_reason=f"second model gave no valid answer ({check_error})")
-                elif rubric.apply_caps(check, certainty)["impact_level"] != capped["impact_level"]:
-                    classification.update(
-                        review_status="NEEDS_REVIEW",
-                        review_reason=f"second model ({check_slot.model}) gave level {check['impact_level']} "
-                                      f"({check['rule_id']})",
-                    )
-                else:
-                    classification["check_model"] = check_slot.model
-            return calls, classification
+                for index in high:
+                    classification = classifications[index]
+                    check = checks.get(index)
+                    if check is None:
+                        classification.update(review_status="NEEDS_REVIEW",
+                                              review_reason=f"second model gave no valid answer "
+                                                            f"({check_errors.get(index)})")
+                    elif rubric.apply_caps(check, classification["certainty"])["impact_level"] \
+                            != classification["impact_level"]:
+                        classification.update(review_status="NEEDS_REVIEW",
+                                              review_reason=f"second model ({check_slot.model}) gave level "
+                                                            f"{check['impact_level']} ({check['rule_id']})")
+                    else:
+                        classification["check_model"] = check_slot.model
+            return calls, classifications
 
+        size = self.settings.classifier_batch_size
+        order = [index for index, _ in indexed]
+        batches = [order[position:position + size] for position in range(0, len(order), size)]
         started = time.monotonic()
         pool = ThreadPoolExecutor(max_workers=self.settings.classifier_workers)
-        futures = {pool.submit(one, item): item for item in evidence}
-        done, pending = wait(futures, timeout=self.settings.classify_deadline_seconds)
-        # Do not wait for stuck calls: they end at the provider deadline on their own threads.
-        pool.shutdown(wait=False, cancel_futures=True)
-        calls = []
+        futures = {pool.submit(batch_job, batch): batch for batch in batches}
+        done, pending_futures = wait(futures, timeout=self.settings.classify_deadline_seconds)
+        pool.shutdown(wait=False, cancel_futures=True)  # stuck calls end at the provider deadline on their own
+        calls: list[dict[str, Any]] = []
+        assigned: dict[int, dict[str, Any]] = {}
         for future in done:
             try:
-                item_calls, classification = future.result()
-            except Exception:  # an unexpected error in one item must not lose the others
-                futures[future]["classification"] = {"status": "UNCLASSIFIED", "reason": "INTERNAL_ERROR"}
+                batch_calls, classifications = future.result()
+            except Exception:  # an unexpected error in one batch must not lose the others
+                assigned.update({index: {"status": "UNCLASSIFIED", "reason": "INTERNAL_ERROR"}
+                                 for index in futures[future]})
                 continue
-            calls.extend(item_calls)
-            futures[future]["classification"] = classification
-        for future in pending:
-            futures[future]["classification"] = {"status": "UNCLASSIFIED", "reason": "DEADLINE"}
-        for item in evidence:
-            item.setdefault("classification", {"status": "UNCLASSIFIED", "reason": "DEADLINE"})
-        _progress("classification_done", web_need_id=web_need_id, items=len(evidence),
+            calls.extend(batch_calls)
+            assigned.update(classifications)
+        for future in pending_futures:
+            assigned.update({index: {"status": "UNCLASSIFIED", "reason": "DEADLINE"} for index in futures[future]})
+        for index, members in indexed:
+            for member in members:
+                member["classification"] = dict(assigned.get(index, {"status": "UNCLASSIFIED", "reason": "DEADLINE"}))
+        _progress("classification_done", web_need_id=web_need_id, items=len(evidence), sources=len(indexed),
+                  batches=len(batches), calls=len(calls),
                   classified=sum(item["classification"]["status"] == "CLASSIFIED" for item in evidence),
-                  deadline_hit=len(pending), seconds=round(time.monotonic() - started, 1))
+                  deadline_batches=len(pending_futures), seconds=round(time.monotonic() - started, 1))
         unclassified = [item for item in evidence if item["classification"]["status"] != "CLASSIFIED"]
         warnings = []
         if unclassified:

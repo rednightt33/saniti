@@ -196,7 +196,8 @@ Other outcomes: `SOURCE_HTTP_ERROR`, `SOURCE_TIMEOUT`, `SOURCE_TOO_LARGE`, `PRIV
 ## Importance classification
 
 When `web_need.classify` is true (the default for `EVENT_PRECURSOR`), every evidence item is classified by the
-classifier slot (`WEB_CLASSIFIER_SLOT`) with a strict JSON-schema structured output.
+classifier slot (`WEB_CLASSIFIER_SLOT`) with a strict JSON-schema structured output. Items that cite the same URL share one
+classification, and several sources are classified per call.
 
 - **Source of truth:** the rubric (`app/rubric.py`, `idx-event-rubric-v1`). It is general: five questions (control,
   scale, permanence, attribution, novelty), rule IDs per level 1–5, a dictionary of event types, attributions,
@@ -286,7 +287,9 @@ slot 3 `z-ai/glm-5.3-flashx`; slots 4–7 are empty.
 
 Classification and event store: `WEB_CLASSIFIER_SLOT` (dev: 2, MiMo), `WEB_CLASSIFIER_CHECK_SLOT` (dev: 1; 0 disables),
 `WEB_CLASSIFIER_WORKERS=4`, `WEB_CLASSIFIER_MAX_OUTPUT_TOKENS=3000`, `WEB_CLASSIFY_DEADLINE_SECONDS=420`,
-`WEB_OPENROUTER_TOTAL_SECONDS=180` (total per provider call, W13), `WEB_STALE_RUNNING_SECONDS=1800`, `WEB_RUBRIC_MATERIAL_PCT=20`, `WEB_RUBRIC_CRITICAL_PCT=50` (to be confirmed against the
+`WEB_OPENROUTER_TOTAL_SECONDS=180` (total per provider call, W13), `WEB_STALE_RUNNING_SECONDS=1800`,
+`WEB_CLASSIFIER_BATCH_SIZE=6` (distinct sources per call), `WEB_CLASSIFIER_REASONING_EFFORT=low`, `WEB_DATE_LOOKUP_MAX=15`
+(undated pages read for their own date in pre-event mode, W14), `WEB_RUBRIC_MATERIAL_PCT=20`, `WEB_RUBRIC_CRITICAL_PCT=50` (to be confirmed against the
 current OJK rules), `WEB_EVENT_STORE_URL` (secret; writer role only), `WEB_SOURCE_BLOCKLIST`, `WEB_TRUSTED_MEDIA_EXTRA`.
 
 Fetch limits (defaults): `WEB_FETCH_TIMEOUT_SECONDS=20`, `WEB_FETCH_MAX_BYTES=5000000`, `WEB_FETCH_MAX_REDIRECTS=3`,

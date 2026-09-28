@@ -250,8 +250,42 @@ def json_schema(material_pct: float, critical_pct: float) -> dict[str, Any]:
     }
 
 
+def batch_schema(material_pct: float, critical_pct: float) -> dict[str, Any]:
+    """Several items in one call: one entry per item_index."""
+    item = json_schema(material_pct, critical_pct)
+    item = {**item, "required": ["item_index", *item["required"]],
+            "properties": {"item_index": {"type": "integer"}, **item["properties"]}}
+    return {"type": "object", "additionalProperties": False, "required": ["items"],
+            "properties": {"items": {"type": "array", "items": item}}}
+
+
 class ClassificationInvalid(ValueError):
     pass
+
+
+def validate_batch(parsed: Any, quotes: dict[int, str], *, anchor: bool, material_pct: float,
+                   critical_pct: float) -> tuple[dict[int, dict[str, Any]], dict[int, str]]:
+    """Validate a batch answer item by item. Returns the valid items and an error per missing or invalid index."""
+    valid: dict[int, dict[str, Any]] = {}
+    errors: dict[int, str] = {index: "missing from the answer" for index in quotes}
+    entries = parsed.get("items") if isinstance(parsed, dict) else None
+    if not isinstance(entries, list):
+        return valid, {index: "the answer has no items list" for index in quotes}
+    for entry in entries:
+        if not isinstance(entry, dict) or entry.get("item_index") not in quotes:
+            continue
+        index = entry["item_index"]
+        if index in valid:
+            errors[index] = "item_index answered twice"
+            valid.pop(index)
+            continue
+        try:
+            valid[index] = validate({k: v for k, v in entry.items() if k != "item_index"}, quotes[index],
+                                    anchor=anchor, material_pct=material_pct, critical_pct=critical_pct)
+            errors.pop(index, None)
+        except ClassificationInvalid as exc:
+            errors[index] = str(exc)
+    return valid, errors
 
 
 def _norm(text: str) -> str:
