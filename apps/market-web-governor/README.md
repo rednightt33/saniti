@@ -288,7 +288,7 @@ slot 3 `z-ai/glm-5.3-flashx`; slots 4–7 are empty.
 Classification and event store: `WEB_CLASSIFIER_SLOT` (dev: 2, MiMo), `WEB_CLASSIFIER_CHECK_SLOT` (dev: 1; 0 disables),
 `WEB_CLASSIFIER_WORKERS=4`, `WEB_CLASSIFIER_MAX_OUTPUT_TOKENS=3000`, `WEB_CLASSIFY_DEADLINE_SECONDS=420`,
 `WEB_OPENROUTER_TOTAL_SECONDS=180` (total per provider call, W13), `WEB_STALE_RUNNING_SECONDS=1800`,
-`WEB_CLASSIFIER_BATCH_SIZE=6` (distinct sources per call), `WEB_CLASSIFIER_REASONING_EFFORT=low`, `WEB_DATE_LOOKUP_MAX=15`
+`WEB_CLASSIFIER_BATCH_SIZE=6` (distinct sources per call), `WEB_CLASSIFIER_REASONING_EFFORT=off` (reasoning disabled; `none` sends no parameter), `WEB_DATE_LOOKUP_MAX=15`
 (undated pages read for their own date in pre-event mode, W14), `WEB_RUBRIC_MATERIAL_PCT=20`, `WEB_RUBRIC_CRITICAL_PCT=50` (to be confirmed against the
 current OJK rules), `WEB_EVENT_STORE_URL` (secret; writer role only), `WEB_SOURCE_BLOCKLIST`, `WEB_TRUSTED_MEDIA_EXTRA`.
 

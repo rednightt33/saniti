@@ -281,7 +281,7 @@ def test_precursor_execution_builds_a_dated_timeline_and_stores_rows(tmp_path, a
                for call in classify_calls)
     assert all("tools" not in call for call in classify_calls)
     assert {call["model"] for call in classify_calls} == {"xiaomi/mimo-v2.5", "deepseek/deepseek-v4.1-flash"}
-    assert all(call["reasoning"] == {"effort": "low"} for call in classify_calls)
+    assert all(call["reasoning"] == {"enabled": False} for call in classify_calls)
     # three distinct sources in one batch: one call and one retry for the rejected item; the two level 4-5
     # sources go to the check model in one call, whose answer for the capital item cites a figure absent from its
     # quote, so it is rejected and retried once
