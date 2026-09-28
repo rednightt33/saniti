@@ -32,6 +32,7 @@ FEASIBILITY_VERSION = 1
 # IP1 Stage D: data_need_spec/v2 time_basis (HISTORICAL_DESCRIPTIVE / POINT_IN_TIME) and its refusals
 POINT_IN_TIME_VERSION = 1
 RESAMPLE_SEMANTICS_VERSION = 1  # runtime/saniti_session.py; app/data_need.py
+RESEARCH_FINDINGS_VERSION = 1  # runtime/research_stats.py VERSION; app/research_findings.py
 SESSION_ID = re.compile(r"^sess_[0-9a-f]{24}$")
 OUTPUT_ID = re.compile(r"^out_[0-9a-f]{24}$")
 DATA_NEED_KEYS = {"request_id", "reference_time", "timezone", "spec", "research_governance"}
@@ -121,6 +122,9 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                 # IP2 solution 1: weekly/monthly derived from daily rows (resample semantics version)
                 "derived_frequency": {"enabled": dataneed is not None and settings.derived_frequency_enabled,
                                       "version": RESAMPLE_SEMANTICS_VERSION},
+                # research findings: saniti.event_summary, backend sample category and verdict
+                "research_findings": {"enabled": dataneed is not None and settings.research_findings_enabled,
+                                      "version": RESEARCH_FINDINGS_VERSION},
                 "limits": {**settings.child_limits(), "max_runtime_seconds": settings.max_runtime_seconds,
                            "max_memory_mb": settings.max_memory_mb, "duckdb_memory_mb": settings.duckdb_memory_mb,
                            "max_logical_datasets": settings.max_logical_datasets,

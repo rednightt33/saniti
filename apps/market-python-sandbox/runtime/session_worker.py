@@ -145,6 +145,10 @@ def main(session_dir: str, response_fd: str) -> int:
     saniti._lock_duckdb()
     namespace = {"__name__": "__main__", "__builtins__": __builtins__, "saniti": saniti, "pd": pandas, "np": numpy,
                  **{name: getattr(saniti, name) for name in saniti.__all__}}
+    # helpers of features switched on for this session only (the flag-off namespace stays unchanged)
+    for name in session.get("extra_helpers") or []:
+        if name in saniti.EXTRA_HELPERS:
+            namespace[name] = getattr(saniti, name)
     base = set(namespace)
     helper_ids = {id(v) for v in namespace.values()}
 

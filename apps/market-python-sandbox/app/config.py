@@ -130,6 +130,9 @@ class Settings:
     failed_workspace_max_bytes: int
     # IP2 solution 1: derived weekly/monthly semantics (resample semantics version in the approved contract)
     derived_frequency_enabled: bool = False
+    # research findings v1 (PY_SANDBOX_RESEARCH_FINDINGS_ENABLED): event_summary, backend sample category and verdict,
+    # no fixed minimum sample in the Research Governor
+    research_findings_enabled: bool = False
     # IP2 solution 2: archive code, runtime/library manifests, traces and released outputs to market-audit-store
     # from the root harness (never from an analysis process); audit failures never fail an analysis
     audit_store_enabled: bool = False
@@ -278,6 +281,7 @@ class Settings:
             failed_workspace_max_bytes=_integer(env, "PY_SANDBOX_FAILED_WORKSPACE_MAX_BYTES", 67_108_864,
                                                 minimum=0, maximum=1_073_741_824),
             derived_frequency_enabled=_boolean(env, "PY_SANDBOX_DERIVED_FREQUENCY_ENABLED", False),
+            research_findings_enabled=_boolean(env, "PY_SANDBOX_RESEARCH_FINDINGS_ENABLED", False),
             audit_store_enabled=_boolean(env, "PY_SANDBOX_AUDIT_STORE_ENABLED", False),
             audit_store_url=env.get("AUDIT_STORE_URL", "").strip().rstrip("/") or None,
             audit_store_key=env.get("AUDIT_STORE_SANDBOX_KEY", "").strip() or None,
@@ -333,7 +337,9 @@ class Settings:
             min_sample={"EVENTS": self.research_min_events, "OBSERVATIONS": self.research_min_baseline_observations,
                         "ENTITIES": 10},
             compute_seconds_per_experiment=max(60, self.max_cpu_seconds_per_request // max(1,
-                                                                                           self.research_max_experiments)))
+                                                                                           self.research_max_experiments)),
+            enforce_minimum_sample=not self.research_findings_enabled,
+            findings_fields_required=self.research_findings_enabled)
 
     @property
     def cpu_seconds(self) -> int:

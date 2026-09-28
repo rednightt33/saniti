@@ -23,6 +23,7 @@ from .datasets import DatasetFailure
 from .dataneed_store import DRAFT_RETENTION_DAYS, DataNeedStore
 from .records import utc_now
 from .research_governance import check_request
+from .research_findings import evaluate as evaluate_findings
 from .sessions import SessionError, SessionManager
 from .research_governance import review as governance_review
 
@@ -131,7 +132,7 @@ class DataNeedService:
                     extra.append({"data_request_id": None, "code": "MISSING_REQUIRED_FIELD",
                                   "field_path": "research_governance", "rejected_value": None})
                 else:
-                    extra.extend(check_request(governance))
+                    extra.extend(check_request(governance, self.policy.findings_fields_required))
             elif mode == "ANALYSIS" and governance is not None:
                 extra.append({"data_request_id": None, "code": "MODE_MISMATCH", "field_path": "research_governance",
                               "rejected_value": "research_governance is only for mode RESEARCH"})
@@ -519,6 +520,11 @@ class DataNeedService:
         research = need.get("research_governance") or {}
         mode = need.get("mode")
         passed = coverage_status == "PASS" and execution == "SUCCESS"
+        # research findings v1: the backend's own sample category and verdict from the released event aggregates
+        findings = None
+        if self.settings.research_findings_enabled and mode == "RESEARCH" and passed:
+            findings = evaluate_findings(research.get("constraints") or {}, outputs, self.sessions.outputs_root)
+            passed = findings["status"] == "OK"
         final = {
             "data_need_validation": "PASS",
             "research_governance": research.get("decision", "APPROVED") if mode == "RESEARCH" else "NOT_APPLICABLE",
@@ -553,6 +559,8 @@ class DataNeedService:
                 "input_checksum": bundle.get("checksum_sha256") or self.store.get_bundle(record["bundle_id"]).get(
                     "checksum_sha256"),
                 "execution_ids": [e["execution_id"] for e in executions if e["status"] == "OK"]}
+        if findings is not None and findings["status"] == "OK":
+            final["research_findings"] = [findings["finding"]]
         if parent is not None:
             final["inherited_coverage"] = {
                 "parent_completion_id": parent["completion_id"], "parent_request_id": parent["request_id"],
@@ -572,6 +580,10 @@ class DataNeedService:
                   "execution_manifest_sha256": sha256_json(manifest)}
         if passed:
             result["next_action"] = "ANSWER_FROM_RELEASED_OUTPUTS"
+        elif findings is not None and findings["status"] != "OK":
+            result["next_action"] = "RUN_PYTHON"
+            result["message"] = findings["message"]
+            result["research_findings_status"] = findings["status"]
         elif execution == "INSUFFICIENT_INPUT_DATA":
             result["next_action"] = "REVISE_DATA_NEED_SPEC"
         elif coverage_status == "FAIL" and delivery.get("coverage_status") == "PASS":

@@ -9,7 +9,8 @@ Research Plan); they are validated as bounded text, recorded and returned, never
 The governor decides, deterministically and before any data is extracted, whether the experiment fits the run's
 budgets: experiments, hypotheses, follow-ups, candidates, pairwise comparisons, revisions (retries), a declared
 multiple-testing policy when more than one comparison is made, a holdout that is a declared time range, a minimum
-sample at or above policy, and the compute budget the sandbox session will receive. It answers APPROVED,
+sample at or above policy (only while research findings v1 are off: with them the sample is categorised
+after the run, app/research_findings.py), and the compute budget the sandbox session will receive. It answers APPROVED,
 REPLAN_REQUIRED or REJECTED with a reason code. It never validates Python code, recalculates results, or assesses
 evidence: the backend does not verify calculations in this architecture.
 
@@ -27,10 +28,15 @@ GROUP_ID = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 POLICIES = ("NONE", "BONFERRONI", "HOLM", "BENJAMINI_HOCHBERG")
 SAMPLE_UNITS = ("EVENTS", "OBSERVATIONS", "ENTITIES")
 DECLARATIONS = ("condition", "outcome", "baseline")
+# research findings v1: what the backend needs to recompute the sample category and the verdict
+FINDINGS = ("expected_direction", "outcome_horizon_periods", "outcome_unit", "min_effect", "success_definition")
+FINDINGS_REQUIRED = ("expected_direction", "outcome_horizon_periods", "outcome_unit")
+DIRECTIONS = ("HIGHER", "LOWER", "DIFFERENT")
+OUTCOME_UNITS = ("PERCENT", "DECIMAL", "OTHER")
 FIELDS = {"hypothesis_id", "hypothesis", "objective", "candidate_count", "pairwise_comparisons", "holdout",
-          "minimum_sample", "multiple_testing_policy", "followup_of", *DECLARATIONS}
+          "minimum_sample", "multiple_testing_policy", "followup_of", *DECLARATIONS, *FINDINGS}
 # The declarations are optional (absent or null) so a request without them is unchanged.
-NULLABLE = {"holdout", "minimum_sample", "followup_of", *DECLARATIONS}
+NULLABLE = {"holdout", "minimum_sample", "followup_of", *DECLARATIONS, *FINDINGS}
 
 
 @dataclass(frozen=True)
@@ -43,6 +49,9 @@ class GovernancePolicy:
     max_revisions_per_group: int = 6
     min_sample: dict[str, int] | None = None
     compute_seconds_per_experiment: int = 600
+    # research findings v1 replace the fixed minimum sample with a sample category computed after the run
+    enforce_minimum_sample: bool = True
+    findings_fields_required: bool = False
 
     def minimum(self, unit: str) -> int:
         defaults = {"EVENTS": 30, "OBSERVATIONS": 100, "ENTITIES": 10}
@@ -53,12 +62,15 @@ class GovernancePolicy:
                 "max_followups_per_hypothesis": self.max_followups_per_hypothesis,
                 "max_candidates": self.max_candidates, "max_pairwise_comparisons": self.max_pairwise_comparisons,
                 "max_revisions_per_group": self.max_revisions_per_group,
-                "minimum_sample": {u: self.minimum(u) for u in SAMPLE_UNITS},
+                "minimum_sample": {u: self.minimum(u) for u in SAMPLE_UNITS} if self.enforce_minimum_sample
+                else None,
                 "compute_seconds_per_experiment": self.compute_seconds_per_experiment}
 
 
-def check_request(raw: Any) -> list[dict[str, Any]]:
-    """Structural problems of a ResearchGovernanceRequest, as DataNeedValidator issues (data_request_id None)."""
+def check_request(raw: Any, findings_required: bool = False) -> list[dict[str, Any]]:
+    """Structural problems of a ResearchGovernanceRequest, as DataNeedValidator issues (data_request_id None).
+    findings_required (research findings v1): expected_direction, outcome_horizon_periods and outcome_unit are
+    required."""
     problems: list[dict[str, Any]] = []
 
     def add(code: str, path: str, value: Any) -> None:
@@ -102,6 +114,23 @@ def check_request(raw: Any) -> list[dict[str, Any]]:
     followup = raw.get("followup_of")
     if followup is not None and (not isinstance(followup, str) or not GROUP_ID.fullmatch(followup)):
         add("INVALID_FIELD_VALUE", ".followup_of", followup)
+    if findings_required:
+        for key in FINDINGS_REQUIRED:
+            if raw.get(key) is None:
+                add("MISSING_REQUIRED_FIELD", f".{key}", None)
+    if raw.get("expected_direction") is not None and raw["expected_direction"] not in DIRECTIONS:
+        add("INVALID_FIELD_VALUE", ".expected_direction", raw["expected_direction"])
+    if raw.get("outcome_unit") is not None and raw["outcome_unit"] not in OUTCOME_UNITS:
+        add("INVALID_FIELD_VALUE", ".outcome_unit", raw["outcome_unit"])
+    horizon = raw.get("outcome_horizon_periods")
+    if horizon is not None and (isinstance(horizon, bool) or not isinstance(horizon, int) or not 1 <= horizon <= 260):
+        add("INVALID_FIELD_VALUE", ".outcome_horizon_periods", horizon)
+    effect = raw.get("min_effect")
+    if effect is not None and (isinstance(effect, bool) or not isinstance(effect, (int, float)) or not effect > 0):
+        add("INVALID_FIELD_VALUE", ".min_effect", effect)
+    success = raw.get("success_definition")
+    if success is not None and (not isinstance(success, str) or not success.strip() or len(success) > 500):
+        add("INVALID_FIELD_VALUE", ".success_definition", success)
     return problems
 
 
@@ -157,7 +186,7 @@ def review(governance: dict[str, Any], spec: dict[str, Any], history: list[dict[
             return _decision("REPLAN_REQUIRED", "HOLDOUT_INVALID",
                              "A holdout range needs at least one other range of the same request to fit on.", budget)
     sample = governance.get("minimum_sample")
-    if sample is not None and sample["value"] < policy.minimum(sample["unit"]):
+    if policy.enforce_minimum_sample and sample is not None and sample["value"] < policy.minimum(sample["unit"]):
         return _decision("REPLAN_REQUIRED", "MINIMUM_SAMPLE_TOO_LOW",
                          f"The declared minimum sample {sample['value']} {sample['unit']} is below the policy minimum "
                          f"{policy.minimum(sample['unit'])}.", budget)
@@ -206,4 +235,7 @@ def _constraints(governance: dict[str, Any], policy: GovernancePolicy, *, reused
     declared = {key: governance[key] for key in DECLARATIONS if governance.get(key) is not None}
     if declared:
         constraints["declarations"] = declared
+    findings = {key: governance[key] for key in FINDINGS if governance.get(key) is not None}
+    if findings:
+        constraints["findings"] = findings
     return constraints

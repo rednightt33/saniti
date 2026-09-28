@@ -1072,6 +1072,31 @@ from weekly. With the flag on:
 With the flag off, a `resample` request behaves as before. The legacy `saniti.resample()` aggregation was corrected to
 one rule per column (ERRORS_AND_SOLUTIONS S09); its output shape is unchanged.
 
+### Research findings v1 (off unless `PY_SANDBOX_RESEARCH_FINDINGS_ENABLED=true`)
+
+A condition -> outcome research experiment is judged by the backend, not by the model:
+
+- **No fixed minimum sample.** With the flag on the Research Governor no longer refuses a plan whose declared minimum
+  sample is below `PY_SANDBOX_RESEARCH_MIN_EVENTS` (the gate stays as before with the flag off). A RESEARCH
+  `research_governance` must declare `expected_direction` (HIGHER, LOWER, DIFFERENT), `outcome_horizon_periods`,
+  `outcome_unit` (PERCENT, DECIMAL, OTHER) and may declare `success_definition` and `min_effect`; they are recorded in
+  `constraints.findings`.
+- **`event_summary(events, baseline, hypothesis_id=..., outcome_column=..., date_column=...)`** (pre-bound only with the
+  flag, via `session.json` `extra_helpers`) releases `research_events_<hypothesis_id>` (per-date aggregates: group,
+  date, n, total, total_sq, k, m) and `research_summary_<hypothesis_id>`.
+- **`complete_analysis`** of a RESEARCH need is COMPLETED only when that aggregate table was released; the harness
+  reads the released copy and recomputes everything with `runtime/research_stats.py` and the approved values
+  (`app/research_findings.py`): angle A (mean difference, CI, p-value), angle B (success share against the baseline
+  share, Wilson/Newcombe), the effective sample (distinct dates at least `outcome_horizon_periods` apart), the smallest
+  detectable effect (80% power, alpha 5% adjusted by the multiple-testing policy), the sample category and the verdict.
+  The result is `final_status.research_findings`.
+- Fixed categories: INSUFFICIENT (effective < 2 in a group: no verdict), ANECDOTAL (< 10), UNDERPOWERED (detectable
+  effect above the smallest effect of interest: the plan's `min_effect`, else 0.5 percentage points for PERCENT, 0.005
+  for DECIMAL, 0.2 standard deviations for OTHER), ADEQUATE. Verdicts: SUPPORTED, NOT_SUPPORTED, INCONCLUSIVE,
+  NOT_EVALUATED (rules in `runtime/research_stats.py`).
+- Limits: date clustering and horizon thinning approximate cluster-robust errors; correlation across dates beyond the
+  horizon is not modelled. `/v1/runtime` reports `research_findings: {enabled, version: 1}`.
+
 ### Audit archival (IP2, off unless `PY_SANDBOX_AUDIT_STORE_ENABLED=true`)
 
 The root harness archives to `market-audit-store` (`app/audit.py`). The analysis process never does.

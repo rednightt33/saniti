@@ -455,6 +455,7 @@ class SessionManager:
             "session_id": session_id, "limits": s.child_limits(budget), "cpus": cpus, "require_seccomp": True,
             "seed": s.random_seed, "reference_date": manifest["reference_date"],
             **({"observe_modules": True} if self.audit is not None else {}),
+            **({"extra_helpers": ["event_summary"]} if s.research_findings_enabled else {}),
             "bundle": {k: manifest.get(k) for k in ("input_bundle_id", "need_id", "request_group_id", "revision",
                                                      "mode", "reference_date", "relationships",
                                                      "relationship_warnings")},

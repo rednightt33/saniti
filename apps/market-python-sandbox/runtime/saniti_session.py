@@ -23,6 +23,10 @@ needs; nothing here computes an indicator or checks a formula.
                                     (derived frequency: daily source only, period metadata, period_complete)
     resampled_returns(frame, request, value_column="close")
                                     derived frequency: period close / previous period close - 1, with boundaries
+    event_summary(events, baseline, hypothesis_id=..., outcome_column=..., date_column=..., ...)
+                                    research findings: the effect size and the event-lookback share of one
+                                    condition -> outcome experiment, its effective sample and verdict (released as
+                                    research_events_<hypothesis_id> and research_summary_<hypothesis_id>)
     period_return(request, range_id, value_column="close", entity_column=None, date_column=None)
                                     a named calendar-period return per entity with one boundary convention
     insufficient_data(request, range_id=None, value=None, unit=..., requirement_type=..., reason="")
@@ -51,6 +55,8 @@ __all__ = [
     "InsufficientInputData", "OutputLimitExceeded", "InvalidOutput", "ResampleRuleMissing", "PeriodReturnError",
     "JoinCardinalityError", "AggregationRuleMissing",
 ]
+# pre-bound only when the session config lists them (session.json extra_helpers, set by a feature flag)
+EXTRA_HELPERS = ("event_summary",)
 
 REQUESTS: dict[str, dict[str, Any]] = {}
 REFERENCE_DATE: str | None = None
@@ -674,6 +680,48 @@ def resampled_returns(frame, request: str, value_column: str = "close"):
     _log({"call": "resampled_returns", "data_request_id": r["data_request_id"], "value_column": value_column,
           "rows": int(len(out)), "formula": f"{value_column}[period] / {value_column}[previous period] - 1"})
     return out
+
+
+def event_summary(events, baseline, *, hypothesis_id: str, outcome_column: str, date_column: str,
+                  success_column: str | None = None, success_above: float = 0.0, horizon_periods: int = 1,
+                  outcome_unit: str = "PERCENT", expected_direction: str = "HIGHER", min_effect: float | None = None,
+                  comparisons: int = 1, multiple_testing_policy: str = "NONE") -> dict[str, Any]:
+    """The research findings of one condition -> outcome experiment (research_stats version 1).
+
+    events: one row per condition occurrence with its outcome; baseline: the comparison rows (for example every
+    other date or entity-date); both carry outcome_column and date_column. A success is success_column (boolean)
+    when given, else outcome > success_above. Rows on one date are one cluster and outcomes spanning
+    horizon_periods overlap, so the effective sample counts distinct dates at least horizon_periods apart.
+
+    Releases research_events_<hypothesis_id> (per-date aggregates) and research_summary_<hypothesis_id>, and returns
+    the summary: angle_a (mean difference with CI and p-value), angle_b (success share against the baseline share),
+    sample (effective count, category, minimum detectable effect) and verdict. The backend recomputes all of it from
+    research_events_<hypothesis_id> with the approved plan's direction, horizon, unit, smallest effect and
+    multiple-testing values; those are the values reported to the user."""
+    import research_stats
+
+    if not isinstance(hypothesis_id, str) or not _re.fullmatch(r"[a-z][a-z0-9_]{0,39}", hypothesis_id):
+        raise SanitiError("hypothesis_id is the approved experiment's hypothesis_id (lower-case letters, digits, _).")
+    try:
+        table = research_stats.aggregate(events, baseline, outcome_column, date_column, success_column,
+                                         success_above)
+        summary = research_stats.summarize(table, horizon_periods=horizon_periods,
+                                           expected_direction=expected_direction, outcome_unit=outcome_unit,
+                                           min_effect=min_effect, comparisons=comparisons,
+                                           multiple_testing_policy=multiple_testing_policy)
+    except research_stats.ResearchStatsError as exc:
+        raise SanitiError(str(exc)) from None
+    import pandas as pd
+
+    for group, frame in (("CONDITION", events), ("BASELINE", baseline)):
+        values = pd.to_numeric(frame[outcome_column], errors="coerce").dropna()
+        summary["groups"][group]["median"] = float(values.median()) if len(values) else None
+    emit_table(f"research_events_{hypothesis_id}", table,
+               "Per-date aggregates of the condition and baseline rows (research findings input).")
+    emit_json(f"research_summary_{hypothesis_id}", summary, "Research findings: both angles, sample and verdict.")
+    _log({"call": "event_summary", "hypothesis_id": hypothesis_id, "rows": int(table["n"].sum()),
+          "dates": int(len(table)), "flag": summary["sample"]["flag"], "verdict": summary["verdict"]})
+    return summary
 
 
 PERIOD_RETURN_STATUSES = ("COMPLETE", "NO_PRIOR_CLOSE", "NO_END_VALUE", "INVALID_BASE_VALUE",
