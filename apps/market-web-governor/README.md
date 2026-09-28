@@ -5,6 +5,8 @@ intent from an orchestrator, compiles that intent into bounded provider operatio
 returns, and reports criterion-level coverage. It does not decide the user's investment conclusion and does not
 receive hidden model reasoning.
 
+The Railway service stays on the private network; it has no public domain.
+
 The first adapter uses OpenRouter's Responses API with the `openrouter:web_search` and `openrouter:web_fetch` server
 tools. Provider details remain behind the internal adapter interface so callers depend only on the v1 Saniti
 contract.

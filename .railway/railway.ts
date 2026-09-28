@@ -44,6 +44,16 @@ export default defineRailway(() => {
     deploy: { restartPolicyType: "ALWAYS" },
     env: { AI_ENABLE_CATALOG_DISCOVERY_V2: preserve(), AI_ENABLE_CATALOG_PROTOCOL: preserve(), AI_ENABLE_COMPOSITE_KEYS: preserve(), AI_ENABLE_CONVERSATION_REUSE: preserve(), AI_ENABLE_CONVERSATION_STORE: preserve(), AI_ENABLE_DATANEED: preserve(), AI_ENABLE_LOOKUP_FACT: preserve(), AI_ENABLE_METHODOLOGY: preserve(), AI_ENABLE_PLAN_FEASIBILITY: preserve(), AI_ENABLE_POINT_IN_TIME: preserve(), AI_ENABLE_STANDARD_PERIOD_RETURN: preserve(), AI_FINAL_CONTRACT_IN_PROMPT: preserve(), AI_LOG_PROVIDER: preserve(), AI_MAX_ANALYSIS_SECONDS: preserve(), AI_MAX_CONTEXT_TOKENS: preserve(), AI_MAX_TOOL_CALLS: preserve(), AI_MAX_TOOL_ITERATIONS: preserve(), AI_MODEL: preserve(), AI_REASONING_EFFORT: preserve(), AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION: preserve(), AI_RESEARCH_PLAN_SIGNING_KEY: preserve(), CATALOG_DATABASE_URL: preserve(), CONVERSATION_DATABASE_URL: preserve(), MARKET_AI_CONVERSATION_DB_PASSWORD: preserve(), MARKET_AI_ORC_API_KEY: preserve(), MARKET_AI_ORC_DB_PASSWORD: preserve(), OPENROUTER_API_KEY: preserve(), PORT: preserve(), PY_SANDBOX_API_KEY: preserve(), PY_SANDBOX_URL: preserve(), RESEARCH_AUDIT_DATABASE_URL: preserve(), SQL_GOVERNOR_API_KEY: preserve(), SQL_GOVERNOR_URL: preserve() },
   });
+  const marketWebGovernor = service("market-web-governor", {
+    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-web-governor" }),
+    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/market-web-governor/**"] },
+    start: "uvicorn app.main:create_app --factory --host :: --port 8080",
+    healthcheck: "/ready",
+    healthcheckTimeout: 120,
+    replicas: { "sfo": 1 },
+    deploy: { restartPolicyType: "ALWAYS" },
+    env: { OPENROUTER_API_KEY: preserve(), PORT: preserve(), WEB_CLEANUP_INTERVAL_SECONDS: preserve(), WEB_GOVERNOR_API_KEY: preserve(), WEB_GOVERNOR_STORE_PATH: preserve(), WEB_MAX_CRITERIA: preserve(), WEB_MAX_EVIDENCE_ITEMS: preserve(), WEB_MAX_EXCERPT_CHARACTERS: preserve(), WEB_MAX_OUTPUT_CHARACTERS: preserve(), WEB_MAX_RESULTS_PER_SEARCH: preserve(), WEB_MAX_SEARCHES: preserve(), WEB_OPENROUTER_ENGINE: preserve(), WEB_OPENROUTER_MAX_OUTPUT_TOKENS: preserve(), WEB_OPENROUTER_MAX_RETRIES: preserve(), WEB_OPENROUTER_MODEL: preserve(), WEB_OPENROUTER_TIMEOUT_SECONDS: preserve(), WEB_PROVIDER: preserve(), WEB_RETENTION_HOURS: preserve() },
+  });
   const idxPriceCron = service("idx-price-cron", {
     source: saniti,
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/idx-price-cron/**"] },
@@ -110,6 +120,6 @@ export default defineRailway(() => {
   });
 
   return project("lucid-patience", {
-    resources: [orcTestRunner, marketSqlGovernor, marketPythonSandbox, marketAiOrc, idxPriceCron, pgweb, telegramTrigger, telegramMonitor, idxPriceRecoveryCron, Postgres, aiDataCoverage, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, marketSqlDatasets],
+    resources: [orcTestRunner, marketSqlGovernor, marketPythonSandbox, marketAiOrc, marketWebGovernor, idxPriceCron, pgweb, telegramTrigger, telegramMonitor, idxPriceRecoveryCron, Postgres, aiDataCoverage, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, marketSqlDatasets],
   });
 });
