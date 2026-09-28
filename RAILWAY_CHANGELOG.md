@@ -1,5 +1,31 @@
 # Railway changelog
 
+## 2026-09-28 — standalone market-web-governor created on dev (AI-Orc unchanged)
+
+- **Scope:** created only `market-web-governor` (`1c43a00e-9deb-4b17-84f0-acfa35142ac6`). No existing service,
+  PostgreSQL object, market-data permission, or AI-Orc configuration changed. The service is private and is not yet
+  registered as an AI-Orc tool.
+- **Source:** `rednightt33/saniti`, branch `codex/market-web-governor` while PR #2 is validated, root
+  `/apps/market-web-governor`, watch path `/apps/market-web-governor/**`, Dockerfile build, runtime V2, one SFO replica,
+  restart `ALWAYS`, `/ready` health check (120 s).
+- **Contract:** provider-neutral v1 WebNeed plan/execute API, fast search and exact-URL fetch; OpenRouter is the first
+  adapter. Evidence responses include criterion coverage, evidence/citation IDs, policy application, hashes, lineage,
+  provider usage and next action. SQLite stores web needs, provider calls and evidence; retention is 168 hours.
+- **Variables:** added on this service only (values not recorded): `WEB_GOVERNOR_API_KEY`, `OPENROUTER_API_KEY`
+  (Railway reference to the existing OpenRouter key), `PORT`, `WEB_PROVIDER`, `WEB_GOVERNOR_STORE_PATH`,
+  `WEB_OPENROUTER_MODEL`, `WEB_OPENROUTER_ENGINE`, `WEB_OPENROUTER_TIMEOUT_SECONDS`,
+  `WEB_OPENROUTER_MAX_RETRIES`, `WEB_OPENROUTER_MAX_OUTPUT_TOKENS`, `WEB_MAX_CRITERIA`, `WEB_MAX_SEARCHES`,
+  `WEB_MAX_RESULTS_PER_SEARCH`, `WEB_MAX_EVIDENCE_ITEMS`, `WEB_MAX_OUTPUT_CHARACTERS`,
+  `WEB_MAX_EXCERPT_CHARACTERS`, `WEB_RETENTION_HOURS`, `WEB_CLEANUP_INTERVAL_SECONDS`.
+- **Verification:** 8 unit/API tests passed locally, Python compilation and `git diff --check` passed. The first two
+  deployments resolved `main` before the branch source update and could not find the Dockerfile. The next image built
+  but failed its health check on an IPv6-only Uvicorn listener (R15). Commit `d0a1ae5` bound the image to
+  `0.0.0.0:8080`; deployment `1f8802e2-6dfa-49c5-948a-0afbafc7f8c0` reached `SUCCESS`, and the deploy log records
+  `GET /ready` 200.
+- **Open item:** the Railway Agent connection hit its usage limit while creating `market-web-governor-data`. No
+  volume is attached yet. `/data/web-governor.sqlite3` therefore lives on the ephemeral container filesystem and is
+  not durable across redeploys. PR #2 remains unmerged until the dedicated `/data` volume is attached and verified.
+
 ## 2026-09-28 — S08 fix on dev: one open analysis session per run
 
 - **Code** `afb15a7` (market-ai-orc only; no flag, no variable change): before another `open_analysis_session`, an
