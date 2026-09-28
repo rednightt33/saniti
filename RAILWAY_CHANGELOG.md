@@ -18,6 +18,9 @@
 - **Live ULTJ pre-event runs** (runner `precursor` phase, anchor 2026-09-18, look-back 12 months): run 1 hung (W13), runs
   2–4 classified too little or found no pre-event source (W14, W15), run 5 (`wn_642dfd96…`) 40 items, 38 classified,
   0 pre-event, USD 0.0614, 40 rows in `web_event_item`.
+- Run 6 (`wn_fe134a7d…`, deployment `ffab5dea`): 40 items, 40 classified in 100 s, 0 pre-event, USD 0.0619 plus
+  USD 0.0098 classification, 40 rows written. Diagnosis (W16): OpenRouter's web search ignores the date window; the
+  search query decides the results. No Railway change was made for the diagnosis.
 
 ## 2026-09-28 — IP2 merged into main; Governor dependency fix (R19)
 
