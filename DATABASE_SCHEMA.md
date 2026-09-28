@@ -38,10 +38,13 @@ Generated from PostgreSQL schema `public` at `2026-09-27T08:23:59+00:00`.
 | `Golden_Analysis_Test_Result` | System | After each test in a golden-suite run | — | `2026-09-13 15:08:56+00:00` | Baseline only | Per-test correctness, methodology, evidence, warning, latency and token outcome. |
 | `Golden_Analysis_Test_Run` | System | Before major releases and material model, prompt, Feature, or tool changes | — | `2026-09-13 15:08:56+00:00` | Baseline only | Historical execution record for one complete golden analytical regression suite. |
 | `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-10 07:23:34.854803+00:00` | Tracked automatically | Broker code and name, domestic/foreign type, and usage profile such as Institutional-heavy, Retail-heavy, Mixed, or Niche. |
+| `IDX_Broker_Profile_History` | Reference | Captured after every write to IDX_Broker_Profile; never deleted | — | `2026-09-28 08:22:31+00:00` | Capture trigger `reference_history_capture` (migration 20260927_006) | Point-in-time (bitemporal) history of the broker profile, from its first capture. |
 | `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 14:41:15.160142+00:00` | Derived from table data and load log | Daily broker buy/sell values and lots by symbol, broker, investor type, and market board. |
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-12 13:34:43.352522+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
+| `IDX_Stock_Universe_History` | Reference | Captured after every write to IDX_Stock_Universe; never deleted | — | `2026-09-28 08:22:31+00:00` | Capture trigger `reference_history_capture` (migration 20260927_006) | Point-in-time (bitemporal) history of the stock universe classification, from its first capture. |
 | `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-26` | `2026-09-26 23:02:23.329680+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
 | `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-25` | `2026-09-25 10:03:41.345502+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
+| `Reference_History_Capture_Log` | System | One row per reference-history capture or correction | — | `2026-09-28 08:22:31+00:00` | Written by the capture functions | Audit of reference-history captures and corrections, including failed captures. |
 | `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-27 08:23:58.234557+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
 | `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
 | `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-26 23:02:28.308482+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
@@ -66,6 +69,10 @@ These relationships are documented for analysis but are not enforced as PostgreS
 | `Feature_Catalog.(feature_table, feature_column)` | `Locked Feature table physical columns` | Governed semantic reference | Active catalog rows are validated by trigger against exact physical columns in the public schema. |
 | `Monitoring_Price_ALL.asset_type` | `IDX_Stock_Universe."Security Type"` | Logical grouped snapshot | Monitoring rows group expected and missing ticker counts by the universe Security Type value. |
 | `Monitoring_Price_ALL.update_for_date` | `Price_Stock_Indonesia_IDX.date` | Logical | A monitoring date describes the daily-price date targeted by an automation run. |
+| `IDX_Stock_Universe_History."Ticker"` | `IDX_Stock_Universe."Ticker"` | Captured history | Statement trigger `reference_history_capture` records every change of the tracked attributes (bitemporal); absence from a load is not a delisting. No foreign key. |
+| `IDX_Broker_Profile_History.broker_code` | `IDX_Broker_Profile.broker_code` | Captured history | Same capture as the stock universe. No foreign key. |
+| `Price, Feature 01/02/03, IDX_Broker_Summary (ticker / Symbol, date)` | `IDX_Stock_Universe_History (Ticker, pit_valid_from, pit_valid_to)` | EFFECTIVE_DATED (AI relationships 35–39) | The version in effect and already recorded on the observation date. |
+| `Feature_02_Broker_Rolling.broker`, `IDX_Broker_Summary."Broker"` (with date) | `IDX_Broker_Profile_History (broker_code, pit_valid_from, pit_valid_to)` | EFFECTIVE_DATED (AI relationships 40–41) | Same rule for broker profiles. |
 | `Telegram_Notification_Log.source_execution_id` | `Monitoring_Price_ALL.execution_id` | Logical many-to-one by execution | The notifier reads all monitoring rows for one execution before sending and recording delivery. No database foreign key is enforced. |
 
 ## AI_calculation_catalog
@@ -191,11 +198,13 @@ AI-facing column semantics and bounded-query permissions for the seven approved 
 | `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed updated_at field of AI_column_catalog; see the creating migration for its exact contract. |
 | `resample_aggregation` | `text` | Yes | — | Exact aggregation rule to a coarser frequency (FIRST, LAST, MAX, MIN, SUM); NULL means no established rule, so resampling is never pushed down. |
 | `cross_entity_aggregation` | `text` | Yes | — | Rule for aggregating this column across entities of a finer grain (for example brokers into a ticker-date-board row) before a relationship join (saniti.preaggregate); NULL = not additive, never aggregated automatically. |
+| `value_time_basis` | `text` | No | — | HISTORICAL: the value belongs to its row's date (or version). CURRENT_STATE: today's reference value repeated on every row (current classification); a point-in-time DataNeedSpec may not read or filter it. |
 
 ### Constraints
 
 | Name | Type | Definition |
 |---|---|---|
+| `AI_column_catalog_value_time_basis_check` | Check | `CHECK (value_time_basis = ANY (ARRAY['HISTORICAL'::text, 'CURRENT_STATE'::text]))` |
 | `AI_column_catalog_cross_entity_aggregation_check` | Check | `CHECK (cross_entity_aggregation IS NULL OR (cross_entity_aggregation = ANY (ARRAY['SUM'::text, 'MIN'::text, 'MAX'::text])))` |
 | `AI_column_catalog_aggregations_check` | Check | `CHECK (allowed_aggregations <@ ARRAY['SUM'::text, 'AVG'::text, 'MEDIAN'::text, 'MIN'::text, 'MAX'::text, 'COUNT'::text, 'COUNT_DISTINCT'::text, 'PERCENTILE'::text, 'WEIGHTED_AVG'::text])` |
 | `AI_column_catalog_documentation_check` | Check | `CHECK (documentation_status = ANY (ARRAY['VERIFIED'::text, 'PARTIAL'::text, 'NEEDS_REVIEW'::text]))` |
@@ -1475,6 +1484,55 @@ Broker code and name, domestic/foreign type, and usage profile such as Instituti
 |---|---|
 | `IDX_Broker_Profile_pkey` | `CREATE UNIQUE INDEX "IDX_Broker_Profile_pkey" ON public."IDX_Broker_Profile" USING btree (broker_code)` |
 
+## IDX_Broker_Profile_History
+
+Point-in-time history of IDX_Broker_Profile (name, broker_type, broker_classification), captured from the first capture onward: one row per broker version and knowledge version (bitemporal); superseded knowledge is kept.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `history_id` | `bigint` | No | `GENERATED ALWAYS AS IDENTITY` | Row id of one version (identity only). |
+| `broker_code` | `text` | No | — | Entity key, as in IDX_Broker_Profile. |
+| `broker_name` | `text` | Yes | — | IDX_Broker_Profile.broker_name of this version. |
+| `broker_type` | `text` | Yes | — | IDX_Broker_Profile.broker_type of this version. |
+| `broker_classification` | `text` | Yes | — | IDX_Broker_Profile.broker_classification of this version. |
+| `valid_from` | `date` | No | — | Effective start of this version (inclusive). FIRST_CAPTURE and CHANGE_CAPTURED rows use the Asia/Jakarta date Saniti recorded it; the true date is on or before it and unknown (valid_basis). |
+| `valid_to` | `date` | Yes | — | Effective end of this version (exclusive); NULL = still in effect in this knowledge version. |
+| `valid_basis` | `text` | No | — | FIRST_CAPTURE (valid_from is the first recording date; the true start is earlier and unknown), CHANGE_CAPTURED (valid_from is the date the change was recorded; the true change date is on or before it) or DOCUMENTED (a documented effective date given by a correction). |
+| `available_at` | `timestamp with time zone` | No | — | When the information was available to decisions: the recording time (available_basis RECORDED) or a documented publication time (DOCUMENTED_PUBLICATION, corrections only). Point-in-time selection uses recorded time, its conservative bound. |
+| `available_basis` | `text` | No | — | RECORDED or DOCUMENTED_PUBLICATION: where available_at comes from. |
+| `recorded_from` | `timestamp with time zone` | No | — | When Saniti recorded this row (start of the knowledge period). |
+| `recorded_to` | `timestamp with time zone` | Yes | — | When Saniti superseded this row (end of the knowledge period, exclusive); NULL = current knowledge. Superseded rows are kept. |
+| `superseded_reason` | `text` | Yes | — | Why the row was superseded: CHANGE_CAPTURED, SAME_DAY_REVISION or CORRECTION; NULL for current knowledge. |
+| `pit_valid_from` | `date` | Yes | `GENERATED ALWAYS AS (GREATEST(valid_from, ((timezone('Asia/Jakarta'::text, recorded_from))::date + 1))) STORED` | First observation date this row applies to point in time: the later of valid_from and the Asia/Jakarta date after recorded_from (a value recorded on a date is used from the next date). EFFECTIVE_DATED joins use pit_valid_from <= date < pit_valid_to. |
+| `pit_valid_to` | `date` | Yes | `GENERATED ALWAYS AS (LEAST(valid_to, ((timezone('Asia/Jakarta'::text, recorded_to))::date + 1))) STORED` | Observation date from which this row no longer applies point in time (exclusive): the earlier of valid_to and the Asia/Jakarta date after recorded_to; NULL = open. A row with pit_valid_to <= pit_valid_from applies to no date. |
+| `capture_id` | `bigint` | No | — | The Reference_History_Capture_Log row of the capture or correction that wrote this row. |
+| `source_provenance` | `jsonb` | No | — | How the row was written: source table, operation and capture id, the version it closes or replaces, or a correction's reason, source and superseded ids. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Broker_Profile_History_available_basis_check` | Check | `CHECK ((available_basis = ANY (ARRAY['RECORDED'::text, 'DOCUMENTED_PUBLICATION'::text])))` |
+| `IDX_Broker_Profile_History_available_check` | Check | `CHECK ((available_at <= recorded_from))` |
+| `IDX_Broker_Profile_History_key_check` | Check | `CHECK ((btrim(broker_code) <> ''::text))` |
+| `IDX_Broker_Profile_History_provenance_check` | Check | `CHECK ((jsonb_typeof(source_provenance) = 'object'::text))` |
+| `IDX_Broker_Profile_History_recorded_check` | Check | `CHECK (((recorded_to IS NULL) OR (recorded_to >= recorded_from)))` |
+| `IDX_Broker_Profile_History_superseded_check` | Check | `CHECK ((((recorded_to IS NULL) AND (superseded_reason IS NULL)) OR ((recorded_to IS NOT NULL) AND (superseded_reason = ANY (ARRAY['CHANGE_CAPTURED'::text, 'SAME_DAY_REVISION'::text, 'CORRECTION'::text])))))` |
+| `IDX_Broker_Profile_History_valid_basis_check` | Check | `CHECK ((valid_basis = ANY (ARRAY['FIRST_CAPTURE'::text, 'CHANGE_CAPTURED'::text, 'DOCUMENTED'::text])))` |
+| `IDX_Broker_Profile_History_valid_check` | Check | `CHECK (((valid_to IS NULL) OR (valid_to > valid_from)))` |
+| `IDX_Broker_Profile_History_no_overlap` | Exclusion | `EXCLUDE USING gist (broker_code WITH =, daterange(valid_from, valid_to, '[)'::text) WITH &&, tstzrange(recorded_from, recorded_to, '[)'::text) WITH &&)` |
+| `IDX_Broker_Profile_History_capture_fkey` | Foreign key | `FOREIGN KEY (capture_id) REFERENCES "Reference_History_Capture_Log"(capture_id)` |
+| `IDX_Broker_Profile_History_pkey` | Primary key | `PRIMARY KEY (history_id)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `IDX_Broker_Profile_History_no_overlap` | `CREATE INDEX "IDX_Broker_Profile_History_no_overlap" ON public."IDX_Broker_Profile_History" USING gist (broker_code, daterange(valid_from, valid_to, '[)'::text), tstzrange(recorded_from, recorded_to, '[)'::text))` |
+| `IDX_Broker_Profile_History_pkey` | `CREATE UNIQUE INDEX "IDX_Broker_Profile_History_pkey" ON public."IDX_Broker_Profile_History" USING btree (history_id)` |
+
 ## IDX_Broker_Summary
 
 Daily broker buy/sell values and lots by symbol, broker, investor type, and market board.
@@ -1558,6 +1616,60 @@ Current Indonesian listed-security universe, ticker identity, and classification
 | Name | Definition |
 |---|---|
 | `IDX_Stock_Universe_pkey` | `CREATE UNIQUE INDEX "IDX_Stock_Universe_pkey" ON public."IDX_Stock_Universe" USING btree ("Ticker")` |
+
+## IDX_Stock_Universe_History
+
+Point-in-time history of the tracked IDX_Stock_Universe attributes, captured from the first capture onward: one row per ticker version and knowledge version (bitemporal); superseded knowledge is kept.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `history_id` | `bigint` | No | `GENERATED ALWAYS AS IDENTITY` | Row id of one version (identity only). |
+| `Ticker` | `text` | No | — | Entity key, as in IDX_Stock_Universe. |
+| `Company Name` | `text` | Yes | — | IDX_Stock_Universe.Company Name of this version. |
+| `Exchange` | `text` | Yes | — | IDX_Stock_Universe.Exchange of this version. |
+| `Security Type` | `text` | Yes | — | IDX_Stock_Universe.Security Type of this version. |
+| `Type Specs` | `text` | Yes | — | IDX_Stock_Universe.Type Specs of this version. |
+| `Is Common Stock` | `text` | Yes | — | IDX_Stock_Universe.Is Common Stock of this version. |
+| `ISIN` | `text` | Yes | — | IDX_Stock_Universe.ISIN of this version. |
+| `Sector` | `text` | Yes | — | IDX_Stock_Universe.Sector of this version. |
+| `Industry` | `text` | Yes | — | IDX_Stock_Universe.Industry of this version. |
+| `valid_from` | `date` | No | — | Effective start of this version (inclusive). FIRST_CAPTURE and CHANGE_CAPTURED rows use the Asia/Jakarta date Saniti recorded it; the true date is on or before it and unknown (valid_basis). |
+| `valid_to` | `date` | Yes | — | Effective end of this version (exclusive); NULL = still in effect in this knowledge version. |
+| `valid_basis` | `text` | No | — | FIRST_CAPTURE (valid_from is the first recording date; the true start is earlier and unknown), CHANGE_CAPTURED (valid_from is the date the change was recorded; the true change date is on or before it) or DOCUMENTED (a documented effective date given by a correction). |
+| `available_at` | `timestamp with time zone` | No | — | When the information was available to decisions: the recording time (available_basis RECORDED) or a documented publication time (DOCUMENTED_PUBLICATION, corrections only). Point-in-time selection uses recorded time, its conservative bound. |
+| `available_basis` | `text` | No | — | RECORDED or DOCUMENTED_PUBLICATION: where available_at comes from. |
+| `recorded_from` | `timestamp with time zone` | No | — | When Saniti recorded this row (start of the knowledge period). |
+| `recorded_to` | `timestamp with time zone` | Yes | — | When Saniti superseded this row (end of the knowledge period, exclusive); NULL = current knowledge. Superseded rows are kept. |
+| `superseded_reason` | `text` | Yes | — | Why the row was superseded: CHANGE_CAPTURED, SAME_DAY_REVISION or CORRECTION; NULL for current knowledge. |
+| `pit_valid_from` | `date` | Yes | `GENERATED ALWAYS AS (GREATEST(valid_from, ((timezone('Asia/Jakarta'::text, recorded_from))::date + 1))) STORED` | First observation date this row applies to point in time: the later of valid_from and the Asia/Jakarta date after recorded_from (a value recorded on a date is used from the next date). EFFECTIVE_DATED joins use pit_valid_from <= date < pit_valid_to. |
+| `pit_valid_to` | `date` | Yes | `GENERATED ALWAYS AS (LEAST(valid_to, ((timezone('Asia/Jakarta'::text, recorded_to))::date + 1))) STORED` | Observation date from which this row no longer applies point in time (exclusive): the earlier of valid_to and the Asia/Jakarta date after recorded_to; NULL = open. A row with pit_valid_to <= pit_valid_from applies to no date. |
+| `capture_id` | `bigint` | No | — | The Reference_History_Capture_Log row of the capture or correction that wrote this row. |
+| `source_provenance` | `jsonb` | No | — | How the row was written: source table, operation and capture id, the version it closes or replaces, or a correction's reason, source and superseded ids. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Stock_Universe_History_available_basis_check` | Check | `CHECK ((available_basis = ANY (ARRAY['RECORDED'::text, 'DOCUMENTED_PUBLICATION'::text])))` |
+| `IDX_Stock_Universe_History_available_check` | Check | `CHECK ((available_at <= recorded_from))` |
+| `IDX_Stock_Universe_History_key_check` | Check | `CHECK ((btrim("Ticker") <> ''::text))` |
+| `IDX_Stock_Universe_History_provenance_check` | Check | `CHECK ((jsonb_typeof(source_provenance) = 'object'::text))` |
+| `IDX_Stock_Universe_History_recorded_check` | Check | `CHECK (((recorded_to IS NULL) OR (recorded_to >= recorded_from)))` |
+| `IDX_Stock_Universe_History_superseded_check` | Check | `CHECK ((((recorded_to IS NULL) AND (superseded_reason IS NULL)) OR ((recorded_to IS NOT NULL) AND (superseded_reason = ANY (ARRAY['CHANGE_CAPTURED'::text, 'SAME_DAY_REVISION'::text, 'CORRECTION'::text])))))` |
+| `IDX_Stock_Universe_History_valid_basis_check` | Check | `CHECK ((valid_basis = ANY (ARRAY['FIRST_CAPTURE'::text, 'CHANGE_CAPTURED'::text, 'DOCUMENTED'::text])))` |
+| `IDX_Stock_Universe_History_valid_check` | Check | `CHECK (((valid_to IS NULL) OR (valid_to > valid_from)))` |
+| `IDX_Stock_Universe_History_no_overlap` | Exclusion | `EXCLUDE USING gist ("Ticker" WITH =, daterange(valid_from, valid_to, '[)'::text) WITH &&, tstzrange(recorded_from, recorded_to, '[)'::text) WITH &&)` |
+| `IDX_Stock_Universe_History_capture_fkey` | Foreign key | `FOREIGN KEY (capture_id) REFERENCES "Reference_History_Capture_Log"(capture_id)` |
+| `IDX_Stock_Universe_History_pkey` | Primary key | `PRIMARY KEY (history_id)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `IDX_Stock_Universe_History_no_overlap` | `CREATE INDEX "IDX_Stock_Universe_History_no_overlap" ON public."IDX_Stock_Universe_History" USING gist ("Ticker", daterange(valid_from, valid_to, '[)'::text), tstzrange(recorded_from, recorded_to, '[)'::text))` |
+| `IDX_Stock_Universe_History_pkey` | `CREATE UNIQUE INDEX "IDX_Stock_Universe_History_pkey" ON public."IDX_Stock_Universe_History" USING btree (history_id)` |
 
 ## Monitoring_Price_ALL
 
@@ -1654,6 +1766,41 @@ Daily Indonesian stock OHLCV candles sourced from TradingView.
 |---|---|
 | `Price_Stock_Indonesia_IDX_date_idx` | `CREATE INDEX "Price_Stock_Indonesia_IDX_date_idx" ON public."Price_Stock_Indonesia_IDX" USING btree (date)` |
 | `Price_Stock_Indonesia_IDX_pkey` | `CREATE UNIQUE INDEX "Price_Stock_Indonesia_IDX_pkey" ON public."Price_Stock_Indonesia_IDX" USING btree (ticker, date)` |
+
+## Reference_History_Capture_Log
+
+One row per capture of a reference table into its history (trigger, initial, manual or correction): counts of changed and new versions, keys absent from the load, and the error of a failed capture.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `capture_id` | `bigint` | No | `GENERATED ALWAYS AS IDENTITY` | Identity of one capture or correction. |
+| `source_table` | `text` | No | — | IDX_Stock_Universe or IDX_Broker_Profile. |
+| `trigger_operation` | `text` | No | — | INSERT, UPDATE, DELETE or TRUNCATE (trigger), INITIAL (migration), MANUAL, or CORRECTION. |
+| `captured_at` | `timestamp with time zone` | No | `now()` | Transaction time of the capture; the recorded_from of the rows it wrote. |
+| `status` | `text` | No | — | CAPTURED (versions written), NO_CHANGE, or FAILED (error set; the reference load itself succeeded). |
+| `source_rows` | `integer` | Yes | — | Rows in the source table at capture time. |
+| `versions_changed` | `integer` | Yes | — | Versions superseded (changed attributes, or overlapped by a correction). |
+| `versions_opened` | `integer` | Yes | — | Versions written for new keys, reappearing keys or correction remainders. |
+| `absent_entities` | `integer` | Yes | — | Keys with an open version but no source row: counted only, never closed. |
+| `absent_examples` | `ARRAY` | No | `'{}'::text[]` | Up to 20 of the absent keys. |
+| `error` | `text` | Yes | — | SQLSTATE and message of a failed capture; NULL otherwise. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Reference_History_Capture_Log_operation_check` | Check | `CHECK ((trigger_operation = ANY (ARRAY['INSERT'::text, 'UPDATE'::text, 'DELETE'::text, 'TRUNCATE'::text, 'INITIAL'::text, 'MANUAL'::text, 'CORRECTION'::text])))` |
+| `Reference_History_Capture_Log_source_check` | Check | `CHECK ((source_table = ANY (ARRAY['IDX_Stock_Universe'::text, 'IDX_Broker_Profile'::text])))` |
+| `Reference_History_Capture_Log_status_check` | Check | `CHECK ((((status = ANY (ARRAY['CAPTURED'::text, 'NO_CHANGE'::text])) AND (error IS NULL)) OR ((status = 'FAILED'::text) AND (error IS NOT NULL))))` |
+| `Reference_History_Capture_Log_pkey` | Primary key | `PRIMARY KEY (capture_id)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Reference_History_Capture_Log_pkey` | `CREATE UNIQUE INDEX "Reference_History_Capture_Log_pkey" ON public."Reference_History_Capture_Log" USING btree (capture_id)` |
 
 ## Table_Catalog
 

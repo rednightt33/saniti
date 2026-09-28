@@ -1,5 +1,35 @@
 # Railway changelog
 
+## 2026-09-28 — IP1 Stage D on dev: point-in-time reference history, time_basis
+
+- **Code** `4dfa7af` (flag `AI_ENABLE_POINT_IN_TIME`, default off; with it off the tool definitions and system prompt
+  are identical to the previous deploy; before migration `20260927_006` the Governor contract is unchanged), deployed
+  by the GitHub connection: market-sql-governor `f7c12ba4-c088-4f8c-8963-28656291c6db`, market-python-sandbox
+  `76784468-b6bc-473c-91c2-2195d6153610`, market-ai-orc `14c93904-e694-49f3-921d-fbce436a6858` (replaced by the flag
+  redeploy below, same commit); each reached `SUCCESS`. Tests: orc 667, Governor 200, sandbox 499 passed.
+- **Migration** `20260927_006` through `relcat-job` (read-only inspection `9f44200f` / `4d67db35`, dry run `4792bd22`,
+  apply `5a41e7d8`, live golden `0a76c2d3`; see DATABASE_CHANGELOG).
+- **Flag**: `AI_ENABLE_POINT_IN_TIME=true` on market-ai-orc (dev) with the CLI; redeploy
+  `7fb90fe1-ccab-4c9f-8f14-cd073ed9e258` `SUCCESS`, no `*_inactive` log (the sandbox reports `point_in_time` version 1).
+  `.railway/railway.ts` lists it as `preserve()`; `railway config pull --force` and `railway config plan`: up to date.
+- **Live checks on `orc-test-runner`** (model `deepseek/deepseek-v4.1-flash`, unchanged):
+  - suite6 (`5e956053-c23a-4ab1-8635-364b6851e274`, two workers):
+    - p01, a point-in-time question for August 2026: refused by the validator with `POINT_IN_TIME_UNAVAILABLE`
+      (history answers dates from 2026-09-29); the answer is a LIMITATION that says so, extracts nothing and offers a
+      descriptive run with current classifications instead of switching silently; $0.012.
+    - p02, average `return_20d_pct` per Feature 01 sector: ANSWER with the `CURRENT_STATE_COLUMN` warning and its
+      limitation line (the sector is today's); provenance 29 checked, 0 unsupported.
+    - s01, top gainers 1–25 September: ANSWER, unchanged behaviour.
+    - k01 (the suite5 composite-key check): LIMITATION `SESSION_CAPACITY_EXCEEDED`, because the concurrent p02 run held
+      both sandbox session slots (S08, OPEN; not caused by this change).
+  - suite6b (`ca36d4bf-c337-42ff-b462-1b028d43a914`, k01 alone): ANSWER, 19 of 19 days identical as in suite5;
+    provenance 65 checked, 0 unsupported; $0.023.
+  - suite6c (`74784da7-5830-44b7-83b5-15978926965a`, p02 alone, the runner now records `time_basis`): final status
+    `time_basis` `HISTORICAL_DESCRIPTIVE`, warnings `CURRENT_STATE_COLUMN`, data coverage PASS; $0.009.
+- **`relcat-job` deleted** (`bce027de-84d9-4320-a055-fd5aee485adb`, 2026-09-28 08:41 UTC): the temporary migration
+  service of IP1 Stages A–D, idle after its last job, held only a `DATABASE_URL` reference. `railway config pull
+  --force` removed its block from `.railway/railway.ts`; `railway config plan`: up to date.
+
 ## 2026-09-27 — IP1 Stages B and C on dev: composite keys, preaggregation, aggregation rules
 
 - **Code** `9262fd8` (flag `AI_ENABLE_COMPOSITE_KEYS`, default off; with it off the tool definitions and system prompt

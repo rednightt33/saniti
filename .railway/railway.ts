@@ -42,7 +42,7 @@ export default defineRailway(() => {
     healthcheckTimeout: 120,
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "ALWAYS" },
-    env: { AI_ENABLE_CATALOG_DISCOVERY_V2: preserve(), AI_ENABLE_CATALOG_PROTOCOL: preserve(), AI_ENABLE_COMPOSITE_KEYS: preserve(), AI_ENABLE_CONVERSATION_REUSE: preserve(), AI_ENABLE_CONVERSATION_STORE: preserve(), AI_ENABLE_DATANEED: preserve(), AI_ENABLE_LOOKUP_FACT: preserve(), AI_ENABLE_METHODOLOGY: preserve(), AI_ENABLE_PLAN_FEASIBILITY: preserve(), AI_ENABLE_STANDARD_PERIOD_RETURN: preserve(), AI_FINAL_CONTRACT_IN_PROMPT: preserve(), AI_LOG_PROVIDER: preserve(), AI_MAX_ANALYSIS_SECONDS: preserve(), AI_MAX_CONTEXT_TOKENS: preserve(), AI_MAX_TOOL_CALLS: preserve(), AI_MAX_TOOL_ITERATIONS: preserve(), AI_MODEL: preserve(), AI_REASONING_EFFORT: preserve(), AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION: preserve(), AI_RESEARCH_PLAN_SIGNING_KEY: preserve(), CATALOG_DATABASE_URL: preserve(), CONVERSATION_DATABASE_URL: preserve(), MARKET_AI_CONVERSATION_DB_PASSWORD: preserve(), MARKET_AI_ORC_API_KEY: preserve(), MARKET_AI_ORC_DB_PASSWORD: preserve(), OPENROUTER_API_KEY: preserve(), PORT: preserve(), PY_SANDBOX_API_KEY: preserve(), PY_SANDBOX_URL: preserve(), RESEARCH_AUDIT_DATABASE_URL: preserve(), SQL_GOVERNOR_API_KEY: preserve(), SQL_GOVERNOR_URL: preserve() },
+    env: { AI_ENABLE_CATALOG_DISCOVERY_V2: preserve(), AI_ENABLE_CATALOG_PROTOCOL: preserve(), AI_ENABLE_COMPOSITE_KEYS: preserve(), AI_ENABLE_CONVERSATION_REUSE: preserve(), AI_ENABLE_CONVERSATION_STORE: preserve(), AI_ENABLE_DATANEED: preserve(), AI_ENABLE_LOOKUP_FACT: preserve(), AI_ENABLE_METHODOLOGY: preserve(), AI_ENABLE_PLAN_FEASIBILITY: preserve(), AI_ENABLE_POINT_IN_TIME: preserve(), AI_ENABLE_STANDARD_PERIOD_RETURN: preserve(), AI_FINAL_CONTRACT_IN_PROMPT: preserve(), AI_LOG_PROVIDER: preserve(), AI_MAX_ANALYSIS_SECONDS: preserve(), AI_MAX_CONTEXT_TOKENS: preserve(), AI_MAX_TOOL_CALLS: preserve(), AI_MAX_TOOL_ITERATIONS: preserve(), AI_MODEL: preserve(), AI_REASONING_EFFORT: preserve(), AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION: preserve(), AI_RESEARCH_PLAN_SIGNING_KEY: preserve(), CATALOG_DATABASE_URL: preserve(), CONVERSATION_DATABASE_URL: preserve(), MARKET_AI_CONVERSATION_DB_PASSWORD: preserve(), MARKET_AI_ORC_API_KEY: preserve(), MARKET_AI_ORC_DB_PASSWORD: preserve(), OPENROUTER_API_KEY: preserve(), PORT: preserve(), PY_SANDBOX_API_KEY: preserve(), PY_SANDBOX_URL: preserve(), RESEARCH_AUDIT_DATABASE_URL: preserve(), SQL_GOVERNOR_API_KEY: preserve(), SQL_GOVERNOR_URL: preserve() },
   });
   const idxPriceCron = service("idx-price-cron", {
     source: saniti,
@@ -85,10 +85,6 @@ export default defineRailway(() => {
     deploy: { cronSchedule: "0 23 * * *", restartPolicyType: "NEVER" },
     env: { DATABASE_URL: preserve(), TELEGRAM_NOTIFY_ATTEMPTS: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_TIMEOUT: preserve(), TELEGRAM_NOTIFY_URL: preserve() },
   });
-  const relcatJob = service("relcat-job", {
-    replicas: { "sfo": 1 },
-    env: { DATABASE_URL: preserve() },
-  });
   const aiDataCoverage = service("ai-data-coverage", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/ai-data-coverage" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/ai-data-coverage/**"] },
@@ -114,6 +110,6 @@ export default defineRailway(() => {
   });
 
   return project("lucid-patience", {
-    resources: [orcTestRunner, marketSqlGovernor, marketPythonSandbox, marketAiOrc, idxPriceCron, pgweb, telegramTrigger, telegramMonitor, idxPriceRecoveryCron, Postgres, relcatJob, aiDataCoverage, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, marketSqlDatasets],
+    resources: [orcTestRunner, marketSqlGovernor, marketPythonSandbox, marketAiOrc, idxPriceCron, pgweb, telegramTrigger, telegramMonitor, idxPriceRecoveryCron, Postgres, aiDataCoverage, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, marketSqlDatasets],
   });
 });

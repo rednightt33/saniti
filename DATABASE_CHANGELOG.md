@@ -1,5 +1,76 @@
 # Database changelog
 
+## 2026-09-28 — IP1 Stage D: point-in-time reference history and metadata (migration 20260927_006)
+
+- Scope approved by the user: implementation plan IP1, Stage D (point in time) and its Stage E golden tests, with the
+  user's choices of 2026-09-27: historical descriptive stays the default and point in time is opt-in, refused where
+  history is insufficient; overlaps are prevented with an exclusion constraint (`btree_gist`).
+- Extension `btree_gist` 1.8 (schema `public`).
+- New tables (history is captured prospectively; nothing is claimed before the first capture):
+  - `IDX_Stock_Universe_History` (tracked: Company Name, Exchange, Security Type, Type Specs, Is Common Stock, ISIN,
+    Sector, Industry) and `IDX_Broker_Profile_History` (broker_name, broker_type, broker_classification): bitemporal
+    rows with effective `[valid_from, valid_to)`, `valid_basis` (FIRST_CAPTURE / CHANGE_CAPTURED / DOCUMENTED),
+    `available_at` / `available_basis`, recorded `[recorded_from, recorded_to)` with `superseded_reason`, generated
+    `pit_valid_from` / `pit_valid_to` (the point-in-time validity joins use: from the Asia/Jakarta date after
+    recording), `capture_id` and `source_provenance`. Exclusion constraint `…_no_overlap`: no two rows of a key overlap
+    in both effective and recorded time. Superseded knowledge is kept; nothing is deleted.
+  - `Reference_History_Capture_Log`: one row per capture or correction (status CAPTURED / NO_CHANGE / FAILED, counts,
+    keys absent from the load).
+- Capture: statement-level `AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE` trigger `reference_history_capture` on
+  `IDX_Stock_Universe` and `IDX_Broker_Profile` (SECURITY DEFINER functions `capture_stock_universe_history(text)`,
+  `capture_broker_profile_history(text)`, `capture_reference_history()`). A change supersedes the open version and
+  records the closed version plus the new one (a same-day change is a `SAME_DAY_REVISION`); a key missing from a load
+  is only counted; a failed capture is logged and never fails the load (the next capture compares the whole source
+  again). Corrections: `correct_stock_universe_history(...)` / `correct_broker_profile_history(...)` (reason and
+  source required, documented publication time optional); as-known reads: `stock_universe_history_as_known(known_at,
+  valid_on)` / `broker_profile_history_as_known(...)`. EXECUTE on the capture and correction functions is revoked from
+  PUBLIC.
+- Initial capture in the migration: 844 universe rows and 112 broker profiles, `FIRST_CAPTURE`, valid from
+  2026-09-28, point in time from 2026-09-29 (capture log ids 1–2, `INITIAL`).
+- AI catalog:
+  - `AI_column_catalog.value_time_basis` (`HISTORICAL` / `CURRENT_STATE`, NOT NULL, check constraint). CURRENT_STATE:
+    every column of `IDX_Stock_Universe` (17) and `IDX_Broker_Profile` (4), and, derived from active `Feature_Catalog`
+    rows that are not point-in-time safe because they use current metadata, Feature 01 `sector` and `industry`,
+    Feature 02 `broker_classification`, Feature 03 `institutional_net_value`, `retail_net_value`, `mixed_net_value`,
+    `niche_net_value` (verified equal to the documented list; `calculated_at` stays HISTORICAL).
+  - The two history tables in `AI_table_catalog` (static, entity `Ticker` / `broker_code`, key `history_id`,
+    `coverage_enabled` false, `subject_metadata_status` INFERRED) with 20 and 15 AI columns (`capture_id` and
+    `source_provenance` are not exposed).
+  - Seven `AI_catalog_relationships` (ids 35–41), `MANY_TO_ONE`, `EFFECTIVE_DATED` only, effective columns
+    `pit_valid_from` / `pit_valid_to`: Price, Feature 01, Feature 02, Feature 03, Broker Summary → universe history;
+    Feature 02 and Broker Summary → broker-profile history.
+  - `Tool_Catalog`: `submit_data_need_spec` v4 and `check_data_feasibility` v3 (input with `time_basis`), inactive,
+    `runtime_commit` `4dfa7af`; other columns copied from v3 / v2.
+- Documentation catalogs: `Table_Catalog` rows for the three tables (history: observation `valid_from`, availability
+  `available_at`, `point_in_time_status` PARTIAL, method PROSPECTIVE_CAPTURE); `related_functions`,
+  `source_code_paths` and `historical_metadata_method` of `IDX_Stock_Universe` / `IDX_Broker_Profile` extended;
+  `Column_Catalog` rows for all 50 new physical columns and `AI_column_catalog.value_time_basis`.
+- Grants: SELECT on the history tables to `market_ai_sql_reader` and `pgweb_reader`; SELECT on the capture log to
+  `pgweb_reader`; column-level SELECT on the `Table_Catalog` availability columns (`table_schema`, `table_name`,
+  `observation_date_column`, `data_available_at_column`, `availability_rule`, `point_in_time_status`,
+  `historical_metadata_method`) to `market_ai_sql_reader` and `market_ai_catalog_reader`.
+- Status: **applied to `dev` at 08:22 UTC** by the temporary service `relcat-job` (`DATABASE_URL` reference only).
+  - Read-only inspection first (deployments `9f44200f` (stopped at a wrong column name, R13) and `4d67db35`): PostgreSQL
+    18.6, `btree_gist` available not installed, only the `database_table_status_change_tracker` triggers on the two
+    source tables, the Governor reader without access to `Table_Catalog`.
+  - Rehearsed locally on PostgreSQL 16 (history core under a controlled clock: 32 checks; whole migration on a
+    reconstruction of the touched schema), then dry run `4792bd22-076d-4bab-ae04-0bc616a89bfe` (preflight, initial
+    captures and `$verify$` passed, rolled back), apply `5a41e7d8-a950-484e-b6b7-ec0eeaeb12ee`. No notice.
+  - Read back: 844 / 112 open FIRST_CAPTURE versions equal to the sources (0 mismatches); both triggers enabled;
+    the CURRENT_STATE set as listed; 7 relationships; Column_Catalog 22 + 17 + 11 + 1 rows, all defined; Tool_Catalog
+    70 rows, 25 active; grants as listed, the Governor reader cannot read other `Table_Catalog` columns or execute the
+    capture functions. `Database_Table_Status` of the two source tables unchanged (the `$verify$` trigger probe runs
+    in a rolled-back subtransaction).
+- **Golden check on live data** (IP1 Stage E, deployment `0a76c2d3-306a-45b8-9097-a76f83c7fc41`, one transaction,
+  rolled back): an update of AADI's Sector was captured by the trigger (`UPDATE` CAPTURED; the day's version kept as
+  `SAME_DAY_REVISION`, its point-in-time interval empty); a documented correction (valid from 2026-09-18, publication a
+  day earlier) became current knowledge and `stock_universe_history_as_known(now)` returned it, while nothing was
+  known before the first capture; 0 overlapping point-in-time intervals. After the rollback 0 golden rows and 0
+  UPDATE / CORRECTION log rows remained. `EXPLAIN (ANALYZE, BUFFERS)` of an August Feature 02 extraction with an
+  EFFECTIVE_DATED restriction on the universe history: a hash join over a sequential scan of the history (142 shared
+  buffers), 276 ms; no index added (the history is small).
+- `DATABASE_SCHEMA.md`: the three tables, `value_time_basis` and its constraint, the new logical relationships.
+
 ## 2026-09-27 — IP1 Stages B and C: cross-entity aggregation rules and data_need_spec/v2 tool contracts (migration 20260927_005)
 
 - Scope approved by the user: implementation plan IP1, Stages B (composite keys) and C (separate enrichment from
