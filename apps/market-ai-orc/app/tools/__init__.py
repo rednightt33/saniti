@@ -40,6 +40,7 @@ def build_default_registry(
     catalog_discovery_v2: bool = False,
     plan_feasibility: bool = False,
     composite_keys: bool = False,
+    point_in_time: bool = False,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
@@ -47,7 +48,7 @@ def build_default_registry(
     if catalog_reader is not None:
         codec = CursorCodec(cursor_secret or os.urandom(32))
         for spec in catalog_specs(catalog_reader, timeout_seconds=catalog_timeout_seconds,
-                                  discovery_v2=catalog_discovery_v2, codec=codec):
+                                  discovery_v2=catalog_discovery_v2, codec=codec, point_in_time=point_in_time):
             registry.register(spec)
         registry.register(catalog_rows_spec(
             catalog_reader, codec,
@@ -85,7 +86,8 @@ def build_default_registry(
     if sandbox_client is not None:
         if dataneed_enabled:
             for spec in data_need_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
-                                        max_result_bytes=python_analysis_max_bytes, composite_keys=composite_keys):
+                                        max_result_bytes=python_analysis_max_bytes, composite_keys=composite_keys,
+                                        point_in_time=point_in_time):
                 registry.register(spec)
             if governor_client is not None:
                 # many Governor extractions plus the sandbox's verification and profiling
@@ -103,7 +105,8 @@ def build_default_registry(
                     registry.register(feasibility_spec(
                         sandbox_client, ExecutionPlanner(sandbox_client, governor_client),
                         timeout_seconds=max(sandbox_timeout_seconds, governor_timeout_seconds) * 3,
-                        max_result_bytes=python_analysis_max_bytes, composite_keys=composite_keys))
+                        max_result_bytes=python_analysis_max_bytes, composite_keys=composite_keys,
+                        point_in_time=point_in_time))
     return registry
 
 

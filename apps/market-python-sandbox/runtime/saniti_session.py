@@ -354,6 +354,21 @@ def join(relationship_id: int, left=None, right=None, how: str | None = None):
                 f"Relationship {relationship_id} requires the many side to be aggregated to the key grain first: "
                 f"call saniti.preaggregate({relationship_id}, frame, measures) and join its result.")
     one_sides = {"ONE_TO_MANY": ["left"], "MANY_TO_ONE": ["right"], "ONE_TO_ONE": ["left", "right"]}.get(rtype, [])
+    if semantics == "EFFECTIVE_DATED":
+        # a history row whose validity is empty (effective_to <= effective_from) applies to no date: dropped before
+        # the checks, as the Governor's restriction never matches it; the rest must not overlap per key (IP1 D4)
+        start, end = rel["effective_from_column"], rel["effective_to_column"]
+        right = right[right[end].isna() | (pd.to_datetime(right[end]) > pd.to_datetime(right[start]))]
+        ordered = right.dropna(subset=rc + [start]).sort_values(rc + [start], kind="mergesort")
+        previous_end = pd.to_datetime(ordered.groupby(rc, sort=False)[end].shift(1))
+        previous_open = ordered.groupby(rc, sort=False)[end].shift(1).isna() & \
+            ordered.groupby(rc, sort=False)[start].shift(1).notna()
+        overlap = previous_open | (previous_end > pd.to_datetime(ordered[start]))
+        if overlap.any():
+            examples = ordered[overlap.values][rc + [start]].head(5).to_dict("records")
+            raise JoinCardinalityError(
+                f"Relationship {relationship_id} (EFFECTIVE_DATED) needs non-overlapping validity per key; "
+                f"{int(overlap.sum())} versions overlap an earlier one, e.g. {examples}.")
     if semantics in ("AS_OF", "EFFECTIVE_DATED"):
         one_sides = [s for s in one_sides if s == "left"] + ["right"]  # one history row per key and time
     for side in one_sides:

@@ -271,6 +271,7 @@ Gate and final-response log events (always on):
 | `AI_ENABLE_METHODOLOGY` | no | `false` | Required nullable `methodology` note on DataNeed answers, checked for number provenance (see [Methodology note](#methodology-note)); DataNeed flow only |
 | `AI_ENABLE_PLAN_FEASIBILITY` | no | `false` | `check_data_feasibility` before a Research Plan and the draft bound into its token (see [Research Plan feasibility](#research-plan-feasibility-and-approval-use-m19)); needs Research Plan confirmation, the Governor and a sandbox reporting `plan_feasibility` version 1 |
 | `AI_ENABLE_COMPOSITE_KEYS` | no | `false` | `submit_data_need_spec` and `check_data_feasibility` take `data_need_spec/v2`: a relationship names every key pair (`left_columns` / `right_columns`), so composite relationships (Broker Summary ↔ Feature 02 on five keys, Feature 02 → Feature 03 on ticker and board) are usable. Needs a sandbox reporting `data_need_spec/v2` in `data_need_spec_versions` (otherwise inactive, log `composite_keys_inactive`) |
+| `AI_ENABLE_POINT_IN_TIME` | no | `false` | IP1 Stage D: `submit_data_need_spec` and `check_data_feasibility` (`data_need_spec/v2`) require `time_basis` (`HISTORICAL_DESCRIPTIVE` or `POINT_IN_TIME`), the prompt gains the TIME BASIS rules, and `get_catalog_details` (discovery v2) adds each table's `availability` and marks `CURRENT_STATE` columns. Needs `AI_ENABLE_COMPOSITE_KEYS` and a sandbox reporting `point_in_time` version 1 (otherwise inactive, log `point_in_time_inactive`); off, tool definitions and prompt are unchanged |
 | `AI_ENABLE_CONVERSATION_REUSE` | no | `false` | Reuse of released outputs, bundles and warm Python sessions of earlier messages in `SERVER` conversations (see [Conversation reuse](#conversation-reuse)). Needs `AI_ENABLE_CONVERSATION_STORE` (startup refuses otherwise) and a sandbox reporting `conversation_reuse` version 1; otherwise inactive (log `conversation_reuse_inactive`) |
 | `CONVERSATION_DATABASE_URL` | with the store (secret) | unset | DSN of the `market_ai_conversation` login (conversation tables only) |
 | `AI_CONVERSATION_RETENTION_DAYS` | no | `30` | Days after the last activity before a conversation is deleted |
@@ -925,6 +926,20 @@ ran. It is model-written, so it is checked, not trusted:
   `methodology: null`.
 
 The response envelope always carries `response.methodology` (null when off), as it does `research_plan`.
+
+### Time basis and point in time (IP1 Stage D)
+
+Behind `AI_ENABLE_POINT_IN_TIME` (DataNeed flow with `data_need_spec/v2`). Every DataNeedSpec states `time_basis`:
+`HISTORICAL_DESCRIPTIVE` (normal; history may use today's sector or broker classification, disclosed) or
+`POINT_IN_TIME` (only when the user asks what was known at the time: a backtest, no look-ahead, a classification as of
+each date). A point-in-time spec joins `IDX_Stock_Universe_History` / `IDX_Broker_Profile_History` through their
+EFFECTIVE_DATED relationships; the sandbox refuses current-state tables, relationships and columns, and every date
+before the recorded history, with `POINT_IN_TIME_UNAVAILABLE` (see the market-python-sandbox README). The TIME BASIS
+rules tell the model never to switch to current data silently. The backend enforces it: when a point-in-time spec
+was refused in the run and the answer rests on a completed analysis that is not point in time, the limitations gain
+"Point-in-time data was requested but is not available (…); these results use current reference data (historical
+descriptive), not what was known at each date." The final status carries `time_basis`, and the warning
+`CURRENT_STATE_COLUMN` (a dated request read a current-state column) becomes a limitation line in either mode.
 
 ### Scientific notation in the provenance check (P06)
 

@@ -54,6 +54,26 @@ FROM public."AI_catalog_relationships"
 WHERE left_table = ANY(%s) OR right_table = ANY(%s)
 ORDER BY relationship_id
 '''
+# IP1 Stage D (migration 20260927_006): the availability metadata of Table_Catalog (column-level SELECT for the
+# Governor's reader) and the first date a point-in-time history can answer
+AVAILABILITY_COLUMNS = ("observation_date_column", "data_available_at_column", "availability_rule",
+                        "point_in_time_status", "historical_metadata_method")
+AVAILABILITY_READABLE_SQL = '''
+SELECT bool_and(has_column_privilege('public."Table_Catalog"', name, 'SELECT')) AS readable
+FROM unnest(%s::text[]) AS name
+'''
+AVAILABILITY_SQL = '''
+SELECT table_name, observation_date_column, data_available_at_column, availability_rule, point_in_time_status,
+       historical_metadata_method
+FROM public."Table_Catalog" WHERE table_schema = 'public' AND table_name = ANY(%s)
+'''
+TABLE_READABLE_SQL = '''
+SELECT CASE WHEN to_regclass(%s) IS NULL THEN false ELSE has_table_privilege(to_regclass(%s), 'SELECT') END AS readable
+'''
+HISTORY_FROM_SQL = '''
+SELECT min({start}) AS history_available_from FROM public.{table}
+WHERE {end} IS NULL OR {end} > {start}
+'''
 
 
 def canonical_json(value: Any) -> str:
@@ -96,6 +116,35 @@ def relationships_sql(run: Runner) -> str:
     return RELATIONSHIPS_SQL.format(join=", " + ", ".join(JOIN_COLUMNS) if joins else "")
 
 
+def _availability(run: Runner, names: list[str]) -> dict[str, dict[str, Any]] | None:
+    """Table_Catalog availability metadata per table, or None where the Governor cannot read it (before migration
+    20260927_006): a point-in-time spec then fails closed in the sandbox."""
+    if not _present(run, "Table_Catalog", AVAILABILITY_COLUMNS):
+        return None
+    rows = run(AVAILABILITY_READABLE_SQL, (list(AVAILABILITY_COLUMNS) + ["table_name", "table_schema"],))
+    if not rows or not rows[0]["readable"]:
+        return None
+    return {row["table_name"]: {key: row[key] for key in AVAILABILITY_COLUMNS}
+            for row in run(AVAILABILITY_SQL, (names,))}
+
+
+def _history_available_from(run: Runner, relationship: dict[str, Any]) -> str | None:
+    """The first observation date an EFFECTIVE_DATED relationship can answer: the earliest non-empty validity start of
+    its right (history) table, or None while that history is empty. Identifiers come from the catalog and are quoted."""
+    from psycopg import sql
+
+    relation = sql.SQL("public.{}").format(sql.Identifier(relationship["right_table"])).as_string(None)
+    readable = run(TABLE_READABLE_SQL, (relation, relation))
+    if not readable or not readable[0]["readable"]:
+        return None  # an unreadable history answers no date (never an aborted catalog read for every table)
+    query = sql.SQL(HISTORY_FROM_SQL).format(
+        start=sql.Identifier(relationship["effective_from_column"]),
+        end=sql.Identifier(relationship["effective_to_column"]), table=sql.Identifier(relationship["right_table"]))
+    rows = run(query.as_string(None), ())
+    value = rows[0]["history_available_from"] if rows else None
+    return value.isoformat() if isinstance(value, date) else value
+
+
 def load_contract(run: Runner, tables: list[str]) -> dict[str, Any]:
     """The catalog contract of the named tables (active, AI-readable tables only)."""
     names = sorted(dict.fromkeys(tables))[:MAX_CONTRACT_TABLES]
@@ -107,7 +156,10 @@ def load_contract(run: Runner, tables: list[str]) -> dict[str, Any]:
     # IP1 Stage C (migration 20260927_005): the rule for aggregating a column across entities of a finer grain (for
     # example brokers into a ticker-date-board row); absent before that migration
     cross = _present(run, "AI_column_catalog", ("cross_entity_aggregation",))
-    extra = (", resample_aggregation" if resample else "") + (", cross_entity_aggregation" if cross else "")
+    # IP1 Stage D: HISTORICAL (the value belongs to its row's date) or CURRENT_STATE (today's value on every row)
+    basis = _present(run, "AI_column_catalog", ("value_time_basis",))
+    extra = (", resample_aggregation" if resample else "") + (", cross_entity_aggregation" if cross else "") + (
+        ", value_time_basis" if basis else "")
     for row in run(COLUMNS_SQL.format(resample=extra), (sorted(found),)):
         if row["ai_allowed"] and not row["is_sensitive"]:
             columns[row["table_name"]][row["column_name"]] = {
@@ -115,8 +167,13 @@ def load_contract(run: Runner, tables: list[str]) -> dict[str, Any]:
                 "filter_allowed": bool(row["filter_allowed"]), "group_by_allowed": bool(row["group_by_allowed"]),
                 "allowed_aggregations": sorted(row["allowed_aggregations"] or []),
                 **({"resample_aggregation": row["resample_aggregation"]} if resample else {}),
-                **({"cross_entity_aggregation": row["cross_entity_aggregation"]} if cross else {})}
+                **({"cross_entity_aggregation": row["cross_entity_aggregation"]} if cross else {}),
+                **({"value_time_basis": row["value_time_basis"]} if basis else {})}
     relationships = [_relationship(row) for row in run(relationships_sql(run), (sorted(found), sorted(found)))]
+    for rel in relationships:
+        if "EFFECTIVE_DATED" in (rel.get("supported_join_semantics") or []) and rel.get("effective_from_column"):
+            rel["history_available_from"] = _history_available_from(run, rel)
+    availability = _availability(run, sorted(found)) if basis else None
     described: dict[str, Any] = {}
     for name, row in found.items():
         meta = {
@@ -125,12 +182,17 @@ def load_contract(run: Runner, tables: list[str]) -> dict[str, Any]:
             "time_column": row["time_column"],
             **{key: (list(row[key]) if key == "supported_frequencies" and row.get(key) is not None else row.get(key))
                for key in SUBJECT_COLUMNS},
+            **({"availability": availability.get(name)} if availability is not None else {}),
         }
         touching = [rel for rel in relationships if name in (rel["left_table"], rel["right_table"])]
         meta["catalog_table_sha256"] = sha256_json({"table": {k: v for k, v in meta.items()},
                                                     "columns": columns[name], "relationships": touching})
         described[name] = meta
-    contract = {"catalog_version": CATALOG_VERSION, "subject_metadata": subject, "tables": described,
+    contract = {"catalog_version": CATALOG_VERSION, "subject_metadata": subject,
+                # IP1 Stage D: whether the contract can support a point-in-time spec (value_time_basis and the
+                # Table_Catalog availability metadata are both readable); the sandbox fails closed otherwise
+                **({"point_in_time_metadata": True} if availability is not None else {}),
+                "tables": described,
                 "columns": columns, "relationships": relationships,
                 "unknown_tables": [name for name in names if name not in found]}
     contract["catalog_sha256"] = sha256_json({k: contract[k] for k in ("tables", "columns", "relationships")})

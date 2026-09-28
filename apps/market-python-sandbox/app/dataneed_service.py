@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from .bundles import BundleBuilder, BundleError
 from .bundles import model_view as bundle_view
 from .coverage import execution_manifest, processing_coverage
-from .data_need import Limits, contract_tables, data_contract_sha256, sha256_json, validate
+from .data_need import DEFAULT_TIME_BASIS, Limits, contract_tables, data_contract_sha256, sha256_json, validate
 from .datasets import DatasetFailure
 from .dataneed_store import DRAFT_RETENTION_DAYS, DataNeedStore
 from .records import utc_now
@@ -158,6 +158,7 @@ class DataNeedService:
         if allowed and approved is not None:
             result["approved"] = {
                 "spec_sha256": approved["spec_sha256"], "reference_date": approved["reference_date"],
+                "time_basis": approved.get("time_basis") or DEFAULT_TIME_BASIS,
                 "catalog_sha256": approved["catalog_sha256"],
                 "requests": [{"data_request_id": r["data_request_id"], "logical_name": r["logical_name"],
                               "source_table": r["source_table"], "extract_columns": r["extract_columns"],
@@ -515,7 +516,9 @@ class DataNeedService:
             "warnings": sorted({w["code"] for w in bundle.get("relationship_warnings") or []} | set(quality_flags)),
             "claims_allowed": self.CLAIMS_ALLOWED if passed else [],
             "claims_forbidden": self.CLAIMS_FORBIDDEN + (self.RESEARCH_CLAIMS_FORBIDDEN if mode == "RESEARCH" else []),
-            "research_constraints": research.get("constraints") if mode == "RESEARCH" else None}
+            "research_constraints": research.get("constraints") if mode == "RESEARCH" else None,
+            # IP1 Stage D: what the data may claim about time (HISTORICAL_DESCRIPTIVE or POINT_IN_TIME)
+            "time_basis": bundle.get("time_basis") or DEFAULT_TIME_BASIS}
         if parent is not None:
             final["inherited_coverage"] = {
                 "parent_completion_id": parent["completion_id"], "parent_request_id": parent["request_id"],

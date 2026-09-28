@@ -55,6 +55,22 @@ current flow; while the flag is off, its routes answer 404 and the service keeps
     is no longer refused: its INNER restriction is a semi-join that never multiplies rows, and in the session
     `saniti.join` refuses a row join until the many side came from `saniti.preaggregate`. Each approved request
     carries `aggregation_rules`, the catalog's `cross_entity_aggregation` per column (migration `20260927_005`).
+  - **Time basis (IP1 Stage D).** `data_need_spec/v2` may state `time_basis`: `HISTORICAL_DESCRIPTIVE` (the
+    default) or `POINT_IN_TIME` (opt-in; `GET /v1/runtime` reports `point_in_time`). The checks need the Governor
+    contract of migration `20260927_006` (`value_time_basis` per column, the Table_Catalog `availability` per table,
+    `history_available_from` per EFFECTIVE_DATED relationship):
+    - either mode: an EFFECTIVE_DATED relationship answers only dates its history covers, so a left request that
+      extracts a date before `history_available_from` (range start minus history buffer), or a history that is
+      still empty, is `POINT_IN_TIME_UNAVAILABLE`; the join is never left to drop those rows silently;
+    - `HISTORICAL_DESCRIPTIVE`: a dated request that reads or filters a `CURRENT_STATE` column (Feature 01 sector
+      and industry, Feature 02 broker_classification, Feature 03 institutional/retail/mixed/niche net values) is
+      approved with the warning `CURRENT_STATE_COLUMN`;
+    - `POINT_IN_TIME`: `POINT_IN_TIME_UNAVAILABLE` for a CURRENT_STATE relationship, a CURRENT_STATE column read or
+      filtered, a table whose `point_in_time_status` is `UNAVAILABLE` (the current-state reference tables), and for
+      any spec when the catalog lacks that metadata (fail closed). Never replaced by current data.
+    The approved contract, the bundle and the final status carry `time_basis`; each approved request carries its
+    table's `availability`. A point-in-time data contract never reuses descriptive data (its hash adds
+    `time_basis`; descriptive hashes are unchanged).
   - There is no formula, calculation, indicator, method, ranking or output grain.
 - The DataNeedValidator checks four layers: schema, catalog binding (Governor catalog contract), cross-request
   relationships, and planning feasibility. It answers `APPROVED`, `REVISION_REQUIRED` or `CATALOG_UNAVAILABLE`.
@@ -169,7 +185,11 @@ bundle of the same request.
     (CURRENT_STATE, EXACT_DATE, AS_OF backward, EFFECTIVE_DATED half-open), on every key pair. It checks the
     declared cardinality: a side declared "one" (and an AS_OF / EFFECTIVE_DATED history per key and time) must be
     unique, otherwise `JoinCardinalityError`; a result larger than the grain allows is refused; a LEFT join keeps
-    every left row with `_saniti_match` = `matched` / `unmatched`; null keys never match. `join_report()` gives the
+    every left row with `_saniti_match` = `matched` / `unmatched`; null keys never match. For EFFECTIVE_DATED, history
+    rows whose validity is empty (`effective_to <= effective_from`, for example knowledge superseded the day it was
+    recorded) are dropped first, as the Governor's restriction never matches them, and the remaining versions of a
+    key must not overlap (`JoinCardinalityError` otherwise); the right side may be filtered first (a sector scope),
+    because the version is chosen by date, not by the filter (IP1 Stage D). `join_report()` gives the
     rows on each side and out, unmatched rows, null keys and the grain checked (also in the access log);
   - `preaggregate(relationship_id, frame, measures)`: the many side aggregated to the relationship's key grain
     (entity keys and date) with each column's catalog cross-entity rule. A column without one (ratios, percentiles,

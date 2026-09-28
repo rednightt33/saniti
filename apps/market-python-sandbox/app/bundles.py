@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Any
 
 from .coverage import delivery_coverage, part_key, sha256_json
-from .data_need import buffer_days
+from .data_need import DEFAULT_TIME_BASIS, buffer_days
 from .datasets import DatasetFailure, DatasetProvider
 from .executor import read_child_json
 from .records import utc_now
@@ -336,7 +336,8 @@ class BundleBuilder:
         body = {
             "input_bundle_id": bundle_id, "request_id": request_id, "need_id": need["need_id"],
             "request_group_id": approved["request_group_id"], "revision": approved["revision"],
-            "mode": approved.get("mode"), "reference_date": approved["reference_date"],
+            "mode": approved.get("mode"), "time_basis": approved.get("time_basis") or DEFAULT_TIME_BASIS,
+            "reference_date": approved["reference_date"],
             "spec_sha256": approved["spec_sha256"], "catalog_sha256": approved.get("catalog_sha256"),
             "plan_id": plan["plan_id"], "plan_sha256": plan_sha, "plan_decisions": plan["decisions"],
             "status": "READY" if coverage["coverage_status"] == "PASS" else "REJECTED",

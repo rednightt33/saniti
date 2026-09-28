@@ -29,6 +29,8 @@ FILE_ID = re.compile(r"^(res|art)_[0-9a-f]{24}$")
 NEED_ID = re.compile(r"^need_[0-9a-f]{24}$")
 DRAFT_ID = re.compile(r"^draft_[0-9a-f]{24}$")
 FEASIBILITY_VERSION = 1
+# IP1 Stage D: data_need_spec/v2 time_basis (HISTORICAL_DESCRIPTIVE / POINT_IN_TIME) and its refusals
+POINT_IN_TIME_VERSION = 1
 SESSION_ID = re.compile(r"^sess_[0-9a-f]{24}$")
 OUTPUT_ID = re.compile(r"^out_[0-9a-f]{24}$")
 DATA_NEED_KEYS = {"request_id", "reference_time", "timezone", "spec", "research_governance"}
@@ -114,6 +116,7 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                 "plan_feasibility": {"enabled": dataneed is not None, "version": FEASIBILITY_VERSION},
                 # IP1 Stage B: data_need_spec/v2 names every key pair of a composite relationship
                 "data_need_spec_versions": list(SPEC_VERSIONS) if dataneed is not None else [],
+                "point_in_time": {"enabled": dataneed is not None, "version": POINT_IN_TIME_VERSION},
                 "limits": {**settings.child_limits(), "max_runtime_seconds": settings.max_runtime_seconds,
                            "max_memory_mb": settings.max_memory_mb, "duckdb_memory_mb": settings.duckdb_memory_mb,
                            "max_logical_datasets": settings.max_logical_datasets,

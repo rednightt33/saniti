@@ -203,6 +203,10 @@ class ToolRegistry:
     def names(self) -> list[str]:
         return [name for name, spec in self._tools.items() if spec.enabled]
 
+    def get(self, name: str) -> ToolSpec | None:
+        """The registered spec of a tool, or None."""
+        return self._tools.get(name)
+
     def definitions(self) -> list[dict[str, Any]]:
         return [
             {

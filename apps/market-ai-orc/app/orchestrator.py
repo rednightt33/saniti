@@ -365,6 +365,23 @@ Describe only what actually ran, never a method that did not run. Its
 numbers come from the same sources as the answer, the approved plan,
 the DataNeedSpec or the code that ran. No code, SQL or helper calls.
 Every other response carries methodology null."""
+POINT_IN_TIME_RULES = """
+
+TIME BASIS
+Every DataNeedSpec states time_basis:
+1. HISTORICAL_DESCRIPTIVE (normal): history described with today's
+reference data (current sector, current broker classification). Say in
+the answer that classifications are current, not those of each date.
+2. POINT_IN_TIME only when the user asks what was known at the time: a
+backtest, no look-ahead, the sector or broker classification as of each
+date. Join the history tables (IDX_Stock_Universe_History,
+IDX_Broker_Profile_History) through their EFFECTIVE_DATED relationships;
+current-state tables, relationships and columns are refused.
+3. POINT_IN_TIME_UNAVAILABLE means that history does not cover the
+request (it starts at its first recording). Never switch to current
+data silently: narrow the period to the covered dates, or answer
+descriptively and say that point-in-time data was unavailable, or
+report the limitation."""
 CONVERSATION_REUSE_RULES = """
 
 CONVERSATION REUSE
@@ -460,7 +477,8 @@ def final_contract_block(contract: str, plan_confirmation: bool) -> str:
 def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirmation: bool = False,
                         period_return: bool = False, final_contract: bool = False,
                         catalog_protocol: bool = False, conversation_reuse: bool = False,
-                        methodology: bool = False, plan_feasibility: bool = False) -> str:
+                        methodology: bool = False, plan_feasibility: bool = False,
+                        point_in_time: bool = False) -> str:
     """The system prompt for the registered tools. It is fixed for a deployment (AI_ENABLE_LOOKUP_FACT,
     AI_ENABLE_DATANEED, AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION, AI_ENABLE_STANDARD_PERIOD_RETURN,
     AI_FINAL_CONTRACT_IN_PROMPT), so every call of every run shares one byte-identical cacheable prefix. With the
@@ -472,7 +490,8 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
         template = common + DATANEED_RULES + (RESEARCH_PLAN_RULES if plan_confirmation else "") \
             + (PLAN_FEASIBILITY_RULES if plan_confirmation and plan_feasibility else "") \
             + (PERIOD_RETURN_RULES if period_return else "") + (CATALOG_PROTOCOL_RULES if catalog_protocol else "") \
-            + (CONVERSATION_REUSE_RULES if conversation_reuse else "") + (METHODOLOGY_RULES if methodology else "")
+            + (CONVERSATION_REUSE_RULES if conversation_reuse else "") + (METHODOLOGY_RULES if methodology else "") \
+            + (POINT_IN_TIME_RULES if point_in_time else "")
     if final_contract:
         # plan_confirmation and methodology reach here only together with dataneed (see AgentOrchestrator.__init__)
         contract = response_contract(plan_confirmation, methodology)
@@ -589,7 +608,11 @@ WARNING_LINES = {
     "EMPTY_ENTITY": "An entity named in the request has no data.",
     "NULL_VALUES": "Some delivered values are missing (null).",
     "DUPLICATE_KEYS": "Some rows repeat their key columns.",
+    "CURRENT_STATE_COLUMN": "Some columns hold today's value on every historical row (for example the current sector "
+                            "or broker classification), not the value of each date.",
 }
+PIT_FALLBACK_LINE = ("Point-in-time data was requested but is not available ({detail}); these results use current "
+                     "reference data (historical descriptive), not what was known at each date.")
 
 RESPONSE_FORMAT_NAME = "saniti_agent_response"
 REJECTED_OUTPUT_ECHO_CHARS = 4000
@@ -793,6 +816,8 @@ class RunState:
     # data need was submitted (an attempt consumes an approval), the verified approval, and a plan left unexecuted
     feasible_draft: str | None = None
     feasibility_checks: list[dict[str, Any]] = field(default_factory=list)
+    # IP1 Stage D: POINT_IN_TIME_UNAVAILABLE refusals of this run (never a silent fallback to current data)
+    pit_refusals: list[str] = field(default_factory=list)
     research_attempted: bool = False
     verified_plan: Any = None
     plan_unexecuted: bool = False
@@ -892,10 +917,15 @@ class AgentOrchestrator:
         self.methodology = settings.ai_enable_methodology and self.dataneed
         if settings.ai_enable_methodology and not self.dataneed:
             log_event("methodology_inactive", reason="AI_ENABLE_DATANEED is off")
+        # IP1 Stage D: active when the registered submit_data_need_spec carries time_basis (AI_ENABLE_POINT_IN_TIME
+        # and the sandbox capability, checked at startup)
+        submit = registry.get("submit_data_need_spec") if self.dataneed else None
+        self.point_in_time = submit is not None and "time_basis" in submit.arguments_model.model_fields
         self.system_prompt = build_system_prompt(settings.ai_enable_lookup_fact, self.dataneed,
                                                  self.plan_confirmation, period_return,
                                                  settings.ai_final_contract_in_prompt, self.catalog_protocol,
-                                                 self.conversation_reuse, self.methodology, self.plan_feasibility)
+                                                 self.conversation_reuse, self.methodology, self.plan_feasibility,
+                                                 self.point_in_time)
         self.final_schema = final_response_schema(self.plan_confirmation, self.methodology)
         contract = response_contract(self.plan_confirmation, self.methodology)
         self.response_contract = contract
@@ -1448,6 +1478,7 @@ class AgentOrchestrator:
         if not isinstance(result, dict):
             state.feasibility_checks.append({"status": outcome.error_code or "ERROR"})
             return
+        AgentOrchestrator._track_pit_refusals(state, result)
         entry = {"status": result.get("status"), "draft_id": result.get("draft_id"),
                  "issues": [i.get("code") for i in result.get("issues") or [] if isinstance(i, dict)][:10],
                  "requests": [{k: r.get(k) for k in ("data_request_id", "governor_status", "code", "message")}
@@ -1690,6 +1721,14 @@ class AgentOrchestrator:
                 state.context_numbers.extend(numbers_in(part, ints_only=True))
 
     @staticmethod
+    def _track_pit_refusals(state: RunState, result: dict[str, Any]) -> None:
+        for issue in result.get("issues") or []:
+            if isinstance(issue, dict) and issue.get("code") == "POINT_IN_TIME_UNAVAILABLE":
+                detail = str(issue.get("rejected_value") or issue.get("field_path") or "")[:200]
+                if detail not in state.pit_refusals:
+                    state.pit_refusals.append(detail)
+
+    @staticmethod
     def _track_dataneed(state: RunState, name: str, arguments: Any, outcome: ToolOutcome) -> None:
         """DataNeed flow: needs, sessions, completions, and the numbers an answer may cite (released outputs)."""
         if not outcome.ok:
@@ -1697,6 +1736,8 @@ class AgentOrchestrator:
         result = outcome.output.get("result")
         if not isinstance(result, dict):
             return
+        if name == "submit_data_need_spec":
+            AgentOrchestrator._track_pit_refusals(state, result)
         if name == "submit_data_need_spec" and result.get("need_id"):
             state.needs[result["need_id"]] = {
                 "mode": (arguments or {}).get("mode") if isinstance(arguments, dict) else None,
@@ -1769,6 +1810,9 @@ class AgentOrchestrator:
                          "were not independently recalculated by the backend (calculation_validation NOT_PERFORMED).")
             codes = sorted({code for c in completed for code in c["final"].get("warnings") or []})
             lines.extend(WARNING_LINES[code] for code in codes if code in WARNING_LINES)
+            if state.pit_refusals and any(c["final"].get("time_basis") != "POINT_IN_TIME" for c in completed):
+                # IP1 Stage D: a point-in-time request was refused and the answer rests on descriptive data
+                lines.append(PIT_FALLBACK_LINE.format(detail="; ".join(state.pit_refusals[:3])))
             if any((state.needs.get(c.get("need_id") or "") or {}).get("mode") == "RESEARCH" for c in completed):
                 lines.append("Research results describe a historical pattern only; they are not evidence of a cause "
                              "or a prediction.")

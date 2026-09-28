@@ -209,6 +209,7 @@ SELECT c.table_name, c.column_name, c.description, c.data_type, c.semantic_type,
        c.group_by_allowed, c.example_value, c.documentation_status,
        to_jsonb(c) ->> 'resample_aggregation' AS resample_aggregation,
        (to_jsonb(c) ? 'resample_aggregation') AS resample_recorded,
+       to_jsonb(c) ->> 'value_time_basis' AS value_time_basis,
        count(*) OVER (PARTITION BY c.table_name) AS table_total,
        count(*) OVER () AS total_matching
 FROM public."AI_column_catalog" c
@@ -216,6 +217,19 @@ WHERE c.table_name = ANY(%s) AND c.ai_allowed AND NOT c.is_sensitive
   AND (%s::text[] IS NULL OR c.column_name = ANY(%s::text[]))
 ORDER BY c.table_name, c.ordinal_position
 LIMIT %s
+'''
+
+# IP1 Stage D (AI_ENABLE_POINT_IN_TIME): the availability contract of Table_Catalog, readable through a column-level
+# grant (migration 20260927_006); information_schema lists only the columns this role may read, so the check below
+# keeps get_catalog_details working before that grant
+AVAILABILITY_READABLE_SQL = '''
+SELECT count(*) AS readable FROM information_schema.columns
+WHERE table_schema = 'public' AND table_name = 'Table_Catalog'
+  AND column_name IN ('table_schema', 'table_name', 'point_in_time_status', 'availability_rule')
+'''
+AVAILABILITY_SQL = '''
+SELECT table_name, point_in_time_status, availability_rule FROM public."Table_Catalog"
+WHERE table_schema = 'public' AND table_name = ANY(%s)
 '''
 
 FOUND_COLUMNS_SQL = '''
@@ -716,7 +730,7 @@ def _column_entry_v2(row: dict[str, Any], fields: tuple[str, ...], shorten: bool
 
 
 def _columns_v2(rows: list[dict[str, Any]], tables: list[str], column_filter: list[str] | None,
-                budget: int) -> dict[str, Any]:
+                budget: int, current_state: bool = False) -> dict[str, Any]:
     """COLUMNS with discovery v2: the FULL, COMPACT or MINIMAL tier that fits (all keep names, types, units,
     permissions and resample rules), per-table completeness, and the exact call that fetches what was cut."""
     total = int(rows[0]["total_matching"]) if rows else 0
@@ -724,7 +738,10 @@ def _columns_v2(rows: list[dict[str, Any]], tables: list[str], column_filter: li
     rows = rows[:ROW_CAPS["COLUMNS"]]
     detail, entries = "FULL", []
     for detail, fields in (("FULL", COLUMN_FULL_V2), ("COMPACT", COLUMN_COMPACT_V2), ("MINIMAL", COLUMN_MINIMAL_V2)):
-        entries = [_column_entry_v2(row, fields, shorten=detail != "FULL") for row in rows]
+        # IP1 Stage D: a column holding today's reference value on every historical row says so
+        entries = [_column_entry_v2(row, fields, shorten=detail != "FULL")
+                   | ({"value_time_basis": "CURRENT_STATE"} if current_state
+                      and row.get("value_time_basis") == "CURRENT_STATE" else {}) for row in rows]
         if _size(entries) <= budget:
             break
     kept, _ = _fit(entries, budget)
@@ -815,9 +832,10 @@ def _table_entry(row: dict[str, Any]) -> dict[str, Any]:
 
 class CatalogTools:
     def __init__(self, reader: CatalogReader, *, discovery_v2: bool = False,
-                 codec: CursorCodec | None = None) -> None:
+                 codec: CursorCodec | None = None, point_in_time: bool = False) -> None:
         self.reader = reader
         self.discovery_v2 = discovery_v2
+        self.point_in_time = point_in_time and discovery_v2
         self.codec = codec
         if discovery_v2 and codec is None:
             raise ValueError("discovery v2 needs a cursor codec")
@@ -992,6 +1010,11 @@ class CatalogTools:
                     }
                     for row in run(TABLE_META_SQL, (tables,))
                 }
+                if self.point_in_time and int(run(AVAILABILITY_READABLE_SQL, ())[0]["readable"]) == 4:
+                    for row in run(AVAILABILITY_SQL, (tables,)):
+                        if row["table_name"] in base["table_metadata"]:
+                            base["table_metadata"][row["table_name"]]["availability"] = _entry(
+                                row, ("point_in_time_status", "availability_rule"))
             remaining = RESULT_BUDGET_BYTES - _size(base) - 200
             built: dict[str, Any] = {}
             ordered = [section for section in ALLOCATION_ORDER if section in arguments.sections]
@@ -1014,7 +1037,7 @@ class CatalogTools:
         columns = arguments.column_names
         if section == "COLUMNS" and self.discovery_v2:
             rows = run(COLUMNS_V2_SQL, (tables, columns, columns, ROW_CAPS["COLUMNS"] + 1))
-            result = _columns_v2(rows, tables, columns, budget)
+            result = _columns_v2(rows, tables, columns, budget, current_state=self.point_in_time)
             if columns:
                 present = {row["column_name"] for row in run(FOUND_COLUMNS_SQL, (tables, columns))}
                 missing = [name for name in columns if name not in present]
@@ -1187,8 +1210,8 @@ class CatalogTools:
 
 
 def catalog_specs(reader: CatalogReader, *, timeout_seconds: float, discovery_v2: bool = False,
-                  codec: CursorCodec | None = None) -> list[ToolSpec]:
-    tools = CatalogTools(reader, discovery_v2=discovery_v2, codec=codec)
+                  codec: CursorCodec | None = None, point_in_time: bool = False) -> list[ToolSpec]:
+    tools = CatalogTools(reader, discovery_v2=discovery_v2, codec=codec, point_in_time=point_in_time)
     if discovery_v2:
         return [
             ToolSpec(

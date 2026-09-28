@@ -58,6 +58,12 @@ NUMERIC = ("smallint", "integer", "bigint", "numeric", "real", "double precision
 
 TOP_FIELDS = {"spec_version", "request_group_id", "revision", "mode", "question", "subject", "data_requests",
               "relationships"}
+# IP1 Stage D (v2 only): HISTORICAL_DESCRIPTIVE (the default) may use current-state reference data, disclosed by a
+# warning; POINT_IN_TIME may use only what was in effect and already recorded on each observation date, and is refused
+# (POINT_IN_TIME_UNAVAILABLE) wherever that history does not exist, never silently replaced by the current state
+TIME_BASES = ("HISTORICAL_DESCRIPTIVE", "POINT_IN_TIME")
+DEFAULT_TIME_BASIS = "HISTORICAL_DESCRIPTIVE"
+TOP_FIELDS_V2 = TOP_FIELDS | {"time_basis"}
 SUBJECT_FIELDS = {"data_domain", "entity_type", "asset_type"}
 REQUEST_FIELDS = {"data_request_id", "logical_name", "source_table", "entity_column", "time_column", "columns", "scope",
                   "time_ranges", "source_frequency", "analysis_frequency", "resample", "history_buffer",
@@ -253,7 +259,10 @@ def check_schema(raw: Any, limits: Limits, issues: Issues) -> bool:
     if raw.get("spec_version") not in SPEC_VERSIONS:
         issues.add(None, "UNSUPPORTED_SPEC_VERSION" if "spec_version" in raw else "MISSING_REQUIRED_FIELD",
                    "spec_version", raw.get("spec_version"))
-    _fields(raw, TOP_FIELDS, {"relationships"}, "", None, issues)
+    v2 = raw.get("spec_version") == "data_need_spec/v2"
+    _fields(raw, TOP_FIELDS_V2 if v2 else TOP_FIELDS, {"relationships", "time_basis"}, "", None, issues)
+    if v2 and raw.get("time_basis") is not None and raw["time_basis"] not in TIME_BASES:
+        issues.add(None, "INVALID_FIELD_VALUE", "time_basis", raw["time_basis"])
     group = raw.get("request_group_id")
     if not isinstance(group, str) or not GROUP_ID.fullmatch(group):
         issues.add(None, "INVALID_REQUEST_ID", "request_group_id", group)
@@ -747,6 +756,79 @@ def _oriented_type(relationship_type: str | None, forward: bool) -> str | None:
     return "MANY_TO_ONE" if relationship_type == "ONE_TO_MANY" else "ONE_TO_MANY"
 
 
+# ------------------------------------------------------------------------------ layer 3b: point in time (IP1 D)
+
+def time_basis_of(spec: dict[str, Any]) -> str:
+    return spec.get("time_basis") or DEFAULT_TIME_BASIS
+
+
+def _scope_columns(request: dict[str, Any]) -> list[tuple[str, str]]:
+    return [(f"{where}.column", predicate["column"]) for where, predicate in scope_predicates(request["scope"], "scope")]
+
+
+def point_in_time(spec: dict[str, Any], contract: dict[str, Any], bound: list[BoundRelationship], reference: date,
+                  issues: Issues, warnings: list[dict[str, Any]]) -> None:
+    """IP1 Stage D.
+
+    Either mode: an EFFECTIVE_DATED relationship answers only dates its history covers, so every date the left
+    request extracts must be on or after the relationship's history_available_from (the Governor's contract); an
+    earlier date would drop rows silently (POINT_IN_TIME_UNAVAILABLE).
+
+    HISTORICAL_DESCRIPTIVE: a dated request that reads or filters a CURRENT_STATE column is approved with the
+    CURRENT_STATE_COLUMN warning (historical rows carry today's value).
+
+    POINT_IN_TIME (opt-in): refused with POINT_IN_TIME_UNAVAILABLE when the catalog cannot say what was known when (no
+    value_time_basis or availability metadata), for a CURRENT_STATE relationship, a CURRENT_STATE column read or
+    filtered, or a table whose point_in_time_status is UNAVAILABLE (a current-state reference table)."""
+    tables, columns = contract.get("tables") or {}, contract.get("columns") or {}
+    catalog = {rel["relationship_id"]: rel for rel in contract.get("relationships") or []}
+    requests = {r["data_request_id"]: r for r in spec["data_requests"]}
+    for b in bound:
+        if b.semantics != "EFFECTIVE_DATED":
+            continue
+        entry, left = catalog.get(b.relationship_id) or {}, requests[b.left]
+        start = entry.get("history_available_from") if "history_available_from" in entry else "unknown"
+        if start == "unknown":
+            continue  # a catalog without reference history (synthetic effective-dated tables): nothing to check
+        timed = (tables.get(left["source_table"]) or {}).get("time_column") is not None
+        windows = extraction_windows(left, reference) if timed else []
+        earliest = min((w["extract_from"] for w in windows), default=None)
+        if start is None or (earliest is not None and earliest < start):
+            issues.add(b.left, "POINT_IN_TIME_UNAVAILABLE", f"relationships[{b.index}].relationship_id",
+                       f"{entry.get('right_table')} history answers dates from {start or 'no date yet'}; "
+                       f"this request extracts from {earliest}")
+    pit = time_basis_of(spec) == "POINT_IN_TIME"
+    if pit and not contract.get("point_in_time_metadata"):
+        issues.add(None, "POINT_IN_TIME_UNAVAILABLE", "time_basis",
+                   "the catalog has no value_time_basis / availability metadata")
+        return
+    if pit:
+        for b in bound:
+            if b.semantics == "CURRENT_STATE":
+                issues.add(b.left, "POINT_IN_TIME_UNAVAILABLE", f"relationships[{b.index}].join_semantics",
+                           "CURRENT_STATE")
+    for index, request in enumerate(spec["data_requests"]):
+        rid, path = request["data_request_id"], f"data_requests[{index}]"
+        meta = tables.get(request["source_table"]) or {}
+        known = columns.get(request["source_table"]) or {}
+        current = [(f"{path}.columns[{position}]", column) for position, column in enumerate(request["columns"])
+                   if (known.get(column) or {}).get("value_time_basis") == "CURRENT_STATE"]
+        current += [(f"{path}.{where}", column) for where, column in _scope_columns(request)
+                    if (known.get(column) or {}).get("value_time_basis") == "CURRENT_STATE"]
+        if not pit:
+            if current and meta.get("time_column") is not None:
+                warnings.append({"code": "CURRENT_STATE_COLUMN", "data_request_id": rid,
+                                 "columns": sorted({column for _, column in current}),
+                                 "message": "These columns hold today's value on every historical row (for example "
+                                            "the current sector); past values may have differed."})
+            continue
+        if ((meta.get("availability") or {}).get("point_in_time_status")) == "UNAVAILABLE":
+            issues.add(rid, "POINT_IN_TIME_UNAVAILABLE", f"{path}.source_table", request["source_table"])
+            continue
+        for where, column in current:
+            issues.add(rid, "POINT_IN_TIME_UNAVAILABLE", where, column)
+
+
 # ------------------------------------------------------------------------------------ layer 4: planning feasibility
 
 def feasibility(spec: dict[str, Any], contract: dict[str, Any], reference: date, limits: Limits,
@@ -846,6 +928,8 @@ def validate(raw: Any, contract: dict[str, Any] | None, reference: date, limits:
     bind_catalog(raw, contract, limits, issues)
     bound = cross_request(raw, contract, issues, warnings)
     feasibility(raw, contract, reference, limits, issues)
+    if not issues:
+        point_in_time(raw, contract, bound, reference, issues, warnings)
     if issues:
         return Validation("REVISION_REQUIRED", issues.items, warnings)
     return Validation("APPROVED", [], warnings, approved_contract(raw, contract, bound, reference))
@@ -885,7 +969,9 @@ def approved_contract(spec: dict[str, Any], contract: dict[str, Any], bound: lis
                                       "cross_entity_aggregation"))},
             "history_buffer": request.get("history_buffer"), "future_buffer": request.get("future_buffer"),
             "ordering": list(request["ordering"]), "sampling_allowed": False,
-            "catalog_table_sha256": meta.get("catalog_table_sha256"), "restrictions": []}
+            "catalog_table_sha256": meta.get("catalog_table_sha256"), "restrictions": [],
+            # IP1 Stage D: the table's availability contract (Table_Catalog), when the catalog exposes it
+            **({"availability": meta["availability"]} if meta.get("availability") else {})}
     relationships = []
     for b in bound:
         right = requests[b.right]
@@ -921,7 +1007,7 @@ def approved_contract(spec: dict[str, Any], contract: dict[str, Any], bound: lis
         entry["restriction_sha256"] = sha256_json(entry["restrictions"])
     normalized = {**spec, "relationships": list(spec.get("relationships") or [])}
     return {"spec_version": spec.get("spec_version") or SPEC_VERSION, "spec": normalized,
-            "spec_sha256": sha256_json(normalized),
+            "spec_sha256": sha256_json(normalized), "time_basis": time_basis_of(spec),
             "request_group_id": spec["request_group_id"], "revision": spec["revision"], "mode": spec["mode"],
             "requests": requests, "relationships": relationships, "reference_date": reference.isoformat(),
             "catalog_sha256": contract.get("catalog_sha256"), "catalog_version": contract.get("catalog_version")}
@@ -942,7 +1028,10 @@ def data_contract_sha256(approved: dict[str, Any]) -> str:
     relationships, and the catalog version. The request group, revision and question are left out; the logical ids
     (data_request_id, logical_name) stay in, because the session's helpers address the data by them."""
     spec = approved.get("spec") or {}
+    basis = approved.get("time_basis") or DEFAULT_TIME_BASIS
     return sha256_json({
+        # a point-in-time need never reuses descriptive data (the descriptive hash is unchanged by IP1 Stage D)
+        **({"time_basis": basis} if basis != DEFAULT_TIME_BASIS else {}),
         "mode": approved.get("mode"), "subject": spec.get("subject"),
         "requests": {rid: {k: request.get(k) for k in CONTRACT_REQUEST_FIELDS}
                      for rid, request in sorted((approved.get("requests") or {}).items())},

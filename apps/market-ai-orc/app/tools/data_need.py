@@ -230,6 +230,28 @@ class CheckDataFeasibilityArgsV2(DataNeedSpecBodyV2):
     """check_data_feasibility with data_need_spec/v2."""
 
 
+TIME_BASIS_DESCRIPTION = (
+    "HISTORICAL_DESCRIPTIVE (normal): history may be described with current reference data such as today's sector, "
+    "disclosed. POINT_IN_TIME only when the user asks for what was known at the time (no look-ahead, backtest, "
+    "classification as of each date): only values in effect and already recorded on each date, through the "
+    "EFFECTIVE_DATED relationships of the history tables; refused with POINT_IN_TIME_UNAVAILABLE where that history "
+    "does not exist, never replaced by current data.")
+
+
+class DataNeedSpecBodyPIT(DataNeedSpecBodyV2):
+    """data_need_spec/v2 with time_basis (AI_ENABLE_POINT_IN_TIME, IP1 Stage D)."""
+
+    time_basis: Literal["HISTORICAL_DESCRIPTIVE", "POINT_IN_TIME"] = Field(description=TIME_BASIS_DESCRIPTION)
+
+
+class SubmitDataNeedSpecArgsPIT(DataNeedSpecBodyPIT):
+    research_governance: ResearchGovernance | None = Field(description="Required for RESEARCH; null for ANALYSIS.")
+
+
+class CheckDataFeasibilityArgsPIT(DataNeedSpecBodyPIT):
+    """check_data_feasibility with data_need_spec/v2 and time_basis."""
+
+
 # ---------------------------------------------------------------- argument errors in the validator's issue shape
 
 def _walk(data: Any, loc: tuple[Any, ...], missing: bool) -> tuple[str, Any, Any]:
@@ -284,7 +306,8 @@ def argument_issues(exc: Exception, raw: Any) -> dict[str, Any]:
 DECLARATION_FIELDS = ("condition", "outcome", "baseline")
 
 
-def submit_data_need(client: SandboxClient, arguments: "SubmitDataNeedSpecArgs | SubmitDataNeedSpecArgsV2"
+def submit_data_need(client: SandboxClient,
+                     arguments: "SubmitDataNeedSpecArgs | SubmitDataNeedSpecArgsV2 | SubmitDataNeedSpecArgsPIT"
                      ) -> dict[str, Any]:
     context = current_run_context.get()
     if context is None:
@@ -338,11 +361,12 @@ SUBMIT_DESCRIPTION = (
 
 
 def data_need_specs(client: SandboxClient, *, timeout_seconds: float, max_result_bytes: int,
-                    composite_keys: bool = False) -> list[ToolSpec]:
-    model = SubmitDataNeedSpecArgsV2 if composite_keys else SubmitDataNeedSpecArgs
+                    composite_keys: bool = False, point_in_time: bool = False) -> list[ToolSpec]:
+    model = (SubmitDataNeedSpecArgsPIT if point_in_time else SubmitDataNeedSpecArgsV2) if composite_keys \
+        else SubmitDataNeedSpecArgs
 
     def submit(arguments: BaseModel) -> dict[str, Any]:
-        assert isinstance(arguments, (SubmitDataNeedSpecArgs, SubmitDataNeedSpecArgsV2))
+        assert isinstance(arguments, (SubmitDataNeedSpecArgs, SubmitDataNeedSpecArgsV2, SubmitDataNeedSpecArgsPIT))
         return submit_data_need(client, arguments)
 
     return [ToolSpec(name="submit_data_need_spec", description=SUBMIT_DESCRIPTION,

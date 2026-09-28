@@ -413,3 +413,43 @@ def test_a_catalog_change_while_paging_asks_to_restart(migrated_db: str) -> None
         with psycopg.connect(migrated_db, autocommit=True) as connection:
             connection.execute('UPDATE public."AI_table_catalog" SET description = replace(description, '
                                "' (edited)', '') WHERE table_name = 'Paging_Table_055'")
+
+
+# ------------------------------------------------------------------ IP1 Stage D: point-in-time metadata in details
+
+PIT_SQL = '''
+ALTER TABLE public."AI_column_catalog" ADD COLUMN value_time_basis text NOT NULL DEFAULT 'HISTORICAL';
+UPDATE public."AI_column_catalog" SET value_time_basis = 'CURRENT_STATE'
+WHERE table_name = 'IDX_Broker_Summary' AND column_name = 'Investor Type';
+CREATE TABLE public."Table_Catalog" (table_schema text NOT NULL DEFAULT 'public', table_name text,
+    point_in_time_status text, availability_rule text);
+INSERT INTO public."Table_Catalog" (table_name, point_in_time_status, availability_rule) VALUES
+    ('IDX_Broker_Profile', 'UNAVAILABLE', 'Current reference snapshot only.'),
+    ('IDX_Broker_Summary', 'PARTIAL', 'Close of day, used from the next trading observation.');
+'''
+
+
+@pytest.fixture(scope="module")
+def pit_db() -> Iterator[str]:
+    yield from _create(MIGRATED_SQL + PIT_SQL)
+
+
+def test_point_in_time_details_carry_availability_and_current_state_columns(pit_db: str, legacy_db: str) -> None:
+    store = CatalogStore(pit_db, connect_timeout_seconds=5, statement_timeout_ms=5000)
+    on = build_default_registry(store, cursor_secret=SECRET, catalog_discovery_v2=True, point_in_time=True)
+    meta = details(on, ["IDX_Broker_Summary", "IDX_Broker_Profile"], ["COLUMNS"])
+    assert meta["table_metadata"]["IDX_Broker_Profile"]["availability"] == {
+        "point_in_time_status": "UNAVAILABLE", "availability_rule": "Current reference snapshot only."}
+    assert meta["table_metadata"]["IDX_Broker_Summary"]["availability"]["point_in_time_status"] == "PARTIAL"
+    summary = details(on, ["IDX_Broker_Summary"], ["COLUMNS"])["sections"]["COLUMNS"]["by_table"]["IDX_Broker_Summary"]
+    marked = {c["column_name"] for c in summary if c.get("value_time_basis") == "CURRENT_STATE"}
+    assert marked == {"Investor Type"} and len(summary) > 1
+    # flag off: the result is unchanged
+    off = details(registry_for(pit_db), ["IDX_Broker_Summary"], ["COLUMNS"])
+    assert "availability" not in off["table_metadata"]["IDX_Broker_Summary"]
+    assert not any("value_time_basis" in c for c in off["sections"]["COLUMNS"]["by_table"]["IDX_Broker_Summary"])
+    # a catalog without the metadata (or without the grant) still answers, without it
+    legacy = build_default_registry(CatalogStore(legacy_db, connect_timeout_seconds=5, statement_timeout_ms=5000),
+                                    cursor_secret=SECRET, catalog_discovery_v2=True, point_in_time=True)
+    assert "availability" not in details(legacy, ["IDX_Broker_Profile"], ["COLUMNS"])["table_metadata"][
+        "IDX_Broker_Profile"]

@@ -146,6 +146,11 @@ class Settings:
     # a relationship (left_columns / right_columns), so composite keys such as Broker Summary <-> Feature 02 are
     # usable. Needs a sandbox that reports data_need_spec/v2 in GET /v1/runtime (otherwise inactive).
     ai_enable_composite_keys: bool = False
+    # IP1 Stage D: data_need_spec/v2 time_basis. HISTORICAL_DESCRIPTIVE (the default) may use current-state reference
+    # data with disclosure; POINT_IN_TIME uses only what was in effect and already recorded on each date, and the
+    # sandbox refuses it where that history does not exist. Needs AI_ENABLE_COMPOSITE_KEYS (v2) and a sandbox that
+    # reports point_in_time in GET /v1/runtime (otherwise inactive).
+    ai_enable_point_in_time: bool = False
 
     @property
     def conversation_lease_seconds(self) -> int:
@@ -214,6 +219,7 @@ class Settings:
             ai_enable_methodology=_boolean(env, "AI_ENABLE_METHODOLOGY", False),
             ai_enable_plan_feasibility=_boolean(env, "AI_ENABLE_PLAN_FEASIBILITY", False),
             ai_enable_composite_keys=_boolean(env, "AI_ENABLE_COMPOSITE_KEYS", False),
+            ai_enable_point_in_time=_boolean(env, "AI_ENABLE_POINT_IN_TIME", False),
             sql_governor_api_key=_optional(env, "SQL_GOVERNOR_API_KEY"),
             sql_governor_timeout_seconds=_integer(env, "SQL_GOVERNOR_TIMEOUT_SECONDS", 90),
             request_data_max_result_bytes=_integer(env, "REQUEST_DATA_MAX_RESULT_BYTES", 40000, minimum=8192),

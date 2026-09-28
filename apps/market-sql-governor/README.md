@@ -254,6 +254,17 @@ scope keeps the form it was sent in, so single-key hashes are unchanged. A relat
 is refused in the sandbox until the many side is aggregated. The catalog contract carries
 `cross_entity_aggregation` per column once migration `20260927_005` is applied.
 
+**Point in time** (IP1 Stage D, migration `20260927_006`). The catalog contract also carries, when the catalog has
+them: `value_time_basis` per column (`HISTORICAL` or `CURRENT_STATE`); the Table_Catalog availability metadata per
+table (`availability`: observation and availability columns, rule, `point_in_time_status`, method), read through a
+column-level grant; `point_in_time_metadata: true` when both are readable (the sandbox refuses a point-in-time spec
+otherwise); and `history_available_from` for every EFFECTIVE_DATED relationship: the earliest non-empty validity start
+of its right (history) table, or null while it is empty or unreadable. The EFFECTIVE_DATED restriction
+(`effective_from <= date < effective_to`, NULL = open) selects the version valid on each observation date before the
+right scope is applied, the same rule as `saniti.join`; the reference history tables use `pit_valid_from` /
+`pit_valid_to`, so a row applies only from the Asia/Jakarta date after Saniti recorded it and a sector filter never
+carries an old version past a recorded change.
+
 **Estimate only** (`"estimate_only": true` in the body; Research Plan feasibility, market-ai-orc
 `check_data_feasibility`). The spec is validated, bound, compiled and EXPLAINed exactly as for an extraction, and the
 answer is `WITHIN_LIMITS` with the estimates, or the same `APPROVED_WITH_PARTITIONING` / `REJECTED_*` an extraction

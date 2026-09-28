@@ -31,6 +31,7 @@ from .tools.session import close_sessions
 
 REUSE_VERSION = 1  # the conversation reuse contract both services must report
 FEASIBILITY_VERSION = 1  # the Research Plan feasibility endpoints of the sandbox
+POINT_IN_TIME_VERSION = 1  # the sandbox's data_need_spec/v2 time_basis checks (IP1 Stage D)
 
 
 def _configure_logging() -> None:
@@ -109,6 +110,15 @@ def create_app(
             composite = "data_need_spec/v2" in versions
             if not composite:
                 log_event("composite_keys_inactive", reason="the sandbox does not accept data_need_spec/v2")
+        # IP1 Stage D: time_basis is a data_need_spec/v2 field, checked by the sandbox (fail closed)
+        point_in_time = False
+        if settings.ai_enable_point_in_time:
+            capability = (sandbox.runtime().get("point_in_time") or {}) if composite and sandbox is not None else {}
+            point_in_time = capability.get("enabled") is True and capability.get("version") == POINT_IN_TIME_VERSION
+            if not point_in_time:
+                log_event("point_in_time_inactive", reason="needs AI_ENABLE_COMPOSITE_KEYS (data_need_spec/v2) and a "
+                                                           f"sandbox reporting point_in_time version "
+                                                           f"{POINT_IN_TIME_VERSION}")
         registry = build_default_registry(
             catalog,
             catalog_timeout_seconds=(
@@ -137,6 +147,7 @@ def create_app(
             catalog_discovery_v2=settings.ai_enable_catalog_discovery_v2,
             plan_feasibility=feasibility,
             composite_keys=composite,
+            point_in_time=point_in_time,
         )
         auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
             if sandbox is not None or settings.research_audit_database_url else None
