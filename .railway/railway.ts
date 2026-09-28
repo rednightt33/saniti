@@ -4,6 +4,7 @@ export default defineRailway(() => {
   const saniti = github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/idx-price-cron" });
 
   const Postgres = postgres("Postgres", { region: "sfo" });
+  Postgres.networking = { privateNetworkEndpoint: "postgres", tcpProxies: { "5432": {} } };
   const postgresVolumeThQL = volume("postgres-volume-thQL", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
   const postgresVolume = volume("postgres-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
   const marketPythonSandboxData = volume("market-python-sandbox-data", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
@@ -32,7 +33,7 @@ export default defineRailway(() => {
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "ALWAYS" },
     volumeMounts: { "/data": marketWebGovernorData },
-    env: { OPENROUTER_API_KEY: preserve(), PORT: preserve(), RAILWAY_RUN_UID: preserve(), WEB_CLEANUP_INTERVAL_SECONDS: preserve(), WEB_GOVERNOR_API_KEY: preserve(), WEB_GOVERNOR_STORE_PATH: preserve(), WEB_MAX_CRITERIA: preserve(), WEB_MAX_EVIDENCE_ITEMS: preserve(), WEB_MAX_EXCERPT_CHARACTERS: preserve(), WEB_MAX_OUTPUT_CHARACTERS: preserve(), WEB_MAX_RESULTS_PER_SEARCH: preserve(), WEB_MAX_SEARCHES: preserve(), WEB_OPENROUTER_ENGINE: preserve(), WEB_OPENROUTER_MAX_OUTPUT_TOKENS: preserve(), WEB_OPENROUTER_MAX_RETRIES: preserve(), WEB_OPENROUTER_MODEL: preserve(), WEB_OPENROUTER_TIMEOUT_SECONDS: preserve(), WEB_PROVIDER: preserve(), WEB_RETENTION_HOURS: preserve() },
+    env: { OPENROUTER_API_KEY: preserve(), PORT: preserve(), RAILWAY_RUN_UID: preserve(), WEB_CLEANUP_INTERVAL_SECONDS: preserve(), WEB_DEFAULT_SLOT: preserve(), WEB_GOVERNOR_API_KEY: preserve(), WEB_GOVERNOR_STORE_PATH: preserve(), WEB_MAX_CRITERIA: preserve(), WEB_MAX_EVIDENCE_ITEMS: preserve(), WEB_MAX_EXCERPT_CHARACTERS: preserve(), WEB_MAX_OUTPUT_CHARACTERS: preserve(), WEB_MAX_RESULTS_PER_SEARCH: preserve(), WEB_MAX_SEARCHES: preserve(), WEB_OPENROUTER_ENGINE: preserve(), WEB_OPENROUTER_MAX_OUTPUT_TOKENS: preserve(), WEB_OPENROUTER_MAX_RETRIES: preserve(), WEB_OPENROUTER_MODEL: preserve(), WEB_OPENROUTER_TIMEOUT_SECONDS: preserve(), WEB_PROVIDER: preserve(), WEB_RETENTION_HOURS: preserve(), WEB_SLOT_1_LABEL: preserve(), WEB_SLOT_2_LABEL: preserve(), WEB_SLOT_2_MODEL: preserve(), WEB_SLOT_3_LABEL: preserve(), WEB_SLOT_3_MODEL: preserve() },
   });
   const marketPythonSandbox = service("market-python-sandbox", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-python-sandbox" }),
