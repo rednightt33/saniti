@@ -4,7 +4,6 @@ export default defineRailway(() => {
   const saniti = github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/idx-price-cron" });
 
   const Postgres = postgres("Postgres", { region: "sfo" });
-  Postgres.networking = { privateNetworkEndpoint: "postgres", tcpProxies: { "5432": {} } };
   const postgresVolumeThQL = volume("postgres-volume-thQL", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
   const postgresVolume = volume("postgres-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
   const marketPythonSandboxData = volume("market-python-sandbox-data", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });

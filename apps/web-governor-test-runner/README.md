@@ -12,6 +12,7 @@ agent container cannot reach Railway SSH (port 22) and the Web Governor has no p
     domain policy, exact fetch, multi-criterion WebNeed, idempotency, budgets) and prints a persistence snapshot.
   - `{"phase": "post", "web_need_id": …, "evidence_id": …, "web_need_sha256": …, "evidence_sha256": …}` re-reads
     those records after a Web Governor redeploy and compares hashes.
+- `{"phase": "webneed", "prefix": "<unique prefix>", "results": 10}` runs only the multi-criterion BBCA WebNeed (T6).
 - `{"phase": "smoke", "prefix": "<unique prefix>"}` runs one bounded bi.go.id search (a post-deploy check).
 - Output: short `WGT {json}` lines plus the full result document as numbered `WGTDUMP i/n` gzip+base64 chunks,
   because Railway drops long log lines. Reassemble the chunks in order, base64-decode, then gunzip.

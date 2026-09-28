@@ -145,58 +145,7 @@ def pre(prefix: str) -> dict:
     record("T5 exact URL fetch", "POST /v1/fetch", t5_body["request_id"], call("POST", "/v1/fetch", t5_body))
 
     # Test 6 — multi-criterion WebNeedSpec, plan then execute
-    t6_body = {
-        "contract_version": "v1", "request_id": rid("t6-bbca-webneed"), "conversation_id": rid("conv"),
-        "web_need": {
-            "objective": ("Determine whether recent public information between 2026-09-01 and 2026-09-28 indicates a "
-                          "material new corporate development concerning BBCA."),
-            "hypothesis": {
-                "hypothesis_id": "hyp-bbca-material-2026-09",
-                "statement": "BBCA announced a material corporate development during the defined period.",
-                "falsification_test": ("No qualifying announcement is present in an official BCA or IDX source during "
-                                       "the period, or available sources only repeat older information."),
-            },
-            "entities": [
-                {"entity_type": "ISSUER", "entity_id": "PT Bank Central Asia Tbk", "aliases": ["BCA", "Bank BCA"]},
-                {"entity_type": "TICKER", "entity_id": "BBCA", "aliases": ["BBCA.JK"]},
-            ],
-            "time_window": window(),
-            "evidence_standard": "PRIMARY_REQUIRED",
-            "criteria": [
-                {"criterion_id": "latest_development", "required": True, "direction": "BOTH", "minimum_sources": 1,
-                 "question": ("Identify the most recent potentially material BBCA corporate development published "
-                              "between 2026-09-01 and 2026-09-28 and its publication date."),
-                 "preferred_source_tiers": ["PRIMARY"], "document_types": ["disclosure", "press release", "news"]},
-                {"criterion_id": "official_confirmation", "required": True, "direction": "SUPPORT",
-                 "minimum_sources": 1,
-                 "question": ("Find an official BCA (bca.co.id) or IDX (idx.co.id) source dated 2026-09-01 to "
-                              "2026-09-28 confirming a material BBCA development."),
-                 "preferred_source_tiers": ["PRIMARY"], "document_types": ["keterbukaan informasi", "press release"]},
-                {"criterion_id": "independent_secondary", "required": False, "direction": "SUPPORT",
-                 "minimum_sources": 1,
-                 "question": ("Find an independent secondary news source, dated 2026-09-01 to 2026-09-28, reporting "
-                              "the same BBCA development."),
-                 "preferred_source_tiers": ["TRUSTED_SECONDARY", "SECONDARY"], "document_types": ["news"]},
-                {"criterion_id": "contradicting_evidence", "required": True, "direction": "REFUTE",
-                 "minimum_sources": 1,
-                 "question": ("Look specifically for evidence that contradicts or weakens the hypothesis that BBCA "
-                              "announced a material corporate development between 2026-09-01 and 2026-09-28 "
-                              "(for example denials, clarifications, or no new disclosure).")},
-                {"criterion_id": "new_vs_repeat", "required": True, "direction": "BOTH", "minimum_sources": 1,
-                 "question": ("Is the identified BBCA development genuinely new in 2026-09-01 to 2026-09-28, or a "
-                              "repetition of an event first announced earlier? Give the earliest publication date "
-                              "found.")},
-            ],
-            "source_policy": {"profile": "FINANCIAL_PRIMARY", "minimum_primary_sources": 1,
-                              "minimum_independent_sources": 1, "allowed_domains": [], "excluded_domains": [],
-                              "primary_domains": ["bca.co.id", "idx.co.id"], "trusted_secondary_domains": [
-                                  "reuters.com", "bloomberg.com", "kontan.co.id", "bisnis.com", "cnbcindonesia.com"]},
-            "budget": {"max_searches": 5, "max_results_per_search": 5, "max_evidence_items": 20,
-                       "max_output_characters": 32000},
-            "stop_conditions": {"all_required_criteria_covered": True, "stop_on_primary_source": False},
-            "locale": "id-ID", "timezone": "Asia/Jakarta",
-        },
-    }
+    t6_body = t6_request(rid)
     plan = record("T6 create plan", "POST /v1/web-needs", t6_body["request_id"], call("POST", "/v1/web-needs", t6_body))
     need_id = (plan.get("body") or {}).get("web_need_id")
     record("T6 read plan", "GET /v1/web-needs/{id}", t6_body["request_id"], call("GET", f"/v1/web-needs/{need_id}"))
@@ -224,7 +173,7 @@ def pre(prefix: str) -> dict:
     base_need = json.loads(json.dumps(t6_body["web_need"]))
     for name, budget in (
         ("searches-7", {"max_searches": 7}),
-        ("results-10", {"max_results_per_search": 10}),
+        ("results-11-schema", {"max_results_per_search": 11}),
         ("evidence-40", {"max_evidence_items": 40}),
         ("output-64000", {"max_output_characters": 64000}),
         ("searches-99-schema", {"max_searches": 99}),
@@ -238,9 +187,9 @@ def pre(prefix: str) -> dict:
     too_many["budget"]["max_searches"] = 7
     record("T8 budget criteria-7", "POST /v1/web-needs", rid("t8-criteria-7"), call(
         "POST", "/v1/web-needs", {"contract_version": "v1", "request_id": rid("t8-criteria-7"), "web_need": too_many}))
-    fast = dict(t4_body, request_id=rid("t8-fast-results-10"),
-                budget={"max_searches": 1, "max_results_per_search": 10})
-    record("T8 budget fast search results-10", "POST /v1/search", fast["request_id"], call("POST", "/v1/search", fast))
+    fast = dict(t4_body, request_id=rid("t8-fast-evidence-41"),
+                budget={"max_searches": 1, "max_evidence_items": 41})
+    record("T8 budget fast search evidence-41", "POST /v1/search", fast["request_id"], call("POST", "/v1/search", fast))
     # A rejected request_id must not have been stored: reusing it for a valid plan must not return 409.
     reuse = {"contract_version": "v1", "request_id": rid("t8-searches-7"), "web_need": base_need}
     record("T8 rejected id not stored (plan only)", "POST /v1/web-needs", reuse["request_id"],
@@ -258,6 +207,70 @@ def pre(prefix: str) -> dict:
                 "evidence_content_sha256": (evidence_snapshot.get("body") or {}).get("content_sha256")}
     log("snapshot", **snapshot)
     return snapshot
+
+
+def t6_request(rid, results: int = 5) -> dict:
+    return {
+    "contract_version": "v1", "request_id": rid("t6-bbca-webneed"), "conversation_id": rid("conv"),
+    "web_need": {
+        "objective": ("Determine whether recent public information between 2026-09-01 and 2026-09-28 indicates a "
+                      "material new corporate development concerning BBCA."),
+        "hypothesis": {
+            "hypothesis_id": "hyp-bbca-material-2026-09",
+            "statement": "BBCA announced a material corporate development during the defined period.",
+            "falsification_test": ("No qualifying announcement is present in an official BCA or IDX source during "
+                                   "the period, or available sources only repeat older information."),
+        },
+        "entities": [
+            {"entity_type": "ISSUER", "entity_id": "PT Bank Central Asia Tbk", "aliases": ["BCA", "Bank BCA"]},
+            {"entity_type": "TICKER", "entity_id": "BBCA", "aliases": ["BBCA.JK"]},
+        ],
+        "time_window": window(),
+        "evidence_standard": "PRIMARY_REQUIRED",
+        "criteria": [
+            {"criterion_id": "latest_development", "required": True, "direction": "BOTH", "minimum_sources": 1,
+             "question": ("Identify the most recent potentially material BBCA corporate development published "
+                          "between 2026-09-01 and 2026-09-28 and its publication date."),
+             "preferred_source_tiers": ["PRIMARY"], "document_types": ["disclosure", "press release", "news"]},
+            {"criterion_id": "official_confirmation", "required": True, "direction": "SUPPORT",
+             "minimum_sources": 1,
+             "question": ("Find an official BCA (bca.co.id) or IDX (idx.co.id) source dated 2026-09-01 to "
+                          "2026-09-28 confirming a material BBCA development."),
+             "preferred_source_tiers": ["PRIMARY"], "document_types": ["keterbukaan informasi", "press release"]},
+            {"criterion_id": "independent_secondary", "required": False, "direction": "SUPPORT",
+             "minimum_sources": 1,
+             "question": ("Find an independent secondary news source, dated 2026-09-01 to 2026-09-28, reporting "
+                          "the same BBCA development."),
+             "preferred_source_tiers": ["TRUSTED_SECONDARY", "SECONDARY"], "document_types": ["news"]},
+            {"criterion_id": "contradicting_evidence", "required": True, "direction": "REFUTE",
+             "minimum_sources": 1,
+             "question": ("Look specifically for evidence that contradicts or weakens the hypothesis that BBCA "
+                          "announced a material corporate development between 2026-09-01 and 2026-09-28 "
+                          "(for example denials, clarifications, or no new disclosure).")},
+            {"criterion_id": "new_vs_repeat", "required": True, "direction": "BOTH", "minimum_sources": 1,
+             "question": ("Is the identified BBCA development genuinely new in 2026-09-01 to 2026-09-28, or a "
+                          "repetition of an event first announced earlier? Give the earliest publication date "
+                          "found.")},
+        ],
+        "source_policy": {"profile": "FINANCIAL_PRIMARY", "minimum_primary_sources": 1,
+                          "minimum_independent_sources": 1, "allowed_domains": [], "excluded_domains": [],
+                          "primary_domains": ["bca.co.id", "idx.co.id"], "trusted_secondary_domains": [
+                              "reuters.com", "bloomberg.com", "kontan.co.id", "bisnis.com", "cnbcindonesia.com"]},
+        "budget": {"max_searches": 5, "max_results_per_search": results, "max_evidence_items": 20,
+                   "max_output_characters": 32000},
+        "stop_conditions": {"all_required_criteria_covered": True, "stop_on_primary_source": False},
+        "locale": "id-ID", "timezone": "Asia/Jakarta",
+    },
+}
+
+
+def webneed(prefix: str, results: int) -> None:
+    """T6 only: the multi-criterion WebNeed, with a chosen results-per-search budget."""
+    body = t6_request(lambda name: f"{prefix}{name}", results)
+    plan = record("T6 create plan", "POST /v1/web-needs", body["request_id"], call("POST", "/v1/web-needs", body))
+    need_id = (plan.get("body") or {}).get("web_need_id")
+    record("T6 execute", "POST /v1/web-needs/{id}/execute", body["request_id"], call(
+        "POST", f"/v1/web-needs/{need_id}/execute", {"contract_version": "v1", "request_id": body["request_id"]}))
 
 
 def post(plan: dict) -> dict:
@@ -312,6 +325,8 @@ def main() -> None:
         pre(plan["prefix"])
         if plan.get("check"):
             post(plan["check"])
+    elif plan["phase"] == "webneed":
+        webneed(plan["prefix"], int(plan.get("results", 5)))
     elif plan["phase"] == "smoke":
         smoke(plan["prefix"])
     elif plan["phase"] == "post":
