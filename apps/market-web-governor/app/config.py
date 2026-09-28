@@ -124,6 +124,10 @@ class Settings:
     rubric_material_pct: float = 20.0
     rubric_critical_pct: float = 50.0
     event_store_url: str | None = field(default=None, repr=False)
+    openrouter_total_seconds: int = 180
+    classifier_max_output_tokens: int = 3000
+    classify_deadline_seconds: int = 420
+    stale_running_seconds: int = 1800
 
     def slot(self, number: int | None) -> ModelSlot:
         wanted = number or self.default_slot
@@ -193,6 +197,11 @@ class Settings:
             rubric_material_pct=float(_integer(env, "WEB_RUBRIC_MATERIAL_PCT", 20, maximum=100)),
             rubric_critical_pct=float(_integer(env, "WEB_RUBRIC_CRITICAL_PCT", 50, maximum=100)),
             event_store_url=_optional(env, "WEB_EVENT_STORE_URL"),
+            openrouter_total_seconds=_integer(env, "WEB_OPENROUTER_TOTAL_SECONDS", 180, maximum=900),
+            classifier_max_output_tokens=_integer(env, "WEB_CLASSIFIER_MAX_OUTPUT_TOKENS", 3000, minimum=256,
+                                                  maximum=8000),
+            classify_deadline_seconds=_integer(env, "WEB_CLASSIFY_DEADLINE_SECONDS", 420, maximum=1800),
+            stale_running_seconds=_integer(env, "WEB_STALE_RUNNING_SECONDS", 1800, minimum=60, maximum=86400),
         )
         if not settings.store_path:
             raise ConfigError("WEB_GOVERNOR_STORE_PATH must not be empty")

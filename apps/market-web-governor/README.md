@@ -285,7 +285,8 @@ uses OpenRouter's default provider routing. On dev: slot 1 `deepseek/deepseek-v4
 slot 3 `z-ai/glm-5.3-flashx`; slots 4–7 are empty.
 
 Classification and event store: `WEB_CLASSIFIER_SLOT` (dev: 2, MiMo), `WEB_CLASSIFIER_CHECK_SLOT` (dev: 1; 0 disables),
-`WEB_CLASSIFIER_WORKERS=4`, `WEB_RUBRIC_MATERIAL_PCT=20`, `WEB_RUBRIC_CRITICAL_PCT=50` (to be confirmed against the
+`WEB_CLASSIFIER_WORKERS=4`, `WEB_CLASSIFIER_MAX_OUTPUT_TOKENS=3000`, `WEB_CLASSIFY_DEADLINE_SECONDS=420`,
+`WEB_OPENROUTER_TOTAL_SECONDS=180` (total per provider call, W13), `WEB_STALE_RUNNING_SECONDS=1800`, `WEB_RUBRIC_MATERIAL_PCT=20`, `WEB_RUBRIC_CRITICAL_PCT=50` (to be confirmed against the
 current OJK rules), `WEB_EVENT_STORE_URL` (secret; writer role only), `WEB_SOURCE_BLOCKLIST`, `WEB_TRUSTED_MEDIA_EXTRA`.
 
 Fetch limits (defaults): `WEB_FETCH_TIMEOUT_SECONDS=20`, `WEB_FETCH_MAX_BYTES=5000000`, `WEB_FETCH_MAX_REDIRECTS=3`,
