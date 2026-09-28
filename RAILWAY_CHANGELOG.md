@@ -5,7 +5,7 @@
 - **Scope:** created only `market-web-governor` (`1c43a00e-9deb-4b17-84f0-acfa35142ac6`). No existing service,
   PostgreSQL object, market-data permission, or AI-Orc configuration changed. The service is private and is not yet
   registered as an AI-Orc tool.
-- **Source:** `rednightt33/saniti`, branch `codex/market-web-governor` while PR #2 is validated, root
+- **Source:** `rednightt33/saniti`, branch `main` after PR #2 was squash-merged as `6be2420`, root
   `/apps/market-web-governor`, watch path `/apps/market-web-governor/**`, Dockerfile build, runtime V2, one SFO replica,
   restart `ALWAYS`, `/ready` health check (120 s).
 - **Contract:** provider-neutral v1 WebNeed plan/execute API, fast search and exact-URL fetch; OpenRouter is the first
@@ -26,6 +26,9 @@
   its deploy log records the volume mount, application startup, and `GET /ready` 200.
 - **Durable storage:** attached `market-web-governor-data` (`c02e7a3c-6330-4f92-a3ca-0990af002b5a`) at `/data`.
   `/data/web-governor.sqlite3` now survives container restarts and redeploys.
+- **Final deployment:** after switching the Railway source to `main`, deployment
+  `73dd34f3-45b2-42df-ae7b-b519b096d4df` reached `SUCCESS`; the log confirms the volume mount, application startup,
+  and `GET /ready` 200. The service remains private with no public domain.
 
 ## 2026-09-28 — S08 fix on dev: one open analysis session per run
 
