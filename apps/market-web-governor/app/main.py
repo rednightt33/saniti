@@ -11,6 +11,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.responses import JSONResponse
 
 from .config import Settings
+from .event_store import EventStore
 from .fetcher import DocumentFetcher
 from .governor import GovernorValidationError, WebGovernor
 from .models import CreateWebNeedRequest, ExecuteWebNeedRequest, FastSearchRequest, FetchRequest
@@ -34,12 +35,13 @@ def create_app(
     store: SqliteStore | None = None,
     provider: OpenRouterProvider | None = None,
     fetcher: DocumentFetcher | None = None,
+    event_store: EventStore | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
     store = store or SqliteStore(settings.store_path)
     provider = provider or OpenRouterProvider(settings)
     fetcher = fetcher or DocumentFetcher(settings)
-    governor = WebGovernor(settings, store, provider, fetcher)
+    governor = WebGovernor(settings, store, provider, fetcher, event_store)
     logger = _configure_logging()
     expected = f"Bearer {settings.api_key}"
 
@@ -115,7 +117,9 @@ def create_app(
             raise
         logger.info(json.dumps({"event": "web_need_completed", "request_id": body.request_id,
                                 "web_need_id": web_need_id, "status": result["status"],
-                                "evidence_count": len(result.get("evidence", []))}))
+                                "evidence_count": len(result.get("evidence", [])),
+                                "event_store": result.get("event_store"),
+                                "warning_codes": sorted({w.get("code") for w in result.get("warnings", [])})}))
         return result
 
     @app.get("/v1/web-needs/{web_need_id}", dependencies=[Depends(authorize)])
