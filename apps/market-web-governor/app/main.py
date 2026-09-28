@@ -38,7 +38,7 @@ def create_app(
     event_store: EventStore | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
-    store = store or SqliteStore(settings.store_path)
+    store = store or SqliteStore(settings.store_path, settings.stale_running_seconds)
     provider = provider or OpenRouterProvider(settings)
     fetcher = fetcher or DocumentFetcher(settings)
     governor = WebGovernor(settings, store, provider, fetcher, event_store)

@@ -453,7 +453,8 @@ def precursor(prefix: str, slot: int, results: int) -> None:
                   call("POST", "/v1/web-needs", body))
     need_id = (plan.get("body") or {}).get("web_need_id")
     result = record(f"PRECURSOR slot {slot} execute", "POST /v1/web-needs/{id}/execute", body["request_id"], call(
-        "POST", f"/v1/web-needs/{need_id}/execute", {"contract_version": "v1", "request_id": body["request_id"]}))
+        "POST", f"/v1/web-needs/{need_id}/execute", {"contract_version": "v1", "request_id": body["request_id"]},
+        timeout=1800))
     card_id = ((result.get("body") or {}).get("event_store") or {}).get("card_id")
     if card_id and os.environ.get("EVENT_STORE_READER_URL"):
         rows = read_event_store(card_id)

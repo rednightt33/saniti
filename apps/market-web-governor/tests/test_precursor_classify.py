@@ -312,3 +312,72 @@ def test_invalid_classifications_are_stored_unclassified_and_store_failures_are_
     assert {item["classification"]["status"] for item in result["evidence"]} == {"UNCLASSIFIED"}
     codes = {warning["code"] for warning in result["warnings"]}
     assert {"CLASSIFICATION_INCOMPLETE", "EVENT_STORE_WRITE_FAILED"} <= codes
+
+
+# --- hang protection (live 2026-09-28: an execution stopped making calls and never finished, W13) ---------------
+
+def test_a_provider_call_that_trickles_bytes_hits_the_total_deadline(tmp_path):
+    import time as _time
+
+    from app.provider import ProviderError
+
+    settings = settings_for(tmp_path, WEB_OPENROUTER_TOTAL_SECONDS="1", WEB_OPENROUTER_MAX_RETRIES="1")
+
+    def trickle():
+        for _ in range(20):
+            _time.sleep(0.2)
+            yield b" "
+
+    def handler(request):
+        return httpx.Response(200, request=request, content=trickle())
+
+    provider = OpenRouterProvider(settings, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    started = _time.monotonic()
+    with pytest.raises(ProviderError) as exc:
+        provider._request({"model": "m", "input": "x"})
+    assert exc.value.code == "PROVIDER_TIMEOUT"
+    assert _time.monotonic() - started < 3
+
+
+def test_classification_deadline_marks_unfinished_items_and_classifier_tokens_are_capped(tmp_path, auth):
+    import time as _time
+
+    settings = settings_for(tmp_path, WEB_CLASSIFY_DEADLINE_SECONDS="1", WEB_CLASSIFIER_MAX_OUTPUT_TOKENS="2000",
+                            WEB_OPENROUTER_MAX_OUTPUT_TOKENS="8000",
+                            WEB_CLASSIFIER_CHECK_SLOT="0")
+    seen = []
+
+    def handler(request):
+        payload = json.loads(request.content)
+        if "text" in payload:
+            seen.append(payload["max_output_tokens"])
+            _time.sleep(3)  # slower than the classification deadline
+            return httpx.Response(200, request=request, json={"id": "c", "status": "completed", "output": []})
+        return httpx.Response(200, request=request, json=search_reply([
+            citation("https://www.reuters.com/business/2026/03/02/talks/", PRE_RUMOUR)]))
+
+    provider = OpenRouterProvider(settings, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    app = create_app(settings=settings, store=SqliteStore(settings.store_path), provider=provider,
+                     fetcher=fake_fetcher(settings), event_store=FakeEventStore())
+    started = _time.monotonic()
+    with TestClient(app) as client:
+        planned = client.post("/v1/web-needs", headers=auth, json=precursor_request("pre-slow")).json()
+        result = client.post(f"/v1/web-needs/{planned['web_need_id']}/execute", headers=auth,
+                             json={"contract_version": "v1", "request_id": "pre-slow"}).json()
+    assert _time.monotonic() - started < 3.0  # the request did not wait for the slow call
+    assert result["evidence"][0]["classification"] == {"status": "UNCLASSIFIED", "reason": "DEADLINE"}
+    assert seen and set(seen) == {2000}
+
+
+def test_a_stale_running_need_can_run_again(tmp_path):
+    store = SqliteStore(str(tmp_path / "s.sqlite3"), stale_running_seconds=60)
+    row = {"web_need_id": "wn_1", "request_id": "r1", "request_fingerprint": "f", "conversation_id": None,
+           "status": "APPROVED", "spec": {}, "plan": {}, "created_at": "2026-09-28T00:00:00+00:00",
+           "updated_at": "2026-09-28T00:00:00+00:00"}
+    store.create_need(row)
+    assert store.begin_execution("wn_1")["status"] == "RUNNING"
+    with pytest.raises(RuntimeError):
+        store.begin_execution("wn_1")  # fresh RUNNING stays locked
+    with store._connect() as connection:
+        connection.execute("UPDATE web_need SET updated_at = '2026-09-28 00:00:00' WHERE web_need_id = 'wn_1'")
+    assert store.begin_execution("wn_1")["status"] == "RUNNING"  # stale RUNNING may run again
