@@ -680,7 +680,8 @@ def _sum_usage(calls: list[dict[str, Any]]) -> dict[str, Any]:
         observed = (call.get("diagnostics") or {}).get("tool_calls_observed")
         if isinstance(observed, int) and observed >= 0:
             totals["tool_calls_observed"] += observed
-        server = usage.get("server_tool_use")
+        # OpenRouter's Responses API reports server_tool_use_details; server_tool_use is the older shape.
+        server = usage.get("server_tool_use_details") or usage.get("server_tool_use")
         if isinstance(server, dict) and isinstance(server.get("web_search_requests"), int):
             totals["web_search_requests"] += max(0, server["web_search_requests"])
         cost = usage.get("cost")

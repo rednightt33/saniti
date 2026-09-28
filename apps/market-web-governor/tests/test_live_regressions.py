@@ -160,3 +160,18 @@ def test_policy_rejected_citations_are_reported(tmp_path, auth):
     assert {e["domain"] for e in result["evidence"]} == {"www.bi.go.id"}
     assert "CITATIONS_REJECTED_BY_POLICY" in {w["code"] for w in result["warnings"]}
     assert result["execution"]["usage"]["tool_calls_observed"] == 1
+
+
+def test_usage_reads_openrouter_server_tool_use_details():
+    # Live usage shape (2026-09-28): web_search_requests sits under server_tool_use_details.
+    from app.governor import _sum_usage
+
+    totals = _sum_usage([
+        {"usage": {"input_tokens": 1, "output_tokens": 2, "total_tokens": 3, "cost": 0.5,
+                   "server_tool_use_details": {"web_search_requests": 3}},
+         "diagnostics": {"tool_calls_observed": 3}},
+        {"usage": {"server_tool_use": {"web_search_requests": 1}}},
+    ])
+    assert totals["web_search_requests"] == 4
+    assert totals["tool_calls_observed"] == 3
+    assert totals["cost"] == 0.5

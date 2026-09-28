@@ -276,6 +276,21 @@ def post(plan: dict) -> dict:
     return check
 
 
+def smoke(prefix: str) -> None:
+    """One bounded search on the official BI domain: checks the deploy end to end, including usage totals."""
+    body = {
+        "contract_version": "v1", "request_id": f"{prefix}smoke-bi-rate",
+        "query": "What is the latest BI-Rate published by Bank Indonesia as of 2026-09-28, and its announcement date?",
+        "time_window": {"end": "2026-09-28", "as_of": "2026-09-28"},
+        "source_policy": {"minimum_independent_sources": 1, "allowed_domains": ["bi.go.id"],
+                          "primary_domains": ["bi.go.id"]},
+        "budget": {"max_searches": 1, "max_results_per_search": 3, "max_evidence_items": 3,
+                   "max_output_characters": 12000},
+    }
+    result = record("smoke search bi.go.id", "POST /v1/search", body["request_id"], call("POST", "/v1/search", body))
+    log("usage", usage=((result.get("body") or {}).get("execution") or {}).get("usage"))
+
+
 def dump() -> None:
     blob = base64.b64encode(gzip.compress(json.dumps(RESULTS, ensure_ascii=False).encode())).decode()
     size = 800
@@ -295,6 +310,10 @@ def main() -> None:
     wait_ready()
     if plan["phase"] == "pre":
         pre(plan["prefix"])
+        if plan.get("check"):
+            post(plan["check"])
+    elif plan["phase"] == "smoke":
+        smoke(plan["prefix"])
     elif plan["phase"] == "post":
         post(plan)
     else:
