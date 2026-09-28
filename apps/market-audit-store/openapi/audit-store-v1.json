@@ -1,0 +1,2372 @@
+{
+ "components": {
+  "schemas": {
+   "AccessGrant": {
+    "properties": {
+     "artifact_id": {
+      "title": "Artifact Id",
+      "type": "string"
+     },
+     "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+     },
+     "url": {
+      "title": "Url",
+      "type": "string"
+     }
+    },
+    "required": [
+     "artifact_id",
+     "url",
+     "expires_at"
+    ],
+    "title": "AccessGrant",
+    "type": "object"
+   },
+   "AccessIn": {
+    "additionalProperties": false,
+    "properties": {
+     "purpose": {
+      "maxLength": 500,
+      "minLength": 3,
+      "title": "Purpose",
+      "type": "string"
+     },
+     "run_id": {
+      "anyOf": [
+       {
+        "pattern": "^run_[0-9a-f]{32}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Run Id"
+     }
+    },
+    "required": [
+     "purpose"
+    ],
+    "title": "AccessIn",
+    "type": "object"
+   },
+   "ArtifactPrepare": {
+    "additionalProperties": false,
+    "properties": {
+     "media_type": {
+      "enum": [
+       "application/json",
+       "application/vnd.apache.parquet",
+       "text/x-python",
+       "text/csv",
+       "text/plain",
+       "image/png",
+       "image/svg+xml",
+       "application/octet-stream"
+      ],
+      "title": "Media Type",
+      "type": "string"
+     },
+     "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sha256",
+      "type": "string"
+     },
+     "size_bytes": {
+      "minimum": 0.0,
+      "title": "Size Bytes",
+      "type": "integer"
+     },
+     "upload": {
+      "default": true,
+      "title": "Upload",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "sha256",
+     "size_bytes",
+     "media_type"
+    ],
+    "title": "ArtifactPrepare",
+    "type": "object"
+   },
+   "ArtifactPrepared": {
+    "properties": {
+     "artifact_id": {
+      "title": "Artifact Id",
+      "type": "string"
+     },
+     "deduplicated": {
+      "title": "Deduplicated",
+      "type": "boolean"
+     },
+     "state": {
+      "title": "State",
+      "type": "string"
+     },
+     "upload": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/UploadTarget"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "required": [
+     "artifact_id",
+     "state",
+     "deduplicated",
+     "upload"
+    ],
+    "title": "ArtifactPrepared",
+    "type": "object"
+   },
+   "ArtifactVerified": {
+    "properties": {
+     "artifact_id": {
+      "title": "Artifact Id",
+      "type": "string"
+     },
+     "rejected_reason": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rejected Reason"
+     },
+     "state": {
+      "title": "State",
+      "type": "string"
+     }
+    },
+    "required": [
+     "artifact_id",
+     "state"
+    ],
+    "title": "ArtifactVerified",
+    "type": "object"
+   },
+   "Distribution": {
+    "additionalProperties": false,
+    "properties": {
+     "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+     },
+     "version": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name",
+     "version"
+    ],
+    "title": "Distribution",
+    "type": "object"
+   },
+   "EventAck": {
+    "properties": {
+     "duplicate": {
+      "title": "Duplicate",
+      "type": "boolean"
+     },
+     "idempotency_key": {
+      "title": "Idempotency Key",
+      "type": "string"
+     },
+     "seq": {
+      "title": "Seq",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "idempotency_key",
+     "seq",
+     "duplicate"
+    ],
+    "title": "EventAck",
+    "type": "object"
+   },
+   "EventBatch": {
+    "additionalProperties": false,
+    "properties": {
+     "events": {
+      "items": {
+       "$ref": "#/components/schemas/EventIn"
+      },
+      "maxItems": 1000,
+      "minItems": 1,
+      "title": "Events",
+      "type": "array"
+     }
+    },
+    "required": [
+     "events"
+    ],
+    "title": "EventBatch",
+    "type": "object"
+   },
+   "EventBatchAck": {
+    "properties": {
+     "appended": {
+      "items": {
+       "$ref": "#/components/schemas/EventAck"
+      },
+      "title": "Appended",
+      "type": "array"
+     },
+     "run_id": {
+      "title": "Run Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "run_id",
+     "appended"
+    ],
+    "title": "EventBatchAck",
+    "type": "object"
+   },
+   "EventIn": {
+    "additionalProperties": false,
+    "properties": {
+     "artifact_id": {
+      "anyOf": [
+       {
+        "pattern": "^art_[0-9a-f]{32}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Artifact Id"
+     },
+     "event_type": {
+      "pattern": "^[a-z][a-z0-9_.]{1,63}$",
+      "title": "Event Type",
+      "type": "string"
+     },
+     "execution_id": {
+      "anyOf": [
+       {
+        "pattern": "^exe_[0-9a-f]{24}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Execution Id"
+     },
+     "idempotency_key": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Idempotency Key",
+      "type": "string"
+     },
+     "occurred_at": {
+      "format": "date-time",
+      "title": "Occurred At",
+      "type": "string"
+     },
+     "payload": {
+      "additionalProperties": true,
+      "title": "Payload",
+      "type": "object"
+     }
+    },
+    "required": [
+     "idempotency_key",
+     "event_type",
+     "occurred_at"
+    ],
+    "title": "EventIn",
+    "type": "object"
+   },
+   "ExecutionAck": {
+    "properties": {
+     "duplicate": {
+      "title": "Duplicate",
+      "type": "boolean"
+     },
+     "execution_id": {
+      "title": "Execution Id",
+      "type": "string"
+     },
+     "run_id": {
+      "title": "Run Id",
+      "type": "string"
+     },
+     "runtime_image_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Runtime Image Id"
+     }
+    },
+    "required": [
+     "execution_id",
+     "run_id",
+     "runtime_image_id",
+     "duplicate"
+    ],
+    "title": "ExecutionAck",
+    "type": "object"
+   },
+   "ExecutionRecord": {
+    "additionalProperties": false,
+    "properties": {
+     "bundle_id": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Bundle Id"
+     },
+     "contract_sha256": {
+      "anyOf": [
+       {
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Contract Sha256"
+     },
+     "declared_imports": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 500,
+      "title": "Declared Imports",
+      "type": "array"
+     },
+     "deployment_id": {
+      "anyOf": [
+       {
+        "maxLength": 100,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Deployment Id"
+     },
+     "execution_id": {
+      "pattern": "^exe_[0-9a-f]{24}$",
+      "title": "Execution Id",
+      "type": "string"
+     },
+     "finished_at": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Finished At"
+     },
+     "git_commit": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Git Commit"
+     },
+     "input_checksums": {
+      "items": {
+       "$ref": "#/components/schemas/InputChecksum"
+      },
+      "maxItems": 100,
+      "title": "Input Checksums",
+      "type": "array"
+     },
+     "loaded_distributions": {
+      "items": {
+       "$ref": "#/components/schemas/Distribution"
+      },
+      "maxItems": 500,
+      "title": "Loaded Distributions",
+      "type": "array"
+     },
+     "prebound_packages": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 100,
+      "title": "Prebound Packages",
+      "type": "array"
+     },
+     "random_seed": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Random Seed"
+     },
+     "request_id": {
+      "pattern": "^[A-Za-z0-9._:-]{1,200}$",
+      "title": "Request Id",
+      "type": "string"
+     },
+     "resample": {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "maxItems": 100,
+      "title": "Resample",
+      "type": "array"
+     },
+     "resource_usage": {
+      "additionalProperties": true,
+      "title": "Resource Usage",
+      "type": "object"
+     },
+     "runtime": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/RuntimeInventory"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "seq": {
+      "minimum": 1.0,
+      "title": "Seq",
+      "type": "integer"
+     },
+     "session_id": {
+      "pattern": "^sess_[0-9a-f]{24}$",
+      "title": "Session Id",
+      "type": "string"
+     },
+     "source_sha256": {
+      "anyOf": [
+       {
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Source Sha256"
+     },
+     "started_at": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Started At"
+     },
+     "status": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Status",
+      "type": "string"
+     },
+     "stdlib_modules": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 2000,
+      "title": "Stdlib Modules",
+      "type": "array"
+     },
+     "timezone": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Timezone"
+     },
+     "unresolved_modules": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 500,
+      "title": "Unresolved Modules",
+      "type": "array"
+     }
+    },
+    "required": [
+     "execution_id",
+     "request_id",
+     "session_id",
+     "seq",
+     "status"
+    ],
+    "title": "ExecutionRecord",
+    "type": "object"
+   },
+   "Finalize": {
+    "additionalProperties": false,
+    "properties": {
+     "expected": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "items": {
+          "type": "string"
+         },
+         "type": "array"
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expected"
+     }
+    },
+    "title": "Finalize",
+    "type": "object"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "title": "Detail",
+      "type": "array"
+     }
+    },
+    "title": "HTTPValidationError",
+    "type": "object"
+   },
+   "HoldIn": {
+    "additionalProperties": false,
+    "properties": {
+     "artifact_id": {
+      "anyOf": [
+       {
+        "pattern": "^art_[0-9a-f]{32}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Artifact Id"
+     },
+     "reason": {
+      "maxLength": 500,
+      "minLength": 3,
+      "title": "Reason",
+      "type": "string"
+     },
+     "run_id": {
+      "anyOf": [
+       {
+        "pattern": "^run_[0-9a-f]{32}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Run Id"
+     }
+    },
+    "required": [
+     "reason"
+    ],
+    "title": "HoldIn",
+    "type": "object"
+   },
+   "InputChecksum": {
+    "additionalProperties": false,
+    "properties": {
+     "data_request_id": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Data Request Id"
+     },
+     "dataset_id": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Dataset Id"
+     },
+     "ordering": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Ordering",
+      "type": "array"
+     },
+     "position": {
+      "minimum": 0.0,
+      "title": "Position",
+      "type": "integer"
+     },
+     "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sha256",
+      "type": "string"
+     },
+     "size_bytes": {
+      "anyOf": [
+       {
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Size Bytes"
+     }
+    },
+    "required": [
+     "position",
+     "sha256"
+    ],
+    "title": "InputChecksum",
+    "type": "object"
+   },
+   "LinkBatch": {
+    "additionalProperties": false,
+    "properties": {
+     "links": {
+      "items": {
+       "$ref": "#/components/schemas/LinkIn"
+      },
+      "maxItems": 500,
+      "minItems": 1,
+      "title": "Links",
+      "type": "array"
+     }
+    },
+    "required": [
+     "links"
+    ],
+    "title": "LinkBatch",
+    "type": "object"
+   },
+   "LinkBatchAck": {
+    "properties": {
+     "duplicates": {
+      "title": "Duplicates",
+      "type": "integer"
+     },
+     "linked": {
+      "title": "Linked",
+      "type": "integer"
+     },
+     "run_id": {
+      "title": "Run Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "run_id",
+     "linked",
+     "duplicates"
+    ],
+    "title": "LinkBatchAck",
+    "type": "object"
+   },
+   "LinkIn": {
+    "additionalProperties": false,
+    "properties": {
+     "artifact_id": {
+      "pattern": "^art_[0-9a-f]{32}$",
+      "title": "Artifact Id",
+      "type": "string"
+     },
+     "execution_id": {
+      "anyOf": [
+       {
+        "pattern": "^exe_[0-9a-f]{24}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Execution Id"
+     },
+     "label": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Label"
+     },
+     "role": {
+      "enum": [
+       "RAW_INPUT_PARQUET",
+       "EXTRACTION_MANIFEST",
+       "INPUT_BUNDLE_MANIFEST",
+       "APPROVED_DATANEED_CONTRACT",
+       "PYTHON_SOURCE",
+       "TOOL_TRACE",
+       "EXECUTION_TRACE",
+       "OUTPUT",
+       "EXECUTION_MANIFEST",
+       "RUNTIME_MANIFEST",
+       "FINAL_RESPONSE",
+       "VALIDATION_RESULT",
+       "ERROR_DETAIL"
+      ],
+      "title": "Role",
+      "type": "string"
+     }
+    },
+    "required": [
+     "artifact_id",
+     "role"
+    ],
+    "title": "LinkIn",
+    "type": "object"
+   },
+   "RunRef": {
+    "properties": {
+     "request_id": {
+      "title": "Request Id",
+      "type": "string"
+     },
+     "run_id": {
+      "title": "Run Id",
+      "type": "string"
+     },
+     "status": {
+      "title": "Status",
+      "type": "string"
+     }
+    },
+    "required": [
+     "run_id",
+     "request_id",
+     "status"
+    ],
+    "title": "RunRef",
+    "type": "object"
+   },
+   "RunRegistration": {
+    "additionalProperties": false,
+    "properties": {
+     "conversation_id": {
+      "anyOf": [
+       {
+        "pattern": "^[A-Za-z0-9._:-]{1,200}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Conversation Id"
+     },
+     "parent_request_id": {
+      "anyOf": [
+       {
+        "pattern": "^[A-Za-z0-9._:-]{1,200}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Parent Request Id"
+     },
+     "request_id": {
+      "pattern": "^[A-Za-z0-9._:-]{1,200}$",
+      "title": "Request Id",
+      "type": "string"
+     },
+     "turn_index": {
+      "anyOf": [
+       {
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Turn Index"
+     }
+    },
+    "required": [
+     "request_id"
+    ],
+    "title": "RunRegistration",
+    "type": "object"
+   },
+   "RuntimeInventory": {
+    "additionalProperties": false,
+    "properties": {
+     "arch": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Arch",
+      "type": "string"
+     },
+     "distributions": {
+      "items": {
+       "$ref": "#/components/schemas/Distribution"
+      },
+      "maxItems": 2000,
+      "title": "Distributions",
+      "type": "array"
+     },
+     "os": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Os",
+      "type": "string"
+     },
+     "python_implementation": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Python Implementation",
+      "type": "string"
+     },
+     "python_version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Python Version",
+      "type": "string"
+     },
+     "requirements_sha256": {
+      "anyOf": [
+       {
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Requirements Sha256"
+     }
+    },
+    "required": [
+     "python_version",
+     "python_implementation",
+     "os",
+     "arch",
+     "distributions"
+    ],
+    "title": "RuntimeInventory",
+    "type": "object"
+   },
+   "UploadTarget": {
+    "properties": {
+     "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+     },
+     "headers": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "title": "Headers",
+      "type": "object"
+     },
+     "method": {
+      "const": "PUT",
+      "default": "PUT",
+      "title": "Method",
+      "type": "string"
+     },
+     "url": {
+      "title": "Url",
+      "type": "string"
+     }
+    },
+    "required": [
+     "url",
+     "headers",
+     "expires_at"
+    ],
+    "title": "UploadTarget",
+    "type": "object"
+   },
+   "ValidationError": {
+    "properties": {
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "title": "Location",
+      "type": "array"
+     },
+     "msg": {
+      "title": "Message",
+      "type": "string"
+     },
+     "type": {
+      "title": "Error Type",
+      "type": "string"
+     }
+    },
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError",
+    "type": "object"
+   }
+  }
+ },
+ "info": {
+  "description": "Contract audit-store/v1. Durable, queryable audit of AI research runs.",
+  "title": "Saniti Market Audit Store",
+  "version": "1.0.0"
+ },
+ "openapi": "3.1.0",
+ "paths": {
+  "/health": {
+   "get": {
+    "operationId": "health_health_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "type": "string"
+         },
+         "title": "Response Health Health Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Health"
+   }
+  },
+  "/ready": {
+   "get": {
+    "operationId": "ready_ready_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Ready"
+   }
+  },
+  "/v1/artifacts/{artifact_id}/access": {
+   "post": {
+    "operationId": "access_v1_artifacts__artifact_id__access_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "artifact_id",
+      "required": true,
+      "schema": {
+       "pattern": "^art_[0-9a-f]{32}$",
+       "title": "Artifact Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-audit-accessor",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "X-Audit-Accessor"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AccessIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AccessGrant"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Access",
+    "tags": [
+     "query"
+    ]
+   }
+  },
+  "/v1/conversations/{conversation_id}/runs": {
+   "get": {
+    "operationId": "get_conversation_v1_conversations__conversation_id__runs_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "conversation_id",
+      "required": true,
+      "schema": {
+       "pattern": "^[A-Za-z0-9._:-]{1,200}$",
+       "title": "Conversation Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 100,
+       "maximum": 500,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-audit-accessor",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "X-Audit-Accessor"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Conversation V1 Conversations  Conversation Id  Runs Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Conversation",
+    "tags": [
+     "query"
+    ]
+   }
+  },
+  "/v1/executions/{execution_id}/runtime": {
+   "get": {
+    "operationId": "get_runtime_v1_executions__execution_id__runtime_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "execution_id",
+      "required": true,
+      "schema": {
+       "pattern": "^exe_[0-9a-f]{24}$",
+       "title": "Execution Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-audit-accessor",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "X-Audit-Accessor"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Runtime V1 Executions  Execution Id  Runtime Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Runtime",
+    "tags": [
+     "query"
+    ]
+   }
+  },
+  "/v1/internal/artifacts": {
+   "post": {
+    "operationId": "prepare_artifact_v1_internal_artifacts_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ArtifactPrepare"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ArtifactPrepared"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Prepare Artifact",
+    "tags": [
+     "producer"
+    ]
+   }
+  },
+  "/v1/internal/artifacts/{artifact_id}/verify": {
+   "post": {
+    "operationId": "verify_artifact_v1_internal_artifacts__artifact_id__verify_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "artifact_id",
+      "required": true,
+      "schema": {
+       "pattern": "^art_[0-9a-f]{32}$",
+       "title": "Artifact Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ArtifactVerified"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Verify Artifact",
+    "tags": [
+     "producer"
+    ]
+   }
+  },
+  "/v1/internal/executions": {
+   "post": {
+    "operationId": "register_execution_v1_internal_executions_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ExecutionRecord"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ExecutionAck"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Register Execution",
+    "tags": [
+     "producer"
+    ]
+   }
+  },
+  "/v1/internal/runs": {
+   "post": {
+    "operationId": "register_run_v1_internal_runs_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RunRegistration"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RunRef"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Register Run",
+    "tags": [
+     "producer"
+    ]
+   }
+  },
+  "/v1/internal/runs/{run_id}/artifacts": {
+   "post": {
+    "operationId": "link_artifacts_v1_internal_runs__run_id__artifacts_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "run_id",
+      "required": true,
+      "schema": {
+       "pattern": "^run_[0-9a-f]{32}$",
+       "title": "Run Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LinkBatch"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LinkBatchAck"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Link Artifacts",
+    "tags": [
+     "producer"
+    ]
+   }
+  },
+  "/v1/internal/runs/{run_id}/events": {
+   "post": {
+    "operationId": "append_events_v1_internal_runs__run_id__events_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "run_id",
+      "required": true,
+      "schema": {
+       "pattern": "^run_[0-9a-f]{32}$",
+       "title": "Run Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/EventBatch"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/EventBatchAck"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Append Events",
+    "tags": [
+     "producer"
+    ]
+   }
+  },
+  "/v1/internal/runs/{run_id}/finalize": {
+   "post": {
+    "operationId": "finalize_v1_internal_runs__run_id__finalize_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "run_id",
+      "required": true,
+      "schema": {
+       "pattern": "^run_[0-9a-f]{32}$",
+       "title": "Run Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Finalize"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Finalize V1 Internal Runs  Run Id  Finalize Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Finalize",
+    "tags": [
+     "producer"
+    ]
+   }
+  },
+  "/v1/requests/{request_id}/run": {
+   "get": {
+    "operationId": "get_run_by_request_v1_requests__request_id__run_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "request_id",
+      "required": true,
+      "schema": {
+       "pattern": "^[A-Za-z0-9._:-]{1,200}$",
+       "title": "Request Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-audit-accessor",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "X-Audit-Accessor"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Run By Request V1 Requests  Request Id  Run Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Run By Request",
+    "tags": [
+     "query"
+    ]
+   }
+  },
+  "/v1/retention-holds": {
+   "post": {
+    "operationId": "add_hold_v1_retention_holds_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-audit-accessor",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "X-Audit-Accessor"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/HoldIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Add Hold V1 Retention Holds Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Add Hold",
+    "tags": [
+     "retention"
+    ]
+   }
+  },
+  "/v1/retention-holds/{hold_id}/release": {
+   "post": {
+    "operationId": "release_hold_v1_retention_holds__hold_id__release_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "hold_id",
+      "required": true,
+      "schema": {
+       "pattern": "^hold_[0-9a-f]{32}$",
+       "title": "Hold Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-audit-accessor",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "X-Audit-Accessor"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Release Hold V1 Retention Holds  Hold Id  Release Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Release Hold",
+    "tags": [
+     "retention"
+    ]
+   }
+  },
+  "/v1/retention/report": {
+   "get": {
+    "operationId": "retention_report_v1_retention_report_get",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-audit-accessor",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "X-Audit-Accessor"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Retention Report V1 Retention Report Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Retention Report",
+    "tags": [
+     "retention"
+    ]
+   }
+  },
+  "/v1/runs/{run_id}": {
+   "get": {
+    "operationId": "get_run_v1_runs__run_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "run_id",
+      "required": true,
+      "schema": {
+       "pattern": "^run_[0-9a-f]{32}$",
+       "title": "Run Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-audit-accessor",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "X-Audit-Accessor"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Run V1 Runs  Run Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Run",
+    "tags": [
+     "query"
+    ]
+   }
+  },
+  "/v1/runs/{run_id}/artifacts": {
+   "get": {
+    "operationId": "get_artifacts_v1_runs__run_id__artifacts_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "run_id",
+      "required": true,
+      "schema": {
+       "pattern": "^run_[0-9a-f]{32}$",
+       "title": "Run Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-audit-accessor",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "X-Audit-Accessor"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Artifacts V1 Runs  Run Id  Artifacts Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Artifacts",
+    "tags": [
+     "query"
+    ]
+   }
+  },
+  "/v1/runs/{run_id}/events": {
+   "get": {
+    "operationId": "get_events_v1_runs__run_id__events_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "run_id",
+      "required": true,
+      "schema": {
+       "pattern": "^run_[0-9a-f]{32}$",
+       "title": "Run Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "after_seq",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "minimum": 0,
+       "title": "After Seq",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 200,
+       "maximum": 500,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-audit-accessor",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "X-Audit-Accessor"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Events V1 Runs  Run Id  Events Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Events",
+    "tags": [
+     "query"
+    ]
+   }
+  },
+  "/v1/runs/{run_id}/replay-manifest": {
+   "get": {
+    "operationId": "get_replay_v1_runs__run_id__replay_manifest_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "run_id",
+      "required": true,
+      "schema": {
+       "pattern": "^run_[0-9a-f]{32}$",
+       "title": "Run Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-audit-accessor",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "X-Audit-Accessor"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Replay V1 Runs  Run Id  Replay Manifest Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Replay",
+    "tags": [
+     "query"
+    ]
+   }
+  }
+ }
+}
