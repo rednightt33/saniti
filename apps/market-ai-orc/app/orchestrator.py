@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
+from .audit_outbox import build_payload, model_event, tool_event
 from .catalog_protocol import CACHE_NOTE, CACHEABLE_TOOLS, CatalogLedger, cache_key, gaps, record
 from .compaction import dumps, estimate_tokens, stable_hash, trim_history
 from .config import Settings
@@ -382,6 +383,29 @@ request (it starts at its first recording). Never switch to current
 data silently: narrow the period to the covered dates, or answer
 descriptively and say that point-in-time data was unavailable, or
 report the limitation."""
+# IP2 solution 1. The only digits are the frequency codes of the DataNeedSpec (1D, 1W, 1M), never a figure.
+DERIVED_FREQUENCY_RULES = """
+
+WEEKLY AND MONTHLY
+Weekly and monthly figures are derived from daily rows, never from a
+weekly table and never monthly from weekly:
+1. Weekly: source_frequency 1D, analysis_frequency 1W, resample WEEKLY.
+Monthly: source_frequency 1D, analysis_frequency 1M, resample MONTHLY.
+Ask only for columns the catalog gives a resample_aggregation;
+RESAMPLE_RULE_MISSING names a column without one: drop it or analyse
+daily.
+2. In the code, call saniti.resample(frame, request) on the daily rows
+before any period indicator. It returns one row per entity and period
+with period_start, period_end, actual_first_date, actual_last_date,
+observations and period_complete. Weeks end on Friday, months at the
+calendar month end.
+3. A period return is saniti.resampled_returns(resampled, request): the
+period close over the previous period close. Never sum daily returns.
+4. Compare or rank only periods with period_complete true; name any
+open or partial period you show, and say that the weekly or monthly
+figures were derived from daily data."""
+DERIVED_FREQUENCY_LINE = ("Weekly or monthly figures were derived from daily data (weeks end on Friday, months at the "
+                          "calendar month end); a period still open or only partly covered is marked incomplete.")
 CONVERSATION_REUSE_RULES = """
 
 CONVERSATION REUSE
@@ -478,7 +502,7 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
                         period_return: bool = False, final_contract: bool = False,
                         catalog_protocol: bool = False, conversation_reuse: bool = False,
                         methodology: bool = False, plan_feasibility: bool = False,
-                        point_in_time: bool = False) -> str:
+                        point_in_time: bool = False, derived_frequency: bool = False) -> str:
     """The system prompt for the registered tools. It is fixed for a deployment (AI_ENABLE_LOOKUP_FACT,
     AI_ENABLE_DATANEED, AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION, AI_ENABLE_STANDARD_PERIOD_RETURN,
     AI_FINAL_CONTRACT_IN_PROMPT), so every call of every run shares one byte-identical cacheable prefix. With the
@@ -491,7 +515,7 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
             + (PLAN_FEASIBILITY_RULES if plan_confirmation and plan_feasibility else "") \
             + (PERIOD_RETURN_RULES if period_return else "") + (CATALOG_PROTOCOL_RULES if catalog_protocol else "") \
             + (CONVERSATION_REUSE_RULES if conversation_reuse else "") + (METHODOLOGY_RULES if methodology else "") \
-            + (POINT_IN_TIME_RULES if point_in_time else "")
+            + (POINT_IN_TIME_RULES if point_in_time else "") + (DERIVED_FREQUENCY_RULES if derived_frequency else "")
     if final_contract:
         # plan_confirmation and methodology reach here only together with dataneed (see AgentOrchestrator.__init__)
         contract = response_contract(plan_confirmation, methodology)
@@ -818,6 +842,10 @@ class RunState:
     feasibility_checks: list[dict[str, Any]] = field(default_factory=list)
     # IP1 Stage D: POINT_IN_TIME_UNAVAILABLE refusals of this run (never a silent fallback to current data)
     pit_refusals: list[str] = field(default_factory=list)
+    # IP2 audit (AI_AUDIT_STORE_ENABLED): observable model and tool events, the sandbox executions of the run
+    audit_trace: list[dict[str, Any]] = field(default_factory=list)
+    audit_started_at: datetime | None = None
+    execution_ids: list[str] = field(default_factory=list)
     research_attempted: bool = False
     verified_plan: Any = None
     plan_unexecuted: bool = False
@@ -871,8 +899,14 @@ class AgentOrchestrator:
         session_closer: Callable[[str, list[str]], dict[str, str]] | None = None,
         conversation_resources: Callable[[str], dict[str, Any] | None] | None = None,
         draft_reader: Callable[[str], dict[str, Any] | None] | None = None,
+        derived_frequency: bool = False,
+        audit_outbox: Any | None = None,
     ) -> None:
         self.settings = settings
+        # IP2: weekly/monthly derived from daily rows (AI_ENABLE_DERIVED_FREQUENCY and the sandbox capability, checked
+        # at startup) and the audit outbox writer (AI_AUDIT_STORE_ENABLED)
+        self.derived_frequency = derived_frequency and settings.ai_enable_dataneed
+        self.audit_outbox = audit_outbox
         # Research Plan feasibility (AI_ENABLE_PLAN_FEASIBILITY): reads a feasibility draft back from the sandbox; set
         # only when the sandbox reports the capability
         self.draft_reader = draft_reader
@@ -925,7 +959,7 @@ class AgentOrchestrator:
                                                  self.plan_confirmation, period_return,
                                                  settings.ai_final_contract_in_prompt, self.catalog_protocol,
                                                  self.conversation_reuse, self.methodology, self.plan_feasibility,
-                                                 self.point_in_time)
+                                                 self.point_in_time, self.derived_frequency)
         self.final_schema = final_response_schema(self.plan_confirmation, self.methodology)
         contract = response_contract(self.plan_confirmation, self.methodology)
         self.response_contract = contract
@@ -969,6 +1003,7 @@ class AgentOrchestrator:
             user_text=self._routing_text(request),
             instructions=self._instructions(),
         )
+        state.audit_started_at = moment
         for text in [turn.content for turn in request.history if turn.role == "user"] + [request.message]:
             state.context_numbers.extend(value for shown in parse_numbers(text) for value, _ in shown.candidates)
         token = current_request_id.set(request.request_id)
@@ -1027,6 +1062,8 @@ class AgentOrchestrator:
                                     used_sandbox=bool(state.specs or state.analyses or state.needs or state.sessions))
             except Exception:  # noqa: BLE001 - auditing never changes the response
                 logger.warning(dumps({"event": "research_audit_failed", "request_id": request.request_id}))
+        if self.audit_outbox is not None:
+            result = self._hand_to_audit(request, result, state)
         log_event(
             "ai_run_completed" if result.status != "FAILED" else "ai_run_failed",
             request_id=state.request_id,
@@ -1113,6 +1150,32 @@ class AgentOrchestrator:
                 state.sessions[session_id]["superseded"] = closed.get(session_id, "NOT_CLOSED")
             log_event("analysis_sessions_superseded", request_id=state.request_id, sessions=closed or pending)
         return None
+
+    def _hand_to_audit(self, request: AgentRunRequest, result: AgentRunResponse,
+                       state: RunState) -> AgentRunResponse:
+        """IP2: one RUN_FINISHED row in ai_audit.ingest_outbox. Optional mode (AI_AUDIT_STORE_REQUIRED false): a
+        failure is logged and the response is unchanged. Required mode: the answer is withheld when the run cannot be
+        handed over, so no answer leaves without its audit record."""
+        try:
+            payload = build_payload(
+                request=request, result=result, trace=state.audit_trace,
+                started_at=state.audit_started_at or self.wall_clock(), finished_at=self.wall_clock(),
+                model=self.settings.ai_model, execution_ids=state.execution_ids,
+                completion_ids=[cid for c in state.completions.values() for cid in c.get("completion_ids") or []
+                                if str(cid).startswith("cmp_")],
+                sessions=[s for s in state.sessions if SESSION_ID_RE.fullmatch(s)],
+                bundles=[str(s.get("bundle_id")) for s in state.sessions.values() if s.get("bundle_id")])
+            self.audit_outbox.write(payload)
+            log_event("audit_outbox_written", request_id=state.request_id, events=len(payload["events"]),
+                      executions=len(payload["expected"]["execution_ids"]))
+            return result
+        except Exception as exc:  # noqa: BLE001 - observable, never silent
+            log_event("audit_outbox_failed", request_id=state.request_id, error=type(exc).__name__,
+                      required=self.settings.ai_audit_store_required)
+            if not self.settings.ai_audit_store_required:
+                return result
+            return self._failed(state, "AUDIT_UNAVAILABLE", "The run could not be recorded for audit, which this "
+                                                            "deployment requires, so its answer is withheld.")
 
     def _close_sessions(self, state: RunState) -> None:
         """Close every analysis session this run opened that did not complete (S05). The sandbox closes a session
@@ -1279,6 +1342,8 @@ class AgentOrchestrator:
             state.static_prefixes.append(prefix)
             state.model_calls.append({"iteration": state.iterations, "provider_response_id": response.get("id"),
                                       "latency_ms": latency_ms})
+            if self.audit_outbox is not None:
+                state.audit_trace.append(model_event(state.model_calls[-1], self.wall_clock()))
             calls = [
                 item for item in response.get("output", [])
                 if isinstance(item, dict) and item.get("type") == "function_call"
@@ -1421,7 +1486,13 @@ class AgentOrchestrator:
                 "included) before its arguments were complete, so it was not run. Send the complete call again and "
                 "keep the reasoning before it short."))
         else:
+            started = time.monotonic()
             outcome = self._execute(state, call_id, name, raw_arguments)
+            if self.audit_outbox is not None:
+                state.audit_trace.append(tool_event(
+                    tool=name, call_id=call_id, iteration=state.iterations, arguments=raw_arguments,
+                    output=outcome.output, ok=outcome.ok, error_code=self._rejection_code(name, outcome),
+                    duration_ms=int((time.monotonic() - started) * 1000), occurred_at=self.wall_clock()))
         state.input_items.append({
             "type": "function_call_output",
             "call_id": outcome.call_id,
@@ -1794,6 +1865,7 @@ class AgentOrchestrator:
             if result.get("reused_session"):
                 state.reuse["sessions_reused"] = state.reuse.get("sessions_reused", 0) + 1
         elif name == "run_python" and result.get("execution_id"):
+            state.execution_ids.append(str(result["execution_id"]))
             session = state.sessions.setdefault(result.get("session_id") or "", {"executions": []})
             session["executions"].append(result.get("status"))
             code = (arguments or {}).get("code") if isinstance(arguments, dict) else None
@@ -1849,6 +1921,8 @@ class AgentOrchestrator:
                          "were not independently recalculated by the backend (calculation_validation NOT_PERFORMED).")
             codes = sorted({code for c in completed for code in c["final"].get("warnings") or []})
             lines.extend(WARNING_LINES[code] for code in codes if code in WARNING_LINES)
+            if any(c["final"].get("derived_frequency") for c in completed):
+                lines.append(DERIVED_FREQUENCY_LINE)
             if state.pit_refusals and any(c["final"].get("time_basis") != "POINT_IN_TIME" for c in completed):
                 # IP1 Stage D: a point-in-time request was refused and the answer rests on descriptive data
                 lines.append(PIT_FALLBACK_LINE.format(detail="; ".join(state.pit_refusals[:3])))

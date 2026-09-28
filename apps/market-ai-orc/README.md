@@ -304,6 +304,32 @@ Gate and final-response log events (always on):
 | `PYTHON_ANALYSIS_MAX_RESULT_BYTES` | no | `40000` | Hard cap on one analysis tool result sent to the model (8192–131072) |
 | `RESEARCH_AUDIT_DATABASE_URL` | no (secret) | unset | DSN of a login holding `market_ai_research_audit_writer` (INSERT only on `AI_research_run_audit`). When unset, the per-run PostgreSQL audit copy is disabled; the report still goes to the sandbox (see [Research run audit](#research-run-audit)) |
 | `ANALYSIS_TIMEZONE` | no | `Asia/Jakarta` | IANA time zone of the analysis reference date (the request date in this zone anchors "last 3 months", "latest", and similar periods); invalid zones stop startup |
+| `AI_ENABLE_DERIVED_FREQUENCY` | no | `false` | IP2 solution 1: the WEEKLY AND MONTHLY prompt block (weekly `1D`/`1W`/`WEEKLY`, monthly `1D`/`1M`/`MONTHLY`; `saniti.resample()` before any period indicator; `saniti.resampled_returns()`; compare only `period_complete` periods) and a limitation line that the figures were derived from daily data. Active only with the DataNeed flow and a sandbox reporting `derived_frequency` version 1 (otherwise log `derived_frequency_inactive`). The sandbox's `derived_frequency` final-status block (frequencies, period policy, contract hash, input checksum, execution ids) reaches `execution.analysis_final_status` |
+| `AI_AUDIT_STORE_ENABLED` | no | `false` | IP2 solution 2: at the end of every run, one `RUN_FINISHED` row is INSERTed into `ai_audit.ingest_outbox` (see below). With it off, nothing is recorded and the orchestrator is unchanged |
+| `AI_AUDIT_STORE_REQUIRED` | no | `false` | Needs `AI_AUDIT_STORE_ENABLED`. `false`: an outbox failure is logged (`audit_outbox_failed`) and the answer is unchanged. `true` (regulated mode): the answer is withheld (`FAILED`, `AUDIT_UNAVAILABLE`) when the run cannot be handed to the outbox |
+| `AUDIT_OUTBOX_DATABASE_URL` | with `AI_AUDIT_STORE_ENABLED` (secret) | unset | DSN of the `market_ai_orc` login, which joins `market_ai_audit_outbox_writer` (INSERT of the producer columns of `ai_audit.ingest_outbox` only; no SELECT, UPDATE or DELETE) |
+
+**Audit outbox (IP2).** market-ai-orc has no persistent volume and no audit-bucket credential. `app/audit_outbox.py`
+hands each finished run to market-audit-store by INSERTing one row, idempotent on `request_id`.
+
+The row carries:
+
+- run and conversation identity, and the parent request of a plan rerun;
+- the observable events:
+  - every tool call: name, sanitized and bounded arguments and result with their sha256, status, duration;
+  - every model call: iteration, latency, provider response id;
+- the final response;
+- model, provider and deployment;
+- the token and duration summary (`reasoning_token_count` is a count only);
+- the execution and completion ids the sandbox must have archived.
+
+Sanitizing:
+
+- Keys naming secrets (token, key, authorization, password, signature) are redacted.
+- URLs, including presigned ones, are replaced.
+- Reasoning items or keys are never read or sent.
+
+The audit store consumes the row. `AI_research_run_audit` keeps its per-run summary unchanged.
 
 Secrets have no defaults, and the service refuses to start without them. It never logs API
 keys, `Authorization` headers, prompts, user messages, or provider reasoning.

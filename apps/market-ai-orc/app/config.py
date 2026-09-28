@@ -151,6 +151,15 @@ class Settings:
     # sandbox refuses it where that history does not exist. Needs AI_ENABLE_COMPOSITE_KEYS (v2) and a sandbox that
     # reports point_in_time in GET /v1/runtime (otherwise inactive).
     ai_enable_point_in_time: bool = False
+    # IP2 solution 1: weekly and monthly analysis derived from daily rows (saniti.resample semantics version 1). Needs
+    # a sandbox that reports derived_frequency in GET /v1/runtime (otherwise inactive).
+    ai_enable_derived_frequency: bool = False
+    # IP2 solution 2: archive every finished run to market-audit-store through ai_audit.ingest_outbox (INSERT only,
+    # AUDIT_OUTBOX_DATABASE_URL). With AI_AUDIT_STORE_REQUIRED false an archive failure is logged and never changes
+    # the answer; true withholds the answer when the run cannot be handed to the outbox (regulated mode).
+    ai_audit_store_enabled: bool = False
+    ai_audit_store_required: bool = False
+    audit_outbox_database_url: str | None = field(default=None, repr=False)
 
     @property
     def conversation_lease_seconds(self) -> int:
@@ -220,6 +229,10 @@ class Settings:
             ai_enable_plan_feasibility=_boolean(env, "AI_ENABLE_PLAN_FEASIBILITY", False),
             ai_enable_composite_keys=_boolean(env, "AI_ENABLE_COMPOSITE_KEYS", False),
             ai_enable_point_in_time=_boolean(env, "AI_ENABLE_POINT_IN_TIME", False),
+            ai_enable_derived_frequency=_boolean(env, "AI_ENABLE_DERIVED_FREQUENCY", False),
+            ai_audit_store_enabled=_boolean(env, "AI_AUDIT_STORE_ENABLED", False),
+            ai_audit_store_required=_boolean(env, "AI_AUDIT_STORE_REQUIRED", False),
+            audit_outbox_database_url=_optional(env, "AUDIT_OUTBOX_DATABASE_URL"),
             sql_governor_api_key=_optional(env, "SQL_GOVERNOR_API_KEY"),
             sql_governor_timeout_seconds=_integer(env, "SQL_GOVERNOR_TIMEOUT_SECONDS", 90),
             request_data_max_result_bytes=_integer(env, "REQUEST_DATA_MAX_RESULT_BYTES", 40000, minimum=8192),
@@ -293,6 +306,14 @@ class Settings:
             raise ConfigError("AI_CATALOG_SUMMARY_IN_PROMPT needs CATALOG_DATABASE_URL")
         if settings.ai_enable_conversation_reuse and not settings.ai_enable_conversation_store:
             raise ConfigError("AI_ENABLE_CONVERSATION_REUSE needs AI_ENABLE_CONVERSATION_STORE")
+        if settings.ai_audit_store_enabled:
+            # the outbox URL is required only while the feature is on
+            if not settings.audit_outbox_database_url:
+                raise ConfigError("AI_AUDIT_STORE_ENABLED needs AUDIT_OUTBOX_DATABASE_URL")
+            if not settings.audit_outbox_database_url.startswith(("postgresql://", "postgres://")):
+                raise ConfigError("AUDIT_OUTBOX_DATABASE_URL must be a postgresql:// connection URL")
+        if settings.ai_audit_store_required and not settings.ai_audit_store_enabled:
+            raise ConfigError("AI_AUDIT_STORE_REQUIRED needs AI_AUDIT_STORE_ENABLED")
         if settings.ai_enable_conversation_store and not settings.conversation_database_url:
             raise ConfigError("AI_ENABLE_CONVERSATION_STORE needs CONVERSATION_DATABASE_URL")
         if settings.conversation_database_url and not settings.conversation_database_url.startswith(

@@ -20,6 +20,7 @@ from .conversations import (ConversationError, ConversationStore, UpkeepThread, 
                             reuse_key)
 from .openrouter_client import OpenRouterClient
 from .audit import RunAuditor
+from .audit_outbox import AuditOutbox
 from .orchestrator import AgentOrchestrator, log_event
 from .provider_log import ProviderLogger
 from .schemas import AgentRunRequest, AgentRunResponse
@@ -31,7 +32,8 @@ from .tools.session import close_sessions
 
 REUSE_VERSION = 1  # the conversation reuse contract both services must report
 FEASIBILITY_VERSION = 1  # the Research Plan feasibility endpoints of the sandbox
-POINT_IN_TIME_VERSION = 1  # the sandbox's data_need_spec/v2 time_basis checks (IP1 Stage D)
+POINT_IN_TIME_VERSION = 1
+RESAMPLE_SEMANTICS_VERSION = 1  # market-python-sandbox runtime/saniti_session.py  # the sandbox's data_need_spec/v2 time_basis checks (IP1 Stage D)
 
 
 def _configure_logging() -> None:
@@ -119,6 +121,15 @@ def create_app(
                 log_event("point_in_time_inactive", reason="needs AI_ENABLE_COMPOSITE_KEYS (data_need_spec/v2) and a "
                                                            f"sandbox reporting point_in_time version "
                                                            f"{POINT_IN_TIME_VERSION}")
+        # IP2 solution 1: weekly/monthly semantics live in the sandbox (resample semantics version 1)
+        derived_frequency = False
+        if settings.ai_enable_derived_frequency:
+            capability = (sandbox.runtime().get("derived_frequency") or {}) if sandbox is not None else {}
+            derived_frequency = capability.get("enabled") is True \
+                and capability.get("version") == RESAMPLE_SEMANTICS_VERSION and settings.ai_enable_dataneed
+            if not derived_frequency:
+                log_event("derived_frequency_inactive", reason="needs AI_ENABLE_DATANEED and a sandbox reporting "
+                                                               f"derived_frequency version {RESAMPLE_SEMANTICS_VERSION}")
         registry = build_default_registry(
             catalog,
             catalog_timeout_seconds=(
@@ -151,6 +162,9 @@ def create_app(
         )
         auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
             if sandbox is not None or settings.research_audit_database_url else None
+        # IP2: AI_research_run_audit stays the summary; the outbox hands the full run to market-audit-store
+        audit_outbox = AuditOutbox(settings.audit_outbox_database_url) \
+            if settings.ai_audit_store_enabled and settings.audit_outbox_database_url else None
         summary = None
         if settings.ai_catalog_summary_in_prompt and catalog is not None:
             summary = CatalogSummary(
@@ -173,7 +187,8 @@ def create_app(
         orchestrator = AgentOrchestrator(settings, owned_client, registry, auditor=auditor,
                                          catalog_summary=summary, provider_logger=provider_logger,
                                          session_closer=closer, conversation_resources=resources,
-                                         draft_reader=sandbox.get_draft if feasibility else None)
+                                         draft_reader=sandbox.get_draft if feasibility else None,
+                                         derived_frequency=derived_frequency, audit_outbox=audit_outbox)
     ready = {"value": False}
 
     @asynccontextmanager
