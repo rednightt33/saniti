@@ -1,5 +1,35 @@
 # Database changelog
 
+## 2026-09-28 — IP2: audit schema and resample rules (migrations 20260928_001, 20260928_002) — PREPARED, NOT APPLIED
+
+- Scope: implementation plan IP2 (user instruction 2026-09-28). The plan forbids applying migrations to a shared
+  database in this task, so neither migration has been applied anywhere except scratch databases.
+  `DATABASE_SCHEMA.md` is generated from the live database and is therefore not regenerated yet.
+- `20260928_001_create_ai_audit_store.sql` (additive): schema `ai_audit` with nine tables — `run`, `event`,
+  `artifact`, `run_artifact`, `execution`, `runtime_image`, `artifact_access`, `retention_hold`, `ingest_outbox` —
+  and the append-only trigger function `ai_audit.reject_change()` on `event` and `artifact_access`.
+  - Roles `market_ai_audit_store` (SELECT/INSERT/UPDATE; INSERT/SELECT only on the append-only tables; no DELETE or
+    TRUNCATE) and `market_ai_audit_outbox_writer` (INSERT of the producer columns of `ingest_outbox` only).
+  - No column may hold model reasoning (checked by the verify block).
+  - `AI_research_run_audit` and every public table, row and grant are unchanged.
+  - Not in `Table_Catalog`: its constraint `Table_Catalog_target_schema_check` admits `public` only. The tables are
+    documented in `apps/market-audit-store/README.md`.
+  - Scratch rehearsal (local PostgreSQL 16): applied cleanly; the outbox writer's duplicate INSERT was ignored and its
+    SELECT or `status` INSERT refused; the audit role's DELETE was refused; UPDATE and DELETE on `event` were refused
+    even for the owner.
+- `20260928_002_seed_resample_rules.sql`: `AI_column_catalog.resample_aggregation` for 27 columns whose catalog
+  definitions prove the rule. Everything else stays NULL (fails closed). Review: `IP2_RESAMPLE_RULE_REVIEW.md`.
+  - The preflight re-checks on the live catalog that each column exists, is a numeric measure of a dated table and
+    carries no conflicting rule, and that no rule exists outside the seed.
+  - Scratch rehearsal on a stub catalog: 27 rules set; a re-run is a no-op.
+  - Live read-only inspection was not possible: the PostgreSQL TCP proxy is not reachable from the working
+    environment. The catalog definitions come from the repository (`DATABASE_SCHEMA.md`, `Column_Catalog`
+    migrations).
+  - Effect after applying: the catalog hash changes once, so bundles from before are not reused by later messages.
+    Apply it together with, or after, `PY_SANDBOX_DERIVED_FREQUENCY_ENABLED=true` (see S09).
+- Logins (scripts, not run): `scripts/provision_market_ai_audit_login.py` (new login `market_ai_audit`);
+  `scripts/provision_market_ai_orc_login.py` now also grants `market_ai_audit_outbox_writer` when it exists.
+
 ## 2026-09-28 — IP1 Stage D: point-in-time reference history and metadata (migration 20260927_006)
 
 - Scope approved by the user: implementation plan IP1, Stage D (point in time) and its Stage E golden tests, with the
