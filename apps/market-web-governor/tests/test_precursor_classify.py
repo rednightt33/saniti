@@ -442,6 +442,8 @@ def test_precursor_search_sends_the_publication_window(tmp_path, auth):
         planned = client.post("/v1/web-needs", headers=auth, json=precursor_request("pre-window")).json()
         result = client.post(f"/v1/web-needs/{planned['web_need_id']}/execute", headers=auth,
                              json={"contract_version": "v1", "request_id": "pre-window"}).json()
-    search = next(call for call in calls if "tools" in call)["tools"][0]["parameters"]
+    first_search = next(call for call in calls if "tools" in call)
+    assert "EARLIER FORMS" in first_search["input"] and "dikabarkan" in first_search["input"]
+    search = first_search["tools"][0]["parameters"]
     assert (search["start_published_date"], search["end_published_date"]) == ("2025-09-18", "2026-09-17")
     assert result["applied_policy"][0]["end_published_date"] == "2026-09-17"
