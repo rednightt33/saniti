@@ -1,5 +1,24 @@
 # Railway changelog
 
+## 2026-09-28 — market-web-governor: event store, source policy, pre-event timeline, classification (P1–P4)
+
+- **Main database name restored (R18):** the market-data PostgreSQL service had been renamed `Web_Fetch` in the
+  dashboard; renamed back to `Postgres` (user decision). Railway rewrote every `${{...}}` reference automatically.
+- **Event store (P1):** new service `Postgres-E8GM` (`4b193143-be17-456b-bc00-c1760ef5db82`, created by the user) holds
+  `web_event_item` only. Migration `apps/market-web-governor/event_store/001_web_event_item.sql` applied through the
+  runner (`89bd1633-ba83-4ce5-8443-5edca354140a`, phase `migrate_event_store`); 60 columns, roles `web_event_writer`
+  (INSERT) and `web_event_reader` (SELECT) verified. The runner's temporary admin variables were deleted afterwards.
+- **Variables** (names only): market-web-governor `WEB_EVENT_STORE_URL` (writer role), `WEB_CLASSIFIER_SLOT` 2,
+  `WEB_CLASSIFIER_CHECK_SLOT` 1; web-governor-test-runner `EVENT_STORE_READER_URL` (reader role). No other service
+  changed; market-ai-orc model and provider unchanged.
+- **Deployments** of market-web-governor, each `SUCCESS`: `22c6420e-b6d6-412e-a334-f41ccc010eb4` and
+  `239b643e-ef6c-40c9-9ce2-7c6a7857a688` (P1–P4), `68e31764-f191-49c4-ba2b-30b3ee676809` (W13 deadlines),
+  `63303443-5cef-4829-9a00-48722744cf3f` (W14 batches, page dates), `3a6adb73-9ac4-41cf-865c-b11f17ba49f4` (W14 reasoning
+  off), `c3425088-f93b-411e-a122-dfc04a46218c` (W15 publication window), `ffab5dea` (W15 earlier-form queries, PR #19).
+- **Live ULTJ pre-event runs** (runner `precursor` phase, anchor 2026-09-18, look-back 12 months): run 1 hung (W13), runs
+  2–4 classified too little or found no pre-event source (W14, W15), run 5 (`wn_642dfd96…`) 40 items, 38 classified,
+  0 pre-event, USD 0.0614, 40 rows in `web_event_item`.
+
 ## 2026-09-28 — IP2 merged into main; Governor dependency fix (R19)
 
 - **Approval:** the user approved pushing the IP2 branch to `main` so `main` carries the S09 fix while the resample
