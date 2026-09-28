@@ -263,6 +263,24 @@ class ClassificationInvalid(ValueError):
     pass
 
 
+SCALE_RULES = {"R5-SCALE", "R4-SCALE", "R3-SCALE"}
+
+
+def validate_lenient(result: Any, quote: str, *, anchor: bool, material_pct: float,
+                     critical_pct: float) -> dict[str, Any]:
+    """Like validate, but a materiality figure that cannot be checked against the quote is dropped (metric NONE)
+    instead of rejecting the whole answer, unless the chosen rule needs that figure."""
+    try:
+        return validate(result, quote, anchor=anchor, material_pct=material_pct, critical_pct=critical_pct)
+    except ClassificationInvalid as exc:
+        if "materiality" not in str(exc) or not isinstance(result, dict) or result.get("rule_id") in SCALE_RULES:
+            raise
+        stripped = {**result, "materiality_metric": "NONE", "materiality_value": None, "materiality_evidence": None}
+        checked = validate(stripped, quote, anchor=anchor, material_pct=material_pct, critical_pct=critical_pct)
+        checked["materiality_dropped"] = str(exc)
+        return checked
+
+
 def validate_batch(parsed: Any, quotes: dict[int, str], *, anchor: bool, material_pct: float,
                    critical_pct: float) -> tuple[dict[int, dict[str, Any]], dict[int, str]]:
     """Validate a batch answer item by item. Returns the valid items and an error per missing or invalid index."""
@@ -280,8 +298,8 @@ def validate_batch(parsed: Any, quotes: dict[int, str], *, anchor: bool, materia
             valid.pop(index)
             continue
         try:
-            valid[index] = validate({k: v for k, v in entry.items() if k != "item_index"}, quotes[index],
-                                    anchor=anchor, material_pct=material_pct, critical_pct=critical_pct)
+            valid[index] = validate_lenient({k: v for k, v in entry.items() if k != "item_index"}, quotes[index],
+                                            anchor=anchor, material_pct=material_pct, critical_pct=critical_pct)
             errors.pop(index, None)
         except ClassificationInvalid as exc:
             errors[index] = str(exc)
@@ -332,6 +350,9 @@ def validate(result: Any, quote: str, *, anchor: bool, material_pct: float, crit
         whole = str(int(value)) if float(value).is_integer() else str(value).split(".")[0]
         if not any(digit.lstrip("0") == whole.lstrip("0") or whole in digit for digit in digits):
             raise ClassificationInvalid("materiality_value does not appear in materiality_evidence")
+        if metric.endswith("_PCT") and not re.search(rf"(?<!\d){re.escape(whole)}(?:[.,]\d+)?\s*(?:%|persen|percent)",
+                                                    evidence.lower()):
+            raise ClassificationInvalid("a percentage metric needs the number followed by % in materiality_evidence")
     if rule.rule_id in {"R5-SCALE", "R4-SCALE", "R3-SCALE"} and metric == "NONE":
         raise ClassificationInvalid(f"{rule.rule_id} requires a stated materiality")
     return result
@@ -343,9 +364,9 @@ def certainty(source_tier: str, source_verified: bool, attribution: str) -> str:
         return "UNVERIFIED"
     if source_tier == "PRIMARY":
         return "OFFICIAL"
-    if attribution in {"OFFICIAL_DOCUMENT", "OFFICIAL_STATEMENT", "NAMED_SOURCE"}:
-        return "REPORTED"
-    return "RUMOUR"
+    if attribution in {"ANONYMOUS_SOURCE", "ANALYST_OPINION"}:
+        return "RUMOUR"
+    return "REPORTED"
 
 
 def apply_caps(result: dict[str, Any], certainty_value: str) -> dict[str, Any]:

@@ -61,6 +61,13 @@ class OpenRouterProvider:
         slot = slot or self.settings.slot(None)
         started_at = _now()
         parameters = self._search_parameters(spec.source_policy, spec.budget.max_results_per_search, slot.engine)
+        if spec.anchor_event is not None and spec.time_window is not None:
+            # Pre-event mode: ask the search engine itself for the window, otherwise relevance ranking returns the
+            # coverage of the event and hides earlier signals (verified live 2026-09-28, W15).
+            if spec.time_window.start:
+                parameters["start_published_date"] = spec.time_window.start.isoformat()
+            if spec.time_window.end:
+                parameters["end_published_date"] = spec.time_window.end.isoformat()
         prompt = self._criterion_prompt(spec, criterion)
         payload = self._payload(slot, prompt)
         payload.update({
@@ -75,6 +82,8 @@ class OpenRouterProvider:
             "max_uses": parameters["max_uses"],
             "allowed_domains": parameters.get("allowed_domains", []),
             "excluded_domains": parameters.get("excluded_domains", []),
+            "start_published_date": parameters.get("start_published_date"),
+            "end_published_date": parameters.get("end_published_date"),
         }
         return self._result(
             response, provider_call_id, criterion.criterion_id, "SEARCH", started_at, applied, slot,
