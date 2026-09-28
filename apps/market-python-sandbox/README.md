@@ -1034,6 +1034,84 @@ Logs never contain keys, dataset URLs, user messages, datasets, or tables.
 | `PY_SANDBOX_SESSION_IDLE_SECONDS` / `_MAX_SECONDS` | 900 / 3600 |
 | `PY_SANDBOX_SESSION_MAX_EXECUTIONS` / `_MAX_FAILED` / `_MAX_OUTPUTS` | 40 / 15 / 40 |
 | `PY_SANDBOX_ENABLE_CONVERSATION_REUSE` | false ([conversation reuse](#conversation-reuse-py_sandbox_enable_conversation_reuse-off-by-default): bundle binding, warm sessions, per-epoch completion, READ_RELEASED) |
+| `PY_SANDBOX_DERIVED_FREQUENCY_ENABLED` | false ([derived weekly/monthly](#derived-weekly-and-monthly-ip2-off-unless-py_sandbox_derived_frequency_enabledtrue)) |
+| `PY_SANDBOX_AUDIT_STORE_ENABLED` | false ([audit archival](#audit-archival-ip2-off-unless-py_sandbox_audit_store_enabledtrue)); `AUDIT_STORE_URL` and `AUDIT_STORE_SANDBOX_KEY` are required only when on |
+| `PY_SANDBOX_AUDIT_SPOOL_MAX_BYTES` / `_POLL_SECONDS` / `_MAX_ATTEMPTS` / `_TIMEOUT_SECONDS` | 512 MiB / 15 / 12 / 30 |
+
+### Derived weekly and monthly (IP2, off unless `PY_SANDBOX_DERIVED_FREQUENCY_ENABLED=true`)
+
+Weekly and monthly data are always derived from daily rows, never read from a weekly table, and monthly is never built
+from weekly. With the flag on:
+
+- **Validation.** A request with `resample` must have `source_frequency` `1D` (`RESAMPLE_SOURCE_NOT_DAILY`), and every
+  requested measure must have a catalog `resample_aggregation` (`RESAMPLE_RULE_MISSING`, refused before any
+  extraction).
+- **Contract.** The approved contract carries `resample_semantics_version` 1 and hashes it. Requests without
+  `resample`, and every request with the flag off, keep their previous hash.
+- **`saniti.resample(frame, request)`** (semantics version 1):
+  - groups by the table's full grain, so no entity or broker is mixed;
+  - refuses duplicate `entity + trading_date` rows (`DUPLICATE_ENTITY_DATE`) and a frame that was already resampled;
+  - converts timestamps to Asia/Jakarta trading dates;
+  - uses calendar weeks Saturday–Friday labelled by the Friday, and calendar months labelled by the month end;
+  - sorts deterministically;
+  - FIRST/LAST take the first/last non-null value; MAX/MIN ignore nulls; SUM is null when every value is null;
+    nothing is filled;
+  - adds `period_start`, `period_end`, `actual_first_date`, `actual_last_date`, `observations` and
+    `period_complete`.
+- **Completeness.** `period_complete` is true only when the whole calendar period lies inside the approved extraction
+  window, ends on or before the reference date, and the data reaches its last calendar day. The open week or month,
+  or a partly covered one, is false.
+- **Trace.** Each call leaves a bounded trace in the execution record (log `saniti_resample`: request, frequencies,
+  input and output rows, periods, rules hash, semantics version, incomplete periods), never the data.
+- **Returns.** `saniti.resampled_returns(resampled, request)`: the period close (LAST) over the previous period's
+  close, minus one, with the base period, `periods_between` and both periods' completeness. Daily returns are never
+  summed.
+- **Final status.** It gains `derived_frequency`: per request the frequencies, period policy and resample calls, the
+  completeness and null rules, the contract hash, the input checksum and the execution ids.
+
+With the flag off, a `resample` request behaves as before. The legacy `saniti.resample()` aggregation was corrected to
+one rule per column (ERRORS_AND_SOLUTIONS S09); its output shape is unchanged.
+
+### Audit archival (IP2, off unless `PY_SANDBOX_AUDIT_STORE_ENABLED=true`)
+
+The root harness archives to `market-audit-store` (`app/audit.py`). The analysis process never does.
+
+**Per execution:**
+
+- the exact source (`PYTHON_SOURCE`);
+- a runtime/library manifest (`RUNTIME_MANIFEST`);
+- the execution trace (`EXECUTION_TRACE`, and `ERROR_DETAIL` on failure);
+- the execution record:
+  - the runtime inventory from `importlib.metadata` (pip is removed from the image);
+  - `declared_imports` from the AST;
+  - `loaded_distributions` observed in `sys.modules` (the worker reports the names only while the flag is on);
+  - `prebound_packages`, `stdlib_modules` and `unresolved_modules`;
+  - seed, timezone, input checksums in order, and the contract hash;
+- a link to each raw input Parquet by content. The Governor uploads those bytes.
+
+**Per completion:**
+
+- released outputs (`OUTPUT`);
+- the execution manifest;
+- the validation result;
+- the approved DataNeed contract;
+- the input bundle manifest;
+- the released output checksums, as expectations of the run.
+
+Delivery:
+
+- **Durable outbox.** `<data dir>/audit_outbox.sqlite3`, plus a spool of the bytes in `<data dir>/audit-spool`
+  (root only, mode 0700; `PY_SANDBOX_AUDIT_SPOOL_MAX_BYTES`). A file that does not fit is recorded as omitted and the
+  item ends `INCOMPLETE`.
+- **Drain.** A background thread drains due items idempotently. Statuses: `PENDING`, `FAILED_RETRYABLE` (backoff),
+  `COMPLETE`, and `INCOMPLETE` after `PY_SANDBOX_AUDIT_MAX_ATTEMPTS`.
+- **Failure handling.** An enqueue or archive failure is logged and never fails an execution or a completion.
+
+Boundaries:
+
+- The analysis processes keep their constructed environment: no `AUDIT_STORE_*` variable, no key, no upload URL, and
+  no access to the spool (tested).
+- `app/audit_client.py` is a small client of contract `audit-store/v1`, checked by `tests/test_audit_contract.py`.
 
 **Paths:**
 - `PY_SANDBOX_DATA_DIR` (`/data`, the Railway volume)

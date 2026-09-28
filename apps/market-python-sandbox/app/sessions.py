@@ -62,6 +62,11 @@ HELPERS = ["requests()", "manifest()", "quality(request)", "load(request, column
            "emit_file(name, data, format='PARQUET'|'CSV'|'PNG'|..., description='')", "add_warning(code, message)"]
 
 
+MAX_RESAMPLE_LOGS = 20
+RESAMPLE_LOG_FIELDS = ("data_request_id", "source_frequency", "target_frequency", "input_rows", "rows", "periods",
+                       "rules_sha256", "semantics_version", "incomplete_periods")
+
+
 class SessionError(Exception):
     def __init__(self, code: str, message: str, http_status: int = 409, next_action: str | None = None,
                  **details: Any) -> None:
@@ -208,6 +213,8 @@ class SessionManager:
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []
+        # IP2: set by DataNeedService when PY_SANDBOX_AUDIT_STORE_ENABLED (app/audit.py AuditOutbox)
+        self.audit: Any = None
         self.outputs_root = Path(self.settings.data_dir) / "session_outputs"
         self.outputs_root.mkdir(parents=True, exist_ok=True)
         os.chmod(self.outputs_root, 0o700)
@@ -441,10 +448,13 @@ class SessionManager:
                 "source_frequency": dataset.get("source_frequency"),
                 "analysis_frequency": dataset.get("analysis_frequency"), "resample": dataset.get("resample"),
                 "resample_rules": dataset.get("resample_rules") or {},
+                **({"resample_semantics_version": dataset["resample_semantics_version"]}
+                   if dataset.get("resample_semantics_version") is not None else {}),
                 "aggregation_rules": dataset.get("aggregation_rules") or {}, "quality": quality}
         session = {
             "session_id": session_id, "limits": s.child_limits(budget), "cpus": cpus, "require_seccomp": True,
             "seed": s.random_seed, "reference_date": manifest["reference_date"],
+            **({"observe_modules": True} if self.audit is not None else {}),
             "bundle": {k: manifest.get(k) for k in ("input_bundle_id", "need_id", "request_group_id", "revision",
                                                      "mode", "reference_date", "relationships",
                                                      "relationship_warnings")},
@@ -536,9 +546,10 @@ class SessionManager:
         started = time.monotonic()
         cpu_before = _cpu_seconds(worker.process.pid)
         self.store.update_session(session_id, status="BUSY", last_active_at=utc_now())
+        started_at = utc_now()
         self.store.insert_execution({"execution_id": execution_id, "session_id": session_id, "seq": seq,
                                      "kind": "EXECUTE", "code_sha256": hashlib.sha256(code.encode()).hexdigest(),
-                                     "status": "RUNNING", "started_at": utc_now(),
+                                     "status": "RUNNING", "started_at": started_at,
                                      "epoch": int(record.get("epoch") or 1), "request_id": request_id})
         try:
             answer = worker.request({"op": "execute", "execution_id": execution_id, "code": code},
@@ -600,7 +611,43 @@ class SessionManager:
                           for a in (answer.get("access") or [])[:20]],
                   error_type=(answer.get("error") or {}).get("error_type"),
                   error_message=str((answer.get("error") or {}).get("message") or "")[:200] or None)
+        for entry in (answer.get("access") or [])[:MAX_RESAMPLE_LOGS]:
+            if entry.get("call") == "resample":  # IP2: an observable, bounded resample trace (never the data)
+                self._log("saniti_resample", request_id=request_id, session_id=session_id, execution_id=execution_id,
+                          **{k: entry.get(k) for k in RESAMPLE_LOG_FIELDS})
+        if self.audit is not None:
+            self._archive_execution(record, request_id, execution_id, seq, code, answer, status, started_at,
+                                    runtime_ms, cpu)
         return view
+
+    def _archive_execution(self, record: dict[str, Any], request_id: str, execution_id: str, seq: int, code: str,
+                           answer: dict[str, Any], status: str, started_at: str, runtime_ms: int,
+                           cpu: float) -> None:
+        """IP2: hand the execution to the audit outbox (harness side, after the fact). Never fails the execution."""
+        try:
+            from .data_need import data_contract_sha256
+
+            bundle = self.store.get_bundle(record["bundle_id"])["manifest"]
+            inputs, position = [], 0
+            for dataset in bundle["datasets"]:
+                ordering = [o["column"] for o in self._order(dataset)]
+                for part in dataset["partitions"]:
+                    path = self.bundles.path_of(bundle["input_bundle_id"], part["file"])
+                    inputs.append({"position": position, "data_request_id": dataset["data_request_id"],
+                                   "dataset_id": part.get("dataset_id"), "sha256": part["checksum_sha256"],
+                                   "size_bytes": path.stat().st_size if path.exists() else None,
+                                   "ordering": ordering})
+                    position += 1
+            need = self.store.get_need(record.get("need_id") or bundle["need_id"])
+            contract = data_contract_sha256(need["approved"]) if need and need.get("approved") else None
+            self.audit.record_execution(
+                request_id=request_id, session={"session_id": record["session_id"], "bundle_id": record["bundle_id"]},
+                execution_id=execution_id, seq=seq, code=code, answer=answer, status=status, started_at=started_at,
+                finished_at=utc_now(), runtime_ms=runtime_ms, cpu_seconds=cpu, inputs=inputs,
+                contract_sha256=contract)
+        except Exception as exc:  # noqa: BLE001 - audit is optional
+            self._log("sandbox_audit_enqueue_failed", request_id=request_id, execution_id=execution_id,
+                      error=type(exc).__name__)
 
     def inspect(self, session_id: str, request_id: str, names: list[str] | None, max_rows: int) -> dict[str, Any]:
         _, worker = self._session(session_id, request_id)

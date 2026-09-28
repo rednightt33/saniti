@@ -128,6 +128,17 @@ class Settings:
     retain_code: bool
     failed_workspace_ttl_hours: int
     failed_workspace_max_bytes: int
+    # IP2 solution 1: derived weekly/monthly semantics (resample semantics version in the approved contract)
+    derived_frequency_enabled: bool = False
+    # IP2 solution 2: archive code, runtime/library manifests, traces and released outputs to market-audit-store
+    # from the root harness (never from an analysis process); audit failures never fail an analysis
+    audit_store_enabled: bool = False
+    audit_store_url: str | None = None
+    audit_store_key: str | None = field(default=None, repr=False)
+    audit_spool_max_bytes: int = 536_870_912
+    audit_poll_seconds: int = 15
+    audit_max_attempts: int = 12
+    audit_timeout_seconds: int = 30
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -266,7 +277,25 @@ class Settings:
                                                 maximum=72),
             failed_workspace_max_bytes=_integer(env, "PY_SANDBOX_FAILED_WORKSPACE_MAX_BYTES", 67_108_864,
                                                 minimum=0, maximum=1_073_741_824),
+            derived_frequency_enabled=_boolean(env, "PY_SANDBOX_DERIVED_FREQUENCY_ENABLED", False),
+            audit_store_enabled=_boolean(env, "PY_SANDBOX_AUDIT_STORE_ENABLED", False),
+            audit_store_url=env.get("AUDIT_STORE_URL", "").strip().rstrip("/") or None,
+            audit_store_key=env.get("AUDIT_STORE_SANDBOX_KEY", "").strip() or None,
+            audit_spool_max_bytes=_integer(env, "PY_SANDBOX_AUDIT_SPOOL_MAX_BYTES", 536_870_912, minimum=1_048_576,
+                                           maximum=17_179_869_184),
+            audit_poll_seconds=_integer(env, "PY_SANDBOX_AUDIT_POLL_SECONDS", 15, maximum=3600),
+            audit_max_attempts=_integer(env, "PY_SANDBOX_AUDIT_MAX_ATTEMPTS", 12, maximum=100),
+            audit_timeout_seconds=_integer(env, "PY_SANDBOX_AUDIT_TIMEOUT_SECONDS", 30, maximum=300),
         )
+        if settings.audit_store_enabled:
+            # the Audit Store variables are required only while the feature is on
+            if not settings.audit_store_url or not settings.audit_store_url.startswith(("https://", "http://")):
+                raise ConfigError("PY_SANDBOX_AUDIT_STORE_ENABLED needs AUDIT_STORE_URL (http:// or https://)")
+            if not settings.audit_store_key or len(settings.audit_store_key) < 32:
+                raise ConfigError("PY_SANDBOX_AUDIT_STORE_ENABLED needs AUDIT_STORE_SANDBOX_KEY (32+ characters)")
+            if not settings.dataneed_enabled:
+                raise ConfigError("PY_SANDBOX_AUDIT_STORE_ENABLED archives DataNeed sessions; enable "
+                                  "PY_SANDBOX_DATANEED_ENABLED")
         if settings.record_retention_days * 24 < settings.result_retention_hours:
             raise ConfigError("PY_SANDBOX_RECORD_RETENTION_DAYS must cover PY_SANDBOX_RESULT_RETENTION_HOURS")
         if settings.max_table_preview_rows > settings.max_table_output_rows:

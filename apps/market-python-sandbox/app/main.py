@@ -31,6 +31,7 @@ DRAFT_ID = re.compile(r"^draft_[0-9a-f]{24}$")
 FEASIBILITY_VERSION = 1
 # IP1 Stage D: data_need_spec/v2 time_basis (HISTORICAL_DESCRIPTIVE / POINT_IN_TIME) and its refusals
 POINT_IN_TIME_VERSION = 1
+RESAMPLE_SEMANTICS_VERSION = 1  # runtime/saniti_session.py; app/data_need.py
 SESSION_ID = re.compile(r"^sess_[0-9a-f]{24}$")
 OUTPUT_ID = re.compile(r"^out_[0-9a-f]{24}$")
 DATA_NEED_KEYS = {"request_id", "reference_time", "timezone", "spec", "research_governance"}
@@ -117,6 +118,9 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                 # IP1 Stage B: data_need_spec/v2 names every key pair of a composite relationship
                 "data_need_spec_versions": list(SPEC_VERSIONS) if dataneed is not None else [],
                 "point_in_time": {"enabled": dataneed is not None, "version": POINT_IN_TIME_VERSION},
+                # IP2 solution 1: weekly/monthly derived from daily rows (resample semantics version)
+                "derived_frequency": {"enabled": dataneed is not None and settings.derived_frequency_enabled,
+                                      "version": RESAMPLE_SEMANTICS_VERSION},
                 "limits": {**settings.child_limits(), "max_runtime_seconds": settings.max_runtime_seconds,
                            "max_memory_mb": settings.max_memory_mb, "duckdb_memory_mb": settings.duckdb_memory_mb,
                            "max_logical_datasets": settings.max_logical_datasets,

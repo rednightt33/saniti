@@ -329,6 +329,8 @@ class BundleBuilder:
                 "ranges": entry.get("windows") or [], "source_frequency": entry.get("source_frequency"),
                 "analysis_frequency": entry.get("analysis_frequency"), "resample": entry.get("resample"),
                 "resample_rules": entry.get("resample_rules") or {},
+                **({"resample_semantics_version": entry["resample_semantics_version"]}
+                   if entry.get("resample_semantics_version") is not None else {}),
                 "aggregation_rules": entry.get("aggregation_rules") or {}, "scope_sha256": entry["scope_sha256"],
                 "restricted_by": [r["relationship_id"] for r in entry.get("restrictions") or []],
                 "quality_manifest_id": quality_id, "quality": profile})

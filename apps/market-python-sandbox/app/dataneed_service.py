@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import secrets
+from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -16,7 +17,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from .bundles import BundleBuilder, BundleError
 from .bundles import model_view as bundle_view
 from .coverage import execution_manifest, processing_coverage
-from .data_need import DEFAULT_TIME_BASIS, Limits, contract_tables, data_contract_sha256, sha256_json, validate
+from .data_need import (COMPLETENESS_RULE, DEFAULT_TIME_BASIS, NULL_POLICY, PERIOD_POLICY, Limits, contract_tables,
+                        data_contract_sha256, sha256_json, validate)
 from .datasets import DatasetFailure
 from .dataneed_store import DRAFT_RETENTION_DAYS, DataNeedStore
 from .records import utc_now
@@ -61,10 +63,19 @@ class DataNeedService:
         self.analysis = analysis
         self.settings = analysis.settings
         self.store = store
-        self.limits = limits
+        # IP2: the derived-frequency semantics follow the service flag (a caller-supplied Limits keeps its own value)
+        self.limits = (replace(limits, derived_frequency=True)
+                       if getattr(self.settings, "derived_frequency_enabled", False) else limits)
         self.policy = self.settings.governance_policy()
         self.bundles = BundleBuilder(analysis, store)
         self.sessions = SessionManager(analysis, store, self.bundles)
+        # IP2 solution 2: archive to market-audit-store from the harness (off by default)
+        self.audit = None
+        if getattr(self.settings, "audit_store_enabled", False):
+            from .audit import AuditOutbox
+
+            self.audit = AuditOutbox(self.settings)
+            self.sessions.audit = self.audit
 
     @staticmethod
     def _log(event: str, **fields: Any) -> None:
@@ -268,9 +279,13 @@ class DataNeedService:
 
     def start(self, run_janitor: bool = True) -> None:
         self.sessions.start(run_janitor=run_janitor)
+        if self.audit is not None and run_janitor:
+            self.audit.start()
 
     def stop(self) -> None:
         self.sessions.stop()
+        if self.audit is not None:
+            self.audit.stop()
 
     def open_session(self, request_id: str, bundle_id: str, conversation_key: str | None = None) -> dict[str, Any]:
         """A persistent session on a READY bundle; a RESEARCH need gets its approved compute budget.
@@ -519,6 +534,25 @@ class DataNeedService:
             "research_constraints": research.get("constraints") if mode == "RESEARCH" else None,
             # IP1 Stage D: what the data may claim about time (HISTORICAL_DESCRIPTIVE or POINT_IN_TIME)
             "time_basis": bundle.get("time_basis") or DEFAULT_TIME_BASIS}
+        derived = [d for d in bundle["datasets"] if d.get("resample_semantics_version") is not None]
+        if derived:
+            # IP2 solution 1: how weekly/monthly figures were derived, and from which data and code
+            calls = [a for e in executions for a in e.get("access") or [] if a.get("call") == "resample"]
+            final["derived_frequency"] = {
+                "requests": [{"data_request_id": d["data_request_id"], "source_frequency": d.get("source_frequency"),
+                              "analysis_frequency": d.get("analysis_frequency"), "resample": d.get("resample"),
+                              "resample_semantics_version": d["resample_semantics_version"],
+                              "period_policy": PERIOD_POLICY.get(d.get("analysis_frequency") or ""),
+                              "resample_calls": sum(1 for a in calls if a.get("data_request_id")
+                                                    == d["data_request_id"]),
+                              "incomplete_periods": max([int(a.get("incomplete_periods") or 0) for a in calls
+                                                         if a.get("data_request_id") == d["data_request_id"]]
+                                                        or [0])} for d in derived],
+                "completeness_rule": COMPLETENESS_RULE, "null_policy": NULL_POLICY,
+                "contract_sha256": data_contract_sha256(need),
+                "input_checksum": bundle.get("checksum_sha256") or self.store.get_bundle(record["bundle_id"]).get(
+                    "checksum_sha256"),
+                "execution_ids": [e["execution_id"] for e in executions if e["status"] == "OK"]}
         if parent is not None:
             final["inherited_coverage"] = {
                 "parent_completion_id": parent["completion_id"], "parent_request_id": parent["request_id"],
@@ -564,6 +598,16 @@ class DataNeedService:
                                       "execution_manifest": manifest, "coverage": coverage,
                                       "final_status": result, "created_at": utc_now(), "epoch": epoch,
                                       "parent_completion_id": parent["completion_id"] if parent else None})
+        if self.audit is not None:
+            try:
+                released_files = [{"name": o["name"], "format": o["format"], "execution_id": o["execution_id"],
+                                   "path": str(self.sessions.outputs_root / o["relative_path"])}
+                                  for o in outputs if passed]
+                self.audit.record_completion(request_id=request_id, result=result, execution_manifest=manifest,
+                                             need=need, bundle=bundle, released=released_files)
+            except Exception as exc:  # noqa: BLE001 - audit never fails a completion while optional
+                self._log("sandbox_audit_enqueue_failed", request_id=request_id, completion_id=completion_id,
+                          error=type(exc).__name__)
         if warm:
             self.store.update_session(session_id, status="WARM_IDLE", last_active_at=utc_now())
         elif passed:

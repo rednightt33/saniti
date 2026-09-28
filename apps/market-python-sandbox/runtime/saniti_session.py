@@ -20,6 +20,9 @@ needs; nothing here computes an indicator or checks a formula.
                                     cross-entity rules (required before a join that needs preaggregation)
     resample(frame, request, frequency=None)
                                     the catalog's resample rules (FIRST/LAST/MAX/MIN/SUM) per entity and period
+                                    (derived frequency: daily source only, period metadata, period_complete)
+    resampled_returns(frame, request, value_column="close")
+                                    derived frequency: period close / previous period close - 1, with boundaries
     period_return(request, range_id, value_column="close", entity_column=None, date_column=None)
                                     a named calendar-period return per entity with one boundary convention
     insufficient_data(request, range_id=None, value=None, unit=..., requirement_type=..., reason="")
@@ -483,11 +486,15 @@ def preaggregate(relationship_id: int, frame=None, measures=None):
 
 def resample(frame, request: str, frequency: str | None = None):
     """Aggregate a daily (or finer) frame to a coarser frequency per entity with the catalog's resample rules.
-    Periods: 1W weeks ending Friday, 1M calendar months, 1Q quarters, 1Y years, labelled by their last date."""
+    Periods: 1W weeks ending Friday, 1M calendar months, 1Q quarters, 1Y years, labelled by their last date.
+    A request approved with a resample_semantics_version (derived frequency, IP2) uses the hardened semantics of
+    _resample_v1: daily source only, full-grain groups, duplicate keys refused, period metadata and completeness."""
     import pandas as pd
 
     r = _request(request)
     target = frequency or r.get("analysis_frequency")
+    if r.get("resample_semantics_version") is not None:
+        return _resample_v1(frame, r, target)
     if target not in PERIODS:
         raise SanitiError(f"frequency must be one of {sorted(PERIODS)}.")
     entity, time = r.get("entity_column"), r.get("time_column")
@@ -497,13 +504,175 @@ def resample(frame, request: str, frequency: str | None = None):
     if missing:
         raise ResampleRuleMissing(f"The catalog has no resample rule for {missing}: aggregate them yourself or drop "
                                   f"them. Rules: {rules}")
-    work = frame.assign(**{time: pd.to_datetime(frame[time])})
-    grouped = work.set_index(time).groupby(entity)[values].resample(PERIODS[target])
-    out = grouped.agg({c: AGGREGATIONS[rules[c]] for c in values})
-    counts = work.set_index(time).groupby(entity)[values[0] if values else entity].resample(PERIODS[target]).size()
+    work = frame.assign(**{time: pd.to_datetime(frame[time])}).set_index(time).groupby(entity)
+    # one aggregation per column (S09: a dict passed to agg on a grouped resampler crossed every rule with every
+    # column under pandas 3)
+    out = pd.DataFrame({c: work[c].resample(PERIODS[target]).agg(AGGREGATIONS[rules[c]]) for c in values})
+    counts = work[values[0] if values else entity].resample(PERIODS[target]).size()
     out["observations"] = counts
     out = out[out["observations"] > 0].reset_index()
     out[time] = out[time].dt.date
+    return out
+
+
+# ---------------------------------------------------------------- derived weekly/monthly (IP2, semantics version 1)
+
+RESAMPLE_SEMANTICS_VERSION = 1
+DERIVED_PERIODS = {"1W": "W-FRI", "1M": "M", "1Q": "Q-DEC", "1Y": "Y-DEC"}
+PERIOD_COLUMNS = ["period_start", "period_end", "actual_first_date", "actual_last_date", "observations",
+                  "period_complete"]
+NULL_POLICY = ("FIRST/LAST take the first/last non-null value in date order; MAX/MIN ignore nulls; SUM adds the "
+               "non-null values and is null when every value of the period is null; nothing is filled")
+PERIOD_POLICY = {"1W": "calendar week Saturday to Friday, labelled by its Friday",
+                 "1M": "calendar month, labelled by its last calendar day",
+                 "1Q": "calendar quarter, labelled by its last calendar day",
+                 "1Y": "calendar year, labelled by 31 December"}
+COMPLETENESS_RULE = ("period_complete is true only when the whole calendar period lies inside the approved extraction "
+                     "window, ends on or before the reference date, and the data (any entity) reaches its last "
+                     "calendar day; otherwise false (an open or partly covered period, or completeness that cannot "
+                     "be established)")
+
+
+class ResampleError(SanitiError):
+    """A derived-frequency precondition failed: the source is not daily, the frame was already resampled, or an
+    entity has duplicate rows for one date."""
+    code = "RESAMPLE_INVALID"
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+def _jakarta_dates(series):
+    """Trading dates as Asia/Jakarta calendar dates (datetime64[ns], midnight). A timezone-aware timestamp is
+    converted to Asia/Jakarta first; a naive timestamp or a date is already a trading date."""
+    import pandas as pd
+
+    values = pd.to_datetime(series)
+    if getattr(values.dt, "tz", None) is not None:
+        values = values.dt.tz_convert("Asia/Jakarta").dt.tz_localize(None)
+    return values.dt.normalize()
+
+
+def _rules_sha256(rules: dict[str, str]) -> str:
+    import hashlib
+
+    return hashlib.sha256(_json.dumps(dict(sorted(rules.items())), separators=(",", ":")).encode()).hexdigest()
+
+
+def _resample_v1(frame, r: dict[str, Any], target: str | None):
+    import pandas as pd
+
+    source = r.get("source_frequency")
+    if source != "1D":
+        raise ResampleError("RESAMPLE_SOURCE_NOT_DAILY", f"{r['logical_name']} has source_frequency {source}; weekly "
+                            "and monthly data are derived only from daily rows.")
+    if target not in DERIVED_PERIODS:
+        raise ResampleError("RESAMPLE_TARGET_INVALID", f"frequency must be one of {sorted(DERIVED_PERIODS)}.")
+    if set(PERIOD_COLUMNS) & set(frame.columns):
+        raise ResampleError("RESAMPLE_ALREADY_RESAMPLED", "This frame was already resampled. Derive every frequency "
+                            "from the daily rows (saniti.load), never monthly from weekly.")
+    entity, time = r.get("entity_column"), r.get("time_column")
+    keys = [c for c in dict.fromkeys([entity, *(r.get("key_columns") or [])]) if c and c != time]
+    absent = [c for c in [*keys, time] if c not in frame.columns]
+    if absent:
+        raise ResampleError("RESAMPLE_KEY_MISSING", f"The frame lacks the key columns {absent}; keep the table's "
+                            f"grain {keys + [time]} so no entity or broker is mixed with another.")
+    rules = r.get("resample_rules") or {}
+    values = [c for c in frame.columns if c not in keys and c != time]
+    missing = [c for c in values if not rules.get(c)]
+    if missing:
+        raise ResampleRuleMissing(f"The catalog has no resample rule for {missing}; they cannot be aggregated to a "
+                                  f"period. Drop them or ask for daily analysis. Rules: {rules}")
+    work = frame[[*keys, time, *values]].copy()
+    work["_saniti_date"] = _jakarta_dates(work[time])
+    if work["_saniti_date"].isna().any():
+        raise ResampleError("RESAMPLE_NULL_DATE", f"{time} has null values.")
+    duplicated = work.duplicated([*keys, "_saniti_date"], keep=False)
+    if duplicated.any():
+        sample = work.loc[duplicated, [*keys, "_saniti_date"]].head(3).astype(str).to_dict("records")
+        raise ResampleError("DUPLICATE_ENTITY_DATE", f"{int(duplicated.sum())} rows share an entity and trading date "
+                            f"(for example {sample}); deduplicate before resampling.")
+    work = work.sort_values([*keys, "_saniti_date"], kind="mergesort")
+    periods = work["_saniti_date"].dt.to_period(DERIVED_PERIODS[target])
+    work["_saniti_start"] = periods.dt.start_time.dt.normalize()
+    work["_saniti_end"] = periods.dt.end_time.dt.normalize()
+    grouped = work.groupby([*keys, "_saniti_end"], sort=True, dropna=False)
+    out = pd.DataFrame({
+        "period_start": grouped["_saniti_start"].first(),
+        "actual_first_date": grouped["_saniti_date"].min(),
+        "actual_last_date": grouped["_saniti_date"].max(),
+        "observations": grouped["_saniti_date"].size().astype("int64")})
+    for column in values:
+        rule = rules[column]
+        series = grouped[column]
+        out[column] = (series.sum(min_count=1) if rule == "SUM" else series.first() if rule == "FIRST"
+                       else series.last() if rule == "LAST" else series.max() if rule == "MAX" else series.min())
+    out = out.reset_index().rename(columns={"_saniti_end": "period_end"})
+    windows = [w for w in r.get("ranges") or [] if w.get("extract_from") and w.get("extract_to")]
+    if windows and REFERENCE_DATE:
+        window_from = pd.Timestamp(min(w["extract_from"] for w in windows))
+        window_to = pd.Timestamp(max(w["extract_to"] for w in windows))
+        data_last = work["_saniti_date"].max()
+        complete = ((out["period_start"] >= window_from) & (out["period_end"] <= window_to)
+                    & (out["period_end"] <= pd.Timestamp(REFERENCE_DATE)) & (out["period_end"] <= data_last))
+    else:
+        complete = pd.Series(False, index=out.index)
+    out["period_complete"] = complete.astype(bool)
+    out[time] = out["period_end"]
+    for column in ("period_start", "period_end", "actual_first_date", "actual_last_date", time):
+        out[column] = out[column].dt.date
+    out = out[[*keys, time, *values, *PERIOD_COLUMNS]].sort_values([*keys, time], kind="mergesort")
+    out = out.reset_index(drop=True)
+    incomplete = sorted({str(d) for d in out.loc[~out["period_complete"], "period_end"]})
+    _log({"call": "resample", "data_request_id": r["data_request_id"], "source_frequency": source,
+          "target_frequency": target, "semantics_version": RESAMPLE_SEMANTICS_VERSION,
+          "input_rows": int(len(frame)), "rows": int(len(out)), "periods": int(out["period_end"].nunique()),
+          "entities": int(out[entity].nunique()) if entity in out.columns else None,
+          "rules_sha256": _rules_sha256({c: rules[c] for c in values}), "rules": {c: rules[c] for c in values},
+          "incomplete_periods": len(incomplete), "incomplete_period_ends": incomplete[:10],
+          "period_policy": PERIOD_POLICY[target]})
+    return out
+
+
+def resampled_returns(frame, request: str, value_column: str = "close"):
+    """Period returns from a frame resample() returned: value (the period's LAST close) divided by the previous
+    period's value of the same entity, minus one. Daily returns are never summed. One row per entity and period
+    with its boundary: base_period_end, base_value, value, return_decimal, return_pct, periods_between (0 when the
+    previous period is adjacent), period_complete and base_period_complete; the first period of an entity has no
+    base (calculation_status NO_PRIOR_PERIOD)."""
+    import numpy as np
+    import pandas as pd
+
+    r = _request(request)
+    if r.get("resample_semantics_version") is None or not set(PERIOD_COLUMNS) <= set(frame.columns):
+        raise ResampleError("RESAMPLED_FRAME_REQUIRED", "Pass the frame saniti.resample() returned for this request.")
+    if (r.get("resample_rules") or {}).get(value_column) != "LAST":
+        raise ResampleError("RETURN_NEEDS_LAST_VALUE", f"{value_column} must be resampled with LAST (a period close) "
+                            "to compute period returns.")
+    time = r.get("time_column")
+    keys = [c for c in dict.fromkeys([r.get("entity_column"), *(r.get("key_columns") or [])]) if c and c != time]
+    work = frame.sort_values([*keys, "period_end"], kind="mergesort").reset_index(drop=True)
+    grouped = work.groupby(keys, sort=False, dropna=False)
+    value = pd.to_numeric(work[value_column], errors="coerce").astype("float64")
+    base = grouped[value_column].shift(1)
+    base_end = grouped["period_end"].shift(1)
+    base_complete = grouped["period_complete"].shift(1)
+    order = grouped.cumcount()
+    period = pd.PeriodIndex(pd.to_datetime(work["period_end"]), freq=DERIVED_PERIODS[r.get("analysis_frequency")])
+    base_period = pd.PeriodIndex(pd.to_datetime(base_end), freq=DERIVED_PERIODS[r.get("analysis_frequency")])
+    base_value = pd.to_numeric(base, errors="coerce").astype("float64")
+    valid = (order > 0) & np.isfinite(base_value) & (base_value > 0) & np.isfinite(value)
+    ret = np.where(valid, value / base_value - 1.0, np.nan)
+    status = np.where(order == 0, "NO_PRIOR_PERIOD", np.where(valid, "COMPLETE", "INVALID_BASE_VALUE"))
+    between = [None if o == 0 else int((p - b).n) - 1 for o, p, b in zip(order, period, base_period)]
+    out = pd.DataFrame({**{k: work[k] for k in keys}, "period_end": work["period_end"],
+                        "base_period_end": base_end, "base_value": base_value, "value": value,
+                        "return_decimal": ret, "return_pct": ret * 100.0, "periods_between": between,
+                        "period_complete": work["period_complete"].astype(bool),
+                        "base_period_complete": base_complete, "calculation_status": status})
+    _log({"call": "resampled_returns", "data_request_id": r["data_request_id"], "value_column": value_column,
+          "rows": int(len(out)), "formula": f"{value_column}[period] / {value_column}[previous period] - 1"})
     return out
 
 

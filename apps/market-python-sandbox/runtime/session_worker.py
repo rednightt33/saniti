@@ -188,6 +188,8 @@ def main(session_dir: str, response_fd: str) -> int:
         source = message.get("code") or ""
         linecache.cache[filename] = (len(source), None, source.splitlines(True), filename)
         before = {name: id(value) for name, value in namespace.items()}
+        # IP2 audit (observe_modules only when the harness archives): module names first imported by this execution
+        modules_before = set(sys.modules) if session.get("observe_modules") else None
         captured = _Bounded(STDOUT_MAX)
         saniti._begin()
         status, error, insufficient = "OK", None, None
@@ -214,9 +216,12 @@ def main(session_dir: str, response_fd: str) -> int:
         changed = sorted(n for n, v in namespace.items() if n not in base and not n.startswith("_")
                          and before.get(n) != id(v))
         recorded = saniti._end()
-        reply({"seq": seq, "status": status, "stdout": captured.value(), "error": error,
-               "insufficient": insufficient, "outputs": recorded["outputs"], "access": recorded["access"],
-               "warnings": recorded["warnings"], "variables": changed[:50]})
+        answer = {"seq": seq, "status": status, "stdout": captured.value(), "error": error,
+                  "insufficient": insufficient, "outputs": recorded["outputs"], "access": recorded["access"],
+                  "warnings": recorded["warnings"], "variables": changed[:50]}
+        if modules_before is not None:
+            answer["modules"] = sorted(set(sys.modules) - modules_before)[:2000]
+        reply(answer)
 
 
 if __name__ == "__main__":

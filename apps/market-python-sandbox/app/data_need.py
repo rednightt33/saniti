@@ -52,6 +52,18 @@ JOIN_SEMANTICS = ("CURRENT_STATE", "EXACT_DATE", "AS_OF", "EFFECTIVE_DATED")
 AS_OF_DIRECTIONS = ("BACKWARD",)
 BUFFER_UNITS = ("TRADING_OBSERVATIONS", "CALENDAR_DAYS")
 RESAMPLE = {"DAILY": "1D", "WEEKLY": "1W", "MONTHLY": "1M", "QUARTERLY": "1Q", "YEARLY": "1Y"}
+# IP2 derived frequency; must equal runtime/saniti_session.py (a test compares them)
+RESAMPLE_SEMANTICS_VERSION = 1
+NULL_POLICY = ("FIRST/LAST take the first/last non-null value in date order; MAX/MIN ignore nulls; SUM adds the "
+               "non-null values and is null when every value of the period is null; nothing is filled")
+PERIOD_POLICY = {"1W": "calendar week Saturday to Friday, labelled by its Friday",
+                 "1M": "calendar month, labelled by its last calendar day",
+                 "1Q": "calendar quarter, labelled by its last calendar day",
+                 "1Y": "calendar year, labelled by 31 December"}
+COMPLETENESS_RULE = ("period_complete is true only when the whole calendar period lies inside the approved extraction "
+                     "window, ends on or before the reference date, and the data (any entity) reaches its last "
+                     "calendar day; otherwise false (an open or partly covered period, or completeness that cannot "
+                     "be established)")
 DIRECTIONS = ("ASC", "DESC")
 UNIT_MINUTES = {"MIN": 1, "H": 60, "D": 1440, "W": 10080, "M": 43200, "Q": 129600, "Y": 525600}
 NUMERIC = ("smallint", "integer", "bigint", "numeric", "real", "double precision")
@@ -95,6 +107,9 @@ class Limits:
     max_buffer_days: int = 3660
     max_ordering: int = 6
     max_question_chars: int = 2000
+    # IP2 solution 1 (PY_SANDBOX_DERIVED_FREQUENCY_ENABLED): weekly/monthly derived only from daily rows, every
+    # requested measure needs a catalog resample rule, and the approved contract carries the resample semantics
+    derived_frequency: bool = False
 
 
 def canonical_json(value: Any) -> str:
@@ -928,11 +943,38 @@ def validate(raw: Any, contract: dict[str, Any] | None, reference: date, limits:
     bind_catalog(raw, contract, limits, issues)
     bound = cross_request(raw, contract, issues, warnings)
     feasibility(raw, contract, reference, limits, issues)
+    if limits.derived_frequency:
+        derived_frequency(raw, contract, issues)
     if not issues:
         point_in_time(raw, contract, bound, reference, issues, warnings)
     if issues:
         return Validation("REVISION_REQUIRED", issues.items, warnings)
-    return Validation("APPROVED", [], warnings, approved_contract(raw, contract, bound, reference))
+    approved = approved_contract(raw, contract, bound, reference)
+    if limits.derived_frequency:
+        for request in approved["requests"].values():
+            if request.get("resample") is not None:
+                request["resample_semantics_version"] = RESAMPLE_SEMANTICS_VERSION
+    return Validation("APPROVED", [], warnings, approved)
+
+
+def derived_frequency(spec: dict[str, Any], contract: dict[str, Any], issues: Issues) -> None:
+    """IP2 solution 1: a resampled request is derived from daily rows only (monthly is never built from weekly), and
+    every requested measure has a catalog resample rule; an unknown aggregation fails closed here, before any
+    extraction (RESAMPLE_RULE_MISSING), not in the middle of the analysis."""
+    tables, columns = contract.get("tables") or {}, contract.get("columns") or {}
+    for index, request in enumerate(spec["data_requests"]):
+        if request.get("resample") is None:
+            continue
+        rid, path = request["data_request_id"], f"data_requests[{index}]"
+        if request.get("source_frequency") != "1D":
+            issues.add(rid, "RESAMPLE_SOURCE_NOT_DAILY", f"{path}.source_frequency", request.get("source_frequency"))
+            continue
+        meta = tables.get(request["source_table"]) or {}
+        keys = {meta.get("entity_column"), meta.get("time_column"), *(meta.get("primary_key_columns") or [])}
+        known = columns.get(request["source_table"]) or {}
+        for position, column in enumerate(request["columns"]):
+            if column not in keys and not (known.get(column) or {}).get("resample_aggregation"):
+                issues.add(rid, "RESAMPLE_RULE_MISSING", f"{path}.columns[{position}]", column)
 
 
 def approved_contract(spec: dict[str, Any], contract: dict[str, Any], bound: list[BoundRelationship],
@@ -1033,6 +1075,9 @@ def data_contract_sha256(approved: dict[str, Any]) -> str:
         # a point-in-time need never reuses descriptive data (the descriptive hash is unchanged by IP1 Stage D)
         **({"time_basis": basis} if basis != DEFAULT_TIME_BASIS else {}),
         "mode": approved.get("mode"), "subject": spec.get("subject"),
-        "requests": {rid: {k: request.get(k) for k in CONTRACT_REQUEST_FIELDS}
+        # the resample semantics version enters only where it is set (IP2), so every other hash is unchanged
+        "requests": {rid: {**{k: request.get(k) for k in CONTRACT_REQUEST_FIELDS},
+                           **({"resample_semantics_version": request["resample_semantics_version"]}
+                              if request.get("resample_semantics_version") is not None else {})}
                      for rid, request in sorted((approved.get("requests") or {}).items())},
         "relationships": approved.get("relationships") or [], "catalog_sha256": approved.get("catalog_sha256")})
