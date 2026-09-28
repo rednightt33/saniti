@@ -61,6 +61,13 @@ class OpenRouterProvider:
         slot = slot or self.settings.slot(None)
         started_at = _now()
         parameters = self._search_parameters(spec.source_policy, spec.budget.max_results_per_search, slot.engine)
+        if spec.anchor_event is not None and spec.time_window is not None:
+            # Pre-event mode: ask the search engine itself for the window, otherwise relevance ranking returns the
+            # coverage of the event and hides earlier signals (verified live 2026-09-28, W15).
+            if spec.time_window.start:
+                parameters["start_published_date"] = spec.time_window.start.isoformat()
+            if spec.time_window.end:
+                parameters["end_published_date"] = spec.time_window.end.isoformat()
         prompt = self._criterion_prompt(spec, criterion)
         payload = self._payload(slot, prompt)
         payload.update({
@@ -75,6 +82,8 @@ class OpenRouterProvider:
             "max_uses": parameters["max_uses"],
             "allowed_domains": parameters.get("allowed_domains", []),
             "excluded_domains": parameters.get("excluded_domains", []),
+            "start_published_date": parameters.get("start_published_date"),
+            "end_published_date": parameters.get("end_published_date"),
         }
         return self._result(
             response, provider_call_id, criterion.criterion_id, "SEARCH", started_at, applied, slot,
@@ -143,6 +152,11 @@ class OpenRouterProvider:
         started_at = _now()
         payload = self._payload(slot, user)
         payload["max_output_tokens"] = min(slot.max_output_tokens, self.settings.classifier_max_output_tokens)
+        effort = self.settings.classifier_reasoning_effort
+        if effort == "off":
+            payload["reasoning"] = {"enabled": False}
+        elif effort:
+            payload["reasoning"] = {"effort": effort}
         payload["instructions"] = system
         payload["text"] = {"format": {"type": "json_schema", "name": "event_classification", "strict": True,
                                       "schema": schema}}
@@ -305,7 +319,14 @@ class OpenRouterProvider:
                 f"This is a pre-event search. Only sources PUBLISHED BEFORE {spec.anchor_event.event_date} count. "
                 "For every source state its publication date. A source published on or after that date may be "
                 "mentioned only as a lead, with the earlier date it refers to; never present it as an early "
-                "signal itself.\n\n"
+                "signal itself.\n"
+                "Search for the EARLIER FORMS an event takes before it is announced: rumours, reports of talks, "
+                "exploration, negotiations, due diligence, partial stake purchases, partnerships, statements of "
+                "intent, and denials. Search in the language of the locale as well as in English (for id-ID, words "
+                "such as dikabarkan, penjajakan, negosiasi, rencana, bantah, klarifikasi). Do NOT search for the "
+                "final announced terms (amounts, structure, final wording): they appear only after the announcement "
+                f"and bring back its coverage. Put the period (before {spec.anchor_event.event_date}) in the search "
+                "query itself.\n\n"
             )
         return (
             "You are a bounded web evidence retriever. Search for evidence that directly answers the criterion. "
