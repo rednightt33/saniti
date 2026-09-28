@@ -131,6 +131,7 @@ def test_certainty_is_decided_by_code_and_rumours_are_capped():
     assert rubric.certainty("PRIMARY", True, "ANONYMOUS_SOURCE") == "OFFICIAL"
     assert rubric.certainty("TRUSTED_SECONDARY", True, "OFFICIAL_DOCUMENT") == "REPORTED"
     assert rubric.certainty("TRUSTED_SECONDARY", True, "ANONYMOUS_SOURCE") == "RUMOUR"
+    assert rubric.certainty("SECONDARY", True, "NO_ATTRIBUTION") == "REPORTED"  # live W15: not a rumour
     assert rubric.certainty("PRIMARY", False, "OFFICIAL_DOCUMENT") == "UNVERIFIED"
     capped = rubric.apply_caps(answer(), "RUMOUR")
     assert (capped["impact_level"], capped["confidence"], capped["capped"]) == (4, "MEDIUM", True)
@@ -420,3 +421,27 @@ def test_undated_sources_get_their_date_from_the_page_itself(tmp_path, auth):
     assert (entry["published_at"], entry["published_at_source"], entry["lead_time_days"]) == (
         "2026-06-15", "HTML_META", 95)
     assert "DATES_READ_FROM_PAGES" in {warning["code"] for warning in result["warnings"]}
+
+
+def test_percentage_metric_needs_a_percent_sign_and_bad_figures_are_dropped_not_fatal():
+    kwargs = {"anchor": True, "material_pct": 20, "critical_pct": 50}
+    quote = "Nilai transaksi Rp14,57 triliun melalui inbreng."
+    trillion_as_pct = answer(rule_id="R5-CONTROL", materiality_value=14.57, materiality_evidence="Rp14,57 triliun")
+    with pytest.raises(rubric.ClassificationInvalid):
+        rubric.validate(trillion_as_pct, quote, **kwargs)  # live W15: an amount read as a percentage
+    kept = rubric.validate_lenient(trillion_as_pct, quote, **kwargs)
+    assert (kept["materiality_metric"], kept["materiality_value"], kept["impact_level"]) == ("NONE", None, 5)
+    assert "materiality_dropped" in kept
+    with pytest.raises(rubric.ClassificationInvalid):
+        rubric.validate_lenient(answer(materiality_evidence="Rp14,57 triliun", materiality_value=14.57), quote, **kwargs)
+
+
+def test_precursor_search_sends_the_publication_window(tmp_path, auth):
+    client, calls = app_client(tmp_path, FakeEventStore())
+    with client:
+        planned = client.post("/v1/web-needs", headers=auth, json=precursor_request("pre-window")).json()
+        result = client.post(f"/v1/web-needs/{planned['web_need_id']}/execute", headers=auth,
+                             json={"contract_version": "v1", "request_id": "pre-window"}).json()
+    search = next(call for call in calls if "tools" in call)["tools"][0]["parameters"]
+    assert (search["start_published_date"], search["end_published_date"]) == ("2025-09-18", "2026-09-17")
+    assert result["applied_policy"][0]["end_published_date"] == "2026-09-17"
