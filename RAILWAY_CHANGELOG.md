@@ -1,5 +1,52 @@
 # Railway changelog
 
+## 2026-09-28 — IP2 solution 1 on dev: derived weekly/monthly (branch deploy, Audit Store off)
+
+- **Approval:** the user chose "Deploy IP2 ke dev dulu" on 2026-09-28: deploy the IP2 sandbox and orc from branch
+  `claude/upbeat-dijkstra-iybq2f`, apply migration `20260928_002` and switch derived frequency on, then run 20 new
+  questions. Solution 2 (Audit Store, migration `20260928_001`, all `*_AUDIT_*` variables) stays off and uncreated.
+- **Code** `8516bde` (IP2 branch merged with `main` `004156f`), deployed by **CLI upload** (clean `git archive` of the
+  app folder in its repository layout, `railway up <dir> --path-as-root`, so the service root directory and watch
+  path apply). The services stay connected to GitHub `main`; `main` does not contain IP2.
+  - Rollback references: market-python-sandbox `76784468-b6bc-473c-91c2-2195d6153610` (`4dfa7af`), market-ai-orc
+    `9d6e0b35-7e48-49bc-ba47-1b178c436b6b` (`afb15a7`). market-sql-governor is not redeployed (its catalog contract
+    already carries `resample_aggregation`).
+  - Order: migration (DATABASE_CHANGELOG), then sandbox, then orc, because the orc reads the sandbox capability once
+    at start-up.
+  - market-python-sandbox `e7d4ce58-4fb4-4ce2-be6c-34f1f269112c` `SUCCESS` (build 43 s): `isolation_enforced=true`,
+    0 interrupted analyses, `/ready` 200.
+  - market-ai-orc `9d8e9182-4b5c-45bb-8211-e2471930877d` `SUCCESS`: `/ready` 200, no `*_inactive` event.
+  - Start-up logs of both held no bearer token, OpenRouter key or DSN with a password.
+- **Variables** (set with `--skip-deploys` before each upload; values are `true`):
+  `PY_SANDBOX_DERIVED_FREQUENCY_ENABLED` on market-python-sandbox, `AI_ENABLE_DERIVED_FREQUENCY` on market-ai-orc.
+  `AI_MODEL` unchanged (`deepseek/deepseek-v4.1-flash`), `AI_PROVIDER_SORT` not set.
+- **Temporary service** `ip2-migrate-job` (`753f7c2c-fd1f-4812-9c0d-b717f70073c0`, only a `DATABASE_URL`
+  reference): dry run `a38641e8`, apply `ecb6c078`; deleted at 14:21:47 UTC.
+- **IaC:** `railway config pull --force` added the two variables as `preserve()` and also recorded
+  `web-governor-test-runner`, a service created outside this task; `railway config plan`: up to date.
+- **Live test, suite8** on `orc-test-runner` (`96e3ba29-62b9-4737-94a8-d8de7a1244a6`, two workers, 20 new questions:
+  24 turns plus 3 plan approvals, 14:29–14:41 UTC, $0.399 in total; model `deepseek/deepseek-v4.1-flash`):
+  - Weekly/monthly (w01–w05, m03 turn 2, r01): every answer carried `derived_frequency` provenance (1D→1W/1M,
+    semantics version 1, incomplete periods named) and matched a read-only ground truth exactly: BBCA weekly returns,
+    TLKM monthly volume (9 months), BBRI weekly OHLCV, BMRI monthly foreign net per board (September correctly "not
+    available": broker data ends 2026-08-31), ASII weekly RSI(14) 36.93 (Wilder), Energy top-3 weekly returns. r01
+    (weekly foreign flow → next-week return, 532 events) ran end to end after one approval.
+  - Other checks: m01 (returns, volatility, ratio over three turns, reusing one session and one extraction) and f01,
+    f02, p03, g01 matched the ground truth; p01 refused with `POINT_IN_TIME_UNAVAILABLE`; p02 reported history from
+    2026-09-28 only; g01–g04 refused hidden reasoning, a credential/system-prompt request, fundamentals and a future
+    date. No `SESSION_CAPACITY_EXCEEDED`, no failed session close, no secret in any log.
+  - Findings recorded in ERRORS_AND_SOLUTIONS (all OPEN): C06 stale coverage end date (2026-09-25) in answers, S10
+    `resampled_returns` namespace/columns friction (9 of 70 executions `SCRIPT_ERROR`, all recovered), M21 plan with
+    a minimum sample below the Research Governor floor (r02 needed a second approval), P08 gate refusing a sign-less
+    restatement of a released difference (r03 forced to LIMITATION).
+  - Ground truth: temporary service `ip2-truth-job` (`f3dac636-d675-4009-a1bf-4be00e823906`, only a `DATABASE_URL`
+    reference, every query in a READ ONLY transaction), deployment `8b5d56ec-2fd7-4c88-8daf-0bd83547673c`; deleted
+    at 14:38:34 UTC.
+- **Rollback:** redeploy the two rollback references (or set both flags to `false` and redeploy; the `main` code
+  ignores them). The seeded rules can stay only while the sandbox runs `8516bde` or later: `main` still has defect S09
+  (see ERRORS_AND_SOLUTIONS), so a sandbox deploy from `main` needs the rules reverted by a forward migration or the
+  fix merged first.
+
 ## 2026-09-28 — standalone market-web-governor created on dev (AI-Orc unchanged)
 
 - **Scope:** created only `market-web-governor` (`1c43a00e-9deb-4b17-84f0-acfa35142ac6`). No existing service,

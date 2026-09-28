@@ -1,5 +1,24 @@
 # Database changelog
 
+## 2026-09-28 — IP2 solution 1 on dev: migration 20260928_002 applied (resample rules)
+
+- Scope approved by the user on 2026-09-28 ("Deploy IP2 ke dev dulu"): apply `20260928_002` on dev, deploy the IP2
+  sandbox and orc and switch on derived weekly/monthly analysis. Migration `20260928_001` (`ai_audit`) is **not**
+  applied and the Audit Store is not created.
+- Method: temporary service `ip2-migrate-job` (`753f7c2c-fd1f-4812-9c0d-b717f70073c0`, only a `DATABASE_URL`
+  reference), rehearsed first on a local copy of the catalog (dry run left 0 rules, apply set 27, a second apply was a
+  no-op). Deleted after use.
+  - Read-only inspection + dry run `a38641e8-d03e-4992-8d09-39118271bdff`: `AI_column_catalog` held 173 columns and
+    0 resample rules; the preflight and `$verify$` blocks passed and the transaction was rolled back.
+  - Apply `ecb6c078-cea9-4b25-84c6-6ccb812d25f4` (2026-09-28 14:20:47 UTC, 0.04 s), read back in the same job:
+    exactly the 27 seeded rules (Price OHLC FIRST/MAX/MIN/LAST and volume SUM; Feature 01 close LAST, volume SUM;
+    broker summary buy/sell/net value and lots SUM; Feature 02 `*_1d` values and lots SUM; Feature 03 total buy/sell
+    and the six net values SUM); the other 146 columns stay NULL; the check constraint is unchanged. The job logs
+    held no DSN or secret.
+- Window: the rules existed from 14:20:47 while the previous sandbox (with defect S09) ran until 14:24:11; its and
+  the orchestrator's logs show no analysis request in that window.
+- `DATABASE_SCHEMA.md` is unchanged: the migration changes catalog rows, not the schema.
+
 ## 2026-09-28 — IP2: audit schema and resample rules (migrations 20260928_001, 20260928_002) — PREPARED, NOT APPLIED
 
 - Scope: implementation plan IP2 (user instruction 2026-09-28). The plan forbids applying migrations to a shared
@@ -27,6 +46,7 @@
     migrations).
   - Effect after applying: the catalog hash changes once, so bundles from before are not reused by later messages.
     Apply it together with, or after, `PY_SANDBOX_DERIVED_FREQUENCY_ENABLED=true` (see S09).
+- Update the same day: `20260928_002` was applied on dev (entry above); `20260928_001` remains not applied.
 - Logins (scripts, not run): `scripts/provision_market_ai_audit_login.py` (new login `market_ai_audit`);
   `scripts/provision_market_ai_orc_login.py` now also grants `market_ai_audit_outbox_writer` when it exists.
 
