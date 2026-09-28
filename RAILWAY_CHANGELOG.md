@@ -1,5 +1,17 @@
 # Railway changelog
 
+## 2026-09-28 — S08 fix on dev: one open analysis session per run
+
+- **Code** `afb15a7` (market-ai-orc only; no flag, no variable change): before another `open_analysis_session`, an
+  earlier uncompleted session of the run with no successful execution (or an `INCOMPLETE` completion) is closed, and
+  one with successful executions refuses the open with `ANALYSIS_SESSION_ALREADY_OPEN` until `complete_analysis`.
+  Deployed by the GitHub connection: market-ai-orc `9d6e0b35-7e48-49bc-ba47-1b178c436b6b` `SUCCESS`;
+  market-sql-governor `0e72ac3f` and market-python-sandbox `9b31b83e` `SKIPPED` (unchanged). Tests: orc 669 passed.
+- **Live check on `orc-test-runner`** (`d8d2efc9-c1f9-4762-8e8d-7c32ee250c10`, suite7, two workers, the suite6 pair
+  that met S08): k01 ANSWER, 19 of 19 days identical ($0.024); p02 ANSWER with the `CURRENT_STATE_COLUMN` limitation
+  ($0.006); no `SESSION_CAPACITY_EXCEEDED`. In this run p02 opened one session only, so the refusal and close paths
+  were exercised by the unit tests, not live. `PY_SANDBOX_MAX_SESSIONS` unchanged (2).
+
 ## 2026-09-28 — IP1 Stage D on dev: point-in-time reference history, time_basis
 
 - **Code** `4dfa7af` (flag `AI_ENABLE_POINT_IN_TIME`, default off; with it off the tool definitions and system prompt
