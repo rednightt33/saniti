@@ -319,7 +319,14 @@ class OpenRouterProvider:
                 f"This is a pre-event search. Only sources PUBLISHED BEFORE {spec.anchor_event.event_date} count. "
                 "For every source state its publication date. A source published on or after that date may be "
                 "mentioned only as a lead, with the earlier date it refers to; never present it as an early "
-                "signal itself.\n\n"
+                "signal itself.\n"
+                "Search for the EARLIER FORMS an event takes before it is announced: rumours, reports of talks, "
+                "exploration, negotiations, due diligence, partial stake purchases, partnerships, statements of "
+                "intent, and denials. Search in the language of the locale as well as in English (for id-ID, words "
+                "such as dikabarkan, penjajakan, negosiasi, rencana, bantah, klarifikasi). Do NOT search for the "
+                "final announced terms (amounts, structure, final wording): they appear only after the announcement "
+                f"and bring back its coverage. Put the period (before {spec.anchor_event.event_date}) in the search "
+                "query itself.\n\n"
             )
         return (
             "You are a bounded web evidence retriever. Search for evidence that directly answers the criterion. "
