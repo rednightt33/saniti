@@ -5,6 +5,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 
+MODEL_SLOT_COUNT = 7
+REASONING_EFFORTS = {"minimal", "low", "medium", "high"}
+ENGINES = {"auto", "native", "exa", "firecrawl", "parallel", "perplexity"}
+
+
 class ConfigError(RuntimeError):
     pass
 
@@ -29,6 +34,61 @@ def _optional(env: Mapping[str, str], name: str) -> str | None:
 
 
 @dataclass(frozen=True)
+class ModelSlot:
+    """One selectable model configuration. Every slot calls OpenRouter with the service's own key."""
+
+    slot: int
+    model: str | None
+    label: str
+    enabled: bool
+    max_output_tokens: int
+    reasoning_effort: str | None
+    engine: str
+
+    def public(self) -> dict[str, object]:
+        return {
+            "slot": self.slot,
+            "label": self.label,
+            "model": self.model,
+            "enabled": self.enabled,
+            "max_output_tokens": self.max_output_tokens,
+            "reasoning_effort": self.reasoning_effort,
+            "engine": self.engine,
+        }
+
+
+def _slots(env: Mapping[str, str], default_model: str, default_tokens: int, default_engine: str) -> tuple[ModelSlot, ...]:
+    slots = []
+    for number in range(1, MODEL_SLOT_COUNT + 1):
+        prefix = f"WEB_SLOT_{number}_"
+        model = _optional(env, prefix + "MODEL")
+        if number == 1 and not model:
+            model = default_model  # slot 1 keeps the pre-slot WEB_OPENROUTER_MODEL configuration
+        enabled_raw = env.get(prefix + "ENABLED", "true" if model else "false").strip().lower()
+        if enabled_raw not in {"true", "false"}:
+            raise ConfigError(f"{prefix}ENABLED must be true or false")
+        effort = _optional(env, prefix + "REASONING_EFFORT")
+        if effort and effort.lower() not in REASONING_EFFORTS:
+            raise ConfigError(f"{prefix}REASONING_EFFORT must be one of {sorted(REASONING_EFFORTS)}")
+        engine = (_optional(env, prefix + "ENGINE") or default_engine).lower()
+        if engine not in ENGINES:
+            raise ConfigError(f"{prefix}ENGINE is not supported")
+        enabled = enabled_raw == "true"
+        if enabled and not model:
+            raise ConfigError(f"{prefix}MODEL is required when the slot is enabled")
+        slots.append(ModelSlot(
+            slot=number,
+            model=model,
+            label=_optional(env, prefix + "LABEL") or (model or f"slot {number} (empty)"),
+            enabled=enabled,
+            max_output_tokens=_integer(env, prefix + "MAX_OUTPUT_TOKENS", default_tokens, minimum=256, maximum=8000),
+            reasoning_effort=effort.lower() if effort else None,
+            engine=engine,
+        ))
+    return tuple(slots)
+
+
+@dataclass(frozen=True)
 class Settings:
     api_key: str = field(repr=False)
     provider: str
@@ -49,6 +109,22 @@ class Settings:
     retention_hours: int
     cleanup_interval_seconds: int
     app_url: str | None
+    slots: tuple[ModelSlot, ...] = ()
+    default_slot: int = 1
+    fetch_timeout_seconds: int = 20
+    fetch_max_bytes: int = 5_000_000
+    fetch_max_redirects: int = 3
+    fetch_max_pdf_pages: int = 60
+    fetch_max_characters: int = 200_000
+    fetch_model_characters: int = 60_000
+    fetch_max_quotes: int = 8
+
+    def slot(self, number: int | None) -> ModelSlot:
+        wanted = number or self.default_slot
+        for candidate in self.slots:
+            if candidate.slot == wanted:
+                return candidate
+        raise KeyError(wanted)
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -69,8 +145,10 @@ class Settings:
             raise ConfigError("WEB_PROVIDER must currently be openrouter")
 
         engine = env.get("WEB_OPENROUTER_ENGINE", "exa").strip().lower()
-        if engine not in {"auto", "native", "exa", "firecrawl", "parallel", "perplexity"}:
+        if engine not in ENGINES:
             raise ConfigError("WEB_OPENROUTER_ENGINE is not supported")
+        model = env.get("WEB_OPENROUTER_MODEL", "deepseek/deepseek-v4.1-flash").strip()
+        max_output_tokens = _integer(env, "WEB_OPENROUTER_MAX_OUTPUT_TOKENS", 1800, maximum=8000)
 
         settings = cls(
             api_key=api_key,
@@ -78,22 +156,31 @@ class Settings:
             store_path=env.get("WEB_GOVERNOR_STORE_PATH", "/data/web-governor.sqlite3").strip(),
             openrouter_api_key=openrouter_api_key,
             openrouter_base_url=env.get("WEB_OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/"),
-            openrouter_model=env.get("WEB_OPENROUTER_MODEL", "deepseek/deepseek-v4.1-flash").strip(),
+            openrouter_model=model,
             openrouter_engine=engine,
             openrouter_timeout_seconds=_integer(env, "WEB_OPENROUTER_TIMEOUT_SECONDS", 40, maximum=120),
             openrouter_max_retries=_integer(env, "WEB_OPENROUTER_MAX_RETRIES", 3, minimum=1, maximum=5),
             max_criteria=_integer(env, "WEB_MAX_CRITERIA", 6, maximum=8),
             max_searches=_integer(env, "WEB_MAX_SEARCHES", 6, maximum=8),
-            max_results_per_search=_integer(env, "WEB_MAX_RESULTS_PER_SEARCH", 5, maximum=10),
+            max_results_per_search=_integer(env, "WEB_MAX_RESULTS_PER_SEARCH", 5, maximum=30),
             max_evidence_items=_integer(env, "WEB_MAX_EVIDENCE_ITEMS", 20, maximum=40),
             max_output_characters=_integer(env, "WEB_MAX_OUTPUT_CHARACTERS", 32000, maximum=64000),
             max_excerpt_characters=_integer(env, "WEB_MAX_EXCERPT_CHARACTERS", 2500, maximum=5000),
-            max_output_tokens=_integer(env, "WEB_OPENROUTER_MAX_OUTPUT_TOKENS", 1800, maximum=4000),
+            max_output_tokens=max_output_tokens,
             retention_hours=_integer(env, "WEB_RETENTION_HOURS", 168, maximum=720),
             cleanup_interval_seconds=_integer(
                 env, "WEB_CLEANUP_INTERVAL_SECONDS", 3600, minimum=0, maximum=86400
             ),
             app_url=_optional(env, "WEB_GOVERNOR_APP_URL"),
+            slots=_slots(env, model, max_output_tokens, engine),
+            default_slot=_integer(env, "WEB_DEFAULT_SLOT", 1, maximum=MODEL_SLOT_COUNT),
+            fetch_timeout_seconds=_integer(env, "WEB_FETCH_TIMEOUT_SECONDS", 20, maximum=60),
+            fetch_max_bytes=_integer(env, "WEB_FETCH_MAX_BYTES", 5_000_000, minimum=10_000, maximum=20_000_000),
+            fetch_max_redirects=_integer(env, "WEB_FETCH_MAX_REDIRECTS", 3, minimum=0, maximum=5),
+            fetch_max_pdf_pages=_integer(env, "WEB_FETCH_MAX_PDF_PAGES", 60, maximum=300),
+            fetch_max_characters=_integer(env, "WEB_FETCH_MAX_CHARACTERS", 200_000, minimum=1000, maximum=1_000_000),
+            fetch_model_characters=_integer(env, "WEB_FETCH_MODEL_CHARACTERS", 60_000, minimum=1000, maximum=400_000),
+            fetch_max_quotes=_integer(env, "WEB_FETCH_MAX_QUOTES", 8, maximum=20),
         )
         if not settings.store_path:
             raise ConfigError("WEB_GOVERNOR_STORE_PATH must not be empty")
@@ -101,4 +188,6 @@ class Settings:
             raise ConfigError("WEB_OPENROUTER_MODEL must not be empty")
         if settings.max_searches < settings.max_criteria:
             raise ConfigError("WEB_MAX_SEARCHES must be at least WEB_MAX_CRITERIA")
+        if not settings.slot(settings.default_slot).enabled:
+            raise ConfigError("WEB_DEFAULT_SLOT must name an enabled slot")
         return settings

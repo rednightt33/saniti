@@ -11,6 +11,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.responses import JSONResponse
 
 from .config import Settings
+from .fetcher import DocumentFetcher
 from .governor import GovernorValidationError, WebGovernor
 from .models import CreateWebNeedRequest, ExecuteWebNeedRequest, FastSearchRequest, FetchRequest
 from .provider import OpenRouterProvider
@@ -32,11 +33,13 @@ def create_app(
     settings: Settings | None = None,
     store: SqliteStore | None = None,
     provider: OpenRouterProvider | None = None,
+    fetcher: DocumentFetcher | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
     store = store or SqliteStore(settings.store_path)
     provider = provider or OpenRouterProvider(settings)
-    governor = WebGovernor(settings, store, provider)
+    fetcher = fetcher or DocumentFetcher(settings)
+    governor = WebGovernor(settings, store, provider, fetcher)
     logger = _configure_logging()
     expected = f"Bearer {settings.api_key}"
 
@@ -46,9 +49,10 @@ def create_app(
         janitor.start()
         yield
         janitor.stop()
-        close = getattr(provider, "close", None)
-        if callable(close):
-            close()
+        for resource in (provider, fetcher):
+            close = getattr(resource, "close", None)
+            if callable(close):
+                close()
 
     app = FastAPI(
         title="Saniti Market Web Governor",
@@ -128,6 +132,13 @@ def create_app(
             raise HTTPException(status_code=404, detail="Evidence not found")
         return result
 
+    @app.get("/v1/documents/{document_id}", dependencies=[Depends(authorize)])
+    def get_document(document_id: str) -> dict[str, Any]:
+        result = store.get_document(document_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="Document not found")
+        return result
+
     @app.post("/v1/search", dependencies=[Depends(authorize)])
     def search(body: FastSearchRequest) -> dict[str, Any]:
         result = governor.fast_search(body)
@@ -145,6 +156,7 @@ def create_app(
             "event": event, "request_id": request_id, "web_need_id": result.get("web_need_id"),
             "status": result.get("status"), "evidence_count": len(result.get("evidence", [])),
             "provider_call_count": (result.get("execution") or {}).get("provider_call_count"),
+            "model_slot": (result.get("execution") or {}).get("model_slot"),
             "warning_codes": sorted({warning.get("code") for warning in result.get("warnings", [])}),
         }))
 

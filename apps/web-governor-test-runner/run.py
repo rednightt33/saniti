@@ -173,7 +173,7 @@ def pre(prefix: str) -> dict:
     base_need = json.loads(json.dumps(t6_body["web_need"]))
     for name, budget in (
         ("searches-7", {"max_searches": 7}),
-        ("results-11-schema", {"max_results_per_search": 11}),
+        ("results-31-schema", {"max_results_per_search": 31}),
         ("evidence-40", {"max_evidence_items": 40}),
         ("output-64000", {"max_output_characters": 64000}),
         ("searches-99-schema", {"max_searches": 99}),
@@ -289,6 +289,100 @@ def post(plan: dict) -> dict:
     return check
 
 
+def ultj_request(prefix: str, slot: int) -> dict:
+    window = {"start": "2025-09-28", "end": "2026-09-28", "as_of": "2026-09-28"}
+    return {
+        "contract_version": "v1", "request_id": f"{prefix}ultj-ffi-slot{slot}", "conversation_id": f"{prefix}ultj",
+        "web_need": {
+            "objective": ("Collect public indications, from 2025-09-28 to 2026-09-28 and earlier if they are the first "
+                          "signal, that point to an acquisition of PT Frisian Flag Indonesia by PT Ultrajaya Milk "
+                          "Industry & Trading Company Tbk (ULTJ), and establish when this was first publicly known."),
+            "hypothesis": {
+                "hypothesis_id": "hyp-ultj-acquires-ffi",
+                "statement": "ULTJ is acquiring or has agreed to acquire PT Frisian Flag Indonesia.",
+                "falsification_test": ("No ULTJ, IDX or FrieslandCampina source mentions such a transaction, or the "
+                                       "parties deny it, or the reports concern a different buyer or asset."),
+            },
+            "entities": [
+                {"entity_type": "ISSUER", "entity_id": "ULTJ",
+                 "aliases": ["PT Ultrajaya Milk Industry & Trading Company Tbk", "Ultrajaya"]},
+                {"entity_type": "COMPANY", "entity_id": "PT Frisian Flag Indonesia",
+                 "aliases": ["Frisian Flag", "FrieslandCampina Indonesia"]},
+                {"entity_type": "COMPANY", "entity_id": "Royal FrieslandCampina N.V.", "aliases": ["FrieslandCampina"]},
+            ],
+            "time_window": window,
+            "evidence_standard": "CORROBORATED",
+            "criteria": [
+                {"criterion_id": "latest_status", "required": True, "direction": "BOTH", "minimum_sources": 1,
+                 "question": ("What is the latest reported status of any plan, negotiation or agreement for ULTJ "
+                              "(Ultrajaya) to acquire PT Frisian Flag Indonesia, and on what date was it reported?"),
+                 "document_types": ["news", "keterbukaan informasi", "press release"]},
+                {"criterion_id": "earliest_signal", "required": True, "direction": "SUPPORT", "minimum_sources": 1,
+                 "question": ("What is the earliest public report, rumour, statement or disclosure linking Ultrajaya "
+                              "(ULTJ) to an acquisition of Frisian Flag Indonesia? Give its publication date and "
+                              "source."),
+                 "document_types": ["news", "analyst report"]},
+                {"criterion_id": "official_disclosure", "required": True, "direction": "SUPPORT", "minimum_sources": 1,
+                 "question": ("Is there an official ULTJ or IDX disclosure (keterbukaan informasi, RUPS material, "
+                              "public expose) about acquiring Frisian Flag Indonesia? Give its date."),
+                 "preferred_source_tiers": ["PRIMARY"], "document_types": ["keterbukaan informasi"]},
+                {"criterion_id": "counterparty_view", "required": False, "direction": "BOTH", "minimum_sources": 1,
+                 "question": ("What has Royal FrieslandCampina said about selling or divesting Frisian Flag "
+                              "Indonesia, and does it name Ultrajaya as the buyer?")},
+                {"criterion_id": "contradicting", "required": True, "direction": "REFUTE", "minimum_sources": 1,
+                 "question": ("Find denials, clarifications or reports that contradict or weaken an ULTJ acquisition "
+                              "of Frisian Flag Indonesia (for example a different buyer, a stalled deal, or a denial "
+                              "to IDX).")},
+            ],
+            "source_policy": {"profile": "FINANCIAL_PRIMARY", "minimum_primary_sources": 0,
+                              "minimum_independent_sources": 1,
+                              "primary_domains": ["ultrajaya.co.id", "idx.co.id", "frieslandcampina.com",
+                                                  "frisianflag.com"],
+                              "trusted_secondary_domains": ["reuters.com", "bloomberg.com", "kontan.co.id",
+                                                            "bisnis.com", "cnbcindonesia.com", "kompas.com",
+                                                            "idnfinancials.com", "investor.id"]},
+            "budget": {"max_searches": 5, "max_results_per_search": 10, "max_evidence_items": 40,
+                       "max_output_characters": 64000},
+            "stop_conditions": {"all_required_criteria_covered": True, "stop_on_primary_source": False},
+            "locale": "id-ID", "timezone": "Asia/Jakarta",
+            "model_slot": slot,
+        },
+    }
+
+
+def ultj(prefix: str, slots: list[int]) -> None:
+    """ULTJ / Frisian Flag research on several model slots in parallel, then a governor fetch per slot."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def run(slot: int) -> dict:
+        body = ultj_request(prefix, slot)
+        plan = record(f"ULTJ slot {slot} plan", "POST /v1/web-needs", body["request_id"],
+                      call("POST", "/v1/web-needs", body))
+        need_id = (plan.get("body") or {}).get("web_need_id")
+        return record(f"ULTJ slot {slot} execute", "POST /v1/web-needs/{id}/execute", body["request_id"], call(
+            "POST", f"/v1/web-needs/{need_id}/execute", {"contract_version": "v1", "request_id": body["request_id"]}))
+
+    with ThreadPoolExecutor(max_workers=len(slots)) as pool:
+        results = list(pool.map(run, slots))
+
+    # Governor-side fetch: the BI-Rate page on every slot, and the first primary or PDF source from slot 1.
+    def fetch(slot: int, url: str, objective: str, name: str) -> None:
+        body = {"contract_version": "v1", "request_id": f"{prefix}{name}-slot{slot}", "url": url,
+                "objective": objective, "locale": "id-ID", "model_slot": slot}
+        record(f"FETCH {name} slot {slot}", "POST /v1/fetch", body["request_id"], call("POST", "/v1/fetch", body))
+
+    with ThreadPoolExecutor(max_workers=len(slots)) as pool:
+        list(pool.map(lambda slot: fetch(slot, "https://www.bi.go.id/id/statistik/indikator/bi-rate.aspx",
+                                         "Nilai BI-Rate terbaru dan tanggalnya.", "bi-rate"), slots))
+    evidence = ((results[0].get("body") or {}).get("evidence") or [])
+    pick = next((item for item in evidence if item.get("content_type") == "PDF"
+                 or item.get("source_tier") == "PRIMARY"), evidence[0] if evidence else None)
+    if pick:
+        fetch(slots[0], pick["canonical_url"],
+              "Apa yang dinyatakan dokumen ini tentang akuisisi PT Frisian Flag Indonesia oleh ULTJ (Ultrajaya), "
+              "termasuk tanggal-tanggal penting?", "ultj-source")
+
+
 def smoke(prefix: str) -> None:
     """One bounded search on the official BI domain: checks the deploy end to end, including usage totals."""
     body = {
@@ -325,6 +419,8 @@ def main() -> None:
         pre(plan["prefix"])
         if plan.get("check"):
             post(plan["check"])
+    elif plan["phase"] == "ultj":
+        ultj(plan["prefix"], [int(slot) for slot in plan.get("slots", [1])])
     elif plan["phase"] == "webneed":
         webneed(plan["prefix"], int(plan.get("results", 5)))
     elif plan["phase"] == "smoke":
