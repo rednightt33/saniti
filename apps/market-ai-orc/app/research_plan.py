@@ -109,6 +109,40 @@ class ResearchExperiment(Strict):
         return self
 
 
+Direction = Literal["HIGHER", "LOWER", "DIFFERENT"]
+OutcomeUnit = Literal["PERCENT", "DECIMAL", "OTHER"]
+FINDINGS_FIELDS = ("expected_direction", "outcome_horizon_periods", "outcome_unit", "success_definition", "min_effect")
+
+
+class ResearchExperimentFindings(ResearchExperiment):
+    """An experiment with the values the backend needs to judge the sample and the verdict (research findings v1,
+    AI_ENABLE_RESEARCH_FINDINGS). Descriptions carry no digits: the plan form is part of the system prompt."""
+
+    expected_direction: Direction = Field(
+        description="HIGHER or LOWER when the hypothesis expects the outcome after the condition to be above or "
+                    "below the baseline; DIFFERENT when it names no direction.")
+    outcome_horizon_periods: int = Field(
+        ge=1, le=260, description="How many analysis periods one outcome spans (a forward return over five trading "
+                                  "days spans five); outcomes closer together than this overlap.")
+    outcome_unit: OutcomeUnit = Field(
+        description="PERCENT for returns in percent, DECIMAL for returns as fractions, OTHER for anything else.")
+    success_definition: str = Field(
+        min_length=1, max_length=500,
+        description="When one outcome counts as a success for the event-lookback share, in plain words, for "
+                    "example: the forward return is above zero.")
+    min_effect: float | None = Field(
+        gt=0, le=1_000_000_000,
+        description="The smallest effect worth knowing, in the outcome's unit, only when the user named one; "
+                    "otherwise null (the backend then uses a round-trip trading cost for returns).")
+
+    @field_validator("success_definition")
+    @classmethod
+    def _success(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("must not be blank")
+        return _no_code(value)
+
+
 class ResearchPlan(Strict):
     plan_version: Literal["research_plan/v1"]
     original_question: str = Field(min_length=1, max_length=4000, description="The user's question.")
@@ -149,6 +183,23 @@ class ResearchPlan(Strict):
         return self
 
 
+class ResearchPlanFindings(ResearchPlan):
+    """A Research Plan whose experiments carry the research findings v1 values."""
+
+    experiments: list[ResearchExperimentFindings] = Field(  # type: ignore[assignment]
+        min_length=1, max_length=MAX_EXPERIMENTS, description="1-4 experiments, one hypothesis each.")
+
+
+def parse_plan(data: Any) -> ResearchPlan:
+    """A stored or returned plan: with the findings values when its experiments carry them, else the original form
+    (plans issued before the feature keep their exact shape and signature)."""
+    experiments = (data or {}).get("experiments") if isinstance(data, dict) else None
+    if isinstance(experiments, list) and experiments and isinstance(experiments[0], dict) \
+            and "expected_direction" in experiments[0]:
+        return ResearchPlanFindings.model_validate(data)
+    return ResearchPlan.model_validate(data)
+
+
 class ContinuationOut(Strict):
     """Returned with a RESEARCH_PLAN_CONFIRMATION response; the caller sends plan_id, origin_request_id, the exact
     plan and token back with the user's reply."""
@@ -165,7 +216,7 @@ class ContinuationIn(Strict):
     kind: Literal["RESEARCH_PLAN"]
     plan_id: str = Field(min_length=1, max_length=40)
     origin_request_id: str = Field(min_length=1, max_length=200)
-    plan: ResearchPlan
+    plan: ResearchPlanFindings | ResearchPlan
     token: str = Field(min_length=1, max_length=MAX_TOKEN_CHARS)
     action: Action | None = None
     revision_instruction: str | None = Field(default=None, max_length=2000)
@@ -420,6 +471,18 @@ def match_governance(governance: dict[str, Any] | None, plan: ResearchPlan, plan
             issues.append(_issue(experiment, "minimum_sample", "AT_LEAST_APPROVED_SAME_UNIT", approved, sample))
     if experiment.holdout_required and governance.get("holdout") is None:
         issues.append(_issue(experiment, "holdout", "HOLDOUT_REQUIRED", True, None))
+    if isinstance(experiment, ResearchExperimentFindings):
+        for field in ("expected_direction", "outcome_horizon_periods", "outcome_unit"):
+            if governance.get(field) != getattr(experiment, field):
+                issues.append(_issue(experiment, field, "EXACT_MATCH", getattr(experiment, field),
+                                     governance.get(field)))
+        submitted = governance.get("success_definition")
+        if not isinstance(submitted, str) or normalize_text(submitted) != normalize_text(experiment.success_definition):
+            issues.append(_issue(experiment, "success_definition", "EXACT_MATCH", experiment.success_definition,
+                                 submitted))
+        if governance.get("min_effect") != experiment.min_effect:
+            issues.append(_issue(experiment, "min_effect", "EXACT_MATCH", experiment.min_effect,
+                                 governance.get("min_effect")))
     if not issues:
         return None
     return rejection("RESEARCH_PLAN_MISMATCH", "The research declaration differs from its approved experiment. Resubmit "

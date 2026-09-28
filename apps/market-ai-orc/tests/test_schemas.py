@@ -99,16 +99,22 @@ def test_invalid_final_output_is_rejected(body: dict) -> None:
 def test_json_schema_matches_model_and_is_strict() -> None:
     # without Research Plan confirmation the schema is the one before the feature (no research_plan)
     assert FINAL_RESPONSE_SCHEMA["additionalProperties"] is False
-    added = {"research_plan", "methodology"}
+    added = {"research_plan", "methodology", "research_findings"}
     assert set(FINAL_RESPONSE_SCHEMA["properties"]) == set(FinalResponse.model_fields) - added
     assert set(FINAL_RESPONSE_SCHEMA["required"]) == set(FinalResponse.model_fields) - added
     assert all("description" in spec for spec in FINAL_RESPONSE_SCHEMA["properties"].values())
     assert final_response_schema(False) is FINAL_RESPONSE_SCHEMA
     extended = final_response_schema(True)
-    assert set(extended["properties"]) == set(extended["required"]) == set(FinalResponse.model_fields) - {"methodology"}
+    assert set(extended["properties"]) == set(extended["required"]) == set(FinalResponse.model_fields) - {
+        "methodology", "research_findings"}
     # AI_ENABLE_METHODOLOGY adds one required nullable field to either schema
     full = final_response_schema(True, methodology=True)
-    assert set(full["properties"]) == set(full["required"]) == set(FinalResponse.model_fields)
+    assert set(full["properties"]) == set(full["required"]) == set(FinalResponse.model_fields) - {"research_findings"}
+    # research findings v1 add one required nullable field, only together with plan confirmation
+    findings = final_response_schema(True, methodology=True, research_findings=True)
+    assert set(findings["properties"]) == set(findings["required"]) == set(FinalResponse.model_fields)
+    assert final_response_schema(False, research_findings=True) is FINAL_RESPONSE_SCHEMA
+    assert "$ref" not in json.dumps(findings)
     assert final_response_schema(False, methodology=True)["properties"]["methodology"]["type"] == ["string", "null"]
     assert "RESEARCH_PLAN_CONFIRMATION" in extended["properties"]["response_type"]["enum"]
     assert "$ref" not in json.dumps(extended) and extended["additionalProperties"] is False

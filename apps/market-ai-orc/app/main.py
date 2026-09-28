@@ -130,6 +130,17 @@ def create_app(
             if not derived_frequency:
                 log_event("derived_frequency_inactive", reason="needs AI_ENABLE_DATANEED and a sandbox reporting "
                                                                f"derived_frequency version {RESAMPLE_SEMANTICS_VERSION}")
+        # research findings v1: the sandbox judges the sample and the verdict (needs the DataNeed flow and Research
+        # Plan confirmation, whose plan declares the values)
+        research_findings = False
+        if settings.ai_enable_research_findings:
+            capability = (sandbox.runtime().get("research_findings") or {}) if sandbox is not None else {}
+            research_findings = capability.get("enabled") is True and capability.get("version") == 1 \
+                and settings.ai_enable_dataneed and settings.ai_require_research_plan_confirmation
+            if not research_findings:
+                log_event("research_findings_inactive", reason="needs AI_ENABLE_DATANEED, "
+                                                               "AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION and a sandbox "
+                                                               "reporting research_findings version 1")
         registry = build_default_registry(
             catalog,
             catalog_timeout_seconds=(
@@ -159,6 +170,7 @@ def create_app(
             plan_feasibility=feasibility,
             composite_keys=composite,
             point_in_time=point_in_time,
+            research_findings=research_findings,
         )
         auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
             if sandbox is not None or settings.research_audit_database_url else None

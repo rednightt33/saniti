@@ -12,7 +12,8 @@ import pytest
 
 from app.tools import build_default_registry
 from app.tools.analysis import SandboxClient, current_run_context, run_context
-from app.tools.data_need import (DataRequest, Relationship, ResearchGovernance, ScopeNode, SubmitDataNeedSpecArgs,
+from app.tools.data_need import (DataRequest, Relationship, ResearchGovernance, ResearchGovernanceFindings,
+                                 ScopeNode, SubmitDataNeedSpecArgs,
                                  argument_issues)
 from app.tools.registry import strict_parameters_schema
 from app.tools.request_data import current_request_id
@@ -108,7 +109,8 @@ def test_the_model_facing_fields_equal_the_validator_fields() -> None:
     assert set(SubmitDataNeedSpecArgs.model_fields) - {"research_governance"} == validator.TOP_FIELDS
     assert set(DataRequest.model_fields) == validator.REQUEST_FIELDS
     assert set(Relationship.model_fields) == validator.RELATIONSHIP_FIELDS
-    assert set(ResearchGovernance.model_fields) == governance.FIELDS
+    assert set(ResearchGovernance.model_fields) == governance.FIELDS - set(governance.FINDINGS)
+    assert set(ResearchGovernanceFindings.model_fields) == governance.FIELDS  # research findings v1
     operators = ScopeNode.model_fields["operator"].annotation.__args__[0].__args__
     assert tuple(operators) == validator.OPERATORS
     semantics = Relationship.model_fields["join_semantics"].annotation.__args__

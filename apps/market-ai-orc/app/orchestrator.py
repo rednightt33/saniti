@@ -18,6 +18,7 @@ from .config import Settings
 from .openrouter_client import ProviderError, response_usage
 from .research_plan import (CLASSIFIER_INSTRUCTIONS, CLASSIFIER_SCHEMA, ContinuationOut, PlanSigner,
                             PlanVerificationError, ReplyClassification, ResearchGuard, ResearchPlan,
+                            ResearchPlanFindings,
                             current_research_guard, guard_research_submission, plan_digest)
 from .schemas import (
     FINAL_RESPONSE_SCHEMA, STATUS_BY_RESPONSE_TYPE, AgentRunRequest, AgentRunResponse, AnalysisSummary,
@@ -406,6 +407,80 @@ open or partial period you show, and say that the weekly or monthly
 figures were derived from daily data."""
 DERIVED_FREQUENCY_LINE = ("Weekly or monthly figures were derived from daily data (weeks end on Friday, months at the "
                           "calendar month end); a period still open or only partly covered is marked incomplete.")
+# Research findings v1 (AI_ENABLE_RESEARCH_FINDINGS). No digits except list numbering: the system prompt is a
+# number source for the provenance check, and every threshold comes from the backend.
+RESEARCH_FINDINGS_RULES = """
+
+RESEARCH FINDINGS
+Each experiment of a Research Plan also states expected_direction,
+outcome_horizon_periods, outcome_unit, success_definition and
+min_effect (null unless the user named the smallest effect that
+matters); its research_governance copies them exactly. There is no
+fixed minimum sample: the backend judges the sample after the run, so
+an unusual condition with few occurrences may still be studied.
+In the session, build one row per occurrence of the condition (events)
+and the comparison rows (baseline), each with its outcome and date, and
+call event_summary(events, baseline, hypothesis_id=..., outcome_column=
+..., date_column=...) once per hypothesis before complete_analysis; a
+research analysis without it is not completed. complete_analysis then
+returns research_findings: the effect against the baseline (angle_a),
+how often the outcome was a success against the baseline rate
+(angle_b), the effective sample (distinct dates, overlapping outcomes
+counted once), the sample category (INSUFFICIENT, ANECDOTAL,
+UNDERPOWERED, ADEQUATE), the smallest detectable effect and the verdict
+(SUPPORTED, NOT_SUPPORTED, INCONCLUSIVE, NOT_EVALUATED). They are the
+backend's numbers: cite them; never recompute them or state another
+verdict.
+
+INTERPRETING RESEARCH
+A research answer exists to change what the user knows or will do next.
+For each completed experiment, research_findings carries the verdict
+unchanged and an interpretation in four parts:
+1. answer: the direct answer to the user's question, first, in the
+verdict's terms: supported, not supported, or inconclusive.
+2. evidence: what the numbers say: how large the effect is against the
+baseline, how often the outcome happened against its base rate, and how
+certain this is: the sample category, the effective sample, the
+uncertainty and the smallest effect this sample could detect. When the
+two angles point different ways, say what that combination means (for
+example: more often up, but the falls are deeper).
+3. usefulness: why it matters for the user's decision or understanding,
+sized in practical terms: compare the effect with what would matter in
+practice, such as trading costs or a typical move of the outcome. A real
+effect can be too small to use; a large one can be too rare or too
+uncertain to rely on.
+4. follow_up: the most informative next step: what would settle an
+inconclusive result (a longer period, a wider universe), how to test a
+supported one for robustness (other periods, subsets, a holdout), or
+which related hypothesis is worth testing after a rejected one. Never a
+buy or sell recommendation.
+An insight is something the user did not know before, sized against a
+baseline, with its uncertainty and a consequence. A number without a
+comparison is not an insight, and restating the question is not an
+answer. Never state a stronger verdict than the backend's; say "no
+effect" only for NOT_SUPPORTED; describe the occurrences of an ANECDOTAL
+or INSUFFICIENT sample as possible anomalies, not as a pattern; a
+pattern is never a cause, a prediction or a trading signal. The answer
+field tells the user the findings in their language, with the sample
+category and what it means."""
+RESEARCH_FINDINGS_CONTRACT = ("research_findings: for an ANSWER that rests on completed research experiments, one "
+                              "entry per experiment (hypothesis_id, the backend verdict unchanged, interpretation "
+                              "with answer, evidence, usefulness and follow_up); otherwise null. ")
+FINDINGS_INSTRUCTION = (
+    "research_findings does not match the completed research experiments: {problems}. Copy each experiment's "
+    "verdict unchanged from complete_analysis, write all four interpretation parts, state the sample category and "
+    "the effective sample or the smallest detectable effect in evidence, and use no verdict wording stronger than "
+    "the backend's.")
+PLAN_FINDINGS_INSTRUCTION = (
+    "Every experiment of the Research Plan needs expected_direction, outcome_horizon_periods, outcome_unit, "
+    "success_definition and min_effect (null unless the user named one). Return the plan again with them.")
+PLAN_FINDINGS_NOTICE = "The Research Plan below is incomplete and cannot be approved as it stands. "
+FINDINGS_NOTICE = ("The interpretation of the research result below did not match the backend's verdict; read the "
+                   "figures as unconfirmed. ")
+SUPPORTED_WORDING = (r"\b(?:terbukti|didukung|mendukung hipotesis|terkonfirmasi|dikonfirmasi|confirmed|proven|"
+                     r"supports? the hypothesis|is supported)\b")
+NO_EFFECT_WORDING = (r"\b(?:tidak ada (?:efek|pengaruh|perbedaan)|tidak berpengaruh|no (?:effect|difference)|"
+                     r"has no effect)\b")
 CONVERSATION_REUSE_RULES = """
 
 CONVERSATION REUSE
@@ -485,7 +560,7 @@ def schema_skeleton(schema: dict[str, Any]) -> str:
     return str(kind or "value")
 
 
-def final_contract_block(contract: str, plan_confirmation: bool) -> str:
+def final_contract_block(contract: str, plan_confirmation: bool, research_findings: bool = False) -> str:
     """The final-response contract for the system prompt (AI_FINAL_CONTRACT_IN_PROMPT). Tool turns carry no output
     schema, so without it a finished run often answered in prose first and was re-asked for JSON (the 2026-09-26
     stress test: 15% of model time and 20% of cost). With Research Plan confirmation it adds the plan's exact field
@@ -494,7 +569,8 @@ def final_contract_block(contract: str, plan_confirmation: bool) -> str:
     block = FINAL_CONTRACT_PREFIX + contract
     if plan_confirmation:
         block += ("\nresearch_plan has exactly this form: "
-                  + schema_skeleton(strict_parameters_schema(ResearchPlan)) + "\n" + PLAN_FIELD_RULES)
+                  + schema_skeleton(strict_parameters_schema(ResearchPlanFindings if research_findings
+                                                             else ResearchPlan)) + "\n" + PLAN_FIELD_RULES)
     return block
 
 
@@ -502,7 +578,8 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
                         period_return: bool = False, final_contract: bool = False,
                         catalog_protocol: bool = False, conversation_reuse: bool = False,
                         methodology: bool = False, plan_feasibility: bool = False,
-                        point_in_time: bool = False, derived_frequency: bool = False) -> str:
+                        point_in_time: bool = False, derived_frequency: bool = False,
+                        research_findings: bool = False) -> str:
     """The system prompt for the registered tools. It is fixed for a deployment (AI_ENABLE_LOOKUP_FACT,
     AI_ENABLE_DATANEED, AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION, AI_ENABLE_STANDARD_PERIOD_RETURN,
     AI_FINAL_CONTRACT_IN_PROMPT), so every call of every run shares one byte-identical cacheable prefix. With the
@@ -515,11 +592,13 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
             + (PLAN_FEASIBILITY_RULES if plan_confirmation and plan_feasibility else "") \
             + (PERIOD_RETURN_RULES if period_return else "") + (CATALOG_PROTOCOL_RULES if catalog_protocol else "") \
             + (CONVERSATION_REUSE_RULES if conversation_reuse else "") + (METHODOLOGY_RULES if methodology else "") \
-            + (POINT_IN_TIME_RULES if point_in_time else "") + (DERIVED_FREQUENCY_RULES if derived_frequency else "")
+            + (POINT_IN_TIME_RULES if point_in_time else "") + (DERIVED_FREQUENCY_RULES if derived_frequency else "") \
+            + (RESEARCH_FINDINGS_RULES if research_findings else "")
     if final_contract:
         # plan_confirmation and methodology reach here only together with dataneed (see AgentOrchestrator.__init__)
-        contract = response_contract(plan_confirmation, methodology)
-        template = template.replace(STRICT_SCHEMA_LINE, final_contract_block(contract, plan_confirmation))
+        contract = response_contract(plan_confirmation, methodology, research_findings)
+        template = template.replace(STRICT_SCHEMA_LINE, final_contract_block(contract, plan_confirmation,
+                                                                             research_findings))
     return (template.replace("{lookup_rule}", LOOKUP_RULE if lookup_fact else "")
             .replace("{number_sources}", "a lookup_fact result, " if lookup_fact else ""))
 
@@ -663,11 +742,15 @@ METHODOLOGY_CONTRACT = ("methodology: for an ANSWER or LIMITATION that rests on 
                         "plain words (data, steps, methods, parameters); otherwise null. ")
 
 
-def response_contract(plan_confirmation: bool, methodology: bool = False) -> str:
-    """The final-response contract text: RESPONSE_CONTRACT, with the Research Plan and methodology fields when on."""
+def response_contract(plan_confirmation: bool, methodology: bool = False, research_findings: bool = False) -> str:
+    """The final-response contract text: RESPONSE_CONTRACT, with the Research Plan, methodology and research findings
+    fields when on."""
     contract = PLAN_RESPONSE_CONTRACT if plan_confirmation else RESPONSE_CONTRACT
     if methodology:
         contract = contract.replace("The output format is already defined", METHODOLOGY_CONTRACT
+                                    + "The output format is already defined")
+    if research_findings and plan_confirmation:
+        contract = contract.replace("The output format is already defined", RESEARCH_FINDINGS_CONTRACT
                                     + "The output format is already defined")
     return contract
 
@@ -844,6 +927,8 @@ class RunState:
     pit_refusals: list[str] = field(default_factory=list)
     # IP2 audit (AI_AUDIT_STORE_ENABLED): observable model and tool events, the sandbox executions of the run
     audit_trace: list[dict[str, Any]] = field(default_factory=list)
+    # research findings v1: the backend's finding per hypothesis_id, from complete_analysis
+    research_findings: dict[str, dict[str, Any]] = field(default_factory=dict)
     audit_started_at: datetime | None = None
     execution_ids: list[str] = field(default_factory=list)
     research_attempted: bool = False
@@ -955,13 +1040,18 @@ class AgentOrchestrator:
         # and the sandbox capability, checked at startup)
         submit = registry.get("submit_data_need_spec") if self.dataneed else None
         self.point_in_time = submit is not None and "time_basis" in submit.arguments_model.model_fields
+        # research findings v1: active when the registered submit_data_need_spec declares the findings values
+        # (AI_ENABLE_RESEARCH_FINDINGS and the sandbox capability, checked at startup) and plans are confirmed
+        self.research_findings = submit is not None and self.plan_confirmation \
+            and submit.arguments_model.__name__.endswith("Findings")
         self.system_prompt = build_system_prompt(settings.ai_enable_lookup_fact, self.dataneed,
                                                  self.plan_confirmation, period_return,
                                                  settings.ai_final_contract_in_prompt, self.catalog_protocol,
                                                  self.conversation_reuse, self.methodology, self.plan_feasibility,
-                                                 self.point_in_time, self.derived_frequency)
-        self.final_schema = final_response_schema(self.plan_confirmation, self.methodology)
-        contract = response_contract(self.plan_confirmation, self.methodology)
+                                                 self.point_in_time, self.derived_frequency,
+                                                 self.research_findings)
+        self.final_schema = final_response_schema(self.plan_confirmation, self.methodology, self.research_findings)
+        contract = response_contract(self.plan_confirmation, self.methodology, self.research_findings)
         self.response_contract = contract
         self.finalize_instruction = FINALIZE_PREFIX + contract
         self.context_budget_instruction = CONTEXT_BUDGET_PREFIX + contract
@@ -1895,6 +1985,16 @@ class AgentOrchestrator:
             if result.get("status") == "COMPLETED":
                 state.analysis_values[f"completion:{result.get('completion_id') or session_id}"] = {
                     "label": "DATA_COVERAGE_VERIFIED", "values": released_numbers(result.get("released_contents"))}
+                findings = result["final_status"].get("research_findings") or []
+                if findings:  # only a sandbox with research findings v1 sends them
+                    values = numbers_in(findings)
+                    # a difference is often stated as a size with a direction word ("lower by 0.6"): its magnitude
+                    # is the same governed figure
+                    values += [abs(v) for v in values if v < 0]
+                    state.analysis_values[f"findings:{result.get('completion_id') or session_id}"] = {
+                        "label": "DATA_COVERAGE_VERIFIED", "values": values}
+                    for finding in findings:
+                        state.research_findings[str(finding.get("hypothesis_id"))] = finding
                 state.context_numbers.extend(numbers_in(result.get("coverage"), ints_only=True))
 
     def _dataneed_findings(self, state: RunState) -> tuple[list[str], list[str]]:
@@ -2066,6 +2166,11 @@ class AgentOrchestrator:
         if problem and final.response_type == "ANSWER":
             self._gate_once(state, "CLAIM", DATANEED_CLAIM_INSTRUCTION.format(problem=problem))
             return self._forced(state, final, DATANEED_CLAIM_NOTICE, [f"Unsupported claim: {problem}."] + lines)
+        final, problems = self._findings_problems(state, final)
+        if problems:
+            text = "; ".join(problems[:6])
+            self._gate_once(state, "FINDINGS", FINDINGS_INSTRUCTION.format(problems=text))
+            return self._forced(state, final, FINDINGS_NOTICE, [f"Research findings problem: {text}."] + lines)
         missing_lines = [line for line in lines if line not in final.limitations]
         if state.sessions or state.completions or state.inherited:
             state.validation_gate = "ANNOTATED" if missing_lines else "PASSED"
@@ -2077,6 +2182,58 @@ class AgentOrchestrator:
         if not missing_lines:
             return final
         return final.model_copy(update={"limitations": [*final.limitations, *missing_lines]})
+
+    def _findings_problems(self, state: RunState, final: FinalResponse) -> tuple[FinalResponse, list[str]]:
+        """Research findings v1: an ANSWER resting on completed research experiments carries one research_findings
+        entry per experiment with the backend verdict unchanged, a complete interpretation that names the sample
+        (effective sample or smallest detectable effect), governed numbers only, and no verdict wording stronger than
+        the backend's. Anything else carries research_findings null."""
+        if not self.research_findings or final.response_type != "ANSWER" or not state.research_findings:
+            if final.research_findings is not None:
+                final = final.model_copy(update={"research_findings": None})
+            return final, []
+        backend = state.research_findings
+        given = {f.hypothesis_id: f for f in final.research_findings or []}
+        problems = [f"no entry for {h}" for h in backend if h not in given]
+        problems += [f"{h} is not a completed experiment" for h in given if h not in backend]
+        index = self._source_index(state)
+        verdicts = {finding.get("verdict") for finding in backend.values()}
+        for hypothesis, item in given.items():
+            finding = backend.get(hypothesis)
+            if finding is None:
+                continue
+            if item.verdict != finding.get("verdict"):
+                problems.append(f"{hypothesis}: verdict {item.verdict} differs from the backend's "
+                                f"{finding.get('verdict')}")
+            parts = item.interpretation
+            text = " ".join([parts.answer, parts.evidence, parts.usefulness, parts.follow_up])
+            problems += [f"{hypothesis}: {p}" for p in self._verdict_wording(text, {finding.get("verdict")})]
+            sample = finding.get("sample") or {}
+            anchors = [sample.get("effective"), sample.get("minimum_detectable_effect")]
+            shown = [value for numbers in parse_numbers(parts.evidence) for value, _ in numbers.candidates]
+            if not any(a is not None and any(abs(v - a) <= max(0.051 * abs(a), 0.006) for v in shown)
+                       for a in anchors):
+                problems.append(f"{hypothesis}: evidence names neither the effective sample nor the smallest "
+                                f"detectable effect")
+            unsupported = check_answer(text, index).unsupported
+            if unsupported:
+                problems.append(f"{hypothesis}: figures without a governed source: {', '.join(unsupported[:10])}")
+        problems += [f"answer: {p}" for p in self._verdict_wording(final.answer, verdicts)]
+        return final, problems
+
+    @staticmethod
+    def _verdict_wording(text: str, verdicts: set[Any]) -> list[str]:
+        problems = []
+        for pattern, allowed, label in ((SUPPORTED_WORDING, "SUPPORTED", "supported"),
+                                        (NO_EFFECT_WORDING, "NOT_SUPPORTED", "no effect")):
+            if allowed in verdicts:
+                continue
+            for match in re.finditer(pattern, text or "", re.IGNORECASE):
+                before = (text or "")[max(0, match.start() - 40):match.start()]
+                if not re.search(NEGATION_PATTERN, before, re.IGNORECASE):
+                    problems.append(f"\"{match.group(0)}\" states a {label} verdict the backend did not give")
+                    break
+        return problems
 
     def _methodology_gate(self, state: RunState, final: FinalResponse) -> FinalResponse:
         """AI_ENABLE_METHODOLOGY: an answer resting on a completed analysis (or on released outputs of an earlier
@@ -2109,6 +2266,11 @@ class AgentOrchestrator:
         released outputs of this run. Hypotheses are phrased as questions to test, so the claim check does not apply;
         the plan carries no evidence label."""
         assert final.research_plan is not None
+        if self.research_findings and not isinstance(final.research_plan, ResearchPlanFindings):
+            self._gate_once(state, "PLAN_FINDINGS", PLAN_FINDINGS_INSTRUCTION)
+            return self._forced(state, final, PLAN_FINDINGS_NOTICE,
+                                ["The Research Plan lacks expected_direction, outcome_horizon_periods, outcome_unit, "
+                                 "success_definition or min_effect in its experiments."])
         if self.plan_feasibility and state.feasible_draft is None:
             self._gate_once(state, "PLAN_FEASIBILITY", PLAN_FEASIBILITY_INSTRUCTION)
             return self._plan_not_feasible(state, final)
@@ -2189,6 +2351,7 @@ class AgentOrchestrator:
                 cited = check_answer(answer or "", index)
                 retained = "RETAINED" if cited.checked > len(cited.unsupported) else "DISCARDED"
             governance = need.get("governance") or {}
+            finding = state.research_findings.get(str(need.get("hypothesis_id"))) or {}
             experiments.append({
                 "spec_id": need_id, "evidence_standard": "HISTORICAL_PATTERN", "hypothesis_id": need.get("hypothesis_id"),
                 "followup_of": (governance.get("constraints") or {}).get("followup_of"),
@@ -2196,7 +2359,8 @@ class AgentOrchestrator:
                 "execution_status": (completion or {}).get("final", {}).get("sandbox_execution"),
                 "validation_status": (completion or {}).get("coverage"),
                 "validation_level": (completion or {}).get("final", {}).get("evidence_label"),
-                "evidence_decision": None, "evidence_level": None, "retained": retained})
+                "evidence_decision": finding.get("verdict"), "evidence_level": finding.get("sample_flag"),
+                "retained": retained})
         return experiments
 
     def _research_summary(self, state: RunState, answer: str) -> list[dict[str, Any]]:

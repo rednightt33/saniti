@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer, model_validator
 
-from .research_plan import Action, ContinuationIn, ContinuationOut, ResearchPlan
+from .research_plan import Action, ContinuationIn, ContinuationOut, ResearchPlan, ResearchPlanFindings
 
 
 MAX_MESSAGE_CHARACTERS = 16000
@@ -86,6 +86,41 @@ class AgentRunRequest(BaseModel):
         return value
 
 
+Verdict = Literal["SUPPORTED", "NOT_SUPPORTED", "INCONCLUSIVE", "NOT_EVALUATED"]
+
+
+class FindingInterpretation(BaseModel):
+    """The model's reading of one experiment (research findings v1); the verdict itself is the backend's."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    answer: str = Field(min_length=1, max_length=2000,
+                        description="The direct answer to the user's question in the verdict's terms.")
+    evidence: str = Field(min_length=1, max_length=3000,
+                          description="What the numbers say: effect size against the baseline, how often the "
+                                      "outcome happened against its base rate, and how certain (sample category, "
+                                      "uncertainty, smallest detectable effect).")
+    usefulness: str = Field(min_length=1, max_length=2000,
+                            description="Why it matters for the user's decision, sized in practical terms.")
+    follow_up: str = Field(min_length=1, max_length=2000,
+                           description="The most informative next step; never a buy or sell recommendation.")
+
+    @field_validator("answer", "evidence", "usefulness", "follow_up")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("must not be blank")
+        return value
+
+
+class ResearchFinding(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    hypothesis_id: str = Field(min_length=1, max_length=40, description="The approved experiment's hypothesis_id.")
+    verdict: Verdict = Field(description="Copied unchanged from the completed analysis's research_findings.")
+    interpretation: FindingInterpretation
+
+
 class FinalResponse(BaseModel):
     """Runtime validator matching FINAL_RESPONSE_SCHEMA exactly."""
 
@@ -98,13 +133,26 @@ class FinalResponse(BaseModel):
     limitations: list[str]
     # Only for RESEARCH_PLAN_CONFIRMATION; every other response carries null. A model that omits the field (the
     # schema without Research Plan confirmation does not list it) is read as null.
-    research_plan: ResearchPlan | None = None
+    research_plan: ResearchPlanFindings | ResearchPlan | None = None
     # AI_ENABLE_METHODOLOGY: how an answer resting on an analysis was reached, in plain words (model-written; its
     # numbers are checked by the provenance gate). Null for clarifications, plans and answers without an analysis.
     methodology: str | None = Field(default=None, max_length=6000)
+    # AI_ENABLE_RESEARCH_FINDINGS: one entry per completed research experiment (backend verdict + interpretation);
+    # null for every other response. Absent (read as null) when the feature is off.
+    research_findings: list[ResearchFinding] | None = Field(default=None, max_length=4)
+
+    @model_serializer(mode="wrap")
+    def _without_empty_findings(self, handler: Any) -> Any:
+        """research_findings appears only when set, so responses without the feature keep their exact shape."""
+        data = handler(self)
+        if isinstance(data, dict) and data.get("research_findings") is None:
+            data.pop("research_findings", None)
+        return data
 
     @model_validator(mode="after")
     def _consistent_with_type(self) -> "FinalResponse":
+        if self.research_findings is not None and self.response_type != "ANSWER":
+            raise ValueError(f"{self.response_type} requires research_findings to be null")
         if self.methodology is not None and self.response_type in ("CLARIFICATION", "RESEARCH_PLAN_CONFIRMATION"):
             raise ValueError(f"{self.response_type} requires methodology to be null")
         if self.response_type == "RESEARCH_PLAN_CONFIRMATION":
@@ -177,23 +225,37 @@ METHODOLOGY_PROPERTY: dict[str, Any] = {
 }
 
 
-def final_response_schema(research_plan_confirmation: bool, methodology: bool = False) -> dict[str, Any]:
+def final_response_schema(research_plan_confirmation: bool, methodology: bool = False,
+                          research_findings: bool = False) -> dict[str, Any]:
     """FINAL_RESPONSE_SCHEMA, or with Research Plan confirmation the same schema plus RESEARCH_PLAN_CONFIRMATION and a
-    required nullable research_plan, and with AI_ENABLE_METHODOLOGY a required nullable methodology. Without the flags
-    the schema is byte-identical to the one before the features."""
-    schema = _plan_schema(research_plan_confirmation)
-    if not methodology:
-        return schema
-    return {**schema, "properties": {**schema["properties"], "methodology": METHODOLOGY_PROPERTY},
-            "required": [*schema["required"], "methodology"]}
+    required nullable research_plan, and with AI_ENABLE_METHODOLOGY a required nullable methodology; with research
+    findings (only together with plan confirmation) the plan's experiments carry the findings values and a required
+    nullable research_findings is added. Without the flags the schema is byte-identical to the one before the
+    features."""
+    schema = _plan_schema(research_plan_confirmation, research_findings and research_plan_confirmation)
+    if methodology:
+        schema = {**schema, "properties": {**schema["properties"], "methodology": METHODOLOGY_PROPERTY},
+                  "required": [*schema["required"], "methodology"]}
+    if research_findings and research_plan_confirmation:
+        schema = {**schema, "properties": {**schema["properties"], "research_findings": research_findings_property()},
+                  "required": [*schema["required"], "research_findings"]}
+    return schema
 
 
-def _plan_schema(research_plan_confirmation: bool) -> dict[str, Any]:
+def research_findings_property() -> dict[str, Any]:
+    from .tools.registry import strict_parameters_schema
+
+    return {"anyOf": [{"type": "array", "items": strict_parameters_schema(ResearchFinding)}, {"type": "null"}],
+            "description": "For an ANSWER that rests on completed research experiments: one entry per experiment "
+                           "with the backend verdict unchanged and your interpretation; otherwise null."}
+
+
+def _plan_schema(research_plan_confirmation: bool, research_findings: bool = False) -> dict[str, Any]:
     if not research_plan_confirmation:
         return FINAL_RESPONSE_SCHEMA
     from .tools.registry import strict_parameters_schema
 
-    plan = strict_parameters_schema(ResearchPlan)
+    plan = strict_parameters_schema(ResearchPlanFindings if research_findings else ResearchPlan)
     properties = dict(FINAL_RESPONSE_SCHEMA["properties"])
     properties["response_type"] = {
         "type": "string", "enum": ["ANSWER", "CLARIFICATION", "RESEARCH_PLAN_CONFIRMATION", "LIMITATION"],

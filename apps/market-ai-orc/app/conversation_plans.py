@@ -26,7 +26,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from .research_plan import ContinuationIn, ResearchPlan
+from .research_plan import ContinuationIn, parse_plan
 from .schemas import AgentRunRequest, AgentRunResponse
 
 STATE_KEY = "research_plan"
@@ -99,7 +99,7 @@ def continuation_for(state: dict[str, Any] | None, request: AgentRunRequest,
 
 def _continuation(plan: dict[str, Any], action: str | None, instruction: str | None) -> ContinuationIn:
     return ContinuationIn(kind="RESEARCH_PLAN", plan_id=plan["plan_id"], origin_request_id=plan["origin_request_id"],
-                          plan=ResearchPlan.model_validate(plan["plan"]), token=plan["token"], action=action,
+                          plan=parse_plan(plan["plan"]), token=plan["token"], action=action,
                           revision_instruction=instruction)
 
 

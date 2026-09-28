@@ -41,6 +41,7 @@ def build_default_registry(
     plan_feasibility: bool = False,
     composite_keys: bool = False,
     point_in_time: bool = False,
+    research_findings: bool = False,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
@@ -87,7 +88,7 @@ def build_default_registry(
         if dataneed_enabled:
             for spec in data_need_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
                                         max_result_bytes=python_analysis_max_bytes, composite_keys=composite_keys,
-                                        point_in_time=point_in_time):
+                                        point_in_time=point_in_time, research_findings=research_findings):
                 registry.register(spec)
             if governor_client is not None:
                 # many Governor extractions plus the sandbox's verification and profiling

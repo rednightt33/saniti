@@ -193,6 +193,17 @@ class ResearchGovernance(Strict):
                                                 "this one follows up; else null.")
 
 
+class ResearchGovernanceFindings(ResearchGovernance):
+    """research_governance with the research findings v1 values, copied from the approved experiment."""
+
+    expected_direction: Literal["HIGHER", "LOWER", "DIFFERENT"] = Field(
+        description="The approved experiment's expected_direction.")
+    outcome_horizon_periods: int = Field(description="The approved experiment's outcome_horizon_periods.")
+    outcome_unit: Literal["PERCENT", "DECIMAL", "OTHER"] = Field(description="The approved experiment's outcome_unit.")
+    success_definition: str = Field(description="The approved experiment's success_definition.")
+    min_effect: float | None = Field(description="The approved experiment's min_effect (null when it has none).")
+
+
 class DataNeedSpecBody(Strict):
     """The DataNeedSpec fields shared by submit_data_need_spec and check_data_feasibility."""
 
@@ -250,6 +261,21 @@ class SubmitDataNeedSpecArgsPIT(DataNeedSpecBodyPIT):
 
 class CheckDataFeasibilityArgsPIT(DataNeedSpecBodyPIT):
     """check_data_feasibility with data_need_spec/v2 and time_basis."""
+
+
+class SubmitDataNeedSpecArgsFindings(DataNeedSpecBody):
+    research_governance: ResearchGovernanceFindings | None = Field(description="Required for RESEARCH; null for "
+                                                                               "ANALYSIS.")
+
+
+class SubmitDataNeedSpecArgsV2Findings(DataNeedSpecBodyV2):
+    research_governance: ResearchGovernanceFindings | None = Field(description="Required for RESEARCH; null for "
+                                                                               "ANALYSIS.")
+
+
+class SubmitDataNeedSpecArgsPITFindings(DataNeedSpecBodyPIT):
+    research_governance: ResearchGovernanceFindings | None = Field(description="Required for RESEARCH; null for "
+                                                                               "ANALYSIS.")
 
 
 # ---------------------------------------------------------------- argument errors in the validator's issue shape
@@ -361,12 +387,19 @@ SUBMIT_DESCRIPTION = (
 
 
 def data_need_specs(client: SandboxClient, *, timeout_seconds: float, max_result_bytes: int,
-                    composite_keys: bool = False, point_in_time: bool = False) -> list[ToolSpec]:
-    model = (SubmitDataNeedSpecArgsPIT if point_in_time else SubmitDataNeedSpecArgsV2) if composite_keys \
-        else SubmitDataNeedSpecArgs
+                    composite_keys: bool = False, point_in_time: bool = False,
+                    research_findings: bool = False) -> list[ToolSpec]:
+    if research_findings:
+        model = (SubmitDataNeedSpecArgsPITFindings if point_in_time else SubmitDataNeedSpecArgsV2Findings) \
+            if composite_keys else SubmitDataNeedSpecArgsFindings
+    else:
+        model = (SubmitDataNeedSpecArgsPIT if point_in_time else SubmitDataNeedSpecArgsV2) if composite_keys \
+            else SubmitDataNeedSpecArgs
 
     def submit(arguments: BaseModel) -> dict[str, Any]:
-        assert isinstance(arguments, (SubmitDataNeedSpecArgs, SubmitDataNeedSpecArgsV2, SubmitDataNeedSpecArgsPIT))
+        assert isinstance(arguments, (SubmitDataNeedSpecArgs, SubmitDataNeedSpecArgsV2, SubmitDataNeedSpecArgsPIT,
+                                      SubmitDataNeedSpecArgsFindings, SubmitDataNeedSpecArgsV2Findings,
+                                      SubmitDataNeedSpecArgsPITFindings))
         return submit_data_need(client, arguments)
 
     return [ToolSpec(name="submit_data_need_spec", description=SUBMIT_DESCRIPTION,

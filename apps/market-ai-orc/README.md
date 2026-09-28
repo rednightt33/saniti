@@ -1161,6 +1161,27 @@ Governor key. The orc key cannot obtain dataset URLs.
 The PYTHON ANALYSIS RULES, ANALYSIS VALIDATION RULES, and RESEARCH RULES blocks are appended after
 DATA QUERY RULES. They contain no limits, URLs, credentials, or security details.
 
+### Research findings v1 (off unless `AI_ENABLE_RESEARCH_FINDINGS=true`)
+
+Active only with `AI_ENABLE_DATANEED`, `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION` and a sandbox reporting
+`research_findings` version 1 (otherwise `research_findings_inactive` is logged). Then:
+
+- Research Plan experiments carry `expected_direction`, `outcome_horizon_periods`, `outcome_unit`,
+  `success_definition` and `min_effect` (`ResearchPlanFindings`); plans issued before keep their exact shape and
+  signature (`parse_plan`). The declaration must copy them exactly (plan binding).
+- The system prompt adds RESEARCH FINDINGS and INTERPRETING RESEARCH (`RESEARCH_FINDINGS_RULES` in
+  `app/orchestrator.py`): what to call (`event_summary`), and what a useful research answer is: the direct answer,
+  the evidence of both angles and the sample, the practical usefulness, and the most informative follow-up.
+- The final response gains a required nullable `research_findings`: per completed experiment the backend verdict
+  unchanged and an interpretation (answer, evidence, usefulness, follow_up). The gate rejects once, then forces
+  LIMITATION, when an entry is missing or extra, a verdict differs from the backend's, the evidence names neither the
+  effective sample nor the smallest detectable effect, an interpretation number has no governed source, or the wording
+  states a stronger verdict ("terbukti", "didukung" without negation unless SUPPORTED; "tidak ada efek" unless
+  NOT_SUPPORTED). The backend findings (and the magnitudes of their negative figures) are provenance sources.
+- `execution.research.experiments[].evidence_decision` / `evidence_level` carry the verdict and the sample category.
+- With the flag off the tool definitions, the system prompt, the output schema and the API response shape are
+  unchanged (`research_findings` is omitted, not null).
+
 ### Research runs
 
 One research run is one `request_id`; there is still one orchestrator and no second agent. The
