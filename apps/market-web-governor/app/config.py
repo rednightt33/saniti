@@ -34,11 +34,13 @@ def _optional(env: Mapping[str, str], name: str) -> str | None:
 
 
 def _effort(value: str) -> str | None:
+    """off: reasoning disabled (the default for the classifier: the rubric decides, the form is small);
+    none/empty: send no reasoning parameter; otherwise an effort level."""
     value = value.strip().lower()
     if not value or value == "none":
         return None
-    if value not in REASONING_EFFORTS:
-        raise ConfigError(f"WEB_CLASSIFIER_REASONING_EFFORT must be one of {sorted(REASONING_EFFORTS)} or none")
+    if value != "off" and value not in REASONING_EFFORTS:
+        raise ConfigError(f"WEB_CLASSIFIER_REASONING_EFFORT must be off, none or one of {sorted(REASONING_EFFORTS)}")
     return value
 
 
@@ -139,7 +141,7 @@ class Settings:
     stale_running_seconds: int = 1800
     classifier_batch_size: int = 6
     date_lookup_max: int = 15
-    classifier_reasoning_effort: str | None = "low"
+    classifier_reasoning_effort: str | None = "off"
 
     def slot(self, number: int | None) -> ModelSlot:
         wanted = number or self.default_slot
@@ -216,7 +218,7 @@ class Settings:
             stale_running_seconds=_integer(env, "WEB_STALE_RUNNING_SECONDS", 1800, minimum=60, maximum=86400),
             classifier_batch_size=_integer(env, "WEB_CLASSIFIER_BATCH_SIZE", 6, maximum=20),
             date_lookup_max=_integer(env, "WEB_DATE_LOOKUP_MAX", 15, minimum=0, maximum=50),
-            classifier_reasoning_effort=_effort(env.get("WEB_CLASSIFIER_REASONING_EFFORT", "low")),
+            classifier_reasoning_effort=_effort(env.get("WEB_CLASSIFIER_REASONING_EFFORT", "off")),
         )
         if not settings.store_path:
             raise ConfigError("WEB_GOVERNOR_STORE_PATH must not be empty")
