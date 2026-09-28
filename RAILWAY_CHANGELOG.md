@@ -1,5 +1,24 @@
 # Railway changelog
 
+## 2026-09-28 — market-web-governor: governor-side fetch, 7 model slots, shared evidence budget (PR #8)
+
+- **Code** `dfdc89e` (PR #8, user-approved proposals A, B, C; 25 tests): governor-side fetch with verified quotes
+  (`GET /v1/documents/{id}`), seven model slots with `model_slot` on requests, evidence budget shared across criteria,
+  full excerpts kept in storage, results per search up to 30 and output tokens up to 8000. Deployment
+  `33f7c937-5847-4515-9c91-01604d5aec43` `SUCCESS` (rollback reference `4fd9d7b4`).
+- **Variables** (market-web-governor only; approved): `WEB_MAX_RESULTS_PER_SEARCH` 30, `WEB_MAX_EVIDENCE_ITEMS` 40,
+  `WEB_MAX_OUTPUT_CHARACTERS` 64000, `WEB_OPENROUTER_MAX_OUTPUT_TOKENS` 8000, `WEB_OPENROUTER_TIMEOUT_SECONDS` 90 (an
+  8,000-token answer needs more than 40 s), `WEB_DEFAULT_SLOT` 1, `WEB_SLOT_1_LABEL`, `WEB_SLOT_2_MODEL`
+  `xiaomi/mimo-v2.5`, `WEB_SLOT_2_LABEL`, `WEB_SLOT_3_MODEL` `z-ai/glm-5.3-flashx`, `WEB_SLOT_3_LABEL`. Set after the
+  code deploy because the old code refused them; redeploy `e1d0d071-3e33-4802-aedd-8b7b4f783f33` `SUCCESS` (volume
+  mounted, `GET /ready` 200). `railway config pull --force` / `railway config plan`: up to date.
+- **Live ULTJ / Frisian Flag research** (runner `b322aa45`, `live-ultj-20260928-*`, slots 1–3 in parallel): DeepSeek 4 of
+  5 criteria (36 evidence), GLM 3 of 5 (26 evidence); MiMo and the remaining criteria failed with HTTP 402 because the
+  OpenRouter account ran out of credit (W11). Governor fetch downloaded and stored `bi.go.id` (143 KB, HTTP 200) on
+  every slot, but the model read was refused by the same 402; the FrieslandCampina page is script-rendered and was
+  reported `DYNAMIC_PAGE_OR_EMPTY` without a model call. Cost of the run about USD 0.07.
+- **Blocking:** the OpenRouter credit also serves market-ai-orc; top-up needed before further live use.
+
 ## 2026-09-28 — market-web-governor: deeper retrieval and a larger output budget (user-approved)
 
 - **Variables** (market-web-governor only, set with the API; model and provider unchanged,
