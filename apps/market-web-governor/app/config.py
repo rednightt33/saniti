@@ -118,6 +118,12 @@ class Settings:
     fetch_max_characters: int = 200_000
     fetch_model_characters: int = 60_000
     fetch_max_quotes: int = 8
+    classifier_slot: int = 1
+    classifier_check_slot: int = 0
+    classifier_workers: int = 4
+    rubric_material_pct: float = 20.0
+    rubric_critical_pct: float = 50.0
+    event_store_url: str | None = field(default=None, repr=False)
 
     def slot(self, number: int | None) -> ModelSlot:
         wanted = number or self.default_slot
@@ -181,6 +187,12 @@ class Settings:
             fetch_max_characters=_integer(env, "WEB_FETCH_MAX_CHARACTERS", 200_000, minimum=1000, maximum=1_000_000),
             fetch_model_characters=_integer(env, "WEB_FETCH_MODEL_CHARACTERS", 60_000, minimum=1000, maximum=400_000),
             fetch_max_quotes=_integer(env, "WEB_FETCH_MAX_QUOTES", 8, maximum=20),
+            classifier_slot=_integer(env, "WEB_CLASSIFIER_SLOT", 1, maximum=MODEL_SLOT_COUNT),
+            classifier_check_slot=_integer(env, "WEB_CLASSIFIER_CHECK_SLOT", 0, minimum=0, maximum=MODEL_SLOT_COUNT),
+            classifier_workers=_integer(env, "WEB_CLASSIFIER_WORKERS", 4, maximum=8),
+            rubric_material_pct=float(_integer(env, "WEB_RUBRIC_MATERIAL_PCT", 20, maximum=100)),
+            rubric_critical_pct=float(_integer(env, "WEB_RUBRIC_CRITICAL_PCT", 50, maximum=100)),
+            event_store_url=_optional(env, "WEB_EVENT_STORE_URL"),
         )
         if not settings.store_path:
             raise ConfigError("WEB_GOVERNOR_STORE_PATH must not be empty")
@@ -190,4 +202,10 @@ class Settings:
             raise ConfigError("WEB_MAX_SEARCHES must be at least WEB_MAX_CRITERIA")
         if not settings.slot(settings.default_slot).enabled:
             raise ConfigError("WEB_DEFAULT_SLOT must name an enabled slot")
+        if not settings.slot(settings.classifier_slot).enabled:
+            raise ConfigError("WEB_CLASSIFIER_SLOT must name an enabled slot")
+        if settings.classifier_check_slot and not settings.slot(settings.classifier_check_slot).enabled:
+            raise ConfigError("WEB_CLASSIFIER_CHECK_SLOT must name an enabled slot or be 0")
+        if settings.rubric_material_pct >= settings.rubric_critical_pct:
+            raise ConfigError("WEB_RUBRIC_MATERIAL_PCT must be below WEB_RUBRIC_CRITICAL_PCT")
         return settings

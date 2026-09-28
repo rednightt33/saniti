@@ -112,7 +112,12 @@ class SqliteStore:
             )
             # Columns added after the first release; ALTER keeps existing evidence rows.
             existing = {row["name"] for row in connection.execute("PRAGMA table_info(evidence)")}
-            for column, kind in (("document_id", "TEXT"), ("quote_start", "INTEGER"), ("quote_end", "INTEGER")):
+            for column, kind in (
+                ("document_id", "TEXT"), ("quote_start", "INTEGER"), ("quote_end", "INTEGER"),
+                ("published_precision", "TEXT"), ("published_at_source", "TEXT"), ("temporal_status", "TEXT"),
+                ("lead_time_days", "INTEGER"), ("source_verified", "INTEGER"), ("source_note", "TEXT"),
+                ("copy_of", "TEXT"), ("classification_json", "TEXT"),
+            ):
                 if column not in existing:
                     connection.execute(f"ALTER TABLE evidence ADD COLUMN {column} {kind}")
 
@@ -236,14 +241,20 @@ class SqliteStore:
                         """INSERT OR IGNORE INTO evidence
                            (evidence_id, citation_id, web_need_id, provider_call_id, canonical_url, title, domain,
                             published_at, retrieved_at, source_tier, content_type, excerpt, excerpt_kind, content_sha256,
-                            document_id, quote_start, quote_end)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                            document_id, quote_start, quote_end, published_precision, published_at_source,
+                            temporal_status, lead_time_days, source_verified, source_note, copy_of,
+                            classification_json)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                         (
                             item["evidence_id"], item["citation_id"], web_need_id, item["provider_call_id"],
                             item["canonical_url"], item["title"], item["domain"], item.get("published_at"),
                             item["retrieved_at"], item["source_tier"], item["content_type"], item.get("excerpt"),
                             item["excerpt_kind"], item["content_sha256"], item.get("document_id"),
-                            item.get("quote_start"), item.get("quote_end"),
+                            item.get("quote_start"), item.get("quote_end"), item.get("published_precision"),
+                            item.get("published_at_source"), item.get("temporal_status"), item.get("lead_time_days"),
+                            None if item.get("source_verified") is None else int(bool(item["source_verified"])),
+                            item.get("source_note"), item.get("copy_of"),
+                            json.dumps(item["classification"]) if item.get("classification") else None,
                         ),
                     )
                 for criterion_id, evidence_id in criterion_links:
@@ -264,7 +275,14 @@ class SqliteStore:
         try:
             with self._connect() as connection:
                 row = connection.execute("SELECT * FROM evidence WHERE evidence_id = ?", (evidence_id,)).fetchone()
-            return dict(row) if row else None
+            if not row:
+                return None
+            result = dict(row)
+            raw = result.pop("classification_json", None)
+            result["classification"] = json.loads(raw) if raw else None
+            if result.get("source_verified") is not None:
+                result["source_verified"] = bool(result["source_verified"])
+            return result
         except sqlite3.Error as exc:
             raise StoreUnavailable("could not read evidence") from exc
 

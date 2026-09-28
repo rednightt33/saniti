@@ -1,12 +1,12 @@
 # Web Governor plan
 
-Planned work for `market-web-governor` and its consumers. **Nothing in this file is implemented yet.** Each item needs
+Planned work for `market-web-governor` and its consumers. **Status per item below.** P1–P4 were implemented on 2026-09-28 (see `apps/market-web-governor/README.md`); what remains open is listed per item. Each item needs
 the user's go-ahead before it runs; record the implementation in `RAILWAY_CHANGELOG.md`, `DATABASE_CHANGELOG.md` and
 `ERRORS_AND_SOLUTIONS.md` as usual. Current behaviour is described in `apps/market-web-governor/README.md`.
 
 Status values: `PLANNED` (agreed, not started), `DRAFT` (proposal awaiting a decision).
 
-## P1 — Web research store in a separate PostgreSQL (one table) — PLANNED
+## P1 — Web research store in a separate PostgreSQL (one table) — IMPLEMENTED (writer: market-web-governor, not AI-Orc, by decision of 2026-09-28)
 
 Decisions of 2026-09-28:
 
@@ -56,7 +56,7 @@ Rules:
 - `PROJECT_CONTEXT.md` identities.
 - `.railway/railway.ts`.
 
-## P2 — Default source policy — PLANNED
+## P2 — Default source policy — IMPLEMENTED (blocklist starts empty; copy detection active)
 
 Requested 2026-09-28: add a default blocklist and a standard trusted-source list for Indonesian equity research,
 applied when a request gives no domain lists of its own. Both lists become configuration (not code), reported in
@@ -79,7 +79,7 @@ applied when a request gives no domain lists of its own. Both lists become confi
   `source_verified = false` with the note "Sumber ini belum diverifikasi", and never count as a trusted or official
   source for coverage.
 
-## P3 — Pre-event indicator analysis ("precursor" research) — PLANNED
+## P3 — Pre-event indicator analysis ("precursor" research) — IMPLEMENTED (market-data comparison still out of scope)
 
 Question shape: *"Find indications, before ULTJ announced the Frisian Flag acquisition, that it would happen."* The
 current contract finds the event itself; this needs evidence **dated before** an anchor event, and has to resist
@@ -156,7 +156,7 @@ About 6 categories × 1–2 searches plus 2–4 fetches ≈ USD 0.10–0.30 per 
 - **DIRECT signals:** may come from any source as long as the source tier is labelled.
 - **Output:** the timeline format was approved, without icons or emoji.
 
-## P4 — Event importance classification — DRAFT
+## P4 — Event importance classification — IMPLEMENTED (golden set and human review queue still to build)
 
 Each stored item gets an AI assessment of how important the event is. The assessment follows a fixed rubric; it is
 never a free opinion.

@@ -383,6 +383,84 @@ def ultj(prefix: str, slots: list[int]) -> None:
               "termasuk tanggal-tanggal penting?", "ultj-source")
 
 
+def migrate_event_store() -> None:
+    """Apply the event-store migration to Postgres-E8GM and set the role passwords. Uses a temporary admin URL."""
+    import psycopg
+    from psycopg import sql
+
+    admin = os.environ["EVENT_STORE_ADMIN_URL"]
+    with open(os.path.join(HERE, "001_web_event_item.sql")) as handle:
+        script = handle.read()
+    with psycopg.connect(admin, autocommit=True) as connection:
+        connection.execute(script)
+        for role, variable in (("web_event_writer", "EVENT_STORE_WRITER_PASSWORD"),
+                               ("web_event_reader", "EVENT_STORE_READER_PASSWORD")):
+            connection.execute(sql.SQL("ALTER ROLE {} PASSWORD {}").format(
+                sql.Identifier(role), sql.Literal(os.environ[variable])))
+        columns = connection.execute(
+            "SELECT count(*) FROM information_schema.columns WHERE table_name = 'web_event_item'").fetchone()[0]
+        grants = connection.execute(
+            "SELECT grantee, privilege_type FROM information_schema.role_table_grants "
+            "WHERE table_name = 'web_event_item' AND grantee LIKE 'web_event_%' ORDER BY 1, 2").fetchall()
+    log("migrated", columns=columns, grants=[list(grant) for grant in grants])
+
+
+def read_event_store(card_id: str | None = None, limit: int = 100) -> list[dict]:
+    import psycopg
+    from psycopg.rows import dict_row
+
+    with psycopg.connect(os.environ["EVENT_STORE_READER_URL"], row_factory=dict_row) as connection:
+        if card_id:
+            rows = connection.execute("SELECT * FROM web_event_item WHERE card_id = %s ORDER BY card_rank",
+                                      (card_id,)).fetchall()
+        else:
+            rows = connection.execute("SELECT * FROM web_event_item ORDER BY created_at DESC LIMIT %s",
+                                      (limit,)).fetchall()
+    return [{key: (value.isoformat() if hasattr(value, "isoformat") else
+                   float(value) if type(value).__name__ == "Decimal" else value)
+             for key, value in row.items()} for row in rows]
+
+
+def precursor(prefix: str, slot: int, results: int) -> None:
+    """Pre-event indicators for ULTJ / Frisian Flag Indonesia, anchored on the 18 Sep 2026 announcement."""
+    body = {
+        "contract_version": "v1", "request_id": f"{prefix}ultj-precursor-slot{slot}",
+        "web_need": {
+            "objective": ("Find indications, published before ULTJ announced the acquisition of PT Frisian Flag "
+                          "Indonesia on 18 September 2026, that pointed to this event, and when they first appeared."),
+            "analysis_mode": "EVENT_PRECURSOR",
+            "anchor_event": {
+                "description": ("PT Ultrajaya Milk Industry & Trading Company Tbk (ULTJ) announced it will acquire "
+                                "100% of PT Frisian Flag Indonesia from FrieslandCampina through an inbreng and a "
+                                "rights issue, making FrieslandCampina ULTJ's controlling shareholder"),
+                "event_date": "2026-09-18", "tickers": ["ULTJ"]},
+            "lookback_months": 12,
+            "entities": [
+                {"entity_type": "ISSUER", "entity_id": "PT Ultrajaya Milk Industry & Trading Company Tbk",
+                 "aliases": ["ULTJ", "Ultrajaya"]},
+                {"entity_type": "COMPANY", "entity_id": "PT Frisian Flag Indonesia", "aliases": ["Frisian Flag"]},
+                {"entity_type": "COMPANY", "entity_id": "Royal FrieslandCampina N.V.", "aliases": ["FrieslandCampina"]},
+            ],
+            "evidence_standard": "SINGLE_SOURCE",
+            "source_policy": {"minimum_independent_sources": 1,
+                              "primary_domains": ["ultrajaya.co.id", "frieslandcampina.com", "frisianflag.com"]},
+            "budget": {"max_searches": 6, "max_results_per_search": results, "max_evidence_items": 40,
+                       "max_output_characters": 64000},
+            "locale": "id-ID", "timezone": "Asia/Jakarta", "model_slot": slot,
+        },
+    }
+    plan = record(f"PRECURSOR slot {slot} plan", "POST /v1/web-needs", body["request_id"],
+                  call("POST", "/v1/web-needs", body))
+    need_id = (plan.get("body") or {}).get("web_need_id")
+    result = record(f"PRECURSOR slot {slot} execute", "POST /v1/web-needs/{id}/execute", body["request_id"], call(
+        "POST", f"/v1/web-needs/{need_id}/execute", {"contract_version": "v1", "request_id": body["request_id"]}))
+    card_id = ((result.get("body") or {}).get("event_store") or {}).get("card_id")
+    if card_id and os.environ.get("EVENT_STORE_READER_URL"):
+        rows = read_event_store(card_id)
+        log("event_store_rows", card_id=card_id, count=len(rows))
+        RESULTS.append({"test": "EVENT_STORE rows", "rows": rows})
+
+
 def smoke(prefix: str) -> None:
     """One bounded search on the official BI domain: checks the deploy end to end, including usage totals."""
     body = {
@@ -409,16 +487,25 @@ def dump() -> None:
 
 
 def main() -> None:
-    if len(KEY) < 32:
-        raise SystemExit("WEB_GOVERNOR_API_KEY is not available to the runner")
     with open(os.path.join(HERE, "plan.json")) as handle:
         plan = json.load(handle)
     log("start", phase=plan["phase"], base=BASE)
+    if plan["phase"] == "migrate_event_store":
+        migrate_event_store()
+        log("done", phase=plan["phase"])
+        time.sleep(30)
+        return
+    if len(KEY) < 32:
+        raise SystemExit("WEB_GOVERNOR_API_KEY is not available to the runner")
     wait_ready()
     if plan["phase"] == "pre":
         pre(plan["prefix"])
         if plan.get("check"):
             post(plan["check"])
+    elif plan["phase"] == "migrate_event_store":
+        migrate_event_store()
+    elif plan["phase"] == "precursor":
+        precursor(plan["prefix"], int(plan.get("slot", 1)), int(plan.get("results", 10)))
     elif plan["phase"] == "ultj":
         ultj(plan["prefix"], [int(slot) for slot in plan.get("slots", [1])])
     elif plan["phase"] == "webneed":

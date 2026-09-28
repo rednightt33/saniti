@@ -166,6 +166,80 @@ Other outcomes: `SOURCE_HTTP_ERROR`, `SOURCE_TIMEOUT`, `SOURCE_TOO_LARGE`, `PRIV
 `UNSUPPORTED_CONTENT_TYPE`, `PDF_UNREADABLE`, `DYNAMIC_PAGE_OR_EMPTY` (no model call), `REDIRECTED_TO_OTHER_DOMAIN`,
 `DOCUMENT_TRUNCATED` and `DOCUMENT_TRUNCATED_FOR_MODEL`. A script-rendered page is not executed.
 
+## Pre-event (precursor) analysis
+
+`web_need.analysis_mode = "EVENT_PRECURSOR"` looks for signals **published before** an anchor event:
+
+- `anchor_event`: `description`, `event_date` (T0), optional `tickers`; `lookback_months` (default 12).
+- The window is T0 − lookback to T0 − 1 day.
+- Without criteria, a general template is used; it names no company, sector or deal type beyond the anchor
+  description:
+  - `direct_reports`
+  - `party_intentions`
+  - `capital_and_governance`
+  - `existing_ties`
+  - `filings_and_regulators`
+  - `counter_indications`
+- The template needs `budget.max_searches >= 6` (`PRECURSOR_BUDGET_TOO_LOW`).
+- **Dates.** Every evidence item gets `published_at`, `published_precision` and `published_at_source`. The date is
+  read, in order of preference, from provider metadata, page metadata, the URL, or a dateline in the text.
+- **Timing.** Each item gets a `temporal_status`:
+  - `PRE_EVENT` only when the whole publication period ends before T0, with `lead_time_days`;
+  - `POST_EVENT_RETROSPECTIVE`: published on or after T0;
+  - `UNDATED`.
+- **Timeline.** The response carries a deterministic `timeline`:
+  - `pre_event` sorted by date;
+  - `earliest_direct_signal`, `earliest_indirect_signal`;
+  - `counter_indications`, `retrospective_leads`, `undated`;
+  - a note that an indirect signal does not show predictability.
+
+## Importance classification
+
+When `web_need.classify` is true (the default for `EVENT_PRECURSOR`), every evidence item is classified by the
+classifier slot (`WEB_CLASSIFIER_SLOT`) with a strict JSON-schema structured output.
+
+- **Source of truth:** the rubric (`app/rubric.py`, `idx-event-rubric-v1`). It is general: five questions (control,
+  scale, permanence, attribution, novelty), rule IDs per level 1–5, a dictionary of event types, attributions,
+  novelty, scope, relation to the anchor and materiality metrics, and synthetic calibration examples. Market
+  thresholds are parameters (`WEB_RUBRIC_MATERIAL_PCT`, `WEB_RUBRIC_CRITICAL_PCT`).
+- **Server validation** rejects an answer that:
+  - does not match the schema;
+  - has a level that differs from its rule;
+  - has a materiality figure absent from the quote;
+  - applies a scale rule without a stated figure;
+  - has inconsistent date or anchor fields.
+
+  After one retry the item is `UNCLASSIFIED`, never guessed.
+- **Decided by code, not the model:**
+  - `certainty`: `OFFICIAL` for a primary source; `REPORTED` for attributed media; `RUMOUR`; `UNVERIFIED` for a
+    blocklisted or copied source;
+  - the cap for rumours and unverified sources: level at most 4, confidence at most `MEDIUM`.
+- **Second check:** items at level 4–5 are re-classified by `WEB_CLASSIFIER_CHECK_SLOT`; a different level sets
+  `review_status = NEEDS_REVIEW`.
+- `impact_direction` is not produced.
+
+## Source policy defaults
+
+- **Official:** `idx.co.id`, `ojk.go.id`, `bi.go.id`, `bps.go.id`, `ksei.co.id`, `kppu.go.id`, `sec.gov`, every
+  `*.go.id` and `*.gov`, and the request's `primary_domains`.
+- **Trusted media:** a built-in Indonesian and international list (`app/sources.py`), plus `WEB_TRUSTED_MEDIA_EXTRA`
+  and the request's `trusted_secondary_domains`.
+- **Blocklist** (`WEB_SOURCE_BLOCKLIST`): blocklisted sources are **kept**. They are marked `source_verified = false`
+  with the note "Sumber ini belum diverifikasi", and do not count towards coverage.
+- **Copies:** an excerpt that repeats another domain's text word for word is marked the same way, with `copy_of`.
+
+## Event store (Postgres-E8GM)
+
+With `WEB_EVENT_STORE_URL` set, every completed search, web need or fetch writes one row per evidence item to
+`web_event_item` in the separate research database Postgres-E8GM (`event_store/001_web_event_item.sql`).
+
+- **Access:** the governor's role `web_event_writer` can only INSERT (`ON CONFLICT DO NOTHING` without a conflict
+  target, so no SELECT is needed); `web_event_reader` can only SELECT. The market-data PostgreSQL is not reachable
+  from this service.
+- **Content:** rows carry the card fields, dates and anchor timing, source tier and verification, the quote and its
+  hash, the classification and the review status.
+- **Failure:** a failed write keeps the response and adds `EVENT_STORE_WRITE_FAILED`.
+
 ## Evidence budget
 
 The evidence budget is shared across criteria in turn, so an early criterion cannot use all of it; a citation already
@@ -209,6 +283,10 @@ Model slots (1–7): `WEB_SLOT_<n>_MODEL`, `_LABEL`, `_ENABLED` (default true wh
 (`minimal`, `low`, `medium`, `high`; unset sends no reasoning parameter) and `_ENGINE`; `WEB_DEFAULT_SLOT=1`. Every slot
 uses OpenRouter's default provider routing. On dev: slot 1 `deepseek/deepseek-v4.1-flash`, slot 2 `xiaomi/mimo-v2.5`,
 slot 3 `z-ai/glm-5.3-flashx`; slots 4–7 are empty.
+
+Classification and event store: `WEB_CLASSIFIER_SLOT` (dev: 2, MiMo), `WEB_CLASSIFIER_CHECK_SLOT` (dev: 1; 0 disables),
+`WEB_CLASSIFIER_WORKERS=4`, `WEB_RUBRIC_MATERIAL_PCT=20`, `WEB_RUBRIC_CRITICAL_PCT=50` (to be confirmed against the
+current OJK rules), `WEB_EVENT_STORE_URL` (secret; writer role only), `WEB_SOURCE_BLOCKLIST`, `WEB_TRUSTED_MEDIA_EXTRA`.
 
 Fetch limits (defaults): `WEB_FETCH_TIMEOUT_SECONDS=20`, `WEB_FETCH_MAX_BYTES=5000000`, `WEB_FETCH_MAX_REDIRECTS=3`,
 `WEB_FETCH_MAX_PDF_PAGES=60`, `WEB_FETCH_MAX_CHARACTERS=200000`, `WEB_FETCH_MODEL_CHARACTERS=60000`,

@@ -49,6 +49,7 @@ class FetchedDocument:
     title: str
     retrieved_at: str
     redirects: list[str] = field(default_factory=list)
+    published_at: str | None = None
 
     @property
     def useful(self) -> bool:
@@ -71,6 +72,7 @@ class FetchedDocument:
             "title": self.title,
             "redirects": self.redirects,
             "retrieved_at": self.retrieved_at,
+            "published_at": self.published_at,
         }
 
 
@@ -149,11 +151,13 @@ class DocumentFetcher:
         charset_match = re.search(r"charset=([\w.-]+)", header, re.IGNORECASE)
         charset = charset_match.group(1) if charset_match else "utf-8"
         page_count = pages_read = None
+        published = None
         if body.startswith(b"%PDF") or media_type == "application/pdf":
             text, title, page_count, pages_read = _pdf_text(body, self.settings.fetch_max_pdf_pages)
             content_type = "PDF"
         elif media_type in HTML_TYPES or (not media_type and b"<html" in body[:2048].lower()):
-            text, title = _html_text(_decode(body, charset))
+            html = _decode(body, charset)
+            text, title, published = _html_text(html)
             content_type = "WEB_PAGE"
         elif media_type.startswith("text/"):
             text, title = _decode(body, charset), ""
@@ -181,6 +185,7 @@ class DocumentFetcher:
             title=title.strip()[:500],
             retrieved_at=datetime.now(UTC).isoformat(),
             redirects=redirects,
+            published_at=published,
         )
 
 
@@ -206,8 +211,19 @@ class _TextExtractor(HTMLParser):
         self.skip_depth = 0
         self.in_title = False
         self.title = ""
+        self.published: str | None = None
+
+    PUBLISHED_KEYS = {"article:published_time", "og:published_time", "datepublished", "publishdate", "pubdate",
+                      "publish-date", "date", "dc.date.issued", "content_publishdate"}
 
     def handle_starttag(self, tag: str, attrs) -> None:
+        values = {key.lower(): (value or "") for key, value in attrs}
+        if tag == "meta" and self.published is None:
+            key = (values.get("property") or values.get("name") or values.get("itemprop") or "").lower()
+            if key in self.PUBLISHED_KEYS and re.match(r"\d{4}-\d{2}-\d{2}", values.get("content", "")):
+                self.published = values["content"][:32]
+        if tag == "time" and self.published is None and re.match(r"\d{4}-\d{2}-\d{2}", values.get("datetime", "")):
+            self.published = values["datetime"][:32]
         if tag in self.SKIP:
             self.skip_depth += 1
         elif tag == "title":
@@ -232,11 +248,15 @@ class _TextExtractor(HTMLParser):
             self.parts.append(data)
 
 
-def _html_text(html: str) -> tuple[str, str]:
+def _html_text(html: str) -> tuple[str, str, str | None]:
     extractor = _TextExtractor()
     extractor.feed(html)
     extractor.close()
-    return "".join(extractor.parts), extractor.title
+    published = extractor.published
+    if published is None:
+        match = re.search(r'"datePublished"\s*:\s*"(\d{4}-\d{2}-\d{2}[^"]*)"', html)
+        published = match.group(1)[:32] if match else None
+    return "".join(extractor.parts), extractor.title, published
 
 
 def _pdf_text(body: bytes, max_pages: int) -> tuple[str, str, int, int]:
