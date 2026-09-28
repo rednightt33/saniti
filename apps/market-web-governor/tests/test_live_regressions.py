@@ -175,3 +175,17 @@ def test_usage_reads_openrouter_server_tool_use_details():
     assert totals["web_search_requests"] == 4
     assert totals["tool_calls_observed"] == 3
     assert totals["cost"] == 0.5
+
+
+def test_provider_search_overrun_is_reported(tmp_path, auth):
+    # Live 2026-09-28: max_uses=1 was sent, but the provider ran 2-4 searches per request.
+    body = response_json("ASSESSMENT: SUPPORTED\nSUMMARY: Rate found.", [citation("https://www.bi.go.id/a")],
+                         items=("openrouter:web_search",) * 3)
+    body["usage"]["server_tool_use_details"] = {"web_search_requests": 3}
+    with client_for(tmp_path, [body]) as client:
+        result = client.post("/v1/search", headers=auth, json={
+            "contract_version": "v1", "request_id": "req-overrun", "query": "BI rate",
+            "budget": {"max_searches": 1, "max_results_per_search": 5}}).json()
+    warning = next(w for w in result["warnings"] if w["code"] == "PROVIDER_SEARCH_LIMIT_EXCEEDED")
+    assert "ran 3 web searches although max_uses was 1" in warning["message"]
+    assert result["execution"]["usage"]["web_search_requests"] == 3

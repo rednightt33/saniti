@@ -106,7 +106,7 @@ The execution response contains:
   `execution.provider_calls`: per call its status (`SUCCEEDED`, `INCOMPLETE`, `FAILED`), the provider response status,
   incomplete reason, output item types, annotation count and usage, without any response body;
 - `warnings`, among them `PROVIDER_OUTPUT_INCOMPLETE`, `CITATIONS_REJECTED_BY_POLICY`, `EXACT_URL_NOT_CITED`,
-  `EXACT_FETCH_NOT_OBSERVED`, `EVIDENCE_BUDGET_REACHED` and `RESPONSE_COMPACTED`; and
+  `EXACT_FETCH_NOT_OBSERVED`, `PROVIDER_SEARCH_LIMIT_EXCEEDED`, `EVIDENCE_BUDGET_REACHED` and `RESPONSE_COMPACTED`; and
 - `next_action`: `SYNTHESIZE`, `REFINE_WEB_NEED`, `RETRY_PROVIDER`, or `REVIEW_FETCH`.
 
 Coverage never rests on text the service could not verify:
@@ -133,7 +133,10 @@ when required to meet the requested response budget, so the stored excerpt alway
 
 ## Provider behavior
 
-The OpenRouter adapter uses one provider request and at most one server-side search per criterion. It passes hard
+The OpenRouter adapter uses one provider request per criterion and asks for at most one server-side search
+(`max_uses: 1`). The provider does not always honour that: the 2026-09-28 live test saw 2 to 4 searches per request.
+The governor then warns `PROVIDER_SEARCH_LIMIT_EXCEEDED` with the reported count (ERRORS_AND_SOLUTIONS W08); the
+request count, result count per search and evidence count stay bounded by the service. It passes hard
 domain filters and result limits to `openrouter:web_search`, then enforces domain policy again on returned citations.
 Document-type and source-tier preferences are reported as `BEST_EFFORT` when the provider cannot guarantee them.
 The default engine is Exa because it supports explicit result and domain constraints. The deprecated `web` plugin

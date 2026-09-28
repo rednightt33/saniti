@@ -231,6 +231,9 @@ class WebGovernor:
             applied_policies.append(result.applied_policy)
             if not result.output_complete:
                 warnings.append(_incomplete_warning(criterion.criterion_id, result))
+            overrun = _search_overrun(criterion.criterion_id, result)
+            if overrun:
+                warnings.append(overrun)
             criterion_evidence: list[dict[str, Any]] = []
             rejected = 0
             for annotation in result.annotations:
@@ -601,6 +604,22 @@ def _incomplete_warning(criterion_id: str, result: ProviderResult) -> dict[str, 
         "code": "PROVIDER_OUTPUT_INCOMPLETE",
         "message": f"{criterion_id}: provider response status {diagnostics.get('response_status')!s}, "
                    f"incomplete reason {diagnostics.get('incomplete_reason')!s}; the criterion has no verdict.",
+    }
+
+
+def _search_overrun(criterion_id: str, result: ProviderResult) -> dict[str, str] | None:
+    """The provider may run more searches than max_uses allows; report it instead of passing it silently."""
+    allowed = result.applied_policy.get("max_uses")
+    usage = result.provider_call.get("usage") or {}
+    server = usage.get("server_tool_use_details") or usage.get("server_tool_use") or {}
+    reported = server.get("web_search_requests") if isinstance(server, dict) else None
+    if not isinstance(reported, int):
+        reported = (result.provider_call.get("diagnostics") or {}).get("tool_calls_observed")
+    if not isinstance(allowed, int) or not isinstance(reported, int) or reported <= allowed:
+        return None
+    return {
+        "code": "PROVIDER_SEARCH_LIMIT_EXCEEDED",
+        "message": f"{criterion_id}: the provider ran {reported} web searches although max_uses was {allowed}.",
     }
 
 
