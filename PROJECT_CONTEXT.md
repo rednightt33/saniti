@@ -42,7 +42,7 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - Market Web Governor (provider-neutral web evidence service; not connected to `market-ai-orc` yet): `market-web-governor`
 - Market Web Governor service ID: `1c43a00e-9deb-4b17-84f0-acfa35142ac6` (private: `market-web-governor.railway.internal:8080`)
 - Its v1 contract plans and executes `WebNeedSpec` criteria, stores provider calls/evidence/citation lineage in service-local SQLite, and starts with the OpenRouter adapter. It has no PostgreSQL credentials or market-table access.
-- A dedicated `/data` volume is required for durable evidence. The service is live, but that volume is not attached yet because the Railway Agent connection reached its usage limit; until attached, its SQLite file is on the ephemeral container filesystem.
+- Market Web Governor volume: `market-web-governor-data` (`c02e7a3c-6330-4f92-a3ca-0990af002b5a`, mounted at `/data`; durable SQLite web needs, provider calls, evidence, citations, and lineage). `RAILWAY_RUN_UID=0` is scoped to this service because Railway mounts volumes as root.
 - Dashboard: <https://railway.com/project/8aef1702-030b-49cb-9df7-5ac2e0a42691?environmentId=4d3e5af2-302b-4a2e-84e2-7d7476d6ff49>
 - GitHub: <https://github.com/rednightt33/saniti>
 

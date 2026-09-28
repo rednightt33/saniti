@@ -108,9 +108,9 @@ The execution response contains:
 ## Storage and idempotency
 
 SQLite stores web needs, provider calls, evidence, and criterion-to-evidence lineage at
-`WEB_GOVERNOR_STORE_PATH`. The production-ready Railway configuration requires a service-specific volume mounted at
-`/data`; the default database path is `/data/web-governor.sqlite3`. Without that volume the API still runs, but the
-container filesystem is ephemeral and evidence does not survive a redeploy.
+`WEB_GOVERNOR_STORE_PATH`. Railway mounts the service-specific `market-web-governor-data` volume at `/data`; the
+default database path is `/data/web-governor.sqlite3`. `RAILWAY_RUN_UID=0` lets the process write to Railway's
+root-owned mount. The evidence store survives container restarts and redeploys.
 
 `request_id` is the idempotency key. Reusing it with the exact same normalized request returns the stored plan or
 terminal response. Reusing it with different content returns HTTP 409 `IDEMPOTENCY_CONFLICT`. Evidence is persisted
