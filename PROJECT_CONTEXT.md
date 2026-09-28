@@ -39,6 +39,10 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - Market Python sandbox (runs model-written Python over Governor datasets; no PostgreSQL or bucket credentials, only the Governor dataset-access key): `market-python-sandbox`
 - Market Python sandbox service ID: `225b1be1-d7f5-4b2d-a4c7-052eb53af818` (private: `market-python-sandbox.railway.internal:8080`)
 - Market Python sandbox volume: `market-python-sandbox-data` (`853e57c0-eb4c-4b48-a4ce-6bd7ffe282d8`, mounted at `/data`; SQLite analysis records and result files)
+- Market Web Governor (provider-neutral web evidence service; not connected to `market-ai-orc` yet): `market-web-governor`
+- Market Web Governor service ID: `1c43a00e-9deb-4b17-84f0-acfa35142ac6` (private: `market-web-governor.railway.internal:8080`)
+- Its v1 contract plans and executes `WebNeedSpec` criteria, stores provider calls/evidence/citation lineage in service-local SQLite, and starts with the OpenRouter adapter. It has no PostgreSQL credentials or market-table access.
+- Market Web Governor volume: `market-web-governor-data` (`c02e7a3c-6330-4f92-a3ca-0990af002b5a`, mounted at `/data`; durable SQLite web needs, provider calls, evidence, citations, and lineage). `RAILWAY_RUN_UID=0` is scoped to this service because Railway mounts volumes as root.
 - Dashboard: <https://railway.com/project/8aef1702-030b-49cb-9df7-5ac2e0a42691?environmentId=4d3e5af2-302b-4a2e-84e2-7d7476d6ff49>
 - GitHub: <https://github.com/rednightt33/saniti>
 
@@ -59,6 +63,7 @@ All active application services deploy from `rednightt33/saniti` on branch `main
 | `market-ai-orc` | `/apps/market-ai-orc` (GitHub source since 2026-09-25; earlier versions were local uploads) | `/apps/market-ai-orc/**` |
 | `market-sql-governor` | `/apps/market-sql-governor` (GitHub source since 2026-09-25) | `/apps/market-sql-governor/**` |
 | `market-python-sandbox` | `/apps/market-python-sandbox` (GitHub source since 2026-09-25; one replica because of the volume, so a push that changes this folder restarts it) | `/apps/market-python-sandbox/**` |
+| `market-web-governor` | `/apps/market-web-governor` | `/apps/market-web-governor/**` |
 
 Deleted on 2026-09-26: `market-ai-backend`, `market-analytics-worker` and `market-query-sandbox` (deactivated on 2026-09-25) were deleted by the user from Railway between 06:29 and 06:30 UTC, and the `market-analytics-input` bucket is no longer in the project either. Their code stays in `apps/` for history; restoring one would mean creating a new service. `.railway/railway.ts` no longer lists them, and `railway config plan` reports the configuration up to date (the three expected source drifts of the deactivated services are gone). See `RAILWAY_CHANGELOG.md`.
 
@@ -151,7 +156,7 @@ Telegram owner -> telegram-trigger webhook -> validate webhook secret and Chat I
 - `stockbit_broker_summary_load_log`: resume, retry, and `NEEDS_REVIEW` history.
 - `Database_Table_Status`: freshness and tracking catalog.
 
-The current market AI is `market-ai-orc` with `market-sql-governor` and `market-python-sandbox` (see their READMEs); `dev` runs `deepseek/deepseek-v4.1-flash` through OpenRouter with reasoning `high`. The legacy analyst (`market-ai-backend` with `market-query-sandbox` and `market-analytics-worker`) was deactivated on 2026-09-25: it has no running deployment, but its services, variables, login, and database objects are kept. Its tables (`Analysis_*`, `Analytics_*`, `Golden_Analysis_*`) are historical and receive no new rows. Their retained provider reasoning was purged on 2026-09-25, since the backend's hourly cleanup no longer runs. When it ran, the backend alone held PostgreSQL and private snapshot-bucket credentials, and neither worker could read PostgreSQL directly. Historical analysis must apply close-`t` to entry-`t+1`, preserve `SURVIVORSHIP_BIAS_WARNING` when point-in-time universe data is unavailable, and retain completed version snapshots.
+The current market AI is `market-ai-orc` with `market-sql-governor` and `market-python-sandbox` (see their READMEs); `dev` runs `deepseek/deepseek-v4.1-flash` through OpenRouter with reasoning `high`. `market-web-governor` is deployed separately and is not registered as an AI-Orc tool yet, so this addition does not change existing answers or orchestration. The legacy analyst (`market-ai-backend` with `market-query-sandbox` and `market-analytics-worker`) was deactivated on 2026-09-25: it has no running deployment, but its services, variables, login, and database objects are kept. Its tables (`Analysis_*`, `Analytics_*`, `Golden_Analysis_*`) are historical and receive no new rows. Their retained provider reasoning was purged on 2026-09-25, since the backend's hourly cleanup no longer runs. When it ran, the backend alone held PostgreSQL and private snapshot-bucket credentials, and neither worker could read PostgreSQL directly. Historical analysis must apply close-`t` to entry-`t+1`, preserve `SURVIVORSHIP_BIAS_WARNING` when point-in-time universe data is unavailable, and retain completed version snapshots.
 
 See `DATABASE_CATALOG.md` for the initial and current table lists, metadata fields, confidence rules, and mandatory updates when new tables, columns, Feature definitions, or routines are added. `Database_Table_Status` remains a separate operational freshness table and is not a semantic catalog target.
 
