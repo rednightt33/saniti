@@ -732,6 +732,13 @@ the released outputs (JSON, and up to 200 rows of each of up to 10 tables), so t
   `COMPLETED` (`POST /v1/sessions/{id}/close`, best effort, log `analysis_sessions_closed` with each close reason).
   The sandbox closes a session itself only when `complete_analysis` passes; before this, a failed or abandoned
   session held one of its `PY_SANDBOX_MAX_SESSIONS` slots until the idle timeout (900 s).
+- One open session per run (`ERRORS_AND_SOLUTIONS.md` S08). The slots are shared by every run, and a run that opened a
+  second session before completing its first held both. Before another `open_analysis_session`, an earlier session
+  of the run that has not completed is handled first:
+  - with no successful `run_python`, or after `complete_analysis` answered `INCOMPLETE`, market-ai-orc closes it (log
+    `analysis_sessions_superseded`); it released nothing, so it no longer blocks the answer;
+  - with a successful `run_python`, the open is refused with `ANALYSIS_SESSION_ALREADY_OPEN` (naming
+    `open_session_id`) until `complete_analysis` is called on it. The refusal counts toward the repair budget.
 
 **Phase 5 (implemented): the orchestrator in DataNeed mode** (`app/orchestrator.py`). With `AI_ENABLE_DATANEED`
 the DataNeed flow is exclusive:

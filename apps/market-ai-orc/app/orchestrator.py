@@ -1082,13 +1082,46 @@ class AgentOrchestrator:
                   bundles=state.reuse["offered_bundles"], warm_sessions=state.reuse["warm_sessions"],
                   note_chars=len(note))
 
+    def _one_open_session(self, state: RunState, call_id: str, name: str) -> ToolOutcome | None:
+        """One open analysis session per run (S08): the sandbox has few session slots for every run together, and a run
+        that opened a second session before completing its first held two of them. Before another open, an earlier
+        session of this run that has not completed is closed when no execution in it succeeded or its complete_analysis
+        answered INCOMPLETE (it released nothing); one with successful executions and no complete_analysis refuses the
+        new open until complete_analysis has been called on it."""
+        pending = [session_id for session_id, session in state.sessions.items()
+                   if SESSION_ID_RE.fullmatch(session_id) and not session.get("superseded")
+                   and (state.completions.get(session_id) or {}).get("status") != "COMPLETED"]
+        # a session whose complete_analysis already answered INCOMPLETE released nothing and may be replaced
+        working = [session_id for session_id in pending if session_id not in state.completions
+                   and "OK" in state.sessions[session_id].get("executions", [])]
+        if working:
+            outcome = error_outcome(
+                call_id, name, "ANALYSIS_SESSION_ALREADY_OPEN",
+                f"Analysis session {working[0]} of this request is still open and has results. Call complete_analysis "
+                "on it before opening another session, or keep working in it: one session may run any number of "
+                "run_python calls on its bundle.")
+            outcome.output["error"]["open_session_id"] = working[0]
+            return outcome
+        if pending:
+            closed: dict[str, str] = {}
+            if self.session_closer is not None:
+                try:
+                    closed = self.session_closer(state.request_id, pending)
+                except Exception:  # noqa: BLE001 - best effort; the sandbox's idle timeout remains
+                    closed = {session_id: "CLOSE_FAILED" for session_id in pending}
+            for session_id in pending:
+                state.sessions[session_id]["superseded"] = closed.get(session_id, "NOT_CLOSED")
+            log_event("analysis_sessions_superseded", request_id=state.request_id, sessions=closed or pending)
+        return None
+
     def _close_sessions(self, state: RunState) -> None:
         """Close every analysis session this run opened that did not complete (S05). The sandbox closes a session
         itself only when complete_analysis passes; a failed, incomplete or abandoned session would otherwise hold
         one of its few slots until the idle timeout, and later runs would meet SESSION_CAPACITY_EXCEEDED."""
         if self.session_closer is None:
             return
-        open_ids = [session_id for session_id in state.sessions if SESSION_ID_RE.fullmatch(session_id)
+        open_ids = [session_id for session_id, session in state.sessions.items() if SESSION_ID_RE.fullmatch(session_id)
+                    and session.get("superseded") in (None, "CLOSE_FAILED", "NOT_CLOSED")
                     and (state.completions.get(session_id) or {}).get("status") != "COMPLETED"]
         if not open_ids:
             return
@@ -1452,6 +1485,10 @@ class AgentOrchestrator:
                           relationships=missing["relationship_ids"])
                 return self._repair_budget(state, call_id, name, outcome)
 
+        if name == "open_analysis_session":
+            refused = self._one_open_session(state, call_id, name)
+            if refused is not None:
+                return self._repair_budget(state, call_id, name, refused)
         outcome = self._repair_budget(state, call_id, name, self.registry.execute(call_id, name, raw_arguments))
         normalized = self._normalized_arguments(raw_arguments)
         if name == "submit_data_need_spec" and isinstance(normalized, dict) and normalized.get("mode") == "RESEARCH":
@@ -1793,6 +1830,8 @@ class AgentOrchestrator:
         blocking, lines = [], []
         for session_id, session in state.sessions.items():
             completion = state.completions.get(session_id)
+            if session.get("superseded"):
+                continue  # replaced by another session of this run (S08); it released nothing
             if completion is None:
                 if session.get("executions"):
                     blocking.append(f"analysis session {session_id} was not completed with complete_analysis")

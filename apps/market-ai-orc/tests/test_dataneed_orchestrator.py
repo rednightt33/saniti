@@ -409,6 +409,63 @@ def test_capacity_refusals_are_bounded_by_the_repair_budget() -> None:
     assert codes == ["SESSION_CAPACITY_EXCEEDED"] * 3 + ["REPAIR_BUDGET_EXHAUSTED"] * 2
 
 
+# --- S08: one open analysis session per run ------------------------------------------------------------------------
+
+SESSION_2 = "sess_" + "4" * 24
+
+
+class TwoSessions(Tools):
+    """open_analysis_session hands out SESSION, then SESSION_2; run_python answers with the given statuses in order."""
+
+    def __init__(self, completions: list[dict[str, Any]], statuses: list[str]) -> None:
+        super().__init__(completions)
+        self.opened = [SESSION, SESSION_2]
+        self.statuses = list(statuses)
+
+    def registry(self) -> ToolRegistry:
+        registry = super().registry()
+        for name, handler in (
+                ("open_analysis_session", lambda a: {"session_id": self.opened.pop(0), "status": "ACTIVE",
+                                                     "bundle_id": BUNDLE, "need_id": NEED}),
+                ("run_python", lambda a: {"execution_id": "exe_" + str(len(self.statuses)), "session_id": a.session_id,
+                                          "status": self.statuses.pop(0), "stdout": "", "outputs": []})):
+            spec = registry._tools[name]
+            registry._tools[name] = ToolSpec(name=spec.name, description=spec.description,
+                                             arguments_model=spec.arguments_model, handler=handler)
+        return registry
+
+
+def outputs_of(scripted: ScriptedClient) -> dict[str, dict[str, Any]]:
+    return {item["call_id"]: json.loads(item["output"]) for item in scripted.payloads[-1]["input"]
+            if item.get("type") == "function_call_output"}
+
+
+def test_a_second_open_waits_until_a_session_with_results_is_completed() -> None:
+    closer = Closer()
+    script = [*flow(complete=False), call("open_analysis_session", {"input_bundle_id": BUNDLE}, "o2"),
+              call("complete_analysis", {"session_id": SESSION}, "c5"),
+              final_response(answer("Return YTD BBCA 12,35%."))]
+    result = closing_run(script, TwoSessions([completed()], ["OK"]), closer)
+    refused = outputs_of(closing_run.scripted)["o2"]
+    assert refused["ok"] is False and refused["error"]["code"] == "ANALYSIS_SESSION_ALREADY_OPEN"
+    assert refused["error"]["open_session_id"] == SESSION and "complete_analysis" in refused["error"]["message"]
+    # the sandbox was not asked for a second slot, nothing was closed, and the completed analysis answers
+    assert closer.calls == [] and result.evidence_label == "DATA_COVERAGE_VERIFIED"
+
+
+def test_a_session_without_a_successful_execution_is_closed_before_another_opens() -> None:
+    closer = Closer()
+    script = [*flow(complete=False), call("open_analysis_session", {"input_bundle_id": BUNDLE}, "o2"),
+              call("run_python", {"session_id": SESSION_2}, "r2"),
+              call("complete_analysis", {"session_id": SESSION_2}, "c6"),
+              final_response(answer("Return YTD BBCA 12,35%."))]
+    result = closing_run(script, TwoSessions([{**completed(), "session_id": SESSION_2}], ["FAILED", "OK"]), closer)
+    assert outputs_of(closing_run.scripted)["o2"]["result"]["session_id"] == SESSION_2
+    # closed once, before the second open; not again at the end of the run; it does not block the answer
+    assert closer.calls == [("dn", [SESSION])]
+    assert result.response.response_type == "ANSWER" and result.evidence_label == "DATA_COVERAGE_VERIFIED"
+
+
 def test_both_number_rules_allow_display_rounding_without_adding_number_sources() -> None:
     # P03: the model showed full precision, believing rounding fails the provenance gate; it does not
     sentence = ("Round figures for display as a reader needs: a source value shown with fewer decimals, rounded "
