@@ -5,7 +5,7 @@ import json
 import random
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
@@ -33,6 +33,9 @@ class ProviderResult:
     annotations: list[dict[str, Any]]
     provider_call: dict[str, Any]
     applied_policy: dict[str, Any]
+    output_complete: bool = True
+    tool_observed: bool = True
+    cited_urls: list[str] = field(default_factory=list)
 
 
 class OpenRouterProvider:
@@ -62,37 +65,15 @@ class OpenRouterProvider:
             "store": False,
         }
         response = self._request(payload)
-        completed_at = _now()
-        text, annotations = _extract_output(response)
-        assessment, summary = _parse_assessment(text)
-        call = {
-            "provider_call_id": provider_call_id,
-            "criterion_id": criterion.criterion_id,
-            "operation": "SEARCH",
-            "provider": self.name,
-            "adapter_version": self.adapter_version,
-            "model": response.get("model", self.settings.openrouter_model),
-            "provider_response_id": response.get("id"),
-            "status": "SUCCEEDED",
-            "usage": response.get("usage") if isinstance(response.get("usage"), dict) else {},
-            "response_sha256": hashlib.sha256(
-                json.dumps(response, sort_keys=True, separators=(",", ":")).encode()
-            ).hexdigest(),
-            "started_at": started_at,
-            "completed_at": completed_at,
+        applied = {
+            "engine": parameters["engine"],
+            "max_results": parameters["max_results"],
+            "max_uses": parameters["max_uses"],
+            "allowed_domains": parameters.get("allowed_domains", []),
+            "excluded_domains": parameters.get("excluded_domains", []),
         }
-        return ProviderResult(
-            assessment=assessment,
-            summary=summary[:2000],
-            annotations=annotations,
-            provider_call=call,
-            applied_policy={
-                "engine": parameters["engine"],
-                "max_results": parameters["max_results"],
-                "max_uses": parameters["max_uses"],
-                "allowed_domains": parameters.get("allowed_domains", []),
-                "excluded_domains": parameters.get("excluded_domains", []),
-            },
+        return self._result(
+            response, provider_call_id, criterion.criterion_id, "SEARCH", started_at, applied, tool_marker="search"
         )
 
     def fetch_url(self, url: str, objective: str, locale: str, provider_call_id: str) -> ProviderResult:
@@ -114,26 +95,73 @@ class OpenRouterProvider:
             "store": False,
         }
         response = self._request(payload)
+        return self._result(
+            response, provider_call_id, "fetch", "FETCH", started_at, {"exact_url": url}, tool_marker="fetch"
+        )
+
+    def _result(
+        self,
+        response: dict[str, Any],
+        provider_call_id: str,
+        criterion_id: str,
+        operation: str,
+        started_at: str,
+        applied_policy: dict[str, Any],
+        *,
+        tool_marker: str,
+    ) -> ProviderResult:
         completed_at = _now()
         text, annotations = _extract_output(response)
-        assessment, summary = _parse_assessment(text)
+        assessment, summary, labelled = _parse_assessment_labelled(text)
+        item_types = _output_item_types(response)
+        tool_items = [item for item in item_types if tool_marker in item and item != "message"]
+        tool_observed = bool(tool_items)
+        response_status = response.get("status") if isinstance(response.get("status"), str) else None
+        incomplete = response.get("incomplete_details")
+        incomplete_reason = incomplete.get("reason") if isinstance(incomplete, dict) else None
+        # A response cut short (for example by max_output_tokens) or without the labelled ASSESSMENT/SUMMARY lines
+        # carries no verdict: it must not be read as NOT_FOUND or CONTRADICTED.
+        output_complete = (
+            response_status in (None, "completed") and incomplete_reason is None and labelled and bool(summary)
+        )
+        usage = response.get("usage") if isinstance(response.get("usage"), dict) else {}
         call = {
             "provider_call_id": provider_call_id,
-            "criterion_id": "fetch",
-            "operation": "FETCH",
+            "criterion_id": criterion_id,
+            "operation": operation,
             "provider": self.name,
             "adapter_version": self.adapter_version,
             "model": response.get("model", self.settings.openrouter_model),
             "provider_response_id": response.get("id"),
-            "status": "SUCCEEDED",
-            "usage": response.get("usage") if isinstance(response.get("usage"), dict) else {},
+            "status": "SUCCEEDED" if output_complete else "INCOMPLETE",
+            "usage": usage,
             "response_sha256": hashlib.sha256(
                 json.dumps(response, sort_keys=True, separators=(",", ":")).encode()
             ).hexdigest(),
             "started_at": started_at,
             "completed_at": completed_at,
+            "diagnostics": {
+                "response_status": response_status,
+                "incomplete_reason": incomplete_reason,
+                "output_item_types": item_types[:20],
+                "tool_calls_observed": len(tool_items),
+                "annotation_count": len(annotations),
+                "assessment_labelled": labelled,
+                "summary_characters": len(summary),
+            },
         }
-        return ProviderResult(assessment, summary[:2000], annotations, call, {"exact_url": url})
+        policy = dict(applied_policy)
+        policy[f"{tool_marker}_tool_observed"] = tool_observed
+        return ProviderResult(
+            assessment=assessment if output_complete else "INSUFFICIENT",
+            summary=summary[:2000],
+            annotations=annotations,
+            provider_call=call,
+            applied_policy=policy,
+            output_complete=output_complete,
+            tool_observed=tool_observed,
+            cited_urls=[annotation["url"] for annotation in annotations][:20],
+        )
 
     def _search_parameters(self, policy: SourcePolicy, max_results: int) -> dict[str, Any]:
         parameters: dict[str, Any] = {
@@ -250,11 +278,29 @@ def _normalize_annotation(annotation: Any) -> dict[str, Any] | None:
 
 
 def _parse_assessment(text: str) -> tuple[str, str]:
+    assessment, summary, _ = _parse_assessment_labelled(text)
+    return assessment, summary
+
+
+def _parse_assessment_labelled(text: str) -> tuple[str, str, bool]:
     match = re.search(r"(?im)^\s*ASSESSMENT\s*:\s*(SUPPORTED|CONTRADICTED|MIXED|NOT_FOUND|INSUFFICIENT)\s*$", text)
     assessment = match.group(1).upper() if match else "INSUFFICIENT"
-    summary_match = re.search(r"(?is)^.*?SUMMARY\s*:\s*(.+)$", text)
-    summary = summary_match.group(1).strip() if summary_match else text.strip()
-    return assessment, summary
+    summary_match = re.search(r"(?is)\bSUMMARY\b[*_ ]*:[*_ \t]*(.*)$", text)
+    if summary_match:
+        summary = summary_match.group(1).strip()
+    elif match:
+        summary = ""
+    else:
+        summary = text.strip()
+    return assessment, summary, bool(match and summary_match)
+
+
+def _output_item_types(response: dict[str, Any]) -> list[str]:
+    types = []
+    for output in response.get("output", []):
+        if isinstance(output, dict) and isinstance(output.get("type"), str):
+            types.append(output["type"][:60])
+    return types
 
 
 def _now() -> str:

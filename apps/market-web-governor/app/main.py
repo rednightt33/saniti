@@ -94,7 +94,8 @@ def create_app(
     @app.post("/v1/web-needs", dependencies=[Depends(authorize)])
     def create_web_need(body: CreateWebNeedRequest) -> dict[str, Any]:
         result = governor.create_need(body)
-        logger.info(json.dumps({"event": "web_need_created", "request_id": body.request_id,
+        event = "web_need_created" if result["status"] == "APPROVED" else "web_need_replayed"
+        logger.info(json.dumps({"event": event, "request_id": body.request_id,
                                 "web_need_id": result["web_need_id"], "status": result["status"]}))
         return result
 
@@ -129,10 +130,22 @@ def create_app(
 
     @app.post("/v1/search", dependencies=[Depends(authorize)])
     def search(body: FastSearchRequest) -> dict[str, Any]:
-        return governor.fast_search(body)
+        result = governor.fast_search(body)
+        _log_result("web_search_returned", body.request_id, result)
+        return result
 
     @app.post("/v1/fetch", dependencies=[Depends(authorize)])
     def fetch(body: FetchRequest) -> dict[str, Any]:
-        return governor.fetch(body)
+        result = governor.fetch(body)
+        _log_result("web_fetch_returned", body.request_id, result)
+        return result
+
+    def _log_result(event: str, request_id: str, result: dict[str, Any]) -> None:
+        logger.info(json.dumps({
+            "event": event, "request_id": request_id, "web_need_id": result.get("web_need_id"),
+            "status": result.get("status"), "evidence_count": len(result.get("evidence", [])),
+            "provider_call_count": (result.get("execution") or {}).get("provider_call_count"),
+            "warning_codes": sorted({warning.get("code") for warning in result.get("warnings", [])}),
+        }))
 
     return app

@@ -229,13 +229,17 @@ class WebGovernor:
 
             provider_calls.append(result.provider_call)
             applied_policies.append(result.applied_policy)
+            if not result.output_complete:
+                warnings.append(_incomplete_warning(criterion.criterion_id, result))
             criterion_evidence: list[dict[str, Any]] = []
+            rejected = 0
             for annotation in result.annotations:
                 if len(evidence) >= min(spec.budget.max_evidence_items, self.settings.max_evidence_items):
                     warnings.append({"code": "EVIDENCE_BUDGET_REACHED", "message": "Evidence item budget reached."})
                     break
                 item = self._evidence_from_annotation(web_need_id, result.provider_call, annotation, spec.source_policy)
                 if not item:
+                    rejected += 1
                     continue
                 key = (item["canonical_url"], item["content_sha256"])
                 existing = evidence_by_key.get(key)
@@ -247,6 +251,12 @@ class WebGovernor:
                 if item not in criterion_evidence:
                     criterion_evidence.append(item)
                     links.append((criterion.criterion_id, item["evidence_id"]))
+            if rejected:
+                warnings.append({
+                    "code": "CITATIONS_REJECTED_BY_POLICY",
+                    "message": f"{criterion.criterion_id}: {rejected} provider citation(s) failed the domain policy "
+                               "and were not used as evidence.",
+                })
             coverage.append(self._coverage(criterion, result, criterion_evidence, spec))
 
         required = [entry for entry in coverage if entry["required"]]
@@ -260,7 +270,8 @@ class WebGovernor:
             next_action = "RETRY_PROVIDER"
         else:
             status = "PARTIAL"
-            next_action = "REFINE_WEB_NEED"
+            blocked_required = any(entry["status"] == "BLOCKED" for entry in required)
+            next_action = "RETRY_PROVIDER" if blocked_required else "REFINE_WEB_NEED"
 
         response = self._response(
             web_need_id, request_id, status, spec, plan, coverage, evidence, warnings, next_action, applied_policies,
@@ -281,19 +292,37 @@ class WebGovernor:
     ) -> dict[str, Any]:
         evidence = []
         links = []
-        for annotation in result.annotations[:1]:
+        warnings: list[dict[str, str]] = []
+        for annotation in result.annotations:
             if expected_url and _canonical_url(annotation["url"]) != _canonical_url(expected_url):
                 continue
             item = self._evidence_from_annotation(web_need_id, result.provider_call, annotation, spec.source_policy)
             if item:
                 evidence.append(item)
                 links.append((criterion.criterion_id, item["evidence_id"]))
+                break
+        if not result.output_complete:
+            warnings.append(_incomplete_warning(criterion.criterion_id, result))
+        if expected_url and not evidence:
+            warnings.append({
+                "code": "EXACT_URL_NOT_CITED",
+                "message": f"The provider returned {len(result.annotations)} citation(s), none for the requested URL; "
+                           "no evidence was recorded and the provider summary is withheld.",
+            })
+        if not result.tool_observed:
+            warnings.append({
+                "code": "EXACT_FETCH_NOT_OBSERVED",
+                "message": "The provider response did not show a fetch tool call; the exact-URL fetch is unconfirmed.",
+            })
         coverage = [self._coverage(criterion, result, evidence, spec)]
         status = "EVIDENCE_READY" if coverage[0]["status"] in {"SATISFIED", "CONTRADICTED"} else "PARTIAL"
+        if coverage[0]["status"] == "BLOCKED":
+            next_action = "RETRY_PROVIDER"
+        else:
+            next_action = "SYNTHESIZE" if status == "EVIDENCE_READY" else "REVIEW_FETCH"
         response = self._response(
-            web_need_id, request_id, status, spec, {"operation": "FETCH_URL"}, coverage, evidence, [],
-            "SYNTHESIZE" if status == "EVIDENCE_READY" else "REVIEW_FETCH", [result.applied_policy],
-            [result.provider_call],
+            web_need_id, request_id, status, spec, {"operation": "FETCH_URL"}, coverage, evidence, warnings,
+            next_action, [result.applied_policy], [result.provider_call],
         )
         self._fit_response(response, evidence, spec.budget.max_output_characters)
         self.store.complete_execution(
@@ -441,6 +470,23 @@ class WebGovernor:
             gaps.append(f"NEED_{required_sources}_INDEPENDENT_SOURCES")
         if primary_count < required_primary:
             gaps.append(f"NEED_{required_primary}_PRIMARY_SOURCES")
+        summary = result.summary
+        if not result.output_complete:
+            gaps.append("PROVIDER_OUTPUT_INCOMPLETE")
+            reason = result.provider_call.get("diagnostics", {}).get("incomplete_reason") or "missing labelled output"
+            return {
+                "criterion_id": criterion.criterion_id,
+                "required": criterion.required,
+                "status": "BLOCKED",
+                "assessment": "INSUFFICIENT",
+                "summary": f"Provider output was incomplete ({reason}); no finding is reported for this criterion.",
+                "evidence_ids": [item["evidence_id"] for item in evidence],
+                "citation_ids": [item["citation_id"] for item in evidence],
+                "gaps": gaps,
+            }
+        if not evidence and result.assessment in {"SUPPORTED", "CONTRADICTED", "MIXED"}:
+            gaps.append("NO_USABLE_CITATION")
+            summary = "Provider summary withheld: none of its citations could be recorded as evidence."
         if result.assessment == "NOT_FOUND" or not evidence:
             status = "NOT_FOUND"
         elif result.assessment == "CONTRADICTED" and not gaps:
@@ -454,7 +500,7 @@ class WebGovernor:
             "required": criterion.required,
             "status": status,
             "assessment": result.assessment,
-            "summary": result.summary,
+            "summary": summary,
             "evidence_ids": [item["evidence_id"] for item in evidence],
             "citation_ids": [item["citation_id"] for item in evidence],
             "gaps": gaps,
@@ -507,6 +553,7 @@ class WebGovernor:
                 "adapter_version": self.provider.adapter_version,
                 "provider_call_count": len(provider_calls),
                 "usage": _sum_usage(provider_calls),
+                "provider_calls": [_call_summary(call) for call in provider_calls],
                 "completed_at": _now(),
             },
         }
@@ -546,6 +593,28 @@ class WebGovernor:
             "started_at": now,
             "completed_at": now,
         }
+
+
+def _incomplete_warning(criterion_id: str, result: ProviderResult) -> dict[str, str]:
+    diagnostics = result.provider_call.get("diagnostics", {})
+    return {
+        "code": "PROVIDER_OUTPUT_INCOMPLETE",
+        "message": f"{criterion_id}: provider response status {diagnostics.get('response_status')!s}, "
+                   f"incomplete reason {diagnostics.get('incomplete_reason')!s}; the criterion has no verdict.",
+    }
+
+
+def _call_summary(call: dict[str, Any]) -> dict[str, Any]:
+    usage = call.get("usage") or {}
+    return {
+        "provider_call_id": call["provider_call_id"],
+        "criterion_id": call["criterion_id"],
+        "operation": call["operation"],
+        "status": call["status"],
+        "error_code": call.get("error_code"),
+        "diagnostics": call.get("diagnostics", {}),
+        "usage": {key: value for key, value in usage.items() if isinstance(value, (int, float, dict))},
+    }
 
 
 def _canonical_url(url: str) -> str:
@@ -599,6 +668,7 @@ def _sum_usage(calls: list[dict[str, Any]]) -> dict[str, Any]:
         "output_tokens": 0,
         "total_tokens": 0,
         "web_search_requests": 0,
+        "tool_calls_observed": 0,
         "cost": 0.0,
     }
     for call in calls:
@@ -607,6 +677,9 @@ def _sum_usage(calls: list[dict[str, Any]]) -> dict[str, Any]:
             value = usage.get(key)
             if isinstance(value, int) and value >= 0:
                 totals[key] += value
+        observed = (call.get("diagnostics") or {}).get("tool_calls_observed")
+        if isinstance(observed, int) and observed >= 0:
+            totals["tool_calls_observed"] += observed
         server = usage.get("server_tool_use")
         if isinstance(server, dict) and isinstance(server.get("web_search_requests"), int):
             totals["web_search_requests"] += max(0, server["web_search_requests"])
