@@ -198,17 +198,22 @@ def app_client(tmp_path, event_store, bad_first=False, check_disagrees=False):
     def handler(request: httpx.Request) -> httpx.Response:
         payload = json.loads(request.content)
         calls.append(payload)
-        if "text" in payload:  # structured-output classification
-            quote = json.loads(payload["input"].split("\n\nYour previous")[0])["quote"]
-            result = classification_for(quote)
-            if state["bad"] and quote == PRE_RUMOUR:
-                state["bad"] = False
-                result = {**result, "impact_level": 5}  # inconsistent with R2-SMALL: must be rejected and retried
-            if check_disagrees and payload["model"] == "deepseek/deepseek-v4.1-flash":
-                result = {**result, "rule_id": "R3-SCALE", "impact_level": 3, "materiality_evidence": "178,24% dari ekuitas"}
+        if "text" in payload:  # structured-output classification, several items per call
+            context = json.loads(payload["input"])
+            entries = []
+            for item in context["items"]:
+                result = classification_for(item["quote"])
+                if state["bad"] and item["quote"] == PRE_RUMOUR:
+                    state["bad"] = False
+                    result = {**result, "impact_level": 5}  # inconsistent with R2-SMALL: rejected, then retried
+                if check_disagrees and payload["model"] == "deepseek/deepseek-v4.1-flash":
+                    result = {**result, "rule_id": "R3-SCALE", "impact_level": 3,
+                              "materiality_evidence": "178,24% dari ekuitas"}
+                entries.append({"item_index": item["item_index"], **result})
             return httpx.Response(200, request=request, json={
                 "id": "c", "status": "completed", "model": payload["model"],
-                "output": [{"type": "message", "content": [{"type": "output_text", "text": json.dumps(result)}]}],
+                "output": [{"type": "message", "content": [{"type": "output_text",
+                                                             "text": json.dumps({"items": entries})}]}],
                 "usage": {"input_tokens": 50, "output_tokens": 20, "total_tokens": 70, "cost": 0.0001},
             })
         return httpx.Response(200, request=request, json=search_reply([
@@ -276,6 +281,11 @@ def test_precursor_execution_builds_a_dated_timeline_and_stores_rows(tmp_path, a
                for call in classify_calls)
     assert all("tools" not in call for call in classify_calls)
     assert {call["model"] for call in classify_calls} == {"xiaomi/mimo-v2.5", "deepseek/deepseek-v4.1-flash"}
+    assert all(call["reasoning"] == {"effort": "low"} for call in classify_calls)
+    # three distinct sources in one batch: one call and one retry for the rejected item; the two level 4-5
+    # sources go to the check model in one call, whose answer for the capital item cites a figure absent from its
+    # quote, so it is rejected and retried once
+    assert len(classify_calls) == 4
 
     by_quote = {item["excerpt"]: item["classification"] for item in result["evidence"]}
     rumour = by_quote[PRE_RUMOUR]
@@ -381,3 +391,32 @@ def test_a_stale_running_need_can_run_again(tmp_path):
     with store._connect() as connection:
         connection.execute("UPDATE web_need SET updated_at = '2026-09-28 00:00:00' WHERE web_need_id = 'wn_1'")
     assert store.begin_execution("wn_1")["status"] == "RUNNING"  # stale RUNNING may run again
+
+
+def test_undated_sources_get_their_date_from_the_page_itself(tmp_path, auth):
+    settings = settings_for(tmp_path, WEB_CLASSIFIER_CHECK_SLOT="0")
+    page = (b'<html><head><meta property="article:published_time" content="2026-06-15T08:00:00+07:00">'
+            b"</head><body><p>" + b"Perusahaan P dikabarkan menjajaki pembelian unit susu. " * 10 + b"</p></body></html>")
+    undated_url = "https://katadata.example.id/berita/p-dikabarkan-gandeng-q"
+
+    def handler(request):
+        payload = json.loads(request.content)
+        if "text" in payload:
+            items = json.loads(payload["input"])["items"]
+            return httpx.Response(200, request=request, json={"id": "c", "status": "completed", "output": [
+                {"type": "message", "content": [{"type": "output_text", "text": json.dumps({"items": [
+                    {"item_index": item["item_index"], **classification_for(PRE_RUMOUR)} for item in items]})}]}]})
+        return httpx.Response(200, request=request, json=search_reply([citation(undated_url, PRE_RUMOUR)]))
+
+    provider = OpenRouterProvider(settings, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    fetcher = fake_fetcher(settings, {undated_url: (200, {"content-type": "text/html"}, page)})
+    app = create_app(settings=settings, store=SqliteStore(settings.store_path), provider=provider, fetcher=fetcher,
+                     event_store=FakeEventStore())
+    with TestClient(app) as client:
+        planned = client.post("/v1/web-needs", headers=auth, json=precursor_request("pre-date")).json()
+        result = client.post(f"/v1/web-needs/{planned['web_need_id']}/execute", headers=auth,
+                             json={"contract_version": "v1", "request_id": "pre-date"}).json()
+    entry = result["timeline"]["pre_event"][0]
+    assert (entry["published_at"], entry["published_at_source"], entry["lead_time_days"]) == (
+        "2026-06-15", "HTML_META", 95)
+    assert "DATES_READ_FROM_PAGES" in {warning["code"] for warning in result["warnings"]}

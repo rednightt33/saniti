@@ -143,6 +143,8 @@ class OpenRouterProvider:
         started_at = _now()
         payload = self._payload(slot, user)
         payload["max_output_tokens"] = min(slot.max_output_tokens, self.settings.classifier_max_output_tokens)
+        if self.settings.classifier_reasoning_effort:
+            payload["reasoning"] = {"effort": self.settings.classifier_reasoning_effort}
         payload["instructions"] = system
         payload["text"] = {"format": {"type": "json_schema", "name": "event_classification", "strict": True,
                                       "schema": schema}}
