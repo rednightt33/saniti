@@ -1,5 +1,50 @@
 # Railway changelog
 
+## 2026-09-28 — market-web-governor live end-to-end test on dev; three fixes (AI-Orc unchanged)
+
+- **Scope:** live test of `market-web-governor` (`1c43a00e-9deb-4b17-84f0-acfa35142ac6`) through OpenRouter/Exa.
+  AI-Orc, SQL Governor, Python sandbox, PostgreSQL, buckets and every other service were not changed by this task;
+  the Web Governor has no public domain and no database credentials. Request IDs: `live-smoke-20260928-*`,
+  `-r2-*`, `-r3-*`, `-r4-*`.
+- **Execution path:** the agent container cannot reach Railway SSH (R16). With the user's approval a kept private runner
+  `web-governor-test-runner` (`8409cd61-66d1-48eb-8db7-97e607bbc6b3`) was created: restart `NEVER`, no domain, one
+  reference variable `WEB_GOVERNOR_API_KEY` (value not recorded), code in `apps/web-governor-test-runner`, deployed with
+  `railway up`. Runs: `414fc509` (round 1), `f807533e` (persistence), `47ce02f3` (round 2), `dca2fafa`, `a528d2c2`
+  (smoke).
+- **Preconditions (read-only):** source `rednightt33/saniti` `main`, root `/apps/market-web-governor`; volume
+  `market-web-governor-data` (`c02e7a3c-6330-4f92-a3ca-0990af002b5a`) mounted at `/data`;
+  `WEB_GOVERNOR_STORE_PATH=/data/web-governor.sqlite3`; `RAILWAY_RUN_UID=0`; no service or custom domain; deployment
+  `73dd34f3-45b2-42df-ae7b-b519b096d4df` `SUCCESS` (rollback reference). 8 unit tests passed.
+- **Round 1 (deployment `73dd34f3`):** authentication (401 without or with a wrong key, 200 with the key),
+  readiness, capabilities, idempotency (identical replay byte-identical without a provider call; changed content 409
+  `IDEMPOTENCY_CONFLICT`) and budgets (every over-limit request 422 with its code, nothing stored) passed. Defects:
+  truncated provider output reported as `NOT_FOUND` / `CONTRADICTED` (W01), exact fetch without evidence and with an
+  uncited summary (W03), `web_search_requests` always 0 (W04), search/fetch without request-ID log lines (W05).
+- **Persistence:** plain redeploy of this service only, `73dd34f3` → `79b86178-659d-4e65-90c6-5e7e4a5a53cf`
+  `SUCCESS`; web need `wn_52846614753a479e85e34e6d5e16e45b` and evidence `ev_65b28ef5d9cc4d69ac5c82e0e56b4011`
+  read back byte-identical (response SHA-256 match; evidence `content_sha256` `ad890795…`). They matched again after
+  the fix deployment.
+- **Fixes:** PR #3 (`8a6c301`, W01/W03/W05, per-call diagnostics), PR #4 (`733a373`, W04, records), PR #5
+  (`31db707`, W08 search-overrun warning, R17 corrected). Tests 8 → 16. Web Governor deployments: `a5db8024` (from
+  #3; a manual deploy of the same commit, `9efabd95`, was redundant, R17), `a8de41ba` (#4), final
+  `254e5f0b-e3d8-48d6-8e65-9e4d162ad2a7` `SUCCESS` (#5); each log shows the volume mount and `GET /ready` 200. For
+  every merge, market-ai-orc, market-sql-governor and market-python-sandbox deployments were `SKIPPED` (no watched
+  change).
+- **Round 2 (deployment `9efabd95`, commit `8a6c301`):** the diagnostics confirmed W01 (`incomplete_reason`
+  `max_output_tokens`, about 2,000 reasoning tokens against `WEB_OPENROUTER_MAX_OUTPUT_TOKENS=1800`): 4 of 5 T6
+  criteria are now `BLOCKED` with `RETRY_PROVIDER` instead of misreported. W03 confirmed: `openrouter:web_fetch` ran but
+  returned no citation, so the fetch reports `EXACT_URL_NOT_CITED` and withholds the summary. Smoke runs confirmed W04
+  (`web_search_requests` 2) and W08 (the warning fires).
+- **Open (not changed, need a decision):** W02 output budget (a provider configuration change), W03 fetch evidence,
+  W06 fast-search two-domain rule, W07 publication dates and per-item stance. Provider cost of all live calls about
+  USD 0.16.
+- **Logs:** no key, bearer header, provider secret, stack trace or provider body in the Web Governor or runner logs.
+- **Config:** `railway config pull --force` added `web-governor-test-runner` and recorded two variables already live on
+  market-ai-orc and market-python-sandbox (`preserve()`). `railway config plan` (not applied) lists one deletion,
+  `ip2-truth-job`, a service created at 14:36 UTC outside this task; it was left alone. Deployments of market-ai-orc
+  (`9d8e9182`, 14:26) and market-python-sandbox (`e7d4ce58`, 14:22) in the same window came from that other work,
+  not from this task.
+
 ## 2026-09-28 — standalone market-web-governor created on dev (AI-Orc unchanged)
 
 - **Scope:** created only `market-web-governor` (`1c43a00e-9deb-4b17-84f0-acfa35142ac6`). No existing service,
