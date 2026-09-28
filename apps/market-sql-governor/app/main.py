@@ -11,6 +11,8 @@ from fastapi import Body, Depends, FastAPI, Header, HTTPException, status
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
+from .audit_archive import DatasetArchiver
+from .audit_client import AuditClient
 from .catalog_contract import MAX_CONTRACT_TABLES
 from .config import Settings
 from .datasets import DatasetError, DatasetService
@@ -57,9 +59,19 @@ def create_app(settings: Settings | None = None, governor: Governor | None = Non
                                      retention_hours=settings.dataset_retention_hours,
                                      tombstone_hours=settings.dataset_tombstone_retention_hours)
             janitor.start()
+        archiver = None
+        if store is not None and settings.audit_store_enabled:
+            # IP2: drains the audit outbox markers in the dataset bucket (never on the request path)
+            archiver = DatasetArchiver(store, AuditClient(settings.audit_store_url or "", settings.audit_store_key or "",
+                                                          settings.audit_timeout_seconds),
+                                       interval_seconds=settings.audit_poll_seconds,
+                                       max_attempts=settings.audit_max_attempts)
+            archiver.start()
         yield
         if janitor is not None:
             janitor.stop()
+        if archiver is not None:
+            archiver.stop()
 
     app = FastAPI(title="Saniti Market SQL Governor", version="1.0.0",
                   docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)

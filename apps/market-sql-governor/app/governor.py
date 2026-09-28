@@ -23,6 +23,7 @@ from psycopg import sql
 from psycopg.rows import dict_row
 from pydantic import ValidationError
 
+from .audit_archive import enqueue as enqueue_audit
 from .compiler import CompiledQuery, compile_query
 from .catalog_contract import executed_scope, load_contract, sha256_json, source_contract
 from . import extract as ex
@@ -363,6 +364,8 @@ class Governor:
                                  "application/vnd.apache.parquet", checksum)
         self.store.put_immutable(f"datasets/{dataset_id}/manifest.json", manifest_raw,
                                  "application/json", manifest_checksum)
+        if s.audit_store_enabled:
+            enqueue_audit(self.store, dataset_id, request_id)
         dataset = DatasetReference(
             dataset_id=dataset_id, format="PARQUET", row_count=manifest["row_count"],
             column_count=manifest["column_count"], byte_count=manifest["byte_count"], checksum_sha256=checksum,
@@ -723,6 +726,8 @@ class Extractor:
         store.put_immutable(f"datasets/{dataset_id}/data.parquet", payload, "application/vnd.apache.parquet", checksum)
         store.put_immutable(f"datasets/{dataset_id}/manifest.json", manifest_raw, "application/json",
                             manifest_checksum)
+        if s.audit_store_enabled:
+            enqueue_audit(store, dataset_id, request_id)
         return {"status": "APPROVED", "code": "OK", "next_action": ex.NEXT_ACTION["APPROVED"],
                 "message": "Extracted as an immutable Parquet dataset; only its reference is returned.",
                 "data_request_id": bound.spec.data_request_id, "request_id": request_id, "query_id": query_id,

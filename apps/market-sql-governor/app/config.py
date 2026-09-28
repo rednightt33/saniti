@@ -2,11 +2,18 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 
 class ConfigError(RuntimeError):
     pass
+
+
+def _flag(env: Mapping[str, str], name: str) -> bool:
+    raw = env.get(name, "").strip().lower()
+    if raw not in {"", "true", "false"}:
+        raise ConfigError(f"{name} must be true or false")
+    return raw == "true"
 
 
 def _integer(env: Mapping[str, str], name: str, default: int, minimum: int = 1, maximum: int | None = None) -> int:
@@ -65,6 +72,14 @@ class Settings:
     extract_max_in_values: int = 500
     extract_max_columns: int = 60
     extract_max_window_days: int = 3660
+    # IP2 solution 2 (SQL_GOVERNOR_AUDIT_STORE_ENABLED, off by default): archive each dataset's raw Parquet and
+    # extraction manifest to market-audit-store through an outbox in the dataset bucket (app/audit_archive.py)
+    audit_store_enabled: bool = False
+    audit_store_url: str | None = None
+    audit_store_key: str | None = field(default=None, repr=False)
+    audit_poll_seconds: int = 30
+    audit_max_attempts: int = 12
+    audit_timeout_seconds: int = 60
 
     @property
     def dataset_storage_configured(self) -> bool:
@@ -139,4 +154,20 @@ class Settings:
                 raise ConfigError("SQL_GOVERNOR_DATASET_ACCESS_KEY must differ from SQL_GOVERNOR_API_KEY")
         if settings.bucket_name and settings.dataset_local_dir:
             raise ConfigError("Configure either a dataset bucket or SQL_DATASET_LOCAL_DIR, not both")
-        return settings
+        audit = {
+            "audit_store_enabled": _flag(env, "SQL_GOVERNOR_AUDIT_STORE_ENABLED"),
+            "audit_store_url": (_optional(env, "AUDIT_STORE_URL") or "").rstrip("/") or None,
+            "audit_store_key": _optional(env, "AUDIT_STORE_GOVERNOR_KEY"),
+            "audit_poll_seconds": _integer(env, "SQL_GOVERNOR_AUDIT_POLL_SECONDS", 30, maximum=3600),
+            "audit_max_attempts": _integer(env, "SQL_GOVERNOR_AUDIT_MAX_ATTEMPTS", 12, maximum=100),
+            "audit_timeout_seconds": _integer(env, "SQL_GOVERNOR_AUDIT_TIMEOUT_SECONDS", 60, maximum=600),
+        }
+        if audit["audit_store_enabled"]:
+            # the Audit Store variables are required only while the feature is on
+            if not (audit["audit_store_url"] or "").startswith(("https://", "http://")):
+                raise ConfigError("SQL_GOVERNOR_AUDIT_STORE_ENABLED needs AUDIT_STORE_URL (http:// or https://)")
+            if len(audit["audit_store_key"] or "") < 32:
+                raise ConfigError("SQL_GOVERNOR_AUDIT_STORE_ENABLED needs AUDIT_STORE_GOVERNOR_KEY (32+ characters)")
+            if not (settings.bucket_name or settings.dataset_local_dir):
+                raise ConfigError("SQL_GOVERNOR_AUDIT_STORE_ENABLED needs dataset storage (its audit outbox)")
+        return replace(settings, **audit)

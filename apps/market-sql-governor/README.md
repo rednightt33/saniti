@@ -409,6 +409,39 @@ mistake.
 
 These limits are not in any prompt or tool description, and no request field can raise them.
 
+## Audit archival (IP2, off unless `SQL_GOVERNOR_AUDIT_STORE_ENABLED=true`)
+
+Each extracted dataset is archived to `market-audit-store` (see `apps/market-audit-store/README.md`):
+the raw Parquet as `RAW_INPUT_PARQUET` and `manifest.json` as `EXTRACTION_MANIFEST`, both labelled with the
+`dataset_id` and linked to the request's run, plus a bounded `dataset.archived` event with checksum and lineage.
+
+- **Durable outbox in the existing persistence.** The dataset bucket holds a marker
+  `audit-outbox/<dataset_id>.json` written right after the dataset; the Governor's PostgreSQL role stays read-only.
+  A failed marker write is logged (`sql_governor_audit_enqueue_failed`) and never fails the extraction.
+- **Off the request path.** A background thread (`app/audit_archive.py`) drains the markers every
+  `SQL_GOVERNOR_AUDIT_POLL_SECONDS`.
+  - Success: the marker is deleted.
+  - Outage: the marker stays (`FAILED_RETRYABLE`, exponential backoff).
+  - After `SQL_GOVERNOR_AUDIT_MAX_ATTEMPTS`, or when the dataset already expired, the marker moves to
+    `audit-outbox-failed/` (`INCOMPLETE`) and the run records `dataset.archive_incomplete`, so the run cannot report
+    `COMPLETE`.
+- **Idempotent.** Retries repeat nothing: runs are keyed by request id, objects by content address, and links and
+  events by their keys.
+- **No bucket sharing.** The Governor pushes the bytes it already holds to single-object upload URLs. The audit store
+  never gets access to the dataset bucket, and the Governor never gets audit-bucket credentials.
+- **Retention unchanged.** The janitor only touches `datasets/`, so working datasets keep their retention (about
+  7 days).
+- **Client.** `app/audit_client.py` is a small client of contract `audit-store/v1`, kept inside this service's root so
+  Railway rebuilds it. `tests/test_audit_contract.py` checks it against
+  `apps/market-audit-store/openapi/audit-store-v1.json`.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SQL_GOVERNOR_AUDIT_STORE_ENABLED` | `false` | Write outbox markers and run the archiver. |
+| `AUDIT_STORE_URL` | — | Required only when enabled, for example `http://market-audit-store.railway.internal:8080`. |
+| `AUDIT_STORE_GOVERNOR_KEY` | — | Required only when enabled; 32+ characters; never logged. |
+| `SQL_GOVERNOR_AUDIT_POLL_SECONDS` / `_MAX_ATTEMPTS` / `_TIMEOUT_SECONDS` | 30 / 12 / 60 | Drain interval, retries, HTTP timeout. |
+
 ## Logging
 
 Each query writes one JSON line (`event = sql_governor_query`) with `request_id`, `query_id`,
