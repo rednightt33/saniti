@@ -1,5 +1,11 @@
 # Railway changelog
 
+## 2026-09-28 — market-web-governor: evidence retention 30 days (user-approved)
+
+- `WEB_RETENTION_HOURS` 168 → 720 on market-web-governor only; redeploy `f60ae1a1-365d-4c11-9dcd-4cd57cd9ce46` `SUCCESS`
+  (rollback reference `e1d0d071`). Stored web needs, evidence and documents now expire 30 days after creation; the
+  ULTJ research of 2026-09-28 is kept until about 2026-10-28.
+
 ## 2026-09-28 — market-web-governor: governor-side fetch, 7 model slots, shared evidence budget (PR #8)
 
 - **Code** `dfdc89e` (PR #8, user-approved proposals A, B, C; 25 tests): governor-side fetch with verified quotes
