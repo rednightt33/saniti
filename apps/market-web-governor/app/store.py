@@ -18,8 +18,9 @@ class StoreUnavailable(RuntimeError):
 
 
 class SqliteStore:
-    def __init__(self, path: str):
+    def __init__(self, path: str, stale_running_seconds: int = 1800):
         self.path = path
+        self.stale_running_seconds = stale_running_seconds
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
 
@@ -177,9 +178,11 @@ class SqliteStore:
                 if need["status"] in {"EVIDENCE_READY", "PARTIAL", "FAILED", "BLOCKED"}:
                     connection.execute("ROLLBACK")
                     return need
-                if need["status"] == "RUNNING":
+                if need["status"] == "RUNNING" and not _stale(need.get("updated_at"), self.stale_running_seconds):
                     connection.execute("ROLLBACK")
                     raise RuntimeError("WEB_NEED_ALREADY_RUNNING")
+                # A RUNNING need older than the stale limit belongs to a process that died (e.g. a redeploy);
+                # it may be executed again.
                 connection.execute(
                     "UPDATE web_need SET status = 'RUNNING', updated_at = CURRENT_TIMESTAMP WHERE web_need_id = ?",
                     (web_need_id,),
@@ -322,6 +325,18 @@ class SqliteStore:
         raw_response = result.pop("response_json")
         result["response"] = json.loads(raw_response) if raw_response else None
         return result
+
+
+def _stale(updated_at: str | None, seconds: int) -> bool:
+    if not updated_at:
+        return True
+    try:
+        value = datetime.fromisoformat(updated_at.replace(" ", "T"))
+    except ValueError:
+        return True
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)  # SQLite CURRENT_TIMESTAMP is UTC
+    return (datetime.now(UTC) - value).total_seconds() > seconds
 
 
 class EvidenceJanitor:

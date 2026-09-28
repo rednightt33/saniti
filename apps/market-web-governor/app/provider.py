@@ -142,6 +142,7 @@ class OpenRouterProvider:
         None when it is not valid JSON) and the provider-call record."""
         started_at = _now()
         payload = self._payload(slot, user)
+        payload["max_output_tokens"] = min(slot.max_output_tokens, self.settings.classifier_max_output_tokens)
         payload["instructions"] = system
         payload["text"] = {"format": {"type": "json_schema", "name": "event_classification", "strict": True,
                                       "schema": schema}}
@@ -174,6 +175,20 @@ class OpenRouterProvider:
             },
         }
         return parsed, call
+
+    def _post_with_deadline(self, headers: dict[str, str], payload: dict[str, Any]) -> tuple[int, bytes]:
+        """httpx's timeout bounds each wait for bytes, not the whole call: a server that keeps sending a few bytes
+        would never time out. The body is read as a stream and the call is abandoned at the total deadline."""
+        deadline = time.monotonic() + self.settings.openrouter_total_seconds
+        chunks: list[bytes] = []
+        with self.client.stream(
+            "POST", f"{self.settings.openrouter_base_url}/responses", headers=headers, json=payload
+        ) as response:
+            for chunk in response.iter_bytes():
+                chunks.append(chunk)
+                if time.monotonic() > deadline:
+                    raise _DeadlineExceeded()
+            return response.status_code, b"".join(chunks)
 
     def _payload(self, slot: ModelSlot, prompt: str) -> dict[str, Any]:
         if not slot.model:
@@ -316,14 +331,16 @@ class OpenRouterProvider:
         last_error: ProviderError | None = None
         for attempt in range(self.settings.openrouter_max_retries):
             try:
-                response = self.client.post(
-                    f"{self.settings.openrouter_base_url}/responses", headers=headers, json=payload
-                )
+                status_code, content = self._post_with_deadline(headers, payload)
+            except _DeadlineExceeded:
+                last_error = ProviderError("PROVIDER_TIMEOUT", "OpenRouter request exceeded its total time limit",
+                                           retriable=True)
             except httpx.TimeoutException as exc:
                 last_error = ProviderError("PROVIDER_TIMEOUT", "OpenRouter request timed out", retriable=True)
             except httpx.HTTPError as exc:
                 last_error = ProviderError("PROVIDER_UNREACHABLE", "OpenRouter request failed", retriable=True)
             else:
+                response = _Reply(status_code, content)
                 if response.status_code < 400:
                     try:
                         body = response.json()
@@ -342,6 +359,19 @@ class OpenRouterProvider:
                 time.sleep(min(0.25 * (2**attempt) + random.random() * 0.1, 1.0))
         assert last_error is not None
         raise last_error
+
+
+class _DeadlineExceeded(Exception):
+    pass
+
+
+class _Reply:
+    def __init__(self, status_code: int, content: bytes):
+        self.status_code = status_code
+        self.content = content
+
+    def json(self) -> Any:
+        return json.loads(self.content)
 
 
 def _extract_output(response: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:

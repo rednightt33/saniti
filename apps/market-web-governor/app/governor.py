@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
+import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import UTC, date, datetime, timedelta
 from pathlib import PurePosixPath
 from typing import Any
@@ -33,6 +35,12 @@ from .store import IdempotencyConflict, SqliteStore
 
 
 TERMINAL = {"EVIDENCE_READY", "PARTIAL", "FAILED", "BLOCKED"}
+LOGGER = logging.getLogger("market_web_governor")
+
+
+def _progress(event: str, **fields: Any) -> None:
+    """Progress lines without content, so a long execution can be followed in the deploy log."""
+    LOGGER.info(json.dumps({"event": event, **fields}))
 TRACKING_QUERY_PREFIXES = ("utm_",)
 TRACKING_QUERY_KEYS = {"fbclid", "gclid", "mc_cid", "mc_eid"}
 
@@ -463,9 +471,14 @@ class WebGovernor:
 
         for criterion in spec.criteria:
             call_id = f"pc_{uuid.uuid4().hex}"
+            started = time.monotonic()
             try:
                 result = self.provider.research_criterion(web_need_id, spec, criterion, call_id, slot)
+                _progress("criterion_done", web_need_id=web_need_id, criterion_id=criterion.criterion_id,
+                          seconds=round(time.monotonic() - started, 1), citations=len(result.annotations))
             except ProviderError as exc:
+                _progress("criterion_failed", web_need_id=web_need_id, criterion_id=criterion.criterion_id,
+                          code=exc.code, seconds=round(time.monotonic() - started, 1))
                 provider_calls.append(self._failed_call(call_id, criterion.criterion_id, "SEARCH", exc, _now(), slot))
                 warnings.append({"code": exc.code, "message": f"{criterion.criterion_id}: {exc}"})
                 failures[criterion.criterion_id] = {
@@ -552,7 +565,7 @@ class WebGovernor:
             next_action = "RETRY_PROVIDER" if blocked_required else "REFINE_WEB_NEED"
 
         if spec.classification_enabled and evidence:
-            calls, classify_warnings = self._classify_all(spec, evidence)
+            calls, classify_warnings = self._classify_all(spec, evidence, web_need_id)
             provider_calls.extend(calls)
             warnings.extend(classify_warnings)
         response = self._response(
@@ -593,7 +606,7 @@ class WebGovernor:
     # --- classification -----------------------------------------------------------------------------------------
 
     def _classify_all(
-        self, spec: WebNeedSpec, evidence: list[dict[str, Any]]
+        self, spec: WebNeedSpec, evidence: list[dict[str, Any]], web_need_id: str = ""
     ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
         slot = self._resolve_slot(self.settings.classifier_slot)
         check_slot = self._resolve_slot(self.settings.classifier_check_slot) \
@@ -633,14 +646,12 @@ class WebGovernor:
                             "Answer again with a JSON object that follows the schema and the rules.")
             return None, error, calls
 
-        def one(item: dict[str, Any]) -> list[dict[str, Any]]:
+        def one(item: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
             if not item.get("excerpt"):
-                item["classification"] = {"status": "UNCLASSIFIED", "reason": "NO_QUOTE"}
-                return []
+                return [], {"status": "UNCLASSIFIED", "reason": "NO_QUOTE"}
             result, error, calls = ask(item, slot)
             if result is None:
-                item["classification"] = {"status": "UNCLASSIFIED", "reason": error, "model": slot.model}
-                return calls
+                return calls, {"status": "UNCLASSIFIED", "reason": error, "model": slot.model}
             certainty = rubric.certainty(item["source_tier"], item.get("source_verified", True), result["attribution"])
             capped = rubric.apply_caps(result, certainty)
             classification = {
@@ -662,12 +673,30 @@ class WebGovernor:
                     )
                 else:
                     classification["check_model"] = check_slot.model
-            item["classification"] = classification
-            return calls
+            return calls, classification
 
-        with ThreadPoolExecutor(max_workers=self.settings.classifier_workers) as pool:
-            batches = list(pool.map(one, evidence))
-        calls = [call for batch in batches for call in batch]
+        started = time.monotonic()
+        pool = ThreadPoolExecutor(max_workers=self.settings.classifier_workers)
+        futures = {pool.submit(one, item): item for item in evidence}
+        done, pending = wait(futures, timeout=self.settings.classify_deadline_seconds)
+        # Do not wait for stuck calls: they end at the provider deadline on their own threads.
+        pool.shutdown(wait=False, cancel_futures=True)
+        calls = []
+        for future in done:
+            try:
+                item_calls, classification = future.result()
+            except Exception:  # an unexpected error in one item must not lose the others
+                futures[future]["classification"] = {"status": "UNCLASSIFIED", "reason": "INTERNAL_ERROR"}
+                continue
+            calls.extend(item_calls)
+            futures[future]["classification"] = classification
+        for future in pending:
+            futures[future]["classification"] = {"status": "UNCLASSIFIED", "reason": "DEADLINE"}
+        for item in evidence:
+            item.setdefault("classification", {"status": "UNCLASSIFIED", "reason": "DEADLINE"})
+        _progress("classification_done", web_need_id=web_need_id, items=len(evidence),
+                  classified=sum(item["classification"]["status"] == "CLASSIFIED" for item in evidence),
+                  deadline_hit=len(pending), seconds=round(time.monotonic() - started, 1))
         unclassified = [item for item in evidence if item["classification"]["status"] != "CLASSIFIED"]
         warnings = []
         if unclassified:
