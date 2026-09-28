@@ -102,8 +102,20 @@ The execution response contains:
 - one coverage row per criterion: `SATISFIED`, `PARTIAL`, `NOT_FOUND`, `CONTRADICTED`, or `BLOCKED`;
 - evidence records with stable `evidence_id` and `citation_id`, canonical URL, source tier, retrieval time, excerpt kind,
   and SHA-256;
-- provider call count and usage totals; and
+- provider call count, usage totals (`web_search_requests`, `tool_calls_observed`, tokens, cost), and
+  `execution.provider_calls`: per call its status (`SUCCEEDED`, `INCOMPLETE`, `FAILED`), the provider response status,
+  incomplete reason, output item types, annotation count and usage, without any response body;
+- `warnings`, among them `PROVIDER_OUTPUT_INCOMPLETE`, `CITATIONS_REJECTED_BY_POLICY`, `EXACT_URL_NOT_CITED`,
+  `EXACT_FETCH_NOT_OBSERVED`, `EVIDENCE_BUDGET_REACHED` and `RESPONSE_COMPACTED`; and
 - `next_action`: `SYNTHESIZE`, `REFINE_WEB_NEED`, `RETRY_PROVIDER`, or `REVIEW_FETCH`.
+
+Coverage never rests on text the service could not verify:
+
+- A provider response that is incomplete (for example `max_output_tokens`) or lacks the labelled ASSESSMENT and
+  SUMMARY lines gives the criterion `BLOCKED` with gap `PROVIDER_OUTPUT_INCOMPLETE`; a blocked required criterion
+  makes `next_action` `RETRY_PROVIDER`.
+- A supporting, contradicting or mixed summary without any recorded evidence is withheld (gap `NO_USABLE_CITATION`).
+- The model's `summary` is interpretation. Confirmed facts are the stored excerpts behind `evidence_ids`.
 
 ## Storage and idempotency
 
@@ -126,6 +138,12 @@ domain filters and result limits to `openrouter:web_search`, then enforces domai
 Document-type and source-tier preferences are reported as `BEST_EFFORT` when the provider cannot guarantee them.
 The default engine is Exa because it supports explicit result and domain constraints. The deprecated `web` plugin
 and `:online` model suffix are not used.
+
+`/v1/fetch` records evidence only from a citation of the requested URL. OpenRouter's `openrouter:web_fetch` tool
+currently returns no URL citations, so an exact fetch reports `EXACT_URL_NOT_CITED`, withholds the provider summary and
+returns `REVIEW_FETCH` (ERRORS_AND_SOLUTIONS W03). Known open limits from the 2026-09-28 live test: the output budget
+of 1800 tokens is too small for this model's reasoning in multi-search criteria (W02); `/v1/search` always requires two
+distinct domains (W06); citations carry no publication date and evidence has no per-item stance (W07).
 
 The adapter accepts both documented OpenRouter citation shapes and ignores unknown response fields. Provider errors
 are normalized without response bodies, headers, or credentials. HTTP 429 and 5xx responses use bounded retries.
