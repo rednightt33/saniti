@@ -156,6 +156,10 @@ class Settings:
     ai_enable_derived_frequency: bool = False
     # research findings v1: backend sample category and verdict, interpretation in research answers
     ai_enable_research_findings: bool = False
+    # Caller-chosen path: AgentRunRequest.analysis_path ANALYSIS or RESEARCH fixes the data-need mode of the request
+    # (enforced on submit_data_need_spec); null keeps the model's choice. Needs AI_ENABLE_DATANEED and
+    # AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION (otherwise inactive and a request that sets it is refused).
+    ai_enable_analysis_path: bool = False
     # IP2 solution 2: archive every finished run to market-audit-store through ai_audit.ingest_outbox (INSERT only,
     # AUDIT_OUTBOX_DATABASE_URL). With AI_AUDIT_STORE_REQUIRED false an archive failure is logged and never changes
     # the answer; true withholds the answer when the run cannot be handed to the outbox (regulated mode).
@@ -233,6 +237,7 @@ class Settings:
             ai_enable_point_in_time=_boolean(env, "AI_ENABLE_POINT_IN_TIME", False),
             ai_enable_derived_frequency=_boolean(env, "AI_ENABLE_DERIVED_FREQUENCY", False),
             ai_enable_research_findings=_boolean(env, "AI_ENABLE_RESEARCH_FINDINGS", False),
+            ai_enable_analysis_path=_boolean(env, "AI_ENABLE_ANALYSIS_PATH", False),
             ai_audit_store_enabled=_boolean(env, "AI_AUDIT_STORE_ENABLED", False),
             ai_audit_store_required=_boolean(env, "AI_AUDIT_STORE_REQUIRED", False),
             audit_outbox_database_url=_optional(env, "AUDIT_OUTBOX_DATABASE_URL"),

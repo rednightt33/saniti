@@ -22,7 +22,7 @@ from .research_plan import (CLASSIFIER_INSTRUCTIONS, CLASSIFIER_SCHEMA, Continua
                             current_research_guard, guard_research_submission, plan_digest)
 from .schemas import (
     FINAL_RESPONSE_SCHEMA, STATUS_BY_RESPONSE_TYPE, AgentRunRequest, AgentRunResponse, AnalysisSummary,
-    ExecutionMetadata, ExperimentSummary, FinalResponse, NumberProvenance, ReplyClassifierUsage,
+    AnalysisPathExecution, ExecutionMetadata, ExperimentSummary, FinalResponse, NumberProvenance, ReplyClassifierUsage,
     ResearchPlanExecution, ResearchSummary, RunError, final_response_schema,
 )
 from .provenance import (CONTEXT, SourceIndex, analysis_label, check_answer, numbers_in, parse_numbers,
@@ -828,6 +828,21 @@ REPLAN_NOTES = {
         "approved. Present a Research Plan again as RESEARCH_PLAN_CONFIRMATION, from the conversation, for a new "
         "approval. No data may be used in this turn."),
 }
+ANALYSIS_PATH_NOTE = (PLAN_NOTE_PREFIX + "the caller fixed this request to the ANALYSIS path. Answer it as an analysis: "
+                      "every data need uses mode ANALYSIS (a RESEARCH data need is refused) and no Research Plan is "
+                      "proposed. The results are descriptive statistics of the historical data: no hypothesis test, "
+                      "no significance test and no correction for the many filters or groups compared, so report "
+                      "them as what happened in this data, never as a verdict, a reliable pattern, a cause, a "
+                      "prediction or a trading signal, and say so in the answer. When the user leaves a parameter "
+                      "open (a window, a threshold, a benchmark), choose a reasonable value, state it in "
+                      "assumptions, and answer.")
+RESEARCH_PATH_NOTE = (PLAN_NOTE_PREFIX + "the caller fixed this request to the RESEARCH path. Treat the question as "
+                      "research: propose a Research Plan (RESEARCH_PLAN_CONFIRMATION) under the RESEARCH PLAN "
+                      "CONFIRMATION rules, or ask a CLARIFICATION when it cannot be planned; every data need uses "
+                      "mode RESEARCH (an ANALYSIS data need is refused).")
+ANALYSIS_PATH_LINE = ("Analysis path (fixed by the caller): descriptive historical statistics without a significance "
+                      "test or a correction for multiple comparisons; not a verdict, a cause, a prediction or a "
+                      "trading signal.")
 CANCEL_NOTE = (PLAN_NOTE_PREFIX + "the user cancelled the Research Plan. Nothing was run. Acknowledge it briefly in "
                "the user's language with response_type ANSWER and do not start any analysis.")
 UNRELATED_NOTE = (PLAN_NOTE_PREFIX + "Research Plan {plan_id} is waiting for the user's decision, and this message "
@@ -932,6 +947,9 @@ class RunState:
     audit_started_at: datetime | None = None
     execution_ids: list[str] = field(default_factory=list)
     research_attempted: bool = False
+    # AI_ENABLE_ANALYSIS_PATH: the data-need mode the caller fixed for this request, and the refusals it caused
+    forced_path: str | None = None
+    path_refusals: int = 0
     verified_plan: Any = None
     plan_unexecuted: bool = False
     methodology_provenance: dict[str, Any] | None = None
@@ -1044,6 +1062,11 @@ class AgentOrchestrator:
         # (AI_ENABLE_RESEARCH_FINDINGS and the sandbox capability, checked at startup) and plans are confirmed
         self.research_findings = submit is not None and self.plan_confirmation \
             and submit.arguments_model.__name__.endswith("Findings")
+        # caller-chosen path: a request may fix ANALYSIS or RESEARCH (both need the DataNeed flow and plan confirmation)
+        self.analysis_path = settings.ai_enable_analysis_path and submit is not None and self.plan_confirmation
+        if settings.ai_enable_analysis_path and not self.analysis_path:
+            log_event("analysis_path_inactive", reason="needs AI_ENABLE_DATANEED and "
+                                                       "AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION")
         self.system_prompt = build_system_prompt(settings.ai_enable_lookup_fact, self.dataneed,
                                                  self.plan_confirmation, period_return,
                                                  settings.ai_final_contract_in_prompt, self.catalog_protocol,
@@ -1094,6 +1117,7 @@ class AgentOrchestrator:
             instructions=self._instructions(),
         )
         state.audit_started_at = moment
+        state.forced_path = request.analysis_path if self.analysis_path else None
         for text in [turn.content for turn in request.history if turn.role == "user"] + [request.message]:
             state.context_numbers.extend(value for shown in parse_numbers(text) for value, _ in shown.candidates)
         token = current_request_id.set(request.request_id)
@@ -1109,6 +1133,9 @@ class AgentOrchestrator:
             current_research_guard.set(state.guard)
             final = self._loop(state)
             state.experiments = self._research_summary(state, final.answer)
+            if state.forced_path == "ANALYSIS" and final.response_type == "ANSWER" and state.final_status \
+                    and ANALYSIS_PATH_LINE not in final.limitations:
+                final = final.model_copy(update={"limitations": [*final.limitations, ANALYSIS_PATH_LINE]})
             if final.response_type == "RESEARCH_PLAN_CONFIRMATION" and self.signer is not None \
                     and final.research_plan is not None:
                 # The plan id, token and expiry come from the backend only; the model never produces them.
@@ -1209,6 +1236,21 @@ class AgentOrchestrator:
                   bundles=state.reuse["offered_bundles"], warm_sessions=state.reuse["warm_sessions"],
                   note_chars=len(note))
 
+    def _path_mismatch(self, state: RunState, call_id: str, name: str, raw_arguments: Any) -> ToolOutcome | None:
+        """AI_ENABLE_ANALYSIS_PATH: a data need in the other mode than the caller fixed is refused before it reaches
+        the sandbox (bounded like other repairs)."""
+        arguments = self._normalized_arguments(raw_arguments)
+        mode = arguments.get("mode") if isinstance(arguments, dict) else None
+        if mode is None or mode == state.forced_path:
+            return None
+        state.path_refusals += 1
+        log_event("analysis_path_mismatch", request_id=state.request_id, requested=state.forced_path, mode=mode)
+        return error_outcome(
+            call_id, name, "PATH_MISMATCH",
+            f"The caller fixed this request to the {state.forced_path} path; submit the data need with mode "
+            f"{state.forced_path}." + (" Answer it as a descriptive analysis; no Research Plan is used."
+                                       if state.forced_path == "ANALYSIS" else ""))
+
     def _one_open_session(self, state: RunState, call_id: str, name: str) -> ToolOutcome | None:
         """One open analysis session per run (S08): the sandbox has few session slots for every run together, and a run
         that opened a second session before completing its first held two of them. Before another open, an earlier
@@ -1290,6 +1332,20 @@ class AgentOrchestrator:
         """Decide what this request may do with research: propose a plan (no continuation), execute a verified
         approved plan, revise, re-plan after a failed verification, cancel, or ask again (unrelated reply). Sets the
         allowed final response types, the tool filter, the guard and an application note."""
+        if state.forced_path == "ANALYSIS":
+            # no plan step: a pending plan (SERVER mode) is left untouched and its reply is not read
+            if request.continuation is not None:
+                log_event("analysis_path_continuation_ignored", request_id=request.request_id,
+                          plan_id=request.continuation.plan_id)
+            names = frozenset(self.registry.names()) - {"check_data_feasibility"}
+            state.allowed_types, state.tool_filter = BASE_TYPES, names
+            state.guard = ResearchGuard(required=True)
+            state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": ANALYSIS_PATH_NOTE})
+            return
+        if state.forced_path == "RESEARCH" and request.continuation is None:
+            self._set_turn(state, "PROPOSE", PLAN_TYPES, self.plan_tools, ResearchGuard(required=True),
+                           note=RESEARCH_PATH_NOTE, verification="NOT_PRESENTED")
+            return
         if not self.plan_confirmation:
             if request.continuation is not None:
                 log_event("research_plan_continuation_ignored", request_id=request.request_id,
@@ -1502,7 +1558,9 @@ class AgentOrchestrator:
             allowed = ", ".join(sorted(state.allowed_types))
             reason = {"CANCEL": "the user cancelled the Research Plan", "UNRELATED": "a Research Plan awaits the "
                       "user's decision", "REVISE": "the user asked to revise the Research Plan", "REPLAN": "no "
-                      "Research Plan is approved"}.get(state.plan_turn or "", "this response type is not enabled")
+                      "Research Plan is approved"}.get(state.plan_turn or "", "the caller fixed the ANALYSIS path"
+                                                       if state.forced_path == "ANALYSIS"
+                                                       else "this response type is not enabled")
             raise TurnRuleError(f"response_type {final.response_type} is not allowed here ({reason}); use one of: "
                                 f"{allowed}.")
         return final
@@ -1598,6 +1656,10 @@ class AgentOrchestrator:
             return error_outcome(call_id, name, "TOOL_NOT_AVAILABLE_IN_THIS_TURN",
                                  f"{name} is not available while the Research Plan awaits the user's decision; only "
                                  f"{', '.join(sorted(state.tool_filter)) or 'no tools'} can be used now.")
+        if state.forced_path and name == "submit_data_need_spec":
+            refused = self._path_mismatch(state, call_id, name, raw_arguments)
+            if refused is not None:
+                return self._repair_budget(state, call_id, name, refused)
         if state.tool_calls >= self.settings.ai_max_tool_calls:
             self._withdraw_tools(state, "TOOL_CALL_BUDGET")
             return error_outcome(
@@ -2556,6 +2618,8 @@ class AgentOrchestrator:
             if state.experiments else None,
             analysis_final_status=state.final_status,
             research_plan=self._plan_execution(state),
+            analysis_path=AnalysisPathExecution(requested=state.forced_path, mismatches_refused=state.path_refusals)
+            if state.forced_path else None,
         )
 
     @staticmethod

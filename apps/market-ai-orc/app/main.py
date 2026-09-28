@@ -247,6 +247,15 @@ def create_app(
     @app.post("/v1/agent/run", response_model=AgentRunResponse, dependencies=[Depends(authorize)])
     def run_agent(payload: AgentRunRequest,
                   x_saniti_owner: str | None = Header(default=None)) -> AgentRunResponse | JSONResponse:
+        if payload.analysis_path is not None:
+            if not getattr(orchestrator, "analysis_path", False):
+                return refuse(ConversationError("ANALYSIS_PATH_UNAVAILABLE", "analysis_path needs "
+                                                "AI_ENABLE_ANALYSIS_PATH (with the DataNeed flow and Research Plan "
+                                                "confirmation); send it as null.", 400))
+            if payload.analysis_path == "ANALYSIS" and (payload.continuation is not None
+                                                        or payload.plan_reply is not None):
+                return refuse(ConversationError("ANALYSIS_PATH_CONFLICT", "analysis_path ANALYSIS cannot reply to a "
+                                                "Research Plan; send the reply without it.", 400))
         if payload.history_mode == "CLIENT":
             if payload.plan_reply is not None:
                 return refuse(ConversationError("PLAN_REPLY_NEEDS_SERVER_MODE", "plan_reply is for history_mode "
