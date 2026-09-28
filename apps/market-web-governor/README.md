@@ -34,9 +34,14 @@ All `/v1/*` endpoints require `Authorization: Bearer $WEB_GOVERNOR_API_KEY`.
 | `POST /v1/web-needs` | Validate and persist a v1 `WebNeedSpec`; return the planned criterion tasks. |
 | `POST /v1/web-needs/{web_need_id}/execute` | Execute the approved tasks and return structured evidence. |
 | `GET /v1/web-needs/{web_need_id}` | Read the plan or terminal execution response. |
-| `GET /v1/evidence/{evidence_id}` | Read one persisted evidence record. |
+| `GET /v1/evidence/{evidence_id}` | Read one persisted evidence record, with its full stored excerpt. |
+| `GET /v1/documents/{document_id}` | Read one document the governor fetched: metadata, hashes and extracted text. |
 | `POST /v1/search` | Fast path: create and execute a single-criterion web need. |
-| `POST /v1/fetch` | Fetch one exact public HTTPS URL through the provider adapter. |
+| `POST /v1/fetch` | The governor downloads one exact public HTTPS URL, a model reads it, and only verified quotes become evidence. |
+
+`POST /v1/web-needs` (inside `web_need`), `POST /v1/search` and `POST /v1/fetch` accept an optional `model_slot`
+(1–7). Without it the default slot is used. The slot and its model are recorded in the plan when the need is created,
+so a later configuration change does not alter an approved plan.
 
 ### WebNeedSpec example
 
@@ -102,8 +107,20 @@ The execution response contains:
 - one coverage row per criterion: `SATISFIED`, `PARTIAL`, `NOT_FOUND`, `CONTRADICTED`, or `BLOCKED`;
 - evidence records with stable `evidence_id` and `citation_id`, canonical URL, source tier, retrieval time, excerpt kind,
   and SHA-256;
-- provider call count and usage totals; and
+- provider call count, usage totals (`web_search_requests`, `tool_calls_observed`, tokens, cost), and
+  `execution.provider_calls`: per call its status (`SUCCEEDED`, `INCOMPLETE`, `FAILED`), the provider response status,
+  incomplete reason, output item types, annotation count and usage, without any response body;
+- `warnings`, among them `PROVIDER_OUTPUT_INCOMPLETE`, `CITATIONS_REJECTED_BY_POLICY`, `EXACT_URL_NOT_CITED`,
+  `EXACT_FETCH_NOT_OBSERVED`, `PROVIDER_SEARCH_LIMIT_EXCEEDED`, `EVIDENCE_BUDGET_REACHED` and `RESPONSE_COMPACTED`; and
 - `next_action`: `SYNTHESIZE`, `REFINE_WEB_NEED`, `RETRY_PROVIDER`, or `REVIEW_FETCH`.
+
+Coverage never rests on text the service could not verify:
+
+- A provider response that is incomplete (for example `max_output_tokens`) or lacks the labelled ASSESSMENT and
+  SUMMARY lines gives the criterion `BLOCKED` with gap `PROVIDER_OUTPUT_INCOMPLETE`; a blocked required criterion
+  makes `next_action` `RETRY_PROVIDER`.
+- A supporting, contradicting or mixed summary without any recorded evidence is withheld (gap `NO_USABLE_CITATION`).
+- The model's `summary` is interpretation. Confirmed facts are the stored excerpts behind `evidence_ids`.
 
 ## Storage and idempotency
 
@@ -116,16 +133,122 @@ root-owned mount. The evidence store survives container restarts and redeploys.
 terminal response. Reusing it with different content returns HTTP 409 `IDEMPOTENCY_CONFLICT`. Evidence is persisted
 before a terminal response is returned.
 
-The model-facing response is bounded independently of provider context. Excerpts are shortened before persistence
-when required to meet the requested response budget, so the stored excerpt always matches what the caller received.
+The response is bounded independently of provider context. When it must be compacted, only the response copy of an
+excerpt is shortened; the stored evidence keeps the full excerpt.
 
 ## Provider behavior
 
-The OpenRouter adapter uses one provider request and at most one server-side search per criterion. It passes hard
+The OpenRouter adapter uses one provider request per criterion and asks for at most one server-side search
+(`max_uses: 1`). The provider does not always honour that: the 2026-09-28 live test saw 2 to 4 searches per request.
+The governor then warns `PROVIDER_SEARCH_LIMIT_EXCEEDED` with the reported count (ERRORS_AND_SOLUTIONS W08); the
+request count, result count per search and evidence count stay bounded by the service. It passes hard
 domain filters and result limits to `openrouter:web_search`, then enforces domain policy again on returned citations.
 Document-type and source-tier preferences are reported as `BEST_EFFORT` when the provider cannot guarantee them.
 The default engine is Exa because it supports explicit result and domain constraints. The deprecated `web` plugin
 and `:online` model suffix are not used.
+
+## Exact-URL fetch
+
+`/v1/fetch` no longer relies on a provider fetch tool (it returned no citations, ERRORS_AND_SOLUTIONS W03):
+
+1. The governor downloads the URL itself: HTTPS only; every DNS answer, including after each redirect, must be a
+   public address; at most `WEB_FETCH_MAX_REDIRECTS` redirects and `WEB_FETCH_MAX_BYTES` bytes; HTML, PDF (first
+   `WEB_FETCH_MAX_PDF_PAGES` pages, via `pypdf`) and plain text.
+2. The extracted text (up to `WEB_FETCH_MAX_CHARACTERS`) is stored with the SHA-256 of the downloaded bytes and of
+   the text, the final URL, HTTP status and media type (`GET /v1/documents/{document_id}`).
+3. The model receives the first `WEB_FETCH_MODEL_CHARACTERS` characters with no web tool and returns ASSESSMENT,
+   SUMMARY and QUOTE lines.
+4. A quote becomes evidence (`excerpt_kind` `VERIFIED_QUOTE`, with `document_id`, `quote_start`, `quote_end`) only if
+   it appears verbatim in the stored text (whitespace- and typography-insensitive). Others are discarded with
+   `QUOTE_NOT_IN_SOURCE`.
+
+Other outcomes: `SOURCE_HTTP_ERROR`, `SOURCE_TIMEOUT`, `SOURCE_TOO_LARGE`, `PRIVATE_ADDRESS_BLOCKED`,
+`UNSUPPORTED_CONTENT_TYPE`, `PDF_UNREADABLE`, `DYNAMIC_PAGE_OR_EMPTY` (no model call), `REDIRECTED_TO_OTHER_DOMAIN`,
+`DOCUMENT_TRUNCATED` and `DOCUMENT_TRUNCATED_FOR_MODEL`. A script-rendered page is not executed.
+
+## Pre-event (precursor) analysis
+
+`web_need.analysis_mode = "EVENT_PRECURSOR"` looks for signals **published before** an anchor event:
+
+- `anchor_event`: `description`, `event_date` (T0), optional `tickers`; `lookback_months` (default 12).
+- The window is T0 − lookback to T0 − 1 day.
+- Without criteria, a general template is used; it names no company, sector or deal type beyond the anchor
+  description:
+  - `direct_reports`
+  - `party_intentions`
+  - `capital_and_governance`
+  - `existing_ties`
+  - `filings_and_regulators`
+  - `counter_indications`
+- The template needs `budget.max_searches >= 6` (`PRECURSOR_BUDGET_TOO_LOW`).
+- **Dates.** Every evidence item gets `published_at`, `published_precision` and `published_at_source`. The date is
+  read, in order of preference, from provider metadata, page metadata, the URL, or a dateline in the text.
+- **Timing.** Each item gets a `temporal_status`:
+  - `PRE_EVENT` only when the whole publication period ends before T0, with `lead_time_days`;
+  - `POST_EVENT_RETROSPECTIVE`: published on or after T0;
+  - `UNDATED`.
+- **Timeline.** The response carries a deterministic `timeline`:
+  - `pre_event` sorted by date;
+  - `earliest_direct_signal`, `earliest_indirect_signal`;
+  - `counter_indications`, `retrospective_leads`, `undated`;
+  - a note that an indirect signal does not show predictability.
+
+## Importance classification
+
+When `web_need.classify` is true (the default for `EVENT_PRECURSOR`), every evidence item is classified by the
+classifier slot (`WEB_CLASSIFIER_SLOT`) with a strict JSON-schema structured output.
+
+- **Source of truth:** the rubric (`app/rubric.py`, `idx-event-rubric-v1`). It is general: five questions (control,
+  scale, permanence, attribution, novelty), rule IDs per level 1–5, a dictionary of event types, attributions,
+  novelty, scope, relation to the anchor and materiality metrics, and synthetic calibration examples. Market
+  thresholds are parameters (`WEB_RUBRIC_MATERIAL_PCT`, `WEB_RUBRIC_CRITICAL_PCT`).
+- **Server validation** rejects an answer that:
+  - does not match the schema;
+  - has a level that differs from its rule;
+  - has a materiality figure absent from the quote;
+  - applies a scale rule without a stated figure;
+  - has inconsistent date or anchor fields.
+
+  After one retry the item is `UNCLASSIFIED`, never guessed.
+- **Decided by code, not the model:**
+  - `certainty`: `OFFICIAL` for a primary source; `REPORTED` for attributed media; `RUMOUR`; `UNVERIFIED` for a
+    blocklisted or copied source;
+  - the cap for rumours and unverified sources: level at most 4, confidence at most `MEDIUM`.
+- **Second check:** items at level 4–5 are re-classified by `WEB_CLASSIFIER_CHECK_SLOT`; a different level sets
+  `review_status = NEEDS_REVIEW`.
+- `impact_direction` is not produced.
+
+## Source policy defaults
+
+- **Official:** `idx.co.id`, `ojk.go.id`, `bi.go.id`, `bps.go.id`, `ksei.co.id`, `kppu.go.id`, `sec.gov`, every
+  `*.go.id` and `*.gov`, and the request's `primary_domains`.
+- **Trusted media:** a built-in Indonesian and international list (`app/sources.py`), plus `WEB_TRUSTED_MEDIA_EXTRA`
+  and the request's `trusted_secondary_domains`.
+- **Blocklist** (`WEB_SOURCE_BLOCKLIST`): blocklisted sources are **kept**. They are marked `source_verified = false`
+  with the note "Sumber ini belum diverifikasi", and do not count towards coverage.
+- **Copies:** an excerpt that repeats another domain's text word for word is marked the same way, with `copy_of`.
+
+## Event store (Postgres-E8GM)
+
+With `WEB_EVENT_STORE_URL` set, every completed search, web need or fetch writes one row per evidence item to
+`web_event_item` in the separate research database Postgres-E8GM (`event_store/001_web_event_item.sql`).
+
+- **Access:** the governor's role `web_event_writer` can only INSERT (`ON CONFLICT DO NOTHING` without a conflict
+  target, so no SELECT is needed); `web_event_reader` can only SELECT. The market-data PostgreSQL is not reachable
+  from this service.
+- **Content:** rows carry the card fields, dates and anchor timing, source tier and verification, the quote and its
+  hash, the classification and the review status.
+- **Failure:** a failed write keeps the response and adds `EVENT_STORE_WRITE_FAILED`.
+
+## Evidence budget
+
+The evidence budget is shared across criteria in turn, so an early criterion cannot use all of it; a citation already
+kept for another criterion is linked again without using budget. When the response must be compacted, excerpts are
+shortened only in the response (`TRUNCATED_IN_RESPONSE`, `NOT_INCLUDED_IN_RESPONSE`); the store keeps the full
+excerpt. `RESPONSE_BUDGET_EXCEEDED` reports a response that stays above its budget even without excerpts.
+
+Known open limits from the 2026-09-28 live test: `/v1/search` always requires two
+distinct domains (W06); citations carry no publication date and evidence has no per-item stance (W07).
 
 The adapter accepts both documented OpenRouter citation shapes and ignores unknown response fields. Provider errors
 are normalized without response bodies, headers, or credentials. HTTP 429 and 5xx responses use bounded retries.
@@ -142,17 +265,32 @@ Configured on Railway:
 - `PORT=8080`
 - `WEB_PROVIDER=openrouter`
 - `WEB_GOVERNOR_STORE_PATH=/data/web-governor.sqlite3`
-- `WEB_OPENROUTER_MODEL=deepseek/deepseek-v4.1-flash`
+- `WEB_OPENROUTER_MODEL=deepseek/deepseek-v4.1-flash` (model slot 1 unless `WEB_SLOT_1_MODEL` is set)
 - `WEB_OPENROUTER_ENGINE=exa`
-- `WEB_OPENROUTER_TIMEOUT_SECONDS=40`
+- `WEB_OPENROUTER_TIMEOUT_SECONDS=90` (an 8,000-token answer needs more than 40 s)
+- `WEB_OPENROUTER_MAX_OUTPUT_TOKENS=8000` (includes reasoning tokens; default for every slot)
 - `WEB_MAX_CRITERIA=6`
 - `WEB_MAX_SEARCHES=6`
-- `WEB_MAX_RESULTS_PER_SEARCH=5`
-- `WEB_MAX_EVIDENCE_ITEMS=20`
-- `WEB_MAX_OUTPUT_CHARACTERS=32000`
-- `WEB_MAX_EXCERPT_CHARACTERS=2500`
-- `WEB_RETENTION_HOURS=168`
+- `WEB_MAX_RESULTS_PER_SEARCH=30`
+- `WEB_MAX_EVIDENCE_ITEMS=40`
+- `WEB_MAX_OUTPUT_CHARACTERS=64000`
+- `WEB_MAX_EXCERPT_CHARACTERS=5000`
+- `WEB_RETENTION_HOURS=720` (30 days)
 - `WEB_CLEANUP_INTERVAL_SECONDS=3600`
+
+Model slots (1–7): `WEB_SLOT_<n>_MODEL`, `_LABEL`, `_ENABLED` (default true when a model is set),
+`_MAX_OUTPUT_TOKENS` (256–8000, default `WEB_OPENROUTER_MAX_OUTPUT_TOKENS`), `_REASONING_EFFORT`
+(`minimal`, `low`, `medium`, `high`; unset sends no reasoning parameter) and `_ENGINE`; `WEB_DEFAULT_SLOT=1`. Every slot
+uses OpenRouter's default provider routing. On dev: slot 1 `deepseek/deepseek-v4.1-flash`, slot 2 `xiaomi/mimo-v2.5`,
+slot 3 `z-ai/glm-5.3-flashx`; slots 4–7 are empty.
+
+Classification and event store: `WEB_CLASSIFIER_SLOT` (dev: 2, MiMo), `WEB_CLASSIFIER_CHECK_SLOT` (dev: 1; 0 disables),
+`WEB_CLASSIFIER_WORKERS=4`, `WEB_RUBRIC_MATERIAL_PCT=20`, `WEB_RUBRIC_CRITICAL_PCT=50` (to be confirmed against the
+current OJK rules), `WEB_EVENT_STORE_URL` (secret; writer role only), `WEB_SOURCE_BLOCKLIST`, `WEB_TRUSTED_MEDIA_EXTRA`.
+
+Fetch limits (defaults): `WEB_FETCH_TIMEOUT_SECONDS=20`, `WEB_FETCH_MAX_BYTES=5000000`, `WEB_FETCH_MAX_REDIRECTS=3`,
+`WEB_FETCH_MAX_PDF_PAGES=60`, `WEB_FETCH_MAX_CHARACTERS=200000`, `WEB_FETCH_MODEL_CHARACTERS=60000`,
+`WEB_FETCH_MAX_QUOTES=8`.
 
 No request can raise the service's configured hard limits.
 

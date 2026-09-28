@@ -88,8 +88,38 @@ class SqliteStore:
                     PRIMARY KEY(web_need_id, criterion_id, evidence_id)
                 );
                 CREATE INDEX IF NOT EXISTS evidence_need_idx ON evidence(web_need_id, retrieved_at);
+                CREATE TABLE IF NOT EXISTS fetched_document (
+                    document_id TEXT PRIMARY KEY,
+                    web_need_id TEXT NOT NULL REFERENCES web_need(web_need_id) ON DELETE CASCADE,
+                    requested_url TEXT NOT NULL,
+                    final_url TEXT NOT NULL,
+                    http_status INTEGER NOT NULL,
+                    media_type TEXT NOT NULL,
+                    content_type TEXT NOT NULL,
+                    byte_length INTEGER NOT NULL,
+                    raw_sha256 TEXT NOT NULL,
+                    text_sha256 TEXT NOT NULL,
+                    text TEXT NOT NULL,
+                    truncated INTEGER NOT NULL,
+                    page_count INTEGER,
+                    pages_read INTEGER,
+                    title TEXT NOT NULL,
+                    redirects_json TEXT NOT NULL,
+                    retrieved_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS fetched_document_need_idx ON fetched_document(web_need_id);
                 """
             )
+            # Columns added after the first release; ALTER keeps existing evidence rows.
+            existing = {row["name"] for row in connection.execute("PRAGMA table_info(evidence)")}
+            for column, kind in (
+                ("document_id", "TEXT"), ("quote_start", "INTEGER"), ("quote_end", "INTEGER"),
+                ("published_precision", "TEXT"), ("published_at_source", "TEXT"), ("temporal_status", "TEXT"),
+                ("lead_time_days", "INTEGER"), ("source_verified", "INTEGER"), ("source_note", "TEXT"),
+                ("copy_of", "TEXT"), ("classification_json", "TEXT"),
+            ):
+                if column not in existing:
+                    connection.execute(f"ALTER TABLE evidence ADD COLUMN {column} {kind}")
 
     def ping(self) -> None:
         try:
@@ -170,10 +200,27 @@ class SqliteStore:
         criterion_links: list[tuple[str, str]],
         updated_at: str,
         error_code: str | None = None,
+        documents: list[dict[str, Any]] | None = None,
     ) -> None:
         try:
             with self._connect() as connection:
                 connection.execute("BEGIN IMMEDIATE")
+                for document in documents or []:
+                    connection.execute(
+                        """INSERT OR IGNORE INTO fetched_document
+                           (document_id, web_need_id, requested_url, final_url, http_status, media_type, content_type,
+                            byte_length, raw_sha256, text_sha256, text, truncated, page_count, pages_read, title,
+                            redirects_json, retrieved_at)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (
+                            document["document_id"], web_need_id, document["requested_url"], document["final_url"],
+                            document["http_status"], document["media_type"], document["content_type"],
+                            document["byte_length"], document["raw_sha256"], document["text_sha256"], document["text"],
+                            int(bool(document["truncated"])), document.get("page_count"), document.get("pages_read"),
+                            document.get("title") or "", json.dumps(document.get("redirects") or []),
+                            document["retrieved_at"],
+                        ),
+                    )
                 for call in provider_calls:
                     connection.execute(
                         """INSERT OR REPLACE INTO provider_call
@@ -193,13 +240,21 @@ class SqliteStore:
                     connection.execute(
                         """INSERT OR IGNORE INTO evidence
                            (evidence_id, citation_id, web_need_id, provider_call_id, canonical_url, title, domain,
-                            published_at, retrieved_at, source_tier, content_type, excerpt, excerpt_kind, content_sha256)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                            published_at, retrieved_at, source_tier, content_type, excerpt, excerpt_kind, content_sha256,
+                            document_id, quote_start, quote_end, published_precision, published_at_source,
+                            temporal_status, lead_time_days, source_verified, source_note, copy_of,
+                            classification_json)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                         (
                             item["evidence_id"], item["citation_id"], web_need_id, item["provider_call_id"],
                             item["canonical_url"], item["title"], item["domain"], item.get("published_at"),
                             item["retrieved_at"], item["source_tier"], item["content_type"], item.get("excerpt"),
-                            item["excerpt_kind"], item["content_sha256"],
+                            item["excerpt_kind"], item["content_sha256"], item.get("document_id"),
+                            item.get("quote_start"), item.get("quote_end"), item.get("published_precision"),
+                            item.get("published_at_source"), item.get("temporal_status"), item.get("lead_time_days"),
+                            None if item.get("source_verified") is None else int(bool(item["source_verified"])),
+                            item.get("source_note"), item.get("copy_of"),
+                            json.dumps(item["classification"]) if item.get("classification") else None,
                         ),
                     )
                 for criterion_id, evidence_id in criterion_links:
@@ -220,9 +275,31 @@ class SqliteStore:
         try:
             with self._connect() as connection:
                 row = connection.execute("SELECT * FROM evidence WHERE evidence_id = ?", (evidence_id,)).fetchone()
-            return dict(row) if row else None
+            if not row:
+                return None
+            result = dict(row)
+            raw = result.pop("classification_json", None)
+            result["classification"] = json.loads(raw) if raw else None
+            if result.get("source_verified") is not None:
+                result["source_verified"] = bool(result["source_verified"])
+            return result
         except sqlite3.Error as exc:
             raise StoreUnavailable("could not read evidence") from exc
+
+    def get_document(self, document_id: str) -> dict[str, Any] | None:
+        try:
+            with self._connect() as connection:
+                row = connection.execute(
+                    "SELECT * FROM fetched_document WHERE document_id = ?", (document_id,)
+                ).fetchone()
+        except sqlite3.Error as exc:
+            raise StoreUnavailable("could not read document") from exc
+        if not row:
+            return None
+        result = dict(row)
+        result["truncated"] = bool(result["truncated"])
+        result["redirects"] = json.loads(result.pop("redirects_json"))
+        return result
 
     def cleanup(self, retention_hours: int) -> int:
         cutoff = (datetime.now(UTC) - timedelta(hours=retention_hours)).isoformat()

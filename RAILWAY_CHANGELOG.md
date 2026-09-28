@@ -1,5 +1,87 @@
 # Railway changelog
 
+## 2026-09-28 — market-web-governor: evidence retention 30 days (user-approved)
+
+- `WEB_RETENTION_HOURS` 168 → 720 on market-web-governor only; redeploy `f60ae1a1-365d-4c11-9dcd-4cd57cd9ce46` `SUCCESS`
+  (rollback reference `e1d0d071`). Stored web needs, evidence and documents now expire 30 days after creation; the
+  ULTJ research of 2026-09-28 is kept until about 2026-10-28.
+
+## 2026-09-28 — market-web-governor: governor-side fetch, 7 model slots, shared evidence budget (PR #8)
+
+- **Code** `dfdc89e` (PR #8, user-approved proposals A, B, C; 25 tests): governor-side fetch with verified quotes
+  (`GET /v1/documents/{id}`), seven model slots with `model_slot` on requests, evidence budget shared across criteria,
+  full excerpts kept in storage, results per search up to 30 and output tokens up to 8000. Deployment
+  `33f7c937-5847-4515-9c91-01604d5aec43` `SUCCESS` (rollback reference `4fd9d7b4`).
+- **Variables** (market-web-governor only; approved): `WEB_MAX_RESULTS_PER_SEARCH` 30, `WEB_MAX_EVIDENCE_ITEMS` 40,
+  `WEB_MAX_OUTPUT_CHARACTERS` 64000, `WEB_OPENROUTER_MAX_OUTPUT_TOKENS` 8000, `WEB_OPENROUTER_TIMEOUT_SECONDS` 90 (an
+  8,000-token answer needs more than 40 s), `WEB_DEFAULT_SLOT` 1, `WEB_SLOT_1_LABEL`, `WEB_SLOT_2_MODEL`
+  `xiaomi/mimo-v2.5`, `WEB_SLOT_2_LABEL`, `WEB_SLOT_3_MODEL` `z-ai/glm-5.3-flashx`, `WEB_SLOT_3_LABEL`. Set after the
+  code deploy because the old code refused them; redeploy `e1d0d071-3e33-4802-aedd-8b7b4f783f33` `SUCCESS` (volume
+  mounted, `GET /ready` 200). `railway config pull --force` / `railway config plan`: up to date.
+- **Live ULTJ / Frisian Flag research** (runner `b322aa45`, `live-ultj-20260928-*`, slots 1–3 in parallel): DeepSeek 4 of
+  5 criteria (36 evidence), GLM 3 of 5 (26 evidence); MiMo and the remaining criteria failed with HTTP 402 because the
+  OpenRouter account ran out of credit (W11). Governor fetch downloaded and stored `bi.go.id` (143 KB, HTTP 200) on
+  every slot, but the model read was refused by the same 402; the FrieslandCampina page is script-rendered and was
+  reported `DYNAMIC_PAGE_OR_EMPTY` without a model call. Cost of the run about USD 0.07.
+- **Blocking:** the OpenRouter credit also serves market-ai-orc; top-up needed before further live use.
+
+## 2026-09-28 — market-web-governor: deeper retrieval and a larger output budget (user-approved)
+
+- **Variables** (market-web-governor only, set with the API; model and provider unchanged,
+  `deepseek/deepseek-v4.1-flash` through OpenRouter/Exa): `WEB_OPENROUTER_MAX_OUTPUT_TOKENS` 1800 → 4000,
+  `WEB_MAX_RESULTS_PER_SEARCH` 5 → 10, `WEB_MAX_EXCERPT_CHARACTERS` 2500 → 5000. Rollback reference
+  `254e5f0b-e3d8-48d6-8e65-9e4d162ad2a7`; redeploy `23d0a4f6-5c78-48f1-8707-baf8a94aacba` `SUCCESS` (volume mounted,
+  `GET /ready` 200).
+- **Live T6** (`live-smoke-20260928-r5-t6-bbca-webneed`, 10 results per search, runner `webneed` phase): 5 of 5
+  provider calls completed (W02 fixed; output 3,318–4,033 tokens, so the margin is thin); 17 web searches; USD 0.068
+  (was 0.054). New limit W09: the 20-item evidence budget was used by the first two criteria and the 32,000-character
+  response cap emptied every excerpt, so criteria 4 and 5 have no evidence. Not changed; proposed to the user.
+- **Runner:** `webneed` phase; Test 8 now probes limits above the new maxima.
+
+## 2026-09-28 — market-web-governor live end-to-end test on dev; three fixes (AI-Orc unchanged)
+
+- **Scope:** live test of `market-web-governor` (`1c43a00e-9deb-4b17-84f0-acfa35142ac6`) through OpenRouter/Exa.
+  AI-Orc, SQL Governor, Python sandbox, PostgreSQL, buckets and every other service were not changed by this task;
+  the Web Governor has no public domain and no database credentials. Request IDs: `live-smoke-20260928-*`,
+  `-r2-*`, `-r3-*`, `-r4-*`.
+- **Execution path:** the agent container cannot reach Railway SSH (R16). With the user's approval a kept private runner
+  `web-governor-test-runner` (`8409cd61-66d1-48eb-8db7-97e607bbc6b3`) was created: restart `NEVER`, no domain, one
+  reference variable `WEB_GOVERNOR_API_KEY` (value not recorded), code in `apps/web-governor-test-runner`, deployed with
+  `railway up`. Runs: `414fc509` (round 1), `f807533e` (persistence), `47ce02f3` (round 2), `dca2fafa`, `a528d2c2`
+  (smoke).
+- **Preconditions (read-only):** source `rednightt33/saniti` `main`, root `/apps/market-web-governor`; volume
+  `market-web-governor-data` (`c02e7a3c-6330-4f92-a3ca-0990af002b5a`) mounted at `/data`;
+  `WEB_GOVERNOR_STORE_PATH=/data/web-governor.sqlite3`; `RAILWAY_RUN_UID=0`; no service or custom domain; deployment
+  `73dd34f3-45b2-42df-ae7b-b519b096d4df` `SUCCESS` (rollback reference). 8 unit tests passed.
+- **Round 1 (deployment `73dd34f3`):** authentication (401 without or with a wrong key, 200 with the key),
+  readiness, capabilities, idempotency (identical replay byte-identical without a provider call; changed content 409
+  `IDEMPOTENCY_CONFLICT`) and budgets (every over-limit request 422 with its code, nothing stored) passed. Defects:
+  truncated provider output reported as `NOT_FOUND` / `CONTRADICTED` (W01), exact fetch without evidence and with an
+  uncited summary (W03), `web_search_requests` always 0 (W04), search/fetch without request-ID log lines (W05).
+- **Persistence:** plain redeploy of this service only, `73dd34f3` → `79b86178-659d-4e65-90c6-5e7e4a5a53cf`
+  `SUCCESS`; web need `wn_52846614753a479e85e34e6d5e16e45b` and evidence `ev_65b28ef5d9cc4d69ac5c82e0e56b4011`
+  read back byte-identical (response SHA-256 match; evidence `content_sha256` `ad890795…`). They matched again after
+  the fix deployment.
+- **Fixes:** PR #3 (`8a6c301`, W01/W03/W05, per-call diagnostics), PR #4 (`733a373`, W04, records), PR #5
+  (`31db707`, W08 search-overrun warning, R17 corrected). Tests 8 → 16. Web Governor deployments: `a5db8024` (from
+  #3; a manual deploy of the same commit, `9efabd95`, was redundant, R17), `a8de41ba` (#4), final
+  `254e5f0b-e3d8-48d6-8e65-9e4d162ad2a7` `SUCCESS` (#5); each log shows the volume mount and `GET /ready` 200. For
+  every merge, market-ai-orc, market-sql-governor and market-python-sandbox deployments were `SKIPPED` (no watched
+  change).
+- **Round 2 (deployment `9efabd95`, commit `8a6c301`):** the diagnostics confirmed W01 (`incomplete_reason`
+  `max_output_tokens`, about 2,000 reasoning tokens against `WEB_OPENROUTER_MAX_OUTPUT_TOKENS=1800`): 4 of 5 T6
+  criteria are now `BLOCKED` with `RETRY_PROVIDER` instead of misreported. W03 confirmed: `openrouter:web_fetch` ran but
+  returned no citation, so the fetch reports `EXACT_URL_NOT_CITED` and withholds the summary. Smoke runs confirmed W04
+  (`web_search_requests` 2) and W08 (the warning fires).
+- **Open (not changed, need a decision):** W02 output budget (a provider configuration change), W03 fetch evidence,
+  W06 fast-search two-domain rule, W07 publication dates and per-item stance. Provider cost of all live calls about
+  USD 0.16.
+- **Logs:** no key, bearer header, provider secret, stack trace or provider body in the Web Governor or runner logs.
+- **Config:** `railway config pull --force` added `web-governor-test-runner` and recorded two variables already live on
+  market-ai-orc and market-python-sandbox (`preserve()`). `railway config plan` (not applied) lists one deletion,
+  `ip2-truth-job`, a service created at 14:36 UTC outside this task; it was left alone. Deployments of market-ai-orc
+  (`9d8e9182`, 14:26) and market-python-sandbox (`e7d4ce58`, 14:22) in the same window came from that other work,
+  not from this task.
 ## 2026-09-28 — IP2 solution 1 on dev: derived weekly/monthly (branch deploy, Audit Store off)
 
 - **Approval:** the user chose "Deploy IP2 ke dev dulu" on 2026-09-28: deploy the IP2 sandbox and orc from branch

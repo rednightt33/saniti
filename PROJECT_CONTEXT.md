@@ -11,6 +11,7 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - Environment: `dev`
 - Environment ID: `4d3e5af2-302b-4a2e-84e2-7d7476d6ff49`
 - PostgreSQL service ID: `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`
+- Web research PostgreSQL (separate from market data): `Postgres-E8GM`, service `4b193143-be17-456b-bc00-c1760ef5db82`, volume `postgres-volume-Oz3T` (`c02c7422-019d-448e-a4fc-561bcad4a3f0`). It holds `web_event_item` only; market-web-governor writes with the INSERT-only role `web_event_writer`, readers use `web_event_reader`. The market-data PostgreSQL service is named `Postgres` (restored 2026-09-28 after a rename to `Web_Fetch`).
 - Market AI backend service ID (deactivated 2026-09-25, service deleted 2026-09-26): `2cefa0cd-c9fc-4b84-992e-fdf08535a064`
 - Statistical validation worker service (deactivated 2026-09-25, service deleted 2026-09-26): `market-analytics-worker`
 - Statistical validation worker service ID: `75fc5bbc-2ff9-4850-b007-011735506ce6`
@@ -43,6 +44,7 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - Market Web Governor service ID: `1c43a00e-9deb-4b17-84f0-acfa35142ac6` (private: `market-web-governor.railway.internal:8080`)
 - Its v1 contract plans and executes `WebNeedSpec` criteria, stores provider calls/evidence/citation lineage in service-local SQLite, and starts with the OpenRouter adapter. It has no PostgreSQL credentials or market-table access.
 - Market Web Governor volume: `market-web-governor-data` (`c02e7a3c-6330-4f92-a3ca-0990af002b5a`, mounted at `/data`; durable SQLite web needs, provider calls, evidence, citations, and lineage). `RAILWAY_RUN_UID=0` is scoped to this service because Railway mounts volumes as root.
+- Web Governor live-test runner: `web-governor-test-runner` (`8409cd61-66d1-48eb-8db7-97e607bbc6b3`), kept for reuse; restart `NEVER`, no domain, one reference variable `WEB_GOVERNOR_API_KEY`, no database or bucket credentials. Code in `apps/web-governor-test-runner` (not GitHub-connected; deploy with `railway up apps/web-governor-test-runner --path-as-root --service web-governor-test-runner`). It exists because the agent container cannot reach Railway SSH (ERRORS_AND_SOLUTIONS R16).
 - Dashboard: <https://railway.com/project/8aef1702-030b-49cb-9df7-5ac2e0a42691?environmentId=4d3e5af2-302b-4a2e-84e2-7d7476d6ff49>
 - GitHub: <https://github.com/rednightt33/saniti>
 

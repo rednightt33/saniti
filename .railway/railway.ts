@@ -33,7 +33,28 @@ export default defineRailway(() => {
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "ALWAYS" },
     volumeMounts: { "/data": marketWebGovernorData },
-    env: { OPENROUTER_API_KEY: preserve(), PORT: preserve(), RAILWAY_RUN_UID: preserve(), WEB_CLEANUP_INTERVAL_SECONDS: preserve(), WEB_GOVERNOR_API_KEY: preserve(), WEB_GOVERNOR_STORE_PATH: preserve(), WEB_MAX_CRITERIA: preserve(), WEB_MAX_EVIDENCE_ITEMS: preserve(), WEB_MAX_EXCERPT_CHARACTERS: preserve(), WEB_MAX_OUTPUT_CHARACTERS: preserve(), WEB_MAX_RESULTS_PER_SEARCH: preserve(), WEB_MAX_SEARCHES: preserve(), WEB_OPENROUTER_ENGINE: preserve(), WEB_OPENROUTER_MAX_OUTPUT_TOKENS: preserve(), WEB_OPENROUTER_MAX_RETRIES: preserve(), WEB_OPENROUTER_MODEL: preserve(), WEB_OPENROUTER_TIMEOUT_SECONDS: preserve(), WEB_PROVIDER: preserve(), WEB_RETENTION_HOURS: preserve() },
+    env: { OPENROUTER_API_KEY: preserve(), PORT: preserve(), RAILWAY_RUN_UID: preserve(), WEB_CLEANUP_INTERVAL_SECONDS: preserve(), WEB_DEFAULT_SLOT: preserve(), WEB_GOVERNOR_API_KEY: preserve(), WEB_GOVERNOR_STORE_PATH: preserve(), WEB_MAX_CRITERIA: preserve(), WEB_MAX_EVIDENCE_ITEMS: preserve(), WEB_MAX_EXCERPT_CHARACTERS: preserve(), WEB_MAX_OUTPUT_CHARACTERS: preserve(), WEB_MAX_RESULTS_PER_SEARCH: preserve(), WEB_MAX_SEARCHES: preserve(), WEB_OPENROUTER_ENGINE: preserve(), WEB_OPENROUTER_MAX_OUTPUT_TOKENS: preserve(), WEB_OPENROUTER_MAX_RETRIES: preserve(), WEB_OPENROUTER_MODEL: preserve(), WEB_OPENROUTER_TIMEOUT_SECONDS: preserve(), WEB_PROVIDER: preserve(), WEB_RETENTION_HOURS: preserve(), WEB_SLOT_1_LABEL: preserve(), WEB_SLOT_2_LABEL: preserve(), WEB_SLOT_2_MODEL: preserve(), WEB_SLOT_3_LABEL: preserve(), WEB_SLOT_3_MODEL: preserve() },
+  });
+  const marketPythonSandbox = service("market-python-sandbox", {
+    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-python-sandbox" }),
+    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/market-python-sandbox/**"] },
+    start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080",
+    healthcheck: "/ready",
+    healthcheckTimeout: 300,
+    replicas: { "sfo": 1 },
+    deploy: { restartPolicyType: "ALWAYS" },
+    volumeMounts: { "/data": marketPythonSandboxData },
+    env: { PORT: preserve(), PY_SANDBOX_API_KEY: preserve(), PY_SANDBOX_DATANEED_ENABLED: preserve(), PY_SANDBOX_DERIVED_FREQUENCY_ENABLED: preserve(), PY_SANDBOX_ENABLE_CONVERSATION_REUSE: preserve(), PY_SANDBOX_MAX_ANALYSES_PER_REQUEST: preserve(), PY_SANDBOX_MAX_CPU_SECONDS_PER_REQUEST: preserve(), PY_SANDBOX_MAX_SPECS_PER_REQUEST: preserve(), SQL_GOVERNOR_DATASET_ACCESS_KEY: preserve(), SQL_GOVERNOR_URL: preserve() },
+  });
+  const marketAiOrc = service("market-ai-orc", {
+    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-ai-orc" }),
+    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/market-ai-orc/**"] },
+    start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080",
+    healthcheck: "/ready",
+    healthcheckTimeout: 120,
+    replicas: { "sfo": 1 },
+    deploy: { restartPolicyType: "ALWAYS" },
+    env: { AI_ENABLE_CATALOG_DISCOVERY_V2: preserve(), AI_ENABLE_CATALOG_PROTOCOL: preserve(), AI_ENABLE_COMPOSITE_KEYS: preserve(), AI_ENABLE_CONVERSATION_REUSE: preserve(), AI_ENABLE_CONVERSATION_STORE: preserve(), AI_ENABLE_DATANEED: preserve(), AI_ENABLE_DERIVED_FREQUENCY: preserve(), AI_ENABLE_LOOKUP_FACT: preserve(), AI_ENABLE_METHODOLOGY: preserve(), AI_ENABLE_PLAN_FEASIBILITY: preserve(), AI_ENABLE_POINT_IN_TIME: preserve(), AI_ENABLE_STANDARD_PERIOD_RETURN: preserve(), AI_FINAL_CONTRACT_IN_PROMPT: preserve(), AI_LOG_PROVIDER: preserve(), AI_MAX_ANALYSIS_SECONDS: preserve(), AI_MAX_CONTEXT_TOKENS: preserve(), AI_MAX_TOOL_CALLS: preserve(), AI_MAX_TOOL_ITERATIONS: preserve(), AI_MODEL: preserve(), AI_REASONING_EFFORT: preserve(), AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION: preserve(), AI_RESEARCH_PLAN_SIGNING_KEY: preserve(), CATALOG_DATABASE_URL: preserve(), CONVERSATION_DATABASE_URL: preserve(), MARKET_AI_CONVERSATION_DB_PASSWORD: preserve(), MARKET_AI_ORC_API_KEY: preserve(), MARKET_AI_ORC_DB_PASSWORD: preserve(), OPENROUTER_API_KEY: preserve(), PORT: preserve(), PY_SANDBOX_API_KEY: preserve(), PY_SANDBOX_URL: preserve(), RESEARCH_AUDIT_DATABASE_URL: preserve(), SQL_GOVERNOR_API_KEY: preserve(), SQL_GOVERNOR_URL: preserve() },
   });
   const marketPythonSandbox = service("market-python-sandbox", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-python-sandbox" }),

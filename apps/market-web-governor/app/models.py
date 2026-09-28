@@ -16,6 +16,9 @@ ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1
 Domain = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=253)]
 
 
+ModelSlotNumber = Annotated[int, Field(ge=1, le=7)]
+
+
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -120,7 +123,7 @@ class EvidenceCriterion(StrictModel):
 
 class WebBudget(StrictModel):
     max_searches: int = Field(default=3, ge=1, le=8)
-    max_results_per_search: int = Field(default=5, ge=1, le=10)
+    max_results_per_search: int = Field(default=5, ge=1, le=30)
     max_evidence_items: int = Field(default=12, ge=1, le=40)
     max_output_characters: int = Field(default=32000, ge=4000, le=64000)
 
@@ -130,27 +133,75 @@ class StopConditions(StrictModel):
     stop_on_primary_source: bool = False
 
 
+class AnalysisMode(StrEnum):
+    EVIDENCE = "EVIDENCE"
+    EVENT_PRECURSOR = "EVENT_PRECURSOR"
+
+
+class AnchorEvent(StrictModel):
+    """The event whose earlier indications are sought. Evidence must be published before event_date."""
+
+    description: ShortText
+    event_date: date
+    tickers: list[Annotated[str, StringConstraints(pattern=r"^[A-Z0-9.]{1,12}$")]] = Field(
+        default_factory=list, max_length=10
+    )
+
+
 class WebNeedSpec(StrictModel):
     objective: ShortText
     hypothesis: Hypothesis | None = None
     entities: list[Entity] = Field(default_factory=list, max_length=30)
     time_window: TimeWindow | None = None
     evidence_standard: EvidenceStandard = EvidenceStandard.CORROBORATED
-    criteria: list[EvidenceCriterion] = Field(min_length=1, max_length=8)
+    criteria: list[EvidenceCriterion] = Field(default_factory=list, max_length=8)
     source_policy: SourcePolicy = Field(default_factory=SourcePolicy)
     budget: WebBudget = Field(default_factory=WebBudget)
     stop_conditions: StopConditions = Field(default_factory=StopConditions)
     locale: Annotated[str, StringConstraints(pattern=r"^[a-z]{2}(?:-[A-Z]{2})?$")] = "id-ID"
     timezone: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)] = "Asia/Jakarta"
+    model_slot: ModelSlotNumber | None = None
+    analysis_mode: AnalysisMode = AnalysisMode.EVIDENCE
+    anchor_event: AnchorEvent | None = None
+    lookback_months: int = Field(default=12, ge=1, le=60)
+    classify: bool | None = None
+    tickers: list[Annotated[str, StringConstraints(pattern=r"^[A-Z0-9.]{1,12}$")]] = Field(
+        default_factory=list, max_length=10
+    )
 
     @model_validator(mode="after")
     def unique_criteria(self) -> "WebNeedSpec":
+        if self.analysis_mode == AnalysisMode.EVENT_PRECURSOR:
+            if self.anchor_event is None:
+                raise ValueError("anchor_event is required for EVENT_PRECURSOR")
+        elif not self.criteria:
+            raise ValueError("criteria must contain at least one criterion")
+        elif self.anchor_event is not None:
+            raise ValueError("anchor_event is only used with EVENT_PRECURSOR")
         ids = [criterion.criterion_id for criterion in self.criteria]
         if len(ids) != len(set(ids)):
             raise ValueError("criterion_id values must be unique")
         if self.budget.max_searches < len(self.criteria):
             raise ValueError("budget.max_searches must cover every criterion")
         return self
+
+    @property
+    def classification_enabled(self) -> bool:
+        if self.classify is not None:
+            return self.classify
+        return self.analysis_mode == AnalysisMode.EVENT_PRECURSOR
+
+
+# Fields added after v1 shipped. A request that leaves them at these defaults keeps its earlier idempotency
+# fingerprint, so stored request_ids still replay.
+POST_V1_DEFAULTS = {
+    "model_slot": None,
+    "analysis_mode": "EVIDENCE",
+    "anchor_event": None,
+    "lookback_months": 12,
+    "classify": None,
+    "tickers": [],
+}
 
 
 class CreateWebNeedRequest(StrictModel):
@@ -175,6 +226,7 @@ class FastSearchRequest(StrictModel):
     budget: WebBudget = Field(default_factory=WebBudget)
     locale: Annotated[str, StringConstraints(pattern=r"^[a-z]{2}(?:-[A-Z]{2})?$")] = "id-ID"
     timezone: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)] = "Asia/Jakarta"
+    model_slot: ModelSlotNumber | None = None
 
 
 def validate_fetch_url(value: str) -> str:
@@ -201,6 +253,7 @@ class FetchRequest(StrictModel):
     url: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2048)]
     objective: ShortText
     locale: Annotated[str, StringConstraints(pattern=r"^[a-z]{2}(?:-[A-Z]{2})?$")] = "id-ID"
+    model_slot: ModelSlotNumber | None = None
 
     @field_validator("url")
     @classmethod
