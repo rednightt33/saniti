@@ -14,6 +14,8 @@ MAX_METADATA_BYTES = 8192
 
 ResponseType = Literal["ANSWER", "CLARIFICATION", "RESEARCH_PLAN_CONFIRMATION", "LIMITATION"]
 RunStatus = Literal["COMPLETED", "NEEDS_CLARIFICATION", "AWAITING_CONFIRMATION", "LIMITED", "FAILED"]
+# AI_ENABLE_ANALYSIS_PATH: the data-need mode a caller fixes for a request (null: the model chooses)
+AnalysisPath = Literal["ANALYSIS", "RESEARCH"]
 
 STATUS_BY_RESPONSE_TYPE: dict[str, str] = {
     "ANSWER": "COMPLETED",
@@ -66,6 +68,9 @@ class AgentRunRequest(BaseModel):
     # SERVER only: an explicit APPROVE, REVISE or CANCEL of the latest Research Plan; a free-text reply without it is
     # read by the reply classifier.
     plan_reply: PlanReply | None = None
+    # AI_ENABLE_ANALYSIS_PATH: ANALYSIS or RESEARCH fixes this request's data-need mode (a data need in the other mode
+    # is refused); null keeps the model's choice. ANALYSIS cannot be combined with a Research Plan reply.
+    analysis_path: AnalysisPath | None = None
 
     @field_validator("message")
     @classmethod
@@ -325,6 +330,16 @@ class ResearchSummary(BaseModel):
     experiments: list[ExperimentSummary] = Field(default_factory=list)
 
 
+class AnalysisPathExecution(BaseModel):
+    """Produced by code: the path the caller fixed and how many data needs in the other mode were refused."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    requested: AnalysisPath
+    source: Literal["CALLER"] = "CALLER"
+    mismatches_refused: int = 0
+
+
 class ExecutionMetadata(BaseModel):
     """Produced deterministically by code, never by the model."""
 
@@ -361,6 +376,16 @@ class ExecutionMetadata(BaseModel):
     analysis_final_status: dict[str, Any] | None = None
     # Research Plan confirmation: what this request did with a plan (null when confirmation is off or unused).
     research_plan: "ResearchPlanExecution | None" = None
+    # AI_ENABLE_ANALYSIS_PATH: present only when the caller fixed the path (omitted, not null, otherwise)
+    analysis_path: AnalysisPathExecution | None = None
+
+    @model_serializer(mode="wrap")
+    def _without_unused_path(self, handler: Any) -> Any:
+        """analysis_path appears only when set, so runs without it keep their exact shape."""
+        data = handler(self)
+        if isinstance(data, dict) and data.get("analysis_path") is None:
+            data.pop("analysis_path", None)
+        return data
 
 
 class ReplyClassifierUsage(BaseModel):

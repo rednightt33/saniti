@@ -1214,6 +1214,26 @@ After every run (`app/audit.py`), the orchestrator:
 Auditing never changes the response and never fails the run; failures are logged as
 `research_audit` events. Hidden model reasoning, secrets, and dataset contents are never recorded.
 
+### Caller-chosen path (off unless `AI_ENABLE_ANALYSIS_PATH=true`)
+
+`POST /v1/agent/run` accepts `analysis_path`: `"ANALYSIS"`, `"RESEARCH"` or `null` (default; the model chooses as
+before). It needs the DataNeed flow and Research Plan confirmation; otherwise it is inactive (`analysis_path_inactive`
+at start-up) and a request that sets it gets HTTP 400 `ANALYSIS_PATH_UNAVAILABLE`.
+
+- **ANALYSIS**: no Research Plan. The allowed response types are ANSWER, CLARIFICATION and LIMITATION,
+  `check_data_feasibility` is not offered, and a `submit_data_need_spec` with mode RESEARCH is refused with
+  `PATH_MISMATCH` before it reaches the sandbox (bounded like other repairs). An application note tells the model
+  that the results are descriptive statistics, with no significance test and no correction for the filters compared,
+  and that open parameters are chosen and stated in assumptions. An ANSWER that rests on a completed analysis gets the
+  backend line "Analysis path (fixed by the caller): descriptive historical statistics ..." in limitations. A pending
+  SERVER-mode plan is left untouched. `analysis_path` ANALYSIS with `continuation` or `plan_reply` gets HTTP 400
+  `ANALYSIS_PATH_CONFLICT`.
+- **RESEARCH**: a first turn may only propose a Research Plan, ask a clarification or state a limitation, and it gets
+  the plan tools only. An ANALYSIS data need is refused with `PATH_MISMATCH`. Approval turns run as before.
+- `execution.analysis_path` = `{requested, source: "CALLER", mismatches_refused}` when set; the key is omitted
+  otherwise, so responses without it keep their exact shape. The system prompt is unchanged (the note is per request),
+  so the cached static prefix is the same with or without a path.
+
 ## Catalog discovery
 
 The five `AI_*` tables created by `database/migrations/20260922_001_create_ai_catalogs.sql`,

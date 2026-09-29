@@ -35,6 +35,40 @@
   USD 0.0098 classification, 40 rows written. Diagnosis (W16): OpenRouter's web search ignores the date window; the
   search query decides the results. No Railway change was made for the diagnosis.
 
+## 2026-09-28 — Research findings v1 and caller-chosen analysis path on dev; suite9
+
+- **Research findings v1** (user-approved design; commits `35ff278` sandbox, `f36600f` orc; merged into `main` as
+  `2746ac1`): market-python-sandbox `43add1d5-4071-4fde-bc86-a325fb424a15` and market-ai-orc
+  `13774e5c-d4ec-4698-b6cf-e5e1a107fe96` `SUCCESS`; Governor `SKIPPED`. Tests before the push: orc 687, sandbox
+  research subset 81 passed.
+- **Flags** (dev only, one at a time): `PY_SANDBOX_RESEARCH_FINDINGS_ENABLED=true` on market-python-sandbox, redeploy
+  `550e8eda-17b0-492c-8d40-10f8b5b2b2ed` `SUCCESS`; then `AI_ENABLE_RESEARCH_FINDINGS=true` on market-ai-orc, redeploy
+  `e3a7b24b-1aed-48db-99e2-43da86b58884` `SUCCESS` with no `research_findings_inactive` log (the sandbox capability
+  was found). The fixed minimum sample of 30 no longer refuses an approved plan (M21); every research answer carries
+  the backend's sample category and verdict (M22).
+- **suite9** (runner `54d6c5bb-7fe0-477d-a771-e223b283fc76`, 20 questions, 11 of them research, history_mode SERVER):
+  20/20 answered, 0 HTTP errors, 0 unsupported numbers, total cost $0.62. Backend verdicts: SUPPORTED 3 (r05, r06,
+  r10 `up_gt5`), NOT_SUPPORTED 1 (r10 `down_gt5`), INCONCLUSIVE 8 (r01, r02 ×2, r03, r07 ANECDOTAL, r08, r09, r11),
+  NOT_EVALUATED 1 (r04, INSUFFICIENT: one event); every model verdict equal to the backend's. Guards: prompt
+  injection, a future date and a buy recommendation refused; p01 limited (point-in-time sector history starts
+  2026-09-29). Findings: M24 (INCONCLUSIVE worded as "not supported" in r02), M25 (final status keeps the last
+  completion only), M26 (SUPPORTED below the user's `min_effect`, r05).
+- **Broker screening question** (runner `1687311e-0ca5-4dda-afe6-58f2f522c36a`, model chooses the path): answered
+  after 1,644 s, 46 tool calls, $0.105, with a table of 282 broker × X combinations and 563 checked numbers, all
+  sourced; the model alternated between plan feasibility and analysis first (M23).
+- **Caller-chosen path** (user-approved; commit `5c1410f`): `analysis_path` ANALYSIS or RESEARCH on
+  `POST /v1/agent/run`, behind `AI_ENABLE_ANALYSIS_PATH`. market-ai-orc `69f54431-eb4d-4f74-a685-b48b966840b3`
+  `SUCCESS` (sandbox, Governor `SKIPPED`); orc tests 692 passed, flag-off tool definitions identical. Then
+  `AI_ENABLE_ANALYSIS_PATH=true` on market-ai-orc, redeploy `d1ac8372-7caa-48fa-aab4-61da960299dd` `SUCCESS` with no
+  `analysis_path_inactive` log.
+- **Broker question again with `analysis_path` ANALYSIS** (runner `1443b8db-bcd0-4475-a161-40e14168fd8c`, the
+  original question without the "screening" hint): COMPLETED in 631 s (was 1,644 s), 35 tool calls (was 46), $0.110,
+  no path refusal, no plan step; table of broker results with 177 checked numbers, all sourced; the answer and the
+  backend line state that the figures are descriptive, without significance tests. The two runs chose different
+  definitions (X, the benchmark, cumulative versus daily net buy), so their broker rankings differ.
+- `railway config pull --force` / `railway config plan`: up to date (the pull also removed duplicated sandbox and orc
+  blocks in `.railway/railway.ts` and captured resources other sessions added).
+
 ## 2026-09-28 — IP2 merged into main; Governor dependency fix (R19)
 
 - **Approval:** the user approved pushing the IP2 branch to `main` so `main` carries the S09 fix while the resample
