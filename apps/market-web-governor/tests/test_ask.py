@@ -20,10 +20,11 @@ RSS = """<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>
 
 class FakeProvider:
     def __init__(self, answer="Talks were reported on 2025-10-07 [1]; the deal was announced on 2026-09-18 [2]. [9]",
-                 reviews=None):
+                 reviews=None, sectors=None):
         self.payloads = []
         self.answer = answer
         self.reviews = list(reviews or [])
+        self.sectors = sectors or []
 
     def respond(self, payload):
         self.payloads.append(payload)
@@ -32,8 +33,8 @@ class FakeProvider:
             text = json.dumps({"queries": [{"query": q, "reason": "context"} for q in queries]})
             return {"output": [{"content": [{"type": "output_text", "text": text}]}], "usage": {"cost": 0.001}}
         if "text" in payload:
-            text = json.dumps({"queries": ["Company P akuisisi", "Company P acquisition talks"], "after": None,
-                               "before": None})
+            text = json.dumps({"queries": ["Company P akuisisi", "Company P acquisition talks"], "subject": "Company P",
+                               "sectors": self.sectors, "after": None, "before": None})
             return {"output": [{"content": [{"type": "output_text", "text": text}]}], "usage": {"cost": 0.001}}
         if "tools" in payload:
             annotation = {"type": "url_citation", "url": "https://wire.example/2026/09/18/p-deal",
@@ -188,3 +189,30 @@ def test_ask_endpoint_requires_authorization(tmp_path):
         response = client.post("/v1/ask", json={"request_id": "ask-test-0005", "question": "apa BI rate"},
                                headers={"Authorization": f"Bearer {API_KEY}"})
         assert response.status_code == 200 and response.json()["status"] == "ANSWERED"
+
+
+def test_turn_two_always_searches_the_sectors_and_their_regulation(tmp_path):
+    seen = []
+    provider = FakeProvider(sectors=["industri susu olahan"], reviews=[[], []])
+    result = service(tmp_path, provider, seen=seen).ask(
+        AskRequest(request_id="ask-test-0008", question="Company P", as_of=date(2026, 9, 29)))
+    turns = result["plan"]["turns"]
+    assert result["plan"]["sectors"] == ["industri susu olahan"]
+    assert turns[1]["queries"] == ["industri susu olahan", "industri susu olahan regulasi pemerintah"]
+    assert turns[1]["reasons"] == ["required: sector", "required: sector regulation"]
+    assert len(turns) == 2                                       # turn 3 stays optional: empty review stops
+    assert sum(q.startswith("industri susu olahan regulasi pemerintah ") for q in seen) == 8
+
+
+def test_required_sector_queries_come_first_and_turn_two_is_capped(tmp_path):
+    provider = FakeProvider(sectors=["sektor a", "sektor b"], reviews=[["x one", "x two", "x three"], []])
+    result = service(tmp_path, provider).ask(
+        AskRequest(request_id="ask-test-0009", question="Company P", as_of=date(2026, 9, 29)))
+    assert result["plan"]["turns"][1]["queries"] == [
+        "sektor a", "sektor a regulasi pemerintah", "sektor b", "sektor b regulasi pemerintah", "x one"]
+
+
+def test_no_sectors_and_an_empty_review_stop_after_turn_one(tmp_path):
+    result = service(tmp_path, FakeProvider(reviews=[[]])).ask(
+        AskRequest(request_id="ask-test-0010", question="apa BI rate terakhir", as_of=date(2026, 9, 29)))
+    assert [t["turn"] for t in result["plan"]["turns"]] == [1]

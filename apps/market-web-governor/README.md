@@ -22,9 +22,9 @@ question -> plan     1 model call: 2-4 keyword queries (question language and En
          -> turn 1   code: Google News RSS for every query x every 3-month window (default: 8 windows, two years
                      back from the question's date), Exa via OpenRouter for the first two queries
          -> review   1 model call per turn: up to 3 NEW queries moving outward (related parties, contracts, the
-                     industry, external factors); turn 2 must cover the industry or sector and government policy
-                     unless the headlines already do, or the question asks one fact; turns 2 and 3 repeat the
-                     scan with them (max 3 turns)
+                     industry, external factors); turns 2 and 3 repeat the scan with them (max 3 turns).
+                     Turn 2 is guaranteed by code: the plan names the subject's 1-2 sectors, and "<sector>" and
+                     "<sector> regulasi pemerintah" are always searched first (max 5 queries in turn 2)
          -> merge    code: dedupe by headline; WEB_ASK_MAX_SOURCES (default 500) shared evenly across the windows,
                      a tenth for undated sources; sorted oldest first
          -> answer   1 model call: only from the numbered sources, subject facts and wider context separated,
