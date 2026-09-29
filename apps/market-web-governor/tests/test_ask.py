@@ -96,7 +96,8 @@ def test_ask_answers_from_numbered_sources_and_takes_dates_from_the_list(tmp_pat
     # Plan, one review (empty: no turn 2), answer, implications; two Exa searches. Turn 0: 2 subject queries x 8
     # windows; turn 1: 4 subject templates x the 2 newest windows.
     assert [("text" in p, "tools" in p) for p in provider.payloads].count((False, True)) == 2
-    assert result["usage"]["model_calls"] == 3 and result["usage"]["review_calls"] == 1
+    # model calls: plan, answer and two implications attempts (the fake returns none, so it is retried once)
+    assert result["usage"]["model_calls"] == 4 and result["usage"]["review_calls"] == 1
     assert result["usage"]["search_calls"] == 2 and result["usage"]["news_requests"] == 2 * 8 + 4 * 2
     assert len(result["plan"]["windows"]) == 8 and [t["turn"] for t in result["plan"]["turns"]] == [0, 1]
     # The same headline from Google News and Exa is one source; oldest first.
@@ -104,7 +105,7 @@ def test_ask_answers_from_numbered_sources_and_takes_dates_from_the_list(tmp_pat
     assert result["citations"][0] == {"n": 1, "date": "2025-10-07", "publisher": "News One",
                                       "title": "Company P dikabarkan jajaki penjualan saham",
                                       "url": "https://news.google.com/a1", "via": "google_news"}
-    assert {w["code"] for w in result["warnings"]} == {"UNKNOWN_CITATION"}
+    assert {w["code"] for w in result["warnings"]} == {"UNKNOWN_CITATION", "IMPLICATIONS_EMPTY"}
     assert result["answer"] == "Talks were reported on 2025-10-07; the deal was announced on 2026-09-18."
     assert result["answer_cited"] == "Talks were reported on 2025-10-07 [1]; the deal was announced on 2026-09-18 [2]."
     assert [c["n"] for c in result["citations"]] == [1, 2]
@@ -300,6 +301,8 @@ def test_parse_when_reads_days_months_parts_of_years_and_years():
     assert parse_when("semester II 2026") == (date(2026, 7, 1), date(2026, 12, 31))
     assert parse_when("2027") == (date(2027, 1, 1), date(2027, 12, 31))
     assert parse_when("tahun depan") is None
+    assert parse_when("2H25") == (date(2025, 7, 1), date(2025, 12, 31))
+    assert parse_when("Q1 26") == (date(2026, 1, 1), date(2026, 3, 31))
 
 
 def test_implications_keep_only_cited_items_and_future_times_written_in_the_sources():
@@ -337,3 +340,12 @@ def test_implications_are_appended_without_numbers_and_a_failure_keeps_the_answe
         AskRequest(request_id="ask-test-0016", question="Company P", as_of=date(2026, 9, 29)))
     assert failed["status"] == "ANSWERED" and "IMPLICATIONS_FAILED" in {w["code"] for w in failed["warnings"]}
     assert "Implikasi" not in failed["answer"]
+
+
+def test_empty_implications_are_retried_once_and_flagged(tmp_path):
+    provider = FakeProvider()
+    result = service(tmp_path, provider).ask(
+        AskRequest(request_id="ask-test-0017", question="Company P", as_of=date(2026, 9, 29)))
+    calls = [p for p in provider.payloads if "text" in p and p["text"]["format"]["name"] == "implications"]
+    assert len(calls) == 2 and len(result["plan"]["implications_attempts"]) == 2
+    assert "IMPLICATIONS_EMPTY" in {w["code"] for w in result["warnings"]}
