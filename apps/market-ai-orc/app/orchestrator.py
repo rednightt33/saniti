@@ -565,8 +565,12 @@ which do not, where the evidence points the other way, and under which
 conditions the results differ. Say the angles agree only when the map
 allows an agreement (supported angles of different method families);
 angles sharing data are not independent confirmations. Report an
-INVALID or NOT_RUN angle as such and never fill it in. A pattern is
-never a cause, a prediction or a trading signal."""
+INVALID or NOT_RUN angle as such and never fill it in. Never write that
+there is no effect or no difference: an INSUFFICIENT_EVIDENCE angle means
+the data could not distinguish an effect. Use supported wording only for
+a SUPPORTED or PARTIALLY_SUPPORTED angle. Cite only figures that
+complete_research_run returned, the confidence level included. A pattern
+is never a cause, a prediction or a trading signal."""
 ANGLE_FINDINGS_CONTRACT = ("research_findings: for an ANSWER that rests on a completed multi-angle research run, one "
                            "entry per approved angle (angle_id, the backend status unchanged, interpretation with "
                            "answer, evidence, usefulness and follow_up); otherwise null. ")
@@ -2049,7 +2053,8 @@ class AgentOrchestrator:
         """The figures of one backend finding an answer may cite (never hashes, ids or versions); a difference stated as
         a size with a direction word is the same governed figure."""
         values = numbers_in({k: finding.get(k) for k in ("sample", "estimates", "comparator", "multiple_testing",
-                                                          "secondary_checks", "holdout", "method_payload")})
+                                                          "secondary_checks", "holdout", "method_payload",
+                                                          "confidence_level")})
         return values + [abs(v) for v in values if v < 0]
 
     def _track_research_run(self, state: RunState, name: str, arguments: Any, outcome: ToolOutcome) -> None:
@@ -2609,7 +2614,10 @@ class AgentOrchestrator:
         if problems:
             text = "; ".join(problems[:6])
             v2 = run is not None and final.response_type == "ANSWER"
-            self._gate_once(state, "FINDINGS", (ANGLE_FINDINGS_INSTRUCTION if v2 else FINDINGS_INSTRUCTION).format(
+            # found live (golden run 2, 2026-09-29): a multi-angle answer has four to six interpretations, and fixing
+            # one problem often surfaced another, so it gets a second repair before the answer is forced to LIMITATION
+            kind = "FINDINGS_2" if v2 and "FINDINGS" in state.gate_kinds_rejected else "FINDINGS"
+            self._gate_once(state, kind, (ANGLE_FINDINGS_INSTRUCTION if v2 else FINDINGS_INSTRUCTION).format(
                 problems=text))
             return self._forced(state, final, ANGLE_FINDINGS_NOTICE if v2 else FINDINGS_NOTICE,
                                 [f"Research findings problem: {text}."] + lines)

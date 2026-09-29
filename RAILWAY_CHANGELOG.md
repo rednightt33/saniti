@@ -15,6 +15,17 @@
   - g2 (bank momentum): FAILED `INVALID_FINAL_RESPONSE` (unused parameters filled, M30; union errors, M31).
   - g3 (volume spike): FAILED `INVALID_FINAL_RESPONSE` (plan cut off at 8000 output tokens, M32).
   - a1 (YTD returns of three banks, ANALYSIS): COMPLETED, 21.6 s, $0.017 — ANALYSIS unaffected.
+- **Fixes of run 1** (`b9e6ff3`, M30–M33, S12): market-python-sandbox `b07f70dc-df55-4990-9ada-6438515317af`
+  and market-ai-orc `61f9768b-4dcc-4182-9151-eac56642a74a` `SUCCESS`, no `python_sandbox_not_ready`.
+- **Golden run 2** (`f5fdca51-9a05-43a8-a5c7-abcb37a105b1`, prefix `ma-golden-20260929b`): all three plans issued
+  with four angles (no plan failure); all three approved runs `COMPLETED` with backend findings at
+  `STATISTICS_VERIFIED` (g1 4/4 validated; g2 3 validated + 1 INVALID `DUPLICATE_ANGLE_OUTPUT`, S13; g3 4/4), every
+  angle `INSUFFICIENT_EVIDENCE` (underpowered, no significant effect); the answers were honest but each was forced to
+  LIMITATION by the findings gate (M34, M35). a1 (ANALYSIS) COMPLETED. About USD 0.25.
+- **Migration dry run** (temporary service `ma-migrate-job` `cd26149a-dad3-4d2d-95b5-f72adf2a4979`, deployment
+  `38ab664c-c282-46e2-b538-6b942ef77515`, reference `DATABASE_URL` only): `AI_research_catalog` has 18 methods, all
+  `REFERENCE_ONLY`, and none of the eight engine ids; the preflight refused as designed, nothing changed (read back
+  identical). Applying needs a decision on the method ids.
 - **Result**: golden not passed; migration `20260929_001` held until the fixes (M30–M33, S12) are deployed and the
   golden questions pass. Flags stay on in dev (research questions there use the multi-angle path).
 

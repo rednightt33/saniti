@@ -152,6 +152,9 @@ def envelope(context: dict[str, Any], angle_id: str, angle: dict[str, Any], *, s
             "candidate", "estimate", "ci", "ci_adjusted", "p_value", "p_adjusted", "standard_error", "effective")},
             "candidates": [{k: c.get(k) for k in ("candidate", "estimate", "ci", "ci_adjusted", "p_value",
                                                   "p_adjusted")} for c in (result.get("candidates") or [])[:50]]},
+        # found live (golden run 2, 2026-09-29): answers named the intervals' confidence level, which no finding
+        # carried, so the provenance gate refused it
+        "confidence_level": round(1 - getattr(engines(), "ALPHA", 0.05), 6),
         "comparator": result.get("comparator"), "multiple_testing": result.get("multiple_testing"),
         "secondary_checks": result.get("secondary"), "holdout": result.get("holdout"),
         "method_payload": result.get("method_payload"),
