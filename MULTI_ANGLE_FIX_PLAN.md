@@ -81,6 +81,39 @@ method list in the system prompt. `AI_research_catalog` stays unchanged (the ear
 - Agreement phrases governed by a negation (tidak, bukan, belum, tanpa, not, no) in the same clause are ignored, as
   the causal-claim check already does. Regression test on the r08 sentence.
 
+## To be designed: EXPLORATION mode (analysis + research, iterative)
+
+Requested by the user on 2026-09-29 as a design topic, not an approved implementation. **For now the flow is manual:** the
+user asks an ANALYSIS question to explore, then a RESEARCH question to confirm.
+
+Target: three modes.
+
+| Mode | Purpose | Result |
+|---|---|---|
+| ANALYSIS | Descriptive facts and screens | Descriptive, no statistical claim |
+| RESEARCH | One root hypothesis, 3-6 angles, backend-validated | Findings with statuses |
+| EXPLORATION | A search question ("find which broker / window / threshold ...") run as rounds of ANALYSIS then RESEARCH, repeated up to N times | Candidates found, which were confirmed, and what remains open |
+
+A round: (1) ANALYSIS screens candidates descriptively; (2) the best few become a Research Plan tested on data the
+screen did not use; (3) the findings and each angle's `follow_up` propose the next round ("what would support or
+refute this, or help answer the user"); (4) stop when the question is answered, the round limit N is reached, or no
+follow-up is worth testing; then one synthesis of all rounds.
+
+Questions to settle before building:
+
+- **Holdout discipline across rounds.** Every round that looks at data spends it. Keep a ledger of the periods each
+  round used; confirmation always runs on a period no earlier round screened, or the round is labelled exploratory.
+- **Multiple testing across rounds.** Record every hypothesis tried in all rounds (the sandbox already has a
+  research ledger and `followup_of`) and report the total; decide whether later rounds need a stricter threshold.
+- **Approval.** Whether the user approves each Research Plan (as today) or approves N rounds once with bounds (angles,
+  cost, time) in advance.
+- **Budget.** N, the cost and time limits per question, and what the answer says when a limit stops the search.
+- **Follow-up generation.** Which follow-ups are allowed (other period, subset, holdout, stricter threshold, another
+  method family) and which are not (re-testing the same data until something passes).
+- **Final answer.** What was searched, what was found, what was confirmed on unseen data, and the count of all
+  hypotheses tried.
+- Depends on items 1-6 above (a round is only as reliable as one research run) and on the decomposition layer.
+
 ## Not approved yet (open decisions)
 
 - M37: the final-turn output budget (`AI_MAX_OUTPUT_TOKENS` or a reasoning cap): a configuration change.
@@ -88,6 +121,7 @@ method list in the system prompt. `AI_research_catalog` stays unchanged (the ear
 - Expression functions for new questions: `ema(x, n)` with automatic warm-up, and a threshold on forward-return
   outcomes (for "return at least X%").
 - Data: an IHSG daily table and its catalog relationship; interest rates when the table exists.
+- A threshold on forward-return outcomes is also needed for questions like "return at least 10% in one month".
 
 ## Verification when executed
 
