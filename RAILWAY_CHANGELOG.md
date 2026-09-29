@@ -1,5 +1,15 @@
 # Railway changelog
 
+## 2026-09-29 — market-web-governor: `/v1/ask` researches in up to 3 turns over 3-month windows (user-approved)
+
+- **Deployment** market-web-governor `9220e7ca` (PR #23, `28dc45d`) `SUCCESS`; no variable changed
+  (`WEB_ASK_MAX_SOURCES` defaults to 500).
+- **Live test** (runner `c9d458ce`, `live-ask3-20260929-q1..q4`, four questions in parallel): 4 of 4 `ANSWERED`,
+  13–15 s each, USD 0.015–0.032 each (about USD 0.11 in total), 80 Google News requests per question without a
+  rate-limit failure, 186–500 sources from October 2024 to September 2026, 4 rows in `web_ask`. PTRO answers now
+  cover October 2025 to September 2026 and add industry context (coal prices, minerba policy); BI Rate (hold at
+  5.75%, RDG 22–23 Sep 2026) and ULTJ (7–8 Oct 2025 reports) unchanged.
+
 ## 2026-09-29 — market-web-governor: lean `POST /v1/ask` next to the web-need flow (user-approved)
 
 - **Migration** `event_store/002_web_ask.sql` on Postgres-E8GM through the runner (`4620705a`, phase `migrate_sql`):
