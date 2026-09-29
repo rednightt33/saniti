@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-09-29 — market-web-governor: `/v1/ask` name and ticker, industry and policy turn, investor-first answers
+
+- **Deployment** market-web-governor `21ea0c81` (PR #25, `91b2cf8`) `SUCCESS`; no variable changed.
+- **Live test** (runner `fb457b6c`, `live-ask5-20260929-q1..q3`): 3 of 3 `ANSWERED`, 13–37 s, USD 0.022–0.029 each,
+  3 rows in `web_ask`. "Cimory" searched CMRY and led with results and corporate actions, but the model returned no
+  turn-2 queries (one turn only, 32 requests) although the local run of the same code did; the turn-2 rule is an
+  instruction, not enforced by code. "kenapa saham ptro naik" ran an industry and policy turn and reported that the
+  sources disagree on the one-year direction (2025 up, 2026 down). BI Rate unchanged (5.75%, RDG 22–23 Sep 2026).
+
 ## 2026-09-29 — market-web-governor: `/v1/ask` researches in up to 3 turns over 3-month windows (user-approved)
 
 - **Deployment** market-web-governor `9220e7ca` (PR #23, `28dc45d`) `SUCCESS`; no variable changed
