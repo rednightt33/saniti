@@ -1,6 +1,8 @@
 # Multi-Angle Research: fix plan after suite20
 
-Status (2026-09-29): **approved scope, not started.** The user approved the items below and asked not to execute yet.
+Status (2026-09-29): **approved and in progress, one phase** (user decision: every item, the library and its migration
+included, before suite20 is rerun). Implementation plan: sandbox, then migrations, then market-ai-orc, one deploy at a
+time.
 Evidence: suite20 (`RAILWAY_CHANGELOG.md` 2026-09-29, `ERRORS_AND_SOLUTIONS.md`). Nothing here changes Railway,
 the database or code until the user gives the go-ahead.
 
@@ -16,8 +18,9 @@ the database or code until the user gives the go-ahead.
 | 6 | Negation-aware agreement check | P09 | orc | r08 forced to LIMITATION by "tidak mengizinkan … saling mendukung" |
 | 7 | Fewer angles allowed; optional method-family coverage switch | — | orc, sandbox | User decision 2026-09-29: do not force many angles at once |
 
-Suggested order: 3 and 1 first (a wrong or lost result), then 4, 5 and 6 (orc gates and feasibility), then 2 (a new
-table plus a migration). Items 2 and 5 share the method requirements and are designed together.
+Order within the one phase: sandbox (3, the sandbox part of 1, the library of 2, the limits of 7), migrations
+`20260930_001` (library) and `20260930_002` (Tool_Catalog), then market-ai-orc (4, 5, 6, 7 and the orc part of 1 and
+2). Items 2 and 5 share the method requirements and are designed together.
 
 ### 1. Outcome must be the approved quantity (S15)
 
@@ -26,15 +29,19 @@ table plus a migration). Items 2 and 5 share the method requirements and are des
   Feature_01 no longer force the frame form.
 - Frame form: an outcome whose values are implausible for the approved `outcome_unit` (for example a median above 100
   for PERCENT, or values equal to a price column of the contract) makes the angle INVALID with `OUTCOME_NOT_APPROVED`.
-- Answer gate: an interpretation that names an outcome other than the plan's (for example "harga penutupan" for a
-  return) is refused.
+- No wording check in the answer gate (simplified 2026-09-29): the backend marks such an angle INVALID, and the gate
+  already requires the backend status unchanged. Findings carry `outcome_source` (FORWARD_RETURN or FRAME).
 - Tests: the r09 shape (condition and price in separate requests) records declaratively; a price-level frame outcome
-  is INVALID; the gate refuses the r09 wording.
+  is INVALID.
 
 ### 2. `AI_research_library` (C07)
 
 Decision (2026-09-29): a new table holds the eight Multi-Angle Research methods; the model refers to it instead of the
-method list in the system prompt. `AI_research_catalog` stays unchanged (the earlier decision).
+method list in the system prompt. `AI_research_catalog` stays unchanged (the earlier decision). The library only
+describes the methods for the model; the calculations and `decide()` stay in code, and a new row does not create a
+method. Today no tool shows the eight methods (`get_system_capabilities` names none; the RESEARCH section of
+`get_catalog_details` shows the 18 reference methods of `AI_research_catalog`, which cannot run), so while
+multi-angle research is active that section is labelled reference-only and points to the library.
 
 - Forward migration: `public."AI_research_library"`, one row per method and engine version. Proposed columns:
   `method_id`, `method_family`, `engine_version`, `status`, `question_shape` (the question it answers),
@@ -76,11 +83,17 @@ method list in the system prompt. `AI_research_catalog` stays unchanged (the ear
 - The final plan is compared with the checked design by hash; no new rule appears at the end. The plan gate gets a
   second repair like FINDINGS_2.
 - The tool input schema changes, so a new Tool_Catalog version is needed.
+- The check stays metadata-only (user decision 2026-09-29): the catalog and the Governor's `EXPLAIN` estimate, no
+  data read before approval. Checks that need data (event counts, entities per date, a constant regime label) still
+  surface in the run as INSUFFICIENT_EVIDENCE or INVALID.
 
 ### 6. Negation-aware agreement check (P09)
 
-- Agreement phrases governed by a negation (tidak, bukan, belum, tanpa, not, no) in the same clause are ignored, as
-  the causal-claim check already does. Regression test on the r08 sentence.
+- Agreement phrases governed by a negation (tidak, bukan, belum, tanpa, not, no) in the same clause are ignored. The
+  check looked only 40 characters back; in r08 "tidak" stood 47 characters before the phrase. Regression test on the
+  r08 sentence.
+- A findings LIMITATION keeps the backend's per-angle findings (status, reason, effective sample) in
+  `research_findings`; only the model's interpretation is marked unconfirmed (r08 lost four valid findings).
 
 ### 7. Fewer angles, optional family coverage
 
@@ -89,8 +102,8 @@ User decision (2026-09-29): the model is not forced to use many angles at once; 
 - Today the minimum is 3 in four places: `AI_RESEARCH_MIN_ANGLES` (market-ai-orc, validated `3 <= min`),
   `ResearchPlanV2.angles` (`MIN_ANGLES = 3`), the sandbox governance policy (`min_angles = 3`) and the plan rules in
   the prompt ("at least three"). All four read one negotiated value instead; the lowest allowed value becomes 2 and
-  the default 2 (to confirm at implementation: 2 or 3).
-- Prepared but off: `AI_RESEARCH_MIN_FAMILIES` (0 = off). When set, a plan needs angles from at least that many
+  the default 2 (user decision 2026-09-29).
+- Prepared but off: `AI_RESEARCH_MIN_FAMILIES` (0 = off; the user chose method families, not the eight methods). When set, a plan needs angles from at least that many
   method families; the feasibility check and the plan gate refuse a plan below it. Five families exist, so 5 means
   "every family at least once". "Every one of the eight methods" would need 8 angles, above the maximum of 6, so
   it is not offered unless the maximum is raised.
@@ -108,7 +121,7 @@ Target: three modes.
 |---|---|---|
 | ANALYSIS | Descriptive facts and screens | Descriptive, no statistical claim |
 | RESEARCH | One root hypothesis, 2-6 angles (item 7), backend-validated | Findings with statuses |
-| EXPLORATION | Rounds of research (with analysis where it helps), repeated while the user agrees | What was found, what was supported, what remains open |
+| EXPLORATION | Rounds of research (with analysis where it helps), repeated while the user agrees; the sandbox CPU limits and the SQL Governor apply to every round | What was found, what was supported, what remains open |
 
 Flow decided by the user (2026-09-29):
 
