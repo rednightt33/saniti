@@ -66,6 +66,17 @@
   USD 0.0098 classification, 40 rows written. Diagnosis (W16): OpenRouter's web search ignores the date window; the
   search query decides the results. No Railway change was made for the diagnosis.
 
+## 2026-09-29 — Sector rolling correlation (c01) and its ground truth
+
+- Question c01 on dev through the runner (`de1a7285`, `analysis_path` ANALYSIS): 280 s, $0.105, 26 tool calls, 5
+  extractions without refusal, 10 executions (modules `pandas`, `numpy`, `itertools`, `datetime`, `matplotlib`).
+- Ground truth: temporary service `corr-truth-job` (`730835a5-0919-48c2-8015-2ffb35f3a127`, deployment `2e2afb35`,
+  read-only session, deleted after the run) recomputed the equal-weighted 60-day rolling correlations from
+  `Price_Stock_Indonesia_IDX` and `IDX_Stock_Universe`: every yearly figure (2018 0.444 … 2026 0.811), the monthly
+  minimum (2024-03 0.227) and maximum (2026-04 0.890) and the last-window extremes match the answer. Robustness variants
+  (median, 20-day traded-value weight, liquid stocks only) keep 2025–2026 as the highest-correlation years (value
+  weight 2026 0.621 vs 0.197–0.334 in 2021–2024). No market-capitalisation column exists in the database.
+
 ## 2026-09-29 — A4 evidence, part preflight (A0/A2), join limit 6, imported-module audit (C)
 
 - **A4** (read-only): temporary service `a4-explain-job` (`b4d58765-2308-4c0e-ab11-e7d6c36530af`, deployment
