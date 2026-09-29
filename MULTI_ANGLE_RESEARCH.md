@@ -5,7 +5,7 @@ Status (2026-09-29): on `main` and live on dev with both flags on
 defects of runs 1 and 2 recorded as M30–M35, S12, S13 in `ERRORS_AND_SOLUTIONS.md`; see `RAILWAY_CHANGELOG.md`).
 Migration `20260929_001` is applied on dev in the scope the user chose after the dry run: the four tools are
 registered (inactive) in `Tool_Catalog`; `AI_research_catalog` is unchanged, because it has none of the eight method
-ids (§8, C07). Open items from the golden runs: S13 and G12 in `ERRORS_AND_SOLUTIONS.md`.
+ids (§8, C07). Open items from the golden runs: S13 and G12 in `ERRORS_AND_SOLUTIONS.md`. Suite20 findings and the approved (not started) fixes: `MULTI_ANGLE_FIX_PLAN.md`.
 
 A Research run examines one root hypothesis from 3 to 6 analytical angles. Each angle has one approved method, its
 own data contract inside a governed bundle, and exactly one backend-authored finding. Analysis (mode ANALYSIS) is
