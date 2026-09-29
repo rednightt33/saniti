@@ -9,8 +9,11 @@ and the agent container cannot reach Railway SSH, so questions are sent from thi
   (owner `golden-multi-angle`), with the item's `analysis_path`, and approves a `RESEARCH_PLAN_CONFIRMATION` once with
   `plan_reply` APPROVE. Two workers by default.
 - Output: one `OTR {json}` line per turn (status, plan version, angles, research run, per-angle statuses, gate,
-  cost), then the full responses as `OTRDUMP i/n` gzip+base64 chunks (Railway drops long lines). Reassemble the chunks
-  in order, base64-decode, gunzip.
+  cost), followed at once by that turn's full response as `OTRDUMP <item>:<turn> i/n` gzip+base64 chunks (Railway
+  drops long lines; a crash later loses nothing). Reassemble each tag's chunks in order, base64-decode, gunzip. Fetch
+  the log with `railway logs <deployment> --deployment --lines 5000` (a larger limit is refused).
+- `suite.json` items may carry an `expect` note for the reviewer; the runner ignores it. Current suite:
+  `ma-suite20-20260929a` (12 multi-angle research questions, 4 edge cases, 4 ANALYSIS questions with ground truth).
 - Run: set a new `prefix` in `suite.json` (request ids are idempotency keys), then
   `railway up apps/orc-test-runner --path-as-root --service orc-test-runner --environment dev --detach`.
 

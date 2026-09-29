@@ -1,8 +1,9 @@
 """Multi-Angle Research golden questions against market-ai-orc on the private network (orc-test-runner).
 
 MARKET_AI_ORC_API_KEY is read from the environment and never printed. Every item is a new SERVER-mode conversation;
-a RESEARCH_PLAN_CONFIRMATION is approved once with plan_reply APPROVE. Output: short `OTR {json}` lines per turn and
-the full responses as gzip+base64 chunks (`OTRDUMP i/n data`), because Railway drops long log lines."""
+a RESEARCH_PLAN_CONFIRMATION is approved once with plan_reply APPROVE. Output: a short `OTR {json}` line per turn, then
+that turn's full response as gzip+base64 chunks (`OTRDUMP <item>:<turn> i/n data`), because Railway drops long log
+lines."""
 import base64, gzip, json, os, threading, time, urllib.error, urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
@@ -58,6 +59,18 @@ def summary(item_id, turn, code, body, seconds):
             "limitations": (response.get("limitations") or [])[:6]}
 
 
+def dump(tag, payload):
+    """One turn's full response as gzip+base64 chunks, printed as soon as the turn ends so a crash later loses
+    nothing: `OTRDUMP <tag> i/n data`."""
+    blob = base64.b64encode(gzip.compress(json.dumps(payload, ensure_ascii=False).encode())).decode()
+    parts = [blob[i:i + 800] for i in range(0, len(blob), 800)]
+    with LOCK:
+        for index, part in enumerate(parts, start=1):
+            print(f"OTRDUMP {tag} {index}/{len(parts)} {part}", flush=True)
+            if index % 50 == 0:
+                time.sleep(1)
+
+
 def run_item(item, prefix, results):
     base = {"message": item["message"], "history_mode": "SERVER"}
     if item.get("analysis_path"):
@@ -65,6 +78,7 @@ def run_item(item, prefix, results):
     code, body, seconds = post({**base, "request_id": f"{prefix}-{item['id']}-1"})
     log("turn", **summary(item["id"], 1, code, body, seconds))
     results.append({"item": item["id"], "turn": 1, "body": body})
+    dump(f"{item['id']}:1", {"item": item["id"], "turn": 1, "seconds": round(seconds, 1), "body": body})
     conversation = (body.get("conversation") or {}).get("conversation_id")
     if body.get("status") == "AWAITING_CONFIRMATION" and conversation:
         plan_id = (body.get("continuation") or {}).get("plan_id")
@@ -73,6 +87,7 @@ def run_item(item, prefix, results):
         code, body, seconds = post(reply)
         log("turn", **summary(item["id"], 2, code, body, seconds))
         results.append({"item": item["id"], "turn": 2, "body": body})
+        dump(f"{item['id']}:2", {"item": item["id"], "turn": 2, "seconds": round(seconds, 1), "body": body})
 
 
 def main():
@@ -83,12 +98,6 @@ def main():
     with ThreadPoolExecutor(max_workers=suite.get("workers", 2)) as pool:
         for future in [pool.submit(run_item, item, suite["prefix"], results) for item in suite["items"]]:
             future.result()
-    blob = base64.b64encode(gzip.compress(json.dumps(results, ensure_ascii=False).encode())).decode()
-    parts = [blob[i:i + 800] for i in range(0, len(blob), 800)]
-    for index, part in enumerate(parts, start=1):
-        print(f"OTRDUMP {index}/{len(parts)} {part}", flush=True)
-        if index % 50 == 0:
-            time.sleep(1)
     log("done", turns=len(results))
     time.sleep(30)
 
