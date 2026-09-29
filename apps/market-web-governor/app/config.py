@@ -144,6 +144,9 @@ class Settings:
     classifier_reasoning_effort: str | None = "off"
     ask_retention_days: int = 30
     ask_max_sources: int = 500
+    ask_forward_templates: bool = True
+    ask_forward_template_list: tuple[str, ...] = ("{x} rencana {next_year}", "{x} akan berlaku", "{x} jadwal",
+                                                  "{x} target {next_year}")
 
     def slot(self, number: int | None) -> ModelSlot:
         wanted = number or self.default_slot
@@ -223,6 +226,10 @@ class Settings:
             classifier_reasoning_effort=_effort(env.get("WEB_CLASSIFIER_REASONING_EFFORT", "off")),
             ask_retention_days=_integer(env, "WEB_ASK_RETENTION_DAYS", 30, maximum=365),
             ask_max_sources=_integer(env, "WEB_ASK_MAX_SOURCES", 500, minimum=20, maximum=1000),
+            ask_forward_templates=env.get("WEB_ASK_FORWARD_TEMPLATES", "on").strip().lower()
+            not in {"0", "off", "false", "no"},
+            ask_forward_template_list=tuple(t.strip() for t in env.get("WEB_ASK_FORWARD_TEMPLATE_LIST", "").split("|")
+                                            if "{x}" in t) or Settings.ask_forward_template_list,
         )
         if not settings.store_path:
             raise ConfigError("WEB_GOVERNOR_STORE_PATH must not be empty")
