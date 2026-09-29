@@ -1,5 +1,16 @@
 # Railway changelog
 
+## 2026-09-29 — market-web-governor: `/v1/ask` relevant forward timeline and answer dates checked (W17, W18)
+
+- **Live test before the fix** (runner `e80fe82b`, `live-ask13-20260929-q1`, "bagaimana outlook industry nikel", on
+  deploy `fa27e4fa`): `ANSWERED`, 54 s, USD 0.026, 68 of 500 sources cited; timeline held forecasts ("2035",
+  "2040", "25 tahun") and unrelated items (W17); one answer date was not the source's date (W18).
+- **Deployment** market-web-governor: PR #35 (`8f5ad0b`) `6509a451` `SUCCESS`. No variable changed.
+- **Live test after #35** (runner `44ad5ef5`, `live-ask14-20260929-q1`, same question): `ANSWERED`, 66 s, USD 0.032,
+  140 of 500 sources cited, no warnings; every date in the answer is a source date; timeline 10 returned, 6 kept, all
+  about nickel quotas, royalties, ESG reporting, the critical-minerals exchange and IMIP output. Remaining: one
+  deadline without a year ("31 Maret") is kept as undated.
+
 ## 2026-09-29 — market-web-governor: `/v1/ask` sector turn by code, subject share, answers without [n]
 
 - **Deployments** market-web-governor: PR #27 (`a7e8419`) went live through `6e488000` (a later `main` merge from
