@@ -25,12 +25,16 @@ question -> plan     1 model call: 2-4 keyword queries (question language and En
                      industry, external factors); turns 2 and 3 repeat the scan with them (max 3 turns).
                      Turn 2 is guaranteed by code: the plan names the subject's 1-2 sectors, and "<sector>" and
                      "<sector> regulasi pemerintah" are always searched first (max 5 queries in turn 2)
-         -> merge    code: dedupe by headline; WEB_ASK_MAX_SOURCES (default 500) shared evenly across the windows,
-                     a tenth for undated sources; sorted oldest first
+         -> merge    code: dedupe by headline; WEB_ASK_MAX_SOURCES (default 500); turn-1 (subject) sources keep
+                     at least 60% and wider turns share the rest (an unused share passes over); within each group
+                     the budget is shared across the windows, a tenth for undated sources; sorted oldest first
          -> answer   1 model call: only from the numbered sources, subject facts and wider context separated,
                      every fact cited [n] with its date; a period in the question limits the answer; a bare
                      name leads with investor-material items; "why" may be answered with a labelled inference
-         -> check    code: cited numbers must exist; citation dates come from the source list, never from the model
+         -> check    code: cited numbers must exist; citation dates come from the source list, never from the model;
+                     `answer` is returned without [n] markers, `answer_cited` keeps them renumbered 1..k, and
+                     `citations` uses the same numbers; with industry or policy sources the answer has an
+                     "Industry & policy context" section
 ```
 
 Measured locally on 2026-09-29 for "kenapa saham ptro naik 1 tahun terakhir": 3 turns, 80 Google News requests
