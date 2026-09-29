@@ -4,7 +4,9 @@ from datetime import UTC, datetime, timedelta
 import httpx
 from fastapi.testclient import TestClient
 
-from app.ask import MAX_SOURCES, AskRequest, AskService, AskStoreError, merge_sources
+from datetime import date
+
+from app.ask import AskRequest, AskService, AskStoreError, merge_sources, windows
 from app.main import create_app
 from tests.conftest import API_KEY, make_settings
 
@@ -17,12 +19,18 @@ RSS = """<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>
 
 
 class FakeProvider:
-    def __init__(self, answer="Talks were reported on 2025-10-07 [1]; the deal was announced on 2026-09-18 [2]. [9]"):
+    def __init__(self, answer="Talks were reported on 2025-10-07 [1]; the deal was announced on 2026-09-18 [2]. [9]",
+                 reviews=None):
         self.payloads = []
         self.answer = answer
+        self.reviews = list(reviews or [])
 
     def respond(self, payload):
         self.payloads.append(payload)
+        if "text" in payload and payload["text"]["format"]["name"] == "next_searches":
+            queries = self.reviews.pop(0) if self.reviews else []
+            text = json.dumps({"queries": [{"query": q, "reason": "context"} for q in queries]})
+            return {"output": [{"content": [{"type": "output_text", "text": text}]}], "usage": {"cost": 0.001}}
         if "text" in payload:
             text = json.dumps({"queries": ["Company P akuisisi", "Company P acquisition talks"], "after": None,
                                "before": None})
@@ -49,13 +57,19 @@ class MemoryStore:
         self.rows[row["request_id"]] = row
 
 
-def news_client(body=RSS):
-    return httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(200, text=body)))
+def news_client(body=RSS, seen=None, fail_after=None):
+    def handler(request):
+        if seen is not None:
+            seen.append(str(request.url.params["q"]))
+        if fail_after and "after:2024" in str(request.url.params["q"]):
+            return httpx.Response(429, text="slow down")
+        return httpx.Response(200, text=body)
+    return httpx.Client(transport=httpx.MockTransport(handler))
 
 
-def service(tmp_path, provider=None, store=None, body=RSS):
+def service(tmp_path, provider=None, store=None, body=RSS, seen=None, fail_after=None):
     return AskService(make_settings(str(tmp_path / "s.sqlite3")), provider or FakeProvider(), store,
-                      news_client(body))
+                      news_client(body, seen, fail_after))
 
 
 def test_ask_answers_from_numbered_sources_and_takes_dates_from_the_list(tmp_path):
@@ -64,9 +78,11 @@ def test_ask_answers_from_numbered_sources_and_takes_dates_from_the_list(tmp_pat
         AskRequest(request_id="ask-test-0001", question="apakah ada pembicaraan sebelum akuisisi Company P?"))
 
     assert result["status"] == "ANSWERED" and result["stored"] is True
-    # Two model calls (plan, answer) plus two Exa searches; Google News is fetched by code.
+    # Plan, one review (empty: no second turn), answer; two Exa searches; Google News per query and window by code.
     assert [("text" in p, "tools" in p) for p in provider.payloads].count((False, True)) == 2
-    assert result["usage"]["model_calls"] == 2 and result["usage"]["search_calls"] == 4
+    assert result["usage"]["model_calls"] == 2 and result["usage"]["review_calls"] == 1
+    assert result["usage"]["search_calls"] == 2 and result["usage"]["news_requests"] == 2 * 8
+    assert len(result["plan"]["windows"]) == 8 and [t["turn"] for t in result["plan"]["turns"]] == [1]
     # The same headline from Google News and Exa is one source; oldest first.
     assert [s["date"] for s in result["sources"]] == ["2025-10-07", "2026-09-18", "2026-09-18"]
     assert result["citations"][0] == {"n": 1, "date": "2025-10-07", "publisher": "News One",
@@ -104,13 +120,55 @@ def test_a_feed_with_a_doctype_is_refused(tmp_path):
     assert all(source["via"] == "exa" for source in result["sources"])
 
 
-def test_merge_keeps_the_newest_sources_and_respects_before():
-    items = [{"title": f"headline {i}", "url": f"https://x.example/{i}", "publisher": "x",
-              "date": (datetime(2026, 1, 1) + timedelta(days=i)).date().isoformat(), "text": "", "via": "google_news"}
-             for i in range(MAX_SOURCES + 20)]
-    merged = merge_sources([items], None)
-    assert len(merged) == MAX_SOURCES and merged[-1]["title"] == f"headline {MAX_SOURCES + 19}"
-    assert all(item["date"] <= "2026-01-10" for item in merge_sources([items], "2026-01-10"))
+def test_windows_reach_two_years_back_from_the_question_date_in_three_month_steps():
+    spans = windows(date(2026, 9, 29))
+    assert len(spans) == 8
+    assert spans[0] == (date(2026, 6, 29), date(2026, 9, 29)) and spans[-1] == (date(2024, 9, 29), date(2024, 12, 29))
+    stated = windows(date(2026, 9, 29), "2026-01-01", "2026-06-30")
+    assert stated[0][1] == date(2026, 6, 30) and stated[-1][0] == date(2026, 1, 1) and len(stated) == 2
+
+
+def test_merge_shares_the_budget_across_windows():
+    spans = windows(date(2026, 9, 29))
+    busy = [{"title": f"recent {i}", "url": f"https://x.example/r{i}", "publisher": "x", "date": "2026-09-01",
+             "text": "", "via": "google_news"} for i in range(300)]
+    quiet = [{"title": f"old {i}", "url": f"https://x.example/o{i}", "publisher": "x", "date": "2024-11-01",
+              "text": "", "via": "google_news"} for i in range(5)]
+    undated = [{"title": f"undated {i}", "url": f"https://x.example/u{i}", "publisher": "x", "date": None,
+                "text": "", "via": "exa"} for i in range(50)]
+    late = [{"title": "after the question", "url": "https://x.example/late", "publisher": "x", "date": "2026-10-05",
+             "text": "", "via": "google_news"}]
+    merged = merge_sources([busy, quiet, undated, late], spans, 100)
+    assert len(merged) == 100
+    assert sum(1 for item in merged if item["title"].startswith("old")) == 5       # the quiet window keeps all
+    assert sum(1 for item in merged if item["date"] is None) == 10                 # a tenth for undated
+    assert all(item["title"] != "after the question" for item in merged)
+    assert merged[0]["date"] == "2024-11-01"                                       # oldest first
+
+
+def test_review_turns_broaden_the_search_and_stop_at_three(tmp_path):
+    seen = []
+    provider = FakeProvider(reviews=[["Petrosea kontrak tambang", "Company P akuisisi"], ["harga batu bara"],
+                                     ["never asked"]])
+    result = service(tmp_path, provider, seen=seen).ask(
+        AskRequest(request_id="ask-test-0006", question="kenapa saham ptro naik 1 tahun terakhir",
+                   as_of=date(2026, 9, 29)))
+    turns = result["plan"]["turns"]
+    # "Company P akuisisi" was already used in turn 1 and is dropped; turn 3 is the last one.
+    assert [t["queries"] for t in turns] == [["Company P akuisisi", "Company P acquisition talks"],
+                                            ["Petrosea kontrak tambang"], ["harga batu bara"]]
+    assert result["usage"]["review_calls"] == 2 and result["usage"]["news_requests"] == 4 * 8
+    assert sum("harga batu bara" in q for q in seen) == 8
+    assert any("after:2024-09-29 before:2024-12-29" in q for q in seen)
+    assert "Separate facts about the subject" in provider.payloads[-1]["instructions"]
+
+
+def test_a_failed_window_is_a_warning_not_an_error(tmp_path):
+    result = service(tmp_path, fail_after=True).ask(
+        AskRequest(request_id="ask-test-0007", question="apa BI rate terakhir", as_of=date(2026, 9, 29)))
+    assert result["status"] == "ANSWERED"
+    warning = next(w for w in result["warnings"] if w["code"] == "SEARCH_FAILED")
+    assert warning["message"].startswith("4 searches failed")
 
 
 def test_ask_endpoint_requires_authorization(tmp_path):
