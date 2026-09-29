@@ -124,8 +124,8 @@ def plan_instructions(as_of: date) -> str:
         f"{as_of.year}.\n"
         "Set after/before (YYYY-MM-DD) only if the question itself states a period; otherwise null.\n"
         f"Set history to true when the question asks whether or when something happened, how often, since when, or "
-        f"for a first, last or earlier occurrence (cues: {HISTORY_CUES}); the search then covers {HISTORY_YEARS} years, "
-        "one year at a time. Otherwise false.\n"
+        f"for a first, last or earlier occurrence (cues: {HISTORY_CUES}); the search then covers {HISTORY_YEARS} years "
+        "(the last two by quarter, older ones by year). Otherwise false.\n"
         f"former_names: up to {MAX_FORMER_NAMES} earlier or alternative names the subject was known by in the last "
         f"{HISTORY_YEARS} years (for example the brands before a merger), only if you are sure; otherwise empty."
     )
@@ -194,9 +194,10 @@ def select_instructions(as_of: date, count: int) -> str:
 
 def review_instructions(as_of: date, turn: int, history: bool = False) -> str:
     drill = (
-        f"This is a history question searched one year at a time over {HISTORY_YEARS} years. To look closer at a "
-        "year whose headlines hint at an occurrence, set 'year' on a query (for example 2022): that query is then "
-        "searched in the four quarters of that year. Otherwise set year to null.\n"
+        f"This is a history question: the last two years are searched by quarter, older years back to "
+        f"{HISTORY_YEARS} years one year at a time. To look closer at an older year whose headlines hint at an "
+        "occurrence, set 'year' on a query (for example 2021): that query is then searched in the four quarters of "
+        "that year. Otherwise set year to null.\n"
         if history else "Set year to null.\n")
     return drill + (
         f"Today is {as_of.isoformat()}. You are planning search turn {turn} of {MAX_TURNS} for a research question. "
@@ -240,18 +241,25 @@ def _search_key(proposal: dict[str, Any]) -> str:
     return proposal["query"].lower() + (f"@{proposal['year']}" if proposal.get("year") else "")
 
 
-def year_windows(as_of: date, years: int = HISTORY_YEARS) -> list[tuple[date, date]]:
-    """One-year search windows, newest first, reaching `years` back from the question's date."""
-    return [(_add_months(as_of, -12 * (k + 1)), _add_months(as_of, -12 * k)) for k in range(years)]
+def history_windows(as_of: date) -> list[tuple[date, date]]:
+    """For a history question: the usual three-month windows over the last two years, then one-year windows back to
+    HISTORY_YEARS years before the question's date. Newest first."""
+    recent = windows(as_of)
+    first_year = DEFAULT_LOOKBACK_MONTHS // 12
+    older = [(_add_months(as_of, -12 * (k + 1)), _add_months(as_of, -12 * k))
+             for k in range(first_year, HISTORY_YEARS)]
+    return recent + older
 
 
 def drill_windows(year: int, as_of: date) -> list[tuple[date, date]]:
-    """The quarters of a calendar year inside the history range and not after the question's date, newest first."""
+    """The quarters of a calendar year inside the one-year history windows (older than the last two years, which
+    are already searched by quarter), newest first."""
     earliest = _add_months(as_of, -12 * HISTORY_YEARS)
+    latest = _add_months(as_of, -DEFAULT_LOOKBACK_MONTHS)
     out = []
     for month in (10, 7, 4, 1):
         lower = max(date(year, month, 1), earliest)
-        upper = min(_add_months(date(year, month, 1), 3), as_of)
+        upper = min(_add_months(date(year, month, 1), 3), latest)
         if lower < upper:
             out.append((lower, upper))
     return out
@@ -622,14 +630,14 @@ class AskService:
         plan = self._plan(request.question, as_of, slot.model, call)
         usage["model_calls"] += 1
         history = plan["history"]
-        # A history question is searched one year at a time over HISTORY_YEARS years (earlier names included);
-        # any other question over three-month windows. The forward turn always uses the newest three-month windows.
-        spans = year_windows(as_of) if history else windows(as_of, plan["after"], plan["before"])
+        # A history question keeps the usual three-month windows over the last two years and adds one-year windows
+        # back to HISTORY_YEARS (earlier names included); the review can drill an older year into quarters.
+        spans = history_windows(as_of) if history else windows(as_of, plan["after"], plan["before"])
         plan["windows"] = [[lower.isoformat(), upper.isoformat()] for lower, upper in spans]
         if history:
             plan["queries"] = list(dict.fromkeys(plan["queries"] + plan["former_names"]))
         forward = forward_queries(plan, as_of, self.settings)
-        forward_spans = windows(as_of)[:FORWARD_WINDOWS] if history else spans[:FORWARD_WINDOWS]
+        forward_spans = spans[:FORWARD_WINDOWS]
         used = {query.lower() for query in plan["queries"]} | {query.lower() for query, _ in forward}
         # Turn 0 (backward: the subject over all windows) and turn 1 (forward: AI and template queries over the
         # newest windows) only need the plan, so they run together.
@@ -910,8 +918,7 @@ class AskService:
         for entry in parsed.get("queries") or []:
             query = str(entry.get("query") or "").strip()[:120] if isinstance(entry, dict) else ""
             year = entry.get("year") if isinstance(entry, dict) else None
-            first = as_of.year - HISTORY_YEARS
-            year = year if history and isinstance(year, int) and first <= year <= as_of.year else None
+            year = year if history and isinstance(year, int) and drill_windows(year, as_of) else None
             proposal = {"query": query, "reason": str(entry.get("reason") or "")[:200], "year": year}
             if query and _search_key(proposal) not in {_search_key(p) for p in proposals}:
                 proposals.append(proposal)

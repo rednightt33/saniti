@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from datetime import date
 
 from app.ask import (AskRequest, AskService, AskStoreError, check_dates, clean_citations, drill_windows,
-                     year_windows, merge_sources, parse_when,
+                     history_windows, merge_sources, parse_when,
                      render_implications, validate_implications, windows)
 from app.main import create_app
 from tests.conftest import API_KEY, make_settings
@@ -417,40 +417,42 @@ def test_the_answer_call_reasons_and_can_be_switched_back(tmp_path):
     assert not any("text" in p and p["text"]["format"]["name"] == "sources_to_read" for p in provider.payloads)
 
 
-def test_history_windows_are_years_and_a_drill_is_the_quarters_of_one_year():
-    spans = year_windows(date(2026, 9, 29))
-    assert len(spans) == 7 and spans[0] == (date(2025, 9, 29), date(2026, 9, 29))
-    assert spans[-1] == (date(2019, 9, 29), date(2020, 9, 29))
+def test_history_windows_keep_two_years_of_quarters_and_add_older_years():
+    spans = history_windows(date(2026, 9, 29))
+    assert len(spans) == 8 + 5
+    assert spans[0] == (date(2026, 6, 29), date(2026, 9, 29)) and spans[7] == (date(2024, 9, 29), date(2024, 12, 29))
+    assert spans[8] == (date(2023, 9, 29), date(2024, 9, 29)) and spans[-1] == (date(2019, 9, 29), date(2020, 9, 29))
     assert drill_windows(2022, date(2026, 9, 29)) == [(date(2022, 10, 1), date(2023, 1, 1)),
                                                       (date(2022, 7, 1), date(2022, 10, 1)),
                                                       (date(2022, 4, 1), date(2022, 7, 1)),
                                                       (date(2022, 1, 1), date(2022, 4, 1))]
-    # The first and last years are cut to the searched range and the question's date.
+    # Cut to the one-year range: the earliest year starts on the range's first day, the latest ends two years back.
     assert drill_windows(2019, date(2026, 9, 29)) == [(date(2019, 10, 1), date(2020, 1, 1)),
                                                       (date(2019, 9, 29), date(2019, 10, 1))]
-    assert drill_windows(2026, date(2026, 9, 29))[0] == (date(2026, 7, 1), date(2026, 9, 29))
+    assert drill_windows(2024, date(2026, 9, 29))[0] == (date(2024, 7, 1), date(2024, 9, 29))
+    assert drill_windows(2025, date(2026, 9, 29)) == [] and drill_windows(2012, date(2026, 9, 29)) == []
 
 
-def test_a_history_question_searches_seven_years_by_year_and_drills_into_chosen_years(tmp_path):
+def test_a_history_question_adds_older_years_and_drills_into_chosen_years(tmp_path):
     seen = []
     provider = FakeProvider(history=True, former=["Gojek"],
-                            reviews=[[("Company P buyback", 2022), ("Company P buyback", 2012), "Company P RUPS"]])
+                            reviews=[[("Company P buyback", 2021), ("Company P buyback", 2025), "Company P RUPS"]])
     result = service(tmp_path, provider, seen=seen).ask(
         AskRequest(request_id="ask-test-0030", question="apakah Company P pernah buyback?", as_of=date(2026, 9, 29)))
     plan = result["plan"]
-    assert plan["history"] is True and len(plan["windows"]) == 7
-    # Turn 0: two plan queries plus the former name, each over 7 yearly windows; turn 1 over 2 quarterly windows.
+    assert plan["history"] is True and len(plan["windows"]) == 13
+    # Turn 0: two plan queries plus the former name over 8 quarters and 5 older years; turn 1 over 2 quarters.
     assert plan["turns"][0]["queries"] == ["Company P akuisisi", "Company P acquisition talks", "Gojek"]
-    assert plan["turns"][0]["news_requests"] == 3 * 7
-    assert any("Gojek after:2019-09-29 before:2020-09-29" == q for q in seen)
-    assert any("after:2026-06-29 before:2026-09-29" in q for q in seen)
-    # Turn 2: the 2022 drill runs over that year's 4 quarters; 2012 is outside the range, so it becomes a plain
-    # query over every window; "Company P RUPS" runs over the 7 yearly windows.
+    assert plan["turns"][0]["news_requests"] == 3 * 13
+    assert "Gojek after:2019-09-29 before:2020-09-29" in seen
+    assert "Gojek after:2026-06-29 before:2026-09-29" in seen
+    # Turn 2: 2021 drills into its 4 quarters; 2025 is already searched by quarter, so it runs as a plain query over
+    # every window, like "Company P RUPS".
     turn2 = plan["turns"][2]
     assert turn2["queries"] == ["Company P buyback", "Company P buyback", "Company P RUPS"]
-    assert turn2["years"] == [2022, None, None]
-    assert any("Company P buyback after:2022-04-01 before:2022-07-01" == q for q in seen)
-    assert turn2["news_requests"] == 4 + 7 * 2
+    assert turn2["years"] == [2021, None, None]
+    assert "Company P buyback after:2021-04-01 before:2021-07-01" in seen
+    assert turn2["news_requests"] == 4 + 13 * 2
 
 
 def test_an_ordinary_question_ignores_years_from_the_review(tmp_path):

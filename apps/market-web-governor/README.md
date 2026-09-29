@@ -23,8 +23,8 @@ question -> plan     1 model call: 2-4 keyword queries (question language and En
                      on whether/when something happened (pernah, kapan, sejak, terakhir kali, ...) with up to 2
                      earlier names of the subject
          -> turn 0   backward (code): subject queries x 8 three-month windows (two years back from the question
-                     date) on Google News, Exa for the first two; a history question: subject queries and earlier
-                     names x 7 one-year windows (seven years back)
+                     date) on Google News, Exa for the first two; a history question: the same 8 windows plus 5
+                     one-year windows (years 3-7 back), earlier names included
          -> turn 1   forward (code, runs with turn 0): the AI forward queries plus templates for the subject and
                      each sector ("{x} rencana {next_year}", "{x} akan berlaku", "{x} jadwal",
                      "{x} target {next_year}"; WEB_ASK_FORWARD_TEMPLATES, WEB_ASK_FORWARD_TEMPLATE_LIST) over the
@@ -32,8 +32,8 @@ question -> plan     1 model call: 2-4 keyword queries (question language and En
          -> turn 2   wider (guaranteed by code): "<sector>" and "<sector> regulasi pemerintah" first, then the
                      review call's proposals (max 5 queries)
          -> turn 3   optional: up to 3 deeper queries from the review call, or none
-                     (history questions: a review query may name a year; it is then searched in that year's four
-                     quarters, the drill-down)
+                     (history questions: a review query may name an older year; it is then searched in that year's
+                     four quarters, the drill-down)
          -> merge    code: dedupe by headline; WEB_ASK_MAX_SOURCES (default 500): backward at least 50%, forward
                      at least 20%, wider the rest (unused shares pass over), each spread across the windows
          -> read     1 model call picks up to WEB_ASK_READ_ARTICLES (default 12, 0 = off) headlines whose full
