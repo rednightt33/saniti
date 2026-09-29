@@ -14,6 +14,7 @@ the database or code until the user gives the go-ahead.
 | 4 | No finalize before every angle is attempted | M36 | orc, sandbox | 6 of 42 angles NOT_RUN in runs whose executions all succeeded |
 | 5 | Method rules checked at feasibility, not at the final plan | M38 | orc (sandbox rules) | 4 of 16 research questions got no plan after a FEASIBLE check |
 | 6 | Negation-aware agreement check | P09 | orc | r08 forced to LIMITATION by "tidak mengizinkan … saling mendukung" |
+| 7 | Fewer angles allowed; optional method-family coverage switch | — | orc, sandbox | User decision 2026-09-29: do not force many angles at once |
 
 Suggested order: 3 and 1 first (a wrong or lost result), then 4, 5 and 6 (orc gates and feasibility), then 2 (a new
 table plus a migration). Items 2 and 5 share the method requirements and are designed together.
@@ -81,6 +82,21 @@ method list in the system prompt. `AI_research_catalog` stays unchanged (the ear
 - Agreement phrases governed by a negation (tidak, bukan, belum, tanpa, not, no) in the same clause are ignored, as
   the causal-claim check already does. Regression test on the r08 sentence.
 
+### 7. Fewer angles, optional family coverage
+
+User decision (2026-09-29): the model is not forced to use many angles at once; the minimum becomes 2-3.
+
+- Today the minimum is 3 in four places: `AI_RESEARCH_MIN_ANGLES` (market-ai-orc, validated `3 <= min`),
+  `ResearchPlanV2.angles` (`MIN_ANGLES = 3`), the sandbox governance policy (`min_angles = 3`) and the plan rules in
+  the prompt ("at least three"). All four read one negotiated value instead; the lowest allowed value becomes 2 and
+  the default 2 (to confirm at implementation: 2 or 3).
+- Prepared but off: `AI_RESEARCH_MIN_FAMILIES` (0 = off). When set, a plan needs angles from at least that many
+  method families; the feasibility check and the plan gate refuse a plan below it. Five families exist, so 5 means
+  "every family at least once". "Every one of the eight methods" would need 8 angles, above the maximum of 6, so
+  it is not offered unless the maximum is raised.
+- Unchanged: an agreement claim still needs two SUPPORTED angles of different families, so a two-angle plan can
+  claim agreement only when both are supported.
+
 ## To be designed: EXPLORATION mode (analysis + research, iterative)
 
 Requested by the user on 2026-09-29 as a design topic, not an approved implementation. **For now the flow is manual:** the
@@ -91,37 +107,43 @@ Target: three modes.
 | Mode | Purpose | Result |
 |---|---|---|
 | ANALYSIS | Descriptive facts and screens | Descriptive, no statistical claim |
-| RESEARCH | One root hypothesis, 3-6 angles, backend-validated | Findings with statuses |
-| EXPLORATION | A search question ("find which broker / window / threshold ...") run as rounds of ANALYSIS then RESEARCH, repeated up to N times | Candidates found, which were confirmed, and what remains open |
+| RESEARCH | One root hypothesis, 2-6 angles (item 7), backend-validated | Findings with statuses |
+| EXPLORATION | Rounds of research (with analysis where it helps), repeated while the user agrees | What was found, what was supported, what remains open |
 
-A round: (1) ANALYSIS screens candidates descriptively; (2) the best few become a Research Plan tested on data the
-screen did not use; (3) the findings and each angle's `follow_up` propose the next round ("what would support or
-refute this, or help answer the user"); (4) stop when the question is answered, the round limit N is reached, or no
-follow-up is worth testing; then one synthesis of all rounds.
+Flow decided by the user (2026-09-29):
 
-Questions to settle before building:
+1. The user asks; the AI prepares a Research Plan and returns it. The user approves, and the research runs.
+2. The run finishes. Before the result is shared, the AI already prepares, in the backend, the research it would run
+   next (from the findings and each angle's `follow_up`).
+3. The AI shares the result together with that proposal. The user and the AI discuss it (brainstorm); when the user
+   approves, the next research runs, and step 2 repeats. When the user does not approve, exploration stops.
 
-- **Holdout discipline across rounds.** Every round that looks at data spends it. Keep a ledger of the periods each
-  round used; confirmation always runs on a period no earlier round screened, or the round is labelled exploratory.
-- **Multiple testing across rounds.** Record every hypothesis tried in all rounds (the sandbox already has a
-  research ledger and `followup_of`) and report the total; decide whether later rounds need a stricter threshold.
-- **Approval.** Whether the user approves each Research Plan (as today) or approves N rounds once with bounds (angles,
-  cost, time) in advance.
-- **Budget.** N, the cost and time limits per question, and what the answer says when a limit stops the search.
-- **Follow-up generation.** Which follow-ups are allowed (other period, subset, holdout, stricter threshold, another
-  method family) and which are not (re-testing the same data until something passes).
-- **Final answer.** What was searched, what was found, what was confirmed on unseen data, and the count of all
-  hypotheses tried.
-- Depends on items 1-6 above (a round is only as reliable as one research run) and on the decomposition layer.
+Decided:
+
+- **Approval per round.** Every round's Research Plan is approved by the user, after the discussion; there is no
+  blanket approval of N rounds.
+- **No holdout ledger across rounds.** Not needed: one dataset can be combined with other data, or analysed with
+  other columns, so an earlier round does not "use up" data for a later one.
+- **No follow-up rules for now.** The AI may propose any next research; the user decides.
+
+Still open:
+
+- Multiple testing across rounds: whether to report the total number of hypotheses tried in the whole exploration.
+- A round limit or cost display per round (the loop now ends when the user stops).
+- The final summary across rounds (what was searched, found and supported).
+- Depends on items 1-7 (a round is only as reliable as one research run) and on the decomposition layer.
 
 ## Not approved yet (open decisions)
 
 - M37: the final-turn output budget (`AI_MAX_OUTPUT_TOKENS` or a reasoning cap): a configuration change.
 - G12 remainder: the example call uses a price column of the angle's contract (partly covered by item 1).
-- Expression functions for new questions: `ema(x, n)` with automatic warm-up, and a threshold on forward-return
-  outcomes (for "return at least X%").
+- Expression functions for new questions: `ema(x, n)` with automatic warm-up.
 - Data: an IHSG daily table and its catalog relationship; interest rates when the table exists.
-- A threshold on forward-return outcomes is also needed for questions like "return at least 10% in one month".
+- Outcome threshold and event summary (proposed 2026-09-29 after the user's question on "9 of 10 events"): a
+  forward-return outcome may carry a threshold ("at least X%"); every conditional finding then reports the raw
+  number of events, the effective sample, and the share of events at or above the threshold in the condition and in
+  the baseline, each with a Wilson interval. Today the engine's hit rate is fixed at "> 0", and the findings do not
+  require showing it.
 
 ## Verification when executed
 
