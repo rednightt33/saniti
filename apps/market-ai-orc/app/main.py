@@ -23,11 +23,13 @@ from .audit import RunAuditor
 from .audit_outbox import AuditOutbox
 from .orchestrator import AgentOrchestrator, log_event
 from .provider_log import ProviderLogger
-from .research_plan_v2 import negotiate
+from .research_plan_v2 import library_problem, negotiate
 from .schemas import AgentRunRequest, AgentRunResponse
 from .tools import build_default_registry
 from .tools.analysis import SandboxClient
 from .tools.catalog import CatalogTools
+from .tools.library import read_research_library
+from .tools.registry import ToolError
 from .tools.request_data import GovernorClient
 from .tools.session import close_sessions
 
@@ -54,6 +56,19 @@ def _sandbox_ready(sandbox: SandboxClient, attempts: int = 3, delay_seconds: flo
         if attempt + 1 < attempts:
             time.sleep(delay_seconds)
     return False
+
+
+def _with_research_library(multi_angle: dict, catalog: CatalogStore | None) -> tuple[dict | None, str | None]:
+    if catalog is None:
+        return None, "no catalog database (CATALOG_DATABASE_URL) to read the research library AI_research_library"
+    try:
+        rows = read_research_library(catalog)
+    except ToolError as exc:
+        return None, f"the research library AI_research_library could not be read: {exc}"
+    problem = library_problem(rows)
+    if problem is not None:
+        return None, problem
+    return {**multi_angle, "library": rows}, None
 
 
 def create_app(
@@ -148,8 +163,15 @@ def create_app(
             multi_angle, reason = negotiate(
                 (sandbox.runtime().get("multi_angle_research") or {}) if sandbox is not None else None,
                 min_angles=settings.ai_research_min_angles, max_angles=settings.ai_research_max_angles,
-                max_groups=settings.ai_research_max_bundle_groups, feasibility=feasibility, composite=composite)
+                max_groups=settings.ai_research_max_bundle_groups, feasibility=feasibility, composite=composite,
+                min_families=settings.ai_research_min_families)
+            if multi_angle is not None:
+                # C07: the model reads the methods from AI_research_library; the table, the sandbox and this service
+                # must carry the same research library, or multi-angle research stays inactive (fail closed)
+                multi_angle, reason = _with_research_library(multi_angle, catalog)
             if multi_angle is None:
+                if "library" in (reason or ""):
+                    log_event("research_library_mismatch", reason=reason)
                 log_event("multi_angle_research_inactive", reason=reason)
         registry = build_default_registry(
             catalog,

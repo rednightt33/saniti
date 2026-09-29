@@ -61,8 +61,13 @@ class ResearchContext:
     approved plan."""
 
     feasible: dict[str, Any] | None = None
+    # the checked design of every angle of that data plan (M38), for naming what a plan changed
+    designs: dict[str, dict[str, Any]] = field(default_factory=dict)
     checks: list[dict[str, Any]] = field(default_factory=list)
     executor: "ResearchRunExecutor | None" = None
+    # tool calls this run may still make (set by the orchestrator); M36 refuses an early finalize only while the model
+    # can still record the missing angles
+    calls_left: Any = None
 
 
 current_research_context: contextvars.ContextVar[ResearchContext | None] = contextvars.ContextVar(
@@ -78,6 +83,7 @@ def remember_feasibility(outcome: dict[str, Any]) -> None:
     context.checks.append({k: outcome["view"].get(k) for k in ("status", "strategy", "uncovered_angle_ids")})
     if outcome["status"] == "FEASIBLE" and outcome["data_plan"] is not None:
         context.feasible = outcome["data_plan"]
+        context.designs = dict(outcome.get("designs") or {})
 
 
 def weakest(levels: list[str | None]) -> str | None:
@@ -155,6 +161,7 @@ class ResearchRunExecutor:
         self.completions: dict[str, dict[str, Any]] = {}
         self.sessions: dict[str, dict[str, Any]] = {}
         self.attempted = False
+        self.early_finalize_refused = False
 
     # ------------------------------------------------------------------ sandbox calls
 
@@ -277,11 +284,20 @@ class ResearchRunExecutor:
             result["session_opened"] = {k: opened.get(k) for k in ("session_id", "datasets", "research")}
         return result
 
-    def complete(self, finalize: bool) -> dict[str, Any]:
+    def complete(self, finalize: bool, calls_left: int | None = None) -> dict[str, Any]:
         if self.research_run_id is None:
             return {"status": "REJECTED", "code": "RESEARCH_RUN_NOT_STARTED",
                     "message": "Call start_research_run first.", "next_action": "START_RESEARCH_RUN"}
         last: dict[str, Any] | None = None
+        if finalize and not self.early_finalize_refused and (calls_left is None or calls_left >= 2):
+            # M36 (suite20, 2026-09-29): 6 of 42 angles became NOT_RUN because the model finalized before recording
+            # them, although every execution had succeeded. The first finalize while an approved angle is unrecorded
+            # is answered with what is missing (once, and only while tool calls remain to record it); a second
+            # finalize is accepted and a genuinely failing angle still becomes NOT_RUN.
+            refusal, last = self._early_finalize()
+            if refusal is not None:
+                self.early_finalize_refused = True
+                return refusal
         if self.open_group is not None:
             last = self._complete(self.open_group, finalize)
             if last.get("status") != "COMPLETED":
@@ -325,6 +341,31 @@ class ResearchRunExecutor:
             "next_action": "ANSWER_FROM_RESEARCH_FINDINGS" if status == "COMPLETED" else "REPORT_LIMITATION"}
         return self.result
 
+    def _early_finalize(self) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+        """(INCOMPLETE naming the unrecorded angles of the open group and the groups never run, or None when nothing
+        is missing; the completion of the open group, completed without finalize, which records nothing as NOT_RUN)."""
+        missing: list[str] = []
+        group_id = self.open_group
+        completion: dict[str, Any] | None = None
+        if group_id is not None:
+            completion = self._complete(group_id, finalize=False)
+            if completion.get("status") != "COMPLETED":
+                research = (completion.get("final_status") or {}).get("research_group") or {}
+                missing = [str(a) for a in research.get("missing") or []] or list(self.groups[group_id]["angle_ids"])
+        pending = [g for g in self.order if self.groups[g]["status"] in ("READY", "APPROVED")]
+        if not missing and not pending:
+            return None, completion
+        not_run = sorted({a for g in pending for a in self.groups[g]["angle_ids"]})
+        return {"status": "INCOMPLETE", "code": "ANGLES_NOT_RECORDED", "bundle_group_id": group_id if missing else None,
+                "missing_angle_ids": missing, "groups_not_run": pending, "angles_of_groups_not_run": not_run,
+                "message": "Finalize was not applied: approved angles are not recorded yet. Record each missing angle "
+                           "with run_research_code (its helper and the example call of the session's research view)"
+                           + (f" in group {group_id}" if missing else "")
+                           + (f", and run groups {pending}" if pending else "")
+                           + ", then call complete_research_run with finalize false. Call finalize true again only "
+                             "for an angle that cannot be recorded; it then becomes NOT_RUN.",
+                "next_action": "RECORD_MISSING_ANGLES"}, completion
+
     def _state(self, status: str) -> dict[str, Any]:
         return {"status": status, "research_run_id": self.research_run_id,
                 "groups": [{k: self.groups[g].get(k) for k in ("bundle_group_id", "angle_ids", "status", "reason",
@@ -346,16 +387,19 @@ RUN_DESCRIPTION = (
     "research_persistence, research_group_comparison, research_quantiles, research_temporal_dependency and "
     "research_custom). Record every angle of the group exactly once with its helper, starting from the angle's example "
     "call in the session's research view: request is the data request id string, each role an expression over that "
-    "request's columns, and the outcome {'forward_return': '<price column>'} (the backend computes it over the "
-    "approved horizon; never a trailing return column). The thresholds, lags, buckets, groups and horizon come from "
-    "the approved plan. Moving to another group completes the open one first. Read every dataset of the group "
-    "through the saniti helpers.")
+    "request's columns, and the outcome {'forward_return': '<price column>'}, with 'request': '<request id>' added "
+    "when the price column is in another request of the angle's contract (the backend computes it over the approved "
+    "horizon; never a price level or a trailing return column). The thresholds, lags, buckets, groups and horizon "
+    "come from the approved plan. Moving to another group completes the open one first. Read every dataset of the "
+    "group through the saniti helpers.")
 COMPLETE_DESCRIPTION = (
     "Complete the research run: the backend validates the open group (coverage, one recorded input per approved "
     "angle) and recomputes every angle's statistics independently, then returns one backend finding per angle "
     "(SUPPORTED, PARTIALLY_SUPPORTED, INSUFFICIENT_EVIDENCE, INVALID or NOT_RUN, with its validation level), the "
     "angle completion counts and the research synthesis map. With finalize false it reports what is still missing; "
-    "with finalize true the result is accepted as it stands. Answer only from these findings.")
+    "record those angles and call it again. finalize true accepts the result as it stands (unrecorded angles become "
+    "NOT_RUN); while an approved angle is unrecorded the first finalize true is answered with the missing angles "
+    "instead. Answer only from these findings.")
 
 
 def executor_specs(*, timeout_seconds: float, execution_timeout_seconds: float, max_result_bytes: int) -> list[ToolSpec]:
@@ -380,7 +424,11 @@ def executor_specs(*, timeout_seconds: float, execution_timeout_seconds: float, 
     def complete(arguments: BaseModel) -> dict[str, Any]:
         assert isinstance(arguments, CompleteResearchRunArgs)
         run = executor()
-        return run.complete(arguments.finalize) if run is not None else refused()
+        if run is None:
+            return refused()
+        context = current_research_context.get()
+        calls_left = context.calls_left() if context is not None and callable(context.calls_left) else None
+        return run.complete(arguments.finalize, calls_left)
 
     return [
         ToolSpec(name="start_research_run", description=START_DESCRIPTION, arguments_model=StartResearchRunArgs,

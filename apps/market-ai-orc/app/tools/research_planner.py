@@ -13,7 +13,13 @@ angle's own ids). The planner, deterministically:
    FEASIBLE group is one whose parts the Governor accepts;
 4. returns research_data_plan/v1: the strategy (SINGLE_BUNDLE, MULTI_BUNDLE or INFEASIBLE), the groups with their
    drafts and spec hashes, the angle to group mapping, the per-angle requirements and merge decisions, every angle's
-   angle_data_contract/v1 (the datasets, columns and ranges it may use) and the plan hash.
+   angle_data_contract/v1 (the datasets, columns and ranges it may use), the hash of every angle's checked design and
+   the plan hash.
+
+Before any of this (M38, suite20 2026-09-29), each angle's design (method, parameters, horizon, unit, comparisons,
+holdout and the price column of a forward-return outcome) is checked against the rules the final plan enforces and
+the research library's data requirements, so a FEASIBLE check is never followed by a plan refused for a method rule.
+The check reads metadata only (user decision 2026-09-29); what needs data surfaces in the run.
 
 Nothing is extracted and no revision is consumed. The full data plan stays with the orchestrator (it is bound to the
 plan's rpc2 continuation); the model sees a compact view.
@@ -24,9 +30,12 @@ import copy
 import string
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from ..research_plan_v2 import CONTRACT_VERSION, DATA_PLAN_VERSION, contract_sha256, data_plan_sha256, sha256_json
+from ..research_library import by_method
+from ..research_plan_v2 import (CONTRACT_VERSION, DATA_PLAN_VERSION, MAX_CANDIDATES_PER_ANGLE, MAX_PAIRWISE_PER_ANGLE,
+                                USES, AngleParameters, MethodId, OutcomeUnit, Policy, contract_sha256, data_plan_sha256,
+                                design_sha256, family_count, holdout_start, parameter_problems, sha256_json)
 from .analysis import current_run_context
 from .data_need import DataRequest, RelationshipV2, Subject, argument_issues
 from .registry import ToolError, ToolSpec
@@ -40,8 +49,43 @@ class Strict(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class OutcomePrice(Strict):
+    data_request_id: str = Field(description="The angle's own request id (one of its data_requests) that holds the "
+                                             "price column.")
+    column: str = Field(description="The numeric price-level column (for example close) the backend computes the "
+                                    "forward return from; never a return column.")
+
+
+class AngleDesign(Strict):
+    """The analytical design the Research Plan will give this angle; the plan must repeat it unchanged."""
+
+    method_id: MethodId = Field(description="A method of the research library (get_research_library).")
+    parameters: AngleParameters
+    outcome_horizon_periods: int = Field(ge=1, le=260, description="Analysis periods one outcome spans.")
+    outcome_unit: OutcomeUnit
+    candidate_count: int = Field(ge=1, le=MAX_CANDIDATES_PER_ANGLE,
+                                 description="Thresholds, lags, lengths or conditions evaluated inside this angle.")
+    pairwise_comparisons: int = Field(ge=0, le=MAX_PAIRWISE_PER_ANGLE)
+    multiple_testing_policy: Policy = Field(description="NONE only for a single comparison.")
+    holdout_required: bool = Field(description="True when the latest range is kept as a holdout (the angle's "
+                                               "requests then need at least two ranges).")
+    outcome_price: OutcomePrice | None = Field(description="For a forward-return outcome (PERCENT or DECIMAL): the "
+                                                           "request and price column it is computed from; else null.")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _unused_parameters_are_null(cls, data: Any) -> Any:
+        # as ResearchAngle: a parameter the method does not use carries no meaning for it
+        if isinstance(data, dict) and isinstance(data.get("parameters"), dict) and data.get("method_id") in USES:
+            used = USES[data["method_id"]]
+            data = {**data, "parameters": {key: (value if key in used else None)
+                                           for key, value in data["parameters"].items()}}
+        return data
+
+
 class AngleRequirement(Strict):
     angle_id: str = Field(description="The angle_id the Research Plan will use for this angle.")
+    design: AngleDesign
     data_requests: list[DataRequest] = Field(description="1-8 requests this angle reads, in this angle's own ids "
                                                          "(for example angle_one_A); the backend merges equal "
                                                          "requests of different angles.")
@@ -72,6 +116,11 @@ def _calendar_days(buffer: dict[str, Any] | None) -> int:
     return value
 
 
+# trading observations per analysis period, to size a forward return's future buffer (conservative)
+PERIOD_OBSERVATIONS = {None: 1, "DAILY": 1, "WEEKLY": 5, "MONTHLY": 23, "QUARTERLY": 66, "YEARLY": 262}
+MAX_BUFFER_OBSERVATIONS = 5000  # the sandbox's DataNeedSpec limit
+
+
 def _wider(a: dict[str, Any] | None, b: dict[str, Any] | None) -> dict[str, Any] | None:
     if not a or not b:
         return copy.deepcopy(a or b)
@@ -81,13 +130,14 @@ def _wider(a: dict[str, Any] | None, b: dict[str, Any] | None) -> dict[str, Any]
 
 
 class ResearchDataPlanner:
-    def __init__(self, client: Any, planner: Any, *, max_groups: int = 3, min_angles: int = 3, max_angles: int = 6,
-                 limits: dict[str, Any] | None = None) -> None:
+    def __init__(self, client: Any, planner: Any, *, max_groups: int = 3, min_angles: int = 2, max_angles: int = 6,
+                 limits: dict[str, Any] | None = None, min_families: int = 0) -> None:
         self.client = client
         self.planner = planner
         self.max_groups = max_groups
         self.min_angles = min_angles
         self.max_angles = max_angles
+        self.min_families = min_families
         limits = limits or {}
         self.max_rows = int(limits.get("bundle_max_rows") or 2_000_000)
         self.max_parts = int(limits.get("bundle_max_parts") or 128)
@@ -129,7 +179,90 @@ class ResearchDataPlanner:
                     if rel[side] not in ids:
                         add(angle_id, "UNKNOWN_REQUEST", f"angles[{index}].relationships[{r_index}].{side}",
                             rel[side])
+            issues += self._design_issues(index, angle)
+        if self.min_families and family_count([a["design"]["method_id"] for a in angles]) < self.min_families:
+            issues.append({"angle_id": None, "data_request_id": None, "code": "FAMILY_COVERAGE",
+                           "field_path": "angles", "rejected_value": family_count([a["design"]["method_id"]
+                                                                                   for a in angles]),
+                           "message": f"This deployment needs angles from at least {self.min_families} method "
+                                      "families (get_research_library lists each method's family)."})
         return issues
+
+    @staticmethod
+    def _design_issues(index: int, angle: dict[str, Any]) -> list[dict[str, Any]]:
+        """M38: the rules the final plan enforces (parameters, multiple testing, holdout ranges) and the research
+        library's data requirements (entity column, forward-return price column), checked on metadata only."""
+        angle_id, design = angle["angle_id"], angle["design"]
+        path = f"angles[{index}].design"
+        issues: list[dict[str, Any]] = []
+
+        def add(code: str, field: str, value: Any, message: str) -> None:
+            issues.append({"angle_id": angle_id, "data_request_id": None, "code": code,
+                           "field_path": f"{path}.{field}" if field else path,
+                           "rejected_value": value if not isinstance(value, (dict, list)) else str(value)[:200],
+                           "message": message})
+
+        method = design["method_id"]
+        for problem in parameter_problems(method, design["parameters"], design["candidate_count"],
+                                          design["pairwise_comparisons"]):
+            add("DESIGN_PARAMETERS", "parameters", None, problem)
+        if design["multiple_testing_policy"] == "NONE" \
+                and max(design["candidate_count"], design["pairwise_comparisons"]) > 1:
+            add("MULTIPLE_TESTING_POLICY_REQUIRED", "multiple_testing_policy", "NONE",
+                "more than one comparison needs a multiple_testing_policy other than NONE")
+        requests = {r["data_request_id"]: r for r in angle["data_requests"]}
+        if design["holdout_required"] and holdout_start(
+                {"datasets": [{"ranges": r.get("time_ranges") or []} for r in requests.values()]}) is None:
+            add("HOLDOUT_NEEDS_TWO_RANGES", "holdout_required", True,
+                "a holdout keeps the latest range apart: give the angle's requests a separate later range, or set "
+                "holdout_required false")
+        library = by_method().get(method) or {}
+        requirements = library.get("data_requirements") or {}
+        if requirements.get("entity_column") == "REQUIRED" and not any(r.get("entity_column")
+                                                                       for r in requests.values()):
+            add("ENTITY_COLUMN_REQUIRED", "method_id", method,
+                f"{method} compares entities, so the angle needs a request with an entity column")
+        price = design.get("outcome_price")
+        wants_return = requirements.get("outcome") == "FORWARD_RETURN" and design["outcome_unit"] in ("PERCENT",
+                                                                                                     "DECIMAL")
+        if wants_return and price is None:
+            add("OUTCOME_PRICE_REQUIRED", "outcome_price", None,
+                "a forward-return outcome needs outcome_price: the angle's request and the price-level column the "
+                "backend computes the return from")
+        if price is not None:
+            request = requests.get(price["data_request_id"])
+            if request is None:
+                add("OUTCOME_PRICE_REQUEST_UNKNOWN", "outcome_price.data_request_id", price["data_request_id"],
+                    "outcome_price names a request this angle does not read")
+            elif price["column"] not in request["columns"] \
+                    or price["column"] in (request.get("entity_column"), request.get("time_column")):
+                add("OUTCOME_PRICE_COLUMN_MISSING", "outcome_price.column", price["column"],
+                    f"{price['column']} is not a value column of request {price['data_request_id']}; add the price "
+                    "column to its columns")
+        return issues
+
+    @staticmethod
+    def _widen_future_buffers(angles: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """A forward return needs a future buffer of at least its horizon on the price request; a shorter one is
+        widened (in trading observations of the analysis frequency) and reported, never refused."""
+        adjustments = []
+        for angle in angles:
+            price = angle["design"].get("outcome_price")
+            request = next((r for r in angle["data_requests"]
+                            if price is not None and r["data_request_id"] == price["data_request_id"]), None)
+            if request is None:
+                continue
+            need = min(angle["design"]["outcome_horizon_periods"]
+                       * PERIOD_OBSERVATIONS.get(request.get("resample"), 1), MAX_BUFFER_OBSERVATIONS)
+            buffer = request.get("future_buffer")
+            wanted = {"value": need, "unit": "TRADING_OBSERVATIONS"}
+            if buffer is None or _calendar_days(buffer) < _calendar_days(wanted) \
+                    or (buffer.get("unit") == "TRADING_OBSERVATIONS" and int(buffer.get("value") or 0) < need):
+                request["future_buffer"] = wanted
+                adjustments.append({"angle_id": angle["angle_id"], "data_request_id": request["data_request_id"],
+                                    "future_buffer": wanted, "previous": buffer,
+                                    "reason": "a forward return needs a future buffer of at least its horizon"})
+        return adjustments
 
     # ------------------------------------------------------------------------------------------ merge
 
@@ -282,7 +415,9 @@ class ResearchDataPlanner:
         issues = self._structure(args)
         if issues:
             return self._outcome("REVISION_REQUIRED", None, issues=issues)
+        args = copy.deepcopy(args)
         angles = args["angles"]
+        adjustments = self._widen_future_buffers(angles)
         order = [a["angle_id"] for a in angles]
         merged, mapping, decisions = self._merge(angles)
         prefix = "mar" + sha256_json(args)[:8]
@@ -355,7 +490,10 @@ class ResearchDataPlanner:
                 "angle_ids": order, "code": "NO_BOUNDED_GROUPING",
                 "message": "No grouping of the angles fits the bundle limits."}], attempts=attempts)
         data_plan = self._data_plan(args, merged, mapping, decisions, checked)
-        return self._outcome("FEASIBLE", data_plan, strategy=data_plan["strategy"], attempts=attempts)
+        outcome = self._outcome("FEASIBLE", data_plan, strategy=data_plan["strategy"], attempts=attempts,
+                                adjustments=adjustments)
+        outcome["designs"] = {a["angle_id"]: a["design"] for a in angles}
+        return outcome
 
     def _data_plan(self, args: dict[str, Any], merged: list[dict[str, Any]], mapping: dict[str, Any],
                    decisions: list[dict[str, Any]], checked: list[dict[str, Any]]) -> dict[str, Any]:
@@ -420,6 +558,8 @@ class ResearchDataPlanner:
                 "bundle_groups": groups, "angle_to_bundle_group": dict(sorted(to_group.items())),
                 "angle_input_requirements": requirements, "merge_decisions": decisions, "uncovered_angle_ids": [],
                 "conflicts": [], "angle_data_contracts": contracts,
+                # M38: the plan must carry exactly these checked designs (hashes only: strings survive any client)
+                "angle_design_sha256s": {a["angle_id"]: design_sha256(a["design"]) for a in args["angles"]},
                 "totals": {"rows": sum(g["estimates"]["rows"] for g in groups),
                            "parts": sum(g["estimates"]["parts"] for g in groups)}}
         plan["research_data_plan_sha256"] = data_plan_sha256(plan)
@@ -428,9 +568,12 @@ class ResearchDataPlanner:
     @staticmethod
     def _outcome(status: str, data_plan: dict[str, Any] | None, *, strategy: str | None = None,
                  uncovered: list[str] | None = None, issues: list[dict[str, Any]] | None = None,
-                 attempts: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+                 attempts: list[dict[str, Any]] | None = None,
+                 adjustments: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         view: dict[str, Any] = {"status": status, "strategy": strategy, "issues": (issues or [])[:20],
                                 "uncovered_angle_ids": uncovered or [], "group_attempts": (attempts or [])[:12]}
+        if adjustments:
+            view["adjustments"] = adjustments[:12]
         if data_plan is not None:
             view.update(
                 research_data_plan_sha256=data_plan["research_data_plan_sha256"],
@@ -451,13 +594,16 @@ class ResearchDataPlanner:
 
 
 CHECK_RESEARCH_FEASIBILITY_DESCRIPTION = (
-    "Before presenting a multi-angle Research Plan, check that every angle's data exists, joins and fits. Send one "
-    "data requirement per planned angle (angle_id, its DataNeedSpec v2 data_requests and relationships, in the "
-    "angle's own ids); the backend merges equal requests of different angles into one bundle when they fit, splits "
-    "the angles into a few bundle groups only when they do not, validates each group and estimates its extraction "
-    "without reading data. Returns FEASIBLE with the bundle groups, each angle's bundle request and range ids and the "
-    "columns it may use (its data contract); NOT_FEASIBLE naming the angles that cannot be served; or "
-    "REVISION_REQUIRED with issues by angle. Present the plan only after FEASIBLE, with exactly the angles checked.")
+    "Before presenting a multi-angle Research Plan, check every angle's design and data. Send one entry per planned "
+    "angle: angle_id, its design (method from get_research_library, parameters, horizon, unit, comparisons, "
+    "multiple-testing policy, holdout, and for a forward-return outcome the request and price column) and its "
+    "DataNeedSpec v2 data_requests and relationships in the angle's own ids. The backend checks each design against "
+    "the method's rules and data requirements, merges equal requests of different angles into one bundle when they "
+    "fit, splits the angles into a few bundle groups only when they do not, validates each group and estimates its "
+    "extraction without reading data. Returns FEASIBLE with the bundle groups, each angle's bundle request and range "
+    "ids and the columns it may use (its data contract); NOT_FEASIBLE naming the angles that cannot be served; or "
+    "REVISION_REQUIRED with issues by angle. Present the plan only after FEASIBLE, with exactly the angles and "
+    "designs checked.")
 
 
 def research_feasibility_spec(planner: ResearchDataPlanner, *, timeout_seconds: float, max_result_bytes: int,

@@ -172,7 +172,11 @@ class FinalResponse(BaseModel):
         if self.research_findings is not None and len(self.research_findings) > (
                 6 if any(isinstance(f, AngleFindingReport) for f in self.research_findings) else 4):
             raise ValueError("research_findings has more entries than a Research Plan allows")
-        if self.research_findings is not None and self.response_type != "ANSWER":
+        # a LIMITATION forced by the findings gate keeps the backend's per-angle findings (P09, 2026-09-29); the gate
+        # drops any research_findings the model itself puts on a response other than an ANSWER
+        backend_limitation = self.response_type == "LIMITATION" and self.research_findings is not None \
+            and all(isinstance(f, AngleFindingReport) for f in self.research_findings)
+        if self.research_findings is not None and self.response_type != "ANSWER" and not backend_limitation:
             raise ValueError(f"{self.response_type} requires research_findings to be null")
         if self.methodology is not None and self.response_type in ("CLARIFICATION", "RESEARCH_PLAN_CONFIRMATION"):
             raise ValueError(f"{self.response_type} requires methodology to be null")

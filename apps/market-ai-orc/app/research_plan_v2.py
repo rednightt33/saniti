@@ -1,6 +1,6 @@
 """Research Plan v2 (Multi-Angle Research, AI_ENABLE_MULTI_ANGLE_RESEARCH; MULTI_ANGLE_RESEARCH.md).
 
-A v2 plan examines one root hypothesis from three to six angles. Each angle is one analytical question with one
+A v2 plan examines one root hypothesis from two to six angles (AI_RESEARCH_MIN_ANGLES may require more). Each angle is one analytical question with one
 registered method and its parameters; angles may repeat a method or its family when their questions differ, and an
 exact duplicate (the same angle_signature) is refused. The plan is still conceptual: no tables, SQL or code.
 
@@ -11,7 +11,8 @@ server recomputes every hash. A v1 token (rpc1) is never read as rpc2 or the rev
 
 The method registry, the parameter rules and the angle signature equal market-python-sandbox's
 app/research_methods.py; both test suites pin the same signature vector and the capability negotiation compares the
-registry hash.
+registry hash. The model-facing description of the methods is the research library (app/research_library.py, the
+table public."AI_research_library"); the negotiation also compares its hash (C07, 2026-09-29).
 """
 from __future__ import annotations
 
@@ -26,6 +27,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from . import research_library
 from .research_plan import (CLOCK_SKEW_SECONDS, IDENTIFIER, MAX_TTL_SECONDS, PLAN_ID, SHA256, TOKEN_KIND, Action,
                             PlanVerificationError, _b64decode, _b64encode, _no_code, _no_duplicates, _utc,
                             canonical_json, normalize_text)
@@ -39,7 +41,9 @@ TOKEN_VERSION_V2 = "rpc2"
 MAX_TOKEN_CHARS_V2 = 4096
 TOKEN_V2 = re.compile(r"^rpc2\.[A-Za-z0-9_-]{16,3900}\.[A-Za-z0-9_-]{43}$")
 DRAFT_ID = re.compile(r"^draft_[0-9a-f]{24}$")
-MIN_ANGLES, MAX_ANGLES = 3, 6
+# the lowest minimum became 2 on 2026-09-29 (user decision: do not force many angles; AI_RESEARCH_MIN_ANGLES may raise it)
+MIN_ANGLES, MAX_ANGLES = 2, 6
+FAMILY_COUNT = 5
 ENGINE_VERSION = 1
 METHODS: dict[str, str] = {
     "conditional_distribution": "CONDITIONAL_OUTCOME",
@@ -118,6 +122,35 @@ def angle_signature(angle: dict[str, Any]) -> str:
         "horizon": int(angle.get("outcome_horizon_periods") or 0), "unit": angle.get("outcome_unit"),
         "direction": angle.get("expected_direction"),
         "parameters": normalized_parameters(angle.get("parameters"))})
+
+
+# M38 (suite20, 2026-09-29): the method rules the final plan enforces are checked by check_research_feasibility on
+# each angle's design; the plan must then carry exactly the checked design (compared by this hash)
+DESIGN_FIELDS = ("method_id", "parameters", "outcome_horizon_periods", "outcome_unit", "candidate_count",
+                 "pairwise_comparisons", "multiple_testing_policy", "holdout_required")
+
+
+def design_sha256(angle: dict[str, Any]) -> str:
+    """The identity of an angle's checked design (an angle of a plan or the design sent to the feasibility check)."""
+    return sha256_json({"method_id": angle.get("method_id"),
+                        "parameters": normalized_parameters(angle.get("parameters")),
+                        "outcome_horizon_periods": int(angle.get("outcome_horizon_periods") or 0),
+                        "outcome_unit": angle.get("outcome_unit"),
+                        "candidate_count": int(angle.get("candidate_count") or 0),
+                        "pairwise_comparisons": int(angle.get("pairwise_comparisons") or 0),
+                        "multiple_testing_policy": angle.get("multiple_testing_policy"),
+                        "holdout_required": bool(angle.get("holdout_required"))})
+
+
+def design_differences(angle: dict[str, Any], checked: dict[str, Any]) -> list[str]:
+    """The design fields in which a plan angle differs from its checked design."""
+    return [key for key in DESIGN_FIELDS
+            if (normalized_parameters(angle.get(key)) != normalized_parameters(checked.get(key)) if key == "parameters"
+                else angle.get(key) != checked.get(key))]
+
+
+def family_count(method_ids: list[str]) -> int:
+    return len({METHODS[m] for m in method_ids if m in METHODS})
 
 
 def implied_comparisons(method_id: str, parameters: dict[str, Any]) -> tuple[int, int]:
@@ -296,7 +329,7 @@ class ResearchPlanV2(Strict):
     time_scope: str = Field(min_length=1, max_length=500)
     analysis_frequency: str | None = Field(max_length=100)
     angles: list[ResearchAngle] = Field(min_length=MIN_ANGLES, max_length=MAX_ANGLES,
-                                        description="Three to six distinct angles.")
+                                        description="Two to six distinct angles.")
     assumptions: list[str] = Field(max_length=12)
     limitations: list[str] = Field(max_length=12)
     confirmation_question: str = Field(min_length=1, max_length=500)
@@ -536,11 +569,12 @@ def holdout_start(angle_contract: dict[str, Any]) -> str | None:
 
 
 def negotiate(capability: dict[str, Any] | None, *, min_angles: int, max_angles: int, max_groups: int,
-              feasibility: bool, composite: bool) -> tuple[dict[str, Any] | None, str | None]:
+              feasibility: bool, composite: bool, min_families: int = 0) -> tuple[dict[str, Any] | None, str | None]:
     """Startup negotiation with the sandbox's multi_angle_research capability (fail closed): (the multi_angle settings
     for build_default_registry, None) or (None, the reason it stays inactive). Both services must report version 2,
-    grouped execution, the same findings and governance versions and the same method registry; Research Plan
-    feasibility and DataNeedSpec v2 must be active."""
+    grouped execution, the same findings and governance versions, the same method registry and the same research
+    library; Research Plan feasibility and DataNeedSpec v2 must be active. The table AI_research_library is compared
+    separately (library_problem), since it is read from the catalog database."""
     if not feasibility or not composite:
         return None, "needs AI_ENABLE_PLAN_FEASIBILITY (Research Plan confirmation) and AI_ENABLE_COMPOSITE_KEYS " \
                      "(data_need_spec/v2)"
@@ -548,7 +582,8 @@ def negotiate(capability: dict[str, Any] | None, *, min_angles: int, max_angles:
     reg = registry()
     expected = {"enabled": True, "version": 2, "supports_grouped_execution": True, "findings_version": FINDINGS_V2,
                 "governance_version": GOVERNANCE_V2, "method_registry_sha256": reg["sha256"],
-                "method_ids": [m["method_id"] for m in reg["methods"]]}
+                "method_ids": [m["method_id"] for m in reg["methods"]],
+                "library_sha256": research_library.LIBRARY_SHA256}
     wrong = sorted(key for key, value in expected.items() if capability.get(key) != value)
     if wrong:
         return None, f"the sandbox's multi_angle_research capability does not match ({', '.join(wrong)})"
@@ -556,9 +591,32 @@ def negotiate(capability: dict[str, Any] | None, *, min_angles: int, max_angles:
     if not low <= min_angles <= max_angles <= high:
         return None, f"AI_RESEARCH_MIN_ANGLES/MAX_ANGLES ({min_angles}-{max_angles}) are outside the sandbox policy " \
                      f"({low}-{high})"
+    if not 0 <= min_families <= min(FAMILY_COUNT, max_angles):
+        return None, f"AI_RESEARCH_MIN_FAMILIES ({min_families}) must be from 0 to {min(FAMILY_COUNT, max_angles)}"
     limits = capability.get("limits") or {}
-    return {"max_groups": max_groups, "min_angles": min_angles, "max_angles": max_angles,
+    return {"max_groups": max_groups, "min_angles": min_angles, "max_angles": max_angles, "min_families": min_families,
             "limits": {k: limits.get(k) for k in ("bundle_max_rows", "bundle_max_parts", "max_requests_per_spec")}}, None
+
+
+LIBRARY_COLUMNS = ("method_id", "engine_version", "library_version", "method_family", "question_shape", "input_roles",
+                   "required_parameters", "optional_parameters", "data_requirements", "common_requirements",
+                   "sample_unit", "secondary_checks", "decision_rules_ref", "interpretation", "misuse_warning",
+                   "example_question")
+
+
+def library_problem(rows: list[dict[str, Any]] | None) -> str | None:
+    """None when the active rows of public."AI_research_library" (read at startup) are exactly this service's research
+    library: the same content, recomputed, and the same stored library_sha256. Otherwise the reason multi-angle
+    research stays inactive (the model would read method descriptions the engines do not implement)."""
+    if not rows:
+        return "AI_research_library has no active rows for this engine version"
+    stored = {row.get("library_sha256") for row in rows}
+    if stored != {research_library.LIBRARY_SHA256}:
+        return "AI_research_library carries another library_sha256"
+    content = sorted(({key: row.get(key) for key in LIBRARY_COLUMNS} for row in rows), key=lambda r: r["method_id"])
+    if content != research_library.rows():
+        return "AI_research_library content differs from the research library of this service"
+    return None
 
 
 def plan_digest_v2(plan: ResearchPlanV2) -> dict[str, Any]:

@@ -21,11 +21,13 @@ from .research_plan import (CLASSIFIER_INSTRUCTIONS, CLASSIFIER_SCHEMA, Continua
                             ResearchPlanFindings,
                             current_research_guard, guard_research_submission, plan_digest)
 from .research_plan_v2 import (FINDINGS_V2, PLAN_VERSION_V2, ContinuationInV2, ContinuationOutV2, PlanSignerV2,
-                               ResearchPlanV2, holdout_start, plan_digest_v2)
+                               ResearchPlanV2, design_differences, design_sha256, family_count, holdout_start,
+                               plan_digest_v2)
 from .research_run_executor import ResearchContext, current_research_context
 from .schemas import (
     FINAL_RESPONSE_SCHEMA, STATUS_BY_RESPONSE_TYPE, AgentRunRequest, AngleFindingReport, AgentRunResponse, AnalysisSummary,
-    AnalysisPathExecution, ExecutionMetadata, ExperimentSummary, FinalResponse, NumberProvenance, ReplyClassifierUsage,
+    AnalysisPathExecution, ExecutionMetadata, ExperimentSummary, FinalResponse, FindingInterpretation, NumberProvenance,
+    ReplyClassifierUsage,
     ResearchPlanExecution, ResearchSummary, RunError, final_response_schema,
 )
 from .provenance import (CONTEXT, SourceIndex, analysis_label, check_answer, numbers_in, parse_numbers,
@@ -496,27 +498,28 @@ Plan, not with data:
 1. Before the user approved the plan, use no data: do not call
 prepare_data_bundle or any session or research run tool for it. You may
 read the catalog to check that the data exists.
-2. The plan examines one root hypothesis from at least three and at most
-six angles. An angle is one analytical question answered by one
-registered method: conditional_distribution or threshold_sensitivity
-(CONDITIONAL_OUTCOME), streak_persistence (PERSISTENCE),
-regime_comparison or cohort_comparison (GROUP_COMPARISON),
-quantile_ranking (QUANTILE_RANKING), lead_lag or correlation_dependency
-(TEMPORAL_DEPENDENCY). Angles may share a method or a family when their
-questions differ; each has its own angle_id, angle_question and
-why_distinct. Two angles with the same method, condition, outcome,
-comparator, horizon and parameters are one question and are refused.
-Choose the angles that would change what the user concludes, not the
-most methods: three or four angles usually suffice. Keep every text
-field of the plan to one short sentence.
+2. The plan examines one root hypothesis from at least {min_angles} and at
+most {max_angles} angles.{families_rule} An angle is one analytical question
+answered by one method of the research library: read it with
+get_research_library (the methods, their parameters and data
+requirements) and choose from it only. Angles may share a method or a
+family when their questions differ; each has its own angle_id,
+angle_question and why_distinct. Two angles with the same method,
+condition, outcome, comparator, horizon and parameters are one question
+and are refused. Choose the angles that would change what the user
+concludes, not the most methods: use as few as answer the question well.
+Keep every text field of the plan to one short sentence.
 3. Before presenting the plan, call check_research_feasibility with one
-data requirement per angle: the angle's DataNeedSpec requests and
-relationships in the angle's own ids. The backend merges shared data
-and splits the angles into bundle groups only when they do not fit one.
-Present the plan only after FEASIBLE, with exactly the angles checked.
-On REVISION_REQUIRED fix the named angles; on NOT_FEASIBLE drop or
-narrow the uncovered angles, or return LIMITATION naming what is
-missing and the alternatives.
+entry per angle: its design (method, parameters, horizon, unit,
+comparisons, multiple-testing policy, holdout, and for a return outcome
+the request and price column) and its DataNeedSpec requests and
+relationships in the angle's own ids. The backend checks each design
+against the method's rules, merges shared data and splits the angles
+into bundle groups only when they do not fit one. Present the plan only
+after FEASIBLE, with exactly the angles and designs checked. On
+REVISION_REQUIRED fix the named angles; on NOT_FEASIBLE drop or narrow
+the uncovered angles, or return LIMITATION naming what is missing and
+the alternatives.
 4. Return response_type RESEARCH_PLAN_CONFIRMATION with research_plan;
 answer presents the root hypothesis and each angle (its question, method
 in plain words, condition, outcome and comparator) in the user's language
@@ -529,12 +532,16 @@ conversation is never an approval.
 each bundle group in turn: record every angle of the group exactly once
 with its research helper, starting from the example call that
 start_research_run lists for the angle (request is the data request id
-string; the outcome is a forward return the backend computes, never a
-trailing return column). Prefer this declarative form, which the
-backend can reproduce; research_custom only when no helper fits, and it
-verifies execution only. Use the approved parameters, horizon and unit.
-Then call complete_research_run; when an angle cannot be recorded,
-finalize: it becomes NOT_RUN and the other angles still report.
+string; the outcome is a forward return the backend computes from a
+price column, adding the request id when the price is in another
+request of the angle, never a price level or a trailing return
+column). Prefer this declarative form, which the backend can
+reproduce; research_custom only when no helper fits, and it verifies
+execution only. Use the approved parameters, horizon and unit. Then
+call complete_research_run with finalize false; it lists any angle not
+yet recorded: record it and call it again. Finalize only an angle that
+truly cannot be recorded: it becomes NOT_RUN and the other angles still
+report.
 A data need in mode RESEARCH is refused: research runs only through an
 approved multi-angle plan. Mode ANALYSIS needs no plan and proceeds
 directly."""
@@ -576,7 +583,8 @@ ANGLE_FINDINGS_CONTRACT = ("research_findings: for an ANSWER that rests on a com
                            "answer, evidence, usefulness and follow_up); otherwise null. ")
 MULTI_ANGLE_FIELD_RULES = (
     "angle_id and root_hypothesis_id are lower-case identifiers (a letter, then letters, digits or underscores); every "
-    "angle_id, angle_question and analytical design is unique in the plan; at least three and at most six angles; "
+    "angle_id, angle_question and analytical design is unique in the plan; at least {min_angles} and at most "
+    "{max_angles} angles, each with exactly the design check_research_feasibility checked; "
     "method_family is the family of method_id; every parameters field is present and null when the method does not "
     "use it; multiple_testing_policy is NONE only when candidate_count and pairwise_comparisons are both at most one; "
     "minimum_sample_value and minimum_sample_unit are both set or both null; no SQL, Python, helper calls or table "
@@ -679,12 +687,16 @@ def final_contract_block(contract: str, plan_confirmation: bool, research_findin
     return block
 
 
+NUMBER_WORDS = {0: "zero", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
+
+
 def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirmation: bool = False,
                         period_return: bool = False, final_contract: bool = False,
                         catalog_protocol: bool = False, conversation_reuse: bool = False,
                         methodology: bool = False, plan_feasibility: bool = False,
                         point_in_time: bool = False, derived_frequency: bool = False,
-                        research_findings: bool = False, multi_angle: bool = False) -> str:
+                        research_findings: bool = False, multi_angle: bool = False,
+                        angle_limits: tuple[int, int, int] = (2, 6, 0)) -> str:
     """The system prompt for the registered tools. It is fixed for a deployment (AI_ENABLE_LOOKUP_FACT,
     AI_ENABLE_DATANEED, AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION, AI_ENABLE_STANDARD_PERIOD_RETURN,
     AI_FINAL_CONTRACT_IN_PROMPT), so every call of every run shares one byte-identical cacheable prefix. With the
@@ -713,8 +725,14 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
         contract = response_contract(plan_confirmation, methodology, research_findings, multi_angle)
         template = template.replace(STRICT_SCHEMA_LINE, final_contract_block(contract, plan_confirmation,
                                                                              research_findings, multi_angle))
+    # Multi-Angle Research: the negotiated angle limits (AI_RESEARCH_MIN_ANGLES / MAX_ANGLES / MIN_FAMILIES), in words
+    low, high, families = angle_limits
+    families_rule = (f" The angles use at least {NUMBER_WORDS[families]} of the five method families."
+                     if families else "")
     return (template.replace("{lookup_rule}", LOOKUP_RULE if lookup_fact else "")
-            .replace("{number_sources}", "a lookup_fact result, " if lookup_fact else ""))
+            .replace("{number_sources}", "a lookup_fact result, " if lookup_fact else "")
+            .replace("{min_angles}", NUMBER_WORDS[low]).replace("{max_angles}", NUMBER_WORDS[high])
+            .replace("{families_rule}", families_rule))
 
 
 SYSTEM_PROMPT = build_system_prompt(True)
@@ -909,8 +927,9 @@ SESSION_ID_RE = re.compile(r"^sess_[0-9a-f]{24}$")
 ALL_TYPES = BASE_TYPES | {"RESEARCH_PLAN_CONFIRMATION"}
 PLAN_TYPES = frozenset({"RESEARCH_PLAN_CONFIRMATION", "CLARIFICATION", "LIMITATION"})
 RESEARCH_RUN_TOOLS = frozenset({"start_research_run", "run_research_code", "complete_research_run"})
+# get_research_library (C07) is registered only while multi-angle research serves the research library
 DISCOVERY_TOOLS = frozenset({"get_system_capabilities", "discover_catalog", "get_catalog_details",
-                             "read_catalog_rows", "get_dimension_values"})
+                             "read_catalog_rows", "get_dimension_values", "get_research_library"})
 PLAN_NOTE_PREFIX = "Application note, not from the user: "
 APPROVED_NOTE = (PLAN_NOTE_PREFIX + "the user approved Research Plan {plan_id}; the approval was verified. Carry out "
                  "its experiments now. Each RESEARCH data need copies research_governance from its experiment as the "
@@ -975,12 +994,14 @@ UNRELATED_NOTE = (PLAN_NOTE_PREFIX + "Research Plan {plan_id} is waiting for the
 TRUNCATED_FINAL_INSTRUCTION = (
     "The response was cut off at the output limit ({limit} tokens, reasoning included), so it is not complete JSON. "
     "Return the whole response again, shorter, and keep the reasoning before it brief.")
-TRUNCATED_PLAN_HINT = (" For a Research Plan use three or four angles and one short sentence per text field; the "
-                       "answer presents the plan briefly.")
+TRUNCATED_PLAN_HINT = (" For a Research Plan use the fewest angles that answer the question and one short sentence "
+                       "per text field; the answer presents the plan briefly.")
 RESEARCH_RUN_INCOMPLETE_INSTRUCTION = (
     "The research run was started but complete_research_run was not called, so no angle has a backend finding and "
-    "nothing can be reported. Call complete_research_run now (finalize true records every angle you could not record "
-    "as NOT_RUN; the recorded angles still get their findings), then answer from its result.")
+    "nothing can be reported. Call complete_research_run with finalize false now: it lists every angle not yet "
+    "recorded. Record those angles with run_research_code and call it again; use finalize true only for an angle that "
+    "cannot be recorded (it becomes NOT_RUN; the recorded angles still get their findings). Then answer from its "
+    "result.")
 MULTI_ANGLE_FEASIBILITY_INSTRUCTION = (
     "A multi-angle Research Plan is presented only for angles that passed check_research_feasibility in this run "
     "(FEASIBLE): {problems}. Call check_research_feasibility with one data requirement per angle of the plan you will "
@@ -1002,6 +1023,48 @@ ANGLE_FINDINGS_INSTRUCTION = (
     "map allows an agreement.")
 ANGLE_FINDINGS_NOTICE = ("The interpretation of the multi-angle research result below did not match the backend's "
                          "findings; read the figures as unconfirmed. ")
+# P09 (suite20 r08, 2026-09-29): "tidak mengizinkan pernyataan bahwa sudut-sudut saling mendukung" was read as an
+# agreement claim because the negation stood 47 characters before the phrase and only 40 were checked. A negation
+# governs the phrase when it stands in the same clause: after the last sentence or clause boundary (., !, ?, ;, :, a
+# line break or a contrast word) and within CLAUSE_WINDOW characters.
+CLAUSE_BOUNDARY = re.compile(r"[.!?;:\n]|\b(?:but|however|although|whereas|tetapi|namun|tapi|sedangkan|meskipun|"
+                             r"walaupun)\b", re.IGNORECASE)
+CLAUSE_WINDOW = 200
+
+
+def negated_in_clause(text: str, start: int) -> bool:
+    """Whether a negation (NEGATION_PATTERN) precedes position start in the same clause."""
+    before = text[max(0, start - CLAUSE_WINDOW):start]
+    boundaries = [m.end() for m in CLAUSE_BOUNDARY.finditer(before)]
+    clause = before[boundaries[-1]:] if boundaries else before
+    return re.search(NEGATION_PATTERN, clause, re.IGNORECASE) is not None
+
+
+BACKEND_FINDING_FOLLOW_UP = ("The model's interpretation of this run did not pass the backend check; rely on the status "
+                             "above and read the answer text as unconfirmed.")
+
+
+def backend_findings(run: dict[str, Any]) -> list[AngleFindingReport] | None:
+    """One backend-authored entry per angle of a completed run (status, reason, validation level, effective sample),
+    for a LIMITATION forced by the findings gate; None when the run has no findings."""
+    entries = []
+    for finding in (run.get("research_findings") or [])[:6]:
+        status = finding.get("status")
+        if not finding.get("angle_id") or status not in ("SUPPORTED", "PARTIALLY_SUPPORTED", "INSUFFICIENT_EVIDENCE",
+                                                         "INVALID", "NOT_RUN"):
+            continue
+        sample = (finding.get("sample") or {}).get("effective")
+        entries.append(AngleFindingReport(angle_id=str(finding["angle_id"])[:40], status=status,
+                                          interpretation=FindingInterpretation(
+            answer=f"Backend status {status}: {finding.get('status_reason') or 'no reason given'}.",
+            evidence=f"Validation level {finding.get('validation_level') or 'none'}; effective sample "
+                     f"{sample if sample is not None else 'not available'}; evidence direction "
+                     f"{finding.get('evidence_direction') or 'NONE'}.",
+            usefulness="Backend-authored summary of this angle; the interpretation was not confirmed.",
+            follow_up=BACKEND_FINDING_FOLLOW_UP)))
+    return entries or None
+
+
 # a claim that the angles agree or confirm one another (English and Indonesian)
 AGREEMENT_WORDING = (r"\b(?:(?:all|every|the) (?:\w+ )?angles? (?:\w+ )?(?:agree|confirm|support|point the same way|are "
                      r"consistent)|consistent across (?:all |the )?angles|angles? (?:agree|confirm each other)|"
@@ -1251,7 +1314,10 @@ class AgentOrchestrator:
                                                  settings.ai_final_contract_in_prompt, self.catalog_protocol,
                                                  self.conversation_reuse, self.methodology, self.plan_feasibility,
                                                  self.point_in_time, self.derived_frequency,
-                                                 self.research_findings, self.multi_angle)
+                                                 self.research_findings, self.multi_angle,
+                                                 (int(self.research_limits.get("min_angles", 2)),
+                                                  int(self.research_limits.get("max_angles", 6)),
+                                                  int(self.research_limits.get("min_families") or 0)))
         self.final_schema = final_response_schema(self.plan_confirmation, self.methodology, self.research_findings,
                                                   self.multi_angle)
         contract = response_contract(self.plan_confirmation, self.methodology, self.research_findings,
@@ -1300,6 +1366,8 @@ class AgentOrchestrator:
         state.audit_started_at = moment
         state.forced_path = request.analysis_path if self.analysis_path else None
         state.research = ResearchContext() if self.multi_angle else None
+        if state.research is not None:
+            state.research.calls_left = lambda: self.settings.ai_max_tool_calls - state.tool_calls
         for text in [turn.content for turn in request.history if turn.role == "user"] + [request.message]:
             state.context_numbers.extend(value for shown in parse_numbers(text) for value, _ in shown.candidates)
         token = current_request_id.set(request.request_id)
@@ -2619,8 +2687,13 @@ class AgentOrchestrator:
             kind = "FINDINGS_2" if v2 and "FINDINGS" in state.gate_kinds_rejected else "FINDINGS"
             self._gate_once(state, kind, (ANGLE_FINDINGS_INSTRUCTION if v2 else FINDINGS_INSTRUCTION).format(
                 problems=text))
-            return self._forced(state, final, ANGLE_FINDINGS_NOTICE if v2 else FINDINGS_NOTICE,
-                                [f"Research findings problem: {text}."] + lines)
+            forced = self._forced(state, final, ANGLE_FINDINGS_NOTICE if v2 else FINDINGS_NOTICE,
+                                  [f"Research findings problem: {text}."] + lines)
+            if v2:
+                # P09 (suite20 r08, 2026-09-29): four valid backend findings disappeared with the model's reading; the
+                # LIMITATION keeps each angle's backend status, reason and effective sample, labelled as such
+                forced = forced.model_copy(update={"research_findings": backend_findings(run)})
+            return forced
         missing_lines = [line for line in lines if line not in final.limitations]
         if state.sessions or state.completions or state.inherited or run is not None:
             state.validation_gate = "ANNOTATED" if missing_lines else "PASSED"
@@ -2713,8 +2786,7 @@ class AgentOrchestrator:
         agreement = ((run.get("research_synthesis_map") or {}).get("agreement") or {}).get("allowed") is True
         if not agreement:
             for match in re.finditer(AGREEMENT_WORDING, final.answer or "", re.IGNORECASE):
-                before = (final.answer or "")[max(0, match.start() - 40):match.start()]
-                if not re.search(NEGATION_PATTERN, before, re.IGNORECASE):
+                if not negated_in_clause(final.answer or "", match.start()):
                     problems.append(f"answer: \"{match.group(0)}\" claims the angles agree, but the synthesis map "
                                     "allows no agreement (it needs supported angles of different method families)")
                     break
@@ -2773,7 +2845,9 @@ class AgentOrchestrator:
         if is_v2:
             problems = self._plan_v2_problems(state, final.research_plan)
             if problems:
-                self._gate_once(state, "PLAN_FEASIBILITY", MULTI_ANGLE_FEASIBILITY_INSTRUCTION.format(
+                # M38 (suite20, 2026-09-29): a plan with several angles often needed a second repair, like FINDINGS_2
+                kind = "PLAN_FEASIBILITY_2" if "PLAN_FEASIBILITY" in state.gate_kinds_rejected else "PLAN_FEASIBILITY"
+                self._gate_once(state, kind, MULTI_ANGLE_FEASIBILITY_INSTRUCTION.format(
                     problems="; ".join(problems[:6])))
                 return self._plan_not_feasible(state, final)
         elif self.research_findings and not isinstance(final.research_plan, ResearchPlanFindings):
@@ -2808,15 +2882,27 @@ class AgentOrchestrator:
         checked = sorted(feasible.get("angle_to_bundle_group") or {})
         if planned != checked:
             problems.append(f"the plan's angles {planned} differ from the angles checked {checked}")
-        low, high = self.research_limits.get("min_angles", 3), self.research_limits.get("max_angles", 6)
+        low, high = self.research_limits.get("min_angles", 2), self.research_limits.get("max_angles", 6)
         if not low <= len(planned) <= high:
             problems.append(f"the plan has {len(planned)} angles; this deployment runs {low} to {high}")
+        families = int(self.research_limits.get("min_families") or 0)
+        if families and family_count([a.method_id for a in plan.angles]) < families:
+            problems.append(f"the angles use {family_count([a.method_id for a in plan.angles])} method families; "
+                            f"this deployment needs at least {families}")
         contracts = feasible.get("angle_data_contracts") or {}
+        checked_designs = feasible.get("angle_design_sha256s") or {}
+        designs = state.research.designs if state.research is not None else {}
         for angle in plan.angles:
             if angle.holdout_required and angle.angle_id in contracts \
                     and holdout_start(contracts[angle.angle_id]) is None:
                 problems.append(f"{angle.angle_id} requires a holdout, but its checked data has a single range; add "
                                 "a separate later range for it")
+            dumped = angle.model_dump(mode="json")
+            if angle.angle_id in checked_designs and design_sha256(dumped) != checked_designs[angle.angle_id]:
+                # M38: the plan carries exactly the design check_research_feasibility checked
+                fields = design_differences(dumped, designs.get(angle.angle_id) or {})
+                problems.append(f"{angle.angle_id}: {', '.join(fields) or 'the design'} differ from the design "
+                                "check_research_feasibility checked; present the checked design, or check the new one")
         return problems
 
     @staticmethod

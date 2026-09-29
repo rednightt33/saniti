@@ -18,6 +18,7 @@ import pytest
 from app.conversation_plans import advance, continuation_for
 from app.orchestrator import (MULTI_ANGLE_FINDINGS_RULES, MULTI_ANGLE_PLAN_RULES, RESEARCH_PLAN_RULES,
                               AgentOrchestrator, build_system_prompt)
+from app.research_library import LIBRARY_SHA256
 from app.research_plan import PlanVerificationError
 from app.research_plan_v2 import (ContinuationInV2, PlanSignerV2, ResearchPlanV2, angle_signature, contract_sha256,
                                   data_plan_sha256, governance_v2, negotiate, registry as method_registry)
@@ -98,8 +99,23 @@ def request(rid: str, *, table: str = "Price_Stock_Indonesia_IDX", columns: tupl
             "sampling_allowed": False}
 
 
-def requirement(angle_id: str, *requests: dict[str, Any]) -> dict[str, Any]:
-    return {"angle_id": angle_id, "data_requests": list(requests), "relationships": []}
+DESIGN_KEYS = ("method_id", "parameters", "outcome_horizon_periods", "outcome_unit", "candidate_count",
+               "pairwise_comparisons", "multiple_testing_policy", "holdout_required")
+
+
+def design(angle_id: str, price_request: str | None, **overrides: Any) -> dict[str, Any]:
+    """The design check_research_feasibility receives for an angle of angles() (M38)."""
+    body = next(a for a in angles() if a["angle_id"] == angle_id)
+    value = {**{k: copy.deepcopy(body[k]) for k in DESIGN_KEYS},
+             "outcome_price": {"data_request_id": price_request, "column": "close"} if price_request else None}
+    value.update(overrides)
+    return value
+
+
+def requirement(angle_id: str, *requests: dict[str, Any], design_: dict[str, Any] | None = None) -> dict[str, Any]:
+    price = next((r["data_request_id"] for r in requests if "close" in r["columns"]), None)
+    return {"angle_id": angle_id, "design": design_ or design(angle_id, price), "data_requests": list(requests),
+            "relationships": []}
 
 
 def feasibility_args(requirements: list[dict[str, Any]] | None = None) -> dict[str, Any]:
@@ -201,10 +217,12 @@ def test_the_signature_vector_and_the_registry_are_pinned_with_the_sandbox() -> 
     assert method_registry()["sha256"] == "1321ca8f8ee3e3dcf44d3c9a6d43f89d5bf67d39e31ed584c550d39f6a8a048a"
 
 
-def test_a_v2_plan_needs_three_to_six_distinct_valid_angles() -> None:
+def test_a_v2_plan_needs_two_to_six_distinct_valid_angles() -> None:
     assert len(ResearchPlanV2.model_validate(plan_v2()).angles) == 3
+    # the minimum became 2 on 2026-09-29 (user decision: do not force many angles)
+    assert len(ResearchPlanV2.model_validate(plan_v2(angles=angles()[:2])).angles) == 2
     with pytest.raises(ValueError):
-        ResearchPlanV2.model_validate(plan_v2(angles=angles()[:2]))
+        ResearchPlanV2.model_validate(plan_v2(angles=angles()[:1]))
     twin = angles()
     twin[1] = {**twin[0], "angle_id": "a_twin", "angle_question": "Do large falls precede higher returns, again?"}
     assert ResearchPlanV2.model_validate(plan_v2(angles=twin))  # a reworded question is a different question
@@ -276,7 +294,7 @@ def capability(**overrides: Any) -> dict[str, Any]:
     body = {"enabled": True, "version": 2, "supports_grouped_execution": True,
             "findings_version": "research_findings/v2", "governance_version": "research_governance/v2",
             "method_registry_sha256": reg["sha256"], "method_ids": [m["method_id"] for m in reg["methods"]],
-            "min_angles": 3, "max_angles": 6,
+            "library_sha256": LIBRARY_SHA256, "min_angles": 2, "max_angles": 6,
             "limits": {"bundle_max_rows": 2_000_000, "bundle_max_parts": 128, "max_requests_per_spec": 8}}
     body.update(overrides)
     return body
@@ -292,6 +310,10 @@ def test_the_startup_negotiation_fails_closed() -> None:
     assert negotiate(None, **kwargs)[0] is None
     assert "AI_ENABLE_COMPOSITE_KEYS" in negotiate(capability(), **{**kwargs, "composite": False})[1]
     assert "outside the sandbox policy" in negotiate(capability(max_angles=4), **kwargs)[1]
+    # C07: the sandbox must describe the methods with the same research library
+    assert negotiate(capability(library_sha256="0" * 64), **kwargs)[1].endswith("(library_sha256)")
+    assert negotiate(capability(), **{**kwargs, "min_families": 2})[0]["min_families"] == 2
+    assert "AI_RESEARCH_MIN_FAMILIES" in negotiate(capability(), **{**kwargs, "min_families": 6})[1]
 
 
 # ---------------------------------------------------------------- the research data planner
@@ -299,7 +321,7 @@ def test_the_startup_negotiation_fails_closed() -> None:
 def test_equal_requests_of_different_angles_merge_into_one_bundle_with_per_angle_contracts() -> None:
     args = feasibility_args([
         requirement("a_fall", request("a_fall_A", columns=("ticker", "date", "close"))),
-        requirement("a_rank", request("a_rank_A", columns=("ticker", "date", "volume"),
+        requirement("a_rank", request("a_rank_A", columns=("ticker", "date", "close", "volume"),
                                       ranges=(("fit", "2021-01-04", "2026-09-25"),))),
         requirement("a_lag", request("a_lag_A", columns=("ticker", "date", "close"),
                                      ranges=(("recent", "2025-01-02", "2026-09-25"),)))])
@@ -314,7 +336,7 @@ def test_equal_requests_of_different_angles_merge_into_one_bundle_with_per_angle
     assert [(r["start"], r["end"]) for r in merged["time_ranges"]] == [("2021-01-04", "2026-09-25"),
                                                                       ("2025-01-02", "2026-09-25")]
     assert dp["angle_data_contracts"]["a_rank"]["local_range_ids"] == {"a_rank_A:fit": "history"}
-    assert dp["angle_data_contracts"]["a_rank"]["datasets"][0]["columns"] == ["volume"]
+    assert dp["angle_data_contracts"]["a_rank"]["datasets"][0]["columns"] == ["close", "volume"]
     assert len(dp["merge_decisions"]) == 1 and len(dp["merge_decisions"][0]["merged_from"]) == 3
     assert dp["research_data_plan_sha256"] == data_plan_sha256(dp)
     for contract in dp["angle_data_contracts"].values():
@@ -337,7 +359,7 @@ def test_angles_split_into_bundle_groups_only_when_one_bundle_does_not_fit() -> 
     assert capped["status"] == "NOT_FEASIBLE" and capped["view"]["issues"][0]["code"] == "TOO_MANY_BUNDLE_GROUPS"
     refused = run_plan(planner(refuse="Broker_Table")[0], args)
     assert refused["status"] == "NOT_FEASIBLE" and refused["view"]["uncovered_angle_ids"] == ["a_lag"]
-    few = run_plan(planner()[0], feasibility_args(feasibility_args()["angles"][:2]))
+    few = run_plan(planner()[0], feasibility_args(feasibility_args()["angles"][:1]))
     assert few["status"] == "REVISION_REQUIRED" and few["view"]["issues"][0]["code"] == "ANGLE_COUNT_INVALID"
 
 
@@ -476,7 +498,15 @@ def test_the_flag_off_keeps_every_prompt_schema_and_tool_unchanged() -> None:
 def test_the_multi_angle_prompt_replaces_the_plan_rules_and_names_no_figures() -> None:
     prompt = build_system_prompt(False, True, True, plan_feasibility=True, final_contract=True, research_findings=True,
                                  multi_angle=True)
-    assert MULTI_ANGLE_PLAN_RULES in prompt and MULTI_ANGLE_FINDINGS_RULES in prompt
+    rules = MULTI_ANGLE_PLAN_RULES.replace("{min_angles}", "two").replace("{max_angles}", "six") \
+        .replace("{families_rule}", "")
+    assert rules in prompt and MULTI_ANGLE_FINDINGS_RULES in prompt and "{min_angles}" not in prompt
+    # C07: the methods come from the research library, not from the prompt
+    assert "get_research_library" in rules and "quantile_ranking" not in rules and "regime_comparison" not in rules
+    three = build_system_prompt(False, True, True, plan_feasibility=True, final_contract=True, research_findings=True,
+                                multi_angle=True, angle_limits=(3, 5, 2))
+    assert "at least three and at\nmost five angles. The angles use at least two of the five method families." \
+        in three and "at least three and at most five angles" in three
     assert RESEARCH_PLAN_RULES not in prompt and "check_data_feasibility" not in prompt
     # no digits except the list numbering (the system prompt is a number source for the provenance check)
     assert not re.search(r"\d", re.sub(r"(?m)^\d\. ", "", MULTI_ANGLE_PLAN_RULES + MULTI_ANGLE_FINDINGS_RULES))
@@ -508,10 +538,13 @@ def test_a_plan_with_other_angles_than_checked_or_in_the_v1_form_is_not_issued()
     other = angles()
     other[2] = angle("a_other", "streak_persistence", "PERSISTENCE", {"streak_lengths": [2, 3]},
                      "Do losing streaks reverse?", candidate_count=2, multiple_testing_policy="HOLM")
+    # M38: a plan refused after a FEASIBLE check gets a second repair (PLAN_FEASIBILITY_2) before LIMITATION
     runner, scripted, _ = agent([call("check_research_feasibility", feasibility_args(), "c1"),
-                                 final_response(plan_response(angles=other)), final_response(plan_response(angles=other))])
+                                 final_response(plan_response(angles=other)), final_response(plan_response(angles=other)),
+                                 final_response(plan_response(angles=other))])
     result = runner.run(AgentRunRequest(request_id="run_001", conversation_id="conv_1", message=QUESTION))
     assert "differ from the angles checked" in str(scripted.payloads[2]["input"][-1])
+    assert "differ from the angles checked" in str(scripted.payloads[3]["input"][-1])
     assert result.response.response_type == "LIMITATION" and result.continuation is None
     from test_research_plan import plan as plan_v1
 
@@ -683,6 +716,11 @@ def test_the_executor_runs_groups_one_at_a_time_and_records_unrun_groups_as_not_
         sandbox.complete_status = "COMPLETED"
         pending = run.complete(False)
         assert pending["status"] == "INCOMPLETE" and pending["groups_not_run"] == ["g2"]
+        # M36: the first finalize while an approved angle is unrecorded names what is missing; the second is accepted
+        early = run.complete(True)
+        assert early["status"] == "INCOMPLETE" and early["code"] == "ANGLES_NOT_RECORDED"
+        assert early["groups_not_run"] == ["g2"] and early["angles_of_groups_not_run"] == ["a_lag"]
+        assert not [c for c in sandbox.calls if c[1].endswith("/close")]
         done = run.complete(True)
     finally:
         current_request_id.reset(token)
@@ -747,23 +785,34 @@ def test_the_catalog_migration_adds_no_method_rows_and_matches_the_tool_definiti
 
     from app.tools.request_data import GovernorClient
 
-    sql = (Path(__file__).resolve().parents[3]
-           / "database/migrations/20260929_001_multi_angle_research_catalog.sql").read_text()
+    from app.research_library import rows as library_rows
+
+    migrations = Path(__file__).resolve().parents[3] / "database/migrations"
+    first = (migrations / "20260929_001_multi_angle_research_catalog.sql").read_text()
+    fixes = (migrations / "20260930_002_research_feasibility_v2_tool_catalog.sql").read_text()
     # scope decided 2026-09-29: Tool_Catalog only; AI_research_catalog is neither read nor changed
-    assert '"AI_research_catalog"' not in sql and "already registered" in sql
+    assert '"AI_research_catalog"' not in first + fixes and "already registered" in first
+    # each tool's latest registration: v1 in 20260929_001, v2 (and get_research_library v1) in 20260930_002
+    latest = {"start_research_run": first, "check_research_feasibility": fixes, "run_research_code": fixes,
+              "complete_research_run": fixes, "get_research_library": fixes}
     t = httpx.MockTransport(lambda r: httpx.Response(404))
     registry = build_default_registry(
         object(), cursor_secret=b"x" * 32, governor_client=GovernorClient("http://g", "k" * 40, 90, transport=t),
         sandbox_client=SandboxClient("http://s", "s" * 40, 45, 20, transport=t), dataneed_enabled=True,
         plan_feasibility=True, composite_keys=True,
-        multi_angle={"max_groups": 3, "min_angles": 3, "max_angles": 6, "limits": {}})
+        multi_angle={"max_groups": 3, "min_angles": 2, "max_angles": 6, "limits": {},
+                     "library": [{**row, "library_sha256": LIBRARY_SHA256} for row in library_rows()]})
+    checked = set()
     for definition in registry.definitions():
-        if definition["name"] in ("check_research_feasibility", "start_research_run", "run_research_code",
-                                  "complete_research_run"):
-            schema = json.dumps(definition["parameters"], sort_keys=True, separators=(",", ":")).replace("'", "''")
-            assert f"'{schema}'::jsonb" in sql, f"{definition['name']} drifted from the migration"
-            assert "'" + definition["description"].replace("'", "''") + "'" in sql, \
-                f"{definition['name']} purpose drifted from the migration"
+        sql = latest.get(definition["name"])
+        if sql is None:
+            continue
+        checked.add(definition["name"])
+        schema = json.dumps(definition["parameters"], sort_keys=True, separators=(",", ":")).replace("'", "''")
+        assert f"'{schema}'::jsonb" in sql, f"{definition['name']} drifted from the migration"
+        assert "'" + definition["description"].replace("'", "''") + "'" in sql, \
+            f"{definition['name']} purpose drifted from the migration"
+    assert checked == set(latest)
 
 
 # ---------------------------------------------------------------- found live (golden run 2026-09-29)
@@ -800,7 +849,7 @@ def test_a_final_response_cut_off_at_the_output_limit_is_asked_again_shorter() -
                                  final_response(plan_response())])
     result = runner.run(AgentRunRequest(request_id="run_001", conversation_id="conv_1", message=QUESTION))
     reask = str(scripted.payloads[2]["input"][-1])
-    assert "cut off at the output limit" in reask and "three or four angles" in reask
+    assert "cut off at the output limit" in reask and "fewest angles" in reask
     assert result.response.response_type == "RESEARCH_PLAN_CONFIRMATION"
 
 
