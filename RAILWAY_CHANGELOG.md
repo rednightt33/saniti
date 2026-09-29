@@ -1,5 +1,17 @@
 # Railway changelog
 
+## 2026-09-29 — market-web-governor: `/v1/ask` sector turn by code, subject share, answers without [n]
+
+- **Deployments** market-web-governor: PR #27 (`a7e8419`) went live through `6e488000` (a later `main` merge from
+  another session superseded `5cbae50e`); PR #28 (`7b596d2`) `e1e9e7fd` `SUCCESS`. No variable changed.
+- **Live test after #27** (runner `04ce37b5`): turn 2 always ran, but generic sector queries filled 422 of 500
+  "Cimory" sources and the answer had no industry section; fixed by #28.
+- **Live test after #28** (runner `49dc876d`, `live-ask7-20260929-q1..q3`): 3 of 3 `ANSWERED`, 39–66 s, USD
+  0.023–0.035 each, 3 rows in `web_ask`, no `[n]` markers in `answer`. "Cimory" has an "Industry & policy context"
+  section (MBDK excise postponed to 2027, MBG, raw-material and packaging costs); PTRO explains 2026 YTD −51% then
+  rebound, with the new ESDM contractor rule; BI Rate unchanged (5.75%, RDG 22–23 Sep 2026). Where the model used a
+  source number as a noun ("dari [487]"), removing it leaves a gap; not yet fixed.
+
 ## 2026-09-29 — market-web-governor: `/v1/ask` name and ticker, industry and policy turn, investor-first answers
 
 - **Deployment** market-web-governor `21ea0c81` (PR #25, `91b2cf8`) `SUCCESS`; no variable changed.
