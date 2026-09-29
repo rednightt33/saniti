@@ -749,7 +749,8 @@ def test_the_catalog_migration_adds_no_method_rows_and_matches_the_tool_definiti
 
     sql = (Path(__file__).resolve().parents[3]
            / "database/migrations/20260929_001_multi_angle_research_catalog.sql").read_text()
-    assert 'INSERT INTO public."AI_research_catalog"' not in sql and "RAISE EXCEPTION 'AI_research_catalog has no row" in sql
+    # scope decided 2026-09-29: Tool_Catalog only; AI_research_catalog is neither read nor changed
+    assert '"AI_research_catalog"' not in sql and "already registered" in sql
     t = httpx.MockTransport(lambda r: httpx.Response(404))
     registry = build_default_registry(
         object(), cursor_secret=b"x" * 32, governor_client=GovernorClient("http://g", "k" * 40, 90, transport=t),

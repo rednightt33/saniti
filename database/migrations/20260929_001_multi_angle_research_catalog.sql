@@ -1,48 +1,33 @@
--- Multi-Angle Research (MULTI_ANGLE_RESEARCH.md): the method catalog and the tool registrations.
--- NOT APPLIED. Apply only after the sandbox (PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED) and market-ai-orc
--- (AI_ENABLE_MULTI_ANGLE_RESEARCH) run the feature on dev and the golden questions passed (rollout step: last).
+-- Multi-Angle Research (MULTI_ANGLE_RESEARCH.md): Tool_Catalog registrations of the market-ai-orc tools.
+-- Scope decided by the user on 2026-09-29 after the dev dry run: AI_research_catalog has none of the eight engine
+-- method ids (its 18 reviewed methods use other ids), so this migration registers the tools only and leaves
+-- AI_research_catalog unchanged (REFERENCE_ONLY) until the reviewed workbook carries the multi-angle methods.
 --
--- 1. AI_research_catalog: the eight engine methods become IMPLEMENTED_BEHIND_FLAG, and each row's
---    validation_requirements_json gains one line naming how the backend enforces it. The rows must already exist:
---    this migration adds no catalog rows (user decision 2026-09-29); the preflight fails and names every missing
---    method_id, so the ids can be reconciled with the reviewed workbook first.
--- 2. Tool_Catalog: check_research_feasibility, start_research_run, run_research_code and complete_research_run,
---    generated from the market-ai-orc tool definitions, inactive like every other market-ai-orc row
---    (market-ai-orc registers its tools in code). check_data_feasibility gets a note that it is replaced while the
---    feature is on.
--- No table or column changes: the sandbox's research runs live in its own SQLite store, and the per-angle audit
--- records go into AI_research_run_audit.experiments (JSON) with payload_version research_findings/v2.
+-- Tool_Catalog: check_research_feasibility, start_research_run, run_research_code and complete_research_run,
+-- generated from the market-ai-orc tool definitions (a test fails when they drift), inactive like every other
+-- market-ai-orc row (market-ai-orc registers its tools in code); the latest check_data_feasibility row gets a note that
+-- it is replaced while the feature is on. No table or column changes.
 BEGIN;
 
 DO $preflight$
-DECLARE
-    missing text[];
 BEGIN
-    SELECT array_agg(method_id ORDER BY method_id) INTO missing
-    FROM unnest(ARRAY['conditional_distribution', 'threshold_sensitivity', 'streak_persistence', 'regime_comparison', 'cohort_comparison', 'quantile_ranking', 'lead_lag', 'correlation_dependency']) AS wanted(method_id)
-    WHERE NOT EXISTS (SELECT 1 FROM public."AI_research_catalog" c WHERE c.method_id = wanted.method_id);
-    IF missing IS NOT NULL THEN
-        RAISE EXCEPTION 'AI_research_catalog has no row for the multi-angle method ids: %; reconcile the ids with the reviewed catalog before applying (no rows are added here)', array_to_string(missing, ', ');
-    END IF;
     IF EXISTS (SELECT 1 FROM public."Tool_Catalog" WHERE (tool_name, version) IN (('check_research_feasibility', 'v1'), ('start_research_run', 'v1'), ('run_research_code', 'v1'), ('complete_research_run', 'v1'))) THEN
         RAISE EXCEPTION 'The multi-angle research tools are already registered';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM public."Tool_Catalog" WHERE tool_name = 'check_data_feasibility'
+                   AND tool_specific_limits->>'runtime_service' = 'market-ai-orc') THEN
+        RAISE EXCEPTION 'check_data_feasibility (market-ai-orc) is not registered';
     END IF;
 END;
 $preflight$;
 
-UPDATE public."AI_research_catalog"
-SET implementation_status = 'IMPLEMENTED_BEHIND_FLAG',
-    validation_requirements_json = validation_requirements_json || jsonb_build_array(
-        'Multi-angle engine v1 (market-python-sandbox runtime/research_engines.py): the backend recomputes the '
-        || 'statistics from the recorded input; declarative inputs are also rebuilt from governed columns '
-        || '(FORMULA_AND_STATISTICS_VERIFIED), model-built frames are STATISTICS_VERIFIED, research_custom is '
-        || 'EXECUTION_ONLY. Active only with AI_ENABLE_MULTI_ANGLE_RESEARCH and PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED.')
-WHERE method_id = ANY (ARRAY['conditional_distribution', 'threshold_sensitivity', 'streak_persistence', 'regime_comparison', 'cohort_comparison', 'quantile_ranking', 'lead_lag', 'correlation_dependency']);
-
 UPDATE public."Tool_Catalog"
 SET tool_specific_limits = tool_specific_limits || '{"multi_angle_research":"Not registered when AI_ENABLE_MULTI_ANGLE_RESEARCH is active: replaced by check_research_feasibility"}'::jsonb,
     updated_at = CURRENT_TIMESTAMP
-WHERE tool_name = 'check_data_feasibility' AND tool_specific_limits->>'runtime_service' = 'market-ai-orc';
+WHERE tool_name = 'check_data_feasibility' AND tool_specific_limits->>'runtime_service' = 'market-ai-orc'
+  AND version = (SELECT version FROM public."Tool_Catalog" WHERE tool_name = 'check_data_feasibility'
+                 AND tool_specific_limits->>'runtime_service' = 'market-ai-orc'
+                 ORDER BY length(version) DESC, version DESC LIMIT 1);
 
 INSERT INTO public."Tool_Catalog" (
     tool_name, tool_family, tool_type, purpose, input_schema, output_schema,
@@ -70,13 +55,13 @@ VALUES
 
 DO $verify$
 BEGIN
-    IF (SELECT count(*) FROM public."AI_research_catalog"
-          WHERE method_id = ANY (ARRAY['conditional_distribution', 'threshold_sensitivity', 'streak_persistence', 'regime_comparison', 'cohort_comparison', 'quantile_ranking', 'lead_lag', 'correlation_dependency']) AND implementation_status = 'IMPLEMENTED_BEHIND_FLAG') <> 8 THEN
-        RAISE EXCEPTION 'Expected the 8 multi-angle methods to be IMPLEMENTED_BEHIND_FLAG';
-    END IF;
     IF (SELECT count(*) FROM public."Tool_Catalog" WHERE tool_specific_limits->>'runtime_service' = 'market-ai-orc'
           AND NOT is_active AND (tool_name, version) IN (('check_research_feasibility', 'v1'), ('start_research_run', 'v1'), ('run_research_code', 'v1'), ('complete_research_run', 'v1'))) <> 4 THEN
         RAISE EXCEPTION 'Expected 4 inactive multi-angle research tool registrations';
+    END IF;
+    IF (SELECT count(*) FROM public."Tool_Catalog" WHERE tool_name = 'check_data_feasibility'
+          AND tool_specific_limits ? 'multi_angle_research') <> 1 THEN
+        RAISE EXCEPTION 'Expected the multi-angle note on exactly one check_data_feasibility row';
     END IF;
 END;
 $verify$;
