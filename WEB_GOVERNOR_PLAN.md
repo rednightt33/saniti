@@ -263,3 +263,36 @@ labelled as analysis. No buy/sell recommendation.
 
 **Verification.** Unit tests for the schema, citation checks and rendering; live runner test with the fiscal,
 CLARITY Act and Cimory questions; record in `RAILWAY_CHANGELOG.md`.
+
+## P6 — `/v1/ask`: upcoming news and a forward timeline — DRAFT (user decisions of 2026-09-29 included; to be built together with P5)
+
+**Why.** A test on "apa rencana CMRY ke depan … timeline-nya" returned a mostly backward-looking timeline and missed
+2027 events that Google News does have (sweetened-drink excise approved for 2027, five integrated livestock zones due in
+2027), and it listed 2025 profit as a 2026 target. Direct Google News probes with forward-looking terms return many
+relevant sector items ("industri susu 2027": 23 of 35 titles forward-looking; "cukai MBDK 2027": 22 of 38).
+
+**User decisions.** AI-written forward queries and hardcoded templates **run together**; the templates can be switched
+off. The AI writes **10** forward queries.
+
+**Design.**
+- Plan schema gains a required `forward_queries` field (up to 10): upcoming events about the subject and its sectors
+  (plans, targets, schedules, pending rules, votes, launches, deadlines), in the terms and language of the topic.
+- Templates run alongside for the subject and each sector: `"<x> rencana <next year>"`, `"<x> akan berlaku"`,
+  `"<x> jadwal"`, `"<x> target <next year>"`. Settings: `WEB_ASK_FORWARD_TEMPLATES` (default on) and
+  `WEB_ASK_FORWARD_TEMPLATE_LIST` (optional, `|`-separated, placeholders `{x}` and `{next_year}`). With templates off and
+  no AI queries, one fallback `"<subject> <next year>"` runs.
+- Code always runs every forward query in turn 2, over the two newest 3-month windows only (about 44 extra Google News
+  requests at most), labelled `forward: ai` / `forward: template` in `plan.turns`.
+- Source budget: subject at least 50%, forward at least 20%, wider turns the rest; unused shares pass over.
+- The P5 implications call also returns a **forward timeline**: event, time as written in the source, status
+  (`dijadwalkan` / `direncanakan` / `diusulkan` / `masih dikaji`) and source. Code keeps an entry only if its time text
+  appears verbatim in the cited source's title or excerpt and lies after the question date; entries are sorted by
+  time, undated ones marked "tanggal belum diumumkan".
+- Official calendars (IDX disclosures, KSEI, BI) are not reachable from the agent container (IDX 403, KSEI/BI no
+  route); schedules are taken from news that announces them until access from Railway or a data API is confirmed.
+
+**Estimate.** Per question about +USD 0.005–0.01, +20–44 Google News requests, +10–20 s.
+
+**Verification.** Unit tests for forward queries (AI, templates, switch, fallback), two-window scan, 50/20/30 budget
+and timeline date checks; live runner test with the CMRY forward question, the CLARITY Act and the Indonesian fiscal
+question; record in `RAILWAY_CHANGELOG.md`.
