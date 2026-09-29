@@ -885,7 +885,8 @@ def _research(family: str, angle_id: str, frame, request: str | None, range_id: 
                               f"{list(required)}" + (f" (optional {list(optional)})" if optional else "") + ".")
         canonical = frame[[c for c in ("date", "entity", *required, *optional) if c in frame.columns]].copy()
         _research_bounds(angle, canonical)
-        mode, level, declaration, info = "FRAME", "STATISTICS_VERIFIED", None, {"rows": int(len(canonical))}
+        mode, level, declaration = "FRAME", "STATISTICS_VERIFIED", None
+        info = {"rows": int(len(canonical)), "outcome_source": "FRAME"}
     else:
         dataset = _research_dataset(angle, request)
         r = _request(dataset["data_request_id"])
@@ -900,15 +901,32 @@ def _research(family: str, angle_id: str, frame, request: str | None, range_id: 
         keys = [c for c in (r.get("entity_column"), r.get("time_column")) if c]
         columns = [c for c in dataset.get("columns") or [] if c not in keys]
         rows = load(r["data_request_id"], columns=list(dict.fromkeys(keys + columns)))
+        # a forward return may read another request of the contract (S15): name it by its data_request_id
+        for role, spec in list(declared.items()):
+            if isinstance(spec, dict) and isinstance(spec.get("request"), str):
+                declared[role] = {**spec, "request": _research_dataset(angle, spec["request"])["data_request_id"]}
         declaration = {"request": r["data_request_id"], "range_id": chosen, "roles": declared}
         try:
+            related = {}
+            for other_id in research_inputs.related_requests(research_inputs.normalize(method, declaration)):
+                other_dataset = _research_dataset(angle, other_id)
+                other = _request(other_dataset["data_request_id"])
+                other_keys = [c for c in (other.get("entity_column"), other.get("time_column")) if c]
+                other_columns = [c for c in other_dataset.get("columns") or [] if c not in other_keys]
+                related[other["data_request_id"]] = {
+                    "rows": load(other["data_request_id"], columns=list(dict.fromkeys(other_keys + other_columns))),
+                    "entity_column": other.get("entity_column"), "time_column": other["time_column"],
+                    "columns": other_columns}
             canonical, info = research_inputs.build(
                 method, declaration, rows, entity_column=r.get("entity_column"), time_column=r["time_column"],
                 columns=columns, windows=windows, horizon=int(angle["outcome_horizon_periods"]),
-                unit=angle["outcome_unit"])
+                unit=angle["outcome_unit"], related=related)
         except research_inputs.InputError as exc:
             raise SanitiError(f"{exc.code}: {exc}") from None
         mode, level = "DECLARATIVE", "FORMULA_AND_STATISTICS_VERIFIED"
+    problem = research_inputs.outcome_problem(method, canonical, angle.get("outcome_unit"))
+    if problem:
+        raise SanitiError(f"OUTCOME_NOT_APPROVED: {problem}")
     try:
         result = research_engines.evaluate(method, canonical, _research_approved(angle))
     except research_engines.EngineError as exc:
@@ -920,7 +938,8 @@ def _research(family: str, angle_id: str, frame, request: str | None, range_id: 
                                     "mode": mode, "validation_level": level, "declaration": declaration,
                                     "input": stored, "input_info": {k: info.get(k) for k in
                                                                     ("rows", "censored_outcome_rows",
-                                                                     "forward_horizon", "expressions")}})
+                                                                     "forward_horizon", "expressions",
+                                                                     "outcome_source")}})
     _RESEARCH_PENDING.add(angle_id)
     _log({"call": "research", "angle_id": angle_id, "method_id": method, "mode": mode, "rows": stored["rows"]})
     primary = result.get("primary") or {}

@@ -39,3 +39,31 @@ def test_the_view_carries_one_example_per_angle_and_the_rules() -> None:
     [entry] = view["angles"]
     assert entry["example"].startswith("saniti.research_conditional('a_fall', request='mar1_g1_A', condition=")
     assert "forward_return" in view["record_each_angle"] and "trailing return" in RESEARCH_RULES
+
+
+def _view(datasets):
+    return research_view({"research_run_id": "rrun_1", "bundle_group_id": "g1", "angles": {
+        "a1": {"method_id": "conditional_distribution", "contract": {"datasets": datasets}}}})["angles"][0]["example"]
+
+
+def test_the_example_takes_the_price_column_from_the_contract() -> None:
+    """S15/G12 (suite20, 2026-09-29): the example always named close, even when the angle's first request had none."""
+    broker = {"data_request_id": "g1_A", "logical_name": "broker_daily", "columns": ["foreign_net_value"],
+              "ranges": []}
+    daily = {"data_request_id": "g1_B", "logical_name": "features", "columns": ["close", "volume"], "ranges": []}
+    assert "{'forward_return': 'close', 'request': 'g1_B'}" in _view([broker, daily])
+    same = _view([daily])
+    assert "{'forward_return': 'close'}" in same and "'request':" not in same
+    assert "no price column" in _view([broker])
+
+
+def test_a_price_level_outcome_is_not_a_return() -> None:
+    import pandas as pd
+
+    level = pd.DataFrame({"date": ["2026-01-02"] * 3, "outcome": [1400.0, 1772.0, 1500.0], "condition": [True] * 3})
+    assert "not a return in PERCENT" in research_inputs.outcome_problem("conditional_distribution", level, "PERCENT")
+    returns = level.assign(outcome=[1.2, -0.8, 3.5])
+    assert research_inputs.outcome_problem("conditional_distribution", returns, "PERCENT") is None
+    assert research_inputs.outcome_problem("conditional_distribution", level, "OTHER") is None
+    follower = pd.DataFrame({"date": ["2026-01-02"] * 2, "leader": [1.0, 2.0], "follower": [2.5, 3.1]})
+    assert "follower" in research_inputs.outcome_problem("lead_lag", follower, "DECIMAL")

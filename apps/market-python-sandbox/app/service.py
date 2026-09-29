@@ -165,6 +165,9 @@ class AnalysisService:
         self.events: dict[str, threading.Event] = {}
         self.running: dict[str, int] = {}  # analysis_id -> child pid (for cancel)
         self.active: set[str] = set()      # workspaces the janitor must not touch
+        # workspace name prefixes another component owns and cleans itself (S14: persistent analysis sessions live in
+        # the same jobs directory; the session manager removes them on close and its orphans at start)
+        self.foreign_prefixes: set[str] = set()
         self.sources: dict[str, str] = {}  # queued source code, held in memory until the job starts
         self.cancelled: set[str] = set()
         self._lock = threading.Lock()
@@ -1070,16 +1073,19 @@ class AnalysisService:
     # ------------------------------------------------------------ janitor
 
     def cleanup_workspaces(self, now: datetime | None = None) -> int:
-        """Remove every workspace that no running job owns, except failed-job diagnostics within their TTL."""
+        """Remove every workspace that no running job owns, except failed-job diagnostics within their TTL and the
+        workspaces another component owns (foreign_prefixes). Found live (suite20, 2026-09-29, S14): this janitor
+        deleted the input files of an open research session, whose later loads failed with "No files found"."""
         root = Path(self.settings.jobs_dir)
         if not root.exists():
             return 0
         now = now or datetime.now(timezone.utc)
         with self._lock:
             active = set(self.active)
+        foreign = tuple(self.foreign_prefixes)
         removed = 0
         for entry in root.iterdir():
-            if entry.name in active:
+            if entry.name in active or (foreign and entry.name.startswith(foreign)):
                 continue
             marker = entry / RETAIN_MARKER
             if marker.exists():

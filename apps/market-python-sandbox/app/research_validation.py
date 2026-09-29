@@ -261,10 +261,25 @@ def validate_group(*, context: dict[str, Any], angles: dict[str, dict[str, Any]]
             try:
                 rows = _read_request(bundle, delivered["data_request_id"], list(dict.fromkeys(keys + columns)),
                                      path_of)
+                related = {}
+                for other_id in I.related_requests(I.normalize(angle["method_id"], declaration)):
+                    other_dataset = next((d for d in (angle.get("contract") or {}).get("datasets") or []
+                                          if d["data_request_id"] == other_id), None)
+                    other = next((d for d in bundle["datasets"] if d["data_request_id"] == other_id), None)
+                    if other_dataset is None or other is None:
+                        raise I.InputError("REQUEST_OUTSIDE_CONTRACT", f"{other_id} is not in the angle's contract.")
+                    other_keys = [c for c in (other.get("entity_column"), other.get("time_column")) if c]
+                    other_columns = [c for c in other_dataset.get("columns") or [] if c not in other_keys]
+                    related[other_id] = {
+                        "rows": _read_request(bundle, other_id, list(dict.fromkeys(other_keys + other_columns)),
+                                              path_of),
+                        "entity_column": other.get("entity_column"), "time_column": other["time_column"],
+                        "columns": other_columns}
                 rebuilt, _ = I.build(angle["method_id"], declaration, rows,
                                      entity_column=delivered.get("entity_column"),
                                      time_column=delivered["time_column"], columns=columns, windows=windows,
-                                     horizon=int(angle["outcome_horizon_periods"]), unit=angle["outcome_unit"])
+                                     horizon=int(angle["outcome_horizon_periods"]), unit=angle["outcome_unit"],
+                                     related=related)
             except I.InputError as exc:
                 fail(exc.code)
                 continue
@@ -277,6 +292,10 @@ def validate_group(*, context: dict[str, Any], angles: dict[str, dict[str, Any]]
             if problem:
                 fail(problem, level)
                 continue
+        # S15: an outcome that cannot be the approved return (a price level recorded as a PERCENT outcome) is INVALID
+        if I.outcome_problem(angle["method_id"], frame, angle.get("outcome_unit")):
+            fail("OUTCOME_NOT_APPROVED", level)
+            continue
         try:
             result = E.evaluate(angle["method_id"], frame, _approved(angle))
         except E.EngineError as exc:
@@ -294,7 +313,9 @@ def validate_group(*, context: dict[str, Any], angles: dict[str, dict[str, Any]]
                                       level=level, direction=decision["evidence_direction"], result=result,
                                       hashes=hashes, output_ids=ids, warnings=warnings)
         findings[angle_id]["input"] = {"mode": mode, "rows": int(len(frame)),
-                                       "declaration": call.get("declaration") if mode == "DECLARATIVE" else None}
+                                       "declaration": call.get("declaration") if mode == "DECLARATIVE" else None,
+                                       "outcome_source": I.outcome_source(call.get("declaration")
+                                                                          if mode == "DECLARATIVE" else None)}
     relied = [f.get("validation_level") for f in findings.values()
               if f["status"] in ("SUPPORTED", "PARTIALLY_SUPPORTED", "INSUFFICIENT_EVIDENCE")]
     return {"findings": findings, "missing": missing, "invalid": sorted(set(invalid)), "unapproved": unapproved,

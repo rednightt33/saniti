@@ -296,3 +296,19 @@ def test_exact_date_and_current_state_joins(helpers) -> None:
     helpers._BUNDLE["relationships"] = [relationship("CURRENT_STATE")]
     universe = pd.DataFrame({"ticker": ["A"], "industry": ["Banks"]})
     assert len(helpers.join(9, PRICES, universe)) == 3 and len(helpers.join(9, PRICES, universe, how="left")) == 4
+
+
+def test_the_analysis_janitor_leaves_an_open_session_workspace_alone(session) -> None:
+    """S14 (suite20, 2026-09-29): the analysis janitor deleted the input files of an open research session, and every
+    later load failed with "No files found". Session workspaces belong to the session manager."""
+    ok(session, "prices = load('prices')")
+    workspace = Path(session["service"].settings.jobs_dir) / session["session_id"]
+    assert (workspace / "input").is_dir()
+    session["service"].cleanup_workspaces()
+    assert any((workspace / "input").iterdir())
+    again = ok(session, "print(len(load('prices')))")
+    assert int(again["stdout"].strip()) > 0
+    closed = session["api"].post(f"/v1/sessions/{session['session_id']}/close", json={"request_id": "req_bundle_1"},
+                                 headers=HEADERS)
+    assert closed.status_code == 200, closed.text
+    assert not workspace.exists()  # the session manager still removes its own workspace on close

@@ -100,10 +100,41 @@ RESEARCH_RULES = (
     "request's columns. Expressions: + - * / **, comparisons, & | ~, abs log exp sqrt sign min max where, "
     "lag(x, k), rolling_sum(x, n), rolling_mean(x, n); past values only. The outcome (or follower) is "
     "{'forward_return': '<price column>'}: the backend computes the forward return over the approved horizon and "
-    "unit, so never use a trailing return column of the data as the outcome. A label role is {'column': '<name>'}. "
+    "unit, so never use a trailing return column or a price level as the outcome (a price level is refused as "
+    "OUTCOME_NOT_APPROVED). When the price column is in another request of the angle's contract, add "
+    "'request': '<that data_request_id>'. A label role is {'column': '<name>'}. "
     "Otherwise frame=<DataFrame with date, entity and one column per role> (STATISTICS_VERIFIED). research_custom "
     "only when no helper fits (EXECUTION_ONLY). Thresholds, lags, buckets, groups and horizons come from the approved "
     "plan, never from the code. The helpers are in saniti; do not import runtime modules.")
+
+
+PRICE_COLUMNS = ("close", "adj_close", "close_price", "price", "last_price")
+
+
+def _research_example(angle_id: str, helper: str, roles: str, datasets: list[dict[str, Any]]) -> str:
+    """One runnable example call for an angle, built on its own contract (S15/G12, suite20 2026-09-29): the price
+    column comes from the contract; when it is in another request than the first, the forward return names that
+    request; when the contract has no price column, the example says a forward return cannot be declared."""
+    if not roles:
+        return f"saniti.research_custom({angle_id!r}, result, note)"
+    request = datasets[0].get("data_request_id") if datasets else "<data_request_id>"
+    located = next(((d.get("data_request_id"), c) for name in PRICE_COLUMNS for d in datasets
+                    for c in d.get("columns") or [] if c == name), None)
+    if located is None:
+        located = next(((d.get("data_request_id"), c) for d in datasets for c in d.get("columns") or []
+                        if "close" in c.lower() or "price" in c.lower()), None)
+    example = roles
+    if "forward_return" in roles:
+        if located is None:
+            return (f"saniti.{helper}({angle_id!r}, request={request!r}, {roles}) -- note: this angle's contract has "
+                    "no price column, so a forward return cannot be declared; record it with research_custom and say why.")
+        other, column = located
+        if other == request:
+            example = example.replace("close", column)  # expressions and the forward return on this request's price
+        else:
+            example = example.replace("{'forward_return': 'close'}",
+                                      f"{{'forward_return': {column!r}, 'request': {other!r}}}")
+    return f"saniti.{helper}({angle_id!r}, request={request!r}, {example})"
 
 
 def research_view(research: dict[str, Any]) -> dict[str, Any]:
@@ -114,7 +145,6 @@ def research_view(research: dict[str, Any]) -> dict[str, Any]:
         contract = angle.get("contract") or {}
         datasets = contract.get("datasets") or []
         helper, roles = RESEARCH_EXAMPLES.get(angle.get("method_id"), ("research_custom", ""))
-        request = datasets[0].get("data_request_id") if datasets else "<data_request_id>"
         angles.append({"angle_id": angle_id, "method_id": angle.get("method_id"), "helper": helper,
                        "question": angle.get("angle_question"), "expected_direction": angle.get("expected_direction"),
                        "outcome_horizon_periods": angle.get("outcome_horizon_periods"),
@@ -123,8 +153,7 @@ def research_view(research: dict[str, Any]) -> dict[str, Any]:
                                      "columns": d.get("columns"),
                                      "ranges": [w.get("range_id") for w in d.get("ranges") or []]}
                                     for d in datasets],
-                       "example": f"saniti.{helper}({angle_id!r}, request={request!r}, {roles})"
-                       if roles else f"saniti.research_custom({angle_id!r}, result, note)"})
+                       "example": _research_example(angle_id, helper, roles, datasets)})
     return {"research_run_id": research.get("research_run_id"), "bundle_group_id": research.get("bundle_group_id"),
             "angles": angles, "record_each_angle": RESEARCH_RULES}
 
@@ -289,6 +318,8 @@ class SessionManager:
         self.bundles = bundles
         self.executor = analysis.executor
         self.workers: dict[str, Worker] = {}
+        # S14: session workspaces are this manager's; the analysis janitor must leave them alone
+        getattr(analysis, "foreign_prefixes", set()).add(SESSION_ID_PREFIX)
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []

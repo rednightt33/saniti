@@ -69,10 +69,16 @@ def test_three_angles_of_the_same_family_pass_and_share_the_root_hypothesis() ->
         "foreign_accumulation"
 
 
-@pytest.mark.parametrize("count", [2, 7])
-def test_fewer_than_three_or_more_than_six_angles_fail(count: int) -> None:
+@pytest.mark.parametrize("count", [1, 7])
+def test_fewer_than_two_or_more_than_six_angles_fail(count: int) -> None:
+    # the minimum became 2 on 2026-09-29 (user decision: do not force many angles; market-ai-orc may require more)
     angles = [angle(f"a{i}", question=f"Q{i}?", outcome_horizon_periods=i + 1) for i in range(count)]
     assert codes(governance(angles)) == ["ANGLE_COUNT_INVALID"]
+
+
+def test_two_angles_pass() -> None:
+    angles = [angle(f"a{i}", question=f"Q{i}?", outcome_horizon_periods=i + 1) for i in range(2)]
+    assert "ANGLE_COUNT_INVALID" not in codes(governance(angles))
 
 
 def test_duplicate_ids_questions_and_signatures_fail() -> None:
