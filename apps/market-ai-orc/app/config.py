@@ -164,6 +164,15 @@ class Settings:
     # and takes the fewest date parts that all fit; feasibility uses the same estimate. Off: the envelope estimate and
     # the extract-then-split loop as before.
     ai_enable_preflight_parts: bool = False
+    # Multi-Angle Research (MULTI_ANGLE_RESEARCH.md): research_plan/v2 with 3-6 angles, rpc2, per-angle data contracts,
+    # grouped execution behind start/run/complete_research_run and backend findings per angle. Needs DataNeed v2,
+    # Research Plan confirmation and feasibility, and a sandbox reporting the matching multi_angle_research capability
+    # (otherwise inactive: research v1 as before). Angle limits may only narrow 3-6; groups run one at a time.
+    ai_enable_multi_angle_research: bool = False
+    ai_research_min_angles: int = 3
+    ai_research_max_angles: int = 6
+    ai_research_max_bundle_groups: int = 3
+    ai_research_max_parallel_groups: int = 1
     # IP2 solution 2: archive every finished run to market-audit-store through ai_audit.ingest_outbox (INSERT only,
     # AUDIT_OUTBOX_DATABASE_URL). With AI_AUDIT_STORE_REQUIRED false an archive failure is logged and never changes
     # the answer; true withholds the answer when the run cannot be handed to the outbox (regulated mode).
@@ -243,6 +252,11 @@ class Settings:
             ai_enable_research_findings=_boolean(env, "AI_ENABLE_RESEARCH_FINDINGS", False),
             ai_enable_analysis_path=_boolean(env, "AI_ENABLE_ANALYSIS_PATH", False),
             ai_enable_preflight_parts=_boolean(env, "AI_ENABLE_PREFLIGHT_PARTS", False),
+            ai_enable_multi_angle_research=_boolean(env, "AI_ENABLE_MULTI_ANGLE_RESEARCH", False),
+            ai_research_min_angles=_integer(env, "AI_RESEARCH_MIN_ANGLES", 3),
+            ai_research_max_angles=_integer(env, "AI_RESEARCH_MAX_ANGLES", 6),
+            ai_research_max_bundle_groups=_integer(env, "AI_RESEARCH_MAX_BUNDLE_GROUPS", 3),
+            ai_research_max_parallel_groups=_integer(env, "AI_RESEARCH_MAX_PARALLEL_GROUPS", 1),
             ai_audit_store_enabled=_boolean(env, "AI_AUDIT_STORE_ENABLED", False),
             ai_audit_store_required=_boolean(env, "AI_AUDIT_STORE_REQUIRED", False),
             audit_outbox_database_url=_optional(env, "AUDIT_OUTBOX_DATABASE_URL"),
@@ -311,6 +325,13 @@ class Settings:
                               "PY_SANDBOX_REQUEST_TIMEOUT_SECONDS")
         if settings.ai_request_timeout_seconds > settings.ai_max_analysis_seconds:
             raise ConfigError("AI_REQUEST_TIMEOUT_SECONDS must not exceed AI_MAX_ANALYSIS_SECONDS")
+        if not 3 <= settings.ai_research_min_angles <= settings.ai_research_max_angles <= 6:
+            raise ConfigError("AI_RESEARCH_MIN_ANGLES and AI_RESEARCH_MAX_ANGLES must satisfy 3 <= min <= max <= 6")
+        if not 1 <= settings.ai_research_max_bundle_groups <= 6:
+            raise ConfigError("AI_RESEARCH_MAX_BUNDLE_GROUPS must be between 1 and 6")
+        if settings.ai_research_max_parallel_groups != 1:
+            # the sandbox has few session slots for every run together and a run keeps one open session (S08)
+            raise ConfigError("AI_RESEARCH_MAX_PARALLEL_GROUPS must be 1 in this release (groups run one at a time)")
         if settings.ai_research_plan_ttl_seconds > MAX_TTL_SECONDS:
             raise ConfigError(f"AI_RESEARCH_PLAN_TTL_SECONDS must be at most {MAX_TTL_SECONDS}")
         if settings.ai_provider_sort not in (None, "price", "throughput", "latency"):

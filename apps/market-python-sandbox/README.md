@@ -931,6 +931,7 @@ The URL is never logged, stored, returned, or visible to any child process.
 | `POST /v1/data-needs/check`, `GET /v1/data-need-drafts/{draft_id}` | Research Plan feasibility drafts: validated, never extracted (only with `PY_SANDBOX_DATANEED_ENABLED`; see above) |
 | `POST /v1/bundles`, `GET /v1/bundles/{bundle_id}` | Governed data bundle: verification, profiling, delivery coverage (only with `PY_SANDBOX_DATANEED_ENABLED`) |
 | `POST /v1/sessions`, `POST /v1/sessions/{id}/execute`, `POST /v1/sessions/{id}/inspect`, `GET /v1/sessions/{id}`, `GET /v1/sessions/{id}/outputs/{output_id}`, `POST /v1/sessions/{id}/complete`, `POST /v1/sessions/{id}/close` | Persistent analysis sessions (only with `PY_SANDBOX_DATANEED_ENABLED`) |
+| `POST /v1/research-runs`, `GET /v1/research-runs/{id}`, `POST /v1/research-runs/{id}/groups/{g}/close` | Multi-Angle Research runs (only with `PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED`; see above) |
 | `POST /v1/runs/{request_id}/report` | market-ai-orc's final report of the run (answer and hash, evidence label, gate, experiments). Stored once; a retry keeps the first. `status` may also be `AWAITING_CONFIRMATION` with `response_type` `RESEARCH_PLAN_CONFIRMATION` (a Research Plan awaiting the user's approval). |
 
 **Request-level budgets.** All analyses of one orchestrator request share:
@@ -1096,6 +1097,30 @@ A condition -> outcome research experiment is judged by the backend, not by the 
   NOT_EVALUATED (rules in `runtime/research_stats.py`).
 - Limits: date clustering and horizon thinning approximate cluster-robust errors; correlation across dates beyond the
   horizon is not modelled. `/v1/runtime` reports `research_findings: {enabled, version: 1}`.
+
+### Multi-Angle Research (off unless `PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED=true`)
+
+Design, contracts and decisions: `MULTI_ANGLE_RESEARCH.md` (repository root). Needs `PY_SANDBOX_DATANEED_ENABLED`.
+`GET /v1/runtime` reports `multi_angle_research` (enabled, version 2, angle limits, grouped execution, findings and
+governance versions, the method registry and its hash, bundle limits); market-ai-orc turns its side on only when they
+match.
+
+- `POST /v1/research-runs` `{request_id, origin_request_id, research_governance, research_data_plan}`: the Research
+  Governor v2 reviews the declaration (angle count and budgets, parameters bound to each method, multiple testing,
+  follow-up semantics, `app/research_governance.py`); every hash is recomputed and each signed feasibility draft of
+  the origin request is promoted into one approved RESEARCH need per bundle group. A retry returns the same run.
+- `GET /v1/research-runs/{id}?request_id=` returns the groups and every finding;
+  `POST /v1/research-runs/{id}/groups/{g}/close` `{request_id, reason}` records a failed group's angles as `NOT_RUN`.
+- A session on a group's bundle has the research helpers (`research_conditional`, `research_persistence`,
+  `research_group_comparison`, `research_quantiles`, `research_temporal_dependency`, `research_custom`): the
+  declarative form (request and expressions, rebuilt by the backend) is `FORMULA_AND_STATISTICS_VERIFIED`, a frame
+  built by code is `STATISTICS_VERIFIED`, `research_custom` is `EXECUTION_ONLY`. Each call stores the input
+  (`research_input_<angle>`) and the call (`research_call_<angle>`); the `research_` names are reserved.
+- `POST /v1/sessions/{id}/complete` `{request_id, finalize?}` validates the group: every approved angle recorded once,
+  inside its contract, recomputed by `runtime/research_engines.py`, one `research_findings/v2` finding per angle
+  (`final_status.research_findings_v2`, `calculation_validation` = the weakest level relied on). Missing angles keep
+  the completion open (`next_action` RUN_PYTHON) unless `finalize` records them as `NOT_RUN`.
+- Store schema version 4 adds `research_runs`, `research_groups` and `research_findings`.
 
 ### Imported modules (item C)
 

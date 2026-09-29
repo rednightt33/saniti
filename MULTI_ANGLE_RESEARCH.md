@@ -1,7 +1,8 @@
 # Multi-Angle Research (research v2)
 
-Status (2026-09-29): implementation in progress on branch `claude/upbeat-dijkstra-iybq2f`. Not deployed, not merged
-to `main` (a push to `main` auto-deploys to dev), no migration applied. Source documents: "Multi-Angle Research —
+Status (2026-09-29): implemented and tested locally on branch `claude/upbeat-dijkstra-iybq2f` (sandbox and
+market-ai-orc, both flags off by default). Not deployed, not merged to `main` (a push to `main` auto-deploys to dev),
+migration `20260929_001` written and rehearsed on a local scratch database only, not applied. Source documents: "Multi-Angle Research —
 Backend Implementation Plan v2" and its implementation prompt (user, 2026-09-29).
 
 A Research run examines one root hypothesis from 3 to 6 analytical angles. Each angle has one approved method, its
@@ -89,9 +90,10 @@ the angle's own ids). The planner:
 2. normalizes each request to a key (table, entity and time columns, canonical scope, frequencies, resample, and its
    INNER restrictions with their own keys) and merges equal keys across angles: columns are united, ranges united by
    dates, buffers take the larger span, bundle ids are assigned deterministically (`<request_group_id>_<letter>`);
-3. tries one bundle group; when the merged spec exceeds the validator's request limit or the estimated rows exceed the
-   sandbox bundle limit, splits along angle boundaries (angle order, greedy, then bisection), never splitting an
-   angle, up to `AI_RESEARCH_MAX_BUNDLE_GROUPS`;
+3. tries one bundle group; when the merged spec exceeds the validator's request limit or the estimated rows or parts
+   exceed the sandbox bundle limits, packs the angles greedily in plan order using each request's estimated rows,
+   never splitting an angle, up to `AI_RESEARCH_MAX_BUNDLE_GROUPS` (an angle that alone exceeds the limits is
+   `ANGLE_EXCEEDS_BUNDLE_LIMITS`);
 4. validates each group with the sandbox (`POST /v1/data-needs/check`, a draft per group) and estimates it with the
    Execution Planner (the same per-part estimate as extraction);
 5. returns `SINGLE_BUNDLE`, `MULTI_BUNDLE` or `INFEASIBLE`, the groups, the angle mapping, the per-angle
@@ -166,3 +168,36 @@ otherwise it logs `multi_angle_research_inactive` and keeps v1.
 Sandbox first (flag off), verify `GET /v1/runtime`, enable the sandbox flag on dev; then market-ai-orc (flag off),
 verify research v1 and Analysis, enable the orc flag; run the golden questions; apply the catalog migration last.
 Rollback: orc flag off, then sandbox flag off; v1 contracts stay available.
+
+## 7. market-ai-orc behaviour (implemented)
+
+| Area | Behaviour |
+|---|---|
+| Startup | `negotiate()` (`app/research_plan_v2.py`) compares the sandbox capability with the local registry (version, grouped execution, findings and governance versions, method ids and registry hash, angle policy). Only a full match registers `check_research_feasibility` (in place of `check_data_feasibility`) and the three run tools; otherwise `multi_angle_research_inactive` is logged and v1 stays. |
+| Prompt and schema | The MULTI-ANGLE RESEARCH PLAN and MULTI-ANGLE FINDINGS rules replace the Research Plan, plan feasibility and findings v1 rules (no figures except list numbering). The final schema carries `research_plan/v2` and one `AngleFindingReport` per angle. With the flag off the prompt, schema and tool definitions are byte-identical (tested). |
+| Plan turn | A RESEARCH data need is refused before the sandbox (`MULTI_ANGLE_PLAN_REQUIRED`). A v2 plan is issued only for exactly the angles of the run's last FEASIBLE research data plan, within `AI_RESEARCH_MIN_ANGLES`..`AI_RESEARCH_MAX_ANGLES`, and with a second, later range for every angle that requires a holdout; one reminder, then a LIMITATION without a token. A v1 plan while v2 is active (or the reverse) is refused the same way. |
+| Continuation | `rpc2` is issued with the research data plan; the continuation returns it to the caller, and the conversation store keeps it with the plan (history mode SERVER). A v1 continuation while v2 is active, or a v2 one while it is not, is never executed: the turn becomes REPLAN (`RESEARCH_PLAN_TOKEN_INVALID`, reason `PLAN_VERSION`). |
+| Approved turn | The executor of the verified plan is created for this request only; the tools are discovery, the three run tools, `inspect_session` and `get_session_output`. An approval with no `start_research_run` is reminded once and stays pending (M19; the same continuation goes back). Group sessions left open are closed at the end of the run. |
+| Answer gate | One entry per approved angle with the backend status unchanged, all four interpretation parts, the effective sample in `evidence`, governed figures only, no status wording stronger than the backend's (supported wording only for SUPPORTED or PARTIALLY_SUPPORTED; "no effect" wording never), and an agreement between angles only when the synthesis map allows one. One rejection, then a LIMITATION. |
+| Verification wording | When the run's `calculation_validation` is `STATISTICS_VERIFIED` or `FORMULA_AND_STATISTICS_VERIFIED`, saying that the statistics were verified is allowed (the sandbox moves that claim to `claims_allowed`); the limitations always name the exact level. |
+| Evidence label | Unchanged contract: findings figures are `DATA_COVERAGE_VERIFIED` sources. The per-angle validation level is reported in the findings, the limitations and the audit records, not by a new label value. |
+| Audit | `execution.research.experiments` (and so `AI_research_run_audit.experiments`) holds one entry per approved angle with `payload_version` `research_findings/v2`, angle, method, family, status, reason, bundle group and research run; the v2 fields are omitted from other entries. `execution.research_plan` gains `plan_version`, `research_data_plan_sha256` and `research_run_id` only for v2. |
+
+## 8. Method catalog migration (not applied)
+
+`database/migrations/20260929_001_multi_angle_research_catalog.sql`: the preflight fails and names every method id of
+§3.1 that has no `AI_research_catalog` row (no rows are added); it also refuses a second application. It then sets the
+eight methods to `IMPLEMENTED_BEHIND_FLAG`, appends one enforcement line to their `validation_requirements_json`, notes
+on `check_data_feasibility` that it is replaced while the feature is on, and registers the four market-ai-orc tools
+inactive (schemas generated from the tool definitions; a test fails when they drift). Rehearsed on a local scratch
+PostgreSQL (3 of 8 ids present: refused with the five missing ids and nothing changed; all 8: applied and verified;
+second run: refused). The live catalog's method ids were not read in this change; they are checked by the preflight at
+application time.
+
+## 9. Tests
+
+- market-python-sandbox: `tests/test_research_engines.py`, `tests/test_research_governance_v2.py`,
+  `tests/test_research_runs.py` (real sessions on fixture data: promotion, grouped completion, NOT_RUN finalization,
+  tampering, replay, group close, flag off); full suite 596 passed.
+- market-ai-orc: `tests/test_multi_angle.py` (plan v2 and the pinned signature, rpc2 tampering, negotiation, planner
+  merge and split, executor, scripted orchestrator turns, flags-off identity, migration drift); full suite passed.

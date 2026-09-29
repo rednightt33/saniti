@@ -1,5 +1,28 @@
 # Database changelog
 
+## 2026-09-29 — Multi-Angle Research: migration 20260929_001 — PREPARED, NOT APPLIED
+
+- Scope: Multi-Angle Research implementation (user decisions 2026-09-29, `MULTI_ANGLE_RESEARCH.md`): a guarded forward
+  migration that adds no catalog rows. Not applied to any shared database; the rollout applies it last, after both
+  feature flags run on dev.
+- `20260929_001_multi_angle_research_catalog.sql`:
+  - preflight: fails and names every missing `AI_research_catalog.method_id` of the eight engine methods
+    (`conditional_distribution`, `threshold_sensitivity`, `streak_persistence`, `regime_comparison`,
+    `cohort_comparison`, `quantile_ranking`, `lead_lag`, `correlation_dependency`), and refuses a second application;
+  - `AI_research_catalog`: those eight rows become `IMPLEMENTED_BEHIND_FLAG`; `validation_requirements_json` gains one
+    enforcement line (backend recomputation and validation levels);
+  - `Tool_Catalog`: inactive `v1` rows for `check_research_feasibility`, `start_research_run`, `run_research_code`,
+    `complete_research_run` (`runtime_service` market-ai-orc; schemas generated from the tool definitions, a test
+    fails on drift); a `multi_angle_research` note on `check_data_feasibility`;
+  - `$verify$`: eight methods updated, four inactive tool rows.
+- Rehearsal on a local scratch PostgreSQL only (throwaway database, dropped after): with three of the eight ids present
+  the preflight refused and named the five missing ids and nothing changed; with all eight the migration applied and
+  verified (an unrelated method stayed `REFERENCE_ONLY`); a second run was refused. The live catalog's method ids were
+  not read.
+- No schema change: `DATABASE_SCHEMA.md` is unchanged. The sandbox's research runs live in its SQLite store (schema
+  version 4); per-angle audit records use `AI_research_run_audit.experiments` (JSON) with `payload_version`
+  `research_findings/v2`.
+
 ## 2026-09-28 — IP2 solution 1 on dev: migration 20260928_002 applied (resample rules)
 
 - Scope approved by the user on 2026-09-28 ("Deploy IP2 ke dev dulu"): apply `20260928_002` on dev, deploy the IP2

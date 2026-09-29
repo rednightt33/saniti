@@ -38,6 +38,7 @@ from psycopg.types.json import Jsonb
 
 from . import conversation_plans as plans
 from .research_plan import ContinuationIn
+from .research_plan_v2 import ContinuationInV2
 from .schemas import MAX_HISTORY_ITEMS, MAX_MESSAGE_CHARACTERS, AgentRunRequest, AgentRunResponse, HistoryMessage
 
 logger = logging.getLogger("market_ai_orc")
@@ -106,7 +107,7 @@ class TurnStart:
     history: list[HistoryMessage] = field(default_factory=list)
     replay: dict[str, Any] | None = None          # the stored response of an identical earlier request
     state: dict[str, Any] = field(default_factory=dict)   # the conversation state when the turn started
-    continuation: ContinuationIn | None = None    # the latest pending Research Plan, built by the server (H2)
+    continuation: ContinuationIn | ContinuationInV2 | None = None  # the latest pending plan, built by the server (H2)
 
 
 class ConversationStore:

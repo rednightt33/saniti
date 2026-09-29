@@ -23,6 +23,7 @@ from .audit import RunAuditor
 from .audit_outbox import AuditOutbox
 from .orchestrator import AgentOrchestrator, log_event
 from .provider_log import ProviderLogger
+from .research_plan_v2 import negotiate
 from .schemas import AgentRunRequest, AgentRunResponse
 from .tools import build_default_registry
 from .tools.analysis import SandboxClient
@@ -141,6 +142,15 @@ def create_app(
                 log_event("research_findings_inactive", reason="needs AI_ENABLE_DATANEED, "
                                                                "AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION and a sandbox "
                                                                "reporting research_findings version 1")
+        # Multi-Angle Research: both services must agree on the method registry and the grouped-execution contract
+        multi_angle = None
+        if settings.ai_enable_multi_angle_research:
+            multi_angle, reason = negotiate(
+                (sandbox.runtime().get("multi_angle_research") or {}) if sandbox is not None else None,
+                min_angles=settings.ai_research_min_angles, max_angles=settings.ai_research_max_angles,
+                max_groups=settings.ai_research_max_bundle_groups, feasibility=feasibility, composite=composite)
+            if multi_angle is None:
+                log_event("multi_angle_research_inactive", reason=reason)
         registry = build_default_registry(
             catalog,
             catalog_timeout_seconds=(
@@ -172,6 +182,7 @@ def create_app(
             point_in_time=point_in_time,
             research_findings=research_findings,
             preflight_parts=settings.ai_enable_preflight_parts,
+            multi_angle=multi_angle,
         )
         auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
             if sandbox is not None or settings.research_audit_database_url else None

@@ -6,6 +6,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer, model_validator
 
 from .research_plan import Action, ContinuationIn, ContinuationOut, ResearchPlan, ResearchPlanFindings
+from .research_plan_v2 import AngleStatus, ContinuationInV2, ContinuationOutV2, ResearchPlanV2
 
 
 MAX_MESSAGE_CHARACTERS = 16000
@@ -61,7 +62,8 @@ class AgentRunRequest(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     # The user's reply to a Research Plan: the exact plan, plan_id, origin_request_id and token of the latest
     # RESEARCH_PLAN_CONFIRMATION response, plus an explicit action when the caller has one (APPROVE, REVISE, CANCEL).
-    continuation: ContinuationIn | None = None
+    # A research_plan/v2 (Multi-Angle Research) continuation also carries the research data plan the backend returned.
+    continuation: ContinuationInV2 | ContinuationIn | None = None
     # CLIENT (default): the caller sends the history, as before. SERVER (AI_ENABLE_CONVERSATION_STORE): the service
     # keeps it; send conversation_id (null for a new conversation), a new request_id and the message, no history.
     history_mode: Literal["CLIENT", "SERVER"] = "CLIENT"
@@ -126,6 +128,16 @@ class ResearchFinding(BaseModel):
     interpretation: FindingInterpretation
 
 
+class AngleFindingReport(BaseModel):
+    """Multi-Angle Research: the model's reading of one approved angle; the status is the backend's."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    angle_id: str = Field(min_length=1, max_length=40, description="The approved angle's angle_id.")
+    status: AngleStatus = Field(description="Copied unchanged from complete_research_run.")
+    interpretation: FindingInterpretation
+
+
 class FinalResponse(BaseModel):
     """Runtime validator matching FINAL_RESPONSE_SCHEMA exactly."""
 
@@ -138,13 +150,14 @@ class FinalResponse(BaseModel):
     limitations: list[str]
     # Only for RESEARCH_PLAN_CONFIRMATION; every other response carries null. A model that omits the field (the
     # schema without Research Plan confirmation does not list it) is read as null.
-    research_plan: ResearchPlanFindings | ResearchPlan | None = None
+    research_plan: ResearchPlanV2 | ResearchPlanFindings | ResearchPlan | None = None
     # AI_ENABLE_METHODOLOGY: how an answer resting on an analysis was reached, in plain words (model-written; its
     # numbers are checked by the provenance gate). Null for clarifications, plans and answers without an analysis.
     methodology: str | None = Field(default=None, max_length=6000)
     # AI_ENABLE_RESEARCH_FINDINGS: one entry per completed research experiment (backend verdict + interpretation);
-    # null for every other response. Absent (read as null) when the feature is off.
-    research_findings: list[ResearchFinding] | None = Field(default=None, max_length=4)
+    # null for every other response. Absent (read as null) when the feature is off. Multi-Angle Research: one
+    # AngleFindingReport per approved angle instead.
+    research_findings: list[ResearchFinding] | list[AngleFindingReport] | None = None
 
     @model_serializer(mode="wrap")
     def _without_empty_findings(self, handler: Any) -> Any:
@@ -156,6 +169,9 @@ class FinalResponse(BaseModel):
 
     @model_validator(mode="after")
     def _consistent_with_type(self) -> "FinalResponse":
+        if self.research_findings is not None and len(self.research_findings) > (
+                6 if any(isinstance(f, AngleFindingReport) for f in self.research_findings) else 4):
+            raise ValueError("research_findings has more entries than a Research Plan allows")
         if self.research_findings is not None and self.response_type != "ANSWER":
             raise ValueError(f"{self.response_type} requires research_findings to be null")
         if self.methodology is not None and self.response_type in ("CLARIFICATION", "RESEARCH_PLAN_CONFIRMATION"):
@@ -231,17 +247,22 @@ METHODOLOGY_PROPERTY: dict[str, Any] = {
 
 
 def final_response_schema(research_plan_confirmation: bool, methodology: bool = False,
-                          research_findings: bool = False) -> dict[str, Any]:
+                          research_findings: bool = False, multi_angle: bool = False) -> dict[str, Any]:
     """FINAL_RESPONSE_SCHEMA, or with Research Plan confirmation the same schema plus RESEARCH_PLAN_CONFIRMATION and a
     required nullable research_plan, and with AI_ENABLE_METHODOLOGY a required nullable methodology; with research
     findings (only together with plan confirmation) the plan's experiments carry the findings values and a required
     nullable research_findings is added. Without the flags the schema is byte-identical to the one before the
-    features."""
-    schema = _plan_schema(research_plan_confirmation, research_findings and research_plan_confirmation)
+    features. Multi-Angle Research (only with plan confirmation) replaces the plan with research_plan/v2 and the
+    findings with one AngleFindingReport per angle."""
+    multi_angle = multi_angle and research_plan_confirmation
+    schema = _plan_schema(research_plan_confirmation, research_findings and research_plan_confirmation, multi_angle)
     if methodology:
         schema = {**schema, "properties": {**schema["properties"], "methodology": METHODOLOGY_PROPERTY},
                   "required": [*schema["required"], "methodology"]}
-    if research_findings and research_plan_confirmation:
+    if multi_angle:
+        schema = {**schema, "properties": {**schema["properties"], "research_findings": angle_findings_property()},
+                  "required": [*schema["required"], "research_findings"]}
+    elif research_findings and research_plan_confirmation:
         schema = {**schema, "properties": {**schema["properties"], "research_findings": research_findings_property()},
                   "required": [*schema["required"], "research_findings"]}
     return schema
@@ -255,12 +276,22 @@ def research_findings_property() -> dict[str, Any]:
                            "with the backend verdict unchanged and your interpretation; otherwise null."}
 
 
-def _plan_schema(research_plan_confirmation: bool, research_findings: bool = False) -> dict[str, Any]:
+def angle_findings_property() -> dict[str, Any]:
+    from .tools.registry import strict_parameters_schema
+
+    return {"anyOf": [{"type": "array", "items": strict_parameters_schema(AngleFindingReport)}, {"type": "null"}],
+            "description": "For an ANSWER that rests on a completed multi-angle research run: one entry per approved "
+                           "angle with the backend status unchanged and your interpretation; otherwise null."}
+
+
+def _plan_schema(research_plan_confirmation: bool, research_findings: bool = False,
+                 multi_angle: bool = False) -> dict[str, Any]:
     if not research_plan_confirmation:
         return FINAL_RESPONSE_SCHEMA
     from .tools.registry import strict_parameters_schema
 
-    plan = strict_parameters_schema(ResearchPlanFindings if research_findings else ResearchPlan)
+    plan = strict_parameters_schema(ResearchPlanV2 if multi_angle
+                                    else ResearchPlanFindings if research_findings else ResearchPlan)
     properties = dict(FINAL_RESPONSE_SCHEMA["properties"])
     properties["response_type"] = {
         "type": "string", "enum": ["ANSWER", "CLARIFICATION", "RESEARCH_PLAN_CONFIRMATION", "LIMITATION"],
@@ -304,9 +335,14 @@ EvidenceLabel = Literal["FACT", "DATABASE_AGGREGATE", "CALCULATION_VERIFIED", "S
                         "DATA_COVERAGE_VERIFIED", "UNVERIFIED_EXPLORATORY", "NOT_VALIDATED"]
 
 
+V2_EXPERIMENT_FIELDS = ("payload_version", "angle_id", "method_id", "method_family", "status", "status_reason",
+                        "bundle_group_id", "research_run_id")
+
+
 class ExperimentSummary(BaseModel):
     """One analysis spec of the run: the Research Governor's decision, validation, evidence, and whether the final
-    answer relies on it (RETAINED: the answer cites its numbers)."""
+    answer relies on it (RETAINED: the answer cites its numbers). A Multi-Angle Research run reports one entry per
+    approved angle with payload_version research_findings/v2; the v2 fields are omitted otherwise."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -322,6 +358,23 @@ class ExperimentSummary(BaseModel):
     evidence_decision: str | None = None
     evidence_level: str | None = None
     retained: Literal["RETAINED", "DISCARDED", "FOLLOWED_UP", "NOT_RUN"]
+    payload_version: str | None = None
+    angle_id: str | None = None
+    method_id: str | None = None
+    method_family: str | None = None
+    status: str | None = None
+    status_reason: str | None = None
+    bundle_group_id: str | None = None
+    research_run_id: str | None = None
+
+    @model_serializer(mode="wrap")
+    def _without_unused_v2(self, handler: Any) -> Any:
+        data = handler(self)
+        if isinstance(data, dict):
+            for key in V2_EXPERIMENT_FIELDS:
+                if data.get(key) is None:
+                    data.pop(key, None)
+        return data
 
 
 class ResearchSummary(BaseModel):
@@ -421,6 +474,19 @@ class ResearchPlanExecution(BaseModel):
     research_submitted: bool | None = None
     # the feasibility draft the issued plan was bound to, or the one the approved turn started from
     draft_id: str | None = None
+    # Multi-Angle Research only (omitted otherwise): the plan version, the research data plan hash and the research run
+    plan_version: str | None = None
+    research_data_plan_sha256: str | None = None
+    research_run_id: str | None = None
+
+    @model_serializer(mode="wrap")
+    def _without_unused_v2(self, handler: Any) -> Any:
+        data = handler(self)
+        if isinstance(data, dict):
+            for key in ("plan_version", "research_data_plan_sha256", "research_run_id"):
+                if data.get(key) is None:
+                    data.pop(key, None)
+        return data
 
 
 class RunError(BaseModel):
@@ -443,7 +509,7 @@ class AgentRunResponse(BaseModel):
     evidence_label: EvidenceLabel | None = None
     # Backend-signed continuation of a RESEARCH_PLAN_CONFIRMATION response (never generated by the model); null
     # otherwise. The caller sends plan_id, origin_request_id, the exact plan and the token back with the reply.
-    continuation: ContinuationOut | None = None
+    continuation: ContinuationOutV2 | ContinuationOut | None = None
 
 
 ExecutionMetadata.model_rebuild()

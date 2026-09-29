@@ -43,6 +43,7 @@ def build_default_registry(
     point_in_time: bool = False,
     research_findings: bool = False,
     preflight_parts: bool = False,
+    multi_angle: dict | None = None,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
@@ -102,14 +103,50 @@ def build_default_registry(
                                           max_result_bytes=python_analysis_max_bytes,
                                           standard_period_return=standard_period_return):
                     registry.register(spec)
-                if plan_feasibility:
-                    # validation plus one estimate-only Governor call per extraction envelope
+                multi_angle_active = multi_angle is not None and plan_feasibility and composite_keys
+                if plan_feasibility and not multi_angle_active:
+                    # validation plus one estimate-only Governor call per extraction envelope (with Multi-Angle
+                    # Research check_research_feasibility replaces it, so the model sees one plan check)
                     registry.register(feasibility_spec(
                         sandbox_client, ExecutionPlanner(sandbox_client, governor_client, preflight=preflight_parts),
                         timeout_seconds=max(sandbox_timeout_seconds, governor_timeout_seconds) * 3,
                         max_result_bytes=python_analysis_max_bytes, composite_keys=composite_keys,
                         point_in_time=point_in_time))
+                if multi_angle_active:
+                    _register_multi_angle(registry, sandbox_client, governor_client, multi_angle,
+                                          timeout_seconds=max(sandbox_timeout_seconds, governor_timeout_seconds),
+                                          session_timeout_seconds=session_timeout_seconds,
+                                          max_result_bytes=python_analysis_max_bytes, point_in_time=point_in_time,
+                                          preflight_parts=preflight_parts)
     return registry
+
+
+def _register_multi_angle(registry: ToolRegistry, sandbox_client: SandboxClient, governor_client: GovernorClient,
+                          multi_angle: dict, *, timeout_seconds: float, session_timeout_seconds: float,
+                          max_result_bytes: int, point_in_time: bool, preflight_parts: bool) -> None:
+    """AI_ENABLE_MULTI_ANGLE_RESEARCH: check_research_feasibility for the plan turn and the grouped executor's tools for
+    the approved turn; the orchestrator creates one executor per approved plan through registry.multi_angle."""
+    from ..research_run_executor import ResearchRunExecutor, executor_specs, remember_feasibility
+    from .research_planner import ResearchDataPlanner, research_feasibility_spec
+
+    planner = ResearchDataPlanner(sandbox_client, ExecutionPlanner(sandbox_client, governor_client,
+                                                                   preflight=preflight_parts),
+                                  max_groups=multi_angle["max_groups"], min_angles=multi_angle["min_angles"],
+                                  max_angles=multi_angle["max_angles"], limits=multi_angle.get("limits"))
+    registry.register(research_feasibility_spec(planner, timeout_seconds=timeout_seconds * 4 * multi_angle["max_groups"],
+                                                max_result_bytes=max_result_bytes, point_in_time=point_in_time,
+                                                on_result=remember_feasibility))
+    for spec in executor_specs(timeout_seconds=timeout_seconds, execution_timeout_seconds=session_timeout_seconds,
+                               max_result_bytes=max_result_bytes):
+        registry.register(spec)
+    bundle_planner = ExecutionPlanner(sandbox_client, governor_client, preflight=preflight_parts)
+
+    def factory(verified, request_id: str) -> ResearchRunExecutor:
+        return ResearchRunExecutor(sandbox_client, bundle_planner, verified, request_id,
+                                   execution_timeout=session_timeout_seconds, timeout=timeout_seconds,
+                                   max_result_bytes=max_result_bytes)
+
+    registry.multi_angle = {**multi_angle, "factory": factory}
 
 
 __all__ = [
