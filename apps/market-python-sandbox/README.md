@@ -1097,6 +1097,15 @@ A condition -> outcome research experiment is judged by the backend, not by the 
 - Limits: date clustering and horizon thinning approximate cluster-robust errors; correlation across dates beyond the
   horizon is not modelled. `/v1/runtime` reports `research_findings: {enabled, version: 1}`.
 
+### Imported modules (item C)
+
+Every session execution records the top-level modules its code imports (`import x.y`, `from x.y import z` → `x`),
+read from the code's syntax tree before it runs; relative imports and code that does not parse record none. The list
+is stored on the execution record (`executions.modules`, store schema version 3) and logged with
+`session_execution` (`modules`). The code text itself is not stored (only `code_sha256`). With
+`PY_SANDBOX_MODULES_AUDIT_ENABLED=true` the completion's `final_status.modules_used` lists the modules of the
+session's successful executions; without it the final status keeps its shape.
+
 ### Audit archival (IP2, off unless `PY_SANDBOX_AUDIT_STORE_ENABLED=true`)
 
 The root harness archives to `market-audit-store` (`app/audit.py`). The analysis process never does.

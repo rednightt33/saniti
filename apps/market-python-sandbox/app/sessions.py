@@ -18,6 +18,7 @@ user, bound to one request and one READY bundle. The harness
 """
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import logging
@@ -37,6 +38,25 @@ from typing import Any
 
 from .executor import _rss_mb, child_environment, disk_usage
 from .records import utc_now
+
+MAX_MODULES = 50
+
+
+def imported_modules(code: str) -> list[str]:
+    """The top-level modules a code text imports (import x.y / from x.y import z -> x), read from its syntax tree
+    without running it; relative imports and code that does not parse give none. Pre-loaded modules such as pandas
+    and numpy are listed when the code imports them, whatever the session already loaded."""
+    try:
+        tree = ast.parse(code)
+    except (SyntaxError, ValueError):
+        return []
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+            names.add(node.module.split(".")[0])
+    return sorted(names)[:MAX_MODULES]
 
 logger = logging.getLogger("market_python_sandbox")
 SESSION_ID_PREFIX = "sess_"
@@ -548,10 +568,12 @@ class SessionManager:
         cpu_before = _cpu_seconds(worker.process.pid)
         self.store.update_session(session_id, status="BUSY", last_active_at=utc_now())
         started_at = utc_now()
+        modules = imported_modules(code)
         self.store.insert_execution({"execution_id": execution_id, "session_id": session_id, "seq": seq,
                                      "kind": "EXECUTE", "code_sha256": hashlib.sha256(code.encode()).hexdigest(),
                                      "status": "RUNNING", "started_at": started_at,
-                                     "epoch": int(record.get("epoch") or 1), "request_id": request_id})
+                                     "epoch": int(record.get("epoch") or 1), "request_id": request_id,
+                                     "modules": modules})
         try:
             answer = worker.request({"op": "execute", "execution_id": execution_id, "code": code},
                                     s.session_execution_seconds)
@@ -607,7 +629,7 @@ class SessionManager:
                            "failed_limit": s.session_max_failed, "cpu_seconds_used": usage["cpu_seconds"],
                            "cpu_seconds_limit": usage.get("cpu_budget")}
         self._log("session_execution", session_id=session_id, execution_id=execution_id, status=status,
-                  runtime_ms=runtime_ms, cpu_seconds=cpu, outputs=len(outputs),
+                  runtime_ms=runtime_ms, cpu_seconds=cpu, outputs=len(outputs), modules=modules,
                   access=[{k: a.get(k) for k in ("call", "data_request_id", "range_id", "rows")}
                           for a in (answer.get("access") or [])[:20]],
                   error_type=(answer.get("error") or {}).get("error_type"),

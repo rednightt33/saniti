@@ -561,6 +561,9 @@ class DataNeedService:
                 "execution_ids": [e["execution_id"] for e in executions if e["status"] == "OK"]}
         if findings is not None and findings["status"] == "OK":
             final["research_findings"] = [findings["finding"]]
+        if self.settings.modules_audit_enabled:
+            final["modules_used"] = sorted({m for e in executions if e["status"] == "OK"
+                                            for m in e.get("modules") or []})
         if parent is not None:
             final["inherited_coverage"] = {
                 "parent_completion_id": parent["completion_id"], "parent_request_id": parent["request_id"],

@@ -171,6 +171,7 @@ def create_app(
             composite_keys=composite,
             point_in_time=point_in_time,
             research_findings=research_findings,
+            preflight_parts=settings.ai_enable_preflight_parts,
         )
         auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
             if sandbox is not None or settings.research_audit_database_url else None

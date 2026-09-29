@@ -133,6 +133,9 @@ class Settings:
     # research findings v1 (PY_SANDBOX_RESEARCH_FINDINGS_ENABLED): event_summary, backend sample category and verdict,
     # no fixed minimum sample in the Research Governor
     research_findings_enabled: bool = False
+    # item C (EXTRACTION_AND_AUDIT_PLAN.md): final_status.modules_used lists the modules the session's successful
+    # executions imported; the per-execution record and log always carry them
+    modules_audit_enabled: bool = False
     # IP2 solution 2: archive code, runtime/library manifests, traces and released outputs to market-audit-store
     # from the root harness (never from an analysis process); audit failures never fail an analysis
     audit_store_enabled: bool = False
@@ -282,6 +285,7 @@ class Settings:
                                                 minimum=0, maximum=1_073_741_824),
             derived_frequency_enabled=_boolean(env, "PY_SANDBOX_DERIVED_FREQUENCY_ENABLED", False),
             research_findings_enabled=_boolean(env, "PY_SANDBOX_RESEARCH_FINDINGS_ENABLED", False),
+            modules_audit_enabled=_boolean(env, "PY_SANDBOX_MODULES_AUDIT_ENABLED", False),
             audit_store_enabled=_boolean(env, "PY_SANDBOX_AUDIT_STORE_ENABLED", False),
             audit_store_url=env.get("AUDIT_STORE_URL", "").strip().rstrip("/") or None,
             audit_store_key=env.get("AUDIT_STORE_SANDBOX_KEY", "").strip() or None,

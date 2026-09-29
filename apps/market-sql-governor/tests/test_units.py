@@ -26,6 +26,12 @@ def test_defaults_are_conservative_backend_limits() -> None:
     assert API_KEY not in repr(s) and "postgresql://" not in repr(s)
 
 
+def test_up_to_six_joins_of_seven_tables_can_be_configured() -> None:
+    s = Settings.from_env(base_env(SQL_MAX_JOINS="6", SQL_MAX_TABLES="7"))
+    assert (s.max_tables, s.max_joins) == (7, 6)
+    assert DataRequestSpec.model_fields["joins"].metadata[0].max_length == 6
+
+
 @pytest.mark.parametrize(
     ("overrides", "message"),
     [
@@ -34,6 +40,9 @@ def test_defaults_are_conservative_backend_limits() -> None:
         ({"GOVERNOR_DATABASE_URL": "mysql://x"}, "postgresql://"),
         ({"SQL_MAX_UNFILTERED_DATE_RANGE_DAYS": "5000"}, "must not exceed SQL_MAX_DATE_RANGE_DAYS"),
         ({"SQL_MAX_JOINS": "3"}, "below SQL_MAX_TABLES"),
+        ({"SQL_MAX_JOINS": "6", "SQL_MAX_TABLES": "6"}, "below SQL_MAX_TABLES"),
+        ({"SQL_MAX_JOINS": "7", "SQL_MAX_TABLES": "7"}, "SQL_MAX_JOINS"),
+        ({"SQL_MAX_TABLES": "8"}, "SQL_MAX_TABLES"),
         ({"SQL_STATEMENT_TIMEOUT_SECONDS": "500"}, "between 1 and 120"),
         ({"SQL_STATEMENT_TIMEOUT_SECONDS": "90", "SQL_MAX_EXECUTION_SECONDS": "60"}, "must not exceed SQL_MAX_EXECUTION"),
         ({"SQL_DATASET_BUCKET_NAME": "b"}, "requires endpoint"),

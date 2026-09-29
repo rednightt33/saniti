@@ -224,7 +224,7 @@ def test_the_sqlite_upgrade_keeps_legacy_rows(tmp_path) -> None:
     legacy.commit()
     legacy.close()
     store = DataNeedStore(path)
-    assert store.schema_version == SCHEMA_VERSION == 2
+    assert store.schema_version == SCHEMA_VERSION == 3
     assert store.get_draft("draft_none") is None  # version 2 adds the feasibility drafts
     session = store.get_session("sess_old")
     assert (session["epoch"], session["epoch_start_seq"], session["conversation_key"]) == (1, 0, None)

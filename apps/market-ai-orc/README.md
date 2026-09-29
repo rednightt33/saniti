@@ -1214,6 +1214,19 @@ After every run (`app/audit.py`), the orchestrator:
 Auditing never changes the response and never fails the run; failures are logged as
 `research_audit` events. Hidden model reasoning, secrets, and dataset contents are never recorded.
 
+### Part preflight (off unless `AI_ENABLE_PREFLIGHT_PARTS=true`)
+
+G10 / A0–A2 (`EXTRACTION_AND_AUDIT_PLAN.md`). With the flag, the Execution Planner estimates every extraction part with
+the Governor's `estimate_only` (checks and EXPLAIN, no row read) before the first extraction, for every data request of
+the need. A dated envelope takes the fewest equal date parts of `PREFLIGHT_COUNTS` (2, 3, 4, 6, 8, 12, 16, 24, 32, 48,
+64; starting at the Governor's own count) whose every part is `WITHIN_LIMITS`; the planner cost is not monotonic in
+the window (A4: broker × banks cost more for a week than for a month), so a finer split is never assumed cheaper. An
+entity split follows the Governor's partitioning, each piece estimated. A part that fits nowhere stops the plan
+before any row is read (`REJECTED`, with `failing_window`); at most `PREFLIGHT_MAX_ESTIMATES` (256) estimates per
+plan. `check_data_feasibility` uses the same estimate, so FEASIBLE means every part fits. The Governor still checks
+each part at extraction; a part whose estimate changed is split as before. Off: the envelope estimate and the
+extract-then-split loop are unchanged.
+
 ### Caller-chosen path (off unless `AI_ENABLE_ANALYSIS_PATH=true`)
 
 `POST /v1/agent/run` accepts `analysis_path`: `"ANALYSIS"`, `"RESEARCH"` or `null` (default; the model chooses as

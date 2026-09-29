@@ -38,6 +38,11 @@ from .request_data import current_request_id
 
 NEED_ID_PATTERN = r"^need_[0-9a-f]{24}$"
 MAX_PARTS_PER_REQUEST = 64
+# A0 (AI_ENABLE_PREFLIGHT_PARTS): the date-part counts tried for one envelope, fewest first. The planner cost is not
+# monotonic in the window (A4, 2026-09-29: broker x banks cost 40k for a day, 228k for a week, 37k for a month), so a
+# finer split is not assumed to be cheaper: each count is estimated part by part and the first that fits is used.
+PREFLIGHT_COUNTS = (2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64)
+PREFLIGHT_MAX_ESTIMATES = 256
 MAX_MODULUS = 4096
 FORBIDDEN_ACTIONS = ["CHANGE_USER_SCOPE", "SAMPLE_WITHOUT_PERMISSION", "DROP_ENTITIES", "SHORTEN_PERIOD",
                      "CHANGE_FREQUENCY", "CHANGE_JOIN_SEMANTICS"]
@@ -122,10 +127,13 @@ def extraction_spec(entry: dict[str, Any], part: Part) -> dict[str, Any]:
 
 
 class ExecutionPlanner:
-    def __init__(self, sandbox: Any, governor: Any, max_parts: int = MAX_PARTS_PER_REQUEST) -> None:
+    def __init__(self, sandbox: Any, governor: Any, max_parts: int = MAX_PARTS_PER_REQUEST,
+                 preflight: bool = False) -> None:
         self.sandbox = sandbox
         self.governor = governor
         self.max_parts = max_parts
+        # A0/A2 (AI_ENABLE_PREFLIGHT_PARTS): every part is estimated before the first extraction
+        self.preflight = preflight
 
     def prepare(self, need_id: str) -> dict[str, Any]:
         request_id = current_request_id.get() or ""
@@ -141,9 +149,16 @@ class ExecutionPlanner:
         plan_id = f"plan_{secrets.token_hex(12)}"
         planned, decisions = [], []
         try:
+            chosen: dict[str, list[Part]] = {}
+            if self.preflight:
+                # A2: every part of every request fits by estimate before any row is read
+                budget = [PREFLIGHT_MAX_ESTIMATES]
+                for rid in sorted(need["requests"]):
+                    chosen[rid] = self._preflight(need, plan_id, need["requests"][rid], budget)[0]
             for rid in sorted(need["requests"]):
                 entry = need["requests"][rid]
-                parts, envelopes = self._request_parts(need, plan_id, entry)
+                parts, envelopes = self._extract_chosen(need, plan_id, entry, chosen[rid]) if self.preflight \
+                    else self._request_parts(need, plan_id, entry)
                 planned.append({"data_request_id": rid, "envelopes": envelopes, "parts": parts})
                 decisions += self._decisions(entry, envelopes, parts)
         except PlanStop as stop:
@@ -163,6 +178,8 @@ class ExecutionPlanner:
         or needs a partitioning whose parts fit the per-request budget; a REJECTED_* status names the request."""
         plan_id = f"plan_{secrets.token_hex(12)}"
         requests, feasible = [], True
+        if self.preflight:
+            return self._estimate_parts(draft, plan_id)
         for rid in sorted(draft["requests"]):
             entry = draft["requests"][rid]
             envelopes = merge_windows(entry.get("windows") or []) if entry.get("time_column") else []
@@ -200,6 +217,155 @@ class ExecutionPlanner:
                                        f"{self.max_parts} fit one request.")
             requests.append(summary)
         return {"feasible": feasible, "requests": requests}
+
+    def _estimate_parts(self, draft: dict[str, Any], plan_id: str) -> dict[str, Any]:
+        """A0 feasibility: the same part-by-part estimate the extraction will use, so FEASIBLE means every part fits
+        (G10: the envelope estimate alone approved plans whose parts the Governor then refused)."""
+        requests, feasible, budget = [], True, [PREFLIGHT_MAX_ESTIMATES]
+        for rid in sorted(draft["requests"]):
+            entry = draft["requests"][rid]
+            envelopes = merge_windows(entry.get("windows") or []) if entry.get("time_column") else []
+            summary: dict[str, Any] = {"data_request_id": rid, "source_table": entry["source_table"],
+                                       "envelopes": len(envelopes) or None, "estimated_rows": 0,
+                                       "extraction_parts": 0, "governor_status": "WITHIN_LIMITS"}
+            try:
+                parts, rows = self._preflight(draft, plan_id, entry, budget)
+                summary.update(estimated_rows=rows, extraction_parts=len(parts))
+                if len(parts) > max(1, len(envelopes)):
+                    summary["governor_status"] = "NEEDS_PARTITIONING"
+            except PlanStop as stop:
+                feasible = False
+                outcome = stop.outcome
+                summary.update(governor_status=outcome.get("governor_status") or "REJECTED_POLICY",
+                               code=outcome.get("code"), message=outcome.get("message"),
+                               **({"failing_window": outcome["failing_window"]} if outcome.get("failing_window")
+                                  else {}))
+            requests.append(summary)
+        return {"feasible": feasible, "requests": requests}
+
+    def _lineage(self, source: dict[str, Any], plan_id: str, entry: dict[str, Any], part: Part,
+                 spec: dict[str, Any]) -> dict[str, Any]:
+        return {"need_id": source["need_id"], "spec_sha256": source["spec_sha256"],
+                "request_group_id": source["request_group_id"], "revision": source["revision"],
+                "data_request_id": entry["data_request_id"], "logical_name": entry["logical_name"],
+                "scope_sha256": entry["scope_sha256"], "restriction_sha256": entry["restriction_sha256"],
+                "plan_id": plan_id, "part_key": part_key(part.window, part.entity_partition),
+                "envelope": part.envelope, "catalog_sha256": source.get("catalog_sha256"),
+                "extraction_sha256": sha256_json(spec)}
+
+    def _estimate(self, source: dict[str, Any], plan_id: str, entry: dict[str, Any], part: Part, planned: int,
+                  budget: list[int]) -> dict[str, Any]:
+        if budget[0] <= 0:
+            raise PlanStop({**self._rejection(entry["data_request_id"], {
+                "status": "REJECTED_TIMEOUT_RISK", "code": "PREFLIGHT_ESTIMATE_BUDGET",
+                "message": f"The parts could not be planned within {PREFLIGHT_MAX_ESTIMATES} estimates; narrow the "
+                           "period or the universe."}, planned)})
+        budget[0] -= 1
+        spec = extraction_spec(entry, part)
+        return self.governor.extract(spec, self._lineage(source, plan_id, entry, part, spec), planned_parts=planned,
+                                     estimate_only=True)
+
+    def _preflight(self, source: dict[str, Any], plan_id: str, entry: dict[str, Any], budget: list[int]
+                   ) -> tuple[list[Part], int]:
+        """A0: the parts of one request, each estimated WITHIN_LIMITS (EXPLAIN only, no row read), and their estimated
+        rows. A dated envelope takes the fewest equal date parts of PREFLIGHT_COUNTS (from the Governor's own count)
+        whose every part fits; an entity split, or an envelope without a window, follows the Governor's partitioning
+        part by part. The first part that fits nowhere stops the plan with its window and estimates."""
+        rid = entry["data_request_id"]
+        envelopes = merge_windows(entry.get("windows") or []) if entry.get("time_column") else []
+        chosen: list[Part] = []
+        rows = 0
+        for envelope in envelopes or [None]:
+            whole = Part({"from": envelope["from"], "to": envelope["to"]} if envelope else None, None, envelope)
+            response = self._estimate(source, plan_id, entry, whole, len(chosen) + 1, budget)
+            status = response.get("status")
+            if status == "WITHIN_LIMITS":
+                chosen.append(whole)
+                rows += int((response.get("estimates") or {}).get("result_rows") or 0)
+                continue
+            if status != "APPROVED_WITH_PARTITIONING":
+                raise PlanStop({**self._rejection(rid, response, len(chosen) + 1), "failing_window": whole.window})
+            how = response.get("partitioning") or {}
+            if how.get("kind") == "DATE" and whole.window is not None:
+                parts, found = self._fewest_date_parts(source, plan_id, entry, whole, int(how.get("parts") or 2),
+                                                       len(chosen), budget)
+            else:
+                parts, found = self._governor_parts(source, plan_id, entry, whole, response, len(chosen), budget)
+            chosen += parts
+            rows += found
+        return chosen, rows
+
+    def _fewest_date_parts(self, source: dict[str, Any], plan_id: str, entry: dict[str, Any], whole: Part,
+                           first: int, done: int, budget: list[int]) -> tuple[list[Part], int]:
+        rid = entry["data_request_id"]
+        start, end = date.fromisoformat(whole.window["from"]), date.fromisoformat(whole.window["to"])
+        days = (end - start).days + 1
+        counts = sorted({n for n in (first, *PREFLIGHT_COUNTS) if first <= n <= days and done + n <= self.max_parts})
+        failure: dict[str, Any] | None = None
+        for count in counts:
+            parts = [Part(w, None, whole.envelope) for w in split_window(whole.window, count)]
+            rows, fits = 0, True
+            for part in parts:
+                response = self._estimate(source, plan_id, entry, part, done + len(parts), budget)
+                if response.get("status") != "WITHIN_LIMITS":
+                    fits = False
+                    failure = {**response, "window": part.window, "parts": count}
+                    break
+                rows += int((response.get("estimates") or {}).get("result_rows") or 0)
+            if fits:
+                return parts, rows
+        if failure is None:  # no count fits the part limit
+            failure = {"status": "REJECTED_ROW_LIMIT", "code": "TOO_MANY_PARTS", "window": whole.window,
+                       "message": f"The data would need more than {self.max_parts - done} extraction parts."}
+        status = failure.get("status")
+        if status == "APPROVED_WITH_PARTITIONING":  # the finest split tried still needs splitting
+            failure = {**failure, "status": {"COST_LIMIT": "REJECTED_JOIN_COST" if entry.get("restrictions")
+                                             else "REJECTED_COMPUTE_COST", "SCAN_LIMIT": "REJECTED_SCAN_SIZE"}.get(
+                failure.get("code"), "REJECTED_ROW_LIMIT")}
+        raise PlanStop({**self._rejection(rid, failure, failure.get("parts") or len(counts)),
+                        "failing_window": failure.get("window")})
+
+    def _governor_parts(self, source: dict[str, Any], plan_id: str, entry: dict[str, Any], whole: Part,
+                        response: dict[str, Any], done: int, budget: list[int]) -> tuple[list[Part], int]:
+        """Entity (or window-less) partitioning as the Governor says, every piece estimated before it is kept."""
+        rid = entry["data_request_id"]
+        queue, kept, rows = self._split(rid, whole, response, done + 1), [], 0
+        while queue:
+            part = queue.pop(0)
+            total = done + len(kept) + len(queue) + 1
+            answer = self._estimate(source, plan_id, entry, part, total, budget)
+            status = answer.get("status")
+            if status == "WITHIN_LIMITS":
+                kept.append(part)
+                rows += int((answer.get("estimates") or {}).get("result_rows") or 0)
+            elif status == "APPROVED_WITH_PARTITIONING":
+                queue = self._split(rid, part, answer, total) + queue
+            else:
+                raise PlanStop({**self._rejection(rid, answer, total), "failing_window": part.window})
+        return kept, rows
+
+    def _extract_chosen(self, need: dict[str, Any], plan_id: str, entry: dict[str, Any], chosen: list[Part]
+                        ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """A2: extract the parts the preflight chose. The Governor still checks each one; a part whose estimate
+        changed in between is split as before."""
+        rid = entry["data_request_id"]
+        envelopes = merge_windows(entry.get("windows") or []) if entry.get("time_column") else []
+        queue, done = list(chosen), []
+        while queue:
+            part = queue.pop(0)
+            total = len(done) + len(queue) + 1
+            spec = extraction_spec(entry, part)
+            response = self.governor.extract(spec, self._lineage(need, plan_id, entry, part, spec),
+                                             planned_parts=total)
+            status = response.get("status")
+            if status == "APPROVED":
+                part.dataset = response.get("dataset") or {}
+                done.append(part)
+            elif status == "APPROVED_WITH_PARTITIONING":
+                queue = self._split(rid, part, response, total) + queue
+            else:
+                raise PlanStop(self._rejection(rid, response, total))
+        return self._name(rid, done), envelopes
 
     def _request_parts(self, need: dict[str, Any], plan_id: str, entry: dict[str, Any]
                        ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -298,6 +464,7 @@ class ExecutionPlanner:
                 "next_action": response.get("next_action") or (
                     "REVISE_DATA_NEED_SPEC" if policy else "REPLAN_OR_REVISE_DATA_NEED_SPEC"),
                 "estimates": response.get("estimates"), "partitions_tried": parts,
+                **({"window": response["window"]} if response.get("window") else {}),
                 "allowed_actions": ["REVISE_DATA_NEED_SPEC_FROM_CATALOG"] if policy else [
                     "REPORT_LIMITATION", "ASK_USER_TO_NARROW_THE_SCOPE", "REVISE_DATA_NEED_SPEC"],
                 "forbidden_actions": FORBIDDEN_ACTIONS}
