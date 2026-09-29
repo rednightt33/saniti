@@ -139,11 +139,9 @@ Still open:
 - G12 remainder: the example call uses a price column of the angle's contract (partly covered by item 1).
 - Expression functions for new questions: `ema(x, n)` with automatic warm-up.
 - Data: an IHSG daily table and its catalog relationship; interest rates when the table exists.
-- Outcome threshold and event summary (proposed 2026-09-29 after the user's question on "9 of 10 events"): a
-  forward-return outcome may carry a threshold ("at least X%"); every conditional finding then reports the raw
-  number of events, the effective sample, and the share of events at or above the threshold in the condition and in
-  the baseline, each with a Wilson interval. Today the engine's hit rate is fixed at "> 0", and the findings do not
-  require showing it.
+- Deferred by the user (2026-09-29): what each method shows the user (for example raw events, effective sample
+  and the share of events at or above a return threshold). Decided per method after the fixes above make
+  runs succeed; the focus now is cleaning up the existing defects.
 
 ## Verification when executed
 
