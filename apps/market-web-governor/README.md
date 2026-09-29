@@ -17,16 +17,19 @@ One question in, one cited answer out. It runs next to the older web-need flow (
 path is accepted) and shares only the OpenRouter provider with it.
 
 ```
-question -> plan     1 model call: 2-4 keyword queries (question language and English; a ticker also gets the
-                     company's name), optional period stated in the question
+question -> plan     1 model call: 2-4 keyword queries (question language and English; a listed company is
+                     searched by both its name and its ticker), optional period stated in the question
          -> turn 1   code: Google News RSS for every query x every 3-month window (default: 8 windows, two years
                      back from the question's date), Exa via OpenRouter for the first two queries
          -> review   1 model call per turn: up to 3 NEW queries moving outward (related parties, contracts, the
-                     industry, external factors), or none; turns 2 and 3 repeat the scan with them (max 3 turns)
+                     industry, external factors); turn 2 must cover the industry or sector and government policy
+                     unless the headlines already do, or the question asks one fact; turns 2 and 3 repeat the
+                     scan with them (max 3 turns)
          -> merge    code: dedupe by headline; WEB_ASK_MAX_SOURCES (default 500) shared evenly across the windows,
                      a tenth for undated sources; sorted oldest first
          -> answer   1 model call: only from the numbered sources, subject facts and wider context separated,
-                     every fact cited [n] with its date; a period in the question limits the answer
+                     every fact cited [n] with its date; a period in the question limits the answer; a bare
+                     name leads with investor-material items; "why" may be answered with a labelled inference
          -> check    code: cited numbers must exist; citation dates come from the source list, never from the model
 ```
 

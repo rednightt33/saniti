@@ -160,7 +160,16 @@ def test_review_turns_broaden_the_search_and_stop_at_three(tmp_path):
     assert result["usage"]["review_calls"] == 2 and result["usage"]["news_requests"] == 4 * 8
     assert sum("harga batu bara" in q for q in seen) == 8
     assert any("after:2024-09-29 before:2024-12-29" in q for q in seen)
-    assert "Separate facts about the subject" in provider.payloads[-1]["instructions"]
+    answer_rules = provider.payloads[-1]["instructions"]
+    assert "Separate facts about the subject" in answer_rules
+    assert "lead with what is material to an investor" in answer_rules
+    assert "mark it as an inference from the cited sources" in answer_rules
+    plan_rules = provider.payloads[0]["instructions"]
+    assert "both the company's name and its ticker" in plan_rules
+    reviews = [p["instructions"] for p in provider.payloads
+               if "text" in p and p["text"]["format"]["name"] == "next_searches"]
+    assert "search turn 2 of 3" in reviews[0] and "search turn 3 of 3" in reviews[1]
+    assert "industry or sector and one on government policy or regulation" in reviews[0]
 
 
 def test_a_failed_window_is_a_warning_not_an_error(tmp_path):
