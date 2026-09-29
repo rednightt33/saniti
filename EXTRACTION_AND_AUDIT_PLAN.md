@@ -1,6 +1,6 @@
 # Extraction cost and analysis audit plan
 
-Status: **A4 done 2026-09-29 (evidence in `DATABASE_INDEX_ACCEPTANCE.md`); A0, A2, J, C approved, not yet executed** (user, 2026-09-29: "Jangan eksekusi dulu"). Each item runs only after the user says so.
+Status (2026-09-29): **A4 done** (evidence in `DATABASE_INDEX_ACCEPTANCE.md`); **A0 (fewest parts that fit), A2, J and C implemented and deployed on dev** with their flags/variables on (`RAILWAY_CHANGELOG.md`); live rerun of the broker question blocked by the OpenRouter key limit (M27) (user, 2026-09-29: "Jangan eksekusi dulu"). Each item runs only after the user says so.
 Origin: the broker screening runs of 2026-09-28 (`b01_broker_screen`, `b02_broker_screen_analysis`) and errors G10 and
 M23 in `ERRORS_AND_SOLUTIONS.md`.
 

@@ -66,6 +66,25 @@
   USD 0.0098 classification, 40 rows written. Diagnosis (W16): OpenRouter's web search ignores the date window; the
   search query decides the results. No Railway change was made for the diagnosis.
 
+## 2026-09-29 — A4 evidence, part preflight (A0/A2), join limit 6, imported-module audit (C)
+
+- **A4** (read-only): temporary service `a4-explain-job` (`b4d58765-2308-4c0e-ab11-e7d6c36530af`, deployment
+  `3e3b9480`, deleted after the run) ran bounded `EXPLAIN` / `EXPLAIN (ANALYZE, BUFFERS)` in READ ONLY transactions
+  with `statement_timeout` 20 s. Result in `DATABASE_INDEX_ACCEPTANCE.md`: the planner cost of broker × banks is not
+  monotonic in the window (1 day 40,326; 1 week 227,842; 1 month 37,036). No index or limit changed.
+- **Code** (user-approved plan `EXTRACTION_AND_AUDIT_PLAN.md`; merged into `main` as `348f03b`; tests orc 697,
+  Governor 213, sandbox 548 passed; flag-off tool definitions identical): market-sql-governor
+  `5a420253-10fd-46f1-abc8-5c92d3f39e5a`, market-python-sandbox `5d74db9c-4b8b-4ad4-ba09-aa917d789804`,
+  market-ai-orc `de1aaa52-5dd0-48d4-a896-8f6a31cf3bc7`, all `SUCCESS`.
+- **Variables** (dev, one service at a time, each redeploy `SUCCESS`):
+  - market-sql-governor: `SQL_MAX_JOINS=6`, `SQL_MAX_TABLES=7` → `372b62f8-b2af-43a3-b482-01c68e1933ca`;
+  - market-python-sandbox: `PY_SANDBOX_MODULES_AUDIT_ENABLED=true` → `7cded3fc-ac04-45d7-9c54-431513889e9d`;
+  - market-ai-orc: `AI_ENABLE_PREFLIGHT_PARTS=true` → `ef7ff785-c722-4189-8534-a7864d53f907`.
+- `railway config pull --force` / `railway config plan`: up to date.
+- **Live rerun of the broker question** (runner `84aadf53-2fc4-4426-bb18-64f45dab29cb`, `b03_broker_screen_preflight`):
+  failed in 0.4 s before any model call: OpenRouter HTTP 403 "Key limit exceeded (total limit)" (M27). Live
+  verification of A0/A2 and C waits until the key's limit is raised.
+
 ## 2026-09-28 — Research findings v1 and caller-chosen analysis path on dev; suite9
 
 - **Research findings v1** (user-approved design; commits `35ff278` sandbox, `f36600f` orc; merged into `main` as

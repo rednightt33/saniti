@@ -42,6 +42,7 @@ def build_default_registry(
     composite_keys: bool = False,
     point_in_time: bool = False,
     research_findings: bool = False,
+    preflight_parts: bool = False,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
@@ -93,7 +94,7 @@ def build_default_registry(
             if governor_client is not None:
                 # many Governor extractions plus the sandbox's verification and profiling
                 registry.register(prepare_bundle_spec(
-                    ExecutionPlanner(sandbox_client, governor_client),
+                    ExecutionPlanner(sandbox_client, governor_client, preflight=preflight_parts),
                     timeout_seconds=max(sandbox_timeout_seconds, governor_timeout_seconds) * 6,
                     max_result_bytes=python_analysis_max_bytes))
                 for spec in session_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
@@ -104,7 +105,7 @@ def build_default_registry(
                 if plan_feasibility:
                     # validation plus one estimate-only Governor call per extraction envelope
                     registry.register(feasibility_spec(
-                        sandbox_client, ExecutionPlanner(sandbox_client, governor_client),
+                        sandbox_client, ExecutionPlanner(sandbox_client, governor_client, preflight=preflight_parts),
                         timeout_seconds=max(sandbox_timeout_seconds, governor_timeout_seconds) * 3,
                         max_result_bytes=python_analysis_max_bytes, composite_keys=composite_keys,
                         point_in_time=point_in_time))

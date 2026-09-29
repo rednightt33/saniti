@@ -64,7 +64,7 @@ class DataRequestSpec(Strict):
     purpose: str = Field(min_length=1, max_length=500, description="Why the data is needed.")
     from_table: str = Field(pattern=TABLE_PATTERN, description="Primary table from the catalog.")
     columns: list[ColumnRef] = Field(max_length=50, description="Columns to return (group-by columns when aggregating).")
-    joins: list[JoinSpec] = Field(max_length=5)
+    joins: list[JoinSpec] = Field(max_length=6)
     filters: list[FilterSpec] = Field(max_length=30)
     group_by: list[ColumnRef] = Field(max_length=20)
     aggregations: list[AggregationSpec] = Field(max_length=20)

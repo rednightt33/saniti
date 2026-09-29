@@ -388,7 +388,7 @@ mistake.
 | `SQL_CONNECT_TIMEOUT_SECONDS` | 5 | Connection timeout |
 | `SQL_STATEMENT_TIMEOUT_SECONDS` | 20 | Per-statement timeout (≤ 120) |
 | `SQL_LOCK_TIMEOUT_SECONDS` | 2 | Lock wait timeout |
-| `SQL_MAX_TABLES` / `SQL_MAX_JOINS` | 3 / 2 | Tables and joins per request |
+| `SQL_MAX_TABLES` / `SQL_MAX_JOINS` | 3 / 2 (at most 7 / 6; dev: 7 / 6 since 2026-09-29) | Tables and joins per `/v1/query` request; joins stay below tables. `/v1/extract` has no join count (up to 8 semi-join restrictions) |
 | `SQL_MAX_COLUMNS` / `SQL_MAX_FILTERS` / `SQL_MAX_IN_VALUES` | 20 / 10 / 100 | Request breadth |
 | `SQL_MAX_ESTIMATED_SCAN_ROWS` | 2,000,000 | EXPLAIN scan ceiling |
 | `SQL_MAX_PLAN_COST` | 600,000 | EXPLAIN total-cost ceiling, calibrated on live dev data on 2026-09-23: cost 411k took 29 s (106k Feature 02 rows) and cost 819k took over 74 s |
