@@ -34,6 +34,8 @@ MAX_QUERIES = 4
 EXA_QUERIES = 2
 MAX_TURNS = 3
 REVIEW_QUERIES = 3
+MAX_SECTORS = 2
+TURN2_QUERIES = 5
 DEFAULT_LOOKBACK_MONTHS = 24
 WINDOW_MONTHS = 3
 MAX_WINDOWS = 12
@@ -48,8 +50,10 @@ REVIEW_SCHEMA = {
 }
 
 PLAN_SCHEMA = {
-    "type": "object", "additionalProperties": False, "required": ["queries", "after", "before"],
+    "type": "object", "additionalProperties": False,
+    "required": ["queries", "subject", "sectors", "after", "before"],
     "properties": {"queries": {"type": "array", "items": {"type": "string"}},
+                   "subject": {"type": "string"}, "sectors": {"type": "array", "items": {"type": "string"}},
                    "after": {"type": ["string", "null"]}, "before": {"type": ["string", "null"]}},
 }
 
@@ -62,6 +66,9 @@ def plan_instructions(as_of: date) -> str:
         "not know.\n"
         "If the question names a listed company or its stock ticker, include queries with both the company's name "
         "and its ticker.\n"
+        "Name the subject of the question. If the subject is a company, commodity or market, also name the 1-2 "
+        "industries or sectors it belongs to, in the language of the question, as search phrases (for example a "
+        "dairy producer: 'industri susu olahan'); otherwise leave sectors empty.\n"
         "Set after/before (YYYY-MM-DD) only if the question itself states a period; otherwise null."
     )
 
@@ -315,6 +322,14 @@ class AskService:
                                      warnings)
             usage["review_calls"] += 1
             proposals = [p for p in proposals if p["query"].lower() not in used][:REVIEW_QUERIES]
+            if turn == 2:
+                # Guaranteed by code, not left to the review call: the subject's sectors and their regulation.
+                required = [{"query": query, "reason": reason} for sector in plan["sectors"]
+                            for query, reason in ((sector, "required: sector"),
+                                                  (f"{sector} regulasi pemerintah", "required: sector regulation"))]
+                required = [entry for entry in required if entry["query"].lower() not in used]
+                taken = {entry["query"].lower() for entry in required}
+                proposals = (required + [p for p in proposals if p["query"].lower() not in taken])[:TURN2_QUERIES]
             if not proposals:
                 break
             used.update(p["query"].lower() for p in proposals)
@@ -373,7 +388,10 @@ class AskService:
         queries = [q.strip() for q in parsed.get("queries") or [] if isinstance(q, str) and q.strip()]
         queries = list(dict.fromkeys(queries))[:MAX_QUERIES] or [question[:200]]
         period = {key: (parsed.get(key) if dates.from_iso(parsed.get(key)) else None) for key in ("after", "before")}
-        return {"queries": queries, **period}
+        subject = str(parsed.get("subject") or "").strip()[:120]
+        sectors = [str(x).strip()[:80] for x in parsed.get("sectors") or [] if str(x).strip()]
+        return {"queries": queries, "subject": subject, "sectors": list(dict.fromkeys(sectors))[:MAX_SECTORS],
+                **period}
 
     def _scan(self, queries: list[str], spans: list[tuple[date, date]], exa_queries: list[str], model: str, call,
               warnings: list, usage: dict) -> list[list[dict]]:
