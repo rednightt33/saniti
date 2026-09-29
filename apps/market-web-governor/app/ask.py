@@ -367,6 +367,17 @@ def parse_when(text: str) -> tuple[date, date] | None:
     day = dates.from_iso(value) or (dates.from_text(value) or (None,))[0]
     if isinstance(day, date):
         return day, day
+    short = re.search(r"\b(?:([12])h|h([12])|q([1-4])|fy)\s*'?(\d{2})\b", value)
+    if short and not re.search(r"\b20\d{2}\b", value):  # 2H25, H1 26, Q3'26, FY25
+        year = 2000 + int(short.group(4))
+        half = short.group(1) or short.group(2)
+        if half:
+            start = date(year, 1 if half == "1" else 7, 1)
+            return start, _add_months(start, 6) - timedelta(days=1)
+        if short.group(3):
+            start = date(year, 3 * int(short.group(3)) - 2, 1)
+            return start, _add_months(start, 3) - timedelta(days=1)
+        return date(year, 1, 1), date(year, 12, 31)
     month_match = re.search(rf"\b({dates._MONTH_WORDS})\.?\s+(20\d{{2}})\b", value)
     if month_match:
         year, month = int(month_match.group(2)), dates.MONTHS[month_match.group(1)]
@@ -563,9 +574,10 @@ class AskService:
             unknown = [n for n in cited if not 1 <= n <= len(items)]
             if unknown:
                 warnings.append({"code": "UNKNOWN_CITATION", "message": f"answer cites sources that do not exist: {unknown}"})
-            implications = self._implications(request.question, answer, items, as_of, slot.model, call, warnings)
+            implications = self._implications(request.question, answer, items, as_of, slot.model, call, warnings,
+                                              plan)
+            usage["model_calls"] += len(plan.get("implications_attempts") or [None])
             if implications is not None:
-                usage["model_calls"] += 1
                 answer = answer + "\n" + render_implications(implications)
             answer, answer_cited, order = clean_citations(answer, len(items))
             if implications is not None:
@@ -597,20 +609,32 @@ class AskService:
         return result
 
     def _implications(self, question: str, answer: str, items: list[dict[str, Any]], as_of: date, model: str,
-                      call, warnings: list) -> dict[str, list] | None:
-        try:
-            response = call({
-                "model": model, "instructions": implications_instructions(as_of),
-                "input": f"QUESTION: {question}\n\nANSWER:\n{answer}\n\nSOURCES:\n{_listing(items)}",
-                "max_output_tokens": 6000, "reasoning": {"enabled": False}, "store": False,
-                "text": {"format": {"type": "json_schema", "name": "implications", "strict": True,
-                                    "schema": IMPLICATIONS_SCHEMA}},
-            })
-            parsed = json.loads(_extract_output(response)[0])
-        except (ProviderError, ValueError) as exc:
-            warnings.append({"code": "IMPLICATIONS_FAILED", "message": getattr(exc, "code", type(exc).__name__)})
-            return None
-        return validate_implications(parsed if isinstance(parsed, dict) else {}, items, as_of)
+                      call, warnings: list, plan: dict[str, Any]) -> dict[str, list] | None:
+        """One strict-JSON call, validated by code; retried once when nothing survives validation."""
+        attempts = []
+        for _ in range(2):
+            try:
+                response = call({
+                    "model": model, "instructions": implications_instructions(as_of),
+                    "input": f"QUESTION: {question}\n\nANSWER:\n{answer}\n\nSOURCES:\n{_listing(items)}",
+                    "max_output_tokens": 6000, "reasoning": {"enabled": False}, "store": False,
+                    "text": {"format": {"type": "json_schema", "name": "implications", "strict": True,
+                                        "schema": IMPLICATIONS_SCHEMA}},
+                })
+                parsed = json.loads(_extract_output(response)[0])
+            except (ProviderError, ValueError) as exc:
+                warnings.append({"code": "IMPLICATIONS_FAILED", "message": getattr(exc, "code", type(exc).__name__)})
+                return None
+            parsed = parsed if isinstance(parsed, dict) else {}
+            kept = validate_implications(parsed, items, as_of)
+            attempts.append({"returned": {key: len(parsed.get(key) or []) for key in ("impacts", "scenarios", "timeline")},
+                             "kept": {key: len(value) for key, value in kept.items()}})
+            if any(kept.values()):
+                break
+        plan["implications_attempts"] = attempts
+        if not any(kept.values()):
+            warnings.append({"code": "IMPLICATIONS_EMPTY", "message": "no implication survived validation"})
+        return kept
 
     def _plan(self, question: str, as_of: date, model: str, call) -> dict[str, Any]:
         response = call({
