@@ -142,6 +142,7 @@ class Settings:
     classifier_batch_size: int = 6
     date_lookup_max: int = 15
     classifier_reasoning_effort: str | None = "off"
+    ask_retention_days: int = 30
 
     def slot(self, number: int | None) -> ModelSlot:
         wanted = number or self.default_slot
@@ -219,6 +220,7 @@ class Settings:
             classifier_batch_size=_integer(env, "WEB_CLASSIFIER_BATCH_SIZE", 6, maximum=20),
             date_lookup_max=_integer(env, "WEB_DATE_LOOKUP_MAX", 15, minimum=0, maximum=50),
             classifier_reasoning_effort=_effort(env.get("WEB_CLASSIFIER_REASONING_EFFORT", "off")),
+            ask_retention_days=_integer(env, "WEB_ASK_RETENTION_DAYS", 30, maximum=365),
         )
         if not settings.store_path:
             raise ConfigError("WEB_GOVERNOR_STORE_PATH must not be empty")

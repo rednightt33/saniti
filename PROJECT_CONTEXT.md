@@ -11,7 +11,7 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - Environment: `dev`
 - Environment ID: `4d3e5af2-302b-4a2e-84e2-7d7476d6ff49`
 - PostgreSQL service ID: `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`
-- Web research PostgreSQL (separate from market data): `Postgres-E8GM`, service `4b193143-be17-456b-bc00-c1760ef5db82`, volume `postgres-volume-Oz3T` (`c02c7422-019d-448e-a4fc-561bcad4a3f0`). It holds `web_event_item` only; market-web-governor writes with the INSERT-only role `web_event_writer`, readers use `web_event_reader`. The market-data PostgreSQL service is named `Postgres` (restored 2026-09-28 after a rename to `Web_Fetch`).
+- Web research PostgreSQL (separate from market data): `Postgres-E8GM`, service `4b193143-be17-456b-bc00-c1760ef5db82`, volume `postgres-volume-Oz3T` (`c02c7422-019d-448e-a4fc-561bcad4a3f0`). It holds `web_event_item` (web-need evidence; the writer role may only INSERT) and `web_ask` (lean `/v1/ask` answers, kept 30 days; the writer may SELECT, INSERT and DELETE); market-web-governor writes with `web_event_writer`, readers use `web_event_reader`. The market-data PostgreSQL service is named `Postgres` (restored 2026-09-28 after a rename to `Web_Fetch`).
 - Market AI backend service ID (deactivated 2026-09-25, service deleted 2026-09-26): `2cefa0cd-c9fc-4b84-992e-fdf08535a064`
 - Statistical validation worker service (deactivated 2026-09-25, service deleted 2026-09-26): `market-analytics-worker`
 - Statistical validation worker service ID: `75fc5bbc-2ff9-4850-b007-011735506ce6`

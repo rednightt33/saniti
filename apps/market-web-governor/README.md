@@ -11,6 +11,34 @@ The first adapter uses OpenRouter's Responses API with the `openrouter:web_searc
 tools. Provider details remain behind the internal adapter interface so callers depend only on the v1 Saniti
 contract.
 
+## Lean ask (`POST /v1/ask`), recommended path
+
+One question in, one cited answer out. It runs next to the older web-need flow (kept for comparison until the lean
+path is accepted) and shares only the OpenRouter provider with it.
+
+```
+question -> plan    1 model call: 2-4 keyword queries (language of the question and English), optional period
+         -> search  code: Google News RSS per query (headline, publisher, publication date) and Exa via
+                    OpenRouter for the first two queries (article text); merged by headline, sorted oldest first,
+                    the newest 80 kept
+         -> answer  1 model call: only from the numbered sources, every fact cited [n] with its date
+         -> check   code: cited numbers must exist; citation dates come from the source list, never from the model
+```
+
+- **Request:** `{"request_id": "...", "question": "apa keputusan BI rate terakhir", "as_of": null, "model_slot": null}`.
+  `as_of` defaults to today; `model_slot` to the default slot.
+- **Response:** `status` (`ANSWERED`, `NO_SOURCES`, `FAILED`), `answer`, `citations` and `sources`
+  (`n`, `date`, `publisher`, `title`, `url`, `via`), `plan`, `warnings`, `usage` (model calls, search calls, cost),
+  `seconds`, `stored`. The same `request_id` returns the stored answer without new calls.
+- **Why this shape:** OpenRouter's web search has no publication-date filter and lets the model write the query
+  (W16). Google News returns a date for every headline, so ordering by date lets the model answer "latest" and
+  "before event X" questions without special modes.
+- **Storage:** one row per question in `web_ask` on Postgres-E8GM (`event_store/002_web_ask.sql`), kept
+  `WEB_ASK_RETENTION_DAYS` (default 30); each write deletes expired rows. A failed write keeps the answer and adds
+  `ASK_STORE_WRITE_FAILED`.
+- **Limits:** the Google News RSS feed is unofficial and may change or rate-limit; a paid Google News API (Serper,
+  SerpAPI) or Brave News can replace `google_news()` without changing the flow.
+
 ## Boundaries
 
 - Input is a `WebNeedSpec`: objective, optional hypothesis statement, entities, time window, evidence criteria,
@@ -234,6 +262,8 @@ classification, and several sources are classified per call.
 With `WEB_EVENT_STORE_URL` set, every completed search, web need or fetch writes one row per evidence item to
 `web_event_item` in the separate research database Postgres-E8GM (`event_store/001_web_event_item.sql`).
 
+- **Lean ask:** `/v1/ask` answers go to `web_ask` (`002_web_ask.sql`); on that table the writer also has SELECT
+  (replay) and DELETE (30-day retention).
 - **Access:** the governor's role `web_event_writer` can only INSERT (`ON CONFLICT DO NOTHING` without a conflict
   target, so no SELECT is needed); `web_event_reader` can only SELECT. The market-data PostgreSQL is not reachable
   from this service.
