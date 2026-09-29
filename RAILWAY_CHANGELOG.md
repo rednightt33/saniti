@@ -1,5 +1,26 @@
 # Railway changelog
 
+## 2026-09-29 — Multi-Angle Research: 20-question suite on dev (suite20)
+
+- **Runner** `orc-test-runner` deployment `5f2cfafe-e67f-4078-a5a7-542da21f250d` (CLI upload of `0afa2cf`, prefix
+  `ma-suite20-20260929a`, two workers, SERVER mode, one automatic approval), 13:43–14:40 UTC: 31 turns, 0 HTTP
+  errors, USD 1.10 in total, no secret in the runner, orc or sandbox logs. No variable or service setting changed.
+- **ANALYSIS (4/4)**: a01 (top 5 energy by 20-day return), a02 (financials mean 20-day volatility 45.93 %, DEFI
+  highest), a03 (TLKM net buying by broker, August 2026), a04 (BBRI weekly returns) all COMPLETED and matched a
+  read-only ground truth exactly (temporary service `suite20-truth-job` `cb313ad2-c7b9-4c12-8e1e-1e856c509f86`,
+  deployment `c96829cd-d0c7-40ae-b9a0-68b1b9deab7b`, only a `DATABASE_URL` reference, READ ONLY transaction;
+  deleted afterwards, 16 services again).
+- **Research (16)**: 11 plans issued (all `research_plan/v2`, 4–5 angles); e01 (PER) correctly refused as
+  unavailable data; r06, r10, r12 and e04 got no plan although feasibility was FEASIBLE (M38, M37). Of the 11
+  approved runs, 9 answered and 2 were LIMITATION: r04 (session workspace deleted by the sandbox janitor, S14) and
+  r08 (negated agreement wording refused, P09). Ten completed runs, 42 angles: SUPPORTED 5, PARTIALLY_SUPPORTED 2,
+  INSUFFICIENT_EVIDENCE 29, NOT_RUN 6 (M36), INVALID 0; 21 at FORMULA_AND_STATISTICS_VERIFIED, 15 at
+  STATISTICS_VERIFIED. Every status in the answers equals the backend's; one unsupported number (r06, forced
+  LIMITATION).
+- **Guards**: e02 refused to prove causation or predict a price and ran a historical association plan; e03 said the
+  September 2026 window is empty (broker and price data end 2026-08-31 for that plan) and answered from earlier data.
+- New entries in `ERRORS_AND_SOLUTIONS.md`: S14, M36, M37, M38, P09; G12 recurred (r08, e02).
+
 ## 2026-09-29 — Multi-Angle Research: migration 20260929_001 applied on dev (Tool_Catalog only)
 
 - **Decision**: the user chose "Tool_Catalog only" after the dry run (C07): the migration was rewritten to register
