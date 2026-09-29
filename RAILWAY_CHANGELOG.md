@@ -26,8 +26,21 @@
   `38ab664c-c282-46e2-b538-6b942ef77515`, reference `DATABASE_URL` only): `AI_research_catalog` has 18 methods, all
   `REFERENCE_ONLY`, and none of the eight engine ids; the preflight refused as designed, nothing changed (read back
   identical). Applying needs a decision on the method ids.
-- **Result**: golden not passed; migration `20260929_001` held until the fixes (M30–M33, S12) are deployed and the
-  golden questions pass. Flags stay on in dev (research questions there use the multi-angle path).
+- **Fixes of run 2** (`c94d781`, M34, M35): market-python-sandbox `12202417-3391-4ccc-a5a2-44070d94ec26` and
+  market-ai-orc `f09a1565-0a05-4746-b9fd-bb7deb63895c` `SUCCESS`. Temporary `ma-migrate-job` deleted afterwards.
+- **Golden run 3** (`7cdbf7a2-b8ab-41e5-afd2-e72df66d3667`, prefix `ma-golden-20260929c`, about USD 0.20): **4/4
+  COMPLETED with an ANSWER**, gate `ANNOTATED`, label `DATA_COVERAGE_VERIFIED`, every reported status equal to the
+  backend's, no forced LIMITATION.
+  - g1: `drop_streak` SUPPORTED (a fall of more than 5 % continues more often after longer streaks; effective sample
+    57 dates, BH-adjusted), `drop5_forward` INSUFFICIENT_EVIDENCE (INSUFFICIENT_SAMPLE: its checked data lacked the
+    close column, so the outcome could not be the approved forward return; the answer says so), two angles NOT_RUN
+    (not recorded, finalized).
+  - g2: three INSUFFICIENT_EVIDENCE (underpowered), `a4_volatility_regime` PARTIALLY_SUPPORTED (not past the
+    multiple-testing correction).
+  - g3: four INSUFFICIENT_EVIDENCE; `spike_years` recorded with `research_custom` → EXECUTION_ONLY, as designed.
+  - a1 (ANALYSIS): COMPLETED.
+- **Result**: golden passed. Migration `20260929_001` is not applied: the live catalog has none of the eight method
+  ids (see the dry run above); it waits for the user's decision. Flags stay on in dev.
 
 ## 2026-09-29 — Multi-Angle Research code on dev, flags off (user-approved)
 

@@ -1,9 +1,10 @@
 # Multi-Angle Research (research v2)
 
-Status (2026-09-29): implemented and tested locally on branch `claude/upbeat-dijkstra-iybq2f` (sandbox and
-market-ai-orc, both flags off by default). Not deployed, not merged to `main` (a push to `main` auto-deploys to dev),
-migration `20260929_001` written and rehearsed on a local scratch database only, not applied. Source documents: "Multi-Angle Research —
-Backend Implementation Plan v2" and its implementation prompt (user, 2026-09-29).
+Status (2026-09-29): on `main` and live on dev with both flags on
+(`PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED`, `AI_ENABLE_MULTI_ANGLE_RESEARCH`). Golden run 3 passed (4/4 answered;
+defects of runs 1 and 2 recorded as M30–M35, S12, S13 in `ERRORS_AND_SOLUTIONS.md`; see `RAILWAY_CHANGELOG.md`).
+Migration `20260929_001` is not applied: `AI_research_catalog` on dev has none of the eight method ids (dry run,
+2026-09-29), so its preflight refuses; a decision on the ids is pending.
 
 A Research run examines one root hypothesis from 3 to 6 analytical angles. Each angle has one approved method, its
 own data contract inside a governed bundle, and exactly one backend-authored finding. Analysis (mode ANALYSIS) is
