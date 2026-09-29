@@ -341,6 +341,10 @@ class OpenRouterProvider:
             f"RESEARCH INTENT JSON:\n{json.dumps(context, ensure_ascii=False, separators=(',', ':'))}"
         )
 
+    def respond(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """One Responses API call with the adapter's retries and total deadline (used by the lean /v1/ask)."""
+        return self._request(payload)
+
     def _request(self, payload: dict[str, Any]) -> dict[str, Any]:
         headers = {
             "Authorization": f"Bearer {self.settings.openrouter_api_key}",
