@@ -969,7 +969,9 @@ place). Each analysis keeps:
 
 The janitor runs every `PY_SANDBOX_CLEANUP_INTERVAL_SECONDS` (900) and at startup. It removes
 every workspace that no running job owns, except failed-job diagnostics within their TTL, so
-cleanup does not depend on redeploys. Active workspaces are never touched. After the input
+cleanup does not depend on redeploys. Active workspaces are never touched, and neither are the
+`sess_*` workspaces of analysis sessions, which the session manager owns and removes when it closes a session (S14,
+2026-09-29: the janitor had deleted an open session's inputs mid-run). After the input
 snapshot expires, a record carries `INPUT_SNAPSHOT_EXPIRED`: its checksums identify the input,
 but the analysis can no longer be re-run on the same data.
 
@@ -1100,10 +1102,17 @@ A condition -> outcome research experiment is judged by the backend, not by the 
 
 ### Multi-Angle Research (off unless `PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED=true`)
 
-Design, contracts and decisions: `MULTI_ANGLE_RESEARCH.md` (repository root). Needs `PY_SANDBOX_DATANEED_ENABLED`.
-`GET /v1/runtime` reports `multi_angle_research` (enabled, version 2, angle limits, grouped execution, findings and
-governance versions, the method registry and its hash, bundle limits); market-ai-orc turns its side on only when they
-match.
+Design, contracts and decisions: `MULTI_ANGLE_RESEARCH.md` (repository root); fixes after suite20:
+`MULTI_ANGLE_FIX_PLAN.md`. Needs `PY_SANDBOX_DATANEED_ENABLED`. `GET /v1/runtime` reports `multi_angle_research`
+(enabled, version 2, angle limits (two to six since 2026-09-29), grouped execution, findings and governance versions,
+the method registry and its hash, the research library hash `library_sha256`, bundle limits); market-ai-orc turns its
+side on only when they match.
+
+- Research library (C07): `app/research_library.py` (byte-identical in market-ai-orc) describes the eight methods for
+  the model: family, question, input roles, parameters, data requirements, sample unit, secondary checks,
+  interpretation, misuse warning and an example. Migration `20260930_001` writes it to `public."AI_research_library"`
+  (`scripts/generate_ai_research_library_migration.py`; `tests/test_research_library.py` fails on drift). It
+  describes; the engines and `research_engines.decide` stay the enforcement.
 
 - `POST /v1/research-runs` `{request_id, origin_request_id, research_governance, research_data_plan}`: the Research
   Governor v2 reviews the declaration (angle count and budgets, parameters bound to each method, multiple testing,
@@ -1116,6 +1125,13 @@ match.
   declarative form (request and expressions, rebuilt by the backend) is `FORMULA_AND_STATISTICS_VERIFIED`, a frame
   built by code is `STATISTICS_VERIFIED`, `research_custom` is `EXECUTION_ONLY`. Each call stores the input
   (`research_input_<angle>`) and the call (`research_call_<angle>`); the `research_` names are reserved.
+- Outcome (S15, 2026-09-29): a declarative forward return may read the price column of another request of the angle's
+  contract (`{'forward_return': '<price column>', 'request': '<request id>'}`); the backend computes it per entity on
+  that request's calendar and joins it on entity and date (`ENTITY_MISMATCH`, `REQUEST_OUTSIDE_CONTRACT` otherwise).
+  A PERCENT or DECIMAL outcome whose values look like a price level (median magnitude above 100 or 1) is refused in
+  the session and in the harness: the angle is `INVALID` with `OUTCOME_NOT_APPROVED`. Findings carry
+  `outcome_source` (`FORWARD_RETURN`, `EXPRESSION` or `FRAME`); the research view's example call uses the contract's
+  price column.
 - `POST /v1/sessions/{id}/complete` `{request_id, finalize?}` validates the group: every approved angle recorded once,
   inside its contract, recomputed by `runtime/research_engines.py`, one `research_findings/v2` finding per angle
   (`final_status.research_findings_v2`, `calculation_validation` = the weakest level relied on). Missing angles keep

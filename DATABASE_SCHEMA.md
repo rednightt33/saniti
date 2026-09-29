@@ -16,6 +16,7 @@ Generated from PostgreSQL schema `public` at `2026-09-27T08:23:59+00:00`.
 | `AI_data_coverage` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | Automated actual raw-source coverage plus explicitly inferred expectations for derived Feature tables. |
 | `AI_formula_reference` | Unclassified | Unknown | — | `2026-09-24 09:22:02+00:00` | Baseline only | Global reference catalog of calculation formulas for the orchestrator; entries document a formula, not a verified or executable implementation. |
 | `AI_research_catalog` | Unclassified | Unknown | — | `2026-09-24 07:24:52+00:00` | Baseline only | Global reference catalog of research methods for the orchestrator; entries do not enable sandbox execution. |
+| `AI_research_library` | Unclassified | Unknown | — | `2026-09-29 18:31–18:35 UTC` | Baseline only | Model-facing description of the Multi-Angle Research methods the sandbox engines compute; generated from code, hash-bound (library_sha256). Enforcement stays in code. |
 | `AI_research_run_audit` | Unclassified | Unknown | — | `2026-09-24 12:33:35+00:00` | Baseline only | Durable audit of market-ai-orc runs: the question, the final answer, its evidence label and gate outcome, and every experiment with its Research Governor decision, validation, evidence decision and fingerprints. |
 | `AI_table_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing master list and bounded-access contract for seven approved source and Feature tables. |
 | `Analysis_Evidence` | System | When compact evidence is recorded for an analysis | — | `2026-09-13 15:02:15+00:00` | Baseline only | Compact reproducible evidence supporting material AI analysis claims. |
@@ -432,6 +433,52 @@ Global reference catalog of research methods for the orchestrator; entries do no
 | Name | Definition |
 |---|---|
 | `AI_research_catalog_pkey` | `CREATE UNIQUE INDEX "AI_research_catalog_pkey" ON public."AI_research_catalog" USING btree (method_id)` |
+
+## AI_research_library
+
+Model-facing description of the Multi-Angle Research methods the sandbox engines compute; generated from code, hash-bound (library_sha256). Enforcement stays in code. Created by `database/migrations/20260930_001_create_ai_research_library.sql` (dev, 2026-09-29); SELECT only for `market_ai_catalog_reader`.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `method_id` | `text` | No | — | Registered method id (research_plan/v2 method_id). |
+| `engine_version` | `integer` | No | — | Version of the statistical engines the row describes. |
+| `library_version` | `integer` | No | — | Version of the research library content. |
+| `method_family` | `text` | No | — | One of the five method families; an agreement between angles needs two families. |
+| `question_shape` | `text` | No | — | The question the method answers, in general form. |
+| `input_roles` | `jsonb` | No | — | JSON array of input roles (role, type, required, meaning); logical roles, not column names. |
+| `required_parameters` | `jsonb` | No | — | JSON array of the parameters an angle of this method must set, with their rules. |
+| `optional_parameters` | `jsonb` | No | — | JSON array of the parameters an angle may set, with their rules. |
+| `data_requirements` | `jsonb` | No | — | JSON object: entity column, label constancy, outcome kind, minimum entities per date and notes; the feasibility check enforces them. |
+| `common_requirements` | `jsonb` | No | — | JSON array of the requirements every method shares (one row per entity and date, declarations, forward returns). |
+| `sample_unit` | `text` | No | — | Unit of the effective sample: DATES, ENTITIES or DATES_AUTOCORRELATION_ADJUSTED. |
+| `secondary_checks` | `jsonb` | No | — | JSON array of checks that must pass for SUPPORTED (for example monotonicity). |
+| `decision_rules_ref` | `text` | No | — | Where the status rules are defined; enforcement is research_engines.decide in code. |
+| `interpretation` | `text` | No | — | What the method's estimate means. |
+| `misuse_warning` | `text` | No | — | How the result is commonly misread. |
+| `example_question` | `text` | No | — | An illustrative question the method answers. |
+| `library_sha256` | `text` | No | — | Hash of the whole library; market-ai-orc enables multi-angle research only when it equals the sandbox's and its own. |
+| `is_active` | `boolean` | No | `true` | Whether the method is offered to the model. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Row creation time. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Last update time. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `ai_research_library_family` | Check | `CHECK ((method_family = ANY (ARRAY['CONDITIONAL_OUTCOME'::text, 'PERSISTENCE'::text, 'GROUP_COMPARISON'::text, 'QUANTILE_RANKING'::text, 'TEMPORAL_DEPENDENCY'::text])))` |
+| `ai_research_library_json` | Check | `CHECK (((jsonb_typeof(input_roles) = 'array'::text) AND (jsonb_typeof(required_parameters) = 'array'::text) AND (jsonb_typeof(optional_parameters) = 'array'::text) AND (jsonb_typeof(data_requirements) = 'object'::text) AND (jsonb_typeof(common_requirements) = 'array'::text) AND (jsonb_typeof(secondary_checks) = 'array'::text)))` |
+| `ai_research_library_method_id` | Check | `CHECK ((method_id ~ '^[a-z][a-z0-9_]{0,62}$'::text))` |
+| `ai_research_library_sample_unit` | Check | `CHECK ((sample_unit = ANY (ARRAY['DATES'::text, 'ENTITIES'::text, 'DATES_AUTOCORRELATION_ADJUSTED'::text])))` |
+| `ai_research_library_sha` | Check | `CHECK ((library_sha256 ~ '^[0-9a-f]{64}$'::text))` |
+| `AI_research_library_pkey` | Primary key | `PRIMARY KEY (method_id, engine_version)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `AI_research_library_pkey` | `CREATE UNIQUE INDEX "AI_research_library_pkey" ON public."AI_research_library" USING btree (method_id, engine_version)` |
 
 ## AI_research_run_audit
 

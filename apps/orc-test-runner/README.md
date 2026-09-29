@@ -13,7 +13,8 @@ and the agent container cannot reach Railway SSH, so questions are sent from thi
   drops long lines; a crash later loses nothing). Reassemble each tag's chunks in order, base64-decode, gunzip. Fetch
   the log with `railway logs <deployment> --deployment --lines 5000` (a larger limit is refused).
 - `suite.json` items may carry an `expect` note for the reviewer; the runner ignores it. Current suite:
-  `ma-suite20-20260929a` (12 multi-angle research questions, 4 edge cases, 4 ANALYSIS questions with ground truth).
+  `ma-suite20-20260929b` (12 multi-angle research questions, 4 edge cases, 4 ANALYSIS questions with ground truth;
+  the same questions as `ma-suite20-20260929a`, rerun after the fixes of `MULTI_ANGLE_FIX_PLAN.md`).
 - Run: set a new `prefix` in `suite.json` (request ids are idempotency keys), then
   `railway up apps/orc-test-runner --path-as-root --service orc-test-runner --environment dev --detach`.
 

@@ -5,9 +5,13 @@ Status (2026-09-29): on `main` and live on dev with both flags on
 defects of runs 1 and 2 recorded as M30–M35, S12, S13 in `ERRORS_AND_SOLUTIONS.md`; see `RAILWAY_CHANGELOG.md`).
 Migration `20260929_001` is applied on dev in the scope the user chose after the dry run: the four tools are
 registered (inactive) in `Tool_Catalog`; `AI_research_catalog` is unchanged, because it has none of the eight method
-ids (§8, C07). Open items from the golden runs: S13 and G12 in `ERRORS_AND_SOLUTIONS.md`. Suite20 findings and the approved (not started) fixes: `MULTI_ANGLE_FIX_PLAN.md`.
+ids (§8, C07). Open item from the golden runs: S13 in `ERRORS_AND_SOLUTIONS.md` (G12 fixed on 2026-09-29). Suite20 findings and their
+fixes: `MULTI_ANGLE_FIX_PLAN.md` (items 1–7 live on dev since 2026-09-29: the research library table
+`AI_research_library` and `get_research_library` (§10), two to six angles, each angle's design checked at feasibility,
+no early finalize, negation-aware agreement check, cross-request forward returns).
 
-A Research run examines one root hypothesis from 3 to 6 analytical angles. Each angle has one approved method, its
+A Research run examines one root hypothesis from 2 to 6 analytical angles (3 to 6 before 2026-09-29). Each angle has
+one approved method, its
 own data contract inside a governed bundle, and exactly one backend-authored finding. Analysis (mode ANALYSIS) is
 unchanged and has no angle minimum. Everything is behind `AI_ENABLE_MULTI_ANGLE_RESEARCH` (market-ai-orc) and
 `PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED` (market-python-sandbox), both off by default; with them off, research v1
@@ -60,8 +64,9 @@ the sandbox reports exactly this registry.
 ### 3.2 `research_plan/v2` (model-written, backend-validated)
 
 Top level: `plan_version`, `original_question`, `objective`, `root_hypothesis_id`, `root_hypothesis`, `universe`,
-`time_scope`, `analysis_frequency`, `angles` (3 to 6; `AI_RESEARCH_MIN_ANGLES` / `AI_RESEARCH_MAX_ANGLES` may only
-narrow this), `assumptions`, `limitations`, `confirmation_question`.
+`time_scope`, `analysis_frequency`, `angles` (2 to 6; `AI_RESEARCH_MIN_ANGLES` / `AI_RESEARCH_MAX_ANGLES` may only
+narrow this, and `AI_RESEARCH_MIN_FAMILIES`, off by default, may require that many method families),
+`assumptions`, `limitations`, `confirmation_question`.
 
 Angle: `angle_id`, `title`, `angle_question`, `method_id`, `method_family`, `objective`, `condition`, `outcome`,
 `baseline_or_comparator`, `expected_direction` (HIGHER, LOWER, DIFFERENT), `outcome_horizon_periods` (1-260),
@@ -155,15 +160,18 @@ findings v1.
 |---|---|---|
 | market-python-sandbox | `PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED` | false |
 | market-ai-orc | `AI_ENABLE_MULTI_ANGLE_RESEARCH` | false |
-| market-ai-orc | `AI_RESEARCH_MIN_ANGLES` | 3 (3-6) |
+| market-ai-orc | `AI_RESEARCH_MIN_ANGLES` | 2 (2-6; 3 before 2026-09-29) |
 | market-ai-orc | `AI_RESEARCH_MAX_ANGLES` | 6 (min-6) |
+| market-ai-orc | `AI_RESEARCH_MIN_FAMILIES` | 0 = off (0-5, at most the maximum angles) |
 | market-ai-orc | `AI_RESEARCH_MAX_BUNDLE_GROUPS` | 3 (1-6) |
 | market-ai-orc | `AI_RESEARCH_MAX_PARALLEL_GROUPS` | 1 (only 1 accepted) |
 
 The sandbox reports `multi_angle_research` in `GET /v1/runtime` (enabled, version 2, angle limits, grouped
-execution, findings version, method registry and its hash, bundle limits). The orchestrator activates v2 only when
-the flag is on, DataNeed v2, plan confirmation and plan feasibility are active, and the capability matches exactly;
-otherwise it logs `multi_angle_research_inactive` and keeps v1.
+execution, findings version, method registry and its hash, the research library hash `library_sha256`, bundle
+limits). The orchestrator activates v2 only when the flag is on, DataNeed v2, plan confirmation and plan feasibility
+are active, the capability matches exactly, and the active rows of `AI_research_library` equal its own research
+library (§10); otherwise it logs `multi_angle_research_inactive` (and `research_library_mismatch` for a library
+difference) and keeps v1.
 
 ## 6. Rollout and rollback (not executed)
 
@@ -177,10 +185,10 @@ Rollback: orc flag off, then sandbox flag off; v1 contracts stay available.
 |---|---|
 | Startup | `negotiate()` (`app/research_plan_v2.py`) compares the sandbox capability with the local registry (version, grouped execution, findings and governance versions, method ids and registry hash, angle policy). Only a full match registers `check_research_feasibility` (in place of `check_data_feasibility`) and the three run tools; otherwise `multi_angle_research_inactive` is logged and v1 stays. |
 | Prompt and schema | The MULTI-ANGLE RESEARCH PLAN and MULTI-ANGLE FINDINGS rules replace the Research Plan, plan feasibility and findings v1 rules (no figures except list numbering). The final schema carries `research_plan/v2` and one `AngleFindingReport` per angle. With the flag off the prompt, schema and tool definitions are byte-identical (tested). |
-| Plan turn | A RESEARCH data need is refused before the sandbox (`MULTI_ANGLE_PLAN_REQUIRED`). A v2 plan is issued only for exactly the angles of the run's last FEASIBLE research data plan, within `AI_RESEARCH_MIN_ANGLES`..`AI_RESEARCH_MAX_ANGLES`, and with a second, later range for every angle that requires a holdout; one reminder, then a LIMITATION without a token. A v1 plan while v2 is active (or the reverse) is refused the same way. |
+| Plan turn | A RESEARCH data need is refused before the sandbox (`MULTI_ANGLE_PLAN_REQUIRED`). The plan turn reads the methods with `get_research_library` (the prompt names none). `check_research_feasibility` receives each angle's design and applies the rules the final plan enforces plus the library's data requirements before any data plan is built (M38); a short future buffer is widened to the horizon and reported. A v2 plan is issued only for exactly the angles and the designs of the run's last FEASIBLE research data plan (`angle_design_sha256s`), within `AI_RESEARCH_MIN_ANGLES`..`AI_RESEARCH_MAX_ANGLES` (and `AI_RESEARCH_MIN_FAMILIES`), and with a second, later range for every angle that requires a holdout; two reminders (`PLAN_FEASIBILITY`, `PLAN_FEASIBILITY_2`), then a LIMITATION without a token. A v1 plan while v2 is active (or the reverse) is refused the same way. |
 | Continuation | `rpc2` is issued with the research data plan; the continuation returns it to the caller, and the conversation store keeps it with the plan (history mode SERVER). A v1 continuation while v2 is active, or a v2 one while it is not, is never executed: the turn becomes REPLAN (`RESEARCH_PLAN_TOKEN_INVALID`, reason `PLAN_VERSION`). |
-| Approved turn | The executor of the verified plan is created for this request only; the tools are discovery, the three run tools, `inspect_session` and `get_session_output`. An approval with no `start_research_run` is reminded once and stays pending (M19; the same continuation goes back). Group sessions left open are closed at the end of the run. |
-| Answer gate | One entry per approved angle with the backend status unchanged, all four interpretation parts, the effective sample in `evidence`, governed figures only, no status wording stronger than the backend's (supported wording only for SUPPORTED or PARTIALLY_SUPPORTED; "no effect" wording never), and an agreement between angles only when the synthesis map allows one. One rejection, then a LIMITATION. |
+| Approved turn | The executor of the verified plan is created for this request only; the tools are discovery, the three run tools, `inspect_session` and `get_session_output`. An approval with no `start_research_run` is reminded once and stays pending (M19; the same continuation goes back). The first `complete_research_run` with `finalize` true while an approved angle is unrecorded (and at least two tool calls remain) returns `INCOMPLETE` `ANGLES_NOT_RECORDED` with the missing angles; the second is accepted (M36). Group sessions left open are closed at the end of the run. |
+| Answer gate | One entry per approved angle with the backend status unchanged, all four interpretation parts, the effective sample in `evidence`, governed figures only, no status wording stronger than the backend's (supported wording only for SUPPORTED or PARTIALLY_SUPPORTED; "no effect" wording never), and an agreement between angles only when the synthesis map allows one (a phrase negated in its own clause is not a claim, P09). Two repairs (`FINDINGS`, `FINDINGS_2`), then a LIMITATION that keeps one backend-authored `research_findings` entry per angle. |
 | Verification wording | When the run's `calculation_validation` is `STATISTICS_VERIFIED` or `FORMULA_AND_STATISTICS_VERIFIED`, saying that the statistics were verified is allowed (the sandbox moves that claim to `claims_allowed`); the limitations always name the exact level. |
 | Evidence label | Unchanged contract: findings figures are `DATA_COVERAGE_VERIFIED` sources. The per-angle validation level is reported in the findings, the limitations and the audit records, not by a new label value. |
 | Audit | `execution.research.experiments` (and so `AI_research_run_audit.experiments`) holds one entry per approved angle with `payload_version` `research_findings/v2`, angle, method, family, status, reason, bundle group and research run; the v2 fields are omitted from other entries. `execution.research_plan` gains `plan_version`, `research_data_plan_sha256` and `research_run_id` only for v2. |
@@ -198,7 +206,10 @@ run (2026-09-29) showed the catalog holds 18 reviewed methods, all `REFERENCE_ON
 eight, so the preflight refused. The user decided on 2026-09-29 to register the tools only; the file was rewritten
 before any application and applied on dev the same day (`DATABASE_CHANGELOG.md`). `AI_research_catalog` stays
 unchanged until the reviewed workbook carries the multi-angle methods. No service reads it for multi-angle research:
-market-ai-orc and the sandbox negotiate the method registry by its hash (§3.1).
+market-ai-orc and the sandbox negotiate the method registry by its hash (§3.1), and the model reads the runnable
+methods from `AI_research_library` (§10). Migration `20260930_002` (applied on dev 2026-09-29) adds inactive `v2`
+rows of `check_research_feasibility`, `run_research_code` and `complete_research_run` and `get_research_library`
+`v1`.
 
 ## 9. Tests
 
@@ -207,3 +218,16 @@ market-ai-orc and the sandbox negotiate the method registry by its hash (§3.1).
   tampering, replay, group close, flag off); full suite 596 passed.
 - market-ai-orc: `tests/test_multi_angle.py` (plan v2 and the pinned signature, rpc2 tampering, negotiation, planner
   merge and split, executor, scripted orchestrator turns, flags-off identity, migration drift); full suite passed.
+- Fixes of 2026-09-29 (`MULTI_ANGLE_FIX_PLAN.md`): market-python-sandbox `tests/test_research_library.py` (library = registry, roles, parameters, data requirements, hash, byte identity with market-ai-orc, migration drift) and additions in `tests/test_research_runs.py`, `tests/test_dataneed_sessions.py`, `tests/test_research_view_examples.py`; full suite 615 + 6. market-ai-orc `tests/test_multi_angle_fixes.py` (M36, M38, P09, item 7, library check and tool); full suite 745 passed with the PostgreSQL tests.
+
+## 10. Research library (C07, 2026-09-29)
+
+`app/research_library.py` (byte-identical in both services) describes each method for the model: family, the
+question it answers, input roles, required and optional parameters with their rules, data requirements (entity
+column, label constancy, outcome kind, entities per date), sample unit, secondary checks, interpretation, misuse
+warning and an example question, plus the requirements every method shares. Migration `20260930_001` writes it to
+`public."AI_research_library"` (generated by `scripts/generate_ai_research_library_migration.py`; both test suites fail
+on drift). The sandbox reports its hash; market-ai-orc reads the table at startup and runs multi-angle research only
+when table, sandbox and its own copy match, then serves the rows through `get_research_library`. The library
+describes; the engines, the harness recomputation and `research_engines.decide` enforce, and a new row does not
+create a method. A change is made in the code and shipped as a new generated migration.

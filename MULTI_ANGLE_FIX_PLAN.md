@@ -1,10 +1,18 @@
 # Multi-Angle Research: fix plan after suite20
 
-Status (2026-09-29): **approved and in progress, one phase** (user decision: every item, the library and its migration
-included, before suite20 is rerun). Implementation plan: sandbox, then migrations, then market-ai-orc, one deploy at a
-time.
-Evidence: suite20 (`RAILWAY_CHANGELOG.md` 2026-09-29, `ERRORS_AND_SOLUTIONS.md`). Nothing here changes Railway,
-the database or code until the user gives the go-ahead.
+Status (2026-09-29): **items 1–7 implemented and live on dev** (one phase, user decision). Sandbox `2d9ff7a`
+(deployment `5bf53b1b`), migrations `20260930_001` and `20260930_002` applied and read back, market-ai-orc `9a7d83c`
+(deployment `c675120e`); tests: sandbox 615 + 6 library tests, market-ai-orc 745 (PostgreSQL tests included). The
+suite20 rerun and its comparison are in "Verification" below.
+Evidence: suite20 (`RAILWAY_CHANGELOG.md` 2026-09-29, `ERRORS_AND_SOLUTIONS.md`).
+
+Deviations from the text below, decided during implementation:
+- Item 5: the data plan binds each checked design by its hash only (`angle_design_sha256s`, strings survive any
+  client); the full designs stay in the run that checked them, to name what a plan changed.
+- Item 4: the first early finalize is refused only while at least two tool calls remain (the model could not record
+  anything with fewer).
+- Tool_Catalog: `20260930_002` also records `run_research_code` v2 and `complete_research_run` v2, whose descriptions
+  changed with items 1 and 4 (`AGENTS.md`: register changed tools).
 
 ## Approved items
 
@@ -161,3 +169,21 @@ Still open:
 Each service: local tests, push `main`, deploy one service at a time to `SUCCESS`, then rerun suite20
 (`apps/orc-test-runner`) and compare with 2026-09-29: research answered 9 of 15, NOT_RUN 6, plan failures 4,
 S15-type findings 3.
+
+Result (suite20b, `ma-suite20-20260929b`, 2026-09-29 18:50–19:18 UTC; details in `RAILWAY_CHANGELOG.md`):
+
+| Measure | suite20 (morning) | suite20b (after the fixes) |
+|---|---|---|
+| Research questions answered (of 15; e01 is a correct refusal) | 9 | 11 (10 runs, r12 through ANALYSIS) |
+| Plans issued / approved runs | 11 / 11 | 13 / 13 |
+| Plans refused for a method rule after FEASIBLE (M38) | 4 | 0 |
+| Angles per plan | 4–5 | 2–3 |
+| NOT_RUN angles | 10 (6 early finalize, 4 lost session) | 3 (r09, S16); 0 in completed runs |
+| S15-type findings (price level as outcome) | 3 | 0; cross-request angles declarative (e02, r08) |
+| Findings at FORMULA_AND_STATISTICS_VERIFIED | 21 of 36 | 26 of 28 |
+| LIMITATION from negated agreement wording (P09) | 1 | 0 (r08's LIMITATION came from P10 and kept the backend findings) |
+| Session workspaces lost to the janitor (S14) | 1 | 0 (three janitor runs during open sessions) |
+| Cost | USD 1.10 | USD 0.64 |
+
+Open after the rerun (not part of items 1–7): S16 (a dead session blocks finalize), M39 (other forced LIMITATIONs
+drop the backend findings), P10 (zero count read as a supported verdict), M37 (final-turn truncation, 8 times).

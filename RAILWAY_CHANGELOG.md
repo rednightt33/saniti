@@ -1,5 +1,56 @@
 # Railway changelog
 
+## 2026-09-29 — Multi-Angle Research fixes: suite20 rerun on dev (suite20b)
+
+- **Runner** `orc-test-runner` deployment `8220743f-93d8-41da-9581-48740a4d922e` (CLI upload of `apps/orc-test-runner`,
+  prefix `ma-suite20-20260929b`, same 20 questions, two workers, SERVER mode, one automatic approval), about
+  18:50–19:18 UTC: 33 turns, 0 HTTP errors, USD 0.64 in total (suite20: USD 1.10). No secret in the runner, orc or
+  sandbox logs. No variable or service setting changed.
+- **Research (16 questions)**: 13 plans issued, 8 with two angles and 5 with three (suite20: 11 plans of four or five
+  angles); 13 approved runs, 10 answered and 3 LIMITATION: r08 (P10: "0 keluarga metode didukung" read as a supported
+  verdict; the LIMITATION kept the three backend findings), r09 (S16: the session worker ended after the model
+  inspected the sandbox's modules; the group could not be finalized), r11 (M39: a misquoted figure, forced by the
+  provenance gate). The 12 completed runs hold 28 validated angles: SUPPORTED 1, PARTIALLY_SUPPORTED 2,
+  INSUFFICIENT_EVIDENCE 25, INVALID 0, NOT_RUN 0; 26 at FORMULA_AND_STATISTICS_VERIFIED and 2 at
+  STATISTICS_VERIFIED (suite20: 21 and 15, NOT_RUN 10). r09's three angles are NOT_RUN (S16).
+- **Plan turn**: no plan was refused for a method rule after a FEASIBLE check (suite20: 4, M38); r04 used the second
+  repair (`PLAN_FEASIBILITY_2`, a changed `pairwise_comparisons`) and passed; every data plan carried the checked
+  designs. e01 was refused correctly (PER not in the catalog); e03 ended in a LIMITATION forced by plan provenance
+  (thresholds in the answer text), saying broker data end on 2026-08-31, without invented September data; r12 was
+  answered through ANALYSIS (the model's own routing, as the suite expects; suite20: no plan).
+- **Fixes seen live**: S14 (the janitor ran at 18:48, 19:03 and 19:17 while sessions were open and removed no
+  workspace), S15 (e02 and r08, condition in `Feature_03_Stock_Broker_Daily` and price in another table, recorded
+  declaratively at FORMULA_AND_STATISTICS_VERIFIED), P09 (r08's negated agreement sentence passed), M36 (no NOT_RUN in
+  completed runs), item 7 (two-angle plans accepted).
+- **ANALYSIS**: a01–a04 COMPLETED. Not compared with a new ground truth: the morning's truth predates the latest
+  trading day (for example BBRI's last close moved from 3.170 to 3.190); the ANALYSIS path was not changed.
+- **Still open**: M37 recurred (8 final turns cut off at 8000 output tokens, all reasoning; suite20: 13). New entries
+  in `ERRORS_AND_SOLUTIONS.md`: S16, M39, P10.
+
+## 2026-09-29 — Multi-Angle Research fixes deployed on dev (MULTI_ANGLE_FIX_PLAN.md items 1–7)
+
+- **market-python-sandbox** `5bf53b1b-df92-496a-9701-f96e86aaac00` (`2d9ff7a`) `SUCCESS` 18:20 UTC: S14 (janitor
+  skips open session workspaces), S15 (cross-request forward return, price-level outcome INVALID
+  `OUTCOME_NOT_APPROVED`), research library and its hash in the `multi_angle_research` capability, two-angle
+  minimum. Startup clean (`sandbox_started`, `sessions_started`, `/ready` 200). market-ai-orc was not redeployed by
+  this push.
+- **Migrations** `20260930_001` (`AI_research_library`) and `20260930_002` (Tool_Catalog v2 rows) through the
+  temporary service `ma-migrate-job` (`6f1d8d31-f761-4be3-9d07-d8d4310af105`, only a `DATABASE_URL` reference):
+  inspection + dry run `b0f9061c-2a40-464a-b86b-c49c84a936a3` (passed, rolled back), apply
+  `2fe9621b-1186-4411-80ed-09dbc1bee79d` (read back in the job). Deleted after use; dev lists 16 services again.
+  Details in `DATABASE_CHANGELOG.md`.
+- **market-ai-orc** `c675120e-4046-489d-a3d1-cb5d78751765` (`9a7d83c`) `SUCCESS` 18:44 UTC: M36, M38, P09 (and forced
+  LIMITATION keeps the backend findings), item 7 (`AI_RESEARCH_MIN_ANGLES` default 2, `AI_RESEARCH_MIN_FAMILIES`
+  default off), research library check at startup and `get_research_library`. No `multi_angle_research_inactive`
+  and no `research_library_mismatch` at startup, so the table, the sandbox and market-ai-orc carry the same library
+  hash. The sandbox push was SKIPPED for market-ai-orc and this push SKIPPED for the sandbox (watch patterns).
+- **Variables**: none changed. `AI_RESEARCH_MIN_ANGLES` is not set on dev, so the new default 2 applies;
+  `AI_RESEARCH_MIN_FAMILIES` is not set (off). Model and provider unchanged (decision of 2026-09-27).
+- **Documentation push** after suite20b: it touches `apps/market-python-sandbox/README.md`, so the watch pattern
+  rebuilds market-python-sandbox with unchanged code (after the suite, so no run was affected).
+- **Config**: `railway config pull --force` left `.railway/railway.ts` unchanged; `railway config plan`: up to
+  date (the temporary service was created and deleted, the runner was a CLI upload).
+
 ## 2026-09-29 — Multi-Angle Research: 20-question suite on dev (suite20)
 
 - **Runner** `orc-test-runner` deployment `5f2cfafe-e67f-4078-a5a7-542da21f250d` (CLI upload of `0afa2cf`, prefix
