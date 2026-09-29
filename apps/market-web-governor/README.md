@@ -17,24 +17,29 @@ One question in, one cited answer out. It runs next to the older web-need flow (
 path is accepted) and shares only the OpenRouter provider with it.
 
 ```
-question -> plan     1 model call: 2-4 keyword queries (question language and English; a listed company is
-                     searched by both its name and its ticker), optional period stated in the question
-         -> turn 1   code: Google News RSS for every query x every 3-month window (default: 8 windows, two years
-                     back from the question's date), Exa via OpenRouter for the first two queries
-         -> review   1 model call per turn: up to 3 NEW queries moving outward (related parties, contracts, the
-                     industry, external factors); turns 2 and 3 repeat the scan with them (max 3 turns).
-                     Turn 2 is guaranteed by code: the plan names the subject's 1-2 sectors, and "<sector>" and
-                     "<sector> regulasi pemerintah" are always searched first (max 5 queries in turn 2)
-         -> merge    code: dedupe by headline; WEB_ASK_MAX_SOURCES (default 500); turn-1 (subject) sources keep
-                     at least 60% and wider turns share the rest (an unused share passes over); within each group
-                     the budget is shared across the windows, a tenth for undated sources; sorted oldest first
-         -> answer   1 model call: only from the numbered sources, subject facts and wider context separated,
-                     every fact cited [n] with its date; a period in the question limits the answer; a bare
-                     name leads with investor-material items; "why" may be answered with a labelled inference
-         -> check    code: cited numbers must exist; citation dates come from the source list, never from the model;
-                     `answer` is returned without [n] markers, `answer_cited` keeps them renumbered 1..k, and
-                     `citations` uses the same numbers; with industry or policy sources the answer has an
-                     "Industry & policy context" section
+question -> plan     1 model call: 2-4 keyword queries (question language and English; a listed company by its
+                     name and ticker), the subject (short name) and its 1-2 sectors, up to 10 forward queries
+                     (upcoming plans, schedules, pending rules), optional period
+         -> turn 0   backward (code): subject queries x 8 three-month windows (two years back from the question
+                     date) on Google News, Exa for the first two
+         -> turn 1   forward (code, runs with turn 0): the AI forward queries plus templates for the subject and
+                     each sector ("{x} rencana {next_year}", "{x} akan berlaku", "{x} jadwal",
+                     "{x} target {next_year}"; WEB_ASK_FORWARD_TEMPLATES, WEB_ASK_FORWARD_TEMPLATE_LIST) over the
+                     two newest windows; forward queries naming a past year are dropped
+         -> turn 2   wider (guaranteed by code): "<sector>" and "<sector> regulasi pemerintah" first, then the
+                     review call's proposals (max 5 queries)
+         -> turn 3   optional: up to 3 deeper queries from the review call, or none
+         -> merge    code: dedupe by headline; WEB_ASK_MAX_SOURCES (default 500): backward at least 50%, forward
+                     at least 20%, wider the rest (unused shares pass over), each spread across the windows
+         -> answer   1 model call: only from the numbered sources, investor-material first, industry & policy
+                     section, labelled inferences; a period in the question limits the answer
+         -> implications  1 model call (strict JSON): impacts (affected, direction, channel), scenarios for
+                     forward-looking questions, and a forward timeline; code keeps an item only if its sources
+                     exist, and a timeline entry only if its time text is written in a cited source and lies after
+                     the question date; rendered as "Implikasi & yang perlu dipantau" (IMPLICATIONS_FAILED keeps
+                     the answer when this call fails)
+         -> check    code: `answer` without [n], `answer_cited` renumbered 1..k, `citations` with the same numbers;
+                     `plan.implications` keeps the structured items
 ```
 
 Measured locally on 2026-09-29 for "kenapa saham ptro naik 1 tahun terakhir": 3 turns, 80 Google News requests
