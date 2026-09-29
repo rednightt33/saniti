@@ -84,6 +84,14 @@
 - **Live rerun of the broker question** (runner `84aadf53-2fc4-4426-bb18-64f45dab29cb`, `b03_broker_screen_preflight`):
   failed in 0.4 s before any model call: OpenRouter HTTP 403 "Key limit exceeded (total limit)" (M27). Live
   verification of A0/A2 and C waits until the key's limit is raised.
+- **After the key limit was raised (M27 fixed)**, the same question in conversation `b04` (runner `c60cf7c9`,
+  `b89d1c7f`, `014b6ea3`, `b4f85616`): the model asked for X, the benchmark and the period (user: X ≥ 10 days, return
+  ≥ 10%, last 3 years); IHSG is not in the catalog, so it asked again and the user chose no benchmark (C). Research
+  Plan approved automatically; answer in 160 s, $0.064, verdict INCONCLUSIVE (UNDERPOWERED, 32 effective dates).
+  Governor: 31 estimate-only parts for the feasibility draft and 31 for the need, every estimate before the first
+  extraction, then 31 extractions `APPROVED`, 0 refusals, 0 discarded rows. The model used `Feature_02_Broker_Rolling`,
+  so the refused raw-table shape of b01 was not exercised. Sandbox executions recorded `modules`
+  (`datetime`, `numpy`, `pandas`). New finding M28 (success threshold not bound to the backend's success rule).
 
 ## 2026-09-28 — Research findings v1 and caller-chosen analysis path on dev; suite9
 
