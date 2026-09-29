@@ -344,9 +344,12 @@ START_DESCRIPTION = (
 RUN_DESCRIPTION = (
     "Run Python in one bundle group's session (the helpers of run_python plus saniti.research_conditional, "
     "research_persistence, research_group_comparison, research_quantiles, research_temporal_dependency and "
-    "research_custom). Record every angle of the group exactly once with its helper; the thresholds, lags, buckets, "
-    "groups and horizon come from the approved plan. Moving to another group completes the open one first. Read "
-    "every dataset of the group through the saniti helpers.")
+    "research_custom). Record every angle of the group exactly once with its helper, starting from the angle's example "
+    "call in the session's research view: request is the data request id string, each role an expression over that "
+    "request's columns, and the outcome {'forward_return': '<price column>'} (the backend computes it over the "
+    "approved horizon; never a trailing return column). The thresholds, lags, buckets, groups and horizon come from "
+    "the approved plan. Moving to another group completes the open one first. Read every dataset of the group "
+    "through the saniti helpers.")
 COMPLETE_DESCRIPTION = (
     "Complete the research run: the backend validates the open group (coverage, one recorded input per approved "
     "angle) and recomputes every angle's statistics independently, then returns one backend finding per angle "

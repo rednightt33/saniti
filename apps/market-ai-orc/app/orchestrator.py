@@ -507,7 +507,8 @@ questions differ; each has its own angle_id, angle_question and
 why_distinct. Two angles with the same method, condition, outcome,
 comparator, horizon and parameters are one question and are refused.
 Choose the angles that would change what the user concludes, not the
-most methods.
+most methods: three or four angles usually suffice. Keep every text
+field of the plan to one short sentence.
 3. Before presenting the plan, call check_research_feasibility with one
 data requirement per angle: the angle's DataNeedSpec requests and
 relationships in the angle's own ids. The backend merges shared data
@@ -525,16 +526,15 @@ in the plan.
 was approved; silence, an unrelated reply or your own reading of the
 conversation is never an approval.
 6. After approval call start_research_run, then run_research_code for
-each bundle group in turn: read the group's data through the saniti
-helpers and record every angle of the group exactly once with its
-research helper (research_conditional, research_persistence,
-research_group_comparison, research_quantiles,
-research_temporal_dependency; research_custom only when no helper
-fits, and it verifies execution only). Prefer the declarative form
-(request and expressions) of a helper, which the backend can reproduce.
-Use the approved parameters, horizon and unit. Then call
-complete_research_run; when it reports missing angles, record them or
-finalize.
+each bundle group in turn: record every angle of the group exactly once
+with its research helper, starting from the example call that
+start_research_run lists for the angle (request is the data request id
+string; the outcome is a forward return the backend computes, never a
+trailing return column). Prefer this declarative form, which the
+backend can reproduce; research_custom only when no helper fits, and it
+verifies execution only. Use the approved parameters, horizon and unit.
+Then call complete_research_run; when an angle cannot be recorded,
+finalize: it becomes NOT_RUN and the other angles still report.
 A data need in mode RESEARCH is refused: research runs only through an
 approved multi-angle plan. Mode ANALYSIS needs no plan and proceeds
 directly."""
@@ -968,6 +968,15 @@ CANCEL_NOTE = (PLAN_NOTE_PREFIX + "the user cancelled the Research Plan. Nothing
 UNRELATED_NOTE = (PLAN_NOTE_PREFIX + "Research Plan {plan_id} is waiting for the user's decision, and this message "
                   "neither approves, revises nor cancels it. Return response_type CLARIFICATION that asks whether to "
                   "approve, revise or cancel the plan. Do not run anything.")
+TRUNCATED_FINAL_INSTRUCTION = (
+    "The response was cut off at the output limit ({limit} tokens, reasoning included), so it is not complete JSON. "
+    "Return the whole response again, shorter, and keep the reasoning before it brief.")
+TRUNCATED_PLAN_HINT = (" For a Research Plan use three or four angles and one short sentence per text field; the "
+                       "answer presents the plan briefly.")
+RESEARCH_RUN_INCOMPLETE_INSTRUCTION = (
+    "The research run was started but complete_research_run was not called, so no angle has a backend finding and "
+    "nothing can be reported. Call complete_research_run now (finalize true records every angle you could not record "
+    "as NOT_RUN; the recorded angles still get their findings), then answer from its result.")
 MULTI_ANGLE_FEASIBILITY_INSTRUCTION = (
     "A multi-angle Research Plan is presented only for angles that passed check_research_feasibility in this run "
     "(FEASIBLE): {problems}. Call check_research_feasibility with one data requirement per angle of the plan you will "
@@ -1773,10 +1782,18 @@ class AgentOrchestrator:
                 state.structured_only = False
                 state.final_reask_sent = False
             except ValueError as exc:
+                issue = str(exc)
+                if usage["output_tokens"] >= self.settings.ai_max_output_tokens:
+                    # found live (golden run 2026-09-29): a long plan was cut off mid-JSON and the model only saw
+                    # "EOF while parsing"
+                    issue = TRUNCATED_FINAL_INSTRUCTION.format(limit=self.settings.ai_max_output_tokens) + (
+                        TRUNCATED_PLAN_HINT if self.multi_angle else "")
+                    log_event("ai_final_truncated", request_id=state.request_id, iteration=state.iterations,
+                              output_tokens=usage["output_tokens"], reasoning_tokens=usage["reasoning_tokens"])
                 if tools:
-                    self._request_structured_final(state, raw, str(exc))
+                    self._request_structured_final(state, raw, issue)
                 else:
-                    self._reject_final(state, raw, str(exc))
+                    self._reject_final(state, raw, issue)
         raise RunFailure("MAX_ITERATIONS", "AI_MAX_TOOL_ITERATIONS reached before a final answer")
 
     def _turn_tools(self, state: RunState) -> list[dict[str, Any]]:
@@ -2045,6 +2062,13 @@ class AgentOrchestrator:
         result = outcome.output.get("result") if outcome.ok else None
         if not isinstance(result, dict):
             return
+        if name == "start_research_run":
+            # found live (golden run 2026-09-29): the rows and entities of the prepared bundle were refused as numbers
+            # without a source
+            state.context_numbers.extend(numbers_in(result.get("groups"), ints_only=True))
+            state.context_numbers.extend(numbers_in((result.get("session") or {}).get("datasets"), ints_only=True))
+        if name == "run_research_code" and isinstance(result.get("session_opened"), dict):
+            state.context_numbers.extend(numbers_in(result["session_opened"].get("datasets"), ints_only=True))
         if name == "run_research_code" and result.get("execution_id"):
             state.execution_ids.append(str(result["execution_id"]))
             code = arguments.get("code") if isinstance(arguments, dict) else None
@@ -2496,6 +2520,11 @@ class AgentOrchestrator:
             state.plan_unexecuted = True
             if PLAN_NOT_EXECUTED_LINE not in final.limitations:
                 final = final.model_copy(update={"limitations": [*final.limitations, PLAN_NOT_EXECUTED_LINE]})
+        executor = self._executor(state)
+        if executor is not None and executor.research_run_id is not None and executor.result is None:
+            # found live (golden run 2026-09-29): the model stopped after recording some angles and never completed
+            # the run, so no finding existed even for the recorded angles
+            self._gate_once(state, "RESEARCH_RUN_INCOMPLETE", RESEARCH_RUN_INCOMPLETE_INSTRUCTION)
         if self.dataneed:
             return self._dataneed_gate(state, final)
         blocking, lines = self._gate_findings(state)
@@ -2959,7 +2988,10 @@ class AgentOrchestrator:
         """
         if raw.strip():
             state.input_items.append({"role": "assistant", "content": raw[:REJECTED_OUTPUT_ECHO_CHARS]})
-        state.input_items.append({"role": "user", "content": self.finalize_instruction})
+        # a response cut off at the output limit says so; any other re-ask keeps the unchanged instruction
+        truncated = issue.startswith(TRUNCATED_FINAL_INSTRUCTION[:40])
+        state.input_items.append({"role": "user", "content": (issue + " " if truncated else "")
+                                  + self.finalize_instruction})
         if state.final_reask_sent:
             state.structured_only = True
         state.final_reask_sent = True
@@ -3056,11 +3088,36 @@ class AgentOrchestrator:
         except Exception as exc:
             details = []
             if hasattr(exc, "errors"):
-                for item in exc.errors(include_url=False, include_input=False)[:8]:
+                relevant = AgentOrchestrator._relevant_branch(candidate)
+                for item in exc.errors(include_url=False, include_input=False):
                     location = ".".join(str(part) for part in item.get("loc") or ()) or "root"
-                    details.append(f"{location}: {item.get('msg', 'invalid value')}")
+                    if not relevant(location):
+                        continue
+                    location = re.sub(r"(?:function-after\[[^\]]*\]|list\[[A-Za-z]+\])\.?", "", location)
+                    details.append(f"{location.rstrip('.') or 'root'}: {item.get('msg', 'invalid value')}")
+                    if len(details) == 8:
+                        break
             issue = "; ".join(details) if details else type(exc).__name__
             raise ValueError(f"Final response failed schema validation: {issue}") from exc
+
+    @staticmethod
+    def _relevant_branch(candidate: str) -> Callable[[str], bool]:
+        """Found live (golden run 2026-09-29): a v2 plan with one bad field was answered with the errors of every
+        union member (the v1 plan forms too: "plan_version should be research_plan/v1", "experiments: Field
+        required"), which sent the model the wrong way. Only the errors of the form the response uses are kept."""
+        try:
+            data = json.loads(candidate)
+        except ValueError:
+            return lambda location: True
+        drop: list[str] = []
+        plan = data.get("research_plan") if isinstance(data, dict) else None
+        if isinstance(plan, dict):
+            drop += ["ResearchPlanFindings]", "ResearchPlan]"] if plan.get("plan_version") == PLAN_VERSION_V2 \
+                else ["ResearchPlanV2]"]
+        findings = data.get("research_findings") if isinstance(data, dict) else None
+        if isinstance(findings, list) and findings and isinstance(findings[0], dict):
+            drop += ["list[ResearchFinding]"] if "angle_id" in findings[0] else ["list[AngleFindingReport]"]
+        return lambda location: not any(marker in location for marker in drop)
 
     def _execution(self, state: RunState) -> ExecutionMetadata:
         return ExecutionMetadata(

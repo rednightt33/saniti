@@ -246,6 +246,20 @@ class ResearchAngle(Strict):
     why_distinct: str = Field(min_length=1, max_length=1000,
                               description="Why this question differs from the other angles.")
 
+    @model_validator(mode="before")
+    @classmethod
+    def _unused_parameters_are_null(cls, data: Any) -> Any:
+        """Found live (golden run 2026-09-29): the strict schema requires every parameters field, and the model often
+        filled fields its method does not use (thresholds for conditional_distribution, groups for quantile_ranking),
+        so plans were refused until the retries ran out. A field the method does not use carries no meaning for it:
+        it is set to null before validation, so the signed plan, its signature and the governance declaration hold
+        only the method's own parameters. Missing required parameters and invalid values are still refused."""
+        if isinstance(data, dict) and isinstance(data.get("parameters"), dict) and data.get("method_id") in USES:
+            used = USES[data["method_id"]]
+            data = {**data, "parameters": {key: (value if key in used else None)
+                                           for key, value in data["parameters"].items()}}
+        return data
+
     @field_validator("title", "angle_question", "objective", "condition", "outcome", "baseline_or_comparator",
                      "why_distinct")
     @classmethod

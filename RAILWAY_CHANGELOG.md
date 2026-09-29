@@ -1,5 +1,23 @@
 # Railway changelog
 
+## 2026-09-29 — Multi-Angle Research flags on in dev; golden run 1 (user-approved: flags, golden, migration)
+
+- **Flags** (dev, one service at a time): `PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED=true` on market-python-sandbox →
+  `66a36c30-6a3a-40f7-8cb2-6481b9e929b9` `SUCCESS`; then `AI_ENABLE_MULTI_ANGLE_RESEARCH=true` on market-ai-orc →
+  `91e13ace-514c-4b93-9304-63409007f916` `SUCCESS`, no `multi_angle_research_inactive`; the first question's
+  `research_plan_feasibility` event carried `plan_version="research_plan/v2"`, so the capability negotiation passed.
+- **Runner**: `orc-test-runner` now runs `apps/orc-test-runner` (standard library only; `MARKET_AI_ORC_API_KEY`
+  reference unchanged). Golden run 1 = deployment `6b2d5c17-68c1-4270-be59-1c24a59cbf76`, prefix
+  `ma-golden-20260929a`, 4 questions, 2 workers, SERVER mode with one automatic approval; about USD 0.24 in total.
+  - g1 (bank falls > 5 %, RESEARCH): plan issued (6 angles, 1 bundle group, `SINGLE_BUNDLE`) after two plan
+    rejections; approved run `rrun_6422cbf04a08cb9fa3cec82f` recorded some angles but never called
+    `complete_research_run` → LIMITATION, all six angles `NOT_RUN` (M33, S12).
+  - g2 (bank momentum): FAILED `INVALID_FINAL_RESPONSE` (unused parameters filled, M30; union errors, M31).
+  - g3 (volume spike): FAILED `INVALID_FINAL_RESPONSE` (plan cut off at 8000 output tokens, M32).
+  - a1 (YTD returns of three banks, ANALYSIS): COMPLETED, 21.6 s, $0.017 — ANALYSIS unaffected.
+- **Result**: golden not passed; migration `20260929_001` held until the fixes (M30–M33, S12) are deployed and the
+  golden questions pass. Flags stay on in dev (research questions there use the multi-angle path).
+
 ## 2026-09-29 — Multi-Angle Research code on dev, flags off (user-approved)
 
 - **Push** `main` fast-forward `8398768..426c88f` (commits `96231fe` sandbox, `426c88f` market-ai-orc; see

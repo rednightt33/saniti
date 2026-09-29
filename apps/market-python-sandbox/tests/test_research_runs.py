@@ -214,6 +214,10 @@ def test_the_wrappers_fail_closed(env) -> None:
     assert "record it with saniti.research_quantiles" in error(
         "saniti.research_conditional('a2', request='prices', condition='close > 1', "
         "outcome={'forward_return': 'close'})")
+    # found live (golden run 2026-09-29): a contract entry passed as request= names the expected string
+    assert "data_request_id string" in error("saniti.research_conditional('a1', request={'data_request_id': "
+                                             "'data_request_1_A'}, condition='close > 1', "
+                                             "outcome={'forward_return': 'close'})")
     # a1's contract has only close: volume is outside it
     assert "EXPRESSION_INVALID" in error("saniti.research_conditional('a1', request='prices', condition='volume > 1', "
                                          "outcome={'forward_return': 'close'})")

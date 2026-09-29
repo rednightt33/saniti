@@ -74,32 +74,59 @@ RESEARCH_HELPERS = ["research_conditional", "research_persistence", "research_gr
                     "research_temporal_dependency", "research_custom"]
 
 
+# Found live (golden run 2026-09-29): with only a prose hint the model passed a contract entry as request= (a dict),
+# tried to import runtime internals, and read a trailing return column as the outcome. Each angle now carries one
+# concrete call in the declarative form, and the view states the expression grammar and the outcome rule.
+RESEARCH_EXAMPLES = {
+    "conditional_distribution": ("research_conditional", "condition='close / lag(close, 1) - 1 <= -0.05', "
+                                                         "outcome={'forward_return': 'close'}"),
+    "threshold_sensitivity": ("research_conditional", "signal='(close / lag(close, 1) - 1) * 100', "
+                                                      "outcome={'forward_return': 'close'}"),
+    "streak_persistence": ("research_persistence", "state='close < lag(close, 1)'"),
+    "regime_comparison": ("research_group_comparison", "group={'column': '<label column>'}, "
+                                                       "outcome={'forward_return': 'close'}"),
+    "cohort_comparison": ("research_group_comparison", "group={'column': '<label column>'}, "
+                                                       "outcome={'forward_return': 'close'}"),
+    "quantile_ranking": ("research_quantiles", "signal='close / lag(close, 20) - 1', "
+                                               "outcome={'forward_return': 'close'}"),
+    "lead_lag": ("research_temporal_dependency", "leader='close / lag(close, 1) - 1', "
+                                                 "follower={'forward_return': 'close'}"),
+    "correlation_dependency": ("research_temporal_dependency", "leader='close / lag(close, 1) - 1', "
+                                                               "follower={'forward_return': 'close'}"),
+}
+RESEARCH_RULES = (
+    "Record every angle exactly once, then call complete_research_run. Preferred (FORMULA_AND_STATISTICS_VERIFIED): "
+    "request='<data_request_id string from the angle's contract>' with each role as an expression string over that "
+    "request's columns. Expressions: + - * / **, comparisons, & | ~, abs log exp sqrt sign min max where, "
+    "lag(x, k), rolling_sum(x, n), rolling_mean(x, n); past values only. The outcome (or follower) is "
+    "{'forward_return': '<price column>'}: the backend computes the forward return over the approved horizon and "
+    "unit, so never use a trailing return column of the data as the outcome. A label role is {'column': '<name>'}. "
+    "Otherwise frame=<DataFrame with date, entity and one column per role> (STATISTICS_VERIFIED). research_custom "
+    "only when no helper fits (EXECUTION_ONLY). Thresholds, lags, buckets, groups and horizons come from the approved "
+    "plan, never from the code. The helpers are in saniti; do not import runtime modules.")
+
+
 def research_view(research: dict[str, Any]) -> dict[str, Any]:
     """What the model sees of a multi-angle research session: the group's angles with their method, the approved
-    values, the contract's requests, columns and ranges, and how to record each angle."""
+    values, the contract's requests, columns and ranges, one example call per angle, and how to record them."""
     angles = []
     for angle_id, angle in sorted((research.get("angles") or {}).items()):
         contract = angle.get("contract") or {}
-        angles.append({"angle_id": angle_id, "method_id": angle.get("method_id"),
-                       "helper": {"CONDITIONAL_OUTCOME": "research_conditional", "PERSISTENCE": "research_persistence",
-                                  "GROUP_COMPARISON": "research_group_comparison",
-                                  "QUANTILE_RANKING": "research_quantiles",
-                                  "TEMPORAL_DEPENDENCY": "research_temporal_dependency"}.get(angle.get("method_family")),
+        datasets = contract.get("datasets") or []
+        helper, roles = RESEARCH_EXAMPLES.get(angle.get("method_id"), ("research_custom", ""))
+        request = datasets[0].get("data_request_id") if datasets else "<data_request_id>"
+        angles.append({"angle_id": angle_id, "method_id": angle.get("method_id"), "helper": helper,
                        "question": angle.get("angle_question"), "expected_direction": angle.get("expected_direction"),
                        "outcome_horizon_periods": angle.get("outcome_horizon_periods"),
                        "outcome_unit": angle.get("outcome_unit"), "parameters": angle.get("parameters"),
                        "contract": [{"data_request_id": d.get("data_request_id"), "logical_name": d.get("logical_name"),
                                      "columns": d.get("columns"),
                                      "ranges": [w.get("range_id") for w in d.get("ranges") or []]}
-                                    for d in contract.get("datasets") or []]})
+                                    for d in datasets],
+                       "example": f"saniti.{helper}({angle_id!r}, request={request!r}, {roles})"
+                       if roles else f"saniti.research_custom({angle_id!r}, result, note)"})
     return {"research_run_id": research.get("research_run_id"), "bundle_group_id": research.get("bundle_group_id"),
-            "angles": angles,
-            "record_each_angle": "Record every angle once with its helper, either frame=<DataFrame with date, entity "
-                                 "and the role columns> (STATISTICS_VERIFIED) or request=<contract request> with each "
-                                 "role as an expression over its columns and outcome={'forward_return': '<column>'} "
-                                 "(FORMULA_AND_STATISTICS_VERIFIED); research_custom only when no helper fits "
-                                 "(EXECUTION_ONLY). Thresholds, lags, buckets, groups and horizons come from the "
-                                 "approved plan, never from the code."}
+            "angles": angles, "record_each_angle": RESEARCH_RULES}
 
 
 HELPERS = ["requests()", "manifest()", "quality(request)", "load(request, columns=None)",

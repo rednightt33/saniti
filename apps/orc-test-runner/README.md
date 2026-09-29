@@ -1,0 +1,18 @@
+# orc-test-runner
+
+Live test runner for `market-ai-orc` on the Railway private network (`dev`). The orchestrator has no public domain
+and the agent container cannot reach Railway SSH, so questions are sent from this one-off service.
+
+- Railway service `orc-test-runner` (`09358b92-09d4-4da2-b547-bf8f621e226c`), restart policy `NEVER`, no domain.
+  One variable: `MARKET_AI_ORC_API_KEY` (a reference to market-ai-orc's key); it is never printed.
+- `run.py` (standard library only) sends every item of `suite.json` as a new `history_mode` SERVER conversation
+  (owner `golden-multi-angle`), with the item's `analysis_path`, and approves a `RESEARCH_PLAN_CONFIRMATION` once with
+  `plan_reply` APPROVE. Two workers by default.
+- Output: one `OTR {json}` line per turn (status, plan version, angles, research run, per-angle statuses, gate,
+  cost), then the full responses as `OTRDUMP i/n` gzip+base64 chunks (Railway drops long lines). Reassemble the chunks
+  in order, base64-decode, gunzip.
+- Run: set a new `prefix` in `suite.json` (request ids are idempotency keys), then
+  `railway up apps/orc-test-runner --path-as-root --service orc-test-runner --environment dev --detach`.
+
+The code of the earlier suites (suite1–suite9, 2026-09-27/28) was not kept in the repository; this version was
+written for the Multi-Angle Research golden questions (2026-09-29).

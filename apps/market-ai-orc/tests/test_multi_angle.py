@@ -758,3 +758,71 @@ def test_the_catalog_migration_adds_no_method_rows_and_matches_the_tool_definiti
                                   "complete_research_run"):
             schema = json.dumps(definition["parameters"], sort_keys=True, separators=(",", ":")).replace("'", "''")
             assert f"'{schema}'::jsonb" in sql, f"{definition['name']} drifted from the migration"
+            assert "'" + definition["description"].replace("'", "''") + "'" in sql, \
+                f"{definition['name']} purpose drifted from the migration"
+
+
+# ---------------------------------------------------------------- found live (golden run 2026-09-29)
+
+def test_parameters_the_method_does_not_use_become_null() -> None:
+    filled = angles()
+    filled[0]["parameters"].update(thresholds=[1.0, 2.0], threshold_operator=">=", buckets=5)
+    plan = ResearchPlanV2.model_validate(plan_v2(angles=filled))
+    parameters = plan.angles[0].parameters.model_dump()
+    assert parameters["thresholds"] is None and parameters["buckets"] is None
+    assert parameters["baseline_mode"] == "COMPLEMENT"
+    # the signature and the signed plan see only the method's own parameters
+    assert plan.angles[0].signature() == ResearchPlanV2.model_validate(plan_v2()).angles[0].signature()
+    missing = angles()
+    missing[2]["parameters"]["lags"] = None
+    with pytest.raises(ValueError, match="lead_lag needs lags"):
+        ResearchPlanV2.model_validate(plan_v2(angles=missing))
+
+
+def test_a_v2_plan_error_names_only_the_v2_form() -> None:
+    broken = plan_response()
+    broken["research_plan"]["angles"][0]["expected_direction"] = "UP"
+    with pytest.raises(ValueError) as caught:
+        AgentOrchestrator._parse_final_output(json.dumps(broken))
+    message = str(caught.value)
+    assert "research_plan.angles.0.expected_direction" in message
+    assert "research_plan/v1" not in message and "experiments" not in message and "function-after" not in message
+
+
+def test_a_final_response_cut_off_at_the_output_limit_is_asked_again_shorter() -> None:
+    cut = final_response('{"response_type": "RESEARCH_PLAN_CONFIRMATION", "answer": "Rencana')
+    cut["usage"]["output_tokens"] = int(MA.get("AI_MAX_OUTPUT_TOKENS", 8000))
+    runner, scripted, _ = agent([call("check_research_feasibility", feasibility_args(), "c1"), cut,
+                                 final_response(plan_response())])
+    result = runner.run(AgentRunRequest(request_id="run_001", conversation_id="conv_1", message=QUESTION))
+    reask = str(scripted.payloads[2]["input"][-1])
+    assert "cut off at the output limit" in reask and "three or four angles" in reask
+    assert result.response.response_type == "RESEARCH_PLAN_CONFIRMATION"
+
+
+def test_a_started_run_must_be_completed_before_any_final_response() -> None:
+    limitation = {"response_type": "LIMITATION", "answer": "Belum bisa dilaporkan.", "clarification_question": None,
+                  "assumptions": [], "limitations": ["x"], "research_plan": None, "research_findings": None}
+    result, scripted, sandbox, _ = approved_run([
+        call("start_research_run", {}, "c1"),
+        call("run_research_code", {"bundle_group_id": "g1", "code": "x = 1"}, "c2"),
+        final_response(limitation), call("complete_research_run", {"finalize": True}, "c3"),
+        final_response(findings_answer())])
+    assert any("complete_research_run was not called" in str(item.get("content")) for item in
+               scripted.payloads[3]["input"] if isinstance(item, dict))
+    assert result.response.response_type == "ANSWER" and result.execution.research_plan.research_run_id == RUN
+
+
+def test_the_bundle_summary_of_start_research_run_is_a_number_source() -> None:
+    orc = AgentOrchestrator(make_settings(**MA), ScriptedClient([]), ma_registry(RunSandbox()), wall_clock=Clock(),
+                            draft_reader=lambda draft_id: None)
+    from app.orchestrator import RunState
+    from app.tools import ToolOutcome
+
+    state = RunState(request_id="r", started=0.0, input_items=[])
+    state.research = ResearchContext()
+    state.research.executor = type("E", (), {"attempted": True, "research_run_id": RUN, "result": None})()
+    outcome = ToolOutcome(call_id="c", name="start_research_run", ok=True, output={"ok": True, "result": {
+        "status": "STARTED", "groups": [{"bundle_group_id": "g1", "datasets": [{"rows": 62405, "entities": 48}]}]}})
+    orc._track_research_run(state, "start_research_run", {}, outcome)
+    assert {62405.0, 48.0} <= set(state.context_numbers)

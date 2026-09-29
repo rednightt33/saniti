@@ -775,11 +775,16 @@ def _research_angle(angle_id: Any, family: str | None) -> dict[str, Any]:
 
 def _research_dataset(angle: dict[str, Any], request: str) -> dict[str, Any]:
     contract = angle.get("contract") or {}
+    allowed = [(d["data_request_id"], d.get("logical_name")) for d in contract.get("datasets") or []]
+    if not isinstance(request, str):
+        # found live (golden run 2026-09-29): a contract entry passed as request= failed with "unhashable type: dict"
+        example = f"request={allowed[0][0]!r}; " if allowed else ""
+        raise SanitiError(f"request is the data_request_id string of one contract request ({example}allowed: "
+                          f"{allowed}), not the contract entry itself.")
     local = (contract.get("local_request_ids") or {}).get(request)
     for dataset in contract.get("datasets") or []:
         if request in (dataset["data_request_id"], dataset.get("logical_name")) or local == dataset["data_request_id"]:
             return dataset
-    allowed = [(d["data_request_id"], d.get("logical_name")) for d in contract.get("datasets") or []]
     raise SanitiError(f"{request!r} is not a data request of this angle's contract; allowed: {allowed}.")
 
 

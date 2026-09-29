@@ -1,0 +1,6 @@
+{"prefix": "ma-golden-20260929b", "workers": 2, "items": [
+ {"id": "g1_bank_fall", "analysis_path": "RESEARCH", "message": "Apakah saham bank yang turun lebih dari 5% dalam sehari cenderung memberi return 5 hari berikutnya yang lebih tinggi dibanding hari-hari lainnya? Gunakan data 2021 sampai sekarang."},
+ {"id": "g2_bank_momentum", "analysis_path": "RESEARCH", "message": "Apakah saham bank dengan return 20 hari tertinggi tetap mengungguli saham bank lain dalam 20 hari berikutnya? Periode 2022 sampai sekarang."},
+ {"id": "g3_volume_spike", "analysis_path": "RESEARCH", "message": "Apakah lonjakan volume (lebih dari 3 kali rata-rata 20 hari) pada saham bank diikuti return 5 hari yang lebih tinggi? Periode 2021 sampai sekarang."},
+ {"id": "a1_ytd_analysis", "analysis_path": "ANALYSIS", "message": "Berapa return YTD 2026 saham BBCA, BBRI dan BMRI, diurutkan dari yang tertinggi?"}
+]}
