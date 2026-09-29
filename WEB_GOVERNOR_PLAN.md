@@ -264,7 +264,7 @@ labelled as analysis. No buy/sell recommendation.
 **Verification.** Unit tests for the schema, citation checks and rendering; live runner test with the fiscal,
 CLARITY Act and Cimory questions; record in `RAILWAY_CHANGELOG.md`.
 
-## P6 — `/v1/ask`: upcoming news and a forward timeline — DRAFT (user decisions of 2026-09-29 included; to be built together with P5)
+## P6 — `/v1/ask`: upcoming news and a forward timeline — PLANNED (user decisions of 2026-09-29 included; to be built together with P5)
 
 **Why.** A test on "apa rencana CMRY ke depan … timeline-nya" returned a mostly backward-looking timeline and missed
 2027 events that Google News does have (sweetened-drink excise approved for 2027, five integrated livestock zones due in
@@ -281,9 +281,18 @@ off. The AI writes **10** forward queries.
   `"<x> jadwal"`, `"<x> target <next year>"`. Settings: `WEB_ASK_FORWARD_TEMPLATES` (default on) and
   `WEB_ASK_FORWARD_TEMPLATE_LIST` (optional, `|`-separated, placeholders `{x}` and `{next_year}`). With templates off and
   no AI queries, one fallback `"<subject> <next year>"` runs.
-- Code always runs every forward query in turn 2, over the two newest 3-month windows only (about 44 extra Google News
-  requests at most), labelled `forward: ai` / `forward: template` in `plan.turns`.
-- Source budget: subject at least 50%, forward at least 20%, wider turns the rest; unused shares pass over.
+- **Turn order (user decision of 2026-09-29):**
+  - **Turn 0, backward:** the subject's queries over 8 three-month windows (two years back from the question date)
+    plus Exa for the first two.
+  - **Turn 1, forward:** the 10 AI forward queries and the templates, for the subject and its sectors, over the two
+    newest windows only (about 44 Google News requests at most). Turns 0 and 1 run in parallel, because both only need
+    the plan.
+  - **Turn 2, wider (guaranteed by code):** `"<sector>"`, `"<sector> regulasi pemerintah"` and the review's proposals,
+    over 8 windows. The review call already sees the forward headlines.
+  - **Turn 3, optional:** up to 3 deeper queries from the review, or none.
+  - Each query is labelled in `plan.turns` (`backward`, `forward: ai`, `forward: template`, `wider`, `review`).
+- Source budget: backward (turn 0) at least 50%, forward (turn 1) at least 20%, wider turns the rest; unused shares pass
+  over; within each group the share is spread across the 3-month windows.
 - The P5 implications call also returns a **forward timeline**: event, time as written in the source, status
   (`dijadwalkan` / `direncanakan` / `diusulkan` / `masih dikaji`) and source. Code keeps an entry only if its time text
   appears verbatim in the cited source's title or excerpt and lies after the question date; entries are sorted by
