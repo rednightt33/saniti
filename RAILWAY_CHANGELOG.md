@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-09-29 — Multi-Angle Research: migration 20260929_001 applied on dev (Tool_Catalog only)
+
+- **Decision**: the user chose "Tool_Catalog only" after the dry run (C07): the migration was rewritten to register
+  the four inactive market-ai-orc tools and leave `AI_research_catalog` unchanged; pushed as `7ec52bb` (`main` and
+  branch `claude/upbeat-dijkstra-iybq2f`).
+- **market-ai-orc redeploy**: the push touched `apps/market-ai-orc/tests/` (drift test), so the watch pattern
+  rebuilt market-ai-orc: `ccb8962d-e280-40d2-951a-1b320fca36fa` (`7ec52bb`) `SUCCESS`, `GET /ready` 200. Application
+  code and variables unchanged; both multi-angle flags stay on.
+- **Temporary job** `ma-migrate-job` (`4ff15ec3-2000-4e0c-a605-f0433eaa1c77`, only a `DATABASE_URL` reference to
+  Postgres): inspection + dry run `24186829-5dc9-4707-ad01-e9dbb6c13141` (passed, rolled back), apply
+  `23b4cc8f-25c1-4d46-87bb-bbf49a166331` (read back: `Tool_Catalog` 70 → 74 rows, 25 active before and after).
+  Deleted after use; the dev environment again lists 16 services. Details in `DATABASE_CHANGELOG.md`.
+- **Config**: no variable, domain or service setting changed in this step. `railway config pull --force` recorded what was already live: the two flags set earlier today (`PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED`, `AI_ENABLE_MULTI_ANGLE_RESEARCH`, as `preserve()`, no values) and `ipv6EgressEnabled: true` on market-web-governor (not changed here). `railway config plan`: up to date.
+
 ## 2026-09-29 — Multi-Angle Research flags on in dev; golden run 1 (user-approved: flags, golden, migration)
 
 - **Flags** (dev, one service at a time): `PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED=true` on market-python-sandbox →

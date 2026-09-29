@@ -1,6 +1,38 @@
 # Database changelog
 
-## 2026-09-29 — Multi-Angle Research: migration 20260929_001 — PREPARED, NOT APPLIED
+## 2026-09-29 — Multi-Angle Research: migration 20260929_001 applied on dev (Tool_Catalog only)
+
+- Scope (user decision 2026-09-29, after the dry run below showed that `AI_research_catalog` has none of the eight
+  engine method ids, C07 in `ERRORS_AND_SOLUTIONS.md`): register the four market-ai-orc tools and leave
+  `AI_research_catalog` unchanged (18 methods, all `REFERENCE_ONLY`) until the reviewed workbook carries the
+  multi-angle methods. The file was rewritten before any application (commit `7ec52bb`); the earlier form below was
+  never applied.
+- `20260929_001_multi_angle_research_catalog.sql` (no table or column change, `DATABASE_SCHEMA.md` unchanged):
+  - preflight: refuses when any of the four tools is already registered or when `check_data_feasibility`
+    (`runtime_service` market-ai-orc) is missing;
+  - `Tool_Catalog`: the latest `check_data_feasibility` version (`v3`) gets the `tool_specific_limits` note
+    `multi_angle_research` ("Not registered when AI_ENABLE_MULTI_ANGLE_RESEARCH is active: replaced by
+    check_research_feasibility"); `v1` and `v2` are untouched;
+  - `Tool_Catalog`: inactive `v1` rows for `check_research_feasibility`, `start_research_run`, `run_research_code`,
+    `complete_research_run` (`execution_type` ORCHESTRATOR, `runtime_service` market-ai-orc; schemas generated from
+    the tool definitions, `tests/test_multi_angle.py` fails on drift);
+  - `$verify$`: four inactive tool rows, and the note on exactly one `check_data_feasibility` row.
+- Rehearsal on a local scratch PostgreSQL (throwaway database with `check_data_feasibility` v1–v3, dropped after):
+  applied and verified; the note landed on `v3` only; the dry-run form (`COMMIT` → `ROLLBACK`) left nothing; a second
+  run and a catalog without `check_data_feasibility` were both refused by the preflight.
+- Dev, temporary service `ma-migrate-job` (`4ff15ec3-2000-4e0c-a605-f0433eaa1c77`, only a `DATABASE_URL` reference,
+  deleted after use):
+  - inspection + dry run `24186829-5dc9-4707-ad01-e9dbb6c13141`: `Tool_Catalog` 70 rows (25 active); preflight and
+    `$verify$` passed, rolled back, read back identical;
+  - apply `23b4cc8f-25c1-4d46-87bb-bbf49a166331` (2026-09-29 13:24:02 UTC), read back in the same job:
+    `Tool_Catalog` 74 rows, still 25 active; the four tools inactive with `runtime_service` market-ai-orc; the note
+    only on `check_data_feasibility` `v3`, whose `input_schema` hash is unchanged; the `md5(input_schema::text)` of
+    each new row equals the local rehearsal of the committed file; `AI_research_catalog` still 18 rows, all
+    `REFERENCE_ONLY`. The job logs held no DSN or secret.
+- `Table_Catalog` / `Column_Catalog`: no change needed (no new table, column or routine). `Feature_Catalog`: no
+  Feature change.
+
+## 2026-09-29 — Multi-Angle Research: migration 20260929_001 — PREPARED, NOT APPLIED (superseded before application, see above)
 
 - Scope: Multi-Angle Research implementation (user decisions 2026-09-29, `MULTI_ANGLE_RESEARCH.md`): a guarded forward
   migration that adds no catalog rows. Not applied to any shared database; the rollout applies it last, after both

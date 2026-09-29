@@ -3,8 +3,9 @@
 Status (2026-09-29): on `main` and live on dev with both flags on
 (`PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED`, `AI_ENABLE_MULTI_ANGLE_RESEARCH`). Golden run 3 passed (4/4 answered;
 defects of runs 1 and 2 recorded as M30–M35, S12, S13 in `ERRORS_AND_SOLUTIONS.md`; see `RAILWAY_CHANGELOG.md`).
-Migration `20260929_001` is not applied: `AI_research_catalog` on dev has none of the eight method ids (dry run,
-2026-09-29), so its preflight refuses; a decision on the ids is pending.
+Migration `20260929_001` is applied on dev in the scope the user chose after the dry run: the four tools are
+registered (inactive) in `Tool_Catalog`; `AI_research_catalog` is unchanged, because it has none of the eight method
+ids (§8, C07). Open items from the golden runs: S13 and G12 in `ERRORS_AND_SOLUTIONS.md`.
 
 A Research run examines one root hypothesis from 3 to 6 analytical angles. Each angle has one approved method, its
 own data contract inside a governed bundle, and exactly one backend-authored finding. Analysis (mode ANALYSIS) is
@@ -184,16 +185,20 @@ Rollback: orc flag off, then sandbox flag off; v1 contracts stay available.
 | Evidence label | Unchanged contract: findings figures are `DATA_COVERAGE_VERIFIED` sources. The per-angle validation level is reported in the findings, the limitations and the audit records, not by a new label value. |
 | Audit | `execution.research.experiments` (and so `AI_research_run_audit.experiments`) holds one entry per approved angle with `payload_version` `research_findings/v2`, angle, method, family, status, reason, bundle group and research run; the v2 fields are omitted from other entries. `execution.research_plan` gains `plan_version`, `research_data_plan_sha256` and `research_run_id` only for v2. |
 
-## 8. Method catalog migration (not applied)
+## 8. Tool catalog migration (applied on dev, Tool_Catalog only)
 
-`database/migrations/20260929_001_multi_angle_research_catalog.sql`: the preflight fails and names every method id of
-§3.1 that has no `AI_research_catalog` row (no rows are added); it also refuses a second application. It then sets the
-eight methods to `IMPLEMENTED_BEHIND_FLAG`, appends one enforcement line to their `validation_requirements_json`, notes
-on `check_data_feasibility` that it is replaced while the feature is on, and registers the four market-ai-orc tools
-inactive (schemas generated from the tool definitions; a test fails when they drift). Rehearsed on a local scratch
-PostgreSQL (3 of 8 ids present: refused with the five missing ids and nothing changed; all 8: applied and verified;
-second run: refused). The live catalog's method ids were not read in this change; they are checked by the preflight at
-application time.
+`database/migrations/20260929_001_multi_angle_research_catalog.sql` registers `check_research_feasibility`,
+`start_research_run`, `run_research_code` and `complete_research_run` as inactive `v1` rows (schemas generated from
+the tool definitions; `tests/test_multi_angle.py` fails when they drift) and notes on the latest
+`check_data_feasibility` version that it is replaced while the feature is on. It refuses a second application and a
+catalog without `check_data_feasibility`.
+
+The first form also set the eight methods of §3.1 to `IMPLEMENTED_BEHIND_FLAG` in `AI_research_catalog`. The dev dry
+run (2026-09-29) showed the catalog holds 18 reviewed methods, all `REFERENCE_ONLY`, under other ids and none of the
+eight, so the preflight refused. The user decided on 2026-09-29 to register the tools only; the file was rewritten
+before any application and applied on dev the same day (`DATABASE_CHANGELOG.md`). `AI_research_catalog` stays
+unchanged until the reviewed workbook carries the multi-angle methods. No service reads it for multi-angle research:
+market-ai-orc and the sandbox negotiate the method registry by its hash (§3.1).
 
 ## 9. Tests
 
