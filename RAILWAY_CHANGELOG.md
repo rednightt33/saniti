@@ -46,8 +46,9 @@
   hash. The sandbox push was SKIPPED for market-ai-orc and this push SKIPPED for the sandbox (watch patterns).
 - **Variables**: none changed. `AI_RESEARCH_MIN_ANGLES` is not set on dev, so the new default 2 applies;
   `AI_RESEARCH_MIN_FAMILIES` is not set (off). Model and provider unchanged (decision of 2026-09-27).
-- **Documentation push** after suite20b: it touches `apps/market-python-sandbox/README.md`, so the watch pattern
-  rebuilds market-python-sandbox with unchanged code (after the suite, so no run was affected).
+- **Documentation push** after suite20b (`02256de`): it touched `apps/market-python-sandbox/README.md`, so the watch
+  pattern rebuilt market-python-sandbox with unchanged code: `3d376c2a-4f00-4c7e-8106-2cf44af9b9e7` `SUCCESS`
+  19:31 UTC (after the suite, so no run was affected); market-ai-orc SKIPPED.
 - **Config**: `railway config pull --force` left `.railway/railway.ts` unchanged; `railway config plan`: up to
   date (the temporary service was created and deleted, the runner was a CLI upload).
 
