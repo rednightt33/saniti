@@ -12,12 +12,18 @@ bundle_bindings   (conversation reuse) an approved need of a later request bound
 session_epochs    (conversation reuse) each request a session served: epoch, request, approved need, first execution
 data_need_drafts  (Research Plan feasibility) a DataNeedSpec the validator approved before any plan was approved; it
                   is never extracted (the Governor only estimates it) and is kept seven days
+research_runs     (Multi-Angle Research) one approved research_governance/v2 declaration: the plan, its research data
+                  plan and the Research Governor's decision
+research_groups   the bundle groups of a research run: the need promoted from each feasibility draft, its angles and its
+                  terminal state
+research_findings one backend-authored finding per approved angle (research_findings/v2)
 
 Analysis processes never reach this database. Hidden model reasoning is never stored.
 
 Schema versions (PRAGMA user_version): 0 is the original layout (CREATE TABLE IF NOT EXISTS); 1 adds the conversation
 reuse columns and tables of the implementation plan 2026-09-27 (S1/S2); 2 adds data_need_drafts; 3 adds executions.modules
-(the modules each execution's code imports, EXTRACTION_AND_AUDIT_PLAN.md item C). Upgrades only add nullable or defaulted columns
+(the modules each execution's code imports, EXTRACTION_AND_AUDIT_PLAN.md item C); 4 adds research_runs, research_groups and
+research_findings (MULTI_ANGLE_RESEARCH.md). Upgrades only add nullable or defaulted columns
 and new tables, so code without them still reads and writes the database.
 """
 from __future__ import annotations
@@ -29,7 +35,8 @@ from pathlib import Path
 from typing import Any
 
 JSON_FIELDS = {"submitted", "result", "approved", "governance", "research", "manifest", "error", "access", "outputs",
-               "meta", "execution_manifest", "coverage", "final_status", "usage", "columns", "modules"}
+               "meta", "execution_manifest", "coverage", "final_status", "usage", "columns", "modules", "decision",
+               "data_plan", "angle_ids", "finding"}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS data_needs (
@@ -129,7 +136,7 @@ CREATE INDEX IF NOT EXISTS completions_request ON completions (request_id);
 """
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 DRAFT_RETENTION_DAYS = 7
 # version -> (table, column, declaration) additions and statements; applied in order, each column only when missing
 UPGRADES: dict[int, tuple[list[tuple[str, str, str]], list[str]]] = {
@@ -156,6 +163,22 @@ UPGRADES: dict[int, tuple[list[tuple[str, str, str]], list[str]]] = {
                    result TEXT NOT NULL, contract_sha256 TEXT, created_at TEXT NOT NULL)""",
              "CREATE INDEX IF NOT EXISTS data_need_drafts_created ON data_need_drafts (created_at)"]),
     3: ([("executions", "modules", "TEXT")], []),
+    4: ([], ["""CREATE TABLE IF NOT EXISTS research_runs (
+                   research_run_id TEXT PRIMARY KEY, request_id TEXT NOT NULL, origin_request_id TEXT NOT NULL,
+                   plan_id TEXT NOT NULL, plan_sha256 TEXT NOT NULL, data_plan_sha256 TEXT NOT NULL,
+                   governance TEXT NOT NULL, data_plan TEXT NOT NULL, decision TEXT NOT NULL, status TEXT NOT NULL,
+                   created_at TEXT NOT NULL)""",
+             "CREATE INDEX IF NOT EXISTS research_runs_request ON research_runs (request_id)",
+             """CREATE TABLE IF NOT EXISTS research_groups (
+                   research_run_id TEXT NOT NULL, bundle_group_id TEXT NOT NULL, need_id TEXT, draft_id TEXT NOT NULL,
+                   spec_sha256 TEXT NOT NULL, angle_ids TEXT NOT NULL, status TEXT NOT NULL, reason TEXT,
+                   session_id TEXT, completion_id TEXT, updated_at TEXT NOT NULL,
+                   PRIMARY KEY (research_run_id, bundle_group_id))""",
+             "CREATE INDEX IF NOT EXISTS research_groups_need ON research_groups (need_id)",
+             """CREATE TABLE IF NOT EXISTS research_findings (
+                   research_run_id TEXT NOT NULL, angle_id TEXT NOT NULL, bundle_group_id TEXT NOT NULL,
+                   session_id TEXT, completion_id TEXT, status TEXT NOT NULL, validation_level TEXT,
+                   finding TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (research_run_id, angle_id))"""]),
 }
 
 
@@ -389,6 +412,51 @@ class DataNeedStore:
     def completion_for_session(self, session_id: str) -> dict[str, Any] | None:
         return self._one("SELECT * FROM completions WHERE session_id = ? ORDER BY created_at DESC LIMIT 1",
                          (session_id,))
+
+    # multi-angle research (schema version 4)
+    def insert_research_run(self, run: dict[str, Any], groups: list[dict[str, Any]]) -> None:
+        """The run and its groups in one transaction."""
+        with self._lock:
+            self._db.execute("BEGIN IMMEDIATE")
+            try:
+                for table, record in [("research_runs", run)] + [("research_groups", g) for g in groups]:
+                    data = self._encode(record)
+                    self._db.execute(f"INSERT INTO {table} ({', '.join(data)}) VALUES "
+                                     f"({', '.join('?' * len(data))})", tuple(data.values()))
+                self._db.execute("COMMIT")
+            except Exception:
+                self._db.execute("ROLLBACK")
+                raise
+
+    def get_research_run(self, research_run_id: str) -> dict[str, Any] | None:
+        return self._one("SELECT * FROM research_runs WHERE research_run_id = ?", (research_run_id,))
+
+    def research_runs_for(self, request_id: str) -> list[dict[str, Any]]:
+        return self._all("SELECT * FROM research_runs WHERE request_id = ? ORDER BY created_at", (request_id,))
+
+    def research_groups(self, research_run_id: str) -> list[dict[str, Any]]:
+        return self._all("SELECT * FROM research_groups WHERE research_run_id = ? ORDER BY bundle_group_id",
+                         (research_run_id,))
+
+    def research_group_for_need(self, need_id: str) -> dict[str, Any] | None:
+        return self._one("SELECT * FROM research_groups WHERE need_id = ?", (need_id,))
+
+    def update_research_group(self, research_run_id: str, bundle_group_id: str, **fields: Any) -> None:
+        data = self._encode(fields)
+        with self._lock:
+            self._db.execute(f"UPDATE research_groups SET {', '.join(f'{k} = ?' for k in data)} "
+                             "WHERE research_run_id = ? AND bundle_group_id = ?",
+                             (*data.values(), research_run_id, bundle_group_id))
+
+    def upsert_research_finding(self, record: dict[str, Any]) -> None:
+        data = self._encode(record)
+        with self._lock:
+            self._db.execute(f"INSERT OR REPLACE INTO research_findings ({', '.join(data)}) VALUES "
+                             f"({', '.join('?' * len(data))})", tuple(data.values()))
+
+    def research_findings(self, research_run_id: str) -> list[dict[str, Any]]:
+        return self._all("SELECT * FROM research_findings WHERE research_run_id = ? ORDER BY angle_id",
+                         (research_run_id,))
 
     def close(self) -> None:
         with self._lock:

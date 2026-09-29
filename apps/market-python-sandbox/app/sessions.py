@@ -70,6 +70,38 @@ DATA_TYPES = ("Frames from load, range, sql and join: the time column holds date
               "with datetime.date(2026, 1, 2) (import datetime) or select a period with range(); before .dt, "
               ".resample(), .loc['2026-01-02'] or a comparison with a date string, convert first: "
               "frame[col] = pd.to_datetime(frame[col]).")
+RESEARCH_HELPERS = ["research_conditional", "research_persistence", "research_group_comparison", "research_quantiles",
+                    "research_temporal_dependency", "research_custom"]
+
+
+def research_view(research: dict[str, Any]) -> dict[str, Any]:
+    """What the model sees of a multi-angle research session: the group's angles with their method, the approved
+    values, the contract's requests, columns and ranges, and how to record each angle."""
+    angles = []
+    for angle_id, angle in sorted((research.get("angles") or {}).items()):
+        contract = angle.get("contract") or {}
+        angles.append({"angle_id": angle_id, "method_id": angle.get("method_id"),
+                       "helper": {"CONDITIONAL_OUTCOME": "research_conditional", "PERSISTENCE": "research_persistence",
+                                  "GROUP_COMPARISON": "research_group_comparison",
+                                  "QUANTILE_RANKING": "research_quantiles",
+                                  "TEMPORAL_DEPENDENCY": "research_temporal_dependency"}.get(angle.get("method_family")),
+                       "question": angle.get("angle_question"), "expected_direction": angle.get("expected_direction"),
+                       "outcome_horizon_periods": angle.get("outcome_horizon_periods"),
+                       "outcome_unit": angle.get("outcome_unit"), "parameters": angle.get("parameters"),
+                       "contract": [{"data_request_id": d.get("data_request_id"), "logical_name": d.get("logical_name"),
+                                     "columns": d.get("columns"),
+                                     "ranges": [w.get("range_id") for w in d.get("ranges") or []]}
+                                    for d in contract.get("datasets") or []]})
+    return {"research_run_id": research.get("research_run_id"), "bundle_group_id": research.get("bundle_group_id"),
+            "angles": angles,
+            "record_each_angle": "Record every angle once with its helper, either frame=<DataFrame with date, entity "
+                                 "and the role columns> (STATISTICS_VERIFIED) or request=<contract request> with each "
+                                 "role as an expression over its columns and outcome={'forward_return': '<column>'} "
+                                 "(FORMULA_AND_STATISTICS_VERIFIED); research_custom only when no helper fits "
+                                 "(EXECUTION_ONLY). Thresholds, lags, buckets, groups and horizons come from the "
+                                 "approved plan, never from the code."}
+
+
 HELPERS = ["requests()", "manifest()", "quality(request)", "load(request, columns=None)",
            "range(request, range_id, columns=None, include_buffers=False)", "sql(query, params=None)",
            "relation(request)", "join(relationship_id, left=None, right=None, how=None)",
@@ -298,8 +330,8 @@ class SessionManager:
     # ------------------------------------------------------------------ open
 
     def open(self, request_id: str, bundle_id: str, cpu_seconds: int | None = None, *,
-             conversation_key: str | None = None, need_id: str | None = None, bound: bool = False
-             ) -> dict[str, Any]:
+             conversation_key: str | None = None, need_id: str | None = None, bound: bool = False,
+             research: dict[str, Any] | None = None) -> dict[str, Any]:
         """A new session on a READY bundle of this request, or (bound) on an earlier bundle of the same conversation
         that the service bound to this request's approved need. With no free slot, the least recently used WARM_IDLE
         session is evicted; an ACTIVE or BUSY session never is."""
@@ -328,7 +360,7 @@ class SessionManager:
             directory = Path(s.jobs_dir) / session_id
             budget = max(10, min(int(cpu_seconds or s.session_cpu_seconds), s.session_cpu_seconds))
             try:
-                worker = self._launch(session_id, uid, cpus, directory, manifest, budget)
+                worker = self._launch(session_id, uid, cpus, directory, manifest, budget, research)
             except SessionError:
                 shutil.rmtree(directory, ignore_errors=True)
                 raise
@@ -347,7 +379,10 @@ class SessionManager:
                                  "start_seq": 0, "attached_at": now.isoformat()})
         self._log("session_opened", request_id=request_id, session_id=session_id, bundle_id=bundle_id, uid=uid,
                   cpu_budget=budget, bound_bundle=bound, conversation=bool(conversation_key))
-        return self._view(session_id, bundle_id, need_id, manifest, budget, expires.isoformat())
+        view = self._view(session_id, bundle_id, need_id, manifest, budget, expires.isoformat())
+        if research:
+            view["research"] = research_view(research)
+        return view
 
     def _free_slots(self) -> list[tuple[int, list[int]]]:
         used = {w.uid for w in self.workers.values() if w.alive}
@@ -423,7 +458,7 @@ class SessionManager:
         return epoch
 
     def _launch(self, session_id: str, uid: int, cpus: list[int], directory: Path, manifest: dict[str, Any],
-                budget: int) -> Worker:
+                budget: int, research: dict[str, Any] | None = None) -> Worker:
         s = self.settings
         drop = self.executor.drop_privileges
         root = Path(s.jobs_dir)
@@ -475,7 +510,10 @@ class SessionManager:
             "session_id": session_id, "limits": s.child_limits(budget), "cpus": cpus, "require_seccomp": True,
             "seed": s.random_seed, "reference_date": manifest["reference_date"],
             **({"observe_modules": True} if self.audit is not None else {}),
-            **({"extra_helpers": ["event_summary"]} if s.research_findings_enabled else {}),
+            **({"extra_helpers": [*(["event_summary"] if s.research_findings_enabled else []),
+                                  *(RESEARCH_HELPERS if research else [])]}
+               if s.research_findings_enabled or research else {}),
+            **({"research_v2": research} if research else {}),
             "bundle": {k: manifest.get(k) for k in ("input_bundle_id", "need_id", "request_group_id", "revision",
                                                      "mode", "reference_date", "relationships",
                                                      "relationship_warnings")},

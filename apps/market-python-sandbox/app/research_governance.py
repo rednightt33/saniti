@@ -239,3 +239,213 @@ def _constraints(governance: dict[str, Any], policy: GovernancePolicy, *, reused
     if findings:
         constraints["findings"] = findings
     return constraints
+
+
+# ---------------------------------------------------------------- research_governance/v2 (Multi-Angle Research)
+
+GOVERNANCE_V2 = "research_governance/v2"
+ANGLE_ID = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
+PLAN_ID = re.compile(r"^rp_[0-9a-f]{24}$")
+SHA256 = re.compile(r"^[0-9a-f]{64}$")
+ANGLE_FIELDS = {"angle_id", "angle_question", "method_id", "method_family", "angle_signature", "condition", "outcome",
+                "baseline_or_comparator", "expected_direction", "outcome_horizon_periods", "outcome_unit",
+                "min_effect", "parameters", "candidate_count", "pairwise_comparisons", "multiple_testing_policy",
+                "holdout_required", "minimum_sample", "followup_of_angle_id", "bundle_group_id",
+                "angle_data_contract_sha256"}
+V2_FIELDS = {"governance_version", "plan_id", "root_hypothesis_id", "root_hypothesis", "angles",
+             "angle_to_bundle_group", "totals", "hashes"}
+HASH_FIELDS = {"plan_sha256", "research_data_plan_sha256", "spec_sha256s", "draft_ids", "angle_data_contract_sha256s"}
+
+
+@dataclass(frozen=True)
+class MultiAnglePolicy:
+    """Budgets of a multi-angle Research run. The angle budget is separate from findings v1's hypothesis budget: one
+    root hypothesis may be examined by every angle."""
+
+    min_angles: int = 3
+    max_angles_per_plan: int = 6
+    max_candidates_per_angle: int = 50
+    max_pairwise_per_angle: int = 20_000
+    max_candidates_per_plan: int = 150
+    max_pairwise_per_plan: int = 20_000
+    max_followups_per_angle: int = 5
+
+    def public(self) -> dict[str, Any]:
+        return {"min_angles": self.min_angles, "max_angles_per_plan": self.max_angles_per_plan,
+                "max_candidates_per_angle": self.max_candidates_per_angle,
+                "max_pairwise_per_angle": self.max_pairwise_per_angle,
+                "max_candidates_per_plan": self.max_candidates_per_plan,
+                "max_pairwise_per_plan": self.max_pairwise_per_plan}
+
+
+def check_request_v2(raw: Any, policy: MultiAnglePolicy) -> list[dict[str, Any]]:
+    """Structural problems of a research_governance/v2 declaration, in the validator's issue shape."""
+    from .research_methods import METHODS, angle_signature, parameter_problems
+
+    problems: list[dict[str, Any]] = []
+
+    def add(code: str, path: str, value: Any) -> None:
+        problems.append({"data_request_id": None, "code": code, "field_path": f"research_governance{path}",
+                         "rejected_value": value if not isinstance(value, (dict, list)) else str(value)[:200]})
+
+    if not isinstance(raw, dict):
+        add("INVALID_FIELD_TYPE", "", raw)
+        return problems
+    for key in sorted(set(raw) - V2_FIELDS):
+        add("UNKNOWN_FIELD", f".{key}", raw[key])
+    for key in sorted(V2_FIELDS - set(raw)):
+        add("MISSING_REQUIRED_FIELD", f".{key}", None)
+    if raw.get("governance_version") != GOVERNANCE_V2:
+        add("INVALID_FIELD_VALUE", ".governance_version", raw.get("governance_version"))
+    if not isinstance(raw.get("plan_id"), str) or not PLAN_ID.fullmatch(raw["plan_id"]):
+        add("INVALID_FIELD_VALUE", ".plan_id", raw.get("plan_id"))
+    if not isinstance(raw.get("root_hypothesis_id"), str) or not HYPOTHESIS_ID.fullmatch(raw["root_hypothesis_id"]):
+        add("INVALID_FIELD_VALUE", ".root_hypothesis_id", raw.get("root_hypothesis_id"))
+    if not isinstance(raw.get("root_hypothesis"), str) or not raw["root_hypothesis"].strip() \
+            or len(raw["root_hypothesis"]) > 1000:
+        add("INVALID_FIELD_VALUE", ".root_hypothesis", raw.get("root_hypothesis"))
+    angles = raw.get("angles")
+    if not isinstance(angles, list) or not policy.min_angles <= len(angles) <= policy.max_angles_per_plan:
+        add("ANGLE_COUNT_INVALID", ".angles", len(angles) if isinstance(angles, list) else angles)
+        return problems
+    ids, signatures, questions = set(), set(), set()
+    totals = {"candidates": 0, "pairwise_comparisons": 0}
+    for index, angle in enumerate(angles):
+        path = f".angles[{index}]"
+        if not isinstance(angle, dict):
+            add("INVALID_FIELD_TYPE", path, angle)
+            continue
+        for key in sorted(set(angle) - ANGLE_FIELDS):
+            add("UNKNOWN_FIELD", f"{path}.{key}", angle[key])
+        for key in sorted(ANGLE_FIELDS - set(angle)):
+            add("MISSING_REQUIRED_FIELD", f"{path}.{key}", None)
+        angle_id = angle.get("angle_id")
+        if not isinstance(angle_id, str) or not ANGLE_ID.fullmatch(angle_id):
+            add("INVALID_FIELD_VALUE", f"{path}.angle_id", angle_id)
+        elif angle_id in ids:
+            add("DUPLICATE_ANGLE_ID", f"{path}.angle_id", angle_id)
+        ids.add(angle_id)
+        method = angle.get("method_id")
+        if method not in METHODS:
+            add("METHOD_NOT_REGISTERED", f"{path}.method_id", method)
+            continue
+        if angle.get("method_family") != METHODS[method]:
+            add("METHOD_FAMILY_MISMATCH", f"{path}.method_family", angle.get("method_family"))
+        for key in ("angle_question", "condition", "outcome", "baseline_or_comparator"):
+            value = angle.get(key)
+            if not isinstance(value, str) or not value.strip() or len(value) > 1000:
+                add("INVALID_FIELD_VALUE", f"{path}.{key}", value)
+        question = " ".join(str(angle.get("angle_question") or "").casefold().split())
+        if question in questions:
+            add("DUPLICATE_ANGLE_QUESTION", f"{path}.angle_question", angle.get("angle_question"))
+        questions.add(question)
+        if angle.get("expected_direction") not in DIRECTIONS:
+            add("INVALID_FIELD_VALUE", f"{path}.expected_direction", angle.get("expected_direction"))
+        if angle.get("outcome_unit") not in OUTCOME_UNITS:
+            add("INVALID_FIELD_VALUE", f"{path}.outcome_unit", angle.get("outcome_unit"))
+        horizon = angle.get("outcome_horizon_periods")
+        if isinstance(horizon, bool) or not isinstance(horizon, int) or not 1 <= horizon <= 260:
+            add("INVALID_FIELD_VALUE", f"{path}.outcome_horizon_periods", horizon)
+            continue
+        effect = angle.get("min_effect")
+        if effect is not None and (isinstance(effect, bool) or not isinstance(effect, (int, float)) or not effect > 0):
+            add("INVALID_FIELD_VALUE", f"{path}.min_effect", effect)
+        candidates, pairwise = angle.get("candidate_count"), angle.get("pairwise_comparisons")
+        if isinstance(candidates, bool) or not isinstance(candidates, int) or candidates < 1 \
+                or isinstance(pairwise, bool) or not isinstance(pairwise, int) or pairwise < 0:
+            add("INVALID_FIELD_VALUE", f"{path}.candidate_count", candidates)
+            continue
+        if candidates > policy.max_candidates_per_angle:
+            add("CANDIDATE_LIMIT_EXCEEDED", f"{path}.candidate_count", candidates)
+        if pairwise > policy.max_pairwise_per_angle:
+            add("PAIRWISE_LIMIT_EXCEEDED", f"{path}.pairwise_comparisons", pairwise)
+        totals["candidates"] += candidates
+        totals["pairwise_comparisons"] += pairwise
+        if angle.get("multiple_testing_policy") not in POLICIES:
+            add("INVALID_FIELD_VALUE", f"{path}.multiple_testing_policy", angle.get("multiple_testing_policy"))
+        elif max(candidates, pairwise) > 1 and angle["multiple_testing_policy"] == "NONE":
+            add("MULTIPLE_TESTING_POLICY_REQUIRED", f"{path}.multiple_testing_policy", "NONE")
+        for problem in parameter_problems(method, angle.get("parameters") if isinstance(angle.get("parameters"),
+                                                                                         dict) else None,
+                                          candidates, pairwise):
+            add("PARAMETER_INVALID", f"{path}.parameters", problem)
+        sample = angle.get("minimum_sample")
+        if sample is not None and (not isinstance(sample, dict) or set(sample) != {"value", "unit"}
+                                   or sample.get("unit") not in SAMPLE_UNITS or isinstance(sample.get("value"), bool)
+                                   or not isinstance(sample.get("value"), int) or sample["value"] < 1):
+            add("INVALID_FIELD_VALUE", f"{path}.minimum_sample", sample)
+        if not isinstance(angle.get("holdout_required"), bool):
+            add("INVALID_FIELD_VALUE", f"{path}.holdout_required", angle.get("holdout_required"))
+        followup = angle.get("followup_of_angle_id")
+        if followup is not None and (not isinstance(followup, str) or not ANGLE_ID.fullmatch(followup)):
+            add("INVALID_FIELD_VALUE", f"{path}.followup_of_angle_id", followup)
+        try:
+            signature = angle_signature(angle)
+        except (TypeError, ValueError):
+            signature = None
+        if signature is None or angle.get("angle_signature") != signature:
+            add("ANGLE_SIGNATURE_MISMATCH", f"{path}.angle_signature", angle.get("angle_signature"))
+        elif signature in signatures:
+            add("DUPLICATE_ANGLE_SIGNATURE", f"{path}.angle_signature", signature)
+        signatures.add(signature)
+        if not isinstance(angle.get("bundle_group_id"), str) \
+                or angle.get("bundle_group_id") != (raw.get("angle_to_bundle_group") or {}).get(angle_id):
+            add("ANGLE_GROUP_MISMATCH", f"{path}.bundle_group_id", angle.get("bundle_group_id"))
+        contract = angle.get("angle_data_contract_sha256")
+        if not isinstance(contract, str) or not SHA256.fullmatch(contract):
+            add("INVALID_FIELD_VALUE", f"{path}.angle_data_contract_sha256", contract)
+    if totals["candidates"] > policy.max_candidates_per_plan:
+        add("PLAN_CANDIDATE_LIMIT_EXCEEDED", ".totals.candidates", totals["candidates"])
+    if totals["pairwise_comparisons"] > policy.max_pairwise_per_plan:
+        add("PLAN_PAIRWISE_LIMIT_EXCEEDED", ".totals.pairwise_comparisons", totals["pairwise_comparisons"])
+    if raw.get("totals") != totals:
+        add("TOTALS_MISMATCH", ".totals", raw.get("totals"))
+    mapping = raw.get("angle_to_bundle_group")
+    if not isinstance(mapping, dict) or set(mapping) != ids:
+        add("ANGLE_GROUP_MISMATCH", ".angle_to_bundle_group", mapping)
+    hashes = raw.get("hashes")
+    if not isinstance(hashes, dict) or set(hashes) != HASH_FIELDS:
+        add("INVALID_FIELD_VALUE", ".hashes", hashes)
+    return problems
+
+
+def review_v2(governance: dict[str, Any], history: list[dict[str, Any]], policy: MultiAnglePolicy
+              ) -> dict[str, Any]:
+    """The Research Governor's decision on a structurally valid v2 declaration. history: earlier research runs of
+    this request ({"governance": ..., "data_plan_sha256": ...}). The same data plan again reuses its reservation; an
+    angle already run in this request needs followup_of_angle_id naming it; a new analytical question needs a new
+    angle_id."""
+    earlier: dict[str, str] = {}
+    followups: dict[str, int] = {}
+    for item in history:
+        for angle in (item.get("governance") or {}).get("angles") or []:
+            earlier.setdefault(angle["angle_id"], angle["angle_signature"])
+            if angle.get("followup_of_angle_id"):
+                followups[angle["followup_of_angle_id"]] = followups.get(angle["followup_of_angle_id"], 0) + 1
+    angles = governance["angles"]
+    budget = {"angles": len(angles), "angles_limit": policy.max_angles_per_plan, "min_angles": policy.min_angles,
+              "candidates": governance["totals"]["candidates"],
+              "candidates_limit": policy.max_candidates_per_plan,
+              "pairwise_comparisons": governance["totals"]["pairwise_comparisons"],
+              "pairwise_limit": policy.max_pairwise_per_plan, "earlier_runs": len(history)}
+    for angle in angles:
+        angle_id, followup = angle["angle_id"], angle.get("followup_of_angle_id")
+        if followup is not None:
+            if followup not in earlier:
+                return _decision("REPLAN_REQUIRED", "FOLLOWUP_PARENT_NOT_FOUND",
+                                 f"{angle_id}: followup_of_angle_id names an angle already run in this request.",
+                                 budget)
+            if followups.get(followup, 0) >= policy.max_followups_per_angle:
+                return _decision("REJECTED", "FOLLOWUP_LIMIT_EXCEEDED",
+                                 f"Angle {followup} has used its {policy.max_followups_per_angle} follow-ups.", budget)
+        elif angle_id in earlier:
+            return _decision("REPLAN_REQUIRED", "ANGLE_ALREADY_RUN",
+                             f"Angle {angle_id} already ran in this request; rerun it as a follow-up "
+                             "(followup_of_angle_id) or give a new question a new angle_id.", budget)
+    constraints = {"governance_version": GOVERNANCE_V2, "plan_id": governance["plan_id"],
+                   "root_hypothesis_id": governance["root_hypothesis_id"],
+                   "angles": {a["angle_id"]: {k: a[k] for k in sorted(ANGLE_FIELDS) if k != "angle_id"}
+                              for a in angles},
+                   "note": "Each angle's finding is computed by the backend from its recorded input with these "
+                           "approved values."}
+    return _decision("APPROVED", None, None, budget, constraints)
