@@ -35,6 +35,7 @@ EXA_QUERIES = 2
 MAX_TURNS = 3
 REVIEW_QUERIES = 3
 MAX_SECTORS = 2
+SUBJECT_SHARE = 0.6
 TURN2_QUERIES = 5
 DEFAULT_LOOKBACK_MONTHS = 24
 WINDOW_MONTHS = 3
@@ -90,6 +91,8 @@ def answer_instructions(as_of: date) -> str:
         "inference from the cited sources, never as a sourced fact.\n"
         "Separate facts about the subject from context about related parties, the industry and external factors; "
         "cite both.\n"
+        "When sources about the subject's industry or government policy are present, include a section 'Industry & "
+        "policy context' that states how each point affects the subject, with citations.\n"
         "If the question asks about signs BEFORE an event, first establish the event's date from the sources, then "
         "report only sources published before that date as signs, earliest first.\n"
         "Answer in the language of the question, concise, no emoji."
@@ -230,11 +233,30 @@ def _key(item: dict[str, Any]) -> str:
     return re.sub(r"[^0-9a-z]+", "", item["title"].lower())[:60] or item["url"]
 
 
+def _balanced(items: list[dict[str, Any]], spans: list[tuple[date, date]] | None, quota: int) -> list[dict]:
+    """Share `quota` evenly across the windows (newest first within a window; a quiet window's share goes to the
+    others), with up to a tenth for undated items."""
+    undated = [item for item in items if not item["date"]]
+    buckets: dict[int, list[dict[str, Any]]] = {}
+    for item in (item for item in items if item["date"]):
+        index = next((i for i, (lower, upper) in enumerate(spans or [])
+                      if lower.isoformat() <= item["date"] <= upper.isoformat()), len(spans or []))
+        buckets.setdefault(index, []).append(item)
+    queues = [sorted(bucket, key=lambda item: item["date"], reverse=True) for _, bucket in sorted(buckets.items())]
+    chosen = undated[: min(len(undated), quota // 10)]
+    while len(chosen) < quota and any(queues):
+        for queue in queues:
+            if queue and len(chosen) < quota:
+                chosen.append(queue.pop(0))
+    return chosen
+
+
 def merge_sources(results: list[list[dict[str, Any]]], spans: list[tuple[date, date]] | None,
                   max_sources: int) -> list[dict[str, Any]]:
-    """Deduplicate by headline (keeping the date and text of any copy), drop anything after the last window, and
-    share `max_sources` evenly across the windows (a quiet window's share goes to the others; newest first within a
-    window). Up to a tenth of the budget goes to undated sources. The result is sorted oldest first."""
+    """Deduplicate by headline (keeping the date, text and earliest turn of any copy) and drop anything after the
+    last window. Sources from turn 1 (the subject) get at least SUBJECT_SHARE of `max_sources`; wider turns share
+    the rest, and an unused share passes to the other group. Within a group the budget is shared across windows.
+    The result is sorted oldest first."""
     merged: dict[str, dict[str, Any]] = {}
     for item in (item for result in results for item in result):
         key = _key(item)
@@ -243,24 +265,37 @@ def merge_sources(results: list[list[dict[str, Any]]], spans: list[tuple[date, d
             continue
         kept = merged[key]
         kept["date"] = kept["date"] or item["date"]
+        kept["turn"] = min(kept.get("turn", 1), item.get("turn", 1))
         if item["text"] and not kept["text"]:
             kept["text"] = item["text"]
     last = max(upper for _, upper in spans).isoformat() if spans else None
     items = [item for item in merged.values() if not (last and item["date"] and item["date"] > last)]
-    undated = [item for item in items if not item["date"]]
-    buckets: dict[int, list[dict[str, Any]]] = {}
-    for item in (item for item in items if item["date"]):
-        index = next((i for i, (lower, upper) in enumerate(spans or [])
-                      if lower.isoformat() <= item["date"] <= upper.isoformat()), len(spans or []))
-        buckets.setdefault(index, []).append(item)
-    queues = [sorted(bucket, key=lambda item: item["date"], reverse=True) for _, bucket in sorted(buckets.items())]
-    chosen = undated[: min(len(undated), max_sources // 10)]
-    while len(chosen) < max_sources and any(queues):
-        for queue in queues:
-            if queue and len(chosen) < max_sources:
-                chosen.append(queue.pop(0))
+    subject = [item for item in items if item.get("turn", 1) == 1]
+    wider = [item for item in items if item.get("turn", 1) != 1]
+    subject_take = min(len(subject), int(max_sources * SUBJECT_SHARE))
+    wider_take = min(len(wider), max_sources - subject_take)
+    subject_take = min(len(subject), max_sources - wider_take)
+    chosen = _balanced(subject, spans, subject_take) + _balanced(wider, spans, wider_take)
     chosen.sort(key=lambda item: (item["date"] or "9999-99-99", item["title"]))
     return chosen
+
+
+def clean_citations(answer: str, count: int) -> tuple[str, str, list[int]]:
+    """Return the answer without source numbers, the answer with numbers renumbered 1..k in order of appearance, and
+    the original numbers in that order (only numbers that exist in the source list)."""
+    order: list[int] = []
+    for match in re.finditer(r"\[(\d+)\]", answer):
+        number = int(match.group(1))
+        if 1 <= number <= count and number not in order:
+            order.append(number)
+    renumber = {number: index for index, number in enumerate(order, 1)}
+    cited = re.sub(r"\[(\d+)\]", lambda m: f"[{renumber[int(m.group(1))]}]" if int(m.group(1)) in renumber else "",
+                   answer)
+    clean = re.sub(r"(?:\s*[,;]?\s*\[\d+\])+", "", answer)
+    clean = re.sub(r"[ \t]+([.,;:)])", r"\1", clean)
+    clean = re.sub(r"\(\s*\)", "", clean)
+    clean = re.sub(r"[ \t]{2,}", " ", clean)
+    return clean.strip(), cited.strip(), order
 
 
 def _listing(items: list[dict[str, Any]]) -> str:
@@ -313,7 +348,8 @@ class AskService:
         spans = windows(as_of, plan["after"], plan["before"])
         plan["windows"] = [[lower.isoformat(), upper.isoformat()] for lower, upper in spans]
         used = {query.lower() for query in plan["queries"]}
-        results = self._scan(plan["queries"], spans, plan["queries"][:EXA_QUERIES], slot.model, call, warnings, usage)
+        results = self._scan(plan["queries"], spans, plan["queries"][:EXA_QUERIES], slot.model, call, warnings, usage,
+                             turn=1)
         plan["turns"] = [{"turn": 1, "queries": plan["queries"], "reasons": [], "news_requests": usage["news_requests"]}]
         max_sources = self.settings.ask_max_sources
         for turn in range(2, MAX_TURNS + 1):
@@ -334,12 +370,13 @@ class AskService:
                 break
             used.update(p["query"].lower() for p in proposals)
             before = usage["news_requests"]
-            results += self._scan([p["query"] for p in proposals], spans, [], slot.model, call, warnings, usage)
+            results += self._scan([p["query"] for p in proposals], spans, [], slot.model, call, warnings, usage,
+                                  turn=turn)
             plan["turns"].append({"turn": turn, "queries": [p["query"] for p in proposals],
                                   "reasons": [p["reason"] for p in proposals],
                                   "news_requests": usage["news_requests"] - before})
         items = merge_sources(results, spans, max_sources)
-        status, answer, citations = "NO_SOURCES", None, []
+        status, answer, answer_cited, citations = "NO_SOURCES", None, None, []
         if items:
             response = call({
                 "model": slot.model, "instructions": answer_instructions(as_of),
@@ -353,13 +390,16 @@ class AskService:
             unknown = [n for n in cited if not 1 <= n <= len(items)]
             if unknown:
                 warnings.append({"code": "UNKNOWN_CITATION", "message": f"answer cites sources that do not exist: {unknown}"})
-            citations = [_public(items[n - 1], n) for n in cited if 1 <= n <= len(items)]
+            answer, answer_cited, order = clean_citations(answer, len(items))
+            citations = [_public(items[number - 1], index) for index, number in enumerate(order, 1)]
+            plan["answer_cited"] = answer_cited
             if not citations:
                 warnings.append({"code": "NO_CITATIONS", "message": "the answer cites no source"})
             status = "ANSWERED" if answer else "FAILED"
         result = {
             "ask_id": f"ask_{uuid.uuid4().hex}", "request_id": request.request_id, "question": request.question,
-            "as_of": as_of.isoformat(), "status": status, "answer": answer, "plan": plan, "citations": citations,
+            "as_of": as_of.isoformat(), "status": status, "answer": answer, "answer_cited": answer_cited,
+            "plan": plan, "citations": citations,
             "sources": [_public(item, n) for n, item in enumerate(items, 1)], "warnings": warnings,
             "model": slot.model, "usage": {**usage, "cost_usd": round(usage["cost_usd"], 6)},
             "seconds": round(time.monotonic() - started, 2), "stored": False,
@@ -394,7 +434,7 @@ class AskService:
                 **period}
 
     def _scan(self, queries: list[str], spans: list[tuple[date, date]], exa_queries: list[str], model: str, call,
-              warnings: list, usage: dict) -> list[list[dict]]:
+              warnings: list, usage: dict, turn: int = 1) -> list[list[dict]]:
         """Google News for every (query, window) pair, Exa for `exa_queries`; failures become warnings."""
         jobs = [("exa", query, None) for query in exa_queries]
         jobs += [("google_news", query, span) for query in queries for span in spans]
@@ -434,6 +474,9 @@ class AskService:
                 usage["news_requests" if kind == "google_news" else "search_calls"] += 1
         if failed:
             warnings.append({"code": "SEARCH_FAILED", "message": f"{len(failed)} searches failed, e.g. {failed[0]}"})
+        for result in results:
+            for item in result:
+                item["turn"] = turn
         return results
 
     def _review(self, question: str, items: list[dict[str, Any]], used: list[str], as_of: date, turn: int,
@@ -468,6 +511,7 @@ class AskService:
     def _replay(row: dict[str, Any]) -> dict[str, Any]:
         result = {key: row[key] for key in COLUMNS if key not in ("expires_at",)}
         result["as_of"] = str(row["as_of"])
+        result["answer_cited"] = (row.get("plan") or {}).get("answer_cited")
         for key in ("cost_usd", "seconds"):
             result[key] = float(row[key]) if row[key] is not None else None
         result["replayed"] = True

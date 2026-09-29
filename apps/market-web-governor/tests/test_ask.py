@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from datetime import date
 
-from app.ask import AskRequest, AskService, AskStoreError, merge_sources, windows
+from app.ask import AskRequest, AskService, AskStoreError, clean_citations, merge_sources, windows
 from app.main import create_app
 from tests.conftest import API_KEY, make_settings
 
@@ -90,6 +90,9 @@ def test_ask_answers_from_numbered_sources_and_takes_dates_from_the_list(tmp_pat
                                       "title": "Company P dikabarkan jajaki penjualan saham",
                                       "url": "https://news.google.com/a1", "via": "google_news"}
     assert {w["code"] for w in result["warnings"]} == {"UNKNOWN_CITATION"}
+    assert result["answer"] == "Talks were reported on 2025-10-07; the deal was announced on 2026-09-18."
+    assert result["answer_cited"] == "Talks were reported on 2025-10-07 [1]; the deal was announced on 2026-09-18 [2]."
+    assert [c["n"] for c in result["citations"]] == [1, 2]
     answer_payload = provider.payloads[-1]
     assert "[1] 2025-10-07 | News One |" in answer_payload["input"]
     assert "never assign it one" in answer_payload["instructions"]
@@ -216,3 +219,31 @@ def test_no_sectors_and_an_empty_review_stop_after_turn_one(tmp_path):
     result = service(tmp_path, FakeProvider(reviews=[[]])).ask(
         AskRequest(request_id="ask-test-0010", question="apa BI rate terakhir", as_of=date(2026, 9, 29)))
     assert [t["turn"] for t in result["plan"]["turns"]] == [1]
+
+
+def test_subject_sources_keep_their_share_when_wider_turns_flood_the_budget():
+    spans = windows(date(2026, 9, 29))
+    subject = [{"title": f"subject {i}", "url": f"https://s.example/{i}", "publisher": "s", "date": "2026-05-01",
+                "text": "", "via": "google_news", "turn": 1} for i in range(80)]
+    wider = [{"title": f"sector {i}", "url": f"https://w.example/{i}", "publisher": "w", "date": "2026-05-02",
+              "text": "", "via": "google_news", "turn": 2} for i in range(400)]
+    merged = merge_sources([subject, wider], spans, 100)
+    assert sum(item["turn"] == 1 for item in merged) == 60 and len(merged) == 100
+    few = merge_sources([subject[:10], wider], spans, 100)
+    assert sum(item["turn"] == 1 for item in few) == 10 and len(few) == 100      # unused share goes to wider turns
+    only_subject = merge_sources([subject], spans, 50)
+    assert len(only_subject) == 50                                              # and the other way round
+
+
+def test_clean_citations_removes_and_renumbers_source_numbers():
+    text = "Held at 5.75% [435][486], after hikes [496], [444]; see (source [9]) and [999]."
+    clean, cited, order = clean_citations(text, 500)
+    assert clean == "Held at 5.75%, after hikes; see (source) and."
+    assert cited == "Held at 5.75% [1][2], after hikes [3], [4]; see (source [5]) and ."
+    assert order == [435, 486, 496, 444, 9]
+
+
+def test_answer_rules_ask_for_an_industry_and_policy_section(tmp_path):
+    provider = FakeProvider()
+    service(tmp_path, provider).ask(AskRequest(request_id="ask-test-0011", question="Company P"))
+    assert "Industry & policy context" in provider.payloads[-1]["instructions"]
