@@ -29,6 +29,10 @@ needs; nothing here computes an indicator or checks a formula.
                                     research_events_<hypothesis_id> and research_summary_<hypothesis_id>)
     period_return(request, range_id, value_column="close", entity_column=None, date_column=None)
                                     a named calendar-period return per entity with one boundary convention
+    research_conditional / research_persistence / research_group_comparison / research_quantiles /
+    research_temporal_dependency / research_custom
+                                    Multi-Angle Research: one approved angle's input recorded for the backend finding
+                                    (only in an approved multi-angle research session)
     insufficient_data(request, range_id=None, value=None, unit=..., requirement_type=..., reason="")
                                     stop: the data cannot support the analysis; revise the DataNeedSpec
     intermediate_path(name)         a private file path for intermediate results
@@ -56,7 +60,8 @@ __all__ = [
     "JoinCardinalityError", "AggregationRuleMissing",
 ]
 # pre-bound only when the session config lists them (session.json extra_helpers, set by a feature flag)
-EXTRA_HELPERS = ("event_summary",)
+EXTRA_HELPERS = ("event_summary", "research_conditional", "research_persistence", "research_group_comparison",
+                 "research_quantiles", "research_temporal_dependency", "research_custom")
 
 REQUESTS: dict[str, dict[str, Any]] = {}
 REFERENCE_DATE: str | None = None
@@ -71,6 +76,13 @@ _ACCESS: list[dict[str, Any]] = []
 _OUTPUTS: list[dict[str, Any]] = []
 _WARNINGS: list[dict[str, str]] = []
 _SEQ = [0]
+# Multi-Angle Research (session.json research_v2): the approved angles of this bundle group with their contracts;
+# angles recorded by successful executions, and by the running one (settled when it ends)
+_RESEARCH: dict[str, Any] = {}
+_RESEARCH_DONE: set[str] = set()
+_RESEARCH_PENDING: set[str] = set()
+RESEARCH_RESERVED = ("research_input_", "research_call_")
+RESEARCH_WRAPPER_VERSION = 1
 NAME = _re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\-. ]{0,79}$")
 INTERMEDIATE_NAME = _re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 MAX_ACCESS = 500
@@ -135,6 +147,10 @@ def _configure(session: dict[str, Any], session_dir: str) -> None:
     _INTERMEDIATE_DIR = _os.path.join(session_dir, "intermediate")
     _DUCKDB.clear()
     _DUCKDB.update(session["duckdb"])
+    _RESEARCH.clear()
+    _RESEARCH.update(session.get("research_v2") or {})
+    _RESEARCH_DONE.clear()
+    _RESEARCH_PENDING.clear()
 
 
 def _quote(text: str) -> str:
@@ -192,6 +208,14 @@ def _begin() -> None:
 
 def _end() -> dict[str, Any]:
     return {"access": list(_ACCESS), "outputs": list(_OUTPUTS), "warnings": list(_WARNINGS[-20:])}
+
+
+def _research_settle(ok: bool) -> None:
+    """Angles recorded by the execution that just ended count as recorded only when it succeeded (the harness reads
+    outputs of successful executions only), so a failed execution can be fixed and run again."""
+    if ok:
+        _RESEARCH_DONE.update(_RESEARCH_PENDING)
+    _RESEARCH_PENDING.clear()
 
 
 def _log(entry: dict[str, Any]) -> None:
@@ -724,6 +748,240 @@ def event_summary(events, baseline, *, hypothesis_id: str, outcome_column: str, 
     return summary
 
 
+# ---------------------------------------------------------------- Multi-Angle Research wrappers
+
+RESEARCH_FAMILIES = {"research_conditional": "CONDITIONAL_OUTCOME", "research_persistence": "PERSISTENCE",
+                     "research_group_comparison": "GROUP_COMPARISON", "research_quantiles": "QUANTILE_RANKING",
+                     "research_temporal_dependency": "TEMPORAL_DEPENDENCY"}
+
+
+def _research_angle(angle_id: Any, family: str | None) -> dict[str, Any]:
+    if not _RESEARCH:
+        raise SanitiError("The research_* helpers work only in an approved multi-angle research session.")
+    angles = _RESEARCH.get("angles") or {}
+    if angle_id not in angles:
+        raise SanitiError(f"{angle_id!r} is not an approved angle of bundle group {_RESEARCH.get('bundle_group_id')}: "
+                          f"{sorted(angles)}.")
+    if angle_id in _RESEARCH_DONE or angle_id in _RESEARCH_PENDING:
+        raise SanitiError(f"Angle {angle_id} is already recorded. Each angle is recorded once; its finding is computed "
+                          "from that input.")
+    angle = angles[angle_id]
+    if family is not None and angle["method_family"] != family:
+        wrapper = next(name for name, f in RESEARCH_FAMILIES.items() if f == angle["method_family"])
+        raise SanitiError(f"Angle {angle_id} uses {angle['method_id']} ({angle['method_family']}); record it with "
+                          f"saniti.{wrapper}.")
+    return angle
+
+
+def _research_dataset(angle: dict[str, Any], request: str) -> dict[str, Any]:
+    contract = angle.get("contract") or {}
+    local = (contract.get("local_request_ids") or {}).get(request)
+    for dataset in contract.get("datasets") or []:
+        if request in (dataset["data_request_id"], dataset.get("logical_name")) or local == dataset["data_request_id"]:
+            return dataset
+    allowed = [(d["data_request_id"], d.get("logical_name")) for d in contract.get("datasets") or []]
+    raise SanitiError(f"{request!r} is not a data request of this angle's contract; allowed: {allowed}.")
+
+
+def _research_approved(angle: dict[str, Any]) -> dict[str, Any]:
+    return {k: angle.get(k) for k in ("parameters", "expected_direction", "outcome_horizon_periods", "outcome_unit",
+                                      "min_effect", "multiple_testing_policy", "candidate_count",
+                                      "pairwise_comparisons", "holdout_start")}
+
+
+def _research_bounds(angle: dict[str, Any], frame) -> None:
+    """A frame the code built stays inside the angle's contract: its dates inside the extracted windows of the
+    contract's requests, its entities among those the requests delivered."""
+    import pandas as pd
+
+    datasets = [_request(d["data_request_id"]) for d in (angle.get("contract") or {}).get("datasets") or []]
+    windows = [(w["extract_from"], w["extract_to"]) for r in datasets for w in r.get("ranges") or []
+               if w.get("extract_from") and w.get("extract_to")]
+    if "date" in frame.columns and windows:
+        dates = pd.to_datetime(frame["date"], errors="coerce")
+        low, high = pd.Timestamp(min(w[0] for w in windows)), pd.Timestamp(max(w[1] for w in windows))
+        outside = int(((dates < low) | (dates > high)).sum())
+        if outside:
+            raise SanitiError(f"CONTRACT_DATE_OUTSIDE: {outside} rows have dates outside the angle's contract "
+                              f"({low.date()} to {high.date()}).")
+    if "entity" in frame.columns:
+        delivered: set[str] = set()
+        for r in datasets:
+            column = r.get("entity_column")
+            if column:
+                found = _frame(f"SELECT DISTINCT {_ident(column)} AS e FROM {_ident(r['logical_name'])}")
+                delivered |= {str(v) for v in found["e"].tolist()}
+        unknown = sorted({str(v) for v in frame["entity"].dropna().tolist()} - delivered)
+        if delivered and unknown:
+            raise SanitiError(f"CONTRACT_ENTITY_OUTSIDE: entities {unknown[:10]} are not in the angle's contract data.")
+
+
+def _write_research_input(angle_id: str, frame) -> dict[str, Any]:
+    import hashlib
+
+    import pandas as pd
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    import research_engines
+
+    if len(frame) > research_engines.MAX_INPUT_ROWS:
+        raise OutputLimitExceeded(f"An angle's input has at most {research_engines.MAX_INPUT_ROWS} rows.")
+    flat = frame.reset_index(drop=True).copy()
+    flat["date"] = pd.to_datetime(flat["date"]).dt.normalize()
+    for column in flat.columns:
+        if flat[column].dtype == object and column != "entity":
+            flat[column] = flat[column].map(lambda v: None if v is None else v)
+    name = f"research_input_{angle_id}"
+    file_name = _file(_name(name, internal=True), "parquet")
+    path = _os.path.join(_OUTPUT_DIR, file_name)
+    table = pa.Table.from_pandas(flat, preserve_index=False)
+    pq.write_table(table, path, compression="zstd")
+    with open(path, "rb") as handle:
+        digest = hashlib.sha256(handle.read()).hexdigest()
+    _record("TABLE", "PARQUET", name, file_name, f"Research input of angle {angle_id} (recorded for the backend "
+                                                 "finding).", columns=table.column_names, row_count=table.num_rows)
+    return {"name": name, "sha256": digest, "rows": table.num_rows, "columns": table.column_names}
+
+
+def _write_research_call(angle_id: str, call: dict[str, Any]) -> None:
+    name = f"research_call_{angle_id}"
+    text = _json.dumps(_jsonable(call), ensure_ascii=False, separators=(",", ":"))
+    if len(text.encode("utf-8")) > int(_LIMITS["max_json_bytes"]):
+        raise OutputLimitExceeded("The research call record is too large.")
+    file_name = _file(_name(name, internal=True), "json")
+    with open(_os.path.join(_OUTPUT_DIR, file_name), "w", encoding="utf-8") as handle:
+        handle.write(text)
+    _record("JSON", "JSON", name, file_name, f"Research call of angle {angle_id}.")
+
+
+def _research(family: str, angle_id: str, frame, request: str | None, range_id: str | None,
+              roles: dict[str, Any]) -> dict[str, Any]:
+    import research_engines
+    import research_inputs
+
+    angle = _research_angle(angle_id, family)
+    method = angle["method_id"]
+    declared = {k: v for k, v in roles.items() if v is not None}
+    if (frame is None) == (request is None):
+        raise SanitiError("Pass either frame (a DataFrame your code built, with columns date, entity and the roles) "
+                          "or request with the role declarations, not both.")
+    if frame is not None:
+        if declared:
+            raise SanitiError("Role declarations (expressions) go with request=...; with frame=, name the frame's "
+                              "columns after the roles.")
+        required, optional = research_inputs.roles_for(method)
+        import pandas as pd
+
+        if not isinstance(frame, pd.DataFrame):
+            raise SanitiError("frame must be a pandas DataFrame.")
+        missing = [c for c in ("date", *required) if c not in frame.columns]
+        if missing:
+            raise SanitiError(f"frame lacks the columns {missing}; {method} takes date, entity (optional) and "
+                              f"{list(required)}" + (f" (optional {list(optional)})" if optional else "") + ".")
+        canonical = frame[[c for c in ("date", "entity", *required, *optional) if c in frame.columns]].copy()
+        _research_bounds(angle, canonical)
+        mode, level, declaration, info = "FRAME", "STATISTICS_VERIFIED", None, {"rows": int(len(canonical))}
+    else:
+        dataset = _research_dataset(angle, request)
+        r = _request(dataset["data_request_id"])
+        allowed_ranges = {w["range_id"] for w in dataset.get("ranges") or []}
+        local_ranges = (angle.get("contract") or {}).get("local_range_ids") or {}
+        chosen = local_ranges.get(f"{request}:{range_id}", range_id) if range_id is not None else None
+        if chosen is not None and chosen not in allowed_ranges:
+            raise SanitiError(f"{range_id!r} is not a range of this angle's contract for {request}; allowed: "
+                              f"{sorted(allowed_ranges)}.")
+        windows = [(w["start"], w["end"]) for w in r.get("ranges") or []
+                   if w["range_id"] in allowed_ranges and (chosen is None or w["range_id"] == chosen)]
+        keys = [c for c in (r.get("entity_column"), r.get("time_column")) if c]
+        columns = [c for c in dataset.get("columns") or [] if c not in keys]
+        rows = load(r["data_request_id"], columns=list(dict.fromkeys(keys + columns)))
+        declaration = {"request": r["data_request_id"], "range_id": chosen, "roles": declared}
+        try:
+            canonical, info = research_inputs.build(
+                method, declaration, rows, entity_column=r.get("entity_column"), time_column=r["time_column"],
+                columns=columns, windows=windows, horizon=int(angle["outcome_horizon_periods"]),
+                unit=angle["outcome_unit"])
+        except research_inputs.InputError as exc:
+            raise SanitiError(f"{exc.code}: {exc}") from None
+        mode, level = "DECLARATIVE", "FORMULA_AND_STATISTICS_VERIFIED"
+    try:
+        result = research_engines.evaluate(method, canonical, _research_approved(angle))
+    except research_engines.EngineError as exc:
+        raise SanitiError(f"{exc.code}: {exc}") from None
+    decision = research_engines.decide(result, expected_direction=angle["expected_direction"], validation_level=level,
+                                       minimum_sample=angle.get("minimum_sample"))
+    stored = _write_research_input(angle_id, canonical)
+    _write_research_call(angle_id, {"version": RESEARCH_WRAPPER_VERSION, "angle_id": angle_id, "method_id": method,
+                                    "mode": mode, "validation_level": level, "declaration": declaration,
+                                    "input": stored, "input_info": {k: info.get(k) for k in
+                                                                    ("rows", "censored_outcome_rows",
+                                                                     "forward_horizon", "expressions")}})
+    _RESEARCH_PENDING.add(angle_id)
+    _log({"call": "research", "angle_id": angle_id, "method_id": method, "mode": mode, "rows": stored["rows"]})
+    primary = result.get("primary") or {}
+    return {"angle_id": angle_id, "method_id": method, "mode": mode, "validation_level": level,
+            "preview": {**decision, "primary": {k: primary.get(k) for k in ("candidate", "estimate", "ci",
+                                                                            "ci_adjusted", "p_value", "p_adjusted")},
+                        "sample": result.get("sample")},
+            "note": "Preview only: when the bundle group completes, the backend recomputes this angle's finding from "
+                    "the recorded input with the approved values; that finding is the one reported."}
+
+
+def research_conditional(angle_id: str, frame=None, *, request: str | None = None, range_id: str | None = None,
+                         condition: Any = None, signal: Any = None, outcome: Any = None) -> dict[str, Any]:
+    """Record one conditional-outcome angle (conditional_distribution: condition + outcome; threshold_sensitivity:
+    signal + outcome, thresholds from the approved plan). Either frame= a DataFrame with date, entity and the role
+    columns (validation STATISTICS_VERIFIED), or request= a contract data request with each role declared as an
+    expression over its columns and outcome={'forward_return': 'close'} (FORMULA_AND_STATISTICS_VERIFIED)."""
+    return _research("CONDITIONAL_OUTCOME", angle_id, frame, request, range_id,
+                     {"condition": condition, "signal": signal, "outcome": outcome})
+
+
+def research_persistence(angle_id: str, frame=None, *, request: str | None = None, range_id: str | None = None,
+                         state: Any = None) -> dict[str, Any]:
+    """Record one streak_persistence angle: state (True/False per entity and date); streak lengths and horizon come
+    from the approved plan."""
+    return _research("PERSISTENCE", angle_id, frame, request, range_id, {"state": state})
+
+
+def research_group_comparison(angle_id: str, frame=None, *, request: str | None = None, range_id: str | None = None,
+                              group: Any = None, outcome: Any = None) -> dict[str, Any]:
+    """Record one regime_comparison (group = a property of the date) or cohort_comparison (group fixed per entity)
+    angle; only the approved group labels may appear."""
+    return _research("GROUP_COMPARISON", angle_id, frame, request, range_id, {"group": group, "outcome": outcome})
+
+
+def research_quantiles(angle_id: str, frame=None, *, request: str | None = None, range_id: str | None = None,
+                       signal: Any = None, outcome: Any = None) -> dict[str, Any]:
+    """Record one quantile_ranking angle: signal ranked per date into the approved number of buckets."""
+    return _research("QUANTILE_RANKING", angle_id, frame, request, range_id, {"signal": signal, "outcome": outcome})
+
+
+def research_temporal_dependency(angle_id: str, frame=None, *, request: str | None = None,
+                                 range_id: str | None = None, leader: Any = None, follower: Any = None,
+                                 condition: Any = None) -> dict[str, Any]:
+    """Record one lead_lag or correlation_dependency angle: leader and follower (and, for correlation_dependency, an
+    optional condition); lags, rolling window and method come from the approved plan."""
+    return _research("TEMPORAL_DEPENDENCY", angle_id, frame, request, range_id,
+                     {"leader": leader, "follower": follower, "condition": condition})
+
+
+def research_custom(angle_id: str, result: Any, note: str) -> dict[str, Any]:
+    """Record an angle the research helpers cannot express: the result of custom code. Its finding is
+    EXECUTION_ONLY (nothing is recomputed) and can be at most INSUFFICIENT_EVIDENCE."""
+    angle = _research_angle(angle_id, None)
+    if not isinstance(note, str) or not note.strip():
+        raise SanitiError("note says why the approved method could not be used.")
+    _write_research_call(angle_id, {"version": RESEARCH_WRAPPER_VERSION, "angle_id": angle_id,
+                                    "method_id": angle["method_id"], "mode": "CUSTOM",
+                                    "validation_level": "EXECUTION_ONLY", "note": note[:1000],
+                                    "result": _jsonable(result)})
+    _RESEARCH_PENDING.add(angle_id)
+    _log({"call": "research", "angle_id": angle_id, "method_id": angle["method_id"], "mode": "CUSTOM", "rows": 0})
+    return {"angle_id": angle_id, "mode": "CUSTOM", "validation_level": "EXECUTION_ONLY",
+            "note": "Recorded as EXECUTION_ONLY: the backend cannot recompute it, so it cannot support the hypothesis."}
+
+
 PERIOD_RETURN_STATUSES = ("COMPLETE", "NO_PRIOR_CLOSE", "NO_END_VALUE", "INVALID_BASE_VALUE",
                           "INSUFFICIENT_INPUT_DATA", "DUPLICATE_BOUNDARY_OBSERVATION")
 PERIOD_RETURN_COLUMNS = ["entity", "base_date", "base_value", "end_date", "end_value", "return_decimal", "return_pct",
@@ -898,9 +1156,12 @@ def add_warning(code: str, message: str) -> None:
 
 # ---------------------------------------------------------------- outputs
 
-def _name(name: str) -> str:
+def _name(name: str, internal: bool = False) -> str:
     if not isinstance(name, str) or not NAME.fullmatch(name):
         raise InvalidOutput("Output names are 1-80 letters, digits, spaces, '_', '-' or '.'.")
+    if not internal and name.startswith(RESEARCH_RESERVED):
+        raise InvalidOutput(f"Output names starting with {RESEARCH_RESERVED} are written only by the research_* "
+                            "helpers.")
     return name
 
 

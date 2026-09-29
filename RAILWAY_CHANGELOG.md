@@ -1,5 +1,17 @@
 # Railway changelog
 
+## 2026-09-29 — Multi-Angle Research code on dev, flags off (user-approved)
+
+- **Push** `main` fast-forward `8398768..426c88f` (commits `96231fe` sandbox, `426c88f` market-ai-orc; see
+  `MULTI_ANGLE_RESEARCH.md`). Rollback references: sandbox `7cded3fc`, orc `ef7ff785` (both `348f03bb`).
+- **Deployments**: market-python-sandbox `7f957898` `SUCCESS`, market-ai-orc `ca355581` `SUCCESS` (09:39 UTC).
+  Logs: sandbox `sandbox_started` with `isolation_enforced=true` and its store upgraded to schema 4 without error;
+  both answer `GET /ready` 200. Other services were not rebuilt (watch patterns).
+- **Variables**: none changed. `PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED` and `AI_ENABLE_MULTI_ANGLE_RESEARCH` are
+  unset (off), so research v1 and ANALYSIS run as before. Migration `20260929_001` is not applied.
+- Next (needs a separate approval): enable the sandbox flag, then the orc flag, run golden questions, apply the
+  migration last.
+
 ## 2026-09-29 — market-web-governor: `/v1/ask` relevant forward timeline and answer dates checked (W17, W18)
 
 - **Live test before the fix** (runner `e80fe82b`, `live-ask13-20260929-q1`, "bagaimana outlook industry nikel", on

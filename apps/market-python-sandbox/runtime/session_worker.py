@@ -219,6 +219,7 @@ def main(session_dir: str, response_fd: str) -> int:
             sys.stdout, sys.stderr = old_out, old_err
         changed = sorted(n for n, v in namespace.items() if n not in base and not n.startswith("_")
                          and before.get(n) != id(v))
+        saniti._research_settle(status == "OK")
         recorded = saniti._end()
         answer = {"seq": seq, "status": status, "stdout": captured.value(), "error": error,
                   "insufficient": insufficient, "outputs": recorded["outputs"], "access": recorded["access"],

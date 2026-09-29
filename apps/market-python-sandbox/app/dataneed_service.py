@@ -22,10 +22,12 @@ from .data_need import (COMPLETENESS_RULE, DEFAULT_TIME_BASIS, NULL_POLICY, PERI
 from .datasets import DatasetFailure
 from .dataneed_store import DRAFT_RETENTION_DAYS, DataNeedStore
 from .records import utc_now
-from .research_governance import check_request
+from .research_governance import GOVERNANCE_V2, check_request, check_request_v2, review_v2
 from .research_findings import evaluate as evaluate_findings
+from .research_methods import sha256_json as research_sha256
 from .sessions import SessionError, SessionManager
 from .research_governance import review as governance_review
+from . import research_validation
 
 logger = logging.getLogger("market_python_sandbox")
 
@@ -239,6 +241,221 @@ class DataNeedService:
         return {"need_id": need_id, "request_id": record["request_id"],
                 "warnings": record["result"].get("warnings") or [], **record["approved"]}
 
+    # ------------------------------------------------------------------------------------------ multi-angle research
+
+    def _multi_angle(self) -> None:
+        if not self.settings.multi_angle_research_enabled:
+            raise DataNeedError("MULTI_ANGLE_RESEARCH_DISABLED", "Multi-angle research is not enabled.", http_status=404)
+
+    def promote_research(self, request_id: str, origin_request_id: str, governance: Any,
+                         data_plan: Any) -> dict[str, Any]:
+        """Promote the signed feasibility drafts of an approved research_plan/v2 into one approved RESEARCH need per
+        bundle group, after the Research Governor v2 approved the declaration. Every draft must be the one the plan
+        was checked against (its spec hash and data contract hash) and belong to the request that proposed the plan;
+        nothing is re-planned here and the model never rebuilds a spec."""
+        self._multi_angle()
+        policy = self.settings.multi_angle_policy()
+        issues = check_request_v2(governance, policy)
+        plan_sha = research_sha256({k: v for k, v in data_plan.items() if k != "research_data_plan_sha256"}) \
+            if isinstance(data_plan, dict) else None
+        for run in self.store.research_runs_for(request_id):
+            if plan_sha and run["data_plan_sha256"] == plan_sha and isinstance(governance, dict) \
+                    and run["plan_id"] == governance.get("plan_id"):
+                return {**self.research_run(request_id, run["research_run_id"]), "replayed": True}
+        groups: list[dict[str, Any]] = []
+        drafts: dict[str, dict[str, Any]] = {}
+        if not issues:
+            issues += self._check_data_plan(origin_request_id, governance, data_plan, plan_sha, drafts)
+            groups = data_plan.get("bundle_groups") or [] if not issues else []
+        if issues:
+            self._log("research_run_rejected", request_id=request_id, issues=[i["code"] for i in issues][:20])
+            return {"status": "REJECTED", "error": {"code": "RESEARCH_RUN_INVALID", "message": "The approved plan's "
+                    "research governance or data plan does not verify.", "issues": issues[:20]},
+                    "next_action": "REPORT_LIMITATION"}
+        history = [{"governance": r["governance"]} for r in self.store.research_runs_for(request_id)]
+        decision = review_v2(governance, history, policy)
+        if decision["decision"] != "APPROVED":
+            self._log("research_run_rejected", request_id=request_id, decision=decision["decision"],
+                      reason=decision["reason_code"])
+            return {"status": decision["decision"], "error": {"code": decision["reason_code"],
+                                                              "message": decision["message"]},
+                    "budget": decision["budget"], "next_action": "REPORT_LIMITATION"}
+        run_id = f"rrun_{secrets.token_hex(12)}"
+        now = utc_now()
+        contracts = data_plan.get("angle_data_contracts") or {}
+        base_policy = self.policy
+        group_rows, needs = [], []
+        for group in groups:
+            draft = drafts[group["draft_id"]]
+            angle_ids = list(group["angle_ids"])
+            angles = {}
+            for angle_id in angle_ids:
+                angle = dict(decision["constraints"]["angles"][angle_id])
+                contract = contracts[angle_id]
+                angle.update(angle_id=angle_id, contract=contract,
+                             holdout_start=research_validation.holdout_start(contract)
+                             if angle.get("holdout_required") else None)
+                angles[angle_id] = angle
+            research = {"decision": "APPROVED", "reason_code": None, "message": None, "budget": decision["budget"],
+                        "constraints": {"governance_version": GOVERNANCE_V2, "research_run_id": run_id,
+                                        "bundle_group_id": group["bundle_group_id"],
+                                        "plan_id": governance["plan_id"],
+                                        "root_hypothesis_id": governance["root_hypothesis_id"],
+                                        "compute_seconds": base_policy.compute_seconds_per_experiment
+                                        * max(1, len(angle_ids)), "angles": angles}}
+            spec = draft["submitted"]["spec"]
+            approved = draft["approved"]
+            need_id = f"need_{secrets.token_hex(12)}"
+            submitted = {"spec": spec, "research_governance": governance, "promoted_from_draft": group["draft_id"]}
+            result = {"status": "APPROVED", "need_id": need_id, "request_group_id": spec.get("request_group_id"),
+                      "revision": spec.get("revision"), "issues": [],
+                      "warnings": draft["result"].get("warnings") or [], "research_governance": research,
+                      "extraction_allowed": True, "next_action": "PREPARE_DATA_BUNDLE",
+                      "promoted_from_draft": group["draft_id"]}
+            needs.append({"need_id": need_id, "request_id": request_id,
+                          "request_group_id": spec.get("request_group_id"), "revision": spec.get("revision"),
+                          "mode": "RESEARCH", "status": "APPROVED", "spec_sha256": research_sha256(submitted),
+                          "submitted": submitted, "result": result,
+                          "approved": {**approved, "research_governance": research}, "governance": governance,
+                          "research": research, "extraction_allowed": 1, "created_at": now,
+                          "conversation_key": None, "contract_sha256": draft.get("contract_sha256")})
+            group_rows.append({"research_run_id": run_id, "bundle_group_id": group["bundle_group_id"],
+                               "need_id": need_id, "draft_id": group["draft_id"], "spec_sha256": group["spec_sha256"],
+                               "angle_ids": angle_ids, "status": "APPROVED", "reason": None, "session_id": None,
+                               "completion_id": None, "updated_at": now})
+        for need in needs:
+            self.store.insert_need(need)
+        self.store.insert_research_run({"research_run_id": run_id, "request_id": request_id,
+                                        "origin_request_id": origin_request_id, "plan_id": governance["plan_id"],
+                                        "plan_sha256": governance["hashes"]["plan_sha256"],
+                                        "data_plan_sha256": plan_sha, "governance": governance,
+                                        "data_plan": data_plan, "decision": decision, "status": "APPROVED",
+                                        "created_at": now}, group_rows)
+        self._log("research_run_approved", request_id=request_id, research_run_id=run_id,
+                  plan_id=governance["plan_id"], groups=len(group_rows), angles=len(governance["angles"]))
+        return self.research_run(request_id, run_id)
+
+    def _check_data_plan(self, origin_request_id: str, governance: dict[str, Any], data_plan: Any,
+                         plan_sha: str | None, drafts: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+        issues: list[dict[str, Any]] = []
+
+        def add(code: str, path: str, value: Any) -> None:
+            issues.append({"data_request_id": None, "code": code, "field_path": f"research_data_plan{path}",
+                           "rejected_value": value if not isinstance(value, (dict, list)) else str(value)[:200]})
+
+        if not isinstance(data_plan, dict) or data_plan.get("data_plan_version") != "research_data_plan/v1" \
+                or data_plan.get("strategy") not in ("SINGLE_BUNDLE", "MULTI_BUNDLE"):
+            add("DATA_PLAN_INVALID", "", None)
+            return issues
+        if data_plan.get("research_data_plan_sha256") != plan_sha:
+            add("DATA_PLAN_HASH_MISMATCH", ".research_data_plan_sha256", data_plan.get("research_data_plan_sha256"))
+        hashes = governance["hashes"]
+        groups = data_plan.get("bundle_groups") or []
+        contracts = data_plan.get("angle_data_contracts") or {}
+        if hashes.get("research_data_plan_sha256") != plan_sha:
+            add("GOVERNANCE_DATA_PLAN_MISMATCH", ".research_data_plan_sha256", hashes.get("research_data_plan_sha256"))
+        if hashes.get("draft_ids") != [g.get("draft_id") for g in groups]:
+            add("GOVERNANCE_DRAFTS_MISMATCH", ".bundle_groups", hashes.get("draft_ids"))
+        if hashes.get("spec_sha256s") != [g.get("spec_sha256") for g in groups]:
+            add("GOVERNANCE_SPECS_MISMATCH", ".bundle_groups", hashes.get("spec_sha256s"))
+        if data_plan.get("angle_to_bundle_group") != governance.get("angle_to_bundle_group"):
+            add("ANGLE_GROUP_MISMATCH", ".angle_to_bundle_group", data_plan.get("angle_to_bundle_group"))
+        computed = {}
+        for angle_id, contract in contracts.items():
+            body = {k: v for k, v in contract.items() if k != "angle_data_contract_sha256"} \
+                if isinstance(contract, dict) else None
+            computed[angle_id] = research_sha256(body) if body is not None else None
+            if not isinstance(contract, dict) or contract.get("angle_data_contract_sha256") != computed[angle_id]:
+                add("ANGLE_CONTRACT_HASH_MISMATCH", f".angle_data_contracts.{angle_id}", angle_id)
+        if hashes.get("angle_data_contract_sha256s") != computed:
+            add("GOVERNANCE_CONTRACTS_MISMATCH", ".angle_data_contracts", sorted(computed))
+        for angle in governance["angles"]:
+            if computed.get(angle["angle_id"]) != angle.get("angle_data_contract_sha256"):
+                add("ANGLE_CONTRACT_HASH_MISMATCH", f".angles.{angle['angle_id']}", angle["angle_id"])
+        covered = [a for g in groups for a in g.get("angle_ids") or []]
+        if sorted(covered) != sorted(a["angle_id"] for a in governance["angles"]) or len(covered) != len(set(covered)):
+            add("ANGLE_COVERAGE_MISMATCH", ".bundle_groups", covered)
+        for index, group in enumerate(groups):
+            draft = self.store.get_draft(str(group.get("draft_id")))
+            path = f".bundle_groups[{index}]"
+            if draft is None:
+                add("DRAFT_NOT_FOUND", f"{path}.draft_id", group.get("draft_id"))
+                continue
+            if draft["request_id"] != origin_request_id:
+                add("DRAFT_OTHER_REQUEST", f"{path}.draft_id", group.get("draft_id"))
+            if research_sha256(draft["submitted"]["spec"]) != group.get("spec_sha256"):
+                add("DRAFT_SPEC_MISMATCH", f"{path}.spec_sha256", group.get("spec_sha256"))
+            if group.get("data_contract_sha256") != draft.get("contract_sha256"):
+                add("DRAFT_CONTRACT_MISMATCH", f"{path}.data_contract_sha256", group.get("data_contract_sha256"))
+            if (draft["submitted"]["spec"] or {}).get("mode") != "RESEARCH":
+                add("DRAFT_MODE_MISMATCH", f"{path}.draft_id", group.get("draft_id"))
+            for angle_id in group.get("angle_ids") or []:
+                contract = contracts.get(angle_id) or {}
+                if contract.get("bundle_group_id") != group.get("bundle_group_id") \
+                        or contract.get("data_contract_sha256") != draft.get("contract_sha256"):
+                    add("ANGLE_CONTRACT_GROUP_MISMATCH", f".angle_data_contracts.{angle_id}", angle_id)
+                elif contract and any(d.get("data_request_id") not in {r["data_request_id"] for r in
+                                                                       draft["approved"]["requests"].values()}
+                                      for d in contract.get("datasets") or []):
+                    add("ANGLE_CONTRACT_REQUEST_UNKNOWN", f".angle_data_contracts.{angle_id}", angle_id)
+            drafts[group["draft_id"]] = draft
+        for angle in governance["angles"]:
+            if angle.get("holdout_required") and research_validation.holdout_start(contracts.get(angle["angle_id"])
+                                                                                   or {}) is None:
+                add("HOLDOUT_RANGE_MISSING", f".angle_data_contracts.{angle['angle_id']}", angle["angle_id"])
+        return issues
+
+    def research_run(self, request_id: str, research_run_id: str) -> dict[str, Any]:
+        """The grouped state of one research run: groups (need, session, completion, terminal state) and the
+        backend findings recorded so far."""
+        run = self.store.get_research_run(research_run_id)
+        if run is None or run["request_id"] != request_id:
+            raise DataNeedError("RESEARCH_RUN_NOT_FOUND", "No research run with this id exists for this request.",
+                                http_status=404)
+        groups = self.store.research_groups(research_run_id)
+        findings = self.store.research_findings(research_run_id)
+        return {"status": run["status"], "research_run_id": research_run_id, "plan_id": run["plan_id"],
+                "data_plan_sha256": run["data_plan_sha256"],
+                "groups": [{k: g[k] for k in ("bundle_group_id", "need_id", "draft_id", "angle_ids", "status", "reason",
+                                              "session_id", "completion_id")} for g in groups],
+                "findings": [f["finding"] for f in findings],
+                "angles": [a["angle_id"] for a in run["governance"]["angles"]]}
+
+    def close_research_group(self, request_id: str, research_run_id: str, bundle_group_id: str,
+                             reason: str) -> dict[str, Any]:
+        """A bundle group that cannot run (its bundle, session or execution limits failed) becomes FAILED and each of
+        its angles without a finding gets a backend-authored NOT_RUN finding, so no angle disappears."""
+        self._multi_angle()
+        view = self.research_run(request_id, research_run_id)
+        group = next((g for g in view["groups"] if g["bundle_group_id"] == bundle_group_id), None)
+        if group is None:
+            raise DataNeedError("RESEARCH_GROUP_NOT_FOUND", "No such bundle group in this research run.",
+                                http_status=404)
+        if group["status"] in ("COMPLETED", "FAILED"):
+            return {**view, "replayed": True}
+        run = self.store.get_research_run(research_run_id)
+        angles = {a["angle_id"]: a for a in run["governance"]["angles"]}
+        recorded = {f["angle_id"] for f in view["findings"]}
+        context = {"plan_id": run["plan_id"], "research_run_id": research_run_id, "bundle_group_id": bundle_group_id,
+                   "session_id": group.get("session_id"),
+                   "hashes": {"plan_sha256": run["plan_sha256"], "research_data_plan_sha256": run["data_plan_sha256"]}}
+        code = str(reason or "GROUP_FAILED")[:60]
+        for angle_id in group["angle_ids"]:
+            if angle_id in recorded:
+                continue
+            finding = research_validation.envelope(context, angle_id, angles[angle_id], status="NOT_RUN",
+                                                   reason=code, level=None)
+            self.store.upsert_research_finding({"research_run_id": research_run_id, "angle_id": angle_id,
+                                                "bundle_group_id": bundle_group_id,
+                                                "session_id": group.get("session_id"), "completion_id": None,
+                                                "status": "NOT_RUN", "validation_level": None, "finding": finding,
+                                                "created_at": utc_now()})
+        self.store.update_research_group(research_run_id, bundle_group_id, status="FAILED", reason=code,
+                                         updated_at=utc_now())
+        self._log("research_group_failed", request_id=request_id, research_run_id=research_run_id,
+                  bundle_group_id=bundle_group_id, reason=code)
+        return self.research_run(request_id, research_run_id)
+
     # ------------------------------------------------------------------------------------------ governed bundles
 
     BUNDLE_ACTIONS = {"BUNDLE_TOO_LARGE": "REVISE_DATA_NEED_SPEC", "NEED_NOT_FOUND": "SUBMIT_DATA_NEED_SPEC",
@@ -300,11 +517,12 @@ class DataNeedService:
         if binding is not None and binding["conversation_key"] != key:
             binding = None
         need_id = binding["need_id"] if binding else (record or {}).get("need_id")
-        cpu = None
+        cpu, research_v2 = None, None
         if need_id:
             need = self.store.get_need(need_id)
             research = (need or {}).get("research") or {}
             cpu = (research.get("constraints") or {}).get("compute_seconds")
+            research_v2 = self._session_research(research)
         if key and record is not None and (binding is not None or record["request_id"] == request_id):
             for warm in self.store.warm_sessions(key):
                 if warm["bundle_id"] == bundle_id and warm["session_id"] in self.sessions.workers:
@@ -313,7 +531,16 @@ class DataNeedService:
                     except SessionError:
                         continue
         return self.sessions.open(request_id, bundle_id, cpu_seconds=cpu, conversation_key=key, need_id=need_id,
-                                  bound=binding is not None)
+                                  bound=binding is not None, research=research_v2)
+
+    def _session_research(self, research: dict[str, Any]) -> dict[str, Any] | None:
+        """The research_v2 section of session.json for a need promoted by a multi-angle research run (flag on only)."""
+        constraints = research.get("constraints") or {}
+        if not self.settings.multi_angle_research_enabled or constraints.get("governance_version") != GOVERNANCE_V2:
+            return None
+        return {"version": 2, "research_run_id": constraints.get("research_run_id"),
+                "bundle_group_id": constraints.get("bundle_group_id"), "plan_id": constraints.get("plan_id"),
+                "angles": constraints.get("angles") or {}}
 
     def reuse_bundle(self, request_id: str, need_id: str, conversation_key: str | None) -> dict[str, Any]:
         """Conversation reuse (S1): bind this request's approved need to an earlier READY bundle of the same
@@ -442,9 +669,11 @@ class DataNeedService:
                         "a backend validator recalculated the formula"]
     RESEARCH_CLAIMS_FORBIDDEN = ["a causal effect", "a prediction or forecast of future prices or returns"]
 
-    def complete(self, session_id: str, request_id: str) -> dict[str, Any]:
+    def complete(self, session_id: str, request_id: str, finalize: bool = False) -> dict[str, Any]:
         """ExecutionManifest + Coverage Validator (delivery and processing) + final status; outputs are released and
-        the session closed only when coverage passes and the execution succeeded."""
+        the session closed only when coverage passes and the execution succeeded. For a multi-angle research group,
+        every approved angle also needs one backend finding (finalize: an angle without a record becomes NOT_RUN and
+        an INVALID finding is accepted as the group's terminal state)."""
         record = self.store.get_session(session_id)
         if record is None or record["request_id"] != request_id:
             raise SessionError("SESSION_NOT_FOUND", "No session with this id exists for this request.", 404,
@@ -520,9 +749,28 @@ class DataNeedService:
         research = need.get("research_governance") or {}
         mode = need.get("mode")
         passed = coverage_status == "PASS" and execution == "SUCCESS"
+        # multi-angle research: one backend finding per approved angle of this bundle group
+        constraints = research.get("constraints") or {}
+        grouped = None
+        if mode == "RESEARCH" and constraints.get("governance_version") == GOVERNANCE_V2:
+            if not self.settings.multi_angle_research_enabled:
+                passed = False
+            elif passed:
+                ok_ids = {e["execution_id"] for e in executions if e["status"] == "OK"}
+                grouped = research_validation.validate_group(
+                    context={"plan_id": constraints.get("plan_id"),
+                             "research_run_id": constraints.get("research_run_id"),
+                             "bundle_group_id": constraints.get("bundle_group_id"), "session_id": session_id,
+                             "hashes": self._research_hashes(constraints, bundle)},
+                    angles=constraints.get("angles") or {}, bundle=bundle, path_of=self.bundles.path_of,
+                    outputs=[o for o in outputs if o["execution_id"] in ok_ids], executions=executions,
+                    outputs_root=self.sessions.outputs_root, finalize=finalize)
+                passed = not grouped["missing"] and not grouped["unapproved"] \
+                    and (finalize or not grouped["invalid"])
         # research findings v1: the backend's own sample category and verdict from the released event aggregates
         findings = None
-        if self.settings.research_findings_enabled and mode == "RESEARCH" and passed:
+        if self.settings.research_findings_enabled and mode == "RESEARCH" and passed and grouped is None \
+                and constraints.get("governance_version") != GOVERNANCE_V2:
             findings = evaluate_findings(research.get("constraints") or {}, outputs, self.sessions.outputs_root)
             passed = findings["status"] == "OK"
         final = {
@@ -561,6 +809,21 @@ class DataNeedService:
                 "execution_ids": [e["execution_id"] for e in executions if e["status"] == "OK"]}
         if findings is not None and findings["status"] == "OK":
             final["research_findings"] = [findings["finding"]]
+        if grouped is not None:
+            final["calculation_validation"] = grouped["calculation_validation"] if passed else "NOT_PERFORMED"
+            final["research_group"] = {"research_run_id": constraints.get("research_run_id"),
+                                       "bundle_group_id": constraints.get("bundle_group_id"),
+                                       "angles": sorted(constraints.get("angles") or {}),
+                                       "missing": grouped["missing"], "invalid": grouped["invalid"],
+                                       "unapproved_outputs": grouped["unapproved"], "finalized": bool(finalize)}
+            if passed:
+                final["research_findings_v2"] = [grouped["findings"][a] for a in sorted(grouped["findings"])]
+                if grouped["calculation_validation"] != "NOT_PERFORMED":
+                    final["claims_forbidden"] = [c for c in final["claims_forbidden"]
+                                                 if c not in self.CLAIMS_FORBIDDEN]
+                    final["claims_allowed"] = [*final["claims_allowed"],
+                                               f"the research statistics were recomputed by the backend "
+                                               f"({grouped['calculation_validation']})"]
         if self.settings.modules_audit_enabled:
             final["modules_used"] = sorted({m for e in executions if e["status"] == "OK"
                                             for m in e.get("modules") or []})
@@ -583,6 +846,20 @@ class DataNeedService:
                   "execution_manifest_sha256": sha256_json(manifest)}
         if passed:
             result["next_action"] = "ANSWER_FROM_RELEASED_OUTPUTS"
+        elif grouped is not None and not passed:
+            result["next_action"] = "RUN_PYTHON"
+            parts = []
+            if grouped["missing"]:
+                parts.append(f"angles without a record: {grouped['missing']} (call their saniti.research_* helper in "
+                             "a successful execution)")
+            if grouped["invalid"]:
+                parts.append(f"angles INVALID: {grouped['invalid']} (see the findings' status_reason; fix the input "
+                             "or complete with finalize to accept them)")
+            if grouped["unapproved"]:
+                parts.append(f"outputs of unapproved angles: {grouped['unapproved']}")
+                result["next_action"] = "REPORT_LIMITATION"
+            result["message"] = "Research group incomplete: " + "; ".join(parts)
+            result["research_findings_v2"] = [grouped["findings"][a] for a in sorted(grouped["findings"])]
         elif findings is not None and findings["status"] != "OK":
             result["next_action"] = "RUN_PYTHON"
             result["message"] = findings["message"]
@@ -623,6 +900,16 @@ class DataNeedService:
             except Exception as exc:  # noqa: BLE001 - audit never fails a completion while optional
                 self._log("sandbox_audit_enqueue_failed", request_id=request_id, completion_id=completion_id,
                           error=type(exc).__name__)
+        if grouped is not None and passed:
+            for angle_id, finding in grouped["findings"].items():
+                self.store.upsert_research_finding({
+                    "research_run_id": constraints.get("research_run_id"), "angle_id": angle_id,
+                    "bundle_group_id": constraints.get("bundle_group_id"), "session_id": session_id,
+                    "completion_id": completion_id, "status": finding["status"],
+                    "validation_level": finding.get("validation_level"), "finding": finding, "created_at": utc_now()})
+            self.store.update_research_group(constraints.get("research_run_id"), constraints.get("bundle_group_id"),
+                                             status="COMPLETED", session_id=session_id, completion_id=completion_id,
+                                             updated_at=utc_now())
         if warm:
             self.store.update_session(session_id, status="WARM_IDLE", last_active_at=utc_now())
         elif passed:
@@ -631,6 +918,11 @@ class DataNeedService:
                   coverage=coverage_status, execution=execution, released=len(released),
                   evidence_label=final["evidence_label"])
         return result
+
+    def _research_hashes(self, constraints: dict[str, Any], bundle: dict[str, Any]) -> dict[str, Any]:
+        run = self.store.get_research_run(str(constraints.get("research_run_id"))) or {}
+        return {"plan_sha256": run.get("plan_sha256"), "research_data_plan_sha256": run.get("data_plan_sha256"),
+                "bundle_checksum_sha256": bundle.get("checksum_sha256"), "bundle_id": bundle.get("input_bundle_id")}
 
     def get_bundle(self, bundle_id: str) -> dict[str, Any] | None:
         record = self.store.get_bundle(bundle_id)

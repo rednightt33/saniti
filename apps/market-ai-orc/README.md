@@ -1247,6 +1247,31 @@ at start-up) and a request that sets it gets HTTP 400 `ANALYSIS_PATH_UNAVAILABLE
   otherwise, so responses without it keep their exact shape. The system prompt is unchanged (the note is per request),
   so the cached static prefix is the same with or without a path.
 
+### Multi-Angle Research (off unless `AI_ENABLE_MULTI_ANGLE_RESEARCH=true`)
+
+Design, contracts and decisions: `MULTI_ANGLE_RESEARCH.md` (repository root). A research question is planned as one
+root hypothesis examined from three to six angles (`research_plan/v2`), each with one registered method and its own
+data contract, and answered with one backend finding per angle. Active only when the flag is on, the DataNeed flow,
+Research Plan confirmation, plan feasibility and DataNeedSpec v2 are active, and the sandbox reports
+`multi_angle_research` version 2 with the same method registry (`negotiate()` in `app/research_plan_v2.py`);
+otherwise `multi_angle_research_inactive` is logged and research v1 is unchanged.
+
+- Tools: `check_research_feasibility` (`app/tools/research_planner.py`, replaces `check_data_feasibility`) builds the
+  research data plan: equal requests of different angles merge into one bundle, angles split into bundle groups only
+  when one bundle does not fit (`AI_RESEARCH_MAX_BUNDLE_GROUPS`, default 3). After approval `start_research_run`,
+  `run_research_code(bundle_group_id, code)` and `complete_research_run(finalize)` (`app/research_run_executor.py`)
+  promote the signed drafts, prepare the bundles and run the groups one at a time (`AI_RESEARCH_MAX_PARALLEL_GROUPS`
+  accepts only 1).
+- `AI_RESEARCH_MIN_ANGLES` / `AI_RESEARCH_MAX_ANGLES` (3 and 6) may only narrow the angle count.
+- The continuation is `rpc2`: it binds the plan and the research data plan (drafts, spec hashes, angle to group
+  mapping, every angle contract); the response's `continuation.research_data_plan` must be sent back with the plan
+  and token (history mode SERVER keeps both). A v1 continuation is never executed while v2 is active, and the reverse.
+- A RESEARCH data need is refused (`MULTI_ANGLE_PLAN_REQUIRED`); ANALYSIS is unchanged.
+- The answer carries `research_findings`: one `{angle_id, status, interpretation}` per approved angle, with the
+  backend status unchanged; agreement between angles only when the synthesis map allows it. Per-angle audit entries
+  carry `payload_version` `research_findings/v2`.
+- With the flag off the system prompt, the final schema and every tool definition are byte-identical.
+
 ## Catalog discovery
 
 The five `AI_*` tables created by `database/migrations/20260922_001_create_ai_catalogs.sql`,

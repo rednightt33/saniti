@@ -136,6 +136,9 @@ class Settings:
     # item C (EXTRACTION_AND_AUDIT_PLAN.md): final_status.modules_used lists the modules the session's successful
     # executions imported; the per-execution record and log always carry them
     modules_audit_enabled: bool = False
+    # Multi-Angle Research (PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED, MULTI_ANGLE_RESEARCH.md): research_governance/v2,
+    # promoted feasibility drafts per bundle group, the research_* session wrappers and backend findings per angle
+    multi_angle_research_enabled: bool = False
     # IP2 solution 2: archive code, runtime/library manifests, traces and released outputs to market-audit-store
     # from the root harness (never from an analysis process); audit failures never fail an analysis
     audit_store_enabled: bool = False
@@ -286,6 +289,7 @@ class Settings:
             derived_frequency_enabled=_boolean(env, "PY_SANDBOX_DERIVED_FREQUENCY_ENABLED", False),
             research_findings_enabled=_boolean(env, "PY_SANDBOX_RESEARCH_FINDINGS_ENABLED", False),
             modules_audit_enabled=_boolean(env, "PY_SANDBOX_MODULES_AUDIT_ENABLED", False),
+            multi_angle_research_enabled=_boolean(env, "PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED", False),
             audit_store_enabled=_boolean(env, "PY_SANDBOX_AUDIT_STORE_ENABLED", False),
             audit_store_url=env.get("AUDIT_STORE_URL", "").strip().rstrip("/") or None,
             audit_store_key=env.get("AUDIT_STORE_SANDBOX_KEY", "").strip() or None,
@@ -344,6 +348,13 @@ class Settings:
                                                                                            self.research_max_experiments)),
             enforce_minimum_sample=not self.research_findings_enabled,
             findings_fields_required=self.research_findings_enabled)
+
+    def multi_angle_policy(self):
+        """Budgets of a multi-angle Research run (research_governance/v2)."""
+        from .research_governance import MultiAnglePolicy
+
+        return MultiAnglePolicy(max_candidates_per_angle=self.research_max_candidates,
+                                max_pairwise_per_angle=self.research_max_pairwise_candidates)
 
     @property
     def cpu_seconds(self) -> int:

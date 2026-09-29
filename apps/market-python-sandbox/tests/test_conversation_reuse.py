@@ -224,8 +224,9 @@ def test_the_sqlite_upgrade_keeps_legacy_rows(tmp_path) -> None:
     legacy.commit()
     legacy.close()
     store = DataNeedStore(path)
-    assert store.schema_version == SCHEMA_VERSION == 3
+    assert store.schema_version == SCHEMA_VERSION == 4
     assert store.get_draft("draft_none") is None  # version 2 adds the feasibility drafts
+    assert store.research_runs_for("req_old") == []  # version 4 adds the multi-angle research tables
     session = store.get_session("sess_old")
     assert (session["epoch"], session["epoch_start_seq"], session["conversation_key"]) == (1, 0, None)
     assert store.completion_for_epoch("sess_old", 1)["completion_id"] == "cmp_old"

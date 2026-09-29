@@ -33,6 +33,9 @@ FEASIBILITY_VERSION = 1
 POINT_IN_TIME_VERSION = 1
 RESAMPLE_SEMANTICS_VERSION = 1  # runtime/saniti_session.py; app/data_need.py
 RESEARCH_FINDINGS_VERSION = 1  # runtime/research_stats.py VERSION; app/research_findings.py
+MULTI_ANGLE_VERSION = 2  # research_plan/v2, research_governance/v2, research_findings/v2 (MULTI_ANGLE_RESEARCH.md)
+RESEARCH_RUN_ID = re.compile(r"^rrun_[0-9a-f]{24}$")
+GROUP_ID = re.compile(r"^g[1-9][0-9]?$")
 SESSION_ID = re.compile(r"^sess_[0-9a-f]{24}$")
 OUTPUT_ID = re.compile(r"^out_[0-9a-f]{24}$")
 DATA_NEED_KEYS = {"request_id", "reference_time", "timezone", "spec", "research_governance"}
@@ -125,6 +128,8 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                 # research findings: saniti.event_summary, backend sample category and verdict
                 "research_findings": {"enabled": dataneed is not None and settings.research_findings_enabled,
                                       "version": RESEARCH_FINDINGS_VERSION},
+                # Multi-Angle Research: 3-6 angles, promoted drafts per bundle group, backend findings per angle
+                "multi_angle_research": multi_angle_capability(),
                 "limits": {**settings.child_limits(), "max_runtime_seconds": settings.max_runtime_seconds,
                            "max_memory_mb": settings.max_memory_mb, "duckdb_memory_mb": settings.duckdb_memory_mb,
                            "max_logical_datasets": settings.max_logical_datasets,
@@ -142,6 +147,21 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                                            "specs": settings.max_specs_per_request},
                            "validator": {"runtime_seconds": settings.validator_runtime_seconds,
                                          "memory_mb": settings.validator_memory_mb}}}
+
+    def multi_angle_capability() -> dict[str, Any]:
+        from .research_methods import registry
+
+        enabled = dataneed is not None and settings.dataneed_enabled and settings.multi_angle_research_enabled
+        policy = settings.multi_angle_policy()
+        reg = registry()
+        return {"enabled": enabled, "version": MULTI_ANGLE_VERSION, "min_angles": policy.min_angles,
+                "max_angles": policy.max_angles_per_plan, "supports_grouped_execution": enabled,
+                "findings_version": "research_findings/v2", "governance_version": "research_governance/v2",
+                "method_ids": [m["method_id"] for m in reg["methods"]], "method_registry_sha256": reg["sha256"],
+                "policy": policy.public(),
+                "limits": {"bundle_max_rows": settings.bundle_max_rows, "bundle_max_bytes": settings.bundle_max_bytes,
+                           "bundle_max_parts": settings.bundle_max_parts, "max_requests_per_spec": 8,
+                           "max_sessions": settings.max_sessions}}
 
     def invalid(exc: ValidationError, what: str) -> JSONResponse:
         errors = [{"loc": ".".join(str(p) for p in e["loc"]), "msg": e["msg"]} for e in exc.errors()[:15]]
@@ -360,13 +380,53 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
     @app.post("/v1/sessions/{session_id}/complete", dependencies=dataneed_routes)
     def complete_session(session_id: str, body: Any = Body(...)) -> Any:
         """ExecutionManifest, Coverage Validator and final status; releases the outputs when coverage passes."""
-        body = session_body(body, {"request_id"})
-        if body is None:
-            return invalid_body("{request_id}")
+        body = session_body(body, {"request_id"}, {"finalize"})
+        if body is None or not isinstance(body.get("finalize", False), bool):
+            return invalid_body("{request_id, finalize?}")
         try:
-            return dataneed.complete(session_id_or_404(session_id), body["request_id"])
+            return dataneed.complete(session_id_or_404(session_id), body["request_id"],
+                                     finalize=bool(body.get("finalize", False)))
         except SessionError as exc:
             return session_error(exc)
+
+    @app.post("/v1/research-runs", dependencies=dataneed_routes)
+    def promote_research(body: Any = Body(...)) -> Any:
+        """Multi-Angle Research: promote the signed feasibility drafts of an approved research_plan/v2 (one approved
+        RESEARCH need per bundle group) after the Research Governor v2 approved its declaration."""
+        keys = {"request_id", "origin_request_id", "research_governance", "research_data_plan"}
+        if not isinstance(body, dict) or set(body) != keys or not all(
+                isinstance(body[k], str) and re.fullmatch(REQUEST_ID, body[k]) for k in ("request_id",
+                                                                                         "origin_request_id")):
+            return invalid_body("{request_id, origin_request_id, research_governance, research_data_plan}")
+        try:
+            return dataneed.promote_research(body["request_id"], body["origin_request_id"],
+                                             body["research_governance"], body["research_data_plan"])
+        except DataNeedError as exc:
+            return dataneed_error(exc)
+
+    @app.get("/v1/research-runs/{research_run_id}", dependencies=dataneed_routes)
+    def research_run(research_run_id: str, request_id: str = Query(..., max_length=128)) -> Any:
+        if not RESEARCH_RUN_ID.fullmatch(research_run_id):
+            raise HTTPException(status_code=404, detail="Unknown research_run_id")
+        try:
+            return dataneed.research_run(request_id, research_run_id)
+        except DataNeedError as exc:
+            return dataneed_error(exc)
+
+    @app.post("/v1/research-runs/{research_run_id}/groups/{bundle_group_id}/close", dependencies=dataneed_routes)
+    def close_research_group(research_run_id: str, bundle_group_id: str, body: Any = Body(...)) -> Any:
+        """A bundle group that cannot run: FAILED, and NOT_RUN findings for its angles."""
+        if not RESEARCH_RUN_ID.fullmatch(research_run_id) or not GROUP_ID.fullmatch(bundle_group_id):
+            raise HTTPException(status_code=404, detail="Unknown research group")
+        body = session_body(body, {"request_id", "reason"})
+        if body is None or not isinstance(body["reason"], str) or not re.fullmatch(r"[A-Z][A-Z0-9_]{1,59}",
+                                                                                    body["reason"]):
+            return invalid_body("{request_id, reason: UPPER_CASE_CODE}")
+        try:
+            return dataneed.close_research_group(body["request_id"], research_run_id, bundle_group_id,
+                                                 body["reason"])
+        except DataNeedError as exc:
+            return dataneed_error(exc)
 
     @app.post("/v1/sessions/{session_id}/close", dependencies=dataneed_routes)
     def close_session(session_id: str, body: Any = Body(...), key: str | None = Depends(conversation_key)) -> Any:

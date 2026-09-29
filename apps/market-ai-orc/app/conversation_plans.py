@@ -19,6 +19,8 @@ state moves after a turn.
   approval is used once and a new approval never re-runs the experiments by itself (a retry of the same request_id is
   answered from the stored response). A later computation needs a new or revised plan and a new approval. An UNRELATED
   turn returns the same continuation (same token and expiry), so the plan stays PENDING and is never extended.
+- A research_plan/v2 (Multi-Angle Research) is stored with the research data plan its rpc2 token binds; its
+  continuation carries both back.
 - The model never sees or produces any of this; the token is never logged.
 """
 from __future__ import annotations
@@ -27,6 +29,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .research_plan import ContinuationIn, parse_plan
+from .research_plan_v2 import PLAN_VERSION_V2, ContinuationInV2, ResearchPlanV2
 from .schemas import AgentRunRequest, AgentRunResponse
 
 STATE_KEY = "research_plan"
@@ -64,7 +67,7 @@ def summary(state: dict[str, Any] | None, now: datetime | None = None) -> dict[s
 
 
 def continuation_for(state: dict[str, Any] | None, request: AgentRunRequest,
-                     now: datetime | None = None) -> ContinuationIn | None:
+                     now: datetime | None = None) -> ContinuationIn | ContinuationInV2 | None:
     """The continuation this SERVER turn runs with, or None. Raises PlanReplyError for a plan_reply that does not name
     the latest pending plan."""
     now = now or datetime.now(timezone.utc)
@@ -97,7 +100,14 @@ def continuation_for(state: dict[str, Any] | None, request: AgentRunRequest,
     return _continuation(plan, None, None)
 
 
-def _continuation(plan: dict[str, Any], action: str | None, instruction: str | None) -> ContinuationIn:
+def _continuation(plan: dict[str, Any], action: str | None,
+                  instruction: str | None) -> ContinuationIn | ContinuationInV2:
+    if (plan.get("plan") or {}).get("plan_version") == PLAN_VERSION_V2:
+        return ContinuationInV2(kind="RESEARCH_PLAN", plan_id=plan["plan_id"],
+                                origin_request_id=plan["origin_request_id"],
+                                plan=ResearchPlanV2.model_validate(plan["plan"]),
+                                research_data_plan=plan.get("research_data_plan") or {}, token=plan["token"],
+                                action=action, revision_instruction=instruction)
     return ContinuationIn(kind="RESEARCH_PLAN", plan_id=plan["plan_id"], origin_request_id=plan["origin_request_id"],
                           plan=parse_plan(plan["plan"]), token=plan["token"], action=action,
                           revision_instruction=instruction)
@@ -121,6 +131,9 @@ def advance(state: dict[str, Any] | None, result: AgentRunResponse, request_id: 
                             issued.origin_request_id, "conversation_id": issued.conversation_id, "token": issued.token,
                             "expires_at": issued.expires_at, "issued_turn_index": turn_index,
                             "plan": response.research_plan.model_dump(mode="json")}
+        data_plan = getattr(issued, "research_data_plan", None)
+        if data_plan is not None:
+            state[STATE_KEY]["research_data_plan"] = data_plan
         return state
     if plan is None or plan.get("status") != PENDING:
         return state
