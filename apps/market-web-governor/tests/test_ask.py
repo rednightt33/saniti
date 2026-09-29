@@ -22,8 +22,10 @@ RSS = """<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>
 
 class FakeProvider:
     def __init__(self, answer="Talks were reported on 2025-10-07 [1]; the deal was announced on 2026-09-18 [2]. [9]",
-                 reviews=None, sectors=None, forward=None, implications=None, fail_implications=False):
+                 reviews=None, sectors=None, forward=None, implications=None, fail_implications=False,
+                 reads=None):
         self.payloads = []
+        self.reads = reads or []
         self.answer = answer
         self.reviews = list(reviews or [])
         self.sectors = sectors or []
@@ -36,6 +38,9 @@ class FakeProvider:
         if "text" in payload and payload["text"]["format"]["name"] == "next_searches":
             queries = self.reviews.pop(0) if self.reviews else []
             text = json.dumps({"queries": [{"query": q, "reason": "context"} for q in queries]})
+            return {"output": [{"content": [{"type": "output_text", "text": text}]}], "usage": {"cost": 0.001}}
+        if "text" in payload and payload["text"]["format"]["name"] == "sources_to_read":
+            text = json.dumps({"sources": [{"n": n, "reason": "conflicting figure"} for n in self.reads]})
             return {"output": [{"content": [{"type": "output_text", "text": text}]}], "usage": {"cost": 0.001}}
         if "text" in payload and payload["text"]["format"]["name"] == "implications":
             text = "not json" if self.fail_implications else json.dumps(self.implications)
@@ -96,8 +101,8 @@ def test_ask_answers_from_numbered_sources_and_takes_dates_from_the_list(tmp_pat
     # Plan, one review (empty: no turn 2), answer, implications; two Exa searches. Turn 0: 2 subject queries x 8
     # windows; turn 1: 4 subject templates x the 2 newest windows.
     assert [("text" in p, "tools" in p) for p in provider.payloads].count((False, True)) == 2
-    # model calls: plan, answer and two implications attempts (the fake returns none, so it is retried once)
-    assert result["usage"]["model_calls"] == 4 and result["usage"]["review_calls"] == 1
+    # model calls: plan, article selection, answer and two implications attempts (none returned, so retried)
+    assert result["usage"]["model_calls"] == 5 and result["usage"]["review_calls"] == 1
     assert result["usage"]["search_calls"] == 2 and result["usage"]["news_requests"] == 2 * 8 + 4 * 2
     assert len(result["plan"]["windows"]) == 8 and [t["turn"] for t in result["plan"]["turns"]] == [0, 1]
     # The same headline from Google News and Exa is one source; oldest first.
@@ -374,3 +379,35 @@ def test_timeline_rules_exclude_forecasts_and_past_events():
     from app.ask import implications_instructions
     text = implications_instructions(date(2026, 9, 29))
     assert "Not forecasts" in text and "already happened" in text
+
+
+def test_chosen_articles_are_read_only_when_the_search_finds_the_same_headline(tmp_path):
+    provider = FakeProvider(reads=[1, 3, 99])
+    result = service(tmp_path, provider).ask(
+        AskRequest(request_id="ask-test-0020", question="Company P", as_of=date(2026, 9, 29)))
+    # [1] and [3] are Google News headlines the Exa search result ("Company P announces acquisition") does not
+    # match, so nothing is attached; [99] does not exist and is dropped.
+    read = result["plan"]["read"]
+    assert [entry["read"] for entry in read] == [False, False]
+    assert {w["code"] for w in result["warnings"]} >= {"READ_NONE"}
+    provider = FakeProvider(reads=[2])
+    result = service(tmp_path, provider).ask(
+        AskRequest(request_id="ask-test-0021", question="Company P", as_of=date(2026, 9, 29)))
+    # [2] is the Exa item "Company P announces acquisition": its search result has the same title.
+    assert result["plan"]["read"] == [{"title": "Company P announces acquisition", "reason": "conflicting figure",
+                                       "read": True}]
+    assert "Company P said on Friday" in answer_payload(provider)["input"]
+
+
+def test_the_answer_call_reasons_and_can_be_switched_back(tmp_path):
+    provider = FakeProvider()
+    service(tmp_path, provider).ask(AskRequest(request_id="ask-test-0022", question="Company P",
+                                               as_of=date(2026, 9, 29)))
+    payload = answer_payload(provider)
+    assert payload["reasoning"] == {"enabled": True} and payload["max_output_tokens"] == 20000
+    assert "what each one measures" in payload["instructions"]
+    provider = FakeProvider()
+    service(tmp_path, provider, ask_answer_reasoning=False, ask_read_articles=0).ask(
+        AskRequest(request_id="ask-test-0023", question="Company P", as_of=date(2026, 9, 29)))
+    assert answer_payload(provider)["reasoning"] == {"enabled": False}
+    assert not any("text" in p and p["text"]["format"]["name"] == "sources_to_read" for p in provider.payloads)

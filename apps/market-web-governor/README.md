@@ -31,8 +31,12 @@ question -> plan     1 model call: 2-4 keyword queries (question language and En
          -> turn 3   optional: up to 3 deeper queries from the review call, or none
          -> merge    code: dedupe by headline; WEB_ASK_MAX_SOURCES (default 500): backward at least 50%, forward
                      at least 20%, wider the rest (unused shares pass over), each spread across the windows
-         -> answer   1 model call: only from the numbered sources, investor-material first, industry & policy
-                     section, labelled inferences; a period in the question limits the answer
+         -> read     1 model call picks up to WEB_ASK_READ_ARTICLES (default 12, 0 = off) headlines whose full
+                     text matters most (conflicting figures, latest facts); one Exa search per chosen title fetches
+                     its text (kept only when the result's title matches); listed with up to 2,500 characters
+         -> answer   1 model call with reasoning on (WEB_ASK_ANSWER_REASONING, default on): only from the numbered sources, investor-material first, industry & policy
+                     section, labelled inferences; a period in the question limits the answer; differing figures
+                     about one thing are explained (what each measures, denied or replaced, latest confirmed)
          -> implications  1 model call (strict JSON): impacts (affected, direction, channel), scenarios for
                      forward-looking questions, and a forward timeline of scheduled/planned/proposed actions about
                      the subject or its sector (no forecasts, nothing already done); code keeps an item only if its sources
