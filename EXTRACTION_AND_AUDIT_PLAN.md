@@ -1,6 +1,6 @@
 # Extraction cost and analysis audit plan
 
-Status: **planned, not executed** (user, 2026-09-29: "Jangan eksekusi dulu"). Each item runs only after the user says so.
+Status: **A4 done 2026-09-29 (evidence in `DATABASE_INDEX_ACCEPTANCE.md`); A0, A2, J, C approved, not yet executed** (user, 2026-09-29: "Jangan eksekusi dulu"). Each item runs only after the user says so.
 Origin: the broker screening runs of 2026-09-28 (`b01_broker_screen`, `b02_broker_screen_analysis`) and errors G10 and
 M23 in `ERRORS_AND_SOLUTIONS.md`.
 
@@ -77,3 +77,12 @@ a run's full process be read back, or only the module names.
   choosing the path; compare time, refusals and discarded rows with the 2026-09-28 run.
 - Record in `RAILWAY_CHANGELOG.md`, update G10 in `ERRORS_AND_SOLUTIONS.md`, `.railway/railway.ts` after variable
   changes.
+
+## A4 result (2026-09-29)
+
+Planner cost of broker × banks by window: 1 day 40,326; 1 week 227,842; 1 month 37,036; 3 months 96,644. The
+expensive shape (all symbols scanned over the date range, then a hash join to the 48 banks) appears for windows of
+about one to two weeks, which is where the b01 parts were refused, and runs in about 1.3 s per week. Consequences:
+splitting does not always lower the cost, so A0 must pick the cheapest split that fits rather than always splitting
+further; the plan-cost limit is poorly calibrated for this shape. Decision needed before A0/A2 (see the chat of
+2026-09-29).
