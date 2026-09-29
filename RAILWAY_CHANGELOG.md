@@ -66,6 +66,17 @@
   USD 0.0098 classification, 40 rows written. Diagnosis (W16): OpenRouter's web search ignores the date window; the
   search query decides the results. No Railway change was made for the diagnosis.
 
+## 2026-09-29 — Bank anomaly question: ANALYSIS vs RESEARCH path, with ground truth
+
+- d01 (`analysis_path` ANALYSIS, runner `4bb56c4f`): 61 s, $0.026, 40 anomalies (|stock − bank median| ≥ 25 pp over 1M,
+  3M, 6M, YTD, 1Y). d02 (`analysis_path` RESEARCH, runner `09eed220`): plan 78 s + execution 84 s, $0.092; two
+  hypotheses on the 5-day follow-through of ±20 pp deviations, `h_up_anomaly` INCONCLUSIVE (ANECDOTAL, 5 effective
+  dates), `h_down_anomaly` without verdict (one event), plus anomaly tables for 1W/1M/3M.
+- Ground truth: temporary service `anom-truth-job` (`182c0014-df32-41ae-8607-26cbe0833aa4`, deployment `7e1ca4ef`,
+  read-only, deleted after the run): every d01 return, median and difference matches except where d01 excluded a stock
+  as `NO_PRIOR_CLOSE` (G11: BSWD 3M/6M, BCIC 1Y), which moves the 6M and 1Y medians by 0.26 and 0.15 pp. New
+  findings G11 and M29.
+
 ## 2026-09-29 — Sector rolling correlation (c01) and its ground truth
 
 - Question c01 on dev through the runner (`de1a7285`, `analysis_path` ANALYSIS): 280 s, $0.105, 26 tool calls, 5
