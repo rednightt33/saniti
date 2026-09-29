@@ -11,6 +11,7 @@ import gzip
 import hashlib
 import json
 import os
+import re
 import secrets
 import socket
 import sys
@@ -405,6 +406,57 @@ def migrate_event_store() -> None:
     log("migrated", columns=columns, grants=[list(grant) for grant in grants])
 
 
+def migrate_sql(name: str) -> None:
+    """Apply one idempotent event-store migration file (copied next to run.py) with a temporary admin URL."""
+    import psycopg
+
+    if not re.fullmatch(r"\d{3}_[a-z_]+\.sql", name):
+        raise SystemExit("invalid migration name")
+    with open(os.path.join(HERE, name)) as handle:
+        script = handle.read()
+    with psycopg.connect(os.environ["EVENT_STORE_ADMIN_URL"], autocommit=True) as connection:
+        connection.execute(script)
+        tables = connection.execute(
+            "SELECT table_name, count(*) FROM information_schema.columns WHERE table_schema = 'public' "
+            "GROUP BY 1 ORDER BY 1").fetchall()
+        grants = connection.execute(
+            "SELECT table_name, grantee, string_agg(privilege_type, ',' ORDER BY privilege_type) "
+            "FROM information_schema.role_table_grants WHERE grantee LIKE 'web_event_%' GROUP BY 1, 2 ORDER BY 1, 2"
+        ).fetchall()
+    log("migrated", file=name, tables=[list(t) for t in tables], grants=[list(g) for g in grants])
+
+
+def ask(prefix: str, questions: list[str]) -> None:
+    """Lean POST /v1/ask: one request per question, in parallel; then read the stored rows back."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def one(pair):
+        index, question = pair
+        request_id = f"{prefix}q{index}"
+        return request_id, call("POST", "/v1/ask", {"request_id": request_id, "question": question}, timeout=300)
+
+    with ThreadPoolExecutor(max_workers=len(questions)) as pool:
+        for request_id, result in pool.map(one, enumerate(questions, 1)):
+            body = result.get("body") or {}
+            log("ask", request_id=request_id, http=result.get("http"), status=body.get("status"),
+                sources=len(body.get("sources") or []), citations=len(body.get("citations") or []),
+                seconds=body.get("seconds"), cost=(body.get("usage") or {}).get("cost_usd"), stored=body.get("stored"),
+                warnings=sorted({w.get("code") for w in body.get("warnings") or []}))
+            RESULTS.append({"test": "ASK", "request_id": request_id, "http": result.get("http"), "response": body})
+    if os.environ.get("EVENT_STORE_READER_URL"):
+        import psycopg
+        from psycopg.rows import dict_row
+
+        with psycopg.connect(os.environ["EVENT_STORE_READER_URL"], row_factory=dict_row) as connection:
+            rows = connection.execute(
+                "SELECT request_id, status, jsonb_array_length(citations) AS citations, "
+                "jsonb_array_length(sources) AS sources, created_at, expires_at FROM web_ask "
+                "WHERE request_id LIKE %s ORDER BY request_id", (prefix + "%",)).fetchall()
+        log("ask_rows", count=len(rows))
+        RESULTS.append({"test": "ASK rows", "rows": [{k: (v.isoformat() if hasattr(v, "isoformat") else v)
+                                                      for k, v in row.items()} for row in rows]})
+
+
 def read_event_store(card_id: str | None = None, limit: int = 100) -> list[dict]:
     import psycopg
     from psycopg.rows import dict_row
@@ -491,8 +543,8 @@ def main() -> None:
     with open(os.path.join(HERE, "plan.json")) as handle:
         plan = json.load(handle)
     log("start", phase=plan["phase"], base=BASE)
-    if plan["phase"] == "migrate_event_store":
-        migrate_event_store()
+    if plan["phase"] in ("migrate_event_store", "migrate_sql"):
+        migrate_event_store() if plan["phase"] == "migrate_event_store" else migrate_sql(plan["file"])
         log("done", phase=plan["phase"])
         time.sleep(30)
         return
@@ -511,6 +563,8 @@ def main() -> None:
         ultj(plan["prefix"], [int(slot) for slot in plan.get("slots", [1])])
     elif plan["phase"] == "webneed":
         webneed(plan["prefix"], int(plan.get("results", 5)))
+    elif plan["phase"] == "ask":
+        ask(plan["prefix"], plan["questions"])
     elif plan["phase"] == "smoke":
         smoke(plan["prefix"])
     elif plan["phase"] == "post":

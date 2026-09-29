@@ -1,5 +1,37 @@
 # Railway changelog
 
+## 2026-09-29 — market-web-governor: `/v1/ask` name and ticker, industry and policy turn, investor-first answers
+
+- **Deployment** market-web-governor `21ea0c81` (PR #25, `91b2cf8`) `SUCCESS`; no variable changed.
+- **Live test** (runner `fb457b6c`, `live-ask5-20260929-q1..q3`): 3 of 3 `ANSWERED`, 13–37 s, USD 0.022–0.029 each,
+  3 rows in `web_ask`. "Cimory" searched CMRY and led with results and corporate actions, but the model returned no
+  turn-2 queries (one turn only, 32 requests) although the local run of the same code did; the turn-2 rule is an
+  instruction, not enforced by code. "kenapa saham ptro naik" ran an industry and policy turn and reported that the
+  sources disagree on the one-year direction (2025 up, 2026 down). BI Rate unchanged (5.75%, RDG 22–23 Sep 2026).
+
+## 2026-09-29 — market-web-governor: `/v1/ask` researches in up to 3 turns over 3-month windows (user-approved)
+
+- **Deployment** market-web-governor `9220e7ca` (PR #23, `28dc45d`) `SUCCESS`; no variable changed
+  (`WEB_ASK_MAX_SOURCES` defaults to 500).
+- **Live test** (runner `c9d458ce`, `live-ask3-20260929-q1..q4`, four questions in parallel): 4 of 4 `ANSWERED`,
+  13–15 s each, USD 0.015–0.032 each (about USD 0.11 in total), 80 Google News requests per question without a
+  rate-limit failure, 186–500 sources from October 2024 to September 2026, 4 rows in `web_ask`. PTRO answers now
+  cover October 2025 to September 2026 and add industry context (coal prices, minerba policy); BI Rate (hold at
+  5.75%, RDG 22–23 Sep 2026) and ULTJ (7–8 Oct 2025 reports) unchanged.
+
+## 2026-09-29 — market-web-governor: lean `POST /v1/ask` next to the web-need flow (user-approved)
+
+- **Migration** `event_store/002_web_ask.sql` on Postgres-E8GM through the runner (`4620705a`, phase `migrate_sql`):
+  table `web_ask` (15 columns); grants `web_event_writer` SELECT, INSERT, DELETE and `web_event_reader` SELECT on
+  `web_ask` only (`web_event_item` unchanged: writer INSERT, reader SELECT). The temporary runner variable
+  `EVENT_STORE_ADMIN_URL` was deleted afterwards; the runner keeps `EVENT_STORE_READER_URL` and
+  `WEB_GOVERNOR_API_KEY`.
+- **Deployment** market-web-governor `68bffe16` (PR #21, `c43d792`) `SUCCESS`. No variable changed on the governor;
+  the answers use the existing `WEB_EVENT_STORE_URL` and slot 1 (DeepSeek V4.1 Flash).
+- **Live test** (runner `b0035ebc`, `live-ask1-20260929-q1..q5`, five questions in parallel): 5 of 5 `ANSWERED`,
+  4.9–15.8 s each, USD 0.015–0.016 each (about USD 0.08 in total), 69–80 sources and 2–46 citations each, no
+  warnings; 5 rows in `web_ask` with `expires_at` 30 days after creation.
+
 ## 2026-09-28 — market-web-governor: event store, source policy, pre-event timeline, classification (P1–P4)
 
 - **Main database name restored (R18):** the market-data PostgreSQL service had been renamed `Web_Fetch` in the

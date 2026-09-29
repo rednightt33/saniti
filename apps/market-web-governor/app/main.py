@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.responses import JSONResponse
 
+from .ask import AskRequest, AskService, AskStore, PostgresAskStore
 from .config import Settings
 from .event_store import EventStore
 from .fetcher import DocumentFetcher
@@ -36,12 +37,17 @@ def create_app(
     provider: OpenRouterProvider | None = None,
     fetcher: DocumentFetcher | None = None,
     event_store: EventStore | None = None,
+    ask_service: AskService | None = None,
+    ask_store: AskStore | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
     store = store or SqliteStore(settings.store_path, settings.stale_running_seconds)
     provider = provider or OpenRouterProvider(settings)
     fetcher = fetcher or DocumentFetcher(settings)
     governor = WebGovernor(settings, store, provider, fetcher, event_store)
+    if ask_store is None and settings.event_store_url:
+        ask_store = PostgresAskStore(settings.event_store_url)
+    ask_service = ask_service or AskService(settings, provider, ask_store)
     logger = _configure_logging()
     expected = f"Bearer {settings.api_key}"
 
@@ -51,7 +57,7 @@ def create_app(
         janitor.start()
         yield
         janitor.stop()
-        for resource in (provider, fetcher):
+        for resource in (provider, fetcher, ask_service):
             close = getattr(resource, "close", None)
             if callable(close):
                 close()
@@ -153,6 +159,18 @@ def create_app(
     def fetch(body: FetchRequest) -> dict[str, Any]:
         result = governor.fetch(body)
         _log_result("web_fetch_returned", body.request_id, result)
+        return result
+
+    @app.post("/v1/ask", dependencies=[Depends(authorize)])
+    def ask(body: AskRequest) -> dict[str, Any]:
+        result = ask_service.ask(body)
+        logger.info(json.dumps({
+            "event": "web_ask_answered", "request_id": body.request_id, "ask_id": result.get("ask_id"),
+            "status": result.get("status"), "sources": len(result.get("sources") or []),
+            "citations": len(result.get("citations") or []), "seconds": result.get("seconds"),
+            "replayed": bool(result.get("replayed")), "stored": result.get("stored"),
+            "warning_codes": sorted({warning.get("code") for warning in result.get("warnings") or []}),
+        }))
         return result
 
     def _log_result(event: str, request_id: str, result: dict[str, Any]) -> None:
