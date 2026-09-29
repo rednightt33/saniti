@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from datetime import date
 
-from app.ask import (AskRequest, AskService, AskStoreError, clean_citations, merge_sources, parse_when,
+from app.ask import (AskRequest, AskService, AskStoreError, check_dates, clean_citations, merge_sources, parse_when,
                      render_implications, validate_implications, windows)
 from app.main import create_app
 from tests.conftest import API_KEY, make_settings
@@ -349,3 +349,28 @@ def test_empty_implications_are_retried_once_and_flagged(tmp_path):
     calls = [p for p in provider.payloads if "text" in p and p["text"]["format"]["name"] == "implications"]
     assert len(calls) == 2 and len(result["plan"]["implications_attempts"]) == 2
     assert "IMPLICATIONS_EMPTY" in {w["code"] for w in result["warnings"]}
+
+
+def test_answer_dates_must_match_the_cited_source():
+    items = [{"date": "2025-12-23", "title": "a", "text": ""}, {"date": "2026-01-05", "title": "b", "text": ""},
+             {"date": None, "title": "c", "text": ""}]
+    text = ("- Dilema nikel (2026-12-23) [1]\n- Harga naik (2026-01-05) [2]\n- Dua sumber (2027-01-01) [1][2]\n"
+            "- Tanpa sumber 2026-12-23")
+    fixed, fixes = check_dates(text, items)
+    assert fixed.splitlines() == ["- Dilema nikel (2025-12-23) [1]", "- Harga naik (2026-01-05) [2]",
+                                  "- Dua sumber () [1][2]", "- Tanpa sumber 2026-12-23"]
+    assert fixes == 2
+    clean, _, _ = clean_citations(fixed, 3)
+    assert "Dua sumber\n" in clean + "\n"
+
+
+def test_repeated_date_markers_collapse():
+    text = "Ekspor (2026-05-07) [1] (2026-05-07) [2] (2026-05-07) [3]. Suntikan (2026-09-15) [4] (tanpa tanggal) [5]."
+    clean, _, _ = clean_citations(text, 5)
+    assert clean == "Ekspor (2026-05-07). Suntikan (2026-09-15)."
+
+
+def test_timeline_rules_exclude_forecasts_and_past_events():
+    from app.ask import implications_instructions
+    text = implications_instructions(date(2026, 9, 29))
+    assert "Not forecasts" in text and "already happened" in text

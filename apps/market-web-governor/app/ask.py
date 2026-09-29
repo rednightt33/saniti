@@ -138,7 +138,10 @@ def implications_instructions(as_of: date) -> str:
         "bonds), the direction, and the channel (how the effect travels, for example excise -> selling price -> "
         "volume). Say in the text when the evidence is weak.\n"
         "scenarios: base, bull and bear with their triggers, only when the question looks forward; otherwise empty.\n"
-        "timeline: UPCOMING events after today only. when_text must be copied exactly as written in a cited source's "
+        "timeline: UPCOMING events after today only: a scheduled, planned or proposed action or decision (a rule "
+        "taking effect, a vote, a quota, a launch, a deadline) that directly concerns the question's subject or its "
+        "sector. Not forecasts, market projections or long-run estimates, and not events the sources say already "
+        "happened. when_text must be copied exactly as written in a cited source's "
         "title or excerpt (for example '2027', 'awal 2027', '23 Oktober 2026'); use an empty when_text if no source "
         "states a time. status is dijadwalkan, direncanakan, diusulkan or masih dikaji.\n"
         "Be concise: at most 6 impacts, 3 scenarios and 10 timeline entries; each text field one short sentence "
@@ -455,6 +458,30 @@ def render_implications(data: dict[str, list]) -> str:
     return "\n".join(lines) if len(lines) > 3 else ""
 
 
+def check_dates(answer: str, items: list[dict[str, Any]]) -> tuple[str, int]:
+    """Every ISO date on a line that cites sources must be the date of one of those sources. A wrong date is replaced
+    by the source's date when the line cites exactly one dated source, otherwise removed. Returns (answer, fixes)."""
+    fixes = 0
+
+    def fix_line(line: str) -> str:
+        nonlocal fixes
+        numbers = [int(n) for n in re.findall(r"\[(\d+)\]", line) if 1 <= int(n) <= len(items)]
+        if not numbers:
+            return line
+        known = {items[n - 1]["date"] for n in numbers if items[n - 1]["date"]}
+
+        def replace(match: re.Match) -> str:
+            nonlocal fixes
+            if match.group(0) in known:
+                return match.group(0)
+            fixes += 1
+            return next(iter(known)) if len(known) == 1 else ""
+
+        return re.sub(r"\b\d{4}-\d{2}-\d{2}\b", replace, line)
+
+    return "\n".join(fix_line(line) for line in answer.split("\n")), fixes
+
+
 def clean_citations(answer: str, count: int) -> tuple[str, str, list[int]]:
     """Return the answer without source numbers, the answer with numbers renumbered 1..k in order of appearance, and
     the original numbers in that order (only numbers that exist in the source list)."""
@@ -469,7 +496,11 @@ def clean_citations(answer: str, count: int) -> tuple[str, str, list[int]]:
     clean = re.sub(r"(?:\s*[,;]?\s*\[\d+\])+", "", answer)
     clean = re.sub(r"[ \t]+([.,;:)])", r"\1", clean)
     clean = re.sub(r"\(\s*\)", "", clean)
+    clean = re.sub(r"(\([^()\n]{1,40}\))(?:[ \t]*\1)+", r"\1", clean)  # "(2026-05-07) (2026-05-07)" -> one
+    clean = re.sub(r"(\(\d{4}-\d{2}-\d{2}[^()\n]*\))(?:[ \t]*\(tanpa tanggal\))+", r"\1", clean)
+    clean = re.sub(r"(?:\(tanpa tanggal\)[ \t]*)+(\(\d{4}-\d{2}-\d{2}[^()\n]*\))", r"\1", clean)
     clean = re.sub(r"[ \t]{2,}", " ", clean)
+    clean = re.sub(r"[ \t]+$", "", clean, flags=re.M)
     return clean.strip(), cited.strip(), order
 
 
@@ -569,7 +600,11 @@ class AskService:
             })
             usage["model_calls"] += 1
             answer, _ = _extract_output(response)
-            answer = answer.strip()
+            answer, fixes = check_dates(answer.strip(), items)
+            if fixes:
+                warnings.append({"code": "DATE_CORRECTED",
+                                 "message": f"{fixes} date(s) in the answer did not match the cited source and were "
+                                            "corrected or removed"})
             cited = sorted({int(n) for n in re.findall(r"\[(\d+)\]", answer)})
             unknown = [n for n in cited if not 1 <= n <= len(items)]
             if unknown:

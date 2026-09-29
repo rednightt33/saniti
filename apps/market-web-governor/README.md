@@ -34,11 +34,13 @@ question -> plan     1 model call: 2-4 keyword queries (question language and En
          -> answer   1 model call: only from the numbered sources, investor-material first, industry & policy
                      section, labelled inferences; a period in the question limits the answer
          -> implications  1 model call (strict JSON): impacts (affected, direction, channel), scenarios for
-                     forward-looking questions, and a forward timeline; code keeps an item only if its sources
+                     forward-looking questions, and a forward timeline of scheduled/planned/proposed actions about
+                     the subject or its sector (no forecasts, nothing already done); code keeps an item only if its sources
                      exist, and a timeline entry only if its time text is written in a cited source and lies after
                      the question date; rendered as "Implikasi & yang perlu dipantau" (IMPLICATIONS_FAILED keeps
                      the answer when this call fails)
-         -> check    code: `answer` without [n], `answer_cited` renumbered 1..k, `citations` with the same numbers;
+         -> check    code: every ISO date on a cited line must be a cited source's date (else corrected or
+                     removed, DATE_CORRECTED); `answer` without [n] and without repeated date markers, `answer_cited` renumbered 1..k, `citations` with the same numbers;
                      `plan.implications` keeps the structured items
 ```
 
