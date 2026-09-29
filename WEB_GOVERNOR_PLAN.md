@@ -237,3 +237,29 @@ Four layers guarantee what reaches the table:
 ### Open questions
 
 - Confirm the OJK material-transaction thresholds before the rubric parameters are set.
+
+## P5 — `/v1/ask`: implications and what to watch — PLANNED (approved by the user on 2026-09-29, not started)
+
+**Why.** An answer that only lists news is information, not something a reader can use. Benchmarks (Axios "Why it
+matters / What's next", sell-side research with scenarios and dated catalysts, ICD-203 signposts, and grounded-LLM
+practice of separating facts from inference) all put the consequence and the next events next to the facts, and
+keep them visibly apart from the facts.
+
+**User decisions.** No "key judgments" section. Implications are generated separately from the factual answer and
+labelled as analysis. No buy/sell recommendation.
+
+**Design.**
+- One extra model call after the answer (about USD 0.005 and 5–10 s), with a strict JSON schema; code renders it as a
+  section "Implikasi & yang perlu dipantau" and stores it with the answer (`plan.implications`, no table change).
+- Content:
+  1. **Impact:** who or what is affected (sectors, listed companies, assets such as the rupiah or government bonds),
+     the direction, and the channel (for example excise → selling price → volume). Each point must cite at least
+     one listed source; code rejects points whose citations do not exist.
+  2. **Scenarios** (only for forward-looking questions): base / bull / bear, each with its trigger.
+  3. **What to watch:** upcoming events or data, with the date when a source states one (for example the next BI
+     board meeting, the parliament's budget vote, a rating review). Dates come only from sources; otherwise
+     "tanggal belum diumumkan".
+- Every point is labelled as analysis; weak evidence must be said so in the point itself.
+
+**Verification.** Unit tests for the schema, citation checks and rendering; live runner test with the fiscal,
+CLARITY Act and Cimory questions; record in `RAILWAY_CHANGELOG.md`.
