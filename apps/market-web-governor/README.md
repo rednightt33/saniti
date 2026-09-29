@@ -17,19 +17,28 @@ One question in, one cited answer out. It runs next to the older web-need flow (
 path is accepted) and shares only the OpenRouter provider with it.
 
 ```
-question -> plan    1 model call: 2-4 keyword queries (language of the question and English), optional period
-         -> search  code: Google News RSS per query (headline, publisher, publication date) and Exa via
-                    OpenRouter for the first two queries (article text); merged by headline, sorted oldest first,
-                    the newest 80 kept
-         -> answer  1 model call: only from the numbered sources, every fact cited [n] with its date
-         -> check   code: cited numbers must exist; citation dates come from the source list, never from the model
+question -> plan     1 model call: 2-4 keyword queries (question language and English; a ticker also gets the
+                     company's name), optional period stated in the question
+         -> turn 1   code: Google News RSS for every query x every 3-month window (default: 8 windows, two years
+                     back from the question's date), Exa via OpenRouter for the first two queries
+         -> review   1 model call per turn: up to 3 NEW queries moving outward (related parties, contracts, the
+                     industry, external factors), or none; turns 2 and 3 repeat the scan with them (max 3 turns)
+         -> merge    code: dedupe by headline; WEB_ASK_MAX_SOURCES (default 500) shared evenly across the windows,
+                     a tenth for undated sources; sorted oldest first
+         -> answer   1 model call: only from the numbered sources, subject facts and wider context separated,
+                     every fact cited [n] with its date; a period in the question limits the answer
+         -> check    code: cited numbers must exist; citation dates come from the source list, never from the model
 ```
+
+Measured locally on 2026-09-29 for "kenapa saham ptro naik 1 tahun terakhir": 3 turns, 80 Google News requests
+(no rate limiting), 500 sources from 2024-09-25 to 2026-09-29, 31 s, USD 0.031.
 
 - **Request:** `{"request_id": "...", "question": "apa keputusan BI rate terakhir", "as_of": null, "model_slot": null}`.
   `as_of` defaults to today; `model_slot` to the default slot.
 - **Response:** `status` (`ANSWERED`, `NO_SOURCES`, `FAILED`), `answer`, `citations` and `sources`
   (`n`, `date`, `publisher`, `title`, `url`, `via`), `plan`, `warnings`, `usage` (model calls, search calls, cost),
-  `seconds`, `stored`. The same `request_id` returns the stored answer without new calls.
+  `seconds`, `stored`. `plan.windows` lists the search windows and `plan.turns` each turn's queries, reasons and
+  number of Google News requests. The same `request_id` returns the stored answer without new calls.
 - **Why this shape:** OpenRouter's web search has no publication-date filter and lets the model write the query
   (W16). Google News returns a date for every headline, so ordering by date lets the model answer "latest" and
   "before event X" questions without special modes.
