@@ -1,5 +1,18 @@
 # Railway changelog
 
+## 2026-09-29 — market-web-governor: lean `POST /v1/ask` next to the web-need flow (user-approved)
+
+- **Migration** `event_store/002_web_ask.sql` on Postgres-E8GM through the runner (`4620705a`, phase `migrate_sql`):
+  table `web_ask` (15 columns); grants `web_event_writer` SELECT, INSERT, DELETE and `web_event_reader` SELECT on
+  `web_ask` only (`web_event_item` unchanged: writer INSERT, reader SELECT). The temporary runner variable
+  `EVENT_STORE_ADMIN_URL` was deleted afterwards; the runner keeps `EVENT_STORE_READER_URL` and
+  `WEB_GOVERNOR_API_KEY`.
+- **Deployment** market-web-governor `68bffe16` (PR #21, `c43d792`) `SUCCESS`. No variable changed on the governor;
+  the answers use the existing `WEB_EVENT_STORE_URL` and slot 1 (DeepSeek V4.1 Flash).
+- **Live test** (runner `b0035ebc`, `live-ask1-20260929-q1..q5`, five questions in parallel): 5 of 5 `ANSWERED`,
+  4.9–15.8 s each, USD 0.015–0.016 each (about USD 0.08 in total), 69–80 sources and 2–46 citations each, no
+  warnings; 5 rows in `web_ask` with `expires_at` 30 days after creation.
+
 ## 2026-09-28 — market-web-governor: event store, source policy, pre-event timeline, classification (P1–P4)
 
 - **Main database name restored (R18):** the market-data PostgreSQL service had been renamed `Web_Fetch` in the
