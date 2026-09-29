@@ -238,7 +238,7 @@ Four layers guarantee what reaches the table:
 
 - Confirm the OJK material-transaction thresholds before the rubric parameters are set.
 
-## P5 — `/v1/ask`: implications and what to watch — PLANNED (approved by the user on 2026-09-29, not started)
+## P5 — `/v1/ask`: implications and what to watch — IMPLEMENTED (PR #33/#34, live 2026-09-29)
 
 **Why.** An answer that only lists news is information, not something a reader can use. Benchmarks (Axios "Why it
 matters / What's next", sell-side research with scenarios and dated catalysts, ICD-203 signposts, and grounded-LLM
@@ -264,7 +264,7 @@ labelled as analysis. No buy/sell recommendation.
 **Verification.** Unit tests for the schema, citation checks and rendering; live runner test with the fiscal,
 CLARITY Act and Cimory questions; record in `RAILWAY_CHANGELOG.md`.
 
-## P6 — `/v1/ask`: upcoming news and a forward timeline — PLANNED (user decisions of 2026-09-29 included; to be built together with P5)
+## P6 — `/v1/ask`: upcoming news and a forward timeline — IMPLEMENTED (PR #33/#34, live 2026-09-29; timeline relevance and date check W17/W18)
 
 **Why.** A test on "apa rencana CMRY ke depan … timeline-nya" returned a mostly backward-looking timeline and missed
 2027 events that Google News does have (sweetened-drink excise approved for 2027, five integrated livestock zones due in
