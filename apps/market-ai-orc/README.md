@@ -1249,27 +1249,47 @@ at start-up) and a request that sets it gets HTTP 400 `ANALYSIS_PATH_UNAVAILABLE
 
 ### Multi-Angle Research (off unless `AI_ENABLE_MULTI_ANGLE_RESEARCH=true`)
 
-Design, contracts and decisions: `MULTI_ANGLE_RESEARCH.md` (repository root). A research question is planned as one
-root hypothesis examined from three to six angles (`research_plan/v2`), each with one registered method and its own
-data contract, and answered with one backend finding per angle. Active only when the flag is on, the DataNeed flow,
-Research Plan confirmation, plan feasibility and DataNeedSpec v2 are active, and the sandbox reports
-`multi_angle_research` version 2 with the same method registry (`negotiate()` in `app/research_plan_v2.py`);
-otherwise `multi_angle_research_inactive` is logged and research v1 is unchanged.
+Design, contracts and decisions: `MULTI_ANGLE_RESEARCH.md` (repository root); fixes after suite20:
+`MULTI_ANGLE_FIX_PLAN.md`. A research question is planned as one root hypothesis examined from two to six angles
+(`research_plan/v2`), each with one method of the research library and its own data contract, and answered with one
+backend finding per angle. Active only when the flag is on, the DataNeed flow, Research Plan confirmation, plan
+feasibility and DataNeedSpec v2 are active, the sandbox reports `multi_angle_research` version 2 with the same method
+registry and the same research library (`negotiate()` in `app/research_plan_v2.py`), and the active rows of
+`public."AI_research_library"` equal this service's `app/research_library.py` (`library_problem()`, read once at
+startup through the catalog login); otherwise `multi_angle_research_inactive` is logged (with
+`research_library_mismatch` when the library differs) and research v1 is unchanged.
 
-- Tools: `check_research_feasibility` (`app/tools/research_planner.py`, replaces `check_data_feasibility`) builds the
-  research data plan: equal requests of different angles merge into one bundle, angles split into bundle groups only
-  when one bundle does not fit (`AI_RESEARCH_MAX_BUNDLE_GROUPS`, default 3). After approval `start_research_run`,
-  `run_research_code(bundle_group_id, code)` and `complete_research_run(finalize)` (`app/research_run_executor.py`)
-  promote the signed drafts, prepare the bundles and run the groups one at a time (`AI_RESEARCH_MAX_PARALLEL_GROUPS`
-  accepts only 1).
-- `AI_RESEARCH_MIN_ANGLES` / `AI_RESEARCH_MAX_ANGLES` (3 and 6) may only narrow the angle count.
+- Research library (C07, 2026-09-29): `app/research_library.py` is byte-identical with the sandbox's and describes
+  the eight methods (family, question, input roles, parameters, data requirements, sample unit, secondary checks,
+  interpretation, misuse warning, example). `get_research_library` (`app/tools/library.py`) serves the table rows to
+  the plan turn; the system prompt names no method. While it is served, the RESEARCH section of `get_catalog_details`
+  and `discover_catalog`'s `research_catalog` say that `AI_research_catalog` lists reference methods that cannot run.
+- Tools: `check_research_feasibility` (`app/tools/research_planner.py`, replaces `check_data_feasibility`) receives
+  each angle's design (method, parameters, horizon, unit, comparisons, multiple-testing policy, holdout and, for a
+  forward return, the request and price column) with its data requirement. It applies the rules the final plan
+  enforces and the library's data requirements (M38: `DESIGN_PARAMETERS`, `MULTIPLE_TESTING_POLICY_REQUIRED`,
+  `HOLDOUT_NEEDS_TWO_RANGES`, `ENTITY_COLUMN_REQUIRED`, `OUTCOME_PRICE_*`, `FAMILY_COVERAGE`), widens a short future
+  buffer to the horizon (reported as `adjustments`), then builds the research data plan: equal requests of different
+  angles merge into one bundle, angles split into bundle groups only when one bundle does not fit
+  (`AI_RESEARCH_MAX_BUNDLE_GROUPS`, default 3). The data plan binds every checked design (`angle_design_sha256s`); the
+  plan gate refuses a plan whose angle design differs, with a second repair (`PLAN_FEASIBILITY_2`). The check reads
+  metadata only. After approval `start_research_run`, `run_research_code(bundle_group_id, code)` and
+  `complete_research_run(finalize)` (`app/research_run_executor.py`) promote the signed drafts, prepare the bundles
+  and run the groups one at a time (`AI_RESEARCH_MAX_PARALLEL_GROUPS` accepts only 1). The first `finalize` true while
+  an approved angle is unrecorded (and at least two tool calls remain) returns `INCOMPLETE` `ANGLES_NOT_RECORDED`; the
+  second is accepted (M36).
+- `AI_RESEARCH_MIN_ANGLES` / `AI_RESEARCH_MAX_ANGLES` (default 2 and 6, `2 <= min <= max <= 6`) may only narrow the
+  angle count; the prompt states the negotiated values. `AI_RESEARCH_MIN_FAMILIES` (default 0 = off, at most 5)
+  makes a plan use angles of at least that many method families.
 - The continuation is `rpc2`: it binds the plan and the research data plan (drafts, spec hashes, angle to group
   mapping, every angle contract); the response's `continuation.research_data_plan` must be sent back with the plan
   and token (history mode SERVER keeps both). A v1 continuation is never executed while v2 is active, and the reverse.
 - A RESEARCH data need is refused (`MULTI_ANGLE_PLAN_REQUIRED`); ANALYSIS is unchanged.
 - The answer carries `research_findings`: one `{angle_id, status, interpretation}` per approved angle, with the
-  backend status unchanged; agreement between angles only when the synthesis map allows it. Per-angle audit entries
-  carry `payload_version` `research_findings/v2`.
+  backend status unchanged; agreement between angles only when the synthesis map allows it (an agreement phrase
+  negated in its own clause is not a claim, P09). When the findings gate forces a LIMITATION, `research_findings`
+  keeps one backend-authored entry per angle (status, reason, validation level, effective sample) and the model's
+  reading is marked unconfirmed. Per-angle audit entries carry `payload_version` `research_findings/v2`.
 - With the flag off the system prompt, the final schema and every tool definition are byte-identical.
 
 ## Catalog discovery
