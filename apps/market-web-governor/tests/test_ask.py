@@ -414,7 +414,7 @@ def test_the_answer_call_reasons_and_can_be_switched_back(tmp_path):
     service(tmp_path, provider).ask(AskRequest(request_id="ask-test-0022", question="Company P",
                                                as_of=date(2026, 9, 29)))
     payload = answer_payload(provider)
-    assert payload["reasoning"] == {"enabled": True} and payload["max_output_tokens"] == 20000
+    assert payload["reasoning"] == {"enabled": True, "max_tokens": 2000} and payload["max_output_tokens"] == 8000
     assert "what each one measures" in payload["instructions"]
     provider = FakeProvider()
     service(tmp_path, provider, ask_answer_reasoning=False, ask_read_articles=0).ask(
@@ -535,9 +535,10 @@ def test_two_turns_without_new_evidence_stop_the_search(tmp_path):
 
 
 def test_the_search_runs_to_the_turn_limit_and_records_it(tmp_path):
-    # Claim a gains a source in turns 3 and 4 (no saturation), claim b stays missing; the limit is 5 turns.
-    reviews = [{"queries": [f"q {n}"], "claims": [covered(1, *range(1, min(n, 4))), missing(2)]} for n in range(2, 7)]
-    provider = FakeProvider(claims=["a", "b"], reviews=reviews)
+    # A missing point gets evidence in turns 2-4 (no saturation), point d stays missing; the limit is 5 turns.
+    done = [covered(1, 1), covered(2, 2), covered(3, 3)]
+    reviews = [{"queries": [f"q {n}"], "claims": done[:min(n - 1, 3)] + [missing(4)]} for n in range(2, 7)]
+    provider = FakeProvider(claims=["a", "b", "c", "d"], reviews=reviews)
     result = service(tmp_path, provider, ask_max_turns=5).ask(
         AskRequest(request_id="ask-test-0045", question="Company P", as_of=date(2026, 9, 29)))
     plan = result["plan"]
@@ -582,3 +583,57 @@ def test_evidence_for_a_claim_is_always_kept_in_the_final_sources():
     assert all(item["title"] != "the evidence" for item in merge_sources([crowd, [old]], spans, 12))
     kept = merge_sources([crowd, [old]], spans, 12, {"theevidence"})
     assert len(kept) == 12 and kept[-1]["title"] == "the evidence"  # undated sorts last
+
+
+def test_costs_are_counted_per_step_and_the_budget_keeps_a_reserve_for_the_answer(tmp_path):
+    provider = FakeProvider(claims=["a"], reads=[2], reviews=[["q two"], ["q three"]])
+    result = service(tmp_path, provider).ask(
+        AskRequest(request_id="ask-test-0050", question="Company P", as_of=date(2026, 9, 29)))
+    steps = result["usage"]["cost_by_step"]
+    assert set(steps) >= {"plan", "review", "exa_search", "answer", "implications"}
+    assert round(sum(steps.values()), 6) == round(result["usage"]["cost_usd"], 6)
+    assert result["plan"]["budget"]["max_usd"] == 0.05 and result["plan"]["budget"]["reserve_usd"] == 0.015
+    # Plan 0.001 + two Exa searches 0.004, then reviews at USD 0.02: after two reviews (0.045 spent) the 0.015
+    # reserve no longer fits the 0.05 budget, so the search stops before turn 4.
+    provider = FakeProvider(claims=["a"], cost=0.02, reviews=[["q two"], ["q three"], ["q four"]])
+    result = service(tmp_path, provider).ask(
+        AskRequest(request_id="ask-test-0051", question="Company P", as_of=date(2026, 9, 29)))
+    plan = result["plan"]
+    assert plan["stop"]["reason"] == "max_cost" and plan["stop"]["turn"] == 4
+    # Nothing is left for reading or for reasoning; the answer still runs without reasoning.
+    assert plan["budget"]["skipped"] == ["read", "answer_reasoning"] and "read" not in plan
+    assert answer_payload(provider)["reasoning"] == {"enabled": False}
+    assert result["status"] == "ANSWERED"
+
+
+def test_reading_is_cut_to_what_the_budget_allows(tmp_path):
+    provider = FakeProvider(claims=["a"], reads=[1, 2, 3])
+    # Exa searches cost 0.002 each; a budget of 0.03 leaves about 0.03 - 0.015 - 0.0x spent for reads.
+    result = service(tmp_path, provider, ask_max_cost_usd=0.03).ask(
+        AskRequest(request_id="ask-test-0052", question="Company P", as_of=date(2026, 9, 29)))
+    select = next(p for p in provider.payloads if "text" in p and p["text"]["format"]["name"] == "sources_to_read")
+    assert "at most" in select["instructions"]
+    read_calls = [p for p in provider.payloads if "tools" in p and p["tools"][0]["parameters"]["max_results"] == 1]
+    assert len(read_calls) <= 3 and all(p["tools"][0]["parameters"]["max_results"] == 1 for p in read_calls)
+
+
+def test_latest_value_questions_are_not_history_and_single_facts_get_few_claims():
+    from app.ask import plan_instructions
+    text = plan_instructions(date(2026, 9, 30))
+    assert "is NOT a history question" in text and "'terakhir kali'" in text
+    assert "1 to 3 points about exactly what is asked" in text
+
+
+def test_saturation_counts_only_new_evidence_for_missing_points(tmp_path):
+    # Point a keeps gaining sources, but it is already covered; point b stays missing: saturated after turn 4.
+    reviews = [{"queries": [f"q {n}"], "claims": [covered(1, *range(1, min(n, 4))), missing(2)]} for n in range(2, 8)]
+    result = service(tmp_path, FakeProvider(claims=["a", "b"], reviews=reviews)).ask(
+        AskRequest(request_id="ask-test-0053", question="Company P", as_of=date(2026, 9, 29)))
+    assert result["plan"]["stop"]["reason"] == "saturated" and result["plan"]["stop"]["turn"] == 5
+
+
+def test_date_markers_left_by_removed_numbers_are_merged():
+    clean, _, _ = clean_citations("BI menahan 5,75% (23 Sep 2026) [1] (24 Sep 2026) [2] (tanpa tanggal) [3].", 3)
+    assert clean == "BI menahan 5,75% (23 Sep 2026, 24 Sep 2026)."
+    clean, _, _ = clean_citations("Total 100 bps (23 Sep 2026) [4] dan (tanpa tanggal) [5].", 5)
+    assert clean == "Total 100 bps (23 Sep 2026)."
