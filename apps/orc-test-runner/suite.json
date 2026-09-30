@@ -1,4 +1,4 @@
-{"prefix": "ma-suite20-20260930c", "workers": 2, "audit_wait_seconds": 300, "items": [
+{"prefix": "ma-suite20-20260930d", "workers": 2, "audit_wait_seconds": 300, "items": [
  {"id": "r01_energy_drop_rebound", "analysis_path": "RESEARCH", "expect": "plan v2 (conditional_distribution / threshold_sensitivity); forward return from a price column (G12)", "message": "Apakah saham sektor energi yang turun lebih dari 4% dalam sehari cenderung rebound dalam 5 hari perdagangan berikutnya dibanding hari-hari lainnya? Gunakan data 2021 sampai sekarang."},
  {"id": "r02_big6_up_streak", "analysis_path": "RESEARCH", "expect": "streak_persistence on six named tickers", "message": "Untuk BBCA, BBRI, BMRI, BBNI, TLKM dan ASII: apakah kenaikan harga 3 hari berturut-turut atau lebih cenderung berlanjut pada hari berikutnya? Periode 2020 sampai sekarang."},
  {"id": "r03_tech_vol_regime", "analysis_path": "RESEARCH", "expect": "regime_comparison high vs low 20-day volatility", "message": "Apakah return 10 hari ke depan saham sektor teknologi berbeda antara periode volatilitas 20 hari tinggi dan rendah? Periode 2022 sampai sekarang."},
