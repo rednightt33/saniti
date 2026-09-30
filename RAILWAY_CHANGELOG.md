@@ -36,7 +36,19 @@
 - **Config**: `railway config pull --force` left `.railway/railway.ts` unchanged; `railway config plan`: up to date.
 - **Live test `ma-m43g13-20260930a`**: runner `orc-test-runner` deployment `b186f4f8-0bf8-403c-b9d5-4f4cfb951148`
   (CLI upload, 16:05 UTC): the broker question over three turns in mode 4 (M43) and e02 through the RESEARCH path with
-  one automatic approval (G13). Running; the results are added when it ends.
+  one automatic approval (G13). 0 HTTP errors at market-ai-orc, about USD 0.40 in total.
+  - Broker round 1 (mode 4, `SWITCH`): all four steps: analysis ANSWER (585 s, one REFERENCE repair for a selector
+    row that did not exist, then clean), a plan of 4 angles (199 s), research COMPLETED 4 of 4 validated, all
+    INSUFFICIENT_EVIDENCE (137 s; one REFERENCE and one FINDINGS repair), one suggested angle (443 s; one output cut
+    at 24,000 reasoning tokens, M37); 1,364 s, USD 0.27. M43 no longer occurs: the analysis was not forced to
+    LIMITATION and the research ran. The answer has a self-contradicting count (M44).
+  - Turn 2 "Setuju" (mode 4, `CONTINUATION`): the classifier read APPROVE, the suggestion ran (research COMPLETED 1 of
+    1, 35 s) and the next suggestion was issued; 454 s, USD 0.05.
+  - Turn 3 "cari 2 angle lain": read as REVISE, a revised plan of exactly 2 angles (418 s, USD 0.04), from the orc log;
+    the runner logged nothing after turn 2 (R22).
+  - e02 (RESEARCH path, one automatic approval): both requests scoped to BBCA (Governor estimate 2 rows each), one
+    bundle group, run COMPLETED 4 of 4 validated (G13 no longer occurs); the answer was forced to LIMITATION by the
+    CLAIM gate for "menyebabkan" in a negated sentence after an earlier "prediksi" repair (P17); USD 0.05.
 
 ## 2026-09-30 — mode switcher `AI_MODE_SWITCH` on dev (default 4); mode 4 live test
 
