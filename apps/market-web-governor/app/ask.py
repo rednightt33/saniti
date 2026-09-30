@@ -598,9 +598,10 @@ def _merge_dates(match: re.Match) -> str:
     return f"({', '.join(dated)})" if dated else f"({marks[0]})"
 
 
-def clean_citations(answer: str, count: int) -> tuple[str, str, list[int]]:
-    """Return the answer without source numbers, the answer with numbers renumbered 1..k in order of appearance, and
-    the original numbers in that order (only numbers that exist in the source list)."""
+def clean_citations(answer: str, count: int, urls: list[str] | None = None) -> tuple[str, str, list[int]]:
+    """Return the answer without source numbers (with `urls`, each run of numbers becomes a "(source)" link per
+    source), the answer with numbers renumbered 1..k in order of appearance, and the original numbers in that order
+    (only numbers that exist in the source list)."""
     order: list[int] = []
     for match in re.finditer(r"\[(\d+)\]", answer):
         number = int(match.group(1))
@@ -609,12 +610,26 @@ def clean_citations(answer: str, count: int) -> tuple[str, str, list[int]]:
     renumber = {number: index for index, number in enumerate(order, 1)}
     cited = re.sub(r"\[(\d+)\]", lambda m: f"[{renumber[int(m.group(1))]}]" if int(m.group(1)) in renumber else "",
                    answer)
-    clean = re.sub(r"(?:\s*[,;]?\s*\[\d+\])+", "", answer)
+    runs: list[list[int]] = []
+
+    def hold(match: re.Match) -> str:
+        numbers = list(dict.fromkeys(n for n in map(int, re.findall(r"\d+", match.group(0))) if 1 <= n <= count))
+        if not urls or not numbers:
+            return ""
+        runs.append(numbers)
+        return f"\x00{len(runs) - 1}\x00"
+
+    clean = re.sub(r"(?:\s*[,;]?\s*\[\d+\])+", hold, answer)
     clean = re.sub(r"[ \t]+([.,;:)])", r"\1", clean)
     clean = re.sub(r"\(\s*\)", "", clean)
     clean = _DATE_RUN.sub(_merge_dates, clean)  # "(23 Sep 2026) (24 Sep 2026) (tanpa tanggal)" -> one marker
     clean = re.sub(r"[ \t]{2,}", " ", clean)
     clean = re.sub(r"[ \t]+$", "", clean, flags=re.M)
+    if runs:
+        def link(match: re.Match) -> str:
+            return " (" + ", ".join(f"[source]({urls[n - 1].replace(')', '%29').replace(' ', '%20')})"
+                                    for n in runs[int(match.group(1))]) + ")"
+        clean = re.sub(r"\x00(\d+)\x00", link, clean)
     return clean.strip(), cited.strip(), order
 
 
@@ -837,7 +852,7 @@ class AskService:
             usage["model_calls"] += len(plan.get("implications_attempts") or [None])
             if implications is not None:
                 answer = answer + "\n" + render_implications(implications)
-            answer, answer_cited, order = clean_citations(answer, len(items))
+            answer, answer_cited, order = clean_citations(answer, len(items), [item["url"] for item in items])
             renumber = {number: index for index, number in enumerate(order, 1)}
             numbers = {_key(item): n for n, item in enumerate(items, 1)}
             plan["claims"] = [{"claim": c["claim"], "status": c["status"],

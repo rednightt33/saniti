@@ -1,5 +1,6 @@
 import dataclasses
 import json
+import re
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -120,7 +121,9 @@ def test_ask_answers_from_numbered_sources_and_takes_dates_from_the_list(tmp_pat
                                       "title": "Company P dikabarkan jajaki penjualan saham",
                                       "url": "https://news.google.com/a1", "via": "google_news"}
     assert {w["code"] for w in result["warnings"]} == {"UNKNOWN_CITATION", "IMPLICATIONS_EMPTY"}
-    assert result["answer"] == "Talks were reported on 2025-10-07; the deal was announced on 2026-09-18."
+    # Source numbers become "(source)" links to the cited headlines.
+    assert result["answer"] == ("Talks were reported on 2025-10-07 ([source](https://news.google.com/a1)); the deal "
+                                "was announced on 2026-09-18 ([source](https://wire.example/2026/09/18/p-deal)).")
     assert result["answer_cited"] == "Talks were reported on 2025-10-07 [1]; the deal was announced on 2026-09-18 [2]."
     assert [c["n"] for c in result["citations"]] == [1, 2]
     payload = answer_payload(provider)
@@ -348,7 +351,8 @@ def test_implications_are_appended_without_numbers_and_a_failure_keeps_the_answe
                                  "sources": [2]}], "scenarios": [], "timeline": []}
     result = service(tmp_path, FakeProvider(implications=implications)).ask(
         AskRequest(request_id="ask-test-0015", question="Company P", as_of=date(2026, 9, 29)))
-    assert "## Implikasi & yang perlu dipantau" in result["answer"] and "[" not in result["answer"]
+    assert "## Implikasi & yang perlu dipantau" in result["answer"]
+    assert not re.search(r"\[\d+\]", result["answer"]) and "([source](" in result["answer"]
     assert "- Company P: positif — akuisisi [2]" in result["answer_cited"]
     assert result["plan"]["implications"]["impacts"][0]["sources"] == [2]
     failed = service(tmp_path, FakeProvider(fail_implications=True)).ask(
@@ -637,3 +641,10 @@ def test_date_markers_left_by_removed_numbers_are_merged():
     assert clean == "BI menahan 5,75% (23 Sep 2026, 24 Sep 2026)."
     clean, _, _ = clean_citations("Total 100 bps (23 Sep 2026) [4] dan (tanpa tanggal) [5].", 5)
     assert clean == "Total 100 bps (23 Sep 2026)."
+
+
+def test_citation_runs_become_source_links():
+    urls = ["https://a/x", "https://b/y", "https://c/(z)"]
+    clean, cited, _ = clean_citations("Rp32 pada Rabu [1][2]. Reda di Rp28 [3].", 3, urls)
+    assert clean == "Rp32 pada Rabu ([source](https://a/x), [source](https://b/y)). Reda di Rp28 ([source](https://c/(z%29))."
+    assert cited == "Rp32 pada Rabu [1][2]. Reda di Rp28 [3]."
