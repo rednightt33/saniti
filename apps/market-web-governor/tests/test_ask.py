@@ -7,7 +7,8 @@ from fastapi.testclient import TestClient
 
 from datetime import date
 
-from app.ask import (AskRequest, AskService, AskStoreError, check_dates, clean_citations, merge_sources, parse_when,
+from app.ask import (AskRequest, AskService, AskStoreError, check_dates, clean_citations, drill_windows,
+                     history_windows, merge_sources, parse_when,
                      render_implications, validate_implications, windows)
 from app.main import create_app
 from tests.conftest import API_KEY, make_settings
@@ -22,8 +23,14 @@ RSS = """<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>
 
 class FakeProvider:
     def __init__(self, answer="Talks were reported on 2025-10-07 [1]; the deal was announced on 2026-09-18 [2]. [9]",
-                 reviews=None, sectors=None, forward=None, implications=None, fail_implications=False):
+                 reviews=None, sectors=None, forward=None, implications=None, fail_implications=False,
+                 reads=None, history=False, former=None, claims=None, cost=0.001):
         self.payloads = []
+        self.history = history
+        self.claims = claims or []
+        self.cost = cost
+        self.former = former or []
+        self.reads = reads or []
         self.answer = answer
         self.reviews = list(reviews or [])
         self.sectors = sectors or []
@@ -34,8 +41,14 @@ class FakeProvider:
     def respond(self, payload):
         self.payloads.append(payload)
         if "text" in payload and payload["text"]["format"]["name"] == "next_searches":
-            queries = self.reviews.pop(0) if self.reviews else []
-            text = json.dumps({"queries": [{"query": q, "reason": "context"} for q in queries]})
+            entry = self.reviews.pop(0) if self.reviews else []
+            queries, marks = (entry.get("queries", []), entry.get("claims", [])) if isinstance(entry, dict) else (entry, [])
+            text = json.dumps({"claims": marks,
+                               "queries": [{"query": q[0], "reason": "context", "year": q[1]} if isinstance(q, tuple)
+                                           else {"query": q, "reason": "context", "year": None} for q in queries]})
+            return {"output": [{"content": [{"type": "output_text", "text": text}]}], "usage": {"cost": self.cost}}
+        if "text" in payload and payload["text"]["format"]["name"] == "sources_to_read":
+            text = json.dumps({"sources": [{"n": n, "reason": "conflicting figure"} for n in self.reads]})
             return {"output": [{"content": [{"type": "output_text", "text": text}]}], "usage": {"cost": 0.001}}
         if "text" in payload and payload["text"]["format"]["name"] == "implications":
             text = "not json" if self.fail_implications else json.dumps(self.implications)
@@ -43,7 +56,8 @@ class FakeProvider:
         if "text" in payload:
             text = json.dumps({"queries": ["Company P akuisisi", "Company P acquisition talks"], "subject": "Company P",
                                "sectors": self.sectors, "forward_queries": self.forward, "after": None,
-                               "before": None})
+                               "before": None, "history": self.history, "former_names": self.former,
+                               "claims": self.claims})
             return {"output": [{"content": [{"type": "output_text", "text": text}]}], "usage": {"cost": 0.001}}
         if "tools" in payload:
             annotation = {"type": "url_citation", "url": "https://wire.example/2026/09/18/p-deal",
@@ -96,8 +110,8 @@ def test_ask_answers_from_numbered_sources_and_takes_dates_from_the_list(tmp_pat
     # Plan, one review (empty: no turn 2), answer, implications; two Exa searches. Turn 0: 2 subject queries x 8
     # windows; turn 1: 4 subject templates x the 2 newest windows.
     assert [("text" in p, "tools" in p) for p in provider.payloads].count((False, True)) == 2
-    # model calls: plan, answer and two implications attempts (the fake returns none, so it is retried once)
-    assert result["usage"]["model_calls"] == 4 and result["usage"]["review_calls"] == 1
+    # model calls: plan, article selection, answer and two implications attempts (none returned, so retried)
+    assert result["usage"]["model_calls"] == 5 and result["usage"]["review_calls"] == 1
     assert result["usage"]["search_calls"] == 2 and result["usage"]["news_requests"] == 2 * 8 + 4 * 2
     assert len(result["plan"]["windows"]) == 8 and [t["turn"] for t in result["plan"]["turns"]] == [0, 1]
     # The same headline from Google News and Exa is one source; oldest first.
@@ -170,15 +184,16 @@ def test_review_turns_broaden_the_search_and_stop_at_three(tmp_path):
     seen = []
     provider = FakeProvider(reviews=[["Petrosea kontrak tambang", "Company P akuisisi"], ["harga batu bara"],
                                      ["never asked"]])
-    result = service(tmp_path, provider, seen=seen).ask(
+    result = service(tmp_path, provider, seen=seen, ask_max_turns=3).ask(
         AskRequest(request_id="ask-test-0006", question="kenapa saham ptro naik 1 tahun terakhir",
                    as_of=date(2026, 9, 29)))
     turns = result["plan"]["turns"]
-    # "Company P akuisisi" was already used in turn 0 and is dropped; turn 3 is the last one.
+    # "Company P akuisisi" was already used in turn 0 and is dropped; with a 3-turn limit turn 3 is the last one.
     assert [t["turn"] for t in turns] == [0, 1, 2, 3]
+    assert result["plan"]["stop"]["reason"] == "max_turns"
     assert [t["queries"] for t in turns[:1] + turns[2:]] == [["Company P akuisisi", "Company P acquisition talks"],
                                                            ["Petrosea kontrak tambang"], ["harga batu bara"]]
-    assert result["usage"]["review_calls"] == 2
+    assert result["usage"]["review_calls"] == 3  # turns 2 and 3, then a final review for the claim marks
     assert result["usage"]["news_requests"] == 2 * 8 + 4 * 2 + 8 + 8
     assert sum("harga batu bara" in q for q in seen) == 8
     assert any("after:2024-09-29 before:2024-12-29" in q for q in seen)
@@ -190,7 +205,7 @@ def test_review_turns_broaden_the_search_and_stop_at_three(tmp_path):
     assert "both the company's name and its ticker" in plan_rules
     reviews = [p["instructions"] for p in provider.payloads
                if "text" in p and p["text"]["format"]["name"] == "next_searches"]
-    assert "search turn 2 of 3" in reviews[0] and "search turn 3 of 3" in reviews[1]
+    assert "search turn 2 of at most 3" in reviews[0] and "search turn 3 of at most 3" in reviews[1]
     assert "industry or sector and one on government policy or regulation" in reviews[0]
 
 
@@ -374,3 +389,251 @@ def test_timeline_rules_exclude_forecasts_and_past_events():
     from app.ask import implications_instructions
     text = implications_instructions(date(2026, 9, 29))
     assert "Not forecasts" in text and "already happened" in text
+
+
+def test_chosen_articles_are_read_only_when_the_search_finds_the_same_headline(tmp_path):
+    provider = FakeProvider(reads=[1, 3, 99])
+    result = service(tmp_path, provider).ask(
+        AskRequest(request_id="ask-test-0020", question="Company P", as_of=date(2026, 9, 29)))
+    # [1] and [3] are Google News headlines the Exa search result ("Company P announces acquisition") does not
+    # match, so nothing is attached; [99] does not exist and is dropped.
+    read = result["plan"]["read"]
+    assert [entry["read"] for entry in read] == [False, False]
+    assert {w["code"] for w in result["warnings"]} >= {"READ_NONE"}
+    provider = FakeProvider(reads=[2])
+    result = service(tmp_path, provider).ask(
+        AskRequest(request_id="ask-test-0021", question="Company P", as_of=date(2026, 9, 29)))
+    # [2] is the Exa item "Company P announces acquisition": its search result has the same title.
+    assert result["plan"]["read"] == [{"title": "Company P announces acquisition", "reason": "conflicting figure",
+                                       "read": True}]
+    assert "Company P said on Friday" in answer_payload(provider)["input"]
+
+
+def test_the_answer_call_reasons_and_can_be_switched_back(tmp_path):
+    provider = FakeProvider()
+    service(tmp_path, provider).ask(AskRequest(request_id="ask-test-0022", question="Company P",
+                                               as_of=date(2026, 9, 29)))
+    payload = answer_payload(provider)
+    assert payload["reasoning"] == {"enabled": True, "effort": "high"} and payload["max_output_tokens"] == 20000
+    assert "what each one measures" in payload["instructions"]
+    provider = FakeProvider()
+    service(tmp_path, provider, ask_answer_reasoning=False, ask_read_articles=0).ask(
+        AskRequest(request_id="ask-test-0023", question="Company P", as_of=date(2026, 9, 29)))
+    assert answer_payload(provider)["reasoning"] == {"enabled": False}
+    assert not any("text" in p and p["text"]["format"]["name"] == "sources_to_read" for p in provider.payloads)
+
+
+def test_history_windows_keep_two_years_of_quarters_and_add_older_years():
+    spans = history_windows(date(2026, 9, 29))
+    assert len(spans) == 8 + 5
+    assert spans[0] == (date(2026, 6, 29), date(2026, 9, 29)) and spans[7] == (date(2024, 9, 29), date(2024, 12, 29))
+    assert spans[8] == (date(2023, 9, 29), date(2024, 9, 29)) and spans[-1] == (date(2019, 9, 29), date(2020, 9, 29))
+    assert drill_windows(2022, date(2026, 9, 29)) == [(date(2022, 10, 1), date(2023, 1, 1)),
+                                                      (date(2022, 7, 1), date(2022, 10, 1)),
+                                                      (date(2022, 4, 1), date(2022, 7, 1)),
+                                                      (date(2022, 1, 1), date(2022, 4, 1))]
+    # Cut to the one-year range: the earliest year starts on the range's first day, the latest ends two years back.
+    assert drill_windows(2019, date(2026, 9, 29)) == [(date(2019, 10, 1), date(2020, 1, 1)),
+                                                      (date(2019, 9, 29), date(2019, 10, 1))]
+    assert drill_windows(2024, date(2026, 9, 29))[0] == (date(2024, 7, 1), date(2024, 9, 29))
+    assert drill_windows(2025, date(2026, 9, 29)) == [] and drill_windows(2012, date(2026, 9, 29)) == []
+
+
+def test_a_history_question_adds_older_years_and_drills_into_chosen_years(tmp_path):
+    seen = []
+    provider = FakeProvider(history=True, former=["Gojek"],
+                            reviews=[[("Company P buyback", 2021), ("Company P buyback", 2025), "Company P RUPS"]])
+    result = service(tmp_path, provider, seen=seen).ask(
+        AskRequest(request_id="ask-test-0030", question="apakah Company P pernah buyback?", as_of=date(2026, 9, 29)))
+    plan = result["plan"]
+    assert plan["history"] is True and len(plan["windows"]) == 13
+    # Turn 0: two plan queries plus the former name over 8 quarters and 5 older years; turn 1 over 2 quarters.
+    assert plan["turns"][0]["queries"] == ["Company P akuisisi", "Company P acquisition talks", "Gojek"]
+    assert plan["turns"][0]["news_requests"] == 3 * 13
+    assert "Gojek after:2019-09-29 before:2020-09-29" in seen
+    assert "Gojek after:2026-06-29 before:2026-09-29" in seen
+    # Turn 2: 2021 drills into its 4 quarters; 2025 is already searched by quarter, so it runs as a plain query over
+    # every window, like "Company P RUPS".
+    turn2 = plan["turns"][2]
+    assert turn2["queries"] == ["Company P buyback", "Company P buyback", "Company P RUPS"]
+    assert turn2["years"] == [2021, None, None]
+    assert "Company P buyback after:2021-04-01 before:2021-07-01" in seen
+    assert turn2["news_requests"] == 4 + 13 * 2
+
+
+def test_an_ordinary_question_ignores_years_from_the_review(tmp_path):
+    seen = []
+    provider = FakeProvider(reviews=[[("Company P buyback", 2022)]])
+    result = service(tmp_path, provider, seen=seen).ask(
+        AskRequest(request_id="ask-test-0031", question="Company P", as_of=date(2026, 9, 29)))
+    assert result["plan"]["history"] is False and len(result["plan"]["windows"]) == 8
+    assert result["plan"]["turns"][2]["years"] == [None]
+    assert not any("after:2022-04-01" in q for q in seen)
+
+
+def covered(index, *sources):
+    return {"index": index, "status": "covered", "sources": list(sources)}
+
+
+def missing(index):
+    return {"index": index, "status": "missing", "sources": []}
+
+
+def test_claims_are_capped_and_default_to_the_question(tmp_path):
+    result = service(tmp_path, FakeProvider(claims=[f"point {i}" for i in range(12)])).ask(
+        AskRequest(request_id="ask-test-0040", question="Company P", as_of=date(2026, 9, 29)))
+    assert [c["claim"] for c in result["plan"]["claims"]] == [f"point {i}" for i in range(8)]
+    result = service(tmp_path, FakeProvider()).ask(
+        AskRequest(request_id="ask-test-0041", question="apakah Company P pernah buyback?", as_of=date(2026, 9, 29)))
+    assert [c["claim"] for c in result["plan"]["claims"]] == ["apakah Company P pernah buyback?"]
+
+
+def test_the_search_stops_once_every_claim_is_settled_after_the_fixed_turns(tmp_path):
+    provider = FakeProvider(claims=["plan", "result"], reviews=[
+        {"queries": ["Company P RUPS"], "claims": [covered(1, 1), missing(2)]},
+        {"queries": ["never run"], "claims": [covered(1, 1), covered(2, 2)]}])
+    result = service(tmp_path, provider).ask(
+        AskRequest(request_id="ask-test-0042", question="Company P", as_of=date(2026, 9, 29)))
+    plan = result["plan"]
+    assert [t["turn"] for t in plan["turns"]] == [0, 1, 2]
+    assert plan["stop"]["reason"] == "all_claims_settled" and plan["stop"]["turn"] == 3
+    assert [(c["status"], c["sources"]) for c in plan["claims"]] == [("covered", [1]), ("covered", [2])]
+    # The answer call gets the checklist with evidence numbers of the final source list.
+    assert "CLAIMS:\n1. plan | covered [1]\n2. result | covered [2]" in answer_payload(provider)["input"]
+    assert "Tidak terjawab" in answer_payload(provider)["instructions"]
+
+
+def test_claims_cannot_be_covered_without_sources_or_given_up_before_turn_four(tmp_path):
+    provider = FakeProvider(claims=["a", "b"], reviews=[
+        {"queries": ["q two"], "claims": [{"index": 1, "status": "covered", "sources": [999]},
+                                          {"index": 2, "status": "not_in_news", "sources": []}]},
+        {"queries": ["q three"], "claims": [covered(1, 1), {"index": 2, "status": "not_in_news", "sources": []}]},
+        {"queries": ["q four"], "claims": [covered(1, 1), {"index": 2, "status": "not_in_news", "sources": []}]}])
+    result = service(tmp_path, provider).ask(
+        AskRequest(request_id="ask-test-0043", question="Company P", as_of=date(2026, 9, 29)))
+    plan = result["plan"]
+    # Turns 2 and 3 run (claim b cannot be given up before turn 4); at turn 4 it may, so the search stops.
+    assert [t["turn"] for t in plan["turns"]] == [0, 1, 2, 3]
+    assert plan["stop"] == {**plan["stop"], "reason": "all_claims_settled", "turn": 4}
+    assert [c["status"] for c in plan["claims"]] == ["covered", "not_in_news"]
+
+
+def test_two_turns_without_new_evidence_stop_the_search(tmp_path):
+    provider = FakeProvider(claims=["a", "b"], reviews=[
+        {"queries": ["q two"], "claims": [covered(1, 1), missing(2)]},
+        {"queries": ["q three"], "claims": [covered(1, 1), missing(2)]},
+        {"queries": ["q four"], "claims": [covered(1, 1), missing(2)]},
+        {"queries": ["q five"], "claims": [covered(1, 1), missing(2)]},
+        {"queries": ["q six"], "claims": [covered(1, 1), missing(2)]}])
+    result = service(tmp_path, provider).ask(
+        AskRequest(request_id="ask-test-0044", question="Company P", as_of=date(2026, 9, 29)))
+    plan = result["plan"]
+    # Reviews at turns 4 and 5 add no evidence: saturated before searching turn 5.
+    assert [t["turn"] for t in plan["turns"]] == [0, 1, 2, 3, 4]
+    assert plan["stop"]["reason"] == "saturated" and plan["stop"]["turn"] == 5
+    assert [c["status"] for c in plan["claims"]] == ["covered", "missing"]
+
+
+def test_the_search_runs_to_the_turn_limit_and_records_it(tmp_path):
+    # A missing point gets evidence in turns 2-4 (no saturation), point d stays missing; the limit is 5 turns.
+    done = [covered(1, 1), covered(2, 2), covered(3, 3)]
+    reviews = [{"queries": [f"q {n}"], "claims": done[:min(n - 1, 3)] + [missing(4)]} for n in range(2, 7)]
+    provider = FakeProvider(claims=["a", "b", "c", "d"], reviews=reviews)
+    result = service(tmp_path, provider, ask_max_turns=5).ask(
+        AskRequest(request_id="ask-test-0045", question="Company P", as_of=date(2026, 9, 29)))
+    plan = result["plan"]
+    assert [t["turn"] for t in plan["turns"]] == [0, 1, 2, 3, 4, 5]
+    assert plan["stop"]["reason"] == "max_turns" and plan["stop"]["turn"] == 6
+    assert result["usage"]["review_calls"] == 5  # turns 2-5 and the final claim review
+
+
+def test_the_news_request_limit_trims_a_turn_and_then_stops(tmp_path):
+    provider = FakeProvider(claims=["a"], reviews=[{"queries": ["q2 a", "q2 b", "q2 c"]}, {"queries": ["q3 a"]}])
+    # Turns 0 and 1 use 2 x 8 + 4 x 2 = 24 requests; a limit of 50 leaves room for 3 queries x 8 windows = 24.
+    result = service(tmp_path, provider, ask_max_news_requests=50).ask(
+        AskRequest(request_id="ask-test-0046", question="Company P", as_of=date(2026, 9, 29)))
+    plan = result["plan"]
+    assert plan["turns"][2]["queries"] == ["q2 a", "q2 b", "q2 c"]
+    assert plan["stop"]["reason"] == "max_news_requests" and result["usage"]["news_requests"] == 48
+    assert result["status"] == "ANSWERED"
+
+
+def test_cost_and_time_limits_stop_the_search_but_still_answer(tmp_path):
+    provider = FakeProvider(claims=["a"], cost=0.2, reviews=[["q two"], ["q three"], ["q four"]])
+    result = service(tmp_path, provider, ask_max_cost_usd=0.3).ask(
+        AskRequest(request_id="ask-test-0047", question="Company P", as_of=date(2026, 9, 29)))
+    # Two reviews at USD 0.2 each pass the USD 0.3 limit before turn 4.
+    assert result["plan"]["stop"]["reason"] == "max_cost" and result["plan"]["stop"]["turn"] == 4
+    assert result["status"] == "ANSWERED"
+    ticks = iter(range(0, 10000, 100))
+    ask = service(tmp_path, FakeProvider(claims=["a"], reviews=[["q two"], ["q three"]]), ask_max_seconds=180)
+    ask.clock = lambda: next(ticks)
+    result = ask.ask(AskRequest(request_id="ask-test-0048", question="Company P", as_of=date(2026, 9, 29)))
+    # The clock moves 100 s per reading: turn 2 starts at 100 s, turn 3 would start at 200 s.
+    assert result["plan"]["stop"]["reason"] == "max_seconds" and result["plan"]["stop"]["turn"] == 3
+    assert result["status"] == "ANSWERED"
+
+
+def test_evidence_for_a_claim_is_always_kept_in_the_final_sources():
+    # An undated turn-2 headline among many dated ones gets no share of a small budget, unless it is evidence.
+    old = {"title": "the evidence", "url": "u0", "publisher": "p", "date": None, "text": "", "via": "x", "turn": 2}
+    crowd = [{"title": f"news {i}", "url": f"u{i}", "publisher": "p", "date": "2026-09-01", "text": "", "via": "x",
+              "turn": 0 if i < 60 else 2} for i in range(1, 110)]
+    spans = windows(date(2026, 9, 29))
+    assert all(item["title"] != "the evidence" for item in merge_sources([crowd, [old]], spans, 12))
+    kept = merge_sources([crowd, [old]], spans, 12, {"theevidence"})
+    assert len(kept) == 12 and kept[-1]["title"] == "the evidence"  # undated sorts last
+
+
+def test_costs_are_counted_per_step_and_the_budget_keeps_a_reserve_for_the_answer(tmp_path):
+    provider = FakeProvider(claims=["a"], reads=[2], reviews=[["q two"], ["q three"]])
+    result = service(tmp_path, provider).ask(
+        AskRequest(request_id="ask-test-0050", question="Company P", as_of=date(2026, 9, 29)))
+    steps = result["usage"]["cost_by_step"]
+    assert set(steps) >= {"plan", "review", "exa_search", "answer", "implications"}
+    assert round(sum(steps.values()), 6) == round(result["usage"]["cost_usd"], 6)
+    assert result["plan"]["budget"]["max_usd"] == 0.05 and result["plan"]["budget"]["reserve_usd"] == 0.015
+    # Plan 0.001 + two Exa searches 0.004, then reviews at USD 0.02: after two reviews (0.045 spent) the 0.015
+    # reserve no longer fits the 0.05 budget, so the search stops before turn 4.
+    provider = FakeProvider(claims=["a"], cost=0.02, reviews=[["q two"], ["q three"], ["q four"]])
+    result = service(tmp_path, provider).ask(
+        AskRequest(request_id="ask-test-0051", question="Company P", as_of=date(2026, 9, 29)))
+    plan = result["plan"]
+    assert plan["stop"]["reason"] == "max_cost" and plan["stop"]["turn"] == 4
+    # Nothing is left for reading or for reasoning; the answer still runs without reasoning.
+    assert plan["budget"]["skipped"] == ["read", "answer_reasoning"] and "read" not in plan
+    assert answer_payload(provider)["reasoning"] == {"enabled": False}
+    assert result["status"] == "ANSWERED"
+
+
+def test_reading_is_cut_to_what_the_budget_allows(tmp_path):
+    provider = FakeProvider(claims=["a"], reads=[1, 2, 3])
+    # Exa searches cost 0.002 each; a budget of 0.03 leaves about 0.03 - 0.015 - 0.0x spent for reads.
+    result = service(tmp_path, provider, ask_max_cost_usd=0.03).ask(
+        AskRequest(request_id="ask-test-0052", question="Company P", as_of=date(2026, 9, 29)))
+    select = next(p for p in provider.payloads if "text" in p and p["text"]["format"]["name"] == "sources_to_read")
+    assert "at most" in select["instructions"]
+    read_calls = [p for p in provider.payloads if "tools" in p and p["tools"][0]["parameters"]["max_results"] == 1]
+    assert len(read_calls) <= 3 and all(p["tools"][0]["parameters"]["max_results"] == 1 for p in read_calls)
+
+
+def test_latest_value_questions_are_not_history_and_single_facts_get_few_claims():
+    from app.ask import plan_instructions
+    text = plan_instructions(date(2026, 9, 30))
+    assert "is NOT a history question" in text and "'terakhir kali'" in text
+    assert "1 to 3 points about exactly what is asked" in text
+
+
+def test_saturation_counts_only_new_evidence_for_missing_points(tmp_path):
+    # Point a keeps gaining sources, but it is already covered; point b stays missing: saturated after turn 4.
+    reviews = [{"queries": [f"q {n}"], "claims": [covered(1, *range(1, min(n, 4))), missing(2)]} for n in range(2, 8)]
+    result = service(tmp_path, FakeProvider(claims=["a", "b"], reviews=reviews)).ask(
+        AskRequest(request_id="ask-test-0053", question="Company P", as_of=date(2026, 9, 29)))
+    assert result["plan"]["stop"]["reason"] == "saturated" and result["plan"]["stop"]["turn"] == 5
+
+
+def test_date_markers_left_by_removed_numbers_are_merged():
+    clean, _, _ = clean_citations("BI menahan 5,75% (23 Sep 2026) [1] (24 Sep 2026) [2] (tanpa tanggal) [3].", 3)
+    assert clean == "BI menahan 5,75% (23 Sep 2026, 24 Sep 2026)."
+    clean, _, _ = clean_citations("Total 100 bps (23 Sep 2026) [4] dan (tanpa tanggal) [5].", 5)
+    assert clean == "Total 100 bps (23 Sep 2026)."

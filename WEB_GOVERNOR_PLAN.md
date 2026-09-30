@@ -305,3 +305,15 @@ off. The AI writes **10** forward queries.
 **Verification.** Unit tests for forward queries (AI, templates, switch, fallback), two-window scan, 50/20/30 budget
 and timeline date checks; live runner test with the CMRY forward question, the CLARITY Act and the Indonesian fiscal
 question; record in `RAILWAY_CHANGELOG.md`.
+
+## P7 — `/v1/ask`: claim checklist and stopping rules — IMPLEMENTED IN CODE (2026-09-30, user-approved; not yet deployed)
+
+- Keeps the three fixed turns. The plan call lists 3–8 points (claims) that must be answered; each review marks
+  every point covered (with source numbers), missing, or not_in_news (only from turn 4).
+- From turn 3 the search continues only while points are missing, up to 8 turns, and stops at the first of: all
+  points settled, two reviews without new evidence (saturated), no new queries, or a hard limit of the search phase
+  (300 Google News requests, USD 0.30, 180 s). `plan.stop` records the reason; the answer and implications calls
+  still run after a limit.
+- Evidence headlines are never dropped from the final 500 sources. The answer lists unsettled points under
+  "Tidak terjawab".
+- Settings: `WEB_ASK_MAX_TURNS`, `WEB_ASK_MAX_NEWS_REQUESTS`, `WEB_ASK_MAX_COST_USD`, `WEB_ASK_MAX_SECONDS`.

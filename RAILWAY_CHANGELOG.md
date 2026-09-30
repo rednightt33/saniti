@@ -1,5 +1,27 @@
 # Railway changelog
 
+## 2026-09-30 — market-web-governor: broken-answer guard and 5 Exa results deployed, then rolled back
+
+- `2c46d5b` (guard `ANSWER_DEGENERATE`, turn-0 Exa 5 results, reading off by default) deployed as `a8672c01`
+  `SUCCESS`. Live test `live-ask20-20260930-q1..q3`: GOTO answered without the 2024 cancellation found the run
+  before; BI rate did not return within the runner's 300 s; nickel answered (USD 0.051). Exa cost per search did
+  not fall with fewer results.
+- At the user's request the change was reverted (Exa 10 results and article reading back, no guard). No variable
+  changed.
+
+## 2026-09-30 — market-web-governor: `/v1/ask` claims, stopping rules, history mode, reading, USD 0.05 budget (W19, W20)
+
+- **Push** `main` fast-forward `2b7cf63..76d90ea` (user-approved direct push; the GitHub connector could not open a PR).
+  Deployment market-web-governor `04e5df46` `SUCCESS`; market-ai-orc and market-python-sandbox `SKIPPED`
+  (unchanged). No variable changed.
+- **Before merge**: the local code ran in-process on `web-governor-test-runner` twice (temporary variable
+  references to the governor's variables, deleted afterwards; nothing stored). Static outbound IPs added to the runner
+  on 2026-09-29 for a financialfilings.com test were removed again (governor IPs unchanged).
+- **Live test** (runner `ae2e1cba`, `live-ask19-20260930-q1..q3`): 3 of 3 `ANSWERED`, 47–96 s, USD 0.039–0.056.
+  GOTO treasury: history mode; 2024 cancellation of 10.26 bn shares found with Ministry approval (5 Nov 2024) and
+  IDX approval (11 Nov 2024). BI rate: not history, 3 claims, stopped at turn 3, 5.75% held (RDG 22–23 Sep 2026).
+  Nickel: RKAB figures explained by what each measures; USD 0.056 (one call over the 0.05 budget).
+
 ## 2026-09-30 — REFERENCE gate and mode 4 fixes (M43, P14-P16), G13 scope check; migration 20260930_003
 
 - **Code `2671f7e`** (docs `82ed5cc`): market-ai-orc `6028ddc8-b6dd-4ddc-99ca-a2b94aa87fff` `SUCCESS` (auto-deploy from

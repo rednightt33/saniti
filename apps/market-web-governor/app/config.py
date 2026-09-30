@@ -28,6 +28,17 @@ def _integer(
     return value
 
 
+def _decimal(env: Mapping[str, str], name: str, default: float, *, minimum: float, maximum: float) -> float:
+    raw = env.get(name, str(default))
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ConfigError(f"{name} must be a number") from exc
+    if not minimum <= value <= maximum:
+        raise ConfigError(f"{name} must be between {minimum} and {maximum}")
+    return value
+
+
 def _optional(env: Mapping[str, str], name: str) -> str | None:
     value = env.get(name, "").strip()
     return value or None
@@ -145,6 +156,15 @@ class Settings:
     ask_retention_days: int = 30
     ask_max_sources: int = 500
     ask_forward_templates: bool = True
+    ask_read_articles: int = 6
+    ask_max_turns: int = 8
+    ask_max_news_requests: int = 300
+    ask_max_cost_usd: float = 0.05
+    ask_answer_reserve_usd: float = 0.015
+    ask_answer_reasoning_tokens: int = 2000
+    ask_answer_reasoning_effort: str | None = "high"
+    ask_max_seconds: int = 180
+    ask_answer_reasoning: bool = True
     ask_forward_template_list: tuple[str, ...] = ("{x} rencana {next_year}", "{x} akan berlaku", "{x} jadwal",
                                                   "{x} target {next_year}")
 
@@ -227,6 +247,17 @@ class Settings:
             ask_retention_days=_integer(env, "WEB_ASK_RETENTION_DAYS", 30, maximum=365),
             ask_max_sources=_integer(env, "WEB_ASK_MAX_SOURCES", 500, minimum=20, maximum=1000),
             ask_forward_templates=env.get("WEB_ASK_FORWARD_TEMPLATES", "on").strip().lower()
+            not in {"0", "off", "false", "no"},
+            ask_read_articles=_integer(env, "WEB_ASK_READ_ARTICLES", 6, minimum=0, maximum=30),
+            ask_max_turns=_integer(env, "WEB_ASK_MAX_TURNS", 8, minimum=3, maximum=12),
+            ask_max_news_requests=_integer(env, "WEB_ASK_MAX_NEWS_REQUESTS", 300, minimum=50, maximum=1000),
+            ask_max_cost_usd=_decimal(env, "WEB_ASK_MAX_COST_USD", 0.05, minimum=0.01, maximum=5.0),
+            ask_answer_reserve_usd=_decimal(env, "WEB_ASK_ANSWER_RESERVE_USD", 0.015, minimum=0.0, maximum=1.0),
+            ask_answer_reasoning_tokens=_integer(env, "WEB_ASK_ANSWER_REASONING_TOKENS", 2000, minimum=0,
+                                                 maximum=32000),
+            ask_answer_reasoning_effort=_effort(env.get("WEB_ASK_ANSWER_REASONING_EFFORT", "high")),
+            ask_max_seconds=_integer(env, "WEB_ASK_MAX_SECONDS", 180, minimum=30, maximum=600),
+            ask_answer_reasoning=env.get("WEB_ASK_ANSWER_REASONING", "on").strip().lower()
             not in {"0", "off", "false", "no"},
             ask_forward_template_list=tuple(t.strip() for t in env.get("WEB_ASK_FORWARD_TEMPLATE_LIST", "").split("|")
                                             if "{x}" in t) or Settings.ask_forward_template_list,

@@ -19,20 +19,37 @@ path is accepted) and shares only the OpenRouter provider with it.
 ```
 question -> plan     1 model call: 2-4 keyword queries (question language and English; a listed company by its
                      name and ticker), the subject (short name) and its 1-2 sectors, up to 10 forward queries
-                     (upcoming plans, schedules, pending rules), optional period
+                     (upcoming plans, schedules, pending rules), optional period; history = true for questions
+                     on whether/when something happened (pernah, kapan, sejak, terakhir kali, ...) with up to 2
+                     earlier names of the subject
          -> turn 0   backward (code): subject queries x 8 three-month windows (two years back from the question
-                     date) on Google News, Exa for the first two
+                     date) on Google News, Exa for the first two; a history question: the same 8 windows plus 5
+                     one-year windows (years 3-7 back), earlier names included
          -> turn 1   forward (code, runs with turn 0): the AI forward queries plus templates for the subject and
                      each sector ("{x} rencana {next_year}", "{x} akan berlaku", "{x} jadwal",
                      "{x} target {next_year}"; WEB_ASK_FORWARD_TEMPLATES, WEB_ASK_FORWARD_TEMPLATE_LIST) over the
                      two newest windows; forward queries naming a past year are dropped
          -> turn 2   wider (guaranteed by code): "<sector>" and "<sector> regulasi pemerintah" first, then the
                      review call's proposals (max 5 queries)
+         -> claims   the plan also lists 3-8 points the answer must cover; every review marks each point covered
+                     (with headline numbers), missing, or not_in_news (allowed from turn 4)
          -> turn 3   optional: up to 3 deeper queries from the review call, or none
+         -> turn 4+  only while points are missing, up to WEB_ASK_MAX_TURNS (default 8); the search stops at the
+                     first of: all points settled (from turn 3), two reviews without new evidence (saturated), no
+                     new queries, or a hard limit of the search phase: WEB_ASK_MAX_NEWS_REQUESTS (300),
+                     WEB_ASK_MAX_COST_USD (0.30), WEB_ASK_MAX_SECONDS (180). The reason is in plan.stop; evidence
+                     headlines are always kept in the final sources; the answer gets the checklist and lists
+                     unsettled points under "Tidak terjawab"; plan.claims keeps status and citation numbers
+                     (history questions: a review query may name an older year; it is then searched in that year's
+                     four quarters, the drill-down)
          -> merge    code: dedupe by headline; WEB_ASK_MAX_SOURCES (default 500): backward at least 50%, forward
                      at least 20%, wider the rest (unused shares pass over), each spread across the windows
-         -> answer   1 model call: only from the numbered sources, investor-material first, industry & policy
-                     section, labelled inferences; a period in the question limits the answer
+         -> read     1 model call picks up to WEB_ASK_READ_ARTICLES (default 12, 0 = off) headlines whose full
+                     text matters most (conflicting figures, latest facts); one Exa search per chosen title fetches
+                     its text (kept only when the result's title matches); listed with up to 2,500 characters
+         -> answer   1 model call with reasoning on (WEB_ASK_ANSWER_REASONING, default on): only from the numbered sources, investor-material first, industry & policy
+                     section, labelled inferences; a period in the question limits the answer; differing figures
+                     about one thing are explained (what each measures, denied or replaced, latest confirmed)
          -> implications  1 model call (strict JSON): impacts (affected, direction, channel), scenarios for
                      forward-looking questions, and a forward timeline of scheduled/planned/proposed actions about
                      the subject or its sector (no forecasts, nothing already done); code keeps an item only if its sources
