@@ -32,6 +32,7 @@
   `MARKET_AI_ORC_API_KEY` remains, no new deployment. `railway config pull --force` recorded the new variable names,
   `market-audit-store` and `market-ai-audit-artifacts` in `.railway/railway.ts`; `railway config plan`: up to date.
 - **Still open**: M37 (deferred by the user), M40, P12, P13 (`ERRORS_AND_SOLUTIONS.md`).
+- **Documentation push** `bcb1322` (README changes under the watched folders): market-ai-orc `e080f48a-d2da-4b03-b2d3-77dff7dac739`, market-python-sandbox `c6bf0827-22d8-4e67-8cc0-62edf0d44498` and market-audit-store `5d9cbc55-3b8a-42e7-ae13-dd8445e083dd` rebuilt from it, each `SUCCESS` at 06:03 UTC with a clean startup and `/ready` healthcheck; no code or variable changed.
 
 ## 2026-09-30 — S16/M39/P10 fixes, backend-rendered findings and value references deployed on dev; Audit Store live
 
