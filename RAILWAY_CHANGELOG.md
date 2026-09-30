@@ -1,5 +1,23 @@
 # Railway changelog
 
+## 2026-09-30 — mode switcher `AI_MODE_SWITCH` on dev (default 4); mode 4 live test
+
+- **Live test `ma-mode4-20260930a`** (runner `eab7b4aa-e4a3-49fd-b93e-082a4c2ae5dc`, 11:53–12:07 UTC, 5 turns, 0 HTTP
+  errors, about USD 0.35). BBRI "wajar atau outlier": all four steps (analysis 80 s, plan 241 s, research 24 s,
+  suggestion 166 s; 511 s, USD 0.13): a direct answer (0,96%, 73,7th percentile, z 0,45: within the normal range),
+  research run at once and one suggested angle. The new question on BBCA cancelled the suggestion
+  (`mode4_suggestion_cancelled`) and ran a new round (289 s, USD 0.09; -6,18% for September). The broker question: the
+  analysis answered (broker XL) but was forced to LIMITATION by a reference error, so the round ended without research
+  (`ERRORS_AND_SOLUTIONS.md` M43); "Setuju" then had no plan and "cari 2 angle lain" became a new analysis.
+- **Code `a70b57c`** (mode switcher, `app/modes.py`): `AI_MODE_SWITCH=4` set first on market-ai-orc with
+  `--skip-deploys` (new variable; user decision: default 4 on dev), then the auto-deploy
+  `90cfdfe2-ee4d-4535-9d0f-c31515595d1c` `SUCCESS`; the log shows `ai_mode_selected switch=4 effective=4`,
+  `mode4_active` and `ai_model_selected switch=1`.
+- **Smoke** (runner `5dd6497b-1b13-45b5-8011-289007acad46`, prefix `ma-modeswitch-20260930a`): one fact question with
+  `analysis_path: "AUTO"` answered in mode 1 while the default is 4 (`execution.mode` `{1, AUTO, CALLER}`, no `mode4`
+  block; BBCA close Rp 6.075 on 2026-09-30), 70 s, USD 0.014.
+- **Config**: `railway config pull --force` added `AI_MODE_SWITCH` (`preserve()`); `railway config plan`: up to date.
+
 ## 2026-09-30 — mode 4 on dev; P12/P13/M40 and the model switcher deployed; suites 20d, 20d2, 20m
 
 - **Code `7dbbc01`** (P12 plan numbers from the JSON values, P13 value-reference fixes, M40 lenient final JSON, model

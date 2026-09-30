@@ -61,6 +61,7 @@ def summary(item_id, turn, code, body, seconds):
             "tool_calls": execution.get("tool_call_count"), "iterations": execution.get("iterations"),
             "cost": execution.get("cost"), "unsupported": (execution.get("number_provenance") or {}).get("unsupported"),
             "limitations": (response.get("limitations") or [])[:6],
+            "mode": execution.get("mode"),
             "mode4": [(s.get("step"), s.get("status"), s.get("turn"), s.get("angles"), s.get("cost"),
                        s.get("duration_ms")) for s in (body.get("mode4") or {}).get("steps") or []] or None}
 

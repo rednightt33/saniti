@@ -1,24 +1,13 @@
 {
- "prefix": "ma-mode4-20260930a",
- "workers": 2,
+ "prefix": "ma-modeswitch-20260930a",
+ "workers": 1,
  "audit_wait_seconds": 300,
  "items": [
   {
-   "id": "m01_broker_bank_crash",
-   "expect": "round 1: analysis names brokers, research of >=2 angles run at once, 1 suggested angle; turn 2 approves it (1 angle runs + next suggestion); turn 3 asks for 2 other angles (a revised plan of exactly 2 angles)",
-   "turns": [
-    "Siapa broker yg secara konsisten membeli saham bank ketika market crash",
-    "Setuju",
-    "cari 2 angle lain"
-   ]
-  },
-  {
-   "id": "m02_bbri_normal_range",
-   "expect": "round 1 on a price question with a suggestion (decision B); turn 2 is a new question: the suggestion is cancelled and a new round 1 starts (decision C)",
-   "turns": [
-    "BBRI naik hari ini, apakah kenaikannya masih dalam rentang wajar atau termasuk outlier?",
-    "Bagaimana dengan BBCA, berapa return-nya selama sebulan terakhir?"
-   ]
+   "id": "s01_auto_fact",
+   "analysis_path": "AUTO",
+   "expect": "mode switcher smoke: AUTO (mode 1) while AI_MODE_SWITCH=4; execution.mode {1, AUTO, CALLER}, no mode4 block",
+   "message": "Berapa harga penutupan terakhir saham BBCA?"
   }
  ]
 }
