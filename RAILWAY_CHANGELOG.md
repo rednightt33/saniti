@@ -1,5 +1,41 @@
 # Railway changelog
 
+## 2026-09-30 — mode 4 on dev; P12/P13/M40 and the model switcher deployed; suites 20d, 20d2, 20m
+
+- **Code `7dbbc01`** (P12 plan numbers from the JSON values, P13 value-reference fixes, M40 lenient final JSON, model
+  switcher `AI_MODEL_SWITCH`): market-ai-orc `6cd70de2-a48e-4f88-86c8-c9474de5bb11` `SUCCESS` (auto-deploy from
+  `main`; the sandbox skipped). `AI_MAX_OUTPUT_TOKENS=24000` on market-ai-orc (M37, user decision; reasoning counts in
+  it). Runner code `a17d780`/`b218d07` (per-turn timeline in the audit readback) is uploaded by CLI only.
+- **suite20d** (runner `4f8745b8-9a1f-4619-8270-3c44beca7cf7`, prefix `ma-suite20-20260930d`, model 1, effort high):
+  35 turns, USD 0.74; 12 ANSWER, 3 LIMITATION, 5 FAILED. The 5 failures were OpenRouter HTTP 403 "Key limit exceeded
+  (total limit)" (the key's total spending limit, not a code fault); the user raised the limit and the five items ran
+  again as **suite20d2** (runner `450c7537-b330-4ac5-90d8-29d470d24267`, prefix `ma-suite20-20260930d2`): 6 turns, 5
+  ANSWER, USD 0.09. `AUDIT_STORE_READER_KEY` (a reference to market-audit-store's reader key) was on the runner for the
+  readback only; it was removed afterwards with `variableCollectionUpsert` (`replace`, `skipDeploys`), since `railway
+  variable delete` has no skip-deploys option.
+- **suite20m** (model 2, `xiaomi/mimo-v2.6-pro`, full suite approved by the user): `AI_MODEL_SWITCH=2` on
+  market-ai-orc, deployment `16767aab-468b-4c09-953b-aa6184948520` `SUCCESS` (`ai_model_selected` switch=2,
+  `reasoning.enabled`); runner `fd68a4cf-f1a1-4f62-b22b-d750fdb4cc36` (prefix `ma-suite20-20260930m`). Stopped at the
+  user's request after 4 turns (USD 0.12; model 2 was 1.1 to 8 times slower on r01-r03) by removing the runner
+  deployment; `AI_MODEL_SWITCH=1` set back, deployment `0728cf41-1364-4503-a8f9-67451252eb24` `SUCCESS` (model 1,
+  DeepSeek, effort high). Audit-only readback of the timelines: runner `45994ba7-4cad-4786-9ac9-4204a8bfe4b4`.
+- **Broker question** (user, no automatic approval): runner `f3a5c8ec-7dc7-46d3-9e56-f0a994e82d9e`, one turn, a
+  RESEARCH_PLAN_CONFIRMATION in 567 s, USD 0.053; the plan did not name brokers, which led to mode 4.
+- **Mode 4 code `b0f905c`** (flag off): market-ai-orc `ad948094-67cc-4053-9faf-02568bd7446c` `SUCCESS`,
+  market-python-sandbox `20bd6c7f-293c-4898-b8ac-2529ad5896da` `SUCCESS`. Then on dev:
+  - market-python-sandbox `PY_SANDBOX_RESEARCH_MIN_ANGLES=1` (new variable; one-angle plans for mode 4 suggestions),
+    deployment `3074a322-ff44-4620-9d73-b62877234b75` `SUCCESS`;
+  - market-ai-orc `AI_ENABLE_MODE4=true` (new variable), deployment `dded5d81-8c7f-41f6-9c8d-e22292b9bfff` `SUCCESS`;
+    the log shows `mode4_active max_seconds=3600 sandbox_min_angles=1` and `ai_model_selected switch=1`.
+    `AI_RESEARCH_MIN_ANGLES` stays unset (2) for every plan outside mode 4; `AI_CONVERSATION_LEASE_SECONDS` stays
+    unset, so the lease is 3720 s.
+  - Runner code `4e959b3` (multi-turn items, 3900 s timeout), CLI upload `eab7b4aa-e4a3-49fd-b93e-082a4c2ae5dc`,
+    prefix `ma-mode4-20260930a` (the broker question over three turns, a price question followed by a new question).
+- **Config**: `railway config pull --force` added `PY_SANDBOX_RESEARCH_MIN_ANGLES`, `AI_ENABLE_MODE4`,
+  `AI_MODEL_SWITCH` and `AI_MAX_OUTPUT_TOKENS` (as `preserve()`) to `.railway/railway.ts`; `railway config plan`: up
+  to date. The plan must not run under `timeout`: the IaC SDK checks the CLI version by executing `$_`, which is then
+  `timeout`, and the check fails.
+
 ## 2026-09-30 — suite20c on dev: value references, backend-rendered findings, audit readback
 
 - **Runner** `orc-test-runner` deployment `eba6a12f-aebb-4f66-a41d-385910435c1b` (CLI upload of `apps/orc-test-runner`,
