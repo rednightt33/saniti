@@ -31,7 +31,15 @@ question -> plan     1 model call: 2-4 keyword queries (question language and En
                      two newest windows; forward queries naming a past year are dropped
          -> turn 2   wider (guaranteed by code): "<sector>" and "<sector> regulasi pemerintah" first, then the
                      review call's proposals (max 5 queries)
+         -> claims   the plan also lists 3-8 points the answer must cover; every review marks each point covered
+                     (with headline numbers), missing, or not_in_news (allowed from turn 4)
          -> turn 3   optional: up to 3 deeper queries from the review call, or none
+         -> turn 4+  only while points are missing, up to WEB_ASK_MAX_TURNS (default 8); the search stops at the
+                     first of: all points settled (from turn 3), two reviews without new evidence (saturated), no
+                     new queries, or a hard limit of the search phase: WEB_ASK_MAX_NEWS_REQUESTS (300),
+                     WEB_ASK_MAX_COST_USD (0.30), WEB_ASK_MAX_SECONDS (180). The reason is in plan.stop; evidence
+                     headlines are always kept in the final sources; the answer gets the checklist and lists
+                     unsettled points under "Tidak terjawab"; plan.claims keeps status and citation numbers
                      (history questions: a review query may name an older year; it is then searched in that year's
                      four quarters, the drill-down)
          -> merge    code: dedupe by headline; WEB_ASK_MAX_SOURCES (default 500): backward at least 50%, forward
