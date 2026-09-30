@@ -170,6 +170,7 @@ def create_app(
             "citations": len(result.get("citations") or []), "seconds": result.get("seconds"),
             "replayed": bool(result.get("replayed")), "stored": result.get("stored"),
             "warning_codes": sorted({warning.get("code") for warning in result.get("warnings") or []}),
+            "timing": (result.get("plan") or {}).get("timing"),
         }))
         return result
 

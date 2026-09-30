@@ -341,11 +341,12 @@ class OpenRouterProvider:
             f"RESEARCH INTENT JSON:\n{json.dumps(context, ensure_ascii=False, separators=(',', ':'))}"
         )
 
-    def respond(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """One Responses API call with the adapter's retries and total deadline (used by the lean /v1/ask)."""
-        return self._request(payload)
+    def respond(self, payload: dict[str, Any], attempts: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+        """One Responses API call with the adapter's retries and total deadline (used by the lean /v1/ask). When
+        `attempts` is given, each attempt is appended as {"seconds", "error"} (error None when it succeeded)."""
+        return self._request(payload, attempts)
 
-    def _request(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def _request(self, payload: dict[str, Any], attempts: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         headers = {
             "Authorization": f"Bearer {self.settings.openrouter_api_key}",
             "Content-Type": "application/json",
@@ -354,18 +355,27 @@ class OpenRouterProvider:
         if self.settings.app_url:
             headers["HTTP-Referer"] = self.settings.app_url
         last_error: ProviderError | None = None
+        def note(started: float, error: str | None) -> None:
+            if attempts is not None:
+                attempts.append({"seconds": round(time.monotonic() - started, 2), "error": error})
+
         for attempt in range(self.settings.openrouter_max_retries):
+            started = time.monotonic()
             try:
                 status_code, content = self._post_with_deadline(headers, payload)
             except _DeadlineExceeded:
                 last_error = ProviderError("PROVIDER_TIMEOUT", "OpenRouter request exceeded its total time limit",
                                            retriable=True)
+                note(started, "deadline")
             except httpx.TimeoutException as exc:
                 last_error = ProviderError("PROVIDER_TIMEOUT", "OpenRouter request timed out", retriable=True)
+                note(started, "timeout")
             except httpx.HTTPError as exc:
                 last_error = ProviderError("PROVIDER_UNREACHABLE", "OpenRouter request failed", retriable=True)
+                note(started, "unreachable")
             else:
                 response = _Reply(status_code, content)
+                note(started, None if status_code < 400 else f"HTTP {status_code}")
                 if response.status_code < 400:
                     try:
                         body = response.json()

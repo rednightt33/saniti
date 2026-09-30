@@ -695,12 +695,23 @@ class AskService:
         slot = self.settings.slot(request.model_slot)
         usage = {"model_calls": 0, "review_calls": 0, "search_calls": 0, "news_requests": 0, "cost_usd": 0.0,
                  "cost_by_step": {}}
+        timing: dict[str, dict[str, Any]] = {}
 
         def call(payload: dict[str, Any]) -> dict[str, Any]:
-            response = self.provider.respond(payload)
+            step = _step(payload)
+            attempts: list[dict[str, Any]] = []
+            began = self.clock()
+            try:
+                response = self.provider.respond(payload, attempts)
+            finally:
+                # Time and attempts per step (a slow step shows its retries: deadline, timeout, HTTP errors).
+                entry = timing.setdefault(step, {"calls": 0, "seconds": 0.0, "attempts": 0, "failed": []})
+                entry["calls"] += 1
+                entry["seconds"] = round(entry["seconds"] + self.clock() - began, 2)
+                entry["attempts"] += len(attempts) or 1
+                entry["failed"] += [a for a in attempts if a["error"]]
             cost = float((response.get("usage") or {}).get("cost") or 0)
             usage["cost_usd"] += cost
-            step = _step(payload)
             usage["cost_by_step"][step] = round(usage["cost_by_step"].get(step, 0.0) + cost, 6)
             return response
 
@@ -867,6 +878,7 @@ class AskService:
             if not citations:
                 warnings.append({"code": "NO_CITATIONS", "message": "the answer cites no source"})
             status = "ANSWERED" if answer else "FAILED"
+        plan["timing"] = {"total_seconds": round(self.clock() - started, 2), "steps": timing}
         result = {
             "ask_id": f"ask_{uuid.uuid4().hex}", "request_id": request.request_id, "question": request.question,
             "as_of": as_of.isoformat(), "status": status, "answer": answer, "answer_cited": answer_cited,

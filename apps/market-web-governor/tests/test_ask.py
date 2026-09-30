@@ -39,7 +39,7 @@ class FakeProvider:
         self.implications = implications or {"impacts": [], "scenarios": [], "timeline": []}
         self.fail_implications = fail_implications
 
-    def respond(self, payload):
+    def respond(self, payload, attempts=None):
         self.payloads.append(payload)
         if "text" in payload and payload["text"]["format"]["name"] == "next_searches":
             entry = self.reviews.pop(0) if self.reviews else []
@@ -573,8 +573,9 @@ def test_cost_and_time_limits_stop_the_search_but_still_answer(tmp_path):
     ask = service(tmp_path, FakeProvider(claims=["a"], reviews=[["q two"], ["q three"]]), ask_max_seconds=180)
     ask.clock = lambda: next(ticks)
     result = ask.ask(AskRequest(request_id="ask-test-0048", question="Company P", as_of=date(2026, 9, 29)))
-    # The clock moves 100 s per reading: turn 2 starts at 100 s, turn 3 would start at 200 s.
-    assert result["plan"]["stop"]["reason"] == "max_seconds" and result["plan"]["stop"]["turn"] == 3
+    # The clock moves 100 s per reading, and every model call reads it twice for the step timing, so 180 s are
+    # gone before turn 2 starts.
+    assert result["plan"]["stop"]["reason"] == "max_seconds" and result["plan"]["stop"]["turn"] == 2
     assert result["status"] == "ANSWERED"
 
 
@@ -648,3 +649,40 @@ def test_citation_runs_become_source_links():
     clean, cited, _ = clean_citations("Rp32 pada Rabu [1][2]. Reda di Rp28 [3].", 3, urls)
     assert clean == "Rp32 pada Rabu ([source](https://a/x), [source](https://b/y)). Reda di Rp28 ([source](https://c/(z%29))."
     assert cited == "Rp32 pada Rabu [1][2]. Reda di Rp28 [3]."
+
+
+def test_time_and_attempts_are_recorded_per_step(tmp_path):
+    class Slow(FakeProvider):
+        def respond(self, payload, attempts=None):
+            if attempts is not None and "text" not in payload and "tools" not in payload:
+                attempts += [{"seconds": 180.0, "error": "deadline"}, {"seconds": 20.0, "error": None}]
+            elif attempts is not None:
+                attempts.append({"seconds": 0.1, "error": None})
+            return super().respond(payload)
+
+    result = service(tmp_path, Slow()).ask(
+        AskRequest(request_id="ask-test-0070", question="Company P", as_of=date(2026, 9, 29)))
+    steps = result["plan"]["timing"]["steps"]
+    assert steps["answer"]["calls"] == 1 and steps["answer"]["attempts"] == 2
+    assert steps["answer"]["failed"] == [{"seconds": 180.0, "error": "deadline"}]
+    assert {"plan", "exa_search", "review", "implications"} <= set(steps)
+    assert result["plan"]["timing"]["total_seconds"] >= 0
+
+
+def test_provider_records_each_attempt():
+    from app.provider import OpenRouterProvider
+    from tests.conftest import make_settings
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        if len(calls) == 1:
+            return httpx.Response(502, text="bad gateway")
+        return httpx.Response(200, json={"output": [], "usage": {"cost": 0}})
+
+    import tempfile
+    provider = OpenRouterProvider(make_settings(tempfile.mkdtemp() + "/s.sqlite3"),
+                                  httpx.Client(transport=httpx.MockTransport(handler)))
+    attempts = []
+    provider.respond({"model": "m", "input": "x"}, attempts)
+    assert [a["error"] for a in attempts] == ["HTTP 502", None]

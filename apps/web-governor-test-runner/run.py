@@ -433,7 +433,7 @@ def ask(prefix: str, questions: list[str]) -> None:
     def one(pair):
         index, question = pair
         request_id = f"{prefix}q{index}"
-        return request_id, call("POST", "/v1/ask", {"request_id": request_id, "question": question}, timeout=300)
+        return request_id, call("POST", "/v1/ask", {"request_id": request_id, "question": question}, timeout=900)
 
     with ThreadPoolExecutor(max_workers=len(questions)) as pool:
         for request_id, result in pool.map(one, enumerate(questions, 1)):
