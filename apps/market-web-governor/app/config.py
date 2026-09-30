@@ -156,7 +156,7 @@ class Settings:
     ask_retention_days: int = 30
     ask_max_sources: int = 500
     ask_forward_templates: bool = True
-    ask_read_articles: int = 0
+    ask_read_articles: int = 6
     ask_max_turns: int = 8
     ask_max_news_requests: int = 300
     ask_max_cost_usd: float = 0.05
@@ -248,7 +248,7 @@ class Settings:
             ask_max_sources=_integer(env, "WEB_ASK_MAX_SOURCES", 500, minimum=20, maximum=1000),
             ask_forward_templates=env.get("WEB_ASK_FORWARD_TEMPLATES", "on").strip().lower()
             not in {"0", "off", "false", "no"},
-            ask_read_articles=_integer(env, "WEB_ASK_READ_ARTICLES", 0, minimum=0, maximum=30),
+            ask_read_articles=_integer(env, "WEB_ASK_READ_ARTICLES", 6, minimum=0, maximum=30),
             ask_max_turns=_integer(env, "WEB_ASK_MAX_TURNS", 8, minimum=3, maximum=12),
             ask_max_news_requests=_integer(env, "WEB_ASK_MAX_NEWS_REQUESTS", 300, minimum=50, maximum=1000),
             ask_max_cost_usd=_decimal(env, "WEB_ASK_MAX_COST_USD", 0.05, minimum=0.01, maximum=5.0),

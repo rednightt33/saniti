@@ -50,7 +50,6 @@ MAX_WINDOWS = 12
 NEWS_WORKERS = 6
 NEWS_MAX_BYTES = 2_000_000
 DETAIL_CHARACTERS = 2500
-EXA_RESULTS = 5  # per Exa search in turn 0; results are billed, so fewer than the plugin's 10
 
 SELECT_SCHEMA = {
     "type": "object", "additionalProperties": False, "required": ["sources"],
@@ -619,22 +618,6 @@ def clean_citations(answer: str, count: int) -> tuple[str, str, list[int]]:
     return clean.strip(), cited.strip(), order
 
 
-_FOREIGN_SCRIPT = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af\u0400-\u04ff\u0600-\u06ff]")
-
-
-def degenerate(answer: str, count: int, question: str) -> str | None:
-    """Why an answer looks broken, or None: CJK/Cyrillic/Arabic text the question does not use, no valid source
-    number, or too short to answer."""
-    text = answer.strip()
-    if len(text) < 40:
-        return "too short"
-    if len(_FOREIGN_SCRIPT.findall(text)) >= 3 and not _FOREIGN_SCRIPT.search(question):
-        return "text in another script"
-    if count and not any(1 <= int(n) <= count for n in re.findall(r"\[(\d+)\]", text)):
-        return "no valid source number"
-    return None
-
-
 def _step(payload: dict[str, Any]) -> str:
     """The pipeline step of a model payload, for the cost account."""
     if "tools" in payload:
@@ -821,14 +804,13 @@ class AskService:
                 budget["skipped"].append("read")
         if items:
             left = self.settings.ask_max_cost_usd - usage["cost_usd"]
-            answer_payload: dict[str, Any] = {}
             effort = self.settings.ask_answer_reasoning_effort
             enabled = self.settings.ask_answer_reasoning and effort != "off"
             reasoning = (enabled and (effort or self.settings.ask_answer_reasoning_tokens > 0)
                          and left >= self.settings.ask_answer_reserve_usd)
             if enabled and not reasoning:
                 budget["skipped"].append("answer_reasoning")
-            answer_payload = {
+            response = call({
                 "model": slot.model, "instructions": answer_instructions(as_of),
                 "input": f"QUESTION: {request.question}\n\nCLAIMS:\n{_claim_list(claims, items)}\n\n"
                          f"SOURCES:\n{_listing(items)}",
@@ -838,19 +820,9 @@ class AskService:
                                else {"enabled": True, "max_tokens": self.settings.ask_answer_reasoning_tokens})
                               if reasoning else {"enabled": False}),
                 "store": False,
-            }
-            answer, _ = _extract_output(call(answer_payload))
+            })
             usage["model_calls"] += 1
-            problem = degenerate(answer, len(items), request.question)
-            if problem:
-                # One retry; a broken answer (mixed scripts, no citations, too short) is not shown silently.
-                retry, _ = _extract_output(call(answer_payload))
-                usage["model_calls"] += 1
-                if not degenerate(retry, len(items), request.question):
-                    answer = retry
-                warnings.append({"code": "ANSWER_DEGENERATE",
-                                 "message": f"the answer looked broken ({problem}); retried once, "
-                                            + ("the retry was used" if answer == retry else "the retry was broken too")})
+            answer, _ = _extract_output(response)
             answer, fixes = check_dates(answer.strip(), items)
             if fixes:
                 warnings.append({"code": "DATE_CORRECTED",
@@ -967,7 +939,7 @@ class AskService:
                 "model": model, "instructions": "Run exactly one web search with the query given, unchanged. Then reply OK.",
                 "input": query, "max_output_tokens": 300, "reasoning": {"enabled": False}, "store": False,
                 "tools": [{"type": "openrouter:web_search", "parameters": {
-                    "engine": "exa", "max_results": EXA_RESULTS, "max_uses": 1, "max_characters": 1500}}],
+                    "engine": "exa", "max_results": 10, "max_uses": 1, "max_characters": 1500}}],
                 "tool_choice": "required", "max_tool_calls": 1,
             })
             _, annotations = _extract_output(response)

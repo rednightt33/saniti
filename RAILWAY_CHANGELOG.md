@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-09-30 — market-web-governor: broken-answer guard and 5 Exa results deployed, then rolled back
+
+- `2c46d5b` (guard `ANSWER_DEGENERATE`, turn-0 Exa 5 results, reading off by default) deployed as `a8672c01`
+  `SUCCESS`. Live test `live-ask20-20260930-q1..q3`: GOTO answered without the 2024 cancellation found the run
+  before; BI rate did not return within the runner's 300 s; nickel answered (USD 0.051). Exa cost per search did
+  not fall with fewer results.
+- At the user's request the change was reverted (Exa 10 results and article reading back, no guard). No variable
+  changed.
+
 ## 2026-09-30 — market-web-governor: `/v1/ask` claims, stopping rules, history mode, reading, USD 0.05 budget (W19, W20)
 
 - **Push** `main` fast-forward `2b7cf63..76d90ea` (user-approved direct push; the GitHub connector could not open a PR).

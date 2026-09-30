@@ -47,10 +47,6 @@ question -> plan     1 model call: 2-4 keyword queries (question language and En
          -> read     1 model call picks up to WEB_ASK_READ_ARTICLES (default 12, 0 = off) headlines whose full
                      text matters most (conflicting figures, latest facts); one Exa search per chosen title fetches
                      its text (kept only when the result's title matches); listed with up to 2,500 characters
-         -> budget   WEB_ASK_MAX_COST_USD (0.05) covers every step, with WEB_ASK_ANSWER_RESERVE_USD (0.015) kept
-                     for the answer; usage.cost_by_step shows the split; turn-0 Exa asks 5 results; reading is off
-                     unless WEB_ASK_READ_ARTICLES > 0; a broken answer (mixed scripts, no citation, too short) is
-                     retried once (ANSWER_DEGENERATE)
          -> answer   1 model call with reasoning on (WEB_ASK_ANSWER_REASONING, default on): only from the numbered sources, investor-material first, industry & policy
                      section, labelled inferences; a period in the question limits the answer; differing figures
                      about one thing are explained (what each measures, denied or replaced, latest confirmed)
