@@ -162,6 +162,7 @@ class Settings:
     ask_max_cost_usd: float = 0.05
     ask_answer_reserve_usd: float = 0.015
     ask_answer_reasoning_tokens: int = 2000
+    ask_answer_reasoning_effort: str | None = "high"
     ask_max_seconds: int = 180
     ask_answer_reasoning: bool = True
     ask_forward_template_list: tuple[str, ...] = ("{x} rencana {next_year}", "{x} akan berlaku", "{x} jadwal",
@@ -254,6 +255,7 @@ class Settings:
             ask_answer_reserve_usd=_decimal(env, "WEB_ASK_ANSWER_RESERVE_USD", 0.015, minimum=0.0, maximum=1.0),
             ask_answer_reasoning_tokens=_integer(env, "WEB_ASK_ANSWER_REASONING_TOKENS", 2000, minimum=0,
                                                  maximum=32000),
+            ask_answer_reasoning_effort=_effort(env.get("WEB_ASK_ANSWER_REASONING_EFFORT", "high")),
             ask_max_seconds=_integer(env, "WEB_ASK_MAX_SECONDS", 180, minimum=30, maximum=600),
             ask_answer_reasoning=env.get("WEB_ASK_ANSWER_REASONING", "on").strip().lower()
             not in {"0", "off", "false", "no"},

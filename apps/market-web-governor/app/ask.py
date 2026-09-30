@@ -804,16 +804,20 @@ class AskService:
                 budget["skipped"].append("read")
         if items:
             left = self.settings.ask_max_cost_usd - usage["cost_usd"]
-            reasoning = (self.settings.ask_answer_reasoning and self.settings.ask_answer_reasoning_tokens > 0
+            effort = self.settings.ask_answer_reasoning_effort
+            enabled = self.settings.ask_answer_reasoning and effort != "off"
+            reasoning = (enabled and (effort or self.settings.ask_answer_reasoning_tokens > 0)
                          and left >= self.settings.ask_answer_reserve_usd)
-            if self.settings.ask_answer_reasoning and not reasoning:
+            if enabled and not reasoning:
                 budget["skipped"].append("answer_reasoning")
             response = call({
                 "model": slot.model, "instructions": answer_instructions(as_of),
                 "input": f"QUESTION: {request.question}\n\nCLAIMS:\n{_claim_list(claims, items)}\n\n"
                          f"SOURCES:\n{_listing(items)}",
-                "max_output_tokens": 6000 + (self.settings.ask_answer_reasoning_tokens if reasoning else 0),
-                "reasoning": ({"enabled": True, "max_tokens": self.settings.ask_answer_reasoning_tokens}
+                # An effort (default high) wins over a token cap; OpenRouter accepts one of the two.
+                "max_output_tokens": 20000 if reasoning else 6000,
+                "reasoning": (({"enabled": True, "effort": effort} if effort
+                               else {"enabled": True, "max_tokens": self.settings.ask_answer_reasoning_tokens})
                               if reasoning else {"enabled": False}),
                 "store": False,
             })

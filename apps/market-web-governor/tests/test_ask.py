@@ -414,7 +414,7 @@ def test_the_answer_call_reasons_and_can_be_switched_back(tmp_path):
     service(tmp_path, provider).ask(AskRequest(request_id="ask-test-0022", question="Company P",
                                                as_of=date(2026, 9, 29)))
     payload = answer_payload(provider)
-    assert payload["reasoning"] == {"enabled": True, "max_tokens": 2000} and payload["max_output_tokens"] == 8000
+    assert payload["reasoning"] == {"enabled": True, "effort": "high"} and payload["max_output_tokens"] == 20000
     assert "what each one measures" in payload["instructions"]
     provider = FakeProvider()
     service(tmp_path, provider, ask_answer_reasoning=False, ask_read_articles=0).ask(
