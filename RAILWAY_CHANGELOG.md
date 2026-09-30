@@ -1,5 +1,12 @@
 # Railway changelog
 
+## 2026-09-30 — market-web-governor: `/v1/ask` answers carry (source) links
+
+- `d08fc58` deployed as `1b39926f` `SUCCESS`: each run of [n] in `answer` becomes markdown "(source)" links to the
+  cited headlines; `answer_cited` keeps the numbers. Live test `live-ask23-20260930-q1`: `ANSWERED`, 39 s, USD 0.052,
+  links render per cited source. Rollback `b2c584e` (deployment `222b8f4f` `SUCCESS`) is recorded above. No variable
+  changed.
+
 ## 2026-09-30 — market-web-governor: broken-answer guard and 5 Exa results deployed, then rolled back
 
 - `2c46d5b` (guard `ANSWER_DEGENERATE`, turn-0 Exa 5 results, reading off by default) deployed as `a8672c01`
