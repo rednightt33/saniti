@@ -180,8 +180,9 @@ class _Mode4Run:
         question = self.request.message
         count = requested_count(question)
         analysis = self.sub("analysis", "m4a", question, "ANALYSIS")
-        if not _ok(analysis, "ANSWER"):
-            # a clarification, a limitation or a failure of the analysis is the answer; no research runs on it
+        if not _ok(analysis, "ANSWER", "LIMITATION"):
+            # M43 (user decision 2026-09-30): a LIMITATION still carries the analysis and its limits, so the research
+            # runs on it; a clarification (the user must answer first) or a failure ends the round
             self.notes.append("Riset tidak dijalankan karena analisis tidak menghasilkan jawaban.")
             return self.finish(analysis, round_="FIRST", cancelled_plan_id=cancelled_plan_id)
         assert analysis is not None and analysis.response is not None
@@ -294,7 +295,8 @@ class _Mode4Run:
             "suggestion": self._part(suggestion), "cancelled_plan_id": cancelled_plan_id}
         research_ok = _ok(research, "ANSWER", "LIMITATION")
         base = None
-        if not passthrough and (_ok(analysis, "ANSWER") or (round_ == "FOLLOW_UP" and (research_ok or suggestion))):
+        if not passthrough and (_ok(analysis, "ANSWER", "LIMITATION")
+                                or (round_ == "FOLLOW_UP" and (research_ok or suggestion))):
             base = suggestion or (research if _ok(research, "ANSWER") else None) or analysis \
                 or (research if research_ok else None)
         if base is None:

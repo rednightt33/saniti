@@ -43,6 +43,15 @@ class ReferenceError_(ValueError):
     """A reference that cannot be resolved; the message names what is available instead."""
 
 
+class MissingField(ReferenceError_):
+    """M43 (2026-09-30, user decision): the reference names a field its object does not have, or an object where one
+    value is needed (P14, a01). The answer shows the field name in brackets and keeps its response type."""
+
+    def __init__(self, message: str, name: str) -> None:
+        super().__init__(message)
+        self.name = name
+
+
 @dataclass
 class Resolved:
     value: float
@@ -78,6 +87,9 @@ class ReferenceSources:
         if number is None and isinstance(value, str):
             raise ReferenceError_(f"'{path}' is text, not a number: reference it without a format to show it as "
                                   f"written")
+        if isinstance(value, dict):
+            raise MissingField(f"'{path}' is an object, not one value; its fields: {', '.join(list(value)[:12])}",
+                               _split(path)[-1])
         if number is None:
             raise ReferenceError_(f"'{path}' is not a number ({type(value).__name__}"
                                   + (f"; its fields: {', '.join(list(value)[:12])}" if isinstance(value, dict) else "")
@@ -98,10 +110,7 @@ class ReferenceSources:
             raise ReferenceError_(f"'{path}': {namespace}.{key} does not exist; available: "
                                   f"{', '.join(self.keys(namespace)[:12])}")
         value, label = entry
-        walked = f"{namespace}.{key}"
-        for part in rest:
-            value, walked = _step(value, part, walked, path)
-        return value, label
+        return _walk(value, rest, f"{namespace}.{key}", path), label
 
 
 def _split(path: str) -> list[str]:
@@ -119,6 +128,26 @@ def _split(path: str) -> list[str]:
             current += char
     parts.append(current)
     return [p.strip() for p in parts if p.strip()]
+
+
+def _walk(value: Any, rest: list[str], walked: str, path: str) -> Any:
+    """Follow the path segments. P15 (2026-09-30): a field name with a dot ("XL_crash_pos_days_1.0") is split by the
+    path syntax, so at an object the segments are also tried joined with dots: the exact field first, then the
+    shorter joined names; the first reading that resolves the whole path wins, else the exact reading's error."""
+    if not rest:
+        return value
+    readings = [(rest[0], 1)]
+    if isinstance(value, dict) and not INDEX_RE.match(rest[0]) and not SELECTOR_RE.match(rest[0]):
+        readings += [(".".join(rest[:end]), end) for end in range(2, len(rest) + 1) if ".".join(rest[:end]) in value]
+    first: ReferenceError_ | None = None
+    for part, used in readings:
+        try:
+            child, child_walked = _step(value, part, walked, path)
+            return _walk(child, rest[used:], child_walked, path)
+        except ReferenceError_ as exc:
+            first = first or exc
+    assert first is not None
+    raise first
 
 
 def _step(value: Any, part: str, walked: str, path: str) -> tuple[Any, str]:
@@ -139,15 +168,17 @@ def _step(value: Any, part: str, walked: str, path: str) -> tuple[Any, str]:
         raise ReferenceError_(f"'{path}': no row of {walked} has {column}={wanted}; values: {', '.join(seen)}")
     if isinstance(value, dict):
         if part not in value:
-            raise ReferenceError_(f"'{path}': {walked} has no field {part!r}; its fields: "
-                                  f"{', '.join(list(value)[:15])}")
+            raise MissingField(f"'{path}': {walked} has no field {part!r}; its fields: "
+                               f"{', '.join(list(value)[:15])}", part)
         return value[part], f"{walked}.{part}"
     if isinstance(value, list):
         if not part.lstrip("-").isdigit() or not -len(value) <= int(part) < len(value):
             raise ReferenceError_(f"'{path}': {walked} is a list of {len(value)} items; use an index 0 to "
                                   f"{len(value) - 1} or a [column=value] selector")
         return value[int(part)], f"{walked}.{part}"
-    raise ReferenceError_(f"'{path}': {walked} is a value, it has no field {part!r}")
+    # a field below a value: most often a dotted field name the object does not have ("XL_days_1.5")
+    raise MissingField(f"'{path}': {walked} is a value, it has no field {part!r}",
+                       f"{walked.rsplit('.', 1)[-1]}.{part}")
 
 
 def _number(value: Any) -> float | None:
@@ -261,6 +292,9 @@ class Rendering:
     values: list[Resolved] = field(default_factory=list)  # numbers shown, and the numbers inside a shown text
     problems: list[str] = field(default_factory=list)
     count: int = 0
+    # M43: references to a field that does not exist (or to an object), shown as [field]: (expression, field, message)
+    missing: list[tuple[str, str, str]] = field(default_factory=list)
+    failed: list[str] = field(default_factory=list)  # the expressions of the other unresolved references
 
 
 def _text(value: str) -> str:
@@ -292,14 +326,19 @@ def render(text: str | None, sources: ReferenceSources) -> Rendering:
                     return shown
             resolved = evaluate(expression, sources)
             shown = format_value(resolved.value, match.group("fmt"), int(places) if places is not None else None)
+        except MissingField as exc:
+            out.missing.append((expression, exc.name, str(exc)))
+            return f"[{exc.name}]"
         except ReferenceError_ as exc:
             out.problems.append(str(exc))
+            out.failed.append(expression)
             return UNRESOLVED
         out.values.append(resolved)
         return shown
 
     out.text = REF_RE.sub(replace, text)
     if "{{" in out.text or "}}" in out.text:
+        out.failed.append("{{")
         out.problems.append("a reference is not closed or has an invalid form; write {{namespace.key.path}} or "
                             "{{namespace.key.path|format}}")
     return out

@@ -126,6 +126,14 @@ def build_default_registry(
     return registry
 
 
+def _entity_checker(governor_client: GovernorClient):
+    """G13: whether a token of the question is an entity of a table (the Governor's dimension values, exact match)."""
+    def check(table: str, column: str, token: str) -> bool:
+        result = governor_client.dimension_values(table, column, token)
+        return any(str(value).upper() == token for value in result.get("values") or [])
+    return check
+
+
 def _register_multi_angle(registry: ToolRegistry, sandbox_client: SandboxClient, governor_client: GovernorClient,
                           multi_angle: dict, *, timeout_seconds: float, session_timeout_seconds: float,
                           max_result_bytes: int, point_in_time: bool, preflight_parts: bool) -> None:
@@ -139,7 +147,8 @@ def _register_multi_angle(registry: ToolRegistry, sandbox_client: SandboxClient,
                                                                    preflight=preflight_parts),
                                   max_groups=multi_angle["max_groups"], min_angles=multi_angle["min_angles"],
                                   max_angles=multi_angle["max_angles"], limits=multi_angle.get("limits"),
-                                  min_families=int(multi_angle.get("min_families") or 0))
+                                  min_families=int(multi_angle.get("min_families") or 0),
+                                  entity_checker=_entity_checker(governor_client))
     if multi_angle.get("library"):
         registry.register(research_library_spec(multi_angle["library"]))
     registry.register(research_feasibility_spec(planner, timeout_seconds=timeout_seconds * 4 * multi_angle["max_groups"],

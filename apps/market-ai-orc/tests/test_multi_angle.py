@@ -793,10 +793,12 @@ def test_the_catalog_migration_adds_no_method_rows_and_matches_the_tool_definiti
     migrations = Path(__file__).resolve().parents[3] / "database/migrations"
     first = (migrations / "20260929_001_multi_angle_research_catalog.sql").read_text()
     fixes = (migrations / "20260930_002_research_feasibility_v2_tool_catalog.sql").read_text()
+    scope = (migrations / "20260930_003_research_feasibility_v3_tool_catalog.sql").read_text()
     # scope decided 2026-09-29: Tool_Catalog only; AI_research_catalog is neither read nor changed
     assert '"AI_research_catalog"' not in first + fixes and "already registered" in first
-    # each tool's latest registration: v1 in 20260929_001, v2 (and get_research_library v1) in 20260930_002
-    latest = {"start_research_run": first, "check_research_feasibility": fixes, "run_research_code": fixes,
+    # each tool's latest registration: v1 in 20260929_001, v2 (and get_research_library v1) in 20260930_002,
+    # check_research_feasibility v3 (G13 scope check) in 20260930_003
+    latest = {"start_research_run": first, "check_research_feasibility": scope, "run_research_code": fixes,
               "complete_research_run": fixes, "get_research_library": fixes}
     t = httpx.MockTransport(lambda r: httpx.Response(404))
     registry = build_default_registry(

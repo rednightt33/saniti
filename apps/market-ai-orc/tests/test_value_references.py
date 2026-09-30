@@ -78,10 +78,23 @@ def test_references_resolve_paths_selectors_and_functions() -> None:
 def test_an_unknown_reference_names_what_exists() -> None:
     out = render("{{finding.a_rank.sample.effective}} {{finding.a_fall.samples}} {{fact.1|money}} {{out.out_1.rows"
                  "[ticker=XXXX].close}} {{finding.a_fall.estimates}}", sources())
-    assert out.text.count(UNRESOLVED) == 5
+    # M43 (user decision 2026-09-30): a missing field and an object show their name; the rest stay unresolved
+    assert out.text.count(UNRESOLVED) == 3 and "[samples]" in out.text and "[estimates]" in out.text
     joined = " ".join(out.problems)
-    assert "available: a_fall" in joined and "its fields: sample, estimates" in joined
-    assert "unknown format 'money'" in joined and "values: BBRI, BMRI" in joined and "is not a number" in joined
+    assert "available: a_fall" in joined
+    assert "unknown format 'money'" in joined and "values: BBRI, BMRI" in joined
+    assert [(expression, name) for expression, name, _ in out.missing] == [
+        ("finding.a_fall.samples", "samples"), ("finding.a_fall.estimates", "estimates")]
+    assert "its fields: sample, estimates" in out.missing[0][2] and "is an object" in out.missing[1][2]
+    assert sorted(out.failed) == ["fact.1", "finding.a_rank.sample.effective", "out.out_1.rows[ticker=XXXX].close"]
+
+
+def test_a_field_name_with_a_dot_resolves_and_an_exact_field_wins() -> None:  # P15
+    refs = ReferenceSources()
+    refs.add("out", "o1", {"content": {"XL_days_1.0": 51, "XL_days_1": 7, "a": {"b": 2}, "a.b": 3}}, "FACT")
+    out = render("{{out.o1.content.XL_days_1.0}} {{out.o1.content.XL_days_1}} {{out.o1.content.a.b}}", refs)
+    assert out.text == "51 7 2" and not out.problems and not out.missing
+    assert render("{{out.o1.content.XL_days_1.5}}", refs).text == "[XL_days_1.5]"
 
 
 # ---------------------------------------------------------------- the prompt, contract and schema
@@ -126,14 +139,58 @@ def test_the_answer_is_rendered_and_every_angle_carries_the_backend_block() -> N
     assert result.execution.validation_gate in ("PASSED", "ANNOTATED")
 
 
-def test_an_unresolved_reference_is_refused_once_then_forced() -> None:
-    bad = narrative_answer("Selisih {{finding.a_fall.estimate}}.")
+def test_a_missing_field_is_refused_once_then_shown_by_name_in_an_answer() -> None:  # M43
+    bad = narrative_answer("Selisih {{finding.a_fall.estimates.primary.estimate|pp:2}}, ambang {{finding.a_fall."
+                           "min_filter}} hari.")
     result, scripted = refs_run([*RUN_SCRIPT, final_response(bad), final_response(bad)])
     assert "value references that do not resolve" in str(scripted.payloads[4]["input"][-1])
     assert "estimates" in str(scripted.payloads[4]["input"][-1])  # names the fields that exist
+    assert result.response.response_type == "ANSWER" and result.execution.validation_gate == "ANNOTATED"
+    assert "1,25 pp" in result.response.answer and "ambang [min_filter] hari" in result.response.answer
+    assert UNRESOLVED not in result.response.answer and "tidak ada di hasil" not in result.response.answer
+    assert any("min_filter" in line and "field-nya tidak ada" in line for line in result.response.limitations)
+    assert [f.status for f in result.response.research_findings] == ["SUPPORTED", "INSUFFICIENT_EVIDENCE", "NOT_RUN"]
+
+
+def test_a_repaired_missing_field_leaves_a_clean_answer() -> None:
+    bad = narrative_answer("Selisih {{finding.a_fall.estimate}}.")
+    fixed = narrative_answer("Selisih {{finding.a_fall.estimates.primary.estimate|pp:2}}.")
+    result, _ = refs_run([*RUN_SCRIPT, final_response(bad), final_response(fixed)])
+    assert result.response.response_type == "ANSWER" and "1,25 pp" in result.response.answer
+    assert not any("field-nya tidak ada" in line for line in result.response.limitations)
+
+
+def test_an_annotated_draft_refused_by_another_gate_does_not_mark_the_clean_answer() -> None:
+    bad = narrative_answer("Selisih {{finding.a_fall.min_filter}} hari.")
+    causal = narrative_answer("Selisih {{finding.a_fall.min_filter}} hari menyebabkan kenaikan.")
+    fixed = narrative_answer("Selisih {{finding.a_fall.estimates.primary.estimate|pp:2}}.")
+    result, scripted = refs_run([*RUN_SCRIPT, final_response(bad), final_response(causal), final_response(fixed)])
+    assert "menyebabkan" in str(scripted.payloads[5]["input"][-1])  # the annotated draft was refused by CLAIM
+    clean, _ = refs_run([*RUN_SCRIPT, final_response(fixed)])
+    assert result.response.response_type == "ANSWER"
+    assert result.execution.validation_gate == clean.execution.validation_gate
+    assert result.response.limitations == clean.response.limitations  # no missing-field line from the refused draft
+
+
+def test_another_unresolved_reference_is_refused_once_then_forced() -> None:
+    bad = narrative_answer("Selisih {{finding.a_nope.estimate}}.")  # an unknown angle, not a missing field
+    result, _ = refs_run([*RUN_SCRIPT, final_response(bad), final_response(bad)])
     assert result.response.response_type == "LIMITATION" and result.execution.validation_gate == "FORCED_LIMITATION"
     assert UNRESOLVED in result.response.answer
     assert [f.status for f in result.response.research_findings] == ["SUPPORTED", "INSUFFICIENT_EVIDENCE", "NOT_RUN"]
+
+
+def test_each_distinct_reference_error_gets_one_repair_up_to_two() -> None:  # P16
+    first = narrative_answer("Selisih {{finding.a_nope.estimate}}.")
+    second = narrative_answer("Selisih {{finding.a_other.estimate}}.")
+    third = narrative_answer("Selisih {{finding.a_third.estimate}}.")
+    result, scripted = refs_run([*RUN_SCRIPT, final_response(first), final_response(second), final_response(third)])
+    assert "a_nope" in str(scripted.payloads[4]["input"][-1]) and "a_other" in str(scripted.payloads[5]["input"][-1])
+    assert len(scripted.payloads) == 6  # the third distinct error finds the budget spent: no third repair
+    assert result.response.response_type == "LIMITATION"
+    same = narrative_answer("Selisih {{finding.a_nope.estimate}}.")
+    result, scripted = refs_run([*RUN_SCRIPT, final_response(first), final_response(same)])
+    assert len(scripted.payloads) == 5 and result.response.response_type == "LIMITATION"  # the same error: one
 
 
 def test_a_typed_truncated_figure_is_refused_and_a_reference_repairs_it() -> None:

@@ -624,6 +624,9 @@ REFERENCE_INSTRUCTION = (
 REFERENCE_HINT = (" Write each data figure as a value reference {{...}} (see VALUE REFERENCES): the backend fills it "
                   "in and rounds it, so it never needs to be typed.")
 REFERENCE_NOTICE = "Some figures below could not be filled in from this run's results. "
+# M43 (user decision 2026-09-30): a reference to a field the result does not have stays in the answer as [field]
+MISSING_FIELD_LINE = "Angka berikut tidak dapat diisi karena field-nya tidak ada di hasil run ini: {fields}."
+MAX_REFERENCE_REPAIRS = 2  # P16: one repair per distinct set of failing references, at most this many per run
 NOT_INTERPRETED = "Tidak diinterpretasikan oleh model."
 BACKEND_ONLY_USEFULNESS = "Ringkasan dari backend; interpretasi model untuk sudut ini tidak tersedia."
 ANGLE_STATUSES = ("SUPPORTED", "PARTIALLY_SUPPORTED", "INSUFFICIENT_EVIDENCE", "INVALID", "NOT_RUN")
@@ -1348,6 +1351,8 @@ class RunState:
     ref_values: list[Resolved] = field(default_factory=list)
     ref_facts: int = 0
     references_used: int = 0
+    # M43 (2026-09-30): the final answer kept references to missing fields as [field] (validation_gate ANNOTATED)
+    reference_annotated: bool = False
     raw_final: dict[str, Any] | None = None
     # the model's latest final output as it arrived (for the final.rejected / final.forced audit events)
     current_raw: str = ""
@@ -2794,10 +2799,16 @@ class AgentOrchestrator:
     def _resolve_references(self, state: RunState, final: FinalResponse) -> tuple[FinalResponse, bool]:
         """P11: fill every value reference of an ANSWER or LIMITATION from this run's sources. The resolved values
         become provenance sources, so the gates run unchanged on the rendered text. A reference that does not resolve
-        is refused once (REFERENCE), then the response becomes a LIMITATION with the unresolved figures marked."""
+        is refused for repair once per distinct set of failing references (at most MAX_REFERENCE_REPAIRS per run,
+        P16). After that, a reference to a field the object does not have (or to an object) stays in the answer as
+        [field] with a limitation line and the response keeps its type (M43, user decision 2026-09-30); any other
+        unresolved reference makes the response a LIMITATION with the unresolved figures marked."""
+        state.reference_annotated = False  # it describes this final only, not an earlier refused draft
         if not self.value_references or final.response_type not in ("ANSWER", "LIMITATION"):
             return final, False
         problems: list[str] = []
+        failed: list[str] = []
+        missing: list[tuple[str, str, str]] = []
         values: list[Resolved] = []
         count = 0
 
@@ -2807,6 +2818,8 @@ class AgentOrchestrator:
                 return None
             rendering = render(text, state.ref_sources)
             problems.extend(rendering.problems)
+            failed.extend(rendering.failed)
+            missing.extend(rendering.missing)
             values.extend(rendering.values)
             count += rendering.count
             return rendering.text
@@ -2828,12 +2841,21 @@ class AgentOrchestrator:
         state.raw_final = final.model_dump(mode="json")
         rendered = final.model_copy(update=update)
         state.ref_values.extend(values)
+        if not problems and not missing:
+            return rendered, False
+        detail = "; ".join(dict.fromkeys(problems + [message for _, _, message in missing]))[:1500]
+        failing = sorted(set(failed) | {expression for expression, _, _ in missing})
+        kind = "REFERENCE:" + stable_hash(failing)[:12]
+        spent = sum(1 for k in state.gate_kinds_rejected if k.startswith("REFERENCE"))
+        self._gate_once(state, kind, REFERENCE_INSTRUCTION.format(problems=detail),
+                        allowed=spent < MAX_REFERENCE_REPAIRS, outcome="FORCED_LIMITATION" if problems else "ANNOTATED")
         if problems:
-            detail = "; ".join(dict.fromkeys(problems))[:1500]
-            self._gate_once(state, "REFERENCE", REFERENCE_INSTRUCTION.format(problems=detail))
             return self._forced(state, rendered, REFERENCE_NOTICE,
                                 [f"Value references that did not resolve: {detail}."]), True
-        return rendered, False
+        names = ", ".join(dict.fromkeys(name for _, name, _ in missing))
+        line = MISSING_FIELD_LINE.format(fields=names)
+        state.reference_annotated = True  # validation_gate ANNOTATED, set when this final passes the other gates
+        return rendered.model_copy(update={"limitations": [*rendered.limitations, line]}), False
 
     def _finalize_findings(self, state: RunState, final: FinalResponse) -> FinalResponse:
         """Multi-Angle Research after a completed run: every LIMITATION carries the backend's per-angle findings (M39),
@@ -2871,16 +2893,20 @@ class AgentOrchestrator:
                     follow_up=parts.follow_up if parts else BACKEND_FINDING_FOLLOW_UP)))
         return entries or None
 
-    def _gate_once(self, state: RunState, kind: str, message: str) -> None:
-        """Reject a final answer once per kind of problem while the model can still repair it with tools."""
+    def _gate_once(self, state: RunState, kind: str, message: str, allowed: bool = True,
+                   outcome: str = "FORCED_LIMITATION") -> None:
+        """Reject a final answer once per kind of problem while the model can still repair it with tools. allowed:
+        False when the kind's repair budget is spent (P16); outcome: what happens when no repair is possible."""
         no_tools_this_turn = state.tool_filter is not None and not state.tool_filter
-        repairable = kind not in state.gate_kinds_rejected and not state.tools_locked and not no_tools_this_turn
+        repairable = allowed and kind not in state.gate_kinds_rejected and not state.tools_locked \
+            and not no_tools_this_turn
         log_event("ai_final_gate", request_id=state.request_id, iteration=state.iterations, kind=kind,
-                  outcome="REJECTED_FOR_REPAIR" if repairable else "FORCED_LIMITATION",
+                  outcome="REJECTED_FOR_REPAIR" if repairable else outcome,
                   reason=None if repairable else ("already_rejected" if kind in state.gate_kinds_rejected
+                                                  else "repair_budget" if not allowed
                                                   else "tools_withdrawn" if state.tools_locked else "no_tools"),
                   detail=message[:300])
-        if self.audit_outbox is not None:
+        if self.audit_outbox is not None and (repairable or outcome == "FORCED_LIMITATION"):
             state.audit_trace.append(final_event("final.rejected" if repairable else "final.forced",
                                                  iteration=state.iterations, stage=kind, detail=message,
                                                  draft=state.current_raw, occurred_at=self.wall_clock()))
@@ -2952,7 +2978,9 @@ class AgentOrchestrator:
 
         missing_lines = [line for line in lines if line not in final.limitations]
         if state.analyses:
-            state.validation_gate = "ANNOTATED" if missing_lines else "PASSED"
+            state.validation_gate = "ANNOTATED" if missing_lines or state.reference_annotated else "PASSED"
+        elif state.reference_annotated:
+            state.validation_gate = "ANNOTATED"
         if final.response_type == "LIMITATION" and blocking:
             state.evidence_label = "NOT_VALIDATED"
         else:
@@ -3018,7 +3046,9 @@ class AgentOrchestrator:
             return forced
         missing_lines = [line for line in lines if line not in final.limitations]
         if state.sessions or state.completions or state.inherited or run is not None:
-            state.validation_gate = "ANNOTATED" if missing_lines else "PASSED"
+            state.validation_gate = "ANNOTATED" if missing_lines or state.reference_annotated else "PASSED"
+        elif state.reference_annotated:
+            state.validation_gate = "ANNOTATED"
         if final.response_type == "LIMITATION" and blocking:
             state.evidence_label = "NOT_VALIDATED"
         else:

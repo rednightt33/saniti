@@ -27,7 +27,9 @@ plan's rpc2 continuation); the model sees a compact view.
 from __future__ import annotations
 
 import copy
+import re
 import string
+from collections.abc import Callable
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -84,6 +86,13 @@ class AngleDesign(Strict):
         return data
 
 
+class BroadScope(Strict):
+    data_request_id: str = Field(description="One of this angle's own request ids.")
+    reason: str = Field(min_length=10, max_length=300,
+                        description="Why this request must read every entity (for example a market benchmark or a "
+                                    "cross-section the angle compares against).")
+
+
 class AngleRequirement(Strict):
     angle_id: str = Field(description="The angle_id the Research Plan will use for this angle.")
     design: AngleDesign
@@ -92,6 +101,11 @@ class AngleRequirement(Strict):
                                                          "requests of different angles.")
     relationships: list[RelationshipV2] = Field(description="Catalog relationships between this angle's requests "
                                                             "([] for none).")
+    # G13 (suite20d e02, 2026-09-30): a question about BBCA read every stock (2.6 million rows)
+    broad_scope: list[BroadScope] | None = Field(
+        description="Requests of this angle that read every entity although the question names specific ones, each "
+                    "with the reason (null for none). Without it such a request is refused "
+                    "(SCOPE_WIDER_THAN_QUESTION).")
 
 
 class ResearchFeasibilityArgs(Strict):
@@ -130,11 +144,31 @@ def _wider(a: dict[str, Any] | None, b: dict[str, Any] | None) -> dict[str, Any]
     return {"value": max(_calendar_days(a), _calendar_days(b)), "unit": "CALENDAR_DAYS"}
 
 
+ENTITY_TOKEN = re.compile(r"\b[A-Z]{4,6}\b")
+# capitalised words that are not stock codes (market, currency and ratio names)
+NOT_ENTITIES = {"IHSG", "IDX", "BEI", "JCI", "LQ45", "IDR", "USD", "YTD", "MTD", "QTD", "ROE", "ROA", "EPS", "PER",
+                "PBV", "BUMN", "ARA", "ARB", "RUPS", "NULL", "TRUE", "FALSE", "ANSWER"}
+
+
+def _filters(scope: Any, column: str) -> bool:
+    """Whether a scope tree has a predicate on the column anywhere (NOT included: it still names entities)."""
+    if not isinstance(scope, dict):
+        return False
+    if scope.get("type") == "PREDICATE":
+        return scope.get("column") == column
+    return any(_filters(child, column) for child in (scope.get("children") or []) + [scope.get("child")])
+
+
 class ResearchDataPlanner:
     def __init__(self, client: Any, planner: Any, *, max_groups: int = 3, min_angles: int = 2, max_angles: int = 6,
-                 limits: dict[str, Any] | None = None, min_families: int = 0) -> None:
+                 limits: dict[str, Any] | None = None, min_families: int = 0,
+                 entity_checker: Callable[[str, str, str], bool] | None = None) -> None:
         self.client = client
         self.planner = planner
+        # G13: (table, entity column, token) -> whether the token is an entity of that table (Governor dimension
+        # values); None skips the scope check
+        self.entity_checker = entity_checker
+        self._entity_cache: dict[tuple[str, str, str], bool] = {}
         self.max_groups = max_groups
         self.min_angles = min_angles
         self.max_angles = max_angles
@@ -144,6 +178,53 @@ class ResearchDataPlanner:
         self.max_parts = int(limits.get("bundle_max_parts") or 128)
         self.max_requests = min(int(limits.get("max_requests_per_spec") or MAX_REQUESTS_PER_SPEC),
                                 MAX_REQUESTS_PER_SPEC)
+
+    # ------------------------------------------------------------------------------------------ scope (G13)
+
+    def _named_entities(self, table: str, column: str, text: str) -> list[str]:
+        """The tokens of the question that are entities of this table (four to six capital letters, e.g. BBCA),
+        checked with the Governor; a failed check names nothing (the scope check then does not apply)."""
+        found = []
+        for token in dict.fromkeys(ENTITY_TOKEN.findall(text)):
+            if token in NOT_ENTITIES:
+                continue
+            key = (table, column, token)
+            if key not in self._entity_cache:
+                try:
+                    self._entity_cache[key] = bool(self.entity_checker(table, column, token))
+                except Exception:  # noqa: BLE001 - the check is advisory; the Governor still bounds extraction
+                    self._entity_cache[key] = False
+            if self._entity_cache[key]:
+                found.append(token)
+        return found
+
+    def _scope_issues(self, args: dict[str, Any]) -> list[dict[str, Any]]:
+        """G13: when the question names specific entities (BBCA), a request that reads every entity of its table is
+        refused unless the angle declares it in broad_scope with a reason."""
+        if self.entity_checker is None:
+            return []
+        context = current_run_context.get()
+        text = " ".join([str(args.get("question") or "")]
+                        + ([context.messages[-1][1]] if context is not None and context.messages else []))
+        issues = []
+        for index, angle in enumerate(args["angles"]):
+            declared = {b["data_request_id"] for b in angle.get("broad_scope") or []}
+            for r_index, request in enumerate(angle["data_requests"]):
+                column = request.get("entity_column")
+                if not column or request["data_request_id"] in declared or _filters(request.get("scope"), column):
+                    continue
+                named = self._named_entities(request["source_table"], column, text)
+                if named:
+                    issues.append({
+                        "angle_id": angle["angle_id"], "data_request_id": request["data_request_id"],
+                        "code": "SCOPE_WIDER_THAN_QUESTION", "field_path": f"angles[{index}].data_requests[{r_index}]"
+                                                                           ".scope",
+                        "rejected_value": f"every {column} of {request['source_table']}",
+                        "message": f"The question names {', '.join(named)}, but {request['data_request_id']} reads "
+                                   f"every {column} of {request['source_table']}. Add a scope predicate on {column} "
+                                   f"(for example IN {named}), or declare the request in this angle's broad_scope "
+                                   "with the reason it needs every entity."})
+        return issues
 
     # ------------------------------------------------------------------------------------------ structure
 
@@ -414,7 +495,7 @@ class ResearchDataPlanner:
 
     def plan(self, args: dict[str, Any]) -> dict[str, Any]:
         """{status, data_plan (full, or None), view (for the model)}."""
-        issues = self._structure(args)
+        issues = self._structure(args) or self._scope_issues(args)
         if issues:
             return self._outcome("REVISION_REQUIRED", None, issues=issues)
         args = copy.deepcopy(args)
@@ -554,6 +635,7 @@ class ResearchDataPlanner:
                         "data_contract_sha256": draft.get("contract_sha256")}
                 contracts[angle_id] = {**body, "angle_data_contract_sha256": contract_sha256(body)}
                 requirements[angle_id] = required
+        broad = {a["angle_id"]: a["broad_scope"] for a in args["angles"] if a.get("broad_scope")}
         plan = {"data_plan_version": DATA_PLAN_VERSION,
                 "strategy": "SINGLE_BUNDLE" if len(groups) == 1 else "MULTI_BUNDLE",
                 "spec_version": "data_need_spec/v2", "time_basis": args.get("time_basis") or "HISTORICAL_DESCRIPTIVE",
@@ -564,6 +646,8 @@ class ResearchDataPlanner:
                 "angle_design_sha256s": {a["angle_id"]: design_sha256(a["design"]) for a in args["angles"]},
                 "totals": {"rows": sum(g["estimates"]["rows"] for g in groups),
                            "parts": sum(g["estimates"]["parts"] for g in groups)}}
+        if broad:
+            plan["broad_scope"] = broad  # G13: the requests kept on every entity, with the model's reasons
         plan["research_data_plan_sha256"] = data_plan_sha256(plan)
         return plan
 
@@ -604,8 +688,10 @@ CHECK_RESEARCH_FEASIBILITY_DESCRIPTION = (
     "fit, splits the angles into a few bundle groups only when they do not, validates each group and estimates its "
     "extraction without reading data. Returns FEASIBLE with the bundle groups, each angle's bundle request and range "
     "ids and the columns it may use (its data contract); NOT_FEASIBLE naming the angles that cannot be served; or "
-    "REVISION_REQUIRED with issues by angle. Present the plan only after FEASIBLE, with exactly the angles and "
-    "designs checked.")
+    "REVISION_REQUIRED with issues by angle. When the question names specific entities (for example BBCA), each "
+    "request reads only those entities (a scope predicate on its entity column); a request that must read every "
+    "entity (a market benchmark, a cross-section) is declared in that angle's broad_scope with the reason. Present "
+    "the plan only after FEASIBLE, with exactly the angles and designs checked.")
 
 
 def research_feasibility_spec(planner: ResearchDataPlanner, *, timeout_seconds: float, max_result_bytes: int,

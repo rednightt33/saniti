@@ -260,6 +260,21 @@ def test_an_analysis_that_does_not_answer_ends_the_round() -> None:
     result = wrapper.run(m4(request_id="q", message="Siapa broker?"))
     assert len(inner.requests) == 1 and result.status == "NEEDS_CLARIFICATION"
     assert result.response.clarification_question == "Yang mana?" and result.mode4["round"] == "FIRST"
+    failed = AgentRunResponse(request_id="q-m4a", status="FAILED", response=None,
+                              execution=ExecutionMetadata(model="m"), error={"code": "ANALYSIS_TIMEOUT", "message": "x"})
+    wrapper, inner = stub(first_round_script(m4a=failed))
+    result = wrapper.run(m4(request_id="q", message="Siapa broker?"))
+    assert len(inner.requests) == 1 and result.status == "FAILED" and result.error.code == "ANALYSIS_TIMEOUT"
+
+
+def test_an_analysis_limitation_still_runs_the_research_and_the_suggestion() -> None:  # M43
+    limited = run_result("q-m4a", response("LIMITATION", "Broker XL membeli pada 51 dari 57 hari crash."))
+    wrapper, inner = stub(first_round_script(m4a=limited))
+    result = wrapper.run(m4(request_id="q", message="Siapa broker?"))
+    assert [r.request_id for r in inner.requests] == ["q-m4a", "q-m4b", "q-m4c", "q-m4d"]
+    assert "Broker XL membeli" in inner.requests[1].message  # the analysis is the research plan's context
+    assert result.status == "AWAITING_CONFIRMATION" and "**Jawaban**\n\nBroker XL membeli" in result.response.answer
+    assert "Data tidak cukup." in result.response.limitations  # the analysis limitation is kept
 
 
 def test_a_failed_research_keeps_the_answer_and_still_suggests() -> None:
