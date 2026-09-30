@@ -1,7 +1,8 @@
 """Multi-Angle Research golden questions against market-ai-orc on the private network (orc-test-runner).
 
 MARKET_AI_ORC_API_KEY is read from the environment and never printed. Every item is a new SERVER-mode conversation;
-a RESEARCH_PLAN_CONFIRMATION is approved once with plan_reply APPROVE. Output: a short `OTR {json}` line per turn, then
+a RESEARCH_PLAN_CONFIRMATION is approved once with plan_reply APPROVE. An item with "turns" is one conversation of
+free-text messages instead (mode 4: no analysis_path, no plan_reply; the reply classifier reads each reply). Output: a short `OTR {json}` line per turn, then
 that turn's full response as gzip+base64 chunks (`OTRDUMP <item>:<turn> i/n data`), because Railway drops long log
 lines."""
 import base64, gzip, json, os, threading, time, urllib.error, urllib.request
@@ -27,7 +28,7 @@ def post(body):
                                               "X-Saniti-Owner": "golden-multi-angle"})
     started = time.time()
     try:
-        with urllib.request.urlopen(request, timeout=2400) as response:
+        with urllib.request.urlopen(request, timeout=3900) as response:
             return response.status, json.loads(response.read()), time.time() - started
     except urllib.error.HTTPError as error:
         return error.code, {"http_error": error.read().decode()[:2000]}, time.time() - started
@@ -59,7 +60,9 @@ def summary(item_id, turn, code, body, seconds):
             "validation_gate": execution.get("validation_gate"), "evidence_label": body.get("evidence_label"),
             "tool_calls": execution.get("tool_call_count"), "iterations": execution.get("iterations"),
             "cost": execution.get("cost"), "unsupported": (execution.get("number_provenance") or {}).get("unsupported"),
-            "limitations": (response.get("limitations") or [])[:6]}
+            "limitations": (response.get("limitations") or [])[:6],
+            "mode4": [(s.get("step"), s.get("status"), s.get("turn"), s.get("angles"), s.get("cost"),
+                       s.get("duration_ms")) for s in (body.get("mode4") or {}).get("steps") or []] or None}
 
 
 def dump(tag, payload):
@@ -74,7 +77,24 @@ def dump(tag, payload):
                 time.sleep(1)
 
 
+def run_turns(item, prefix, results):
+    """Mode 4: the item's messages in one SERVER conversation, each sent as plain text."""
+    conversation = None
+    for turn, message in enumerate(item["turns"], start=1):
+        body = {"request_id": f"{prefix}-{item['id']}-{turn}", "conversation_id": conversation,
+                "history_mode": "SERVER", "message": message}
+        code, body, seconds = post(body)
+        log("turn", **summary(item["id"], turn, code, body, seconds))
+        results.append({"item": item["id"], "turn": turn, "body": body})
+        dump(f"{item['id']}:{turn}", {"item": item["id"], "turn": turn, "seconds": round(seconds, 1), "body": body})
+        conversation = (body.get("conversation") or {}).get("conversation_id") or conversation
+        if code != 200:
+            return
+
+
 def run_item(item, prefix, results):
+    if item.get("turns"):
+        return run_turns(item, prefix, results)
     base = {"message": item["message"], "history_mode": "SERVER"}
     if item.get("analysis_path"):
         base["analysis_path"] = item["analysis_path"]

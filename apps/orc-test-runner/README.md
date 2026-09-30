@@ -20,8 +20,13 @@ and the agent container cannot reach Railway SSH, so questions are sent from thi
   `final.unrendered`) are read in full from the run's TOOL_TRACE artifact through a short-lived access grant and
   printed as `OTRDUMP audit:<item>:<turn>` chunks. `"audit_only": true` in `suite.json` skips the questions and only
   reads the audit of the suite's request ids.
+- Mode 4 (2026-09-30): an item with `"turns": [message, ...]` is one SERVER conversation of plain messages (no
+  `analysis_path`, no `plan_reply`; market-ai-orc's reply classifier reads each reply). The request timeout is 3900 s
+  (`AI_MODE4_MAX_SECONDS` 3600 plus margin), and the `OTR` line lists the mode 4 steps (step, status, turn, angles,
+  cost, duration).
 - `suite.json` items may carry an `expect` note for the reviewer; the runner ignores it. Current suite:
-  `ma-suite20-20260930c` (after S16/M39/P10, backend-rendered findings and value references); earlier
+  `ma-mode4-20260930a` (the broker question over three turns and a price question followed by a new question);
+  earlier `ma-suite20-20260930c` (after S16/M39/P10, backend-rendered findings and value references); earlier
   `ma-suite20-20260929b` (12 multi-angle research questions, 4 edge cases, 4 ANALYSIS questions with ground truth;
   the same questions as `ma-suite20-20260929a`, rerun after the fixes of `MULTI_ANGLE_FIX_PLAN.md`).
 - Run: set a new `prefix` in `suite.json` (request ids are idempotency keys), then

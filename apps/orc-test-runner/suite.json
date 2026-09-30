@@ -1,22 +1,24 @@
-{"prefix": "ma-suite20-20260930m", "workers": 2, "audit_wait_seconds": 300, "items": [
- {"id": "r01_energy_drop_rebound", "analysis_path": "RESEARCH", "expect": "plan v2 (conditional_distribution / threshold_sensitivity); forward return from a price column (G12)", "message": "Apakah saham sektor energi yang turun lebih dari 4% dalam sehari cenderung rebound dalam 5 hari perdagangan berikutnya dibanding hari-hari lainnya? Gunakan data 2021 sampai sekarang."},
- {"id": "r02_big6_up_streak", "analysis_path": "RESEARCH", "expect": "streak_persistence on six named tickers", "message": "Untuk BBCA, BBRI, BMRI, BBNI, TLKM dan ASII: apakah kenaikan harga 3 hari berturut-turut atau lebih cenderung berlanjut pada hari berikutnya? Periode 2020 sampai sekarang."},
- {"id": "r03_tech_vol_regime", "analysis_path": "RESEARCH", "expect": "regime_comparison high vs low 20-day volatility", "message": "Apakah return 10 hari ke depan saham sektor teknologi berbeda antara periode volatilitas 20 hari tinggi dan rendah? Periode 2022 sampai sekarang."},
- {"id": "r04_sector_drawdown_cohort", "analysis_path": "RESEARCH", "expect": "cohort_comparison across three sectors after a 60-day drawdown", "message": "Setelah saham mengalami drawdown 60 hari lebih dari 30%, apakah return 20 hari berikutnya berbeda antara sektor energi, barang baku (basic materials) dan keuangan? Periode 2021 sampai sekarang."},
- {"id": "r05_industrial_volume_quintile", "analysis_path": "RESEARCH", "expect": "quantile_ranking on volume_ratio_20d", "message": "Pada saham sektor perindustrian (industrials), apakah saham di kelompok rasio volume 20 hari tertinggi memberi return 10 hari berikutnya lebih tinggi daripada kelompok terendah? Periode 2022 sampai sekarang."},
- {"id": "r06_foreign_flow_leadlag", "analysis_path": "RESEARCH", "expect": "lead_lag with Feature_03 foreign_net_value joined to prices; broker data ends 2026-08-31", "message": "Apakah net beli investor asing harian di saham bank besar (BBCA, BBRI, BMRI, BBNI, BRIS) mendahului return saham tersebut 1 sampai 5 hari berikutnya? Periode 2023 sampai Agustus 2026."},
- {"id": "r07_health_vol_corr", "analysis_path": "RESEARCH", "expect": "correlation_dependency; stability by year", "message": "Seberapa kuat hubungan antara perubahan volatilitas 20 hari dan return 20 hari berikutnya pada saham sektor kesehatan, dan apakah hubungan itu stabil dari tahun ke tahun? Periode 2021 sampai sekarang."},
- {"id": "r08_property_broker_hhi", "analysis_path": "RESEARCH", "expect": "quantile or regime on broker_concentration_hhi (Feature_03) joined to prices", "message": "Pada saham sektor properti, apakah hari dengan konsentrasi broker (HHI) tinggi diikuti return 5 hari berikutnya yang berbeda dibanding hari dengan konsentrasi rendah? Periode 2024 sampai Agustus 2026."},
- {"id": "r09_bank_foreign_streak", "analysis_path": "RESEARCH", "expect": "streak of foreign net buying then forward return", "message": "Apakah net beli asing 5 hari berturut-turut pada saham bank diikuti kenaikan harga dalam 10 hari berikutnya? Periode 2023 sampai Agustus 2026."},
- {"id": "r10_consumer_thresholds", "analysis_path": "RESEARCH", "expect": "threshold_sensitivity with the user's thresholds 3/5/7/10 %", "message": "Uji pada saham sektor konsumen siklikal: apakah rebound 5 hari setelah penurunan harian berbeda untuk ambang 3%, 5%, 7% dan 10%? Periode 2021 sampai sekarang."},
- {"id": "r11_infra_near_high", "analysis_path": "RESEARCH", "expect": "conditional_distribution on drawdown_60d_pct near the 60-day high", "message": "Apakah saham sektor infrastruktur yang ditutup dekat harga tertinggi 60 hari (kurang dari 2% di bawahnya) cenderung terus naik dalam 20 hari berikutnya dibanding saham lain di sektor yang sama? Periode 2022 sampai sekarang."},
- {"id": "r12_bank_weekday_autoroute", "expect": "no analysis_path: the model routes; a weekday group is derived from the date", "message": "Apakah return harian saham bank berbeda menurut hari dalam seminggu, misalnya apakah hari Senin cenderung lebih lemah? Periode 2021 sampai sekarang."},
- {"id": "e01_per_unavailable", "analysis_path": "RESEARCH", "expect": "no valuation data in the catalog: says so, no plan on invented data", "message": "Apakah saham dengan PER rendah memberi return lebih tinggi dalam 1 tahun berikutnya dibanding saham dengan PER tinggi?"},
- {"id": "e02_causal_prediction", "analysis_path": "RESEARCH", "expect": "refuses to prove causation and to predict a price; may offer a historical association plan", "message": "Buktikan bahwa net beli asing menyebabkan harga BBCA naik, lalu prediksi harga BBCA minggu depan."},
- {"id": "e03_broker_after_coverage", "analysis_path": "RESEARCH", "expect": "broker data ends 2026-08-31: limitation or a changed period, never invented September data", "message": "Apakah akumulasi broker asing selama September 2026 mendahului kenaikan harga saham bank?"},
- {"id": "e04_all_stocks_large", "analysis_path": "RESEARCH", "expect": "whole market 2023+: grouped bundles, a narrower plan or NOT_FEASIBLE, no crash", "message": "Apakah semua saham di BEI yang naik lebih dari 20% dalam 5 hari cenderung turun kembali dalam 10 hari berikutnya? Periode 2023 sampai sekarang."},
- {"id": "a01_energy_top5_ret20", "analysis_path": "ANALYSIS", "expect": "ground truth: Feature_01 return_20d_pct, energy sector, latest date", "message": "Sebutkan 5 saham sektor energi dengan return 20 hari tertinggi pada tanggal data terakhir, beserta nilainya."},
- {"id": "a02_fin_vol20", "analysis_path": "ANALYSIS", "expect": "ground truth: mean volatility_20d_ann_pct of the financials sector on the latest date and the maximum", "message": "Berapa rata-rata volatilitas 20 hari (tahunan) saham sektor keuangan pada tanggal data terakhir, dan saham mana yang paling volatil?"},
- {"id": "a03_tlkm_broker_aug", "analysis_path": "ANALYSIS", "expect": "ground truth: net value by broker for TLKM in August 2026", "message": "Broker mana yang paling besar net beli (nilai) di saham TLKM selama Agustus 2026? Sebutkan 5 teratas."},
- {"id": "a04_bbri_weekly", "analysis_path": "ANALYSIS", "expect": "ground truth: weekly returns of BBRI for the last four complete weeks", "message": "Berapa return mingguan BBRI selama 4 minggu terakhir yang lengkap?"}
-]}
+{
+ "prefix": "ma-mode4-20260930a",
+ "workers": 2,
+ "audit_wait_seconds": 300,
+ "items": [
+  {
+   "id": "m01_broker_bank_crash",
+   "expect": "round 1: analysis names brokers, research of >=2 angles run at once, 1 suggested angle; turn 2 approves it (1 angle runs + next suggestion); turn 3 asks for 2 other angles (a revised plan of exactly 2 angles)",
+   "turns": [
+    "Siapa broker yg secara konsisten membeli saham bank ketika market crash",
+    "Setuju",
+    "cari 2 angle lain"
+   ]
+  },
+  {
+   "id": "m02_bbri_normal_range",
+   "expect": "round 1 on a price question with a suggestion (decision B); turn 2 is a new question: the suggestion is cancelled and a new round 1 starts (decision C)",
+   "turns": [
+    "BBRI naik hari ini, apakah kenaikannya masih dalam rentang wajar atau termasuk outlier?",
+    "Bagaimana dengan BBCA, berapa return-nya selama sebulan terakhir?"
+   ]
+  }
+ ]
+}
