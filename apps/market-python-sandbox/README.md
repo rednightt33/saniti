@@ -1120,6 +1120,10 @@ Design, contracts and decisions: `MULTI_ANGLE_RESEARCH.md` (repository root); fi
 the method registry and its hash, the research library hash `library_sha256`, bundle limits); market-ai-orc turns its
 side on only when they match.
 
+- `PY_SANDBOX_RESEARCH_MIN_ANGLES` (default `2`, 1 to 6; user decision 2026-09-30): the fewest angles one plan may
+  have, reported as `min_angles`. market-ai-orc's mode 4 proposes one-angle follow-up plans only when it is `1`; its own
+  `AI_RESEARCH_MIN_ANGLES` (default 2) still applies to every plan outside mode 4.
+
 - Research library (C07): `app/research_library.py` (byte-identical in market-ai-orc) describes the eight methods for
   the model: family, question, input roles, parameters, data requirements, sample unit, secondary checks,
   interpretation, misuse warning and an example. Migration `20260930_001` writes it to `public."AI_research_library"`

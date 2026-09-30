@@ -249,6 +249,8 @@ Gate and final-response log events (always on):
 | `AI_MODEL` | no | `deepseek/deepseek-v4.1-flash` | OpenRouter model ID of model 1 |
 | `AI_MODEL_2` | no | `xiaomi/mimo-v2.6-pro` | OpenRouter model ID of model 2 |
 | `AI_MODEL_SWITCH` | no | `1` | Model switcher (user decision 2026-09-30): `1` runs `AI_MODEL`, `2` runs `AI_MODEL_2`; any other value stops startup. MiMo exposes no reasoning effort levels on OpenRouter, so switch `2` sends `reasoning.enabled` (true for the main calls, false for the plan-reply classifier) instead of `reasoning.effort`. The selected model is logged at startup (`ai_model_selected`) and recorded per run (usage, audit) |
+| `AI_ENABLE_MODE4` | no | `false` | Mode 4 (user decision 2026-09-30): a request without `analysis_path` is answered by an analysis, research of at least two angles that runs at once, and one suggested follow-up angle; see "Mode 4" below |
+| `AI_MODE4_MAX_SECONDS` | no | `3600` | Wall-clock budget of one whole mode 4 request (its sub-runs share it) |
 | `AI_REASONING_EFFORT` | no | `high` | One of `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; the model must support it (`require_parameters` rejects it otherwise) |
 | `AI_REQUEST_TIMEOUT_SECONDS` | no | `180` | Timeout for one provider call |
 | `AI_MAX_OUTPUT_TOKENS` | no | `8000` (dev: `24000` since 2026-09-30, M37) | `max_output_tokens` per call, reasoning tokens included. A tool call that reaches it is treated as truncated and not run (`MODEL_OUTPUT_TRUNCATED`): OpenRouter closes a cut-off call's JSON and still reports it completed. |
@@ -1291,6 +1293,44 @@ at start-up) and a request that sets it gets HTTP 400 `ANALYSIS_PATH_UNAVAILABLE
 - `execution.analysis_path` = `{requested, source: "CALLER", mismatches_refused}` when set; the key is omitted
   otherwise, so responses without it keep their exact shape. The system prompt is unchanged (the note is per request),
   so the cached static prefix is the same with or without a path.
+
+### Mode 4: answer, then research, then one suggestion (off unless `AI_ENABLE_MODE4=true`)
+
+User decision 2026-09-30 (`app/mode4.py`, `MULTI_ANGLE_RESEARCH.md` section 12). With the flag on, every request
+**without** `analysis_path` (or with `analysis_path: "MODE4"`) runs as a pipeline of ordinary orchestrator runs; ANALYSIS
+and RESEARCH requests are unchanged. It needs the caller-chosen paths and an active Multi-Angle Research; otherwise
+`mode4_inactive` is logged and nothing changes (`analysis_path: "MODE4"` then gets HTTP 400 `MODE4_UNAVAILABLE`).
+
+- **First round** (no pending plan): A analysis (`<request_id>-m4a`, path ANALYSIS) answers the question; B
+  (`-m4b`, path RESEARCH) proposes a plan of at least two angles that test or deepen A's answer; C (`-m4c`) runs B's plan
+  at once (the backend sends the approval; the rpc2 token is signed and verified as usual); D (`-m4d`, path RESEARCH)
+  proposes exactly one follow-up angle, which waits for the user's confirmation.
+- **Follow-up round** (a pending mode 4 suggestion): the existing reply classifier reads the reply (`-m4r`). APPROVE
+  runs the suggestion and proposes the next one; REVISE returns the revised plan; CANCEL is acknowledged; UNRELATED is a
+  new question: the suggestion is cancelled (`mode4.cancelled_plan_id`, stored CANCELLED in SERVER mode) and a new first
+  round starts.
+- **Counts**: an explicit count in the message is obeyed (`requested_count`: "cari 2 angle lain", "kasih tiga opsi",
+  clamped to 1-6). In a first round "angle/sudut" sets the research angles (at least two) and "opsi/usulan/saran" the
+  number of suggested angles; in a follow-up round it sets the next plan. The count reaches
+  `check_research_feasibility` and the plan gate through `current_angle_bounds`, and the model through an application
+  note. A one-angle suggestion needs the sandbox's `PY_SANDBOX_RESEARCH_MIN_ANGLES=1` (reported as
+  `multi_angle_research.min_angles`); otherwise the suggestion uses the sandbox minimum and says so.
+- **Response**: `answer` has three sections (**Jawaban**, **Hasil riset**, **Usulan riset berikutnya**); with a
+  suggestion `response_type` is RESEARCH_PLAN_CONFIRMATION, `status` AWAITING_CONFIRMATION and `continuation` is D's.
+  `execution` sums tokens, cost and iterations over every sub-run (and the classifier), `duration_ms` is the whole
+  request, `execution.analysis_path.requested` is `MODE4`, and in a follow-up round `execution.research_plan` names both
+  the approved plan that ran and the plan issued next (the conversation store retires the first as EXECUTED). The
+  `mode4` block lists every step (request_id, status, turn, plan_id, cost, duration) and each step's own answer,
+  findings and plan; responses without mode 4 do not have the key. `evidence_label` is the weakest of the analysis and
+  the research.
+- **Failures degrade**: an analysis that does not answer ends the round (its clarification, limitation or failure is
+  returned); a plan that is not issued or a research run that fails keeps the analysis with a note; a missing
+  suggestion is said in its section. `AI_MODE4_MAX_SECONDS` (default 3600, minimum 60) bounds the whole request: a step
+  is not started with less than 120 seconds left, and each sub-run also keeps `AI_MAX_ANALYSIS_SECONDS`. With mode 4 on,
+  the default conversation lease is `max(AI_MAX_ANALYSIS_SECONDS, AI_MODE4_MAX_SECONDS) + 120` and an explicit
+  `AI_CONVERSATION_LEASE_SECONDS` must exceed both.
+- Every sub-run keeps every gate (provenance, value references, findings, claims) and is archived to the audit store
+  under its own request_id; the combined response itself is stored by the conversation store only.
 
 ### Multi-Angle Research (off unless `AI_ENABLE_MULTI_ANGLE_RESEARCH=true`)
 

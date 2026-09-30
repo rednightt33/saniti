@@ -21,6 +21,7 @@ from .conversations import (ConversationError, ConversationStore, UpkeepThread, 
 from .openrouter_client import OpenRouterClient
 from .audit import RunAuditor
 from .audit_outbox import AuditOutbox
+from .mode4 import Mode4Orchestrator
 from .orchestrator import AgentOrchestrator, log_event
 from .provider_log import ProviderLogger
 from .research_plan_v2 import library_problem, negotiate
@@ -240,6 +241,14 @@ def create_app(
                                          session_closer=closer, conversation_resources=resources,
                                          draft_reader=sandbox.get_draft if feasibility else None,
                                          derived_frequency=derived_frequency, audit_outbox=audit_outbox)
+    if settings.ai_enable_mode4 and isinstance(orchestrator, AgentOrchestrator):
+        # mode 4 builds on the caller-chosen paths and on Multi-Angle Research (its plans are research_plan/v2)
+        if orchestrator.analysis_path and orchestrator.multi_angle:
+            orchestrator = Mode4Orchestrator(orchestrator)
+            log_event("mode4_active", max_seconds=settings.ai_mode4_max_seconds,
+                      sandbox_min_angles=orchestrator.sandbox_min)
+        else:
+            log_event("mode4_inactive", reason="needs AI_ENABLE_ANALYSIS_PATH and an active Multi-Angle Research")
     ready = {"value": False}
 
     @asynccontextmanager
@@ -291,6 +300,10 @@ def create_app(
                 return refuse(ConversationError("ANALYSIS_PATH_UNAVAILABLE", "analysis_path needs "
                                                 "AI_ENABLE_ANALYSIS_PATH (with the DataNeed flow and Research Plan "
                                                 "confirmation); send it as null.", 400))
+            if payload.analysis_path == "MODE4" and not getattr(orchestrator, "mode4", False):
+                return refuse(ConversationError("MODE4_UNAVAILABLE", "analysis_path MODE4 needs AI_ENABLE_MODE4 (with "
+                                                "the caller-chosen paths and Multi-Angle Research); send it as "
+                                                "null.", 400))
             if payload.analysis_path == "ANALYSIS" and (payload.continuation is not None
                                                         or payload.plan_reply is not None):
                 return refuse(ConversationError("ANALYSIS_PATH_CONFLICT", "analysis_path ANALYSIS cannot reply to a "

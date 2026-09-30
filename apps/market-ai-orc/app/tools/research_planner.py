@@ -35,7 +35,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from ..research_library import by_method
 from ..research_plan_v2 import (CONTRACT_VERSION, DATA_PLAN_VERSION, MAX_CANDIDATES_PER_ANGLE, MAX_PAIRWISE_PER_ANGLE,
                                 USES, AngleParameters, MethodId, OutcomeUnit, Policy, contract_sha256, data_plan_sha256,
-                                design_sha256, family_count, holdout_start, parameter_problems, sha256_json)
+                                current_angle_bounds, design_sha256, family_count, holdout_start, parameter_problems,
+                                sha256_json)
 from .analysis import current_run_context
 from .data_need import DataRequest, RelationshipV2, Subject, argument_issues
 from .registry import ToolError, ToolSpec
@@ -156,7 +157,8 @@ class ResearchDataPlanner:
         import re
 
         angles = args["angles"]
-        if not self.min_angles <= len(angles) <= self.max_angles:
+        low, high = current_angle_bounds.get() or (self.min_angles, self.max_angles)  # mode 4 sets the request's count
+        if not low <= len(angles) <= high:
             add(None, "ANGLE_COUNT_INVALID", "angles", len(angles))
         seen = set()
         for index, angle in enumerate(angles):

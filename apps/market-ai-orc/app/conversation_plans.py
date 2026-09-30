@@ -19,6 +19,8 @@ state moves after a turn.
   approval is used once and a new approval never re-runs the experiments by itself (a retry of the same request_id is
   answered from the stored response). A later computation needs a new or revised plan and a new approval. An UNRELATED
   turn returns the same continuation (same token and expiry), so the plan stays PENDING and is never extended.
+- Mode 4 (app/mode4.py): a turn that executes the approved suggestion and issues the next one retires the approved
+  plan as EXECUTED (not SUPERSEDED); a new question in place of a reply cancels the pending suggestion (CANCELLED).
 - A research_plan/v2 (Multi-Angle Research) is stored with the research data plan its rpc2 token binds; its
   continuation carries both back.
 - The model never sees or produces any of this; the token is never logged.
@@ -118,6 +120,10 @@ def advance(state: dict[str, Any] | None, result: AgentRunResponse, request_id: 
     """The conversation state after a stored turn."""
     state = dict(state or {})
     plan = state.get(STATE_KEY) if isinstance(state.get(STATE_KEY), dict) else None
+    if plan is not None and plan.get("status") == PENDING \
+            and (result.mode4 or {}).get("cancelled_plan_id") == plan.get("plan_id"):
+        # mode 4 (user decision C): a new question instead of a reply cancels the pending suggestion
+        plan = state[STATE_KEY] = {**plan, "status": CANCELLED, "closed_request_id": request_id}
     execution = result.execution.research_plan if result.execution else None
     if execution is None:
         return state
@@ -126,7 +132,12 @@ def advance(state: dict[str, Any] | None, result: AgentRunResponse, request_id: 
     if issued is not None and response is not None and response.response_type == "RESEARCH_PLAN_CONFIRMATION" \
             and response.research_plan is not None and issued.plan_id == execution.issued_plan_id:
         if plan is not None and plan.get("plan_id") != issued.plan_id:
-            _retire(state, plan, SUPERSEDED if plan.get("status") == PENDING else plan.get("status"), request_id)
+            status = plan.get("status")
+            if status == PENDING:
+                # mode 4: the same turn ran the approved plan and issued the next suggestion
+                status = EXECUTED if execution.turn == "EXECUTE_APPROVED" and execution.approved_plan_id \
+                    == plan.get("plan_id") and execution.research_submitted is not False else SUPERSEDED
+            _retire(state, plan, status, request_id)
         state[STATE_KEY] = {"plan_id": issued.plan_id, "status": PENDING, "origin_request_id":
                             issued.origin_request_id, "conversation_id": issued.conversation_id, "token": issued.token,
                             "expires_at": issued.expires_at, "issued_turn_index": turn_index,

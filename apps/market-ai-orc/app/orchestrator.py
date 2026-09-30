@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextvars
 import hashlib
 import json
 import logging
@@ -21,8 +22,8 @@ from .research_plan import (CLASSIFIER_INSTRUCTIONS, CLASSIFIER_SCHEMA, Continua
                             ResearchPlanFindings,
                             current_research_guard, guard_research_submission, plan_digest)
 from .research_plan_v2 import (FINDINGS_V2, PLAN_VERSION_V2, ContinuationInV2, ContinuationOutV2, PlanSignerV2,
-                               ResearchPlanV2, design_differences, design_sha256, family_count, holdout_start,
-                               plan_digest_v2)
+                               ResearchPlanV2, current_angle_bounds, design_differences, design_sha256, family_count,
+                               holdout_start, plan_digest_v2)
 from .research_run_executor import ResearchContext, current_research_context
 from .schemas import (
     FINAL_RESPONSE_SCHEMA, STATUS_BY_RESPONSE_TYPE, AgentRunRequest, AngleFindingReport, AngleInterpretation,
@@ -1043,6 +1044,11 @@ RESEARCH_PATH_NOTE = (PLAN_NOTE_PREFIX + "the caller fixed this request to the R
                       "research: propose a Research Plan (RESEARCH_PLAN_CONFIRMATION) under the RESEARCH PLAN "
                       "CONFIRMATION rules, or ask a CLARIFICATION when it cannot be planned; every data need uses "
                       "mode RESEARCH (an ANALYSIS data need is refused).")
+# Mode 4 (app/mode4.py): the seconds left of the whole mode 4 request, so its sub-runs together stay within
+# AI_MAX_ANALYSIS_SECONDS (None: a run has AI_MAX_ANALYSIS_SECONDS of its own)
+current_time_budget: contextvars.ContextVar[float | None] = contextvars.ContextVar("current_time_budget", default=None)
+ANGLE_COUNT_NOTE = (PLAN_NOTE_PREFIX + "for this request the Research Plan has {count} (check_research_feasibility and "
+                    "the plan check use this count; it replaces the angle count stated in the instructions).")
 ANALYSIS_PATH_LINE = ("Analysis path (fixed by the caller): descriptive historical statistics without a significance "
                       "test or a correction for multiple comparisons; not a verdict, a cause, a prediction or a "
                       "trading signal.")
@@ -1776,7 +1782,7 @@ class AgentOrchestrator:
             return
         if state.forced_path == "RESEARCH" and request.continuation is None:
             self._set_turn(state, "PROPOSE", PLAN_TYPES, self.plan_tools, ResearchGuard(required=True),
-                           note=RESEARCH_PATH_NOTE, verification="NOT_PRESENTED")
+                           note=RESEARCH_PATH_NOTE + self._angle_count_note(), verification="NOT_PRESENTED")
             return
         if not self.plan_confirmation:
             if request.continuation is not None:
@@ -1840,7 +1846,7 @@ class AgentOrchestrator:
             self._set_turn(state, "REVISE", PLAN_TYPES, self.plan_tools, guard, note=REVISE_NOTE.format(
                 plan_id=continuation.plan_id, instruction=instruction,
                 unverified="" if verified is not None else " (sent back by the caller; it could not be verified)",
-                plan=plan_json))
+                plan=plan_json) + self._angle_count_note())
             if verified is not None:
                 state.context_numbers.extend(numbers)
         else:  # an approval or unrelated reply whose continuation did not verify: nothing is approved
@@ -1878,6 +1884,24 @@ class AgentOrchestrator:
         if note:
             # before the user's reply, after the run context and the history
             state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": note})
+
+    @staticmethod
+    def _angle_count_note() -> str:
+        """Mode 4: the angle count this request's plan must have, as an application note (empty otherwise)."""
+        bounds = current_angle_bounds.get()
+        if bounds is None:
+            return ""
+        low, high = bounds
+        count = (f"exactly {NUMBER_WORDS[low]} angle" + ("s" if low > 1 else "")) if low == high \
+            else f"from {NUMBER_WORDS[low]} to {NUMBER_WORDS[high]} angles"
+        return " " + ANGLE_COUNT_NOTE.format(count=count)
+
+    def classify_reply(self, request_id: str, message: str, plan: Any) -> tuple[str, str | None, dict[str, Any]]:
+        """Mode 4: the reply classifier outside a run (APPROVE, REVISE, CANCEL or UNRELATED; any failure is
+        UNRELATED), with its usage record (status, tokens, cost, latency)."""
+        state = RunState(request_id=request_id, started=self.clock(), input_items=[])
+        action, instruction = self._classify_reply(state, message, plan)
+        return action, instruction, dict(state.classifier or {})
 
     def _classify_reply(self, state: RunState, message: str, plan: Any) -> tuple[str, str | None]:
         """A free-text reply to a plan, read by one small tool-free model call constrained to APPROVE, REVISE, CANCEL
@@ -1918,7 +1942,10 @@ class AgentOrchestrator:
 
     def _loop(self, state: RunState) -> FinalResponse:
         while state.iterations < self.settings.ai_max_tool_iterations:
-            if self.clock() - state.started >= self.settings.ai_max_analysis_seconds:
+            budget = current_time_budget.get()
+            limit = self.settings.ai_max_analysis_seconds if budget is None \
+                else min(budget, self.settings.ai_max_analysis_seconds)
+            if self.clock() - state.started >= limit:
                 raise RunFailure("ANALYSIS_TIMEOUT", "AI_MAX_ANALYSIS_SECONDS exhausted before a final answer")
 
             tools = [] if state.tools_locked or state.structured_only else self._turn_tools(state)
@@ -3181,10 +3208,11 @@ class AgentOrchestrator:
         checked = sorted(feasible.get("angle_to_bundle_group") or {})
         if planned != checked:
             problems.append(f"the plan's angles {planned} differ from the angles checked {checked}")
-        low, high = self.research_limits.get("min_angles", 2), self.research_limits.get("max_angles", 6)
+        low, high = current_angle_bounds.get() or (self.research_limits.get("min_angles", 2),
+                                                    self.research_limits.get("max_angles", 6))
         if not low <= len(planned) <= high:
             problems.append(f"the plan has {len(planned)} angles; this deployment runs {low} to {high}")
-        families = int(self.research_limits.get("min_families") or 0)
+        families = min(int(self.research_limits.get("min_families") or 0), high)  # a one-angle plan has one family
         if families and family_count([a.method_id for a in plan.angles]) < families:
             problems.append(f"the angles use {family_count([a.method_id for a in plan.angles])} method families; "
                             f"this deployment needs at least {families}")

@@ -217,12 +217,15 @@ def test_the_signature_vector_and_the_registry_are_pinned_with_the_sandbox() -> 
     assert method_registry()["sha256"] == "1321ca8f8ee3e3dcf44d3c9a6d43f89d5bf67d39e31ed584c550d39f6a8a048a"
 
 
-def test_a_v2_plan_needs_two_to_six_distinct_valid_angles() -> None:
+def test_a_v2_plan_needs_one_to_six_distinct_valid_angles() -> None:
     assert len(ResearchPlanV2.model_validate(plan_v2()).angles) == 3
     # the minimum became 2 on 2026-09-29 (user decision: do not force many angles)
     assert len(ResearchPlanV2.model_validate(plan_v2(angles=angles()[:2])).angles) == 2
+    # the schema admits one angle since 2026-09-30 (mode 4 suggestions); AI_RESEARCH_MIN_ANGLES is enforced by the
+    # plan gate and check_research_feasibility (tests/test_mode4.py)
+    assert len(ResearchPlanV2.model_validate(plan_v2(angles=angles()[:1])).angles) == 1
     with pytest.raises(ValueError):
-        ResearchPlanV2.model_validate(plan_v2(angles=angles()[:1]))
+        ResearchPlanV2.model_validate(plan_v2(angles=[]))
     twin = angles()
     twin[1] = {**twin[0], "angle_id": "a_twin", "angle_question": "Do large falls precede higher returns, again?"}
     assert ResearchPlanV2.model_validate(plan_v2(angles=twin))  # a reworded question is a different question

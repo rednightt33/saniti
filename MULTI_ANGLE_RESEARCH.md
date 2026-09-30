@@ -253,3 +253,28 @@ User decisions of 2026-09-30 after suite20b (plan: S16, M39, P10, findings #15, 
   `SESSION_STATE_CORRUPTED` (`apps/market-python-sandbox/README.md`).
 - **Audit**: the refused drafts of every final (`final.rejected`, `final.forced`) and the unrendered final are kept in
   market-audit-store (dev, shadow mode).
+
+## 12. Mode 4: answer, research, suggestion (2026-09-30)
+
+User decision 2026-09-30, after the question "Siapa broker yang secara konsisten membeli saham bank ketika market
+crash" got a Research Plan that did not say which brokers. Mode 4 (`AI_ENABLE_MODE4`, `apps/market-ai-orc/app/mode4.py`)
+answers first and uses research to test the answer:
+
+1. **First round**, one response: the analysis answer (ANALYSIS path); the results of research of at least two angles
+   built on that answer, run at once without asking; and one suggested follow-up angle that waits for confirmation.
+2. **Next rounds**: the user approves the suggestion, it runs, and the response has its result plus one new suggestion.
+3. More than one angle or suggestion only when the user asks for a number; the backend enforces the count (at most 6).
+4. A suggestion is always offered, also for a price question (for example whether a BBRI rise is within its normal
+   range or an outlier).
+5. A new question instead of a reply cancels the suggestion.
+6. The ANALYSIS and RESEARCH paths stay.
+
+No gate or engine is new: every step is an ordinary run with its own request_id (`-m4a` analysis, `-m4b` plan, `-m4c`
+execution, `-m4d` suggestion, `-m4r` reply classifier). The schema admits a one-angle `research_plan/v2`
+(`MIN_ANGLES` 1); the count of each plan is enforced by `check_research_feasibility` and the plan gate, from
+`AI_RESEARCH_MIN_ANGLES`/`MAX_ANGLES` or, in mode 4, from the request (`current_angle_bounds`). The sandbox accepts a
+one-angle plan only with `PY_SANDBOX_RESEARCH_MIN_ANGLES=1` (default 2); the negotiated capability passes its minimum
+to market-ai-orc as `sandbox_min_angles`. Response shape, degradation and budgets: `apps/market-ai-orc/README.md`,
+"Mode 4". Tests: `apps/market-ai-orc/tests/test_mode4.py` (a full first round through the real orchestrator with a
+scripted model, the routing of every reply, counts, failures, budget, API wrapping) and
+`apps/market-python-sandbox/tests/test_units.py`.

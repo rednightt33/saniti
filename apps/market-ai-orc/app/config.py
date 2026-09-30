@@ -183,6 +183,12 @@ class Settings:
     # P11 (user decision 2026-09-30): the model writes data figures as value references ({{finding.x.path|fmt}}) that
     # the backend fills in and formats, and multi-angle findings are rendered from the backend (#15). DataNeed only.
     ai_enable_value_references: bool = False
+    # Mode 4 (user decision 2026-09-30, app/mode4.py): a request without analysis_path (or with MODE4) is answered by
+    # an analysis, then research of at least two angles built on it runs at once, then one follow-up angle is
+    # proposed for the user's confirmation; an approval runs that angle and proposes the next one
+    ai_enable_mode4: bool = False
+    # the wall-clock budget of one whole mode 4 request (its sub-runs share it; each also keeps AI_MAX_ANALYSIS_SECONDS)
+    ai_mode4_max_seconds: int = 3600
     # IP2 solution 2: archive every finished run to market-audit-store through ai_audit.ingest_outbox (INSERT only,
     # AUDIT_OUTBOX_DATABASE_URL). With AI_AUDIT_STORE_REQUIRED false an archive failure is logged and never changes
     # the answer; true withholds the answer when the run cannot be handed to the outbox (regulated mode).
@@ -204,7 +210,12 @@ class Settings:
 
     @property
     def conversation_lease_seconds(self) -> int:
-        return self.ai_conversation_lease_seconds or self.ai_max_analysis_seconds + 120
+        return self.ai_conversation_lease_seconds or self.longest_run_seconds + 120
+
+    @property
+    def longest_run_seconds(self) -> int:
+        """The longest one request may run: AI_MAX_ANALYSIS_SECONDS, or AI_MODE4_MAX_SECONDS with mode 4."""
+        return max(self.ai_max_analysis_seconds, self.ai_mode4_max_seconds if self.ai_enable_mode4 else 0)
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -287,6 +298,8 @@ class Settings:
             ai_research_max_parallel_groups=_integer(env, "AI_RESEARCH_MAX_PARALLEL_GROUPS", 1),
             ai_research_max_session_restarts=_integer(env, "AI_RESEARCH_MAX_SESSION_RESTARTS", 1, minimum=0),
             ai_enable_value_references=_boolean(env, "AI_ENABLE_VALUE_REFERENCES", False),
+            ai_enable_mode4=_boolean(env, "AI_ENABLE_MODE4", False),
+            ai_mode4_max_seconds=_integer(env, "AI_MODE4_MAX_SECONDS", 3600, minimum=60),
             ai_audit_store_enabled=_boolean(env, "AI_AUDIT_STORE_ENABLED", False),
             ai_audit_store_required=_boolean(env, "AI_AUDIT_STORE_REQUIRED", False),
             audit_outbox_database_url=_optional(env, "AUDIT_OUTBOX_DATABASE_URL"),
@@ -391,9 +404,10 @@ class Settings:
         ):
             raise ConfigError("CONVERSATION_DATABASE_URL must be a postgresql:// connection URL")
         if settings.ai_conversation_lease_seconds and \
-                settings.ai_conversation_lease_seconds <= settings.ai_max_analysis_seconds:
+                settings.ai_conversation_lease_seconds <= settings.longest_run_seconds:
             # a lease shorter than a run would let a second message take over a conversation still running
-            raise ConfigError("AI_CONVERSATION_LEASE_SECONDS must exceed AI_MAX_ANALYSIS_SECONDS")
+            raise ConfigError("AI_CONVERSATION_LEASE_SECONDS must exceed AI_MAX_ANALYSIS_SECONDS (and "
+                              "AI_MODE4_MAX_SECONDS when AI_ENABLE_MODE4 is on)")
         if settings.ai_enable_catalog_protocol and not settings.ai_enable_catalog_discovery_v2:
             # the protocol tells the model to filter discovery and read completeness, which only v2 provides
             raise ConfigError("AI_ENABLE_CATALOG_PROTOCOL needs AI_ENABLE_CATALOG_DISCOVERY_V2")

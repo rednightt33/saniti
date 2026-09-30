@@ -16,6 +16,8 @@ table public."AI_research_library"); the negotiation also compares its hash (C07
 """
 from __future__ import annotations
 
+from contextvars import ContextVar
+
 import hashlib
 import hmac
 import json
@@ -41,8 +43,12 @@ TOKEN_VERSION_V2 = "rpc2"
 MAX_TOKEN_CHARS_V2 = 4096
 TOKEN_V2 = re.compile(r"^rpc2\.[A-Za-z0-9_-]{16,3900}\.[A-Za-z0-9_-]{43}$")
 DRAFT_ID = re.compile(r"^draft_[0-9a-f]{24}$")
-# the lowest minimum became 2 on 2026-09-29 (user decision: do not force many angles; AI_RESEARCH_MIN_ANGLES may raise it)
-MIN_ANGLES, MAX_ANGLES = 2, 6
+# the lowest minimum became 2 on 2026-09-29 (user decision: do not force many angles; AI_RESEARCH_MIN_ANGLES may raise it);
+# the schema admits 1 since 2026-09-30 for the one-angle follow-up suggestions of mode 4 (app/mode4.py): a plan's angle
+# count is enforced by the plan gate and check_research_feasibility (AI_RESEARCH_MIN_ANGLES, or the request's bounds)
+MIN_ANGLES, MAX_ANGLES = 1, 6
+# Mode 4: the angle count one request must plan (low, high); None uses the deployment's AI_RESEARCH_MIN/MAX_ANGLES
+current_angle_bounds: ContextVar[tuple[int, int] | None] = ContextVar("current_angle_bounds", default=None)
 FAMILY_COUNT = 5
 ENGINE_VERSION = 1
 METHODS: dict[str, str] = {
@@ -594,7 +600,10 @@ def negotiate(capability: dict[str, Any] | None, *, min_angles: int, max_angles:
     if not 0 <= min_families <= min(FAMILY_COUNT, max_angles):
         return None, f"AI_RESEARCH_MIN_FAMILIES ({min_families}) must be from 0 to {min(FAMILY_COUNT, max_angles)}"
     limits = capability.get("limits") or {}
+    # sandbox_min_angles: the fewest angles the sandbox runs in one plan (mode 4 proposes one-angle follow-ups only when
+    # it is 1, PY_SANDBOX_RESEARCH_MIN_ANGLES)
     return {"max_groups": max_groups, "min_angles": min_angles, "max_angles": max_angles, "min_families": min_families,
+            "sandbox_min_angles": low,
             "limits": {k: limits.get(k) for k in ("bundle_max_rows", "bundle_max_parts", "max_requests_per_spec")}}, None
 
 
