@@ -143,8 +143,6 @@ def audit_item(item_id, turn, request_id, wait_seconds):
         after = page.get("next_after_seq")
     log("audit", item=item_id, turn=turn, request_id=request_id, run_id=run["run_id"], status=run["status"],
         missing=run.get("missing"), counts=run.get("counts"), event_types=types, rejected=rejected)
-    if not any(t in types for t in AUDIT_KINDS):
-        return
     code, links = audit_call(f"/v1/runs/{run['run_id']}/artifacts")
     trace = [a for a in (links.get("artifacts") or []) if a.get("role") == "TOOL_TRACE"] if code == 200 else []
     if not trace:
@@ -161,7 +159,11 @@ def audit_item(item_id, turn, request_id, wait_seconds):
     except Exception as error:  # noqa: BLE001
         log("audit", item=item_id, turn=turn, error=f"trace download: {type(error).__name__}")
         return
-    dump(f"audit:{item_id}:{turn}", {"item": item_id, "turn": turn, "run_id": run["run_id"],
+    # the timeline of the turn: every model call (latency) and tool call (duration), in order
+    timeline = [{k: e.get(k) for k in ("type", "occurred_at", "iteration", "latency_ms", "tool", "duration_ms", "ok",
+                                       "error_code", "stage")}
+                for e in events if e.get("type") in ("model.call", "tool.call", *AUDIT_KINDS)]
+    dump(f"audit:{item_id}:{turn}", {"item": item_id, "turn": turn, "run_id": run["run_id"], "timeline": timeline,
                                      "events": [e for e in events if e.get("type") in AUDIT_KINDS]})
 
 
