@@ -1,5 +1,21 @@
 # Railway changelog
 
+## 2026-09-30 — REFERENCE gate and mode 4 fixes (M43, P14-P16), G13 scope check; migration 20260930_003
+
+- **Code `2671f7e`** (docs `82ed5cc`): market-ai-orc `6028ddc8-b6dd-4ddc-99ca-a2b94aa87fff` `SUCCESS` (auto-deploy from
+  `main`, 15:59 UTC); every other service SKIPPED (watch patterns). Startup log: `mode4_active max_seconds=3600
+  sandbox_min_angles=1`, `ai_mode_selected switch=4 effective=4`, `ai_model_selected switch=1`
+  (`deepseek/deepseek-v4.1-flash`); no `multi_angle_research_inactive`.
+- **Migration `20260930_003`** (`Tool_Catalog` `check_research_feasibility` v3, inactive) through the temporary
+  service `ma-migrate-job` (`44a643a8-1151-4359-9b50-ebbef699d9d9`, only a `DATABASE_URL` reference): inspection +
+  dry run `bcc703c3-1370-4fa5-b8b9-c4f39243c582` (passed, rolled back), apply `bee0028b-839b-43fc-a0b3-77fbf0872592`
+  (read back in the job). Deleted after use; dev lists 18 services again. Details in `DATABASE_CHANGELOG.md`.
+- **Variables**: none changed. `AI_MODE_SWITCH` stays 4, `AI_MODEL_SWITCH` 1, model and provider unchanged.
+- **Config**: `railway config pull --force` left `.railway/railway.ts` unchanged; `railway config plan`: up to date.
+- **Live test `ma-m43g13-20260930a`**: runner `orc-test-runner` deployment `b186f4f8-0bf8-403c-b9d5-4f4cfb951148`
+  (CLI upload, 16:05 UTC): the broker question over three turns in mode 4 (M43) and e02 through the RESEARCH path with
+  one automatic approval (G13). Running; the results are added when it ends.
+
 ## 2026-09-30 — mode switcher `AI_MODE_SWITCH` on dev (default 4); mode 4 live test
 
 - **Live test `ma-mode4-20260930a`** (runner `eab7b4aa-e4a3-49fd-b93e-082a4c2ae5dc`, 11:53–12:07 UTC, 5 turns, 0 HTTP

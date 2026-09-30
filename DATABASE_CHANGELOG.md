@@ -1,5 +1,32 @@
 # Database changelog
 
+## 2026-09-30 — G13: migration 20260930_003 (`check_research_feasibility` v3) applied on dev
+
+- Scope: `ERRORS_AND_SOLUTIONS.md` G13 (user decision 2026-09-30: a request that reads every entity while the question
+  names specific ones is refused unless the angle declares it in `broad_scope`). Code `2671f7e`.
+- `20260930_003_research_feasibility_v3_tool_catalog.sql` (no table or column change): one inactive `Tool_Catalog` row
+  `check_research_feasibility` v3 (`runtime_service = 'market-ai-orc'`), copying v2's columns, limits and output schema;
+  new purpose and input schema generated from the market-ai-orc tool definition (`tests/test_multi_angle.py` fails on
+  drift), `tool_specific_limits` = v2 plus `replaces_version` v2,
+  `scope_check` and `broad_scope`. Preflight refuses a second run and a missing v2; `$verify$` checks one inactive v3
+  row replacing v2, `broad_scope` required in each angle, v3 the latest version.
+- Rehearsal on local scratch PostgreSQL (`Tool_Catalog` DDL from `20260913_009` with a v2 row; dropped after): applied
+  and verified; a second run was refused by the preflight; the job below was also run locally in both phases.
+- Dev, temporary service `ma-migrate-job` (`44a643a8-1151-4359-9b50-ebbef699d9d9`, only a `DATABASE_URL` reference,
+  deleted after use):
+  - inspection + dry run, rolled back (`bcc703c3-1370-4fa5-b8b9-c4f39243c582`): passed; before and after:
+    `Tool_Catalog` 78 rows (25 active), `check_research_feasibility` v1 and v2 (latest v2), `Table_Catalog` 41,
+    `Column_Catalog` 736;
+  - apply (`bee0028b-839b-43fc-a0b3-77fbf0872592`, 16:03 UTC), read back in the same job: `Tool_Catalog` 79 rows, still
+    25 active; `check_research_feasibility` v3 inactive, `replaces_version` v2, output schema `md5` equal to v2's,
+    input schema `md5` `2d3d6676…` (the same as the local rehearsal), `broad_scope` required, `scope_check` present;
+    latest versions `check_research_feasibility` v3, `complete_research_run` v2, `run_research_code` v2,
+    `get_research_library` v1, `start_research_run` v1; `Table_Catalog` 41 and `Column_Catalog` 736 unchanged. A second
+    run in the same job was refused ("check_research_feasibility v3 is already registered"). The job logs held no DSN
+    or secret.
+- `Table_Catalog`, `Column_Catalog`, `Feature_Catalog`: no change (no public data table or column changed). No
+  routine added.
+
 ## 2026-09-30 — IP2: migration 20260928_001 (`ai_audit`) applied on dev; login `market_ai_audit`
 
 - Scope: user decision 2026-09-30 ("Aktifkan juga audit store"), plan item E15. `20260928_001` was unchanged since

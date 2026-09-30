@@ -1,13 +1,22 @@
 {
- "prefix": "ma-modeswitch-20260930a",
- "workers": 1,
+ "prefix": "ma-m43g13-20260930a",
+ "workers": 2,
  "audit_wait_seconds": 300,
  "items": [
   {
-   "id": "s01_auto_fact",
-   "analysis_path": "AUTO",
-   "expect": "mode switcher smoke: AUTO (mode 1) while AI_MODE_SWITCH=4; execution.mode {1, AUTO, CALLER}, no mode4 block",
-   "message": "Berapa harga penutupan terakhir saham BBCA?"
+   "id": "m01_broker_bank_crash",
+   "expect": "M43 retest: round 1 answers (a missing field shows as [field], validation ANNOTATED, no forced LIMITATION), research of >=2 angles runs at once even after an analysis LIMITATION, 1 suggested angle; turn 2 approves it; turn 3 asks for 2 other angles",
+   "turns": [
+    "Siapa broker yg secara konsisten membeli saham bank ketika market crash",
+    "Setuju",
+    "cari 2 angle lain"
+   ]
+  },
+  {
+   "id": "e02_causal_prediction",
+   "analysis_path": "RESEARCH",
+   "expect": "G13 retest: requests scoped to BBCA (or broad_scope with a reason), no BUNDLE_TOO_LARGE; refuses to prove causation and to predict a price",
+   "message": "Buktikan bahwa net beli asing menyebabkan harga BBCA naik, lalu prediksi harga BBCA minggu depan."
   }
  ]
 }
