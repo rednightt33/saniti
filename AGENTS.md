@@ -28,6 +28,8 @@ Before touching Railway or PostgreSQL, read `README.md`, `PROJECT_CONTEXT.md`, `
 
 The user decided on 2026-09-27 that `market-ai-orc` keeps the model `deepseek/deepseek-v4.1-flash` through OpenRouter's default provider routing. Do not set `AI_PROVIDER_SORT`, do not change `AI_MODEL`, and do not switch provider without the user's explicit approval.
 
+On 2026-09-30 the user approved a model switcher: `AI_MODEL_SWITCH=1` (default) runs `AI_MODEL` (`deepseek/deepseek-v4.1-flash`), `AI_MODEL_SWITCH=2` runs `AI_MODEL_2` (`xiaomi/mimo-v2.6-pro`). Model 1 stays the default; leave `AI_MODEL_SWITCH` unset or `1` except for a test the user asked for, and do not change `AI_MODEL` or `AI_MODEL_2` without approval.
+
 ## Security
 
 Never commit secret values, database URLs, passwords, private keys, Railway tokens, Stockbit JWTs, or GitHub PATs. For a secret change, record only the variable name, Railway scope, action, and verification status. Redact secrets from logs and terminal output.

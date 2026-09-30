@@ -25,11 +25,14 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from .provenance import LABEL_ORDER
+from .provenance import LABEL_ORDER, parse_numbers
 
-REF_RE = re.compile(r"\{\{\s*(?P<expr>[^{}|]+?)\s*(?:\|\s*(?P<fmt>[a-z]+)\s*(?::\s*(?P<places>\d)\s*)?)?\}\}")
+# P13 (suite20c a03, 2026-09-30): inside a Markdown table the model escapes the format separator as "\|"
+REF_RE = re.compile(r"\{\{\s*(?P<expr>[^{}|]+?)\s*(?:\\?\|\s*(?P<fmt>[a-z]+)\s*(?::\s*(?P<places>\d)\s*)?)?\}\}")
 FUNC_RE = re.compile(r"^(?P<name>diff|abs|ratio|chg)\s*\((?P<args>.*)\)$", re.DOTALL)
 SELECTOR_RE = re.compile(r"^(?P<key>[^\[\]]+)\[(?P<column>[^=\[\]]+)=(?P<value>[^\]]+)\]$")
+INDEX_RE = re.compile(r"^(?P<key>[^\[\]]+)\[(?P<index>-?\d+)\]$")  # P13 (a02): rows[0], the Python way
+MAX_TEXT = 200
 FORMATS = {"auto", "dec", "int", "pct", "pctv", "pp", "rp", "x"}
 FUNCTION_ARITY = {"diff": 2, "abs": 1, "ratio": 2, "chg": 2}
 MINUS = "−"
@@ -43,6 +46,14 @@ class ReferenceError_(ValueError):
 @dataclass
 class Resolved:
     value: float
+    label: str
+
+
+@dataclass
+class ResolvedText:
+    """P13 (suite20c, 2026-09-30): a text value (a ticker, a broker, a label) shown as written; the numbers it
+    contains become provenance sources under the same label."""
+    text: str
     label: str
 
 
@@ -62,7 +73,20 @@ class ReferenceSources:
         return sorted(self.objects.get(namespace, {}))
 
     def lookup(self, path: str) -> Resolved:
-        parts = [p for p in _split(path.strip())]
+        value, label = self.resolve(path)
+        number = _number(value)
+        if number is None and isinstance(value, str):
+            raise ReferenceError_(f"'{path}' is text, not a number: reference it without a format to show it as "
+                                  f"written")
+        if number is None:
+            raise ReferenceError_(f"'{path}' is not a number ({type(value).__name__}"
+                                  + (f"; its fields: {', '.join(list(value)[:12])}" if isinstance(value, dict) else "")
+                                  + ")")
+        return Resolved(number, label)
+
+    def resolve(self, path: str) -> tuple[Any, str]:
+        """The raw value at path with its evidence label."""
+        parts = [p for p in _split(path.strip().rstrip("\\").strip())]
         if len(parts) < 2:
             raise ReferenceError_(f"'{path}' needs a namespace and a key, for example finding.<angle_id>.<field>")
         namespace, key, rest = parts[0], parts[1], parts[2:]
@@ -77,12 +101,7 @@ class ReferenceSources:
         walked = f"{namespace}.{key}"
         for part in rest:
             value, walked = _step(value, part, walked, path)
-        number = _number(value)
-        if number is None:
-            raise ReferenceError_(f"'{path}' is not a number ({type(value).__name__}"
-                                  + (f"; its fields: {', '.join(list(value)[:12])}" if isinstance(value, dict) else "")
-                                  + ")")
-        return Resolved(number, label)
+        return value, label
 
 
 def _split(path: str) -> list[str]:
@@ -103,6 +122,10 @@ def _split(path: str) -> list[str]:
 
 
 def _step(value: Any, part: str, walked: str, path: str) -> tuple[Any, str]:
+    index = INDEX_RE.match(part)
+    if index:
+        items, walked = _step(value, index.group("key").strip(), walked, path)
+        return _step(items, index.group("index"), walked, path)
     selector = SELECTOR_RE.match(part)
     if selector:
         items, walked = _step(value, selector.group("key").strip(), walked, path)
@@ -235,9 +258,18 @@ def format_value(value: float, fmt: str | None = None, places: int | None = None
 @dataclass
 class Rendering:
     text: str
-    values: list[Resolved] = field(default_factory=list)
+    values: list[Resolved] = field(default_factory=list)  # numbers shown, and the numbers inside a shown text
     problems: list[str] = field(default_factory=list)
     count: int = 0
+
+
+def _text(value: str) -> str:
+    one_line = " ".join(value.split())
+    return one_line if len(one_line) <= MAX_TEXT else one_line[:MAX_TEXT - 1] + "…"
+
+
+def _text_numbers(text: str) -> list[float]:
+    return [value for shown in parse_numbers(text) for value, _ in shown.candidates]
 
 
 def render(text: str | None, sources: ReferenceSources) -> Rendering:
@@ -250,8 +282,15 @@ def render(text: str | None, sources: ReferenceSources) -> Rendering:
     def replace(match: re.Match[str]) -> str:
         out.count += 1
         places = match.group("places")
+        expression = match.group("expr").strip().rstrip("\\").strip()
         try:
-            resolved = evaluate(match.group("expr"), sources)
+            if not match.group("fmt") and not FUNC_RE.match(expression):
+                raw, label = sources.resolve(expression)
+                if isinstance(raw, str) and _number(raw) is None:
+                    shown = _text(raw)
+                    out.values.extend(Resolved(v, label) for v in _text_numbers(shown))
+                    return shown
+            resolved = evaluate(expression, sources)
             shown = format_value(resolved.value, match.group("fmt"), int(places) if places is not None else None)
         except ReferenceError_ as exc:
             out.problems.append(str(exc))

@@ -79,6 +79,9 @@ def create_app(
     """App factory; uvicorn runs it with --factory so config is validated at startup, not import."""
     _configure_logging()
     settings = settings or Settings.from_env()
+    log_event("ai_model_selected", switch=settings.ai_model_switch, model=settings.ai_model,
+              reasoning=settings.reasoning(settings.ai_reasoning_effort),
+              max_output_tokens=settings.ai_max_output_tokens)
     if conversations is None and settings.ai_enable_conversation_store and settings.conversation_database_url:
         conversations = ConversationStore(settings.conversation_database_url,
                                           retention_days=settings.ai_conversation_retention_days,

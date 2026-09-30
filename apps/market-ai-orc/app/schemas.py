@@ -235,9 +235,20 @@ class FinalResponse(BaseModel):
 
     response_type: ResponseType
     answer: str
-    clarification_question: str | None
+    # M40 (suite20c, 2026-09-30): like the other null fields, an omitted clarification_question reads as null; the
+    # response-type checks below still require it for a CLARIFICATION and refuse it elsewhere
+    clarification_question: str | None = None
     assumptions: list[str]
     limitations: list[str]
+
+    @field_validator("assumptions", "limitations", mode="before")
+    @classmethod
+    def _one_item_list(cls, value: Any) -> Any:
+        """M40 (suite20c r01): null where a list is expected is read as an empty list, a single string as a list of
+        one; a LIMITATION still needs at least one limitation."""
+        if value is None:
+            return []
+        return [value] if isinstance(value, str) and value.strip() else value
     # Only for RESEARCH_PLAN_CONFIRMATION; every other response carries null. A model that omits the field (the
     # schema without Research Plan confirmation does not list it) is read as null.
     research_plan: ResearchPlanV2 | ResearchPlanFindings | ResearchPlan | None = None

@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from typing import Any
 
 from .research_plan import MAX_TTL_SECONDS, weak_key_problem
 
@@ -188,6 +189,18 @@ class Settings:
     ai_audit_store_enabled: bool = False
     ai_audit_store_required: bool = False
     audit_outbox_database_url: str | None = field(default=None, repr=False)
+    # Model switcher (user decision 2026-09-30): AI_MODEL_SWITCH 1 runs AI_MODEL (deepseek/deepseek-v4.1-flash, the
+    # default), 2 runs AI_MODEL_2 (xiaomi/mimo-v2.6-pro). ai_model is the model in use. MiMo exposes no reasoning
+    # effort levels on OpenRouter (2026-09-30), so switch 2 sends reasoning.enabled instead of reasoning.effort.
+    ai_model_switch: int = 1
+    ai_model_1: str = "deepseek/deepseek-v4.1-flash"
+    ai_model_2: str = "xiaomi/mimo-v2.6-pro"
+
+    def reasoning(self, effort: str) -> dict[str, Any]:
+        """The OpenRouter reasoning setting for a call of the given effort, in the form the selected model accepts."""
+        if self.ai_model_switch == 2:
+            return {"enabled": effort not in ("none", "minimal", "low")}
+        return {"effort": effort}
 
     @property
     def conversation_lease_seconds(self) -> int:
@@ -207,7 +220,12 @@ class Settings:
         settings = cls(
             internal_api_key=secrets["MARKET_AI_ORC_API_KEY"],
             openrouter_api_key=secrets["OPENROUTER_API_KEY"],
-            ai_model=env.get("AI_MODEL", "").strip() or "deepseek/deepseek-v4.1-flash",
+            ai_model=(env.get("AI_MODEL_2", "").strip() or "xiaomi/mimo-v2.6-pro")
+            if (env.get("AI_MODEL_SWITCH") or "").strip() == "2"
+            else env.get("AI_MODEL", "").strip() or "deepseek/deepseek-v4.1-flash",
+            ai_model_switch=_integer(env, "AI_MODEL_SWITCH", 1),
+            ai_model_1=env.get("AI_MODEL", "").strip() or "deepseek/deepseek-v4.1-flash",
+            ai_model_2=env.get("AI_MODEL_2", "").strip() or "xiaomi/mimo-v2.6-pro",
             ai_reasoning_effort=env.get("AI_REASONING_EFFORT", "").strip().lower() or "high",
             ai_request_timeout_seconds=_integer(env, "AI_REQUEST_TIMEOUT_SECONDS", 180),
             ai_max_output_tokens=_integer(env, "AI_MAX_OUTPUT_TOKENS", 8000),
@@ -341,6 +359,8 @@ class Settings:
             raise ConfigError("AI_RESEARCH_MIN_ANGLES and AI_RESEARCH_MAX_ANGLES must satisfy 2 <= min <= max <= 6")
         if not 0 <= settings.ai_research_min_families <= min(5, settings.ai_research_max_angles):
             raise ConfigError("AI_RESEARCH_MIN_FAMILIES must be from 0 (off) to 5 and at most AI_RESEARCH_MAX_ANGLES")
+        if settings.ai_model_switch not in (1, 2):
+            raise ConfigError("AI_MODEL_SWITCH must be 1 (AI_MODEL) or 2 (AI_MODEL_2)")
         if not 0 <= settings.ai_research_max_session_restarts <= 3:
             raise ConfigError("AI_RESEARCH_MAX_SESSION_RESTARTS must be from 0 (close the group) to 3")
         if not 1 <= settings.ai_research_max_bundle_groups <= 6:

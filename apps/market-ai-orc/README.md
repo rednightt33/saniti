@@ -246,10 +246,12 @@ Gate and final-response log events (always on):
 |---|---|---|---|
 | `MARKET_AI_ORC_API_KEY` | yes (secret) | — | Bearer key the backend must send |
 | `OPENROUTER_API_KEY` | yes (secret) | — | OpenRouter API key |
-| `AI_MODEL` | no | `deepseek/deepseek-v4.1-flash` | OpenRouter model ID |
+| `AI_MODEL` | no | `deepseek/deepseek-v4.1-flash` | OpenRouter model ID of model 1 |
+| `AI_MODEL_2` | no | `xiaomi/mimo-v2.6-pro` | OpenRouter model ID of model 2 |
+| `AI_MODEL_SWITCH` | no | `1` | Model switcher (user decision 2026-09-30): `1` runs `AI_MODEL`, `2` runs `AI_MODEL_2`; any other value stops startup. MiMo exposes no reasoning effort levels on OpenRouter, so switch `2` sends `reasoning.enabled` (true for the main calls, false for the plan-reply classifier) instead of `reasoning.effort`. The selected model is logged at startup (`ai_model_selected`) and recorded per run (usage, audit) |
 | `AI_REASONING_EFFORT` | no | `high` | One of `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; the model must support it (`require_parameters` rejects it otherwise) |
 | `AI_REQUEST_TIMEOUT_SECONDS` | no | `180` | Timeout for one provider call |
-| `AI_MAX_OUTPUT_TOKENS` | no | `8000` | `max_output_tokens` per call, reasoning tokens included. A tool call that reaches it is treated as truncated and not run (`MODEL_OUTPUT_TRUNCATED`): OpenRouter closes a cut-off call's JSON and still reports it completed. |
+| `AI_MAX_OUTPUT_TOKENS` | no | `8000` (dev: `24000` since 2026-09-30, M37) | `max_output_tokens` per call, reasoning tokens included. A tool call that reaches it is treated as truncated and not run (`MODEL_OUTPUT_TRUNCATED`): OpenRouter closes a cut-off call's JSON and still reports it completed. |
 | `AI_MAX_TOOL_ITERATIONS` | no | `8` | Maximum model calls per run |
 | `AI_MAX_TOOL_CALLS` | no | `12` | Maximum tool calls per run; after that, tools are withdrawn |
 | `AI_MAX_IDENTICAL_TOOL_CALLS` | no | `2` | Executions allowed for the same tool and arguments while the result is unchanged |
@@ -992,6 +994,11 @@ referable object carries a `"ref"` key with its prefix. Formats, Indonesian nota
 `int`, `pct:N` (a fraction shown as percent), `pctv:N` (already a percent), `pp:N`, `rp` (ribu/juta/miliar/triliun),
 `x:N` ("kali"). Functions computed by code: `diff(a,b)`, `abs(a)`, `ratio(a,b)`, `chg(a,b)`; no free expressions.
 
+P13 (suite20c, 2026-09-30): a text value (a ticker, a broker, a label) may be referenced without a format and is shown
+as written (one line, at most 200 characters; the numbers inside it become sources under the same label; a text value
+with a number format is refused); `rows[<i>]` works like `rows.<i>`; inside a Markdown table the separator may be
+escaped as `\|`.
+
 Rendering applies to `answer`, the findings narratives, `methodology` and `limitations`, before the other gates. An
 unknown reference or format fails the new REFERENCE gate (one repair, the message names the valid keys nearby), then a
 LIMITATION. The resolved values join the provenance sources under their label, so the gates run unchanged on the
@@ -1002,6 +1009,15 @@ the figure as a reference. The user receives the rendered text; the audit keeps 
 **Audit of refused finals (2026-09-30).** With `AI_AUDIT_STORE_ENABLED`, the run's events also carry `final.rejected`
 (iteration, gate stage or format problem, detail, the refused draft: visible output only, URLs redacted, at most
 20,000 characters, with its size and sha256) and `final.forced`; the conversation store keeps only the final answer.
+
+### Plan numbers and code numbers (P12)
+
+Since 2026-09-30 the numbers of a Research Plan (plan gate and the approval turn) are read from its JSON values
+(`released_numbers`), and the numbers of executed code from its Python syntax tree (`code_numbers`), not by the prose
+parser over a compact dump, which dropped "-40" after a comma and every number of "[25,35,45]". On the plan turn the
+research library's figures and the backend's feasibility adjustments, with the designs and data requests it checked
+FEASIBLE, are sources too. A missing null field of the final response (`clarification_question`) reads as null and a
+null `limitations`/`assumptions` as an empty list (M40).
 
 ### Scientific notation in the provenance check (P06)
 

@@ -31,8 +31,8 @@ from .schemas import (
     ReplyClassifierUsage,
     ResearchPlanExecution, ResearchSummary, RunError, final_response_schema,
 )
-from .provenance import (CONTEXT, LABEL_ORDER, SourceIndex, analysis_label, check_answer, numbers_in, parse_numbers,
-                         released_numbers, requested_statistics, weakest)
+from .provenance import (CONTEXT, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
+                         parse_numbers, released_numbers, requested_statistics, weakest)
 from .value_refs import ReferenceSources, Resolved, format_value, render
 from .tools import ToolOutcome, ToolRegistry, error_outcome
 from .tools.analysis import current_conversation_key, current_run_context, run_context
@@ -606,8 +606,11 @@ as a percent), pctv:N (already a percent), pp:N (percentage points), rp
 ratio(a, b) or chg(a, b) of references, for example
 {{diff(finding.a.estimates.primary.ci.1, finding.a.estimates.primary.ci.0)|pp:2}}.
 Compute anything else in the analysis and release it. A figure the user
-wrote, a date and a year may be typed as they are. A reference that does
-not resolve is refused with the references that exist."""
+wrote, a date and a year may be typed as they are. A text value (a ticker,
+a broker, a label) may be referenced without a format and is shown as
+written; rows[<index>] works like rows.<index>; inside a Markdown table
+write the reference unchanged. A reference that does not resolve is
+refused with the references that exist."""
 VALUE_REFERENCE_CONTRACT = ("Figures from data are value references {{...}} (see VALUE REFERENCES), never typed "
                             "numbers. ")
 ANGLE_NARRATIVE_CONTRACT = ("research_findings: for an ANSWER that rests on a completed multi-angle research run, "
@@ -1805,7 +1808,9 @@ class AgentOrchestrator:
         state.plan_meta.update(action=action, action_source=source, verification=verification,
                                approved_plan_id=verified.plan_id if verified and action == "APPROVE" else None)
         plan_json = dumps(continuation.plan.model_dump(mode="json"))
-        numbers = [value for shown in parse_numbers(plan_json) for value, _ in shown.candidates]
+        # P12 (suite20c r04/r06, 2026-09-30): the plan's numbers are read from its JSON values, not by the prose
+        # parser over the compact dump (which drops "-40" after a comma and every number of "[25,35,45]")
+        numbers = released_numbers(continuation.plan.model_dump(mode="json"))
         guard = ResearchGuard(required=True, verification=verification)
         if action in ("CANCEL", "UNRELATED"):
             state.user_text = request.message  # the reply itself, not the research question it answers
@@ -1883,7 +1888,7 @@ class AgentOrchestrator:
             "input": [{"role": "user", "content": dumps({"research_plan": plan_digest_v2(plan)
                                                          if isinstance(plan, ResearchPlanV2) else plan_digest(plan),
                                                          "user_reply": message[:4000]})}],
-            "reasoning": {"effort": "low"}, "max_output_tokens": min(2000, self.settings.ai_max_output_tokens),
+            "reasoning": self.settings.reasoning("low"), "max_output_tokens": min(2000, self.settings.ai_max_output_tokens),
             "store": False, "provider": self._provider(),
             "text": {"format": {"type": "json_schema", "name": "research_plan_reply", "strict": True,
                                 "schema": CLASSIFIER_SCHEMA}},
@@ -2039,7 +2044,7 @@ class AgentOrchestrator:
             "session_id": state.request_id,
             "instructions": state.instructions or self.system_prompt,
             "input": state.input_items,
-            "reasoning": {"effort": self.settings.ai_reasoning_effort},
+            "reasoning": self.settings.reasoning(self.settings.ai_reasoning_effort),
             "max_output_tokens": self.settings.ai_max_output_tokens,
             "store": False,
             "provider": self._provider(),
@@ -2195,7 +2200,10 @@ class AgentOrchestrator:
         if name == "check_data_feasibility":
             self._track_feasibility(state, outcome)
         if name == "check_research_feasibility":
-            self._track_research_feasibility(state, outcome)
+            self._track_research_feasibility(state, outcome, normalized)
+        if name == "get_research_library" and outcome.ok:
+            # P12 (e04 "95%"): the library's own figures (interval level, minimum samples) may be named in a plan
+            state.context_numbers.extend(released_numbers(outcome.output.get("result")))
         if name in RESEARCH_RUN_TOOLS:
             self._track_research_run(state, name, self._normalized_arguments(raw_arguments), outcome)
         if self.catalog_protocol and name in CACHEABLE_TOOLS and outcome.ok:
@@ -2235,7 +2243,7 @@ class AgentOrchestrator:
                   draft_id=entry["draft_id"], issues=entry["issues"], refused=entry["requests"])
 
     @staticmethod
-    def _track_research_feasibility(state: RunState, outcome: ToolOutcome) -> None:
+    def _track_research_feasibility(state: RunState, outcome: ToolOutcome, arguments: Any = None) -> None:
         """check_research_feasibility: the tool's callback keeps the last FEASIBLE research data plan in the run's
         research context; the checks are recorded here for the plan gate and the logs."""
         result = outcome.output.get("result") if outcome.ok else None
@@ -2248,6 +2256,11 @@ class AgentOrchestrator:
         state.feasibility_checks.append(entry)
         # the checked estimates (rows, parts) may be named in the plan's answer
         state.context_numbers.extend(numbers_in(result.get("bundle_groups"), ints_only=True))
+        # P12 (r11 "buffer 25"): the backend's adjustments and the designs and data requests it checked FEASIBLE
+        # (future buffers, horizons) belong to the plan the answer presents
+        state.context_numbers.extend(numbers_in(result.get("adjustments")))
+        if result.get("status") == "FEASIBLE" and isinstance(arguments, dict):
+            state.context_numbers.extend(numbers_in(arguments))
         log_event("research_plan_feasibility", request_id=state.request_id, plan_version=PLAN_VERSION_V2,
                   status=entry["status"], strategy=entry["strategy"], issues=entry["issues"],
                   uncovered=entry["uncovered_angle_ids"],
@@ -2292,7 +2305,7 @@ class AgentOrchestrator:
             state.execution_ids.append(str(result["execution_id"]))
             code = arguments.get("code") if isinstance(arguments, dict) else None
             if result.get("status") == "OK" and isinstance(code, str):
-                state.code_numbers.extend(value for shown in parse_numbers(code) for value, _ in shown.candidates)
+                state.code_numbers.extend(code_numbers(code))
         elif name == "complete_research_run" and result.get("research_findings_version") == FINDINGS_V2:
             run_id = result.get("research_run_id")
             values = [v for f in result.get("research_findings") or [] if isinstance(f, dict)
@@ -2579,7 +2592,7 @@ class AgentOrchestrator:
             session["executions"].append(result.get("status"))
             code = (arguments or {}).get("code") if isinstance(arguments, dict) else None
             if result.get("status") == "OK" and isinstance(code, str):
-                state.code_numbers.extend(value for shown in parse_numbers(code) for value, _ in shown.candidates)
+                state.code_numbers.extend(code_numbers(code))
         elif name == "get_session_output" and result.get("released"):
             if result.get("read_mode") == "READ_RELEASED" and isinstance(result.get("origin"), dict):
                 # released by an earlier completion (an earlier message, or an earlier epoch of this session)
@@ -3146,8 +3159,7 @@ class AgentOrchestrator:
             self._gate_once(state, "PLAN_FEASIBILITY", PLAN_FEASIBILITY_INSTRUCTION)
             return self._plan_not_feasible(state, final)
         index = self._source_index(state)
-        plan_json = dumps(final.research_plan.model_dump(mode="json"))
-        index.add(CONTEXT, [value for shown in parse_numbers(plan_json) for value, _ in shown.candidates])
+        index.add(CONTEXT, released_numbers(final.research_plan.model_dump(mode="json")))  # P12
         provenance = check_answer(final.answer, index)
         state.number_provenance = {"checked": provenance.checked, "unsupported": provenance.unsupported[:50]}
         if provenance.unsupported:
@@ -3477,7 +3489,18 @@ class AgentOrchestrator:
                 raise ValueError("Final response used an invalid Markdown wrapper.")
             candidate = "\n".join(lines[1:-1]).strip()
         try:
-            return FinalResponse.model_validate_json(candidate)
+            try:
+                return FinalResponse.model_validate_json(candidate)
+            except ValueError as strict_error:
+                # M40 (2026-09-30): a raw control character (a line break) inside a JSON string is valid for a
+                # lenient decoder; anything else (suite20c r11: an unescaped quote) keeps the strict parser's error
+                try:
+                    data = json.loads(candidate, strict=False)
+                except ValueError:
+                    raise strict_error from None
+                if not isinstance(data, dict):
+                    raise strict_error from None
+                return FinalResponse.model_validate(data)
         except Exception as exc:
             details = []
             if hasattr(exc, "errors"):

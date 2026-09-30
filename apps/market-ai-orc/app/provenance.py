@@ -156,6 +156,42 @@ def parse_numbers(text: str) -> list[DisplayedNumber]:
     return found
 
 
+PYTHON_NUMBER_RE = re.compile(r"(?<![\w.])(-?)(\d+(?:_\d+)*(?:\.\d*)?(?:[eE][+-]?\d+)?)(?![\w.])")
+
+
+def code_numbers(code: str) -> list[float]:
+    """Numeric literals of Python code (P12, 2026-09-30): the prose parser dropped "-40" after a comma and every
+    number of "[25,35,45]". Read from the syntax tree (a unary minus kept); code that does not parse falls back to
+    Python's own literal form (decimal point, no thousands separator)."""
+    import ast
+
+    out: list[float] = []
+    try:
+        tree = ast.parse(code or "")
+    except (SyntaxError, ValueError):
+        for sign, body in PYTHON_NUMBER_RE.findall(code or ""):
+            try:
+                number = float(body.replace("_", ""))
+            except ValueError:
+                continue
+            if math.isfinite(number):
+                out.append(-number if sign else number)
+        return out
+    def number(node: ast.AST) -> float | None:
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) \
+                and not isinstance(node.value, bool) and math.isfinite(float(node.value)):
+            return float(node.value)
+        return None
+
+    negated = {id(node.operand) for node in ast.walk(tree)
+               if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub) and number(node.operand) is not None}
+    for node in ast.walk(tree):
+        value = number(node)
+        if value is not None:
+            out.append(-value if id(node) in negated else value)
+    return out
+
+
 def numbers_in(value: Any, ints_only: bool = False, depth: int = 0) -> list[float]:
     """Numeric leaves of a JSON value (numeric strings count; free text does not)."""
     out: list[float] = []
