@@ -128,14 +128,104 @@ class ResearchFinding(BaseModel):
     interpretation: FindingInterpretation
 
 
-class AngleFindingReport(BaseModel):
-    """Multi-Angle Research: the model's reading of one approved angle; the status is the backend's."""
+class AngleFindingEntry(BaseModel):
+    """Multi-Angle Research, as the model writes it without value references (the provider schema only)."""
 
     model_config = ConfigDict(extra="forbid")
 
     angle_id: str = Field(min_length=1, max_length=40, description="The approved angle's angle_id.")
     status: AngleStatus = Field(description="Copied unchanged from complete_research_run.")
     interpretation: FindingInterpretation
+
+
+class NarrativeParts(BaseModel):
+    """The model's own reading of one angle; the status and the evidence are written by the backend."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    answer: str = Field(min_length=1, max_length=2000,
+                        description="The direct answer to the angle's question in its backend status's terms.")
+    usefulness: str = Field(min_length=1, max_length=2000,
+                            description="Why it matters for the user's decision, sized in practical terms.")
+    follow_up: str = Field(min_length=1, max_length=2000,
+                           description="The most informative next step; never a buy or sell recommendation.")
+
+    @field_validator("answer", "usefulness", "follow_up")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("must not be blank")
+        return value
+
+
+class AngleNarrative(BaseModel):
+    """Multi-Angle Research with value references (#15, 2026-09-30): the model writes the angle id and its reading;
+    the orchestrator renders the backend status, sample and statistics (the provider schema only)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    angle_id: str = Field(min_length=1, max_length=40, description="The approved angle's angle_id.")
+    interpretation: NarrativeParts
+
+
+class AngleInterpretation(BaseModel):
+    """One angle's interpretation in a response: evidence is optional while the model writes it (with value
+    references the backend renders it)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    answer: str = Field(min_length=1, max_length=2000)
+    evidence: str | None = Field(default=None, max_length=3000)
+    usefulness: str = Field(min_length=1, max_length=2000)
+    follow_up: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("answer", "usefulness", "follow_up")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("must not be blank")
+        return value
+
+
+class BackendAngleSummary(BaseModel):
+    """The backend's finding of one angle, rendered by the orchestrator (never written by the model)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: AngleStatus
+    status_reason: str | None = None
+    validation_level: str | None = None
+    evidence_direction: str | None = None
+    effective_sample: float | None = None
+    sample_unit: str | None = None
+    estimate_kind: str | None = None
+    estimate: float | None = None
+    ci: list[float | None] | None = None
+    p_value: float | None = None
+    p_adjusted: float | None = None
+    confidence_level: float | None = None
+
+
+class AngleFindingReport(BaseModel):
+    """Multi-Angle Research: one approved angle in the response. The status is the backend's (a model-written status
+    that differs is refused by the findings gate); with value references the orchestrator fills status, evidence and
+    backend from the backend's finding."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    angle_id: str = Field(min_length=1, max_length=40, description="The approved angle's angle_id.")
+    status: AngleStatus | None = Field(default=None, description="Copied unchanged from complete_research_run.")
+    interpretation: AngleInterpretation
+    backend: BackendAngleSummary | None = None
+
+    @model_serializer(mode="wrap")
+    def _without_empty_backend(self, handler: Any) -> Any:
+        """backend appears only when the orchestrator rendered it, so responses without value references keep their
+        exact shape."""
+        data = handler(self)
+        if isinstance(data, dict) and data.get("backend") is None:
+            data.pop("backend", None)
+        return data
 
 
 class FinalResponse(BaseModel):
@@ -251,7 +341,8 @@ METHODOLOGY_PROPERTY: dict[str, Any] = {
 
 
 def final_response_schema(research_plan_confirmation: bool, methodology: bool = False,
-                          research_findings: bool = False, multi_angle: bool = False) -> dict[str, Any]:
+                          research_findings: bool = False, multi_angle: bool = False,
+                          value_references: bool = False) -> dict[str, Any]:
     """FINAL_RESPONSE_SCHEMA, or with Research Plan confirmation the same schema plus RESEARCH_PLAN_CONFIRMATION and a
     required nullable research_plan, and with AI_ENABLE_METHODOLOGY a required nullable methodology; with research
     findings (only together with plan confirmation) the plan's experiments carry the findings values and a required
@@ -264,7 +355,8 @@ def final_response_schema(research_plan_confirmation: bool, methodology: bool = 
         schema = {**schema, "properties": {**schema["properties"], "methodology": METHODOLOGY_PROPERTY},
                   "required": [*schema["required"], "methodology"]}
     if multi_angle:
-        schema = {**schema, "properties": {**schema["properties"], "research_findings": angle_findings_property()},
+        schema = {**schema, "properties": {**schema["properties"],
+                                           "research_findings": angle_findings_property(value_references)},
                   "required": [*schema["required"], "research_findings"]}
     elif research_findings and research_plan_confirmation:
         schema = {**schema, "properties": {**schema["properties"], "research_findings": research_findings_property()},
@@ -280,10 +372,15 @@ def research_findings_property() -> dict[str, Any]:
                            "with the backend verdict unchanged and your interpretation; otherwise null."}
 
 
-def angle_findings_property() -> dict[str, Any]:
+def angle_findings_property(narrative: bool = False) -> dict[str, Any]:
     from .tools.registry import strict_parameters_schema
 
-    return {"anyOf": [{"type": "array", "items": strict_parameters_schema(AngleFindingReport)}, {"type": "null"}],
+    if narrative:
+        return {"anyOf": [{"type": "array", "items": strict_parameters_schema(AngleNarrative)}, {"type": "null"}],
+                "description": "For an ANSWER that rests on a completed multi-angle research run: your reading of "
+                               "each approved angle (the backend adds its status, sample and statistics); otherwise "
+                               "null."}
+    return {"anyOf": [{"type": "array", "items": strict_parameters_schema(AngleFindingEntry)}, {"type": "null"}],
             "description": "For an ANSWER that rests on a completed multi-angle research run: one entry per approved "
                            "angle with the backend status unchanged and your interpretation; otherwise null."}
 

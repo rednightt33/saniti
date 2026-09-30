@@ -1,0 +1,216 @@
+"""P11 value references and #15 backend-rendered findings (AI_ENABLE_VALUE_REFERENCES; user decision 2026-09-30),
+with M39 (every LIMITATION after a completed run keeps the backend findings) and P10 (a zero count negates a verdict
+phrase)."""
+from __future__ import annotations
+
+from typing import Any
+
+import pytest
+
+from app.orchestrator import AgentOrchestrator, build_system_prompt, negated_or_zero, response_contract
+from app.provenance import SourceIndex, check_answer, parse_numbers
+from app.schemas import AgentRunRequest, final_response_schema
+from app.value_refs import UNRESOLVED, ReferenceSources, format_value, render
+from conftest import ScriptedClient, final_response, make_settings
+from test_multi_angle import (FINDINGS, MA, RUN_SCRIPT, Clock, RunSandbox, finding, findings_answer,
+                              issued_continuation, ma_registry)
+
+REFS = {**MA, "AI_ENABLE_VALUE_REFERENCES": "true"}
+
+
+def refs_run(script: list, run_sandbox: RunSandbox | None = None):
+    _, body = issued_continuation("APPROVE")
+    scripted = ScriptedClient(script)
+    sandbox = run_sandbox or RunSandbox()
+    runner = AgentOrchestrator(make_settings(**REFS), scripted, ma_registry(sandbox), wall_clock=Clock(),
+                               draft_reader=lambda draft_id: None)
+    result = runner.run(AgentRunRequest(request_id="run_002", conversation_id="conv_1", message="Setuju.",
+                                        continuation=body))
+    return result, scripted
+
+
+def narrative_answer(answer: str, angles: dict[str, str] | None = None) -> dict[str, Any]:
+    angles = angles if angles is not None else {"a_fall": "Penurunan tajam diikuti return lebih tinggi.",
+                                                "a_rank": "Data belum bisa membedakan efeknya."}
+    return {"response_type": "ANSWER", "answer": answer, "clarification_question": None, "assumptions": [],
+            "limitations": [], "research_plan": None,
+            "research_findings": [{"angle_id": a, "interpretation": {
+                "answer": text, "usefulness": "Bandingkan dengan biaya transaksi.", "follow_up": "Uji periode lain."}}
+                for a, text in angles.items()]}
+
+
+# ---------------------------------------------------------------- the renderer
+
+@pytest.mark.parametrize("value,fmt,places,shown", [
+    (0.9955673, "dec", 2, "1,00"), (0.9955673, None, None, "0,996"), (1234567.891, None, None, "1.234.568"),
+    (-1.2034, "pp", 2, "−1,20 pp"), (0.0243, "pct", 2, "2,43%"), (24.3, "pctv", 1, "24,3%"),
+    (1234567890, "rp", None, "Rp 1,23 miliar"), (56, None, None, "56"), (1.5, "x", 1, "1,5 kali"),
+    (0.5, None, None, "0,50"), (-0.004, "dec", 2, "0,00")])
+def test_every_format_reads_back_as_the_same_governed_figure(value, fmt, places, shown) -> None:
+    assert format_value(value, fmt, places) == shown
+    index = SourceIndex()
+    index.add("FACT", [value])
+    assert parse_numbers(shown) and check_answer(shown, index).unsupported == []
+
+
+def sources() -> ReferenceSources:
+    refs = ReferenceSources()
+    refs.add("finding", "a_fall", {"sample": {"effective": 56},
+                                   "estimates": {"primary": {"estimate": 0.9955673, "ci": [0.5, 1.4]}}},
+             "DATA_COVERAGE_VERIFIED")
+    refs.add("out", "out_1", {"rows": [{"ticker": "BBRI", "close": 4500.0}, {"ticker": "BMRI", "close": 6000}]},
+             "DATA_COVERAGE_VERIFIED")
+    refs.add("fact", "1", 12.5, "FACT")
+    return refs
+
+
+def test_references_resolve_paths_selectors_and_functions() -> None:
+    out = render("Efek {{finding.a_fall.estimates.primary.estimate|dec:2}}, sampel {{finding.a_fall.sample.effective}}"
+                 ", lebar CI {{diff(finding.a_fall.estimates.primary.ci.1, finding.a_fall.estimates.primary.ci.0)"
+                 "|dec:2}}, BBRI {{out.out_1.rows[ticker=BBRI].close|rp}}, BMRI {{out.out_1.rows.1.close|int}}, "
+                 "rasio {{ratio(out.out_1.rows.1.close, out.out_1.rows.0.close)|x:2}}, fakta {{fact.1}}.", sources())
+    assert out.problems == [] and out.count == 7
+    assert out.text == ("Efek 1,00, sampel 56, lebar CI 0,90, BBRI Rp 4.500, BMRI 6.000, rasio 1,33 kali, "
+                        "fakta 12,50.")
+    assert {v.label for v in out.values} == {"DATA_COVERAGE_VERIFIED", "FACT"}
+
+
+def test_an_unknown_reference_names_what_exists() -> None:
+    out = render("{{finding.a_rank.sample.effective}} {{finding.a_fall.samples}} {{fact.1|money}} {{out.out_1.rows"
+                 "[ticker=XXXX].close}} {{finding.a_fall.estimates}}", sources())
+    assert out.text.count(UNRESOLVED) == 5
+    joined = " ".join(out.problems)
+    assert "available: a_fall" in joined and "its fields: sample, estimates" in joined
+    assert "unknown format 'money'" in joined and "values: BBRI, BMRI" in joined and "is not a number" in joined
+
+
+# ---------------------------------------------------------------- the prompt, contract and schema
+
+def test_the_references_rules_and_the_narrative_schema_only_with_the_flag() -> None:
+    on = build_system_prompt(False, True, True, final_contract=True, plan_feasibility=True, multi_angle=True,
+                             value_references=True)
+    off = build_system_prompt(False, True, True, final_contract=True, plan_feasibility=True, multi_angle=True)
+    assert "VALUE REFERENCES" in on and "{{finding.<angle_id>.<path>}}" in on and "VALUE REFERENCES" not in off
+    assert "interpretation in three parts" in on and "interpretation in four parts" in off
+    assert "value references {{...}}" in response_contract(True, False, False, True, True)
+    items = final_response_schema(True, False, False, True, True)["properties"]["research_findings"]["anyOf"][0]
+    assert set(items["items"]["properties"]) == {"angle_id", "interpretation"}
+    assert set(items["items"]["properties"]["interpretation"]["properties"]) == {"answer", "usefulness", "follow_up"}
+    legacy = final_response_schema(True, False, False, True)["properties"]["research_findings"]["anyOf"][0]
+    assert set(legacy["items"]["properties"]) == {"angle_id", "status", "interpretation"}
+
+
+# ---------------------------------------------------------------- end to end (multi-angle, flag on)
+
+def test_the_answer_is_rendered_and_every_angle_carries_the_backend_block() -> None:
+    answer = ("Sudut a_fall mendukung hipotesis: selisih return {{finding.a_fall.estimates.primary.estimate|pp:2}} "
+              "(sampel efektif {{finding.a_fall.sample.effective}} tanggal); a_rank belum cukup bukti.")
+    result, scripted = refs_run([*RUN_SCRIPT, final_response(narrative_answer(answer))])
+    assert result.response.response_type == "ANSWER", result.response
+    assert "1,25 pp" in result.response.answer and "120 tanggal" in result.response.answer
+    assert "{{" not in result.response.answer
+    # the complete_research_run result showed the model each finding's ref
+    assert '"ref": "finding.a_fall"' in str(scripted.payloads[3]["input"]) \
+        or '"ref":"finding.a_fall"' in str(scripted.payloads[3]["input"])
+    findings = result.response.research_findings
+    assert [(f.angle_id, f.status) for f in findings] == [
+        ("a_fall", "SUPPORTED"), ("a_rank", "INSUFFICIENT_EVIDENCE"), ("a_lag", "NOT_RUN")]
+    fall, rank, lag = findings
+    assert fall.backend.effective_sample == 120 and fall.backend.estimate == 1.25 and fall.backend.ci == [0.4, 2.1]
+    assert "sampel efektif 120" in fall.interpretation.evidence and "Status backend SUPPORTED" in \
+        fall.interpretation.evidence
+    assert rank.interpretation.answer == "Data belum bisa membedakan efeknya."
+    assert lag.interpretation.answer == "Tidak diinterpretasikan oleh model."  # not interpreted, still reported
+    dumped = result.model_dump(mode="json")["response"]["research_findings"][0]
+    assert dumped["backend"]["status"] == "SUPPORTED"
+    assert result.execution.validation_gate in ("PASSED", "ANNOTATED")
+
+
+def test_an_unresolved_reference_is_refused_once_then_forced() -> None:
+    bad = narrative_answer("Selisih {{finding.a_fall.estimate}}.")
+    result, scripted = refs_run([*RUN_SCRIPT, final_response(bad), final_response(bad)])
+    assert "value references that do not resolve" in str(scripted.payloads[4]["input"][-1])
+    assert "estimates" in str(scripted.payloads[4]["input"][-1])  # names the fields that exist
+    assert result.response.response_type == "LIMITATION" and result.execution.validation_gate == "FORCED_LIMITATION"
+    assert UNRESOLVED in result.response.answer
+    assert [f.status for f in result.response.research_findings] == ["SUPPORTED", "INSUFFICIENT_EVIDENCE", "NOT_RUN"]
+
+
+def test_a_typed_truncated_figure_is_refused_and_a_reference_repairs_it() -> None:
+    typed = narrative_answer("Selisih return 1,24 pp pada a_fall.")  # 1.25 cut to 1,24 instead of rounded
+    fixed = narrative_answer("Selisih return {{finding.a_fall.estimates.primary.estimate|pp:2}} pada a_fall.")
+    result, scripted = refs_run([*RUN_SCRIPT, final_response(typed), final_response(fixed)])
+    assert "1,24" in str(scripted.payloads[4]["input"][-1])
+    assert result.response.response_type == "ANSWER" and "1,25 pp" in result.response.answer
+
+
+def test_m39_a_provenance_limitation_keeps_the_backend_findings() -> None:
+    typed = narrative_answer("Selisih return 9,9 pp.")
+    result, _ = refs_run([*RUN_SCRIPT, final_response(typed), final_response(typed)])
+    assert result.response.response_type == "LIMITATION" and result.execution.validation_gate == "FORCED_LIMITATION"
+    assert [f.status for f in result.response.research_findings] == ["SUPPORTED", "INSUFFICIENT_EVIDENCE", "NOT_RUN"]
+    assert result.response.research_findings[0].backend is not None
+
+
+def test_m39_without_references_a_forced_limitation_keeps_the_backend_findings() -> None:
+    from test_multi_angle import approved_run
+
+    typed = findings_answer(text="Sudut a_fall: return 9,9 persen lebih tinggi (sampel efektif 120).")
+    result, _, _, _ = approved_run([*RUN_SCRIPT, final_response(typed), final_response(typed)])
+    assert result.response.response_type == "LIMITATION"
+    assert [f.status for f in result.response.research_findings] == ["SUPPORTED", "NOT_RUN", "INSUFFICIENT_EVIDENCE"]
+
+
+# ---------------------------------------------------------------- P10
+
+def test_p10_a_zero_count_negates_a_verdict_phrase() -> None:
+    sentence = ("Peta sintesis tidak mengizinkan kesimpulan bahwa sudut-sudut saling menguatkan karena hanya ada "
+                "0 keluarga metode didukung, jadi hasilnya dibaca per sudut.")
+    assert negated_or_zero(sentence, sentence.index("didukung"))
+    for text in ("Nol sudut didukung oleh data.", "None of the angles is supported by the data."):
+        assert negated_or_zero(text, text.lower().index("didukung" if "didukung" in text else "supported"))
+    claim = "Semua 3 dari 3 sudut didukung oleh data."
+    assert not negated_or_zero(claim, claim.index("didukung"))
+    decimal = "Return 0,5% lebih tinggi dan hipotesis didukung."
+    assert not negated_or_zero(decimal, decimal.index("didukung"))
+
+
+def unsupported() -> RunSandbox:
+    """No angle is SUPPORTED (as in suite20b r08)."""
+    return RunSandbox(findings=[finding("a_fall", "INSUFFICIENT_EVIDENCE", "STATISTICS_VERIFIED"),
+                                *[f for f in FINDINGS if f["angle_id"] != "a_fall"]])
+
+
+def test_p10_the_r08_sentence_passes_the_findings_gate_and_a_real_claim_does_not() -> None:
+    rank_only = {"a_rank": "Data belum bisa membedakan efeknya."}
+    r08 = narrative_answer("Tidak ada sudut yang SUPPORTED; hanya 0 keluarga metode didukung, jadi tidak ada "
+                           "kesimpulan gabungan.", rank_only)
+    result, _ = refs_run([*RUN_SCRIPT, final_response(r08)], unsupported())
+    assert result.response.response_type == "ANSWER", result.response.limitations
+    claim = narrative_answer("Hipotesis terbukti dan didukung data.", rank_only)
+    result, scripted = refs_run([*RUN_SCRIPT, final_response(claim), final_response(r08)], unsupported())
+    assert "states a supported verdict" in str(scripted.payloads[4]["input"][-1])
+    assert result.response.response_type == "ANSWER"
+
+
+# ---------------------------------------------------------------- sources of the DataNeed analysis flow
+
+def test_released_outputs_and_facts_become_referable_and_show_their_ref() -> None:
+    from app.orchestrator import RunState
+    from app.tools import ToolOutcome
+
+    state = RunState(request_id="r", started=0.0, input_items=[])
+    completion = {"result": {"status": "COMPLETED", "released_contents": [
+        {"output_id": "out_1", "name": "top5", "type": "TABLE", "rows": [{"ticker": "BBRI", "ret": 0.0412}]}]}}
+    AgentOrchestrator._track_references(state, "complete_analysis",
+                                        ToolOutcome(call_id="c", name="complete_analysis", ok=True, output=completion))
+    facts = {"result": {"decision": "FACTS_READY", "facts": [{"kind": "AGGREGATE", "value": 1234.5},
+                                                             {"kind": "VALUE", "value": 7}]}}
+    AgentOrchestrator._track_references(state, "lookup_fact",
+                                        ToolOutcome(call_id="d", name="lookup_fact", ok=True, output=facts))
+    assert completion["result"]["released_contents"][0]["ref"] == "out.out_1"
+    assert [f["ref"] for f in facts["result"]["facts"]] == ["fact.1", "fact.2"]
+    out = render("BBRI {{out.out_1.rows[ticker=BBRI].ret|pct:2}}, rata-rata {{fact.1|dec:1}}, n {{fact.2}}",
+                 state.ref_sources)
+    assert out.text == "BBRI 4,12%, rata-rata 1.234,5, n 7" and out.problems == []
+    assert [v.label for v in out.values] == ["DATA_COVERAGE_VERIFIED", "DATABASE_AGGREGATE", "FACT"]

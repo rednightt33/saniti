@@ -176,6 +176,12 @@ class Settings:
     ai_research_min_families: int = 0
     ai_research_max_bundle_groups: int = 3
     ai_research_max_parallel_groups: int = 1
+    # S16 (user decision 2026-09-30): a group whose session crashed (WORKER_CRASHED, SESSION_STATE_CORRUPTED,
+    # PROTOCOL_ERROR) may open a new session this many times; 0 closes the group at once. Session limits never reopen.
+    ai_research_max_session_restarts: int = 1
+    # P11 (user decision 2026-09-30): the model writes data figures as value references ({{finding.x.path|fmt}}) that
+    # the backend fills in and formats, and multi-angle findings are rendered from the backend (#15). DataNeed only.
+    ai_enable_value_references: bool = False
     # IP2 solution 2: archive every finished run to market-audit-store through ai_audit.ingest_outbox (INSERT only,
     # AUDIT_OUTBOX_DATABASE_URL). With AI_AUDIT_STORE_REQUIRED false an archive failure is logged and never changes
     # the answer; true withholds the answer when the run cannot be handed to the outbox (regulated mode).
@@ -261,6 +267,8 @@ class Settings:
             ai_research_min_families=_integer(env, "AI_RESEARCH_MIN_FAMILIES", 0, minimum=0),
             ai_research_max_bundle_groups=_integer(env, "AI_RESEARCH_MAX_BUNDLE_GROUPS", 3),
             ai_research_max_parallel_groups=_integer(env, "AI_RESEARCH_MAX_PARALLEL_GROUPS", 1),
+            ai_research_max_session_restarts=_integer(env, "AI_RESEARCH_MAX_SESSION_RESTARTS", 1, minimum=0),
+            ai_enable_value_references=_boolean(env, "AI_ENABLE_VALUE_REFERENCES", False),
             ai_audit_store_enabled=_boolean(env, "AI_AUDIT_STORE_ENABLED", False),
             ai_audit_store_required=_boolean(env, "AI_AUDIT_STORE_REQUIRED", False),
             audit_outbox_database_url=_optional(env, "AUDIT_OUTBOX_DATABASE_URL"),
@@ -333,6 +341,8 @@ class Settings:
             raise ConfigError("AI_RESEARCH_MIN_ANGLES and AI_RESEARCH_MAX_ANGLES must satisfy 2 <= min <= max <= 6")
         if not 0 <= settings.ai_research_min_families <= min(5, settings.ai_research_max_angles):
             raise ConfigError("AI_RESEARCH_MIN_FAMILIES must be from 0 (off) to 5 and at most AI_RESEARCH_MAX_ANGLES")
+        if not 0 <= settings.ai_research_max_session_restarts <= 3:
+            raise ConfigError("AI_RESEARCH_MAX_SESSION_RESTARTS must be from 0 (close the group) to 3")
         if not 1 <= settings.ai_research_max_bundle_groups <= 6:
             raise ConfigError("AI_RESEARCH_MAX_BUNDLE_GROUPS must be between 1 and 6")
         if settings.ai_research_max_parallel_groups != 1:

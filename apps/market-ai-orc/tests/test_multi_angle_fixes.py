@@ -242,7 +242,12 @@ def test_a_model_limitation_never_carries_its_own_findings() -> None:
     limitation = {**findings_answer(), "response_type": "LIMITATION", "answer": "Tidak bisa disimpulkan.",
                   "limitations": ["Interpretasi belum lengkap."]}
     result, _, _, _ = approved_run([*RUN_SCRIPT, final_response(limitation)])
-    assert result.response.response_type == "LIMITATION" and result.response.research_findings is None
+    assert result.response.response_type == "LIMITATION"
+    # M39 (2026-09-30): after a completed run a LIMITATION carries the backend's findings, never the model's own
+    findings = result.response.research_findings
+    assert [(f.angle_id, f.status) for f in findings] == [
+        ("a_fall", "SUPPORTED"), ("a_lag", "NOT_RUN"), ("a_rank", "INSUFFICIENT_EVIDENCE")]
+    assert all(f.interpretation.answer.startswith("Backend status") for f in findings)
 
 
 # ---------------------------------------------------------------- C07: the research library

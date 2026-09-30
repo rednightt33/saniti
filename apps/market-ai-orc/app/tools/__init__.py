@@ -153,7 +153,8 @@ def _register_multi_angle(registry: ToolRegistry, sandbox_client: SandboxClient,
     def factory(verified, request_id: str) -> ResearchRunExecutor:
         return ResearchRunExecutor(sandbox_client, bundle_planner, verified, request_id,
                                    execution_timeout=session_timeout_seconds, timeout=timeout_seconds,
-                                   max_result_bytes=max_result_bytes)
+                                   max_result_bytes=max_result_bytes,
+                                   max_session_restarts=int(multi_angle.get("max_session_restarts", 1)))
 
     registry.multi_angle = {**multi_angle, "factory": factory}
 

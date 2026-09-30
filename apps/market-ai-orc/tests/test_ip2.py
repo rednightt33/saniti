@@ -88,6 +88,23 @@ def test_a_finished_run_is_handed_to_the_outbox_with_observable_events_only() ->
     assert '"reasoning"' not in text and "encrypted_content" not in text
 
 
+def test_a_refused_final_response_is_kept_as_a_draft_in_the_audit_trace() -> None:
+    outbox = Outbox()
+    # 99,9% has no governed source: refused once (final.rejected), refused again (final.forced)
+    unsourced = answer("Return YTD BBCA 99,9%, lihat https://example.test/x.")
+    scripted = ScriptedClient([*flow(), final_response(unsourced), final_response(unsourced)])
+    agent = AgentOrchestrator(make_settings(AI_ENABLE_DATANEED="true"), scripted,
+                              Tools([completed()], stdout="").registry(), audit_outbox=outbox)
+    agent.run(AgentRunRequest(request_id="dn-draft", message="Berapa return YTD BBCA?"))
+    [payload] = outbox.payloads
+    finals = [e for e in payload["events"] if e["type"].startswith("final.")]
+    assert [(e["type"], e["stage"]) for e in finals] == [("final.rejected", "PROVENANCE"),
+                                                         ("final.forced", "PROVENANCE")]
+    assert "99,9%" in finals[0]["draft"] and "[url]" in finals[0]["draft"] and "example.test" not in finals[0]["draft"]
+    assert len(finals[0]["draft_sha256"]) == 64 and "no governed source" in finals[0]["detail"]
+    assert '"reasoning"' not in json.dumps(payload)
+
+
 def test_sanitizing_drops_reasoning_and_redacts_secrets_and_urls() -> None:
     clean = sanitize({"reasoning": "hidden", "items": [{"thinking": "x", "ok": 1}], "api_key": "k" * 40,
                       "Authorization": "Bearer abc", "url": "https://bucket/objects/x?X-Amz-Signature=abc",

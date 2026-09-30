@@ -63,6 +63,16 @@ SESSION_ID_PREFIX = "sess_"
 OUTPUT_EXTENSIONS = {"PARQUET": "parquet", "CSV": "csv", "PNG": "png", "JSON": "json", "TEXT": "txt", "BIN": "bin"}
 READ_LIMIT = 16 << 20
 GRACE_SECONDS = 5.0
+# S16 (suite20b r09, 2026-09-29): the worker's pipe closes while Python is still finalizing, so poll() right after
+# the EOF read a crash as WORKER_UNRESPONSIVE; the exit is awaited this long before it is labelled
+EXIT_WAIT_SECONDS = 2.0
+EXIT_STATE_CORRUPTED = 3  # runtime/session_worker.py: the code broke the worker's own bookkeeping
+WORKER_LOG_TAIL = 600
+# close reasons of a worker that ended abnormally: the tail of its worker.log (a Python traceback) is logged before
+# the workspace is removed; it never goes to the model
+ABNORMAL_REASONS = frozenset({"WORKER_CRASHED", "WORKER_UNRESPONSIVE", "SESSION_STATE_CORRUPTED", "PROTOCOL_ERROR",
+                              "FORBIDDEN_OPERATION", "CPU_BUDGET_EXCEEDED", "MEMORY_LIMIT_EXCEEDED",
+                              "DISK_LIMIT_EXCEEDED", "EXECUTION_TIMEOUT_UNINTERRUPTIBLE", "WORKER_START_FAILED"})
 # The value types of every frame the helpers return (DuckDB .df(date_as_object=True)). Most failed executions in the
 # 2026-09-26 stress test were pandas date idioms applied to these date objects (TypeError, KeyError, AttributeError).
 DATA_TYPES = ("Frames from load, range, sql and join: the time column holds datetime.date "
@@ -70,6 +80,8 @@ DATA_TYPES = ("Frames from load, range, sql and join: the time column holds date
               "with datetime.date(2026, 1, 2) (import datetime) or select a period with range(); before .dt, "
               ".resample(), .loc['2026-01-02'] or a comparison with a date string, convert first: "
               "frame[col] = pd.to_datetime(frame[col]).")
+STATE_CORRUPTED_HINT = ("The code changed the session's own state (the saniti_session/research_* modules, stdin or the "
+                        "protocol pipe). Do not import or modify the sandbox's internal modules.")
 RESEARCH_HELPERS = ["research_conditional", "research_persistence", "research_group_comparison", "research_quantiles",
                     "research_temporal_dependency", "research_custom"]
 
@@ -236,14 +248,28 @@ class Worker:
     def classify_exit(self) -> str:
         if self.death:
             return self.death
-        code = self.process.poll()
-        if code is None:
+        try:
+            code = self.process.wait(EXIT_WAIT_SECONDS)
+        except subprocess.TimeoutExpired:
             return "WORKER_UNRESPONSIVE"
+        if code == EXIT_STATE_CORRUPTED:
+            return "SESSION_STATE_CORRUPTED"
         if code == -signal.SIGXCPU or (code == -signal.SIGKILL and self.last_cpu >= self.cpu_budget - 2):
             return "CPU_BUDGET_EXCEEDED"
         if code == -signal.SIGSYS:
             return "FORBIDDEN_OPERATION"
         return "WORKER_CRASHED"
+
+    def log_tail(self) -> str | None:
+        """The last bytes of the worker's own stdout/stderr (worker.log), for the server log only."""
+        try:
+            with open(self.directory / "worker.log", "rb") as handle:
+                handle.seek(0, os.SEEK_END)
+                handle.seek(max(0, handle.tell() - WORKER_LOG_TAIL))
+                text = handle.read().decode("utf-8", "replace").strip()
+        except OSError:
+            return None
+        return text or None
 
     def _read_line(self, deadline: float) -> dict[str, Any] | None:
         while b"\n" not in self.buffer:
@@ -264,7 +290,12 @@ class Worker:
                 self.kill("PROTOCOL_ERROR")
                 raise EOFError
         line, self.buffer = self.buffer.split(b"\n", 1)
-        return json.loads(line.decode("utf-8"))
+        try:
+            return json.loads(line.decode("utf-8"))
+        except ValueError:
+            # something other than the worker wrote to the protocol pipe: the session cannot be trusted
+            self.kill("PROTOCOL_ERROR")
+            raise EOFError from None
 
     def request(self, message: dict[str, Any], timeout: float) -> dict[str, Any]:
         """Send one command and wait for its answer; SIGINT at the deadline, SIGKILL after the grace period."""
@@ -678,16 +709,27 @@ class SessionManager:
         finally:
             worker.lock.release()
         runtime_ms = round((time.monotonic() - started) * 1000)
-        if answer is None:
-            reason = worker.classify_exit()
+        corrupted = answer is not None and answer.get("status") == "SESSION_STATE_CORRUPTED"
+        if answer is None or corrupted:
+            reason = "SESSION_STATE_CORRUPTED" if corrupted else worker.classify_exit()
             worker.kill(reason)
+            detail = (answer or {}).get("error") or {}
+            error = {"code": reason, **({"error_type": detail.get("error_type"), "message": detail.get("message"),
+                                         "cause": detail.get("cause")} if corrupted else {})}
+            tail = worker.log_tail()
             self.store.update_execution(execution_id, status="SESSION_ENDED", finished_at=utc_now(),
-                                        runtime_ms=runtime_ms, error={"code": reason})
+                                        runtime_ms=runtime_ms, error=error)
+            if self.audit is not None:
+                # S16: the code that ended a session is archived too (it was the one execution missing from the audit)
+                self._archive_execution(record, request_id, execution_id, seq, code,
+                                        {"error": {**error, "worker_log_tail": tail}}, "SESSION_ENDED", started_at,
+                                        runtime_ms, 0.0)
             self.close(session_id, reason)
             self._log("session_execution", session_id=session_id, execution_id=execution_id, status="SESSION_ENDED",
-                      reason=reason)
-            raise SessionError("SESSION_ENDED", f"The session worker ended during the execution ({reason}); its "
-                                                "variables are gone.", 409, "OPEN_ANALYSIS_SESSION",
+                      reason=reason, cause=error.get("cause"))
+            message = (f"The session worker ended during the execution ({reason}); its variables are gone."
+                       + (f" {STATE_CORRUPTED_HINT}" if corrupted else ""))
+            raise SessionError("SESSION_ENDED", message, 409, "OPEN_ANALYSIS_SESSION",
                                execution_id=execution_id, close_reason=reason)
         cpu = round(max(0.0, _cpu_seconds(worker.process.pid) - cpu_before), 3)
         status = answer.get("status") or "SCRIPT_ERROR"
@@ -795,6 +837,9 @@ class SessionManager:
     def _close_locked(self, session_id: str, reason: str) -> dict[str, Any]:
         worker = self.workers.pop(session_id, None)
         if worker is not None:
+            if reason in ABNORMAL_REASONS:
+                self._log("session_worker_ended", session_id=session_id, reason=reason,
+                          exit_code=worker.process.poll(), worker_log_tail=worker.log_tail())
             worker.kill(reason if worker.death is None else worker.death)
             try:
                 worker.process.wait(10)

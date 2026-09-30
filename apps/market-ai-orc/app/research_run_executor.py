@@ -13,6 +13,11 @@ session. It sees three tools, and this executor does the backend work behind the
                             the angle completion counts, the weakest validation level and the synthesis map
 
 A group whose bundle or session fails is closed in the sandbox (FAILED, its angles NOT_RUN), so no angle disappears.
+S16 (suite20b r09, 2026-09-29; user decision 2026-09-30): when a group's session ends during the run, a crash
+(RESTARTABLE_REASONS) reopens a new session on the same bundle at the next run_research_code, at most
+AI_RESEARCH_MAX_SESSION_RESTARTS times per group; a governance limit (CPU, memory, disk, timeout, forbidden
+operation) or any other reason closes the group, because the limits are per session and a new one would lift them.
+A finalize that cannot complete the open group closes it as well, so a run always reaches a terminal state.
 Groups run one after another (AI_RESEARCH_MAX_PARALLEL_GROUPS accepts only 1): the sandbox has few session slots for
 every run together.
 """
@@ -31,6 +36,9 @@ from .tools.registry import ToolSpec
 from .tools.session import SESSION_PATTERN, _call, released_contents
 
 LEVELS = ("EXECUTION_ONLY", "STATISTICS_VERIFIED", "FORMULA_AND_STATISTICS_VERIFIED")
+SESSION_GONE = frozenset({"SESSION_ENDED", "SESSION_CLOSED"})
+RESTARTABLE_REASONS = frozenset({"WORKER_CRASHED", "SESSION_STATE_CORRUPTED", "PROTOCOL_ERROR"})
+INTERNALS_WARNING = "Do not import or modify the sandbox's internal modules (saniti_session, research_*)."
 STATUS_KEYS = {"SUPPORTED": "supported", "PARTIALLY_SUPPORTED": "partially_supported",
                "INSUFFICIENT_EVIDENCE": "insufficient_evidence", "INVALID": "invalid", "NOT_RUN": "not_run"}
 
@@ -144,8 +152,10 @@ def synthesis_map(plan: Any, data_plan: dict[str, Any], findings: list[dict[str,
 
 class ResearchRunExecutor:
     def __init__(self, client: Any, planner: Any, verified: VerifiedPlanV2, request_id: str, *,
-                 execution_timeout: float, timeout: float, max_result_bytes: int) -> None:
+                 execution_timeout: float, timeout: float, max_result_bytes: int,
+                 max_session_restarts: int = 1) -> None:
         self.client = client
+        self.max_session_restarts = max_session_restarts
         self.planner = planner
         self.verified = verified
         self.request_id = request_id
@@ -282,7 +292,43 @@ class ResearchRunExecutor:
         result["bundle_group_id"] = group_id
         if opened is not None:
             result["session_opened"] = {k: opened.get(k) for k in ("session_id", "datasets", "research")}
+        if result.get("status") == "REJECTED" and result.get("code") in SESSION_GONE:
+            result["session_recovery"] = self._session_ended(group_id, str(result.get("close_reason") or "UNKNOWN"))
+            result["next_action"] = result["session_recovery"]["next_action"]
         return result
+
+    def _session_ended(self, group_id: str, reason: str) -> dict[str, Any]:
+        """S16: the group's session ended. A crash reopens a new session at the next run_research_code (within
+        max_session_restarts); anything else closes the group, whose unrecorded angles become NOT_RUN."""
+        group = self.groups[group_id]
+        dead = group.get("session_id")
+        if dead in self.sessions:
+            self.sessions[dead]["ended"] = reason
+        if self.open_group == group_id:
+            self.open_group = None
+        restarts = int(group.get("restarts") or 0)
+        angles = list(group["angle_ids"])
+        if reason in RESTARTABLE_REASONS and restarts < self.max_session_restarts:
+            group.update(session_id=None, status="READY", restarts=restarts + 1)
+            left = self.max_session_restarts - restarts - 1
+            return {"action": "REOPEN_ON_NEXT_RUN", "reason": reason, "restarts_left": left,
+                    "angles_to_record": angles, "next_action": "RUN_RESEARCH_CODE",
+                    "message": f"The session of group {group_id} ended ({reason}); its variables and the angles it "
+                               f"recorded are gone. The next run_research_code for {group_id} opens a new session on "
+                               f"the same bundle: read the data again and record every angle of the group "
+                               f"({', '.join(angles)}). {INTERNALS_WARNING}"}
+        code = f"SESSION_ENDED_{reason}"
+        self._close_group(group_id, code)
+        others = [g for g in self.order if self.groups[g]["status"] in ("READY", "APPROVED")]
+        why = ("the session was restarted already" if reason in RESTARTABLE_REASONS
+               else "a session limit ended it, and a new session would lift that limit"
+               if reason not in ("UNKNOWN",) else "its session cannot be recovered")
+        return {"action": "GROUP_CLOSED", "reason": reason, "restarts_left": 0, "angles_to_record": [],
+                "next_action": "RUN_RESEARCH_CODE" if others else "COMPLETE_RESEARCH_RUN",
+                "message": f"The session of group {group_id} ended ({reason}) and the group is closed ({why}): its "
+                           f"unrecorded angles become NOT_RUN with reason {code}. "
+                           + (f"Run the remaining groups {others}, then call complete_research_run."
+                              if others else "Call complete_research_run.")}
 
     def complete(self, finalize: bool, calls_left: int | None = None) -> dict[str, Any]:
         if self.research_run_id is None:
@@ -300,7 +346,13 @@ class ResearchRunExecutor:
                 return refusal
         if self.open_group is not None:
             last = self._complete(self.open_group, finalize)
-            if last.get("status") != "COMPLETED":
+            if last.get("status") != "COMPLETED" and finalize:
+                # S16: a finalize must not depend on the step that failed (coverage, a dead session): the group is
+                # closed, its unrecorded angles become NOT_RUN, and the run reaches a terminal state
+                closed = self.open_group
+                self._close_group(closed, self._incomplete_code(last))
+                self.open_group = None
+            elif last.get("status") != "COMPLETED":
                 return {"status": "INCOMPLETE", "bundle_group_id": self.open_group,
                         "message": last.get("message"), "missing": (last.get("final_status") or {}).get(
                             "research_group", {}).get("missing"),
@@ -340,6 +392,18 @@ class ResearchRunExecutor:
             "released_contents": (last or {}).get("released_contents") or [],
             "next_action": "ANSWER_FROM_RESEARCH_FINDINGS" if status == "COMPLETED" else "REPORT_LIMITATION"}
         return self.result
+
+    @staticmethod
+    def _incomplete_code(completion: dict[str, Any]) -> str:
+        """Why a finalized group could not complete, as a close reason."""
+        if completion.get("status") == "REJECTED":
+            return str(completion.get("close_reason") or completion.get("code") or "GROUP_INCOMPLETE")
+        final = completion.get("final_status") or {}
+        if final.get("data_coverage") not in (None, "PASS"):
+            return "COVERAGE_FAILED"
+        if final.get("sandbox_execution") not in (None, "SUCCESS"):
+            return f"EXECUTION_{final.get('sandbox_execution')}"
+        return "GROUP_INCOMPLETE"
 
     def _early_finalize(self) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
         """(INCOMPLETE naming the unrecorded angles of the open group and the groups never run, or None when nothing

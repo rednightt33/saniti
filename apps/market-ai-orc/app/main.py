@@ -169,6 +169,8 @@ def create_app(
                 # C07: the model reads the methods from AI_research_library; the table, the sandbox and this service
                 # must carry the same research library, or multi-angle research stays inactive (fail closed)
                 multi_angle, reason = _with_research_library(multi_angle, catalog)
+            if multi_angle is not None:
+                multi_angle = {**multi_angle, "max_session_restarts": settings.ai_research_max_session_restarts}
             if multi_angle is None:
                 if "library" in (reason or ""):
                     log_event("research_library_mismatch", reason=reason)

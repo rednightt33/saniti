@@ -764,7 +764,8 @@ def _research_angle(angle_id: Any, family: str | None) -> dict[str, Any]:
                           f"{sorted(angles)}.")
     if angle_id in _RESEARCH_DONE or angle_id in _RESEARCH_PENDING:
         raise SanitiError(f"Angle {angle_id} is already recorded. Each angle is recorded once; its finding is computed "
-                          "from that input.")
+                          "from that input and is final. Record the next approved angle, or call complete_research_run "
+                          "(do not modify the sandbox's modules to record it again).")
     angle = angles[angle_id]
     if family is not None and angle["method_family"] != family:
         wrapper = next(name for name, f in RESEARCH_FAMILIES.items() if f == angle["method_family"])
