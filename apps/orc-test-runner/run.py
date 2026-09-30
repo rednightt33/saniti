@@ -9,6 +9,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 BASE = "http://market-ai-orc.railway.internal:8080"
 KEY = os.environ["MARKET_AI_ORC_API_KEY"]
+AUDIT = "http://market-audit-store.railway.internal:8080"
+READER = os.environ.get("AUDIT_STORE_READER_KEY")
+AUDIT_KINDS = ("final.rejected", "final.forced", "final.unrendered")
 HERE = os.path.dirname(os.path.abspath(__file__))
 LOCK = threading.Lock()
 
@@ -90,15 +93,100 @@ def run_item(item, prefix, results):
         dump(f"{item['id']}:2", {"item": item["id"], "turn": 2, "seconds": round(seconds, 1), "body": body})
 
 
+def audit_call(path, body=None):
+    request = urllib.request.Request(AUDIT + path, method="POST" if body is not None else "GET",
+                                     data=json.dumps(body).encode() if body is not None else None,
+                                     headers={"Authorization": f"Bearer {READER}", "Content-Type": "application/json",
+                                              "X-Audit-Accessor": "orc-test-runner"})
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            return response.status, json.loads(response.read())
+    except urllib.error.HTTPError as error:
+        return error.code, {"http_error": error.read().decode()[:500]}
+    except Exception as error:  # noqa: BLE001
+        return 0, {"client_error": f"{type(error).__name__}: {error}"[:300]}
+
+
+def audit_run(request_id, wait_seconds):
+    """The audit store's view of one run, polled until COMPLETE (INCOMPLETE runs are re-evaluated when a late
+    execution or artifact arrives)."""
+    deadline = time.time() + wait_seconds
+    while True:
+        code, run = audit_call(f"/v1/requests/{request_id}/run")
+        if code == 404 or (code == 200 and run.get("status") == "COMPLETE") or time.time() > deadline:
+            return code, run
+        time.sleep(20)
+
+
+def audit_item(item_id, turn, request_id, wait_seconds):
+    """AUDIT_STORE_READER_KEY only: the run's status and event counts as an `OTR audit` line, then the drafts the
+    gates refused (final.rejected / final.forced / final.unrendered, read in full from the TOOL_TRACE artifact) as
+    `OTRDUMP audit:<item>:<turn>` chunks."""
+    code, run = audit_run(request_id, wait_seconds)
+    if code == 404:
+        return
+    if code != 200:
+        log("audit", item=item_id, turn=turn, request_id=request_id, http=code, error=run)
+        return
+    types, after = {}, 0
+    rejected = []
+    while after is not None:
+        code, page = audit_call(f"/v1/runs/{run['run_id']}/events?after_seq={after}&limit=500")
+        if code != 200:
+            break
+        for event in page["events"]:
+            types[event["event_type"]] = types.get(event["event_type"], 0) + 1
+            if event["event_type"] in AUDIT_KINDS[:2]:
+                payload = event.get("payload") or {}
+                rejected.append((event["event_type"], payload.get("stage"), payload.get("iteration"),
+                                 payload.get("draft_chars"), str(payload.get("detail") or payload.get("preview"))[:300]))
+        after = page.get("next_after_seq")
+    log("audit", item=item_id, turn=turn, request_id=request_id, run_id=run["run_id"], status=run["status"],
+        missing=run.get("missing"), counts=run.get("counts"), event_types=types, rejected=rejected)
+    if not any(t in types for t in AUDIT_KINDS):
+        return
+    code, links = audit_call(f"/v1/runs/{run['run_id']}/artifacts")
+    trace = [a for a in (links.get("artifacts") or []) if a.get("role") == "TOOL_TRACE"] if code == 200 else []
+    if not trace:
+        log("audit", item=item_id, turn=turn, error="no TOOL_TRACE artifact", http=code)
+        return
+    code, grant = audit_call(f"/v1/artifacts/{trace[0]['artifact_id']}/access",
+                             {"purpose": "orc-test-runner: read refused final drafts", "run_id": run["run_id"]})
+    if code != 200:
+        log("audit", item=item_id, turn=turn, error="access refused", http=code, detail=grant)
+        return
+    try:
+        with urllib.request.urlopen(grant["url"], timeout=120) as response:
+            events = json.loads(response.read()).get("events") or []
+    except Exception as error:  # noqa: BLE001
+        log("audit", item=item_id, turn=turn, error=f"trace download: {type(error).__name__}")
+        return
+    dump(f"audit:{item_id}:{turn}", {"item": item_id, "turn": turn, "run_id": run["run_id"],
+                                     "events": [e for e in events if e.get("type") in AUDIT_KINDS]})
+
+
+def audit(suite):
+    prefix = suite["prefix"]
+    for item in suite["items"]:
+        for turn in (1, 2):
+            audit_item(item["id"], turn, f"{prefix}-{item['id']}-{turn}", suite.get("audit_wait_seconds", 300))
+
+
 def main():
     with open(os.path.join(HERE, "suite.json")) as handle:
         suite = json.load(handle)
-    log("start", items=len(suite["items"]), prefix=suite["prefix"], workers=suite.get("workers", 2))
+    log("start", items=len(suite["items"]), prefix=suite["prefix"], workers=suite.get("workers", 2),
+        audit=bool(READER), audit_only=bool(suite.get("audit_only")))
     results = []
-    with ThreadPoolExecutor(max_workers=suite.get("workers", 2)) as pool:
-        for future in [pool.submit(run_item, item, suite["prefix"], results) for item in suite["items"]]:
-            future.result()
-    log("done", turns=len(results))
+    if not suite.get("audit_only"):
+        with ThreadPoolExecutor(max_workers=suite.get("workers", 2)) as pool:
+            for future in [pool.submit(run_item, item, suite["prefix"], results) for item in suite["items"]]:
+                future.result()
+        log("done", turns=len(results))
+    if READER:
+        time.sleep(60)  # the outbox consumer and the producers' spools post on their own intervals
+        audit(suite)
+        log("audit_done")
     time.sleep(30)
 
 

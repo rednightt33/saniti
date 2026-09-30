@@ -2097,3 +2097,26 @@ Per-trading-date Stockbit broker-summary load progress, retries, and review stat
 | Name | Definition |
 |---|---|
 | `stockbit_broker_summary_load_log_pkey` | `CREATE UNIQUE INDEX stockbit_broker_summary_load_log_pkey ON public.stockbit_broker_summary_load_log USING btree (target_table, trade_date)` |
+
+## Schema `ai_audit` (market-audit-store; hand-written, not generated)
+
+Created on dev on 2026-09-30 by `database/migrations/20260928_001_create_ai_audit_store.sql` (`DATABASE_CHANGELOG.md`).
+The generator above reads schema `public` only and rewrites this file, so its next run (the daily
+`database-schema-docs` workflow) drops this section; the durable description is `apps/market-audit-store/README.md`
+(section "Schema `ai_audit`"), and the columns, constraints and indexes are in the migration file. Roles: `market_ai_audit_store` (login `market_ai_audit`,
+used only by market-audit-store; SELECT/INSERT/UPDATE, INSERT/SELECT only on the append-only tables, no DELETE or
+TRUNCATE) and `market_ai_audit_outbox_writer` (member: `market_ai_orc`; INSERT of the producer columns of
+`ingest_outbox` only). Triggers `event_append_only` and `artifact_access_append_only` (`ai_audit.reject_change()`)
+refuse UPDATE and DELETE on `event` and `artifact_access`, even for the owner. No column holds model reasoning.
+
+| Table | Definition |
+|---|---|
+| `run` | One AI research run (one market-ai-orc `request_id`): identity, conversation and turn, parent run of a rerun, status OPEN → FINALIZING → COMPLETE or INCOMPLETE (retryable), retention class and expiry, model/provider, deployment and summary. |
+| `event` | Ordered, append-only observable events of a run (`seq` from 1 per run); a payload is bounded to 16 KiB, larger content is an artifact referenced by `artifact_id`. Since 2026-09-30 market-ai-orc also sends `final.rejected`, `final.forced` and `final.unrendered` (the refused drafts; full text in the run's TOOL_TRACE artifact). |
+| `artifact` | One content-addressed object of the private bucket `market-ai-audit-artifacts` (`objects/sha256/<first two>/<sha256>`), stored once and shared by every run that references it; READY only after the store verified size and sha256. |
+| `run_artifact` | Which run references which artifact, in which role (raw input Parquet, manifests, contract, code, traces, outputs, final response), for which execution and label. |
+| `execution` | One sandbox code execution: run, session, bundle, sequence, status, exact-source hash, runtime image, library evidence, seed, timezone, input order and resample traces. |
+| `runtime_image` | One sandbox runtime inventory (Python, OS, architecture, installed distributions), keyed by the sha256 of its canonical JSON. |
+| `artifact_access` | Append-only log of every short-lived read granted on an artifact: who, why, for which run, and when the URL expires. |
+| `retention_hold` | A pin or legal hold on one run or one artifact; while `released_at` is NULL nothing it covers may be deleted. |
+| `ingest_outbox` | Durable hand-off of finished market-ai-orc runs: one RUN_FINISHED row per request (idempotent on source + idempotency key), never read or changed by the orchestrator; the store records PENDING, COMPLETE, FAILED_RETRYABLE or INCOMPLETE. |

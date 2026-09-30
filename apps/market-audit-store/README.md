@@ -197,7 +197,14 @@ Producer flags (all default `false`):
 
 The Audit Store variables are validated, and required, only while the producer's flag is on.
 
-## Runbook: manual Railway setup (not done)
+## Runbook: manual Railway setup (done on dev, 2026-09-30)
+
+Status on dev (2026-09-30, `RAILWAY_CHANGELOG.md`): bucket `market-ai-audit-artifacts`
+(`f29461fa-0ad8-4886-bbf1-2df2b4966357`), service `market-audit-store` (`956b1479-e8c6-4f6d-bd39-2af46390a22a`,
+private only), migration `20260928_001` applied and read back, login `market_ai_audit`, all three producers on in
+shadow mode (`AI_AUDIT_STORE_REQUIRED=false`). Steps 1–7 below were done in that order; the deployment order below
+is done up to step 7 on dev.
+
 
 1. **Bucket.** Create a private bucket (for example `market-ai-audit-artifacts`) in environment `dev`. Give its
    credentials only to the new service.

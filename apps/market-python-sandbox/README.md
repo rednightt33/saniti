@@ -171,6 +171,18 @@ bundle of the same request.
     next action `REVISE_DATA_NEED_SPEC`.
 - Resident memory and the disk quotas are watched continuously; a breach ends the session. `MemoryError` under the
   virtual-memory limit is an ordinary `SCRIPT_ERROR`.
+- A session that ends answers `409 SESSION_ENDED` with its `close_reason` (S16, 2026-09-30):
+  - `SESSION_STATE_CORRUPTED`: the code changed the worker's own state (for example `saniti_session` or the
+    `research_*` modules) so that the bookkeeping after the execution failed; the worker answers this status and exits
+    with code 3, and the message says not to import or modify those modules;
+  - `WORKER_CRASHED` (with the exit code) or `PROTOCOL_ERROR` (a line on the private protocol pipe that is not JSON):
+    the harness waits up to 2 s for the process to exit before it labels it, so a crash is no longer reported as
+    `WORKER_UNRESPONSIVE`;
+  - the worker reads commands from private duplicates of its pipes: closing `sys.stdin` or fd 0 no longer ends the
+    session, and `sys.argv` names no fd (robustness, not a security boundary);
+  - before the workspace is removed, the last 600 bytes of `worker.log` are logged as `session_worker_ended`
+    (server log only, never returned to the model), and the execution that ended the session is archived to the
+    audit store with status `SESSION_ENDED` (its exact source included) when audit archival is on.
 - `POST /v1/sessions/{id}/inspect {request_id, names?, max_rows?}` lists or describes variables with bounded
   previews.
 - `GET /v1/sessions/{id}?request_id=` returns the session state, the execution log and the outputs.

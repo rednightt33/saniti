@@ -1,5 +1,33 @@
 # Database changelog
 
+## 2026-09-30 — IP2: migration 20260928_001 (`ai_audit`) applied on dev; login `market_ai_audit`
+
+- Scope: user decision 2026-09-30 ("Aktifkan juga audit store"), plan item E15. `20260928_001` was unchanged since
+  2026-09-28 (read in full before applying). `20260928_002` had been applied on 2026-09-28 (entry below).
+- Temporary service `audit-migrate-job` (`cbc9aef7-06fb-44d1-a0a6-2f21607af18c`, only a `DATABASE_URL` reference,
+  deleted after use):
+  - inspection + dry run, rolled back (`98fae03d`): passed; before and after: no schema `ai_audit`, no role
+    `market_ai_audit_store` or `market_ai_audit_outbox_writer`; `market_ai_orc` in `market_ai_catalog_reader`,
+    `market_ai_preview_reader`, `market_ai_research_audit_writer`;
+  - apply (`6e4e050a-ec3e-481b-9f7b-eecaef0ed3ad`), read back in the same job: schema `ai_audit` with the nine tables
+    `artifact`, `artifact_access`, `event`, `execution`, `ingest_outbox`, `retention_hold`, `run`, `run_artifact`,
+    `runtime_image`; triggers `event_append_only` and `artifact_access_append_only`; `ingest_outbox` empty.
+    Privileges read back: `market_ai_audit_store` USAGE, outbox SELECT and INSERT, SELECT/INSERT/UPDATE on `run`,
+    no UPDATE/DELETE on `event`; `market_ai_audit_outbox_writer` USAGE and outbox INSERT only (no SELECT, no `run`
+    access). The job granted `market_ai_audit_outbox_writer` to `market_ai_orc` (what
+    `scripts/provision_market_ai_orc_login.py` does), read back: `market_ai_orc` can INSERT into the outbox and
+    cannot SELECT it.
+- Temporary service `audit-login-job` (deployment `28ba7d0e-9fb6-415b-816c-7e9cec72249b`, `DATABASE_URL` and
+  `MARKET_AI_AUDIT_DB_PASSWORD` references, deleted after use): `scripts/provision_market_ai_audit_login.py` created
+  the login `market_ai_audit` ("ai_audit only (no DELETE or TRUNCATE); no other table is reachable"), read back as a
+  member of `market_ai_audit_store` only. The job logs held no DSN or password.
+- Live check: market-audit-store connects as `market_ai_audit` (`/ready` 200). The smoke run
+  `audit-smoke-20260930a` (05:03 UTC) went through the outbox and reached `COMPLETE` with 29 events, 16 artifacts
+  and 2 executions (`RAILWAY_CHANGELOG.md`).
+- Not in `Table_Catalog` / `Column_Catalog` (its target-schema check admits `public` only; the tables are
+  documented in `apps/market-audit-store/README.md` and `DATABASE_SCHEMA.md`). No public table, row or grant changed;
+  `AI_research_run_audit` is unchanged. No routine added other than the trigger function `ai_audit.reject_change()`.
+
 ## 2026-09-29 — Multi-Angle Research fixes: migrations 20260930_001 and 20260930_002 applied on dev
 
 - Scope: `MULTI_ANGLE_FIX_PLAN.md` item 2 (C07, user decision 2026-09-29: the model reads the eight runnable methods
@@ -141,7 +169,7 @@
     migrations).
   - Effect after applying: the catalog hash changes once, so bundles from before are not reused by later messages.
     Apply it together with, or after, `PY_SANDBOX_DERIVED_FREQUENCY_ENABLED=true` (see S09).
-- Update the same day: `20260928_002` was applied on dev (entry above); `20260928_001` remains not applied.
+- Update the same day: `20260928_002` was applied on dev (entry above); `20260928_001` remains not applied. Update 2026-09-30: `20260928_001` was applied on dev (entry of 2026-09-30 above).
 - Logins (scripts, not run): `scripts/provision_market_ai_audit_login.py` (new login `market_ai_audit`);
   `scripts/provision_market_ai_orc_login.py` now also grants `market_ai_audit_outbox_writer` when it exists.
 

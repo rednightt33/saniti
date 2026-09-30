@@ -1,5 +1,91 @@
 # Railway changelog
 
+## 2026-09-30 — suite20c on dev: value references, backend-rendered findings, audit readback
+
+- **Runner** `orc-test-runner` deployment `eba6a12f-aebb-4f66-a41d-385910435c1b` (CLI upload of `apps/orc-test-runner`,
+  prefix `ma-suite20-20260930c`, the same 20 questions as suite20b, two workers, SERVER mode, one automatic approval),
+  05:38–05:53 UTC: 33 turns, 0 HTTP errors, USD 0.92 in total (suite20b: USD 0.64). No secret, DSN, bearer or
+  presigned URL in the runner, market-ai-orc, sandbox, Governor or Audit Store logs, nor in the refused drafts.
+- **Research (16 questions)**: 13 plans issued and approved, 13 runs `COMPLETED`, **13 answered, 0 LIMITATION** on the
+  answer turn (suite20b: 13 runs, 10 answered, 3 LIMITATION). 40 angles, all validated, NOT_RUN 0 (suite20b: 28, 3
+  NOT_RUN): SUPPORTED 3, PARTIALLY_SUPPORTED 3, INSUFFICIENT_EVIDENCE 34, INVALID 0; 37 at
+  FORMULA_AND_STATISTICS_VERIFIED, 3 at STATISTICS_VERIFIED. r09 (S16 in suite20b) completed with two angles; no
+  session ended in the suite (no `session_worker_ended`). e01 refused correctly (PER not in the catalog). r04 and r06
+  ended at the plan turn with a LIMITATION forced by PLAN_PROVENANCE (P12: the plan's own threshold lists are lost by
+  the parser; new, OPEN). e03 answered (suite20b: plan-provenance LIMITATION). r12 was routed to RESEARCH this time.
+  Research questions answered: 13 of 15 (suite20b: 11 of 15).
+- **Value references** (P11): 17 final answers used 495 references (414 to backend findings, 81 to released
+  outputs). Refusals on answer turns: PROVENANCE 3 (suite20b: 7 repairs + 1 forced), FINDINGS 2 + FINDINGS_2 1
+  (suite20b: 2 + 2, one forced), REFERENCE 6 (new gate, all repaired; P13), CLAIM 2, METHODOLOGY_PROVENANCE 2. No
+  final was forced on an answer turn.
+- **ANALYSIS**: a01, a02 and a04 equal suite20b figure for figure; a03 now sums every market board and equals the
+  all-boards ground truth of suite20 (ZP Rp 199 miliar, CC 159, XL 84, RX 73, LG 59; suite20b read the Regular board
+  only).
+- **Audit Store**: all 33 turns reached `COMPLETE` (0 INCOMPLETE); 114 sandbox archives, 39 Governor dataset
+  archives, 33 outbox rows ingested, 0 producer failures. 40 refused finals kept with their drafts (`final.rejected`
+  38, `final.forced` 2): FORMAT 11 (5 `clarification_question: Field required`, M40), output-limit cut-offs 3 (M37,
+  plan turns), REFERENCE 6, PLAN_PROVENANCE 5 + 2 forced, PLAN_FEASIBILITY 3, PROVENANCE 3, FINDINGS 3, CLAIM 2,
+  METHODOLOGY_PROVENANCE 2. Events larger than 16 KiB show a preview in `GET /v1/runs/{id}/events`; the full drafts
+  are in the TOOL_TRACE artifact.
+- **After the suite**: `AUDIT_STORE_READER_KEY` removed from `orc-test-runner` with `variableCollectionUpsert`
+  (`replace`, `skipDeploys`; the CLI delete has no skip-deploys option and a redeploy would rerun the suite): only
+  `MARKET_AI_ORC_API_KEY` remains, no new deployment. `railway config pull --force` recorded the new variable names,
+  `market-audit-store` and `market-ai-audit-artifacts` in `.railway/railway.ts`; `railway config plan`: up to date.
+- **Still open**: M37 (deferred by the user), M40, P12, P13 (`ERRORS_AND_SOLUTIONS.md`).
+
+## 2026-09-30 — S16/M39/P10 fixes, backend-rendered findings and value references deployed on dev; Audit Store live
+
+- **Code** (`1954087`, pushed to `main`): sandbox S16 (worker hardening, exit labels, `worker.log` tail,
+  `SESSION_ENDED` audit), market-ai-orc S16 session recovery (`AI_RESEARCH_MAX_SESSION_RESTARTS`), finalize closes an
+  open group, backend-rendered findings (#15), M39, P10, value references (`AI_ENABLE_VALUE_REFERENCES`, off by
+  default) and the `final.rejected` / `final.forced` / `final.unrendered` audit events.
+  - market-python-sandbox `cbfcc10b-0fee-46cf-a329-8e5326b1923d` `SUCCESS`; market-ai-orc
+    `35b8cf18-bebb-46d8-b40a-b33bcad05c93` `SUCCESS`: startup clean, no `multi_angle_research_inactive` or
+    `research_library_mismatch`. Value references still off at this point (behaviour unchanged).
+- **Audit Store infrastructure** (user decision 2026-09-30, "Aktifkan juga audit store"; runbook of
+  `apps/market-audit-store/README.md`):
+  - IaC through a pinned plan (`railway config plan --verbose --out`, reviewed, then `railway config apply --plan`;
+    plan file sha256 `67ea994a031bf460cbf54bc29c424e76f8b88cf00aa2609b5608c7b3f068969d`, two creates, not
+    destructive). A plain `railway config apply --yes` was refused by the agent's permission check as a blind apply;
+    the first pinned plan also contained the delete of a temporary job, so the job was deleted first and the plan
+    pinned again.
+  - Bucket `market-ai-audit-artifacts` (`f29461fa-0ad8-4886-bbf1-2df2b4966357`, region `sjc`, private).
+  - Service `market-audit-store` (`956b1479-e8c6-4f6d-bd39-2af46390a22a`): GitHub source, root
+    `/apps/market-audit-store`, Dockerfile, watch `/apps/market-audit-store/**`, healthcheck `/ready` (120 s), one
+    replica in `sfo`, restart `ALWAYS`, private networking only (`market-audit-store.railway.internal:8080`), no
+    public domain. Registered in `.railway/railway.ts`.
+  - Variables on `market-audit-store` (names only): `AUDIT_DATABASE_URL` (template on the `market_ai_audit` login with
+    `MARKET_AI_AUDIT_DB_PASSWORD`), `MARKET_AI_AUDIT_DB_PASSWORD` (48 hex), `AUDIT_STORE_GOVERNOR_KEY`,
+    `AUDIT_STORE_SANDBOX_KEY`, `AUDIT_STORE_READER_KEY` (three distinct 64-hex keys), `AUDIT_BUCKET_NAME`,
+    `AUDIT_BUCKET_ENDPOINT`, `AUDIT_BUCKET_REGION`, `AUDIT_BUCKET_ACCESS_KEY_ID`, `AUDIT_BUCKET_SECRET_ACCESS_KEY`
+    (references to the bucket), `PORT=8080`. All resolved; no value is recorded here.
+  - Migration `20260928_001` through the temporary service `audit-migrate-job`
+    (`cbc9aef7-06fb-44d1-a0a6-2f21607af18c`; dry run `98fae03d-2a4b-4333-947a-febc4eb7d6d8`, apply
+    `6e4e050a-ec3e-481b-9f7b-eecaef0ed3ad`), then the login through `audit-login-job` (deployment
+    `28ba7d0e-9fb6-415b-816c-7e9cec72249b`). Both deleted after use. Details in `DATABASE_CHANGELOG.md`.
+  - Deployment `02988b78-ac25-4561-8c0c-ffdaf7de6343` (`7825135`): password authentication failed until the login
+    was provisioned, then `/ready` 200 and `SUCCESS`. The later push of `1954087` was `SKIPPED` for this service
+    (watch pattern).
+- **Producers in shadow mode**, one at a time, each redeployed to `SUCCESS` with a clean startup:
+  - market-sql-governor `d6f0c1bf-ba5f-43ec-bcc6-0e410e87e4f2`: `SQL_GOVERNOR_AUDIT_STORE_ENABLED=true`,
+    `AUDIT_STORE_URL` (private URL), `AUDIT_STORE_GOVERNOR_KEY` (reference to market-audit-store);
+  - market-python-sandbox `11121efe-0f1e-4ba0-8e8a-11fe0e816d56`: `PY_SANDBOX_AUDIT_STORE_ENABLED=true`,
+    `AUDIT_STORE_URL`, `AUDIT_STORE_SANDBOX_KEY` (reference);
+  - market-ai-orc `3879fc59-e0fc-44b0-9841-6f3bbf80ff2a`: `AI_AUDIT_STORE_ENABLED=true`,
+    `AI_AUDIT_STORE_REQUIRED=false`, `AUDIT_OUTBOX_DATABASE_URL` (the same template as `RESEARCH_AUDIT_DATABASE_URL`:
+    the `market_ai_orc` login with `MARKET_AI_ORC_DB_PASSWORD`).
+  - Rollback: set the three flags to `false`; the migration is additive.
+- **Smoke** `audit-smoke-20260930a` (a02, ANALYSIS, runner `3f45e338-77df-4c0f-ac7e-07434de659aa`, USD 0.02,
+  05:03 UTC): answered; its audit run reached `COMPLETE` with 29 events (`dataset.archived` from the Governor,
+  `execution.recorded` and `completion.archived` from the sandbox, model and tool events from market-ai-orc), 16
+  artifacts and 2 executions; its two refused finals (`final.rejected` CLAIM and METHODOLOGY_PROVENANCE) were read in
+  full from the TOOL_TRACE artifact through an access grant.
+- **orc-test-runner**: `run.py` gained the audit readback; `AUDIT_STORE_READER_KEY` (a reference to
+  market-audit-store's reader key) was added for the smoke test and suite20c.
+- **Value references on**: market-ai-orc `3bc6620b-1060-4c8c-ac46-a0b3feed56d8` `SUCCESS` 05:37 UTC with
+  `AI_ENABLE_VALUE_REFERENCES=true`. `AI_RESEARCH_MAX_SESSION_RESTARTS` is not set (default 1). Model and provider
+  unchanged (decision of 2026-09-27).
+
 ## 2026-09-29 — Multi-Angle Research fixes: suite20 rerun on dev (suite20b)
 
 - **Runner** `orc-test-runner` deployment `8220743f-93d8-41da-9581-48740a4d922e` (CLI upload of `apps/orc-test-runner`,

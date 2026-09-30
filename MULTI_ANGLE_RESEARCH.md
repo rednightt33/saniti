@@ -231,3 +231,25 @@ on drift). The sandbox reports its hash; market-ai-orc reads the table at startu
 when table, sandbox and its own copy match, then serves the rows through `get_research_library`. The library
 describes; the engines, the harness recomputation and `research_engines.decide` enforce, and a new row does not
 create a method. A change is made in the code and shipped as a new generated migration.
+
+## 11. Findings rendering, value references and session recovery (2026-09-30)
+
+User decisions of 2026-09-30 after suite20b (plan: S16, M39, P10, findings #15, provenance #13; M37 deferred):
+
+- **Findings are rendered by the backend.** The model writes one narrative per angle (`answer`, `usefulness`,
+  `follow_up`); market-ai-orc adds each approved angle's `backend` block (status and reason, validation level,
+  effective sample, primary estimate, CI, p and adjusted p, evidence direction) and an `evidence` sentence formatted
+  by code. An angle the model did not interpret is still shown ("Tidak diinterpretasikan oleh model"), so no angle can
+  be left out. The findings gate checks only verdict wording the backend did not give (with the negated-clause and
+  zero-count rules, P09/P10) and agreement without the synthesis map. Every LIMITATION after a completed run carries
+  the backend blocks (M39).
+- **Value references** (`AI_ENABLE_VALUE_REFERENCES`): figures are written as `{{finding.<angle_id>.<path>|format}}`
+  and filled in by code, so the provenance check no longer depends on how the model types a number (P11). Details in
+  `apps/market-ai-orc/README.md`, "Value references".
+- **Session recovery** (S16): a crashed session (`WORKER_CRASHED`, `SESSION_STATE_CORRUPTED`, `PROTOCOL_ERROR`) is
+  reopened on the same bundle within `AI_RESEARCH_MAX_SESSION_RESTARTS` (default 1, per group); a session limit
+  closes the group; `finalize` closes a group that cannot complete, so a run always ends. The sandbox labels the end
+  after the worker exits, keeps its protocol on private pipes, and answers a broken bookkeeping as
+  `SESSION_STATE_CORRUPTED` (`apps/market-python-sandbox/README.md`).
+- **Audit**: the refused drafts of every final (`final.rejected`, `final.forced`) and the unrendered final are kept in
+  market-audit-store (dev, shadow mode).

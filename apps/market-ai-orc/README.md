@@ -305,6 +305,8 @@ Gate and final-response log events (always on):
 | `RESEARCH_AUDIT_DATABASE_URL` | no (secret) | unset | DSN of a login holding `market_ai_research_audit_writer` (INSERT only on `AI_research_run_audit`). When unset, the per-run PostgreSQL audit copy is disabled; the report still goes to the sandbox (see [Research run audit](#research-run-audit)) |
 | `ANALYSIS_TIMEZONE` | no | `Asia/Jakarta` | IANA time zone of the analysis reference date (the request date in this zone anchors "last 3 months", "latest", and similar periods); invalid zones stop startup |
 | `AI_ENABLE_DERIVED_FREQUENCY` | no | `false` | IP2 solution 1: the WEEKLY AND MONTHLY prompt block (weekly `1D`/`1W`/`WEEKLY`, monthly `1D`/`1M`/`MONTHLY`; `saniti.resample()` before any period indicator; `saniti.resampled_returns()`; compare only `period_complete` periods) and a limitation line that the figures were derived from daily data. Active only with the DataNeed flow and a sandbox reporting `derived_frequency` version 1 (otherwise log `derived_frequency_inactive`). The sandbox's `derived_frequency` final-status block (frequencies, period policy, contract hash, input checksum, execution ids) reaches `execution.analysis_final_status` |
+| `AI_ENABLE_VALUE_REFERENCES` | no | `false` | Value references (2026-09-30, ERRORS_AND_SOLUTIONS P11): with the DataNeed flow, the model writes a data figure as `{{namespace.key.path|format}}` and the backend fills it in (see [Value references](#value-references)). Off: the prompt, the final schema and the gates are unchanged |
+| `AI_RESEARCH_MAX_SESSION_RESTARTS` | no | `1` | S16 (2026-09-30): how many times one bundle group of a multi-angle run may reopen a session whose worker crashed (`WORKER_CRASHED`, `SESSION_STATE_CORRUPTED`, `PROTOCOL_ERROR`); `0` closes the group at once. `0` to `3`. A session limit (CPU, memory, disk, timeout, forbidden operation) or any other reason never reopens; the group is closed |
 | `AI_AUDIT_STORE_ENABLED` | no | `false` | IP2 solution 2: at the end of every run, one `RUN_FINISHED` row is INSERTed into `ai_audit.ingest_outbox` (see below). With it off, nothing is recorded and the orchestrator is unchanged |
 | `AI_AUDIT_STORE_REQUIRED` | no | `false` | Needs `AI_AUDIT_STORE_ENABLED`. `false`: an outbox failure is logged (`audit_outbox_failed`) and the answer is unchanged. `true` (regulated mode): the answer is withheld (`FAILED`, `AUDIT_UNAVAILABLE`) when the run cannot be handed to the outbox |
 | `AUDIT_OUTBOX_DATABASE_URL` | with `AI_AUDIT_STORE_ENABLED` (secret) | unset | DSN of the `market_ai_orc` login, which joins `market_ai_audit_outbox_writer` (INSERT of the producer columns of `ai_audit.ingest_outbox` only; no SELECT, UPDATE or DELETE) |
@@ -974,6 +976,33 @@ was refused in the run and the answer rests on a completed analysis that is not 
 descriptive), not what was known at each date." The final status carries `time_basis`, and the warning
 `CURRENT_STATE_COLUMN` (a dated request read a current-state column) becomes a limitation line in either mode.
 
+### Value references
+
+Off unless `AI_ENABLE_VALUE_REFERENCES=true` (DataNeed flow only). The number-provenance gate read every figure back
+out of free text, so each new way the model wrote a number needed another parser rule (suite20b: "0,99" truncated from
+0.9955, "95%", "10 miliar"), and a figure in words was never checked (P11). With references the model does not type a
+data figure; it writes where the value is, and `app/value_refs.py` fills it in:
+
+- `{{finding.<angle_id>.<path>}}`: a backend finding of `complete_research_run`;
+- `{{out.<output_id>.rows.<i>.<column>}}` or `{{out.<output_id>.rows[<column>=<value>].<column>}}`: a released output;
+- `{{fact.<n>}}`: a `lookup_fact` value; `analysis.*` for the legacy analysis path.
+
+Tool results the application received (never the model) register these sources with their evidence label; each
+referable object carries a `"ref"` key with its prefix. Formats, Indonesian notation: `auto` (default), `dec:N`,
+`int`, `pct:N` (a fraction shown as percent), `pctv:N` (already a percent), `pp:N`, `rp` (ribu/juta/miliar/triliun),
+`x:N` ("kali"). Functions computed by code: `diff(a,b)`, `abs(a)`, `ratio(a,b)`, `chg(a,b)`; no free expressions.
+
+Rendering applies to `answer`, the findings narratives, `methodology` and `limitations`, before the other gates. An
+unknown reference or format fails the new REFERENCE gate (one repair, the message names the valid keys nearby), then a
+LIMITATION. The resolved values join the provenance sources under their label, so the gates run unchanged on the
+rendered text; a literal figure outside a reference is still checked by the parser, and its rejection says to write
+the figure as a reference. The user receives the rendered text; the audit keeps the unrendered one
+(`final.unrendered`). The plan turn is unchanged.
+
+**Audit of refused finals (2026-09-30).** With `AI_AUDIT_STORE_ENABLED`, the run's events also carry `final.rejected`
+(iteration, gate stage or format problem, detail, the refused draft: visible output only, URLs redacted, at most
+20,000 characters, with its size and sha256) and `final.forced`; the conversation store keeps only the final answer.
+
 ### Scientific notation in the provenance check (P06)
 
 `1,14e-22`, `3.2E+05`, `1.14 × 10^-22` and `1.14 x 10⁻²²` are read as one number with the rounding step of the shown
@@ -1290,6 +1319,22 @@ startup through the catalog login); otherwise `multi_angle_research_inactive` is
   negated in its own clause is not a claim, P09). When the findings gate forces a LIMITATION, `research_findings`
   keeps one backend-authored entry per angle (status, reason, validation level, effective sample) and the model's
   reading is marked unconfirmed. Per-angle audit entries carry `payload_version` `research_findings/v2`.
+- **Backend-rendered findings (2026-09-30).** The model no longer copies statuses, samples or statistics: each
+  `research_findings` entry the model writes is `{angle_id, interpretation: {answer, usefulness, follow_up}}`, and the
+  backend adds a `backend` block per approved angle (status and reason, validation level, effective sample, primary
+  estimate with CI, p and adjusted p, evidence direction) and an `evidence` sentence formatted by code. An angle the
+  model did not interpret is still rendered, with "Tidak diinterpretasikan oleh model". The findings gate keeps two
+  rules: verdict wording the backend did not give (a phrase in a negated clause or governed by a zero count, "0/nol/
+  tidak ada", is not a claim, P10) and agreement between angles without the synthesis map. Every LIMITATION after a
+  completed multi-angle run, chosen by the model or forced by any gate, carries the backend blocks (M39).
+- **Session recovery (S16, 2026-09-30).** When a group's session ends (`SESSION_ENDED`), the executor reads its
+  `close_reason`: a crash (`WORKER_CRASHED`, `SESSION_STATE_CORRUPTED`, `PROTOCOL_ERROR`) within
+  `AI_RESEARCH_MAX_SESSION_RESTARTS` frees the session, the group returns to READY and the next `run_research_code`
+  opens a new session on the same bundle; the tool result's `session_recovery` names the angles to record again and
+  the restarts left. Otherwise the group is closed (`SESSION_ENDED_<reason>`) and its angles become NOT_RUN. A
+  `complete_research_run` with `finalize` true closes an open group that cannot complete (`COVERAGE_FAILED`,
+  `EXECUTION_<status>`, `GROUP_INCOMPLETE`), so a run always reaches a terminal state. The prompt tells the model never
+  to import or modify the sandbox's modules.
 - With the flag off the system prompt, the final schema and every tool definition are byte-identical.
 
 ## Catalog discovery

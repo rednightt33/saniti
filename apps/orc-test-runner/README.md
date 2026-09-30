@@ -12,7 +12,16 @@ and the agent container cannot reach Railway SSH, so questions are sent from thi
   cost), followed at once by that turn's full response as `OTRDUMP <item>:<turn> i/n` gzip+base64 chunks (Railway
   drops long lines; a crash later loses nothing). Reassemble each tag's chunks in order, base64-decode, gunzip. Fetch
   the log with `railway logs <deployment> --deployment --lines 5000` (a larger limit is refused).
+- Audit readback (2026-09-30): when `AUDIT_STORE_READER_KEY` is set (a reference to market-audit-store's reader
+  key, added only for the suite and removed after it), the runner waits 60 s after the last turn, then reads each
+  turn's run from market-audit-store (`GET /v1/requests/{request_id}/run`, polled up to `audit_wait_seconds` until
+  `COMPLETE`) and prints `OTR {"event": "audit", ...}` with the run status, counts, event types and the refused
+  finals (gate stage, detail, draft size). The refused drafts themselves (`final.rejected`, `final.forced`,
+  `final.unrendered`) are read in full from the run's TOOL_TRACE artifact through a short-lived access grant and
+  printed as `OTRDUMP audit:<item>:<turn>` chunks. `"audit_only": true` in `suite.json` skips the questions and only
+  reads the audit of the suite's request ids.
 - `suite.json` items may carry an `expect` note for the reviewer; the runner ignores it. Current suite:
+  `ma-suite20-20260930c` (after S16/M39/P10, backend-rendered findings and value references); earlier
   `ma-suite20-20260929b` (12 multi-angle research questions, 4 edge cases, 4 ANALYSIS questions with ground truth;
   the same questions as `ma-suite20-20260929a`, rerun after the fixes of `MULTI_ANGLE_FIX_PLAN.md`).
 - Run: set a new `prefix` in `suite.json` (request ids are idempotency keys), then

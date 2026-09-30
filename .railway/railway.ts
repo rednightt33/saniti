@@ -13,6 +13,7 @@ export default defineRailway(() => {
   const postgresVolumeOz3T = volume("postgres-volume-Oz3T", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
   const marketWebGovernorData = volume("market-web-governor-data", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
   const marketSqlDatasets = bucket("market-sql-datasets", { region: "sjc" });
+  const marketAiAuditArtifacts = bucket("market-ai-audit-artifacts", { region: "sjc" });
   const orcTestRunner = service("orc-test-runner", {
     replicas: { "sfo": 1 },
     env: { MARKET_AI_ORC_API_KEY: preserve() },
@@ -25,7 +26,7 @@ export default defineRailway(() => {
     healthcheckTimeout: 120,
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "ALWAYS" },
-    env: { GOVERNOR_DATABASE_URL: preserve(), MARKET_SQL_GOVERNOR_DB_PASSWORD: preserve(), PORT: preserve(), SQL_DATASET_BUCKET_ACCESS_KEY_ID: preserve(), SQL_DATASET_BUCKET_ENDPOINT: preserve(), SQL_DATASET_BUCKET_NAME: preserve(), SQL_DATASET_BUCKET_REGION: preserve(), SQL_DATASET_BUCKET_SECRET_ACCESS_KEY: preserve(), SQL_GOVERNOR_API_KEY: preserve(), SQL_GOVERNOR_DATASET_ACCESS_KEY: preserve(), SQL_MAX_JOINS: preserve(), SQL_MAX_TABLES: preserve() },
+    env: { AUDIT_STORE_GOVERNOR_KEY: preserve(), AUDIT_STORE_URL: preserve(), GOVERNOR_DATABASE_URL: preserve(), MARKET_SQL_GOVERNOR_DB_PASSWORD: preserve(), PORT: preserve(), SQL_DATASET_BUCKET_ACCESS_KEY_ID: preserve(), SQL_DATASET_BUCKET_ENDPOINT: preserve(), SQL_DATASET_BUCKET_NAME: preserve(), SQL_DATASET_BUCKET_REGION: preserve(), SQL_DATASET_BUCKET_SECRET_ACCESS_KEY: preserve(), SQL_GOVERNOR_API_KEY: preserve(), SQL_GOVERNOR_AUDIT_STORE_ENABLED: preserve(), SQL_GOVERNOR_DATASET_ACCESS_KEY: preserve(), SQL_MAX_JOINS: preserve(), SQL_MAX_TABLES: preserve() },
   });
   const marketWebGovernor = service("market-web-governor", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-web-governor" }),
@@ -47,7 +48,7 @@ export default defineRailway(() => {
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "ALWAYS" },
     volumeMounts: { "/data": marketPythonSandboxData },
-    env: { PORT: preserve(), PY_SANDBOX_API_KEY: preserve(), PY_SANDBOX_DATANEED_ENABLED: preserve(), PY_SANDBOX_DERIVED_FREQUENCY_ENABLED: preserve(), PY_SANDBOX_ENABLE_CONVERSATION_REUSE: preserve(), PY_SANDBOX_MAX_ANALYSES_PER_REQUEST: preserve(), PY_SANDBOX_MAX_CPU_SECONDS_PER_REQUEST: preserve(), PY_SANDBOX_MAX_SPECS_PER_REQUEST: preserve(), PY_SANDBOX_MODULES_AUDIT_ENABLED: preserve(), PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED: preserve(), PY_SANDBOX_RESEARCH_FINDINGS_ENABLED: preserve(), SQL_GOVERNOR_DATASET_ACCESS_KEY: preserve(), SQL_GOVERNOR_URL: preserve() },
+    env: { AUDIT_STORE_SANDBOX_KEY: preserve(), AUDIT_STORE_URL: preserve(), PORT: preserve(), PY_SANDBOX_API_KEY: preserve(), PY_SANDBOX_AUDIT_STORE_ENABLED: preserve(), PY_SANDBOX_DATANEED_ENABLED: preserve(), PY_SANDBOX_DERIVED_FREQUENCY_ENABLED: preserve(), PY_SANDBOX_ENABLE_CONVERSATION_REUSE: preserve(), PY_SANDBOX_MAX_ANALYSES_PER_REQUEST: preserve(), PY_SANDBOX_MAX_CPU_SECONDS_PER_REQUEST: preserve(), PY_SANDBOX_MAX_SPECS_PER_REQUEST: preserve(), PY_SANDBOX_MODULES_AUDIT_ENABLED: preserve(), PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED: preserve(), PY_SANDBOX_RESEARCH_FINDINGS_ENABLED: preserve(), SQL_GOVERNOR_DATASET_ACCESS_KEY: preserve(), SQL_GOVERNOR_URL: preserve() },
   });
   const marketAiOrc = service("market-ai-orc", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-ai-orc" }),
@@ -57,7 +58,7 @@ export default defineRailway(() => {
     healthcheckTimeout: 120,
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "ALWAYS" },
-    env: { AI_ENABLE_ANALYSIS_PATH: preserve(), AI_ENABLE_CATALOG_DISCOVERY_V2: preserve(), AI_ENABLE_CATALOG_PROTOCOL: preserve(), AI_ENABLE_COMPOSITE_KEYS: preserve(), AI_ENABLE_CONVERSATION_REUSE: preserve(), AI_ENABLE_CONVERSATION_STORE: preserve(), AI_ENABLE_DATANEED: preserve(), AI_ENABLE_DERIVED_FREQUENCY: preserve(), AI_ENABLE_LOOKUP_FACT: preserve(), AI_ENABLE_METHODOLOGY: preserve(), AI_ENABLE_MULTI_ANGLE_RESEARCH: preserve(), AI_ENABLE_PLAN_FEASIBILITY: preserve(), AI_ENABLE_POINT_IN_TIME: preserve(), AI_ENABLE_PREFLIGHT_PARTS: preserve(), AI_ENABLE_RESEARCH_FINDINGS: preserve(), AI_ENABLE_STANDARD_PERIOD_RETURN: preserve(), AI_FINAL_CONTRACT_IN_PROMPT: preserve(), AI_LOG_PROVIDER: preserve(), AI_MAX_ANALYSIS_SECONDS: preserve(), AI_MAX_CONTEXT_TOKENS: preserve(), AI_MAX_TOOL_CALLS: preserve(), AI_MAX_TOOL_ITERATIONS: preserve(), AI_MODEL: preserve(), AI_REASONING_EFFORT: preserve(), AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION: preserve(), AI_RESEARCH_PLAN_SIGNING_KEY: preserve(), CATALOG_DATABASE_URL: preserve(), CONVERSATION_DATABASE_URL: preserve(), MARKET_AI_CONVERSATION_DB_PASSWORD: preserve(), MARKET_AI_ORC_API_KEY: preserve(), MARKET_AI_ORC_DB_PASSWORD: preserve(), OPENROUTER_API_KEY: preserve(), PORT: preserve(), PY_SANDBOX_API_KEY: preserve(), PY_SANDBOX_URL: preserve(), RESEARCH_AUDIT_DATABASE_URL: preserve(), SQL_GOVERNOR_API_KEY: preserve(), SQL_GOVERNOR_URL: preserve() },
+    env: { AI_AUDIT_STORE_ENABLED: preserve(), AI_AUDIT_STORE_REQUIRED: preserve(), AI_ENABLE_ANALYSIS_PATH: preserve(), AI_ENABLE_CATALOG_DISCOVERY_V2: preserve(), AI_ENABLE_CATALOG_PROTOCOL: preserve(), AI_ENABLE_COMPOSITE_KEYS: preserve(), AI_ENABLE_CONVERSATION_REUSE: preserve(), AI_ENABLE_CONVERSATION_STORE: preserve(), AI_ENABLE_DATANEED: preserve(), AI_ENABLE_DERIVED_FREQUENCY: preserve(), AI_ENABLE_LOOKUP_FACT: preserve(), AI_ENABLE_METHODOLOGY: preserve(), AI_ENABLE_MULTI_ANGLE_RESEARCH: preserve(), AI_ENABLE_PLAN_FEASIBILITY: preserve(), AI_ENABLE_POINT_IN_TIME: preserve(), AI_ENABLE_PREFLIGHT_PARTS: preserve(), AI_ENABLE_RESEARCH_FINDINGS: preserve(), AI_ENABLE_STANDARD_PERIOD_RETURN: preserve(), AI_ENABLE_VALUE_REFERENCES: preserve(), AI_FINAL_CONTRACT_IN_PROMPT: preserve(), AI_LOG_PROVIDER: preserve(), AI_MAX_ANALYSIS_SECONDS: preserve(), AI_MAX_CONTEXT_TOKENS: preserve(), AI_MAX_TOOL_CALLS: preserve(), AI_MAX_TOOL_ITERATIONS: preserve(), AI_MODEL: preserve(), AI_REASONING_EFFORT: preserve(), AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION: preserve(), AI_RESEARCH_PLAN_SIGNING_KEY: preserve(), AUDIT_OUTBOX_DATABASE_URL: preserve(), CATALOG_DATABASE_URL: preserve(), CONVERSATION_DATABASE_URL: preserve(), MARKET_AI_CONVERSATION_DB_PASSWORD: preserve(), MARKET_AI_ORC_API_KEY: preserve(), MARKET_AI_ORC_DB_PASSWORD: preserve(), OPENROUTER_API_KEY: preserve(), PORT: preserve(), PY_SANDBOX_API_KEY: preserve(), PY_SANDBOX_URL: preserve(), RESEARCH_AUDIT_DATABASE_URL: preserve(), SQL_GOVERNOR_API_KEY: preserve(), SQL_GOVERNOR_URL: preserve() },
   });
   const idxPriceCron = service("idx-price-cron", {
     source: saniti,
@@ -87,6 +88,16 @@ export default defineRailway(() => {
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "NEVER" },
     env: { EVENT_STORE_READER_URL: preserve(), WEB_GOVERNOR_API_KEY: preserve() },
+  });
+  const marketAuditStore = service("market-audit-store", {
+    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-audit-store" }),
+    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/market-audit-store/**"] },
+    start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080",
+    healthcheck: "/ready",
+    healthcheckTimeout: 120,
+    replicas: { "sfo": 1 },
+    deploy: { restartPolicyType: "ALWAYS" },
+    env: { AUDIT_BUCKET_ACCESS_KEY_ID: preserve(), AUDIT_BUCKET_ENDPOINT: preserve(), AUDIT_BUCKET_NAME: preserve(), AUDIT_BUCKET_REGION: preserve(), AUDIT_BUCKET_SECRET_ACCESS_KEY: preserve(), AUDIT_DATABASE_URL: preserve(), AUDIT_STORE_GOVERNOR_KEY: preserve(), AUDIT_STORE_READER_KEY: preserve(), AUDIT_STORE_SANDBOX_KEY: preserve(), MARKET_AI_AUDIT_DB_PASSWORD: preserve(), PORT: preserve() },
   });
   const telegramMonitor = service("telegram-monitor", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/telegram-monitor" }),
@@ -131,6 +142,6 @@ export default defineRailway(() => {
   });
 
   return project("lucid-patience", {
-    resources: [orcTestRunner, marketSqlGovernor, marketWebGovernor, marketPythonSandbox, marketAiOrc, idxPriceCron, pgweb, PostgresE8GM, telegramTrigger, webGovernorTestRunner, telegramMonitor, idxPriceRecoveryCron, Postgres, aiDataCoverage, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, postgresVolumeOz3T, marketWebGovernorData, marketSqlDatasets],
+    resources: [orcTestRunner, marketSqlGovernor, marketWebGovernor, marketPythonSandbox, marketAiOrc, idxPriceCron, pgweb, PostgresE8GM, telegramTrigger, webGovernorTestRunner, marketAuditStore, telegramMonitor, idxPriceRecoveryCron, Postgres, aiDataCoverage, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, postgresVolumeOz3T, marketWebGovernorData, marketSqlDatasets, marketAiAuditArtifacts],
   });
 });
