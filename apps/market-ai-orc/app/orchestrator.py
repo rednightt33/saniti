@@ -1511,7 +1511,9 @@ class AgentOrchestrator:
             instructions=self._instructions(),
         )
         state.audit_started_at = moment
-        state.forced_path = request.analysis_path if self.analysis_path else None
+        # AUTO and MODE4 are routed before this (app/modes.py, app/mode4.py); only ANALYSIS and RESEARCH fix a path
+        state.forced_path = request.analysis_path if self.analysis_path \
+            and request.analysis_path in ("ANALYSIS", "RESEARCH") else None
         state.research = ResearchContext() if self.multi_angle else None
         if state.research is not None:
             state.research.calls_left = lambda: self.settings.ai_max_tool_calls - state.tool_calls

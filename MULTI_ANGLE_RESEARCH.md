@@ -269,6 +269,10 @@ answers first and uses research to test the answer:
 5. A new question instead of a reply cancels the suggestion.
 6. The ANALYSIS and RESEARCH paths stay.
 
+The mode switcher (`AI_MODE_SWITCH`, `apps/market-ai-orc/app/modes.py`, user decision 2026-09-30) makes mode 4 one of
+four modes (1 AUTO, 2 ANALYSIS, 3 RESEARCH, 4 MODE4): the env sets the default, `analysis_path` chooses per request, and
+a reply to a mode 4 suggestion stays in mode 4. Dev runs with default 4.
+
 No gate or engine is new: every step is an ordinary run with its own request_id (`-m4a` analysis, `-m4b` plan, `-m4c`
 execution, `-m4d` suggestion, `-m4r` reply classifier). The schema admits a one-angle `research_plan/v2`
 (`MIN_ANGLES` 1); the count of each plan is enforced by `check_research_feasibility` and the plan gate, from

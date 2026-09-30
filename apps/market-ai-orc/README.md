@@ -250,6 +250,7 @@ Gate and final-response log events (always on):
 | `AI_MODEL_2` | no | `xiaomi/mimo-v2.6-pro` | OpenRouter model ID of model 2 |
 | `AI_MODEL_SWITCH` | no | `1` | Model switcher (user decision 2026-09-30): `1` runs `AI_MODEL`, `2` runs `AI_MODEL_2`; any other value stops startup. MiMo exposes no reasoning effort levels on OpenRouter, so switch `2` sends `reasoning.enabled` (true for the main calls, false for the plan-reply classifier) instead of `reasoning.effort`. The selected model is logged at startup (`ai_model_selected`) and recorded per run (usage, audit) |
 | `AI_ENABLE_MODE4` | no | `false` | Mode 4 (user decision 2026-09-30): a request without `analysis_path` is answered by an analysis, research of at least two angles that runs at once, and one suggested follow-up angle; see "Mode 4" below |
+| `AI_MODE_SWITCH` | no | `1` | Mode switcher (user decision 2026-09-30): the default mode of a request that sets no `analysis_path` and replies to no plan: `1` AUTO (the model chooses, the behaviour before mode 4), `2` ANALYSIS, `3` RESEARCH, `4` MODE4. Another value stops startup; `4` needs `AI_ENABLE_MODE4`, `2`/`3` need `AI_ENABLE_ANALYSIS_PATH`. See "Mode switcher" below |
 | `AI_MODE4_MAX_SECONDS` | no | `3600` | Wall-clock budget of one whole mode 4 request (its sub-runs share it) |
 | `AI_REASONING_EFFORT` | no | `high` | One of `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; the model must support it (`require_parameters` rejects it otherwise) |
 | `AI_REQUEST_TIMEOUT_SECONDS` | no | `180` | Timeout for one provider call |
@@ -1294,11 +1295,27 @@ at start-up) and a request that sets it gets HTTP 400 `ANALYSIS_PATH_UNAVAILABLE
   otherwise, so responses without it keep their exact shape. The system prompt is unchanged (the note is per request),
   so the cached static prefix is the same with or without a path.
 
+### Mode switcher (`AI_MODE_SWITCH`, `app/modes.py`)
+
+User decision 2026-09-30: an env default plus a choice per request. Modes: **1 AUTO** (the model chooses ANALYSIS or
+RESEARCH, as before mode 4), **2 ANALYSIS**, **3 RESEARCH**, **4 MODE4**. The mode of a request is, in order:
+
+1. its `analysis_path` (`"AUTO"`, `"ANALYSIS"`, `"RESEARCH"`, `"MODE4"`); the caller always wins;
+2. for a reply to a pending plan (SERVER: the stored plan; CLIENT: `continuation`), the mode the plan was issued in: a
+   mode 4 suggestion (its signed origin request id ends in `-m4d`) continues in MODE4, any other plan in AUTO, which
+   reads the approval. So "Setuju" is never lost to an ANALYSIS default, and mode 4 suggestions chain with default 1;
+3. `AI_MODE_SWITCH`. A default the deployment cannot run (mode 4 or the paths inactive at startup) falls back to AUTO
+   (`mode_switch_fallback` at startup); startup logs `ai_mode_selected switch=<n> effective=<n>`.
+
+`execution.mode` = `{mode, name, source}` with source `CALLER`, `CONTINUATION`, `SWITCH` or `FALLBACK` (set by the API
+on every `/v1/agent/run` response). `analysis_path: "AUTO"` is always accepted; ANALYSIS, RESEARCH and MODE4 keep their
+checks (`ANALYSIS_PATH_UNAVAILABLE`, `ANALYSIS_PATH_CONFLICT`, `MODE4_UNAVAILABLE`). Tests: `tests/test_modes.py`.
+
 ### Mode 4: answer, then research, then one suggestion (off unless `AI_ENABLE_MODE4=true`)
 
-User decision 2026-09-30 (`app/mode4.py`, `MULTI_ANGLE_RESEARCH.md` section 12). With the flag on, every request
-**without** `analysis_path` (or with `analysis_path: "MODE4"`) runs as a pipeline of ordinary orchestrator runs; ANALYSIS
-and RESEARCH requests are unchanged. It needs the caller-chosen paths and an active Multi-Angle Research; otherwise
+User decision 2026-09-30 (`app/mode4.py`, `MULTI_ANGLE_RESEARCH.md` section 12). With the flag on, a request routed to
+mode 4 by the mode switcher (`analysis_path: "MODE4"`, a reply to a mode 4 suggestion, or `AI_MODE_SWITCH=4`) runs
+as a pipeline of ordinary orchestrator runs; other modes are unchanged. It needs the caller-chosen paths and an active Multi-Angle Research; otherwise
 `mode4_inactive` is logged and nothing changes (`analysis_path: "MODE4"` then gets HTTP 400 `MODE4_UNAVAILABLE`).
 
 - **First round** (no pending plan): A analysis (`<request_id>-m4a`, path ANALYSIS) answers the question; B

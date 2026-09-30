@@ -187,6 +187,9 @@ class Settings:
     # an analysis, then research of at least two angles built on it runs at once, then one follow-up angle is
     # proposed for the user's confirmation; an approval runs that angle and proposes the next one
     ai_enable_mode4: bool = False
+    # Mode switcher (user decision 2026-09-30, app/modes.py): the mode of a request that sets no analysis_path and
+    # replies to no plan: 1 AUTO (the model chooses), 2 ANALYSIS, 3 RESEARCH, 4 MODE4
+    ai_mode_switch: int = 1
     # the wall-clock budget of one whole mode 4 request (its sub-runs share it; each also keeps AI_MAX_ANALYSIS_SECONDS)
     ai_mode4_max_seconds: int = 3600
     # IP2 solution 2: archive every finished run to market-audit-store through ai_audit.ingest_outbox (INSERT only,
@@ -300,6 +303,7 @@ class Settings:
             ai_enable_value_references=_boolean(env, "AI_ENABLE_VALUE_REFERENCES", False),
             ai_enable_mode4=_boolean(env, "AI_ENABLE_MODE4", False),
             ai_mode4_max_seconds=_integer(env, "AI_MODE4_MAX_SECONDS", 3600, minimum=60),
+            ai_mode_switch=_integer(env, "AI_MODE_SWITCH", 1),
             ai_audit_store_enabled=_boolean(env, "AI_AUDIT_STORE_ENABLED", False),
             ai_audit_store_required=_boolean(env, "AI_AUDIT_STORE_REQUIRED", False),
             audit_outbox_database_url=_optional(env, "AUDIT_OUTBOX_DATABASE_URL"),
@@ -372,6 +376,12 @@ class Settings:
             raise ConfigError("AI_RESEARCH_MIN_ANGLES and AI_RESEARCH_MAX_ANGLES must satisfy 2 <= min <= max <= 6")
         if not 0 <= settings.ai_research_min_families <= min(5, settings.ai_research_max_angles):
             raise ConfigError("AI_RESEARCH_MIN_FAMILIES must be from 0 (off) to 5 and at most AI_RESEARCH_MAX_ANGLES")
+        if settings.ai_mode_switch not in (1, 2, 3, 4):
+            raise ConfigError("AI_MODE_SWITCH must be 1 (AUTO), 2 (ANALYSIS), 3 (RESEARCH) or 4 (MODE4)")
+        if settings.ai_mode_switch == 4 and not settings.ai_enable_mode4:
+            raise ConfigError("AI_MODE_SWITCH=4 needs AI_ENABLE_MODE4=true")
+        if settings.ai_mode_switch in (2, 3) and not settings.ai_enable_analysis_path:
+            raise ConfigError("AI_MODE_SWITCH=2 or 3 needs AI_ENABLE_ANALYSIS_PATH=true")
         if settings.ai_model_switch not in (1, 2):
             raise ConfigError("AI_MODEL_SWITCH must be 1 (AI_MODEL) or 2 (AI_MODEL_2)")
         if not 0 <= settings.ai_research_max_session_restarts <= 3:

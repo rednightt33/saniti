@@ -16,7 +16,8 @@ MAX_METADATA_BYTES = 8192
 ResponseType = Literal["ANSWER", "CLARIFICATION", "RESEARCH_PLAN_CONFIRMATION", "LIMITATION"]
 RunStatus = Literal["COMPLETED", "NEEDS_CLARIFICATION", "AWAITING_CONFIRMATION", "LIMITED", "FAILED"]
 # AI_ENABLE_ANALYSIS_PATH: the data-need mode a caller fixes for a request (null: the model chooses)
-AnalysisPath = Literal["ANALYSIS", "RESEARCH", "MODE4"]  # MODE4: AI_ENABLE_MODE4 (app/mode4.py)
+# AUTO: the model chooses (mode 1); MODE4: AI_ENABLE_MODE4 (app/mode4.py); the mode switcher is app/modes.py
+AnalysisPath = Literal["AUTO", "ANALYSIS", "RESEARCH", "MODE4"]
 
 STATUS_BY_RESPONSE_TYPE: dict[str, str] = {
     "ANSWER": "COMPLETED",
@@ -495,6 +496,18 @@ class ResearchSummary(BaseModel):
     experiments: list[ExperimentSummary] = Field(default_factory=list)
 
 
+class ModeExecution(BaseModel):
+    """Produced by code (app/modes.py): the mode that answered the request (1 AUTO, 2 ANALYSIS, 3 RESEARCH, 4 MODE4)
+    and why: the caller's analysis_path, the mode of the plan the request replied to, the AI_MODE_SWITCH default, or
+    AUTO because the default cannot run on this deployment."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal[1, 2, 3, 4]
+    name: Literal["AUTO", "ANALYSIS", "RESEARCH", "MODE4"]
+    source: Literal["CALLER", "CONTINUATION", "SWITCH", "FALLBACK"]
+
+
 class AnalysisPathExecution(BaseModel):
     """Produced by code: the path the caller fixed and how many data needs in the other mode were refused."""
 
@@ -543,13 +556,17 @@ class ExecutionMetadata(BaseModel):
     research_plan: "ResearchPlanExecution | None" = None
     # AI_ENABLE_ANALYSIS_PATH: present only when the caller fixed the path (omitted, not null, otherwise)
     analysis_path: AnalysisPathExecution | None = None
+    # the mode switcher (app/modes.py): which mode answered; set by the API, omitted when not set
+    mode: ModeExecution | None = None
 
     @model_serializer(mode="wrap")
     def _without_unused_path(self, handler: Any) -> Any:
-        """analysis_path appears only when set, so runs without it keep their exact shape."""
+        """analysis_path and mode appear only when set, so runs without them keep their exact shape."""
         data = handler(self)
-        if isinstance(data, dict) and data.get("analysis_path") is None:
-            data.pop("analysis_path", None)
+        if isinstance(data, dict):
+            for key in ("analysis_path", "mode"):
+                if data.get(key) is None:
+                    data.pop(key, None)
         return data
 
 

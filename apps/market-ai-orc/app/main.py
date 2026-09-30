@@ -22,10 +22,11 @@ from .openrouter_client import OpenRouterClient
 from .audit import RunAuditor
 from .audit_outbox import AuditOutbox
 from .mode4 import Mode4Orchestrator
+from .modes import MODES, effective_default, path_for, resolve_mode
 from .orchestrator import AgentOrchestrator, log_event
 from .provider_log import ProviderLogger
 from .research_plan_v2 import library_problem, negotiate
-from .schemas import AgentRunRequest, AgentRunResponse
+from .schemas import AgentRunRequest, AgentRunResponse, ModeExecution
 from .tools import build_default_registry
 from .tools.analysis import SandboxClient
 from .tools.catalog import CatalogTools
@@ -249,6 +250,13 @@ def create_app(
                       sandbox_min_angles=orchestrator.sandbox_min)
         else:
             log_event("mode4_inactive", reason="needs AI_ENABLE_ANALYSIS_PATH and an active Multi-Angle Research")
+    # mode switcher (app/modes.py): AI_MODE_SWITCH, or AUTO when this deployment cannot run that mode
+    default_mode = effective_default(settings.ai_mode_switch, orchestrator)
+    log_event("ai_mode_selected", switch=settings.ai_mode_switch, name=MODES[settings.ai_mode_switch],
+              effective=default_mode, effective_name=MODES[default_mode])
+    if default_mode != settings.ai_mode_switch:
+        log_event("mode_switch_fallback", switch=settings.ai_mode_switch, effective=default_mode,
+                  reason="the mode is not active on this deployment (see analysis_path_inactive / mode4_inactive)")
     ready = {"value": False}
 
     @asynccontextmanager
@@ -292,10 +300,23 @@ def create_app(
         return JSONResponse(status_code=error.http_status,
                             content={"detail": {"code": error.code, "message": error.message}})
 
+    def routed(request: AgentRunRequest, continuation: object) -> tuple[AgentRunRequest, ModeExecution]:
+        """The request with the analysis_path of its mode (AUTO: none) and the mode record for execution.mode."""
+        number, source = resolve_mode(request.analysis_path, continuation, default_mode)
+        if source == "SWITCH" and default_mode != settings.ai_mode_switch:
+            source = "FALLBACK"
+        if number == 4 and not getattr(orchestrator, "mode4", False):  # a mode 4 plan after mode 4 was turned off
+            number, source = 1, "FALLBACK"
+        return (request.model_copy(update={"analysis_path": path_for(number)}),
+                ModeExecution(mode=number, name=MODES[number], source=source))
+
+    def with_mode(result: AgentRunResponse, mode: ModeExecution) -> AgentRunResponse:
+        return result.model_copy(update={"execution": result.execution.model_copy(update={"mode": mode})})
+
     @app.post("/v1/agent/run", response_model=AgentRunResponse, dependencies=[Depends(authorize)])
     def run_agent(payload: AgentRunRequest,
                   x_saniti_owner: str | None = Header(default=None)) -> AgentRunResponse | JSONResponse:
-        if payload.analysis_path is not None:
+        if payload.analysis_path not in (None, "AUTO"):
             if not getattr(orchestrator, "analysis_path", False):
                 return refuse(ConversationError("ANALYSIS_PATH_UNAVAILABLE", "analysis_path needs "
                                                 "AI_ENABLE_ANALYSIS_PATH (with the DataNeed flow and Research Plan "
@@ -312,7 +333,8 @@ def create_app(
             if payload.plan_reply is not None:
                 return refuse(ConversationError("PLAN_REPLY_NEEDS_SERVER_MODE", "plan_reply is for history_mode "
                                                 "SERVER; with CLIENT send the continuation of the plan.", 400))
-            return orchestrator.run(payload)
+            request, mode = routed(payload, payload.continuation)
+            return with_mode(orchestrator.run(request), mode)
         try:
             if conversations is None:
                 raise ConversationError("HISTORY_MODE_UNAVAILABLE", "history_mode SERVER needs "
@@ -332,8 +354,9 @@ def create_app(
             return JSONResponse(content={**start.replay, "conversation": {
                 "conversation_id": start.conversation_id, "turn_index": start.turn_index, "persistence": "SAVED",
                 "replayed": True, "research_plan": plan_summary(start.state)}})
-        request = payload.model_copy(update={"conversation_id": start.conversation_id, "history": start.history,
-                                             "continuation": start.continuation})
+        request, mode = routed(payload.model_copy(update={"conversation_id": start.conversation_id,
+                                                          "history": start.history,
+                                                          "continuation": start.continuation}), start.continuation)
         try:
             if getattr(orchestrator, "conversation_reuse", False):
                 result = orchestrator.run(request, conversation_key=reuse_key(owner, start.conversation_id))
@@ -342,6 +365,7 @@ def create_app(
         except Exception:
             conversations.abandon(start, payload.request_id, "INTERNAL_ERROR")
             raise
+        result = with_mode(result, mode)
         saved = conversations.finish(start, payload.request_id, result)
         return JSONResponse(content={**result.model_dump(mode="json"), "conversation": {
             "conversation_id": start.conversation_id, "turn_index": start.turn_index,

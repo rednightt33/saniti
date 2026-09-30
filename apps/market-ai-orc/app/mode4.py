@@ -89,7 +89,7 @@ def _ok(result: AgentRunResponse | None, *types: str) -> bool:
 
 
 class Mode4Orchestrator:
-    """Wraps AgentOrchestrator: ANALYSIS and RESEARCH requests go straight to it, every other request runs mode 4.
+    """Wraps AgentOrchestrator: a request with analysis_path MODE4 runs mode 4, every other one goes straight to it.
     Other attributes (analysis_path, conversation_reuse, registry, close, ...) are the inner orchestrator's."""
 
     mode4 = True
@@ -105,7 +105,9 @@ class Mode4Orchestrator:
         return getattr(self.inner, name)
 
     def run(self, request: AgentRunRequest, conversation_key: str | None = None) -> AgentRunResponse:
-        if request.analysis_path in ("ANALYSIS", "RESEARCH"):
+        """analysis_path MODE4 runs the pipeline; any other request (the mode switcher, app/modes.py, has set its path:
+        none for AUTO) goes to the orchestrator unchanged."""
+        if request.analysis_path != "MODE4":
             return self.inner.run(request, conversation_key)
         return _Mode4Run(self, request, conversation_key).execute()
 

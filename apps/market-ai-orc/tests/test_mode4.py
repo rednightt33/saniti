@@ -28,6 +28,11 @@ ANALYSIS = {"response_type": "ANSWER", "answer": "Broker yang paling sering memb
 BROKER = "Siapa broker yang konsisten membeli saham bank ketika pasar jatuh?"
 
 
+def m4(**fields: Any) -> AgentRunRequest:
+    """A request the mode switcher routed to mode 4 (app/modes.py)."""
+    return AgentRunRequest(analysis_path="MODE4", **fields)
+
+
 def one_angle_feasibility() -> dict[str, Any]:
     return feasibility_args([requirement("a_fall", request("a_fall_A", columns=("ticker", "date", "close")))])
 
@@ -55,7 +60,7 @@ FIRST_ROUND = [final_response(ANALYSIS),                                        
 
 def test_the_first_round_answers_runs_research_at_once_and_proposes_one_angle() -> None:
     runner, scripted, sandbox = mode4_agent(FIRST_ROUND)
-    result = runner.run(AgentRunRequest(request_id="q1", conversation_id="conv_1", message=BROKER))
+    result = runner.run(m4(request_id="q1", conversation_id="conv_1", message=BROKER))
     assert scripted.responses == []
     steps = result.mode4["steps"]
     assert [(s["step"], s["request_id"], s["status"]) for s in steps] == [
@@ -216,7 +221,7 @@ def test_the_approval_of_step_c_is_explicit_and_carries_b_plan() -> None:
         return first_round_script()["m4c"]
 
     wrapper, inner = stub(first_round_script(m4c=research))
-    result = wrapper.run(AgentRunRequest(request_id="q", conversation_id="conv", message="Siapa broker?"))
+    result = wrapper.run(m4(request_id="q", conversation_id="conv", message="Siapa broker?"))
     c = captured["continuation"]
     assert c.action == "APPROVE" and c.plan_id == "rp_b" and c.origin_request_id == "q-m4b"
     assert [r.analysis_path for r in inner.requests] == ["ANALYSIS", "RESEARCH", None, "RESEARCH"]
@@ -236,23 +241,23 @@ def test_an_explicit_count_is_read_from_the_message(message, kind, count) -> Non
 
 def test_an_explicit_count_sets_the_research_or_the_suggestion() -> None:
     wrapper, inner = stub(first_round_script())
-    wrapper.run(AgentRunRequest(request_id="q", message="Siapa broker? Pakai 4 angle."))
+    wrapper.run(m4(request_id="q", message="Siapa broker? Pakai 4 angle."))
     assert inner.bounds[1] == (4, 4) and inner.bounds[3] == (1, 1)
     wrapper, inner = stub(first_round_script())
-    wrapper.run(AgentRunRequest(request_id="q", message="Siapa broker? Beri 3 usulan."))
+    wrapper.run(m4(request_id="q", message="Siapa broker? Beri 3 usulan."))
     assert inner.bounds[1] == (2, 6) and inner.bounds[3] == (3, 3)
 
 
 def test_a_one_angle_suggestion_needs_the_sandbox_minimum() -> None:
     wrapper, inner = stub(first_round_script(), sandbox_min=2)
-    result = wrapper.run(AgentRunRequest(request_id="q", message="Siapa broker?"))
+    result = wrapper.run(m4(request_id="q", message="Siapa broker?"))
     assert inner.bounds[3] == (2, 2)
     assert any("batas minimum sandbox" in n for n in result.mode4["notes"])
 
 
 def test_an_analysis_that_does_not_answer_ends_the_round() -> None:
     wrapper, inner = stub(first_round_script(m4a=run_result("q-m4a", response("CLARIFICATION"))))
-    result = wrapper.run(AgentRunRequest(request_id="q", message="Siapa broker?"))
+    result = wrapper.run(m4(request_id="q", message="Siapa broker?"))
     assert len(inner.requests) == 1 and result.status == "NEEDS_CLARIFICATION"
     assert result.response.clarification_question == "Yang mana?" and result.mode4["round"] == "FIRST"
 
@@ -262,7 +267,7 @@ def test_a_failed_research_keeps_the_answer_and_still_suggests() -> None:
                               execution=ExecutionMetadata(model="m"), error={"code": "ANALYSIS_TIMEOUT",
                                                                              "message": "x"})
     wrapper, inner = stub(first_round_script(m4c=failed))
-    result = wrapper.run(AgentRunRequest(request_id="q", message="Siapa broker?"))
+    result = wrapper.run(m4(request_id="q", message="Siapa broker?"))
     assert result.status == "AWAITING_CONFIRMATION" and len(inner.requests) == 4
     assert "Analisis: broker ZP." in result.response.answer
     assert "Riset tidak dapat diselesaikan: ANALYSIS_TIMEOUT." in result.response.answer
@@ -272,7 +277,7 @@ def test_a_failed_research_keeps_the_answer_and_still_suggests() -> None:
 def test_a_plan_that_is_not_issued_skips_the_execution_and_a_missing_suggestion_is_said() -> None:
     wrapper, inner = stub(first_round_script(m4b=run_result("q-m4b", response("CLARIFICATION")),
                                              m4d=run_result("q-m4d", response("LIMITATION"))))
-    result = wrapper.run(AgentRunRequest(request_id="q", message="Siapa broker?"))
+    result = wrapper.run(m4(request_id="q", message="Siapa broker?"))
     assert [r.request_id for r in inner.requests] == ["q-m4a", "q-m4b", "q-m4d"]
     assert result.status == "COMPLETED" and result.response.response_type == "ANSWER"
     assert result.continuation is None
@@ -283,7 +288,7 @@ def test_a_plan_that_is_not_issued_skips_the_execution_and_a_missing_suggestion_
 def test_the_time_budget_skips_the_steps_it_cannot_start() -> None:
     wrapper, inner = stub(first_round_script())
     inner.settings = make_settings(**{**MODE4, "AI_MODE4_MAX_SECONDS": "250"})
-    result = wrapper.run(AgentRunRequest(request_id="q", message="Siapa broker?"))
+    result = wrapper.run(m4(request_id="q", message="Siapa broker?"))
     assert [s["status"] for s in result.mode4["steps"]] == ["COMPLETED", "AWAITING_CONFIRMATION", "SKIPPED",
                                                             "SKIPPED"]
     assert result.response.response_type == "ANSWER" and "waktu mode 4 habis" in result.response.answer
@@ -299,7 +304,7 @@ def follow_up_script(**overrides: Any) -> dict[str, Any]:
 
 def test_an_approval_runs_the_suggestion_and_proposes_the_next_one() -> None:
     wrapper, inner = stub(follow_up_script())
-    result = wrapper.run(AgentRunRequest(request_id="q2", conversation_id="conv", message="ok lanjut",
+    result = wrapper.run(m4(request_id="q2", conversation_id="conv", message="ok lanjut",
                                          continuation=fake_continuation()))
     assert [r.request_id for r in inner.requests] == ["q2-m4c", "q2-m4d"]
     assert inner.requests[0].continuation.action == "APPROVE"
@@ -319,7 +324,7 @@ def test_an_approval_runs_the_suggestion_and_proposes_the_next_one() -> None:
 def test_a_new_question_cancels_the_suggestion_and_starts_a_first_round() -> None:
     new_plan = run_result("q-m4d", plan_final(PLAN1), turn="PROPOSE", plan_id="rp_g")
     wrapper, inner = stub(first_round_script(m4d=new_plan), classify="UNRELATED")
-    result = wrapper.run(AgentRunRequest(request_id="q", conversation_id="conv", message="Bagaimana dengan BBCA?",
+    result = wrapper.run(m4(request_id="q", conversation_id="conv", message="Bagaimana dengan BBCA?",
                                          continuation=fake_continuation()))
     assert [r.request_id for r in inner.requests] == ["q-m4a", "q-m4b", "q-m4c", "q-m4d"]
     assert inner.requests[0].continuation is None
@@ -328,7 +333,7 @@ def test_a_new_question_cancels_the_suggestion_and_starts_a_first_round() -> Non
     assert state["earlier_plans"][-1]["status"] == "CANCELLED"
     # with no new suggestion the cancelled plan stays the latest, CANCELLED
     wrapper, inner = stub(first_round_script(m4d=run_result("q-m4d", response("LIMITATION"))), classify="UNRELATED")
-    result = wrapper.run(AgentRunRequest(request_id="q", message="Bagaimana dengan BBCA?",
+    result = wrapper.run(m4(request_id="q", message="Bagaimana dengan BBCA?",
                                          continuation=fake_continuation()))
     state = advance({"research_plan": {"plan_id": "rp_d", "status": "PENDING"}}, result, "q", 2)
     assert state["research_plan"]["status"] == "CANCELLED"
@@ -338,20 +343,20 @@ def test_a_revision_obeys_the_count_and_a_cancel_passes_through() -> None:
     revised = run_result("q2-m4c", plan_final(ResearchPlanV2.model_validate(plan_v2(angles=angles()[:2]))),
                          turn="REVISE", plan_id="rp_f")
     wrapper, inner = stub(follow_up_script(m4c=revised), classify="REVISE")
-    result = wrapper.run(AgentRunRequest(request_id="q2", message="cari 2 angle lain",
+    result = wrapper.run(m4(request_id="q2", message="cari 2 angle lain",
                                          continuation=fake_continuation()))
     assert inner.bounds == [(2, 2)] and len(inner.requests) == 1
     assert result.status == "AWAITING_CONFIRMATION" and result.continuation.plan_id == "rp_f"
     cancel = run_result("q2-m4c", response("ANSWER", "Dibatalkan."), turn="CANCEL")
     wrapper, inner = stub(follow_up_script(m4c=cancel), classify="CANCEL")
-    result = wrapper.run(AgentRunRequest(request_id="q2", message="batal", continuation=fake_continuation()))
+    result = wrapper.run(m4(request_id="q2", message="batal", continuation=fake_continuation()))
     assert len(inner.requests) == 1 and result.response.answer == "Dibatalkan."
     assert result.execution.research_plan.turn == "CANCEL"
 
 
 def test_an_explicit_plan_reply_skips_the_classifier() -> None:
     wrapper, inner = stub(follow_up_script(), classify="UNRELATED")
-    result = wrapper.run(AgentRunRequest(request_id="q2", message="Setuju.",
+    result = wrapper.run(m4(request_id="q2", message="Setuju.",
                                          continuation=fake_continuation("APPROVE")))
     assert len(inner.requests) == 2 and result.execution.research_plan.classifier is None
 
