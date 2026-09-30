@@ -110,8 +110,8 @@ def test_ask_answers_from_numbered_sources_and_takes_dates_from_the_list(tmp_pat
     # Plan, one review (empty: no turn 2), answer, implications; two Exa searches. Turn 0: 2 subject queries x 8
     # windows; turn 1: 4 subject templates x the 2 newest windows.
     assert [("text" in p, "tools" in p) for p in provider.payloads].count((False, True)) == 2
-    # model calls: plan, article selection, answer and two implications attempts (none returned, so retried)
-    assert result["usage"]["model_calls"] == 5 and result["usage"]["review_calls"] == 1
+    # model calls: plan, answer and two implications attempts (none returned, so retried); reading is off by default
+    assert result["usage"]["model_calls"] == 4 and result["usage"]["review_calls"] == 1
     assert result["usage"]["search_calls"] == 2 and result["usage"]["news_requests"] == 2 * 8 + 4 * 2
     assert len(result["plan"]["windows"]) == 8 and [t["turn"] for t in result["plan"]["turns"]] == [0, 1]
     # The same headline from Google News and Exa is one source; oldest first.
@@ -393,7 +393,7 @@ def test_timeline_rules_exclude_forecasts_and_past_events():
 
 def test_chosen_articles_are_read_only_when_the_search_finds_the_same_headline(tmp_path):
     provider = FakeProvider(reads=[1, 3, 99])
-    result = service(tmp_path, provider).ask(
+    result = service(tmp_path, provider, ask_read_articles=6).ask(
         AskRequest(request_id="ask-test-0020", question="Company P", as_of=date(2026, 9, 29)))
     # [1] and [3] are Google News headlines the Exa search result ("Company P announces acquisition") does not
     # match, so nothing is attached; [99] does not exist and is dropped.
@@ -401,7 +401,7 @@ def test_chosen_articles_are_read_only_when_the_search_finds_the_same_headline(t
     assert [entry["read"] for entry in read] == [False, False]
     assert {w["code"] for w in result["warnings"]} >= {"READ_NONE"}
     provider = FakeProvider(reads=[2])
-    result = service(tmp_path, provider).ask(
+    result = service(tmp_path, provider, ask_read_articles=6).ask(
         AskRequest(request_id="ask-test-0021", question="Company P", as_of=date(2026, 9, 29)))
     # [2] is the Exa item "Company P announces acquisition": its search result has the same title.
     assert result["plan"]["read"] == [{"title": "Company P announces acquisition", "reason": "conflicting figure",
@@ -587,7 +587,7 @@ def test_evidence_for_a_claim_is_always_kept_in_the_final_sources():
 
 def test_costs_are_counted_per_step_and_the_budget_keeps_a_reserve_for_the_answer(tmp_path):
     provider = FakeProvider(claims=["a"], reads=[2], reviews=[["q two"], ["q three"]])
-    result = service(tmp_path, provider).ask(
+    result = service(tmp_path, provider, ask_read_articles=6).ask(
         AskRequest(request_id="ask-test-0050", question="Company P", as_of=date(2026, 9, 29)))
     steps = result["usage"]["cost_by_step"]
     assert set(steps) >= {"plan", "review", "exa_search", "answer", "implications"}
@@ -596,7 +596,7 @@ def test_costs_are_counted_per_step_and_the_budget_keeps_a_reserve_for_the_answe
     # Plan 0.001 + two Exa searches 0.004, then reviews at USD 0.02: after two reviews (0.045 spent) the 0.015
     # reserve no longer fits the 0.05 budget, so the search stops before turn 4.
     provider = FakeProvider(claims=["a"], cost=0.02, reviews=[["q two"], ["q three"], ["q four"]])
-    result = service(tmp_path, provider).ask(
+    result = service(tmp_path, provider, ask_read_articles=6).ask(
         AskRequest(request_id="ask-test-0051", question="Company P", as_of=date(2026, 9, 29)))
     plan = result["plan"]
     assert plan["stop"]["reason"] == "max_cost" and plan["stop"]["turn"] == 4
@@ -609,7 +609,7 @@ def test_costs_are_counted_per_step_and_the_budget_keeps_a_reserve_for_the_answe
 def test_reading_is_cut_to_what_the_budget_allows(tmp_path):
     provider = FakeProvider(claims=["a"], reads=[1, 2, 3])
     # Exa searches cost 0.002 each; a budget of 0.03 leaves about 0.03 - 0.015 - 0.0x spent for reads.
-    result = service(tmp_path, provider, ask_max_cost_usd=0.03).ask(
+    result = service(tmp_path, provider, ask_max_cost_usd=0.03, ask_read_articles=6).ask(
         AskRequest(request_id="ask-test-0052", question="Company P", as_of=date(2026, 9, 29)))
     select = next(p for p in provider.payloads if "text" in p and p["text"]["format"]["name"] == "sources_to_read")
     assert "at most" in select["instructions"]
@@ -637,3 +637,36 @@ def test_date_markers_left_by_removed_numbers_are_merged():
     assert clean == "BI menahan 5,75% (23 Sep 2026, 24 Sep 2026)."
     clean, _, _ = clean_citations("Total 100 bps (23 Sep 2026) [4] dan (tanpa tanggal) [5].", 5)
     assert clean == "Total 100 bps (23 Sep 2026)."
+
+
+def test_a_broken_answer_is_retried_once_and_flagged(tmp_path):
+    from app.ask import degenerate
+    assert degenerate("ok", 3, "q") == "too short"
+    assert degenerate("Jawaban panjang tanpa nomor sumber apa pun di dalamnya sama sekali, cukup panjang.", 3, "q") \
+        == "no valid source number"
+    assert degenerate("BI menahan suku bunga [1] 不可 allowed 这是 混合 文字 yang rusak sekali dalam jawaban ini.", 3,
+                      "apa BI rate?") == "text in another script"
+    assert degenerate("BI menahan suku bunga di 5,75% pada 23 September 2026 [1].", 3, "q") is None
+
+    class Broken(FakeProvider):
+        answers = ["broken", "Talks were reported on 2025-10-07 [1]; the deal was announced on 2026-09-18 [2]."]
+
+        def respond(self, payload):
+            if "text" not in payload and "tools" not in payload:
+                self.payloads.append(payload)
+                text = self.answers.pop(0) if self.answers else "broken"
+                return {"output": [{"content": [{"type": "output_text", "text": text}]}], "usage": {"cost": 0.003}}
+            return super().respond(payload)
+
+    result = service(tmp_path, Broken()).ask(
+        AskRequest(request_id="ask-test-0060", question="Company P", as_of=date(2026, 9, 29)))
+    assert "ANSWER_DEGENERATE" in {w["code"] for w in result["warnings"]}
+    assert result["answer"].startswith("Talks were reported on 2025-10-07")
+
+
+def test_turn_zero_exa_asks_for_five_results(tmp_path):
+    provider = FakeProvider()
+    service(tmp_path, provider).ask(AskRequest(request_id="ask-test-0061", question="Company P",
+                                               as_of=date(2026, 9, 29)))
+    exa = [p for p in provider.payloads if "tools" in p]
+    assert exa and all(p["tools"][0]["parameters"]["max_results"] == 5 for p in exa)
