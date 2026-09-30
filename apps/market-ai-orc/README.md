@@ -1003,11 +1003,24 @@ with a number format is refused); `rows[<i>]` works like `rows.<i>`; inside a Ma
 escaped as `\|`.
 
 Rendering applies to `answer`, the findings narratives, `methodology` and `limitations`, before the other gates. An
-unknown reference or format fails the new REFERENCE gate (one repair, the message names the valid keys nearby), then a
+unknown reference or format fails the new REFERENCE gate (the message names the valid keys nearby), then a
 LIMITATION. The resolved values join the provenance sources under their label, so the gates run unchanged on the
 rendered text; a literal figure outside a reference is still checked by the parser, and its rejection says to write
 the figure as a reference. The user receives the rendered text; the audit keeps the unrendered one
 (`final.unrendered`). The plan turn is unchanged.
+
+Missing fields, dotted keys and repairs (M43, P14, P15, P16; user decisions 2026-09-30, every mode):
+
+- A reference to a field that does not exist in its output or finding, or to a whole object (P14 a01), no longer forces
+  a LIMITATION. After the repair (below) it is rendered as `[<field name>]` only, e.g. `[min_crash_days_filter]`; the
+  answer keeps its `response_type`, `limitations` gains "Angka berikut tidak dapat diisi karena field-nya tidak ada di
+  hasil run ini: <fields>." and `validation_gate` is `ANNOTATED`. The marker has no digits, so the other gates run
+  unchanged. Every other reference error still ends in a LIMITATION after its repair: a whole list (P14 r08
+  `warnings`), a text value with a number format, a malformed or unclosed reference, an unknown namespace or output.
+- A key whose name contains a dot (`XL_crash_pos_days_1.0`) resolves: inside an object an exact segment is tried first,
+  then the segment joined with the following ones by dots, backtracking when a join leads nowhere (P15).
+- The repair is per distinct set of failing references (`REFERENCE:<hash>`), at most `MAX_REFERENCE_REPAIRS` (2) per
+  run: the same failing set gets no second repair, and a new error after an earlier repaired one gets its own (P16).
 
 **Audit of refused finals (2026-09-30).** With `AI_AUDIT_STORE_ENABLED`, the run's events also carry `final.rejected`
 (iteration, gate stage or format problem, detail, the refused draft: visible output only, URLs redacted, at most
@@ -1340,8 +1353,9 @@ as a pipeline of ordinary orchestrator runs; other modes are unchanged. It needs
   `mode4` block lists every step (request_id, status, turn, plan_id, cost, duration) and each step's own answer,
   findings and plan; responses without mode 4 do not have the key. `evidence_label` is the weakest of the analysis and
   the research.
-- **Failures degrade**: an analysis that does not answer ends the round (its clarification, limitation or failure is
-  returned); a plan that is not issued or a research run that fails keeps the analysis with a note; a missing
+- **Failures degrade**: an analysis ANSWER or LIMITATION (chosen by the model or forced by a gate, M43) continues to
+  B, C and D, and **Jawaban** shows the analysis with its limitations; an analysis that FAILED or asks a
+  CLARIFICATION, or a step skipped for lack of time, ends the round (its answer is returned); a plan that is not issued or a research run that fails keeps the analysis with a note; a missing
   suggestion is said in its section. `AI_MODE4_MAX_SECONDS` (default 3600, minimum 60) bounds the whole request: a step
   is not started with less than 120 seconds left, and each sub-run also keeps `AI_MAX_ANALYSIS_SECONDS`. With mode 4 on,
   the default conversation lease is `max(AI_MAX_ANALYSIS_SECONDS, AI_MODE4_MAX_SECONDS) + 120` and an explicit
@@ -1375,7 +1389,12 @@ startup through the catalog login); otherwise `multi_angle_research_inactive` is
   angles merge into one bundle, angles split into bundle groups only when one bundle does not fit
   (`AI_RESEARCH_MAX_BUNDLE_GROUPS`, default 3). The data plan binds every checked design (`angle_design_sha256s`); the
   plan gate refuses a plan whose angle design differs, with a second repair (`PLAN_FEASIBILITY_2`). The check reads
-  metadata only. After approval `start_research_run`, `run_research_code(bundle_group_id, code)` and
+  metadata only. Scope (G13, 2026-09-30, `Tool_Catalog` v3): when the question (or the run's last message) names
+  entities of a request's table (tokens of four to six capital letters that the Governor's dimension values confirm,
+  e.g. BBCA; market names such as IHSG are skipped), a request without a predicate on its entity column is refused
+  `SCOPE_WIDER_THAN_QUESTION`, unless the angle declares it in `broad_scope` (`data_request_id`, `reason`, e.g. a
+  market benchmark); the declarations are kept in the data plan as `broad_scope`. A failed entity lookup skips the
+  check. After approval `start_research_run`, `run_research_code(bundle_group_id, code)` and
   `complete_research_run(finalize)` (`app/research_run_executor.py`) promote the signed drafts, prepare the bundles
   and run the groups one at a time (`AI_RESEARCH_MAX_PARALLEL_GROUPS` accepts only 1). The first `finalize` true while
   an approved angle is unrecorded (and at least two tool calls remain) returns `INCOMPLETE` `ANGLES_NOT_RECORDED`; the
