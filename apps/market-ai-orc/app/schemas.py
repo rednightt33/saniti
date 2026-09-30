@@ -16,7 +16,8 @@ MAX_METADATA_BYTES = 8192
 ResponseType = Literal["ANSWER", "CLARIFICATION", "RESEARCH_PLAN_CONFIRMATION", "LIMITATION"]
 RunStatus = Literal["COMPLETED", "NEEDS_CLARIFICATION", "AWAITING_CONFIRMATION", "LIMITED", "FAILED"]
 # AI_ENABLE_ANALYSIS_PATH: the data-need mode a caller fixes for a request (null: the model chooses)
-AnalysisPath = Literal["ANALYSIS", "RESEARCH"]
+# AUTO: the model chooses (mode 1); MODE4: AI_ENABLE_MODE4 (app/mode4.py); the mode switcher is app/modes.py
+AnalysisPath = Literal["AUTO", "ANALYSIS", "RESEARCH", "MODE4"]
 
 STATUS_BY_RESPONSE_TYPE: dict[str, str] = {
     "ANSWER": "COMPLETED",
@@ -128,14 +129,104 @@ class ResearchFinding(BaseModel):
     interpretation: FindingInterpretation
 
 
-class AngleFindingReport(BaseModel):
-    """Multi-Angle Research: the model's reading of one approved angle; the status is the backend's."""
+class AngleFindingEntry(BaseModel):
+    """Multi-Angle Research, as the model writes it without value references (the provider schema only)."""
 
     model_config = ConfigDict(extra="forbid")
 
     angle_id: str = Field(min_length=1, max_length=40, description="The approved angle's angle_id.")
     status: AngleStatus = Field(description="Copied unchanged from complete_research_run.")
     interpretation: FindingInterpretation
+
+
+class NarrativeParts(BaseModel):
+    """The model's own reading of one angle; the status and the evidence are written by the backend."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    answer: str = Field(min_length=1, max_length=2000,
+                        description="The direct answer to the angle's question in its backend status's terms.")
+    usefulness: str = Field(min_length=1, max_length=2000,
+                            description="Why it matters for the user's decision, sized in practical terms.")
+    follow_up: str = Field(min_length=1, max_length=2000,
+                           description="The most informative next step; never a buy or sell recommendation.")
+
+    @field_validator("answer", "usefulness", "follow_up")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("must not be blank")
+        return value
+
+
+class AngleNarrative(BaseModel):
+    """Multi-Angle Research with value references (#15, 2026-09-30): the model writes the angle id and its reading;
+    the orchestrator renders the backend status, sample and statistics (the provider schema only)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    angle_id: str = Field(min_length=1, max_length=40, description="The approved angle's angle_id.")
+    interpretation: NarrativeParts
+
+
+class AngleInterpretation(BaseModel):
+    """One angle's interpretation in a response: evidence is optional while the model writes it (with value
+    references the backend renders it)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    answer: str = Field(min_length=1, max_length=2000)
+    evidence: str | None = Field(default=None, max_length=3000)
+    usefulness: str = Field(min_length=1, max_length=2000)
+    follow_up: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("answer", "usefulness", "follow_up")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("must not be blank")
+        return value
+
+
+class BackendAngleSummary(BaseModel):
+    """The backend's finding of one angle, rendered by the orchestrator (never written by the model)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: AngleStatus
+    status_reason: str | None = None
+    validation_level: str | None = None
+    evidence_direction: str | None = None
+    effective_sample: float | None = None
+    sample_unit: str | None = None
+    estimate_kind: str | None = None
+    estimate: float | None = None
+    ci: list[float | None] | None = None
+    p_value: float | None = None
+    p_adjusted: float | None = None
+    confidence_level: float | None = None
+
+
+class AngleFindingReport(BaseModel):
+    """Multi-Angle Research: one approved angle in the response. The status is the backend's (a model-written status
+    that differs is refused by the findings gate); with value references the orchestrator fills status, evidence and
+    backend from the backend's finding."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    angle_id: str = Field(min_length=1, max_length=40, description="The approved angle's angle_id.")
+    status: AngleStatus | None = Field(default=None, description="Copied unchanged from complete_research_run.")
+    interpretation: AngleInterpretation
+    backend: BackendAngleSummary | None = None
+
+    @model_serializer(mode="wrap")
+    def _without_empty_backend(self, handler: Any) -> Any:
+        """backend appears only when the orchestrator rendered it, so responses without value references keep their
+        exact shape."""
+        data = handler(self)
+        if isinstance(data, dict) and data.get("backend") is None:
+            data.pop("backend", None)
+        return data
 
 
 class FinalResponse(BaseModel):
@@ -145,9 +236,20 @@ class FinalResponse(BaseModel):
 
     response_type: ResponseType
     answer: str
-    clarification_question: str | None
+    # M40 (suite20c, 2026-09-30): like the other null fields, an omitted clarification_question reads as null; the
+    # response-type checks below still require it for a CLARIFICATION and refuse it elsewhere
+    clarification_question: str | None = None
     assumptions: list[str]
     limitations: list[str]
+
+    @field_validator("assumptions", "limitations", mode="before")
+    @classmethod
+    def _one_item_list(cls, value: Any) -> Any:
+        """M40 (suite20c r01): null where a list is expected is read as an empty list, a single string as a list of
+        one; a LIMITATION still needs at least one limitation."""
+        if value is None:
+            return []
+        return [value] if isinstance(value, str) and value.strip() else value
     # Only for RESEARCH_PLAN_CONFIRMATION; every other response carries null. A model that omits the field (the
     # schema without Research Plan confirmation does not list it) is read as null.
     research_plan: ResearchPlanV2 | ResearchPlanFindings | ResearchPlan | None = None
@@ -172,7 +274,11 @@ class FinalResponse(BaseModel):
         if self.research_findings is not None and len(self.research_findings) > (
                 6 if any(isinstance(f, AngleFindingReport) for f in self.research_findings) else 4):
             raise ValueError("research_findings has more entries than a Research Plan allows")
-        if self.research_findings is not None and self.response_type != "ANSWER":
+        # a LIMITATION forced by the findings gate keeps the backend's per-angle findings (P09, 2026-09-29); the gate
+        # drops any research_findings the model itself puts on a response other than an ANSWER
+        backend_limitation = self.response_type == "LIMITATION" and self.research_findings is not None \
+            and all(isinstance(f, AngleFindingReport) for f in self.research_findings)
+        if self.research_findings is not None and self.response_type != "ANSWER" and not backend_limitation:
             raise ValueError(f"{self.response_type} requires research_findings to be null")
         if self.methodology is not None and self.response_type in ("CLARIFICATION", "RESEARCH_PLAN_CONFIRMATION"):
             raise ValueError(f"{self.response_type} requires methodology to be null")
@@ -247,7 +353,8 @@ METHODOLOGY_PROPERTY: dict[str, Any] = {
 
 
 def final_response_schema(research_plan_confirmation: bool, methodology: bool = False,
-                          research_findings: bool = False, multi_angle: bool = False) -> dict[str, Any]:
+                          research_findings: bool = False, multi_angle: bool = False,
+                          value_references: bool = False) -> dict[str, Any]:
     """FINAL_RESPONSE_SCHEMA, or with Research Plan confirmation the same schema plus RESEARCH_PLAN_CONFIRMATION and a
     required nullable research_plan, and with AI_ENABLE_METHODOLOGY a required nullable methodology; with research
     findings (only together with plan confirmation) the plan's experiments carry the findings values and a required
@@ -260,7 +367,8 @@ def final_response_schema(research_plan_confirmation: bool, methodology: bool = 
         schema = {**schema, "properties": {**schema["properties"], "methodology": METHODOLOGY_PROPERTY},
                   "required": [*schema["required"], "methodology"]}
     if multi_angle:
-        schema = {**schema, "properties": {**schema["properties"], "research_findings": angle_findings_property()},
+        schema = {**schema, "properties": {**schema["properties"],
+                                           "research_findings": angle_findings_property(value_references)},
                   "required": [*schema["required"], "research_findings"]}
     elif research_findings and research_plan_confirmation:
         schema = {**schema, "properties": {**schema["properties"], "research_findings": research_findings_property()},
@@ -276,10 +384,15 @@ def research_findings_property() -> dict[str, Any]:
                            "with the backend verdict unchanged and your interpretation; otherwise null."}
 
 
-def angle_findings_property() -> dict[str, Any]:
+def angle_findings_property(narrative: bool = False) -> dict[str, Any]:
     from .tools.registry import strict_parameters_schema
 
-    return {"anyOf": [{"type": "array", "items": strict_parameters_schema(AngleFindingReport)}, {"type": "null"}],
+    if narrative:
+        return {"anyOf": [{"type": "array", "items": strict_parameters_schema(AngleNarrative)}, {"type": "null"}],
+                "description": "For an ANSWER that rests on a completed multi-angle research run: your reading of "
+                               "each approved angle (the backend adds its status, sample and statistics); otherwise "
+                               "null."}
+    return {"anyOf": [{"type": "array", "items": strict_parameters_schema(AngleFindingEntry)}, {"type": "null"}],
             "description": "For an ANSWER that rests on a completed multi-angle research run: one entry per approved "
                            "angle with the backend status unchanged and your interpretation; otherwise null."}
 
@@ -383,6 +496,18 @@ class ResearchSummary(BaseModel):
     experiments: list[ExperimentSummary] = Field(default_factory=list)
 
 
+class ModeExecution(BaseModel):
+    """Produced by code (app/modes.py): the mode that answered the request (1 AUTO, 2 ANALYSIS, 3 RESEARCH, 4 MODE4)
+    and why: the caller's analysis_path, the mode of the plan the request replied to, the AI_MODE_SWITCH default, or
+    AUTO because the default cannot run on this deployment."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal[1, 2, 3, 4]
+    name: Literal["AUTO", "ANALYSIS", "RESEARCH", "MODE4"]
+    source: Literal["CALLER", "CONTINUATION", "SWITCH", "FALLBACK"]
+
+
 class AnalysisPathExecution(BaseModel):
     """Produced by code: the path the caller fixed and how many data needs in the other mode were refused."""
 
@@ -431,13 +556,17 @@ class ExecutionMetadata(BaseModel):
     research_plan: "ResearchPlanExecution | None" = None
     # AI_ENABLE_ANALYSIS_PATH: present only when the caller fixed the path (omitted, not null, otherwise)
     analysis_path: AnalysisPathExecution | None = None
+    # the mode switcher (app/modes.py): which mode answered; set by the API, omitted when not set
+    mode: ModeExecution | None = None
 
     @model_serializer(mode="wrap")
     def _without_unused_path(self, handler: Any) -> Any:
-        """analysis_path appears only when set, so runs without it keep their exact shape."""
+        """analysis_path and mode appear only when set, so runs without them keep their exact shape."""
         data = handler(self)
-        if isinstance(data, dict) and data.get("analysis_path") is None:
-            data.pop("analysis_path", None)
+        if isinstance(data, dict):
+            for key in ("analysis_path", "mode"):
+                if data.get(key) is None:
+                    data.pop(key, None)
         return data
 
 
@@ -510,6 +639,16 @@ class AgentRunResponse(BaseModel):
     # Backend-signed continuation of a RESEARCH_PLAN_CONFIRMATION response (never generated by the model); null
     # otherwise. The caller sends plan_id, origin_request_id, the exact plan and the token back with the reply.
     continuation: ContinuationOutV2 | ContinuationOut | None = None
+    # Mode 4 (app/mode4.py): the steps of the turn (analysis, research, suggestion) with their own results; absent
+    # otherwise, so other responses keep their exact shape
+    mode4: dict[str, Any] | None = None
+
+    @model_serializer(mode="wrap")
+    def _without_mode4(self, handler: Any) -> Any:
+        data = handler(self)
+        if isinstance(data, dict) and data.get("mode4") is None:
+            data.pop("mode4", None)
+        return data
 
 
 ExecutionMetadata.model_rebuild()

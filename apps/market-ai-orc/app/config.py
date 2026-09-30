@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from typing import Any
 
 from .research_plan import MAX_TTL_SECONDS, weak_key_problem
 
@@ -167,22 +168,57 @@ class Settings:
     # Multi-Angle Research (MULTI_ANGLE_RESEARCH.md): research_plan/v2 with 3-6 angles, rpc2, per-angle data contracts,
     # grouped execution behind start/run/complete_research_run and backend findings per angle. Needs DataNeed v2,
     # Research Plan confirmation and feasibility, and a sandbox reporting the matching multi_angle_research capability
-    # (otherwise inactive: research v1 as before). Angle limits may only narrow 3-6; groups run one at a time.
+    # (otherwise inactive: research v1 as before). Angle limits may only narrow 2-6 (the minimum 2 since 2026-09-29,
+    # user decision: do not force many angles); groups run one at a time. AI_RESEARCH_MIN_FAMILIES (0 = off) makes a
+    # plan use at least that many of the five method families (prepared, off by default).
     ai_enable_multi_angle_research: bool = False
-    ai_research_min_angles: int = 3
+    ai_research_min_angles: int = 2
     ai_research_max_angles: int = 6
+    ai_research_min_families: int = 0
     ai_research_max_bundle_groups: int = 3
     ai_research_max_parallel_groups: int = 1
+    # S16 (user decision 2026-09-30): a group whose session crashed (WORKER_CRASHED, SESSION_STATE_CORRUPTED,
+    # PROTOCOL_ERROR) may open a new session this many times; 0 closes the group at once. Session limits never reopen.
+    ai_research_max_session_restarts: int = 1
+    # P11 (user decision 2026-09-30): the model writes data figures as value references ({{finding.x.path|fmt}}) that
+    # the backend fills in and formats, and multi-angle findings are rendered from the backend (#15). DataNeed only.
+    ai_enable_value_references: bool = False
+    # Mode 4 (user decision 2026-09-30, app/mode4.py): a request without analysis_path (or with MODE4) is answered by
+    # an analysis, then research of at least two angles built on it runs at once, then one follow-up angle is
+    # proposed for the user's confirmation; an approval runs that angle and proposes the next one
+    ai_enable_mode4: bool = False
+    # Mode switcher (user decision 2026-09-30, app/modes.py): the mode of a request that sets no analysis_path and
+    # replies to no plan: 1 AUTO (the model chooses), 2 ANALYSIS, 3 RESEARCH, 4 MODE4
+    ai_mode_switch: int = 1
+    # the wall-clock budget of one whole mode 4 request (its sub-runs share it; each also keeps AI_MAX_ANALYSIS_SECONDS)
+    ai_mode4_max_seconds: int = 3600
     # IP2 solution 2: archive every finished run to market-audit-store through ai_audit.ingest_outbox (INSERT only,
     # AUDIT_OUTBOX_DATABASE_URL). With AI_AUDIT_STORE_REQUIRED false an archive failure is logged and never changes
     # the answer; true withholds the answer when the run cannot be handed to the outbox (regulated mode).
     ai_audit_store_enabled: bool = False
     ai_audit_store_required: bool = False
     audit_outbox_database_url: str | None = field(default=None, repr=False)
+    # Model switcher (user decision 2026-09-30): AI_MODEL_SWITCH 1 runs AI_MODEL (deepseek/deepseek-v4.1-flash, the
+    # default), 2 runs AI_MODEL_2 (xiaomi/mimo-v2.6-pro). ai_model is the model in use. MiMo exposes no reasoning
+    # effort levels on OpenRouter (2026-09-30), so switch 2 sends reasoning.enabled instead of reasoning.effort.
+    ai_model_switch: int = 1
+    ai_model_1: str = "deepseek/deepseek-v4.1-flash"
+    ai_model_2: str = "xiaomi/mimo-v2.6-pro"
+
+    def reasoning(self, effort: str) -> dict[str, Any]:
+        """The OpenRouter reasoning setting for a call of the given effort, in the form the selected model accepts."""
+        if self.ai_model_switch == 2:
+            return {"enabled": effort not in ("none", "minimal", "low")}
+        return {"effort": effort}
 
     @property
     def conversation_lease_seconds(self) -> int:
-        return self.ai_conversation_lease_seconds or self.ai_max_analysis_seconds + 120
+        return self.ai_conversation_lease_seconds or self.longest_run_seconds + 120
+
+    @property
+    def longest_run_seconds(self) -> int:
+        """The longest one request may run: AI_MAX_ANALYSIS_SECONDS, or AI_MODE4_MAX_SECONDS with mode 4."""
+        return max(self.ai_max_analysis_seconds, self.ai_mode4_max_seconds if self.ai_enable_mode4 else 0)
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -198,7 +234,12 @@ class Settings:
         settings = cls(
             internal_api_key=secrets["MARKET_AI_ORC_API_KEY"],
             openrouter_api_key=secrets["OPENROUTER_API_KEY"],
-            ai_model=env.get("AI_MODEL", "").strip() or "deepseek/deepseek-v4.1-flash",
+            ai_model=(env.get("AI_MODEL_2", "").strip() or "xiaomi/mimo-v2.6-pro")
+            if (env.get("AI_MODEL_SWITCH") or "").strip() == "2"
+            else env.get("AI_MODEL", "").strip() or "deepseek/deepseek-v4.1-flash",
+            ai_model_switch=_integer(env, "AI_MODEL_SWITCH", 1),
+            ai_model_1=env.get("AI_MODEL", "").strip() or "deepseek/deepseek-v4.1-flash",
+            ai_model_2=env.get("AI_MODEL_2", "").strip() or "xiaomi/mimo-v2.6-pro",
             ai_reasoning_effort=env.get("AI_REASONING_EFFORT", "").strip().lower() or "high",
             ai_request_timeout_seconds=_integer(env, "AI_REQUEST_TIMEOUT_SECONDS", 180),
             ai_max_output_tokens=_integer(env, "AI_MAX_OUTPUT_TOKENS", 8000),
@@ -253,10 +294,16 @@ class Settings:
             ai_enable_analysis_path=_boolean(env, "AI_ENABLE_ANALYSIS_PATH", False),
             ai_enable_preflight_parts=_boolean(env, "AI_ENABLE_PREFLIGHT_PARTS", False),
             ai_enable_multi_angle_research=_boolean(env, "AI_ENABLE_MULTI_ANGLE_RESEARCH", False),
-            ai_research_min_angles=_integer(env, "AI_RESEARCH_MIN_ANGLES", 3),
+            ai_research_min_angles=_integer(env, "AI_RESEARCH_MIN_ANGLES", 2),
             ai_research_max_angles=_integer(env, "AI_RESEARCH_MAX_ANGLES", 6),
+            ai_research_min_families=_integer(env, "AI_RESEARCH_MIN_FAMILIES", 0, minimum=0),
             ai_research_max_bundle_groups=_integer(env, "AI_RESEARCH_MAX_BUNDLE_GROUPS", 3),
             ai_research_max_parallel_groups=_integer(env, "AI_RESEARCH_MAX_PARALLEL_GROUPS", 1),
+            ai_research_max_session_restarts=_integer(env, "AI_RESEARCH_MAX_SESSION_RESTARTS", 1, minimum=0),
+            ai_enable_value_references=_boolean(env, "AI_ENABLE_VALUE_REFERENCES", False),
+            ai_enable_mode4=_boolean(env, "AI_ENABLE_MODE4", False),
+            ai_mode4_max_seconds=_integer(env, "AI_MODE4_MAX_SECONDS", 3600, minimum=60),
+            ai_mode_switch=_integer(env, "AI_MODE_SWITCH", 1),
             ai_audit_store_enabled=_boolean(env, "AI_AUDIT_STORE_ENABLED", False),
             ai_audit_store_required=_boolean(env, "AI_AUDIT_STORE_REQUIRED", False),
             audit_outbox_database_url=_optional(env, "AUDIT_OUTBOX_DATABASE_URL"),
@@ -325,8 +372,20 @@ class Settings:
                               "PY_SANDBOX_REQUEST_TIMEOUT_SECONDS")
         if settings.ai_request_timeout_seconds > settings.ai_max_analysis_seconds:
             raise ConfigError("AI_REQUEST_TIMEOUT_SECONDS must not exceed AI_MAX_ANALYSIS_SECONDS")
-        if not 3 <= settings.ai_research_min_angles <= settings.ai_research_max_angles <= 6:
-            raise ConfigError("AI_RESEARCH_MIN_ANGLES and AI_RESEARCH_MAX_ANGLES must satisfy 3 <= min <= max <= 6")
+        if not 2 <= settings.ai_research_min_angles <= settings.ai_research_max_angles <= 6:
+            raise ConfigError("AI_RESEARCH_MIN_ANGLES and AI_RESEARCH_MAX_ANGLES must satisfy 2 <= min <= max <= 6")
+        if not 0 <= settings.ai_research_min_families <= min(5, settings.ai_research_max_angles):
+            raise ConfigError("AI_RESEARCH_MIN_FAMILIES must be from 0 (off) to 5 and at most AI_RESEARCH_MAX_ANGLES")
+        if settings.ai_mode_switch not in (1, 2, 3, 4):
+            raise ConfigError("AI_MODE_SWITCH must be 1 (AUTO), 2 (ANALYSIS), 3 (RESEARCH) or 4 (MODE4)")
+        if settings.ai_mode_switch == 4 and not settings.ai_enable_mode4:
+            raise ConfigError("AI_MODE_SWITCH=4 needs AI_ENABLE_MODE4=true")
+        if settings.ai_mode_switch in (2, 3) and not settings.ai_enable_analysis_path:
+            raise ConfigError("AI_MODE_SWITCH=2 or 3 needs AI_ENABLE_ANALYSIS_PATH=true")
+        if settings.ai_model_switch not in (1, 2):
+            raise ConfigError("AI_MODEL_SWITCH must be 1 (AI_MODEL) or 2 (AI_MODEL_2)")
+        if not 0 <= settings.ai_research_max_session_restarts <= 3:
+            raise ConfigError("AI_RESEARCH_MAX_SESSION_RESTARTS must be from 0 (close the group) to 3")
         if not 1 <= settings.ai_research_max_bundle_groups <= 6:
             raise ConfigError("AI_RESEARCH_MAX_BUNDLE_GROUPS must be between 1 and 6")
         if settings.ai_research_max_parallel_groups != 1:
@@ -355,9 +414,10 @@ class Settings:
         ):
             raise ConfigError("CONVERSATION_DATABASE_URL must be a postgresql:// connection URL")
         if settings.ai_conversation_lease_seconds and \
-                settings.ai_conversation_lease_seconds <= settings.ai_max_analysis_seconds:
+                settings.ai_conversation_lease_seconds <= settings.longest_run_seconds:
             # a lease shorter than a run would let a second message take over a conversation still running
-            raise ConfigError("AI_CONVERSATION_LEASE_SECONDS must exceed AI_MAX_ANALYSIS_SECONDS")
+            raise ConfigError("AI_CONVERSATION_LEASE_SECONDS must exceed AI_MAX_ANALYSIS_SECONDS (and "
+                              "AI_MODE4_MAX_SECONDS when AI_ENABLE_MODE4 is on)")
         if settings.ai_enable_catalog_protocol and not settings.ai_enable_catalog_discovery_v2:
             # the protocol tells the model to filter discovery and read completeness, which only v2 provides
             raise ConfigError("AI_ENABLE_CATALOG_PROTOCOL needs AI_ENABLE_CATALOG_DISCOVERY_V2")

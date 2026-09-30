@@ -63,6 +63,16 @@ SESSION_ID_PREFIX = "sess_"
 OUTPUT_EXTENSIONS = {"PARQUET": "parquet", "CSV": "csv", "PNG": "png", "JSON": "json", "TEXT": "txt", "BIN": "bin"}
 READ_LIMIT = 16 << 20
 GRACE_SECONDS = 5.0
+# S16 (suite20b r09, 2026-09-29): the worker's pipe closes while Python is still finalizing, so poll() right after
+# the EOF read a crash as WORKER_UNRESPONSIVE; the exit is awaited this long before it is labelled
+EXIT_WAIT_SECONDS = 2.0
+EXIT_STATE_CORRUPTED = 3  # runtime/session_worker.py: the code broke the worker's own bookkeeping
+WORKER_LOG_TAIL = 600
+# close reasons of a worker that ended abnormally: the tail of its worker.log (a Python traceback) is logged before
+# the workspace is removed; it never goes to the model
+ABNORMAL_REASONS = frozenset({"WORKER_CRASHED", "WORKER_UNRESPONSIVE", "SESSION_STATE_CORRUPTED", "PROTOCOL_ERROR",
+                              "FORBIDDEN_OPERATION", "CPU_BUDGET_EXCEEDED", "MEMORY_LIMIT_EXCEEDED",
+                              "DISK_LIMIT_EXCEEDED", "EXECUTION_TIMEOUT_UNINTERRUPTIBLE", "WORKER_START_FAILED"})
 # The value types of every frame the helpers return (DuckDB .df(date_as_object=True)). Most failed executions in the
 # 2026-09-26 stress test were pandas date idioms applied to these date objects (TypeError, KeyError, AttributeError).
 DATA_TYPES = ("Frames from load, range, sql and join: the time column holds datetime.date "
@@ -70,36 +80,94 @@ DATA_TYPES = ("Frames from load, range, sql and join: the time column holds date
               "with datetime.date(2026, 1, 2) (import datetime) or select a period with range(); before .dt, "
               ".resample(), .loc['2026-01-02'] or a comparison with a date string, convert first: "
               "frame[col] = pd.to_datetime(frame[col]).")
+STATE_CORRUPTED_HINT = ("The code changed the session's own state (the saniti_session/research_* modules, stdin or the "
+                        "protocol pipe). Do not import or modify the sandbox's internal modules.")
 RESEARCH_HELPERS = ["research_conditional", "research_persistence", "research_group_comparison", "research_quantiles",
                     "research_temporal_dependency", "research_custom"]
 
 
+# Found live (golden run 2026-09-29): with only a prose hint the model passed a contract entry as request= (a dict),
+# tried to import runtime internals, and read a trailing return column as the outcome. Each angle now carries one
+# concrete call in the declarative form, and the view states the expression grammar and the outcome rule.
+RESEARCH_EXAMPLES = {
+    "conditional_distribution": ("research_conditional", "condition='close / lag(close, 1) - 1 <= -0.05', "
+                                                         "outcome={'forward_return': 'close'}"),
+    "threshold_sensitivity": ("research_conditional", "signal='(close / lag(close, 1) - 1) * 100', "
+                                                      "outcome={'forward_return': 'close'}"),
+    "streak_persistence": ("research_persistence", "state='close < lag(close, 1)'"),
+    "regime_comparison": ("research_group_comparison", "group={'column': '<label column>'}, "
+                                                       "outcome={'forward_return': 'close'}"),
+    "cohort_comparison": ("research_group_comparison", "group={'column': '<label column>'}, "
+                                                       "outcome={'forward_return': 'close'}"),
+    "quantile_ranking": ("research_quantiles", "signal='close / lag(close, 20) - 1', "
+                                               "outcome={'forward_return': 'close'}"),
+    "lead_lag": ("research_temporal_dependency", "leader='close / lag(close, 1) - 1', "
+                                                 "follower={'forward_return': 'close'}"),
+    "correlation_dependency": ("research_temporal_dependency", "leader='close / lag(close, 1) - 1', "
+                                                               "follower={'forward_return': 'close'}"),
+}
+RESEARCH_RULES = (
+    "Record every angle exactly once, then call complete_research_run. Preferred (FORMULA_AND_STATISTICS_VERIFIED): "
+    "request='<data_request_id string from the angle's contract>' with each role as an expression string over that "
+    "request's columns. Expressions: + - * / **, comparisons, & | ~, abs log exp sqrt sign min max where, "
+    "lag(x, k), rolling_sum(x, n), rolling_mean(x, n); past values only. The outcome (or follower) is "
+    "{'forward_return': '<price column>'}: the backend computes the forward return over the approved horizon and "
+    "unit, so never use a trailing return column or a price level as the outcome (a price level is refused as "
+    "OUTCOME_NOT_APPROVED). When the price column is in another request of the angle's contract, add "
+    "'request': '<that data_request_id>'. A label role is {'column': '<name>'}. "
+    "Otherwise frame=<DataFrame with date, entity and one column per role> (STATISTICS_VERIFIED). research_custom "
+    "only when no helper fits (EXECUTION_ONLY). Thresholds, lags, buckets, groups and horizons come from the approved "
+    "plan, never from the code. The helpers are in saniti; do not import runtime modules.")
+
+
+PRICE_COLUMNS = ("close", "adj_close", "close_price", "price", "last_price")
+
+
+def _research_example(angle_id: str, helper: str, roles: str, datasets: list[dict[str, Any]]) -> str:
+    """One runnable example call for an angle, built on its own contract (S15/G12, suite20 2026-09-29): the price
+    column comes from the contract; when it is in another request than the first, the forward return names that
+    request; when the contract has no price column, the example says a forward return cannot be declared."""
+    if not roles:
+        return f"saniti.research_custom({angle_id!r}, result, note)"
+    request = datasets[0].get("data_request_id") if datasets else "<data_request_id>"
+    located = next(((d.get("data_request_id"), c) for name in PRICE_COLUMNS for d in datasets
+                    for c in d.get("columns") or [] if c == name), None)
+    if located is None:
+        located = next(((d.get("data_request_id"), c) for d in datasets for c in d.get("columns") or []
+                        if "close" in c.lower() or "price" in c.lower()), None)
+    example = roles
+    if "forward_return" in roles:
+        if located is None:
+            return (f"saniti.{helper}({angle_id!r}, request={request!r}, {roles}) -- note: this angle's contract has "
+                    "no price column, so a forward return cannot be declared; record it with research_custom and say why.")
+        other, column = located
+        if other == request:
+            example = example.replace("close", column)  # expressions and the forward return on this request's price
+        else:
+            example = example.replace("{'forward_return': 'close'}",
+                                      f"{{'forward_return': {column!r}, 'request': {other!r}}}")
+    return f"saniti.{helper}({angle_id!r}, request={request!r}, {example})"
+
+
 def research_view(research: dict[str, Any]) -> dict[str, Any]:
     """What the model sees of a multi-angle research session: the group's angles with their method, the approved
-    values, the contract's requests, columns and ranges, and how to record each angle."""
+    values, the contract's requests, columns and ranges, one example call per angle, and how to record them."""
     angles = []
     for angle_id, angle in sorted((research.get("angles") or {}).items()):
         contract = angle.get("contract") or {}
-        angles.append({"angle_id": angle_id, "method_id": angle.get("method_id"),
-                       "helper": {"CONDITIONAL_OUTCOME": "research_conditional", "PERSISTENCE": "research_persistence",
-                                  "GROUP_COMPARISON": "research_group_comparison",
-                                  "QUANTILE_RANKING": "research_quantiles",
-                                  "TEMPORAL_DEPENDENCY": "research_temporal_dependency"}.get(angle.get("method_family")),
+        datasets = contract.get("datasets") or []
+        helper, roles = RESEARCH_EXAMPLES.get(angle.get("method_id"), ("research_custom", ""))
+        angles.append({"angle_id": angle_id, "method_id": angle.get("method_id"), "helper": helper,
                        "question": angle.get("angle_question"), "expected_direction": angle.get("expected_direction"),
                        "outcome_horizon_periods": angle.get("outcome_horizon_periods"),
                        "outcome_unit": angle.get("outcome_unit"), "parameters": angle.get("parameters"),
                        "contract": [{"data_request_id": d.get("data_request_id"), "logical_name": d.get("logical_name"),
                                      "columns": d.get("columns"),
                                      "ranges": [w.get("range_id") for w in d.get("ranges") or []]}
-                                    for d in contract.get("datasets") or []]})
+                                    for d in datasets],
+                       "example": _research_example(angle_id, helper, roles, datasets)})
     return {"research_run_id": research.get("research_run_id"), "bundle_group_id": research.get("bundle_group_id"),
-            "angles": angles,
-            "record_each_angle": "Record every angle once with its helper, either frame=<DataFrame with date, entity "
-                                 "and the role columns> (STATISTICS_VERIFIED) or request=<contract request> with each "
-                                 "role as an expression over its columns and outcome={'forward_return': '<column>'} "
-                                 "(FORMULA_AND_STATISTICS_VERIFIED); research_custom only when no helper fits "
-                                 "(EXECUTION_ONLY). Thresholds, lags, buckets, groups and horizons come from the "
-                                 "approved plan, never from the code."}
+            "angles": angles, "record_each_angle": RESEARCH_RULES}
 
 
 HELPERS = ["requests()", "manifest()", "quality(request)", "load(request, columns=None)",
@@ -180,14 +248,28 @@ class Worker:
     def classify_exit(self) -> str:
         if self.death:
             return self.death
-        code = self.process.poll()
-        if code is None:
+        try:
+            code = self.process.wait(EXIT_WAIT_SECONDS)
+        except subprocess.TimeoutExpired:
             return "WORKER_UNRESPONSIVE"
+        if code == EXIT_STATE_CORRUPTED:
+            return "SESSION_STATE_CORRUPTED"
         if code == -signal.SIGXCPU or (code == -signal.SIGKILL and self.last_cpu >= self.cpu_budget - 2):
             return "CPU_BUDGET_EXCEEDED"
         if code == -signal.SIGSYS:
             return "FORBIDDEN_OPERATION"
         return "WORKER_CRASHED"
+
+    def log_tail(self) -> str | None:
+        """The last bytes of the worker's own stdout/stderr (worker.log), for the server log only."""
+        try:
+            with open(self.directory / "worker.log", "rb") as handle:
+                handle.seek(0, os.SEEK_END)
+                handle.seek(max(0, handle.tell() - WORKER_LOG_TAIL))
+                text = handle.read().decode("utf-8", "replace").strip()
+        except OSError:
+            return None
+        return text or None
 
     def _read_line(self, deadline: float) -> dict[str, Any] | None:
         while b"\n" not in self.buffer:
@@ -208,7 +290,12 @@ class Worker:
                 self.kill("PROTOCOL_ERROR")
                 raise EOFError
         line, self.buffer = self.buffer.split(b"\n", 1)
-        return json.loads(line.decode("utf-8"))
+        try:
+            return json.loads(line.decode("utf-8"))
+        except ValueError:
+            # something other than the worker wrote to the protocol pipe: the session cannot be trusted
+            self.kill("PROTOCOL_ERROR")
+            raise EOFError from None
 
     def request(self, message: dict[str, Any], timeout: float) -> dict[str, Any]:
         """Send one command and wait for its answer; SIGINT at the deadline, SIGKILL after the grace period."""
@@ -262,6 +349,8 @@ class SessionManager:
         self.bundles = bundles
         self.executor = analysis.executor
         self.workers: dict[str, Worker] = {}
+        # S14: session workspaces are this manager's; the analysis janitor must leave them alone
+        getattr(analysis, "foreign_prefixes", set()).add(SESSION_ID_PREFIX)
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []
@@ -620,16 +709,27 @@ class SessionManager:
         finally:
             worker.lock.release()
         runtime_ms = round((time.monotonic() - started) * 1000)
-        if answer is None:
-            reason = worker.classify_exit()
+        corrupted = answer is not None and answer.get("status") == "SESSION_STATE_CORRUPTED"
+        if answer is None or corrupted:
+            reason = "SESSION_STATE_CORRUPTED" if corrupted else worker.classify_exit()
             worker.kill(reason)
+            detail = (answer or {}).get("error") or {}
+            error = {"code": reason, **({"error_type": detail.get("error_type"), "message": detail.get("message"),
+                                         "cause": detail.get("cause")} if corrupted else {})}
+            tail = worker.log_tail()
             self.store.update_execution(execution_id, status="SESSION_ENDED", finished_at=utc_now(),
-                                        runtime_ms=runtime_ms, error={"code": reason})
+                                        runtime_ms=runtime_ms, error=error)
+            if self.audit is not None:
+                # S16: the code that ended a session is archived too (it was the one execution missing from the audit)
+                self._archive_execution(record, request_id, execution_id, seq, code,
+                                        {"error": {**error, "worker_log_tail": tail}}, "SESSION_ENDED", started_at,
+                                        runtime_ms, 0.0)
             self.close(session_id, reason)
             self._log("session_execution", session_id=session_id, execution_id=execution_id, status="SESSION_ENDED",
-                      reason=reason)
-            raise SessionError("SESSION_ENDED", f"The session worker ended during the execution ({reason}); its "
-                                                "variables are gone.", 409, "OPEN_ANALYSIS_SESSION",
+                      reason=reason, cause=error.get("cause"))
+            message = (f"The session worker ended during the execution ({reason}); its variables are gone."
+                       + (f" {STATE_CORRUPTED_HINT}" if corrupted else ""))
+            raise SessionError("SESSION_ENDED", message, 409, "OPEN_ANALYSIS_SESSION",
                                execution_id=execution_id, close_reason=reason)
         cpu = round(max(0.0, _cpu_seconds(worker.process.pid) - cpu_before), 3)
         status = answer.get("status") or "SCRIPT_ERROR"
@@ -737,6 +837,9 @@ class SessionManager:
     def _close_locked(self, session_id: str, reason: str) -> dict[str, Any]:
         worker = self.workers.pop(session_id, None)
         if worker is not None:
+            if reason in ABNORMAL_REASONS:
+                self._log("session_worker_ended", session_id=session_id, reason=reason,
+                          exit_code=worker.process.poll(), worker_log_tail=worker.log_tail())
             worker.kill(reason if worker.death is None else worker.death)
             try:
                 worker.process.wait(10)

@@ -16,6 +16,7 @@ Generated from PostgreSQL schema `public` at `2026-09-27T08:23:59+00:00`.
 | `AI_data_coverage` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | Automated actual raw-source coverage plus explicitly inferred expectations for derived Feature tables. |
 | `AI_formula_reference` | Unclassified | Unknown | — | `2026-09-24 09:22:02+00:00` | Baseline only | Global reference catalog of calculation formulas for the orchestrator; entries document a formula, not a verified or executable implementation. |
 | `AI_research_catalog` | Unclassified | Unknown | — | `2026-09-24 07:24:52+00:00` | Baseline only | Global reference catalog of research methods for the orchestrator; entries do not enable sandbox execution. |
+| `AI_research_library` | Unclassified | Unknown | — | `2026-09-29 18:31–18:35 UTC` | Baseline only | Model-facing description of the Multi-Angle Research methods the sandbox engines compute; generated from code, hash-bound (library_sha256). Enforcement stays in code. |
 | `AI_research_run_audit` | Unclassified | Unknown | — | `2026-09-24 12:33:35+00:00` | Baseline only | Durable audit of market-ai-orc runs: the question, the final answer, its evidence label and gate outcome, and every experiment with its Research Governor decision, validation, evidence decision and fingerprints. |
 | `AI_table_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing master list and bounded-access contract for seven approved source and Feature tables. |
 | `Analysis_Evidence` | System | When compact evidence is recorded for an analysis | — | `2026-09-13 15:02:15+00:00` | Baseline only | Compact reproducible evidence supporting material AI analysis claims. |
@@ -432,6 +433,52 @@ Global reference catalog of research methods for the orchestrator; entries do no
 | Name | Definition |
 |---|---|
 | `AI_research_catalog_pkey` | `CREATE UNIQUE INDEX "AI_research_catalog_pkey" ON public."AI_research_catalog" USING btree (method_id)` |
+
+## AI_research_library
+
+Model-facing description of the Multi-Angle Research methods the sandbox engines compute; generated from code, hash-bound (library_sha256). Enforcement stays in code. Created by `database/migrations/20260930_001_create_ai_research_library.sql` (dev, 2026-09-29); SELECT only for `market_ai_catalog_reader`.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `method_id` | `text` | No | — | Registered method id (research_plan/v2 method_id). |
+| `engine_version` | `integer` | No | — | Version of the statistical engines the row describes. |
+| `library_version` | `integer` | No | — | Version of the research library content. |
+| `method_family` | `text` | No | — | One of the five method families; an agreement between angles needs two families. |
+| `question_shape` | `text` | No | — | The question the method answers, in general form. |
+| `input_roles` | `jsonb` | No | — | JSON array of input roles (role, type, required, meaning); logical roles, not column names. |
+| `required_parameters` | `jsonb` | No | — | JSON array of the parameters an angle of this method must set, with their rules. |
+| `optional_parameters` | `jsonb` | No | — | JSON array of the parameters an angle may set, with their rules. |
+| `data_requirements` | `jsonb` | No | — | JSON object: entity column, label constancy, outcome kind, minimum entities per date and notes; the feasibility check enforces them. |
+| `common_requirements` | `jsonb` | No | — | JSON array of the requirements every method shares (one row per entity and date, declarations, forward returns). |
+| `sample_unit` | `text` | No | — | Unit of the effective sample: DATES, ENTITIES or DATES_AUTOCORRELATION_ADJUSTED. |
+| `secondary_checks` | `jsonb` | No | — | JSON array of checks that must pass for SUPPORTED (for example monotonicity). |
+| `decision_rules_ref` | `text` | No | — | Where the status rules are defined; enforcement is research_engines.decide in code. |
+| `interpretation` | `text` | No | — | What the method's estimate means. |
+| `misuse_warning` | `text` | No | — | How the result is commonly misread. |
+| `example_question` | `text` | No | — | An illustrative question the method answers. |
+| `library_sha256` | `text` | No | — | Hash of the whole library; market-ai-orc enables multi-angle research only when it equals the sandbox's and its own. |
+| `is_active` | `boolean` | No | `true` | Whether the method is offered to the model. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Row creation time. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Last update time. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `ai_research_library_family` | Check | `CHECK ((method_family = ANY (ARRAY['CONDITIONAL_OUTCOME'::text, 'PERSISTENCE'::text, 'GROUP_COMPARISON'::text, 'QUANTILE_RANKING'::text, 'TEMPORAL_DEPENDENCY'::text])))` |
+| `ai_research_library_json` | Check | `CHECK (((jsonb_typeof(input_roles) = 'array'::text) AND (jsonb_typeof(required_parameters) = 'array'::text) AND (jsonb_typeof(optional_parameters) = 'array'::text) AND (jsonb_typeof(data_requirements) = 'object'::text) AND (jsonb_typeof(common_requirements) = 'array'::text) AND (jsonb_typeof(secondary_checks) = 'array'::text)))` |
+| `ai_research_library_method_id` | Check | `CHECK ((method_id ~ '^[a-z][a-z0-9_]{0,62}$'::text))` |
+| `ai_research_library_sample_unit` | Check | `CHECK ((sample_unit = ANY (ARRAY['DATES'::text, 'ENTITIES'::text, 'DATES_AUTOCORRELATION_ADJUSTED'::text])))` |
+| `ai_research_library_sha` | Check | `CHECK ((library_sha256 ~ '^[0-9a-f]{64}$'::text))` |
+| `AI_research_library_pkey` | Primary key | `PRIMARY KEY (method_id, engine_version)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `AI_research_library_pkey` | `CREATE UNIQUE INDEX "AI_research_library_pkey" ON public."AI_research_library" USING btree (method_id, engine_version)` |
 
 ## AI_research_run_audit
 
@@ -2050,3 +2097,26 @@ Per-trading-date Stockbit broker-summary load progress, retries, and review stat
 | Name | Definition |
 |---|---|
 | `stockbit_broker_summary_load_log_pkey` | `CREATE UNIQUE INDEX stockbit_broker_summary_load_log_pkey ON public.stockbit_broker_summary_load_log USING btree (target_table, trade_date)` |
+
+## Schema `ai_audit` (market-audit-store; hand-written, not generated)
+
+Created on dev on 2026-09-30 by `database/migrations/20260928_001_create_ai_audit_store.sql` (`DATABASE_CHANGELOG.md`).
+The generator above reads schema `public` only and rewrites this file, so its next run (the daily
+`database-schema-docs` workflow) drops this section; the durable description is `apps/market-audit-store/README.md`
+(section "Schema `ai_audit`"), and the columns, constraints and indexes are in the migration file. Roles: `market_ai_audit_store` (login `market_ai_audit`,
+used only by market-audit-store; SELECT/INSERT/UPDATE, INSERT/SELECT only on the append-only tables, no DELETE or
+TRUNCATE) and `market_ai_audit_outbox_writer` (member: `market_ai_orc`; INSERT of the producer columns of
+`ingest_outbox` only). Triggers `event_append_only` and `artifact_access_append_only` (`ai_audit.reject_change()`)
+refuse UPDATE and DELETE on `event` and `artifact_access`, even for the owner. No column holds model reasoning.
+
+| Table | Definition |
+|---|---|
+| `run` | One AI research run (one market-ai-orc `request_id`): identity, conversation and turn, parent run of a rerun, status OPEN → FINALIZING → COMPLETE or INCOMPLETE (retryable), retention class and expiry, model/provider, deployment and summary. |
+| `event` | Ordered, append-only observable events of a run (`seq` from 1 per run); a payload is bounded to 16 KiB, larger content is an artifact referenced by `artifact_id`. Since 2026-09-30 market-ai-orc also sends `final.rejected`, `final.forced` and `final.unrendered` (the refused drafts; full text in the run's TOOL_TRACE artifact). |
+| `artifact` | One content-addressed object of the private bucket `market-ai-audit-artifacts` (`objects/sha256/<first two>/<sha256>`), stored once and shared by every run that references it; READY only after the store verified size and sha256. |
+| `run_artifact` | Which run references which artifact, in which role (raw input Parquet, manifests, contract, code, traces, outputs, final response), for which execution and label. |
+| `execution` | One sandbox code execution: run, session, bundle, sequence, status, exact-source hash, runtime image, library evidence, seed, timezone, input order and resample traces. |
+| `runtime_image` | One sandbox runtime inventory (Python, OS, architecture, installed distributions), keyed by the sha256 of its canonical JSON. |
+| `artifact_access` | Append-only log of every short-lived read granted on an artifact: who, why, for which run, and when the URL expires. |
+| `retention_hold` | A pin or legal hold on one run or one artifact; while `released_at` is NULL nothing it covers may be deleted. |
+| `ingest_outbox` | Durable hand-off of finished market-ai-orc runs: one RUN_FINISHED row per request (idempotent on source + idempotency key), never read or changed by the orchestrator; the store records PENDING, COMPLETE, FAILED_RETRYABLE or INCOMPLETE. |

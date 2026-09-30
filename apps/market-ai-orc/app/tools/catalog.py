@@ -830,10 +830,18 @@ def _table_entry(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# C07 (2026-09-29): while multi-angle research serves the research library, AI_research_catalog's methods are labelled
+# reference-only, so the model does not plan an angle with a method id that cannot run
+RESEARCH_REFERENCE_ONLY = ("Reference only: these methods cannot run in a Research Plan. The methods an angle can use "
+                           "are listed by get_research_library.")
+
+
 class CatalogTools:
     def __init__(self, reader: CatalogReader, *, discovery_v2: bool = False,
-                 codec: CursorCodec | None = None, point_in_time: bool = False) -> None:
+                 codec: CursorCodec | None = None, point_in_time: bool = False,
+                 research_library: bool = False) -> None:
         self.reader = reader
+        self.research_library = research_library
         self.discovery_v2 = discovery_v2
         self.point_in_time = point_in_time and discovery_v2
         self.codec = codec
@@ -876,6 +884,7 @@ class CatalogTools:
                     row["implementation_status"]: int(row["method_count"]) for row in research
                 },
                 "scope": "GLOBAL_METHOD_REFERENCE",
+                **({"note": RESEARCH_REFERENCE_ONLY} if self.research_library else {}),
             },
             "formula_catalog": {
                 "catalog_name": "AI_formula_reference",
@@ -926,6 +935,7 @@ class CatalogTools:
                 "implementation_status_counts": {row["implementation_status"]: int(row["method_count"])
                                                  for row in research},
                 "scope": "GLOBAL_METHOD_REFERENCE",
+                **({"note": RESEARCH_REFERENCE_ONLY} if self.research_library else {}),
             },
             "formula_catalog": {
                 "catalog_name": "AI_formula_reference",
@@ -1078,7 +1088,8 @@ class CatalogTools:
                 entries = [_entry(row, RESEARCH_SUMMARY) for row in rows[: ROW_CAPS["RESEARCH"]]]
             kept, _ = _fit(entries, budget)
             result = {"detail": detail, "entries": kept, "returned": len(kept), "total_matching": total,
-                      "note": "REFERENCE_ONLY does not indicate an installed or validated sandbox method."}
+                      "note": RESEARCH_REFERENCE_ONLY if self.research_library
+                      else "REFERENCE_ONLY does not indicate an installed or validated sandbox method."}
             if detail == "SUMMARY" or len(kept) < total:
                 result["truncated"] = len(kept) < total
                 result["hint"] = "Pass method_ids to retrieve full definitions for specific research methods."
@@ -1210,8 +1221,10 @@ class CatalogTools:
 
 
 def catalog_specs(reader: CatalogReader, *, timeout_seconds: float, discovery_v2: bool = False,
-                  codec: CursorCodec | None = None, point_in_time: bool = False) -> list[ToolSpec]:
-    tools = CatalogTools(reader, discovery_v2=discovery_v2, codec=codec, point_in_time=point_in_time)
+                  codec: CursorCodec | None = None, point_in_time: bool = False,
+                  research_library: bool = False) -> list[ToolSpec]:
+    tools = CatalogTools(reader, discovery_v2=discovery_v2, codec=codec, point_in_time=point_in_time,
+                         research_library=research_library)
     if discovery_v2:
         return [
             ToolSpec(

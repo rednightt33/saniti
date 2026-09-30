@@ -48,10 +48,15 @@ def build_default_registry(
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
     registry.register(capabilities_spec(registry))
+    # the same conditions as multi_angle_active below: while the research library is served, the catalog's RESEARCH
+    # section says its reference methods cannot run
+    library_served = bool(multi_angle and multi_angle.get("library")) and plan_feasibility and composite_keys \
+        and dataneed_enabled and sandbox_client is not None and governor_client is not None
     if catalog_reader is not None:
         codec = CursorCodec(cursor_secret or os.urandom(32))
         for spec in catalog_specs(catalog_reader, timeout_seconds=catalog_timeout_seconds,
-                                  discovery_v2=catalog_discovery_v2, codec=codec, point_in_time=point_in_time):
+                                  discovery_v2=catalog_discovery_v2, codec=codec, point_in_time=point_in_time,
+                                  research_library=library_served):
             registry.register(spec)
         registry.register(catalog_rows_spec(
             catalog_reader, codec,
@@ -121,18 +126,31 @@ def build_default_registry(
     return registry
 
 
+def _entity_checker(governor_client: GovernorClient):
+    """G13: whether a token of the question is an entity of a table (the Governor's dimension values, exact match)."""
+    def check(table: str, column: str, token: str) -> bool:
+        result = governor_client.dimension_values(table, column, token)
+        return any(str(value).upper() == token for value in result.get("values") or [])
+    return check
+
+
 def _register_multi_angle(registry: ToolRegistry, sandbox_client: SandboxClient, governor_client: GovernorClient,
                           multi_angle: dict, *, timeout_seconds: float, session_timeout_seconds: float,
                           max_result_bytes: int, point_in_time: bool, preflight_parts: bool) -> None:
     """AI_ENABLE_MULTI_ANGLE_RESEARCH: check_research_feasibility for the plan turn and the grouped executor's tools for
     the approved turn; the orchestrator creates one executor per approved plan through registry.multi_angle."""
     from ..research_run_executor import ResearchRunExecutor, executor_specs, remember_feasibility
+    from .library import research_library_spec
     from .research_planner import ResearchDataPlanner, research_feasibility_spec
 
     planner = ResearchDataPlanner(sandbox_client, ExecutionPlanner(sandbox_client, governor_client,
                                                                    preflight=preflight_parts),
                                   max_groups=multi_angle["max_groups"], min_angles=multi_angle["min_angles"],
-                                  max_angles=multi_angle["max_angles"], limits=multi_angle.get("limits"))
+                                  max_angles=multi_angle["max_angles"], limits=multi_angle.get("limits"),
+                                  min_families=int(multi_angle.get("min_families") or 0),
+                                  entity_checker=_entity_checker(governor_client))
+    if multi_angle.get("library"):
+        registry.register(research_library_spec(multi_angle["library"]))
     registry.register(research_feasibility_spec(planner, timeout_seconds=timeout_seconds * 4 * multi_angle["max_groups"],
                                                 max_result_bytes=max_result_bytes, point_in_time=point_in_time,
                                                 on_result=remember_feasibility))
@@ -144,7 +162,8 @@ def _register_multi_angle(registry: ToolRegistry, sandbox_client: SandboxClient,
     def factory(verified, request_id: str) -> ResearchRunExecutor:
         return ResearchRunExecutor(sandbox_client, bundle_planner, verified, request_id,
                                    execution_timeout=session_timeout_seconds, timeout=timeout_seconds,
-                                   max_result_bytes=max_result_bytes)
+                                   max_result_bytes=max_result_bytes,
+                                   max_session_restarts=int(multi_angle.get("max_session_restarts", 1)))
 
     registry.multi_angle = {**multi_angle, "factory": factory}
 

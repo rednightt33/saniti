@@ -17,6 +17,12 @@ print() output is captured and bounded, never mixed into the protocol.
 A wall-clock limit is enforced by the harness with SIGINT (KeyboardInterrupt here, the session survives) and, if
 the code does not yield, SIGKILL (the session ends). Anything the code reports about itself is kept only as
 bounded diagnostics.
+
+S16 (suite20b r09, 2026-09-29): code that changed this process's own state (saniti_session internals, stdin, the
+response pipe) made the bookkeeping after an execution fail outside any guard, and the harness saw a silent worker.
+The protocol now runs on private duplicates of both pipes (sys.stdin is an empty stream and sys.argv no longer names
+the response fd), and a failure of the bookkeeping is answered as SESSION_STATE_CORRUPTED before the worker exits
+with EXIT_STATE_CORRUPTED. This is robustness, not a security boundary: the code runs in this same process.
 """
 from __future__ import annotations
 
@@ -29,6 +35,10 @@ import traceback
 STDOUT_MAX = 4000
 MESSAGE_MAX = 800
 FRAMES = 8
+EXIT_STATE_CORRUPTED = 3  # app/sessions.py maps this exit code to SESSION_STATE_CORRUPTED
+STATE_CORRUPTED_MESSAGE = ("The code changed the session's own state (the saniti_session/research_* modules, stdin or "
+                           "the protocol pipe), so the session cannot continue: its recorded angles and variables can "
+                           "no longer be trusted. Do not import or modify the sandbox's internal modules.")
 
 
 class _Bounded(io.TextIOBase):
@@ -129,8 +139,17 @@ def main(session_dir: str, response_fd: str) -> int:
     sys.path.insert(0, runtime)
     import confine
 
+    # the protocol runs on private duplicates: closing sys.stdin or the fd named on the command line cannot end it
+    command_fd, answer_fd = os.dup(0), os.dup(int(response_fd))
+    os.close(int(response_fd))
+    null = os.open(os.devnull, os.O_RDONLY)
+    os.dup2(null, 0)  # sys.__stdin__ reads nothing; the commands arrive on command_fd only
+    os.close(null)
+    sys.argv = sys.argv[:1]
     confine.apply(session["limits"], session.get("cpus"), session.get("require_seccomp", True))
-    out = os.fdopen(int(response_fd), "w", encoding="utf-8", buffering=1)
+    commands = os.fdopen(command_fd, "r", encoding="utf-8")
+    sys.stdin = io.StringIO("")
+    out = os.fdopen(answer_fd, "w", encoding="utf-8", buffering=1)
     import linecache
     import random
 
@@ -159,7 +178,7 @@ def main(session_dir: str, response_fd: str) -> int:
     reply({"seq": 0, "status": "READY", "pid": os.getpid()})
     while True:
         try:
-            line = sys.stdin.readline()
+            line = commands.readline()
         except KeyboardInterrupt:  # an interrupt that arrived between executions
             continue
         if not line:
@@ -217,15 +236,27 @@ def main(session_dir: str, response_fd: str) -> int:
                 error["error_type"] = "MemoryError"
         finally:
             sys.stdout, sys.stderr = old_out, old_err
-        changed = sorted(n for n, v in namespace.items() if n not in base and not n.startswith("_")
-                         and before.get(n) != id(v))
-        saniti._research_settle(status == "OK")
-        recorded = saniti._end()
-        answer = {"seq": seq, "status": status, "stdout": captured.value(), "error": error,
-                  "insufficient": insufficient, "outputs": recorded["outputs"], "access": recorded["access"],
-                  "warnings": recorded["warnings"], "variables": changed[:50]}
-        if modules_before is not None:
-            answer["modules"] = sorted(set(sys.modules) - modules_before)[:2000]
+        try:
+            changed = sorted(n for n, v in namespace.items() if n not in base and not n.startswith("_")
+                             and before.get(n) != id(v))
+            saniti._research_settle(status == "OK")
+            recorded = saniti._end()
+            answer = {"seq": seq, "status": status, "stdout": captured.value(), "error": error,
+                      "insufficient": insufficient, "outputs": recorded["outputs"], "access": recorded["access"],
+                      "warnings": recorded["warnings"], "variables": changed[:50]}
+            if modules_before is not None:
+                answer["modules"] = sorted(set(sys.modules) - modules_before)[:2000]
+            json.dumps(answer, default=str)
+        except BaseException as exc:  # noqa: BLE001 - the code broke the worker's own bookkeeping
+            detail = _error(exc)
+            detail.update(error_type="SessionStateCorrupted", message=STATE_CORRUPTED_MESSAGE,
+                          cause=f"{type(exc).__name__}: {exc}"[:MESSAGE_MAX])
+            try:
+                reply({"seq": seq, "status": "SESSION_STATE_CORRUPTED", "stdout": captured.value(), "error": detail})
+            finally:
+                print(f"session_worker: bookkeeping failed: {type(exc).__name__}: {exc}"[:MESSAGE_MAX],
+                      file=sys.__stderr__, flush=True)
+            return EXIT_STATE_CORRUPTED
         reply(answer)
 
 

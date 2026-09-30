@@ -149,6 +149,7 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                                          "memory_mb": settings.validator_memory_mb}}}
 
     def multi_angle_capability() -> dict[str, Any]:
+        from .research_library import LIBRARY_SHA256
         from .research_methods import registry
 
         enabled = dataneed is not None and settings.dataneed_enabled and settings.multi_angle_research_enabled
@@ -158,6 +159,7 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                 "max_angles": policy.max_angles_per_plan, "supports_grouped_execution": enabled,
                 "findings_version": "research_findings/v2", "governance_version": "research_governance/v2",
                 "method_ids": [m["method_id"] for m in reg["methods"]], "method_registry_sha256": reg["sha256"],
+                "library_sha256": LIBRARY_SHA256,
                 "policy": policy.public(),
                 "limits": {"bundle_max_rows": settings.bundle_max_rows, "bundle_max_bytes": settings.bundle_max_bytes,
                            "bundle_max_parts": settings.bundle_max_parts, "max_requests_per_spec": 8,

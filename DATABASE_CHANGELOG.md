@@ -1,6 +1,133 @@
 # Database changelog
 
-## 2026-09-29 — Multi-Angle Research: migration 20260929_001 — PREPARED, NOT APPLIED
+## 2026-09-30 — G13: migration 20260930_003 (`check_research_feasibility` v3) applied on dev
+
+- Scope: `ERRORS_AND_SOLUTIONS.md` G13 (user decision 2026-09-30: a request that reads every entity while the question
+  names specific ones is refused unless the angle declares it in `broad_scope`). Code `2671f7e`.
+- `20260930_003_research_feasibility_v3_tool_catalog.sql` (no table or column change): one inactive `Tool_Catalog` row
+  `check_research_feasibility` v3 (`runtime_service = 'market-ai-orc'`), copying v2's columns, limits and output schema;
+  new purpose and input schema generated from the market-ai-orc tool definition (`tests/test_multi_angle.py` fails on
+  drift), `tool_specific_limits` = v2 plus `replaces_version` v2,
+  `scope_check` and `broad_scope`. Preflight refuses a second run and a missing v2; `$verify$` checks one inactive v3
+  row replacing v2, `broad_scope` required in each angle, v3 the latest version.
+- Rehearsal on local scratch PostgreSQL (`Tool_Catalog` DDL from `20260913_009` with a v2 row; dropped after): applied
+  and verified; a second run was refused by the preflight; the job below was also run locally in both phases.
+- Dev, temporary service `ma-migrate-job` (`44a643a8-1151-4359-9b50-ebbef699d9d9`, only a `DATABASE_URL` reference,
+  deleted after use):
+  - inspection + dry run, rolled back (`bcc703c3-1370-4fa5-b8b9-c4f39243c582`): passed; before and after:
+    `Tool_Catalog` 78 rows (25 active), `check_research_feasibility` v1 and v2 (latest v2), `Table_Catalog` 41,
+    `Column_Catalog` 736;
+  - apply (`bee0028b-839b-43fc-a0b3-77fbf0872592`, 16:03 UTC), read back in the same job: `Tool_Catalog` 79 rows, still
+    25 active; `check_research_feasibility` v3 inactive, `replaces_version` v2, output schema `md5` equal to v2's,
+    input schema `md5` `2d3d6676…` (the same as the local rehearsal), `broad_scope` required, `scope_check` present;
+    latest versions `check_research_feasibility` v3, `complete_research_run` v2, `run_research_code` v2,
+    `get_research_library` v1, `start_research_run` v1; `Table_Catalog` 41 and `Column_Catalog` 736 unchanged. A second
+    run in the same job was refused ("check_research_feasibility v3 is already registered"). The job logs held no DSN
+    or secret.
+- `Table_Catalog`, `Column_Catalog`, `Feature_Catalog`: no change (no public data table or column changed). No
+  routine added.
+
+## 2026-09-30 — IP2: migration 20260928_001 (`ai_audit`) applied on dev; login `market_ai_audit`
+
+- Scope: user decision 2026-09-30 ("Aktifkan juga audit store"), plan item E15. `20260928_001` was unchanged since
+  2026-09-28 (read in full before applying). `20260928_002` had been applied on 2026-09-28 (entry below).
+- Temporary service `audit-migrate-job` (`cbc9aef7-06fb-44d1-a0a6-2f21607af18c`, only a `DATABASE_URL` reference,
+  deleted after use):
+  - inspection + dry run, rolled back (`98fae03d`): passed; before and after: no schema `ai_audit`, no role
+    `market_ai_audit_store` or `market_ai_audit_outbox_writer`; `market_ai_orc` in `market_ai_catalog_reader`,
+    `market_ai_preview_reader`, `market_ai_research_audit_writer`;
+  - apply (`6e4e050a-ec3e-481b-9f7b-eecaef0ed3ad`), read back in the same job: schema `ai_audit` with the nine tables
+    `artifact`, `artifact_access`, `event`, `execution`, `ingest_outbox`, `retention_hold`, `run`, `run_artifact`,
+    `runtime_image`; triggers `event_append_only` and `artifact_access_append_only`; `ingest_outbox` empty.
+    Privileges read back: `market_ai_audit_store` USAGE, outbox SELECT and INSERT, SELECT/INSERT/UPDATE on `run`,
+    no UPDATE/DELETE on `event`; `market_ai_audit_outbox_writer` USAGE and outbox INSERT only (no SELECT, no `run`
+    access). The job granted `market_ai_audit_outbox_writer` to `market_ai_orc` (what
+    `scripts/provision_market_ai_orc_login.py` does), read back: `market_ai_orc` can INSERT into the outbox and
+    cannot SELECT it.
+- Temporary service `audit-login-job` (deployment `28ba7d0e-9fb6-415b-816c-7e9cec72249b`, `DATABASE_URL` and
+  `MARKET_AI_AUDIT_DB_PASSWORD` references, deleted after use): `scripts/provision_market_ai_audit_login.py` created
+  the login `market_ai_audit` ("ai_audit only (no DELETE or TRUNCATE); no other table is reachable"), read back as a
+  member of `market_ai_audit_store` only. The job logs held no DSN or password.
+- Live check: market-audit-store connects as `market_ai_audit` (`/ready` 200). The smoke run
+  `audit-smoke-20260930a` (05:03 UTC) went through the outbox and reached `COMPLETE` with 29 events, 16 artifacts
+  and 2 executions (`RAILWAY_CHANGELOG.md`).
+- Not in `Table_Catalog` / `Column_Catalog` (its target-schema check admits `public` only; the tables are
+  documented in `apps/market-audit-store/README.md` and `DATABASE_SCHEMA.md`). No public table, row or grant changed;
+  `AI_research_run_audit` is unchanged. No routine added other than the trigger function `ai_audit.reject_change()`.
+
+## 2026-09-29 — Multi-Angle Research fixes: migrations 20260930_001 and 20260930_002 applied on dev
+
+- Scope: `MULTI_ANGLE_FIX_PLAN.md` item 2 (C07, user decision 2026-09-29: the model reads the eight runnable methods
+  from a governed table instead of the system prompt) and the Tool_Catalog records of the changed market-ai-orc tools
+  (items 1, 4 and 5). `AI_research_catalog` is not touched (still 18 `REFERENCE_ONLY` methods).
+- `20260930_001_create_ai_research_library.sql` (generated by `scripts/generate_ai_research_library_migration.py`
+  from `apps/market-python-sandbox/app/research_library.py`; `tests/test_research_library.py` fails on drift):
+  - preflight: refuses when the table exists or the role `market_ai_catalog_reader` is missing;
+  - new table `public."AI_research_library"` (20 columns, primary key `(method_id, engine_version)`, checks on the
+    family, sample unit, method id, hash format and JSON shapes); one row per method, `library_sha256`
+    `b4f10f55fd1ad4919be0eeca74b64dae955d46148fa027ec4a70ed9a01e17058`;
+  - `GRANT SELECT` to `market_ai_catalog_reader` only (`REVOKE ALL FROM PUBLIC`; the SQL Governor role gets nothing);
+  - `Table_Catalog` row (`Reference`, `VERIFIED`, readiness and point-in-time `NOT_APPLICABLE`) and 20
+    `Column_Catalog` rows (`VERIFIED`: the meanings are defined by the code the rows are generated from);
+  - `$verify$`: 8 active rows with the hash and five families, 20 column definitions, read-only privileges, no SQL
+    Governor access.
+- `20260930_002_research_feasibility_v2_tool_catalog.sql` (no table or column change): inactive `Tool_Catalog` rows
+  `check_research_feasibility` v2 (each angle carries its design, M38), `run_research_code` v2 (cross-request
+  forward return, S15), `complete_research_run` v2 (early finalize answered with the missing angles, M36), each
+  copying its v1 row's columns and limits plus `replaces_version`, and `get_research_library` v1 (`DISCOVERY`,
+  `RETRIEVAL`). The v1 rows stay as history. Schemas and purposes are generated from the market-ai-orc tool
+  definitions; `tests/test_multi_angle.py` fails on drift. `$verify$`: four inactive rows, three v2 rows copying v1,
+  the v2 feasibility schema requires `design`, v2 is the latest version.
+- Rehearsal on local scratch PostgreSQL (catalog tables from `20260913_003` plus the `009`/`010` columns and trigger,
+  `Tool_Catalog` from `009`/`041` with `20260929_001` applied; dropped after): both applied and verified; the dry-run
+  form left nothing; a second run of each was refused by its preflight; market-ai-orc's startup check read the table
+  through `CatalogStore`, accepted it, and refused it after one field was edited by hand.
+- Dev, temporary service `ma-migrate-job` (`6f1d8d31-f761-4be3-9d07-d8d4310af105`, only a `DATABASE_URL` reference,
+  deleted after use):
+  - inspection + dry run of both migrations in one transaction, rolled back (`b0f9061c-2a40-464a-b86b-c49c84a936a3`):
+    passed; before and after: no `AI_research_library`, `Table_Catalog` 40 rows, `Column_Catalog` 716,
+    `Tool_Catalog` 74 (25 active); the live v1 input schemas had the same `md5` as the local rehearsal;
+  - apply (`2fe9621b-1186-4411-80ed-09dbc1bee79d`, between 18:31 and 18:35 UTC), read back in the same job:
+    `AI_research_library` 8 active rows, one hash (`b4f10f55…`), five families, content equal to the library in code;
+    `market_ai_catalog_reader` SELECT yes and no write, the `market_ai_orc` login can read it, `market_ai_sql_reader`
+    cannot; `Table_Catalog` 41 rows, `Column_Catalog` 736 (+20); `Tool_Catalog` 78 rows, still 25 active; latest
+    versions `check_research_feasibility` v2, `run_research_code` v2, `complete_research_run` v2,
+    `get_research_library` v1, `start_research_run` v1. The job logs held no DSN or secret.
+- `Feature_Catalog`: no change. No routine added.
+
+## 2026-09-29 — Multi-Angle Research: migration 20260929_001 applied on dev (Tool_Catalog only)
+
+- Scope (user decision 2026-09-29, after the dry run below showed that `AI_research_catalog` has none of the eight
+  engine method ids, C07 in `ERRORS_AND_SOLUTIONS.md`): register the four market-ai-orc tools and leave
+  `AI_research_catalog` unchanged (18 methods, all `REFERENCE_ONLY`) until the reviewed workbook carries the
+  multi-angle methods. The file was rewritten before any application (commit `7ec52bb`); the earlier form below was
+  never applied.
+- `20260929_001_multi_angle_research_catalog.sql` (no table or column change, `DATABASE_SCHEMA.md` unchanged):
+  - preflight: refuses when any of the four tools is already registered or when `check_data_feasibility`
+    (`runtime_service` market-ai-orc) is missing;
+  - `Tool_Catalog`: the latest `check_data_feasibility` version (`v3`) gets the `tool_specific_limits` note
+    `multi_angle_research` ("Not registered when AI_ENABLE_MULTI_ANGLE_RESEARCH is active: replaced by
+    check_research_feasibility"); `v1` and `v2` are untouched;
+  - `Tool_Catalog`: inactive `v1` rows for `check_research_feasibility`, `start_research_run`, `run_research_code`,
+    `complete_research_run` (`execution_type` ORCHESTRATOR, `runtime_service` market-ai-orc; schemas generated from
+    the tool definitions, `tests/test_multi_angle.py` fails on drift);
+  - `$verify$`: four inactive tool rows, and the note on exactly one `check_data_feasibility` row.
+- Rehearsal on a local scratch PostgreSQL (throwaway database with `check_data_feasibility` v1–v3, dropped after):
+  applied and verified; the note landed on `v3` only; the dry-run form (`COMMIT` → `ROLLBACK`) left nothing; a second
+  run and a catalog without `check_data_feasibility` were both refused by the preflight.
+- Dev, temporary service `ma-migrate-job` (`4ff15ec3-2000-4e0c-a605-f0433eaa1c77`, only a `DATABASE_URL` reference,
+  deleted after use):
+  - inspection + dry run `24186829-5dc9-4707-ad01-e9dbb6c13141`: `Tool_Catalog` 70 rows (25 active); preflight and
+    `$verify$` passed, rolled back, read back identical;
+  - apply `23b4cc8f-25c1-4d46-87bb-bbf49a166331` (2026-09-29 13:24:02 UTC), read back in the same job:
+    `Tool_Catalog` 74 rows, still 25 active; the four tools inactive with `runtime_service` market-ai-orc; the note
+    only on `check_data_feasibility` `v3`, whose `input_schema` hash is unchanged; the `md5(input_schema::text)` of
+    each new row equals the local rehearsal of the committed file; `AI_research_catalog` still 18 rows, all
+    `REFERENCE_ONLY`. The job logs held no DSN or secret.
+- `Table_Catalog` / `Column_Catalog`: no change needed (no new table, column or routine). `Feature_Catalog`: no
+  Feature change.
+
+## 2026-09-29 — Multi-Angle Research: migration 20260929_001 — PREPARED, NOT APPLIED (superseded before application, see above)
 
 - Scope: Multi-Angle Research implementation (user decisions 2026-09-29, `MULTI_ANGLE_RESEARCH.md`): a guarded forward
   migration that adds no catalog rows. Not applied to any shared database; the rollout applies it last, after both
@@ -69,7 +196,7 @@
     migrations).
   - Effect after applying: the catalog hash changes once, so bundles from before are not reused by later messages.
     Apply it together with, or after, `PY_SANDBOX_DERIVED_FREQUENCY_ENABLED=true` (see S09).
-- Update the same day: `20260928_002` was applied on dev (entry above); `20260928_001` remains not applied.
+- Update the same day: `20260928_002` was applied on dev (entry above); `20260928_001` remains not applied. Update 2026-09-30: `20260928_001` was applied on dev (entry of 2026-09-30 above).
 - Logins (scripts, not run): `scripts/provision_market_ai_audit_login.py` (new login `market_ai_audit`);
   `scripts/provision_market_ai_orc_login.py` now also grants `market_ai_audit_outbox_writer` when it exists.
 

@@ -246,10 +246,15 @@ Gate and final-response log events (always on):
 |---|---|---|---|
 | `MARKET_AI_ORC_API_KEY` | yes (secret) | — | Bearer key the backend must send |
 | `OPENROUTER_API_KEY` | yes (secret) | — | OpenRouter API key |
-| `AI_MODEL` | no | `deepseek/deepseek-v4.1-flash` | OpenRouter model ID |
+| `AI_MODEL` | no | `deepseek/deepseek-v4.1-flash` | OpenRouter model ID of model 1 |
+| `AI_MODEL_2` | no | `xiaomi/mimo-v2.6-pro` | OpenRouter model ID of model 2 |
+| `AI_MODEL_SWITCH` | no | `1` | Model switcher (user decision 2026-09-30): `1` runs `AI_MODEL`, `2` runs `AI_MODEL_2`; any other value stops startup. MiMo exposes no reasoning effort levels on OpenRouter, so switch `2` sends `reasoning.enabled` (true for the main calls, false for the plan-reply classifier) instead of `reasoning.effort`. The selected model is logged at startup (`ai_model_selected`) and recorded per run (usage, audit) |
+| `AI_ENABLE_MODE4` | no | `false` | Mode 4 (user decision 2026-09-30): a request without `analysis_path` is answered by an analysis, research of at least two angles that runs at once, and one suggested follow-up angle; see "Mode 4" below |
+| `AI_MODE_SWITCH` | no | `1` | Mode switcher (user decision 2026-09-30): the default mode of a request that sets no `analysis_path` and replies to no plan: `1` AUTO (the model chooses, the behaviour before mode 4), `2` ANALYSIS, `3` RESEARCH, `4` MODE4. Another value stops startup; `4` needs `AI_ENABLE_MODE4`, `2`/`3` need `AI_ENABLE_ANALYSIS_PATH`. See "Mode switcher" below |
+| `AI_MODE4_MAX_SECONDS` | no | `3600` | Wall-clock budget of one whole mode 4 request (its sub-runs share it) |
 | `AI_REASONING_EFFORT` | no | `high` | One of `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; the model must support it (`require_parameters` rejects it otherwise) |
 | `AI_REQUEST_TIMEOUT_SECONDS` | no | `180` | Timeout for one provider call |
-| `AI_MAX_OUTPUT_TOKENS` | no | `8000` | `max_output_tokens` per call, reasoning tokens included. A tool call that reaches it is treated as truncated and not run (`MODEL_OUTPUT_TRUNCATED`): OpenRouter closes a cut-off call's JSON and still reports it completed. |
+| `AI_MAX_OUTPUT_TOKENS` | no | `8000` (dev: `24000` since 2026-09-30, M37) | `max_output_tokens` per call, reasoning tokens included. A tool call that reaches it is treated as truncated and not run (`MODEL_OUTPUT_TRUNCATED`): OpenRouter closes a cut-off call's JSON and still reports it completed. |
 | `AI_MAX_TOOL_ITERATIONS` | no | `8` | Maximum model calls per run |
 | `AI_MAX_TOOL_CALLS` | no | `12` | Maximum tool calls per run; after that, tools are withdrawn |
 | `AI_MAX_IDENTICAL_TOOL_CALLS` | no | `2` | Executions allowed for the same tool and arguments while the result is unchanged |
@@ -305,6 +310,8 @@ Gate and final-response log events (always on):
 | `RESEARCH_AUDIT_DATABASE_URL` | no (secret) | unset | DSN of a login holding `market_ai_research_audit_writer` (INSERT only on `AI_research_run_audit`). When unset, the per-run PostgreSQL audit copy is disabled; the report still goes to the sandbox (see [Research run audit](#research-run-audit)) |
 | `ANALYSIS_TIMEZONE` | no | `Asia/Jakarta` | IANA time zone of the analysis reference date (the request date in this zone anchors "last 3 months", "latest", and similar periods); invalid zones stop startup |
 | `AI_ENABLE_DERIVED_FREQUENCY` | no | `false` | IP2 solution 1: the WEEKLY AND MONTHLY prompt block (weekly `1D`/`1W`/`WEEKLY`, monthly `1D`/`1M`/`MONTHLY`; `saniti.resample()` before any period indicator; `saniti.resampled_returns()`; compare only `period_complete` periods) and a limitation line that the figures were derived from daily data. Active only with the DataNeed flow and a sandbox reporting `derived_frequency` version 1 (otherwise log `derived_frequency_inactive`). The sandbox's `derived_frequency` final-status block (frequencies, period policy, contract hash, input checksum, execution ids) reaches `execution.analysis_final_status` |
+| `AI_ENABLE_VALUE_REFERENCES` | no | `false` | Value references (2026-09-30, ERRORS_AND_SOLUTIONS P11): with the DataNeed flow, the model writes a data figure as `{{namespace.key.path|format}}` and the backend fills it in (see [Value references](#value-references)). Off: the prompt, the final schema and the gates are unchanged |
+| `AI_RESEARCH_MAX_SESSION_RESTARTS` | no | `1` | S16 (2026-09-30): how many times one bundle group of a multi-angle run may reopen a session whose worker crashed (`WORKER_CRASHED`, `SESSION_STATE_CORRUPTED`, `PROTOCOL_ERROR`); `0` closes the group at once. `0` to `3`. A session limit (CPU, memory, disk, timeout, forbidden operation) or any other reason never reopens; the group is closed |
 | `AI_AUDIT_STORE_ENABLED` | no | `false` | IP2 solution 2: at the end of every run, one `RUN_FINISHED` row is INSERTed into `ai_audit.ingest_outbox` (see below). With it off, nothing is recorded and the orchestrator is unchanged |
 | `AI_AUDIT_STORE_REQUIRED` | no | `false` | Needs `AI_AUDIT_STORE_ENABLED`. `false`: an outbox failure is logged (`audit_outbox_failed`) and the answer is unchanged. `true` (regulated mode): the answer is withheld (`FAILED`, `AUDIT_UNAVAILABLE`) when the run cannot be handed to the outbox |
 | `AUDIT_OUTBOX_DATABASE_URL` | with `AI_AUDIT_STORE_ENABLED` (secret) | unset | DSN of the `market_ai_orc` login, which joins `market_ai_audit_outbox_writer` (INSERT of the producer columns of `ai_audit.ingest_outbox` only; no SELECT, UPDATE or DELETE) |
@@ -974,6 +981,60 @@ was refused in the run and the answer rests on a completed analysis that is not 
 descriptive), not what was known at each date." The final status carries `time_basis`, and the warning
 `CURRENT_STATE_COLUMN` (a dated request read a current-state column) becomes a limitation line in either mode.
 
+### Value references
+
+Off unless `AI_ENABLE_VALUE_REFERENCES=true` (DataNeed flow only). The number-provenance gate read every figure back
+out of free text, so each new way the model wrote a number needed another parser rule (suite20b: "0,99" truncated from
+0.9955, "95%", "10 miliar"), and a figure in words was never checked (P11). With references the model does not type a
+data figure; it writes where the value is, and `app/value_refs.py` fills it in:
+
+- `{{finding.<angle_id>.<path>}}`: a backend finding of `complete_research_run`;
+- `{{out.<output_id>.rows.<i>.<column>}}` or `{{out.<output_id>.rows[<column>=<value>].<column>}}`: a released output;
+- `{{fact.<n>}}`: a `lookup_fact` value; `analysis.*` for the legacy analysis path.
+
+Tool results the application received (never the model) register these sources with their evidence label; each
+referable object carries a `"ref"` key with its prefix. Formats, Indonesian notation: `auto` (default), `dec:N`,
+`int`, `pct:N` (a fraction shown as percent), `pctv:N` (already a percent), `pp:N`, `rp` (ribu/juta/miliar/triliun),
+`x:N` ("kali"). Functions computed by code: `diff(a,b)`, `abs(a)`, `ratio(a,b)`, `chg(a,b)`; no free expressions.
+
+P13 (suite20c, 2026-09-30): a text value (a ticker, a broker, a label) may be referenced without a format and is shown
+as written (one line, at most 200 characters; the numbers inside it become sources under the same label; a text value
+with a number format is refused); `rows[<i>]` works like `rows.<i>`; inside a Markdown table the separator may be
+escaped as `\|`.
+
+Rendering applies to `answer`, the findings narratives, `methodology` and `limitations`, before the other gates. An
+unknown reference or format fails the new REFERENCE gate (the message names the valid keys nearby), then a
+LIMITATION. The resolved values join the provenance sources under their label, so the gates run unchanged on the
+rendered text; a literal figure outside a reference is still checked by the parser, and its rejection says to write
+the figure as a reference. The user receives the rendered text; the audit keeps the unrendered one
+(`final.unrendered`). The plan turn is unchanged.
+
+Missing fields, dotted keys and repairs (M43, P14, P15, P16; user decisions 2026-09-30, every mode):
+
+- A reference to a field that does not exist in its output or finding, or to a whole object (P14 a01), no longer forces
+  a LIMITATION. After the repair (below) it is rendered as `[<field name>]` only, e.g. `[min_crash_days_filter]`; the
+  answer keeps its `response_type`, `limitations` gains "Angka berikut tidak dapat diisi karena field-nya tidak ada di
+  hasil run ini: <fields>." and `validation_gate` is `ANNOTATED`. The marker has no digits, so the other gates run
+  unchanged. Every other reference error still ends in a LIMITATION after its repair: a whole list (P14 r08
+  `warnings`), a text value with a number format, a malformed or unclosed reference, an unknown namespace or output.
+- A key whose name contains a dot (`XL_crash_pos_days_1.0`) resolves: inside an object an exact segment is tried first,
+  then the segment joined with the following ones by dots, backtracking when a join leads nowhere (P15).
+- The repair is per distinct set of failing references (`REFERENCE:<hash>`), at most `MAX_REFERENCE_REPAIRS` (2) per
+  run: the same failing set gets no second repair, and a new error after an earlier repaired one gets its own (P16).
+
+**Audit of refused finals (2026-09-30).** With `AI_AUDIT_STORE_ENABLED`, the run's events also carry `final.rejected`
+(iteration, gate stage or format problem, detail, the refused draft: visible output only, URLs redacted, at most
+20,000 characters, with its size and sha256) and `final.forced`; the conversation store keeps only the final answer.
+
+### Plan numbers and code numbers (P12)
+
+Since 2026-09-30 the numbers of a Research Plan (plan gate and the approval turn) are read from its JSON values
+(`released_numbers`), and the numbers of executed code from its Python syntax tree (`code_numbers`), not by the prose
+parser over a compact dump, which dropped "-40" after a comma and every number of "[25,35,45]". On the plan turn the
+research library's figures and the backend's feasibility adjustments, with the designs and data requests it checked
+FEASIBLE, are sources too. A missing null field of the final response (`clarification_question`) reads as null and a
+null `limitations`/`assumptions` as an empty list (M40).
+
 ### Scientific notation in the provenance check (P06)
 
 `1,14e-22`, `3.2E+05`, `1.14 × 10^-22` and `1.14 x 10⁻²²` are read as one number with the rounding step of the shown
@@ -1247,29 +1308,125 @@ at start-up) and a request that sets it gets HTTP 400 `ANALYSIS_PATH_UNAVAILABLE
   otherwise, so responses without it keep their exact shape. The system prompt is unchanged (the note is per request),
   so the cached static prefix is the same with or without a path.
 
+### Mode switcher (`AI_MODE_SWITCH`, `app/modes.py`)
+
+User decision 2026-09-30: an env default plus a choice per request. Modes: **1 AUTO** (the model chooses ANALYSIS or
+RESEARCH, as before mode 4), **2 ANALYSIS**, **3 RESEARCH**, **4 MODE4**. The mode of a request is, in order:
+
+1. its `analysis_path` (`"AUTO"`, `"ANALYSIS"`, `"RESEARCH"`, `"MODE4"`); the caller always wins;
+2. for a reply to a pending plan (SERVER: the stored plan; CLIENT: `continuation`), the mode the plan was issued in: a
+   mode 4 suggestion (its signed origin request id ends in `-m4d`) continues in MODE4, any other plan in AUTO, which
+   reads the approval. So "Setuju" is never lost to an ANALYSIS default, and mode 4 suggestions chain with default 1;
+3. `AI_MODE_SWITCH`. A default the deployment cannot run (mode 4 or the paths inactive at startup) falls back to AUTO
+   (`mode_switch_fallback` at startup); startup logs `ai_mode_selected switch=<n> effective=<n>`.
+
+`execution.mode` = `{mode, name, source}` with source `CALLER`, `CONTINUATION`, `SWITCH` or `FALLBACK` (set by the API
+on every `/v1/agent/run` response). `analysis_path: "AUTO"` is always accepted; ANALYSIS, RESEARCH and MODE4 keep their
+checks (`ANALYSIS_PATH_UNAVAILABLE`, `ANALYSIS_PATH_CONFLICT`, `MODE4_UNAVAILABLE`). Tests: `tests/test_modes.py`.
+
+### Mode 4: answer, then research, then one suggestion (off unless `AI_ENABLE_MODE4=true`)
+
+User decision 2026-09-30 (`app/mode4.py`, `MULTI_ANGLE_RESEARCH.md` section 12). With the flag on, a request routed to
+mode 4 by the mode switcher (`analysis_path: "MODE4"`, a reply to a mode 4 suggestion, or `AI_MODE_SWITCH=4`) runs
+as a pipeline of ordinary orchestrator runs; other modes are unchanged. It needs the caller-chosen paths and an active Multi-Angle Research; otherwise
+`mode4_inactive` is logged and nothing changes (`analysis_path: "MODE4"` then gets HTTP 400 `MODE4_UNAVAILABLE`).
+
+- **First round** (no pending plan): A analysis (`<request_id>-m4a`, path ANALYSIS) answers the question; B
+  (`-m4b`, path RESEARCH) proposes a plan of at least two angles that test or deepen A's answer; C (`-m4c`) runs B's plan
+  at once (the backend sends the approval; the rpc2 token is signed and verified as usual); D (`-m4d`, path RESEARCH)
+  proposes exactly one follow-up angle, which waits for the user's confirmation.
+- **Follow-up round** (a pending mode 4 suggestion): the existing reply classifier reads the reply (`-m4r`). APPROVE
+  runs the suggestion and proposes the next one; REVISE returns the revised plan; CANCEL is acknowledged; UNRELATED is a
+  new question: the suggestion is cancelled (`mode4.cancelled_plan_id`, stored CANCELLED in SERVER mode) and a new first
+  round starts.
+- **Counts**: an explicit count in the message is obeyed (`requested_count`: "cari 2 angle lain", "kasih tiga opsi",
+  clamped to 1-6). In a first round "angle/sudut" sets the research angles (at least two) and "opsi/usulan/saran" the
+  number of suggested angles; in a follow-up round it sets the next plan. The count reaches
+  `check_research_feasibility` and the plan gate through `current_angle_bounds`, and the model through an application
+  note. A one-angle suggestion needs the sandbox's `PY_SANDBOX_RESEARCH_MIN_ANGLES=1` (reported as
+  `multi_angle_research.min_angles`); otherwise the suggestion uses the sandbox minimum and says so.
+- **Response**: `answer` has three sections (**Jawaban**, **Hasil riset**, **Usulan riset berikutnya**); with a
+  suggestion `response_type` is RESEARCH_PLAN_CONFIRMATION, `status` AWAITING_CONFIRMATION and `continuation` is D's.
+  `execution` sums tokens, cost and iterations over every sub-run (and the classifier), `duration_ms` is the whole
+  request, `execution.analysis_path.requested` is `MODE4`, and in a follow-up round `execution.research_plan` names both
+  the approved plan that ran and the plan issued next (the conversation store retires the first as EXECUTED). The
+  `mode4` block lists every step (request_id, status, turn, plan_id, cost, duration) and each step's own answer,
+  findings and plan; responses without mode 4 do not have the key. `evidence_label` is the weakest of the analysis and
+  the research.
+- **Failures degrade**: an analysis ANSWER or LIMITATION (chosen by the model or forced by a gate, M43) continues to
+  B, C and D, and **Jawaban** shows the analysis with its limitations; an analysis that FAILED or asks a
+  CLARIFICATION, or a step skipped for lack of time, ends the round (its answer is returned); a plan that is not issued or a research run that fails keeps the analysis with a note; a missing
+  suggestion is said in its section. `AI_MODE4_MAX_SECONDS` (default 3600, minimum 60) bounds the whole request: a step
+  is not started with less than 120 seconds left, and each sub-run also keeps `AI_MAX_ANALYSIS_SECONDS`. With mode 4 on,
+  the default conversation lease is `max(AI_MAX_ANALYSIS_SECONDS, AI_MODE4_MAX_SECONDS) + 120` and an explicit
+  `AI_CONVERSATION_LEASE_SECONDS` must exceed both.
+- Every sub-run keeps every gate (provenance, value references, findings, claims) and is archived to the audit store
+  under its own request_id; the combined response itself is stored by the conversation store only.
+
 ### Multi-Angle Research (off unless `AI_ENABLE_MULTI_ANGLE_RESEARCH=true`)
 
-Design, contracts and decisions: `MULTI_ANGLE_RESEARCH.md` (repository root). A research question is planned as one
-root hypothesis examined from three to six angles (`research_plan/v2`), each with one registered method and its own
-data contract, and answered with one backend finding per angle. Active only when the flag is on, the DataNeed flow,
-Research Plan confirmation, plan feasibility and DataNeedSpec v2 are active, and the sandbox reports
-`multi_angle_research` version 2 with the same method registry (`negotiate()` in `app/research_plan_v2.py`);
-otherwise `multi_angle_research_inactive` is logged and research v1 is unchanged.
+Design, contracts and decisions: `MULTI_ANGLE_RESEARCH.md` (repository root); fixes after suite20:
+`MULTI_ANGLE_FIX_PLAN.md`. A research question is planned as one root hypothesis examined from two to six angles
+(`research_plan/v2`), each with one method of the research library and its own data contract, and answered with one
+backend finding per angle. Active only when the flag is on, the DataNeed flow, Research Plan confirmation, plan
+feasibility and DataNeedSpec v2 are active, the sandbox reports `multi_angle_research` version 2 with the same method
+registry and the same research library (`negotiate()` in `app/research_plan_v2.py`), and the active rows of
+`public."AI_research_library"` equal this service's `app/research_library.py` (`library_problem()`, read once at
+startup through the catalog login); otherwise `multi_angle_research_inactive` is logged (with
+`research_library_mismatch` when the library differs) and research v1 is unchanged.
 
-- Tools: `check_research_feasibility` (`app/tools/research_planner.py`, replaces `check_data_feasibility`) builds the
-  research data plan: equal requests of different angles merge into one bundle, angles split into bundle groups only
-  when one bundle does not fit (`AI_RESEARCH_MAX_BUNDLE_GROUPS`, default 3). After approval `start_research_run`,
-  `run_research_code(bundle_group_id, code)` and `complete_research_run(finalize)` (`app/research_run_executor.py`)
-  promote the signed drafts, prepare the bundles and run the groups one at a time (`AI_RESEARCH_MAX_PARALLEL_GROUPS`
-  accepts only 1).
-- `AI_RESEARCH_MIN_ANGLES` / `AI_RESEARCH_MAX_ANGLES` (3 and 6) may only narrow the angle count.
+- Research library (C07, 2026-09-29): `app/research_library.py` is byte-identical with the sandbox's and describes
+  the eight methods (family, question, input roles, parameters, data requirements, sample unit, secondary checks,
+  interpretation, misuse warning, example). `get_research_library` (`app/tools/library.py`) serves the table rows to
+  the plan turn; the system prompt names no method. While it is served, the RESEARCH section of `get_catalog_details`
+  and `discover_catalog`'s `research_catalog` say that `AI_research_catalog` lists reference methods that cannot run.
+- Tools: `check_research_feasibility` (`app/tools/research_planner.py`, replaces `check_data_feasibility`) receives
+  each angle's design (method, parameters, horizon, unit, comparisons, multiple-testing policy, holdout and, for a
+  forward return, the request and price column) with its data requirement. It applies the rules the final plan
+  enforces and the library's data requirements (M38: `DESIGN_PARAMETERS`, `MULTIPLE_TESTING_POLICY_REQUIRED`,
+  `HOLDOUT_NEEDS_TWO_RANGES`, `ENTITY_COLUMN_REQUIRED`, `OUTCOME_PRICE_*`, `FAMILY_COVERAGE`), widens a short future
+  buffer to the horizon (reported as `adjustments`), then builds the research data plan: equal requests of different
+  angles merge into one bundle, angles split into bundle groups only when one bundle does not fit
+  (`AI_RESEARCH_MAX_BUNDLE_GROUPS`, default 3). The data plan binds every checked design (`angle_design_sha256s`); the
+  plan gate refuses a plan whose angle design differs, with a second repair (`PLAN_FEASIBILITY_2`). The check reads
+  metadata only. Scope (G13, 2026-09-30, `Tool_Catalog` v3): when the question (or the run's last message) names
+  entities of a request's table (tokens of four to six capital letters that the Governor's dimension values confirm,
+  e.g. BBCA; market names such as IHSG are skipped), a request without a predicate on its entity column is refused
+  `SCOPE_WIDER_THAN_QUESTION`, unless the angle declares it in `broad_scope` (`data_request_id`, `reason`, e.g. a
+  market benchmark); the declarations are kept in the data plan as `broad_scope`. A failed entity lookup skips the
+  check. After approval `start_research_run`, `run_research_code(bundle_group_id, code)` and
+  `complete_research_run(finalize)` (`app/research_run_executor.py`) promote the signed drafts, prepare the bundles
+  and run the groups one at a time (`AI_RESEARCH_MAX_PARALLEL_GROUPS` accepts only 1). The first `finalize` true while
+  an approved angle is unrecorded (and at least two tool calls remain) returns `INCOMPLETE` `ANGLES_NOT_RECORDED`; the
+  second is accepted (M36).
+- `AI_RESEARCH_MIN_ANGLES` / `AI_RESEARCH_MAX_ANGLES` (default 2 and 6, `2 <= min <= max <= 6`) may only narrow the
+  angle count; the prompt states the negotiated values. `AI_RESEARCH_MIN_FAMILIES` (default 0 = off, at most 5)
+  makes a plan use angles of at least that many method families.
 - The continuation is `rpc2`: it binds the plan and the research data plan (drafts, spec hashes, angle to group
   mapping, every angle contract); the response's `continuation.research_data_plan` must be sent back with the plan
   and token (history mode SERVER keeps both). A v1 continuation is never executed while v2 is active, and the reverse.
 - A RESEARCH data need is refused (`MULTI_ANGLE_PLAN_REQUIRED`); ANALYSIS is unchanged.
 - The answer carries `research_findings`: one `{angle_id, status, interpretation}` per approved angle, with the
-  backend status unchanged; agreement between angles only when the synthesis map allows it. Per-angle audit entries
-  carry `payload_version` `research_findings/v2`.
+  backend status unchanged; agreement between angles only when the synthesis map allows it (an agreement phrase
+  negated in its own clause is not a claim, P09). When the findings gate forces a LIMITATION, `research_findings`
+  keeps one backend-authored entry per angle (status, reason, validation level, effective sample) and the model's
+  reading is marked unconfirmed. Per-angle audit entries carry `payload_version` `research_findings/v2`.
+- **Backend-rendered findings (2026-09-30).** The model no longer copies statuses, samples or statistics: each
+  `research_findings` entry the model writes is `{angle_id, interpretation: {answer, usefulness, follow_up}}`, and the
+  backend adds a `backend` block per approved angle (status and reason, validation level, effective sample, primary
+  estimate with CI, p and adjusted p, evidence direction) and an `evidence` sentence formatted by code. An angle the
+  model did not interpret is still rendered, with "Tidak diinterpretasikan oleh model". The findings gate keeps two
+  rules: verdict wording the backend did not give (a phrase in a negated clause or governed by a zero count, "0/nol/
+  tidak ada", is not a claim, P10) and agreement between angles without the synthesis map. Every LIMITATION after a
+  completed multi-angle run, chosen by the model or forced by any gate, carries the backend blocks (M39).
+- **Session recovery (S16, 2026-09-30).** When a group's session ends (`SESSION_ENDED`), the executor reads its
+  `close_reason`: a crash (`WORKER_CRASHED`, `SESSION_STATE_CORRUPTED`, `PROTOCOL_ERROR`) within
+  `AI_RESEARCH_MAX_SESSION_RESTARTS` frees the session, the group returns to READY and the next `run_research_code`
+  opens a new session on the same bundle; the tool result's `session_recovery` names the angles to record again and
+  the restarts left. Otherwise the group is closed (`SESSION_ENDED_<reason>`) and its angles become NOT_RUN. A
+  `complete_research_run` with `finalize` true closes an open group that cannot complete (`COVERAGE_FAILED`,
+  `EXECUTION_<status>`, `GROUP_INCOMPLETE`), so a run always reaches a terminal state. The prompt tells the model never
+  to import or modify the sandbox's modules.
 - With the flag off the system prompt, the final schema and every tool definition are byte-identical.
 
 ## Catalog discovery

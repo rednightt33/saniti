@@ -21,13 +21,17 @@ from .conversations import (ConversationError, ConversationStore, UpkeepThread, 
 from .openrouter_client import OpenRouterClient
 from .audit import RunAuditor
 from .audit_outbox import AuditOutbox
+from .mode4 import Mode4Orchestrator
+from .modes import MODES, effective_default, path_for, resolve_mode
 from .orchestrator import AgentOrchestrator, log_event
 from .provider_log import ProviderLogger
-from .research_plan_v2 import negotiate
-from .schemas import AgentRunRequest, AgentRunResponse
+from .research_plan_v2 import library_problem, negotiate
+from .schemas import AgentRunRequest, AgentRunResponse, ModeExecution
 from .tools import build_default_registry
 from .tools.analysis import SandboxClient
 from .tools.catalog import CatalogTools
+from .tools.library import read_research_library
+from .tools.registry import ToolError
 from .tools.request_data import GovernorClient
 from .tools.session import close_sessions
 
@@ -56,6 +60,19 @@ def _sandbox_ready(sandbox: SandboxClient, attempts: int = 3, delay_seconds: flo
     return False
 
 
+def _with_research_library(multi_angle: dict, catalog: CatalogStore | None) -> tuple[dict | None, str | None]:
+    if catalog is None:
+        return None, "no catalog database (CATALOG_DATABASE_URL) to read the research library AI_research_library"
+    try:
+        rows = read_research_library(catalog)
+    except ToolError as exc:
+        return None, f"the research library AI_research_library could not be read: {exc}"
+    problem = library_problem(rows)
+    if problem is not None:
+        return None, problem
+    return {**multi_angle, "library": rows}, None
+
+
 def create_app(
     settings: Settings | None = None,
     orchestrator: AgentOrchestrator | None = None,
@@ -64,6 +81,9 @@ def create_app(
     """App factory; uvicorn runs it with --factory so config is validated at startup, not import."""
     _configure_logging()
     settings = settings or Settings.from_env()
+    log_event("ai_model_selected", switch=settings.ai_model_switch, model=settings.ai_model,
+              reasoning=settings.reasoning(settings.ai_reasoning_effort),
+              max_output_tokens=settings.ai_max_output_tokens)
     if conversations is None and settings.ai_enable_conversation_store and settings.conversation_database_url:
         conversations = ConversationStore(settings.conversation_database_url,
                                           retention_days=settings.ai_conversation_retention_days,
@@ -148,8 +168,17 @@ def create_app(
             multi_angle, reason = negotiate(
                 (sandbox.runtime().get("multi_angle_research") or {}) if sandbox is not None else None,
                 min_angles=settings.ai_research_min_angles, max_angles=settings.ai_research_max_angles,
-                max_groups=settings.ai_research_max_bundle_groups, feasibility=feasibility, composite=composite)
+                max_groups=settings.ai_research_max_bundle_groups, feasibility=feasibility, composite=composite,
+                min_families=settings.ai_research_min_families)
+            if multi_angle is not None:
+                # C07: the model reads the methods from AI_research_library; the table, the sandbox and this service
+                # must carry the same research library, or multi-angle research stays inactive (fail closed)
+                multi_angle, reason = _with_research_library(multi_angle, catalog)
+            if multi_angle is not None:
+                multi_angle = {**multi_angle, "max_session_restarts": settings.ai_research_max_session_restarts}
             if multi_angle is None:
+                if "library" in (reason or ""):
+                    log_event("research_library_mismatch", reason=reason)
                 log_event("multi_angle_research_inactive", reason=reason)
         registry = build_default_registry(
             catalog,
@@ -213,6 +242,21 @@ def create_app(
                                          session_closer=closer, conversation_resources=resources,
                                          draft_reader=sandbox.get_draft if feasibility else None,
                                          derived_frequency=derived_frequency, audit_outbox=audit_outbox)
+    if settings.ai_enable_mode4 and isinstance(orchestrator, AgentOrchestrator):
+        # mode 4 builds on the caller-chosen paths and on Multi-Angle Research (its plans are research_plan/v2)
+        if orchestrator.analysis_path and orchestrator.multi_angle:
+            orchestrator = Mode4Orchestrator(orchestrator)
+            log_event("mode4_active", max_seconds=settings.ai_mode4_max_seconds,
+                      sandbox_min_angles=orchestrator.sandbox_min)
+        else:
+            log_event("mode4_inactive", reason="needs AI_ENABLE_ANALYSIS_PATH and an active Multi-Angle Research")
+    # mode switcher (app/modes.py): AI_MODE_SWITCH, or AUTO when this deployment cannot run that mode
+    default_mode = effective_default(settings.ai_mode_switch, orchestrator)
+    log_event("ai_mode_selected", switch=settings.ai_mode_switch, name=MODES[settings.ai_mode_switch],
+              effective=default_mode, effective_name=MODES[default_mode])
+    if default_mode != settings.ai_mode_switch:
+        log_event("mode_switch_fallback", switch=settings.ai_mode_switch, effective=default_mode,
+                  reason="the mode is not active on this deployment (see analysis_path_inactive / mode4_inactive)")
     ready = {"value": False}
 
     @asynccontextmanager
@@ -256,14 +300,31 @@ def create_app(
         return JSONResponse(status_code=error.http_status,
                             content={"detail": {"code": error.code, "message": error.message}})
 
+    def routed(request: AgentRunRequest, continuation: object) -> tuple[AgentRunRequest, ModeExecution]:
+        """The request with the analysis_path of its mode (AUTO: none) and the mode record for execution.mode."""
+        number, source = resolve_mode(request.analysis_path, continuation, default_mode)
+        if source == "SWITCH" and default_mode != settings.ai_mode_switch:
+            source = "FALLBACK"
+        if number == 4 and not getattr(orchestrator, "mode4", False):  # a mode 4 plan after mode 4 was turned off
+            number, source = 1, "FALLBACK"
+        return (request.model_copy(update={"analysis_path": path_for(number)}),
+                ModeExecution(mode=number, name=MODES[number], source=source))
+
+    def with_mode(result: AgentRunResponse, mode: ModeExecution) -> AgentRunResponse:
+        return result.model_copy(update={"execution": result.execution.model_copy(update={"mode": mode})})
+
     @app.post("/v1/agent/run", response_model=AgentRunResponse, dependencies=[Depends(authorize)])
     def run_agent(payload: AgentRunRequest,
                   x_saniti_owner: str | None = Header(default=None)) -> AgentRunResponse | JSONResponse:
-        if payload.analysis_path is not None:
+        if payload.analysis_path not in (None, "AUTO"):
             if not getattr(orchestrator, "analysis_path", False):
                 return refuse(ConversationError("ANALYSIS_PATH_UNAVAILABLE", "analysis_path needs "
                                                 "AI_ENABLE_ANALYSIS_PATH (with the DataNeed flow and Research Plan "
                                                 "confirmation); send it as null.", 400))
+            if payload.analysis_path == "MODE4" and not getattr(orchestrator, "mode4", False):
+                return refuse(ConversationError("MODE4_UNAVAILABLE", "analysis_path MODE4 needs AI_ENABLE_MODE4 (with "
+                                                "the caller-chosen paths and Multi-Angle Research); send it as "
+                                                "null.", 400))
             if payload.analysis_path == "ANALYSIS" and (payload.continuation is not None
                                                         or payload.plan_reply is not None):
                 return refuse(ConversationError("ANALYSIS_PATH_CONFLICT", "analysis_path ANALYSIS cannot reply to a "
@@ -272,7 +333,8 @@ def create_app(
             if payload.plan_reply is not None:
                 return refuse(ConversationError("PLAN_REPLY_NEEDS_SERVER_MODE", "plan_reply is for history_mode "
                                                 "SERVER; with CLIENT send the continuation of the plan.", 400))
-            return orchestrator.run(payload)
+            request, mode = routed(payload, payload.continuation)
+            return with_mode(orchestrator.run(request), mode)
         try:
             if conversations is None:
                 raise ConversationError("HISTORY_MODE_UNAVAILABLE", "history_mode SERVER needs "
@@ -292,8 +354,9 @@ def create_app(
             return JSONResponse(content={**start.replay, "conversation": {
                 "conversation_id": start.conversation_id, "turn_index": start.turn_index, "persistence": "SAVED",
                 "replayed": True, "research_plan": plan_summary(start.state)}})
-        request = payload.model_copy(update={"conversation_id": start.conversation_id, "history": start.history,
-                                             "continuation": start.continuation})
+        request, mode = routed(payload.model_copy(update={"conversation_id": start.conversation_id,
+                                                          "history": start.history,
+                                                          "continuation": start.continuation}), start.continuation)
         try:
             if getattr(orchestrator, "conversation_reuse", False):
                 result = orchestrator.run(request, conversation_key=reuse_key(owner, start.conversation_id))
@@ -302,6 +365,7 @@ def create_app(
         except Exception:
             conversations.abandon(start, payload.request_id, "INTERNAL_ERROR")
             raise
+        result = with_mode(result, mode)
         saved = conversations.finish(start, payload.request_id, result)
         return JSONResponse(content={**result.model_dump(mode="json"), "conversation": {
             "conversation_id": start.conversation_id, "turn_index": start.turn_index,

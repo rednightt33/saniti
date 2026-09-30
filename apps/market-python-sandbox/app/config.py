@@ -139,6 +139,9 @@ class Settings:
     # Multi-Angle Research (PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED, MULTI_ANGLE_RESEARCH.md): research_governance/v2,
     # promoted feasibility drafts per bundle group, the research_* session wrappers and backend findings per angle
     multi_angle_research_enabled: bool = False
+    # Mode 4 (user decision 2026-09-30): market-ai-orc's follow-up research suggestions run one angle; the plan-level
+    # minimum is configurable (default 2, the earlier rule)
+    research_min_angles: int = 2
     # IP2 solution 2: archive code, runtime/library manifests, traces and released outputs to market-audit-store
     # from the root harness (never from an analysis process); audit failures never fail an analysis
     audit_store_enabled: bool = False
@@ -290,6 +293,7 @@ class Settings:
             research_findings_enabled=_boolean(env, "PY_SANDBOX_RESEARCH_FINDINGS_ENABLED", False),
             modules_audit_enabled=_boolean(env, "PY_SANDBOX_MODULES_AUDIT_ENABLED", False),
             multi_angle_research_enabled=_boolean(env, "PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED", False),
+            research_min_angles=_integer(env, "PY_SANDBOX_RESEARCH_MIN_ANGLES", 2, maximum=6),
             audit_store_enabled=_boolean(env, "PY_SANDBOX_AUDIT_STORE_ENABLED", False),
             audit_store_url=env.get("AUDIT_STORE_URL", "").strip().rstrip("/") or None,
             audit_store_key=env.get("AUDIT_STORE_SANDBOX_KEY", "").strip() or None,
@@ -353,7 +357,7 @@ class Settings:
         """Budgets of a multi-angle Research run (research_governance/v2)."""
         from .research_governance import MultiAnglePolicy
 
-        return MultiAnglePolicy(max_candidates_per_angle=self.research_max_candidates,
+        return MultiAnglePolicy(min_angles=self.research_min_angles, max_candidates_per_angle=self.research_max_candidates,
                                 max_pairwise_per_angle=self.research_max_pairwise_candidates)
 
     @property

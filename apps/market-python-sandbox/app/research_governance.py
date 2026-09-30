@@ -262,7 +262,7 @@ class MultiAnglePolicy:
     """Budgets of a multi-angle Research run. The angle budget is separate from findings v1's hypothesis budget: one
     root hypothesis may be examined by every angle."""
 
-    min_angles: int = 3
+    min_angles: int = 2  # user decision 2026-09-29: do not force many angles; market-ai-orc may require more
     max_angles_per_plan: int = 6
     max_candidates_per_angle: int = 50
     max_pairwise_per_angle: int = 20_000

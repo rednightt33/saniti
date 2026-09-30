@@ -51,6 +51,8 @@ def test_there_are_no_database_or_bucket_settings() -> None:
     ({"PY_SANDBOX_VALIDATOR_UID": "20001"}, "must differ from every analysis slot user"),
     ({"PY_SANDBOX_DUCKDB_MEMORY_MB": "4096"}, "between 64 and 2048"),
     ({"PY_SANDBOX_FAILED_WORKSPACE_TTL_HOURS": "200"}, "between 0 and 72"),
+    ({"PY_SANDBOX_RESEARCH_MIN_ANGLES": "0"}, "between 1 and 6"),
+    ({"PY_SANDBOX_RESEARCH_MIN_ANGLES": "7"}, "between 1 and 6"),
 ])
 def test_invalid_configuration_is_rejected(sandbox_root, overrides: dict, message: str) -> None:
     with pytest.raises(ConfigError, match=message):
@@ -202,3 +204,16 @@ def test_undeclared_outputs_are_refused(helpers) -> None:
     helpers._EXPECTED.discard("CHART")
     with pytest.raises(helpers.UndeclaredOutput):
         helpers.emit_chart()
+
+
+def test_the_plan_minimum_of_angles_is_configurable_for_mode4(sandbox_root) -> None:
+    """market-ai-orc's mode 4 proposes one-angle follow-ups (user decision 2026-09-30); the default stays 2."""
+    from app.research_governance import check_request_v2 as validate_governance_v2
+
+    assert Settings.from_env(base_env(sandbox_root)).multi_angle_policy().min_angles == 2
+    policy = Settings.from_env(base_env(sandbox_root, PY_SANDBOX_RESEARCH_MIN_ANGLES="1")).multi_angle_policy()
+    assert policy.min_angles == 1 and policy.public()["min_angles"] == 1
+    one = {"angles": [{"angle_id": "a1"}]}
+    assert not any(p.get("code") == "ANGLE_COUNT_INVALID" for p in validate_governance_v2(one, policy))
+    default = Settings.from_env(base_env(sandbox_root)).multi_angle_policy()
+    assert any(p.get("code") == "ANGLE_COUNT_INVALID" for p in validate_governance_v2(one, default))

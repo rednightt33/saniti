@@ -1,5 +1,291 @@
 # Railway changelog
 
+## 2026-09-30 — REFERENCE gate and mode 4 fixes (M43, P14-P16), G13 scope check; migration 20260930_003
+
+- **Code `2671f7e`** (docs `82ed5cc`): market-ai-orc `6028ddc8-b6dd-4ddc-99ca-a2b94aa87fff` `SUCCESS` (auto-deploy from
+  `main`, 15:59 UTC); every other service SKIPPED (watch patterns). Startup log: `mode4_active max_seconds=3600
+  sandbox_min_angles=1`, `ai_mode_selected switch=4 effective=4`, `ai_model_selected switch=1`
+  (`deepseek/deepseek-v4.1-flash`); no `multi_angle_research_inactive`.
+- **Migration `20260930_003`** (`Tool_Catalog` `check_research_feasibility` v3, inactive) through the temporary
+  service `ma-migrate-job` (`44a643a8-1151-4359-9b50-ebbef699d9d9`, only a `DATABASE_URL` reference): inspection +
+  dry run `bcc703c3-1370-4fa5-b8b9-c4f39243c582` (passed, rolled back), apply `bee0028b-839b-43fc-a0b3-77fbf0872592`
+  (read back in the job). Deleted after use; dev lists 18 services again. Details in `DATABASE_CHANGELOG.md`.
+- **Variables**: none changed. `AI_MODE_SWITCH` stays 4, `AI_MODEL_SWITCH` 1, model and provider unchanged.
+- **Config**: `railway config pull --force` left `.railway/railway.ts` unchanged; `railway config plan`: up to date.
+- **Live test `ma-m43g13-20260930a`**: runner `orc-test-runner` deployment `b186f4f8-0bf8-403c-b9d5-4f4cfb951148`
+  (CLI upload, 16:05 UTC): the broker question over three turns in mode 4 (M43) and e02 through the RESEARCH path with
+  one automatic approval (G13). Running; the results are added when it ends.
+
+## 2026-09-30 — mode switcher `AI_MODE_SWITCH` on dev (default 4); mode 4 live test
+
+- **Live test `ma-mode4-20260930a`** (runner `eab7b4aa-e4a3-49fd-b93e-082a4c2ae5dc`, 11:53–12:07 UTC, 5 turns, 0 HTTP
+  errors, about USD 0.35). BBRI "wajar atau outlier": all four steps (analysis 80 s, plan 241 s, research 24 s,
+  suggestion 166 s; 511 s, USD 0.13): a direct answer (0,96%, 73,7th percentile, z 0,45: within the normal range),
+  research run at once and one suggested angle. The new question on BBCA cancelled the suggestion
+  (`mode4_suggestion_cancelled`) and ran a new round (289 s, USD 0.09; -6,18% for September). The broker question: the
+  analysis answered (broker XL) but was forced to LIMITATION by a reference error, so the round ended without research
+  (`ERRORS_AND_SOLUTIONS.md` M43); "Setuju" then had no plan and "cari 2 angle lain" became a new analysis.
+- **Code `a70b57c`** (mode switcher, `app/modes.py`): `AI_MODE_SWITCH=4` set first on market-ai-orc with
+  `--skip-deploys` (new variable; user decision: default 4 on dev), then the auto-deploy
+  `90cfdfe2-ee4d-4535-9d0f-c31515595d1c` `SUCCESS`; the log shows `ai_mode_selected switch=4 effective=4`,
+  `mode4_active` and `ai_model_selected switch=1`.
+- **Smoke** (runner `5dd6497b-1b13-45b5-8011-289007acad46`, prefix `ma-modeswitch-20260930a`): one fact question with
+  `analysis_path: "AUTO"` answered in mode 1 while the default is 4 (`execution.mode` `{1, AUTO, CALLER}`, no `mode4`
+  block; BBCA close Rp 6.075 on 2026-09-30), 70 s, USD 0.014.
+- **Config**: `railway config pull --force` added `AI_MODE_SWITCH` (`preserve()`); `railway config plan`: up to date.
+
+## 2026-09-30 — mode 4 on dev; P12/P13/M40 and the model switcher deployed; suites 20d, 20d2, 20m
+
+- **Code `7dbbc01`** (P12 plan numbers from the JSON values, P13 value-reference fixes, M40 lenient final JSON, model
+  switcher `AI_MODEL_SWITCH`): market-ai-orc `6cd70de2-a48e-4f88-86c8-c9474de5bb11` `SUCCESS` (auto-deploy from
+  `main`; the sandbox skipped). `AI_MAX_OUTPUT_TOKENS=24000` on market-ai-orc (M37, user decision; reasoning counts in
+  it). Runner code `a17d780`/`b218d07` (per-turn timeline in the audit readback) is uploaded by CLI only.
+- **suite20d** (runner `4f8745b8-9a1f-4619-8270-3c44beca7cf7`, prefix `ma-suite20-20260930d`, model 1, effort high):
+  35 turns, USD 0.74; 12 ANSWER, 3 LIMITATION, 5 FAILED. The 5 failures were OpenRouter HTTP 403 "Key limit exceeded
+  (total limit)" (the key's total spending limit, not a code fault); the user raised the limit and the five items ran
+  again as **suite20d2** (runner `450c7537-b330-4ac5-90d8-29d470d24267`, prefix `ma-suite20-20260930d2`): 6 turns, 5
+  ANSWER, USD 0.09. `AUDIT_STORE_READER_KEY` (a reference to market-audit-store's reader key) was on the runner for the
+  readback only; it was removed afterwards with `variableCollectionUpsert` (`replace`, `skipDeploys`), since `railway
+  variable delete` has no skip-deploys option.
+- **suite20m** (model 2, `xiaomi/mimo-v2.6-pro`, full suite approved by the user): `AI_MODEL_SWITCH=2` on
+  market-ai-orc, deployment `16767aab-468b-4c09-953b-aa6184948520` `SUCCESS` (`ai_model_selected` switch=2,
+  `reasoning.enabled`); runner `fd68a4cf-f1a1-4f62-b22b-d750fdb4cc36` (prefix `ma-suite20-20260930m`). Stopped at the
+  user's request after 4 turns (USD 0.12; model 2 was 1.1 to 8 times slower on r01-r03) by removing the runner
+  deployment; `AI_MODEL_SWITCH=1` set back, deployment `0728cf41-1364-4503-a8f9-67451252eb24` `SUCCESS` (model 1,
+  DeepSeek, effort high). Audit-only readback of the timelines: runner `45994ba7-4cad-4786-9ac9-4204a8bfe4b4`.
+- **Broker question** (user, no automatic approval): runner `f3a5c8ec-7dc7-46d3-9e56-f0a994e82d9e`, one turn, a
+  RESEARCH_PLAN_CONFIRMATION in 567 s, USD 0.053; the plan did not name brokers, which led to mode 4.
+- **Mode 4 code `b0f905c`** (flag off): market-ai-orc `ad948094-67cc-4053-9faf-02568bd7446c` `SUCCESS`,
+  market-python-sandbox `20bd6c7f-293c-4898-b8ac-2529ad5896da` `SUCCESS`. Then on dev:
+  - market-python-sandbox `PY_SANDBOX_RESEARCH_MIN_ANGLES=1` (new variable; one-angle plans for mode 4 suggestions),
+    deployment `3074a322-ff44-4620-9d73-b62877234b75` `SUCCESS`;
+  - market-ai-orc `AI_ENABLE_MODE4=true` (new variable), deployment `dded5d81-8c7f-41f6-9c8d-e22292b9bfff` `SUCCESS`;
+    the log shows `mode4_active max_seconds=3600 sandbox_min_angles=1` and `ai_model_selected switch=1`.
+    `AI_RESEARCH_MIN_ANGLES` stays unset (2) for every plan outside mode 4; `AI_CONVERSATION_LEASE_SECONDS` stays
+    unset, so the lease is 3720 s.
+  - Runner code `4e959b3` (multi-turn items, 3900 s timeout), CLI upload `eab7b4aa-e4a3-49fd-b93e-082a4c2ae5dc`,
+    prefix `ma-mode4-20260930a` (the broker question over three turns, a price question followed by a new question).
+- **Config**: `railway config pull --force` added `PY_SANDBOX_RESEARCH_MIN_ANGLES`, `AI_ENABLE_MODE4`,
+  `AI_MODEL_SWITCH` and `AI_MAX_OUTPUT_TOKENS` (as `preserve()`) to `.railway/railway.ts`; `railway config plan`: up
+  to date. The plan must not run under `timeout`: the IaC SDK checks the CLI version by executing `$_`, which is then
+  `timeout`, and the check fails.
+
+## 2026-09-30 — suite20c on dev: value references, backend-rendered findings, audit readback
+
+- **Runner** `orc-test-runner` deployment `eba6a12f-aebb-4f66-a41d-385910435c1b` (CLI upload of `apps/orc-test-runner`,
+  prefix `ma-suite20-20260930c`, the same 20 questions as suite20b, two workers, SERVER mode, one automatic approval),
+  05:38–05:53 UTC: 33 turns, 0 HTTP errors, USD 0.92 in total (suite20b: USD 0.64). No secret, DSN, bearer or
+  presigned URL in the runner, market-ai-orc, sandbox, Governor or Audit Store logs, nor in the refused drafts.
+- **Research (16 questions)**: 13 plans issued and approved, 13 runs `COMPLETED`, **13 answered, 0 LIMITATION** on the
+  answer turn (suite20b: 13 runs, 10 answered, 3 LIMITATION). 40 angles, all validated, NOT_RUN 0 (suite20b: 28, 3
+  NOT_RUN): SUPPORTED 3, PARTIALLY_SUPPORTED 3, INSUFFICIENT_EVIDENCE 34, INVALID 0; 37 at
+  FORMULA_AND_STATISTICS_VERIFIED, 3 at STATISTICS_VERIFIED. r09 (S16 in suite20b) completed with two angles; no
+  session ended in the suite (no `session_worker_ended`). e01 refused correctly (PER not in the catalog). r04 and r06
+  ended at the plan turn with a LIMITATION forced by PLAN_PROVENANCE (P12: the plan's own threshold lists are lost by
+  the parser; new, OPEN). e03 answered (suite20b: plan-provenance LIMITATION). r12 was routed to RESEARCH this time.
+  Research questions answered: 13 of 15 (suite20b: 11 of 15).
+- **Value references** (P11): 17 final answers used 495 references (414 to backend findings, 81 to released
+  outputs). Refusals on answer turns: PROVENANCE 3 (suite20b: 7 repairs + 1 forced), FINDINGS 2 + FINDINGS_2 1
+  (suite20b: 2 + 2, one forced), REFERENCE 6 (new gate, all repaired; P13), CLAIM 2, METHODOLOGY_PROVENANCE 2. No
+  final was forced on an answer turn.
+- **ANALYSIS**: a01, a02 and a04 equal suite20b figure for figure; a03 now sums every market board and equals the
+  all-boards ground truth of suite20 (ZP Rp 199 miliar, CC 159, XL 84, RX 73, LG 59; suite20b read the Regular board
+  only).
+- **Audit Store**: all 33 turns reached `COMPLETE` (0 INCOMPLETE); 114 sandbox archives, 39 Governor dataset
+  archives, 33 outbox rows ingested, 0 producer failures. 40 refused finals kept with their drafts (`final.rejected`
+  38, `final.forced` 2): FORMAT 11 (5 `clarification_question: Field required`, M40), output-limit cut-offs 3 (M37,
+  plan turns), REFERENCE 6, PLAN_PROVENANCE 5 + 2 forced, PLAN_FEASIBILITY 3, PROVENANCE 3, FINDINGS 3, CLAIM 2,
+  METHODOLOGY_PROVENANCE 2. Events larger than 16 KiB show a preview in `GET /v1/runs/{id}/events`; the full drafts
+  are in the TOOL_TRACE artifact.
+- **After the suite**: `AUDIT_STORE_READER_KEY` removed from `orc-test-runner` with `variableCollectionUpsert`
+  (`replace`, `skipDeploys`; the CLI delete has no skip-deploys option and a redeploy would rerun the suite): only
+  `MARKET_AI_ORC_API_KEY` remains, no new deployment. `railway config pull --force` recorded the new variable names,
+  `market-audit-store` and `market-ai-audit-artifacts` in `.railway/railway.ts`; `railway config plan`: up to date.
+- **Still open**: M37 (deferred by the user), M40, P12, P13 (`ERRORS_AND_SOLUTIONS.md`).
+- **Documentation push** `bcb1322` (README changes under the watched folders): market-ai-orc `e080f48a-d2da-4b03-b2d3-77dff7dac739`, market-python-sandbox `c6bf0827-22d8-4e67-8cc0-62edf0d44498` and market-audit-store `5d9cbc55-3b8a-42e7-ae13-dd8445e083dd` rebuilt from it, each `SUCCESS` at 06:03 UTC with a clean startup and `/ready` healthcheck; no code or variable changed.
+
+## 2026-09-30 — S16/M39/P10 fixes, backend-rendered findings and value references deployed on dev; Audit Store live
+
+- **Code** (`1954087`, pushed to `main`): sandbox S16 (worker hardening, exit labels, `worker.log` tail,
+  `SESSION_ENDED` audit), market-ai-orc S16 session recovery (`AI_RESEARCH_MAX_SESSION_RESTARTS`), finalize closes an
+  open group, backend-rendered findings (#15), M39, P10, value references (`AI_ENABLE_VALUE_REFERENCES`, off by
+  default) and the `final.rejected` / `final.forced` / `final.unrendered` audit events.
+  - market-python-sandbox `cbfcc10b-0fee-46cf-a329-8e5326b1923d` `SUCCESS`; market-ai-orc
+    `35b8cf18-bebb-46d8-b40a-b33bcad05c93` `SUCCESS`: startup clean, no `multi_angle_research_inactive` or
+    `research_library_mismatch`. Value references still off at this point (behaviour unchanged).
+- **Audit Store infrastructure** (user decision 2026-09-30, "Aktifkan juga audit store"; runbook of
+  `apps/market-audit-store/README.md`):
+  - IaC through a pinned plan (`railway config plan --verbose --out`, reviewed, then `railway config apply --plan`;
+    plan file sha256 `67ea994a031bf460cbf54bc29c424e76f8b88cf00aa2609b5608c7b3f068969d`, two creates, not
+    destructive). A plain `railway config apply --yes` was refused by the agent's permission check as a blind apply;
+    the first pinned plan also contained the delete of a temporary job, so the job was deleted first and the plan
+    pinned again.
+  - Bucket `market-ai-audit-artifacts` (`f29461fa-0ad8-4886-bbf1-2df2b4966357`, region `sjc`, private).
+  - Service `market-audit-store` (`956b1479-e8c6-4f6d-bd39-2af46390a22a`): GitHub source, root
+    `/apps/market-audit-store`, Dockerfile, watch `/apps/market-audit-store/**`, healthcheck `/ready` (120 s), one
+    replica in `sfo`, restart `ALWAYS`, private networking only (`market-audit-store.railway.internal:8080`), no
+    public domain. Registered in `.railway/railway.ts`.
+  - Variables on `market-audit-store` (names only): `AUDIT_DATABASE_URL` (template on the `market_ai_audit` login with
+    `MARKET_AI_AUDIT_DB_PASSWORD`), `MARKET_AI_AUDIT_DB_PASSWORD` (48 hex), `AUDIT_STORE_GOVERNOR_KEY`,
+    `AUDIT_STORE_SANDBOX_KEY`, `AUDIT_STORE_READER_KEY` (three distinct 64-hex keys), `AUDIT_BUCKET_NAME`,
+    `AUDIT_BUCKET_ENDPOINT`, `AUDIT_BUCKET_REGION`, `AUDIT_BUCKET_ACCESS_KEY_ID`, `AUDIT_BUCKET_SECRET_ACCESS_KEY`
+    (references to the bucket), `PORT=8080`. All resolved; no value is recorded here.
+  - Migration `20260928_001` through the temporary service `audit-migrate-job`
+    (`cbc9aef7-06fb-44d1-a0a6-2f21607af18c`; dry run `98fae03d-2a4b-4333-947a-febc4eb7d6d8`, apply
+    `6e4e050a-ec3e-481b-9f7b-eecaef0ed3ad`), then the login through `audit-login-job` (deployment
+    `28ba7d0e-9fb6-415b-816c-7e9cec72249b`). Both deleted after use. Details in `DATABASE_CHANGELOG.md`.
+  - Deployment `02988b78-ac25-4561-8c0c-ffdaf7de6343` (`7825135`): password authentication failed until the login
+    was provisioned, then `/ready` 200 and `SUCCESS`. The later push of `1954087` was `SKIPPED` for this service
+    (watch pattern).
+- **Producers in shadow mode**, one at a time, each redeployed to `SUCCESS` with a clean startup:
+  - market-sql-governor `d6f0c1bf-ba5f-43ec-bcc6-0e410e87e4f2`: `SQL_GOVERNOR_AUDIT_STORE_ENABLED=true`,
+    `AUDIT_STORE_URL` (private URL), `AUDIT_STORE_GOVERNOR_KEY` (reference to market-audit-store);
+  - market-python-sandbox `11121efe-0f1e-4ba0-8e8a-11fe0e816d56`: `PY_SANDBOX_AUDIT_STORE_ENABLED=true`,
+    `AUDIT_STORE_URL`, `AUDIT_STORE_SANDBOX_KEY` (reference);
+  - market-ai-orc `3879fc59-e0fc-44b0-9841-6f3bbf80ff2a`: `AI_AUDIT_STORE_ENABLED=true`,
+    `AI_AUDIT_STORE_REQUIRED=false`, `AUDIT_OUTBOX_DATABASE_URL` (the same template as `RESEARCH_AUDIT_DATABASE_URL`:
+    the `market_ai_orc` login with `MARKET_AI_ORC_DB_PASSWORD`).
+  - Rollback: set the three flags to `false`; the migration is additive.
+- **Smoke** `audit-smoke-20260930a` (a02, ANALYSIS, runner `3f45e338-77df-4c0f-ac7e-07434de659aa`, USD 0.02,
+  05:03 UTC): answered; its audit run reached `COMPLETE` with 29 events (`dataset.archived` from the Governor,
+  `execution.recorded` and `completion.archived` from the sandbox, model and tool events from market-ai-orc), 16
+  artifacts and 2 executions; its two refused finals (`final.rejected` CLAIM and METHODOLOGY_PROVENANCE) were read in
+  full from the TOOL_TRACE artifact through an access grant.
+- **orc-test-runner**: `run.py` gained the audit readback; `AUDIT_STORE_READER_KEY` (a reference to
+  market-audit-store's reader key) was added for the smoke test and suite20c.
+- **Value references on**: market-ai-orc `3bc6620b-1060-4c8c-ac46-a0b3feed56d8` `SUCCESS` 05:37 UTC with
+  `AI_ENABLE_VALUE_REFERENCES=true`. `AI_RESEARCH_MAX_SESSION_RESTARTS` is not set (default 1). Model and provider
+  unchanged (decision of 2026-09-27).
+
+## 2026-09-29 — Multi-Angle Research fixes: suite20 rerun on dev (suite20b)
+
+- **Runner** `orc-test-runner` deployment `8220743f-93d8-41da-9581-48740a4d922e` (CLI upload of `apps/orc-test-runner`,
+  prefix `ma-suite20-20260929b`, same 20 questions, two workers, SERVER mode, one automatic approval), about
+  18:50–19:18 UTC: 33 turns, 0 HTTP errors, USD 0.64 in total (suite20: USD 1.10). No secret in the runner, orc or
+  sandbox logs. No variable or service setting changed.
+- **Research (16 questions)**: 13 plans issued, 8 with two angles and 5 with three (suite20: 11 plans of four or five
+  angles); 13 approved runs, 10 answered and 3 LIMITATION: r08 (P10: "0 keluarga metode didukung" read as a supported
+  verdict; the LIMITATION kept the three backend findings), r09 (S16: the session worker ended after the model
+  inspected the sandbox's modules; the group could not be finalized), r11 (M39: a misquoted figure, forced by the
+  provenance gate). The 12 completed runs hold 28 validated angles: SUPPORTED 1, PARTIALLY_SUPPORTED 2,
+  INSUFFICIENT_EVIDENCE 25, INVALID 0, NOT_RUN 0; 26 at FORMULA_AND_STATISTICS_VERIFIED and 2 at
+  STATISTICS_VERIFIED (suite20: 21 and 15, NOT_RUN 10). r09's three angles are NOT_RUN (S16).
+- **Plan turn**: no plan was refused for a method rule after a FEASIBLE check (suite20: 4, M38); r04 used the second
+  repair (`PLAN_FEASIBILITY_2`, a changed `pairwise_comparisons`) and passed; every data plan carried the checked
+  designs. e01 was refused correctly (PER not in the catalog); e03 ended in a LIMITATION forced by plan provenance
+  (thresholds in the answer text), saying broker data end on 2026-08-31, without invented September data; r12 was
+  answered through ANALYSIS (the model's own routing, as the suite expects; suite20: no plan).
+- **Fixes seen live**: S14 (the janitor ran at 18:48, 19:03 and 19:17 while sessions were open and removed no
+  workspace), S15 (e02 and r08, condition in `Feature_03_Stock_Broker_Daily` and price in another table, recorded
+  declaratively at FORMULA_AND_STATISTICS_VERIFIED), P09 (r08's negated agreement sentence passed), M36 (no NOT_RUN in
+  completed runs), item 7 (two-angle plans accepted).
+- **ANALYSIS**: a01–a04 COMPLETED. Not compared with a new ground truth: the morning's truth predates the latest
+  trading day (for example BBRI's last close moved from 3.170 to 3.190); the ANALYSIS path was not changed.
+- **Still open**: M37 recurred (8 final turns cut off at 8000 output tokens, all reasoning; suite20: 13). New entries
+  in `ERRORS_AND_SOLUTIONS.md`: S16, M39, P10.
+
+## 2026-09-29 — Multi-Angle Research fixes deployed on dev (MULTI_ANGLE_FIX_PLAN.md items 1–7)
+
+- **market-python-sandbox** `5bf53b1b-df92-496a-9701-f96e86aaac00` (`2d9ff7a`) `SUCCESS` 18:20 UTC: S14 (janitor
+  skips open session workspaces), S15 (cross-request forward return, price-level outcome INVALID
+  `OUTCOME_NOT_APPROVED`), research library and its hash in the `multi_angle_research` capability, two-angle
+  minimum. Startup clean (`sandbox_started`, `sessions_started`, `/ready` 200). market-ai-orc was not redeployed by
+  this push.
+- **Migrations** `20260930_001` (`AI_research_library`) and `20260930_002` (Tool_Catalog v2 rows) through the
+  temporary service `ma-migrate-job` (`6f1d8d31-f761-4be3-9d07-d8d4310af105`, only a `DATABASE_URL` reference):
+  inspection + dry run `b0f9061c-2a40-464a-b86b-c49c84a936a3` (passed, rolled back), apply
+  `2fe9621b-1186-4411-80ed-09dbc1bee79d` (read back in the job). Deleted after use; dev lists 16 services again.
+  Details in `DATABASE_CHANGELOG.md`.
+- **market-ai-orc** `c675120e-4046-489d-a3d1-cb5d78751765` (`9a7d83c`) `SUCCESS` 18:44 UTC: M36, M38, P09 (and forced
+  LIMITATION keeps the backend findings), item 7 (`AI_RESEARCH_MIN_ANGLES` default 2, `AI_RESEARCH_MIN_FAMILIES`
+  default off), research library check at startup and `get_research_library`. No `multi_angle_research_inactive`
+  and no `research_library_mismatch` at startup, so the table, the sandbox and market-ai-orc carry the same library
+  hash. The sandbox push was SKIPPED for market-ai-orc and this push SKIPPED for the sandbox (watch patterns).
+- **Variables**: none changed. `AI_RESEARCH_MIN_ANGLES` is not set on dev, so the new default 2 applies;
+  `AI_RESEARCH_MIN_FAMILIES` is not set (off). Model and provider unchanged (decision of 2026-09-27).
+- **Documentation push** after suite20b (`02256de`): it touched `apps/market-python-sandbox/README.md`, so the watch
+  pattern rebuilt market-python-sandbox with unchanged code: `3d376c2a-4f00-4c7e-8106-2cf44af9b9e7` `SUCCESS`
+  19:31 UTC (after the suite, so no run was affected); market-ai-orc SKIPPED.
+- **Config**: `railway config pull --force` left `.railway/railway.ts` unchanged; `railway config plan`: up to
+  date (the temporary service was created and deleted, the runner was a CLI upload).
+
+## 2026-09-29 — Multi-Angle Research: 20-question suite on dev (suite20)
+
+- **Runner** `orc-test-runner` deployment `5f2cfafe-e67f-4078-a5a7-542da21f250d` (CLI upload of `0afa2cf`, prefix
+  `ma-suite20-20260929a`, two workers, SERVER mode, one automatic approval), 13:43–14:40 UTC: 31 turns, 0 HTTP
+  errors, USD 1.10 in total, no secret in the runner, orc or sandbox logs. No variable or service setting changed.
+- **ANALYSIS (4/4)**: a01 (top 5 energy by 20-day return), a02 (financials mean 20-day volatility 45.93 %, DEFI
+  highest), a03 (TLKM net buying by broker, August 2026), a04 (BBRI weekly returns) all COMPLETED and matched a
+  read-only ground truth exactly (temporary service `suite20-truth-job` `cb313ad2-c7b9-4c12-8e1e-1e856c509f86`,
+  deployment `c96829cd-d0c7-40ae-b9a0-68b1b9deab7b`, only a `DATABASE_URL` reference, READ ONLY transaction;
+  deleted afterwards, 16 services again).
+- **Research (16)**: 11 plans issued (all `research_plan/v2`, 4–5 angles); e01 (PER) correctly refused as
+  unavailable data; r06, r10, r12 and e04 got no plan although feasibility was FEASIBLE (M38, M37). Of the 11
+  approved runs, 9 answered and 2 were LIMITATION: r04 (session workspace deleted by the sandbox janitor, S14) and
+  r08 (negated agreement wording refused, P09). Ten completed runs, 42 angles: SUPPORTED 5, PARTIALLY_SUPPORTED 2,
+  INSUFFICIENT_EVIDENCE 29, NOT_RUN 6 (M36), INVALID 0; 21 at FORMULA_AND_STATISTICS_VERIFIED, 15 at
+  STATISTICS_VERIFIED. Every status in the answers equals the backend's; one unsupported number (r06, forced
+  LIMITATION).
+- **Guards**: e02 refused to prove causation or predict a price and ran a historical association plan; e03 said the
+  September 2026 window is empty (broker and price data end 2026-08-31 for that plan) and answered from earlier data.
+- New entries in `ERRORS_AND_SOLUTIONS.md`: S14, M36, M37, M38, P09; G12 recurred (r08, e02).
+
+## 2026-09-29 — Multi-Angle Research: migration 20260929_001 applied on dev (Tool_Catalog only)
+
+- **Decision**: the user chose "Tool_Catalog only" after the dry run (C07): the migration was rewritten to register
+  the four inactive market-ai-orc tools and leave `AI_research_catalog` unchanged; pushed as `7ec52bb` (`main` and
+  branch `claude/upbeat-dijkstra-iybq2f`).
+- **market-ai-orc redeploy**: the push touched `apps/market-ai-orc/tests/` (drift test), so the watch pattern
+  rebuilt market-ai-orc: `ccb8962d-e280-40d2-951a-1b320fca36fa` (`7ec52bb`) `SUCCESS`, `GET /ready` 200. Application
+  code and variables unchanged; both multi-angle flags stay on.
+- **Temporary job** `ma-migrate-job` (`4ff15ec3-2000-4e0c-a605-f0433eaa1c77`, only a `DATABASE_URL` reference to
+  Postgres): inspection + dry run `24186829-5dc9-4707-ad01-e9dbb6c13141` (passed, rolled back), apply
+  `23b4cc8f-25c1-4d46-87bb-bbf49a166331` (read back: `Tool_Catalog` 70 → 74 rows, 25 active before and after).
+  Deleted after use; the dev environment again lists 16 services. Details in `DATABASE_CHANGELOG.md`.
+- **Config**: no variable, domain or service setting changed in this step. `railway config pull --force` recorded what was already live: the two flags set earlier today (`PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED`, `AI_ENABLE_MULTI_ANGLE_RESEARCH`, as `preserve()`, no values) and `ipv6EgressEnabled: true` on market-web-governor (not changed here). `railway config plan`: up to date.
+
+## 2026-09-29 — Multi-Angle Research flags on in dev; golden run 1 (user-approved: flags, golden, migration)
+
+- **Flags** (dev, one service at a time): `PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED=true` on market-python-sandbox →
+  `66a36c30-6a3a-40f7-8cb2-6481b9e929b9` `SUCCESS`; then `AI_ENABLE_MULTI_ANGLE_RESEARCH=true` on market-ai-orc →
+  `91e13ace-514c-4b93-9304-63409007f916` `SUCCESS`, no `multi_angle_research_inactive`; the first question's
+  `research_plan_feasibility` event carried `plan_version="research_plan/v2"`, so the capability negotiation passed.
+- **Runner**: `orc-test-runner` now runs `apps/orc-test-runner` (standard library only; `MARKET_AI_ORC_API_KEY`
+  reference unchanged). Golden run 1 = deployment `6b2d5c17-68c1-4270-be59-1c24a59cbf76`, prefix
+  `ma-golden-20260929a`, 4 questions, 2 workers, SERVER mode with one automatic approval; about USD 0.24 in total.
+  - g1 (bank falls > 5 %, RESEARCH): plan issued (6 angles, 1 bundle group, `SINGLE_BUNDLE`) after two plan
+    rejections; approved run `rrun_6422cbf04a08cb9fa3cec82f` recorded some angles but never called
+    `complete_research_run` → LIMITATION, all six angles `NOT_RUN` (M33, S12).
+  - g2 (bank momentum): FAILED `INVALID_FINAL_RESPONSE` (unused parameters filled, M30; union errors, M31).
+  - g3 (volume spike): FAILED `INVALID_FINAL_RESPONSE` (plan cut off at 8000 output tokens, M32).
+  - a1 (YTD returns of three banks, ANALYSIS): COMPLETED, 21.6 s, $0.017 — ANALYSIS unaffected.
+- **Fixes of run 1** (`b9e6ff3`, M30–M33, S12): market-python-sandbox `b07f70dc-df55-4990-9ada-6438515317af`
+  and market-ai-orc `61f9768b-4dcc-4182-9151-eac56642a74a` `SUCCESS`, no `python_sandbox_not_ready`.
+- **Golden run 2** (`f5fdca51-9a05-43a8-a5c7-abcb37a105b1`, prefix `ma-golden-20260929b`): all three plans issued
+  with four angles (no plan failure); all three approved runs `COMPLETED` with backend findings at
+  `STATISTICS_VERIFIED` (g1 4/4 validated; g2 3 validated + 1 INVALID `DUPLICATE_ANGLE_OUTPUT`, S13; g3 4/4), every
+  angle `INSUFFICIENT_EVIDENCE` (underpowered, no significant effect); the answers were honest but each was forced to
+  LIMITATION by the findings gate (M34, M35). a1 (ANALYSIS) COMPLETED. About USD 0.25.
+- **Migration dry run** (temporary service `ma-migrate-job` `cd26149a-dad3-4d2d-95b5-f72adf2a4979`, deployment
+  `38ab664c-c282-46e2-b538-6b942ef77515`, reference `DATABASE_URL` only): `AI_research_catalog` has 18 methods, all
+  `REFERENCE_ONLY`, and none of the eight engine ids; the preflight refused as designed, nothing changed (read back
+  identical). Applying needs a decision on the method ids.
+- **Fixes of run 2** (`c94d781`, M34, M35): market-python-sandbox `12202417-3391-4ccc-a5a2-44070d94ec26` and
+  market-ai-orc `f09a1565-0a05-4746-b9fd-bb7deb63895c` `SUCCESS`. Temporary `ma-migrate-job` deleted afterwards.
+- **Golden run 3** (`7cdbf7a2-b8ab-41e5-afd2-e72df66d3667`, prefix `ma-golden-20260929c`, about USD 0.20): **4/4
+  COMPLETED with an ANSWER**, gate `ANNOTATED`, label `DATA_COVERAGE_VERIFIED`, every reported status equal to the
+  backend's, no forced LIMITATION.
+  - g1: `drop_streak` SUPPORTED (a fall of more than 5 % continues more often after longer streaks; effective sample
+    57 dates, BH-adjusted), `drop5_forward` INSUFFICIENT_EVIDENCE (INSUFFICIENT_SAMPLE: its checked data lacked the
+    close column, so the outcome could not be the approved forward return; the answer says so), two angles NOT_RUN
+    (not recorded, finalized).
+  - g2: three INSUFFICIENT_EVIDENCE (underpowered), `a4_volatility_regime` PARTIALLY_SUPPORTED (not past the
+    multiple-testing correction).
+  - g3: four INSUFFICIENT_EVIDENCE; `spike_years` recorded with `research_custom` → EXECUTION_ONLY, as designed.
+  - a1 (ANALYSIS): COMPLETED.
+- **Result**: golden passed. Migration `20260929_001` is not applied: the live catalog has none of the eight method
+  ids (see the dry run above); it waits for the user's decision. Flags stay on in dev.
+
 ## 2026-09-29 — Multi-Angle Research code on dev, flags off (user-approved)
 
 - **Push** `main` fast-forward `8398768..426c88f` (commits `96231fe` sandbox, `426c88f` market-ai-orc; see

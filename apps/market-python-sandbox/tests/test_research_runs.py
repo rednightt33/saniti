@@ -214,6 +214,10 @@ def test_the_wrappers_fail_closed(env) -> None:
     assert "record it with saniti.research_quantiles" in error(
         "saniti.research_conditional('a2', request='prices', condition='close > 1', "
         "outcome={'forward_return': 'close'})")
+    # found live (golden run 2026-09-29): a contract entry passed as request= names the expected string
+    assert "data_request_id string" in error("saniti.research_conditional('a1', request={'data_request_id': "
+                                             "'data_request_1_A'}, condition='close > 1', "
+                                             "outcome={'forward_return': 'close'})")
     # a1's contract has only close: volume is outside it
     assert "EXPRESSION_INVALID" in error("saniti.research_conditional('a1', request='prices', condition='volume > 1', "
                                          "outcome={'forward_return': 'close'})")
@@ -300,8 +304,8 @@ def test_a_tampered_or_foreign_plan_is_refused(env) -> None:
                                            angle("a2", "quantile_ranking"), angle("a3", "threshold_sensitivity")])
     result = promote(env, governance, data_plan)
     assert "DRAFT_OTHER_REQUEST" in {i["code"] for i in result["error"]["issues"]}
-    two = plan(record, [angle("a1", "conditional_distribution"), angle("a2", "quantile_ranking")])
-    assert "ANGLE_COUNT_INVALID" in {i["code"] for i in promote(env, *two)["error"]["issues"]}
+    one = plan(record, [angle("a1", "conditional_distribution")])  # the minimum is 2 since 2026-09-29
+    assert "ANGLE_COUNT_INVALID" in {i["code"] for i in promote(env, *one)["error"]["issues"]}
 
 
 def test_the_same_plan_again_replays_and_a_failed_group_records_not_run(env) -> None:
@@ -337,6 +341,75 @@ def test_without_the_flag_nothing_changes(make_service, governor) -> None:
 def test_the_runtime_reports_the_capability(env) -> None:
     capability = env["api"].get("/v1/runtime", headers=HEADERS).json()["multi_angle_research"]
     assert capability["enabled"] is True and capability["version"] == 2
-    assert capability["min_angles"] == 3 and capability["max_angles"] == 6
+    assert capability["min_angles"] == 2 and capability["max_angles"] == 6
     assert capability["supports_grouped_execution"] is True and len(capability["method_ids"]) == 8
     assert capability["findings_version"] == "research_findings/v2"
+    from app.research_library import LIBRARY_SHA256
+    assert capability["library_sha256"] == LIBRARY_SHA256
+
+
+def test_a_forward_return_reads_the_price_of_another_request_and_a_price_level_outcome_is_refused(env) -> None:
+    """S15 (suite20 r09, 2026-09-29): the condition's request had no price, the model built a frame with the closing
+    price level as a PERCENT outcome, and three angles were SUPPORTED on it. Now the forward return can read the price
+    of another contract request (declarative, reproduced by the harness), and a price-level outcome is refused in the
+    session and INVALID in the harness."""
+    from dataneed_fixtures import classification, prices
+    from test_dataneed_bundles import extract_part, price_rows, universe_rows, window_of
+    from test_dataneed_bundles import TICKERS
+
+    spec = ytd_spec(mode="RESEARCH", data_requests=[
+        prices(columns=["ticker", "date", "volume"]), classification(),
+        prices("data_request_1_C", logical_name="closes", columns=["ticker", "date", "close"])])
+    body = {"request_id": ORIGIN, "reference_time": REFERENCE, "timezone": "Asia/Jakarta", "spec": spec}
+    checked = env["api"].post("/v1/data-needs/check", json=body, headers=HEADERS).json()
+    assert checked["status"] == "APPROVED", checked
+    record = env["api"].get(f"/v1/data-need-drafts/{checked['draft_id']}", headers=HEADERS).json()
+    angles = [angle("a1", "conditional_distribution"), angle("a2", "quantile_ranking"),
+              angle("a3", "threshold_sensitivity")]
+    run = promote(env, *plan(record, angles))
+    assert run["status"] == "APPROVED", run
+    need = env["dataneed"].get_need(run["groups"][0]["need_id"])
+
+    def parts(rid: str) -> list[dict[str, Any]]:
+        return [extract_part(env, need, rid, price_rows(TICKERS, window_of(need, rid, r)["from"],
+                                                          window_of(need, rid, r)["to"]),
+                             f"{rid}__{r}__part_001", window=window_of(need, rid, r))
+                for r in ("current_ytd", "previous_comparable")]
+
+    requests = [{"data_request_id": "data_request_1_A", "envelopes": [], "parts": parts("data_request_1_A")},
+                {"data_request_id": "data_request_1_B", "envelopes": [], "parts": [
+                    extract_part(env, need, "data_request_1_B", universe_rows(), "data_request_1_B__static__part_001")]},
+                {"data_request_id": "data_request_1_C", "envelopes": [], "parts": parts("data_request_1_C")}]
+    bundle = build(env, need, requests, request_id=RUN).json()
+    assert bundle["status"] == "READY", bundle
+    opened = env["api"].post("/v1/sessions", json={"request_id": RUN, "bundle_id": bundle["input_bundle_id"]},
+                             headers=HEADERS).json()
+    session_id = opened["session_id"]
+    examples = {a["angle_id"]: a["example"] for a in opened["research"]["angles"]}
+    assert "'request': 'data_request_1_C'" in examples["a1"]  # the example names the request holding the price
+
+    refused = run_code(env, session_id, (
+        "p = saniti.load('prices').merge(saniti.load('closes'), on=['ticker', 'date'])\n"
+        "p['signal'] = p['volume']\np['outcome'] = p['close']\n"
+        "saniti.research_quantiles('a2', p.rename(columns={'ticker': 'entity'})[['date', 'entity', 'signal', "
+        "'outcome']])"))
+    assert refused["status"] == "SCRIPT_ERROR" and "OUTCOME_NOT_APPROVED" in refused["message"], refused
+
+    code = (READ_ALL +
+            "saniti.research_conditional('a1', request='data_request_1_A', condition='volume > lag(volume, 1)', "
+            "outcome={'forward_return': 'close', 'request': 'closes'})\n"
+            "saniti.research_quantiles('a2', request='data_request_1_A', signal='volume', "
+            "outcome={'forward_return': 'close', 'request': 'data_request_1_C'})\n"
+            "saniti.research_conditional('a3', request='data_request_1_A', signal='volume / lag(volume, 1) - 1', "
+            "outcome={'forward_return': 'close', 'request': 'data_request_1_C'})\n")
+    result = run_code(env, session_id, code)
+    assert result["status"] == "OK", result
+    completion = complete(env, session_id)
+    assert completion["status"] == "COMPLETED", completion
+    findings = {f["angle_id"]: f for f in completion["final_status"]["research_findings_v2"]}
+    for finding in findings.values():
+        assert finding["validation_level"] == "FORMULA_AND_STATISTICS_VERIFIED", finding
+        assert finding["input"]["outcome_source"] == "FORWARD_RETURN"
+        assert finding["status"] in ("SUPPORTED", "PARTIALLY_SUPPORTED", "INSUFFICIENT_EVIDENCE")
+    assert findings["a1"]["input"]["declaration"]["roles"]["outcome"] == {"forward_return": "close",
+                                                                           "request": "data_request_1_C"}

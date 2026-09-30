@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextvars
 import hashlib
 import json
 import logging
@@ -11,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
-from .audit_outbox import build_payload, model_event, tool_event
+from .audit_outbox import build_payload, final_event, model_event, tool_event, unrendered_event
 from .catalog_protocol import CACHE_NOTE, CACHEABLE_TOOLS, CatalogLedger, cache_key, gaps, record
 from .compaction import dumps, estimate_tokens, stable_hash, trim_history
 from .config import Settings
@@ -21,15 +22,19 @@ from .research_plan import (CLASSIFIER_INSTRUCTIONS, CLASSIFIER_SCHEMA, Continua
                             ResearchPlanFindings,
                             current_research_guard, guard_research_submission, plan_digest)
 from .research_plan_v2 import (FINDINGS_V2, PLAN_VERSION_V2, ContinuationInV2, ContinuationOutV2, PlanSignerV2,
-                               ResearchPlanV2, holdout_start, plan_digest_v2)
+                               ResearchPlanV2, current_angle_bounds, design_differences, design_sha256, family_count,
+                               holdout_start, plan_digest_v2)
 from .research_run_executor import ResearchContext, current_research_context
 from .schemas import (
-    FINAL_RESPONSE_SCHEMA, STATUS_BY_RESPONSE_TYPE, AgentRunRequest, AngleFindingReport, AgentRunResponse, AnalysisSummary,
-    AnalysisPathExecution, ExecutionMetadata, ExperimentSummary, FinalResponse, NumberProvenance, ReplyClassifierUsage,
+    FINAL_RESPONSE_SCHEMA, STATUS_BY_RESPONSE_TYPE, AgentRunRequest, AngleFindingReport, AngleInterpretation,
+    AgentRunResponse, AnalysisSummary, BackendAngleSummary,
+    AnalysisPathExecution, ExecutionMetadata, ExperimentSummary, FinalResponse, NumberProvenance,
+    ReplyClassifierUsage,
     ResearchPlanExecution, ResearchSummary, RunError, final_response_schema,
 )
-from .provenance import (CONTEXT, SourceIndex, analysis_label, check_answer, numbers_in, parse_numbers,
-                         released_numbers, requested_statistics, weakest)
+from .provenance import (CONTEXT, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
+                         parse_numbers, released_numbers, requested_statistics, weakest)
+from .value_refs import ReferenceSources, Resolved, format_value, render
 from .tools import ToolOutcome, ToolRegistry, error_outcome
 from .tools.analysis import current_conversation_key, current_run_context, run_context
 from .tools.registry import strict_parameters_schema
@@ -496,26 +501,28 @@ Plan, not with data:
 1. Before the user approved the plan, use no data: do not call
 prepare_data_bundle or any session or research run tool for it. You may
 read the catalog to check that the data exists.
-2. The plan examines one root hypothesis from at least three and at most
-six angles. An angle is one analytical question answered by one
-registered method: conditional_distribution or threshold_sensitivity
-(CONDITIONAL_OUTCOME), streak_persistence (PERSISTENCE),
-regime_comparison or cohort_comparison (GROUP_COMPARISON),
-quantile_ranking (QUANTILE_RANKING), lead_lag or correlation_dependency
-(TEMPORAL_DEPENDENCY). Angles may share a method or a family when their
-questions differ; each has its own angle_id, angle_question and
-why_distinct. Two angles with the same method, condition, outcome,
-comparator, horizon and parameters are one question and are refused.
-Choose the angles that would change what the user concludes, not the
-most methods.
+2. The plan examines one root hypothesis from at least {min_angles} and at
+most {max_angles} angles.{families_rule} An angle is one analytical question
+answered by one method of the research library: read it with
+get_research_library (the methods, their parameters and data
+requirements) and choose from it only. Angles may share a method or a
+family when their questions differ; each has its own angle_id,
+angle_question and why_distinct. Two angles with the same method,
+condition, outcome, comparator, horizon and parameters are one question
+and are refused. Choose the angles that would change what the user
+concludes, not the most methods: use as few as answer the question well.
+Keep every text field of the plan to one short sentence.
 3. Before presenting the plan, call check_research_feasibility with one
-data requirement per angle: the angle's DataNeedSpec requests and
-relationships in the angle's own ids. The backend merges shared data
-and splits the angles into bundle groups only when they do not fit one.
-Present the plan only after FEASIBLE, with exactly the angles checked.
-On REVISION_REQUIRED fix the named angles; on NOT_FEASIBLE drop or
-narrow the uncovered angles, or return LIMITATION naming what is
-missing and the alternatives.
+entry per angle: its design (method, parameters, horizon, unit,
+comparisons, multiple-testing policy, holdout, and for a return outcome
+the request and price column) and its DataNeedSpec requests and
+relationships in the angle's own ids. The backend checks each design
+against the method's rules, merges shared data and splits the angles
+into bundle groups only when they do not fit one. Present the plan only
+after FEASIBLE, with exactly the angles and designs checked. On
+REVISION_REQUIRED fix the named angles; on NOT_FEASIBLE drop or narrow
+the uncovered angles, or return LIMITATION naming what is missing and
+the alternatives.
 4. Return response_type RESEARCH_PLAN_CONFIRMATION with research_plan;
 answer presents the root hypothesis and each angle (its question, method
 in plain words, condition, outcome and comparator) in the user's language
@@ -525,22 +532,30 @@ in the plan.
 was approved; silence, an unrelated reply or your own reading of the
 conversation is never an approval.
 6. After approval call start_research_run, then run_research_code for
-each bundle group in turn: read the group's data through the saniti
-helpers and record every angle of the group exactly once with its
-research helper (research_conditional, research_persistence,
-research_group_comparison, research_quantiles,
-research_temporal_dependency; research_custom only when no helper
-fits, and it verifies execution only). Prefer the declarative form
-(request and expressions) of a helper, which the backend can reproduce.
-Use the approved parameters, horizon and unit. Then call
-complete_research_run; when it reports missing angles, record them or
-finalize.
+each bundle group in turn: record every angle of the group exactly once
+with its research helper, starting from the example call that
+start_research_run lists for the angle (request is the data request id
+string; the outcome is a forward return the backend computes from a
+price column, adding the request id when the price is in another
+request of the angle, never a price level or a trailing return
+column). Prefer this declarative form, which the backend can
+reproduce; research_custom only when no helper fits, and it verifies
+execution only. Use the approved parameters, horizon and unit. Then
+call complete_research_run with finalize false; it lists any angle not
+yet recorded: record it and call it again. Finalize only an angle that
+truly cannot be recorded: it becomes NOT_RUN and the other angles still
+report.
 A data need in mode RESEARCH is refused: research runs only through an
 approved multi-angle plan. Mode ANALYSIS needs no plan and proceeds
 directly."""
 MULTI_ANGLE_FINDINGS_RULES = """
 
 MULTI-ANGLE FINDINGS
+Never import or modify the sandbox's internal modules (saniti_session,
+research_*): an angle is recorded once, and a session whose own state
+was changed ends. When run_research_code returns session_recovery,
+follow it: record every angle it lists again in the new session, or go
+on to complete_research_run when the group is closed.
 complete_research_run returns one backend finding per approved angle:
 its status (SUPPORTED, PARTIALLY_SUPPORTED, INSUFFICIENT_EVIDENCE,
 INVALID or NOT_RUN), evidence_direction (EXPECTED, OPPOSITE or NONE: a
@@ -565,14 +580,68 @@ which do not, where the evidence points the other way, and under which
 conditions the results differ. Say the angles agree only when the map
 allows an agreement (supported angles of different method families);
 angles sharing data are not independent confirmations. Report an
-INVALID or NOT_RUN angle as such and never fill it in. A pattern is
-never a cause, a prediction or a trading signal."""
+INVALID or NOT_RUN angle as such and never fill it in. Never write that
+there is no effect or no difference: an INSUFFICIENT_EVIDENCE angle means
+the data could not distinguish an effect. Use supported wording only for
+a SUPPORTED or PARTIALLY_SUPPORTED angle. Cite only figures that
+complete_research_run returned, the confidence level included. A pattern
+is never a cause, a prediction or a trading signal."""
+# AI_ENABLE_VALUE_REFERENCES (P11, user decision 2026-09-30): data figures are written as references the backend fills
+# in, and each angle's status, evidence and statistics are rendered from the backend's finding (#15)
+VALUE_REFERENCE_RULES = """
+
+VALUE REFERENCES
+Never type a figure that comes from data. Write a value reference and
+the backend fills in the value, formatted:
+{{finding.<angle_id>.<path>}} a backend finding of complete_research_run,
+for example estimates.primary.estimate, estimates.primary.ci.0,
+estimates.primary.p_adjusted, sample.effective;
+{{out.<output_id>.<path>}} a released output: rows.<index>.<column>,
+rows[<column>=<value>].<column>, or content.<field>;
+{{fact.<n>}} a lookup_fact value;
+{{analysis.<analysis_id>.<path>}} an analysis output.
+Every referable object in a tool result carries its "ref".
+After | add a format: dec:N (N decimals), int, pct:N (a fraction shown
+as a percent), pctv:N (already a percent), pp:N (percentage points), rp
+(rupiah), x:N (times). A derived figure uses diff(a, b), abs(a),
+ratio(a, b) or chg(a, b) of references, for example
+{{diff(finding.a.estimates.primary.ci.1, finding.a.estimates.primary.ci.0)|pp:2}}.
+Compute anything else in the analysis and release it. A figure the user
+wrote, a date and a year may be typed as they are. A text value (a ticker,
+a broker, a label) may be referenced without a format and is shown as
+written; rows[<index>] works like rows.<index>; inside a Markdown table
+write the reference unchanged. A reference that does not resolve is
+refused with the references that exist."""
+VALUE_REFERENCE_CONTRACT = ("Figures from data are value references {{...}} (see VALUE REFERENCES), never typed "
+                            "numbers. ")
+ANGLE_NARRATIVE_CONTRACT = ("research_findings: for an ANSWER that rests on a completed multi-angle research run, "
+                            "your reading of each approved angle (angle_id, interpretation with answer, usefulness and "
+                            "follow_up); the backend adds every approved angle's status, evidence and statistics; "
+                            "otherwise null. ")
+REFERENCE_INSTRUCTION = (
+    "Your response has value references that do not resolve: {problems}. Use only the refs and fields the tool "
+    "results of this run show (each referable object carries its \"ref\"), with a known format, or remove the figure.")
+REFERENCE_HINT = (" Write each data figure as a value reference {{...}} (see VALUE REFERENCES): the backend fills it "
+                  "in and rounds it, so it never needs to be typed.")
+REFERENCE_NOTICE = "Some figures below could not be filled in from this run's results. "
+# M43 (user decision 2026-09-30): a reference to a field the result does not have stays in the answer as [field]
+MISSING_FIELD_LINE = "Angka berikut tidak dapat diisi karena field-nya tidak ada di hasil run ini: {fields}."
+MAX_REFERENCE_REPAIRS = 2  # P16: one repair per distinct set of failing references, at most this many per run
+NOT_INTERPRETED = "Tidak diinterpretasikan oleh model."
+BACKEND_ONLY_USEFULNESS = "Ringkasan dari backend; interpretasi model untuk sudut ini tidak tersedia."
+ANGLE_STATUSES = ("SUPPORTED", "PARTIALLY_SUPPORTED", "INSUFFICIENT_EVIDENCE", "INVALID", "NOT_RUN")
+SAMPLE_UNITS = {"DATES": "tanggal", "ENTITIES": "entitas", "EVENTS": "kejadian", "ROWS": "baris"}
+MULTI_ANGLE_FINDINGS_RULES_REFS = MULTI_ANGLE_FINDINGS_RULES.replace(
+    "For an ANSWER, research_findings has one entry per approved angle:\nangle_id, the status unchanged, and an interpretation in four parts:\n1. answer: the direct answer to the angle's question in its status's\nterms;\n2. evidence: the effect against the comparator, its adjusted\nuncertainty and the effective sample;\n3. usefulness: why it matters in practical terms (for example against\ntrading costs or a typical move);\n4. follow_up: the most informative next step, never a buy or sell\nrecommendation.",
+    "For an ANSWER, research_findings has your reading of each approved\nangle: angle_id and an interpretation in three parts (the backend adds\neach angle's status, evidence and statistics itself):\n1. answer: the direct answer to the angle's question in its status's\nterms;\n2. usefulness: why it matters in practical terms (for example against\ntrading costs or a typical move);\n3. follow_up: the most informative next step, never a buy or sell\nrecommendation.").replace(
+    "Cite only figures that\ncomplete_research_run returned", "Cite figures of\ncomplete_research_run only as value references")
 ANGLE_FINDINGS_CONTRACT = ("research_findings: for an ANSWER that rests on a completed multi-angle research run, one "
                            "entry per approved angle (angle_id, the backend status unchanged, interpretation with "
                            "answer, evidence, usefulness and follow_up); otherwise null. ")
 MULTI_ANGLE_FIELD_RULES = (
     "angle_id and root_hypothesis_id are lower-case identifiers (a letter, then letters, digits or underscores); every "
-    "angle_id, angle_question and analytical design is unique in the plan; at least three and at most six angles; "
+    "angle_id, angle_question and analytical design is unique in the plan; at least {min_angles} and at most "
+    "{max_angles} angles, each with exactly the design check_research_feasibility checked; "
     "method_family is the family of method_id; every parameters field is present and null when the method does not "
     "use it; multiple_testing_policy is NONE only when candidate_count and pairwise_comparisons are both at most one; "
     "minimum_sample_value and minimum_sample_unit are both set or both null; no SQL, Python, helper calls or table "
@@ -675,12 +744,16 @@ def final_contract_block(contract: str, plan_confirmation: bool, research_findin
     return block
 
 
+NUMBER_WORDS = {0: "zero", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
+
+
 def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirmation: bool = False,
                         period_return: bool = False, final_contract: bool = False,
                         catalog_protocol: bool = False, conversation_reuse: bool = False,
                         methodology: bool = False, plan_feasibility: bool = False,
                         point_in_time: bool = False, derived_frequency: bool = False,
-                        research_findings: bool = False, multi_angle: bool = False) -> str:
+                        research_findings: bool = False, multi_angle: bool = False,
+                        angle_limits: tuple[int, int, int] = (2, 6, 0), value_references: bool = False) -> str:
     """The system prompt for the registered tools. It is fixed for a deployment (AI_ENABLE_LOOKUP_FACT,
     AI_ENABLE_DATANEED, AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION, AI_ENABLE_STANDARD_PERIOD_RETURN,
     AI_FINAL_CONTRACT_IN_PROMPT), so every call of every run shares one byte-identical cacheable prefix. With the
@@ -695,7 +768,8 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
             + (PERIOD_RETURN_RULES if period_return else "") + (CATALOG_PROTOCOL_RULES if catalog_protocol else "") \
             + (CONVERSATION_REUSE_RULES if conversation_reuse else "") + (METHODOLOGY_RULES if methodology else "") \
             + (POINT_IN_TIME_RULES if point_in_time else "") + (DERIVED_FREQUENCY_RULES if derived_frequency else "") \
-            + MULTI_ANGLE_FINDINGS_RULES
+            + (MULTI_ANGLE_FINDINGS_RULES_REFS if value_references else MULTI_ANGLE_FINDINGS_RULES) \
+            + (VALUE_REFERENCE_RULES if value_references else "")
     elif dataneed:
         common, _ = SYSTEM_PROMPT_TEMPLATE.split("DATA QUERY RULES\n", 1)
         template = common + DATANEED_RULES + (RESEARCH_PLAN_RULES if plan_confirmation else "") \
@@ -703,14 +777,22 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
             + (PERIOD_RETURN_RULES if period_return else "") + (CATALOG_PROTOCOL_RULES if catalog_protocol else "") \
             + (CONVERSATION_REUSE_RULES if conversation_reuse else "") + (METHODOLOGY_RULES if methodology else "") \
             + (POINT_IN_TIME_RULES if point_in_time else "") + (DERIVED_FREQUENCY_RULES if derived_frequency else "") \
-            + (RESEARCH_FINDINGS_RULES if research_findings else "")
+            + (RESEARCH_FINDINGS_RULES if research_findings else "") \
+            + (VALUE_REFERENCE_RULES if value_references else "")
     if final_contract:
         # plan_confirmation and methodology reach here only together with dataneed (see AgentOrchestrator.__init__)
-        contract = response_contract(plan_confirmation, methodology, research_findings, multi_angle)
+        contract = response_contract(plan_confirmation, methodology, research_findings, multi_angle,
+                                     value_references)
         template = template.replace(STRICT_SCHEMA_LINE, final_contract_block(contract, plan_confirmation,
                                                                              research_findings, multi_angle))
+    # Multi-Angle Research: the negotiated angle limits (AI_RESEARCH_MIN_ANGLES / MAX_ANGLES / MIN_FAMILIES), in words
+    low, high, families = angle_limits
+    families_rule = (f" The angles use at least {NUMBER_WORDS[families]} of the five method families."
+                     if families else "")
     return (template.replace("{lookup_rule}", LOOKUP_RULE if lookup_fact else "")
-            .replace("{number_sources}", "a lookup_fact result, " if lookup_fact else ""))
+            .replace("{number_sources}", "a lookup_fact result, " if lookup_fact else "")
+            .replace("{min_angles}", NUMBER_WORDS[low]).replace("{max_angles}", NUMBER_WORDS[high])
+            .replace("{families_rule}", families_rule))
 
 
 SYSTEM_PROMPT = build_system_prompt(True)
@@ -853,7 +935,7 @@ METHODOLOGY_CONTRACT = ("methodology: for an ANSWER or LIMITATION that rests on 
 
 
 def response_contract(plan_confirmation: bool, methodology: bool = False, research_findings: bool = False,
-                      multi_angle: bool = False) -> str:
+                      multi_angle: bool = False, value_references: bool = False) -> str:
     """The final-response contract text: RESPONSE_CONTRACT, with the Research Plan, methodology and research findings
     fields when on (Multi-Angle Research: the per-angle findings)."""
     contract = PLAN_RESPONSE_CONTRACT if plan_confirmation else RESPONSE_CONTRACT
@@ -861,10 +943,14 @@ def response_contract(plan_confirmation: bool, methodology: bool = False, resear
         contract = contract.replace("The output format is already defined", METHODOLOGY_CONTRACT
                                     + "The output format is already defined")
     if multi_angle and plan_confirmation:
-        contract = contract.replace("The output format is already defined", ANGLE_FINDINGS_CONTRACT
+        contract = contract.replace("The output format is already defined",
+                                    (ANGLE_NARRATIVE_CONTRACT if value_references else ANGLE_FINDINGS_CONTRACT)
                                     + "The output format is already defined")
     elif research_findings and plan_confirmation:
         contract = contract.replace("The output format is already defined", RESEARCH_FINDINGS_CONTRACT
+                                    + "The output format is already defined")
+    if value_references:
+        contract = contract.replace("The output format is already defined", VALUE_REFERENCE_CONTRACT
                                     + "The output format is already defined")
     return contract
 
@@ -905,8 +991,9 @@ SESSION_ID_RE = re.compile(r"^sess_[0-9a-f]{24}$")
 ALL_TYPES = BASE_TYPES | {"RESEARCH_PLAN_CONFIRMATION"}
 PLAN_TYPES = frozenset({"RESEARCH_PLAN_CONFIRMATION", "CLARIFICATION", "LIMITATION"})
 RESEARCH_RUN_TOOLS = frozenset({"start_research_run", "run_research_code", "complete_research_run"})
+# get_research_library (C07) is registered only while multi-angle research serves the research library
 DISCOVERY_TOOLS = frozenset({"get_system_capabilities", "discover_catalog", "get_catalog_details",
-                             "read_catalog_rows", "get_dimension_values"})
+                             "read_catalog_rows", "get_dimension_values", "get_research_library"})
 PLAN_NOTE_PREFIX = "Application note, not from the user: "
 APPROVED_NOTE = (PLAN_NOTE_PREFIX + "the user approved Research Plan {plan_id}; the approval was verified. Carry out "
                  "its experiments now. Each RESEARCH data need copies research_governance from its experiment as the "
@@ -960,6 +1047,11 @@ RESEARCH_PATH_NOTE = (PLAN_NOTE_PREFIX + "the caller fixed this request to the R
                       "research: propose a Research Plan (RESEARCH_PLAN_CONFIRMATION) under the RESEARCH PLAN "
                       "CONFIRMATION rules, or ask a CLARIFICATION when it cannot be planned; every data need uses "
                       "mode RESEARCH (an ANALYSIS data need is refused).")
+# Mode 4 (app/mode4.py): the seconds left of the whole mode 4 request, so its sub-runs together stay within
+# AI_MAX_ANALYSIS_SECONDS (None: a run has AI_MAX_ANALYSIS_SECONDS of its own)
+current_time_budget: contextvars.ContextVar[float | None] = contextvars.ContextVar("current_time_budget", default=None)
+ANGLE_COUNT_NOTE = (PLAN_NOTE_PREFIX + "for this request the Research Plan has {count} (check_research_feasibility and "
+                    "the plan check use this count; it replaces the angle count stated in the instructions).")
 ANALYSIS_PATH_LINE = ("Analysis path (fixed by the caller): descriptive historical statistics without a significance "
                       "test or a correction for multiple comparisons; not a verdict, a cause, a prediction or a "
                       "trading signal.")
@@ -968,6 +1060,18 @@ CANCEL_NOTE = (PLAN_NOTE_PREFIX + "the user cancelled the Research Plan. Nothing
 UNRELATED_NOTE = (PLAN_NOTE_PREFIX + "Research Plan {plan_id} is waiting for the user's decision, and this message "
                   "neither approves, revises nor cancels it. Return response_type CLARIFICATION that asks whether to "
                   "approve, revise or cancel the plan. Do not run anything.")
+TRUNCATED_FINAL_INSTRUCTION = (
+    "The response was cut off at the output limit ({limit} tokens, reasoning included), so it is not complete JSON. "
+    "Return the whole response again, shorter, and keep the reasoning before it brief.")
+TRUNCATED_PLAN_HINT = (" For a Research Plan use the fewest angles that answer the question and one short sentence "
+                       "per text field; the answer presents the plan briefly.")
+RESEARCH_RUN_INCOMPLETE_INSTRUCTION = (
+    "The research run was started but complete_research_run was not called, so no angle has a backend finding and "
+    "nothing can be reported. Call complete_research_run with finalize false now: it lists every angle not yet "
+    "recorded. Record those angles with run_research_code and call it again; use finalize true only for an angle that "
+    "cannot be recorded (it becomes NOT_RUN; the recorded angles still get their findings); a group whose session "
+    "ended and cannot be recovered is closed by finalize true. Never import or modify the sandbox's internal modules. "
+    "Then answer from its result.")
 MULTI_ANGLE_FEASIBILITY_INSTRUCTION = (
     "A multi-angle Research Plan is presented only for angles that passed check_research_feasibility in this run "
     "(FEASIBLE): {problems}. Call check_research_feasibility with one data requirement per angle of the plan you will "
@@ -987,8 +1091,118 @@ ANGLE_FINDINGS_INSTRUCTION = (
     "the status copied unchanged from complete_research_run, all four interpretation parts and the effective sample "
     "in evidence; use no status wording stronger than the backend's, and say the angles agree only when the synthesis "
     "map allows an agreement.")
+ANGLE_NARRATIVE_INSTRUCTION = (
+    "Your reading of the multi-angle research run does not match its findings: {problems}. Use no status wording "
+    "stronger than each angle's backend status (the backend writes the statuses and the evidence itself), say the "
+    "angles agree only when the synthesis map allows an agreement, and write figures as value references.")
 ANGLE_FINDINGS_NOTICE = ("The interpretation of the multi-angle research result below did not match the backend's "
                          "findings; read the figures as unconfirmed. ")
+# P09 (suite20 r08, 2026-09-29): "tidak mengizinkan pernyataan bahwa sudut-sudut saling mendukung" was read as an
+# agreement claim because the negation stood 47 characters before the phrase and only 40 were checked. A negation
+# governs the phrase when it stands in the same clause: after the last sentence or clause boundary (., !, ?, ;, :, a
+# line break or a contrast word) and within CLAUSE_WINDOW characters.
+CLAUSE_BOUNDARY = re.compile(r"[.!?;:\n]|\b(?:but|however|although|whereas|tetapi|namun|tapi|sedangkan|meskipun|"
+                             r"walaupun)\b", re.IGNORECASE)
+CLAUSE_WINDOW = 200
+
+
+def negated_in_clause(text: str, start: int) -> bool:
+    """Whether a negation (NEGATION_PATTERN) precedes position start in the same clause."""
+    before = text[max(0, start - CLAUSE_WINDOW):start]
+    boundaries = [m.end() for m in CLAUSE_BOUNDARY.finditer(before)]
+    clause = before[boundaries[-1]:] if boundaries else before
+    return re.search(NEGATION_PATTERN, clause, re.IGNORECASE) is not None
+
+
+# P10: a zero count governing a verdict phrase ("0 keluarga metode didukung", "nol sudut didukung", "none of the
+# angles is supported"); the digit must stand alone (not 0,5 or 0%)
+ZERO_QUANTIFIER = re.compile(r"(?<![\d.,])0(?![\d.,%])\s+\w|\b(?:nol|zero|none)\b", re.IGNORECASE)
+
+
+def negated_or_zero(text: str, start: int) -> bool:
+    """Whether a negation or a zero count precedes position start in the same clause."""
+    if negated_in_clause(text, start):
+        return True
+    before = text[max(0, start - CLAUSE_WINDOW):start]
+    boundaries = [m.end() for m in CLAUSE_BOUNDARY.finditer(before)]
+    clause = before[boundaries[-1]:] if boundaries else before
+    return ZERO_QUANTIFIER.search(clause) is not None
+
+
+BACKEND_FINDING_FOLLOW_UP = ("The model's interpretation of this run did not pass the backend check; rely on the status "
+                             "above and read the answer text as unconfirmed.")
+
+
+def backend_findings(run: dict[str, Any]) -> list[AngleFindingReport] | None:
+    """One backend-authored entry per angle of a completed run (status, reason, validation level, effective sample),
+    for a LIMITATION forced by the findings gate; None when the run has no findings."""
+    entries = []
+    for finding in (run.get("research_findings") or [])[:6]:
+        status = finding.get("status")
+        if not finding.get("angle_id") or status not in ("SUPPORTED", "PARTIALLY_SUPPORTED", "INSUFFICIENT_EVIDENCE",
+                                                         "INVALID", "NOT_RUN"):
+            continue
+        sample = (finding.get("sample") or {}).get("effective")
+        entries.append(AngleFindingReport(angle_id=str(finding["angle_id"])[:40], status=status,
+                                          interpretation=AngleInterpretation(
+            answer=f"Backend status {status}: {finding.get('status_reason') or 'no reason given'}.",
+            evidence=f"Validation level {finding.get('validation_level') or 'none'}; effective sample "
+                     f"{sample if sample is not None else 'not available'}; evidence direction "
+                     f"{finding.get('evidence_direction') or 'NONE'}.",
+            usefulness="Backend-authored summary of this angle; the interpretation was not confirmed.",
+            follow_up=BACKEND_FINDING_FOLLOW_UP)))
+    return entries or None
+
+
+def _float(value: Any) -> float | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number == number and abs(number) != float("inf") else None
+
+
+def backend_summary(finding: dict[str, Any]) -> BackendAngleSummary:
+    """The backend's finding of one angle in the response's shape (#15)."""
+    sample = finding.get("sample") or {}
+    estimates = finding.get("estimates") or {}
+    primary = estimates.get("primary") or {}
+    ci = primary.get("ci_adjusted") or primary.get("ci")
+    return BackendAngleSummary(
+        status=finding["status"], status_reason=finding.get("status_reason"),
+        validation_level=finding.get("validation_level"), evidence_direction=finding.get("evidence_direction"),
+        effective_sample=_float(sample.get("effective")), sample_unit=sample.get("unit"),
+        estimate_kind=estimates.get("kind"), estimate=_float(primary.get("estimate")),
+        ci=[_float(v) for v in ci][:2] if isinstance(ci, (list, tuple)) else None,
+        p_value=_float(primary.get("p_value")), p_adjusted=_float(primary.get("p_adjusted")),
+        confidence_level=_float(finding.get("confidence_level")))
+
+
+def evidence_sentence(summary: BackendAngleSummary) -> str:
+    """The evidence part of one angle, written by the backend (Indonesian, figures formatted by value_refs)."""
+    parts = [f"Status backend {summary.status}" + (f" ({summary.status_reason})" if summary.status_reason else "")]
+    if summary.validation_level:
+        parts.append(f"level validasi {summary.validation_level}")
+    if summary.effective_sample is not None:
+        unit = SAMPLE_UNITS.get(str(summary.sample_unit or "").upper(), str(summary.sample_unit or "").lower())
+        parts.append(f"sampel efektif {format_value(summary.effective_sample)}" + (f" {unit}" if unit else ""))
+    if summary.estimate is not None:
+        text = f"estimasi utama{f' ({summary.estimate_kind})' if summary.estimate_kind else ''} " \
+               f"{format_value(summary.estimate)}"
+        if summary.ci and len(summary.ci) == 2 and None not in summary.ci:
+            level = f" {format_value(summary.confidence_level * 100)}%" if summary.confidence_level else ""
+            text += f" (CI{level} {format_value(summary.ci[0])} s/d {format_value(summary.ci[1])})"
+        parts.append(text)
+    if summary.p_value is not None:
+        parts.append(f"p {format_value(summary.p_value)}"
+                     + (f", p terkoreksi {format_value(summary.p_adjusted)}" if summary.p_adjusted is not None else ""))
+    if summary.evidence_direction:
+        parts.append(f"arah bukti {summary.evidence_direction}")
+    return "; ".join(parts) + "."
+
+
 # a claim that the angles agree or confirm one another (English and Indonesian)
 AGREEMENT_WORDING = (r"\b(?:(?:all|every|the) (?:\w+ )?angles? (?:\w+ )?(?:agree|confirm|support|point the same way|are "
                      r"consistent)|consistent across (?:all |the )?angles|angles? (?:agree|confirm each other)|"
@@ -1131,6 +1345,17 @@ class RunState:
     # executor of an approved plan) and the refused RESEARCH data needs
     research: ResearchContext | None = None
     research_refusals: int = 0
+    # P11 value references: what this run may reference (from tool results only), the values resolved in the final
+    # response (provenance sources under their labels), and the response as the model wrote it (for the audit)
+    ref_sources: ReferenceSources = field(default_factory=ReferenceSources)
+    ref_values: list[Resolved] = field(default_factory=list)
+    ref_facts: int = 0
+    references_used: int = 0
+    # M43 (2026-09-30): the final answer kept references to missing fields as [field] (validation_gate ANNOTATED)
+    reference_annotated: bool = False
+    raw_final: dict[str, Any] | None = None
+    # the model's latest final output as it arrived (for the final.rejected / final.forced audit events)
+    current_raw: str = ""
 
 
 class TurnRuleError(ValueError):
@@ -1233,16 +1458,22 @@ class AgentOrchestrator:
         if settings.ai_enable_analysis_path and not self.analysis_path:
             log_event("analysis_path_inactive", reason="needs AI_ENABLE_DATANEED and "
                                                        "AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION")
+        # P11 (2026-09-30): data figures as value references the backend fills in (DataNeed flow only)
+        self.value_references = settings.ai_enable_value_references and self.dataneed
         self.system_prompt = build_system_prompt(settings.ai_enable_lookup_fact, self.dataneed,
                                                  self.plan_confirmation, period_return,
                                                  settings.ai_final_contract_in_prompt, self.catalog_protocol,
                                                  self.conversation_reuse, self.methodology, self.plan_feasibility,
                                                  self.point_in_time, self.derived_frequency,
-                                                 self.research_findings, self.multi_angle)
+                                                 self.research_findings, self.multi_angle,
+                                                 (int(self.research_limits.get("min_angles", 2)),
+                                                  int(self.research_limits.get("max_angles", 6)),
+                                                  int(self.research_limits.get("min_families") or 0)),
+                                                 self.value_references)
         self.final_schema = final_response_schema(self.plan_confirmation, self.methodology, self.research_findings,
-                                                  self.multi_angle)
+                                                  self.multi_angle, self.value_references)
         contract = response_contract(self.plan_confirmation, self.methodology, self.research_findings,
-                                     self.multi_angle)
+                                     self.multi_angle, self.value_references)
         self.response_contract = contract
         self.finalize_instruction = FINALIZE_PREFIX + contract
         self.context_budget_instruction = CONTEXT_BUDGET_PREFIX + contract
@@ -1285,8 +1516,12 @@ class AgentOrchestrator:
             instructions=self._instructions(),
         )
         state.audit_started_at = moment
-        state.forced_path = request.analysis_path if self.analysis_path else None
+        # AUTO and MODE4 are routed before this (app/modes.py, app/mode4.py); only ANALYSIS and RESEARCH fix a path
+        state.forced_path = request.analysis_path if self.analysis_path \
+            and request.analysis_path in ("ANALYSIS", "RESEARCH") else None
         state.research = ResearchContext() if self.multi_angle else None
+        if state.research is not None:
+            state.research.calls_left = lambda: self.settings.ai_max_tool_calls - state.tool_calls
         for text in [turn.content for turn in request.history if turn.role == "user"] + [request.message]:
             state.context_numbers.extend(value for shown in parse_numbers(text) for value, _ in shown.candidates)
         token = current_request_id.set(request.request_id)
@@ -1362,6 +1597,8 @@ class AgentOrchestrator:
             except Exception:  # noqa: BLE001 - auditing never changes the response
                 logger.warning(dumps({"event": "research_audit_failed", "request_id": request.request_id}))
         if self.audit_outbox is not None:
+            if state.raw_final is not None:
+                state.audit_trace.append(unrendered_event(state.raw_final, self.wall_clock()))
             result = self._hand_to_audit(request, result, state)
         log_event(
             "ai_run_completed" if result.status != "FAILED" else "ai_run_failed",
@@ -1552,7 +1789,7 @@ class AgentOrchestrator:
             return
         if state.forced_path == "RESEARCH" and request.continuation is None:
             self._set_turn(state, "PROPOSE", PLAN_TYPES, self.plan_tools, ResearchGuard(required=True),
-                           note=RESEARCH_PATH_NOTE, verification="NOT_PRESENTED")
+                           note=RESEARCH_PATH_NOTE + self._angle_count_note(), verification="NOT_PRESENTED")
             return
         if not self.plan_confirmation:
             if request.continuation is not None:
@@ -1584,7 +1821,9 @@ class AgentOrchestrator:
         state.plan_meta.update(action=action, action_source=source, verification=verification,
                                approved_plan_id=verified.plan_id if verified and action == "APPROVE" else None)
         plan_json = dumps(continuation.plan.model_dump(mode="json"))
-        numbers = [value for shown in parse_numbers(plan_json) for value, _ in shown.candidates]
+        # P12 (suite20c r04/r06, 2026-09-30): the plan's numbers are read from its JSON values, not by the prose
+        # parser over the compact dump (which drops "-40" after a comma and every number of "[25,35,45]")
+        numbers = released_numbers(continuation.plan.model_dump(mode="json"))
         guard = ResearchGuard(required=True, verification=verification)
         if action in ("CANCEL", "UNRELATED"):
             state.user_text = request.message  # the reply itself, not the research question it answers
@@ -1614,7 +1853,7 @@ class AgentOrchestrator:
             self._set_turn(state, "REVISE", PLAN_TYPES, self.plan_tools, guard, note=REVISE_NOTE.format(
                 plan_id=continuation.plan_id, instruction=instruction,
                 unverified="" if verified is not None else " (sent back by the caller; it could not be verified)",
-                plan=plan_json))
+                plan=plan_json) + self._angle_count_note())
             if verified is not None:
                 state.context_numbers.extend(numbers)
         else:  # an approval or unrelated reply whose continuation did not verify: nothing is approved
@@ -1653,6 +1892,24 @@ class AgentOrchestrator:
             # before the user's reply, after the run context and the history
             state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": note})
 
+    @staticmethod
+    def _angle_count_note() -> str:
+        """Mode 4: the angle count this request's plan must have, as an application note (empty otherwise)."""
+        bounds = current_angle_bounds.get()
+        if bounds is None:
+            return ""
+        low, high = bounds
+        count = (f"exactly {NUMBER_WORDS[low]} angle" + ("s" if low > 1 else "")) if low == high \
+            else f"from {NUMBER_WORDS[low]} to {NUMBER_WORDS[high]} angles"
+        return " " + ANGLE_COUNT_NOTE.format(count=count)
+
+    def classify_reply(self, request_id: str, message: str, plan: Any) -> tuple[str, str | None, dict[str, Any]]:
+        """Mode 4: the reply classifier outside a run (APPROVE, REVISE, CANCEL or UNRELATED; any failure is
+        UNRELATED), with its usage record (status, tokens, cost, latency)."""
+        state = RunState(request_id=request_id, started=self.clock(), input_items=[])
+        action, instruction = self._classify_reply(state, message, plan)
+        return action, instruction, dict(state.classifier or {})
+
     def _classify_reply(self, state: RunState, message: str, plan: Any) -> tuple[str, str | None]:
         """A free-text reply to a plan, read by one small tool-free model call constrained to APPROVE, REVISE, CANCEL
         or UNRELATED. Any failure is UNRELATED, which never approves anything."""
@@ -1662,7 +1919,7 @@ class AgentOrchestrator:
             "input": [{"role": "user", "content": dumps({"research_plan": plan_digest_v2(plan)
                                                          if isinstance(plan, ResearchPlanV2) else plan_digest(plan),
                                                          "user_reply": message[:4000]})}],
-            "reasoning": {"effort": "low"}, "max_output_tokens": min(2000, self.settings.ai_max_output_tokens),
+            "reasoning": self.settings.reasoning("low"), "max_output_tokens": min(2000, self.settings.ai_max_output_tokens),
             "store": False, "provider": self._provider(),
             "text": {"format": {"type": "json_schema", "name": "research_plan_reply", "strict": True,
                                 "schema": CLASSIFIER_SCHEMA}},
@@ -1692,7 +1949,10 @@ class AgentOrchestrator:
 
     def _loop(self, state: RunState) -> FinalResponse:
         while state.iterations < self.settings.ai_max_tool_iterations:
-            if self.clock() - state.started >= self.settings.ai_max_analysis_seconds:
+            budget = current_time_budget.get()
+            limit = self.settings.ai_max_analysis_seconds if budget is None \
+                else min(budget, self.settings.ai_max_analysis_seconds)
+            if self.clock() - state.started >= limit:
                 raise RunFailure("ANALYSIS_TIMEOUT", "AI_MAX_ANALYSIS_SECONDS exhausted before a final answer")
 
             tools = [] if state.tools_locked or state.structured_only else self._turn_tools(state)
@@ -1760,9 +2020,13 @@ class AgentOrchestrator:
                 continue
 
             raw = self._output_text(response)
+            state.current_raw = raw
             try:
                 final = self._check_budget_limitations(state, self._turn_type(state, self._parse_final_output(raw)))
-                return self._validation_gate(state, final)
+                final, forced = self._resolve_references(state, final)
+                if forced:
+                    return self._finalize_findings(state, final)
+                return self._finalize_findings(state, self._validation_gate(state, final))
             except TurnRuleError as exc:
                 self._reject_final(state, raw, str(exc))
             except GateRejection as exc:
@@ -1773,10 +2037,18 @@ class AgentOrchestrator:
                 state.structured_only = False
                 state.final_reask_sent = False
             except ValueError as exc:
+                issue = str(exc)
+                if usage["output_tokens"] >= self.settings.ai_max_output_tokens:
+                    # found live (golden run 2026-09-29): a long plan was cut off mid-JSON and the model only saw
+                    # "EOF while parsing"
+                    issue = TRUNCATED_FINAL_INSTRUCTION.format(limit=self.settings.ai_max_output_tokens) + (
+                        TRUNCATED_PLAN_HINT if self.multi_angle else "")
+                    log_event("ai_final_truncated", request_id=state.request_id, iteration=state.iterations,
+                              output_tokens=usage["output_tokens"], reasoning_tokens=usage["reasoning_tokens"])
                 if tools:
-                    self._request_structured_final(state, raw, str(exc))
+                    self._request_structured_final(state, raw, issue)
                 else:
-                    self._reject_final(state, raw, str(exc))
+                    self._reject_final(state, raw, issue)
         raise RunFailure("MAX_ITERATIONS", "AI_MAX_TOOL_ITERATIONS reached before a final answer")
 
     def _turn_tools(self, state: RunState) -> list[dict[str, Any]]:
@@ -1806,7 +2078,7 @@ class AgentOrchestrator:
             "session_id": state.request_id,
             "instructions": state.instructions or self.system_prompt,
             "input": state.input_items,
-            "reasoning": {"effort": self.settings.ai_reasoning_effort},
+            "reasoning": self.settings.reasoning(self.settings.ai_reasoning_effort),
             "max_output_tokens": self.settings.ai_max_output_tokens,
             "store": False,
             "provider": self._provider(),
@@ -1962,7 +2234,10 @@ class AgentOrchestrator:
         if name == "check_data_feasibility":
             self._track_feasibility(state, outcome)
         if name == "check_research_feasibility":
-            self._track_research_feasibility(state, outcome)
+            self._track_research_feasibility(state, outcome, normalized)
+        if name == "get_research_library" and outcome.ok:
+            # P12 (e04 "95%"): the library's own figures (interval level, minimum samples) may be named in a plan
+            state.context_numbers.extend(released_numbers(outcome.output.get("result")))
         if name in RESEARCH_RUN_TOOLS:
             self._track_research_run(state, name, self._normalized_arguments(raw_arguments), outcome)
         if self.catalog_protocol and name in CACHEABLE_TOOLS and outcome.ok:
@@ -1974,6 +2249,8 @@ class AgentOrchestrator:
         self._track_analysis(state, name, outcome, self._normalized_arguments(raw_arguments))
         self._track_sources(state, name, self._normalized_arguments(raw_arguments), outcome)
         self._track_dataneed(state, name, self._normalized_arguments(raw_arguments), outcome)
+        if self.value_references:
+            self._track_references(state, name, outcome)
         result_hash = stable_hash(outcome.output)
         count = count + 1 if last_result in (None, result_hash) else 1
         state.call_history[key] = (count, result_hash)
@@ -2000,7 +2277,7 @@ class AgentOrchestrator:
                   draft_id=entry["draft_id"], issues=entry["issues"], refused=entry["requests"])
 
     @staticmethod
-    def _track_research_feasibility(state: RunState, outcome: ToolOutcome) -> None:
+    def _track_research_feasibility(state: RunState, outcome: ToolOutcome, arguments: Any = None) -> None:
         """check_research_feasibility: the tool's callback keeps the last FEASIBLE research data plan in the run's
         research context; the checks are recorded here for the plan gate and the logs."""
         result = outcome.output.get("result") if outcome.ok else None
@@ -2013,6 +2290,11 @@ class AgentOrchestrator:
         state.feasibility_checks.append(entry)
         # the checked estimates (rows, parts) may be named in the plan's answer
         state.context_numbers.extend(numbers_in(result.get("bundle_groups"), ints_only=True))
+        # P12 (r11 "buffer 25"): the backend's adjustments and the designs and data requests it checked FEASIBLE
+        # (future buffers, horizons) belong to the plan the answer presents
+        state.context_numbers.extend(numbers_in(result.get("adjustments")))
+        if result.get("status") == "FEASIBLE" and isinstance(arguments, dict):
+            state.context_numbers.extend(numbers_in(arguments))
         log_event("research_plan_feasibility", request_id=state.request_id, plan_version=PLAN_VERSION_V2,
                   status=entry["status"], strategy=entry["strategy"], issues=entry["issues"],
                   uncovered=entry["uncovered_angle_ids"],
@@ -2032,7 +2314,8 @@ class AgentOrchestrator:
         """The figures of one backend finding an answer may cite (never hashes, ids or versions); a difference stated as
         a size with a direction word is the same governed figure."""
         values = numbers_in({k: finding.get(k) for k in ("sample", "estimates", "comparator", "multiple_testing",
-                                                          "secondary_checks", "holdout", "method_payload")})
+                                                          "secondary_checks", "holdout", "method_payload",
+                                                          "confidence_level")})
         return values + [abs(v) for v in values if v < 0]
 
     def _track_research_run(self, state: RunState, name: str, arguments: Any, outcome: ToolOutcome) -> None:
@@ -2045,11 +2328,18 @@ class AgentOrchestrator:
         result = outcome.output.get("result") if outcome.ok else None
         if not isinstance(result, dict):
             return
+        if name == "start_research_run":
+            # found live (golden run 2026-09-29): the rows and entities of the prepared bundle were refused as numbers
+            # without a source
+            state.context_numbers.extend(numbers_in(result.get("groups"), ints_only=True))
+            state.context_numbers.extend(numbers_in((result.get("session") or {}).get("datasets"), ints_only=True))
+        if name == "run_research_code" and isinstance(result.get("session_opened"), dict):
+            state.context_numbers.extend(numbers_in(result["session_opened"].get("datasets"), ints_only=True))
         if name == "run_research_code" and result.get("execution_id"):
             state.execution_ids.append(str(result["execution_id"]))
             code = arguments.get("code") if isinstance(arguments, dict) else None
             if result.get("status") == "OK" and isinstance(code, str):
-                state.code_numbers.extend(value for shown in parse_numbers(code) for value, _ in shown.candidates)
+                state.code_numbers.extend(code_numbers(code))
         elif name == "complete_research_run" and result.get("research_findings_version") == FINDINGS_V2:
             run_id = result.get("research_run_id")
             values = [v for f in result.get("research_findings") or [] if isinstance(f, dict)
@@ -2336,7 +2626,7 @@ class AgentOrchestrator:
             session["executions"].append(result.get("status"))
             code = (arguments or {}).get("code") if isinstance(arguments, dict) else None
             if result.get("status") == "OK" and isinstance(code, str):
-                state.code_numbers.extend(value for shown in parse_numbers(code) for value, _ in shown.candidates)
+                state.code_numbers.extend(code_numbers(code))
         elif name == "get_session_output" and result.get("released"):
             if result.get("read_mode") == "READ_RELEASED" and isinstance(result.get("origin"), dict):
                 # released by an earlier completion (an earlier message, or an earlier epoch of this session)
@@ -2447,8 +2737,55 @@ class AgentOrchestrator:
                      "prediction.")
         return lines
 
+    @staticmethod
+    def _track_references(state: RunState, name: str, outcome: ToolOutcome) -> None:
+        """P11: register what the final response may reference, and show each referable object its "ref"."""
+        if not outcome.ok:
+            return
+        result = outcome.output.get("result")
+        if not isinstance(result, dict):
+            return
+        sources = state.ref_sources
+
+        def output(entry: Any) -> None:
+            if isinstance(entry, dict) and entry.get("output_id"):
+                sources.add("out", str(entry["output_id"]), entry, "DATA_COVERAGE_VERIFIED")
+                entry["ref"] = f"out.{entry['output_id']}"
+
+        if name == "complete_research_run":
+            for finding in result.get("research_findings") or []:
+                if isinstance(finding, dict) and finding.get("angle_id"):
+                    sources.add("finding", str(finding["angle_id"]), finding, "DATA_COVERAGE_VERIFIED")
+                    finding["ref"] = f"finding.{finding['angle_id']}"
+            for entry in result.get("released_contents") or []:
+                output(entry)
+        elif name == "complete_analysis" and result.get("status") == "COMPLETED":
+            for entry in result.get("released_contents") or []:
+                output(entry)
+            for finding in (result.get("final_status") or {}).get("research_findings") or []:
+                if isinstance(finding, dict) and finding.get("hypothesis_id"):
+                    sources.add("finding", str(finding["hypothesis_id"]), finding, "DATA_COVERAGE_VERIFIED")
+                    finding["ref"] = f"finding.{finding['hypothesis_id']}"
+        elif name == "get_session_output" and result.get("released"):
+            output(result)
+        elif name == "lookup_fact" and result.get("decision") == "FACTS_READY":
+            for fact in result.get("facts") or []:
+                if isinstance(fact, dict):
+                    state.ref_facts += 1
+                    kind = "DATABASE_AGGREGATE" if fact.get("kind") == "AGGREGATE" else "FACT"
+                    sources.add("fact", str(state.ref_facts), fact.get("value"), kind)
+                    fact["ref"] = f"fact.{state.ref_facts}"
+        elif name in ("run_python_analysis", "get_analysis_result") and result.get("analysis_id"):
+            label = analysis_label(result.get("execution_status"), result.get("validation_status"),
+                                   result.get("validation_level"))
+            if label:
+                sources.add("analysis", str(result["analysis_id"]), result.get("outputs"), label)
+                result["ref"] = f"analysis.{result['analysis_id']}.<output path>"
+
     def _source_index(self, state: RunState) -> SourceIndex:
         index = SourceIndex()
+        for resolved in state.ref_values:  # P11: a value the backend filled in counts under its source's label
+            index.add(resolved.label if resolved.label in LABEL_ORDER else CONTEXT, [resolved.value])
         static = self.system_prompt + "\n" + "\n".join(str(d.get("description", "")) for d in self.registry.definitions())
         index.add(CONTEXT, state.context_numbers
                   + [value for shown in parse_numbers(static) for value, _ in shown.candidates])
@@ -2459,15 +2796,120 @@ class AgentOrchestrator:
                 index.add(record["label"], record["values"])
         return index
 
-    def _gate_once(self, state: RunState, kind: str, message: str) -> None:
-        """Reject a final answer once per kind of problem while the model can still repair it with tools."""
+    def _resolve_references(self, state: RunState, final: FinalResponse) -> tuple[FinalResponse, bool]:
+        """P11: fill every value reference of an ANSWER or LIMITATION from this run's sources. The resolved values
+        become provenance sources, so the gates run unchanged on the rendered text. A reference that does not resolve
+        is refused for repair once per distinct set of failing references (at most MAX_REFERENCE_REPAIRS per run,
+        P16). After that, a reference to a field the object does not have (or to an object) stays in the answer as
+        [field] with a limitation line and the response keeps its type (M43, user decision 2026-09-30); any other
+        unresolved reference makes the response a LIMITATION with the unresolved figures marked."""
+        state.reference_annotated = False  # it describes this final only, not an earlier refused draft
+        if not self.value_references or final.response_type not in ("ANSWER", "LIMITATION"):
+            return final, False
+        problems: list[str] = []
+        failed: list[str] = []
+        missing: list[tuple[str, str, str]] = []
+        values: list[Resolved] = []
+        count = 0
+
+        def fill(text: str | None) -> str | None:
+            nonlocal count
+            if text is None:
+                return None
+            rendering = render(text, state.ref_sources)
+            problems.extend(rendering.problems)
+            failed.extend(rendering.failed)
+            missing.extend(rendering.missing)
+            values.extend(rendering.values)
+            count += rendering.count
+            return rendering.text
+
+        update: dict[str, Any] = {"answer": fill(final.answer), "limitations": [fill(x) for x in final.limitations],
+                                  "assumptions": [fill(x) for x in final.assumptions],
+                                  "methodology": fill(final.methodology)}
+        if final.research_findings:
+            entries = []
+            for entry in final.research_findings:
+                parts = entry.interpretation
+                filled = parts.model_copy(update={k: fill(getattr(parts, k)) for k in
+                                                  ("answer", "evidence", "usefulness", "follow_up")})
+                entries.append(entry.model_copy(update={"interpretation": filled}))
+            update["research_findings"] = entries
+        if not count:
+            return final, False
+        state.references_used += count
+        state.raw_final = final.model_dump(mode="json")
+        rendered = final.model_copy(update=update)
+        state.ref_values.extend(values)
+        if not problems and not missing:
+            return rendered, False
+        detail = "; ".join(dict.fromkeys(problems + [message for _, _, message in missing]))[:1500]
+        failing = sorted(set(failed) | {expression for expression, _, _ in missing})
+        kind = "REFERENCE:" + stable_hash(failing)[:12]
+        spent = sum(1 for k in state.gate_kinds_rejected if k.startswith("REFERENCE"))
+        self._gate_once(state, kind, REFERENCE_INSTRUCTION.format(problems=detail),
+                        allowed=spent < MAX_REFERENCE_REPAIRS, outcome="FORCED_LIMITATION" if problems else "ANNOTATED")
+        if problems:
+            return self._forced(state, rendered, REFERENCE_NOTICE,
+                                [f"Value references that did not resolve: {detail}."]), True
+        names = ", ".join(dict.fromkeys(name for _, name, _ in missing))
+        line = MISSING_FIELD_LINE.format(fields=names)
+        state.reference_annotated = True  # validation_gate ANNOTATED, set when this final passes the other gates
+        return rendered.model_copy(update={"limitations": [*rendered.limitations, line]}), False
+
+    def _finalize_findings(self, state: RunState, final: FinalResponse) -> FinalResponse:
+        """Multi-Angle Research after a completed run: every LIMITATION carries the backend's per-angle findings (M39),
+        and with value references every response carries all approved angles rendered from the backend (#15)."""
+        run = self._research_result(state)
+        if run is None or not run.get("research_findings") or final.response_type not in ("ANSWER", "LIMITATION"):
+            return final
+        if self.value_references:
+            return final.model_copy(update={"research_findings": self._rendered_findings(state, run, final)})
+        if final.response_type == "LIMITATION" and final.research_findings is None:
+            return final.model_copy(update={"research_findings": backend_findings(run)})
+        return final
+
+    def _rendered_findings(self, state: RunState, run: dict[str, Any],
+                           final: FinalResponse) -> list[AngleFindingReport] | None:
+        executor = self._executor(state)
+        backend = {str(f.get("angle_id")): f for f in run.get("research_findings") or []
+                   if isinstance(f, dict) and f.get("angle_id") and f.get("status") in ANGLE_STATUSES}
+        order = [a.angle_id for a in executor.verified.plan.angles] if executor is not None else sorted(backend)
+        given = {f.angle_id: f for f in final.research_findings or [] if isinstance(f, AngleFindingReport)} \
+            if final.response_type == "ANSWER" else {}
+        entries = []
+        for angle_id in [*order, *sorted(set(backend) - set(order))][:6]:
+            finding = backend.get(angle_id)
+            if finding is None:
+                continue
+            summary = backend_summary(finding)
+            parts = given[angle_id].interpretation if angle_id in given else None
+            entries.append(AngleFindingReport(
+                angle_id=angle_id[:40], status=summary.status, backend=summary,
+                interpretation=AngleInterpretation(
+                    answer=parts.answer if parts else NOT_INTERPRETED,
+                    evidence=evidence_sentence(summary),
+                    usefulness=parts.usefulness if parts else BACKEND_ONLY_USEFULNESS,
+                    follow_up=parts.follow_up if parts else BACKEND_FINDING_FOLLOW_UP)))
+        return entries or None
+
+    def _gate_once(self, state: RunState, kind: str, message: str, allowed: bool = True,
+                   outcome: str = "FORCED_LIMITATION") -> None:
+        """Reject a final answer once per kind of problem while the model can still repair it with tools. allowed:
+        False when the kind's repair budget is spent (P16); outcome: what happens when no repair is possible."""
         no_tools_this_turn = state.tool_filter is not None and not state.tool_filter
-        repairable = kind not in state.gate_kinds_rejected and not state.tools_locked and not no_tools_this_turn
+        repairable = allowed and kind not in state.gate_kinds_rejected and not state.tools_locked \
+            and not no_tools_this_turn
         log_event("ai_final_gate", request_id=state.request_id, iteration=state.iterations, kind=kind,
-                  outcome="REJECTED_FOR_REPAIR" if repairable else "FORCED_LIMITATION",
+                  outcome="REJECTED_FOR_REPAIR" if repairable else outcome,
                   reason=None if repairable else ("already_rejected" if kind in state.gate_kinds_rejected
+                                                  else "repair_budget" if not allowed
                                                   else "tools_withdrawn" if state.tools_locked else "no_tools"),
                   detail=message[:300])
+        if self.audit_outbox is not None and (repairable or outcome == "FORCED_LIMITATION"):
+            state.audit_trace.append(final_event("final.rejected" if repairable else "final.forced",
+                                                 iteration=state.iterations, stage=kind, detail=message,
+                                                 draft=state.current_raw, occurred_at=self.wall_clock()))
         if repairable:
             state.gate_kinds_rejected.add(kind)
             state.gate_rejections += 1
@@ -2496,6 +2938,11 @@ class AgentOrchestrator:
             state.plan_unexecuted = True
             if PLAN_NOT_EXECUTED_LINE not in final.limitations:
                 final = final.model_copy(update={"limitations": [*final.limitations, PLAN_NOT_EXECUTED_LINE]})
+        executor = self._executor(state)
+        if executor is not None and executor.research_run_id is not None and executor.result is None:
+            # found live (golden run 2026-09-29): the model stopped after recording some angles and never completed
+            # the run, so no finding existed even for the recorded angles
+            self._gate_once(state, "RESEARCH_RUN_INCOMPLETE", RESEARCH_RUN_INCOMPLETE_INSTRUCTION)
         if self.dataneed:
             return self._dataneed_gate(state, final)
         blocking, lines = self._gate_findings(state)
@@ -2531,7 +2978,9 @@ class AgentOrchestrator:
 
         missing_lines = [line for line in lines if line not in final.limitations]
         if state.analyses:
-            state.validation_gate = "ANNOTATED" if missing_lines else "PASSED"
+            state.validation_gate = "ANNOTATED" if missing_lines or state.reference_annotated else "PASSED"
+        elif state.reference_annotated:
+            state.validation_gate = "ANNOTATED"
         if final.response_type == "LIMITATION" and blocking:
             state.evidence_label = "NOT_VALIDATED"
         else:
@@ -2567,7 +3016,8 @@ class AgentOrchestrator:
         if provenance.unsupported:
             numbers = ", ".join(provenance.unsupported[:20])
             self._gate_once(state, "PROVENANCE", DATANEED_PROVENANCE_INSTRUCTION.format(
-                numbers=numbers, lookup=", a lookup_fact result" if self.settings.ai_enable_lookup_fact else ""))
+                numbers=numbers, lookup=", a lookup_fact result" if self.settings.ai_enable_lookup_fact else "")
+                + (REFERENCE_HINT if self.value_references else ""))
             return self._forced(state, final, DATANEED_PROVENANCE_NOTICE.format(numbers=numbers),
                                 [f"Figures without a governed source in this run: {numbers}."] + lines)
         # Multi-Angle Research: the backend recomputed the statistics, so saying so at the returned level is allowed
@@ -2580,13 +3030,25 @@ class AgentOrchestrator:
         if problems:
             text = "; ".join(problems[:6])
             v2 = run is not None and final.response_type == "ANSWER"
-            self._gate_once(state, "FINDINGS", (ANGLE_FINDINGS_INSTRUCTION if v2 else FINDINGS_INSTRUCTION).format(
+            # found live (golden run 2, 2026-09-29): a multi-angle answer has four to six interpretations, and fixing
+            # one problem often surfaced another, so it gets a second repair before the answer is forced to LIMITATION
+            kind = "FINDINGS_2" if v2 and "FINDINGS" in state.gate_kinds_rejected else "FINDINGS"
+            instruction = (ANGLE_NARRATIVE_INSTRUCTION if self.value_references else ANGLE_FINDINGS_INSTRUCTION) \
+                if v2 else FINDINGS_INSTRUCTION
+            self._gate_once(state, kind, instruction.format(
                 problems=text))
-            return self._forced(state, final, ANGLE_FINDINGS_NOTICE if v2 else FINDINGS_NOTICE,
-                                [f"Research findings problem: {text}."] + lines)
+            forced = self._forced(state, final, ANGLE_FINDINGS_NOTICE if v2 else FINDINGS_NOTICE,
+                                  [f"Research findings problem: {text}."] + lines)
+            if v2:
+                # P09 (suite20 r08, 2026-09-29): four valid backend findings disappeared with the model's reading; the
+                # LIMITATION keeps each angle's backend status, reason and effective sample, labelled as such
+                forced = forced.model_copy(update={"research_findings": backend_findings(run)})
+            return forced
         missing_lines = [line for line in lines if line not in final.limitations]
         if state.sessions or state.completions or state.inherited or run is not None:
-            state.validation_gate = "ANNOTATED" if missing_lines else "PASSED"
+            state.validation_gate = "ANNOTATED" if missing_lines or state.reference_annotated else "PASSED"
+        elif state.reference_annotated:
+            state.validation_gate = "ANNOTATED"
         if final.response_type == "LIMITATION" and blocking:
             state.evidence_label = "NOT_VALIDATED"
         else:
@@ -2645,10 +3107,15 @@ class AgentOrchestrator:
         backend = {f.get("angle_id"): f for f in run.get("research_findings") or []}
         given_list = list(final.research_findings or [])
         problems = []
+        # #15 (2026-09-30): with value references the backend renders every angle's status, evidence and sample, so
+        # only the model's own reading is checked (verdict wording, agreement, figures)
+        rendered = self.value_references
         if any(not isinstance(f, AngleFindingReport) for f in given_list):
-            problems.append("each entry needs angle_id, status and interpretation")
+            problems.append("each entry needs angle_id and interpretation" if rendered
+                            else "each entry needs angle_id, status and interpretation")
         given = {f.angle_id: f for f in given_list if isinstance(f, AngleFindingReport)}
-        problems += [f"no entry for {a}" for a in backend if a not in given]
+        if not rendered:
+            problems += [f"no entry for {a}" for a in backend if a not in given]
         problems += [f"{a} is not an approved angle of this run" for a in given if a not in backend]
         index = self._source_index(state)
         for angle_id, item in given.items():
@@ -2656,15 +3123,16 @@ class AgentOrchestrator:
             if finding is None:
                 continue
             status = finding.get("status")
-            if item.status != status:
+            if not rendered and item.status != status:
                 problems.append(f"{angle_id}: status {item.status} differs from the backend's {status}")
             parts = item.interpretation
-            text = " ".join([parts.answer, parts.evidence, parts.usefulness, parts.follow_up])
+            text = " ".join(t for t in [parts.answer, None if rendered else parts.evidence, parts.usefulness,
+                                        parts.follow_up] if t)
             allowed = {"SUPPORTED"} if status in ("SUPPORTED", "PARTIALLY_SUPPORTED") else set()
             problems += [f"{angle_id}: {p}" for p in self._verdict_wording(text, allowed)]
             effective = (finding.get("sample") or {}).get("effective")
-            if status not in ("INVALID", "NOT_RUN") and isinstance(effective, (int, float)):
-                shown = [value for numbers in parse_numbers(parts.evidence) for value, _ in numbers.candidates]
+            if not rendered and status not in ("INVALID", "NOT_RUN") and isinstance(effective, (int, float)):
+                shown = [value for numbers in parse_numbers(parts.evidence or "") for value, _ in numbers.candidates]
                 if not any(abs(v - effective) <= max(0.051 * abs(effective), 0.006) for v in shown):
                     problems.append(f"{angle_id}: evidence does not name the effective sample")
             unsupported = check_answer(text, index).unsupported
@@ -2676,8 +3144,7 @@ class AgentOrchestrator:
         agreement = ((run.get("research_synthesis_map") or {}).get("agreement") or {}).get("allowed") is True
         if not agreement:
             for match in re.finditer(AGREEMENT_WORDING, final.answer or "", re.IGNORECASE):
-                before = (final.answer or "")[max(0, match.start() - 40):match.start()]
-                if not re.search(NEGATION_PATTERN, before, re.IGNORECASE):
+                if not negated_in_clause(final.answer or "", match.start()):
                     problems.append(f"answer: \"{match.group(0)}\" claims the angles agree, but the synthesis map "
                                     "allows no agreement (it needs supported angles of different method families)")
                     break
@@ -2691,8 +3158,9 @@ class AgentOrchestrator:
             if allowed in verdicts:
                 continue
             for match in re.finditer(pattern, text or "", re.IGNORECASE):
-                before = (text or "")[max(0, match.start() - 40):match.start()]
-                if not re.search(NEGATION_PATTERN, before, re.IGNORECASE):
+                # P10 (suite20b r08, 2026-09-29): "0 keluarga metode didukung" was read as a supported verdict; a
+                # negation or a zero count anywhere in the phrase's clause (P09's clause rule) makes it no claim
+                if not negated_or_zero(text or "", match.start()):
                     problems.append(f"\"{match.group(0)}\" states a {label} verdict the backend did not give")
                     break
         return problems
@@ -2736,7 +3204,9 @@ class AgentOrchestrator:
         if is_v2:
             problems = self._plan_v2_problems(state, final.research_plan)
             if problems:
-                self._gate_once(state, "PLAN_FEASIBILITY", MULTI_ANGLE_FEASIBILITY_INSTRUCTION.format(
+                # M38 (suite20, 2026-09-29): a plan with several angles often needed a second repair, like FINDINGS_2
+                kind = "PLAN_FEASIBILITY_2" if "PLAN_FEASIBILITY" in state.gate_kinds_rejected else "PLAN_FEASIBILITY"
+                self._gate_once(state, kind, MULTI_ANGLE_FEASIBILITY_INSTRUCTION.format(
                     problems="; ".join(problems[:6])))
                 return self._plan_not_feasible(state, final)
         elif self.research_findings and not isinstance(final.research_plan, ResearchPlanFindings):
@@ -2748,8 +3218,7 @@ class AgentOrchestrator:
             self._gate_once(state, "PLAN_FEASIBILITY", PLAN_FEASIBILITY_INSTRUCTION)
             return self._plan_not_feasible(state, final)
         index = self._source_index(state)
-        plan_json = dumps(final.research_plan.model_dump(mode="json"))
-        index.add(CONTEXT, [value for shown in parse_numbers(plan_json) for value, _ in shown.candidates])
+        index.add(CONTEXT, released_numbers(final.research_plan.model_dump(mode="json")))  # P12
         provenance = check_answer(final.answer, index)
         state.number_provenance = {"checked": provenance.checked, "unsupported": provenance.unsupported[:50]}
         if provenance.unsupported:
@@ -2771,15 +3240,28 @@ class AgentOrchestrator:
         checked = sorted(feasible.get("angle_to_bundle_group") or {})
         if planned != checked:
             problems.append(f"the plan's angles {planned} differ from the angles checked {checked}")
-        low, high = self.research_limits.get("min_angles", 3), self.research_limits.get("max_angles", 6)
+        low, high = current_angle_bounds.get() or (self.research_limits.get("min_angles", 2),
+                                                    self.research_limits.get("max_angles", 6))
         if not low <= len(planned) <= high:
             problems.append(f"the plan has {len(planned)} angles; this deployment runs {low} to {high}")
+        families = min(int(self.research_limits.get("min_families") or 0), high)  # a one-angle plan has one family
+        if families and family_count([a.method_id for a in plan.angles]) < families:
+            problems.append(f"the angles use {family_count([a.method_id for a in plan.angles])} method families; "
+                            f"this deployment needs at least {families}")
         contracts = feasible.get("angle_data_contracts") or {}
+        checked_designs = feasible.get("angle_design_sha256s") or {}
+        designs = state.research.designs if state.research is not None else {}
         for angle in plan.angles:
             if angle.holdout_required and angle.angle_id in contracts \
                     and holdout_start(contracts[angle.angle_id]) is None:
                 problems.append(f"{angle.angle_id} requires a holdout, but its checked data has a single range; add "
                                 "a separate later range for it")
+            dumped = angle.model_dump(mode="json")
+            if angle.angle_id in checked_designs and design_sha256(dumped) != checked_designs[angle.angle_id]:
+                # M38: the plan carries exactly the design check_research_feasibility checked
+                fields = design_differences(dumped, designs.get(angle.angle_id) or {})
+                problems.append(f"{angle.angle_id}: {', '.join(fields) or 'the design'} differ from the design "
+                                "check_research_feasibility checked; present the checked design, or check the new one")
         return problems
 
     @staticmethod
@@ -2934,9 +3416,14 @@ class AgentOrchestrator:
     def _forced(state: RunState, final: FinalResponse, notice: str, lines: list[str]) -> FinalResponse:
         state.validation_gate = "FORCED_LIMITATION"
         state.evidence_label = "NOT_VALIDATED"
+        # M39 (suite20b r11, 2026-09-29): a LIMITATION forced by any gate after a completed multi-angle run keeps the
+        # backend's per-angle findings (the provenance gate dropped three validated findings)
+        executor = state.research.executor if state.research is not None else None
+        run = executor.result if executor is not None else None
         return FinalResponse(response_type="LIMITATION", answer=notice + final.answer, clarification_question=None,
                              assumptions=final.assumptions,
-                             limitations=lines + [x for x in final.limitations if x not in lines])
+                             limitations=lines + [x for x in final.limitations if x not in lines],
+                             research_findings=backend_findings(run) if run else None)
 
     @staticmethod
     def _normalized_arguments(raw: Any) -> Any:
@@ -2957,9 +3444,16 @@ class AgentOrchestrator:
         provider.require_parameters, that strict turn can only run on endpoints that support structured outputs,
         which may not be the endpoint that served the tool turns (verified 2026-09-24).
         """
+        if self.audit_outbox is not None:
+            state.audit_trace.append(final_event("final.rejected", iteration=state.iterations, stage="FORMAT",
+                                                 detail=issue or "not a final response", draft=raw,
+                                                 occurred_at=self.wall_clock()))
         if raw.strip():
             state.input_items.append({"role": "assistant", "content": raw[:REJECTED_OUTPUT_ECHO_CHARS]})
-        state.input_items.append({"role": "user", "content": self.finalize_instruction})
+        # a response cut off at the output limit says so; any other re-ask keeps the unchanged instruction
+        truncated = issue.startswith(TRUNCATED_FINAL_INSTRUCTION[:40])
+        state.input_items.append({"role": "user", "content": (issue + " " if truncated else "")
+                                  + self.finalize_instruction})
         if state.final_reask_sent:
             state.structured_only = True
         state.final_reask_sent = True
@@ -2972,6 +3466,9 @@ class AgentOrchestrator:
         limit = self.settings.ai_final_response_max_retries
         log_event("ai_final_rejected", request_id=state.request_id, iteration=state.iterations,
                   rejections=state.final_rejections, issue=issue[:300])
+        if self.audit_outbox is not None:
+            state.audit_trace.append(final_event("final.rejected", iteration=state.iterations, stage="FORMAT",
+                                                 detail=issue, draft=raw, occurred_at=self.wall_clock()))
         if state.final_rejections > limit:
             raise RunFailure(
                 "INVALID_FINAL_RESPONSE",
@@ -3052,15 +3549,51 @@ class AgentOrchestrator:
                 raise ValueError("Final response used an invalid Markdown wrapper.")
             candidate = "\n".join(lines[1:-1]).strip()
         try:
-            return FinalResponse.model_validate_json(candidate)
+            try:
+                return FinalResponse.model_validate_json(candidate)
+            except ValueError as strict_error:
+                # M40 (2026-09-30): a raw control character (a line break) inside a JSON string is valid for a
+                # lenient decoder; anything else (suite20c r11: an unescaped quote) keeps the strict parser's error
+                try:
+                    data = json.loads(candidate, strict=False)
+                except ValueError:
+                    raise strict_error from None
+                if not isinstance(data, dict):
+                    raise strict_error from None
+                return FinalResponse.model_validate(data)
         except Exception as exc:
             details = []
             if hasattr(exc, "errors"):
-                for item in exc.errors(include_url=False, include_input=False)[:8]:
+                relevant = AgentOrchestrator._relevant_branch(candidate)
+                for item in exc.errors(include_url=False, include_input=False):
                     location = ".".join(str(part) for part in item.get("loc") or ()) or "root"
-                    details.append(f"{location}: {item.get('msg', 'invalid value')}")
+                    if not relevant(location):
+                        continue
+                    location = re.sub(r"(?:function-after\[[^\]]*\]|list\[[A-Za-z]+\])\.?", "", location)
+                    details.append(f"{location.rstrip('.') or 'root'}: {item.get('msg', 'invalid value')}")
+                    if len(details) == 8:
+                        break
             issue = "; ".join(details) if details else type(exc).__name__
             raise ValueError(f"Final response failed schema validation: {issue}") from exc
+
+    @staticmethod
+    def _relevant_branch(candidate: str) -> Callable[[str], bool]:
+        """Found live (golden run 2026-09-29): a v2 plan with one bad field was answered with the errors of every
+        union member (the v1 plan forms too: "plan_version should be research_plan/v1", "experiments: Field
+        required"), which sent the model the wrong way. Only the errors of the form the response uses are kept."""
+        try:
+            data = json.loads(candidate)
+        except ValueError:
+            return lambda location: True
+        drop: list[str] = []
+        plan = data.get("research_plan") if isinstance(data, dict) else None
+        if isinstance(plan, dict):
+            drop += ["ResearchPlanFindings]", "ResearchPlan]"] if plan.get("plan_version") == PLAN_VERSION_V2 \
+                else ["ResearchPlanV2]"]
+        findings = data.get("research_findings") if isinstance(data, dict) else None
+        if isinstance(findings, list) and findings and isinstance(findings[0], dict):
+            drop += ["list[ResearchFinding]"] if "angle_id" in findings[0] else ["list[AngleFindingReport]"]
+        return lambda location: not any(marker in location for marker in drop)
 
     def _execution(self, state: RunState) -> ExecutionMetadata:
         return ExecutionMetadata(

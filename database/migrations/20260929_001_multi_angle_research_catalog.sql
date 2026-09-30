@@ -1,48 +1,33 @@
--- Multi-Angle Research (MULTI_ANGLE_RESEARCH.md): the method catalog and the tool registrations.
--- NOT APPLIED. Apply only after the sandbox (PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED) and market-ai-orc
--- (AI_ENABLE_MULTI_ANGLE_RESEARCH) run the feature on dev and the golden questions passed (rollout step: last).
+-- Multi-Angle Research (MULTI_ANGLE_RESEARCH.md): Tool_Catalog registrations of the market-ai-orc tools.
+-- Scope decided by the user on 2026-09-29 after the dev dry run: AI_research_catalog has none of the eight engine
+-- method ids (its 18 reviewed methods use other ids), so this migration registers the tools only and leaves
+-- AI_research_catalog unchanged (REFERENCE_ONLY) until the reviewed workbook carries the multi-angle methods.
 --
--- 1. AI_research_catalog: the eight engine methods become IMPLEMENTED_BEHIND_FLAG, and each row's
---    validation_requirements_json gains one line naming how the backend enforces it. The rows must already exist:
---    this migration adds no catalog rows (user decision 2026-09-29); the preflight fails and names every missing
---    method_id, so the ids can be reconciled with the reviewed workbook first.
--- 2. Tool_Catalog: check_research_feasibility, start_research_run, run_research_code and complete_research_run,
---    generated from the market-ai-orc tool definitions, inactive like every other market-ai-orc row
---    (market-ai-orc registers its tools in code). check_data_feasibility gets a note that it is replaced while the
---    feature is on.
--- No table or column changes: the sandbox's research runs live in its own SQLite store, and the per-angle audit
--- records go into AI_research_run_audit.experiments (JSON) with payload_version research_findings/v2.
+-- Tool_Catalog: check_research_feasibility, start_research_run, run_research_code and complete_research_run,
+-- generated from the market-ai-orc tool definitions (a test fails when they drift), inactive like every other
+-- market-ai-orc row (market-ai-orc registers its tools in code); the latest check_data_feasibility row gets a note that
+-- it is replaced while the feature is on. No table or column changes.
 BEGIN;
 
 DO $preflight$
-DECLARE
-    missing text[];
 BEGIN
-    SELECT array_agg(method_id ORDER BY method_id) INTO missing
-    FROM unnest(ARRAY['conditional_distribution', 'threshold_sensitivity', 'streak_persistence', 'regime_comparison', 'cohort_comparison', 'quantile_ranking', 'lead_lag', 'correlation_dependency']) AS wanted(method_id)
-    WHERE NOT EXISTS (SELECT 1 FROM public."AI_research_catalog" c WHERE c.method_id = wanted.method_id);
-    IF missing IS NOT NULL THEN
-        RAISE EXCEPTION 'AI_research_catalog has no row for the multi-angle method ids: %; reconcile the ids with the reviewed catalog before applying (no rows are added here)', array_to_string(missing, ', ');
-    END IF;
     IF EXISTS (SELECT 1 FROM public."Tool_Catalog" WHERE (tool_name, version) IN (('check_research_feasibility', 'v1'), ('start_research_run', 'v1'), ('run_research_code', 'v1'), ('complete_research_run', 'v1'))) THEN
         RAISE EXCEPTION 'The multi-angle research tools are already registered';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM public."Tool_Catalog" WHERE tool_name = 'check_data_feasibility'
+                   AND tool_specific_limits->>'runtime_service' = 'market-ai-orc') THEN
+        RAISE EXCEPTION 'check_data_feasibility (market-ai-orc) is not registered';
     END IF;
 END;
 $preflight$;
 
-UPDATE public."AI_research_catalog"
-SET implementation_status = 'IMPLEMENTED_BEHIND_FLAG',
-    validation_requirements_json = validation_requirements_json || jsonb_build_array(
-        'Multi-angle engine v1 (market-python-sandbox runtime/research_engines.py): the backend recomputes the '
-        || 'statistics from the recorded input; declarative inputs are also rebuilt from governed columns '
-        || '(FORMULA_AND_STATISTICS_VERIFIED), model-built frames are STATISTICS_VERIFIED, research_custom is '
-        || 'EXECUTION_ONLY. Active only with AI_ENABLE_MULTI_ANGLE_RESEARCH and PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED.')
-WHERE method_id = ANY (ARRAY['conditional_distribution', 'threshold_sensitivity', 'streak_persistence', 'regime_comparison', 'cohort_comparison', 'quantile_ranking', 'lead_lag', 'correlation_dependency']);
-
 UPDATE public."Tool_Catalog"
 SET tool_specific_limits = tool_specific_limits || '{"multi_angle_research":"Not registered when AI_ENABLE_MULTI_ANGLE_RESEARCH is active: replaced by check_research_feasibility"}'::jsonb,
     updated_at = CURRENT_TIMESTAMP
-WHERE tool_name = 'check_data_feasibility' AND tool_specific_limits->>'runtime_service' = 'market-ai-orc';
+WHERE tool_name = 'check_data_feasibility' AND tool_specific_limits->>'runtime_service' = 'market-ai-orc'
+  AND version = (SELECT version FROM public."Tool_Catalog" WHERE tool_name = 'check_data_feasibility'
+                 AND tool_specific_limits->>'runtime_service' = 'market-ai-orc'
+                 ORDER BY length(version) DESC, version DESC LIMIT 1);
 
 INSERT INTO public."Tool_Catalog" (
     tool_name, tool_family, tool_type, purpose, input_schema, output_schema,
@@ -60,7 +45,7 @@ VALUES
     ('start_research_run', 'ADVANCED', 'RETRIEVAL', 'Start the approved multi-angle Research Plan: the backend promotes the plan''s checked data into one governed bundle per bundle group, extracts and verifies it, and opens the first group''s analysis session. Returns the groups (angles, datasets, status) and the open session with each angle''s helper, approved values and data contract. A group whose data cannot be prepared is FAILED and its angles NOT_RUN.', '{"additionalProperties":false,"properties":{},"required":[],"type":"object"}'::jsonb, '{"description":"The research run: groups with their angles, datasets and status (FAILED groups have NOT_RUN angles), and the first group''s open session.","properties":{"code":{},"groups":{},"issues":{},"message":{},"next_action":{},"research_run_id":{},"session":{},"status":{}},"type":"object"}'::jsonb,
      'ORCHESTRATOR', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 40000, 200, 40000, NULL,
      false, false, false, '{"design":"MULTI_ANGLE_RESEARCH.md","executor_service":"market-python-sandbox","feature_flag":"AI_ENABLE_MULTI_ANGLE_RESEARCH","governance_version":"research_governance/v2 (built by the backend from the verified rpc2 plan)","handler":"app/research_run_executor.py (ResearchRunExecutor.start)","method_registry_sha256":"1321ca8f8ee3e3dcf44d3c9a6d43f89d5bf67d39e31ed584c550d39f6a8a048a","parallel_groups":1,"registry_state":"Registered in market-ai-orc only when AI_ENABLE_MULTI_ANGLE_RESEARCH is on and the sandbox reports multi_angle_research version 2 with the same method registry; is_active=false keeps it out of market-ai-backend tool lists.","runtime_service":"market-ai-orc","sandbox_endpoints":["POST /v1/research-runs","POST /v1/bundles","POST /v1/sessions","POST /v1/research-runs/{research_run_id}/groups/{bundle_group_id}/close"],"sandbox_flag":"PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED"}'::jsonb, 'v1', false),
-    ('run_research_code', 'ADVANCED', 'COMPUTATION', 'Run Python in one bundle group''s session (the helpers of run_python plus saniti.research_conditional, research_persistence, research_group_comparison, research_quantiles, research_temporal_dependency and research_custom). Record every angle of the group exactly once with its helper; the thresholds, lags, buckets, groups and horizon come from the approved plan. Moving to another group completes the open one first. Read every dataset of the group through the saniti helpers.', '{"additionalProperties":false,"properties":{"bundle_group_id":{"description":"The bundle group whose session runs the code, e.g. g1.","type":"string"},"code":{"description":"Python for that group''s session.","type":"string"}},"required":["bundle_group_id","code"],"type":"object"}'::jsonb, '{"description":"One execution in a bundle group''s session: OK, SCRIPT_ERROR, TIMEOUT or INSUFFICIENT_INPUT_DATA, with bounded stdout and outputs; or REJECTED (OPEN_GROUP_INCOMPLETE, BUNDLE_GROUP_TERMINAL, UNKNOWN_BUNDLE_GROUP).","properties":{"bundle_group_id":{},"code":{},"error":{},"execution_id":{},"message":{},"next_action":{},"outputs":{},"session_id":{},"session_opened":{},"status":{},"stdout":{}},"type":"object"}'::jsonb,
+    ('run_research_code', 'ADVANCED', 'COMPUTATION', 'Run Python in one bundle group''s session (the helpers of run_python plus saniti.research_conditional, research_persistence, research_group_comparison, research_quantiles, research_temporal_dependency and research_custom). Record every angle of the group exactly once with its helper, starting from the angle''s example call in the session''s research view: request is the data request id string, each role an expression over that request''s columns, and the outcome {''forward_return'': ''<price column>''} (the backend computes it over the approved horizon; never a trailing return column). The thresholds, lags, buckets, groups and horizon come from the approved plan. Moving to another group completes the open one first. Read every dataset of the group through the saniti helpers.', '{"additionalProperties":false,"properties":{"bundle_group_id":{"description":"The bundle group whose session runs the code, e.g. g1.","type":"string"},"code":{"description":"Python for that group''s session.","type":"string"}},"required":["bundle_group_id","code"],"type":"object"}'::jsonb, '{"description":"One execution in a bundle group''s session: OK, SCRIPT_ERROR, TIMEOUT or INSUFFICIENT_INPUT_DATA, with bounded stdout and outputs; or REJECTED (OPEN_GROUP_INCOMPLETE, BUNDLE_GROUP_TERMINAL, UNKNOWN_BUNDLE_GROUP).","properties":{"bundle_group_id":{},"code":{},"error":{},"execution_id":{},"message":{},"next_action":{},"outputs":{},"session_id":{},"session_opened":{},"status":{},"stdout":{}},"type":"object"}'::jsonb,
      'ORCHESTRATOR', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 40000, 200, 40000, NULL,
      false, false, false, '{"design":"MULTI_ANGLE_RESEARCH.md","executor_service":"market-python-sandbox","feature_flag":"AI_ENABLE_MULTI_ANGLE_RESEARCH","handler":"app/research_run_executor.py (ResearchRunExecutor.run)","method_registry_sha256":"1321ca8f8ee3e3dcf44d3c9a6d43f89d5bf67d39e31ed584c550d39f6a8a048a","one_open_session":true,"registry_state":"Registered in market-ai-orc only when AI_ENABLE_MULTI_ANGLE_RESEARCH is on and the sandbox reports multi_angle_research version 2 with the same method registry; is_active=false keeps it out of market-ai-backend tool lists.","research_helpers":["research_conditional","research_persistence","research_group_comparison","research_quantiles","research_temporal_dependency","research_custom"],"runtime_service":"market-ai-orc","sandbox_endpoints":["POST /v1/sessions/{session_id}/execute","POST /v1/sessions/{session_id}/complete"],"sandbox_flag":"PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED","validation_levels":{"declarative request form":"FORMULA_AND_STATISTICS_VERIFIED","frame form":"STATISTICS_VERIFIED","research_custom":"EXECUTION_ONLY"}}'::jsonb, 'v1', false),
     ('complete_research_run', 'ADVANCED', 'VALIDATION', 'Complete the research run: the backend validates the open group (coverage, one recorded input per approved angle) and recomputes every angle''s statistics independently, then returns one backend finding per angle (SUPPORTED, PARTIALLY_SUPPORTED, INSUFFICIENT_EVIDENCE, INVALID or NOT_RUN, with its validation level), the angle completion counts and the research synthesis map. With finalize false it reports what is still missing; with finalize true the result is accepted as it stands. Answer only from these findings.', '{"additionalProperties":false,"properties":{"finalize":{"description":"false: complete and report what is missing. true: accept the result as it stands; angles without a record and groups never run become NOT_RUN, INVALID findings stay INVALID.","type":"boolean"}},"required":["finalize"],"type":"object"}'::jsonb, '{"description":"The grouped result: one backend finding per approved angle (research_findings/v2), angle completion counts, the weakest validation level relied on and the research synthesis map; or INCOMPLETE with what is missing.","properties":{"angle_completion":{},"calculation_validation":{},"groups":{},"missing_angle_ids":{},"next_action":{},"plan_id":{},"released_contents":{},"research_findings":{},"research_findings_version":{},"research_run_id":{},"research_synthesis_map":{},"status":{}},"type":"object"}'::jsonb,
@@ -70,13 +55,13 @@ VALUES
 
 DO $verify$
 BEGIN
-    IF (SELECT count(*) FROM public."AI_research_catalog"
-          WHERE method_id = ANY (ARRAY['conditional_distribution', 'threshold_sensitivity', 'streak_persistence', 'regime_comparison', 'cohort_comparison', 'quantile_ranking', 'lead_lag', 'correlation_dependency']) AND implementation_status = 'IMPLEMENTED_BEHIND_FLAG') <> 8 THEN
-        RAISE EXCEPTION 'Expected the 8 multi-angle methods to be IMPLEMENTED_BEHIND_FLAG';
-    END IF;
     IF (SELECT count(*) FROM public."Tool_Catalog" WHERE tool_specific_limits->>'runtime_service' = 'market-ai-orc'
           AND NOT is_active AND (tool_name, version) IN (('check_research_feasibility', 'v1'), ('start_research_run', 'v1'), ('run_research_code', 'v1'), ('complete_research_run', 'v1'))) <> 4 THEN
         RAISE EXCEPTION 'Expected 4 inactive multi-angle research tool registrations';
+    END IF;
+    IF (SELECT count(*) FROM public."Tool_Catalog" WHERE tool_name = 'check_data_feasibility'
+          AND tool_specific_limits ? 'multi_angle_research') <> 1 THEN
+        RAISE EXCEPTION 'Expected the multi-angle note on exactly one check_data_feasibility row';
     END IF;
 END;
 $verify$;

@@ -82,6 +82,28 @@ def model_event(record: dict[str, Any], occurred_at: datetime) -> dict[str, Any]
                if record.get(k) is not None}}
 
 
+MAX_DRAFT_CHARS = 20_000
+
+
+def final_event(kind: str, *, iteration: int, stage: str, detail: str, draft: str | None,
+                occurred_at: datetime) -> dict[str, Any]:
+    """final.rejected / final.forced (2026-09-30): a gate or the format check refused the model's final response. The
+    draft is the model's visible output as it arrived (never reasoning), URLs redacted, bounded; it lets an auditor
+    read what a gate refused (the conversation store keeps only the final answer)."""
+    text = URL.sub("[url]", draft or "")
+    return {"type": kind, "occurred_at": occurred_at.isoformat(), "iteration": iteration, "stage": stage,
+            "detail": str(detail)[:2000], "draft": text[:MAX_DRAFT_CHARS], "draft_chars": len(text),
+            "draft_sha256": hashlib.sha256(text.encode()).hexdigest()}
+
+
+def unrendered_event(response: dict[str, Any], occurred_at: datetime) -> dict[str, Any]:
+    """final.unrendered: the final response as the model wrote it, with its value references, before the backend
+    filled them in (the rendered one is final_response)."""
+    text = URL.sub("[url]", json.dumps(response, default=str, ensure_ascii=False))
+    return {"type": "final.unrendered", "occurred_at": occurred_at.isoformat(), "response": text[:MAX_DRAFT_CHARS],
+            "response_chars": len(text)}
+
+
 def build_payload(*, request: Any, result: Any, trace: list[dict[str, Any]], started_at: datetime,
                   finished_at: datetime, model: str, execution_ids: list[str], completion_ids: list[str],
                   sessions: list[str], bundles: list[str]) -> dict[str, Any]:
