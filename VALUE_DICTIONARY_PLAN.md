@@ -216,8 +216,11 @@ lagi.
 2. Ekstensi `pg_trgm` untuk pencarian salah ketik. Tanpa ekstensi ini, pencarian dikerjakan di Governor (edit distance
    di Python) atas kandidat terbatas.
 3. Ambang "nilai sedikit" (awal 20) dan batas kamus per kolom (awal 1.024).
-4. Urutan terhadap rencana utama: setelah Langkah 8 (P14 dikerjakan lebih dulu dan nanti memakai kamus ini), atau
-   bersamaan.
+4. ~~Urutan terhadap rencana utama~~ Diputuskan (user 2026-10-01): **P14 dulu**, di Langkah 8 rencana utama.
+   - P14 awalnya memetakan nilai ke sumber yang sudah ada: aturan database (CHECK), tabel referensi, dan pengecekan
+     terbatas ke data asli.
+   - Rencana kamus ini dikerjakan setelahnya. Kamus kemudian menjadi sumber pertama P14 (§5.5) tanpa mengubah kontrak
+     P14.
 
 ## 10. Risiko dan mitigasi
 
