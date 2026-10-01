@@ -1,13 +1,10 @@
 {
- "prefix": "ma-integrity-20261001b-scan",
+ "prefix": "ma-integrity-20261001c-audit",
  "audit_only": true,
  "items": [],
- "scan_m44_request_ids": [
-  "ma-integrity-20261001a-m01_broker_bank_crash-1-m4a",
-  "ma-integrity-20261001a-m01_broker_bank_crash-1-m4c",
-  "ma-integrity-20261001a-m01_broker_bank_crash-1-m4d",
-  "ma-integrity-20261001a-a05_universe_ranking-1",
-  "ma-integrity-20261001a-e02_causal_prediction-2",
-  "ma-integrity-20261001a-g13_broad_cross_section-2"
+ "audit_wait_seconds": 60,
+ "audit_full_trace": true,
+ "audit_request_ids": [
+  "ma-integrity-20261001a-m01_broker_bank_crash-1-m4b"
  ]
 }
