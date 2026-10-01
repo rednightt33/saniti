@@ -231,8 +231,20 @@ def test_a_prose_draft_is_logged_when_it_is_re_asked_then_forced_to_the_strict_t
     reasks = [e for e in logs if e["event"] == "ai_final_reask"]
     assert [(e["iteration"], e["next_turn"], e["looked_like_json"]) for e in reasks] == [
         (1, "SAME_PREFIX", False), (2, "STRICT_SCHEMA", False)]
-    assert client.payloads[1]["input"][-1]["content"] == FINALIZE_INSTRUCTION
+    # M46: the re-ask names what was wrong, then gives the unchanged instruction
+    reask = client.payloads[1]["input"][-1]["content"]
+    assert reask.endswith(FINALIZE_INSTRUCTION) and reask.startswith("Final response failed schema validation")
+    assert client.payloads[1]["input"][-2] == {"role": "assistant", "content": "Here is my answer in prose."}
     assert "tools" not in client.payloads[2] and "text" in client.payloads[2]
+
+
+def test_a_refused_draft_goes_back_whole() -> None:
+    """M48 (2026-10-01, m4a): a 19,000-character answer was echoed as its first 4,000 characters."""
+    long_prose = "Analisis broker. " * 1200  # 20,400 characters
+    agent, client = orchestrator([final_response(long_prose), final_response(ANSWER)])
+    result, _ = run_logged(agent, request())
+    assert result.status == "COMPLETED"
+    assert client.payloads[1]["input"][-2] == {"role": "assistant", "content": long_prose}
 
 
 def test_gate_rejections_are_logged_with_their_kind_and_outcome() -> None:

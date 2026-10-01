@@ -944,7 +944,10 @@ PIT_FALLBACK_LINE = ("Point-in-time data was requested but is not available ({de
                      "reference data (historical descriptive), not what was known at each date.")
 
 RESPONSE_FORMAT_NAME = "saniti_agent_response"
-REJECTED_OUTPUT_ECHO_CHARS = 4000
+# M48 (2026-10-01): the refused draft goes back whole, so a repair sees what it repairs (it was 4000 characters from the
+# first version on, with no recorded reason, and the mode 4 answers reached 19,000); the draft is bounded by
+# AI_MAX_OUTPUT_TOKENS and the context by the per-turn CONTEXT_LIMIT check
+REJECTED_OUTPUT_ECHO_CHARS = 200_000
 RESPONSE_CONTRACT = (
     "Return one JSON object with exactly these fields: "
     "response_type: \"ANSWER\" when the request can be answered, \"CLARIFICATION\" only when an "
@@ -2077,7 +2080,11 @@ class AgentOrchestrator:
             raw = self._output_text(response)
             state.current_raw = raw
             try:
-                final = self._check_budget_limitations(state, self._turn_type(state, self._parse_final_output(raw)))
+                dropped: dict[str, Any] = {}
+                parsed = self._parse_final_output(raw, dropped)
+                if dropped:
+                    self._note_extra_keys(state, dropped)
+                final = self._check_budget_limitations(state, self._turn_type(state, parsed))
                 final, forced = self._resolve_references(state, final)
                 if forced:
                     return self._finalize_findings(state, final)
@@ -2086,8 +2093,7 @@ class AgentOrchestrator:
                 self._reject_final(state, raw, str(exc))
             except GateRejection as exc:
                 # The model may still repair the analysis, so tools stay available for this turn.
-                if raw.strip():
-                    state.input_items.append({"role": "assistant", "content": raw[:REJECTED_OUTPUT_ECHO_CHARS]})
+                self._echo_draft(state, raw)
                 state.input_items.append({"role": "user", "content": str(exc)})
                 state.structured_only = False
                 state.final_reask_sent = False
@@ -3557,11 +3563,10 @@ class AgentOrchestrator:
             state.audit_trace.append(final_event("final.rejected", iteration=state.iterations, stage="FORMAT",
                                                  detail=issue or "not a final response", draft=raw,
                                                  occurred_at=self.wall_clock()))
-        if raw.strip():
-            state.input_items.append({"role": "assistant", "content": raw[:REJECTED_OUTPUT_ECHO_CHARS]})
-        # a response cut off at the output limit says so; any other re-ask keeps the unchanged instruction
-        truncated = issue.startswith(TRUNCATED_FINAL_INSTRUCTION[:40])
-        state.input_items.append({"role": "user", "content": (issue + " " if truncated else "")
+        self._echo_draft(state, raw)
+        # M46 (2026-10-01): every re-ask names what was wrong (it used to only for a cut-off response, so a schema
+        # refusal was rewritten blind)
+        state.input_items.append({"role": "user", "content": (issue + " " if issue else "")
                                   + self.finalize_instruction})
         if state.final_reask_sent:
             state.structured_only = True
@@ -3569,6 +3574,19 @@ class AgentOrchestrator:
         log_event("ai_final_reask", request_id=state.request_id, iteration=state.iterations,
                   next_turn="STRICT_SCHEMA" if state.structured_only else "SAME_PREFIX",
                   looked_like_json=raw.strip().startswith(("{", "```")), output_chars=len(raw), issue=issue[:300])
+
+    @staticmethod
+    def _echo_draft(state: RunState, raw: str) -> None:
+        """The refused draft, as the model wrote it, before the refusal (M48: whole up to REJECTED_OUTPUT_ECHO_CHARS;
+        a longer one says it was cut)."""
+        if not raw.strip():
+            return
+        text = raw[:REJECTED_OUTPUT_ECHO_CHARS]
+        if len(raw) > REJECTED_OUTPUT_ECHO_CHARS:
+            log_event("ai_final_echo_truncated", request_id=state.request_id, iteration=state.iterations,
+                      chars=len(raw), echoed=REJECTED_OUTPUT_ECHO_CHARS)
+            text += f"\n[draft cut at {REJECTED_OUTPUT_ECHO_CHARS} of {len(raw)} characters]"
+        state.input_items.append({"role": "assistant", "content": text})
 
     def _reject_final(self, state: RunState, raw: str, issue: str) -> None:
         state.final_rejections += 1
@@ -3583,8 +3601,7 @@ class AgentOrchestrator:
                 "INVALID_FINAL_RESPONSE",
                 f"Final response remained invalid after {limit} retries: {issue}"[:1000],
             )
-        if raw:
-            state.input_items.append({"role": "assistant", "content": raw[:REJECTED_OUTPUT_ECHO_CHARS]})
+        self._echo_draft(state, raw)
         state.input_items.append({
             "role": "user",
             "content": (
@@ -3648,7 +3665,7 @@ class AgentOrchestrator:
         return "".join(parts)
 
     @staticmethod
-    def _parse_final_output(raw: str) -> FinalResponse:
+    def _parse_final_output(raw: str, dropped: dict[str, Any] | None = None) -> FinalResponse:
         candidate = raw.strip()
         if not candidate:
             raise ValueError("The response contained neither a tool call nor a final answer.")
@@ -3657,6 +3674,18 @@ class AgentOrchestrator:
             if len(lines) < 3 or lines[0].strip().lower() not in {"```", "```json"} or lines[-1].strip() != "```":
                 raise ValueError("Final response used an invalid Markdown wrapper.")
             candidate = "\n".join(lines[1:-1]).strip()
+        # M46 (user decision 2026-10-01): keys the response format does not have (limitations_note, ...) are taken
+        # out instead of refusing the whole answer; the caller keeps them for the audit. Nested objects stay strict.
+        try:
+            data = json.loads(candidate, strict=False)
+        except ValueError:
+            data = None
+        if isinstance(data, dict):
+            extra = {key: data.pop(key) for key in list(data) if key not in FinalResponse.model_fields}
+            if extra:
+                candidate = json.dumps(data, ensure_ascii=False)
+                if dropped is not None:
+                    dropped.update(extra)
         try:
             try:
                 return FinalResponse.model_validate_json(candidate)
@@ -3684,6 +3713,16 @@ class AgentOrchestrator:
                         break
             issue = "; ".join(details) if details else type(exc).__name__
             raise ValueError(f"Final response failed schema validation: {issue}") from exc
+
+    def _note_extra_keys(self, state: RunState, dropped: dict[str, Any]) -> None:
+        """M46: the keys taken out of a final response, logged and kept in the audit with their content."""
+        keys = sorted(dropped)
+        log_event("ai_final_extra_keys", request_id=state.request_id, iteration=state.iterations, keys=keys[:20])
+        if self.audit_outbox is not None:
+            state.audit_trace.append(final_event("final.extra_keys", iteration=state.iterations, stage="FORMAT",
+                                                 detail="keys outside the response format: " + ", ".join(keys),
+                                                 draft=json.dumps(dropped, ensure_ascii=False, default=str),
+                                                 occurred_at=self.wall_clock()))
 
     @staticmethod
     def _relevant_branch(candidate: str) -> Callable[[str], bool]:

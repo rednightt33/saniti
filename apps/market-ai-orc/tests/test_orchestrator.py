@@ -199,7 +199,7 @@ def test_malformed_tool_arguments_return_bounded_error() -> None:
 
 def test_invalid_final_is_retried_without_tools() -> None:
     agent, client = orchestrator([
-        final_response({**ANSWER, "confidence": "HIGH"}),
+        final_response({**ANSWER, "assumptions": "a", "limitations": {"nested": True}}),
         final_response(ANSWER),
     ], registry=ToolRegistry())
     result = agent.run(request())
@@ -208,6 +208,17 @@ def test_invalid_final_is_retried_without_tools() -> None:
     assert "tools" not in retry
     assert "rejected (1/2 retries)" in retry["input"][-1]["content"]
     assert retry["input"][-2]["role"] == "assistant"
+
+
+def test_keys_outside_the_response_format_are_taken_out_not_refused() -> None:
+    """M46 (2026-10-01, m4a and a05): limitations_note / assumptions_note / methodology_source cost a full rewrite."""
+    agent, client = orchestrator([final_response({**ANSWER, "limitations_note": "catatan", "methodology_source": "x"})],
+                                 registry=ToolRegistry())
+    result = agent.run(request())
+    assert result.status == "COMPLETED" and len(client.payloads) == 1
+    dumped = result.model_dump(mode="json")["response"]
+    assert "limitations_note" not in dumped and "methodology_source" not in dumped
+    assert dumped["answer"] == ANSWER["answer"]
 
 
 def test_final_retries_are_bounded() -> None:
