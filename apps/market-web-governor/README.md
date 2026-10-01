@@ -37,14 +37,15 @@ question -> plan     1 model call: 2-4 keyword queries (question language and En
          -> turn 4+  only while points are missing, up to WEB_ASK_MAX_TURNS (default 8); the search stops at the
                      first of: all points settled (from turn 3), two reviews without new evidence (saturated), no
                      new queries, or a hard limit of the search phase: WEB_ASK_MAX_NEWS_REQUESTS (300),
-                     WEB_ASK_MAX_COST_USD (0.30), WEB_ASK_MAX_SECONDS (180). The reason is in plan.stop; evidence
+                     the search budget (below), WEB_ASK_MAX_SECONDS (180). The reason is in plan.stop; evidence
                      headlines are always kept in the final sources; the answer gets the checklist and lists
                      unsettled points under "Tidak terjawab"; plan.claims keeps status and citation numbers
                      (history questions: a review query may name an older year; it is then searched in that year's
                      four quarters, the drill-down)
          -> merge    code: dedupe by headline; WEB_ASK_MAX_SOURCES (default 500): backward at least 50%, forward
                      at least 20%, wider the rest (unused shares pass over), each spread across the windows
-         -> read     1 model call picks up to WEB_ASK_READ_ARTICLES (default 12, 0 = off) headlines whose full
+         -> read     1 model call picks up to WEB_ASK_READ_ARTICLES (default 6, 0 = off; fewer when the search
+                     budget is short) headlines whose full
                      text matters most (conflicting figures, latest facts); one Exa search per chosen title fetches
                      its text (kept only when the result's title matches); listed with up to 2,500 characters
          -> answer   1 model call with reasoning on (WEB_ASK_ANSWER_REASONING, default on): only from the numbered sources, investor-material first, industry & policy
@@ -59,7 +60,22 @@ question -> plan     1 model call: 2-4 keyword queries (question language and En
          -> check    code: every ISO date on a cited line must be a cited source's date (else corrected or
                      removed, DATE_CORRECTED); `answer` without [n] and without repeated date markers, `answer_cited` renumbered 1..k, `citations` with the same numbers;
                      `plan.implications` keeps the structured items
+         -> follow-up  1 model call (strict JSON, no reasoning) with only the question and the final answer: 3-5
+                     key follow-up questions with why each matters, appended as "Pertanyaan lanjutan" and kept in
+                     plan.follow_ups (FOLLOW_UPS_FAILED keeps the answer when this call fails)
 ```
+
+Budgets per question (USD, each step's cost counts against one; `plan.budget` shows max, spent and over per budget
+and the steps skipped; `plan.timing.steps.<step>.costs` lists the cost of every call):
+
+- **Search** `WEB_ASK_SEARCH_BUDGET_USD` (0.035): plan, Exa, reviews, article selection and reads. A review runs only
+  if the spend so far plus the average review cost so far (0.005 before the first) stays inside it (`max_cost`);
+  reading uses what is left.
+- **Answer** `WEB_ASK_ANSWER_BUDGET_USD` (0.02): answer and implications. Below USD 0.01 the answer runs without
+  reasoning; implications run only while the answer left budget.
+- **Follow-up** `WEB_ASK_FOLLOWUP_BUDGET_USD` (0.005, 0 = off): the follow-up questions.
+
+A budget bounds when the next call starts; one call can still pass it, and `over_usd` records by how much.
 
 Measured locally on 2026-09-29 for "kenapa saham ptro naik 1 tahun terakhir": 3 turns, 80 Google News requests
 (no rate limiting), 500 sources from 2024-09-25 to 2026-09-29, 31 s, USD 0.031.

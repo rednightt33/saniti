@@ -306,7 +306,7 @@ off. The AI writes **10** forward queries.
 and timeline date checks; live runner test with the CMRY forward question, the CLARITY Act and the Indonesian fiscal
 question; record in `RAILWAY_CHANGELOG.md`.
 
-## P7 — `/v1/ask`: claim checklist and stopping rules — IMPLEMENTED IN CODE (2026-09-30, user-approved; not yet deployed)
+## P7 — `/v1/ask`: claim checklist and stopping rules — IMPLEMENTED (2026-09-30, user-approved; live `04e5df46`)
 
 - Keeps the three fixed turns. The plan call lists 3–8 points (claims) that must be answered; each review marks
   every point covered (with source numbers), missing, or not_in_news (only from turn 4).
@@ -316,4 +316,17 @@ question; record in `RAILWAY_CHANGELOG.md`.
   still run after a limit.
 - Evidence headlines are never dropped from the final 500 sources. The answer lists unsettled points under
   "Tidak terjawab".
-- Settings: `WEB_ASK_MAX_TURNS`, `WEB_ASK_MAX_NEWS_REQUESTS`, `WEB_ASK_MAX_COST_USD`, `WEB_ASK_MAX_SECONDS`.
+- Settings: `WEB_ASK_MAX_TURNS`, `WEB_ASK_MAX_NEWS_REQUESTS`, `WEB_ASK_MAX_COST_USD` (replaced by the three budgets
+  of P8), `WEB_ASK_MAX_SECONDS`.
+
+## P8 — `/v1/ask`: separate budgets and follow-up questions — IMPLEMENTED IN CODE (2026-10-01, user-approved)
+
+- Three budgets replace the single USD 0.05 total with its 0.015 answer reserve (W23): search (plan, Exa, reviews,
+  reading) `WEB_ASK_SEARCH_BUDGET_USD` 0.035; answer (answer, implications) `WEB_ASK_ANSWER_BUDGET_USD` 0.02;
+  follow-up `WEB_ASK_FOLLOWUP_BUDGET_USD` 0.005. Defaults chosen from the measured runs of 2026-09-30 (Exa about
+  0.015, reviews 0.003–0.009 per call, answer with reasoning high 0.005–0.012, implications 0.002–0.008).
+- The search stops before a review whose forecast (average review cost so far) would pass the search budget, so one
+  late review no longer eats the answer's money; answer reasoning depends only on the answer budget.
+- Every call's cost is listed in `plan.timing.steps.<step>.costs`; `plan.budget.<budget>` has max, spent and over.
+- A last call writes 3–5 key follow-up questions from the question and the final answer, appended as
+  "Pertanyaan lanjutan" and kept in `plan.follow_ups`.

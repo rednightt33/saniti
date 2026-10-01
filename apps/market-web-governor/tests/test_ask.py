@@ -25,13 +25,14 @@ RSS = """<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>
 class FakeProvider:
     def __init__(self, answer="Talks were reported on 2025-10-07 [1]; the deal was announced on 2026-09-18 [2]. [9]",
                  reviews=None, sectors=None, forward=None, implications=None, fail_implications=False,
-                 reads=None, history=False, former=None, claims=None, cost=0.001):
+                 reads=None, history=False, former=None, claims=None, cost=0.001, follow_ups=None):
         self.payloads = []
         self.history = history
         self.claims = claims or []
         self.cost = cost
         self.former = former or []
         self.reads = reads or []
+        self.follow_ups = follow_ups or []
         self.answer = answer
         self.reviews = list(reviews or [])
         self.sectors = sectors or []
@@ -50,6 +51,9 @@ class FakeProvider:
             return {"output": [{"content": [{"type": "output_text", "text": text}]}], "usage": {"cost": self.cost}}
         if "text" in payload and payload["text"]["format"]["name"] == "sources_to_read":
             text = json.dumps({"sources": [{"n": n, "reason": "conflicting figure"} for n in self.reads]})
+            return {"output": [{"content": [{"type": "output_text", "text": text}]}], "usage": {"cost": 0.001}}
+        if "text" in payload and payload["text"]["format"]["name"] == "follow_ups":
+            text = json.dumps({"questions": [{"question": q, "why": "it decides the outlook"} for q in self.follow_ups]})
             return {"output": [{"content": [{"type": "output_text", "text": text}]}], "usage": {"cost": 0.001}}
         if "text" in payload and payload["text"]["format"]["name"] == "implications":
             text = "not json" if self.fail_implications else json.dumps(self.implications)
@@ -111,8 +115,9 @@ def test_ask_answers_from_numbered_sources_and_takes_dates_from_the_list(tmp_pat
     # Plan, one review (empty: no turn 2), answer, implications; two Exa searches. Turn 0: 2 subject queries x 8
     # windows; turn 1: 4 subject templates x the 2 newest windows.
     assert [("text" in p, "tools" in p) for p in provider.payloads].count((False, True)) == 2
-    # model calls: plan, article selection, answer and two implications attempts (none returned, so retried)
-    assert result["usage"]["model_calls"] == 5 and result["usage"]["review_calls"] == 1
+    # model calls: plan, article selection, answer, two implications attempts (none returned, so retried) and the
+    # follow-up questions
+    assert result["usage"]["model_calls"] == 6 and result["usage"]["review_calls"] == 1
     assert result["usage"]["search_calls"] == 2 and result["usage"]["news_requests"] == 2 * 8 + 4 * 2
     assert len(result["plan"]["windows"]) == 8 and [t["turn"] for t in result["plan"]["turns"]] == [0, 1]
     # The same headline from Google News and Exa is one source; oldest first.
@@ -564,9 +569,9 @@ def test_the_news_request_limit_trims_a_turn_and_then_stops(tmp_path):
 
 def test_cost_and_time_limits_stop_the_search_but_still_answer(tmp_path):
     provider = FakeProvider(claims=["a"], cost=0.2, reviews=[["q two"], ["q three"], ["q four"]])
-    result = service(tmp_path, provider, ask_max_cost_usd=0.3).ask(
+    result = service(tmp_path, provider, ask_search_budget_usd=0.5).ask(
         AskRequest(request_id="ask-test-0047", question="Company P", as_of=date(2026, 9, 29)))
-    # Two reviews at USD 0.2 each pass the USD 0.3 limit before turn 4.
+    # After two reviews at USD 0.2 (0.405 spent), a third would pass the USD 0.5 search budget: stop before turn 4.
     assert result["plan"]["stop"]["reason"] == "max_cost" and result["plan"]["stop"]["turn"] == 4
     assert result["status"] == "ANSWERED"
     ticks = iter(range(0, 10000, 100))
@@ -590,36 +595,77 @@ def test_evidence_for_a_claim_is_always_kept_in_the_final_sources():
     assert len(kept) == 12 and kept[-1]["title"] == "the evidence"  # undated sorts last
 
 
-def test_costs_are_counted_per_step_and_the_budget_keeps_a_reserve_for_the_answer(tmp_path):
+def test_costs_are_counted_per_call_and_per_step_against_three_budgets(tmp_path):
     provider = FakeProvider(claims=["a"], reads=[2], reviews=[["q two"], ["q three"]])
     result = service(tmp_path, provider).ask(
         AskRequest(request_id="ask-test-0050", question="Company P", as_of=date(2026, 9, 29)))
     steps = result["usage"]["cost_by_step"]
-    assert set(steps) >= {"plan", "review", "exa_search", "answer", "implications"}
+    assert set(steps) >= {"plan", "review", "exa_search", "answer", "implications", "follow_up"}
     assert round(sum(steps.values()), 6) == round(result["usage"]["cost_usd"], 6)
-    assert result["plan"]["budget"]["max_usd"] == 0.05 and result["plan"]["budget"]["reserve_usd"] == 0.015
-    # Plan 0.001 + two Exa searches 0.004, then reviews at USD 0.02: after two reviews (0.045 spent) the 0.015
-    # reserve no longer fits the 0.05 budget, so the search stops before turn 4.
-    provider = FakeProvider(claims=["a"], cost=0.02, reviews=[["q two"], ["q three"], ["q four"]])
-    result = service(tmp_path, provider).ask(
+    timing = result["plan"]["timing"]["steps"]
+    assert timing["review"]["costs"] == [0.001] * timing["review"]["calls"]
+    assert all(round(sum(entry["costs"]), 6) == steps[step] for step, entry in timing.items())
+    budget = result["plan"]["budget"]
+    assert budget["max_usd"] == 0.06 and budget["skipped"] == []
+    assert budget["search"]["max_usd"] == 0.035 and budget["answer"]["max_usd"] == 0.02
+    assert budget["follow_up"] == {"max_usd": 0.005, "spent_usd": 0.001, "over_usd": 0.0}
+    assert budget["answer"]["spent_usd"] == round(steps["answer"] + steps["implications"], 6)
+
+
+def test_the_search_stops_before_a_review_that_would_pass_its_budget(tmp_path):
+    # Plan 0.001 + two Exa searches 0.004, then reviews at USD 0.01: after two reviews (0.025 spent) a third
+    # (forecast 0.035) passes the 0.028 search budget, so the search stops before turn 4.
+    provider = FakeProvider(claims=["a"], cost=0.01, reads=[2], reviews=[["q two"], ["q three"], ["q four"]])
+    result = service(tmp_path, provider, ask_search_budget_usd=0.028).ask(
         AskRequest(request_id="ask-test-0051", question="Company P", as_of=date(2026, 9, 29)))
     plan = result["plan"]
     assert plan["stop"]["reason"] == "max_cost" and plan["stop"]["turn"] == 4
-    # Nothing is left for reading or for reasoning; the answer still runs without reasoning.
-    assert plan["budget"]["skipped"] == ["read", "answer_reasoning"] and "read" not in plan
-    assert answer_payload(provider)["reasoning"] == {"enabled": False}
+    assert plan["budget"]["search"]["spent_usd"] <= 0.028
+    # The search budget has 0.003 left, too little for article selection and a read; the answer budget is
+    # separate, so the answer still reasons.
+    assert plan["budget"]["skipped"] == ["read"] and "read" not in plan
+    assert answer_payload(provider)["reasoning"] == {"enabled": True, "effort": "high"}
     assert result["status"] == "ANSWERED"
 
 
-def test_reading_is_cut_to_what_the_budget_allows(tmp_path):
+def test_a_small_answer_budget_answers_without_reasoning_and_skips_what_does_not_fit(tmp_path):
+    provider = FakeProvider(claims=["a"])
+    result = service(tmp_path, provider, ask_answer_budget_usd=0.002, ask_followup_budget_usd=0.0).ask(
+        AskRequest(request_id="ask-test-0054", question="Company P", as_of=date(2026, 9, 29)))
+    plan = result["plan"]
+    assert answer_payload(provider)["reasoning"] == {"enabled": False}
+    # The answer (USD 0.003) spends the 0.002 answer budget: no implications; no follow-up budget at all.
+    assert plan["budget"]["skipped"] == ["answer_reasoning", "implications", "follow_up"]
+    assert plan["budget"]["answer"]["over_usd"] == 0.001
+    assert all(p.get("text", {}).get("format", {}).get("name") not in ("implications", "follow_ups")
+               for p in provider.payloads)
+    assert result["status"] == "ANSWERED"
+
+
+def test_reading_is_cut_to_what_the_search_budget_allows(tmp_path):
     provider = FakeProvider(claims=["a"], reads=[1, 2, 3])
-    # Exa searches cost 0.002 each; a budget of 0.03 leaves about 0.03 - 0.015 - 0.0x spent for reads.
-    result = service(tmp_path, provider, ask_max_cost_usd=0.03).ask(
+    # Exa searches cost 0.002 each; a search budget of 0.012 leaves about 0.012 - 0.0x spent for reads.
+    result = service(tmp_path, provider, ask_search_budget_usd=0.012).ask(
         AskRequest(request_id="ask-test-0052", question="Company P", as_of=date(2026, 9, 29)))
     select = next(p for p in provider.payloads if "text" in p and p["text"]["format"]["name"] == "sources_to_read")
     assert "at most" in select["instructions"]
     read_calls = [p for p in provider.payloads if "tools" in p and p["tools"][0]["parameters"]["max_results"] == 1]
     assert len(read_calls) <= 3 and all(p["tools"][0]["parameters"]["max_results"] == 1 for p in read_calls)
+
+
+def test_follow_up_questions_come_from_the_final_answer_and_close_it(tmp_path):
+    provider = FakeProvider(claims=["a"], follow_ups=["Kapan RUPS Company P?", "kapan rups company p?",
+                                                      "Berapa harga akuisisi final?"])
+    result = service(tmp_path, provider).ask(
+        AskRequest(request_id="ask-test-0055", question="Company P", as_of=date(2026, 9, 29)))
+    call = next(p for p in provider.payloads if p.get("text", {}).get("format", {}).get("name") == "follow_ups")
+    assert call["input"].startswith("QUESTION: Company P\n\nFINAL ANSWER:\n")
+    assert "SOURCES" not in call["input"] and call["reasoning"] == {"enabled": False}
+    assert [q["question"] for q in result["plan"]["follow_ups"]] == ["Kapan RUPS Company P?",
+                                                                     "Berapa harga akuisisi final?"]
+    assert result["answer"].endswith("## Pertanyaan lanjutan\n1. Kapan RUPS Company P? — it decides the outlook\n"
+                                     "2. Berapa harga akuisisi final? — it decides the outlook")
+    assert result["plan"]["answer_cited"].endswith("2. Berapa harga akuisisi final? — it decides the outlook")
 
 
 def test_latest_value_questions_are_not_history_and_single_facts_get_few_claims():

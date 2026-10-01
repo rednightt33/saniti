@@ -159,8 +159,9 @@ class Settings:
     ask_read_articles: int = 6
     ask_max_turns: int = 8
     ask_max_news_requests: int = 300
-    ask_max_cost_usd: float = 0.05
-    ask_answer_reserve_usd: float = 0.015
+    ask_search_budget_usd: float = 0.035
+    ask_answer_budget_usd: float = 0.02
+    ask_followup_budget_usd: float = 0.005
     ask_answer_reasoning_tokens: int = 2000
     ask_answer_reasoning_effort: str | None = "high"
     ask_max_seconds: int = 180
@@ -251,8 +252,9 @@ class Settings:
             ask_read_articles=_integer(env, "WEB_ASK_READ_ARTICLES", 6, minimum=0, maximum=30),
             ask_max_turns=_integer(env, "WEB_ASK_MAX_TURNS", 8, minimum=3, maximum=12),
             ask_max_news_requests=_integer(env, "WEB_ASK_MAX_NEWS_REQUESTS", 300, minimum=50, maximum=1000),
-            ask_max_cost_usd=_decimal(env, "WEB_ASK_MAX_COST_USD", 0.05, minimum=0.01, maximum=5.0),
-            ask_answer_reserve_usd=_decimal(env, "WEB_ASK_ANSWER_RESERVE_USD", 0.015, minimum=0.0, maximum=1.0),
+            ask_search_budget_usd=_decimal(env, "WEB_ASK_SEARCH_BUDGET_USD", 0.035, minimum=0.005, maximum=5.0),
+            ask_answer_budget_usd=_decimal(env, "WEB_ASK_ANSWER_BUDGET_USD", 0.02, minimum=0.0, maximum=5.0),
+            ask_followup_budget_usd=_decimal(env, "WEB_ASK_FOLLOWUP_BUDGET_USD", 0.005, minimum=0.0, maximum=1.0),
             ask_answer_reasoning_tokens=_integer(env, "WEB_ASK_ANSWER_REASONING_TOKENS", 2000, minimum=0,
                                                  maximum=32000),
             ask_answer_reasoning_effort=_effort(env.get("WEB_ASK_ANSWER_REASONING_EFFORT", "high")),

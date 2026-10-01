@@ -50,6 +50,12 @@ MAX_WINDOWS = 12
 NEWS_WORKERS = 6
 NEWS_MAX_BYTES = 2_000_000
 DETAIL_CHARACTERS = 2500
+MAX_FOLLOW_UPS = 5
+REVIEW_COST_GUESS = 0.005  # USD; the forecast for the first review call, later ones use the average so far
+ANSWER_REASONING_MIN_USD = 0.01  # an answer budget below this answers without reasoning
+# Each step's cost counts against one of three budgets (settings.ask_*_budget_usd).
+PHASES = {"plan": "search", "exa_search": "search", "review": "search", "select": "search", "read": "search",
+          "answer": "answer", "implications": "answer", "follow_up": "follow_up"}
 
 SELECT_SCHEMA = {
     "type": "object", "additionalProperties": False, "required": ["sources"],
@@ -90,6 +96,13 @@ IMPLICATIONS_SCHEMA = {
                                       "enum": ["dijadwalkan", "direncanakan", "diusulkan", "masih dikaji"]},
                            "sources": _CITES}}},
     },
+}
+
+FOLLOW_UP_SCHEMA = {
+    "type": "object", "additionalProperties": False, "required": ["questions"],
+    "properties": {"questions": {"type": "array", "items": {
+        "type": "object", "additionalProperties": False, "required": ["question", "why"],
+        "properties": {"question": {"type": "string"}, "why": {"type": "string"}}}}},
 }
 
 PLAN_SCHEMA = {
@@ -199,6 +212,17 @@ def implications_instructions(as_of: date) -> str:
         "Be concise: at most 6 impacts, 3 scenarios and 10 timeline entries; each text field one short sentence "
         "without source numbers (put them in 'sources').\n"
         "Every item cites source numbers. No buy, sell or hold recommendation. Write in the language of the question."
+    )
+
+
+def follow_up_instructions(as_of: date) -> str:
+    return (
+        f"Today is {as_of.isoformat()}. The user asked the question and received the final answer below. Write 3 to "
+        f"{MAX_FOLLOW_UPS} follow-up questions most worth asking next: key questions an investor would need answered "
+        "to act on or verify this answer, such as a point the answer could not settle, a figure that needs its source "
+        "or basis, an upcoming event or decision that changes the picture, or a risk the answer raises. Each question "
+        "names its subject, figure or event concretely and is not already answered by the answer. why: one short "
+        "sentence on why it matters. No buy, sell or hold recommendation. Write in the language of the question."
     )
 
 
@@ -562,6 +586,11 @@ def render_implications(data: dict[str, list]) -> str:
     return "\n".join(lines) if len(lines) > 3 else ""
 
 
+def render_follow_ups(questions: list[dict[str, str]]) -> str:
+    return "## Pertanyaan lanjutan\n" + "\n".join(
+        f"{n}. {q['question']}" + (f" — {q['why']}" if q["why"] else "") for n, q in enumerate(questions, 1))
+
+
 def check_dates(answer: str, items: list[dict[str, Any]]) -> tuple[str, int]:
     """Every ISO date on a line that cites sources must be the date of one of those sources. A wrong date is replaced
     by the source's date when the line cites exactly one dated source, otherwise removed. Returns (answer, fixes)."""
@@ -640,7 +669,7 @@ def _step(payload: dict[str, Any]) -> str:
         return "read" if chars == DETAIL_CHARACTERS else "exa_search"
     name = ((payload.get("text") or {}).get("format") or {}).get("name")
     return {"search_plan": "plan", "next_searches": "review", "sources_to_read": "select",
-            "implications": "implications"}.get(name, "answer")
+            "implications": "implications", "follow_ups": "follow_up"}.get(name, "answer")
 
 
 def _claim_list(claims: list[dict[str, Any]], items: list[dict[str, Any]]) -> str:
@@ -696,24 +725,34 @@ class AskService:
         usage = {"model_calls": 0, "review_calls": 0, "search_calls": 0, "news_requests": 0, "cost_usd": 0.0,
                  "cost_by_step": {}}
         timing: dict[str, dict[str, Any]] = {}
+        spent = {"search": 0.0, "answer": 0.0, "follow_up": 0.0}  # USD per budget (PHASES)
 
         def call(payload: dict[str, Any]) -> dict[str, Any]:
             step = _step(payload)
             attempts: list[dict[str, Any]] = []
             began = self.clock()
+            response: dict[str, Any] = {}
             try:
                 response = self.provider.respond(payload, attempts)
             finally:
-                # Time and attempts per step (a slow step shows its retries: deadline, timeout, HTTP errors).
-                entry = timing.setdefault(step, {"calls": 0, "seconds": 0.0, "attempts": 0, "failed": []})
+                # Time, attempts and cost per call of each step (a slow step shows its retries: deadline, timeout,
+                # HTTP errors).
+                entry = timing.setdefault(step, {"calls": 0, "seconds": 0.0, "attempts": 0, "failed": [],
+                                                 "costs": []})
                 entry["calls"] += 1
                 entry["seconds"] = round(entry["seconds"] + self.clock() - began, 2)
                 entry["attempts"] += len(attempts) or 1
                 entry["failed"] += [a for a in attempts if a["error"]]
-            cost = float((response.get("usage") or {}).get("cost") or 0)
+                cost = float((response.get("usage") or {}).get("cost") or 0)
+                entry["costs"].append(round(cost, 6))
             usage["cost_usd"] += cost
             usage["cost_by_step"][step] = round(usage["cost_by_step"].get(step, 0.0) + cost, 6)
+            spent[PHASES[step]] += cost
             return response
+
+        def review_forecast() -> float:
+            costs = (timing.get("review") or {}).get("costs") or []
+            return sum(costs) / len(costs) if costs else REVIEW_COST_GUESS
 
         plan = self._plan(request.question, as_of, slot.model, call)
         usage["model_calls"] += 1
@@ -761,7 +800,7 @@ class AskService:
         # Turns 2..3 always run as before; from turn 3 on the claim checklist decides whether to go on, up to
         # max_turns, inside the hard limits on Google News requests, cost and time of the search phase.
         while True:
-            limit = self._limit(usage, started)
+            limit = self._limit(usage, started, spent["search"] + review_forecast())
             if limit:
                 stop = limit
                 break
@@ -814,14 +853,15 @@ class AskService:
         items = merge_sources(results, spans, max_sources, pinned())
         status, answer, answer_cited, citations = "NO_SOURCES", None, None, []
         plan["claims"] = [{"claim": c["claim"], "status": c["status"], "sources": []} for c in claims]
-        budget = {"max_usd": self.settings.ask_max_cost_usd, "reserve_usd": self.settings.ask_answer_reserve_usd,
-                  "skipped": []}
+        limits = {"search": self.settings.ask_search_budget_usd, "answer": self.settings.ask_answer_budget_usd,
+                  "follow_up": self.settings.ask_followup_budget_usd}
+        budget: dict[str, Any] = {"max_usd": round(sum(limits.values()), 6), "skipped": []}
         plan["budget"] = budget
         if items and self.settings.ask_read_articles:
-            # Read only as many articles as the budget allows after keeping the reserve for the answer.
+            # Reading belongs to the search budget: only as many articles as its remainder allows.
             searches = usage["search_calls"] or 1
             per_read = max(usage["cost_by_step"].get("exa_search", 0.0) / searches, 0.001)
-            room = self.settings.ask_max_cost_usd - self.settings.ask_answer_reserve_usd - usage["cost_usd"]
+            room = limits["search"] - spent["search"]
             count = min(self.settings.ask_read_articles, int(max(room - 0.002, 0) / per_read))  # 0.002: select
             if count >= 1:
                 plan["read"] = self._read_articles(request.question, items, as_of, slot.model, call, warnings,
@@ -829,11 +869,10 @@ class AskService:
             else:
                 budget["skipped"].append("read")
         if items:
-            left = self.settings.ask_max_cost_usd - usage["cost_usd"]
             effort = self.settings.ask_answer_reasoning_effort
             enabled = self.settings.ask_answer_reasoning and effort != "off"
             reasoning = (enabled and (effort or self.settings.ask_answer_reasoning_tokens > 0)
-                         and left >= self.settings.ask_answer_reserve_usd)
+                         and limits["answer"] >= ANSWER_REASONING_MIN_USD)
             if enabled and not reasoning:
                 budget["skipped"].append("answer_reasoning")
             response = call({
@@ -858,9 +897,13 @@ class AskService:
             unknown = [n for n in cited if not 1 <= n <= len(items)]
             if unknown:
                 warnings.append({"code": "UNKNOWN_CITATION", "message": f"answer cites sources that do not exist: {unknown}"})
-            implications = self._implications(request.question, answer, items, as_of, slot.model, call, warnings,
-                                              plan)
-            usage["model_calls"] += len(plan.get("implications_attempts") or [None])
+            implications = None
+            if spent["answer"] < limits["answer"]:  # the answer comes first; implications only if budget is left
+                implications = self._implications(request.question, answer, items, as_of, slot.model, call,
+                                                  warnings, plan)
+                usage["model_calls"] += len(plan.get("implications_attempts") or [None])
+            else:
+                budget["skipped"].append("implications")
             if implications is not None:
                 answer = answer + "\n" + render_implications(implications)
             answer, answer_cited, order = clean_citations(answer, len(items), [item["url"] for item in items])
@@ -874,10 +917,23 @@ class AskService:
                                                                      if n in renumber]} for entry in values]
                                         for key, values in implications.items()}
             citations = [_public(items[number - 1], index) for index, number in enumerate(order, 1)]
+            if answer and limits["follow_up"] > 0:
+                # Key follow-up questions from the question and the final curated answer, on their own budget.
+                follow_ups = self._follow_ups(request.question, answer_cited, as_of, slot.model, call, warnings)
+                usage["model_calls"] += 1
+                if follow_ups:
+                    plan["follow_ups"] = follow_ups
+                    section = "\n\n" + render_follow_ups(follow_ups)
+                    answer, answer_cited = answer + section, answer_cited + section
+            elif answer:
+                budget["skipped"].append("follow_up")
             plan["answer_cited"] = answer_cited
             if not citations:
                 warnings.append({"code": "NO_CITATIONS", "message": "the answer cites no source"})
             status = "ANSWERED" if answer else "FAILED"
+        for phase, limit in limits.items():
+            budget[phase] = {"max_usd": limit, "spent_usd": round(spent[phase], 6),
+                             "over_usd": round(max(spent[phase] - limit, 0.0), 6)}
         plan["timing"] = {"total_seconds": round(self.clock() - started, 2), "steps": timing}
         result = {
             "ask_id": f"ask_{uuid.uuid4().hex}", "request_id": request.request_id, "question": request.question,
@@ -924,6 +980,28 @@ class AskService:
         if not any(kept.values()):
             warnings.append({"code": "IMPLICATIONS_EMPTY", "message": "no implication survived validation"})
         return kept
+
+    def _follow_ups(self, question: str, answer: str, as_of: date, model: str, call,
+                    warnings: list) -> list[dict[str, str]]:
+        """Up to MAX_FOLLOW_UPS follow-up questions, from the question and the final answer only."""
+        try:
+            response = call({
+                "model": model, "instructions": follow_up_instructions(as_of),
+                "input": f"QUESTION: {question}\n\nFINAL ANSWER:\n{answer}",
+                "max_output_tokens": 1000, "reasoning": {"enabled": False}, "store": False,
+                "text": {"format": {"type": "json_schema", "name": "follow_ups", "strict": True,
+                                    "schema": FOLLOW_UP_SCHEMA}},
+            })
+            parsed = json.loads(_extract_output(response)[0])
+        except (ProviderError, ValueError) as exc:
+            warnings.append({"code": "FOLLOW_UPS_FAILED", "message": getattr(exc, "code", type(exc).__name__)})
+            return []
+        out: list[dict[str, str]] = []
+        for entry in (parsed.get("questions") if isinstance(parsed, dict) else None) or []:
+            text = re.sub(r"\s+", " ", str(entry.get("question") or "") if isinstance(entry, dict) else "").strip()
+            if text and text.lower() not in {q["question"].lower() for q in out}:
+                out.append({"question": text[:300], "why": re.sub(r"\s+", " ", str(entry.get("why") or "")).strip()[:300]})
+        return out[:MAX_FOLLOW_UPS]
 
     def _plan(self, question: str, as_of: date, model: str, call) -> dict[str, Any]:
         response = call({
@@ -1059,12 +1137,13 @@ class AskService:
             warnings.append({"code": "READ_NONE", "message": f"none of {len(picks)} chosen articles could be read"})
         return out
 
-    def _limit(self, usage: dict, started: float) -> str | None:
-        """The hard limit of the search phase that is reached, if any."""
+    def _limit(self, usage: dict, started: float, forecast: float) -> str | None:
+        """The hard limit of the search phase that is reached, if any. `forecast` is the search spend after one more
+        review call; the search stops before a review that would pass the search budget."""
         if usage["news_requests"] >= self.settings.ask_max_news_requests:
             return "max_news_requests"
-        if usage["cost_usd"] + self.settings.ask_answer_reserve_usd >= self.settings.ask_max_cost_usd:
-            return "max_cost"  # the reserve keeps room for the answer and implications calls
+        if forecast > self.settings.ask_search_budget_usd:
+            return "max_cost"
         if self.clock() - started >= self.settings.ask_max_seconds:
             return "max_seconds"
         return None
