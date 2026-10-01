@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-10-01 — orc-test-runner: audit readback of a mode 4 sub-run (M44 root cause)
+
+- **Runner code** `9232e45`: `suite.json` `audit_request_ids` reads the audit of listed runs (a mode 4 step such as
+  `…-1-m4a`, which the item/turn naming cannot reach) and `audit_full_trace` dumps the whole TOOL_TRACE. Suite
+  `ma-m44-audit-20261001a` is audit-only: it sends no question (no OpenRouter cost).
+- **Variable** (user-approved): `AUDIT_STORE_READER_KEY` (a reference to market-audit-store's reader key) added to
+  `orc-test-runner` with `--skip-deploys`; then CLI upload, deployment `ada3fd49-36fa-4154-826c-d4958d204751` `SUCCESS`
+  (02:17 UTC): run `run_3359aa90…` of `ma-m43g13-20260930a-m01_broker_bank_crash-1-m4a` read back `COMPLETE`
+  (205 events: `final.unrendered` 1, `final.rejected` 2, 43 tool calls). The key was deleted afterwards; the runner
+  again holds only `MARKET_AI_ORC_API_KEY` and no new deployment was created. No value appears in any log or file.
+- **Finding**: M44 root cause verified (`ERRORS_AND_SOLUTIONS.md`): a `get_session_output` page replaced the output's
+  reference entry, and the repaired answer's row positions resolved against that page, so the broker table showed
+  other brokers' figures under the names given. W21 closed as ACCEPTED by the user.
+
 ## 2026-10-01 — market-web-governor: `/v1/ask` separate budgets, cost per call, follow-up questions (P8, W23)
 
 - `08301c3` deployed as `9b581712` `SUCCESS`: search (USD 0.035), answer (0.02) and follow-up (0.005) budgets
