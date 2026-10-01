@@ -884,3 +884,25 @@ def test_the_bundle_summary_of_start_research_run_is_a_number_source() -> None:
         "status": "STARTED", "groups": [{"bundle_group_id": "g1", "datasets": [{"rows": 62405, "entities": 48}]}]}})
     orc._track_research_run(state, "start_research_run", {}, outcome)
     assert {62405.0, 48.0} <= set(state.context_numbers)
+
+
+def test_a_renamed_angle_with_its_checked_design_keeps_the_checked_id() -> None:
+    """M49 (2026-10-01, m01 m4b): the plan renamed a checked angle (same data, same design) and was refused, so the
+    model checked feasibility again and rewrote the plan. A rename now takes the checked id back; a new design does
+    not."""
+    renamed = angles()
+    renamed[2] = {**renamed[2], "angle_id": "a_lead_lag_renamed", "title": "A sharper title"}
+    runner, scripted, _ = agent([call("check_research_feasibility", feasibility_args(), "c1"),
+                                 final_response(plan_response(angles=renamed))])
+    result = runner.run(AgentRunRequest(request_id="run_001", conversation_id="conv_1", message=QUESTION))
+    assert result.response.response_type == "RESEARCH_PLAN_CONFIRMATION" and len(scripted.payloads) == 2
+    issued = result.response.research_plan
+    assert sorted(a.angle_id for a in issued.angles) == ["a_fall", "a_lag", "a_rank"]
+    assert next(a for a in issued.angles if a.angle_id == "a_lag").title == "A sharper title"
+    changed = angles()
+    changed[2] = {**changed[2], "angle_id": "a_other_design", "candidate_count": changed[2]["candidate_count"] + 1}
+    runner, scripted, _ = agent([call("check_research_feasibility", feasibility_args(), "c1"),
+                                 final_response(plan_response(angles=changed)), final_response(plan_response())])
+    runner.run(AgentRunRequest(request_id="run_001", conversation_id="conv_1", message=QUESTION))
+    refusal = scripted.payloads[2]["input"][-1]["content"]
+    assert "not checked: ['a_other_design']" in refusal and "checked but missing: ['a_lag']" in refusal

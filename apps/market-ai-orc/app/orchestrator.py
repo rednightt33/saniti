@@ -3294,6 +3294,9 @@ class AgentOrchestrator:
             return self._forced(state, final, PLAN_VERSION_NOTICE, ["The Research Plan is not in the form this "
                                                                     "deployment runs."])
         if is_v2:
+            plan = self._checked_angle_ids(state, final.research_plan)
+            if plan is not final.research_plan:
+                final = final.model_copy(update={"research_plan": plan})
             problems = self._plan_v2_problems(state, final.research_plan)
             if problems:
                 # M38 (suite20, 2026-09-29): a plan with several angles often needed a second repair, like FINDINGS_2
@@ -3321,6 +3324,32 @@ class AgentOrchestrator:
         state.evidence_label = None
         return final
 
+    def _checked_angle_ids(self, state: RunState, plan: ResearchPlanV2) -> ResearchPlanV2:
+        """M49 (2026-10-01, m01 m4b): an angle's id is the key the feasibility check gave its data and design; a plan
+        angle the model renamed (its title and wording may change) but whose design is exactly one unmatched checked
+        angle's design takes that checked id back, so a rename is not a new angle. Anything else stays as written and
+        the checks below name what was not checked."""
+        feasible = state.research.feasible if state.research is not None else None
+        if feasible is None:
+            return plan
+        checked = set(feasible.get("angle_to_bundle_group") or {})
+        designs = feasible.get("angle_design_sha256s") or {}
+        planned = {a.angle_id for a in plan.angles}
+        open_checked = {i: designs.get(i) for i in checked - planned if designs.get(i)}
+        renamed: dict[str, str] = {}
+        for angle in plan.angles:
+            if angle.angle_id in checked:
+                continue
+            same = [i for i, design in open_checked.items() if design == design_sha256(angle.model_dump(mode="json"))]
+            if len(same) == 1 and same[0] not in renamed.values():
+                renamed[angle.angle_id] = same[0]
+        if not renamed:
+            return plan
+        log_event("research_plan_angle_ids_restored", request_id=state.request_id, renamed=renamed)
+        return plan.model_copy(update={"angles": [a.model_copy(update={"angle_id": renamed.get(a.angle_id,
+                                                                                                a.angle_id)})
+                                                  for a in plan.angles]})
+
     def _plan_v2_problems(self, state: RunState, plan: ResearchPlanV2) -> list[str]:
         """A multi-angle plan is issued only for exactly the angles of this run's last FEASIBLE research data plan,
         within the deployment's angle limits, with a separate later range for every angle that requires a holdout."""
@@ -3331,7 +3360,11 @@ class AgentOrchestrator:
         planned = sorted(a.angle_id for a in plan.angles)
         checked = sorted(feasible.get("angle_to_bundle_group") or {})
         if planned != checked:
-            problems.append(f"the plan's angles {planned} differ from the angles checked {checked}")
+            # M49: name exactly what is new and what was dropped, so only those are checked again
+            new, dropped = sorted(set(planned) - set(checked)), sorted(set(checked) - set(planned))
+            problems.append(f"the plan's angles {planned} differ from the angles checked {checked}"
+                            + (f"; not checked: {new}" if new else "") + (f"; checked but missing: {dropped}"
+                                                                          if dropped else ""))
         low, high = current_angle_bounds.get() or (self.research_limits.get("min_angles", 2),
                                                     self.research_limits.get("max_angles", 6))
         if not low <= len(planned) <= high:
