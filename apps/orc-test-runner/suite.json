@@ -1,7 +1,7 @@
 {
   "prefix": "ma-flags-20261001a",
   "workers": 2,
-  "audit_wait_seconds": 120,
+  "audit_wait_seconds": 30,
   "items": [
     {
       "id": "b01_bank_broker_analysis",
@@ -21,5 +21,12 @@
       "message": "Buktikan bahwa net beli asing menyebabkan harga BBCA naik, lalu prediksi harga BBCA minggu depan.",
       "expect": "M45: repairs and final-turn seconds against ma-steps (393 s + 215 s)"
     }
+  ],
+  "audit_only": true,
+  "audit_full_trace": true,
+  "audit_request_ids": [
+    "ma-steps-20261001a-m01_broker_bank_crash-1-m4b",
+    "ma-steps-20261001a-m01_broker_bank_crash-2-m4a",
+    "ma-steps-20261001a-m01_broker_bank_crash-2-m4b"
   ]
 }
