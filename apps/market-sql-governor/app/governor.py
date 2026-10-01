@@ -6,6 +6,7 @@ aggregates, each returned with a fact_id and logged.
 """
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import logging
@@ -565,10 +566,11 @@ class Extractor:
                          max_parts=s.extract_max_parts)
 
     def handle(self, request_id: str, raw_spec: Any, raw_lineage: Any, part_count: int = 1,
-               estimate_only: bool = False) -> dict[str, Any]:
+               estimate_only: bool = False, count_cap: int | None = None) -> dict[str, Any]:
         """estimate_only: validate, bind, compile and EXPLAIN exactly as an extraction, and answer WITHIN_LIMITS (the
         estimates) or the same APPROVED_WITH_PARTITIONING / REJECTED_* an extraction would get; nothing is read or
-        stored. A draft_ need_id is accepted only here."""
+        stored. A draft_ need_id is accepted only here. count_cap (G15): the most rows the caller can still use; the
+        count stops there (row_basis AT_LEAST)."""
         started = time.monotonic()
         query_id = f"qry_{uuid.uuid4().hex[:24]}"
         state: dict[str, Any] = {"source_tables": [], "data_request_id": None}
@@ -590,7 +592,7 @@ class Extractor:
             partition = spec.entity_partition.model_dump() if spec.entity_partition else None
             if lineage.part_key != ex.part_key(window, partition):
                 raise ex.policy("LINEAGE_MISMATCH", "part_key does not describe this extraction's window and partition.")
-            outcome = self._run(request_id, query_id, spec, lineage, state, part_count, estimate_only)
+            outcome = self._run(request_id, query_id, spec, lineage, state, part_count, estimate_only, count_cap)
         except ex.ExtractStop as stop:
             outcome = self._stopped(request_id, query_id, stop, state)
         except psycopg.errors.QueryCanceled:
@@ -638,7 +640,8 @@ class Extractor:
                 "warnings": state.get("warnings") or []}
 
     def _run(self, request_id: str, query_id: str, spec: ex.ExtractionSpec, lineage: ex.ExtractionLineage,
-             state: dict[str, Any], part_count: int, estimate_only: bool = False) -> dict[str, Any]:
+             state: dict[str, Any], part_count: int, estimate_only: bool = False,
+             count_cap: int | None = None) -> dict[str, Any]:
         s = self.settings
         state.update(need_id=lineage.need_id, plan_id=lineage.plan_id, part_key=lineage.part_key,
                      part_count=part_count)
@@ -661,10 +664,15 @@ class Extractor:
             scan_rows, cost, result_rows = self.governor._explain(connection, explain, run)
             estimates = ex.Estimates(scan_rows=scan_rows, result_rows=result_rows, plan_cost=cost)
             if estimate_only and s.estimate_count_enabled and result_rows >= s.estimate_count_min_rows:
-                estimates = self._counted(connection, explain, estimates, state)
+                cap = min(count_cap or s.max_dataset_rows + 1, s.max_dataset_rows + 1)
+                estimates = self._counted(connection, ex.compile_extraction(bound, cap, ordered=False), estimates,
+                                          state, cap=cap, query_hash=explain.query_hash)
             state["estimates"] = estimates.as_dict()
-            decision = ex.partitioning(bound, estimates, self.limits(), index_columns, part_count=part_count)
+            decision = ex.partitioning(bound, _for_partitioning(estimates), self.limits(), index_columns,
+                                       part_count=part_count)
             if decision is not None:
+                if decision.details.get("estimates") is not None:
+                    decision.details["estimates"] = estimates.as_dict()  # what was counted, not the split's basis
                 raise decision
             if estimate_only:
                 return {"status": "WITHIN_LIMITS", "estimate_only": True, "code": None, "message": None,
@@ -678,34 +686,42 @@ class Extractor:
             return self._extract(connection, run, request_id, query_id, bound, compiled, estimates, contract,
                                  lineage, state)
 
-    def _counted(self, connection, compiled: CompiledQuery, estimates: ex.Estimates,
-                 state: dict[str, Any]) -> ex.Estimates:
-        """G13 (SQL_ESTIMATE_COUNT_ENABLED): the extraction's rows counted with SELECT count(*) over the same compiled
-        SQL (scope, restrictions, window), under SQL_ESTIMATE_COUNT_TIMEOUT_MS. The planner's estimate can be several
-        times off (e02: 108,091 estimated, 319,801 returned), so a plan checked against it could fail its bundle after
-        approval. On a timeout the planner's estimate stays, with ROW_ESTIMATE_UNCERTAIN."""
+    def _counted(self, connection, counting: CompiledQuery, estimates: ex.Estimates, state: dict[str, Any], *,
+                 cap: int, query_hash: str) -> ex.Estimates:
+        """G13 (SQL_ESTIMATE_COUNT_ENABLED): the extraction's rows counted over the same compiled SQL (scope,
+        restrictions, window), under SQL_ESTIMATE_COUNT_TIMEOUT_MS. The planner's estimate can be several times off
+        (e02: 108,091 estimated, 319,801 returned), so a plan checked against it could fail its bundle after approval.
+        On a timeout the planner's estimate stays, with ROW_ESTIMATE_UNCERTAIN.
+
+        G15: the count is bounded and unordered. Its form has no ORDER BY (PostgreSQL otherwise sorts every row
+        inside the count) and a LIMIT at the cap, so it stops once the answer is known: above SQL_MAX_DATASET_ROWS the
+        extraction is split and its parts are counted, and above the caller's count_cap the plan cannot use the rows.
+        `counting` is that form (compile_extraction(bound, cap, ordered=False)); a count that reaches the cap answers
+        AT_LEAST with the cap."""
         s = self.settings
         started = time.monotonic()
-        statement = sql.SQL("SELECT count(*) FROM ({}) AS counted").format(compiled.statement)
+        statement = sql.SQL("SELECT count(*) FROM ({}) AS counted").format(counting.statement)
         try:
             with connection.transaction():  # a savepoint: a cancelled count leaves the snapshot usable
                 with connection.cursor() as cursor:
                     cursor.execute(sql.SQL("SET LOCAL statement_timeout = {}").format(
                         sql.Literal(s.estimate_count_timeout_ms)))
-                    cursor.execute(statement, compiled.params)
+                    cursor.execute(statement, counting.params)
                     counted = int(cursor.fetchone()[0])
                     cursor.execute(sql.SQL("SET LOCAL statement_timeout = {}").format(
                         sql.Literal(s.statement_timeout_seconds * 1000)))
         except psycopg.errors.QueryCanceled:
             state.setdefault("warnings", []).append("ROW_ESTIMATE_UNCERTAIN")
-            _log("sql_governor_count", query_hash=compiled.query_hash, row_basis="PLANNER", timed_out=True,
-                 planner_rows=estimates.result_rows, runtime_ms=int((time.monotonic() - started) * 1000))
+            _log("sql_governor_count", query_hash=query_hash, row_basis="PLANNER", timed_out=True,
+                 count_cap=cap, planner_rows=estimates.result_rows,
+                 runtime_ms=int((time.monotonic() - started) * 1000))
             return ex.Estimates(scan_rows=estimates.scan_rows, result_rows=estimates.result_rows,
                                 plan_cost=estimates.plan_cost, row_basis="PLANNER", planner_rows=estimates.result_rows)
-        _log("sql_governor_count", query_hash=compiled.query_hash, row_basis="COUNTED", counted_rows=counted,
-             planner_rows=estimates.result_rows, runtime_ms=int((time.monotonic() - started) * 1000))
+        basis = "AT_LEAST" if counted >= cap else "COUNTED"
+        _log("sql_governor_count", query_hash=query_hash, row_basis=basis, counted_rows=counted,
+             count_cap=cap, planner_rows=estimates.result_rows, runtime_ms=int((time.monotonic() - started) * 1000))
         return ex.Estimates(scan_rows=estimates.scan_rows, result_rows=counted, plan_cost=estimates.plan_cost,
-                            row_basis="COUNTED", planner_rows=estimates.result_rows)
+                            row_basis=basis, planner_rows=estimates.result_rows)
 
     def _extract(self, connection, run, request_id: str, query_id: str, bound: ex.BoundExtraction,
                  compiled: CompiledQuery, estimates: ex.Estimates, contract: dict[str, Any],
@@ -770,6 +786,14 @@ class Extractor:
                             "checksum_sha256": checksum, "actual_date_range": manifest["actual_date_range"],
                             "entities_present_count": manifest["entities_present_count"],
                             "created_at": manifest["created_at"], "expires_at": manifest["expires_at"]}}
+
+
+def _for_partitioning(estimates: ex.Estimates) -> ex.Estimates:
+    """G15: a count stopped at its cap is only a lower bound; the split takes the planner's estimate when it is
+    larger, so a large result is not split into too few parts."""
+    if estimates.row_basis != "AT_LEAST" or (estimates.planner_rows or 0) <= estimates.result_rows:
+        return estimates
+    return dataclasses.replace(estimates, result_rows=int(estimates.planner_rows))
 
 
 def _details(details: dict[str, Any]) -> dict[str, Any]:

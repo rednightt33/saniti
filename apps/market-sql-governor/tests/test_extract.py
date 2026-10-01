@@ -572,7 +572,8 @@ def test_g13_a_count_that_times_out_keeps_the_planner_estimate_with_a_warning(go
 
     state: dict = {}
     estimates = ext._counted(Cancelled(), CompiledQuery(psql.SQL("SELECT 1"), (), "SELECT 1"),
-                             __import__("app.extract", fromlist=["Estimates"]).Estimates(10, 1234, 5.0), state)
+                             __import__("app.extract", fromlist=["Estimates"]).Estimates(10, 1234, 5.0), state,
+                             cap=501, query_hash="q")
     assert (estimates.row_basis, estimates.result_rows, estimates.planner_rows) == ("PLANNER", 1234, 1234)
     assert state["warnings"] == ["ROW_ESTIMATE_UNCERTAIN"]
 
@@ -587,3 +588,60 @@ def test_g13_the_count_timeout_cannot_exceed_the_statement_timeout() -> None:
                                    SQL_ESTIMATE_COUNT_ENABLED="true", SQL_ESTIMATE_COUNT_TIMEOUT_MS="7000"))
     settings = Settings.from_env(base_env(GOVERNOR_DATABASE_URL="postgresql://x/y"))
     assert (settings.estimate_count_enabled, settings.estimate_count_timeout_ms) == (False, 7000)
+
+
+# ---------------------------------------------------------------- G15: bounded, unordered counts
+
+def test_g15_the_count_form_has_no_order_by_and_stops_at_its_cap() -> None:
+    # PostgreSQL keeps an ORDER BY's sort inside a count(*) subquery, LIMIT or not (measured on PG16: 26,740 vs
+    # 3,396 cost units); without it the LIMIT stops the scan once the cap is reached
+    bound = bind(extraction(order_by=[{"column": "date", "direction": "DESC"}]))
+    counting = ex.compile_extraction(bound, 501, ordered=False)
+    assert "ORDER BY" not in counting.text and counting.text.endswith("LIMIT %s") and counting.params[-1] == 501
+    assert "ORDER BY" in ex.compile_extraction(bound, None).text  # the EXPLAIN and extraction forms keep the order
+    assert counting.params[:-1] == ex.compile_extraction(bound, None).params  # the same rows
+
+
+def test_g15_a_count_that_reaches_the_callers_cap_answers_at_least(governed_db, tmp_path) -> None:
+    spec = extraction()
+    draft = lineage(spec, need_id="draft_" + "a" * 24)
+    real = len(rows_of(extractor(governed_db, tmp_path), submit(extractor(governed_db, tmp_path), spec)))
+    assert real > 3
+    counting = extractor(governed_db, tmp_path, SQL_ESTIMATE_COUNT_ENABLED="true")
+    capped = counting.handle("test-extract", spec, draft, estimate_only=True, count_cap=3)
+    assert capped["status"] == "WITHIN_LIMITS"
+    assert (capped["estimates"]["row_basis"], capped["estimates"]["result_rows"]) == ("AT_LEAST", 3)
+    roomy = counting.handle("test-extract", spec, draft, estimate_only=True, count_cap=real + 1)
+    assert (roomy["estimates"]["row_basis"], roomy["estimates"]["result_rows"]) == ("COUNTED", real)
+    # the cap never goes above the dataset limit + 1: above it the extraction is split and its parts are counted
+    small = extractor(governed_db, tmp_path, SQL_ESTIMATE_COUNT_ENABLED="true", SQL_MAX_DATASET_ROWS=str(real - 1))
+    split = small.handle("test-extract", spec, draft, estimate_only=True, count_cap=1_000_000)
+    assert split["status"] == "APPROVED_WITH_PARTITIONING"
+    assert (split["estimates"]["row_basis"], split["estimates"]["result_rows"]) == ("AT_LEAST", real)
+
+
+def test_g15_a_count_at_its_cap_splits_by_the_planner_estimate_when_that_is_larger() -> None:
+    from app.governor import _for_partitioning
+
+    capped = ex.Estimates(scan_rows=10, result_rows=501, plan_cost=1.0, row_basis="AT_LEAST", planner_rows=2_000)
+    assert _for_partitioning(capped).result_rows == 2_000
+    low = ex.Estimates(scan_rows=10, result_rows=501, plan_cost=1.0, row_basis="AT_LEAST", planner_rows=100)
+    assert _for_partitioning(low) is low
+    counted = ex.Estimates(scan_rows=10, result_rows=50, plan_cost=1.0, row_basis="COUNTED", planner_rows=2_000)
+    assert _for_partitioning(counted) is counted  # an exact count is never replaced
+
+
+def test_g15_count_cap_is_validated_and_only_with_estimate_only(tmp_path) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+    from conftest import API_KEY
+
+    api = TestClient(create_app(Settings.from_env(base_env(SQL_DATASET_LOCAL_DIR=str(tmp_path)))))
+    headers = {"Authorization": f"Bearer {API_KEY}"}
+    spec = extraction()
+    body = {"request_id": "r1", "extraction": spec, "lineage": lineage(spec)}
+    for bad in ({"count_cap": 10}, {"count_cap": 0, "estimate_only": True}, {"count_cap": True, "estimate_only": True},
+                {"count_cap": "10", "estimate_only": True}):
+        answer = api.post("/v1/extract", json={**body, **bad}, headers=headers)
+        assert answer.status_code == 422 and "count_cap" in answer.text

@@ -133,9 +133,9 @@ def create_app(settings: Settings | None = None, governor: Governor | None = Non
     def extract(body: Any = Body(...)) -> Any:
         """One physical part of an approved DataNeedSpec request (market-ai-orc's Execution Planner only)."""
         if not isinstance(body, dict) or not {"request_id", "extraction", "lineage"} <= set(body) \
-                <= {"request_id", "extraction", "lineage", "planned_parts", "estimate_only"}:
+                <= {"request_id", "extraction", "lineage", "planned_parts", "estimate_only", "count_cap"}:
             raise HTTPException(status_code=422, detail="Body must be {request_id, extraction, lineage[, planned_parts, "
-                                                        "estimate_only]}")
+                                                        "estimate_only, count_cap]}")
         estimate_only = body.get("estimate_only", False)
         if not isinstance(estimate_only, bool):
             raise HTTPException(status_code=422, detail="estimate_only must be a boolean")
@@ -145,11 +145,18 @@ def create_app(settings: Settings | None = None, governor: Governor | None = Non
         planned = body.get("planned_parts", 1)
         if isinstance(planned, bool) or not isinstance(planned, int) or not 1 <= planned <= 4096:
             raise HTTPException(status_code=422, detail="planned_parts must be an integer from 1 to 4096")
+        # G15: the most rows the caller can still use (an estimate-only count stops there)
+        count_cap = body.get("count_cap")
+        if count_cap is not None and (isinstance(count_cap, bool) or not isinstance(count_cap, int)
+                                      or not 1 <= count_cap <= 1_000_000_000 or not estimate_only):
+            raise HTTPException(status_code=422, detail="count_cap must be an integer from 1 to 1000000000, with "
+                                                        "estimate_only")
         if extractor is None:
             raise HTTPException(status_code=404, detail="Not Found")
         try:
             return extractor.handle(request_id, body["extraction"], body["lineage"], part_count=planned,
-                                    estimate_only=estimate_only)
+                                    estimate_only=estimate_only,
+                                    **({"count_cap": count_cap} if count_cap is not None else {}))
         except GovernorUnavailable:
             return JSONResponse(status_code=503, content={"detail": "Governed database unavailable"})
 

@@ -544,8 +544,10 @@ def _restriction_sql(r: BoundRestriction, base: str, time_column: str | None, pa
         table=table, alias=sql.Identifier(alias), conditions=sql.SQL(" AND ").join(parts))
 
 
-def compile_extraction(bound: BoundExtraction, row_cap: int | None) -> CompiledQuery:
-    """Parameterized SQL of a bound extraction; row_cap None compiles the EXPLAIN form (no LIMIT)."""
+def compile_extraction(bound: BoundExtraction, row_cap: int | None, *, ordered: bool = True) -> CompiledQuery:
+    """Parameterized SQL of a bound extraction; row_cap None compiles the EXPLAIN form (no LIMIT). ordered=False
+    (G15) leaves out the ORDER BY: the count form, whose rows are the same and whose LIMIT then stops the scan early
+    instead of after a sort of every row."""
     base = "t0"
     params: list[Any] = []
     select = sql.SQL(", ").join(sql.SQL("{} AS {}").format(_column(base, c["name"]), sql.Identifier(c["name"]))
@@ -567,7 +569,7 @@ def compile_extraction(bound: BoundExtraction, row_cap: int | None) -> CompiledQ
         sql.Identifier("public", bound.spec.source_table), sql.Identifier(base))]
     if conditions:
         parts += [sql.SQL(" WHERE "), sql.SQL(" AND ").join(conditions)]
-    if bound.order_by:
+    if bound.order_by and ordered:
         parts += [sql.SQL(" ORDER BY "), sql.SQL(", ").join(
             sql.SQL("{} {}").format(_column(base, c), sql.SQL("ASC" if d == "ASC" else "DESC"))
             for c, d in bound.order_by)]
@@ -611,7 +613,8 @@ class Estimates:
     result_rows: int
     plan_cost: float
     # G13 (SQL_ESTIMATE_COUNT_ENABLED): result_rows is the counted number when row_basis is COUNTED; planner_rows
-    # keeps the planner's estimate. Both absent when counting is off, so the response keeps its shape.
+    # keeps the planner's estimate. Both absent when counting is off, so the response keeps its shape. G15: AT_LEAST
+    # when the bounded count reached its cap: result_rows is then a lower bound (the cap).
     row_basis: str | None = None
     planner_rows: int | None = None
 

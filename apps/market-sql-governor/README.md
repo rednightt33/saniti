@@ -432,6 +432,22 @@ savepoint of the request's snapshot, under `SQL_ESTIMATE_COUNT_TIMEOUT_MS`.
 - Cost: a count reads the rows the extraction would read (an index scan for a scoped request), on the shared database;
   it is bounded by the timeout and happens only while a plan is checked.
 
+### Bounded, unordered count (G15)
+
+The count runs over the extraction's form **without its ORDER BY** and with a **LIMIT at a cap**:
+`SELECT count(*) FROM (<the compiled extraction, unordered> LIMIT <cap>) AS counted`.
+
+- PostgreSQL keeps an ORDER BY's sort inside a `count(*)` subquery, LIMIT or not (measured on PG16: cost 26,740 with
+  the sort, 3,396 without), so the earlier count sorted every row it counted. The rows are the same without it.
+- The cap is `SQL_MAX_DATASET_ROWS + 1`, or less when the caller passes `count_cap` (optional, with `estimate_only`
+  only, 1 to 1,000,000,000; market-ai-orc sends the rows its bundle can still hold, plus one). Above the dataset limit
+  the extraction is split and its parts are counted; above the caller's cap the plan cannot use the rows. Either way
+  the count stops once the answer is known.
+- A count that reaches its cap answers `row_basis` `AT_LEAST` with `result_rows` = the cap (a lower bound) and
+  `planner_rows`. The split decision then takes the larger of the cap and the planner's estimate, so a large result
+  is not split into too few parts; the response's `estimates` still show what was counted.
+- `sql_governor_count` logs `count_cap` as well.
+
 ## Audit archival (IP2, off unless `SQL_GOVERNOR_AUDIT_STORE_ENABLED=true`)
 
 Each extracted dataset is archived to `market-audit-store` (see `apps/market-audit-store/README.md`):
