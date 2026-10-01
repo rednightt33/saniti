@@ -1,5 +1,21 @@
 # Railway changelog
 
+## 2026-10-01 — Live trial: `AI_PLANNER_PARALLEL_PARTS=2`, `AI_ENABLE_EDIT_REPAIR=true` (suite `ma-flags-20261001a`)
+
+- market-ai-orc dev: both variables set by CLI, redeploy `50b917ea-9d7b-4330-85ba-5d0d627c8763` `SUCCESS`;
+  `.railway/railway.ts` preserves both (`railway config pull --force`, `railway config plan`: up to date).
+- Suite (runner `d2601443`): b01 (m01's first question on the ANALYSIS path) 1,026 s; a05 309 s; e02 646 s + 792 s.
+- **G15 + parallel parts, b01**: 33 estimate calls in 7.8 s, every count `COUNTED` in 12–37 ms, none timed out
+  (`ma-integrity-20261001a`: 95.6 s of counting, 7 timeouts); 32 parts (3,182,470 rows) extracted in 86 s of wall time
+  for 165 s of Governor time (about 1.9 parts at once; 117.6 s one at a time before). `prepare_data_bundle` 103 s
+  against 237 s in `ma-steps-20261001a` 1-m4a. Each part took longer while two ran (database contention), so a third
+  is not assumed to help; not tried yet.
+- **M45, a05**: one provenance refusal repaired by a 417-character edit of a 9,749-character draft
+  (`ai_final_edit_applied`), the edit call 8.7 s against 70 s for the full draft in the same run; the answer passed
+  every check. b01 and e02 had one refusal each (PROVENANCE, FORMAT).
+- Run time stayed dominated by model calls (a05 302 of 309 s; b01 916 s model, 109 s tools; e02 single calls up to
+  289 s): M51.
+
 ## 2026-10-01 — Suite `ma-steps-20261001a` results; G15 and M45 deployed on dev; G15 measured
 
 - **Suite `ma-steps-20261001a`** (runner `774dedb9`, 3 questions, 5 turns, model 1, 36K output tokens): e02 393 s
