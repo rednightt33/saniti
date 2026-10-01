@@ -1,5 +1,23 @@
 # Railway changelog
 
+## 2026-10-01 — market-ai-orc: output budget 36,000 tokens, request timeout 420 s (dev test)
+
+User decision 2026-10-01 (M37 test, speed/integrity plan step 0). Every phase already runs `AI_REASONING_EFFORT=high`; the
+largest call of `ma-integrity-20261001a` used 21,427 of 24,000 output tokens (89%, reasoning included), so a longer
+plan or answer would be cut off.
+
+- `AI_MAX_OUTPUT_TOKENS` 24000 -> 36000 and `AI_REQUEST_TIMEOUT_SECONDS` unset (default 180) -> 420 on market-ai-orc
+  `dev`, set with `railway variables --set`; redeploy `8f311756-d5cb-4ce7-8222-cf42076b2ab8` `SUCCESS`. Startup log:
+  `ai_model_selected ... reasoning={"effort":"high"} max_output_tokens=36000`.
+- Checked before the change: `deepseek/deepseek-v4.1-flash` allows 943,718 completion tokens on Relace (the endpoint
+  that served the runs; every endpoint allows at least 131,072); the context ceiling (`AI_MAX_CONTEXT_TOKENS=500000`)
+  and the run limit (`AI_MAX_ANALYSIS_SECONDS=1800`, above the 420 s request timeout) are unaffected.
+- `.railway/railway.ts`: `railway config pull --force` added `AI_REQUEST_TIMEOUT_SECONDS: preserve()`;
+  `railway config plan` reports the configuration up to date.
+- Rollback: `AI_MAX_OUTPUT_TOKENS=24000` (and remove `AI_REQUEST_TIMEOUT_SECONDS`).
+- Verification: the same suite as `ma-integrity-20261001a` (m01, e02, a05, g13) under a new prefix; results are
+  recorded below when it completes.
+
 ## 2026-10-01 — Answer integrity (M44, P14, P17, G13) deployed on dev; counted rows on
 
 `ANSWER_INTEGRITY_FIX_PLAN.md` (final plan approved by the user 2026-10-01). Each service was tested locally (PostgreSQL
