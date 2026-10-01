@@ -101,8 +101,9 @@ dan trigram (`pg_trgm`) bila ekstensinya tersedia di Railway.
 
 - Diisi oleh job terjadwal setelah data harian masuk, satu transaksi per kolom dan idempoten (upsert pada primary key,
   nilai yang hilang ditandai, bukan dihapus diam-diam).
-- Pilihan untuk diputuskan (§9): memperluas job `ai-data-coverage` yang sudah ada (pola, deploy dan cron yang sama),
-  atau membuat job baru.
+- **Keputusan user 2026-10-01: memperluas job `ai-data-coverage` yang sudah ada.** Pola, deploy dan cron-nya sama.
+  Job itu satu-satunya penulis tabel ini. Langkah kamus dijalankan setelah langkah coverage, dan kegagalan langkah kamus
+  tidak membatalkan hasil coverage. Keduanya dicatat terpisah di log job.
 - Hasil setiap pembaruan dicatat di log (jumlah kolom, nilai baru, nilai hilang, durasi).
 
 ### 5.3 Pilihan sedikit langsung tampil (lapisan: katalog di orc)
@@ -211,7 +212,7 @@ lagi.
 
 ## 9. Keputusan yang dibutuhkan dari user
 
-1. Pembaruan kamus: memperluas job `ai-data-coverage` atau job baru.
+1. ~~Pembaruan kamus: memperluas job `ai-data-coverage` atau job baru.~~ Diputuskan: memperluas `ai-data-coverage`.
 2. Ekstensi `pg_trgm` untuk pencarian salah ketik. Tanpa ekstensi ini, pencarian dikerjakan di Governor (edit distance
    di Python) atas kandidat terbatas.
 3. Ambang "nilai sedikit" (awal 20) dan batas kamus per kolom (awal 1.024).
