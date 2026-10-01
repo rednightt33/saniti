@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-10-01 — orc-test-runner: audit reader key kept for the answer-integrity work
+
+- **Variable** (user decision, not revoked): `AUDIT_STORE_READER_KEY` (a reference to market-audit-store's reader key)
+  added again to `orc-test-runner` with `--skip-deploys`; no deployment was created (latest stays `ada3fd49`). It is
+  listed under "Outstanding operational items" in `PROJECT_CONTEXT.md` with its revoke steps.
+- **Plan**: `ANSWER_INTEGRITY_FIX_PLAN.md` (M44, P14, P17, G13), not implemented yet.
+- **Config**: `railway config pull --force` recorded the variable name in `.railway/railway.ts` (`preserve()`, no
+  value); `railway config plan`: up to date.
+
 ## 2026-10-01 — orc-test-runner: audit readback of a mode 4 sub-run (M44 root cause)
 
 - **Runner code** `9232e45`: `suite.json` `audit_request_ids` reads the audit of listed runs (a mode 4 step such as

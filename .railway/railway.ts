@@ -16,7 +16,7 @@ export default defineRailway(() => {
   const marketAiAuditArtifacts = bucket("market-ai-audit-artifacts", { region: "sjc" });
   const orcTestRunner = service("orc-test-runner", {
     replicas: { "sfo": 1 },
-    env: { MARKET_AI_ORC_API_KEY: preserve() },
+    env: { AUDIT_STORE_READER_KEY: preserve(), MARKET_AI_ORC_API_KEY: preserve() },
   });
   const marketSqlGovernor = service("market-sql-governor", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-sql-governor" }),

@@ -180,6 +180,20 @@ An AI may need the user to provide or authorize:
 
 Secrets must remain in environment variables or secure prompts and must never be committed.
 
+## Outstanding operational items
+
+Temporary states that must be undone later. Remove a line only when the item is done, and record the action in the
+matching changelog.
+
+- **`AUDIT_STORE_READER_KEY` on `orc-test-runner` (dev) — revoke when the M44/P14/P17 work is done.** Added
+  2026-10-01 at the user's request, without revoke, for audit readbacks during `ANSWER_INTEGRITY_FIX_PLAN.md`. It is a
+  reference to market-audit-store's reader key (read-only access to `ai_audit`); with it set, every runner deployment
+  reads the audit of its suite. Revoke: `railway variable delete AUDIT_STORE_READER_KEY --service orc-test-runner
+  --environment dev` (a redeploy of an audit-only suite is harmless), then `railway config pull --force` and
+  `railway config plan`, and a line in `RAILWAY_CHANGELOG.md`.
+- **R21**: rotation of `AUDIT_STORE_SANDBOX_KEY` (market-python-sandbox) is the user's decision
+  (`ERRORS_AND_SOLUTIONS.md`).
+
 ## Sources of truth
 
 - Live data and runtime state: Railway/PostgreSQL.
