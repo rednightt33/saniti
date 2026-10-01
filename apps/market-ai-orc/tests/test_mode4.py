@@ -135,6 +135,7 @@ class FakeInner:
     def __init__(self, script: dict[str, Any], classify: str = "APPROVE", sandbox_min: int = 1) -> None:
         self.script, self.classify_action = script, classify
         self.requests: list[AgentRunRequest] = []
+        self.records: list[dict | None] = []
         self.bounds: list[Any] = []
         self.settings = make_settings(**MODE4)
         self.research_limits = {"min_angles": 2, "max_angles": 6, "sandbox_min_angles": sandbox_min}
@@ -148,8 +149,10 @@ class FakeInner:
         return self.classify_action, None, {"status": "COMPLETED", "input_tokens": 10, "output_tokens": 2,
                                             "cost": 0.001, "latency_ms": 5}
 
-    def run(self, request: AgentRunRequest, conversation_key: str | None = None) -> AgentRunResponse:
+    def run(self, request: AgentRunRequest, conversation_key: str | None = None,
+            data_record: dict | None = None) -> AgentRunResponse:
         self.requests.append(request)
+        self.records.append(data_record)
         self.bounds.append(current_angle_bounds.get())
         suffix = request.request_id.rsplit("-", 1)[-1]
         item = self.script[suffix]

@@ -104,17 +104,21 @@ class Mode4Orchestrator:
     def __getattr__(self, name: str) -> Any:
         return getattr(self.inner, name)
 
-    def run(self, request: AgentRunRequest, conversation_key: str | None = None) -> AgentRunResponse:
+    def run(self, request: AgentRunRequest, conversation_key: str | None = None,
+            data_record: dict[str, Any] | None = None) -> AgentRunResponse:
         """analysis_path MODE4 runs the pipeline; any other request (the mode switcher, app/modes.py, has set its path:
         none for AUTO) goes to the orchestrator unchanged."""
         if request.analysis_path != "MODE4":
-            return self.inner.run(request, conversation_key)
-        return _Mode4Run(self, request, conversation_key).execute()
+            return self.inner.run(request, conversation_key, data_record=data_record)
+        return _Mode4Run(self, request, conversation_key, data_record).execute()
 
 
 class _Mode4Run:
-    def __init__(self, owner: Mode4Orchestrator, request: AgentRunRequest, conversation_key: str | None) -> None:
+    def __init__(self, owner: Mode4Orchestrator, request: AgentRunRequest, conversation_key: str | None,
+                 data_record: dict[str, Any] | None = None) -> None:
         self.owner, self.inner, self.request, self.key = owner, owner.inner, request, conversation_key
+        # M47: the data record each step hands to the next (tables, columns, needs, outputs, research data)
+        self.record = data_record
         self.settings = owner.inner.settings
         self.started = self.inner.clock()
         self.steps: list[dict[str, Any]] = []
@@ -145,7 +149,7 @@ class _Mode4Run:
                                       analysis_path=analysis_path)
         budget, angle_bounds = current_time_budget.set(left), current_angle_bounds.set(bounds)
         try:
-            result = self.inner.run(sub_request, self.key)
+            result = self.inner.run(sub_request, self.key, data_record=self.record)
         finally:
             current_time_budget.reset(budget)
             current_angle_bounds.reset(angle_bounds)
@@ -164,6 +168,8 @@ class _Mode4Run:
                                                                           if k != "request_id"},
                   sub_request_id=request_id)
         self.results.append(result)
+        if result.data_record:
+            self.record = result.data_record
         return result
 
     # ------------------------------------------------------------------------------------------------ rounds
@@ -321,7 +327,7 @@ class _Mode4Run:
             and response.response_type == "RESEARCH_PLAN_CONFIRMATION" else None,
             annotations=self._annotations(response, (analysis, research, suggestion) if base is not None
                                           else (result,)) or None,
-            mode4=block)
+            mode4=block, data_record=self.record or None)
         log_event("mode4_completed", request_id=self.request.request_id, round=round_, status=combined.status,
                   steps=[(s["step"], s["status"]) for s in self.steps], cost=execution.cost,
                   duration_ms=execution.duration_ms, suggestion=suggestion is not None)

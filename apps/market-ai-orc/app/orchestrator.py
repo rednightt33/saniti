@@ -13,6 +13,7 @@ from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
 from .audit_outbox import build_payload, final_event, model_event, tool_event, unrendered_event
+from . import data_record as records
 from .catalog_protocol import CACHE_NOTE, CACHEABLE_TOOLS, CatalogLedger, cache_key, gaps, record
 from .compaction import dumps, estimate_tokens, stable_hash, trim_history
 from .config import Settings
@@ -327,8 +328,8 @@ CATALOG_PROTOCOL_RULES = """
 
 CATALOG DISCOVERY PROTOCOL
 Read the catalog only as far as the question needs, and reuse what this
-run already received:
-1. For data not yet read in this run, call discover_catalog once with
+run already received and what the DATA RECORD lists:
+1. For data not yet read in this run or listed in the DATA RECORD, call discover_catalog once with
 keywords of the question in query (the measure, the indicator, the
 entity kind) and the subject filters that fit. The result ranks the
 matching tables and lists the documented formulas matching the same
@@ -1403,6 +1404,8 @@ class RunState:
     ref_facts: int = 0
     ref_tables: dict[str, TableRows] = field(default_factory=dict)  # M44: output_id -> rows by position
     ref_aliases: dict[str, str] = field(default_factory=dict)  # P18: output_id -> short alias (o1, o2, ...)
+    # M47: the conversation's data record, seeded from earlier steps and turns and extended by this run
+    data_record: dict[str, Any] = field(default_factory=records.empty)
     references_used: int = 0
     # M43 (2026-09-30): the final answer kept references to missing fields as [field] (validation_gate ANNOTATED)
     reference_annotated: bool = False
@@ -1561,9 +1564,11 @@ class AgentOrchestrator:
             provider["sort"] = self.settings.ai_provider_sort
         return provider
 
-    def run(self, request: AgentRunRequest, conversation_key: str | None = None) -> AgentRunResponse:
+    def run(self, request: AgentRunRequest, conversation_key: str | None = None,
+            data_record: dict[str, Any] | None = None) -> AgentRunResponse:
         """One request. conversation_key (history_mode SERVER with conversation reuse only) is derived by the
-        application from the conversation and its owner; it scopes what earlier messages left in the sandbox."""
+        application from the conversation and its owner; it scopes what earlier messages left in the sandbox.
+        data_record (M47) is the conversation's data record so far (earlier mode 4 steps and stored turns)."""
         moment = self.wall_clock()
         input_items, dropped = self._build_input(request, moment)
         state = RunState(
@@ -1575,6 +1580,7 @@ class AgentOrchestrator:
             instructions=self._instructions(),
         )
         state.audit_started_at = moment
+        self._seed_data_record(state, data_record)
         # AUTO and MODE4 are routed before this (app/modes.py, app/mode4.py); only ANALYSIS and RESEARCH fix a path
         state.forced_path = request.analysis_path if self.analysis_path \
             and request.analysis_path in ("ANALYSIS", "RESEARCH") else None
@@ -1645,6 +1651,7 @@ class AgentOrchestrator:
             current_run_context.reset(context)
             current_research_guard.reset(guard)
             current_research_context.reset(research)
+        result = result.model_copy(update={"data_record": records.public(state.data_record)})
         # the closes still carry the conversation key, so an attached session that ran nothing is detached, not lost
         self._close_sessions(state)
         self._close_research_sessions(state)
@@ -1659,6 +1666,9 @@ class AgentOrchestrator:
         if self.audit_outbox is not None:
             if state.raw_final is not None:
                 state.audit_trace.append(unrendered_event(state.raw_final, self.wall_clock()))
+            if not records.is_empty(state.data_record):  # M47: the data record after this run, for the audit
+                state.audit_trace.append({"type": "data.record", "occurred_at": self.wall_clock().isoformat(),
+                                          "record": state.data_record})
             result = self._hand_to_audit(request, result, state)
         log_event(
             "ai_run_completed" if result.status != "FAILED" else "ai_run_failed",
@@ -1694,6 +1704,19 @@ class AgentOrchestrator:
             except Exception:  # noqa: BLE001 - logging never changes the response
                 logger.warning(dumps({"event": "ai_model_call_provider_failed", "request_id": state.request_id}))
         return result
+
+    def _seed_data_record(self, state: RunState, data_record: dict[str, Any] | None) -> None:
+        """M47: start from the conversation's data record; its tables and columns count as read in this run, and the
+        model gets it as one bounded note (whatever the history holds)."""
+        state.data_record = records.copy_of(data_record)
+        if records.is_empty(state.data_record):
+            return
+        records.seed_ledger(state.data_record, state.catalog)
+        note = records.note(state.data_record)
+        state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": note})
+        log_event("data_record_offered", request_id=state.request_id, tables=len(state.data_record["tables"]),
+                  needs=len(state.data_record["needs"]), outputs=len(state.data_record["outputs"]),
+                  note_chars=len(note))
 
     def _add_conversation_resources(self, state: RunState, conversation_key: str) -> None:
         """Conversation reuse: a bounded application note listing what earlier messages of the conversation left in
@@ -2303,11 +2326,16 @@ class AgentOrchestrator:
             state.context_numbers.extend(released_numbers(outcome.output.get("result")))
         if name in RESEARCH_RUN_TOOLS:
             self._track_research_run(state, name, self._normalized_arguments(raw_arguments), outcome)
-        if self.catalog_protocol and name in CACHEABLE_TOOLS and outcome.ok:
+        if name in CACHEABLE_TOOLS and outcome.ok:
+            # M47: the ledger records what the catalog showed in every run (the data record carries it on); the
+            # cache and the guard stay with the catalog protocol
             result = outcome.output.get("result")
             if isinstance(result, dict):
                 record(state.catalog, name, result)
-            state.catalog.cache[cache_key(name, arguments)] = outcome.output
+                records.add_catalog(state.data_record, {t: state.catalog.tables[t] for t in state.catalog.tables},
+                                    state.request_id)
+            if self.catalog_protocol:
+                state.catalog.cache[cache_key(name, arguments)] = outcome.output
         self._track_plan_guard(state, name, outcome)
         self._track_analysis(state, name, outcome, self._normalized_arguments(raw_arguments))
         self._track_sources(state, name, self._normalized_arguments(raw_arguments), outcome)
@@ -2358,6 +2386,8 @@ class AgentOrchestrator:
         state.context_numbers.extend(numbers_in(result.get("adjustments")))
         if result.get("status") == "FEASIBLE" and isinstance(arguments, dict):
             state.context_numbers.extend(numbers_in(arguments))
+        if result.get("status") == "FEASIBLE" and state.research is not None and state.research.feasible:
+            records.add_research(state.data_record, state.request_id, state.research.feasible)  # M47
         log_event("research_plan_feasibility", request_id=state.request_id, plan_version=PLAN_VERSION_V2,
                   status=entry["status"], strategy=entry["strategy"], issues=entry["issues"],
                   uncovered=entry["uncovered_angle_ids"],
@@ -2666,6 +2696,8 @@ class AgentOrchestrator:
         if name == "submit_data_need_spec":
             AgentOrchestrator._track_pit_refusals(state, result)
         if name == "submit_data_need_spec" and result.get("need_id"):
+            records.add_need(state.data_record, state.request_id, result,
+                             (arguments or {}).get("mode") if isinstance(arguments, dict) else None)
             state.needs[result["need_id"]] = {
                 "mode": (arguments or {}).get("mode") if isinstance(arguments, dict) else None,
                 "governance": result.get("research_governance"),
@@ -2843,6 +2875,12 @@ class AgentOrchestrator:
                 alias = state.ref_aliases[output_id] = f"o{len(state.ref_aliases) + 1}"
             sources.alias("out", alias, output_id)
             entry["ref"] = f"out.{alias}"
+            rows = entry.get("rows") if isinstance(entry.get("rows"), list) else []
+            columns = entry.get("columns") if isinstance(entry.get("columns"), list) else \
+                [str(k) for k in (rows[0] if rows and isinstance(rows[0], dict) else {}) if k != "_row"]
+            records.add_output(state.data_record, state.request_id, alias=alias, output_id=output_id,
+                               session_id=session_id, name=entry.get("name"), columns=[str(c) for c in columns],
+                               row_count=entry.get("row_count"))
 
         if name == "complete_research_run":
             for finding in result.get("research_findings") or []:

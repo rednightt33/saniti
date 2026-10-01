@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from .catalog_store import CatalogStore
 from .catalog_summary import CatalogSummary
 from .config import Settings
+from .conversation_plans import DATA_RECORD_KEY
 from .conversation_plans import summary as plan_summary
 from .conversations import (ConversationError, ConversationStore, UpkeepThread, fingerprint, owner_from_header,
                             reuse_key)
@@ -377,10 +378,13 @@ def create_app(
                                                           "history": start.history,
                                                           "continuation": start.continuation}), start.continuation)
         try:
+            # M47: the conversation's data record from earlier turns (AI_conversation.state)
+            record = (start.state or {}).get(DATA_RECORD_KEY)
+            extra = {"data_record": record} if record else {}
             if getattr(orchestrator, "conversation_reuse", False):
-                result = orchestrator.run(request, conversation_key=reuse_key(owner, start.conversation_id))
+                result = orchestrator.run(request, conversation_key=reuse_key(owner, start.conversation_id), **extra)
             else:
-                result = orchestrator.run(request)
+                result = orchestrator.run(request, **extra)
         except Exception:
             conversations.abandon(start, payload.request_id, "INTERNAL_ERROR")
             raise

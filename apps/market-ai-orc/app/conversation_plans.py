@@ -115,10 +115,15 @@ def _continuation(plan: dict[str, Any], action: str | None,
                           revision_instruction=instruction)
 
 
+DATA_RECORD_KEY = "data_record"
+
+
 def advance(state: dict[str, Any] | None, result: AgentRunResponse, request_id: str,
             turn_index: int) -> dict[str, Any]:
     """The conversation state after a stored turn."""
     state = dict(state or {})
+    if result.data_record:
+        state[DATA_RECORD_KEY] = result.data_record  # M47: carried to the next turn, whatever the history keeps
     plan = state.get(STATE_KEY) if isinstance(state.get(STATE_KEY), dict) else None
     if plan is not None and plan.get("status") == PENDING \
             and (result.mode4 or {}).get("cancelled_plan_id") == plan.get("plan_id"):

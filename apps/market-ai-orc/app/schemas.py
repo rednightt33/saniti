@@ -657,12 +657,15 @@ class AgentRunResponse(BaseModel):
     mode4: dict[str, Any] | None = None
     # P17: claims marked in italics in response.answer; absent when there is none, so other responses keep their shape
     annotations: list[ClaimAnnotation] | None = None
+    # M47 (user decision 2026-10-01): the conversation's data record after this run (tables and columns used and read,
+    # approved data needs, released outputs with their ref, research angles' data); absent when empty
+    data_record: dict[str, Any] | None = None
 
     @model_serializer(mode="wrap")
     def _without_mode4(self, handler: Any) -> Any:
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("mode4", "annotations"):
+            for key in ("mode4", "annotations", "data_record"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data
