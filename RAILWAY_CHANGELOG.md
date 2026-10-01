@@ -1,5 +1,15 @@
 # Railway changelog
 
+## 2026-10-01 — orc-test-runner: M44 scan of past runs
+
+- Runner code `4aacfb5` (`scan_m44_request_ids`), CLI upload, deployment `2c00228c-7a45-417e-8a56-bd114b493dd7`
+  `SUCCESS`, audit-only (no question, no OpenRouter cost), with the reader key that stays on the runner (outstanding
+  item in `PROJECT_CONTEXT.md`). 208 candidate request ids from the suites since value references went live
+  (suite20c/d/d2/m, mode4, modeswitch, m43g13 and their mode 4 sub-runs): 100 found, 0 errors.
+- Result: 12 runs used positional row references; 1 run (`ma-m43g13-20260930a-m01_broker_bank_crash-1-m4a`) had read
+  an output page at an offset > 0 and took 6 rows from that page under other brokers' names (SQ→EP, XL→AZ, DH→RF,
+  OD→LS, XC→XA, GR→AO). Recorded under M44 in `ERRORS_AND_SOLUTIONS.md`.
+
 ## 2026-10-01 — orc-test-runner: audit reader key kept for the answer-integrity work
 
 - **Variable** (user decision, not revoked): `AUDIT_STORE_READER_KEY` (a reference to market-audit-store's reader key)
