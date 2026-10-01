@@ -1,5 +1,16 @@
 # Railway changelog
 
+## 2026-10-01 — orc-test-runner: M44 scan of the new runs and audit readback of the m4b plan step
+
+- Runner `02d726d3-ce1a-4428-ba52-700e86462215` (suite `ma-integrity-20261001b-scan`, audit only): the M44 scan of the
+  `ma-integrity-20261001a` runs (m01 `-m4a`, `-m4c`, `-m4d`, a05, e02 turn 2, g13 turn 2) found 0 positional
+  references and 0 affected rows; M44 is FIXED (`ERRORS_AND_SOLUTIONS.md`).
+- Runner `8e7419a8-961d-4ac6-b162-c7a979ce0442` (suite `ma-integrity-20261001c-audit`): full trace of
+  `ma-integrity-20261001a-m01_broker_bank_crash-1-m4b`; the plan refusal was an angle renamed with unchanged data
+  (M49).
+- Both read the audit store with the temporary `AUDIT_STORE_READER_KEY`, still to be revoked (`PROJECT_CONTEXT.md`
+  outstanding items).
+
 ## 2026-10-01 — market-ai-orc: output budget 36,000 tokens, request timeout 420 s (dev test)
 
 User decision 2026-10-01 (M37 test, speed/integrity plan step 0). Every phase already runs `AI_REASONING_EFFORT=high`; the
