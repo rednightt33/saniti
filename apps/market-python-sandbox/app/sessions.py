@@ -40,6 +40,26 @@ from .executor import _rss_mb, child_environment, disk_usage
 from .records import utc_now
 
 MAX_MODULES = 50
+# G14: bytes one value takes in a pandas frame, by column type family (first match; dates load as Python objects).
+# The same table goes to the session (session.json "frames"), so the estimate shown before code runs and the check
+# that refuses a frame use one rule.
+FRAME_TYPE_BYTES = [("bool", 1), ("int", 8), ("double", 8), ("float", 8), ("real", 8), ("numeric", 8),
+                    ("decimal", 8), ("date", 64), ("time", 64)]
+FRAME_DEFAULT_BYTES = 72  # text and anything else: a Python object
+
+
+def frame_type_bytes(type_name: Any) -> int:
+    name = str(type_name or "").lower()
+    return next((size for key, size in FRAME_TYPE_BYTES if key in name), FRAME_DEFAULT_BYTES)
+
+
+def frame_estimate(rows: int, column_types: list[Any], budget_mb: int) -> dict[str, Any]:
+    """G14: a dataset's estimated pandas size and whether it may be materialized whole (DIRECT) or must be filtered
+    or aggregated in DuckDB first (AGGREGATE_FIRST)."""
+    per_row = sum(frame_type_bytes(t) for t in column_types) or FRAME_DEFAULT_BYTES
+    megabytes = round(rows * per_row / (1 << 20), 1)
+    return {"frame_mb": megabytes, "frame_budget_mb": budget_mb,
+            "materialize": "DIRECT" if megabytes <= budget_mb else "AGGREGATE_FIRST"}
 
 
 def imported_modules(code: str) -> list[str]:
@@ -484,6 +504,8 @@ class SessionManager:
                 "datasets": [{"data_request_id": d["data_request_id"], "logical_name": d["logical_name"],
                               "columns": [c["name"] for c in d.get("columns") or []],
                               "time_column": d.get("time_column"), "rows": d["rows"],
+                              **frame_estimate(int(d["rows"] or 0), [c.get("type") for c in d.get("columns") or []],
+                                               s.frame_budget_mb),
                               "ranges": [w["range_id"] for w in d.get("ranges") or []],
                               "quality_flags": (d.get("quality") or {}).get("quality_flags") or []}
                              for d in manifest["datasets"]],
@@ -609,6 +631,9 @@ class SessionManager:
             "requests": requests,
             "outputs": {"max_outputs": s.session_max_outputs, "max_table_rows": s.max_table_output_rows,
                         "max_json_bytes": 1 << 20, "max_text_chars": 200_000},
+            "frames": {"budget_mb": s.frame_budget_mb, "budget_bytes": s.frame_budget_mb << 20,
+                       "type_bytes": FRAME_TYPE_BYTES,
+                       "default_bytes": FRAME_DEFAULT_BYTES},
             "duckdb": {"memory_limit_mb": s.duckdb_memory_mb, "threads": s.threads_per_job,
                        "temp_directory": str(directory / "intermediate" / ".duckdb_tmp"),
                        "max_temp_directory_mb": max(16, s.max_intermediate_bytes // (1 << 20) - 16),
@@ -752,6 +777,10 @@ class SessionManager:
         if status == "SCRIPT_ERROR":
             view.update({k: v for k, v in (answer.get("error") or {}).items()})
             view["next_action"] = "REVISE_PYTHON_CODE"
+            if view.get("error_type") == "MaterializationLimitExceeded":
+                # G14: the data stay in this session; reduce them in DuckDB here instead of fetching them again
+                view.update(next_action="AGGREGATE_IN_SQL",
+                            forbidden_actions=["SUBMIT_DATA_NEED_SPEC", "PREPARE_DATA_BUNDLE", "OPEN_ANALYSIS_SESSION"])
         elif status == "INSUFFICIENT_INPUT_DATA":
             view.update(answer.get("insufficient") or {})
             view["next_action"] = "REVISE_DATA_NEED_SPEC"

@@ -118,6 +118,26 @@ class PlanStop(Exception):
         self.outcome = outcome
 
 
+class PlanBudget:
+    """One plan's budgets: the preflight estimates left, and (G14) the bundle's row limit spent part by part. The rows
+    of a window add up to the same total however it is split, so a running total above the limit means the data
+    cannot fit one bundle, before or during extraction. Per call, never shared between requests."""
+
+    def __init__(self, max_rows: int | None = None, estimates: int = PREFLIGHT_MAX_ESTIMATES) -> None:
+        self.estimates = estimates
+        self.max_rows = max_rows or None
+        self.rows = 0
+        self.by_request: dict[str, int] = {}
+        self.basis: set[str] = set()
+
+    def over(self, extra: int) -> bool:
+        return self.max_rows is not None and self.rows + extra > self.max_rows
+
+    def spend(self, rid: str, rows: int) -> None:
+        self.rows += rows
+        self.by_request[rid] = self.by_request.get(rid, 0) + rows
+
+
 def extraction_spec(entry: dict[str, Any], part: Part) -> dict[str, Any]:
     return {"extraction_version": "extraction_spec/v1", "data_request_id": entry["data_request_id"],
             "source_table": entry["source_table"], "columns": list(entry["extract_columns"]),
@@ -128,12 +148,14 @@ def extraction_spec(entry: dict[str, Any], part: Part) -> dict[str, Any]:
 
 class ExecutionPlanner:
     def __init__(self, sandbox: Any, governor: Any, max_parts: int = MAX_PARTS_PER_REQUEST,
-                 preflight: bool = False) -> None:
+                 preflight: bool = False, limits: dict[str, Any] | None = None) -> None:
         self.sandbox = sandbox
         self.governor = governor
         self.max_parts = max_parts
         # A0/A2 (AI_ENABLE_PREFLIGHT_PARTS): every part is estimated before the first extraction
         self.preflight = preflight
+        # G14: the sandbox's bundle row limit (GET /v1/runtime limits); None keeps the check to the sandbox alone
+        self.max_bundle_rows = int((limits or {}).get("bundle_max_rows") or 0) or None
 
     def prepare(self, need_id: str) -> dict[str, Any]:
         request_id = current_request_id.get() or ""
@@ -151,14 +173,16 @@ class ExecutionPlanner:
         try:
             chosen: dict[str, list[Part]] = {}
             if self.preflight:
-                # A2: every part of every request fits by estimate before any row is read
-                budget = [PREFLIGHT_MAX_ESTIMATES]
+                # A2: every part of every request fits by estimate before any row is read; G14: and all of them
+                # together fit one bundle
+                budget = PlanBudget(self.max_bundle_rows)
                 for rid in sorted(need["requests"]):
                     chosen[rid] = self._preflight(need, plan_id, need["requests"][rid], budget)[0]
+            extracted = PlanBudget(self.max_bundle_rows)  # G14: real rows, for parts whose count was uncertain
             for rid in sorted(need["requests"]):
                 entry = need["requests"][rid]
-                parts, envelopes = self._extract_chosen(need, plan_id, entry, chosen[rid]) if self.preflight \
-                    else self._request_parts(need, plan_id, entry)
+                parts, envelopes = self._extract_chosen(need, plan_id, entry, chosen[rid], extracted) \
+                    if self.preflight else self._request_parts(need, plan_id, entry, extracted)
                 planned.append({"data_request_id": rid, "envelopes": envelopes, "parts": parts})
                 decisions += self._decisions(entry, envelopes, parts)
         except PlanStop as stop:
@@ -224,7 +248,8 @@ class ExecutionPlanner:
     def _estimate_parts(self, draft: dict[str, Any], plan_id: str) -> dict[str, Any]:
         """A0 feasibility: the same part-by-part estimate the extraction will use, so FEASIBLE means every part fits
         (G10: the envelope estimate alone approved plans whose parts the Governor then refused)."""
-        requests, feasible, budget = [], True, [PREFLIGHT_MAX_ESTIMATES]
+        # no row limit here: a feasibility check reports every request's rows and its caller judges the total
+        requests, feasible, budget = [], True, PlanBudget()
         for rid in sorted(draft["requests"]):
             entry = draft["requests"][rid]
             envelopes = merge_windows(entry.get("windows") or []) if entry.get("time_column") else []
@@ -259,17 +284,20 @@ class ExecutionPlanner:
                 "extraction_sha256": sha256_json(spec)}
 
     def _estimate(self, source: dict[str, Any], plan_id: str, entry: dict[str, Any], part: Part, planned: int,
-                  budget: list[int]) -> dict[str, Any]:
-        if budget[0] <= 0:
+                  budget: PlanBudget) -> dict[str, Any]:
+        if budget.estimates <= 0:
             raise PlanStop({**self._rejection(entry["data_request_id"], {
                 "status": "REJECTED_TIMEOUT_RISK", "code": "PREFLIGHT_ESTIMATE_BUDGET",
                 "message": f"The parts could not be planned within {PREFLIGHT_MAX_ESTIMATES} estimates; narrow the "
                            "period or the universe."}, planned)})
-        budget[0] -= 1
+        budget.estimates -= 1
         spec = extraction_spec(entry, part)
         response = self.governor.extract(spec, self._lineage(source, plan_id, entry, part, spec),
                                          planned_parts=planned, estimate_only=True)
         self._note_basis(response)
+        basis = (response.get("estimates") or {}).get("row_basis")
+        if basis and response.get("status") == "WITHIN_LIMITS":
+            budget.basis.add(basis)
         return response
 
     def _note_basis(self, response: dict[str, Any]) -> None:
@@ -284,7 +312,7 @@ class ExecutionPlanner:
         if bases:  # COUNTED only when every part was counted
             summary["row_basis"] = "COUNTED" if all(b == "COUNTED" for b in bases) else "PLANNER"
 
-    def _preflight(self, source: dict[str, Any], plan_id: str, entry: dict[str, Any], budget: list[int]
+    def _preflight(self, source: dict[str, Any], plan_id: str, entry: dict[str, Any], budget: PlanBudget
                    ) -> tuple[list[Part], int]:
         """A0: the parts of one request, each estimated WITHIN_LIMITS (EXPLAIN only, no row read), and their estimated
         rows. A dated envelope takes the fewest equal date parts of PREFLIGHT_COUNTS (from the Governor's own count)
@@ -299,8 +327,11 @@ class ExecutionPlanner:
             response = self._estimate(source, plan_id, entry, whole, len(chosen) + 1, budget)
             status = response.get("status")
             if status == "WITHIN_LIMITS":
+                found = int((response.get("estimates") or {}).get("result_rows") or 0)
+                self._check_bundle(rid, budget, found)
                 chosen.append(whole)
-                rows += int((response.get("estimates") or {}).get("result_rows") or 0)
+                rows += found
+                budget.spend(rid, found)
                 continue
             if status != "APPROVED_WITH_PARTITIONING":
                 raise PlanStop({**self._rejection(rid, response, len(chosen) + 1), "failing_window": whole.window})
@@ -312,10 +343,11 @@ class ExecutionPlanner:
                 parts, found = self._governor_parts(source, plan_id, entry, whole, response, len(chosen), budget)
             chosen += parts
             rows += found
+            budget.spend(rid, found)
         return chosen, rows
 
     def _fewest_date_parts(self, source: dict[str, Any], plan_id: str, entry: dict[str, Any], whole: Part,
-                           first: int, done: int, budget: list[int]) -> tuple[list[Part], int]:
+                           first: int, done: int, budget: PlanBudget) -> tuple[list[Part], int]:
         rid = entry["data_request_id"]
         start, end = date.fromisoformat(whole.window["from"]), date.fromisoformat(whole.window["to"])
         days = (end - start).days + 1
@@ -331,6 +363,7 @@ class ExecutionPlanner:
                     failure = {**response, "window": part.window, "parts": count}
                     break
                 rows += int((response.get("estimates") or {}).get("result_rows") or 0)
+                self._check_bundle(rid, budget, rows)  # this window's rows are the same in any split
             if fits:
                 return parts, rows
         if failure is None:  # no count fits the part limit
@@ -345,7 +378,7 @@ class ExecutionPlanner:
                         "failing_window": failure.get("window")})
 
     def _governor_parts(self, source: dict[str, Any], plan_id: str, entry: dict[str, Any], whole: Part,
-                        response: dict[str, Any], done: int, budget: list[int]) -> tuple[list[Part], int]:
+                        response: dict[str, Any], done: int, budget: PlanBudget) -> tuple[list[Part], int]:
         """Entity (or window-less) partitioning as the Governor says, every piece estimated before it is kept."""
         rid = entry["data_request_id"]
         queue, kept, rows = self._split(rid, whole, response, done + 1), [], 0
@@ -357,14 +390,15 @@ class ExecutionPlanner:
             if status == "WITHIN_LIMITS":
                 kept.append(part)
                 rows += int((answer.get("estimates") or {}).get("result_rows") or 0)
+                self._check_bundle(rid, budget, rows)
             elif status == "APPROVED_WITH_PARTITIONING":
                 queue = self._split(rid, part, answer, total) + queue
             else:
                 raise PlanStop({**self._rejection(rid, answer, total), "failing_window": part.window})
         return kept, rows
 
-    def _extract_chosen(self, need: dict[str, Any], plan_id: str, entry: dict[str, Any], chosen: list[Part]
-                        ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    def _extract_chosen(self, need: dict[str, Any], plan_id: str, entry: dict[str, Any], chosen: list[Part],
+                        extracted: PlanBudget | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """A2: extract the parts the preflight chose. The Governor still checks each one; a part whose estimate
         changed in between is split as before."""
         rid = entry["data_request_id"]
@@ -379,6 +413,7 @@ class ExecutionPlanner:
             status = response.get("status")
             if status == "APPROVED":
                 part.dataset = response.get("dataset") or {}
+                self._spend_extracted(rid, extracted, part.dataset)
                 done.append(part)
             elif status == "APPROVED_WITH_PARTITIONING":
                 queue = self._split(rid, part, response, total) + queue
@@ -386,8 +421,8 @@ class ExecutionPlanner:
                 raise PlanStop(self._rejection(rid, response, total))
         return self._name(rid, done), envelopes
 
-    def _request_parts(self, need: dict[str, Any], plan_id: str, entry: dict[str, Any]
-                       ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    def _request_parts(self, need: dict[str, Any], plan_id: str, entry: dict[str, Any],
+                       extracted: PlanBudget | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         rid = entry["data_request_id"]
         envelopes = merge_windows(entry.get("windows") or []) if entry.get("time_column") else []
         done: list[Part] = []
@@ -408,6 +443,7 @@ class ExecutionPlanner:
                 status = response.get("status")
                 if status == "APPROVED":
                     part.dataset = response.get("dataset") or {}
+                    self._spend_extracted(rid, extracted, part.dataset)
                     done.append(part)
                 elif status == "APPROVED_WITH_PARTITIONING":
                     queue = self._split(rid, part, response, total) + queue
@@ -473,6 +509,38 @@ class ExecutionPlanner:
                                   f"{entry['analysis_frequency']} in the session"})
         return out
 
+    def _check_bundle(self, rid: str, budget: PlanBudget, extra: int) -> None:
+        """G14: stop before the first extraction once the estimated rows exceed one bundle."""
+        if budget.over(extra):
+            raise PlanStop(self._too_large(rid, budget.rows + extra, budget, "PREFLIGHT",
+                                           {**budget.by_request, rid: budget.by_request.get(rid, 0) + extra}))
+
+    def _spend_extracted(self, rid: str, extracted: PlanBudget | None, dataset: dict[str, Any]) -> None:
+        """G14: the real rows of each extracted part; stop at the first part that takes the bundle over its limit."""
+        if extracted is None:
+            return
+        rows = int(dataset.get("row_count") or 0)
+        if extracted.over(rows):
+            raise PlanStop(self._too_large(rid, extracted.rows + rows, extracted, "EXTRACTION",
+                                           {**extracted.by_request, rid: extracted.by_request.get(rid, 0) + rows}))
+        extracted.spend(rid, rows)
+
+    @staticmethod
+    def _too_large(rid: str, rows: int, budget: PlanBudget, stage: str, by_request: dict[str, int]
+                   ) -> dict[str, Any]:
+        basis = "counted" if budget.basis == {"COUNTED"} else "estimated" if stage == "PREFLIGHT" else "extracted"
+        return {"status": "REJECTED", "stage": stage, "code": "BUNDLE_TOO_LARGE", "data_request_id": rid,
+                "message": (f"The data of this need holds at least {rows} rows ({basis}) and one bundle holds at "
+                            f"most {budget.max_rows}; " + ("nothing was extracted. " if stage == "PREFLIGHT" else
+                                                           "extraction stopped at that part. ")
+                            + "Revise the DataNeedSpec (scope, ranges or columns) within the user's question, or "
+                              "report the limitation.")[:400],
+                "next_action": "REVISE_DATA_NEED_SPEC",
+                "details": {"rows_at_least": rows, "limit_rows": budget.max_rows, "rows_by_request": by_request,
+                            "row_basis": sorted(budget.basis) or None},
+                "allowed_actions": ["REVISE_DATA_NEED_SPEC", "ASK_USER_TO_NARROW_THE_SCOPE", "REPORT_LIMITATION"],
+                "forbidden_actions": FORBIDDEN_ACTIONS}
+
     @staticmethod
     def _rejection(rid: str, response: dict[str, Any], parts: int) -> dict[str, Any]:
         status = response.get("status") or "REJECTED_POLICY"
@@ -530,10 +598,17 @@ def check_feasibility(client: Any, planner: ExecutionPlanner, arguments: BaseMod
     if draft is None:
         raise ToolError("The feasibility draft could not be read back from the Python sandbox.")
     estimate = planner.estimate(draft)
-    return {"status": "FEASIBLE" if estimate["feasible"] else "NOT_FEASIBLE", "draft_id": checked["draft_id"],
+    # G14: every request may fit on its own while all of them together exceed one bundle
+    total = sum(int(r.get("estimated_rows") or 0) for r in estimate["requests"])
+    limit = planner.max_bundle_rows
+    too_large = limit is not None and total > limit
+    feasible = estimate["feasible"] and not too_large
+    return {"status": "FEASIBLE" if feasible else "NOT_FEASIBLE", "draft_id": checked["draft_id"],
             "requests": estimate["requests"], "warnings": checked.get("warnings") or [],
-            "next_action": "PRESENT_RESEARCH_PLAN" if estimate["feasible"]
-            else "NARROW_THE_PLAN_OR_REPORT_LIMITATION"}
+            **({"bundle": {"code": "BUNDLE_TOO_LARGE", "estimated_rows": total, "limit_rows": limit,
+                           "message": f"Together the requests need about {total} rows; one bundle holds at most "
+                                      f"{limit}."}} if too_large else {}),
+            "next_action": "PRESENT_RESEARCH_PLAN" if feasible else "NARROW_THE_PLAN_OR_REPORT_LIMITATION"}
 
 
 def feasibility_spec(client: Any, planner: ExecutionPlanner, *, timeout_seconds: float,

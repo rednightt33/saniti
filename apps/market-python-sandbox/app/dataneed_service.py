@@ -560,15 +560,24 @@ class DataNeedService:
             bundle = self.store.get_bundle(existing["bundle_id"])
             return self._reused_view(bundle, need_id, 1, replayed=True)
         now = datetime.now(ZoneInfo("UTC"))
-        candidates, expired = [], 0
+        candidates, expired, own = [], 0, None
         for bundle in self.store.conversation_bundles(conversation_key):
-            if bundle["contract_sha256"] != record["contract_sha256"] or bundle["request_id"] == request_id:
+            if bundle["contract_sha256"] != record["contract_sha256"]:
                 continue
             manifest = bundle["manifest"]
             if datetime.fromisoformat(manifest["expires_at"]) <= now or not self._files_present(manifest):
                 expired += 1
                 continue
+            if bundle["need_id"] == need_id:
+                own = own or bundle
+                continue
             candidates.append(bundle)
+        if own is not None:
+            # G14: the same need prepared again in its request (e.g. after a refused frame) gets its own READY bundle
+            # back instead of a second extraction
+            self._log("bundle_reused", request_id=request_id, need_id=need_id, bundle_id=own["bundle_id"],
+                      source_request_id=own["request_id"], candidates=1)
+            return self._reused_view(own, need_id, 1, replayed=True)
         if not candidates:
             return {"status": "NO_MATCH", "reason": "EXPIRED" if expired else "NO_EQUAL_CONTRACT"}
         chosen = candidates[0]  # the newest snapshot; the others hold the same contract
@@ -595,7 +604,9 @@ class DataNeedService:
                      "reused_from": {"bundle_id": manifest["input_bundle_id"], "need_id": manifest["need_id"],
                                      "request_id": bundle["request_id"], "extracted_at": bundle["created_at"],
                                      "expires_at": manifest["expires_at"], "equal_candidates": candidates},
-                     "note": "No new extraction: the data of an earlier message with the same approved data contract "
+                     "note": "No new extraction: this data need was already prepared in this request; its bundle is "
+                             "returned." if manifest["need_id"] == need_id else
+                             "No new extraction: the data of an earlier message with the same approved data contract "
                              "is reused. Disclose its extraction time as the as-of of the data."})
         return view
 

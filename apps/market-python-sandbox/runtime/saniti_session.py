@@ -57,7 +57,7 @@ __all__ = [
     "join", "join_report", "preaggregate", "resample", "period_return", "insufficient_data", "intermediate_path", "duckdb_connection", "emit_table",
     "emit_chart", "emit_json", "emit_text", "emit_file", "emit_artifact", "add_warning", "SanitiError",
     "InsufficientInputData", "OutputLimitExceeded", "InvalidOutput", "ResampleRuleMissing", "PeriodReturnError",
-    "JoinCardinalityError", "AggregationRuleMissing",
+    "JoinCardinalityError", "AggregationRuleMissing", "MaterializationLimitExceeded",
 ]
 # pre-bound only when the session config lists them (session.json extra_helpers, set by a feature flag)
 EXTRA_HELPERS = ("event_summary", "research_conditional", "research_persistence", "research_group_comparison",
@@ -69,6 +69,7 @@ SEED = 0
 _BUNDLE: dict[str, Any] = {}
 _LIMITS: dict[str, Any] = {}
 _DUCKDB: dict[str, Any] = {}
+_FRAMES: dict[str, Any] = {}  # G14: session.json "frames" (budget_mb, type_bytes, default_bytes)
 _CONNECTION: Any = None
 _OUTPUT_DIR = ""
 _INTERMEDIATE_DIR = ""
@@ -127,6 +128,13 @@ class AggregationRuleMissing(SanitiError):
     code = "AGGREGATION_RULE_MISSING"
 
 
+class MaterializationLimitExceeded(SanitiError):
+    """G14: a result too large for one pandas frame in this session's memory. Nothing was loaded; the session, its
+    data and its variables stay. Filter or aggregate in DuckDB (sql(), relation()) and materialize the smaller
+    result."""
+    code = "MATERIALIZATION_LIMIT_EXCEEDED"
+
+
 class PeriodReturnError(SanitiError):
     code = "PERIOD_RETURN_INVALID_ARGUMENTS"
 
@@ -147,6 +155,8 @@ def _configure(session: dict[str, Any], session_dir: str) -> None:
     _INTERMEDIATE_DIR = _os.path.join(session_dir, "intermediate")
     _DUCKDB.clear()
     _DUCKDB.update(session["duckdb"])
+    _FRAMES.clear()
+    _FRAMES.update(session.get("frames") or {})
     _RESEARCH.clear()
     _RESEARCH.update(session.get("research_v2") or {})
     _RESEARCH_DONE.clear()
@@ -256,7 +266,20 @@ def requests() -> list[dict[str, Any]]:
             | {"ranges": [{k: w[k] for k in ("range_id", "start", "end", "extract_from", "extract_to")}
                           for w in r.get("ranges") or []],
                "quality_flags": (r.get("quality") or {}).get("quality_flags") or []}
+            | _frame_estimate(r)
             for r in REQUESTS.values()]
+
+
+def _frame_estimate(request: dict[str, Any]) -> dict[str, Any]:
+    """G14: the request's estimated pandas size and whether load() may materialize it whole (DIRECT) or it must be
+    filtered or aggregated in DuckDB first (AGGREGATE_FIRST)."""
+    budget = _frame_budget()
+    if not budget or _CONNECTION is None:
+        return {}
+    per_row = sum(_type_bytes(t) for t in _CONNECTION.table(request["logical_name"]).types) or 72
+    size = int(request.get("rows") or 0) * per_row
+    return {"frame_mb": round(size / (1 << 20), 1), "frame_budget_mb": int(_FRAMES.get("budget_mb") or 0),
+            "materialize": "DIRECT" if size <= budget else "AGGREGATE_FIRST"}
 
 
 def manifest() -> dict[str, Any]:
@@ -269,9 +292,46 @@ def quality(request: str) -> dict[str, Any]:
     return _json.loads(_json.dumps(_request(request).get("quality") or {}, default=str))
 
 
-def _frame(query: str, params: list | None = None):
+def _frame_budget() -> int:
+    """G14: the largest pandas frame in bytes (session.json "frames"); 0 turns the check off."""
+    return int(_FRAMES.get("budget_bytes") or 0) or int(_FRAMES.get("budget_mb") or 0) << 20
+
+
+def _type_bytes(type_name: Any) -> int:
+    name = str(type_name).lower()
+    return next((int(size) for key, size in _FRAMES.get("type_bytes") or [] if key in name),
+                int(_FRAMES.get("default_bytes") or 72))
+
+
+def _frame_limit(relation_, what: str, request: dict[str, Any] | None = None) -> None:
+    """G14: refuse, before anything is loaded, a result whose estimated pandas size exceeds the session's frame
+    budget. The count stops one row past the limit, so a huge result is never counted in full."""
+    budget = _frame_budget()
+    if not budget:
+        return
+    budget_mb = int(_FRAMES.get("budget_mb") or 0)
+    per_row = sum(_type_bytes(t) for t in relation_.types) or 72
+    cap = max(1, budget // per_row)
+    rows = int(relation_.limit(cap + 1).aggregate("count(*)").fetchone()[0])
+    if rows <= cap:
+        return
+    keys = [c for c in ((request or {}).get("entity_column"), (request or {}).get("time_column")) if c]
+    hint = (f"for example sql(\"SELECT {', '.join(keys)}, sum(<measure>) FROM {request['logical_name']} GROUP BY "
+            f"{', '.join(keys)}\")" if request and keys else "for example sql(\"SELECT <keys>, sum(<measure>) FROM "
+                                                                  "<view> WHERE <filter> GROUP BY <keys>\")")
+    _WARNINGS.append({"code": "MATERIALIZATION_LIMIT_EXCEEDED", "message": what})
+    raise MaterializationLimitExceeded(
+        f"{what} holds more than {cap} rows (about {per_row} bytes each in pandas, over the {budget_mb} MB frame "
+        f"budget of this session). Nothing was loaded and the session, its data and variables stay. Filter or "
+        f"aggregate in DuckDB first, {hint}, or select fewer columns, then materialize the smaller result. Do not "
+        "prepare the data again.")
+
+
+def _frame(query: str, params: list | None = None, what: str = "This query result",
+           request: dict[str, Any] | None = None):
     con = duckdb_connection()
     relation_ = con.sql(query, params=params) if params else con.sql(query)
+    _frame_limit(relation_, what, request)
     return relation_.df(date_as_object=True)
 
 
@@ -279,7 +339,8 @@ def load(request: str, columns: list[str] | None = None):
     """The whole dataset (every row of every partition and range, with the buffers) in delivered order."""
     r = _request(request)
     chosen = _columns(r, columns)
-    frame = _frame(f"SELECT {', '.join(_ident(c) for c in chosen)} FROM {_ident(r['logical_name'])}")
+    frame = _frame(f"SELECT {', '.join(_ident(c) for c in chosen)} FROM {_ident(r['logical_name'])}",
+                   what=f"load({r['data_request_id']!r})", request=r)
     _log({"call": "load", "data_request_id": r["data_request_id"], "columns": chosen[:30], "rows": len(frame),
           "full": True})
     return frame
@@ -297,7 +358,8 @@ def range(request: str, range_id: str, columns: list[str] | None = None, include
     low, high = (window["extract_from"], window["extract_to"]) if include_buffers else (window["start"],
                                                                                          window["end"])
     frame = _frame(f"SELECT {', '.join(_ident(c) for c in chosen)} FROM {_ident(r['logical_name'])} "
-                   f"WHERE {_ident(r['time_column'])} BETWEEN CAST(? AS DATE) AND CAST(? AS DATE)", [low, high])
+                   f"WHERE {_ident(r['time_column'])} BETWEEN CAST(? AS DATE) AND CAST(? AS DATE)", [low, high],
+                   what=f"range({r['data_request_id']!r}, {range_id!r})", request=r)
     _log({"call": "range", "data_request_id": r["data_request_id"], "range_id": range_id,
           "include_buffers": bool(include_buffers), "columns": chosen[:30], "rows": len(frame)})
     return frame
@@ -314,7 +376,8 @@ def sql(query: str, params: list | None = None):
 
 
 def relation(request: str):
-    """A lazy DuckDB relation over one dataset (materialize it with .df())."""
+    """A lazy DuckDB relation over one dataset: filter, project or aggregate it in DuckDB, then materialize the
+    smaller result with .df(). (G14: its own .df() is not size-checked; the session's memory limit still applies.)"""
     r = _request(request)
     _log({"call": "relation", "data_request_id": r["data_request_id"], "full": True})
     return duckdb_connection().table(r["logical_name"])

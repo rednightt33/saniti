@@ -73,6 +73,19 @@ def _with_research_library(multi_angle: dict, catalog: CatalogStore | None) -> t
     return {**multi_angle, "library": rows}, None
 
 
+def _bundle_limits(sandbox: SandboxClient) -> dict | None:
+    """G14: bundle_max_rows / bundle_max_bytes / bundle_max_parts from the sandbox's runtime limits (older sandboxes
+    report them only under multi_angle_research); None leaves the size check to the sandbox."""
+    runtime = sandbox.runtime()
+    keys = ("bundle_max_rows", "bundle_max_bytes", "bundle_max_parts")
+    for source in (runtime.get("limits") or {}, (runtime.get("multi_angle_research") or {}).get("limits") or {}):
+        limits = {k: source[k] for k in keys if isinstance(source.get(k), int)}
+        if limits.get("bundle_max_rows"):
+            return limits
+    log_event("bundle_limits_unknown", reason="the sandbox runtime reports no bundle_max_rows")
+    return None
+
+
 def create_app(
     settings: Settings | None = None,
     orchestrator: AgentOrchestrator | None = None,
@@ -180,6 +193,8 @@ def create_app(
                 if "library" in (reason or ""):
                     log_event("research_library_mismatch", reason=reason)
                 log_event("multi_angle_research_inactive", reason=reason)
+        # G14: the sandbox's bundle limits, so the planners check a bundle's size before extracting it
+        bundle_limits = _bundle_limits(sandbox) if sandbox is not None and settings.ai_enable_dataneed else None
         registry = build_default_registry(
             catalog,
             catalog_timeout_seconds=(
@@ -212,6 +227,7 @@ def create_app(
             research_findings=research_findings,
             preflight_parts=settings.ai_enable_preflight_parts,
             multi_angle=multi_angle,
+            bundle_limits=bundle_limits,
         )
         auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
             if sandbox is not None or settings.research_audit_database_url else None
