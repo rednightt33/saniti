@@ -1,5 +1,21 @@
 # Railway changelog
 
+## 2026-10-01 — Plan steps 3, 4, 5, 5b, 7 deployed on dev (aliases, extra keys, full draft echo, angle ids, data record)
+
+Tested locally first: market-ai-orc 888 passed, market-python-sandbox 637 passed (PostgreSQL / root isolation).
+
+- `283dd79` (M48 refused drafts echoed whole up to 200,000 characters; M46 keys outside the response format taken out
+  to the audit, every re-ask names the issue), `4393b8d` (P18 short output aliases `out.o1`), `7c1d4e7` (M49 a
+  renamed angle with its checked design keeps the checked id): market-ai-orc deployment
+  `099b2bca-ec1f-426d-8b4f-17d9bc3f4ba5` `SUCCESS` (pushed with the sandbox commit below).
+- `c982816` market-python-sandbox: research needs stored with the conversation key (M47); deployment
+  `ea4c80f9-f1ea-421a-97b2-23024f4bcfdb` `SUCCESS`.
+- `bef5e40` market-ai-orc: the conversation's data record (M47); deployment `ea9640b0-f768-403f-91eb-a0c4f6a028d2`
+  `SUCCESS`, startup log clean.
+- G14 live verification (suite `ma-g14-20261001a`, runner `d3cd5438`): a 4,488,654-row bundle built and analysed
+  (ANSWER); a far larger need stopped at the preflight in 4 revisions with 0 extractions (LIMITATION). G14 FIXED.
+- Live verification of these steps: suite `ma-steps-20261001a` (runner `774dedb9`), results below when it completes.
+
 ## 2026-10-01 — G14 deployed on dev: bundle size before extraction, DuckDB first, 5,000,000-row bundles
 
 Plan step 1 (user decision 2026-10-01). Tested locally first: market-ai-orc 878 passed (7 new,
