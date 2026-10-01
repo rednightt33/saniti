@@ -158,6 +158,24 @@ AI mengetahui alatnya dari tiga tempat, dan ketiganya diperbarui bersamaan denga
 Aturan "katalog penemuan" di prompt sistem juga menyebut urutannya: baca `allowed_values` di detail katalog dulu; untuk
 nilai yang banyak pakai `search_values`. Ini hanya panduan; penjaganya tetap P14.
 
+### 5.4c `get_system_capabilities` wajib dipanggil (permintaan user 2026-10-01)
+
+- **Kondisi sekarang (terverifikasi):**
+  - prompt sistem justru berkata "get_system_capabilities is not a routine first step: the tool list already shows what
+    is available" (`orchestrator.py` ~349);
+  - aturan itu dibuat untuk menghemat panggilan (uji 2026-09-26: penemuan katalog memakan 20% waktu model dan 28%
+    biaya);
+  - `AI_CATALOG_SUMMARY_IN_PROMPT` tidak aktif di dev.
+- **Perubahan:** aturan prompt nomor 4 diganti menjadi "get_system_capabilities wajib dipanggil di awal setiap run".
+- **Penegakan oleh backend** (prompt bukan satu-satunya penjaga). Dua pilihan, menunggu keputusan user:
+  - **(a) Disarankan:** orc menjalankan `get_system_capabilities` sendiri di awal setiap run, sebelum panggilan model
+    pertama. Hasilnya dimasukkan sebagai hasil alat dan dicatat di audit seperti panggilan biasa. Pasti terjadi, tanpa
+    satu putaran model tambahan.
+  - **(b)** Model wajib memanggilnya sendiri. Kalau model memanggil alat lain lebih dulu, orc menolak panggilan itu
+    dengan pesan "panggil get_system_capabilities dulu". Biayanya satu putaran model per run; mode 4 menjalankan 4 run
+    per giliran.
+- Isi jawaban `get_system_capabilities` ditambah kemampuan `value_lookup` → `search_values` (§5.4b).
+
 ### 5.5 Penjaga di belakang: P14 memakai kamus yang sama (lapisan: SQL Governor)
 
 P14 (huruf besar/kecil; Langkah 8 rencana utama) memetakan setiap nilai filter teks ke nilai resmi sebelum query, dengan
@@ -235,7 +253,8 @@ lagi.
 2. ~~Ekstensi `pg_trgm`~~ Diputuskan (user 2026-10-01): `pg_trgm` bila database Railway mengizinkannya (dicek lebih
    dulu, diaktifkan lewat migrasi maju). Kalau tidak diizinkan, pencocokan ejaan dihitung di Governor atas daftar
    kolom yang terbatas.
-3. Ambang "nilai sedikit" (awal 20) dan batas kamus per kolom (awal 1.024).
+3. ~~Ambang~~ Diputuskan (user 2026-10-01): "nilai sedikit" 20 dan batas kamus 1.024 nilai per kolom, sebagai
+   pengaturan awal (bukan konstanta di kode).
 4. ~~Urutan terhadap rencana utama~~ Diputuskan (user 2026-10-01): **P14 dulu**, di Langkah 8 rencana utama.
    - P14 awalnya memetakan nilai ke sumber yang sudah ada: aturan database (CHECK), tabel referensi, dan pengecekan
      terbatas ke data asli.
