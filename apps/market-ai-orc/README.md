@@ -1314,10 +1314,23 @@ Auditing never changes the response and never fails the run; failures are logged
 
 With the Governor's `SQL_ESTIMATE_COUNT_ENABLED` on, the `result_rows` it returns for an estimate-only part is the
 counted number (`row_basis` `COUNTED`), so `check_data_feasibility`, `check_research_feasibility` and the preflight
-compare real row counts with the bundle limit (2,000,000 rows): a plan too large for its bundle is split into bundle
-groups or revised before the user sees it. Each request's estimate, and the research data plan's
+compare real row counts with the sandbox's bundle limit (`bundle_max_rows`): a plan too large for its bundle is split
+into bundle groups or revised before the user sees it. Each request's estimate, and the research data plan's
 `bundle_groups[].estimates.requests[]`, carry `row_basis` (`COUNTED` when every part was counted, `PLANNER` when a count
 timed out); the key is absent while counting is off. The tool schemas are unchanged.
+
+### Bundle size before extraction (G14)
+
+At startup the service reads `bundle_max_rows` / `bundle_max_bytes` / `bundle_max_parts` from the sandbox's
+`GET /v1/runtime` `limits` (older sandboxes: `multi_angle_research.limits`; none known: the check stays with the
+sandbox, logged `bundle_limits_unknown`) and gives them to every Execution Planner. `prepare_data_bundle` keeps a
+running total of the preflight's estimated rows and returns `BUNDLE_TOO_LARGE` (`stage` `PREFLIGHT`, `details` with
+`rows_at_least`, `limit_rows`, `rows_by_request`, `row_basis`, next action `REVISE_DATA_NEED_SPEC`) before the first
+extraction, without estimating the remaining parts (the rows of a window are the same however it is split). During
+extraction it adds each part's real `row_count` and stops at the first part over the limit (`stage` `EXTRACTION`),
+which covers a part whose count timed out and the path without the preflight. `check_data_feasibility` is
+`NOT_FEASIBLE` with a `bundle` block when its requests together exceed the limit; the key is absent otherwise. Live
+case (`ma-integrity-20261001a`, m4a): 3,191,458 rows were extracted over 3 min 42 s and then refused by the sandbox.
 
 ### Part preflight (off unless `AI_ENABLE_PREFLIGHT_PARTS=true`)
 
