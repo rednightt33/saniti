@@ -213,8 +213,9 @@ lagi.
 ## 9. Keputusan yang dibutuhkan dari user
 
 1. ~~Pembaruan kamus: memperluas job `ai-data-coverage` atau job baru.~~ Diputuskan: memperluas `ai-data-coverage`.
-2. Ekstensi `pg_trgm` untuk pencarian salah ketik. Tanpa ekstensi ini, pencarian dikerjakan di Governor (edit distance
-   di Python) atas kandidat terbatas.
+2. ~~Ekstensi `pg_trgm`~~ Diputuskan (user 2026-10-01): `pg_trgm` bila database Railway mengizinkannya (dicek lebih
+   dulu, diaktifkan lewat migrasi maju). Kalau tidak diizinkan, pencocokan ejaan dihitung di Governor atas daftar
+   kolom yang terbatas.
 3. Ambang "nilai sedikit" (awal 20) dan batas kamus per kolom (awal 1.024).
 4. ~~Urutan terhadap rencana utama~~ Diputuskan (user 2026-10-01): **P14 dulu**, di Langkah 8 rencana utama.
    - P14 awalnya memetakan nilai ke sumber yang sudah ada: aturan database (CHECK), tabel referensi, dan pengecekan
