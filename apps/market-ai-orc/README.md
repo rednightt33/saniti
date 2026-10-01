@@ -1043,6 +1043,39 @@ Complete tables and every value (M44, P14; `ANSWER_INTEGRITY_FIX_PLAN.md`, user 
   `[nilai tidak tersedia]` with one limitation line, the answer keeps its type and `validation_gate` is `ANNOTATED`
   (before: a forced LIMITATION). The marker holds no figure, so number provenance is unchanged.
 
+### Short output aliases (P18)
+
+A released output's ref is a short alias, `out.o1`, `out.o2`, … in the order the run first sees each output (an id is
+`out_` plus 24 hex characters inside the `out.` namespace, which the model mistyped as `out.out.<hex>` or wrote
+without the namespace). The full id still resolves, and the two mistyped forms resolve when exactly one object has the
+id; a refusal lists full references (`available: out.o1, out.o2`). The data record (below) keeps each alias with its id.
+
+### Repairs and the final response format (M46, M48)
+
+- A refused draft goes back to the model whole (up to 200,000 characters; it was the first 4,000), so a repair sees
+  what it repairs; a draft still cut says so (`ai_final_echo_truncated`).
+- Top-level keys outside the response format (`limitations_note`, `methodology_source`, …) are taken out of the
+  response instead of refusing it, and kept with their content in the audit (`final.extra_keys`) and the log
+  `ai_final_extra_keys`; nested objects stay strict.
+- Every re-ask names the validation issue.
+
+### Research Plan angle ids (M49)
+
+The angle ids of a FEASIBLE `check_research_feasibility` are the keys of its data and designs. A plan angle the model
+renamed (title and wording may change) whose design hash equals exactly one unmatched checked angle's design takes the
+checked id back (`research_plan_angle_ids_restored`), so a rename needs no new check; a new or changed design is still
+refused, and the refusal names `not checked: [...]` and `checked but missing: [...]`.
+
+### The conversation's data record (M47)
+
+`app/data_record.py` keeps what the conversation has used and read of the data: per table the columns its approved
+needs extracted (`used`) and the catalog columns a run read (`read`), the approved needs, the released outputs (ref
+alias, id, columns, rows) and the FEASIBLE research angles' data. Mode 4 hands it from step to step; with
+`history_mode` SERVER it is kept in `AI_conversation.state` between turns, independent of `AI_MAX_HISTORY_TOKENS`. Each
+run gets it as one `DATA RECORD` note (at most 8,000 characters, tables and columns first) and in its catalog ledger,
+so tables already read need no new catalog reads; the response carries `data_record` (absent when empty) and the audit
+a `data.record` event. Nothing in it is a number from the data, so it is never a provenance source.
+
 ### Claim annotations (P17)
 
 User decision 2026-10-01 (`ANSWER_INTEGRITY_FIX_PLAN.md` item 3). The claim check no longer rejects an answer or forces
