@@ -10,7 +10,7 @@ import pytest
 from app.orchestrator import AgentOrchestrator, build_system_prompt, negated_or_zero, response_contract
 from app.provenance import SourceIndex, check_answer, parse_numbers
 from app.schemas import AgentRunRequest, final_response_schema
-from app.value_refs import UNRESOLVED, ReferenceSources, format_value, render
+from app.value_refs import UNRESOLVED, ReferenceError_, ReferenceSources, format_value, render
 from conftest import ScriptedClient, final_response, make_settings
 from test_multi_angle import (FINDINGS, MA, RUN_SCRIPT, Clock, RunSandbox, finding, findings_answer,
                               issued_continuation, ma_registry)
@@ -81,7 +81,7 @@ def test_an_unknown_reference_names_what_exists() -> None:
     # M43 (user decision 2026-09-30): a missing field and an object show their name; the rest stay unresolved
     assert out.text.count(UNRESOLVED) == 3 and "[samples]" in out.text and "[estimates]" in out.text
     joined = " ".join(out.problems)
-    assert "available: a_fall" in joined
+    assert "available: finding.a_fall" in joined  # P18: refusals list full references
     assert "unknown format 'money'" in joined and "values: BBRI, BMRI" in joined
     assert [(expression, name) for expression, name, _ in out.missing] == [
         ("finding.a_fall.samples", "samples"), ("finding.a_fall.estimates", "estimates")]
@@ -275,9 +275,31 @@ def test_released_outputs_and_facts_become_referable_and_show_their_ref() -> Non
                                                              {"kind": "VALUE", "value": 7}]}}
     orc._track_references(state, "lookup_fact",
                                         ToolOutcome(call_id="d", name="lookup_fact", ok=True, output=facts))
-    assert completion["result"]["released_contents"][0]["ref"] == "out.out_1"
+    assert completion["result"]["released_contents"][0]["ref"] == "out.o1"  # P18: a short alias
     assert [f["ref"] for f in facts["result"]["facts"]] == ["fact.1", "fact.2"]
-    out = render("BBRI {{out.out_1.rows[ticker=BBRI].ret|pct:2}}, rata-rata {{fact.1|dec:1}}, n {{fact.2}}",
+    out = render("BBRI {{out.o1.rows[ticker=BBRI].ret|pct:2}}, rata-rata {{fact.1|dec:1}}, n {{fact.2}}",
                  state.ref_sources)
     assert out.text == "BBRI 4,12%, rata-rata 1.234,5, n 7" and out.problems == []
     assert [v.label for v in out.values] == ["DATA_COVERAGE_VERIFIED", "DATABASE_AGGREGATE", "FACT"]
+
+
+def test_short_aliases_and_the_unambiguous_mistyped_forms_resolve() -> None:
+    """P18 (2026-10-01, m4a): output ids are out_ + 24 hex characters inside the out. namespace; the model wrote
+    out.out.<hex> and out_<hex> without the namespace, and the refusal listed bare ids it then copied."""
+    hex_id = "out_946408ad8bc7ee2da4597136"
+    table = [{"broker": "XL", "net": 1.5}, {"broker": "SQ", "net": 2.5}]
+    refs = ReferenceSources()
+    refs.add("out", hex_id, {"rows": table}, "DATA_COVERAGE_VERIFIED")
+    refs.alias("out", "o1", hex_id)
+    for form in ("out.o1", f"out.{hex_id}", f"out.out.{hex_id[4:]}", hex_id):
+        assert refs.resolve(f"{form}.rows[broker=XL].net")[0] == 1.5, form
+    with pytest.raises(ReferenceError_) as missing:
+        refs.resolve("out.o2.rows[broker=XL].net")
+    assert "available: out.o1" in str(missing.value) and hex_id not in str(missing.value)
+    other = ReferenceSources()  # the same id in two namespaces is ambiguous without one
+    other.add("out", hex_id, {"rows": table}, "DATA_COVERAGE_VERIFIED")
+    other.add("analysis", hex_id, {"rows": table}, "DATA_COVERAGE_VERIFIED")
+    with pytest.raises(ReferenceError_):
+        other.resolve(f"{hex_id}.rows[broker=XL].net")
+    refs.add("finding", "a_rank", {"sample": {"effective": 40}}, "FORMULA_AND_STATISTICS_VERIFIED")
+    assert refs.resolve("finding.a_rank.sample.effective")[0] == 40  # other namespaces are unaffected

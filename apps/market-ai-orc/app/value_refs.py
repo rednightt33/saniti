@@ -140,18 +140,37 @@ class ResolvedText:
 
 @dataclass
 class ReferenceSources:
-    """namespace -> key -> (object, evidence label)."""
+    """namespace -> key -> (object, evidence label); P18: short aliases (o1, o2, ...) per namespace -> key."""
 
     objects: dict[str, dict[str, tuple[Any, str]]] = field(default_factory=dict)
+    aliases: dict[str, dict[str, str]] = field(default_factory=dict)
 
     def add(self, namespace: str, key: str, value: Any, label: str) -> None:
         self.objects.setdefault(namespace, {})[str(key)] = (value, label)
+
+    def alias(self, namespace: str, alias: str, key: str) -> None:
+        self.aliases.setdefault(namespace, {})[alias] = key
 
     def __bool__(self) -> bool:
         return any(self.objects.values())
 
     def keys(self, namespace: str) -> list[str]:
         return sorted(self.objects.get(namespace, {}))
+
+    def refs(self, namespace: str) -> list[str]:
+        """P18: the full references a refusal lists (out.o1 rather than a bare id), aliases first."""
+        aliased = self.aliases.get(namespace, {})
+        named = set(aliased.values())
+        shown = sorted(aliased, key=lambda a: (len(a), a)) + [k for k in self.keys(namespace) if k not in named]
+        return [f"{namespace}.{k}" for k in shown]
+
+    def _key(self, namespace: str, key: str, rest: list[str]) -> tuple[str, list[str]]:
+        """P18: an alias, or the unambiguous form of a mistyped id (out.out.<hex> for out.out_<hex>)."""
+        keys = self.objects.get(namespace, {})
+        key = self.aliases.get(namespace, {}).get(key, key)
+        if key not in keys and rest and f"{key}_{rest[0]}" in keys:
+            return f"{key}_{rest[0]}", rest[1:]
+        return key, rest
 
     def lookup(self, path: str) -> Resolved:
         value, label = self.resolve(path)
@@ -175,12 +194,18 @@ class ReferenceSources:
             raise ReferenceError_(f"'{path}' needs a namespace and a key, for example finding.<angle_id>.<field>")
         namespace, key, rest = parts[0], parts[1], parts[2:]
         if namespace not in self.objects:
+            # P18: an id written without its namespace (out_<hex>.rows[...]) when exactly one namespace has it
+            owners = [n for n, keys in self.objects.items() if namespace in keys]
+            if len(owners) == 1:
+                namespace, key, rest = owners[0], parts[0], parts[1:]
+        key, rest = self._key(namespace, key, rest)
+        if namespace not in self.objects:
             raise ReferenceError_(f"'{path}': unknown namespace {namespace!r}; this run has "
                                   f"{sorted(n for n in self.objects if self.objects[n]) or 'no referable values'}")
         entry = self.objects[namespace].get(key)
         if entry is None:
             raise ReferenceError_(f"'{path}': {namespace}.{key} does not exist; available: "
-                                  f"{', '.join(self.keys(namespace)[:12])}")
+                                  f"{', '.join(self.refs(namespace)[:12])}")
         value, label = entry
         return _walk(value, rest, f"{namespace}.{key}", path), label
 

@@ -596,8 +596,9 @@ the backend fills in the value, formatted:
 {{finding.<angle_id>.<path>}} a backend finding of complete_research_run,
 for example estimates.primary.estimate, estimates.primary.ci.0,
 estimates.primary.p_adjusted, sample.effective;
-{{out.<output_id>.<path>}} a released output: rows.<index>.<column>,
-rows[<column>=<value>].<column>, or content.<field>;
+{{out.<ref>.<path>}} a released output, by the "ref" its tool result shows
+(out.o1, out.o2, ...): rows[<column>=<value>].<column>, content.<field>, or
+rows.<index>.<column> for a table without an identifying column;
 {{fact.<n>}} a lookup_fact value;
 {{analysis.<analysis_id>.<path>}} an analysis output.
 Every referable object in a tool result carries its "ref".
@@ -1401,6 +1402,7 @@ class RunState:
     ref_values: list[Resolved] = field(default_factory=list)
     ref_facts: int = 0
     ref_tables: dict[str, TableRows] = field(default_factory=dict)  # M44: output_id -> rows by position
+    ref_aliases: dict[str, str] = field(default_factory=dict)  # P18: output_id -> short alias (o1, o2, ...)
     references_used: int = 0
     # M43 (2026-09-30): the final answer kept references to missing fields as [field] (validation_gate ANNOTATED)
     reference_annotated: bool = False
@@ -2835,7 +2837,12 @@ class AgentOrchestrator:
                 table.add(offset, entry["rows"], entry.get("row_count"))
                 registered = {**{k: v for k, v in entry.items() if k != "rows"}, "rows": table}
             sources.add("out", output_id, registered, "DATA_COVERAGE_VERIFIED")
-            entry["ref"] = f"out.{output_id}"
+            # P18 (2026-10-01): the model writes a short alias, not out_ + 24 hex characters after the out. namespace
+            alias = state.ref_aliases.get(output_id)
+            if alias is None:
+                alias = state.ref_aliases[output_id] = f"o{len(state.ref_aliases) + 1}"
+            sources.alias("out", alias, output_id)
+            entry["ref"] = f"out.{alias}"
 
         if name == "complete_research_run":
             for finding in result.get("research_findings") or []:
