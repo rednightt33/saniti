@@ -10,6 +10,7 @@ provenance source.
 from __future__ import annotations
 
 import copy
+import re
 from typing import Any
 
 VERSION = 1
@@ -26,7 +27,7 @@ NOTE_HEADER = ("DATA RECORD (application context: the data this conversation has
 
 
 def empty() -> dict[str, Any]:
-    return {"version": VERSION, "tables": {}, "needs": [], "outputs": [], "research": []}
+    return {"version": VERSION, "tables": {}, "needs": [], "outputs": [], "research": [], "next_alias": 1}
 
 
 def normalize(record: Any) -> dict[str, Any]:
@@ -43,7 +44,26 @@ def normalize(record: Any) -> dict[str, Any]:
                                           "requests": [str(r) for r in table.get("requests") or []][-5:]}
     for key in ("needs", "outputs", "research"):
         clean[key] = [dict(item) for item in record.get(key) or [] if isinstance(item, dict)]
+    stored = record.get("next_alias")
+    clean["next_alias"] = max(stored if isinstance(stored, int) and stored > 0 else 1,
+                              max((_alias_number(o.get("ref")) for o in clean["outputs"]), default=0) + 1)
     return clean
+
+
+def _alias_number(ref: Any) -> int:
+    match = re.fullmatch(r"out\.o(\d+)", str(ref or ""))
+    return int(match.group(1)) if match else 0
+
+
+def aliases(record: dict[str, Any]) -> tuple[dict[str, str], int]:
+    """P18: the conversation's alias of each released output (output_id -> o<n>) and the next number to give. The
+    numbering never restarts (next_alias outlives outputs dropped past MAX_OUTPUTS), so o1 always names the same
+    output; of two outputs a record written before this fix gave the same alias, the newer keeps it."""
+    by_alias: dict[str, str] = {}
+    for output in record["outputs"]:
+        if _alias_number(output.get("ref")) and output.get("output_id"):
+            by_alias[str(output["ref"])[4:]] = str(output["output_id"])
+    return {output_id: alias for alias, output_id in by_alias.items()}, record["next_alias"]
 
 
 def copy_of(record: Any) -> dict[str, Any]:
@@ -103,6 +123,7 @@ def add_output(record: dict[str, Any], request_id: str, *, alias: str, output_id
     outputs.append({"ref": f"out.{alias}", "output_id": output_id, "session_id": session_id, "name": name,
                     "columns": columns[:30], "row_count": row_count, "request_id": request_id})
     record["outputs"] = outputs[-MAX_OUTPUTS:]
+    record["next_alias"] = max(record.get("next_alias") or 1, _alias_number(f"out.{alias}") + 1)
 
 
 def add_research(record: dict[str, Any], request_id: str, feasible: dict[str, Any]) -> None:

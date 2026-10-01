@@ -303,3 +303,25 @@ def test_short_aliases_and_the_unambiguous_mistyped_forms_resolve() -> None:
         other.resolve(f"{hex_id}.rows[broker=XL].net")
     refs.add("finding", "a_rank", {"sample": {"effective": 40}}, "FORMULA_AND_STATISTICS_VERIFIED")
     assert refs.resolve("finding.a_rank.sample.effective")[0] == 40  # other namespaces are unaffected
+
+
+def test_a_row_named_by_its_key_alone_resolves_and_refusals_use_the_alias() -> None:
+    """ma-steps-20261001a, a05: out.o1.rows[SEMA].base_value was refused as "out.out_3f37… has no field 'rows[SEMA]'"
+    (no hint, and the long id the alias exists to avoid)."""
+    sources = ReferenceSources()
+    rows = [{"ticker": "SEMA", "sector": "Tech", "base_value": 10.5}, {"ticker": "BBCA", "sector": "Banks",
+                                                                       "base_value": 9.0}]
+    sources.add("out", "out_" + "3" * 24, {"name": "rank", "rows": rows}, "DATA_COVERAGE_VERIFIED")
+    sources.alias("out", "o1", "out_" + "3" * 24)
+    assert sources.lookup("out.o1.rows[SEMA].base_value").value == 10.5
+    assert sources.lookup("out.o1.rows[ticker=BBCA].base_value").value == 9.0
+    with pytest.raises(ReferenceError_) as missing:
+        sources.lookup("out.o1.rows[XXXX].base_value")
+    assert "out.o1.rows[ticker=XXXX]" in str(missing.value) and "out_3" not in str(missing.value)
+    with pytest.raises(ReferenceError_) as field_error:
+        sources.lookup("out.o1.total")
+    assert "out.o1 has no field 'total'" in str(field_error.value)
+    same = [{"sector": "Banks", "v": 1.0}, {"sector": "Banks", "v": 2.0}]  # no column identifies these rows
+    sources.add("out", "out_" + "4" * 24, {"rows": same}, "DATA_COVERAGE_VERIFIED")
+    with pytest.raises(ReferenceError_, match=r"\[<column>=Banks\]"):
+        sources.lookup("out.out_" + "4" * 24 + ".rows[Banks].v")

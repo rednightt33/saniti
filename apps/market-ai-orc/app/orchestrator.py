@@ -1405,6 +1405,7 @@ class RunState:
     ref_facts: int = 0
     ref_tables: dict[str, TableRows] = field(default_factory=dict)  # M44: output_id -> rows by position
     ref_aliases: dict[str, str] = field(default_factory=dict)  # P18: output_id -> short alias (o1, o2, ...)
+    ref_next: int = 1  # P18: the next alias number; seeded from the data record, so numbering is conversation-wide
     # M47: the conversation's data record, seeded from earlier steps and turns and extended by this run
     data_record: dict[str, Any] = field(default_factory=records.empty)
     references_used: int = 0
@@ -1713,6 +1714,8 @@ class AgentOrchestrator:
         """M47: start from the conversation's data record; its tables and columns count as read in this run, and the
         model gets it as one bounded note (whatever the history holds)."""
         state.data_record = records.copy_of(data_record)
+        # P18: the aliases of earlier steps and turns keep their numbers; new outputs continue after them
+        state.ref_aliases, state.ref_next = records.aliases(state.data_record)
         if records.is_empty(state.data_record):
             return
         records.seed_ledger(state.data_record, state.catalog)
@@ -2881,7 +2884,8 @@ class AgentOrchestrator:
             # P18 (2026-10-01): the model writes a short alias, not out_ + 24 hex characters after the out. namespace
             alias = state.ref_aliases.get(output_id)
             if alias is None:
-                alias = state.ref_aliases[output_id] = f"o{len(state.ref_aliases) + 1}"
+                alias = state.ref_aliases[output_id] = f"o{state.ref_next}"
+                state.ref_next += 1
             sources.alias("out", alias, output_id)
             entry["ref"] = f"out.{alias}"
             rows = entry.get("rows") if isinstance(entry.get("rows"), list) else []

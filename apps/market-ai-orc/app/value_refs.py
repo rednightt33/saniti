@@ -32,6 +32,9 @@ REF_RE = re.compile(r"\{\{\s*(?P<expr>[^{}|]+?)\s*(?:\\?\|\s*(?P<fmt>[a-z]+)\s*(
 FUNC_RE = re.compile(r"^(?P<name>diff|abs|ratio|chg)\s*\((?P<args>.*)\)$", re.DOTALL)
 SELECTOR_RE = re.compile(r"^(?P<key>[^\[\]]+)\[(?P<column>[^=\[\]]+)=(?P<value>[^\]]+)\]$")
 INDEX_RE = re.compile(r"^(?P<key>[^\[\]]+)\[(?P<index>-?\d+)\]$")  # P13 (a02): rows[0], the Python way
+# rows[SEMA]: a row named by its key value alone (ma-steps-20261001a, a05); read when exactly one row has that value in
+# a column that identifies the rows
+BARE_RE = re.compile(r"^(?P<key>[^\[\]]+)\[(?P<value>[^=\[\]]+)\]$")
 MAX_TEXT = 200
 FORMATS = {"auto", "dec", "int", "pct", "pctv", "pp", "rp", "x"}
 FUNCTION_ARITY = {"diff": 2, "abs": 1, "ratio": 2, "chg": 2}
@@ -207,7 +210,9 @@ class ReferenceSources:
             raise ReferenceError_(f"'{path}': {namespace}.{key} does not exist; available: "
                                   f"{', '.join(self.refs(namespace)[:12])}")
         value, label = entry
-        return _walk(value, rest, f"{namespace}.{key}", path), label
+        # a refusal names the object as the model can write it (out.o1), never by its long id
+        shown = next((a for a, k in self.aliases.get(namespace, {}).items() if k == key), key)
+        return _walk(value, rest, f"{namespace}.{shown}", path), label
 
 
 def _split(path: str) -> list[str]:
@@ -234,7 +239,8 @@ def _walk(value: Any, rest: list[str], walked: str, path: str) -> Any:
     if not rest:
         return value
     readings = [(rest[0], 1)]
-    if isinstance(value, dict) and not INDEX_RE.match(rest[0]) and not SELECTOR_RE.match(rest[0]):
+    if isinstance(value, dict) and not INDEX_RE.match(rest[0]) and not SELECTOR_RE.match(rest[0]) \
+            and not BARE_RE.match(rest[0]):
         readings += [(".".join(rest[:end]), end) for end in range(2, len(rest) + 1) if ".".join(rest[:end]) in value]
     first: ReferenceError_ | None = None
     for part, used in readings:
@@ -265,6 +271,21 @@ def _step(value: Any, part: str, walked: str, path: str) -> tuple[Any, str]:
                 return row, f"{walked}[{column}={wanted}]"
         seen = sorted({str(row.get(column)) for row in items if isinstance(row, dict)})[:12]
         raise ReferenceError_(f"'{path}': no row of {walked} has {column}={wanted}; values: {', '.join(seen)}")
+    bare = BARE_RE.match(part)
+    if bare and not INDEX_RE.match(part):
+        items, walked = _step(value, bare.group("key").strip(), walked, path)
+        wanted = bare.group("value").strip().strip("'\"")
+        rows = [r for r in (items.all() if isinstance(items, TableRows) else items if isinstance(items, list) else [])
+                if isinstance(r, dict)]
+        keys = [c for c in (rows[0] if rows else {}) if c != "_row" and all(isinstance(r.get(c), str) for r in rows)
+                and len({r.get(c) for r in rows}) == len(rows)]
+        matches = [(c, r) for c in keys for r in rows if r.get(c) == wanted]
+        if len(matches) == 1:
+            column, row = matches[0]
+            return row, f"{walked}[{column}={wanted}]"
+        example = f"{walked}[{keys[0]}={wanted}]" if keys else f"{walked}[<column>={wanted}]"
+        raise ReferenceError_(f"'{path}': write a row selector with its column, for example {example}"
+                              + (f" (identifying columns: {', '.join(keys)})" if keys else ""))
     if isinstance(value, dict):
         if part not in value:
             raise MissingField(f"'{path}': {walked} has no field {part!r}; its fields: "

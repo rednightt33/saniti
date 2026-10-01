@@ -114,3 +114,29 @@ def test_the_conversation_state_keeps_the_record_for_the_next_turn() -> None:
     assert state[DATA_RECORD_KEY]["tables"]["IDX_Stock_Universe"]["used"] == ["Industry", "Ticker"]
     later = advance(state, run_result("q-2", response("ANSWER", "Jawaban.")), "q-2", 1)
     assert later[DATA_RECORD_KEY] == state[DATA_RECORD_KEY]  # a turn without a record keeps the stored one
+
+
+def test_aliases_continue_across_steps_and_turns() -> None:
+    """P18 live defect (ma-steps-20261001a, m01): every step numbered its outputs from o1 again, so out.o1 named a
+    different output in m4a and m4c. The numbering now comes from the record and never restarts."""
+    record = built()  # o1 = out_fff… from q-m4a
+    state = RunState(request_id="q-m4c", started=0.0, input_items=[{"role": "user", "content": "q"}])
+    agent, _ = orchestrator([final_response(ANSWER)], registry=ToolRegistry())
+    agent._seed_data_record(state, record)
+    assert state.ref_aliases == {"out_" + "f" * 24: "o1"} and state.ref_next == 2
+    listed = {"output_id": "out_" + "1" * 24, "name": "n", "columns": ["a"], "row_count": 1}
+    agent._track_references(state, "complete_analysis", ToolOutcome("c1", "complete_analysis", True, {
+        "result": {"status": "COMPLETED", "session_id": "s",
+                   "released_contents": [listed, {"output_id": "out_" + "f" * 24, "name": "old"}]}}))
+    assert state.ref_aliases["out_" + "1" * 24] == "o2"  # a new output continues the numbering
+    assert state.ref_aliases["out_" + "f" * 24] == "o1"  # an earlier output read again keeps its alias
+    assert state.data_record["next_alias"] == 3
+    # an older record that gave one alias to two outputs: the newer keeps it, the numbering goes past both
+    clash = records.normalize({**built(), "next_alias": None})
+    records.add_output(clash, "q-old", alias="o1", output_id="out_" + "2" * 24, session_id="s", name="x",
+                       columns=[], row_count=1)
+    assert records.aliases(clash) == ({"out_" + "2" * 24: "o1"}, 2)
+    for n in range(3, 60):  # outputs past MAX_OUTPUTS are dropped, their numbers are never given again
+        records.add_output(clash, "q", alias=f"o{n}", output_id=f"out_{n:024x}", session_id="s", name="x",
+                           columns=[], row_count=1)
+    assert records.normalize(clash)["next_alias"] == 60
