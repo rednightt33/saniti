@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Callable
 from datetime import date, datetime
 from decimal import Decimal
@@ -23,6 +24,20 @@ CATALOG_VERSION = "ai_catalog_contract/v1"
 SUBJECT_COLUMNS = ("data_domain", "entity_type", "asset_type", "supported_frequencies", "time_semantics",
                    "subject_metadata_status")
 MAX_CONTRACT_TABLES = 10
+# P14 (2026-10-01): the stored values of a text column, so a filter value is matched to its stored spelling at approval;
+# a column with more distinct values than this is not a category list (the same bound the value dictionary plans)
+VALUE_DOMAIN_MAX = 1024
+VALUE_TEXT_TYPES = {"text", "character varying", "character", "varchar"}
+CHECK_SQL = """
+SELECT t.relname AS table_name, pg_get_constraintdef(c.oid) AS definition
+FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid JOIN pg_namespace n ON n.oid = t.relnamespace
+WHERE n.nspname = 'public' AND c.contype = 'c' AND t.relname = ANY(%s)
+"""
+# CHECK ((("Market Board")::text = ANY ((ARRAY['Regular'::character varying, ...])::text[])))
+# CHECK ((market_board = ANY (ARRAY['Regular'::text, 'Nego'::text, 'Tunai'::text])))
+CHECK_IN_RE = re.compile(r'^CHECK \(+\s*"?(?P<column>[^"()]+?)"?\)?(?:::[a-z ]+)?\s*=\s*ANY\s*'
+                         r'\(+ARRAY\[(?P<values>.*)\](?:\)?::[a-z \[\]]+)?\)+$')
+CHECK_VALUE_RE = re.compile(r"'((?:[^']|'')*)'::")
 
 Runner = Callable[[str, tuple[Any, ...]], list[dict[str, Any]]]
 
@@ -145,6 +160,52 @@ def _history_available_from(run: Runner, relationship: dict[str, Any]) -> str | 
     return value.isoformat() if isinstance(value, date) else value
 
 
+def check_value_lists(definitions: list[tuple[str, str]]) -> dict[str, dict[str, list[str]]]:
+    """table -> column -> the values a single-column `column = ANY (ARRAY[...])` CHECK constraint allows. Any other
+    constraint shape (several columns, ranges, expressions) is not a value list and is skipped."""
+    found: dict[str, dict[str, list[str]]] = {}
+    for table, definition in definitions:
+        match = CHECK_IN_RE.match(definition.strip())
+        if not match or " AND " in definition or " OR " in definition:
+            continue
+        values = [v.replace("''", "'") for v in CHECK_VALUE_RE.findall(match.group("values"))]
+        if values:
+            found.setdefault(table, {})[match.group("column").strip()] = sorted(dict.fromkeys(values))
+    return found
+
+
+def value_domains(run: Runner, tables: dict[str, dict[str, Any]], columns: dict[str, dict[str, Any]]
+                  ) -> dict[str, dict[str, Any]]:
+    """P14: the stored values of filterable text columns, derived from the database itself: a single-column CHECK list
+    (complete by construction), else, for a groupable category column of a static table (no time column, not its
+    entity column), its distinct values up to VALUE_DOMAIN_MAX. A dated column without a CHECK list and an entity
+    column have no domain (entity codes are normalized by the sandbox under Part A A1.2: upper-case and trimmed)."""
+    from psycopg import sql
+
+    checks = check_value_lists([(r["table_name"], r["definition"]) for r in run(CHECK_SQL, (sorted(tables),))])
+    domains: dict[str, dict[str, Any]] = {}
+    for name, meta in tables.items():
+        for column, info in (columns.get(name) or {}).items():
+            if str(info.get("data_type") or "").lower() not in VALUE_TEXT_TYPES or not info.get("filter_allowed"):
+                continue
+            listed = (checks.get(name) or {}).get(column)
+            if listed is not None:
+                domains.setdefault(name, {})[column] = {"values": listed, "source": "CHECK_CONSTRAINT",
+                                                        "complete": True}
+                continue
+            # rows never travel in the contract: a static table lists only its category columns (the same columns
+            # get_dimension_values serves), never its entity codes
+            if meta.get("time_column") or column == meta.get("entity_column") or not info.get("group_by_allowed"):
+                continue
+            query = sql.SQL("SELECT DISTINCT {c} AS value FROM public.{t} WHERE {c} IS NOT NULL LIMIT {n}").format(
+                c=sql.Identifier(column), t=sql.Identifier(name), n=sql.Literal(VALUE_DOMAIN_MAX + 1))
+            values = sorted(str(row["value"]) for row in run(query.as_string(None), ()))
+            domains.setdefault(name, {})[column] = (
+                {"values": values, "source": "STATIC_TABLE", "complete": True} if len(values) <= VALUE_DOMAIN_MAX
+                else {"values": [], "source": "STATIC_TABLE", "complete": False})
+    return domains
+
+
 def load_contract(run: Runner, tables: list[str]) -> dict[str, Any]:
     """The catalog contract of the named tables (active, AI-readable tables only)."""
     names = sorted(dict.fromkeys(tables))[:MAX_CONTRACT_TABLES]
@@ -196,6 +257,8 @@ def load_contract(run: Runner, tables: list[str]) -> dict[str, Any]:
                 "columns": columns, "relationships": relationships,
                 "unknown_tables": [name for name in names if name not in found]}
     contract["catalog_sha256"] = sha256_json({k: contract[k] for k in ("tables", "columns", "relationships")})
+    # P14: outside the catalog hash on purpose; a static table's values change with its data, not with the catalog
+    contract["value_domains"] = value_domains(run, found, columns)
     return contract
 
 

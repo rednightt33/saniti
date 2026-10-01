@@ -631,6 +631,57 @@ def bind_catalog(spec: dict[str, Any], contract: dict[str, Any], limits: Limits,
         issues.add(None, "SUBJECT_TABLE_MISMATCH", "subject", subject)
 
 
+TEXT_OPERATORS = ("EQ", "NEQ", "IN", "NOT_IN")
+TEXT_KINDS = ("text", "character varying", "character", "varchar")
+
+
+def resolve_text_values(spec: dict[str, Any], contract: dict[str, Any], issues: Issues,
+                        warnings: list[dict[str, Any]]) -> None:
+    """P14 (user decision 2026-10-01): a text filter value is matched to its stored spelling regardless of letter case,
+    before any hash or extraction, so "regular" selects the "Regular" rows instead of none. The stored values come
+    from the Governor's contract (`value_domains`: a CHECK list or a static category column); an entity code follows
+    Part A A1.2 (upper-case, trimmed). A value with no stored match in a complete list is refused here, before any row
+    is read, with the stored values; two stored values that differ only in case are refused as ambiguous. Every change
+    is reported as a TEXT_VALUE_RESOLVED warning."""
+    tables, columns = contract.get("tables") or {}, contract.get("columns") or {}
+    domains = contract.get("value_domains") or {}
+    for index, request in enumerate(spec["data_requests"]):
+        rid, table = request["data_request_id"], request["source_table"]
+        meta, known = tables.get(table) or {}, columns.get(table) or {}
+        for where, predicate in scope_predicates(request["scope"], f"data_requests[{index}].scope"):
+            column = predicate["column"]
+            kind = str((known.get(column) or {}).get("data_type") or "").lower()
+            if predicate["operator"] not in TEXT_OPERATORS or kind not in TEXT_KINDS:
+                continue
+            domain = (domains.get(table) or {}).get(column)
+            entity = column == meta.get("entity_column")
+            values = predicate["value"] if isinstance(predicate["value"], list) else [predicate["value"]]
+            resolved = []
+            for value in values:
+                text = str(value)
+                if domain and domain.get("complete"):
+                    matches = [v for v in domain["values"] if v.casefold() == text.strip().casefold()]
+                    if not matches:
+                        known_values = ", ".join(domain["values"][:20]) + (" …" if len(domain["values"]) > 20 else "")
+                        issues.add(rid, "VALUE_NOT_FOUND", f"{where}.value", f"{text} (stored values: {known_values})")
+                        resolved.append(text)
+                        continue
+                    if len(matches) > 1:
+                        issues.add(rid, "VALUE_AMBIGUOUS", f"{where}.value", f"{text} ({', '.join(matches)})")
+                        resolved.append(text)
+                        continue
+                    stored, source = matches[0], domain.get("source")
+                elif entity:
+                    stored, source = text.strip().upper(), "ENTITY_CODE_RULE"
+                else:
+                    stored, source = text, None
+                if stored != text:
+                    warnings.append({"code": "TEXT_VALUE_RESOLVED", "data_request_id": rid, "field_path": where,
+                                     "from": text, "to": stored, "source": source})
+                resolved.append(stored)
+            predicate["value"] = resolved if isinstance(predicate["value"], list) else resolved[0]
+
+
 # ---------------------------------------------------------------------------------------- layer 3: cross-request
 
 @dataclass
@@ -941,6 +992,8 @@ def validate(raw: Any, contract: dict[str, Any] | None, reference: date, limits:
                                                    "field_path": "", "rejected_value": None}])
     warnings: list[dict[str, Any]] = []
     bind_catalog(raw, contract, limits, issues)
+    if not issues:
+        resolve_text_values(raw, contract, issues, warnings)
     bound = cross_request(raw, contract, issues, warnings)
     feasibility(raw, contract, reference, limits, issues)
     if limits.derived_frequency:

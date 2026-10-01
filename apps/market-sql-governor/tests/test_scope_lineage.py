@@ -206,3 +206,52 @@ def test_dimension_values_endpoint_takes_only_the_orchestrator_key(governed_db, 
     bad = client.post("/v1/catalog/dimension-values", json={**body, "match": "x" * 61},
                       headers={"Authorization": f"Bearer {API_KEY}"})
     assert bad.status_code == 422
+
+
+# ---------------------------------------------------------------- P14: value domains of filterable text columns
+
+def test_check_constraint_value_lists_are_read_from_the_database_definitions() -> None:
+    from app.catalog_contract import check_value_lists
+
+    # the three forms pg_get_constraintdef prints (PostgreSQL 16), and two shapes that are not value lists
+    definitions = [
+        ("a", "CHECK (((\"Market Board\")::text = ANY (ARRAY[('Regular'::character varying)::text, "
+              "('Nego'::character varying)::text, ('Tunai'::character varying)::text])))"),
+        ("a", "CHECK ((market_board = ANY (ARRAY['Regular'::text, 'Nego'::text, 'O''Brien'::text])))"),
+        ("a", "CHECK (((\"Investor Type\")::text = ANY ((ARRAY['Foreign'::character varying, "
+              "'Domestic'::character varying])::text[])))"),
+        ("a", "CHECK (((x >= (0)::numeric) AND (y >= (0)::numeric)))"),
+        ("a", "CHECK ((btrim(ticker) <> ''::text))"),
+    ]
+    assert check_value_lists(definitions) == {"a": {"Market Board": ["Nego", "Regular", "Tunai"],
+                                                    "market_board": ["Nego", "O'Brien", "Regular"],
+                                                    "Investor Type": ["Domestic", "Foreign"]}}
+
+
+def test_the_contract_carries_value_domains_outside_the_catalog_hash(governed_db) -> None:
+    got = contract(governed_db, [UNIVERSE, PRICE])
+    industry = got["value_domains"][UNIVERSE]["Industry"]
+    assert "Ticker" not in got["value_domains"][UNIVERSE]  # entity codes are rows, never in the contract
+    assert industry["source"] == "STATIC_TABLE" and industry["complete"] and "Industry-1" in industry["values"]
+    assert PRICE not in got["value_domains"] or all(  # a dated table's text columns are not scanned
+        d["source"] == "CHECK_CONSTRAINT" for d in got["value_domains"][PRICE].values())
+    assert got["catalog_sha256"] == sha256_json({k: got[k] for k in ("tables", "columns", "relationships")})
+
+
+def test_a_static_column_above_the_bound_is_marked_incomplete(monkeypatch) -> None:
+    from app import catalog_contract as cc
+
+    monkeypatch.setattr(cc, "VALUE_DOMAIN_MAX", 2)
+
+    def run(statement, params):
+        if "pg_constraint" in statement:
+            return []
+        return [{"value": v} for v in ("A", "B", "C")]
+
+    tables = {"Ref": {"time_column": None, "entity_column": "Ticker"}, "Daily": {"time_column": "date"}}
+    columns = {"Ref": {"code": {"data_type": "text", "filter_allowed": True, "group_by_allowed": True},
+                       "Ticker": {"data_type": "text", "filter_allowed": True, "group_by_allowed": True},
+                       "n": {"data_type": "numeric", "filter_allowed": True}},
+               "Daily": {"board": {"data_type": "text", "filter_allowed": True}}}
+    domains = cc.value_domains(run, tables, columns)
+    assert domains == {"Ref": {"code": {"values": [], "source": "STATIC_TABLE", "complete": False}}}
