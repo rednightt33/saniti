@@ -167,7 +167,7 @@ nilai yang banyak pakai `search_values`. Ini hanya panduan; penjaganya tetap P14
     biaya);
   - `AI_CATALOG_SUMMARY_IN_PROMPT` tidak aktif di dev.
 - **Perubahan:** aturan prompt nomor 4 diganti menjadi "get_system_capabilities wajib dipanggil di awal setiap run".
-- **Penegakan oleh backend** (prompt bukan satu-satunya penjaga). Dua pilihan, menunggu keputusan user:
+- **Penegakan oleh backend:** diputuskan user 2026-10-01, pilihan **(a)**, sistem menjalankannya di awal setiap run.
   - **(a) Disarankan:** orc menjalankan `get_system_capabilities` sendiri di awal setiap run, sebelum panggilan model
     pertama. Hasilnya dimasukkan sebagai hasil alat dan dicatat di audit seperti panggilan biasa. Pasti terjadi, tanpa
     satu putaran model tambahan.
