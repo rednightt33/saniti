@@ -27,7 +27,7 @@ from .research_plan_v2 import (FINDINGS_V2, PLAN_VERSION_V2, ContinuationInV2, C
 from .research_run_executor import ResearchContext, current_research_context
 from .schemas import (
     FINAL_RESPONSE_SCHEMA, STATUS_BY_RESPONSE_TYPE, AgentRunRequest, AngleFindingReport, AngleInterpretation,
-    AgentRunResponse, AnalysisSummary, BackendAngleSummary,
+    AgentRunResponse, AnalysisSummary, BackendAngleSummary, ClaimAnnotation,
     AnalysisPathExecution, ExecutionMetadata, ExperimentSummary, FinalResponse, NumberProvenance,
     ReplyClassifierUsage,
     ResearchPlanExecution, ResearchSummary, RunError, final_response_schema,
@@ -828,15 +828,8 @@ PROVENANCE_INSTRUCTION = (
 )
 PROVENANCE_NOTICE = ("Some figures below could not be traced to a governed source in this run and are not "
                      "validated: {numbers}. ")
-CLAIM_INSTRUCTION = (
-    "Your answer makes a claim the evidence of this run does not support: {problem}. Historical results describe an "
-    "association, not a cause, and a result is predictive only when an analysis with evidence_standard PREDICTIVE "
-    "has evidence_assessment decision SUPPORTED. Rephrase the claim to what the evidence supports (follow each "
-    "analysis's reporting_constraints), or return response_type \"LIMITATION\"."
-)
-CLAIM_NOTICE = "The evidence of this run does not support a causal or predictive reading of the result below. "
-# Predictive or causal wording about market outcomes (English and Indonesian). A match preceded closely by a
-# negation ("not a prediction", "bukan penyebab") is not a claim.
+# Predictive or causal wording about market outcomes (English and Indonesian). A match governed by a negation in its
+# clause, before or after it ("not a prediction", "bukan penyebab", "menyebabkan … tidak terbukti"), is not a claim.
 PREDICTIVE_PATTERN = (
     r"\b(?:will|is likely to|are likely to|is expected to|are expected to|akan|diperkirakan akan|cenderung akan)\s+"
     r"(?:\w+\s+){0,2}?(?:rise|increase|climb|rally|rebound|outperform|fall|decline|drop|underperform|naik|turun|"
@@ -855,7 +848,51 @@ VERIFIED_CALCULATION_PATTERN = (
     r"(?:verified|validated|diverifikasi|divalidasi|terverifikasi|tervalidasi)\b|"
     r"\b(?:verified|validated|terverifikasi|tervalidasi)\s+(?:calculations?|results?|perhitungan|hasil)\b"
 )
+# P17 (user decision 2026-10-01): "BBCA terbukti naik" claims proof; a historical pattern proves nothing
+PROOF_PATTERN = r"\b(?:terbukti|membuktikan|dibuktikan|proven|proves?)\b"
+CLAIM_NOTES = {
+    "CAUSAL": "Klaim sebab-akibat: analisis historis tidak dapat membuktikan sebab.",
+    "PREDICTIVE": "Klaim prediksi: pola historis bukan ramalan.",
+    "PROOF": "Klaim pembuktian: hasil historis menunjukkan pola, bukan bukti.",
+    "VERIFIED_CALCULATION": "Klaim verifikasi: backend memeriksa cakupan data, bukan rumus perhitungan.",
+}
+CLAIM_ANNOTATION_LINE = ("Kalimat bercetak miring ditandai: klaim sebab-akibat, prediksi, pembuktian atau verifikasi "
+                         "perhitungan tidak didukung oleh analisis historis ini.")
+SENTENCE_BOUNDARY = re.compile(r"[.!?:;\n|]")  # a label ("Ringkasnya:") or a clause ends the span too
 RESEARCH_CLAIMS = {"HISTORICAL_PATTERN", "PREDICTIVE", "EXPLORATORY", "SCENARIO"}
+
+
+def annotate_claims(text: str, spans: list[tuple[str, int, int]]) -> tuple[str, list[dict[str, Any]]]:
+    """P17 (user decision 2026-10-01): each flagged claim's sentence in italics (the phrase alone when the sentence
+    already holds Markdown emphasis) and one annotation per italic span: kind, quote, start/end of the quote in the
+    returned text, note. Nothing is removed and the answer is never rejected for it."""
+    marks: dict[tuple[int, int], set[str]] = {}
+    for kind, start, end in spans:
+        left = max((m.end() for m in SENTENCE_BOUNDARY.finditer(text, 0, start)), default=0)
+        right_match = SENTENCE_BOUNDARY.search(text, end)
+        right = right_match.start() if right_match else len(text)
+        while left < start and text[left] in " \t-#>":
+            left += 1
+        while right > end and text[right - 1] in " \t":
+            right -= 1
+        if "*" in text[left:right] or "_" in text[left:right]:
+            left, right = start, end
+        marks.setdefault((left, right), set()).add(kind)
+    pieces, annotations, cursor, shift = [], [], 0, 0
+    for (left, right), kinds in sorted(marks.items()):
+        if left < cursor:
+            continue  # overlaps a span already marked
+        pieces.append(text[cursor:left])
+        quote = text[left:right]
+        pieces.append(f"*{quote}*")
+        start = left + shift + 1
+        for kind in sorted(kinds):
+            annotations.append({"kind": kind, "quote": quote, "start": start, "end": start + len(quote),
+                                "note": CLAIM_NOTES[kind]})
+        shift += 2
+        cursor = right
+    pieces.append(text[cursor:])
+    return "".join(pieces), annotations
 DATANEED_GATE_INSTRUCTION = (
     "Your answer relies on data analysis that did not complete: {findings}. Only outputs released by "
     "complete_analysis may support an answer. Follow its next_action (process what was not read, revise the "
@@ -873,14 +910,6 @@ DATANEED_PROVENANCE_INSTRUCTION = (
     "run_python stdout, unreleased outputs and preview rows are not sources. Remove or correct those numbers, obtain "
     "them from a released output, or return response_type \"LIMITATION\"."
 )
-DATANEED_CLAIM_INSTRUCTION = (
-    "Your answer makes a claim this architecture never supports: {problem}. Results describe the delivered data and "
-    "historical patterns only; they are never evidence of a cause, a prediction, a forecast or a trading signal, "
-    "and the backend verified data coverage, not your calculation. Rephrase, or return response_type "
-    "\"LIMITATION\"."
-)
-DATANEED_CLAIM_NOTICE = ("The evidence of this run does not support a causal, predictive or independently verified "
-                         "reading of the result below. ")
 DATANEED_GATE_NOTICE = ("The data analysis behind this response did not complete; any figures below are not a "
                         "verified answer to the request. ")
 DATANEED_ROUTING_NOTICE = ("This request needs a completed analysis ({families}), and none supports this response; "
@@ -1111,12 +1140,25 @@ CLAUSE_BOUNDARY = re.compile(r"[.!?;:\n]|\b(?:but|however|although|whereas|tetap
 CLAUSE_WINDOW = 200
 
 
-def negated_in_clause(text: str, start: int) -> bool:
-    """Whether a negation (NEGATION_PATTERN) precedes position start in the same clause."""
+# P17 (e02, 2026-09-30): "klaim bahwa … menyebabkan … tidak terbukti" denies the claim with a negation after the
+# phrase. After the phrase the clause also ends at a comma, so "X menyebabkan Y, bukan Z" stays a claim.
+AFTER_BOUNDARY = re.compile(r"[,.!?;:\n]|\b(?:but|however|although|whereas|tetapi|namun|tapi|sedangkan|meskipun|"
+                            r"walaupun)\b", re.IGNORECASE)
+
+
+def negated_in_clause(text: str, start: int, end: int | None = None) -> bool:
+    """Whether a negation (NEGATION_PATTERN) governs the phrase at text[start:end]: before it in the same clause, or,
+    when end is given, after it in the same clause (P17)."""
     before = text[max(0, start - CLAUSE_WINDOW):start]
     boundaries = [m.end() for m in CLAUSE_BOUNDARY.finditer(before)]
     clause = before[boundaries[-1]:] if boundaries else before
-    return re.search(NEGATION_PATTERN, clause, re.IGNORECASE) is not None
+    if re.search(NEGATION_PATTERN, clause, re.IGNORECASE) is not None:
+        return True
+    if end is None:
+        return False
+    after = text[end:end + CLAUSE_WINDOW]
+    stop = AFTER_BOUNDARY.search(after)
+    return re.search(NEGATION_PATTERN, after[:stop.start()] if stop else after, re.IGNORECASE) is not None
 
 
 # P10: a zero count governing a verdict phrase ("0 keluarga metode didukung", "nol sudut didukung", "none of the
@@ -1124,9 +1166,9 @@ def negated_in_clause(text: str, start: int) -> bool:
 ZERO_QUANTIFIER = re.compile(r"(?<![\d.,])0(?![\d.,%])\s+\w|\b(?:nol|zero|none)\b", re.IGNORECASE)
 
 
-def negated_or_zero(text: str, start: int) -> bool:
-    """Whether a negation or a zero count precedes position start in the same clause."""
-    if negated_in_clause(text, start):
+def negated_or_zero(text: str, start: int, end: int | None = None) -> bool:
+    """Whether a negation (before or, with end, after the phrase) or a zero count before it governs the phrase."""
+    if negated_in_clause(text, start, end):
         return True
     before = text[max(0, start - CLAUSE_WINDOW):start]
     boundaries = [m.end() for m in CLAUSE_BOUNDARY.finditer(before)]
@@ -1359,6 +1401,8 @@ class RunState:
     references_used: int = 0
     # M43 (2026-09-30): the final answer kept references to missing fields as [field] (validation_gate ANNOTATED)
     reference_annotated: bool = False
+    # P17 (2026-10-01): the claims marked in the final answer (italics); returned as the response's annotations
+    claim_annotations: list[dict[str, Any]] = field(default_factory=list)
     raw_final: dict[str, Any] | None = None
     # the model's latest final output as it arrived (for the final.rejected / final.forced audit events)
     current_raw: str = ""
@@ -1583,6 +1627,7 @@ class AgentOrchestrator:
                 execution=self._execution(state),
                 evidence_label=state.evidence_label,
                 continuation=state.continuation,
+                annotations=[ClaimAnnotation(**a) for a in state.claim_annotations] or None,
             )
         except (RunFailure, ProviderError) as exc:
             result = self._failed(state, exc.code, str(exc))
@@ -3007,15 +3052,13 @@ class AgentOrchestrator:
             return self._forced(state, final, PROVENANCE_NOTICE.format(numbers=numbers),
                                 [f"Figures without a governed source in this run: {numbers}."] + lines)
 
-        problem = self._claim_problem(state, final.answer)
-        if problem and final.response_type == "ANSWER":
-            self._gate_once(state, "CLAIM", CLAIM_INSTRUCTION.format(problem=problem))
-            return self._forced(state, final, CLAIM_NOTICE, [f"Unsupported claim: {problem}."] + lines)
+        final = self._annotate_claims(state, final)  # P17: marked, never rejected
+        annotated = state.reference_annotated or bool(state.claim_annotations)
 
         missing_lines = [line for line in lines if line not in final.limitations]
         if state.analyses:
-            state.validation_gate = "ANNOTATED" if missing_lines or state.reference_annotated else "PASSED"
-        elif state.reference_annotated:
+            state.validation_gate = "ANNOTATED" if missing_lines or annotated else "PASSED"
+        elif annotated:
             state.validation_gate = "ANNOTATED"
         if final.response_type == "LIMITATION" and blocking:
             state.evidence_label = "NOT_VALIDATED"
@@ -3026,8 +3069,9 @@ class AgentOrchestrator:
         return final.model_copy(update={"limitations": [*final.limitations, *missing_lines]})
 
     def _dataneed_gate(self, state: RunState, final: FinalResponse) -> FinalResponse:
-        """The answer contract of the DataNeed flow: completed analysis, routing, released-output provenance, and no
-        causal or predictive claims. Each check rejects once (tools stay available), then forces LIMITATION."""
+        """The answer contract of the DataNeed flow: completed analysis, routing and released-output provenance (each
+        rejects once while tools are available, then forces LIMITATION); causal, predictive, proof and "verified
+        calculation" claims are marked in italics with annotations, never rejected (P17, user decision 2026-10-01)."""
         blocking, lines = self._dataneed_findings(state)
         if blocking and final.response_type == "ANSWER":
             self._gate_once(state, "ANALYSIS", DATANEED_GATE_INSTRUCTION.format(findings="; ".join(blocking)))
@@ -3057,11 +3101,9 @@ class AgentOrchestrator:
             return self._forced(state, final, DATANEED_PROVENANCE_NOTICE.format(numbers=numbers),
                                 [f"Figures without a governed source in this run: {numbers}."] + lines)
         # Multi-Angle Research: the backend recomputed the statistics, so saying so at the returned level is allowed
-        problem = self._claim_problem(state, final.answer, dataneed=True, verified_ok=run is not None
+        # P17 (user decision 2026-10-01): unsupported claims are marked in italics with annotations, never rejected
+        final = self._annotate_claims(state, final, dataneed=True, verified_ok=run is not None
                                       and run.get("calculation_validation") in VERIFIED_LEVELS)
-        if problem and final.response_type == "ANSWER":
-            self._gate_once(state, "CLAIM", DATANEED_CLAIM_INSTRUCTION.format(problem=problem))
-            return self._forced(state, final, DATANEED_CLAIM_NOTICE, [f"Unsupported claim: {problem}."] + lines)
         final, problems = self._findings_problems(state, final)
         if problems:
             text = "; ".join(problems[:6])
@@ -3081,9 +3123,10 @@ class AgentOrchestrator:
                 forced = forced.model_copy(update={"research_findings": backend_findings(run)})
             return forced
         missing_lines = [line for line in lines if line not in final.limitations]
+        annotated = state.reference_annotated or bool(state.claim_annotations)
         if state.sessions or state.completions or state.inherited or run is not None:
-            state.validation_gate = "ANNOTATED" if missing_lines or state.reference_annotated else "PASSED"
-        elif state.reference_annotated:
+            state.validation_gate = "ANNOTATED" if missing_lines or annotated else "PASSED"
+        elif annotated:
             state.validation_gate = "ANNOTATED"
         if final.response_type == "LIMITATION" and blocking:
             state.evidence_label = "NOT_VALIDATED"
@@ -3180,7 +3223,7 @@ class AgentOrchestrator:
         agreement = ((run.get("research_synthesis_map") or {}).get("agreement") or {}).get("allowed") is True
         if not agreement:
             for match in re.finditer(AGREEMENT_WORDING, final.answer or "", re.IGNORECASE):
-                if not negated_in_clause(final.answer or "", match.start()):
+                if not negated_in_clause(final.answer or "", match.start(), match.end()):
                     problems.append(f"answer: \"{match.group(0)}\" claims the angles agree, but the synthesis map "
                                     "allows no agreement (it needs supported angles of different method families)")
                     break
@@ -3196,7 +3239,7 @@ class AgentOrchestrator:
             for match in re.finditer(pattern, text or "", re.IGNORECASE):
                 # P10 (suite20b r08, 2026-09-29): "0 keluarga metode didukung" was read as a supported verdict; a
                 # negation or a zero count anywhere in the phrase's clause (P09's clause rule) makes it no claim
-                if not negated_or_zero(text or "", match.start()):
+                if not negated_or_zero(text or "", match.start(), match.end()):
                     problems.append(f"\"{match.group(0)}\" states a {label} verdict the backend did not give")
                     break
         return problems
@@ -3321,18 +3364,48 @@ class AgentOrchestrator:
                              limitations=reasons + [x for x in final.limitations if x not in reasons])
 
     @staticmethod
-    def _claim_problem(state: RunState, answer: str, dataneed: bool = False, verified_ok: bool = False) -> str | None:
-        """Causal wording is never supported by these analyses; predictive wording needs a PREDICTIVE analysis
-        whose evidence was SUPPORTED. In the DataNeed flow predictive wording is never supported, and neither is a
-        claim that the calculation was verified."""
+    def _claim_spans(state: RunState, answer: str, dataneed: bool = False,
+                     verified_ok: bool = False) -> list[tuple[str, int, int]]:
+        """The asserted claims of an answer (kind, start, end): causal and proof wording are never supported by these
+        analyses; predictive wording needs a PREDICTIVE analysis whose evidence was SUPPORTED (never in the DataNeed
+        flow); in the DataNeed flow a claim that the calculation was verified is not supported either. A phrase that a
+        negation governs, before or after it in its clause, is not a claim (P17)."""
         text = answer or ""
+        spans = []
 
-        def asserted(pattern: str, negation_inside: bool = False) -> str | None:
+        def asserted(kind: str, pattern: str, negation_inside: bool = False) -> None:
             for match in re.finditer(pattern, text, re.IGNORECASE):
-                before = text[max(0, match.start() - 40):match.end() if negation_inside else match.start()]
-                if not re.search(NEGATION_PATTERN, before, re.IGNORECASE):
-                    return match.group(0)
-            return None
+                inside = negation_inside and re.search(NEGATION_PATTERN, match.group(0), re.IGNORECASE)
+                if not inside and not negated_in_clause(text, match.start(), match.end()):
+                    spans.append((kind, match.start(), match.end()))
+
+        asserted("CAUSAL", CAUSAL_PATTERN)
+        asserted("PROOF", PROOF_PATTERN)
+        supported = not dataneed and any(e.get("claim_type") == "PREDICTIVE" and e.get("decision") == "SUPPORTED"
+                                         for e in state.evidence.values())
+        if not supported:
+            asserted("PREDICTIVE", PREDICTIVE_PATTERN)
+        if dataneed and not verified_ok:
+            asserted("VERIFIED_CALCULATION", VERIFIED_CALCULATION_PATTERN, negation_inside=True)
+        return spans
+
+    def _annotate_claims(self, state: RunState, final: FinalResponse, dataneed: bool = False,
+                         verified_ok: bool = False) -> FinalResponse:
+        """P17 (user decision 2026-10-01): an unsupported claim is marked, never a reason to reject or discard the
+        answer: its sentence in italics, response annotations for a hover, one limitation line, ANNOTATED."""
+        state.claim_annotations = []
+        if final.response_type not in ("ANSWER", "LIMITATION"):
+            return final
+        spans = self._claim_spans(state, final.answer, dataneed=dataneed, verified_ok=verified_ok)
+        if not spans:
+            return final
+        text, annotations = annotate_claims(final.answer, spans)
+        state.claim_annotations = annotations
+        log_event("ai_claims_annotated", request_id=state.request_id, iteration=state.iterations,
+                  kinds=sorted({a["kind"] for a in annotations}), count=len(annotations))
+        limitations = final.limitations if CLAIM_ANNOTATION_LINE in final.limitations \
+            else [*final.limitations, CLAIM_ANNOTATION_LINE]
+        return final.model_copy(update={"answer": text, "limitations": limitations})
 
         causal = asserted(CAUSAL_PATTERN)
         if causal:

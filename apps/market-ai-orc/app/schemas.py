@@ -625,6 +625,19 @@ class RunError(BaseModel):
     message: str
 
 
+class ClaimAnnotation(BaseModel):
+    """P17 (user decision 2026-10-01): one claim the answer makes that the evidence does not support, marked in italics
+    in `answer` (start/end of the italic text in `answer`) for a front-end hover; set by code, never by the model."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["CAUSAL", "PREDICTIVE", "PROOF", "VERIFIED_CALCULATION"]
+    quote: str
+    start: int
+    end: int
+    note: str
+
+
 class AgentRunResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -642,12 +655,16 @@ class AgentRunResponse(BaseModel):
     # Mode 4 (app/mode4.py): the steps of the turn (analysis, research, suggestion) with their own results; absent
     # otherwise, so other responses keep their exact shape
     mode4: dict[str, Any] | None = None
+    # P17: claims marked in italics in response.answer; absent when there is none, so other responses keep their shape
+    annotations: list[ClaimAnnotation] | None = None
 
     @model_serializer(mode="wrap")
     def _without_mode4(self, handler: Any) -> Any:
         data = handler(self)
-        if isinstance(data, dict) and data.get("mode4") is None:
-            data.pop("mode4", None)
+        if isinstance(data, dict):
+            for key in ("mode4", "annotations"):
+                if data.get(key) is None:
+                    data.pop(key, None)
         return data
 
 

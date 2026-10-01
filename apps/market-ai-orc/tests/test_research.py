@@ -97,14 +97,15 @@ def test_a_governor_decision_is_returned_to_the_model() -> None:
 
 # ---------------------------------------------------------------- claims (37) and reporting constraints
 
-def test_causal_wording_is_rejected_once_then_forces_a_limitation() -> None:
-    script = [*study_calls(), final_response(answer("Foreign buying causes the rebound: 143 events.")),
-              final_response(answer("Foreign buying causes the rebound: 143 events."))]
+def test_causal_wording_is_marked_not_rejected() -> None:
+    # P17 (user decision 2026-10-01): no repair turn, no forced LIMITATION; the sentence is italic and annotated
+    script = [*study_calls(), final_response(answer("Foreign buying causes the rebound: 143 events."))]
     result, scripted = run(script, "Is foreign buying followed by a rebound?", sandbox_for(study_result()))
-    assert result.response.response_type == "LIMITATION" and result.evidence_label == "NOT_VALIDATED"
-    assert any("causal wording" in line for line in result.response.limitations)
-    rejection = [i["content"] for p in scripted.payloads for i in p["input"] if i.get("role") == "user"]
-    assert any("association, not a cause" in text for text in rejection)
+    assert result.response.response_type == "ANSWER" and result.execution.validation_gate == "ANNOTATED"
+    assert result.response.answer.startswith("*Foreign buying causes the rebound*: 143 events.")
+    assert [(a.kind, a.quote) for a in result.annotations] == [("CAUSAL", "Foreign buying causes the rebound")]
+    annotation = result.annotations[0]
+    assert result.response.answer[annotation.start:annotation.end] == annotation.quote
 
 
 def test_negated_or_constrained_wording_is_not_a_claim() -> None:
@@ -121,13 +122,13 @@ def test_negated_or_constrained_wording_is_not_a_claim() -> None:
 
 def test_predictive_wording_needs_a_supported_predictive_assessment() -> None:
     text = "Stocks with this signal will rise over the next 5 days."
-    result, _ = run([*study_calls(), final_response(answer(text)), final_response(answer(text))],
+    result, _ = run([*study_calls(), final_response(answer(text))],
                     "Is weakness predictive of a rebound?", sandbox_for(study_result()))
-    assert result.response.response_type == "LIMITATION"
+    assert result.response.response_type == "ANSWER" and [a.kind for a in result.annotations] == ["PREDICTIVE"]
     supported = study_result(claim="PREDICTIVE", decision="SUPPORTED", level="PREDICTIVE_SIGNAL")
     result, _ = run([*study_calls(research={**RESEARCH, "evidence_standard": "PREDICTIVE"}),
                      final_response(answer(text))], "Is weakness predictive of a rebound?", sandbox_for(supported))
-    assert result.response.response_type == "ANSWER"
+    assert result.response.response_type == "ANSWER" and result.annotations is None
 
 
 # ---------------------------------------------------------------- experiments and follow-ups (50)

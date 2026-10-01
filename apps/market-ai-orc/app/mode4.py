@@ -319,6 +319,8 @@ class _Mode4Run:
             evidence_label=_weakest(labels) if base is not None and labels else result.evidence_label,
             continuation=result.continuation if response is not None
             and response.response_type == "RESEARCH_PLAN_CONFIRMATION" else None,
+            annotations=self._annotations(response, (analysis, research, suggestion) if base is not None
+                                          else (result,)) or None,
             mode4=block)
         log_event("mode4_completed", request_id=self.request.request_id, round=round_, status=combined.status,
                   steps=[(s["step"], s["status"]) for s in self.steps], cost=execution.cost,
@@ -341,6 +343,21 @@ class _Mode4Run:
         return base.response.model_copy(update={
             "answer": "\n\n".join(sections), "assumptions": _merge(*[p.assumptions for p in parts]),
             "limitations": _merge(*[p.limitations for p in parts], self.notes)})
+
+    @staticmethod
+    def _annotations(response: Any, parts: tuple[AgentRunResponse | None, ...]) -> list[Any]:
+        """P17: each step's claim annotations, moved to where that step's answer sits in the combined answer."""
+        if response is None:
+            return []
+        moved = []
+        for part in parts:
+            if part is None or not part.annotations or part.response is None:
+                continue
+            base = response.answer.find(part.response.answer)
+            if base < 0:
+                continue
+            moved += [a.model_copy(update={"start": a.start + base, "end": a.end + base}) for a in part.annotations]
+        return moved
 
     def _part(self, result: AgentRunResponse | None) -> dict[str, Any] | None:
         if result is None or result.response is None:

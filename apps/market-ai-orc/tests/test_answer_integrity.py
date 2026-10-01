@@ -155,3 +155,83 @@ def test_table_rows_read_on_demand_are_bounded() -> None:
     table = TableRows(100_000, fetch)
     table.all()
     assert len(calls) == 25  # TABLE_MAX_FETCHES: at most 5,000 rows read at render time
+
+
+# ---------------------------------------------------------------- P17: claims are marked, never rejected
+
+from app.orchestrator import AgentOrchestrator as _Orc, annotate_claims, negated_in_clause  # noqa: E402
+
+E02 = ("Jadi klaim bahwa net beli asing menyebabkan harga BBCA naik **tidak terbukti** oleh pemeriksaan historis ini, "
+       "dan hasil ini bukan prediksi.")
+
+
+def spans(text: str, dataneed: bool = True) -> list[tuple[str, int, int]]:
+    state = RunState(request_id="r", started=0.0, input_items=[])
+    return _Orc._claim_spans(state, text, dataneed=dataneed)
+
+
+def test_p17_the_e02_sentence_denies_the_claim_and_is_not_flagged() -> None:
+    assert spans(E02) == []
+
+
+def test_p17_a_negation_after_the_phrase_in_its_clause_governs_it() -> None:
+    for text in ("Klaim bahwa X menyebabkan Y tidak didukung data.", "That foreign buying causes the rebound is not "
+                 "supported by this run.", "Hipotesis kenaikan ini tidak terbukti."):
+        assert spans(text) == [], text
+
+
+def test_p17_a_claim_with_a_negation_in_another_clause_is_still_flagged() -> None:
+    text = "Net beli asing menyebabkan kenaikan, bukan sekadar kebetulan."
+    assert [k for k, _, _ in spans(text)] == ["CAUSAL"]
+    assert negated_in_clause(text, text.index("menyebabkan"), text.index("menyebabkan") + 11) is False
+
+
+def test_p17_the_users_example_terbukti_naik_is_flagged_as_proof_and_italicised() -> None:
+    text = "Ringkasnya: BBCA terbukti naik setelah net beli asing. Data berakhir 2026-08-31."
+    found = spans(text)
+    assert [k for k, _, _ in found] == ["PROOF"]
+    marked, annotations = annotate_claims(text, found)
+    assert marked == "Ringkasnya: *BBCA terbukti naik setelah net beli asing*. Data berakhir 2026-08-31."
+    (a,) = annotations
+    assert a["kind"] == "PROOF" and marked[a["start"]:a["end"]] == a["quote"] and "bukan bukti" in a["note"]
+
+
+def test_p17_two_claims_in_one_sentence_give_one_italic_span_and_two_annotations() -> None:
+    text = "- Net beli asing menyebabkan kenaikan dan memprediksi reli berikutnya."
+    marked, annotations = annotate_claims(text, spans(text))
+    assert marked == "- *Net beli asing menyebabkan kenaikan dan memprediksi reli berikutnya*."
+    assert sorted(a["kind"] for a in annotations) == ["CAUSAL", "PREDICTIVE"]
+    assert all(marked[a["start"]:a["end"]] == a["quote"] for a in annotations)
+
+
+def test_p17_a_sentence_with_emphasis_marks_only_the_phrase() -> None:
+    text = "**XL** menyebabkan kenaikan."
+    marked, annotations = annotate_claims(text, spans(text))
+    assert marked == "**XL** *menyebabkan* kenaikan." and annotations[0]["quote"] == "menyebabkan"
+
+
+def test_p17_the_response_shape_is_unchanged_without_annotations() -> None:
+    from app.schemas import AgentRunResponse, ClaimAnnotation
+
+    base = {"request_id": "r", "status": "COMPLETED", "response": None,
+            "execution": {"provider": "openrouter", "model": "m", "iterations": 0, "tool_call_count": 0}}
+    plain = AgentRunResponse.model_validate(base).model_dump(mode="json")
+    assert "annotations" not in plain
+    marked = AgentRunResponse.model_validate({**base, "annotations": [ClaimAnnotation(
+        kind="CAUSAL", quote="q", start=1, end=2, note="n")]}).model_dump(mode="json")
+    assert marked["annotations"][0]["kind"] == "CAUSAL"
+
+
+def test_p17_mode4_moves_each_steps_annotations_into_the_combined_answer() -> None:
+    from types import SimpleNamespace
+
+    from app.mode4 import Mode4Orchestrator as _M4  # noqa: F401 - the merge lives on the run
+    from app.mode4 import _Mode4Run
+    from app.schemas import ClaimAnnotation
+
+    research_answer = "Ringkasnya: *net beli asing menyebabkan kenaikan*."
+    note = ClaimAnnotation(kind="CAUSAL", quote="net beli asing menyebabkan kenaikan", start=13, end=48, note="n")
+    research = SimpleNamespace(annotations=[note], response=SimpleNamespace(answer=research_answer))
+    combined = SimpleNamespace(answer="**Jawaban**\n\nJawaban.\n\n**Hasil riset**\n\n" + research_answer)
+    (moved,) = _Mode4Run._annotations(combined, (None, research, None))
+    assert combined.answer[moved.start:moved.end] == "net beli asing menyebabkan kenaikan"

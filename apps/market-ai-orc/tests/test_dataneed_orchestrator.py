@@ -244,14 +244,16 @@ def test_a_statistic_needs_a_completed_analysis() -> None:
     assert result.response.response_type == "LIMITATION"
 
 
-def test_causal_and_predictive_claims_are_blocked_even_for_research() -> None:
+def test_causal_and_predictive_claims_are_marked_even_for_research() -> None:
+    # P17 (user decision 2026-10-01): the answer is kept and the claim marked in italics, with an annotation
     claim = answer("RSI di bawah 30 memprediksi kenaikan 12,35% sebulan kemudian.")
-    result, scripted = run([*flow("RESEARCH"), final_response(claim), final_response(claim)],
+    result, scripted = run([*flow("RESEARCH"), final_response(claim)],
                            Tools([completed(research_governance="APPROVED")], mode="RESEARCH"),
                            message="Apakah RSI di bawah 30 diikuti kenaikan harga?")
-    assert "never evidence of a cause, a prediction" in scripted.payloads[-1]["input"][-1]["content"]
-    assert result.response.response_type == "LIMITATION"
-    assert any("Unsupported claim: predictive wording" in line for line in result.response.limitations)
+    assert result.response.response_type == "ANSWER" and result.execution.validation_gate == "ANNOTATED"
+    assert "*RSI di bawah 30 memprediksi kenaikan 12,35% sebulan kemudian*" in result.response.answer
+    assert [a.kind for a in result.annotations] == ["PREDICTIVE"]
+    assert any("bercetak miring" in line for line in result.response.limitations)
 
 
 def test_a_research_answer_reports_a_historical_pattern() -> None:
@@ -267,15 +269,15 @@ def test_a_research_answer_reports_a_historical_pattern() -> None:
     assert experiment.validation_level == "DATA_COVERAGE_VERIFIED" and experiment.retained == "RETAINED"
 
 
-def test_saying_the_calculation_was_verified_is_blocked() -> None:
+def test_saying_the_calculation_was_verified_is_marked() -> None:
     claim = answer("Return YTD BBCA 12,35%; perhitungan ini telah diverifikasi.")
-    result, scripted = run([*flow(), final_response(claim), final_response(claim)], Tools([completed()]))
-    assert "verification wording" in scripted.payloads[-1]["input"][-1]["content"]
-    assert result.response.response_type == "LIMITATION"
+    result, scripted = run([*flow(), final_response(claim)], Tools([completed()]))
+    assert result.response.response_type == "ANSWER"
+    assert [a.kind for a in result.annotations] == ["VERIFIED_CALCULATION"]
     honest = answer("Return YTD BBCA 12,35%. Cakupan data terverifikasi; perhitungan tidak diverifikasi "
                     "secara independen.")
     result, _ = run([*flow(), final_response(honest)], Tools([completed()]))
-    assert result.response.response_type == "ANSWER"
+    assert result.response.response_type == "ANSWER" and result.annotations is None
 
 
 def test_without_the_flag_the_analysis_spec_gate_is_unchanged() -> None:

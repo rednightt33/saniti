@@ -162,10 +162,10 @@ def test_a_repaired_missing_field_leaves_a_clean_answer() -> None:
 
 def test_an_annotated_draft_refused_by_another_gate_does_not_mark_the_clean_answer() -> None:
     bad = narrative_answer("Selisih {{finding.a_fall.min_filter}} hari.")
-    causal = narrative_answer("Selisih {{finding.a_fall.min_filter}} hari menyebabkan kenaikan.")
+    typed = narrative_answer("Selisih {{finding.a_fall.min_filter}} hari dan 9,9 pp.")  # refused by PROVENANCE
     fixed = narrative_answer("Selisih {{finding.a_fall.estimates.primary.estimate|pp:2}}.")
-    result, scripted = refs_run([*RUN_SCRIPT, final_response(bad), final_response(causal), final_response(fixed)])
-    assert "menyebabkan" in str(scripted.payloads[5]["input"][-1])  # the annotated draft was refused by CLAIM
+    result, scripted = refs_run([*RUN_SCRIPT, final_response(bad), final_response(typed), final_response(fixed)])
+    assert "9,9" in str(scripted.payloads[5]["input"][-1])  # the annotated draft was refused by PROVENANCE
     clean, _ = refs_run([*RUN_SCRIPT, final_response(fixed)])
     assert result.response.response_type == "ANSWER"
     assert result.execution.validation_gate == clean.execution.validation_gate

@@ -789,9 +789,10 @@ the DataNeed flow is exclusive:
   3. every number traces to a released output (from `complete_analysis` or `get_session_output` with
      `released: true`), a `lookup_fact` result when that tool is on, the user's message, the DataNeedSpec, or the
      bundle summary. `run_python` stdout, unreleased outputs and preview rows are never sources;
-  4. causal and predictive wording is always refused, even in RESEARCH mode, and so is a claim that the
-     calculation was verified or validated (the backend verifies data coverage only;
-     `calculation_validation` is `NOT_PERFORMED`).
+  4. causal, predictive and proof wording ("terbukti"), and a claim that the calculation was verified or validated
+     (the backend verifies data coverage only; `calculation_validation` is `NOT_PERFORMED`), are never supported,
+     even in RESEARCH mode. Since 2026-10-01 they are **marked, not refused** (P17, see [Claim
+     annotations](#claim-annotations-p17)).
 - A number from a released output is labelled `DATA_COVERAGE_VERIFIED`, which ranks between `SCOPE_VERIFIED` and
   `UNVERIFIED_EXPLORATORY`.
 - The final status of the latest `complete_analysis` is returned as `execution.analysis_final_status`.
@@ -1041,6 +1042,20 @@ Complete tables and every value (M44, P14; `ANSWER_INTEGRITY_FIX_PLAN.md`, user 
 - **No discarded answer for a reference (P14).** A reference that still does not resolve after its repairs is shown as
   `[nilai tidak tersedia]` with one limitation line, the answer keeps its type and `validation_gate` is `ANNOTATED`
   (before: a forced LIMITATION). The marker holds no figure, so number provenance is unchanged.
+
+### Claim annotations (P17)
+
+User decision 2026-10-01 (`ANSWER_INTEGRITY_FIX_PLAN.md` item 3). The claim check no longer rejects an answer or forces
+a LIMITATION. It finds asserted claims of four kinds: `CAUSAL` ("menyebabkan", "causes"), `PREDICTIVE` ("akan naik",
+"prediksi"), `PROOF` ("terbukti", "proven") and, in the DataNeed flow, `VERIFIED_CALCULATION` ("perhitungan telah
+diverifikasi") unless the backend recomputed the findings. Each claim's sentence (the phrase alone when the sentence
+already holds Markdown emphasis; a sentence also ends at `:` and `;`) is put in *italics* in `answer`, the response
+gains `annotations` (`[{kind, quote, start, end, note}]`, `start`/`end` locate the italic text in `answer`, for a
+front-end hover), `limitations` gains one line, and `validation_gate` is `ANNOTATED`. A phrase governed by a negation
+in its clause, before or after it ("klaim bahwa … menyebabkan … tidak terbukti"; after the phrase the clause also ends
+at a comma), is not a claim; the findings checks share this rule but keep their repair-then-LIMITATION behaviour.
+Responses without a claim have no `annotations` key. In mode 4 each step's annotations are moved to where its answer
+sits in the combined answer. Number provenance, value references and the findings gate are unchanged.
 
 **Audit of refused finals (2026-09-30).** With `AI_AUDIT_STORE_ENABLED`, the run's events also carry `final.rejected`
 (iteration, gate stage or format problem, detail, the refused draft: visible output only, URLs redacted, at most
