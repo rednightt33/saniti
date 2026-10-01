@@ -235,3 +235,57 @@ def test_p17_mode4_moves_each_steps_annotations_into_the_combined_answer() -> No
     combined = SimpleNamespace(answer="**Jawaban**\n\nJawaban.\n\n**Hasil riset**\n\n" + research_answer)
     (moved,) = _Mode4Run._annotations(combined, (None, research, None))
     assert combined.answer[moved.start:moved.end] == "net beli asing menyebabkan kenaikan"
+
+
+# ---------------------------------------------------------------- G13: counted rows reach the plan
+
+class CountingGovernor:
+    """/v1/extract estimate_only as the Governor answers with SQL_ESTIMATE_COUNT_ENABLED: result_rows is the counted
+    number (row_basis COUNTED), or the planner's estimate when a part's count timed out (PLANNER)."""
+
+    def __init__(self, rows: int, timed_out: bool = False) -> None:
+        self.rows = rows
+        self.timed_out = timed_out
+
+    def extract(self, spec, lineage, *, planned_parts=1, estimate_only=False):
+        basis = "PLANNER" if self.timed_out else "COUNTED"
+        return {"status": "WITHIN_LIMITS", "estimates": {"result_rows": self.rows, "row_basis": basis,
+                                                         "planner_rows": self.rows // 3}}
+
+
+def test_g13_feasibility_reports_counted_rows_and_their_basis() -> None:
+    from app.tools.data_planner import ExecutionPlanner
+    from test_data_planner import NEED, need
+
+    for preflight in (False, True):
+        draft = need()
+        draft.update(draft_id=NEED)
+        counted = ExecutionPlanner(None, CountingGovernor(319_801), preflight=preflight).estimate(draft)
+        assert {r.get("row_basis") for r in counted["requests"]} == {"COUNTED"}, preflight
+        assert all(r["estimated_rows"] % 319_801 == 0 for r in counted["requests"])
+        uncertain = ExecutionPlanner(None, CountingGovernor(10, timed_out=True), preflight=preflight).estimate(draft)
+        assert {r.get("row_basis") for r in uncertain["requests"]} == {"PLANNER"}
+
+
+def test_g13_without_counting_the_estimate_keeps_its_shape() -> None:
+    from app.tools.data_planner import ExecutionPlanner
+    from test_data_planner import NEED, need
+    from test_preflight_parts import CostGovernor
+
+    draft = need()
+    draft.update(draft_id=NEED)
+    assert all("row_basis" not in r for r in ExecutionPlanner(None, CostGovernor()).estimate(draft)["requests"])
+
+
+def test_g13_an_e02_shaped_plan_over_the_bundle_limit_is_stopped_before_the_user_sees_it() -> None:
+    from test_multi_angle import feasibility_args, planner, request, requirement, run_plan
+
+    # e02 (suite20d): one angle needs two requests over every stock, 1,295,417 counted rows each (2,590,834 in all)
+    rows = {"Price_Stock_Indonesia_IDX": 1_295_417, "Feature_03_Stock_Broker_Daily": 1_295_417}
+    args = feasibility_args([
+        requirement("a_fall", request("a_fall_A"),
+                    request("a_fall_B", table="Feature_03_Stock_Broker_Daily", name="broker_daily")),
+        requirement("a_rank", request("a_rank_A")),
+    ])
+    outcome = run_plan(planner(rows=rows, max_rows=2_000_000)[0], args)
+    assert outcome["status"] != "FEASIBLE", outcome["view"]  # never a plan that its bundle cannot hold

@@ -1310,6 +1310,15 @@ After every run (`app/audit.py`), the orchestrator:
 Auditing never changes the response and never fails the run; failures are logged as
 `research_audit` events. Hidden model reasoning, secrets, and dataset contents are never recorded.
 
+### Counted rows (G13)
+
+With the Governor's `SQL_ESTIMATE_COUNT_ENABLED` on, the `result_rows` it returns for an estimate-only part is the
+counted number (`row_basis` `COUNTED`), so `check_data_feasibility`, `check_research_feasibility` and the preflight
+compare real row counts with the bundle limit (2,000,000 rows): a plan too large for its bundle is split into bundle
+groups or revised before the user sees it. Each request's estimate, and the research data plan's
+`bundle_groups[].estimates.requests[]`, carry `row_basis` (`COUNTED` when every part was counted, `PLANNER` when a count
+timed out); the key is absent while counting is off. The tool schemas are unchanged.
+
 ### Part preflight (off unless `AI_ENABLE_PREFLIGHT_PARTS=true`)
 
 G10 / A0–A2 (`EXTRACTION_AND_AUDIT_PLAN.md`). With the flag, the Execution Planner estimates every extraction part with

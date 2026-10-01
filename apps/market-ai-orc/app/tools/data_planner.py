@@ -182,6 +182,7 @@ class ExecutionPlanner:
             return self._estimate_parts(draft, plan_id)
         for rid in sorted(draft["requests"]):
             entry = draft["requests"][rid]
+            self._bases = []
             envelopes = merge_windows(entry.get("windows") or []) if entry.get("time_column") else []
             summary: dict[str, Any] = {"data_request_id": rid, "source_table": entry["source_table"],
                                        "envelopes": len(envelopes) or None, "estimated_rows": 0,
@@ -197,6 +198,7 @@ class ExecutionPlanner:
                            "envelope": part.envelope, "catalog_sha256": draft.get("catalog_sha256"),
                            "extraction_sha256": sha256_json(spec)}
                 response = self.governor.extract(spec, lineage, planned_parts=1, estimate_only=True)
+                self._note_basis(response)
                 status = response.get("status")
                 rows = (response.get("estimates") or {}).get("result_rows") or 0
                 summary["estimated_rows"] += int(rows)
@@ -210,6 +212,7 @@ class ExecutionPlanner:
                     summary.update(governor_status=status or "REJECTED_POLICY", code=response.get("code"),
                                    message=str(response.get("message") or "")[:400])
                     break
+            self._set_basis(summary)
             if summary["extraction_parts"] > self.max_parts:
                 feasible = False
                 summary.update(governor_status="REJECTED_ROW_LIMIT", code="TOO_MANY_PARTS",
@@ -228,9 +231,11 @@ class ExecutionPlanner:
             summary: dict[str, Any] = {"data_request_id": rid, "source_table": entry["source_table"],
                                        "envelopes": len(envelopes) or None, "estimated_rows": 0,
                                        "extraction_parts": 0, "governor_status": "WITHIN_LIMITS"}
+            self._bases = []
             try:
                 parts, rows = self._preflight(draft, plan_id, entry, budget)
                 summary.update(estimated_rows=rows, extraction_parts=len(parts))
+                self._set_basis(summary)
                 if len(parts) > max(1, len(envelopes)):
                     summary["governor_status"] = "NEEDS_PARTITIONING"
             except PlanStop as stop:
@@ -262,8 +267,22 @@ class ExecutionPlanner:
                            "period or the universe."}, planned)})
         budget[0] -= 1
         spec = extraction_spec(entry, part)
-        return self.governor.extract(spec, self._lineage(source, plan_id, entry, part, spec), planned_parts=planned,
-                                     estimate_only=True)
+        response = self.governor.extract(spec, self._lineage(source, plan_id, entry, part, spec),
+                                         planned_parts=planned, estimate_only=True)
+        self._note_basis(response)
+        return response
+
+    def _note_basis(self, response: dict[str, Any]) -> None:
+        """G13: whether the Governor counted a part's rows (COUNTED) or estimated them (PLANNER); absent when its
+        counting is off."""
+        basis = (response.get("estimates") or {}).get("row_basis")
+        if basis and response.get("status") == "WITHIN_LIMITS":
+            getattr(self, "_bases", []).append(basis)
+
+    def _set_basis(self, summary: dict[str, Any]) -> None:
+        bases = getattr(self, "_bases", [])
+        if bases:  # COUNTED only when every part was counted
+            summary["row_basis"] = "COUNTED" if all(b == "COUNTED" for b in bases) else "PLANNER"
 
     def _preflight(self, source: dict[str, Any], plan_id: str, entry: dict[str, Any], budget: list[int]
                    ) -> tuple[list[Part], int]:

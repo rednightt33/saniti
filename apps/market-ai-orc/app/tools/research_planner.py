@@ -592,7 +592,8 @@ class ResearchDataPlanner:
                            "estimates": {"rows": group["rows"], "parts": group["parts"],
                                          "logical_datasets": len(letters),
                                          "requests": [{k: r.get(k) for k in ("data_request_id", "estimated_rows",
-                                                                             "extraction_parts", "governor_status")}
+                                                                             "extraction_parts", "governor_status",
+                                                                             "row_basis") if k in r}
                                                       for r in group["estimate"]["requests"]]}})
             for angle_id in group["members"]:
                 to_group[angle_id] = group["bundle_group_id"]
