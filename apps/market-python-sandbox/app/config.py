@@ -151,6 +151,9 @@ class Settings:
     audit_poll_seconds: int = 15
     audit_max_attempts: int = 12
     audit_timeout_seconds: int = 30
+    # G14: the share of PY_SANDBOX_MAX_MEMORY_MB one pandas frame may take; a larger result is refused before it is
+    # materialized (aggregate it in DuckDB first)
+    frame_memory_percent: int = 40
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -302,6 +305,7 @@ class Settings:
             audit_poll_seconds=_integer(env, "PY_SANDBOX_AUDIT_POLL_SECONDS", 15, maximum=3600),
             audit_max_attempts=_integer(env, "PY_SANDBOX_AUDIT_MAX_ATTEMPTS", 12, maximum=100),
             audit_timeout_seconds=_integer(env, "PY_SANDBOX_AUDIT_TIMEOUT_SECONDS", 30, maximum=300),
+            frame_memory_percent=_integer(env, "PY_SANDBOX_FRAME_MEMORY_PERCENT", 40, minimum=5, maximum=90),
         )
         if settings.audit_store_enabled:
             # the Audit Store variables are required only while the feature is on
@@ -359,6 +363,11 @@ class Settings:
 
         return MultiAnglePolicy(min_angles=self.research_min_angles, max_candidates_per_angle=self.research_max_candidates,
                                 max_pairwise_per_angle=self.research_max_pairwise_candidates)
+
+    @property
+    def frame_budget_mb(self) -> int:
+        """G14: the largest pandas frame a session may materialize, derived from the session memory limit."""
+        return max(32, self.max_memory_mb * self.frame_memory_percent // 100)
 
     @property
     def cpu_seconds(self) -> int:

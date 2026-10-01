@@ -1015,9 +1015,25 @@ Logs never contain keys, dataset URLs, user messages, datasets, or tables.
 | `PY_SANDBOX_MAX_MEMORY_MB` | 2048 |
 | `PY_SANDBOX_MAX_VIRTUAL_MEMORY_MB` | 4096 |
 | `PY_SANDBOX_DUCKDB_MEMORY_MB` | half of the memory limit (1024) |
+| `PY_SANDBOX_FRAME_MEMORY_PERCENT` | 40 (share of the memory limit one pandas frame may take; G14) |
 | `PY_SANDBOX_MAX_INTERMEDIATE_BYTES` | 1 GiB (includes DuckDB temp) |
 | `PY_SANDBOX_MAX_OUTPUT_DIR_BYTES` | 256 MiB |
 | `PY_SANDBOX_CPUS_PER_JOB` / `_THREADS_PER_JOB` | 2 / 2 |
+
+#### DuckDB first: the frame budget (G14)
+
+A session's data are DuckDB views; pandas frames are what fill its memory. Before `load()`, `range()` or `sql()` turn
+a result into a pandas frame, the session estimates the frame's size (rows, counted up to one row past the limit, times
+bytes per value by column type: 8 for numbers, 64 for dates, 72 for text) and refuses a frame over the budget
+(`PY_SANDBOX_FRAME_MEMORY_PERCENT` of `PY_SANDBOX_MAX_MEMORY_MB`, 819 MB with the defaults) with
+`MaterializationLimitExceeded`. Nothing is loaded and the session, its data and variables stay; the execution result
+says `next_action: AGGREGATE_IN_SQL` and forbids preparing the data again. The opened session (`datasets[]`) and
+`requests()` show per dataset `frame_mb`, `frame_budget_mb` and `materialize` (`DIRECT` or `AGGREGATE_FIRST`), so the
+model knows before writing code whether to reduce the data in DuckDB first. `relation()` stays lazy and its own `.df()`
+is not size-checked; the memory watchdog (`MEMORY_LIMIT_EXCEEDED`) still applies. With conversation reuse on, a data
+need prepared again in its own request gets its READY bundle back (`reused`, `replayed`) instead of a new extraction.
+`GET /v1/runtime` reports `bundle_max_rows`, `bundle_max_bytes` and `bundle_max_parts` in its top-level `limits`, so
+every caller can check a bundle's size before extracting it.
 | `PY_SANDBOX_CONCURRENCY` / `_MAX_QUEUED` | 1 / 8 |
 | `PY_SANDBOX_VALIDATOR_UID` | 20100 |
 | `PY_SANDBOX_VALIDATOR_RUNTIME_SECONDS` / `_MEMORY_MB` | 120 / the memory limit |

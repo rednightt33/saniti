@@ -135,6 +135,9 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                            "max_logical_datasets": settings.max_logical_datasets,
                            "max_input_files": settings.max_input_files, "max_input_rows": settings.max_input_rows,
                            "max_input_bytes": settings.max_input_bytes,
+                           # G14: the bundle limits every caller checks before extracting (not only multi-angle)
+                           "bundle_max_rows": settings.bundle_max_rows, "bundle_max_bytes": settings.bundle_max_bytes,
+                           "bundle_max_parts": settings.bundle_max_parts,
                            "max_intermediate_bytes": settings.max_intermediate_bytes,
                            "max_output_dir_bytes": settings.max_output_dir_bytes,
                            "max_code_chars": settings.max_code_chars, "max_output_bytes": settings.max_output_bytes,
