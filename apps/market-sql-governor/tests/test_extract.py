@@ -517,3 +517,73 @@ def test_a_relationship_that_needs_preaggregation_may_still_restrict(governed_db
                                                columns=("ticker", "date", "market_board"), restrictions=[rule],
                                                window=("2025-01-02", "2025-01-10"))))
     assert rows and {r["ticker"] for r in rows} == {"BBCA"}
+
+
+# ---------------------------------------------------------------- G13: counted rows (ANSWER_INTEGRITY_FIX_PLAN.md)
+
+def test_g13_with_counting_on_an_estimate_carries_the_counted_rows(governed_db, tmp_path) -> None:
+    spec = extraction()
+    draft = lineage(spec, need_id="draft_" + "a" * 24)
+    planner = extractor(governed_db, tmp_path).handle("test-extract", spec, draft, estimate_only=True)
+    assert "row_basis" not in planner["estimates"]  # off: the response keeps its shape
+    counted = extractor(governed_db, tmp_path, SQL_ESTIMATE_COUNT_ENABLED="true").handle(
+        "test-extract", spec, draft, estimate_only=True)
+    real = len(rows_of(extractor(governed_db, tmp_path), submit(extractor(governed_db, tmp_path), spec)))
+    assert counted["estimates"]["row_basis"] == "COUNTED"
+    assert counted["estimates"]["result_rows"] == real  # the number the bundle will hold, not the planner's guess
+    assert counted["estimates"]["planner_rows"] == planner["estimates"]["result_rows"]
+
+
+def test_g13_counted_rows_drive_the_partitioning(governed_db, tmp_path) -> None:
+    spec = extraction()
+    draft = lineage(spec, need_id="draft_" + "a" * 24)
+    real = len(rows_of(extractor(governed_db, tmp_path), submit(extractor(governed_db, tmp_path), spec)))
+    limit = str(max(1, real - 1))  # one row below the counted size: it must split, whatever the planner says
+    split = extractor(governed_db, tmp_path, SQL_ESTIMATE_COUNT_ENABLED="true", SQL_MAX_DATASET_ROWS=limit).handle(
+        "test-extract", spec, draft, estimate_only=True)
+    assert split["status"] == "APPROVED_WITH_PARTITIONING"
+
+
+def test_g13_a_count_that_times_out_keeps_the_planner_estimate_with_a_warning(governed_db, tmp_path) -> None:
+    import psycopg
+
+    ext = extractor(governed_db, tmp_path, SQL_ESTIMATE_COUNT_ENABLED="true")
+
+    class Cancelled:
+        def transaction(self):
+            from contextlib import nullcontext
+            return nullcontext()
+
+        def cursor(self):
+            class Cursor:
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *exc):
+                    return False
+
+                def execute(self, statement, params=None):
+                    if "count" in str(statement):
+                        raise psycopg.errors.QueryCanceled("canceling statement due to statement timeout")
+            return Cursor()
+
+    from app.compiler import CompiledQuery
+    from psycopg import sql as psql
+
+    state: dict = {}
+    estimates = ext._counted(Cancelled(), CompiledQuery(psql.SQL("SELECT 1"), (), "SELECT 1"),
+                             __import__("app.extract", fromlist=["Estimates"]).Estimates(10, 1234, 5.0), state)
+    assert (estimates.row_basis, estimates.result_rows, estimates.planner_rows) == ("PLANNER", 1234, 1234)
+    assert state["warnings"] == ["ROW_ESTIMATE_UNCERTAIN"]
+
+
+def test_g13_the_count_timeout_cannot_exceed_the_statement_timeout() -> None:
+    import pytest as _pytest
+
+    from app.config import ConfigError
+
+    with _pytest.raises(ConfigError, match="SQL_ESTIMATE_COUNT_TIMEOUT_MS"):
+        Settings.from_env(base_env(GOVERNOR_DATABASE_URL="postgresql://x/y", SQL_STATEMENT_TIMEOUT_SECONDS="5",
+                                   SQL_ESTIMATE_COUNT_ENABLED="true", SQL_ESTIMATE_COUNT_TIMEOUT_MS="7000"))
+    settings = Settings.from_env(base_env(GOVERNOR_DATABASE_URL="postgresql://x/y"))
+    assert (settings.estimate_count_enabled, settings.estimate_count_timeout_ms) == (False, 7000)

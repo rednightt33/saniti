@@ -80,6 +80,11 @@ class Settings:
     audit_poll_seconds: int = 30
     audit_max_attempts: int = 12
     audit_timeout_seconds: int = 60
+    # G13 part 2 (ANSWER_INTEGRITY_FIX_PLAN.md, off by default): an estimate_only extraction counts its rows with
+    # SELECT count(*) over the same compiled SQL instead of relying on the planner's estimate
+    estimate_count_enabled: bool = False
+    estimate_count_timeout_ms: int = 7000
+    estimate_count_min_rows: int = 0
 
     @property
     def dataset_storage_configured(self) -> bool:
@@ -170,4 +175,13 @@ class Settings:
                 raise ConfigError("SQL_GOVERNOR_AUDIT_STORE_ENABLED needs AUDIT_STORE_GOVERNOR_KEY (32+ characters)")
             if not (settings.bucket_name or settings.dataset_local_dir):
                 raise ConfigError("SQL_GOVERNOR_AUDIT_STORE_ENABLED needs dataset storage (its audit outbox)")
-        return replace(settings, **audit)
+        counting = {
+            "estimate_count_enabled": _flag(env, "SQL_ESTIMATE_COUNT_ENABLED"),
+            "estimate_count_timeout_ms": _integer(env, "SQL_ESTIMATE_COUNT_TIMEOUT_MS", 7000, minimum=100,
+                                                  maximum=60000),
+            "estimate_count_min_rows": _integer(env, "SQL_ESTIMATE_COUNT_MIN_ROWS", 0, minimum=0),
+        }
+        if counting["estimate_count_enabled"] \
+                and counting["estimate_count_timeout_ms"] > settings.statement_timeout_seconds * 1000:
+            raise ConfigError("SQL_ESTIMATE_COUNT_TIMEOUT_MS must not exceed SQL_STATEMENT_TIMEOUT_SECONDS")
+        return replace(settings, **audit, **counting)

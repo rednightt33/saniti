@@ -660,14 +660,16 @@ class Extractor:
             state["query_hash"] = explain.query_hash
             scan_rows, cost, result_rows = self.governor._explain(connection, explain, run)
             estimates = ex.Estimates(scan_rows=scan_rows, result_rows=result_rows, plan_cost=cost)
-            state["estimates"] = estimates.__dict__
+            if estimate_only and s.estimate_count_enabled and result_rows >= s.estimate_count_min_rows:
+                estimates = self._counted(connection, explain, estimates, state)
+            state["estimates"] = estimates.as_dict()
             decision = ex.partitioning(bound, estimates, self.limits(), index_columns, part_count=part_count)
             if decision is not None:
                 raise decision
             if estimate_only:
                 return {"status": "WITHIN_LIMITS", "estimate_only": True, "code": None, "message": None,
                         "data_request_id": spec.data_request_id, "request_id": request_id, "query_id": query_id,
-                        "query_hash": explain.query_hash, "estimates": estimates.__dict__,
+                        "query_hash": explain.query_hash, "estimates": estimates.as_dict(),
                         "warnings": state.get("warnings") or []}
             if self.governor.store is None:
                 raise ex.policy("DATASET_STORAGE_UNAVAILABLE", "Dataset storage is not configured.")
@@ -675,6 +677,35 @@ class Extractor:
             state["query_hash"] = compiled.query_hash
             return self._extract(connection, run, request_id, query_id, bound, compiled, estimates, contract,
                                  lineage, state)
+
+    def _counted(self, connection, compiled: CompiledQuery, estimates: ex.Estimates,
+                 state: dict[str, Any]) -> ex.Estimates:
+        """G13 (SQL_ESTIMATE_COUNT_ENABLED): the extraction's rows counted with SELECT count(*) over the same compiled
+        SQL (scope, restrictions, window), under SQL_ESTIMATE_COUNT_TIMEOUT_MS. The planner's estimate can be several
+        times off (e02: 108,091 estimated, 319,801 returned), so a plan checked against it could fail its bundle after
+        approval. On a timeout the planner's estimate stays, with ROW_ESTIMATE_UNCERTAIN."""
+        s = self.settings
+        started = time.monotonic()
+        statement = sql.SQL("SELECT count(*) FROM ({}) AS counted").format(compiled.statement)
+        try:
+            with connection.transaction():  # a savepoint: a cancelled count leaves the snapshot usable
+                with connection.cursor() as cursor:
+                    cursor.execute(sql.SQL("SET LOCAL statement_timeout = {}").format(
+                        sql.Literal(s.estimate_count_timeout_ms)))
+                    cursor.execute(statement, compiled.params)
+                    counted = int(cursor.fetchone()[0])
+                    cursor.execute(sql.SQL("SET LOCAL statement_timeout = {}").format(
+                        sql.Literal(s.statement_timeout_seconds * 1000)))
+        except psycopg.errors.QueryCanceled:
+            state.setdefault("warnings", []).append("ROW_ESTIMATE_UNCERTAIN")
+            _log("sql_governor_count", query_hash=compiled.query_hash, row_basis="PLANNER", timed_out=True,
+                 planner_rows=estimates.result_rows, runtime_ms=int((time.monotonic() - started) * 1000))
+            return ex.Estimates(scan_rows=estimates.scan_rows, result_rows=estimates.result_rows,
+                                plan_cost=estimates.plan_cost, row_basis="PLANNER", planner_rows=estimates.result_rows)
+        _log("sql_governor_count", query_hash=compiled.query_hash, row_basis="COUNTED", counted_rows=counted,
+             planner_rows=estimates.result_rows, runtime_ms=int((time.monotonic() - started) * 1000))
+        return ex.Estimates(scan_rows=estimates.scan_rows, result_rows=counted, plan_cost=estimates.plan_cost,
+                            row_basis="COUNTED", planner_rows=estimates.result_rows)
 
     def _extract(self, connection, run, request_id: str, query_id: str, bound: ex.BoundExtraction,
                  compiled: CompiledQuery, estimates: ex.Estimates, contract: dict[str, Any],
@@ -720,7 +751,7 @@ class Extractor:
             if bound.window else None, requested_entities=None, retention_hours=s.dataset_retention_hours,
             lineage=lineage.model_dump(mode="json", by_alias=True), executed=executed,
             source_contracts={name: source_contract(meta) for name, meta in contract["tables"].items()})
-        manifest["estimates"] = estimates.__dict__
+        manifest["estimates"] = estimates.as_dict()
         manifest_raw, manifest_checksum = manifest_bytes(manifest)
         store = self.governor.store
         store.put_immutable(f"datasets/{dataset_id}/data.parquet", payload, "application/vnd.apache.parquet", checksum)
@@ -731,7 +762,7 @@ class Extractor:
         return {"status": "APPROVED", "code": "OK", "next_action": ex.NEXT_ACTION["APPROVED"],
                 "message": "Extracted as an immutable Parquet dataset; only its reference is returned.",
                 "data_request_id": bound.spec.data_request_id, "request_id": request_id, "query_id": query_id,
-                "query_hash": compiled.query_hash, "partitioning": None, "estimates": estimates.__dict__,
+                "query_hash": compiled.query_hash, "partitioning": None, "estimates": estimates.as_dict(),
                 "details": {}, "warnings": state.get("warnings") or [],
                 "executed_scope_sha256": sha256_json(executed), "part_key": executed["part_key"],
                 "dataset": {"dataset_id": dataset_id, "format": "PARQUET", "row_count": manifest["row_count"],

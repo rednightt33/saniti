@@ -406,8 +406,31 @@ mistake.
 | `SQL_EXTRACT_MAX_IN_VALUES` | 500 | IN / NOT_IN values per scope predicate in an extraction |
 | `SQL_EXTRACT_MAX_COLUMNS` | 60 | Columns per extraction |
 | `SQL_EXTRACT_MAX_WINDOW_DAYS` | 3660 | Longest window of one extraction part; longer windows are split by date |
+| `SQL_ESTIMATE_COUNT_ENABLED` | false | G13: an estimate-only extraction counts its rows instead of trusting the planner (see below) |
+| `SQL_ESTIMATE_COUNT_TIMEOUT_MS` | 7000 | Timeout of one count (user decision 2026-10-01); with counting on it may not exceed `SQL_STATEMENT_TIMEOUT_SECONDS` |
+| `SQL_ESTIMATE_COUNT_MIN_ROWS` | 0 | Count only when the planner estimates at least this many rows (0: every estimate-only part) |
 
 These limits are not in any prompt or tool description, and no request field can raise them.
+
+## Counted rows for plans (G13, off unless `SQL_ESTIMATE_COUNT_ENABLED=true`)
+
+`ANSWER_INTEGRITY_FIX_PLAN.md` item 4. A Research Plan's feasibility and the planner's preflight call `/v1/extract`
+with `estimate_only`. Before, `estimates.result_rows` was PostgreSQL's planner estimate (`Plan Rows`), which can be
+several times off (e02, suite20d: 108,091 estimated, 319,801 returned), while the sandbox limits the bundle on counted
+rows, so a plan could pass and fail after the user's approval. With the flag, the Governor runs
+`SELECT count(*) FROM (<the compiled extraction>) AS counted`: the same scope, restrictions and window, inside a
+savepoint of the request's snapshot, under `SQL_ESTIMATE_COUNT_TIMEOUT_MS`.
+
+- `estimates.result_rows` is then the counted number, `estimates.row_basis` is `COUNTED` and `estimates.planner_rows`
+  keeps the planner's estimate; partitioning uses the counted number.
+- A count that times out keeps the planner's estimate with `row_basis` `PLANNER` and warning `ROW_ESTIMATE_UNCERTAIN`.
+- Every part is counted by default (`SQL_ESTIMATE_COUNT_MIN_ROWS` 0): a plan of many small parts (e02: 32 parts of
+  about 12,000 estimated rows) is too large only in total, so a per-part threshold would miss it.
+- Only estimate-only calls count; an extraction measures its rows while it reads them, as before. With the flag off,
+  `estimates` has no `row_basis` or `planner_rows`, so responses keep their shape.
+- Each count logs `sql_governor_count` (row basis, counted and planner rows, runtime; no data).
+- Cost: a count reads the rows the extraction would read (an index scan for a scoped request), on the shared database;
+  it is bounded by the timeout and happens only while a plan is checked.
 
 ## Audit archival (IP2, off unless `SQL_GOVERNOR_AUDIT_STORE_ENABLED=true`)
 

@@ -610,6 +610,14 @@ class Estimates:
     scan_rows: int
     result_rows: int
     plan_cost: float
+    # G13 (SQL_ESTIMATE_COUNT_ENABLED): result_rows is the counted number when row_basis is COUNTED; planner_rows
+    # keeps the planner's estimate. Both absent when counting is off, so the response keeps its shape.
+    row_basis: str | None = None
+    planner_rows: int | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {k: v for k, v in self.__dict__.items() if v is not None or k in ("scan_rows", "result_rows",
+                                                                                 "plan_cost")}
 
 
 def _stop_for(violation: str, restricted: bool) -> str:
@@ -645,7 +653,7 @@ def partitioning(bound: BoundExtraction, estimates: Estimates | None, limits: Li
         need[runtime_violation] = max(need.get(runtime_violation, 0), 2)
     if not need:
         return None
-    details = {"estimates": estimates.__dict__ if estimates else None, "window_days": days,
+    details = {"estimates": estimates.as_dict() if estimates else None, "window_days": days,
                "time_index_available": time_indexed, "needed": need, "part_count": part_count}
     # which split can serve every violated limit
     kinds = []
