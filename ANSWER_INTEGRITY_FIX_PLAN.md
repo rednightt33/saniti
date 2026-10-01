@@ -1,6 +1,6 @@
 # Answer integrity fix plan: M44, P14, P17, G13
 
-Status (2026-10-01): **plan only, nothing implemented.** User-requested items and decisions are recorded per item.
+Status (2026-10-01): **final plan approved by the user; implementation in progress (step 1: M44 + P14).** User-requested items and decisions are recorded per item.
 Errors: `ERRORS_AND_SOLUTIONS.md` M44, P14, P17, G13. Each item fixes a class of failure, not the observed
 instance (user rule: a fix must not name a table, column, ticker or question unless that object is the cause).
 
@@ -73,8 +73,8 @@ LIMITATION): `true`/`false`, `null`, `NaN`, any list (numbers, texts, rows, empt
 | number | as now (format applies) |
 | text | as written (a number format on non-numeric text is ignored, with a note) |
 | `true` / `false` | `ya` / `tidak` |
-| `null` | `tidak tersedia` |
-| `NaN`, `inf` | `tidak terdefinisi` |
+| `null` | `null` (user decision 2026-10-01) |
+| `NaN`, `inf` | `undefined` (user decision 2026-10-01) |
 | list of numbers or texts | joined with `; `, at most 8 items then `(+N lainnya)`; numbers formatted with the reference's format |
 | empty list | `tidak ada` |
 | list of objects, object | `[field]` marker, as for objects today |
