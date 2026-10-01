@@ -5,7 +5,7 @@ a RESEARCH_PLAN_CONFIRMATION is approved once with plan_reply APPROVE. An item w
 free-text messages instead (mode 4: no analysis_path, no plan_reply; the reply classifier reads each reply). Output: a short `OTR {json}` line per turn, then
 that turn's full response as gzip+base64 chunks (`OTRDUMP <item>:<turn> i/n data`), because Railway drops long log
 lines."""
-import base64, gzip, json, os, threading, time, urllib.error, urllib.request
+import base64, gzip, json, os, re, threading, time, urllib.error, urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
 BASE = "http://market-ai-orc.railway.internal:8080"
@@ -191,7 +191,79 @@ def audit_item(item_id, turn, request_id, wait_seconds, full_trace=False):
         dump(f"trace:{item_id}:{turn}", {"item": item_id, "turn": turn, "run_id": run["run_id"], "events": events})
 
 
+POSITIONAL_REF = re.compile(r"\{\{[^{}]*?out\.(out_[0-9a-f]+)\.rows(?:\[(-?\d+)\]|\.(\d+))\.([A-Za-z0-9_.]+)[^{}]*\}\}")
+
+
+def trace_events(run_id):
+    code, links = audit_call(f"/v1/runs/{run_id}/artifacts")
+    trace = [a for a in (links.get("artifacts") or []) if a.get("role") == "TOOL_TRACE"] if code == 200 else []
+    if not trace:
+        return None
+    code, grant = audit_call(f"/v1/artifacts/{trace[0]['artifact_id']}/access",
+                             {"purpose": "orc-test-runner: M44 scan", "run_id": run_id})
+    if code != 200:
+        return None
+    with urllib.request.urlopen(grant["url"], timeout=120) as response:
+        return json.loads(response.read()).get("events") or []
+
+
+def _identity(rows):
+    """The first text column whose values are unique in these rows (broker, ticker, series code)."""
+    for column in (rows[0] if rows else {}):
+        values = [row.get(column) for row in rows if isinstance(row, dict)]
+        if all(isinstance(v, str) for v in values) and len(set(values)) == len(values):
+            return column
+    return None
+
+
+def scan_m44(request_id):
+    """M44: a positional row reference ({{out.<id>.rows[i]...}}) in the final answer to an output the run read with
+    get_session_output at an offset > 0 resolved against that page, not the table. One `OTR m44` line per finding:
+    the referenced position, the row it really took (absolute index and identity) and the text just before it."""
+    code, run = audit_call(f"/v1/requests/{request_id}/run")
+    if code != 200:
+        return
+    events = trace_events(run["run_id"]) or []
+    pages = {}
+    for event in events:
+        if event.get("type") == "tool.call" and event.get("tool") == "get_session_output" and event.get("ok"):
+            result = (event.get("result") or {}).get("result") or {}
+            if isinstance(result, dict) and result.get("output_id") and isinstance(result.get("rows"), list):
+                pages[result["output_id"]] = (int(result.get("offset") or 0), result["rows"])
+    finals = [e for e in events if e.get("type") == "final.unrendered"]
+    response = finals[-1].get("response") if finals else None
+    text = response if isinstance(response, str) else json.dumps(response or {}, ensure_ascii=False)
+    refs = list(POSITIONAL_REF.finditer(text))
+    hits = []
+    for match in refs:
+        output_id, index = match.group(1), int(match.group(2) or match.group(3))
+        offset, rows = pages.get(output_id, (0, None))
+        if rows is None or offset == 0:
+            continue
+        key = _identity(rows)
+        row = rows[index] if -len(rows) <= index < len(rows) else None
+        hits.append({"output": output_id[:16], "ref_row": index, "page_offset": offset,
+                     "took_row": offset + index if row is not None else None,
+                     "took": (row or {}).get(key) if key else None, "identity_column": key,
+                     "field": match.group(4), "before": text[max(0, match.start() - 140):match.start()][-140:]})
+    grouped = {}
+    for hit in hits:  # one line per referenced row: its fields, and the text before its first reference
+        entry = grouped.setdefault((hit["output"], hit["ref_row"]), {**hit, "fields": []})
+        entry["fields"].append(hit.pop("field"))
+    log("m44", request_id=request_id, positional_refs=len(refs), paged_outputs=len(pages), rows_hit=len(grouped))
+    for entry in grouped.values():
+        entry.pop("field", None)
+        log("m44_hit", request_id=request_id, **entry)
+
+
 def audit(suite):
+    if suite.get("scan_m44_request_ids"):
+        for request_id in suite["scan_m44_request_ids"]:
+            try:
+                scan_m44(request_id)
+            except Exception as error:  # noqa: BLE001 - one unreadable run must not stop the scan
+                log("m44", request_id=request_id, error=f"{type(error).__name__}: {error}"[:300])
+        return
     if suite.get("audit_request_ids"):
         # explicit request ids, e.g. the sub-runs of a mode 4 turn (<request_id>-m4a), which the item/turn naming
         # below cannot reach
