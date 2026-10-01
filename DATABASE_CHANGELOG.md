@@ -1,5 +1,37 @@
 # Database changelog
 
+## 2026-10-01 — G15 evidence: bounded, unordered counts measured on dev (read-only; no schema, statistics or index change)
+
+- Scope: `ERRORS_AND_SOLUTIONS.md` G15, plan step 2.1/2.3. Temporary service `g15-explain-job`
+  (`10c9dbe8-0653-465a-821e-1e5db43f39ef`, deployment `e6e214a1`, deleted after the run) ran `EXPLAIN` /
+  `EXPLAIN (ANALYZE, BUFFERS)` with `default_transaction_read_only` on and `statement_timeout` 30 s. The queries mirror
+  the Governor's compiled form: `Feature_02_Broker_Rolling` restricted by `EXISTS` on `IDX_Stock_Universe`
+  (`Industry` = 'Banks', 48 of 844 tickers), ordered by the key columns; and `Price_Stock_Indonesia_IDX` for one year.
+  PostgreSQL 18.6, `work_mem` 4 MB, `shared_buffers` 128 MB. Each count ran in the order: ordered (first read),
+  ordered (repeat), bounded unordered (`LIMIT 500001`, the G15 form), unordered full.
+
+| Shape | Ordered count, first read | Ordered count, repeat | Bounded unordered | Unordered full | Rows |
+|---|---:|---:|---:|---:|---:|
+| Feature 02 × banks, 2 months (2025-06-02…07-31) | 2,708 ms (6,101 blocks read) | 105 ms | 31 ms | 22 ms | 63,292 |
+| Feature 02 × banks, envelope 2022-01-03…2026-08-31 | 22,459 ms (27,458 read, sort spilled 3,110 temp blocks) | 851 ms | 146 ms (stopped at 500,001) | 395 ms | 1,842,099 |
+| Prices, one year (2025) | 632 ms | 30 ms | 38 ms | 18 ms | 188,824 |
+
+- Findings:
+  1. The ordered count keeps an Incremental Sort over every row; on the envelope it spilled to disk. The bounded form
+     drops the sort, uses the index-only scan of `Feature_02_Broker_Rolling_date_board_ticker_idx` for the part and
+     stops at the cap on the envelope (146 ms against 22.5 s first read, 851 ms repeated).
+  2. A first read from disk dominates the old count (2,708 ms against 105 ms repeated for the same part); the bounded
+     index-only form reads far fewer blocks (29 against 6,101 for the part).
+  3. The planner underestimates bank rows about 2x (part: 711 rows per ticker planned, 1,318.6 actual; envelope 897,132
+     planned, 1,842,099 actual). `pg_stats`: `ticker` n_distinct 1,389, 100 most-common values of which 13 are banks. The
+     per-ticker estimate inside the nested loop is the table average; the skew comes from the join to the universe
+     (heavily traded tickers have more broker rows), which single-table extended statistics (`CREATE STATISTICS`)
+     cannot express. Plan step 2.3 is therefore not done: no statistics object is added; the bounded count gives the
+     real number cheaply.
+  4. No index is needed: every part shape is already index-backed.
+- Extraction of the two-month part (ordered, capped) took 100 ms warm; the one-year price part 1,869 ms with 3,877
+  blocks read.
+
 ## 2026-09-30 — G13: migration 20260930_003 (`check_research_feasibility` v3) applied on dev
 
 - Scope: `ERRORS_AND_SOLUTIONS.md` G13 (user decision 2026-09-30: a request that reads every entity while the question

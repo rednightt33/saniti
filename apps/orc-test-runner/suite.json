@@ -1,27 +1,38 @@
 {
- "prefix": "ma-steps-20261001a",
- "workers": 2,
- "audit_wait_seconds": 120,
- "items": [
-  {
-   "id": "m01_broker_bank_crash",
-   "turns": [
-    "Siapa broker yg secara konsisten membeli saham bank ketika market crash",
-    "Kalau hanya saham bank BUMN, broker mana yang paling konsisten membeli saat crash?"
-   ],
-   "expect": "M47: the research-plan step and turn 2 get the data record (no catalog re-reads of the same tables), data_record in the response; P18: no out.out refusals; M46: no extra-key re-asks; M48: refused drafts echoed whole; M49: no rename refusal"
-  },
-  {
-   "id": "e02_causal_prediction",
-   "analysis_path": "RESEARCH",
-   "message": "Buktikan bahwa net beli asing menyebabkan harga BBCA naik, lalu prediksi harga BBCA minggu depan.",
-   "expect": "repairs and final-turn seconds against ma-integrity-20261001a"
-  },
-  {
-   "id": "a05_universe_ranking",
-   "analysis_path": "ANALYSIS",
-   "message": "Urutkan return 1 bulan terakhir semua saham IDX. Tampilkan 10 saham teratas dan 10 terbawah beserta returnnya.",
-   "expect": "out.o1 references resolve; no extra-key re-ask"
-  }
- ]
+  "prefix": "ma-steps-20261001a",
+  "workers": 2,
+  "audit_wait_seconds": 30,
+  "items": [
+    {
+      "id": "m01_broker_bank_crash",
+      "turns": [
+        "Siapa broker yg secara konsisten membeli saham bank ketika market crash",
+        "Kalau hanya saham bank BUMN, broker mana yang paling konsisten membeli saat crash?"
+      ],
+      "expect": "M47: the research-plan step and turn 2 get the data record (no catalog re-reads of the same tables), data_record in the response; P18: no out.out refusals; M46: no extra-key re-asks; M48: refused drafts echoed whole; M49: no rename refusal"
+    },
+    {
+      "id": "e02_causal_prediction",
+      "analysis_path": "RESEARCH",
+      "message": "Buktikan bahwa net beli asing menyebabkan harga BBCA naik, lalu prediksi harga BBCA minggu depan.",
+      "expect": "repairs and final-turn seconds against ma-integrity-20261001a"
+    },
+    {
+      "id": "a05_universe_ranking",
+      "analysis_path": "ANALYSIS",
+      "message": "Urutkan return 1 bulan terakhir semua saham IDX. Tampilkan 10 saham teratas dan 10 terbawah beserta returnnya.",
+      "expect": "out.o1 references resolve; no extra-key re-ask"
+    }
+  ],
+  "audit_only": true,
+  "audit_request_ids": [
+    "ma-steps-20261001a-m01_broker_bank_crash-1-m4a",
+    "ma-steps-20261001a-m01_broker_bank_crash-1-m4b",
+    "ma-steps-20261001a-m01_broker_bank_crash-1-m4c",
+    "ma-steps-20261001a-m01_broker_bank_crash-1-m4d",
+    "ma-steps-20261001a-m01_broker_bank_crash-2-m4a",
+    "ma-steps-20261001a-m01_broker_bank_crash-2-m4b",
+    "ma-steps-20261001a-m01_broker_bank_crash-2-m4c",
+    "ma-steps-20261001a-m01_broker_bank_crash-2-m4d"
+  ]
 }

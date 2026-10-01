@@ -1,5 +1,30 @@
 # Railway changelog
 
+## 2026-10-01 — Suite `ma-steps-20261001a` results; G15 and M45 deployed on dev; G15 measured
+
+- **Suite `ma-steps-20261001a`** (runner `774dedb9`, 3 questions, 5 turns, model 1, 36K output tokens): e02 393 s
+  (plan) + 215 s (answer); a05 111 s (172 s on `ma-integrity-20261001a`); m01 (mode 4) 3,193 s and 3,343 s (limit
+  3,600). No `out.out` refusal and no extra-key refusal; `data_record` in every response and offered to every later
+  step. Found: aliases restart at o1 in every step (one alias named up to three outputs); `rows[SEMA]` (a row named by
+  its key alone) refused with the long id in the message; m01 sub-run breakdown below. Recorded in
+  `ERRORS_AND_SOLUTIONS.md`; fixes held for one batch at the end (user decision 2026-10-01).
+- **m01 audit readback** (runner `816ed3ac`, `audit_only`, the eight sub-runs): model time is 80–100 % of each step
+  (1-m4a 995 of 1,245 s; 1-m4b 962 of 949 s span; 2-m4a 1,441 of 1,433 s; 2-m4b 1,500 of 1,457 s). Single calls took
+  up to 665 s (2-m4b iteration 4), 583 s and 523 s, above `AI_REQUEST_TIMEOUT_SECONDS=420`. Tools: 1-m4a
+  `prepare_data_bundle` 237 s (before G15), everything else under 40 s. m4b still read the catalog (1-m4b: 2
+  `discover_catalog`, 3 `get_catalog_details`, 6 `get_dimension_values`) although the data record was offered.
+- **Deploys**: `c4ce71a` market-sql-governor G15 bounded, unordered count (`count_cap`, `AT_LEAST`): deployment
+  `401998c3-5b41-489c-8625-c573c24d29dd` `SUCCESS` (pushed with the docs commits `ea8812f`, `5fb2a69`, which also
+  redeployed market-ai-orc `a3dc3917` `SUCCESS`, no code change). Then `d07cf54` (`c351871` `count_cap` from the bundle
+  budget and `AI_PLANNER_PARALLEL_PARTS`, `5e0ff00` M45 edit repair, both default off): market-ai-orc
+  `d9074e70-a743-4a0f-8026-6b215f971bc5` `SUCCESS`. The Governor went first because market-ai-orc now sends
+  `count_cap`.
+- **G15 measurement** (plan step 2.1): temporary service `g15-explain-job` (`10c9dbe8-0653-465a-821e-1e5db43f39ef`,
+  one reference variable `DATABASE_URL` to `Postgres`, read-only session, deployment `e6e214a1`) ran bounded
+  `EXPLAIN (ANALYZE, BUFFERS)`; deleted after the run (verified absent from the service list). Results in
+  `DATABASE_CHANGELOG.md`: envelope count 22.5 s (first read) / 851 ms (repeat) ordered against 146 ms bounded; no
+  statistics or index added.
+
 ## 2026-10-01 — Plan steps 3, 4, 5, 5b, 7 deployed on dev (aliases, extra keys, full draft echo, angle ids, data record)
 
 Tested locally first: market-ai-orc 888 passed, market-python-sandbox 637 passed (PostgreSQL / root isolation).
