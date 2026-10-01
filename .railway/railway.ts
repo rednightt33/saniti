@@ -26,7 +26,7 @@ export default defineRailway(() => {
     healthcheckTimeout: 120,
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "ALWAYS" },
-    env: { AUDIT_STORE_GOVERNOR_KEY: preserve(), AUDIT_STORE_URL: preserve(), GOVERNOR_DATABASE_URL: preserve(), MARKET_SQL_GOVERNOR_DB_PASSWORD: preserve(), PORT: preserve(), SQL_DATASET_BUCKET_ACCESS_KEY_ID: preserve(), SQL_DATASET_BUCKET_ENDPOINT: preserve(), SQL_DATASET_BUCKET_NAME: preserve(), SQL_DATASET_BUCKET_REGION: preserve(), SQL_DATASET_BUCKET_SECRET_ACCESS_KEY: preserve(), SQL_GOVERNOR_API_KEY: preserve(), SQL_GOVERNOR_AUDIT_STORE_ENABLED: preserve(), SQL_GOVERNOR_DATASET_ACCESS_KEY: preserve(), SQL_MAX_JOINS: preserve(), SQL_MAX_TABLES: preserve() },
+    env: { AUDIT_STORE_GOVERNOR_KEY: preserve(), AUDIT_STORE_URL: preserve(), GOVERNOR_DATABASE_URL: preserve(), MARKET_SQL_GOVERNOR_DB_PASSWORD: preserve(), PORT: preserve(), SQL_DATASET_BUCKET_ACCESS_KEY_ID: preserve(), SQL_DATASET_BUCKET_ENDPOINT: preserve(), SQL_DATASET_BUCKET_NAME: preserve(), SQL_DATASET_BUCKET_REGION: preserve(), SQL_DATASET_BUCKET_SECRET_ACCESS_KEY: preserve(), SQL_ESTIMATE_COUNT_ENABLED: preserve(), SQL_ESTIMATE_COUNT_TIMEOUT_MS: preserve(), SQL_GOVERNOR_API_KEY: preserve(), SQL_GOVERNOR_AUDIT_STORE_ENABLED: preserve(), SQL_GOVERNOR_DATASET_ACCESS_KEY: preserve(), SQL_MAX_JOINS: preserve(), SQL_MAX_TABLES: preserve() },
   });
   const marketWebGovernor = service("market-web-governor", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-web-governor" }),

@@ -1,6 +1,6 @@
 # Answer integrity fix plan: M44, P14, P17, G13
 
-Status (2026-10-01): **final plan approved by the user; implementation in progress (step 1: M44 + P14).** User-requested items and decisions are recorded per item.
+Status (2026-10-01): **implemented and deployed on dev** (M44 + P14 `058ffa6`, P17 `3e52d73`, G13 `70b0980` + `4b5cb52`, counting on); live verification pending. Deviations: G13 counts every estimate-only part (`SQL_ESTIMATE_COUNT_MIN_ROWS` 0: e02's 32 small parts were too large only in total, a 10% per-part threshold would miss them); no `Tool_Catalog` v4 (the registered output schema lists only top-level keys); P17 adds the claim kind `PROOF` ("terbukti") so the user's example is flagged. User-requested items and decisions are recorded per item.
 Errors: `ERRORS_AND_SOLUTIONS.md` M44, P14, P17, G13. Each item fixes a class of failure, not the observed
 instance (user rule: a fix must not name a table, column, ticker or question unless that object is the cause).
 

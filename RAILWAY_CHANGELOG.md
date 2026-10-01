@@ -1,5 +1,32 @@
 # Railway changelog
 
+## 2026-10-01 — Answer integrity (M44, P14, P17, G13) deployed on dev; counted rows on
+
+`ANSWER_INTEGRITY_FIX_PLAN.md` (final plan approved by the user 2026-10-01). Each service was tested locally (PostgreSQL
+tests included: market-ai-orc 871, market-sql-governor 217), imported from a clean `requirements.txt` venv, pushed to
+`main` and deployed one at a time.
+
+- **M44 + P14** `058ffa6`: market-ai-orc `a353864c-8e44-47c5-a9f7-79a6bab1432a` `SUCCESS`. References resolve against
+  the complete released table (rows by position, `_row`, unread rows read by the backend), keyed tables by key, a
+  display for every value (`null` -> `null`, `NaN`/`inf` -> `undefined`), an unresolved reference marked instead of a
+  forced LIMITATION.
+- **P17** `3e52d73`: market-ai-orc `2cdd5a15` `SUCCESS`. Claims (CAUSAL, PREDICTIVE, PROOF, VERIFIED_CALCULATION) are
+  marked in italics with `annotations`, never rejected; one negation rule before and after the phrase.
+- **G13** `70b0980`: market-sql-governor `9d17c517-2055-4b6b-a184-8c1c7b52b076` `SUCCESS` (flag off), then
+  `4b5cb52`: market-ai-orc `2646be80-fc79-491d-921d-ff28477507be` `SUCCESS` (`row_basis`). Then, per the approved plan
+  and the user's timeout decision, on market-sql-governor `SQL_ESTIMATE_COUNT_ENABLED=true` and
+  `SQL_ESTIMATE_COUNT_TIMEOUT_MS=7000` (new variables): deployment `35f24e70-ae60-401f-b426-31d84b7895f2` `SUCCESS`,
+  `/ready` 200. `SQL_STATEMENT_TIMEOUT_SECONDS` stays at its default 20.
+- Every startup log clean (`ai_model_selected switch=1`, `mode4_active`, no `*_inactive`). Model, provider and
+  `AI_MODE_SWITCH` unchanged.
+- **Config**: `railway config pull --force` recorded the two Governor variable names (`preserve()`); `railway config
+  plan`: up to date.
+- Deviations from the plan, recorded in the plan: G13 counts every estimate-only part (`SQL_ESTIMATE_COUNT_MIN_ROWS`
+  default 0, not 10% of the part limit, because e02's 32 small parts were too large only in total); no `Tool_Catalog` v4
+  (the tool's registered output schema lists only top-level keys; `row_basis` sits inside `bundle_groups`); P17 adds
+  the kind `PROOF` ("terbukti"), since the user's example "BBCA terbukti naik" matched no existing pattern.
+- Live verification: pending (next entry).
+
 ## 2026-10-01 — orc-test-runner: M44 scan of past runs
 
 - Runner code `4aacfb5` (`scan_m44_request_ids`), CLI upload, deployment `2c00228c-7a45-417e-8a56-bd114b493dd7`
