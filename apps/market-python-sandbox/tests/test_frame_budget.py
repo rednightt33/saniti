@@ -145,3 +145,21 @@ def test_a_need_prepared_again_in_its_request_gets_its_bundle_back(make_service,
         assert len(governor.datasets) == extracted  # no new extraction
     finally:
         env["dataneed"].sessions.stop()
+
+
+def test_a_table_output_has_no_row_limit_by_default(runtime, tmp_path) -> None:
+    """P12 (user decision 2026-10-01): outputs are kept for further analysis and research; only the preview the
+    model reads is bounded."""
+    import pandas as pd
+
+    from app.config import Settings
+    from conftest import base_env
+
+    assert Settings.from_env(base_env(tmp_path)).max_table_output_rows == 0
+    runtime._LIMITS.clear()
+    runtime._LIMITS.update({"max_table_rows": 0})
+    assert len(runtime._arrow(pd.DataFrame({"x": range(150_000)}))) == 150_000
+    runtime._LIMITS.update({"max_table_rows": 1000})  # an explicit limit still holds
+    with pytest.raises(runtime.OutputLimitExceeded):
+        runtime._arrow(pd.DataFrame({"x": range(1001)}))
+    runtime._LIMITS.clear()

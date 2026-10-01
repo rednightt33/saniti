@@ -513,6 +513,32 @@ def render(text: str | None, sources: ReferenceSources) -> Rendering:
     out.text = REF_RE.sub(replace, text)
     if "{{" in out.text or "}}" in out.text:
         out.failed.append("{{")
-        out.problems.append("a reference is not closed or has an invalid form; write {{namespace.key.path}} or "
-                            "{{namespace.key.path|format}}")
+        out.problems.append(_invalid_form(out.text))
     return out
+
+
+LEFTOVER_RE = re.compile(r"\{\{([^{}]{0,300}?)\}\}")
+
+
+def _invalid_form(text: str) -> str:
+    """P7 (2026-10-01, e02): `{{finding....|dec:2e-0}}` was refused only as "not closed or has an invalid form", so the
+    model could not see which reference or what was wrong. Each leftover reference is named with its fault."""
+    named = []
+    for match in LEFTOVER_RE.finditer(text):
+        body = match.group(1)
+        expression, _, fmt = body.partition("|")
+        if fmt:
+            name, _, places = fmt.strip().partition(":")
+            if name.strip() not in FORMATS:
+                fault = f"unknown format {name.strip()!r}"
+            else:
+                fault = f"places {places.strip()!r} must be one digit 0-9"
+        else:
+            fault = "not a namespace.key.path"
+        named.append(f"'{{{{{body.strip()[:120]}}}}}': {fault}")
+        if len(named) == 3:
+            break
+    where = "; ".join(named) if named else "a '{{' without its closing '}}' (or the reverse)"
+    return (f"a reference has an invalid form: {where}. Write {{{{namespace.key.path}}}} or "
+            f"{{{{namespace.key.path|format}}}} or {{{{...|format:N}}}} with a format among "
+            f"{', '.join(sorted(FORMATS))} and N one digit of decimal places")

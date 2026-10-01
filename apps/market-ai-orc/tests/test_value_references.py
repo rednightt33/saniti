@@ -325,3 +325,15 @@ def test_a_row_named_by_its_key_alone_resolves_and_refusals_use_the_alias() -> N
     sources.add("out", "out_" + "4" * 24, {"rows": same}, "DATA_COVERAGE_VERIFIED")
     with pytest.raises(ReferenceError_, match=r"\[<column>=Banks\]"):
         sources.lookup("out.out_" + "4" * 24 + ".rows[Banks].v")
+
+
+def test_an_invalid_reference_form_is_named_with_its_fault() -> None:
+    """P7 (ma-steps-20261001a, e02): `|dec:2e-0` was refused as "not closed or has an invalid form" only."""
+    sources = ReferenceSources()
+    sources.add("finding", "a", {"p": 0.0003}, "DATA_COVERAGE_VERIFIED")
+    out = render("p {{finding.a.p|dec:2e-0}} dan {{finding.a.p|sci}} serta {{finding.a.p|dec:3}}", sources)
+    problem = out.problems[-1]
+    assert "'{{finding.a.p|dec:2e-0}}': places '2e-0' must be one digit 0-9" in problem
+    assert any("unknown format 'sci'" in p for p in out.problems)  # a well-formed reference with an unknown format
+    unclosed = render("p {{finding.a.p", sources)
+    assert "without its closing" in unclosed.problems[-1]

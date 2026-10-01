@@ -581,7 +581,13 @@ def resample(frame, request: str, frequency: str | None = None):
     """Aggregate a daily (or finer) frame to a coarser frequency per entity with the catalog's resample rules.
     Periods: 1W weeks ending Friday, 1M calendar months, 1Q quarters, 1Y years, labelled by their last date.
     A request approved with a resample_semantics_version (derived frequency, IP2) uses the hardened semantics of
-    _resample_v1: daily source only, full-grain groups, duplicate keys refused, period metadata and completeness."""
+    _resample_v1: daily source only, full-grain groups, duplicate keys refused, period metadata and completeness.
+
+    Both forms return one row per entity (and per grain column such as a market board) and period, with the period
+    columns period_start, period_end, actual_first_date, actual_last_date, observations and period_complete; the time
+    column holds the period's label (its last date). Grain columns group the periods; every other column needs a
+    catalog resample rule (requests() shows them). Example: weekly = saniti.resample(saniti.load('prices'), 'prices',
+    '1W'), then weekly[weekly['period_complete']]."""
     import pandas as pd
 
     r = _request(request)
@@ -591,20 +597,41 @@ def resample(frame, request: str, frequency: str | None = None):
     if target not in PERIODS:
         raise SanitiError(f"frequency must be one of {sorted(PERIODS)}.")
     entity, time = r.get("entity_column"), r.get("time_column")
+    # P13 (2026-10-01): the table's grain columns (a board, an investor type) group the periods like the entity; they
+    # are not values to aggregate (e02 lost a turn to ResampleRuleMissing for market_board)
+    keys = [c for c in dict.fromkeys([entity, *(r.get("key_columns") or [])]) if c and c != time and c in frame.columns]
     rules = r.get("resample_rules") or {}
-    values = [c for c in frame.columns if c not in (entity, time)]
+    values = [c for c in frame.columns if c not in keys and c != time]
     missing = [c for c in values if not rules.get(c)]
     if missing:
         raise ResampleRuleMissing(f"The catalog has no resample rule for {missing}: aggregate them yourself or drop "
                                   f"them. Rules: {rules}")
-    work = frame.assign(**{time: pd.to_datetime(frame[time])}).set_index(time).groupby(entity)
+    dates = pd.to_datetime(frame[time])
+    work = frame.assign(**{time: dates, "_saniti_date": dates}).set_index(time).groupby(keys)
     # one aggregation per column (S09: a dict passed to agg on a grouped resampler crossed every rule with every
     # column under pandas 3)
     out = pd.DataFrame({c: work[c].resample(PERIODS[target]).agg(AGGREGATIONS[rules[c]]) for c in values})
-    counts = work[values[0] if values else entity].resample(PERIODS[target]).size()
-    out["observations"] = counts
+    first = work["_saniti_date"].resample(PERIODS[target]).min()
+    last = work["_saniti_date"].resample(PERIODS[target]).max()
+    out["observations"] = work["_saniti_date"].resample(PERIODS[target]).size()
+    out["actual_first_date"], out["actual_last_date"] = first, last
     out = out[out["observations"] > 0].reset_index()
-    out[time] = out[time].dt.date
+    # P13: the same period columns as the derived-frequency semantics (e02 expected period_end and got a KeyError)
+    labels = out[time].dt.normalize()
+    out["period_end"] = labels
+    out["period_start"] = (labels.dt.to_period(DERIVED_PERIODS[target]).dt.start_time.dt.normalize()
+                           if target in DERIVED_PERIODS else labels)
+    windows = [w for w in r.get("ranges") or [] if w.get("extract_from") and w.get("extract_to")]
+    if windows and REFERENCE_DATE and target in DERIVED_PERIODS:
+        data_last = pd.to_datetime(frame[time]).max().normalize()
+        out["period_complete"] = ((out["period_start"] >= pd.Timestamp(min(w["extract_from"] for w in windows)))
+                                  & (out["period_end"] <= pd.Timestamp(max(w["extract_to"] for w in windows)))
+                                  & (out["period_end"] <= pd.Timestamp(REFERENCE_DATE))
+                                  & (out["period_end"] <= data_last)).astype(bool)
+    else:
+        out["period_complete"] = False
+    for column in ("period_start", "period_end", "actual_first_date", "actual_last_date", time):
+        out[column] = pd.to_datetime(out[column]).dt.date
     return out
 
 
@@ -1279,8 +1306,9 @@ def _arrow(frame):
         raise InvalidOutput("A table output must be a pandas DataFrame or Series.")
     if len(frame.columns) > 200:
         raise InvalidOutput("A table output has at most 200 columns.")
-    if len(frame) > int(_LIMITS["max_table_rows"]):
-        raise OutputLimitExceeded(f"A table output has at most {_LIMITS['max_table_rows']} rows.")
+    limit = int(_LIMITS.get("max_table_rows") or 0)  # P12: 0 = no row limit (the default)
+    if limit and len(frame) > limit:
+        raise OutputLimitExceeded(f"A table output has at most {limit} rows.")
     flat = frame.reset_index(drop=not any(n is not None for n in frame.index.names)) \
         if not isinstance(frame.index, pd.RangeIndex) else frame
     flat.columns = [str(c) for c in flat.columns]

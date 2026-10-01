@@ -288,7 +288,7 @@ class OutputStore:
             raise OutputRejected("OUTPUT_INVALID", f"Table {filename} has invalid column metadata.")
         names = [c["name"] for c in columns]
         rows = self._parquet_rows(fd, filename, names)
-        if rows > s.max_table_output_rows:
+        if s.max_table_output_rows and rows > s.max_table_output_rows:
             raise OutputRejected("OUTPUT_LIMIT_EXCEEDED",
                                  f"A TABLE has {rows} rows, above the table output limit. Filter or aggregate it, or "
                                  f"emit it as a PARQUET ARTIFACT.")

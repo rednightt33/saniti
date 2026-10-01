@@ -41,6 +41,10 @@ class ToolSpec:
     # Renders an argument error (ValidationError or bad JSON, plus the raw arguments) as structured fields merged into
     # the INVALID_ARGUMENTS error, for tools whose results use their own issue shape (submit_data_need_spec).
     argument_errors: Callable[[Exception, Any], dict[str, Any]] | None = None
+    # P10 (2026-10-01): the name a model may wrap the whole argument object under ({"data_need_spec": {...}} or the same
+    # as JSON text). The object is taken out only when none of the other keys is an argument of the tool, and it is
+    # then validated like any call; anything else is refused as before.
+    envelope_key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -236,6 +240,7 @@ class ToolRegistry:
                 # placeholder key (e.g. "request", "_dummy") for empty schemas; rejecting it only
                 # burns the tool-call budget, so the keys are ignored and reported back.
                 ignored, parsed = sorted(str(key) for key in parsed)[:20], {}
+            parsed, unwrapped = self._unwrap(spec, parsed)
             assumed_null = fill_omitted_nulls(spec.arguments_model, parsed)
             arguments = spec.arguments_model.model_validate(parsed)
         except (ValueError, ValidationError) as exc:
@@ -268,6 +273,8 @@ class ToolRegistry:
         output = {"ok": True, "tool": name, "result": result}
         if ignored:
             output["ignored_arguments"] = ignored
+        if unwrapped:
+            output["unwrapped_arguments"] = unwrapped
         if assumed_null:
             output["omitted_fields_set_to_null"] = assumed_null[:20]
         try:
@@ -276,9 +283,66 @@ class ToolRegistry:
             return error_outcome(call_id, name, "TOOL_FAILED", f"Tool {name} returned a non-JSON result.")
         limit = spec.max_result_bytes or self._max_result_bytes
         if size > limit:
-            return error_outcome(call_id, name, "TOOL_RESULT_TOO_LARGE",
-                                 f"Tool {name} result exceeded {limit} bytes.")
+            shrunk = self._shrink(output, limit)
+            if shrunk is None:
+                return error_outcome(call_id, name, "TOOL_RESULT_TOO_LARGE",
+                                     f"Tool {name} result exceeded {limit} bytes ({size}); largest parts: "
+                                     f"{self._largest(output.get('result'))}.")
+            logger.info(dumps({"event": "ai_tool_result_shrunk", "tool": name, "request_id": _current_request_id(),
+                               "bytes": size, "limit": limit, "kept_rows": shrunk[1]}))
+            output = shrunk[0]
         return ToolOutcome(call_id=call_id, name=name, ok=True, output=output)
+
+    @staticmethod
+    def _shrink(output: dict[str, Any], limit: int) -> tuple[dict[str, Any], int] | None:
+        """P6 (2026-10-01, ma-steps 2-m4c): complete_research_run exceeded its limit as a whole and the model called it
+        again. Table rows inside a result (`rows` next to an `output_id`) are a preview the run can read again page by
+        page (get_session_output; value references fetch further pages themselves), so they are cut to fewer rows,
+        marked rows_truncated, before the result is refused. Nothing else (findings, statuses, estimates) is cut."""
+        def cut(node: Any, keep: int) -> Any:
+            if isinstance(node, dict):
+                out = {k: cut(v, keep) for k, v in node.items()}
+                if node.get("output_id") and isinstance(node.get("rows"), list) and len(node["rows"]) > keep:
+                    out["rows"] = node["rows"][:keep]
+                    out["rows_truncated"] = True
+                    out["read_more"] = "get_session_output"
+                return out
+            if isinstance(node, list):
+                return [cut(v, keep) for v in node]
+            return node
+
+        for keep in (20, 5, 0):
+            candidate = cut(output, keep)
+            if len(dumps(candidate).encode("utf-8")) <= limit:
+                return candidate, keep
+        return None
+
+    @staticmethod
+    def _largest(result: Any) -> str:
+        if not isinstance(result, dict):
+            return "the result"
+        sizes = sorted(((len(dumps(v).encode("utf-8")), k) for k, v in result.items()), reverse=True)[:3]
+        return ", ".join(f"{k} {n} bytes" for n, k in sizes)
+
+    @staticmethod
+    def _unwrap(spec: ToolSpec, parsed: Any) -> tuple[Any, dict[str, Any] | None]:
+        key = spec.envelope_key
+        if not key or not isinstance(parsed, dict) or key not in parsed or key in spec.arguments_model.model_fields:
+            return parsed, None
+        others = sorted(k for k in parsed if k != key)
+        if any(k in spec.arguments_model.model_fields for k in others):
+            return parsed, None
+        inner = parsed[key]
+        if isinstance(inner, str):
+            try:
+                inner = json.loads(inner)
+            except ValueError:
+                return parsed, None
+        if not isinstance(inner, dict):
+            return parsed, None
+        logger.info(dumps({"event": "ai_tool_arguments_unwrapped", "tool": spec.name,
+                           "request_id": _current_request_id(), "envelope": key, "ignored": others[:20]}))
+        return inner, {"envelope": key, "ignored": others[:20]}
 
     def close(self) -> None:
         self._executor.shutdown(wait=False, cancel_futures=True)

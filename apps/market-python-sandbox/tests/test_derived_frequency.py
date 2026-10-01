@@ -280,8 +280,12 @@ def test_legacy_resample_keeps_its_shape_without_a_semantics_version(rs) -> None
     rows = [("AAAA", d, 1, 2 + i, 0, float(i), 1) for i, d in enumerate(trading_days("2026-08-31", "2026-09-11"))]
     rows += [("BBBB", "2026-09-07", 5, 5, 5, 5.0, 3)]
     out = s.resample(ohlcv(rows), "prices")
-    # legacy output: entity, period label, one column per rule, observations; no period metadata, no trace
-    assert list(out.columns) == ["ticker", "date", *RULES, "observations"]
+    # legacy output: entity, period label, one column per rule, observations; P13 (user decision 2026-10-01) adds the
+    # same period columns as the derived semantics after them, values unchanged; still no trace
+    assert list(out.columns) == ["ticker", "date", *RULES, "observations", "actual_first_date", "actual_last_date",
+                                 "period_end", "period_start", "period_complete"]
+    assert out[out["ticker"] == "AAAA"]["period_start"].tolist() == [date(2026, 8, 29), date(2026, 9, 5)]
+    assert out[out["ticker"] == "AAAA"]["actual_first_date"].tolist() == [date(2026, 8, 31), date(2026, 9, 7)]
     aaaa = out[out["ticker"] == "AAAA"]
     assert aaaa["date"].tolist() == [date(2026, 9, 4), date(2026, 9, 11)] and aaaa["close"].tolist() == [4.0, 9.0]
     assert aaaa["high"].tolist() == [6, 11] and aaaa["volume"].tolist() == [5, 5]
@@ -298,3 +302,15 @@ def test_app_and_runtime_share_the_semantics_constants() -> None:
     for name in ("RESAMPLE_SEMANTICS_VERSION", "NULL_POLICY", "PERIOD_POLICY", "COMPLETENESS_RULE"):
         assert getattr(runtime, name) == getattr(data_need, name), name
     assert "resampled_returns" not in runtime.__all__  # not pre-bound: the flag-off namespace is unchanged
+
+
+def test_legacy_resample_groups_by_grain_columns_instead_of_asking_for_their_rule(rs) -> None:
+    """P13 (e02, ma-flags-20261001a): market_board is part of the grain; it was refused as a value without a rule."""
+    s = rs(version=None)
+    s.REQUESTS["g_A"]["key_columns"] = ["ticker", "date", "market_board"]
+    rows = [("AAAA", d, 1, 2, 0, 1.0, 1) for d in trading_days("2026-08-31", "2026-09-04")]
+    frame = ohlcv(rows)
+    frame = pd.concat([frame.assign(market_board="Regular"), frame.assign(market_board="Nego", volume=7)])
+    out = s.resample(frame, "prices")
+    assert sorted(out["market_board"]) == ["Nego", "Regular"]
+    assert out.set_index("market_board")["volume"].to_dict() == {"Nego": 35, "Regular": 5}

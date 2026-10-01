@@ -696,12 +696,14 @@ def conversation_resources_note(resources: dict[str, Any]) -> str:
     specs = [b.get("data_need_spec") for b in bundles]
 
     def render(with_specs: list[Any]) -> str:
-        lines = ["Data of earlier data needs (submit the data_need_spec unchanged to reuse it without extraction):"]
+        # P10 (2026-10-01): the spec is labelled as the arguments to send, so it is not wrapped under its own key
+        lines = ["Data of earlier data needs. To reuse one without extraction, call submit_data_need_spec with its "
+                 "submit_arguments object itself as the arguments (unchanged, not inside another key):"]
         for bundle, spec in zip(bundles, with_specs):
             lines.append("- " + dumps({"bundle_id": bundle.get("bundle_id"), "extracted_at": bundle.get("extracted_at"),
                                        "expires_at": bundle.get("expires_at"), "mode": bundle.get("mode"),
                                        "warm_session": bundle.get("warm_session"),
-                                       "datasets": bundle.get("datasets"), "data_need_spec": spec}))
+                                       "datasets": bundle.get("datasets"), "submit_arguments": spec}))
         return "\n".join([head, *(outputs if len(outputs) > 1 else []), *(lines if bundles else [])])
 
     note = render(specs)
@@ -3809,6 +3811,7 @@ class AgentOrchestrator:
             data = None
         if isinstance(data, dict):
             extra = {key: data.pop(key) for key in list(data) if key not in FinalResponse.model_fields}
+            extra.update(AgentOrchestrator._feasibility_fields(data))
             if extra:
                 candidate = json.dumps(data, ensure_ascii=False)
                 if dropped is not None:
@@ -3840,6 +3843,25 @@ class AgentOrchestrator:
                         break
             issue = "; ".join(details) if details else type(exc).__name__
             raise ValueError(f"Final response failed schema validation: {issue}") from exc
+
+    @staticmethod
+    def _feasibility_fields(data: dict[str, Any]) -> dict[str, Any]:
+        """P8 (2026-10-01, ma-steps 2-m4b): a plan angle that carries the check_research_feasibility input of its data
+        (data_requests, relationships, broad_scope, design) was refused as a whole and rewritten. Those fields belong
+        to the check, whose result the backend already holds; they are taken out of each angle (derived from the two
+        models, not listed by hand) and kept for the audit. Any other unknown nested field is still refused."""
+        from .research_plan_v2 import ResearchAngle
+        from .tools.research_planner import AngleRequirement
+
+        owned = set(AngleRequirement.model_fields) - set(ResearchAngle.model_fields)
+        plan = data.get("research_plan")
+        taken: dict[str, Any] = {}
+        if isinstance(plan, dict) and isinstance(plan.get("angles"), list):
+            for index, angle in enumerate(plan["angles"]):
+                if isinstance(angle, dict):
+                    for key in sorted(owned & set(angle)):
+                        taken[f"research_plan.angles[{index}].{key}"] = angle.pop(key)
+        return taken
 
     def _note_extra_keys(self, state: RunState, dropped: dict[str, Any]) -> None:
         """M46: the keys taken out of a final response, logged and kept in the audit with their content."""

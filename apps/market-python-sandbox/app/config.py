@@ -270,7 +270,9 @@ class Settings:
             session_max_outputs=_integer(env, "PY_SANDBOX_SESSION_MAX_OUTPUTS", 40, maximum=500),
             conversation_reuse=_boolean(env, "PY_SANDBOX_ENABLE_CONVERSATION_REUSE", False),
             max_tables=_integer(env, "PY_SANDBOX_MAX_TABLES", 8, maximum=32),
-            max_table_output_rows=_integer(env, "PY_SANDBOX_MAX_TABLE_OUTPUT_ROWS", 100_000, maximum=5_000_000),
+            # P12 (user decision 2026-10-01): no row limit on a table output by default (0); an output is meant for
+            # further analysis or research, and what the model reads stays the bounded preview and pages
+            max_table_output_rows=_integer(env, "PY_SANDBOX_MAX_TABLE_OUTPUT_ROWS", 0, minimum=0, maximum=50_000_000),
             max_table_preview_rows=_integer(env, "PY_SANDBOX_MAX_TABLE_PREVIEW_ROWS", 50, maximum=200),
             max_metrics=_integer(env, "PY_SANDBOX_MAX_METRICS", 8, maximum=32),
             max_metrics_bytes=_integer(env, "PY_SANDBOX_MAX_METRICS_BYTES", 8000, minimum=256, maximum=65536),
@@ -318,7 +320,7 @@ class Settings:
                                   "PY_SANDBOX_DATANEED_ENABLED")
         if settings.record_retention_days * 24 < settings.result_retention_hours:
             raise ConfigError("PY_SANDBOX_RECORD_RETENTION_DAYS must cover PY_SANDBOX_RESULT_RETENTION_HOURS")
-        if settings.max_table_preview_rows > settings.max_table_output_rows:
+        if settings.max_table_output_rows and settings.max_table_preview_rows > settings.max_table_output_rows:
             raise ConfigError("PY_SANDBOX_MAX_TABLE_PREVIEW_ROWS must not exceed PY_SANDBOX_MAX_TABLE_OUTPUT_ROWS")
         if settings.threads_per_job * 8 > settings.max_threads:
             raise ConfigError("PY_SANDBOX_MAX_THREADS must be at least 8x PY_SANDBOX_THREADS_PER_JOB")

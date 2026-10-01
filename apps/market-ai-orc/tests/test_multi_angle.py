@@ -906,3 +906,20 @@ def test_a_renamed_angle_with_its_checked_design_keeps_the_checked_id() -> None:
     runner.run(AgentRunRequest(request_id="run_001", conversation_id="conv_1", message=QUESTION))
     refusal = scripted.payloads[2]["input"][-1]["content"]
     assert "not checked: ['a_other_design']" in refusal and "checked but missing: ['a_lag']" in refusal
+
+
+def test_a_plan_angle_carrying_its_feasibility_input_is_kept_without_it() -> None:
+    """P8 (ma-steps-20261001a, 2-m4b): data_requests / relationships / broad_scope copied from the
+    check_research_feasibility input into the plan's angles cost a refusal and a full rewrite (151 s + 52 s)."""
+    import json as _json
+
+    body = plan_response()
+    for angle in body["research_plan"]["angles"]:
+        angle.update(data_requests=[request("r1")], relationships=[], broad_scope=None)
+    dropped: dict[str, Any] = {}
+    parsed = AgentOrchestrator._parse_final_output(_json.dumps(body), dropped)
+    assert parsed.response_type == "RESEARCH_PLAN_CONFIRMATION"
+    assert "research_plan.angles[0].data_requests" in dropped and "research_plan.angles[1].broad_scope" in dropped
+    body["research_plan"]["angles"][0]["unknown_field"] = 1  # any other nested field is still refused
+    with pytest.raises(ValueError, match="unknown_field"):
+        AgentOrchestrator._parse_final_output(_json.dumps(body))

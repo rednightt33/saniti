@@ -503,7 +503,7 @@ def emit_table(name: str, data, description: str = "") -> None:
     _declared("TABLE")
     name = _name(name, "Table name")
     table = _arrow_table(data)
-    if table.num_rows > _LIMITS["max_table_output_rows"]:
+    if _LIMITS["max_table_output_rows"] and table.num_rows > _LIMITS["max_table_output_rows"]:
         raise OutputLimitExceeded(
             f"Table {name!r} has {table.num_rows} rows, above the table output limit of "
             f"{_LIMITS['max_table_output_rows']}. Filter or aggregate it, or emit it as a PARQUET artifact.")
