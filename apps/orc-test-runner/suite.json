@@ -1,38 +1,25 @@
 {
-  "prefix": "ma-steps-20261001a",
+  "prefix": "ma-flags-20261001a",
   "workers": 2,
-  "audit_wait_seconds": 30,
+  "audit_wait_seconds": 120,
   "items": [
     {
-      "id": "m01_broker_bank_crash",
-      "turns": [
-        "Siapa broker yg secara konsisten membeli saham bank ketika market crash",
-        "Kalau hanya saham bank BUMN, broker mana yang paling konsisten membeli saat crash?"
-      ],
-      "expect": "M47: the research-plan step and turn 2 get the data record (no catalog re-reads of the same tables), data_record in the response; P18: no out.out refusals; M46: no extra-key re-asks; M48: refused drafts echoed whole; M49: no rename refusal"
-    },
-    {
-      "id": "e02_causal_prediction",
-      "analysis_path": "RESEARCH",
-      "message": "Buktikan bahwa net beli asing menyebabkan harga BBCA naik, lalu prediksi harga BBCA minggu depan.",
-      "expect": "repairs and final-turn seconds against ma-integrity-20261001a"
+      "id": "b01_bank_broker_analysis",
+      "analysis_path": "ANALYSIS",
+      "message": "Siapa broker yg secara konsisten membeli saham bank ketika market crash",
+      "expect": "G15: bounded counts (row_basis), parallel extraction of parts (AI_PLANNER_PARALLEL_PARTS=2): prepare_data_bundle seconds against 1-m4a of ma-steps (237 s); M45: edits applied on refusals"
     },
     {
       "id": "a05_universe_ranking",
       "analysis_path": "ANALYSIS",
       "message": "Urutkan return 1 bulan terakhir semua saham IDX. Tampilkan 10 saham teratas dan 10 terbawah beserta returnnya.",
-      "expect": "out.o1 references resolve; no extra-key re-ask"
+      "expect": "M45: refusals repaired by edit (ai_final_edit_applied) and seconds against ma-steps (111 s)"
+    },
+    {
+      "id": "e02_causal_prediction",
+      "analysis_path": "RESEARCH",
+      "message": "Buktikan bahwa net beli asing menyebabkan harga BBCA naik, lalu prediksi harga BBCA minggu depan.",
+      "expect": "M45: repairs and final-turn seconds against ma-steps (393 s + 215 s)"
     }
-  ],
-  "audit_only": true,
-  "audit_request_ids": [
-    "ma-steps-20261001a-m01_broker_bank_crash-1-m4a",
-    "ma-steps-20261001a-m01_broker_bank_crash-1-m4b",
-    "ma-steps-20261001a-m01_broker_bank_crash-1-m4c",
-    "ma-steps-20261001a-m01_broker_bank_crash-1-m4d",
-    "ma-steps-20261001a-m01_broker_bank_crash-2-m4a",
-    "ma-steps-20261001a-m01_broker_bank_crash-2-m4b",
-    "ma-steps-20261001a-m01_broker_bank_crash-2-m4c",
-    "ma-steps-20261001a-m01_broker_bank_crash-2-m4d"
   ]
 }
