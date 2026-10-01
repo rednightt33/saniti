@@ -1,32 +1,19 @@
 {
- "prefix": "ma-out36k-20261001a",
+ "prefix": "ma-g14-20261001a",
  "workers": 2,
- "audit_wait_seconds": 180,
+ "audit_wait_seconds": 120,
  "items": [
   {
-   "id": "m01_broker_bank_crash",
-   "turns": [
-    "Siapa broker yg secara konsisten membeli saham bank ketika market crash"
-   ],
-   "expect": "M37 test (36K output): no truncation, compare timings with ma-integrity-20261001a"
-  },
-  {
-   "id": "e02_causal_prediction",
-   "analysis_path": "RESEARCH",
-   "message": "Buktikan bahwa net beli asing menyebabkan harga BBCA naik, lalu prediksi harga BBCA minggu depan.",
-   "expect": "P17: the answer is kept (no CLAIM LIMITATION); any unsupported claim is italic with annotations; G13: row_basis COUNTED in the plan"
-  },
-  {
-   "id": "a05_universe_ranking",
+   "id": "g14_broker_bank_analysis",
    "analysis_path": "ANALYSIS",
-   "message": "Urutkan return 1 bulan terakhir semua saham IDX. Tampilkan 10 saham teratas dan 10 terbawah beserta returnnya.",
-   "expect": "M44 second table type: an 800+ row ticker table; tickers and returns agree"
+   "message": "Siapa broker yg secara konsisten membeli saham bank ketika market crash",
+   "expect": "G14: a bundle above 2M rows (up to 5M) is built; a frame over the session budget is refused before loading (AGGREGATE_FIRST / MaterializationLimitExceeded) and the analysis aggregates in DuckDB; no BUNDLE_TOO_LARGE after extraction"
   },
   {
-   "id": "g13_broad_cross_section",
-   "analysis_path": "RESEARCH",
-   "message": "Untuk seluruh saham IDX 2018-2026, apakah hari dengan net beli asing tinggi diikuti return 20 hari ke depan yang lebih tinggi?",
-   "expect": "G13: a plan too large for one bundle is split into groups or revised before it is shown (counted rows); no BUNDLE_TOO_LARGE after approval"
+   "id": "g14_all_brokers_all_stocks",
+   "analysis_path": "ANALYSIS",
+   "message": "Untuk seluruh saham IDX dan seluruh broker sejak 2022, broker mana yang paling sering menjadi net buyer harian? Tampilkan 10 teratas.",
+   "expect": "G14: a data need far above 5M rows stops at PREFLIGHT (BUNDLE_TOO_LARGE, nothing extracted) or is narrowed before extraction; no extraction followed by a sandbox refusal"
   }
  ]
 }

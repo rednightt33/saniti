@@ -198,7 +198,7 @@ The migrations were rehearsed on disposable PostgreSQL 16 databases: apply, read
 - **Dev latency:** 14–37 s for facts, counts and weekly figures; 140–240 s for multi-request analyses and research. That is 8–18 tool calls at $0.002–$0.017 per answer, with cached input about 90% on the local runs.
 - **DataNeed facts vs. `lookup_fact`:** 2–7× slower and up to 7× costlier for a single value; about the same for aggregates.
 - **Bundle sizes seen:** 4,296 rows (YTD, 12 synthetic tickers), 472 rows (2-year RSI), and 843 tickers × about 21 days (one month). No partitioning was needed at the dev limits.
-- **Sandbox:** `isolation_enforced=true`. Sessions are limited to 2 concurrent per sandbox, with 900 CPU-seconds, 40 executions and a 60-minute lifetime per session. Session memory on Railway was not measured separately.
+- **Sandbox:** `isolation_enforced=true`. Sessions are limited to 2 concurrent per sandbox, with 900 CPU-seconds, 40 executions and a 60-minute lifetime per session. Session memory: measured 2026-10-01 locally with the image's pandas 3.0.6 and DuckDB 1.5.5 on 5,000,000 rows x 11 broker-shaped columns (2 text, 1 date, 8 numeric): loading the whole dataset into pandas peaks at 2,470 MB RSS (frame 614 MB), aggregating in DuckDB first at 192 MB. On dev `PY_SANDBOX_MAX_MEMORY_MB=4096` and `PY_SANDBOX_BUNDLE_MAX_ROWS=5000000`; a session refuses a frame over 40% of its memory (G14). The sandbox container's limit on Railway is 24 GB (peak use 3.19 GB over the 24 hours before).
 
 ## 12. Dev deployment status (verified)
 

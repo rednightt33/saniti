@@ -1,5 +1,30 @@
 # Railway changelog
 
+## 2026-10-01 — G14 deployed on dev: bundle size before extraction, DuckDB first, 5,000,000-row bundles
+
+Plan step 1 (user decision 2026-10-01). Tested locally first: market-ai-orc 878 passed (7 new,
+`tests/test_bundle_limits.py`), market-python-sandbox 635 passed (6 new, `tests/test_frame_budget.py`), both with
+PostgreSQL / root isolation; imports checked from the requirements the images install.
+
+- `44463ef` market-python-sandbox: bundle limits in the top-level runtime `limits`; frame budget
+  (`PY_SANDBOX_FRAME_MEMORY_PERCENT`, default 40) refusing a pandas frame before it is loaded
+  (`MaterializationLimitExceeded`, next action `AGGREGATE_IN_SQL`); `materialize` per dataset; a need prepared again
+  in its request gets its bundle back. Deployment `7cbc3aff-076b-47d1-9445-5ad4940c127b` `SUCCESS`.
+- `e30b6e6` market-ai-orc: bundle limits read from the sandbox and checked before (`PREFLIGHT`) and during
+  (`EXTRACTION`) extraction and in `check_data_feasibility`. Deployment `1b647376-71e1-479e-8858-fa6e540b736e`
+  `SUCCESS` (startup log without `bundle_limits_unknown`). It interrupted the last step of `ma-out36k-20261001a` m01.
+- Memory measured before raising the limit (`DATANEED_ARCHITECTURE.md`): 5,000,000 broker-shaped rows loaded whole
+  peak at 2,470 MB RSS, above the 2,048 MB session limit; aggregated in DuckDB first, 192 MB. The sandbox container's
+  limit is 24 GB (peak 3.19 GB over the previous 24 hours, Railway metrics).
+- Variables on market-python-sandbox `dev`: `PY_SANDBOX_BUNDLE_MAX_ROWS=5000000` (unset, default 2,000,000) and
+  `PY_SANDBOX_MAX_MEMORY_MB=4096` (unset, default 2048). The redeploy `b3fe51d7-83e3-4bcd-9ee9-42496216bba6` FAILED:
+  the isolation self-test failed `duckdb_memory_limit` (S17) and `/ready` stayed 503; the previous deployment stayed
+  live. Fix `34e9411`; deployment `87f3b9cb-4996-4d87-bb77-870c680cd541` `SUCCESS`, `isolation_enforced=true`.
+- market-ai-orc redeployed (`b3e0e5b6-decb-448a-8ff7-0d82cbea0b09` `SUCCESS`) so it reads the new limits at startup.
+- `railway config pull --force` added `PY_SANDBOX_BUNDLE_MAX_ROWS` and `PY_SANDBOX_MAX_MEMORY_MB` as `preserve()`;
+  `railway config plan` reports the configuration up to date.
+- Live verification: suite `ma-g14-20261001a` (runner `d3cd5438`), results below when it completes.
+
 ## 2026-10-01 — orc-test-runner: M44 scan of the new runs and audit readback of the m4b plan step
 
 - Runner `02d726d3-ce1a-4428-ba52-700e86462215` (suite `ma-integrity-20261001b-scan`, audit only): the M44 scan of the
@@ -26,8 +51,12 @@ plan or answer would be cut off.
 - `.railway/railway.ts`: `railway config pull --force` added `AI_REQUEST_TIMEOUT_SECONDS: preserve()`;
   `railway config plan` reports the configuration up to date.
 - Rollback: `AI_MAX_OUTPUT_TOKENS=24000` (and remove `AI_REQUEST_TIMEOUT_SECONDS`).
-- Verification: the same suite as `ma-integrity-20261001a` (m01, e02, a05, g13) under a new prefix; results are
-  recorded below when it completes.
+- Verification: suite `ma-out36k-20261001a` (runner `b307147b`) against `ma-integrity-20261001a`: the model reasoned
+  longer with more room; one call reasoned 37,058 tokens and was still cut at 36,000 (m01 `-m4b`, 291 s), another took
+  327 s to choose a tool; m01's research-plan step 1,125 s (581 s at 24000); e02 457 s (471 s), a05 186 s (172 s),
+  g13 1,431 s (712 s, bundle-limit retries); no `PROVIDER_TIMEOUT`. m01 was interrupted in its last step by the G14
+  deployment. Conclusion (M37): a larger output budget does not prevent truncation. The setting stays at 36000 until
+  the user decides.
 
 ## 2026-10-01 — Answer integrity (M44, P14, P17, G13) deployed on dev; counted rows on
 
