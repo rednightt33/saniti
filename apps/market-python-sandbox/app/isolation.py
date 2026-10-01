@@ -79,8 +79,12 @@ second = duckdb.connect()
 duck_denied("duckdb_new_connection_locked", lambda: second.sql("SELECT * FROM read_text('/etc/hostname')").fetchall(),
             refused)
 value, unit = duckdb.sql("SELECT current_setting('memory_limit')").fetchone()[0].split()
-mib = float(value) * {"KiB": 1 / 1024, "MiB": 1, "GiB": 1024, "TiB": 1024 * 1024}.get(unit, 0)
-checks["duckdb_memory_limit"] = "PASS" if abs(mib * 1.048576 - DUCKDB_MB) < 2 else f"FAIL: {value} {unit}"
+scale = {"KiB": 1 / 1024, "MiB": 1, "GiB": 1024, "TiB": 1024 * 1024}.get(unit, 0)
+mib = float(value) * scale
+# DuckDB shows the limit rounded (e.g. "3.8 GiB" for 4096 MB), so the tolerance is half its last shown digit
+decimals = len(value.split(".")[1]) if "." in value else 0
+tolerance = max(2.0, 0.5 * 10 ** -decimals * scale * 1.048576 + 1)
+checks["duckdb_memory_limit"] = "PASS" if abs(mib * 1.048576 - DUCKDB_MB) <= tolerance else f"FAIL: {value} {unit}"
 with open(os.path.join(OUTPUT_DIR, "selftest.json"), "w") as handle:
     json.dump({"checks": checks, "versions": versions}, handle)
 '''

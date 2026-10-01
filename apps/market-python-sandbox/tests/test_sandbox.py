@@ -530,3 +530,15 @@ def test_api_requires_the_bearer_key_and_rejects_unknown_fields(make_service, go
     assert runtime["isolation"]["isolation_enforced"] is True and "not a network namespace" in runtime[
         "network_isolation"]
     assert api.get("/ready").json() == {"status": "ready"}
+
+
+def test_the_isolation_self_test_passes_with_a_duckdb_limit_above_one_gib(make_service, governor) -> None:
+    """Live 2026-10-01: PY_SANDBOX_MAX_MEMORY_MB=4096 gives DuckDB 2048 MB, which DuckDB shows as "1.9 GiB"; the
+    self-test compared it with a fixed 2 MB tolerance, failed duckdb_memory_limit and /ready stayed 503. The tolerance
+    is now half of the last digit DuckDB shows."""
+    service = make_service(PY_SANDBOX_MAX_MEMORY_MB="4096")
+    assert service.settings.duckdb_memory_mb == 2048
+    api = TestClient(create_app(service.settings, service=service, run_workers=False))
+    runtime = api.get("/v1/runtime", headers=HEADERS).json()
+    assert runtime["isolation"]["isolation_enforced"] is True, runtime["isolation"]
+    assert api.get("/ready").json() == {"status": "ready"}
