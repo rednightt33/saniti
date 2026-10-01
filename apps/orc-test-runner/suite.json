@@ -1,7 +1,7 @@
 {
   "prefix": "ma-batch-20261001a",
   "workers": 2,
-  "audit_wait_seconds": 120,
+  "audit_wait_seconds": 30,
   "items": [
     {
       "id": "m01_broker_bank_crash",
@@ -29,5 +29,12 @@
       "message": "Berapa total net beli investor asing di pasar reguler untuk saham bbca selama Agustus 2026?",
       "expect": "P14: lower-case or other spellings of Investor Type / Market Board / ticker resolved or refused with the stored values before extraction (TEXT_VALUE_RESOLVED / VALUE_NOT_FOUND)"
     }
+  ],
+  "audit_only": true,
+  "audit_request_ids": [
+    "ma-batch-20261001a-m01_broker_bank_crash-1-m4a",
+    "ma-batch-20261001a-m01_broker_bank_crash-1-m4b",
+    "ma-batch-20261001a-m01_broker_bank_crash-1-m4c",
+    "ma-batch-20261001a-m01_broker_bank_crash-1-m4d"
   ]
 }

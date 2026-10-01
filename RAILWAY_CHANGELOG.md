@@ -33,7 +33,28 @@ Tested locally first: market-ai-orc 907, market-python-sandbox 642, market-sql-g
     item 4 covers the rest);
   - the research library text was not changed for P13 (its hash binds `AI_research_library`; a change needs a
     regenerated migration).
-- Live verification: suite `ma-batch-20261001a` (runner `a47112ce`), results below when it completes.
+- **Live verification** (suite `ma-batch-20261001a`, runner `a47112ce`; m01 sub-runs read back by `ce284bda`):
+
+  | Item | `ma-steps-20261001a` (36K) | `ma-batch-20261001a` |
+  |---|---:|---:|
+  | m01 turn 1 (mode 4) | 3,193 s | **688 s** |
+  | m4a / m4b / m4c / m4d | 1,250 / 972 / 474 / 496 s | 324 / 146 / 173 / 45 s |
+  | Longest model call in m4a / m4b | 109 / 341 s | 34 / 47 s |
+  | m4b catalog reads (discover / details / dimension values) | 2 / 3 / 6 | 3 / 1 / 0 |
+  | m01 turn-1 reasoning tokens | 148,412 | 63,990 |
+  | e02 (plan + answer) | 393 + 215 s | 90 + 54 s |
+  | a05 | 111 s | 55 s |
+
+  - Aliases: no alias names two outputs in any record (P1).
+  - The record carries category values and 19 relationships into later steps (P5).
+  - Two refusals were repaired by edits (`ai_final_edit_applied`).
+  - The new question a06 ("investor asing", "pasar reguler", "bbca") was approved with the stored spellings, so the
+    case matching (P14 / G16) was not exercised live; unit tests cover it.
+  - Not exercised live: P6 shrinking, P7 messages, P8, P10 unwrapping.
+  - m01 turn 2 was classified as a REVISE of the pending plan (`research_plan_reply_classified` action REVISE) and
+    answered with a clarification (bank BUMN: the four state banks, or regional banks too?) instead of a new analysis
+    round (in `ma-steps` it ran a full FIRST round); this is the existing reply-classifier path, not a change of this
+    batch.
 
 ## 2026-10-01 — Live trial: `AI_PLANNER_PARALLEL_PARTS=2`, `AI_ENABLE_EDIT_REPAIR=true` (suite `ma-flags-20261001a`)
 
