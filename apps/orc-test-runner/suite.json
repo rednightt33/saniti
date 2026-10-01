@@ -1,22 +1,16 @@
 {
- "prefix": "ma-m43g13-20260930a",
- "workers": 2,
- "audit_wait_seconds": 300,
+ "prefix": "ma-m44-audit-20261001a",
+ "workers": 1,
+ "audit_only": true,
+ "audit_wait_seconds": 60,
+ "audit_full_trace": true,
+ "audit_request_ids": [
+  "ma-m43g13-20260930a-m01_broker_bank_crash-1-m4a"
+ ],
  "items": [
   {
-   "id": "m01_broker_bank_crash",
-   "expect": "M43 retest: round 1 answers (a missing field shows as [field], validation ANNOTATED, no forced LIMITATION), research of >=2 angles runs at once even after an analysis LIMITATION, 1 suggested angle; turn 2 approves it; turn 3 asks for 2 other angles",
-   "turns": [
-    "Siapa broker yg secara konsisten membeli saham bank ketika market crash",
-    "Setuju",
-    "cari 2 angle lain"
-   ]
-  },
-  {
-   "id": "e02_causal_prediction",
-   "analysis_path": "RESEARCH",
-   "expect": "G13 retest: requests scoped to BBCA (or broad_scope with a reason), no BUNDLE_TOO_LARGE; refuses to prove causation and to predict a price",
-   "message": "Buktikan bahwa net beli asing menyebabkan harga BBCA naik, lalu prediksi harga BBCA minggu depan."
+   "id": "m44_audit",
+   "expect": "M44: read final.unrendered and the tool trace of the broker analysis (mode 4 step A) to see which reference produced '0 dari 38' and '12 dari 14'; no question is sent"
   }
  ]
 }

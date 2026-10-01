@@ -139,10 +139,11 @@ def audit_run(request_id, wait_seconds):
         time.sleep(20)
 
 
-def audit_item(item_id, turn, request_id, wait_seconds):
+def audit_item(item_id, turn, request_id, wait_seconds, full_trace=False):
     """AUDIT_STORE_READER_KEY only: the run's status and event counts as an `OTR audit` line, then the drafts the
     gates refused (final.rejected / final.forced / final.unrendered, read in full from the TOOL_TRACE artifact) as
-    `OTRDUMP audit:<item>:<turn>` chunks."""
+    `OTRDUMP audit:<item>:<turn>` chunks. full_trace: every TOOL_TRACE event (tool results included) as
+    `OTRDUMP trace:<item>:<turn>` chunks."""
     code, run = audit_run(request_id, wait_seconds)
     if code == 404:
         return
@@ -186,9 +187,17 @@ def audit_item(item_id, turn, request_id, wait_seconds):
                 for e in events if e.get("type") in ("model.call", "tool.call", *AUDIT_KINDS)]
     dump(f"audit:{item_id}:{turn}", {"item": item_id, "turn": turn, "run_id": run["run_id"], "timeline": timeline,
                                      "events": [e for e in events if e.get("type") in AUDIT_KINDS]})
+    if full_trace:
+        dump(f"trace:{item_id}:{turn}", {"item": item_id, "turn": turn, "run_id": run["run_id"], "events": events})
 
 
 def audit(suite):
+    if suite.get("audit_request_ids"):
+        # explicit request ids, e.g. the sub-runs of a mode 4 turn (<request_id>-m4a), which the item/turn naming
+        # below cannot reach
+        for request_id in suite["audit_request_ids"]:
+            audit_item(request_id, 0, request_id, suite.get("audit_wait_seconds", 300), suite.get("audit_full_trace"))
+        return
     prefix = suite["prefix"]
     for item in suite["items"]:
         for turn in (1, 2):
