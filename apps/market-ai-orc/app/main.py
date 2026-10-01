@@ -33,7 +33,7 @@ from .tools.catalog import CatalogTools
 from .tools.library import read_research_library
 from .tools.registry import ToolError
 from .tools.request_data import GovernorClient
-from .tools.session import close_sessions
+from .tools.session import close_sessions, read_output
 
 REUSE_VERSION = 1  # the conversation reuse contract both services must report
 FEASIBILITY_VERSION = 1  # the Research Plan feasibility endpoints of the sandbox
@@ -228,6 +228,8 @@ def create_app(
         provider_logger = ProviderLogger(owned_client) if settings.ai_log_provider else None
         # (request_id, session_ids): the sessions a run leaves open are closed when it ends (S05)
         closer = partial(close_sessions, sandbox) if sandbox is not None and settings.ai_enable_dataneed else None
+        # (session_id, output_id, request_id, offset, limit): rows of a released output an answer references (M44)
+        row_reader = partial(read_output, sandbox) if sandbox is not None and settings.ai_enable_dataneed else None
         resources = None
         if settings.ai_enable_conversation_reuse and sandbox is not None and settings.ai_enable_dataneed:
             # both services must have reuse on, at the same version; otherwise reuse stays off (fail closed)
@@ -241,7 +243,8 @@ def create_app(
                                          catalog_summary=summary, provider_logger=provider_logger,
                                          session_closer=closer, conversation_resources=resources,
                                          draft_reader=sandbox.get_draft if feasibility else None,
-                                         derived_frequency=derived_frequency, audit_outbox=audit_outbox)
+                                         derived_frequency=derived_frequency, audit_outbox=audit_outbox,
+                                         row_reader=row_reader)
     if settings.ai_enable_mode4 and isinstance(orchestrator, AgentOrchestrator):
         # mode 4 builds on the caller-chosen paths and on Multi-Angle Research (its plans are research_plan/v2)
         if orchestrator.analysis_path and orchestrator.multi_angle:

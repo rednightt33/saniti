@@ -52,6 +52,78 @@ class MissingField(ReferenceError_):
         self.name = name
 
 
+TABLE_FETCH_ROWS = 200  # rows per page read from the sandbox (its get_session_output maximum)
+TABLE_MAX_FETCHES = 25  # pages a table may read at render time (at most 5,000 rows)
+
+
+class TableRows:
+    """M44 (2026-10-01): the rows of one released table by their position in the complete table (`_row`).
+
+    Every page the run reads (complete_analysis contents at offset 0, get_session_output at its offset) adds rows and
+    never replaces them, so a reference means the same row whatever was read last. A row the run has not read is
+    fetched from the released output when the answer is rendered (fetch(offset, limit) -> (rows, row_count))."""
+
+    def __init__(self, row_count: int | None = None,
+                 fetch: Any | None = None) -> None:
+        self.rows: dict[int, Any] = {}
+        self.row_count = row_count
+        self.fetch = fetch
+        self.fetches = 0
+
+    def add(self, offset: int, rows: list[Any], row_count: int | None = None) -> None:
+        for i, row in enumerate(rows):
+            if isinstance(row, dict):
+                row["_row"] = offset + i  # shown to the model too: the row's position in the complete table
+            self.rows[offset + i] = row
+        if row_count is not None:
+            self.row_count = row_count
+
+    def _read(self, offset: int) -> bool:
+        if self.fetch is None or self.fetches >= TABLE_MAX_FETCHES:
+            return False
+        self.fetches += 1
+        try:
+            rows, row_count = self.fetch(offset, TABLE_FETCH_ROWS)
+        except Exception:  # noqa: BLE001 - an unreadable page leaves the reference unresolved, never wrong
+            return False
+        self.add(offset, rows, row_count)
+        return bool(rows)
+
+    def get(self, index: int) -> Any:
+        if index < 0:
+            if self.row_count is None:
+                return None
+            index += self.row_count
+        if index not in self.rows and (self.row_count is None or 0 <= index < self.row_count):
+            self._read(index - index % TABLE_FETCH_ROWS)
+        return self.rows.get(index)
+
+    def all(self) -> list[Any]:
+        """Every row of the table (read on demand, bounded by TABLE_MAX_FETCHES)."""
+        offset = 0
+        while self.row_count is None or offset < self.row_count:
+            if any(i not in self.rows for i in range(offset, min(offset + TABLE_FETCH_ROWS, self.row_count or 0))) \
+                    or (self.row_count is None and offset not in self.rows):
+                if not self._read(offset):
+                    break
+            offset += TABLE_FETCH_ROWS
+        return [self.rows[i] for i in sorted(self.rows)]
+
+    def identity_column(self) -> str | None:
+        """A text column whose values are unique across the rows read (broker, ticker, series code, date), derived
+        from the data; None when no column identifies a row."""
+        rows = [row for row in self.rows.values() if isinstance(row, dict)]
+        if len(rows) < 2:
+            return None
+        for column in rows[0]:
+            if column == "_row":
+                continue
+            values = [row.get(column) for row in rows]
+            if all(isinstance(v, str) for v in values) and len(set(values)) == len(values):
+                return column
+        return None
+
+
 @dataclass
 class Resolved:
     value: float
@@ -159,6 +231,8 @@ def _step(value: Any, part: str, walked: str, path: str) -> tuple[Any, str]:
     if selector:
         items, walked = _step(value, selector.group("key").strip(), walked, path)
         column, wanted = selector.group("column").strip(), selector.group("value").strip().strip("'\"")
+        if isinstance(items, TableRows):
+            items = items.all()  # M44: the selector searches the complete table, not the last page read
         if not isinstance(items, list):
             raise ReferenceError_(f"'{path}': {walked} is not a list of rows")
         for row in items:
@@ -171,6 +245,20 @@ def _step(value: Any, part: str, walked: str, path: str) -> tuple[Any, str]:
             raise MissingField(f"'{path}': {walked} has no field {part!r}; its fields: "
                                f"{', '.join(list(value)[:15])}", part)
         return value[part], f"{walked}.{part}"
+    if isinstance(value, TableRows):
+        if not part.lstrip("-").isdigit():
+            raise ReferenceError_(f"'{path}': {walked} is a table; use a row selector [column=value]")
+        key = value.identity_column()
+        if key is not None:
+            # M44: a row position next to a name can take another entity's row; a keyed table is read by its key
+            row = value.get(int(part))
+            hint = f"{walked}[{key}={row.get(key)}]" if isinstance(row, dict) else f"{walked}[{key}=<value>]"
+            raise ReferenceError_(f"'{path}': {walked} is identified by {key!r}; reference its rows by that column, "
+                                  f"for example {hint}, not by position")
+        row = value.get(int(part))
+        if row is None:
+            raise ReferenceError_(f"'{path}': {walked} has no row {part} (rows: {value.row_count})")
+        return row, f"{walked}.{part}"
     if isinstance(value, list):
         if not part.lstrip("-").isdigit() or not -len(value) <= int(part) < len(value):
             raise ReferenceError_(f"'{path}': {walked} is a list of {len(value)} items; use an index 0 to "
@@ -306,6 +394,46 @@ def _text_numbers(text: str) -> list[float]:
     return [value for shown in parse_numbers(text) for value, _ in shown.candidates]
 
 
+LIST_ITEMS = 8  # items of a list shown before "(+N lainnya)"
+
+
+def _display(raw: Any, label: str, fmt: str | None, places: int | None, path: str, out: "Rendering") -> str | None:
+    """P14 (2026-10-01): how a non-numeric value is shown, or None for a number (formatted by the caller). Every value
+    the AI can reference has a display; only an object or a table (no single rendering) becomes a [field] marker."""
+    if isinstance(raw, bool):
+        return "ya" if raw else "tidak"
+    if raw is None:
+        return "null"  # user decision 2026-10-01
+    if isinstance(raw, float) and not math.isfinite(raw):
+        return "undefined"  # NaN, inf (user decision 2026-10-01)
+    if isinstance(raw, (int, float)) or (isinstance(raw, str) and _number(raw) is not None):
+        return None
+    if isinstance(raw, str):
+        shown = _text(raw)  # a number format on a text is not applicable: the text is shown as written
+        out.values.extend(Resolved(v, label) for v in _text_numbers(shown))
+        return shown
+    if isinstance(raw, list):
+        if not raw:
+            return "tidak ada"
+        if any(isinstance(item, (dict, list, TableRows)) for item in raw):
+            raise MissingField(f"'{path}' is a list of objects; reference one item by its index or a selector",
+                               _split(path)[-1])
+        shown = []
+        for item in raw[:LIST_ITEMS]:
+            text = _display(item, label, fmt, places, path, out)
+            if text is None:
+                number = float(_number(item))
+                out.values.append(Resolved(number, label))
+                text = format_value(number, fmt, places)
+            shown.append(text)
+        more = f" (+{len(raw) - LIST_ITEMS} lainnya)" if len(raw) > LIST_ITEMS else ""
+        return "; ".join(shown) + more
+    if isinstance(raw, (dict, TableRows)):
+        names = ", ".join(list(raw)[:12]) if isinstance(raw, dict) else "rows by [column=value]"
+        raise MissingField(f"'{path}' is an object, not one value; its fields: {names}", _split(path)[-1])
+    raise ReferenceError_(f"'{path}' has no display ({type(raw).__name__})")
+
+
 def render(text: str | None, sources: ReferenceSources) -> Rendering:
     """Replace every {{reference|format}} with its formatted value. An unresolved reference is reported and shown as
     UNRESOLVED; text without references is returned unchanged."""
@@ -318,11 +446,11 @@ def render(text: str | None, sources: ReferenceSources) -> Rendering:
         places = match.group("places")
         expression = match.group("expr").strip().rstrip("\\").strip()
         try:
-            if not match.group("fmt") and not FUNC_RE.match(expression):
+            if not FUNC_RE.match(expression):
                 raw, label = sources.resolve(expression)
-                if isinstance(raw, str) and _number(raw) is None:
-                    shown = _text(raw)
-                    out.values.extend(Resolved(v, label) for v in _text_numbers(shown))
+                shown = _display(raw, label, match.group("fmt"), int(places) if places is not None else None,
+                                 expression, out)
+                if shown is not None:
                     return shown
             resolved = evaluate(expression, sources)
             shown = format_value(resolved.value, match.group("fmt"), int(places) if places is not None else None)

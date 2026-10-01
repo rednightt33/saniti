@@ -172,11 +172,13 @@ def test_an_annotated_draft_refused_by_another_gate_does_not_mark_the_clean_answ
     assert result.response.limitations == clean.response.limitations  # no missing-field line from the refused draft
 
 
-def test_another_unresolved_reference_is_refused_once_then_forced() -> None:
+def test_another_unresolved_reference_is_refused_once_then_marked() -> None:
+    # P14 (user decision 2026-10-01): after its repair the reference is marked, the answer keeps its type
     bad = narrative_answer("Selisih {{finding.a_nope.estimate}}.")  # an unknown angle, not a missing field
     result, _ = refs_run([*RUN_SCRIPT, final_response(bad), final_response(bad)])
-    assert result.response.response_type == "LIMITATION" and result.execution.validation_gate == "FORCED_LIMITATION"
+    assert result.response.response_type == "ANSWER" and result.execution.validation_gate == "ANNOTATED"
     assert UNRESOLVED in result.response.answer
+    assert any("[nilai tidak tersedia]" in line for line in result.response.limitations)
     assert [f.status for f in result.response.research_findings] == ["SUPPORTED", "INSUFFICIENT_EVIDENCE", "NOT_RUN"]
 
 
@@ -187,10 +189,10 @@ def test_each_distinct_reference_error_gets_one_repair_up_to_two() -> None:  # P
     result, scripted = refs_run([*RUN_SCRIPT, final_response(first), final_response(second), final_response(third)])
     assert "a_nope" in str(scripted.payloads[4]["input"][-1]) and "a_other" in str(scripted.payloads[5]["input"][-1])
     assert len(scripted.payloads) == 6  # the third distinct error finds the budget spent: no third repair
-    assert result.response.response_type == "LIMITATION"
+    assert result.response.response_type == "ANSWER" and UNRESOLVED in result.response.answer  # marked (P14)
     same = narrative_answer("Selisih {{finding.a_nope.estimate}}.")
     result, scripted = refs_run([*RUN_SCRIPT, final_response(first), final_response(same)])
-    assert len(scripted.payloads) == 5 and result.response.response_type == "LIMITATION"  # the same error: one
+    assert len(scripted.payloads) == 5 and result.response.response_type == "ANSWER"  # the same error: one repair
 
 
 def test_a_typed_truncated_figure_is_refused_and_a_reference_repairs_it() -> None:
@@ -252,18 +254,26 @@ def test_p10_the_r08_sentence_passes_the_findings_gate_and_a_real_claim_does_not
 
 # ---------------------------------------------------------------- sources of the DataNeed analysis flow
 
+def tracker(row_reader=None) -> AgentOrchestrator:
+    """An orchestrator with only what _track_references needs (the reader of released rows, M44)."""
+    orc = AgentOrchestrator.__new__(AgentOrchestrator)
+    orc.row_reader = row_reader
+    return orc
+
+
 def test_released_outputs_and_facts_become_referable_and_show_their_ref() -> None:
     from app.orchestrator import RunState
     from app.tools import ToolOutcome
 
     state = RunState(request_id="r", started=0.0, input_items=[])
+    orc = tracker()
     completion = {"result": {"status": "COMPLETED", "released_contents": [
         {"output_id": "out_1", "name": "top5", "type": "TABLE", "rows": [{"ticker": "BBRI", "ret": 0.0412}]}]}}
-    AgentOrchestrator._track_references(state, "complete_analysis",
+    orc._track_references(state, "complete_analysis",
                                         ToolOutcome(call_id="c", name="complete_analysis", ok=True, output=completion))
     facts = {"result": {"decision": "FACTS_READY", "facts": [{"kind": "AGGREGATE", "value": 1234.5},
                                                              {"kind": "VALUE", "value": 7}]}}
-    AgentOrchestrator._track_references(state, "lookup_fact",
+    orc._track_references(state, "lookup_fact",
                                         ToolOutcome(call_id="d", name="lookup_fact", ok=True, output=facts))
     assert completion["result"]["released_contents"][0]["ref"] == "out.out_1"
     assert [f["ref"] for f in facts["result"]["facts"]] == ["fact.1", "fact.2"]

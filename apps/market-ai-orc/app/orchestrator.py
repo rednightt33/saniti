@@ -34,7 +34,7 @@ from .schemas import (
 )
 from .provenance import (CONTEXT, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
                          parse_numbers, released_numbers, requested_statistics, weakest)
-from .value_refs import ReferenceSources, Resolved, format_value, render
+from .value_refs import ReferenceSources, Resolved, TableRows, format_value, render
 from .tools import ToolOutcome, ToolRegistry, error_outcome
 from .tools.analysis import current_conversation_key, current_run_context, run_context
 from .tools.registry import strict_parameters_schema
@@ -610,7 +610,10 @@ Compute anything else in the analysis and release it. A figure the user
 wrote, a date and a year may be typed as they are. A text value (a ticker,
 a broker, a label) may be referenced without a format and is shown as
 written; rows[<index>] works like rows.<index>; inside a Markdown table
-write the reference unchanged. A reference that does not resolve is
+write the reference unchanged. A row of a table whose rows are identified
+by a column (a broker, a ticker, a code, a date) is referenced by that
+column, rows[<column>=<value>], never by position; each row shows _row,
+its position in the complete table. A reference that does not resolve is
 refused with the references that exist."""
 VALUE_REFERENCE_CONTRACT = ("Figures from data are value references {{...}} (see VALUE REFERENCES), never typed "
                             "numbers. ")
@@ -623,9 +626,11 @@ REFERENCE_INSTRUCTION = (
     "results of this run show (each referable object carries its \"ref\"), with a known format, or remove the figure.")
 REFERENCE_HINT = (" Write each data figure as a value reference {{...}} (see VALUE REFERENCES): the backend fills it "
                   "in and rounds it, so it never needs to be typed.")
-REFERENCE_NOTICE = "Some figures below could not be filled in from this run's results. "
 # M43 (user decision 2026-09-30): a reference to a field the result does not have stays in the answer as [field]
 MISSING_FIELD_LINE = "Angka berikut tidak dapat diisi karena field-nya tidak ada di hasil run ini: {fields}."
+# P14 (user decision 2026-10-01): a reference that still does not resolve after its repairs is marked, never the cause
+# of a discarded answer (the marker holds no figure, so provenance is unaffected)
+UNRESOLVED_LINE = "Sebagian angka tidak dapat diisi dari hasil run ini dan ditandai [nilai tidak tersedia]."
 MAX_REFERENCE_REPAIRS = 2  # P16: one repair per distinct set of failing references, at most this many per run
 NOT_INTERPRETED = "Tidak diinterpretasikan oleh model."
 BACKEND_ONLY_USEFULNESS = "Ringkasan dari backend; interpretasi model untuk sudut ini tidak tersedia."
@@ -1350,6 +1355,7 @@ class RunState:
     ref_sources: ReferenceSources = field(default_factory=ReferenceSources)
     ref_values: list[Resolved] = field(default_factory=list)
     ref_facts: int = 0
+    ref_tables: dict[str, TableRows] = field(default_factory=dict)  # M44: output_id -> rows by position
     references_used: int = 0
     # M43 (2026-09-30): the final answer kept references to missing fields as [field] (validation_gate ANNOTATED)
     reference_annotated: bool = False
@@ -1381,8 +1387,12 @@ class AgentOrchestrator:
         draft_reader: Callable[[str], dict[str, Any] | None] | None = None,
         derived_frequency: bool = False,
         audit_outbox: Any | None = None,
+        row_reader: Callable[..., dict[str, Any]] | None = None,
     ) -> None:
         self.settings = settings
+        # M44: reads rows of a released output the run has not read, when an answer references them
+        # (session_id, output_id, request_id, offset, limit) -> the sandbox's output body
+        self.row_reader = row_reader
         # IP2: weekly/monthly derived from daily rows (AI_ENABLE_DERIVED_FREQUENCY and the sandbox capability, checked
         # at startup) and the audit outbox writer (AI_AUDIT_STORE_ENABLED)
         self.derived_frequency = derived_frequency and settings.ai_enable_dataneed
@@ -2250,7 +2260,7 @@ class AgentOrchestrator:
         self._track_sources(state, name, self._normalized_arguments(raw_arguments), outcome)
         self._track_dataneed(state, name, self._normalized_arguments(raw_arguments), outcome)
         if self.value_references:
-            self._track_references(state, name, outcome)
+            self._track_references(state, name, outcome, self._normalized_arguments(raw_arguments))
         result_hash = stable_hash(outcome.output)
         count = count + 1 if last_result in (None, result_hash) else 1
         state.call_history[key] = (count, result_hash)
@@ -2737,20 +2747,44 @@ class AgentOrchestrator:
                      "prediction.")
         return lines
 
-    @staticmethod
-    def _track_references(state: RunState, name: str, outcome: ToolOutcome) -> None:
-        """P11: register what the final response may reference, and show each referable object its "ref"."""
+    def _row_fetcher(self, state: RunState, session_id: str | None, output_id: str) -> Any:
+        if self.row_reader is None or not session_id:
+            return None
+
+        def fetch(offset: int, limit: int) -> tuple[list[Any], int | None]:
+            body = self.row_reader(session_id, output_id, state.request_id, offset, limit)
+            if not body.get("released") or not isinstance(body.get("rows"), list):
+                return [], body.get("row_count")
+            return body["rows"], body.get("row_count")
+        return fetch
+
+    def _track_references(self, state: RunState, name: str, outcome: ToolOutcome,
+                          arguments: dict[str, Any] | None = None) -> None:
+        """P11: register what the final response may reference, and show each referable object its "ref".
+        M44 (2026-10-01): a table's rows are kept by their position in the complete table; a page read later adds
+        rows and never replaces the ones read before, and each row carries `_row`, its position in the table."""
         if not outcome.ok:
             return
         result = outcome.output.get("result")
         if not isinstance(result, dict):
             return
         sources = state.ref_sources
+        session_id = result.get("session_id") or (arguments or {}).get("session_id")
 
-        def output(entry: Any) -> None:
-            if isinstance(entry, dict) and entry.get("output_id"):
-                sources.add("out", str(entry["output_id"]), entry, "DATA_COVERAGE_VERIFIED")
-                entry["ref"] = f"out.{entry['output_id']}"
+        def output(entry: Any, offset: int = 0) -> None:
+            if not (isinstance(entry, dict) and entry.get("output_id")):
+                return
+            output_id = str(entry["output_id"])
+            registered = entry
+            if isinstance(entry.get("rows"), list):
+                table = state.ref_tables.get(output_id)
+                if table is None:
+                    table = TableRows(entry.get("row_count"), fetch=self._row_fetcher(state, session_id, output_id))
+                    state.ref_tables[output_id] = table
+                table.add(offset, entry["rows"], entry.get("row_count"))
+                registered = {**{k: v for k, v in entry.items() if k != "rows"}, "rows": table}
+            sources.add("out", output_id, registered, "DATA_COVERAGE_VERIFIED")
+            entry["ref"] = f"out.{output_id}"
 
         if name == "complete_research_run":
             for finding in result.get("research_findings") or []:
@@ -2767,7 +2801,7 @@ class AgentOrchestrator:
                     sources.add("finding", str(finding["hypothesis_id"]), finding, "DATA_COVERAGE_VERIFIED")
                     finding["ref"] = f"finding.{finding['hypothesis_id']}"
         elif name == "get_session_output" and result.get("released"):
-            output(result)
+            output(result, int(result.get("offset") or 0))
         elif name == "lookup_fact" and result.get("decision") == "FACTS_READY":
             for fact in result.get("facts") or []:
                 if isinstance(fact, dict):
@@ -2802,7 +2836,8 @@ class AgentOrchestrator:
         is refused for repair once per distinct set of failing references (at most MAX_REFERENCE_REPAIRS per run,
         P16). After that, a reference to a field the object does not have (or to an object) stays in the answer as
         [field] with a limitation line and the response keeps its type (M43, user decision 2026-09-30); any other
-        unresolved reference makes the response a LIMITATION with the unresolved figures marked."""
+        unresolved reference is shown as [nilai tidak tersedia] with a limitation line, and the response also keeps
+        its type (P14, user decision 2026-10-01)."""
         state.reference_annotated = False  # it describes this final only, not an earlier refused draft
         if not self.value_references or final.response_type not in ("ANSWER", "LIMITATION"):
             return final, False
@@ -2848,14 +2883,15 @@ class AgentOrchestrator:
         kind = "REFERENCE:" + stable_hash(failing)[:12]
         spent = sum(1 for k in state.gate_kinds_rejected if k.startswith("REFERENCE"))
         self._gate_once(state, kind, REFERENCE_INSTRUCTION.format(problems=detail),
-                        allowed=spent < MAX_REFERENCE_REPAIRS, outcome="FORCED_LIMITATION" if problems else "ANNOTATED")
+                        allowed=spent < MAX_REFERENCE_REPAIRS, outcome="ANNOTATED")
+        lines = []
+        if missing:
+            lines.append(MISSING_FIELD_LINE.format(fields=", ".join(dict.fromkeys(name for _, name, _ in missing))))
         if problems:
-            return self._forced(state, rendered, REFERENCE_NOTICE,
-                                [f"Value references that did not resolve: {detail}."]), True
-        names = ", ".join(dict.fromkeys(name for _, name, _ in missing))
-        line = MISSING_FIELD_LINE.format(fields=names)
+            # P14 (user decision 2026-10-01): marked [nilai tidak tersedia], the answer keeps its type
+            lines.append(UNRESOLVED_LINE)
         state.reference_annotated = True  # validation_gate ANNOTATED, set when this final passes the other gates
-        return rendered.model_copy(update={"limitations": [*rendered.limitations, line]}), False
+        return rendered.model_copy(update={"limitations": [*rendered.limitations, *lines]}), False
 
     def _finalize_findings(self, state: RunState, final: FinalResponse) -> FinalResponse:
         """Multi-Angle Research after a completed run: every LIMITATION carries the backend's per-angle findings (M39),

@@ -1015,12 +1015,32 @@ Missing fields, dotted keys and repairs (M43, P14, P15, P16; user decisions 2026
   a LIMITATION. After the repair (below) it is rendered as `[<field name>]` only, e.g. `[min_crash_days_filter]`; the
   answer keeps its `response_type`, `limitations` gains "Angka berikut tidak dapat diisi karena field-nya tidak ada di
   hasil run ini: <fields>." and `validation_gate` is `ANNOTATED`. The marker has no digits, so the other gates run
-  unchanged. Every other reference error still ends in a LIMITATION after its repair: a whole list (P14 r08
-  `warnings`), a text value with a number format, a malformed or unclosed reference, an unknown namespace or output.
+  unchanged. Since 2026-10-01 (P14) no reference error ends in a LIMITATION: lists and texts with a format have a
+  display, and any other unresolved reference is marked `[nilai tidak tersedia]` (see below).
 - A key whose name contains a dot (`XL_crash_pos_days_1.0`) resolves: inside an object an exact segment is tried first,
   then the segment joined with the following ones by dots, backtracking when a join leads nowhere (P15).
 - The repair is per distinct set of failing references (`REFERENCE:<hash>`), at most `MAX_REFERENCE_REPAIRS` (2) per
   run: the same failing set gets no second repair, and a new error after an earlier repaired one gets its own (P16).
+
+Complete tables and every value (M44, P14; `ANSWER_INTEGRITY_FIX_PLAN.md`, user decisions 2026-10-01):
+
+- **Rows by position in the complete table (M44).** A released table is kept per output as its rows by absolute
+  position (`TableRows` in `app/value_refs.py`): `complete_analysis` contents at offset 0 and every
+  `get_session_output` page at its offset. A later page adds rows and never replaces earlier ones (before, the last
+  page replaced the entry, so `rows[0]` meant the first row of that page). Each row carries `_row`, its position in
+  the complete table, which the model sees. A row the run has not read is read by the backend from the released
+  output when the answer is rendered (`row_reader`, `app/tools/session.py` `read_output`; at most 25 pages of 200
+  rows per table), and a selector `rows[<column>=<value>]` searches the complete table.
+- **Keyed tables by key (M44).** When a text column has unique values across the rows read (a broker, a ticker, a
+  code, a date; derived from the data), a reference by position (`rows.3`, `rows[3]`) is refused, and the message
+  names the selector of the row the position meant (`rows[broker=XL]`). Tables without such a column keep positions.
+- **Every value has a display (P14).** A number is formatted as before; a text is shown as written (a number format
+  on a text is not applicable); `true`/`false` as `ya`/`tidak`; `null` as `null`; `NaN`/`inf` as `undefined`; a list
+  of numbers or texts joined with `; ` (at most 8 items, then `(+N lainnya)`, numbers formatted and added to the
+  provenance sources); an empty list as `tidak ada`; an object, a table or a list of objects as `[field]`.
+- **No discarded answer for a reference (P14).** A reference that still does not resolve after its repairs is shown as
+  `[nilai tidak tersedia]` with one limitation line, the answer keeps its type and `validation_gate` is `ANNOTATED`
+  (before: a forced LIMITATION). The marker holds no figure, so number provenance is unchanged.
 
 **Audit of refused finals (2026-09-30).** With `AI_AUDIT_STORE_ENABLED`, the run's events also carry `final.rejected`
 (iteration, gate stage or format problem, detail, the refused draft: visible output only, URLs redacted, at most

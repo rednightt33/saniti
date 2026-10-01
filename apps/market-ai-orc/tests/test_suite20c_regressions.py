@@ -89,9 +89,10 @@ def test_a_text_value_is_shown_as_written_and_its_numbers_become_sources() -> No
     assert [(v.value, v.label) for v in out.values] == [(12.0, "CALCULATION_VERIFIED")]
 
 
-def test_a_text_value_with_a_number_format_is_still_refused() -> None:
+def test_a_text_value_with_a_number_format_is_shown_as_written() -> None:
+    # P14 (user decision 2026-10-01): every value has a display; a number format does not apply to a text
     out = render("{{out.o1.rows.0.Broker|pct}}", sources())
-    assert out.problems and "is text" in out.problems[0]
+    assert out.problems == [] and "{{" not in out.text
 
 
 def test_a_number_is_still_formatted_by_code() -> None:

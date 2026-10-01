@@ -209,6 +209,13 @@ def released_contents(client: SandboxClient, session_id: str, outputs: list[dict
     return contents if byte_budget is None else _within(contents, byte_budget)
 
 
+def read_output(client: SandboxClient, session_id: str, output_id: str, request_id: str, offset: int, limit: int,
+                timeout: float = 15.0) -> dict[str, Any]:
+    """One page of a released output, read by the backend (M44: rows an answer references but the run did not read)."""
+    return _call(client, "GET", f"/v1/sessions/{session_id}/outputs/{output_id}", timeout=timeout,
+                 params={"request_id": request_id, "offset": offset, "limit": limit})
+
+
 def close_sessions(client: SandboxClient, request_id: str, session_ids: list[str], timeout: float = 15.0
                    ) -> dict[str, str]:
     """Close sessions of this request (S05): session_id -> close_reason, or CLOSE_FAILED. The sandbox closes a
