@@ -395,7 +395,7 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
             return session_error(exc)
 
     @app.post("/v1/research-runs", dependencies=dataneed_routes)
-    def promote_research(body: Any = Body(...)) -> Any:
+    def promote_research(body: Any = Body(...), key: str | None = Depends(conversation_key)) -> Any:
         """Multi-Angle Research: promote the signed feasibility drafts of an approved research_plan/v2 (one approved
         RESEARCH need per bundle group) after the Research Governor v2 approved its declaration."""
         keys = {"request_id", "origin_request_id", "research_governance", "research_data_plan"}
@@ -405,7 +405,8 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
             return invalid_body("{request_id, origin_request_id, research_governance, research_data_plan}")
         try:
             return dataneed.promote_research(body["request_id"], body["origin_request_id"],
-                                             body["research_governance"], body["research_data_plan"])
+                                             body["research_governance"], body["research_data_plan"],
+                                             conversation_key=key)
         except DataNeedError as exc:
             return dataneed_error(exc)
 

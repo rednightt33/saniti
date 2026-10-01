@@ -413,3 +413,24 @@ def test_a_forward_return_reads_the_price_of_another_request_and_a_price_level_o
         assert finding["status"] in ("SUPPORTED", "PARTIALLY_SUPPORTED", "INSUFFICIENT_EVIDENCE")
     assert findings["a1"]["input"]["declaration"]["roles"]["outcome"] == {"forward_return": "close",
                                                                            "request": "data_request_1_C"}
+
+
+def test_research_needs_belong_to_the_conversation(make_service, governor) -> None:
+    """M47 (2026-10-01): research needs were stored without the conversation key, so their bundles and outputs were
+    never offered or reused in later messages of the conversation."""
+    env = environment(make_service, governor, PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED="true",
+                      PY_SANDBOX_ENABLE_CONVERSATION_REUSE="true")
+    try:
+        key = "ck_" + "c" * 32
+        record = draft(env)
+        governance, data_plan = plan(record, [angle("a1", "conditional_distribution"),
+                                              angle("a2", "quantile_ranking"), angle("a3", "threshold_sensitivity")])
+        body = {"request_id": RUN, "origin_request_id": ORIGIN, "research_governance": governance,
+                "research_data_plan": data_plan}
+        run = env["api"].post("/v1/research-runs", json=body,
+                              headers={**HEADERS, "X-Saniti-Conversation-Key": key}).json()
+        assert run["status"] == "APPROVED", run
+        need = env["dataneed"].store.get_need(run["groups"][0]["need_id"])
+        assert need["conversation_key"] == key
+    finally:
+        env["dataneed"].sessions.stop()

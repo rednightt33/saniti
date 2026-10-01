@@ -248,7 +248,7 @@ class DataNeedService:
             raise DataNeedError("MULTI_ANGLE_RESEARCH_DISABLED", "Multi-angle research is not enabled.", http_status=404)
 
     def promote_research(self, request_id: str, origin_request_id: str, governance: Any,
-                         data_plan: Any) -> dict[str, Any]:
+                         data_plan: Any, conversation_key: str | None = None) -> dict[str, Any]:
         """Promote the signed feasibility drafts of an approved research_plan/v2 into one approved RESEARCH need per
         bundle group, after the Research Governor v2 approved the declaration. Every draft must be the one the plan
         was checked against (its spec hash and data contract hash) and belong to the request that proposed the plan;
@@ -318,7 +318,9 @@ class DataNeedService:
                           "submitted": submitted, "result": result,
                           "approved": {**approved, "research_governance": research}, "governance": governance,
                           "research": research, "extraction_allowed": 1, "created_at": now,
-                          "conversation_key": None, "contract_sha256": draft.get("contract_sha256")})
+                          # M47: research data belongs to the conversation too (offered and reusable later)
+                          "conversation_key": conversation_key,
+                          "contract_sha256": draft.get("contract_sha256")})
             group_rows.append({"research_run_id": run_id, "bundle_group_id": group["bundle_group_id"],
                                "need_id": need_id, "draft_id": group["draft_id"], "spec_sha256": group["spec_sha256"],
                                "angle_ids": angle_ids, "status": "APPROVED", "reason": None, "session_id": None,
