@@ -172,6 +172,9 @@ class Settings:
     # ({"edits": [{"find", "replace"}], "fields": {...}}) instead of a full rewrite; every check runs again on the
     # edited answer and an edit that does not apply exactly falls back to the full rewrite. Off: as before.
     ai_enable_edit_repair: bool = False
+    # AI_CAPTURE_REASONING (user decision 2026-10-01, dev measurement only): log the reasoning text of each model call
+    # as ai_model_reasoning events (app/reasoning_capture.py). Never sent to the audit store or back to the model.
+    ai_capture_reasoning: bool = False
     # Multi-Angle Research (MULTI_ANGLE_RESEARCH.md): research_plan/v2 with 3-6 angles, rpc2, per-angle data contracts,
     # grouped execution behind start/run/complete_research_run and backend findings per angle. Needs DataNeed v2,
     # Research Plan confirmation and feasibility, and a sandbox reporting the matching multi_angle_research capability
@@ -302,6 +305,7 @@ class Settings:
             ai_enable_preflight_parts=_boolean(env, "AI_ENABLE_PREFLIGHT_PARTS", False),
             ai_planner_parallel_parts=_integer(env, "AI_PLANNER_PARALLEL_PARTS", 1),
             ai_enable_edit_repair=_boolean(env, "AI_ENABLE_EDIT_REPAIR", False),
+            ai_capture_reasoning=_boolean(env, "AI_CAPTURE_REASONING", False),
             ai_enable_multi_angle_research=_boolean(env, "AI_ENABLE_MULTI_ANGLE_RESEARCH", False),
             ai_research_min_angles=_integer(env, "AI_RESEARCH_MIN_ANGLES", 2),
             ai_research_max_angles=_integer(env, "AI_RESEARCH_MAX_ANGLES", 6),

@@ -19,6 +19,7 @@ from .catalog_protocol import CACHE_NOTE, CACHEABLE_TOOLS, CatalogLedger, cache_
 from .compaction import dumps, estimate_tokens, stable_hash, trim_history
 from .config import Settings
 from .openrouter_client import ProviderError, response_usage
+from .reasoning_capture import log_reasoning
 from .research_plan import (CLASSIFIER_INSTRUCTIONS, CLASSIFIER_SCHEMA, ContinuationOut, PlanSigner,
                             PlanVerificationError, ReplyClassification, ResearchGuard, ResearchPlan,
                             ResearchPlanFindings,
@@ -2093,6 +2094,10 @@ class AgentOrchestrator:
                 latency_ms=latency_ms,
                 **usage,
             )
+            if self.settings.ai_capture_reasoning:
+                log_reasoning(log_event, response, request_id=state.request_id, iteration=state.iterations,
+                              tools_requested=[str(call.get("name")) for call in calls],
+                              reasoning_tokens=usage["reasoning_tokens"])
             if usage["input_tokens"] > self.settings.ai_max_context_tokens:
                 raise RunFailure("CONTEXT_LIMIT", "Provider-reported input exceeded AI_MAX_CONTEXT_TOKENS")
 

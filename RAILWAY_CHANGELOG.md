@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-10-01 — Reasoning capture switch `AI_CAPTURE_REASONING` on dev (market-ai-orc)
+
+User decision 2026-10-01: read what the model thinks on each call to find where mode 4 spends its time (m01: about
+60% of 688 s is model time, mostly reasoning; only the token count was kept).
+
+- **Code:** `app/reasoning_capture.py`; with the switch on, each model call's reasoning text is logged as
+  `ai_model_reasoning` (form TEXT / SUMMARY / ENCRYPTED / NONE, parts of 4,000 characters, at most 200,000 per call).
+  Service log only: the audit outbox and market-audit-store still refuse reasoning, and reasoning is never replayed
+  to the model. The provider request is unchanged. Tests: market-ai-orc 811 passed (101 database tests skipped
+  without a local PostgreSQL; the change touches no database code).
+- **Variable:** market-ai-orc dev `AI_CAPTURE_REASONING=true` (set with `--skip-deploys`, deployed with the code
+  push). `.railway/railway.ts` preserves it.
+- **Rollback:** `AI_CAPTURE_REASONING=false` (or delete it); nothing else depends on it.
+
 ## 2026-10-01 — Batch fixes (plan step 8) deployed on dev; settings 24K / 600 s / 10,000,000 rows
 
 Tested locally first: market-ai-orc 907, market-python-sandbox 642, market-sql-governor 224 passed.

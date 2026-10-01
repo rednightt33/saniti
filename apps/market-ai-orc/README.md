@@ -1071,6 +1071,19 @@ response, and no edit is offered for prose, cut-off drafts or strict-schema turn
 is taken as a full response. The repair budget is unchanged. Off: no edit is offered and refusals are as before. Live
 case: m4a of `ma-integrity-20261001a` spent 510 s on six full rewrites of an 18,952-character report.
 
+### Reasoning capture (dev measurement, off unless `AI_CAPTURE_REASONING=true`)
+
+`app/reasoning_capture.py` (user decision 2026-10-01). Most run time is model reasoning, but a run kept only the
+reasoning token count. With the switch on, each model call's reasoning text is written to the service log as
+`ai_model_reasoning` events: `request_id`, `iteration`, `form` (`TEXT` full reasoning, `SUMMARY` only a summary,
+`ENCRYPTED` present but unreadable, `NONE`), `reasoning_tokens`, `tools_requested`, and the text in parts of 4,000
+characters (`part`/`parts`), at most 200,000 characters per call (`truncated`). A call without readable reasoning still
+gets one event, so a missing text is visible.
+
+It goes to the service log only, under Railway's log retention. The audit outbox and market-audit-store keep refusing
+reasoning, and reasoning is never replayed to the model. The request sent to the provider does not change, so the run
+behaves the same; only log lines are added. Meant for dev measurement runs; leave it off elsewhere.
+
 ### Research Plan angle ids (M49)
 
 The angle ids of a FEASIBLE `check_research_feasibility` are the keys of its data and designs. A plan angle the model
