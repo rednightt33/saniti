@@ -41,7 +41,12 @@ future macro/FX outputs. Not exposed: tables read whole in one view.
    (broker, ticker, series code: derived from the rows, not from a list of names), a reference by position
    (`rows[3]`, `rows.3`) is refused with the selector to use (`rows[broker=XL]`). Positions stay allowed for tables
    without such a column.
-3. Prompt (support only): one sentence that rows of a table are referenced by a selector on their identity column.
+3. *Absolute row number* (user suggestion 2026-10-01): every released table row carries its position in the complete
+   table as `_row` (added by the backend when it registers or fetches rows, never by the model), so pages show true
+   positions and a position reference in a table without an identity column resolves to the same row the model read.
+   It complements items 1 and 2; it does not replace item 2, because a row number cannot stop the model from writing
+   a name next to another entity's row.
+4. Prompt (support only): one sentence that rows of a table are referenced by a selector on their identity column.
    Item 2 enforces it.
 
 **Verification.** Unit: a page read at offset 13 then `rows[broker=XL]` resolves to XL's row of the full table; a
@@ -103,8 +108,10 @@ Example: in "BBCA terbukti naik", the phrase "terbukti naik" is flagged and mark
    quote, start, end, sentence, note}` (offsets in the final `answer`), `validation_gate` `ANNOTATED`, and one
    limitation line ("Beberapa kalimat ditandai: klaim sebab-akibat/prediksi tidak didukung oleh analisis
    historis."). Additive field: clients that ignore it still get the answer and the limitation line.
-3. Optional (user to decide): also wrap the span in the answer text (for example italics) for clients without hover.
-4. Same treatment proposed for the findings verdict-wording and agreement checks (same class); to confirm.
+3. *Italics* (user decision 2026-10-01, "miring dulu saja for now"): the flagged span is also wrapped in italics in
+   `answer`, so it is visible without hover; `annotations` carries the offsets after the italics are inserted.
+4. Not extended to the findings verdict-wording and agreement checks (user decision 2026-10-01): they keep their
+   current repair-then-LIMITATION behaviour; only their shared negation rule (item 1) changes.
 
 **What stays strict.** Number provenance, value references, the findings status (from the backend) and the research
 plan gates are unchanged: a figure without a source is still never shown.
@@ -128,7 +135,7 @@ plan passed and failed after the user's approval.
 1. For `estimate_only` parts (feasibility and preflight), when the planner estimate could change a decision (at least
    `SQL_ESTIMATE_COUNT_MIN_ROWS`, default 10% of the bundle limit), the Governor runs `SELECT count(*)` over the same
    compiled SQL (scope, semi-join restrictions, ranges) under `SET LOCAL statement_timeout =
-   SQL_ESTIMATE_COUNT_TIMEOUT_MS`. The answer carries `counted_rows` and `row_basis` `COUNTED`; on a timeout
+   SQL_ESTIMATE_COUNT_TIMEOUT_MS` (default 7,000 ms, user decision 2026-10-01). The answer carries `counted_rows` and `row_basis` `COUNTED`; on a timeout
    `row_basis` is `PLANNER` with warning `ROW_ESTIMATE_UNCERTAIN`.
 2. market-ai-orc (`research_planner.py`, `data_planner.py`) uses `counted_rows` when present. An oversized plan is
    then split into bundle groups by the existing logic, or returned `REVISION_REQUIRED` with rows per request,
@@ -160,7 +167,8 @@ market-ai-orc). Each: tests, push `main`, deploy one service at a time to `SUCCE
 `RAILWAY_CHANGELOG.md` and `ERRORS_AND_SOLUTIONS.md`; Tool_Catalog version for a changed tool output
 (`check_research_feasibility` gains `row_basis`).
 
-## Decisions needed
+## Decisions
 
-- P17: italics in the answer text as well as `annotations`? Extend marking to the findings wording checks?
-- G13: turn on `SQL_ESTIMATE_COUNT_ENABLED` in dev after deploy; timeout value (proposed 3,000 ms).
+- 2026-10-01 (user): P17 flagged spans in italics as well as `annotations`; marking not extended to the findings
+  wording checks; G13 count timeout 7,000 ms; M44 adds an absolute row number column (`_row`) next to items 1 and 2.
+- Open: turn on `SQL_ESTIMATE_COUNT_ENABLED` in dev after deploy; scan of past runs for M44 (reader key ready).
