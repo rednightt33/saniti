@@ -25,8 +25,7 @@
   "audit_only": true,
   "audit_full_trace": true,
   "audit_request_ids": [
-    "ma-steps-20261001a-m01_broker_bank_crash-1-m4b",
-    "ma-steps-20261001a-m01_broker_bank_crash-2-m4a",
-    "ma-steps-20261001a-m01_broker_bank_crash-2-m4b"
+    "ma-flags-20261001a-e02_causal_prediction-2",
+    "ma-steps-20261001a-e02_causal_prediction-2"
   ]
 }
