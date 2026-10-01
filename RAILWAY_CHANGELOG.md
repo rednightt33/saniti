@@ -1,5 +1,22 @@
 # Railway changelog
 
+## 2026-10-01 — market-web-governor: `/v1/ask` separate budgets, cost per call, follow-up questions (P8, W23)
+
+- `08301c3` deployed as `9b581712` `SUCCESS`: search (USD 0.035), answer (0.02) and follow-up (0.005) budgets
+  replace the single 0.05 budget; each call's cost in `plan.timing`; "Pertanyaan lanjutan" at the end of the answer.
+  No variable changed (the defaults apply; no `WEB_ASK_*` variable is set on the governor).
+- Live test `live-ask28-20261001-q1` ("target harga goto setelah batas 50 dibuka", runner deployment `a45c636d`):
+  `ANSWERED`, 82 s, USD 0.0516, stop `all_claims_settled` at turn 3, nothing skipped, no budget passed. Search
+  0.0327 (plan 0.0003, Exa 0.0077 + 0.0079, reviews 0.0029 + 0.0031, select 0.0032, one read 0.0074), answer 0.0174
+  (answer with reasoning high 0.0085 in 52 s, implications 0.0089), follow-up 0.0016 (5 questions). The same
+  question on 2026-09-30 (`live-ask27`) skipped reasoning and reading and cost 0.0586.
+
+## 2026-09-30 — market-web-governor: time and provider attempts per step; runner timeout 900 s
+
+- `0c5f4a4` deployed as `b38884ca` `SUCCESS`: `plan.timing` (seconds, calls, provider attempts and failures per
+  step) and the `web_ask_answered` log line carry the timing. Live test `live-ask26`: 49 s, no failed attempt. The
+  runner's `/v1/ask` timeout went from 300 s to 900 s (R22). No variable changed.
+
 ## 2026-09-30 — market-web-governor: `/v1/ask` answers carry (source) links
 
 - `d08fc58` deployed as `1b39926f` `SUCCESS`: each run of [n] in `answer` becomes markdown "(source)" links to the
