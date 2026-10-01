@@ -18,6 +18,8 @@ MAX_NEEDS = 20
 MAX_OUTPUTS = 40
 MAX_RESEARCH = 12
 MAX_NOTE_CHARS = 8000
+MAX_VALUES_SHOWN = 20  # a longer value list is shown as its first values plus how many more there are
+MAX_FACTS = 60
 
 NOTE_HEADER = ("DATA RECORD (application context: the data this conversation has already used and read, kept by the "
                "backend; not from the user). Tables and columns listed here were read from the catalog in this "
@@ -27,7 +29,8 @@ NOTE_HEADER = ("DATA RECORD (application context: the data this conversation has
 
 
 def empty() -> dict[str, Any]:
-    return {"version": VERSION, "tables": {}, "needs": [], "outputs": [], "research": [], "next_alias": 1}
+    return {"version": VERSION, "tables": {}, "needs": [], "outputs": [], "research": [], "next_alias": 1,
+            "values": {}, "relationships": {}, "coverage": {}}
 
 
 def normalize(record: Any) -> dict[str, Any]:
@@ -44,6 +47,8 @@ def normalize(record: Any) -> dict[str, Any]:
                                           "requests": [str(r) for r in table.get("requests") or []][-5:]}
     for key in ("needs", "outputs", "research"):
         clean[key] = [dict(item) for item in record.get(key) or [] if isinstance(item, dict)]
+    for key in ("values", "relationships", "coverage"):
+        clean[key] = {str(k): dict(v) for k, v in (record.get(key) or {}).items() if isinstance(v, dict)}
     stored = record.get("next_alias")
     clean["next_alias"] = max(stored if isinstance(stored, int) and stored > 0 else 1,
                               max((_alias_number(o.get("ref")) for o in clean["outputs"]), default=0) + 1)
@@ -144,6 +149,37 @@ def add_research(record: dict[str, Any], request_id: str, feasible: dict[str, An
         record["research"] = research[-MAX_RESEARCH:]
 
 
+def add_catalog_facts(record: dict[str, Any], tool: str, arguments: dict[str, Any] | None, result: dict[str, Any],
+                      request_id: str, checked_at: str) -> None:
+    """P5 (2026-10-01, ma-steps m01): the later steps read the catalog again for what the record did not hold:
+    category values (Industry "Banks"), relationships and data coverage. They are kept from the results the run already
+    received, with when they were read; nothing is typed by hand."""
+    if tool == "get_dimension_values" and result.get("status") == "VALUES_READY" and result.get("table"):
+        key = f"{result['table']}.{result.get('column')}"
+        entry = record["values"].get(key) or {"values": [], "complete": False}
+        entry["values"] = sorted(set(entry["values"]) | {str(v) for v in result.get("values") or []})
+        entry["complete"] = bool(entry["complete"] or (result.get("match") is None and not result.get("truncated")))
+        entry.update(checked_at=checked_at, request_id=request_id)
+        record["values"][key] = entry
+    if tool != "get_catalog_details":
+        return
+    sections = result.get("sections") if isinstance(result.get("sections"), dict) else {}
+    for rel in ((sections.get("RELATIONSHIPS") or {}).get("entries") or []):
+        if isinstance(rel, dict) and rel.get("relationship_id") is not None:
+            record["relationships"][str(rel["relationship_id"])] = {
+                k: rel.get(k) for k in ("left_table", "left_columns", "right_table", "right_columns", "temporal_rule",
+                                        "relationship_type", "supported_join_semantics") if rel.get(k) is not None}
+    for name, cov in (((sections.get("COVERAGE") or {}).get("datasets")) or {}).items():
+        if isinstance(cov, dict):
+            record["coverage"][str(name)] = {
+                **{k: cov.get(k) for k in ("actual_min_date", "actual_max_date", "expected_min_date",
+                                           "expected_max_date", "last_checked_at") if cov.get(k) is not None},
+                "read_at": checked_at}
+    for key in ("relationships", "coverage", "values"):
+        if len(record[key]) > MAX_FACTS:
+            record[key] = dict(list(record[key].items())[-MAX_FACTS:])
+
+
 def seed_ledger(record: dict[str, Any], ledger: Any) -> None:
     """Tables and columns of the record count as read in this run (the catalog protocol and the prompt agree)."""
     for name, table in record["tables"].items():
@@ -156,7 +192,7 @@ def seed_ledger(record: dict[str, Any], ledger: Any) -> None:
 
 
 def is_empty(record: dict[str, Any] | None) -> bool:
-    return not record or not (record.get("tables") or record.get("needs") or record.get("outputs"))
+    return not record or not any(record.get(k) for k in ("tables", "needs", "outputs", "values", "relationships"))
 
 
 def note(record: dict[str, Any]) -> str:
@@ -168,7 +204,18 @@ def note(record: dict[str, Any]) -> str:
         keys = ", ".join(f"{k}={table[k]}" for k in ("entity_column", "time_column") if table.get(k))
         lines.append(f"- {name}" + (f" [{keys}]" if keys else "") + f": used {', '.join(table['used']) or 'none'}"
                      + (f"; also read {', '.join(extra)}" if extra else ""))
-    sections = [("Approved data needs (newest first):", [
+    def shown(values: list[str]) -> str:
+        more = len(values) - MAX_VALUES_SHOWN
+        return ", ".join(values[:MAX_VALUES_SHOWN]) + (f" … and {more} more (not shown)" if more > 0 else "")
+
+    sections = [("Category values read (exact stored values; complete = every value of the column):", [
+        f"- {key}: {shown(v.get('values') or [])}" + (" [complete]" if v.get("complete") else " [only those read]")
+        + f" (read {v.get('checked_at')})" for key, v in sorted(record.get("values", {}).items())]),
+        ("Relationships read:", [
+            f"- {rid}: {r.get('left_table')}({', '.join(r.get('left_columns') or [])}) -> {r.get('right_table')}("
+            f"{', '.join(r.get('right_columns') or [])}) {r.get('temporal_rule') or ''}".rstrip()
+            for rid, r in sorted(record.get("relationships", {}).items())]),
+        ("Approved data needs (newest first):", [
         f"- {n.get('need_id')} ({n.get('mode') or 'ANALYSIS'}, {n.get('request_id')}): " + "; ".join(
             f"{r.get('logical_name')}={r.get('source_table')}({', '.join(r.get('columns') or [])})"
             for r in n.get("requests") or []) for n in reversed(record["needs"])]),
@@ -179,14 +226,19 @@ def note(record: dict[str, Any]) -> str:
         ("Research angles (newest first):", [
             f"- {r.get('angle_id')} ({r.get('request_id')}): " + "; ".join(
                 f"{d['source_table']}({', '.join(d['columns'])})" for d in r.get("datasets") or [])
-            for r in reversed(record["research"])])]
+            for r in reversed(record["research"])]),
+        ("Data coverage read (dates may have moved since; check again when it matters):", [
+            f"- {name}: " + " ".join(f"{k}={v}" for k, v in c.items()) for name, c in sorted(record.get("coverage",
+                                                                                                    {}).items())])]
     text = "\n".join(lines)
     for title, items in sections:
         if not items:
             continue
         block = [title]
-        for item in items:
-            if len(text) + len("\n".join(block + [item])) + 1 > MAX_NOTE_CHARS:
+        for count, item in enumerate(items):
+            if len(text) + len("\n".join(block + [item])) + 120 > MAX_NOTE_CHARS:
+                # P5: never cut silently; the full record is in the API response and the audit
+                block.append(f"- … {len(items) - count} more not shown (the full record is kept by the backend)")
                 break
             block.append(item)
         if len(block) > 1:

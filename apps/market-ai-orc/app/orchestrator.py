@@ -2348,6 +2348,8 @@ class AgentOrchestrator:
                 record(state.catalog, name, result)
                 records.add_catalog(state.data_record, {t: state.catalog.tables[t] for t in state.catalog.tables},
                                     state.request_id)
+                records.add_catalog_facts(state.data_record, name, arguments, result, state.request_id,
+                                          self.wall_clock().isoformat(timespec="seconds"))
             if self.catalog_protocol:
                 state.catalog.cache[cache_key(name, arguments)] = outcome.output
         self._track_plan_guard(state, name, outcome)

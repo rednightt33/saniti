@@ -140,3 +140,41 @@ def test_aliases_continue_across_steps_and_turns() -> None:
         records.add_output(clash, "q", alias=f"o{n}", output_id=f"out_{n:024x}", session_id="s", name="x",
                            columns=[], row_count=1)
     assert records.normalize(clash)["next_alias"] == 60
+
+
+def test_category_values_relationships_and_coverage_are_kept_and_shown_without_silent_cuts() -> None:
+    """P5 (ma-steps-20261001a, m01): later steps looked up Industry "Banks", relationships and coverage again."""
+    record = built()
+    records.add_catalog_facts(record, "get_dimension_values", {}, {
+        "status": "VALUES_READY", "table": "IDX_Stock_Universe", "column": "Industry", "match": "Bank",
+        "truncated": False, "values": ["Banks"]}, "q-m4a", "2026-10-01T10:00:00")
+    records.add_catalog_facts(record, "get_dimension_values", {}, {
+        "status": "VALUES_READY", "table": "IDX_Broker_Profile", "column": "broker_type", "match": None,
+        "truncated": False, "values": ["Domestic", "Foreign"]}, "q-m4a", "2026-10-01T10:00:00")
+    records.add_catalog_facts(record, "get_dimension_values", {}, {
+        "status": "REJECTED", "table": "X", "column": "y"}, "q-m4a", "2026-10-01T10:00:00")
+    records.add_catalog_facts(record, "get_catalog_details", {}, {"sections": {
+        "RELATIONSHIPS": {"entries": [{"relationship_id": 7, "left_table": "Feature_02_Broker_Rolling",
+                                       "left_columns": ["ticker"], "right_table": "IDX_Stock_Universe",
+                                       "right_columns": ["Ticker"], "temporal_rule": "CURRENT_STATE"}]},
+        "COVERAGE": {"datasets": {"Feature_02_Broker_Rolling": {"actual_max_date": "2026-08-31",
+                                                                "last_checked_at": "2026-10-01T00:34"}}}}},
+        "q-m4a", "2026-10-01T10:00:00")
+    assert record["values"]["IDX_Stock_Universe.Industry"] == {"values": ["Banks"], "complete": False,
+                                                               "checked_at": "2026-10-01T10:00:00",
+                                                               "request_id": "q-m4a"}
+    assert record["values"]["IDX_Broker_Profile.broker_type"]["complete"] and "X.y" not in record["values"]
+    note = records.note(record)
+    assert "IDX_Stock_Universe.Industry: Banks [only those read]" in note
+    assert "7: Feature_02_Broker_Rolling(ticker) -> IDX_Stock_Universe(Ticker) CURRENT_STATE" in note
+    assert "Feature_02_Broker_Rolling: actual_max_date=2026-08-31" in note
+    assert records.normalize(record) == record
+    many = records.empty()
+    records.add_catalog_facts(many, "get_dimension_values", {}, {
+        "status": "VALUES_READY", "table": "T", "column": "c", "match": None, "truncated": False,
+        "values": [f"v{i:02d}" for i in range(30)]}, "q", "t")
+    assert "… and 10 more (not shown)" in records.note(many)
+    for n in range(300):
+        records.add_output(many, "q", alias=f"o{n + 1}", output_id=f"out_{n:024x}", session_id="s", name="x" * 60,
+                           columns=[f"c{i}" for i in range(30)], row_count=n)
+    assert "more not shown (the full record is kept by the backend)" in records.note(many)
