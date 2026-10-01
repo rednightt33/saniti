@@ -1078,6 +1078,27 @@ renamed (title and wording may change) whose design hash equals exactly one unma
 checked id back (`research_plan_angle_ids_restored`), so a rename needs no new check; a new or changed design is still
 refused, and the refusal names `not checked: [...]` and `checked but missing: [...]`.
 
+### Batch fixes of 2026-10-01 (review numbers P1, P2, P5–P8, P10)
+
+- **P1, aliases.** Aliases (`out.o1`, …) are numbered across the conversation: the data record keeps `next_alias` and
+  every run starts from it, so an alias always names the same output.
+- **P2, references.** `rows[<value>]` resolves when exactly one row has that value in a column that identifies the
+  rows. Refusals name objects by their alias.
+- **P5, data record.** The record also keeps the category values, RELATIONSHIPS and COVERAGE the run read, each with
+  when it was read. Its note lists at most 20 values per column with how many more, and every section cut for size
+  says how many entries it left out.
+- **P6, large tool results.** A tool result over its byte limit has its table-row previews cut (20, 5, then 0 rows,
+  `rows_truncated`, read again with `get_session_output`) before it is refused. Findings are never cut, and a refusal
+  names the largest parts.
+- **P7, invalid references.** An invalid value reference is named with its fault: places must be one digit, unknown
+  format, or not a path.
+- **P8, plan angles.** A plan angle that carries `check_research_feasibility` input (`broad_scope`, `data_requests`,
+  `design`, `relationships`, derived from the two models) keeps the plan. Those fields go to the audit like other
+  extra keys.
+- **P10, wrapped arguments.** A tool may name the key its argument object is wrapped under (`data_need_spec` for
+  `submit_data_need_spec` and `check_data_feasibility`). The conversation resources note labels a spec
+  `submit_arguments`.
+
 ### The conversation's data record (M47)
 
 `app/data_record.py` keeps what the conversation has used and read of the data: per table the columns its approved

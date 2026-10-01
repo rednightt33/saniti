@@ -1,31 +1,33 @@
 {
-  "prefix": "ma-flags-20261001a",
+  "prefix": "ma-batch-20261001a",
   "workers": 2,
-  "audit_wait_seconds": 30,
+  "audit_wait_seconds": 120,
   "items": [
     {
-      "id": "b01_bank_broker_analysis",
-      "analysis_path": "ANALYSIS",
-      "message": "Siapa broker yg secara konsisten membeli saham bank ketika market crash",
-      "expect": "G15: bounded counts (row_basis), parallel extraction of parts (AI_PLANNER_PARALLEL_PARTS=2): prepare_data_bundle seconds against 1-m4a of ma-steps (237 s); M45: edits applied on refusals"
-    },
-    {
-      "id": "a05_universe_ranking",
-      "analysis_path": "ANALYSIS",
-      "message": "Urutkan return 1 bulan terakhir semua saham IDX. Tampilkan 10 saham teratas dan 10 terbawah beserta returnnya.",
-      "expect": "M45: refusals repaired by edit (ai_final_edit_applied) and seconds against ma-steps (111 s)"
+      "id": "m01_broker_bank_crash",
+      "turns": [
+        "Siapa broker yg secara konsisten membeli saham bank ketika market crash",
+        "Kalau hanya saham bank BUMN, broker mana yang paling konsisten membeli saat crash?"
+      ],
+      "expect": "P1 aliases continue across steps and turns; P5 fewer catalog reads in m4b; P3 step times vs ma-steps-20261001a (3,193 s / 3,343 s)"
     },
     {
       "id": "e02_causal_prediction",
       "analysis_path": "RESEARCH",
       "message": "Buktikan bahwa net beli asing menyebabkan harga BBCA naik, lalu prediksi harga BBCA minggu depan.",
-      "expect": "M45: repairs and final-turn seconds against ma-steps (393 s + 215 s)"
+      "expect": "repairs and final-turn seconds against ma-integrity-20261001a"
+    },
+    {
+      "id": "a05_universe_ranking",
+      "analysis_path": "ANALYSIS",
+      "message": "Urutkan return 1 bulan terakhir semua saham IDX. Tampilkan 10 saham teratas dan 10 terbawah beserta returnnya.",
+      "expect": "out.o1 references resolve; no extra-key re-ask"
+    },
+    {
+      "id": "a06_case_values",
+      "analysis_path": "ANALYSIS",
+      "message": "Berapa total net beli investor asing di pasar reguler untuk saham bbca selama Agustus 2026?",
+      "expect": "P14: lower-case or other spellings of Investor Type / Market Board / ticker resolved or refused with the stored values before extraction (TEXT_VALUE_RESOLVED / VALUE_NOT_FOUND)"
     }
-  ],
-  "audit_only": true,
-  "audit_full_trace": true,
-  "audit_request_ids": [
-    "ma-flags-20261001a-e02_causal_prediction-2",
-    "ma-steps-20261001a-e02_causal_prediction-2"
   ]
 }

@@ -432,6 +432,19 @@ savepoint of the request's snapshot, under `SQL_ESTIMATE_COUNT_TIMEOUT_MS`.
 - Cost: a count reads the rows the extraction would read (an index scan for a scoped request), on the shared database;
   it is bounded by the timeout and happens only while a plan is checked.
 
+### Value domains in the catalog contract (G16 / review P14, 2026-10-01)
+
+`POST /v1/catalog/contract` also returns `value_domains`: per table and filterable text column, the stored values the
+sandbox matches a filter value to at approval.
+- **Sources:**
+  - a single-column `CHECK (column = ANY (ARRAY[...]))` constraint, read from `pg_constraint` (complete by
+    construction);
+  - for a static table (no time column), the distinct values of its groupable category columns, up to 1,024
+    (`VALUE_DOMAIN_MAX`). Above that bound the column is marked `complete: false` with no values.
+- Entity columns are never listed: the contract carries no rows.
+- `value_domains` is outside `catalog_sha256`, because a static table's values change with its data, not with the
+  catalog.
+
 ### Bounded, unordered count (G15)
 
 The count runs over the extraction's form **without its ORDER BY** and with a **LIMIT at a cap**:

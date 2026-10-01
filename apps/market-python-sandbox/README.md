@@ -1046,7 +1046,7 @@ every caller can check a bundle's size before extracting it.
 | `PY_SANDBOX_RESEARCH_MAX_PAIRWISE_CANDIDATES` / `_MAX_CANDIDATES` | 20,000 / 50 |
 | `PY_SANDBOX_RESEARCH_MIN_EVENTS` / `_MIN_BASELINE_OBSERVATIONS` / `_MIN_COVERAGE_PCT` / `_MIN_HOLDOUT_PCT` | 30 / 100 / 95 / 20 |
 | `PY_SANDBOX_LEAKAGE_CHECK` | true |
-| `PY_SANDBOX_MAX_TABLES` / `_TABLE_OUTPUT_ROWS` / `_TABLE_PREVIEW_ROWS` | 8 / 100,000 / 50 |
+| `PY_SANDBOX_MAX_TABLES` / `_TABLE_OUTPUT_ROWS` / `_TABLE_PREVIEW_ROWS` | 8 / 0 (no row limit, P12 2026-10-01; was 100,000) / 50 |
 | `PY_SANDBOX_MAX_METRICS` / `_METRICS_BYTES` / `_OUTPUT_BYTES` | 8 / 8000 / 24,000 |
 | `PY_SANDBOX_MAX_ARTIFACT_BYTES` / `_CHARTS` / `_ARTIFACTS` | 64 MiB / 8 / 8 |
 | `PY_SANDBOX_SUBMIT_WAIT_SECONDS` / `_MAX_POLL_WAIT_SECONDS` / `_RETRY_AFTER_SECONDS` | 25 / 20 / 15 |
@@ -1068,6 +1068,30 @@ every caller can check a bundle's size before extracting it.
 | `PY_SANDBOX_DERIVED_FREQUENCY_ENABLED` | false ([derived weekly/monthly](#derived-weekly-and-monthly-ip2-off-unless-py_sandbox_derived_frequency_enabledtrue)) |
 | `PY_SANDBOX_AUDIT_STORE_ENABLED` | false ([audit archival](#audit-archival-ip2-off-unless-py_sandbox_audit_store_enabledtrue)); `AUDIT_STORE_URL` and `AUDIT_STORE_SANDBOX_KEY` are required only when on |
 | `PY_SANDBOX_AUDIT_SPOOL_MAX_BYTES` / `_POLL_SECONDS` / `_MAX_ATTEMPTS` / `_TIMEOUT_SECONDS` | 512 MiB / 15 / 12 / 30 |
+
+### Text filter values (G16 / review P14, 2026-10-01)
+
+At approval every text filter value (EQ, NEQ, IN, NOT_IN on a text column) is matched to its stored spelling,
+regardless of letter case:
+- The stored values come from the Governor's catalog contract `value_domains`: single-column CHECK lists, and the
+  category columns of static tables. Entity codes never travel there.
+- Values are matched before any hash or extraction, so "regular" selects "Regular".
+- A value with no stored match in a complete list is refused (`VALUE_NOT_FOUND`, with the stored values), and so are
+  two stored values that differ only in case (`VALUE_AMBIGUOUS`).
+- An entity code is upper-cased and trimmed (Part A A1.2).
+- Each change is a `TEXT_VALUE_RESOLVED` warning.
+- A column with no list (a dated category without a CHECK list) keeps the value as written.
+
+### Table outputs and `resample` (review P12, P13, 2026-10-01)
+
+- A table output has no row limit by default (`PY_SANDBOX_MAX_TABLE_OUTPUT_ROWS` 0). Outputs are kept for further
+  analysis and research; what the model reads stays the preview (`_TABLE_PREVIEW_ROWS`) and pages of at most 500 rows.
+- The byte limits per file (`PY_SANDBOX_MAX_ARTIFACT_BYTES`) and per session output directory
+  (`PY_SANDBOX_MAX_OUTPUT_DIR_BYTES`) still apply.
+- `resample` without a `resample_semantics_version`:
+  - groups by the request's grain (`key_columns`, for example `market_board`) instead of asking for a rule for it;
+  - returns the derived semantics' period columns (`period_start`, `period_end`, `actual_first_date`,
+    `actual_last_date`, `period_complete`) after its existing columns; values are unchanged.
 
 ### Derived weekly and monthly (IP2, off unless `PY_SANDBOX_DERIVED_FREQUENCY_ENABLED=true`)
 

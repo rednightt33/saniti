@@ -1,5 +1,40 @@
 # Railway changelog
 
+## 2026-10-01 — Batch fixes (plan step 8) deployed on dev; settings 24K / 600 s / 10,000,000 rows
+
+Tested locally first: market-ai-orc 907, market-python-sandbox 642, market-sql-governor 224 passed.
+
+- **Code** (`35a16e3` on `main`; review numbers in brackets):
+  - `5c765b2`: P1 aliases across the conversation; P2 `rows[<value>]` and refusals by alias;
+  - `fdb2dfa`: P14 / G16 text values matched regardless of case at approval; Governor `value_domains`;
+  - `ff5002b`: P6 large tool results; P7 reference faults; P8 plan angles; P10 wrapped arguments; P12 no output row
+    limit; P13 `resample` grain and period columns;
+  - `35a16e3`: P5 data record values / relationships / coverage.
+- **Deployments** (all `SUCCESS`, the same commit, pushed together; no ordering needed because a sandbox without
+  `value_domains` keeps its behaviour):
+  - market-sql-governor `8f31bf20-9bd5-49fd-ae0e-d0c7b271a8ae`;
+  - market-python-sandbox `1740e005-6b40-4556-a1b4-4dcb1a324544`;
+  - market-ai-orc `713c9428-86f7-4ca8-94cf-1824b0ffbdd9`.
+- **Variables** (dev, user decisions 2026-10-01, one service at a time):
+  - market-ai-orc: `AI_MAX_OUTPUT_TOKENS=24000` (back from 36000) and `AI_REQUEST_TIMEOUT_SECONDS=600` → redeploy
+    `c9f49233-6fed-46cf-8d01-a1f6dfe70b10` `SUCCESS`; startup log `max_output_tokens=24000`.
+  - market-python-sandbox: `PY_SANDBOX_BUNDLE_MAX_ROWS=10000000` → redeploy `9b7b865f-dee3-4bb3-bbae-495650dfc3d2`
+    `SUCCESS`; at the observed 7.6–25 bytes per row 10,000,000 rows fit the unchanged 256 MiB byte limit.
+  - Unchanged: `AI_PLANNER_PARALLEL_PARTS=2` and `AI_ENABLE_EDIT_REPAIR=true` stay on.
+  - `.railway/railway.ts` already preserves all three changed variables. `railway config pull --force` now drops the
+    Postgres `networking` lines (a CLI output change, not a live change: `railway config plan` reports up to date with
+    and without them), so the file was kept as it was.
+- **Deviations from the approved plans, recorded (review number P11):**
+  - M49 restores a renamed angle by its design hash, not by backend keys A1/A2;
+  - angles dropped from a plan do not prune the research data plan;
+  - `relation().df()` is not covered by the frame budget (the RSS watchdog remains);
+  - the data record has no freshness check against the catalog hash;
+  - step 1.6 promised reusing a bundle for a "same or narrower" contract; only an identical contract is reused (step 9
+    item 4 covers the rest);
+  - the research library text was not changed for P13 (its hash binds `AI_research_library`; a change needs a
+    regenerated migration).
+- Live verification: suite `ma-batch-20261001a` (runner `a47112ce`), results below when it completes.
+
 ## 2026-10-01 — Live trial: `AI_PLANNER_PARALLEL_PARTS=2`, `AI_ENABLE_EDIT_REPAIR=true` (suite `ma-flags-20261001a`)
 
 - market-ai-orc dev: both variables set by CLI, redeploy `50b917ea-9d7b-4330-85ba-5d0d627c8763` `SUCCESS`;
