@@ -1365,6 +1365,21 @@ which covers a part whose count timed out and the path without the preflight. `c
 `NOT_FEASIBLE` with a `bundle` block when its requests together exceed the limit; the key is absent otherwise. Live
 case (`ma-integrity-20261001a`, m4a): 3,191,458 rows were extracted over 3 min 42 s and then refused by the sandbox.
 
+G15: each estimate-only call carries `count_cap` = the rows the bundle can still hold + 1 (only when the bundle limit is
+known), so the Governor's count stops there; a count that reaches it answers `row_basis` `AT_LEAST` and the plan stops
+with `BUNDLE_TOO_LARGE` (its message still says "counted"). Requires a Governor that accepts `count_cap` (deploy the
+Governor first).
+
+### Parallel parts (`AI_PLANNER_PARALLEL_PARTS`, default 1)
+
+G15 (plan step 2.4). With the part preflight on, the parts it chose are extracted up to `AI_PLANNER_PARALLEL_PARTS`
+(1–4) at a time, in waves; each worker carries the request's context. The answers are taken in part order, so the
+bundle, its part names and every stop (`REJECTED_*`, `BUNDLE_TOO_LARGE` at extraction) are the same as one at a time;
+a stop can leave at most `AI_PLANNER_PARALLEL_PARTS - 1` extra datasets unused, which expire with the Governor's
+storage. The preflight's estimates and the path without the preflight stay sequential. 1 keeps the earlier behaviour;
+the plan is to try 2, then 3, while watching the Governor's and the database's CPU and I/O (the Governor opens one
+database connection per request).
+
 ### Part preflight (off unless `AI_ENABLE_PREFLIGHT_PARTS=true`)
 
 G10 / A0–A2 (`EXTRACTION_AND_AUDIT_PLAN.md`). With the flag, the Execution Planner estimates every extraction part with

@@ -208,13 +208,16 @@ class GovernorClient:
                         "REJECTED_ROW_LIMIT", "REJECTED_JOIN_COST", "REJECTED_TIMEOUT_RISK", "REJECTED_POLICY")
 
     def extract(self, spec: dict[str, Any], lineage: dict[str, Any], *, planned_parts: int = 1,
-                estimate_only: bool = False) -> dict[str, Any]:
+                estimate_only: bool = False, count_cap: int | None = None) -> dict[str, Any]:
         """One physical part of an approved DataNeedSpec (the Execution Planner only; never the model). estimate_only:
-        the Governor's checks and EXPLAIN without reading any row (a Research Plan's feasibility draft)."""
+        the Governor's checks and EXPLAIN without reading any row (a Research Plan's feasibility draft). count_cap
+        (G15, estimates only): the most rows the plan can still use; the Governor's count stops there (AT_LEAST)."""
         request_id = current_request_id.get() or f"orc-{uuid.uuid4().hex[:16]}"
         body = {"request_id": request_id, "extraction": spec, "lineage": lineage, "planned_parts": planned_parts}
         if estimate_only:
             body["estimate_only"] = True
+            if count_cap is not None:
+                body["count_cap"] = max(1, int(count_cap))
         try:
             response = self._client.post("/v1/extract", json=body)
         except httpx.TimeoutException as exc:

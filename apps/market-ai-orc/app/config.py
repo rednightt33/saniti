@@ -165,6 +165,9 @@ class Settings:
     # and takes the fewest date parts that all fit; feasibility uses the same estimate. Off: the envelope estimate and
     # the extract-then-split loop as before.
     ai_enable_preflight_parts: bool = False
+    # G15 (plan step 2.4): parts the Execution Planner extracts at the same time once the preflight chose them, 1-4;
+    # 1 is the sequential order as before. Each part is still one Governor request with its own checks.
+    ai_planner_parallel_parts: int = 1
     # Multi-Angle Research (MULTI_ANGLE_RESEARCH.md): research_plan/v2 with 3-6 angles, rpc2, per-angle data contracts,
     # grouped execution behind start/run/complete_research_run and backend findings per angle. Needs DataNeed v2,
     # Research Plan confirmation and feasibility, and a sandbox reporting the matching multi_angle_research capability
@@ -293,6 +296,7 @@ class Settings:
             ai_enable_research_findings=_boolean(env, "AI_ENABLE_RESEARCH_FINDINGS", False),
             ai_enable_analysis_path=_boolean(env, "AI_ENABLE_ANALYSIS_PATH", False),
             ai_enable_preflight_parts=_boolean(env, "AI_ENABLE_PREFLIGHT_PARTS", False),
+            ai_planner_parallel_parts=_integer(env, "AI_PLANNER_PARALLEL_PARTS", 1),
             ai_enable_multi_angle_research=_boolean(env, "AI_ENABLE_MULTI_ANGLE_RESEARCH", False),
             ai_research_min_angles=_integer(env, "AI_RESEARCH_MIN_ANGLES", 2),
             ai_research_max_angles=_integer(env, "AI_RESEARCH_MAX_ANGLES", 6),
@@ -372,6 +376,8 @@ class Settings:
                               "PY_SANDBOX_REQUEST_TIMEOUT_SECONDS")
         if settings.ai_request_timeout_seconds > settings.ai_max_analysis_seconds:
             raise ConfigError("AI_REQUEST_TIMEOUT_SECONDS must not exceed AI_MAX_ANALYSIS_SECONDS")
+        if settings.ai_planner_parallel_parts > 4:
+            raise ConfigError("AI_PLANNER_PARALLEL_PARTS must be from 1 to 4")
         if not 2 <= settings.ai_research_min_angles <= settings.ai_research_max_angles <= 6:
             raise ConfigError("AI_RESEARCH_MIN_ANGLES and AI_RESEARCH_MAX_ANGLES must satisfy 2 <= min <= max <= 6")
         if not 0 <= settings.ai_research_min_families <= min(5, settings.ai_research_max_angles):

@@ -227,6 +227,7 @@ def create_app(
             point_in_time=point_in_time,
             research_findings=research_findings,
             preflight_parts=settings.ai_enable_preflight_parts,
+            planner_parallel_parts=settings.ai_planner_parallel_parts,
             multi_angle=multi_angle,
             bundle_limits=bundle_limits,
         )

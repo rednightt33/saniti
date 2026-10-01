@@ -45,6 +45,7 @@ def build_default_registry(
     preflight_parts: bool = False,
     multi_angle: dict | None = None,
     bundle_limits: dict | None = None,
+    planner_parallel_parts: int = 1,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
@@ -102,7 +103,7 @@ def build_default_registry(
                 # many Governor extractions plus the sandbox's verification and profiling
                 registry.register(prepare_bundle_spec(
                     ExecutionPlanner(sandbox_client, governor_client, preflight=preflight_parts,
-                                     limits=bundle_limits),
+                                     limits=bundle_limits, parallel_parts=planner_parallel_parts),
                     timeout_seconds=max(sandbox_timeout_seconds, governor_timeout_seconds) * 6,
                     max_result_bytes=python_analysis_max_bytes))
                 for spec in session_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
@@ -116,7 +117,8 @@ def build_default_registry(
                     # Research check_research_feasibility replaces it, so the model sees one plan check)
                     registry.register(feasibility_spec(
                         sandbox_client, ExecutionPlanner(sandbox_client, governor_client, preflight=preflight_parts,
-                                                         limits=bundle_limits),
+                                                         limits=bundle_limits,
+                                                         parallel_parts=planner_parallel_parts),
                         timeout_seconds=max(sandbox_timeout_seconds, governor_timeout_seconds) * 3,
                         max_result_bytes=python_analysis_max_bytes, composite_keys=composite_keys,
                         point_in_time=point_in_time))
@@ -125,7 +127,8 @@ def build_default_registry(
                                           timeout_seconds=max(sandbox_timeout_seconds, governor_timeout_seconds),
                                           session_timeout_seconds=session_timeout_seconds,
                                           max_result_bytes=python_analysis_max_bytes, point_in_time=point_in_time,
-                                          preflight_parts=preflight_parts, bundle_limits=bundle_limits)
+                                          preflight_parts=preflight_parts, bundle_limits=bundle_limits,
+                                          planner_parallel_parts=planner_parallel_parts)
     return registry
 
 
@@ -140,7 +143,7 @@ def _entity_checker(governor_client: GovernorClient):
 def _register_multi_angle(registry: ToolRegistry, sandbox_client: SandboxClient, governor_client: GovernorClient,
                           multi_angle: dict, *, timeout_seconds: float, session_timeout_seconds: float,
                           max_result_bytes: int, point_in_time: bool, preflight_parts: bool,
-                          bundle_limits: dict | None = None) -> None:
+                          bundle_limits: dict | None = None, planner_parallel_parts: int = 1) -> None:
     """AI_ENABLE_MULTI_ANGLE_RESEARCH: check_research_feasibility for the plan turn and the grouped executor's tools for
     the approved turn; the orchestrator creates one executor per approved plan through registry.multi_angle."""
     from ..research_run_executor import ResearchRunExecutor, executor_specs, remember_feasibility
@@ -148,7 +151,8 @@ def _register_multi_angle(registry: ToolRegistry, sandbox_client: SandboxClient,
     from .research_planner import ResearchDataPlanner, research_feasibility_spec
 
     planner = ResearchDataPlanner(sandbox_client, ExecutionPlanner(sandbox_client, governor_client,
-                                                                   preflight=preflight_parts, limits=bundle_limits),
+                                                                   preflight=preflight_parts, limits=bundle_limits,
+                                                                   parallel_parts=planner_parallel_parts),
                                   max_groups=multi_angle["max_groups"], min_angles=multi_angle["min_angles"],
                                   max_angles=multi_angle["max_angles"],
                                   limits={**(multi_angle.get("limits") or {}), **(bundle_limits or {})},
@@ -163,7 +167,7 @@ def _register_multi_angle(registry: ToolRegistry, sandbox_client: SandboxClient,
                                max_result_bytes=max_result_bytes):
         registry.register(spec)
     bundle_planner = ExecutionPlanner(sandbox_client, governor_client, preflight=preflight_parts,
-                                      limits=bundle_limits)
+                                      limits=bundle_limits, parallel_parts=planner_parallel_parts)
 
     def factory(verified, request_id: str) -> ResearchRunExecutor:
         return ResearchRunExecutor(sandbox_client, bundle_planner, verified, request_id,

@@ -22,10 +22,12 @@ Resampling is never pushed down: the approved catalog rules travel with the bund
 """
 from __future__ import annotations
 
+import contextvars
 import hashlib
 import json
 import math
 import secrets
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
@@ -137,6 +139,10 @@ class PlanBudget:
         self.rows += rows
         self.by_request[rid] = self.by_request.get(rid, 0) + rows
 
+    def count_cap(self) -> int | None:
+        """G15: the Governor's count of a part need not go past one row over what the bundle can still hold."""
+        return None if self.max_rows is None else max(0, self.max_rows - self.rows) + 1
+
 
 def extraction_spec(entry: dict[str, Any], part: Part) -> dict[str, Any]:
     return {"extraction_version": "extraction_spec/v1", "data_request_id": entry["data_request_id"],
@@ -148,7 +154,7 @@ def extraction_spec(entry: dict[str, Any], part: Part) -> dict[str, Any]:
 
 class ExecutionPlanner:
     def __init__(self, sandbox: Any, governor: Any, max_parts: int = MAX_PARTS_PER_REQUEST,
-                 preflight: bool = False, limits: dict[str, Any] | None = None) -> None:
+                 preflight: bool = False, limits: dict[str, Any] | None = None, parallel_parts: int = 1) -> None:
         self.sandbox = sandbox
         self.governor = governor
         self.max_parts = max_parts
@@ -156,6 +162,8 @@ class ExecutionPlanner:
         self.preflight = preflight
         # G14: the sandbox's bundle row limit (GET /v1/runtime limits); None keeps the check to the sandbox alone
         self.max_bundle_rows = int((limits or {}).get("bundle_max_rows") or 0) or None
+        # G15 (AI_PLANNER_PARALLEL_PARTS): chosen parts extracted at the same time; 1 = one after the other
+        self.parallel_parts = max(1, int(parallel_parts or 1))
 
     def prepare(self, need_id: str) -> dict[str, Any]:
         request_id = current_request_id.get() or ""
@@ -292,8 +300,10 @@ class ExecutionPlanner:
                            "period or the universe."}, planned)})
         budget.estimates -= 1
         spec = extraction_spec(entry, part)
+        cap = budget.count_cap()
         response = self.governor.extract(spec, self._lineage(source, plan_id, entry, part, spec),
-                                         planned_parts=planned, estimate_only=True)
+                                         planned_parts=planned, estimate_only=True,
+                                         **({"count_cap": cap} if cap is not None else {}))
         self._note_basis(response)
         basis = (response.get("estimates") or {}).get("row_basis")
         if basis and response.get("status") == "WITHIN_LIMITS":
@@ -400,26 +410,42 @@ class ExecutionPlanner:
     def _extract_chosen(self, need: dict[str, Any], plan_id: str, entry: dict[str, Any], chosen: list[Part],
                         extracted: PlanBudget | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """A2: extract the parts the preflight chose. The Governor still checks each one; a part whose estimate
-        changed in between is split as before."""
+        changed in between is split as before. G15: up to parallel_parts parts are extracted at the same time, in
+        waves; the answers are taken in part order, so the bundle and every stop are the same as one at a time (a
+        stop can leave at most parallel_parts - 1 extra datasets unused, which expire with the Governor's storage)."""
         rid = entry["data_request_id"]
         envelopes = merge_windows(entry.get("windows") or []) if entry.get("time_column") else []
         queue, done = list(chosen), []
         while queue:
-            part = queue.pop(0)
-            total = len(done) + len(queue) + 1
-            spec = extraction_spec(entry, part)
-            response = self.governor.extract(spec, self._lineage(need, plan_id, entry, part, spec),
-                                             planned_parts=total)
-            status = response.get("status")
-            if status == "APPROVED":
-                part.dataset = response.get("dataset") or {}
-                self._spend_extracted(rid, extracted, part.dataset)
-                done.append(part)
-            elif status == "APPROVED_WITH_PARTITIONING":
-                queue = self._split(rid, part, response, total) + queue
-            else:
-                raise PlanStop(self._rejection(rid, response, total))
+            wave, queue = queue[:self.parallel_parts], queue[self.parallel_parts:]
+            requeue: list[Part] = []
+            for i, (part, response) in enumerate(zip(wave, self._extract_wave(need, plan_id, entry, wave,
+                                                                            len(done) + len(wave) + len(queue)))):
+                total = len(done) + len(requeue) + len(wave) - i + len(queue)
+                status = response.get("status")
+                if status == "APPROVED":
+                    part.dataset = response.get("dataset") or {}
+                    self._spend_extracted(rid, extracted, part.dataset)
+                    done.append(part)
+                elif status == "APPROVED_WITH_PARTITIONING":
+                    requeue += self._split(rid, part, response, total)
+                else:
+                    raise PlanStop(self._rejection(rid, response, total))
+            queue = requeue + queue
         return self._name(rid, done), envelopes
+
+    def _extract_wave(self, need: dict[str, Any], plan_id: str, entry: dict[str, Any], wave: list[Part],
+                      total: int) -> list[dict[str, Any]]:
+        def one(part: Part) -> dict[str, Any]:
+            spec = extraction_spec(entry, part)
+            return self.governor.extract(spec, self._lineage(need, plan_id, entry, part, spec), planned_parts=total)
+
+        if len(wave) == 1:
+            return [one(wave[0])]
+        # each worker runs in a copy of this context: the request id and run context travel with the call
+        with ThreadPoolExecutor(max_workers=len(wave), thread_name_prefix="planner-part") as pool:
+            futures = [pool.submit(contextvars.copy_context().run, one, part) for part in wave]
+            return [future.result() for future in futures]
 
     def _request_parts(self, need: dict[str, Any], plan_id: str, entry: dict[str, Any],
                        extracted: PlanBudget | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -528,7 +554,8 @@ class ExecutionPlanner:
     @staticmethod
     def _too_large(rid: str, rows: int, budget: PlanBudget, stage: str, by_request: dict[str, int]
                    ) -> dict[str, Any]:
-        basis = "counted" if budget.basis == {"COUNTED"} else "estimated" if stage == "PREFLIGHT" else "extracted"
+        counted = bool(budget.basis) and budget.basis <= {"COUNTED", "AT_LEAST"}  # G15: AT_LEAST is a bounded count
+        basis = "counted" if counted else "estimated" if stage == "PREFLIGHT" else "extracted"
         return {"status": "REJECTED", "stage": stage, "code": "BUNDLE_TOO_LARGE", "data_request_id": rid,
                 "message": (f"The data of this need holds at least {rows} rows ({basis}) and one bundle holds at "
                             f"most {budget.max_rows}; " + ("nothing was extracted. " if stage == "PREFLIGHT" else
