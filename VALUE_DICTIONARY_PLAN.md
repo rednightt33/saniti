@@ -106,7 +106,7 @@ dan trigram (`pg_trgm`) bila ekstensinya tersedia di Railway.
   tidak membatalkan hasil coverage. Keduanya dicatat terpisah di log job.
 - Hasil setiap pembaruan dicatat di log (jumlah kolom, nilai baru, nilai hilang, durasi).
 
-### 5.3 Pilihan sedikit langsung tampil (lapisan: katalog di orc)
+### 5.3 Pilihan sedikit langsung tampil (lapisan: katalog di orc; keputusan user 2026-10-01: dua jalur, katalog dan alat)
 
 `get_catalog_details` bagian COLUMNS menampilkan `allowed_values` untuk kolom dengan `complete = true` dan nilai sedikit.
 Ambangnya diturunkan dari setting, awal 20; Cortex menyarankan sekitar 10. Contoh:
@@ -138,6 +138,25 @@ Aturannya:
 - dibaca Governor dari `AI_value_dictionary` dengan role baca saja; AI tidak pernah membaca tabel itu langsung;
 - `get_dimension_values` tetap ada untuk kompatibilitas. Deskripsinya menunjuk ke `search_values`, dan penolakan
   tabel bertanggal / kolom entitas menyebut `search_values`.
+
+### 5.4b AI tahu alat apa saja yang dimilikinya (permintaan user 2026-10-01)
+
+AI mengetahui alatnya dari tiga tempat, dan ketiganya diperbarui bersamaan dengan alat baru:
+
+1. **Daftar alat yang dikirim di setiap panggilan model.** Ini registry market-ai-orc (`app/tools/__init__.py`): nama,
+   deskripsi dan skema argumen `search_values`. Inilah yang benar-benar dibaca model. Deskripsinya menyebut kapan
+   memakai `search_values` dan kapan cukup membaca `allowed_values` di katalog.
+2. **`get_system_capabilities`** (`app/tools/system.py` `CAPABILITY_TOOLS`): kemampuan baru `value_lookup` →
+   `search_values`, sehingga jawaban "alat apa yang tersedia" menyebutnya.
+3. **`Tool_Catalog` di database:** baris `search_values` v1 lewat migrasi maju (purpose, input/output schema, batas),
+   dan catatan pada `get_dimension_values` yang menunjuk ke alat baru.
+   - Terverifikasi (`DATABASE_CATALOG.md`): tidak ada service yang membaca `Tool_Catalog` saat berjalan. Tabel itu
+     catatan resmi untuk manusia dan audit, bukan sumber yang dibaca model.
+   - Supaya ketiganya tidak berbeda isi, ditambahkan test yang membandingkan skema argumen di registry dengan
+     `input_schema` di `Tool_Catalog`, seperti pola test `check_research_feasibility` yang gagal kalau keduanya berbeda.
+
+Aturan "katalog penemuan" di prompt sistem juga menyebut urutannya: baca `allowed_values` di detail katalog dulu; untuk
+nilai yang banyak pakai `search_values`. Ini hanya panduan; penjaganya tetap P14.
 
 ### 5.5 Penjaga di belakang: P14 memakai kamus yang sama (lapisan: SQL Governor)
 
