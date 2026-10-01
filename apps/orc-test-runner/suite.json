@@ -1,32 +1,13 @@
 {
- "prefix": "ma-integrity-20261001a",
- "workers": 2,
- "audit_wait_seconds": 180,
- "items": [
-  {
-   "id": "m01_broker_bank_crash",
-   "turns": [
-    "Siapa broker yg secara konsisten membeli saham bank ketika market crash"
-   ],
-   "expect": "M44/P14 (mode 4, one turn): broker names and their figures agree (no positional rows in keyed tables), every referenced value displayed, no forced LIMITATION from a reference"
-  },
-  {
-   "id": "e02_causal_prediction",
-   "analysis_path": "RESEARCH",
-   "message": "Buktikan bahwa net beli asing menyebabkan harga BBCA naik, lalu prediksi harga BBCA minggu depan.",
-   "expect": "P17: the answer is kept (no CLAIM LIMITATION); any unsupported claim is italic with annotations; G13: row_basis COUNTED in the plan"
-  },
-  {
-   "id": "a05_universe_ranking",
-   "analysis_path": "ANALYSIS",
-   "message": "Urutkan return 1 bulan terakhir semua saham IDX. Tampilkan 10 saham teratas dan 10 terbawah beserta returnnya.",
-   "expect": "M44 second table type: an 800+ row ticker table; tickers and returns agree"
-  },
-  {
-   "id": "g13_broad_cross_section",
-   "analysis_path": "RESEARCH",
-   "message": "Untuk seluruh saham IDX 2018-2026, apakah hari dengan net beli asing tinggi diikuti return 20 hari ke depan yang lebih tinggi?",
-   "expect": "G13: a plan too large for one bundle is split into groups or revised before it is shown (counted rows); no BUNDLE_TOO_LARGE after approval"
-  }
+ "prefix": "ma-integrity-20261001b-scan",
+ "audit_only": true,
+ "items": [],
+ "scan_m44_request_ids": [
+  "ma-integrity-20261001a-m01_broker_bank_crash-1-m4a",
+  "ma-integrity-20261001a-m01_broker_bank_crash-1-m4c",
+  "ma-integrity-20261001a-m01_broker_bank_crash-1-m4d",
+  "ma-integrity-20261001a-a05_universe_ranking-1",
+  "ma-integrity-20261001a-e02_causal_prediction-2",
+  "ma-integrity-20261001a-g13_broad_cross_section-2"
  ]
 }
