@@ -1059,6 +1059,18 @@ id; a refusal lists full references (`available: out.o1, out.o2`). The data reco
   `ai_final_extra_keys`; nested objects stay strict.
 - Every re-ask names the validation issue.
 
+### Edit repair (M45, off unless `AI_ENABLE_EDIT_REPAIR=true`)
+
+`app/edit_repair.py`. When a refused draft is a JSON object and the next turn is free-form (a gate refusal, the first
+format re-ask, a response-type refusal on a tool turn), the refusal offers an edit: the model may answer with only
+`{"edits": [{"find", "replace"}], "fields": {...}}`. Each `find` must occur exactly once across the draft's decoded
+string values; `fields` replaces whole top-level fields of the response (unknown keys are refused). The backend applies
+the edit to the draft and the result goes through every check again, like a full response (`ai_final_edit_applied`,
+audit `final.edit_applied`). An edit that does not apply (`ai_final_edit_failed`) gets a refusal asking for the complete
+response, and no edit is offered for prose, cut-off drafts or strict-schema turns. A reply that is not an edit object
+is taken as a full response. The repair budget is unchanged. Off: no edit is offered and refusals are as before. Live
+case: m4a of `ma-integrity-20261001a` spent 510 s on six full rewrites of an 18,952-character report.
+
 ### Research Plan angle ids (M49)
 
 The angle ids of a FEASIBLE `check_research_feasibility` are the keys of its data and designs. A plan angle the model

@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 
 from .audit_outbox import build_payload, final_event, model_event, tool_event, unrendered_event
 from . import data_record as records
+from . import edit_repair
 from .catalog_protocol import CACHE_NOTE, CACHEABLE_TOOLS, CatalogLedger, cache_key, gaps, record
 from .compaction import dumps, estimate_tokens, stable_hash, trim_history
 from .config import Settings
@@ -1414,6 +1415,9 @@ class RunState:
     raw_final: dict[str, Any] | None = None
     # the model's latest final output as it arrived (for the final.rejected / final.forced audit events)
     current_raw: str = ""
+    # M45 (AI_ENABLE_EDIT_REPAIR): the refused draft an edit object of the next reply applies to; set only when the
+    # refusal offered the edit
+    repair_base: dict[str, Any] | None = None
 
 
 class TurnRuleError(ValueError):
@@ -2103,8 +2107,13 @@ class AgentOrchestrator:
                 continue
 
             raw = self._output_text(response)
+            unapplied = None
+            if state.repair_base is not None:
+                raw, unapplied = self._apply_edit(state, raw)
             state.current_raw = raw
             try:
+                if unapplied is not None:
+                    raise unapplied
                 dropped: dict[str, Any] = {}
                 parsed = self._parse_final_output(raw, dropped)
                 if dropped:
@@ -2119,9 +2128,9 @@ class AgentOrchestrator:
             except GateRejection as exc:
                 # The model may still repair the analysis, so tools stay available for this turn.
                 self._echo_draft(state, raw)
-                state.input_items.append({"role": "user", "content": str(exc)})
                 state.structured_only = False
                 state.final_reask_sent = False
+                state.input_items.append({"role": "user", "content": str(exc) + self._offer_edit(state, raw)})
             except ValueError as exc:
                 issue = str(exc)
                 if usage["output_tokens"] >= self.settings.ai_max_output_tokens:
@@ -3642,13 +3651,13 @@ class AgentOrchestrator:
                                                  detail=issue or "not a final response", draft=raw,
                                                  occurred_at=self.wall_clock()))
         self._echo_draft(state, raw)
-        # M46 (2026-10-01): every re-ask names what was wrong (it used to only for a cut-off response, so a schema
-        # refusal was rewritten blind)
-        state.input_items.append({"role": "user", "content": (issue + " " if issue else "")
-                                  + self.finalize_instruction})
         if state.final_reask_sent:
             state.structured_only = True
         state.final_reask_sent = True
+        # M46 (2026-10-01): every re-ask names what was wrong (it used to only for a cut-off response, so a schema
+        # refusal was rewritten blind)
+        state.input_items.append({"role": "user", "content": (issue + " " if issue else "")
+                                  + self.finalize_instruction + self._offer_edit(state, raw)})
         log_event("ai_final_reask", request_id=state.request_id, iteration=state.iterations,
                   next_turn="STRICT_SCHEMA" if state.structured_only else "SAME_PREFIX",
                   looked_like_json=raw.strip().startswith(("{", "```")), output_chars=len(raw), issue=issue[:300])
@@ -3680,14 +3689,50 @@ class AgentOrchestrator:
                 f"Final response remained invalid after {limit} retries: {issue}"[:1000],
             )
         self._echo_draft(state, raw)
+        # M45: with an edit offered the next turn stays free-form (the strict schema admits only the full response)
+        offer = self._offer_edit(state, raw)
         state.input_items.append({
             "role": "user",
             "content": (
                 f"Your previous response was rejected ({state.final_rejections}/{limit} retries): "
-                f"{issue} Correct exactly this issue. Do not call tools. " + self.response_contract
+                f"{issue} Correct exactly this issue. Do not call tools. " + self.response_contract + offer
             ),
         })
-        state.structured_only = True
+        if not offer:
+            state.structured_only = True
+
+    def _offer_edit(self, state: RunState, raw: str) -> str:
+        """M45 (AI_ENABLE_EDIT_REPAIR): the edit instruction when the refused draft is a JSON object and the next turn
+        is free-form (an edit object cannot pass the strict schema); otherwise nothing: the full rewrite as before."""
+        state.repair_base = None
+        if not self.settings.ai_enable_edit_repair or state.tools_locked or state.structured_only \
+                or not self._turn_tools(state):
+            return ""
+        state.repair_base = edit_repair.draft_object(raw)
+        return " " + edit_repair.EDIT_REPAIR_INSTRUCTION if state.repair_base is not None else ""
+
+    def _apply_edit(self, state: RunState, raw: str) -> tuple[str, ValueError | None]:
+        """M45: a reply that is an edit object becomes the edited draft, which then passes every check as a full
+        response would; a reply that is not an edit is taken as it is. An edit that does not apply exactly returns the
+        refusal that asks for the full response (the draft is not offered for editing again)."""
+        base, state.repair_base = state.repair_base, None
+        reply = edit_repair.draft_object(raw, edits=True)
+        if not edit_repair.is_edit(reply):
+            return raw, None
+        try:
+            merged, counts = edit_repair.apply(base, reply, set(FinalResponse.model_fields))
+        except edit_repair.EditNotApplied as exc:
+            log_event("ai_final_edit_failed", request_id=state.request_id, iteration=state.iterations,
+                      issue=str(exc)[:300])
+            return raw, edit_repair.EditNotApplied(
+                f"The edit could not be applied ({exc}). Send the complete corrected final response.")
+        log_event("ai_final_edit_applied", request_id=state.request_id, iteration=state.iterations,
+                  edit_chars=len(raw), draft_chars=len(merged), **counts)
+        if self.audit_outbox is not None:
+            state.audit_trace.append(final_event("final.edit_applied", iteration=state.iterations, stage="EDIT",
+                                                 detail=json.dumps(counts), draft=raw,
+                                                 occurred_at=self.wall_clock()))
+        return merged, None
 
     def _add_usage(self, state: RunState, response: dict[str, Any]) -> dict[str, Any]:
         usage = response_usage(response)

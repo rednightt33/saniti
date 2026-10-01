@@ -168,6 +168,10 @@ class Settings:
     # G15 (plan step 2.4): parts the Execution Planner extracts at the same time once the preflight chose them, 1-4;
     # 1 is the sequential order as before. Each part is still one Governor request with its own checks.
     ai_planner_parallel_parts: int = 1
+    # M45 (plan step 6): a refused final draft that is a JSON object may be repaired with an edit object
+    # ({"edits": [{"find", "replace"}], "fields": {...}}) instead of a full rewrite; every check runs again on the
+    # edited answer and an edit that does not apply exactly falls back to the full rewrite. Off: as before.
+    ai_enable_edit_repair: bool = False
     # Multi-Angle Research (MULTI_ANGLE_RESEARCH.md): research_plan/v2 with 3-6 angles, rpc2, per-angle data contracts,
     # grouped execution behind start/run/complete_research_run and backend findings per angle. Needs DataNeed v2,
     # Research Plan confirmation and feasibility, and a sandbox reporting the matching multi_angle_research capability
@@ -297,6 +301,7 @@ class Settings:
             ai_enable_analysis_path=_boolean(env, "AI_ENABLE_ANALYSIS_PATH", False),
             ai_enable_preflight_parts=_boolean(env, "AI_ENABLE_PREFLIGHT_PARTS", False),
             ai_planner_parallel_parts=_integer(env, "AI_PLANNER_PARALLEL_PARTS", 1),
+            ai_enable_edit_repair=_boolean(env, "AI_ENABLE_EDIT_REPAIR", False),
             ai_enable_multi_angle_research=_boolean(env, "AI_ENABLE_MULTI_ANGLE_RESEARCH", False),
             ai_research_min_angles=_integer(env, "AI_RESEARCH_MIN_ANGLES", 2),
             ai_research_max_angles=_integer(env, "AI_RESEARCH_MAX_ANGLES", 6),
