@@ -20,6 +20,7 @@ dengan tanda **HIGH ALERT** di kolom status, dan masuk golden test berikutnya.
 | H1. Informasi hilang antar giliran | M63 | Giliran berikutnya hanya menerima isi jawaban; asumsi, batasan dan metodologi dibuang. Tabel hasil tidak membawa definisinya. AI menebak definisi lama dan menulis "konsisten dengan jawaban sebelumnya". |
 | H2. Aturan user tidak mengikat backend | M28, M26, M29 | Ambang sukses, efek minimal dan jumlah cakupan disimpan sebagai kalimat; mesin hitung memakai angkanya sendiri (ambang bawaan 0), dan teks rencana tidak dicek terhadap hasil cek kelayakan. |
 | H3. Definisi istilah berubah antar-run | M66, M13 | Istilah tanpa definisi baku ("hari crash", "bank BUMN", "paling likuid") ditentukan AI setiap kali. |
+| H5. Angka benar, label atau kalimatnya salah | S27, M24 (P08 ikut diperbaiki) | Jumlah turunan, label kelompok dan kalimat vonis ditulis AI bebas; pemeriksa angka meloloskannya. Kasus baru 2026-10-02: kolom "Hari-hari lainnya" padahal pembandingnya termasuk hari event. Rencana: `UNDERADDRESSED_PLAN_CAT23.md` kelompok 5. |
 | H4. Angka hasil kode AI tidak diperiksa | S23 | Hanya event study dan statistik riset yang dihitung ulang backend. Lihat prioritas 2. |
 
 ## Prioritas 1: membereskan masalahnya

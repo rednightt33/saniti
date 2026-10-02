@@ -109,6 +109,8 @@ Pembanding (praktik umum) dicari 2026-10-02; sumbernya di bagian akhir.
 
 ## 4. Hasil hilang atau dianggap tercatat ganda (M25, S13)
 
+**Status: disetujui user 2026-10-02, belum dikerjakan.**
+
 - **Masalah dan akar:**
   - **M25 (terbukti):** dua eksperimen, tetapi metadata hanya menampilkan yang terakhir. Status akhir hanya menyimpan
     completion terakhir.
@@ -131,46 +133,73 @@ Pembanding (praktik umum) dicari 2026-10-02; sumbernya di bagian akhir.
   - g5.1, g5.8; g4 dengan dua eksperimen → keduanya tampil.
 - **Permanen.**
 
-## 5. Angka benar, kalimatnya salah (S27, M24, P08)
+## 5. Angka benar, kalimatnya salah (S27, M24, P08) — HIGH ALERT (H5)
 
-- **Masalah dan akar (terbukti):**
-  - **S27:**
-    - Kalimat: "dari 2.258 event yang memenuhi syarat … sisanya 2.258 dipakai". Seharusnya 3.658 memenuhi syarat.
-    - Total itu tidak disediakan backend, jadi AI menjumlah sendiri dan salah memberi label.
-  - **M24:**
-    - INCONCLUSIVE ditulis "tidak didukung data", dan MDE disebut "efek terbesar".
-    - Cek kata hanya mencakup sebagian frasa.
-  - **P08:**
-    - "Lebih rendah sekitar 0,6 poin" ditolak karena sumbernya −0,6086.
-    - Kata arah yang dikenali hanya "turun, melemah, minus, …"; kata pembanding tidak dikenali.
-- **Kelas:** backend menyerahkan ke AI tugas menyusun angka turunan (total, arah) atau memilih kata vonis.
-- **Praktik umum:**
-  - Laporan otomatis menghitung semua angka turunan di sistem.
-  - Hasil tidak signifikan disebut "belum cukup bukti" atau "tidak jelas secara statistik", bukan "tidak ada efek"
-    ("absence of evidence is not evidence of absence").
-- **Usulan:**
-  - **S27:**
-    - Ringkasan event study menambah `qualifying_count`, dan validator menghitungnya ulang.
-    - Aturannya untuk semua helper: setiap jumlah yang biasa disebut di jawaban disediakan jadi.
-  - **M24:**
-    - Backend menyediakan kalimat vonis baku per status, misalnya INCONCLUSIVE → "data belum cukup untuk menyimpulkan".
-    - Gerbang menolak "tidak didukung / ditolak / tidak ada efek" untuk INCONCLUSIVE.
-    - Istilah MDE diberi nama tetap.
-    - Angka sebuah hipotesis hanya boleh dari hipotesis itu sendiri.
-  - **P08:**
-    - Rujukan nilai `abs(...)` sudah ada, jadi itu jalur utamanya.
-    - Gerbang juga mengenali kata pembanding (lebih rendah/tinggi, di bawah/atas, lebih kecil/besar, lower/higher,
-      below/above), dengan syarat arahnya cocok dengan tanda angka sumber.
-- **Lapisan:** helper sandbox, gerbang jawaban.
-- **Risiko dan mitigasi:**
-  - Kata pembanding salah pasang → hanya dalam 40 karakter sebelum angka, dan tanda yang bertentangan tetap ditolak.
-  - Kalimat baku terasa kaku → hanya kalimat vonis yang baku.
-- **Verifikasi:**
-  - g3 (jumlah event); g4/g6 bila ada hasil INCONCLUSIVE;
-  - tes kalimat r03 dan r02;
-  - kasus lain: g5.4;
-  - kasus yang tidak berlaku: angka dari pertanyaan user.
-- **Permanen.**
+**Bukti dari log pikiran AI (golden a, pertanyaan 3, deployment `ece48dd0`):**
+- **S27:** AI memegang angka yang benar: event_count 2.258, overlapping_dropped 1.387, censored 13. Total yang
+  memenuhi syarat (3.658) tidak pernah dihitung atau disediakan, lalu kalimatnya melabeli 2.258 sebagai
+  "memenuhi syarat".
+- **Kasus kedua di kelas yang sama (baru):**
+  - Pikiran AI: "hari-hari lainnya = NON_EVENT (tanpa hari event)", lalu ia memilih ALL_ELIGIBLE (termasuk hari
+    event) sebagai pembanding.
+  - Kolom tabel jawaban tetap berlabel "Hari-hari lainnya (baseline)". Asumsinya menyebut ALL_ELIGIBLE, tetapi label
+    yang dibaca user salah.
+- **M24, P08:** terjadi 28 September, sebelum perekaman pikiran dinyalakan, jadi log pikirannya tidak ada. Di run g6
+  (2026-10-02) kalimat INCONCLUSIVE sudah benar ("bukan berarti tidak ada efek"), tetapi belum dijaga sistem.
+
+**Akar (terbukti):** label, jumlah turunan, dan kata vonis ditulis AI dengan bebas. Angka-angkanya nyata, jadi
+pemeriksa angka meloloskannya. Tidak ada yang memeriksa apakah label cocok dengan definisi yang dipakai.
+
+**Kelas:** setiap jumlah, label kelompok, dan kalimat vonis yang diturunkan dari parameter backend tetapi ditulis
+ulang AI. Berlaku untuk event study, riset, `period_return` (pengecualian), dan data makro nanti.
+
+**Pembanding:**
+| Sumber | Praktiknya | Dibanding usulan awal |
+|---|---|---|
+| CONSORT (uji klinis) | Diagram alur wajib: setiap tahap (dinilai → dikeluarkan beserta alasannya → dianalisis) diberi jumlah, sehingga tidak ada angka yang "melompat". | Usulan awal hanya menambah `qualifying_count`. Ini diperluas: tabel alur lengkap yang dibuat sistem untuk setiap helper yang menyaring data. |
+| GRADE / Cochrane | Kalimat hasil dibakukan per besar efek × tingkat kepastian ("mungkin menghasilkan sedikit atau tanpa perbedaan"). | Usulan awal berupa daftar frasa terlarang. Diganti: kalimat vonis baku dibuat sistem, dan daftar terlarang hanya jadi cadangan. |
+| Data-to-text (semantic accuracy, NLI) | Teks dicek terhadap data dengan model NLI untuk menemukan penghilangan dan karangan. | Tidak dipakai sebagai jalur utama karena probabilistik dan menambah biaya; label dan jumlah dibuat sistem secara pasti. |
+
+**Usulan yang disesuaikan:**
+1. **Tabel alur buatan sistem** untuk setiap helper yang menyaring data:
+   - kandidat → dibuang (per alasan: tumpang tindih, disensor, tanpa harga sebelumnya) → dipakai;
+   - setiap baris membawa label tetap;
+   - divalidasi ulang seperti tabel event study lainnya;
+   - jawaban mengutip angka lewat rujukan dengan label sistem.
+2. **Label kelompok dari parameter.** Nama pembanding diambil dari parameter yang dipakai, misalnya ALL_ELIGIBLE →
+   "semua hari yang memenuhi syarat (termasuk hari event)", NON_EVENT → "hari tanpa event". Label kolom yang
+   bertentangan dengan parameter ditolak gerbang.
+3. **Kalimat vonis baku per status:**
+   - sistem menyediakan kalimat per status, misalnya INCONCLUSIVE → "data belum cukup untuk menyimpulkan; ini bukan
+     bukti tidak ada efek";
+   - jawaban wajib memuatnya lewat rujukan;
+   - penjelasan bebas tetap boleh;
+   - daftar frasa terlarang tetap ada sebagai cadangan.
+4. **Arah dari tanda angka (P08).** Format rujukan baru menulis kata arah dari tanda angkanya ("lebih rendah 0,61
+   poin" untuk −0,61), sehingga AI tidak perlu mengetik arah. Ini diturunkan, bukan daftar kata. Angka yang diketik
+   AI tetap dicek seperti sekarang.
+
+**Lapisan:** helper sandbox dan validator (tabel alur), rujukan nilai di orc (label, vonis, arah), gerbang jawaban
+(cadangan).
+
+**Tidak tercakup:** label yang dikarang AI untuk tabel buatan kodenya sendiri. Itu ditangani definisi terstruktur H1
+dan bukti agregat (prioritas 2).
+
+**Risiko dan mitigasi:**
+- Jawaban terasa kaku → hanya kalimat vonis dan label kelompok yang baku.
+- Rujukan bertambah → format pendek (`out.o1` / `finding.<id>`).
+
+**Verifikasi:**
+- g3 (tabel alur, label pembanding), g4/g6 (kalimat INCONCLUSIVE), tes r03 (arah);
+- kasus lain: riset multi-sudut, `period_return` dengan pengecualian;
+- kasus yang tidak berlaku: angka dari pertanyaan user.
+
+**Permanen.**
+
+Sumber:
+- [CONSORT flow diagram](https://casrai.org/dictionary/term/consort-flow-diagram)
+- [GRADE guidelines 26: informative statements](https://www.sciencedirect.com/science/article/pii/S0895435619304160)
+- [Evaluating semantic accuracy of data-to-text with NLI](https://aclanthology.org/2020.inlg-1.19.pdf)
 
 ## 6. Data sebelum periode dan pemanasan indikator (G11/D12/G08, D14, P05)
 
