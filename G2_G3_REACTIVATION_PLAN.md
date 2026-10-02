@@ -368,6 +368,11 @@ Saklar pikiran (`AI_CAPTURE_REASONING`) menyala, supaya kesalahan bisa ditelusur
    - router CLARIFY / INSIGHT / CONTINUE / APPROVE / REVISE / CANCEL / NEW_TOPIC / CONVERSATIONAL;
    - INSIGHT lewat G1 dengan panduan di manual (4d-3b, tanpa helper);
    - rantai antar G (4d-4).
+   *Selesai di branch, belum di-deploy* (saklar `AI_ENABLE_CONVERSATION_ROUTER`, default mati): router 8 kelas dan
+   aturan backend, E1 (temuan di catatan percakapan, `finding.<id>` lintas giliran), manual terbawa (langkah 4),
+   rencana tertunda tetap. Buku percobaan: daftar temuan di catatan percakapan adalah buku percobaannya (urut, semua
+   uji); koreksi uji berganda lintas giliran belum ditegakkan backend (dicatat sebagai lanjutan, perlu perubahan
+   pemeriksa rencana di sandbox).
 6. **Uji live singkat:** G2 dan G3 masing-masing sendiri, lalu bersama, lalu dua giliran lanjutan (saklar pikiran
    menyala).
 7. **Golden test** 5 soal + skenario percakapan (bagian 7, 4d-5).

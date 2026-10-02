@@ -35,6 +35,7 @@ from .schemas import (
     ReplyClassifierUsage,
     ResearchPlanExecution, ResearchSummary, RunError, final_response_schema,
 )
+from . import conversation_router as router
 from . import method_guides
 from .provenance import (CONTEXT, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
                          parse_numbers, released_numbers, requested_statistics, weakest)
@@ -642,6 +643,12 @@ DUAL_FINDING_REFERENCE = ("{{finding.<angle_id>.<path>}} a backend finding of co
                           "{{finding.<angle_id>.<path>}} a backend finding of complete_research_run (a hypothesis "
                           "plan's finding of complete_analysis is {{finding.<hypothesis_id>.<path>}}, for example "
                           "angle_a.difference, angle_a.ci_low, sample.effective),")
+
+
+def _utc_now() -> str:
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def _without_sentence(text: str, sentence: str, replacement: str) -> str:
@@ -1714,6 +1721,7 @@ class AgentOrchestrator:
             if self.conversation_reuse and conversation_key and request.history:
                 self._add_conversation_resources(state, conversation_key)
             self._prepare_plan_turn(request, state)
+            self._apply_turn_kind(state)
             current_research_guard.set(state.guard)
             final = self._loop(state)
             state.experiments = self._research_summary(state, final.answer)
@@ -1825,6 +1833,7 @@ class AgentOrchestrator:
         state.data_record = records.copy_of(data_record)
         # P18: the aliases of earlier steps and turns keep their numbers; new outputs continue after them
         state.ref_aliases, state.ref_next = records.aliases(state.data_record)
+        self._seed_findings(state)
         self._offer_methods(state)
         if not records.has_data(state.data_record):
             return
@@ -1834,6 +1843,21 @@ class AgentOrchestrator:
         log_event("data_record_offered", request_id=state.request_id, tables=len(state.data_record["tables"]),
                   needs=len(state.data_record["needs"]), outputs=len(state.data_record["outputs"]),
                   note_chars=len(note))
+
+    def _seed_findings(self, state: RunState) -> None:
+        """E1: the research findings of earlier turns and steps are sources again (finding.<id> and their figures), so
+        a follow-up explains them without running the research again. An event study is cited from its tables."""
+        for entry in state.data_record.get("findings") or []:
+            finding = entry.get("finding") or {}
+            if entry.get("kind") not in ("ANGLE", "HYPOTHESIS") or not finding:
+                continue
+            values = self._finding_numbers(finding) if entry["kind"] == "ANGLE" else numbers_in(finding)
+            if entry["kind"] == "HYPOTHESIS":
+                values += [abs(v) for v in values if v < 0]
+            state.analysis_values[f"recorded_finding:{entry['id']}"] = {"label": "DATA_COVERAGE_VERIFIED",
+                                                                        "values": values}
+            if self.value_references:
+                state.ref_sources.add("finding", str(entry["id"]), finding, "DATA_COVERAGE_VERIFIED")
 
     def _offer_methods(self, state: RunState) -> None:
         """4b: the menu of analysis methods, then the manuals opened earlier in the conversation (current version), as
@@ -2122,6 +2146,57 @@ class AgentOrchestrator:
         count = (f"exactly {NUMBER_WORDS[low]} angle" + ("s" if low > 1 else "")) if low == high \
             else f"from {NUMBER_WORDS[low]} to {NUMBER_WORDS[high]} angles"
         return " " + ANGLE_COUNT_NOTE.format(count=count)
+
+    def _apply_turn_kind(self, state: RunState) -> None:
+        """The conversation router's class for this sub-run (mode 4): its note, and for CLARIFY and CONVERSATIONAL only
+        the read-only tools and the answer types, so a question about a result never extracts data or runs code."""
+        kind = router.current_turn_kind.get()
+        if kind is None:
+            return
+        state.plan_meta["turn_kind"] = kind
+        if kind in ("CLARIFY", "CONVERSATIONAL"):
+            available = state.tool_filter if state.tool_filter is not None else frozenset(self.registry.names())
+            state.tool_filter = frozenset(available) & router.READ_ONLY_TOOLS
+            state.allowed_types = BASE_TYPES
+        note = router.NOTES.get(kind)
+        if note:
+            state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": note})
+        log_event("conversation_turn_routed", request_id=state.request_id, turn_kind=kind,
+                  tools=sorted(state.tool_filter) if state.tool_filter is not None else "ALL")
+
+    def classify_turn(self, request_id: str, message: str, context: dict[str, Any]
+                      ) -> tuple[str | None, str | None, dict[str, Any]]:
+        """The conversation router's model call (one small tool-free call, reasoning low): the turn kind and a
+        revision instruction, with its usage record. A failure returns None (the backend's rules pick the class)."""
+        state = RunState(request_id=request_id, started=self.clock(), input_items=[])
+        payload: dict[str, Any] = {
+            "model": self.settings.ai_model, "session_id": f"{request_id}:turn-router",
+            "instructions": router.ROUTER_INSTRUCTIONS,
+            "input": [{"role": "user", "content": dumps({"conversation": context, "user_message": message[:4000]})}],
+            "reasoning": self.settings.reasoning("low"),
+            "max_output_tokens": min(2000, self.settings.ai_max_output_tokens),
+            "store": False, "provider": self._provider(),
+            "text": {"format": {"type": "json_schema", "name": "conversation_turn", "strict": True,
+                                "schema": router.ROUTER_SCHEMA}},
+        }
+        started = time.monotonic()
+        record: dict[str, Any] = {"status": "FAILED", "input_tokens": 0, "output_tokens": 0, "cost": None,
+                                  "latency_ms": 0}
+        kind, instruction = None, None
+        try:
+            response = self.client.create(payload)
+            usage = self._add_usage(state, response)
+            record.update(input_tokens=usage["input_tokens"], output_tokens=usage["output_tokens"], cost=usage["cost"])
+            parsed = router.TurnClassification.model_validate_json(self._output_text(response).strip() or "{}")
+            kind, instruction = parsed.turn_kind, parsed.revision_instruction
+            record["status"] = "COMPLETED"
+        except Exception as exc:  # noqa: BLE001 - the backend's fallback class applies
+            log_event("conversation_router_failed", request_id=request_id, error=type(exc).__name__)
+        record["latency_ms"] = int((time.monotonic() - started) * 1000)
+        log_event("conversation_turn_classified", request_id=request_id, turn_kind=kind, status=record["status"],
+                  latency_ms=record["latency_ms"], input_tokens=record["input_tokens"],
+                  output_tokens=record["output_tokens"])
+        return kind, instruction, record
 
     def classify_reply(self, request_id: str, message: str, plan: Any) -> tuple[str, str | None, dict[str, Any]]:
         """Mode 4: the reply classifier outside a run (APPROVE, REVISE, CANCEL or UNRELATED; any failure is
@@ -2597,6 +2672,12 @@ class AgentOrchestrator:
             state.analysis_values[f"research_released:{run_id}"] = {
                 "label": "DATA_COVERAGE_VERIFIED", "values": released_numbers(result.get("released_contents"))}
             state.context_numbers.extend(numbers_in(result.get("angle_completion"), ints_only=True))
+            for finding in result.get("research_findings") or []:
+                if isinstance(finding, dict) and finding.get("angle_id"):
+                    # E1: kept for later turns of the conversation (cited as finding.<angle_id>)
+                    records.add_finding(state.data_record, state.request_id, kind="ANGLE",
+                                        finding_id=str(finding["angle_id"]), finding=finding,
+                                        recorded_at=self.wall_clock().isoformat(timespec="seconds"))
             state.final_status = {k: result.get(k) for k in (
                 "status", "research_findings_version", "research_run_id", "plan_id", "calculation_validation",
                 "angle_completion", "missing_angle_ids")}
@@ -2924,6 +3005,18 @@ class AgentOrchestrator:
                         "label": "DATA_COVERAGE_VERIFIED", "values": values}
                     for finding in findings:
                         state.research_findings[str(finding.get("hypothesis_id"))] = finding
+                        # E1: kept for later turns of the conversation (cited as finding.<hypothesis_id>)
+                        records.add_finding(state.data_record, state.request_id, kind="HYPOTHESIS",
+                                            finding_id=str(finding.get("hypothesis_id")), finding=finding,
+                                            recorded_at=_utc_now())
+                for study in result["final_status"].get("event_studies") or []:
+                    if isinstance(study, dict) and study.get("status") == "PASS" and study.get("name"):
+                        # G2: the recomputed study, its figures cited from its tables (out.oN)
+                        records.add_finding(state.data_record, state.request_id, kind="EVENT_STUDY",
+                                            finding_id=str(study["name"]), recorded_at=_utc_now(), finding={
+                                                "status": "PASS", "validation_level": "FORMULA_AND_STATISTICS_VERIFIED",
+                                                "summary_output_id": study.get("summary_output_id"),
+                                                "events_output_id": study.get("events_output_id")})
                 state.context_numbers.extend(numbers_in(result.get("coverage"), ints_only=True))
 
     def _dataneed_findings(self, state: RunState) -> tuple[list[str], list[str]]:
@@ -3319,7 +3412,8 @@ class AgentOrchestrator:
         # a released output of an earlier message read in this run is a completed analysis's result (reuse)
         run = self._research_result(state)
         usable = any(c["status"] == "COMPLETED" for c in state.completions.values()) or bool(state.inherited) \
-            or (run is not None and run.get("status") == "COMPLETED")
+            or (run is not None and run.get("status") == "COMPLETED") \
+            or any(k.startswith("recorded_finding:") for k in state.analysis_values)  # E1: an earlier turn's finding
         average_fact = any(f["kind"] == "DATABASE_AGGREGATE" and f["aggregation"] == "AVG" for f in state.facts)
         missing = sorted(families) if not usable else []
         if not missing and plain_average and not usable and not average_fact:

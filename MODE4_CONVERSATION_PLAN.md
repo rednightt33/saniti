@@ -1,6 +1,6 @@
 # Rencana: mode 4 sebagai percakapan yang luwes (M56)
 
-Status: **disetujui user 2026-10-02** ("Setuju untuk mode 4"), difinalkan bersama `G2_G3_REACTIVATION_PLAN.md` (langkah 5
+Status: **dikerjakan di branch `claude/g2-g3-reactivation` (2026-10-02), belum di-deploy; saklar `AI_ENABLE_CONVERSATION_ROUTER`**. Disetujui user 2026-10-02 ("Setuju untuk mode 4"), difinalkan bersama `G2_G3_REACTIVATION_PLAN.md` (langkah 5
 di urutan kerjanya); belum dijalankan. Terkait `ERRORS_AND_SOLUTIONS.md` M56.
 
 > Diperluas oleh `G2_G3_REACTIVATION_PLAN.md` bagian 4d (2026-10-02): jenis giliran CLARIFY, INSIGHT (analisis pendorong) dan

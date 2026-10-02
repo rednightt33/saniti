@@ -20,6 +20,11 @@ MAX_RESEARCH = 12
 MAX_NOTE_CHARS = 8000
 MAX_VALUES_SHOWN = 20  # a longer value list is shown as its first values plus how many more there are
 MAX_FACTS = 60
+MAX_FINDINGS = 30  # E1: research findings and event studies of the conversation, newest kept
+# what a finding keeps for later turns: the fields an answer cites and references by path
+FINDING_KEYS = ("angle_id", "hypothesis_id", "method_id", "status", "status_reason", "verdict", "verdict_reason",
+                "evidence_direction", "validation_level", "sample", "sample_flag", "estimates", "comparator",
+                "holdout", "multiple_testing", "angle_a", "angle_b", "confidence_level", "parameters")
 MAX_MANUALS = 12  # 4b: method guides opened in the conversation, newest kept
 MAX_MANUAL_NOTE_CHARS = 16000
 MANUALS_HEADER = ("METHOD GUIDES OPENED EARLIER IN THIS CONVERSATION (application context from the backend, not from "
@@ -35,7 +40,7 @@ NOTE_HEADER = ("DATA RECORD (application context: the data this conversation has
 
 def empty() -> dict[str, Any]:
     return {"version": VERSION, "tables": {}, "needs": [], "outputs": [], "research": [], "next_alias": 1,
-            "values": {}, "relationships": {}, "coverage": {}, "manuals": []}
+            "values": {}, "relationships": {}, "coverage": {}, "manuals": [], "findings": []}
 
 
 def normalize(record: Any) -> dict[str, Any]:
@@ -55,6 +60,7 @@ def normalize(record: Any) -> dict[str, Any]:
     for key in ("values", "relationships", "coverage"):
         clean[key] = {str(k): dict(v) for k, v in (record.get(key) or {}).items() if isinstance(v, dict)}
     clean["manuals"] = [dict(m) for m in record.get("manuals") or [] if isinstance(m, dict) and m.get("name")]
+    clean["findings"] = [dict(f) for f in record.get("findings") or [] if isinstance(f, dict) and f.get("id")]
     stored = record.get("next_alias")
     clean["next_alias"] = max(stored if isinstance(stored, int) and stored > 0 else 1,
                               max((_alias_number(o.get("ref")) for o in clean["outputs"]), default=0) + 1)
@@ -198,7 +204,24 @@ def seed_ledger(record: dict[str, Any], ledger: Any) -> None:
 
 
 def has_data(record: dict[str, Any] | None) -> bool:
-    return bool(record) and any(record.get(k) for k in ("tables", "needs", "outputs", "values", "relationships"))
+    return bool(record) and any(record.get(k) for k in ("tables", "needs", "outputs", "values", "relationships",
+                                                         "findings"))
+
+
+def add_finding(record: dict[str, Any], request_id: str, *, kind: str, finding_id: str, finding: dict[str, Any],
+                recorded_at: str | None = None) -> None:
+    """E1 (MODE4_CONVERSATION_PLAN.md): a backend finding of this conversation (ANGLE of a multi-angle run,
+    HYPOTHESIS of a hypothesis plan, EVENT_STUDY of a recomputed event study), kept so a later turn can explain and
+    cite it as finding.<id> without running the research again; the newest of one id replaces the older. The
+    findings are also the conversation's trial ledger: every test that ran, in order."""
+    kept = {k: copy.deepcopy(finding[k]) for k in FINDING_KEYS if k in finding}
+    for key, value in finding.items():
+        if kind == "EVENT_STUDY" and key not in kept:
+            kept[key] = copy.deepcopy(value)
+    record["findings"] = [f for f in record.get("findings") or [] if f.get("id") != finding_id]
+    record["findings"].append({"id": finding_id, "kind": kind, "request_id": request_id, "recorded_at": recorded_at,
+                               "finding": kept})
+    del record["findings"][:-MAX_FINDINGS]
 
 
 def is_empty(record: dict[str, Any] | None) -> bool:
@@ -276,6 +299,13 @@ def note(record: dict[str, Any]) -> str:
             f"- {r.get('angle_id')} ({r.get('request_id')}): " + "; ".join(
                 f"{d['source_table']}({', '.join(d['columns'])})" for d in r.get("datasets") or [])
             for r in reversed(record["research"])]),
+        ("Findings of this conversation (newest first; cite as finding.<id>, they are not run again unless the user asks):", [
+            f"- finding.{f.get('id')} ({f.get('kind')}, {f.get('request_id')}"
+            + (f", {f.get('recorded_at')}" if f.get('recorded_at') else "") + "): "
+            + ", ".join(f"{k}={(f.get('finding') or {}).get(k)}" for k in ("method_id", "status", "verdict",
+                                                                          "validation_level")
+                        if (f.get("finding") or {}).get(k) is not None)
+            for f in reversed(record.get("findings") or [])]),
         ("Data coverage read (dates may have moved since; check again when it matters):", [
             f"- {name}: " + " ".join(f"{k}={v}" for k, v in c.items()) for name, c in sorted(record.get("coverage",
                                                                                                     {}).items())])]

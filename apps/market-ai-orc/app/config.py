@@ -111,6 +111,8 @@ class Settings:
     ai_enable_hypothesis_plan: bool = False
     # 4b (2026-10-02): the menu of analysis methods at the start of every run and get_method_guide
     ai_enable_method_guides: bool = False
+    # 4d (2026-10-02): mode 4 routes every later turn (CLARIFY, INSIGHT, CONTINUE, ...) instead of a new round
+    ai_enable_conversation_router: bool = False
     # OpenRouter provider routing for the agent's model calls: provider.sort "price", "throughput" or "latency". Unset
     # keeps OpenRouter's default load balancing, which is weighted to the lowest price.
     ai_provider_sort: str | None = None
@@ -291,6 +293,7 @@ class Settings:
             ai_enable_event_study=_boolean(env, "AI_ENABLE_EVENT_STUDY", False),
             ai_enable_hypothesis_plan=_boolean(env, "AI_ENABLE_HYPOTHESIS_PLAN", False),
             ai_enable_method_guides=_boolean(env, "AI_ENABLE_METHOD_GUIDES", False),
+            ai_enable_conversation_router=_boolean(env, "AI_ENABLE_CONVERSATION_ROUTER", False),
             ai_provider_sort=(env.get("AI_PROVIDER_SORT") or "").strip().lower() or None,
             ai_log_provider=_boolean(env, "AI_LOG_PROVIDER", False),
             ai_final_contract_in_prompt=_boolean(env, "AI_FINAL_CONTRACT_IN_PROMPT", False),

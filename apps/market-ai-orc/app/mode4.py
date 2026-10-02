@@ -15,6 +15,11 @@ Follow-up round (the reply to D's suggestion, read by the existing reply classif
   REVISE     the suggestion is revised and returned for confirmation (the user's angle count applies).
   CANCEL     acknowledged; nothing runs.
   UNRELATED  a new question (decision C): the suggestion is cancelled and the message starts a new first round.
+With AI_ENABLE_CONVERSATION_ROUTER (4d, user decision 2026-10-02) every later turn, with or without a pending
+suggestion, is read by the conversation router (app/conversation_router.py) instead: CLARIFY and CONVERSATIONAL answer
+from the conversation without data tools, INSIGHT runs one analysis step, CONTINUE one free step (any of G1-G4, plans
+for the user's approval), APPROVE / REVISE / CANCEL act on the pending suggestion as above, NEW_TOPIC starts a new
+first round. Only CONTINUE, APPROVE and NEW_TOPIC can start research; a pending suggestion survives the other classes.
 
 A failed step degrades the answer instead of failing it: without A nothing else runs; without B or C the answer
 keeps the analysis and a note; without D the answer has no suggestion and says why. AI_MODE4_MAX_SECONDS bounds the
@@ -27,15 +32,18 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from . import conversation_router as router
 from .orchestrator import AgentOrchestrator, current_time_budget, log_event
 from .provenance import LABEL_ORDER
-from .research_plan_v2 import ContinuationInV2, ContinuationOutV2, current_angle_bounds
+from .research_plan_v2 import ContinuationInV2, ContinuationOutV2, current_angle_bounds, plan_digest_v2
 from .schemas import (MAX_HISTORY_ITEMS, MAX_MESSAGE_CHARACTERS, AgentRunRequest, AgentRunResponse,
                       AnalysisPathExecution, HistoryMessage, ReplyClassifierUsage)
 
 MODE4_VERSION = 1
 MIN_STEP_SECONDS = 120  # a step is not started with less time left than this
 APPROVAL_MESSAGE = "Setuju, jalankan rencana ini."
+PENDING_LINE = "Usulan riset sebelumnya masih menunggu keputusan Anda; balas \"jalankan\" kapan saja untuk menjalankannya."
+STEP_SUFFIX = {"CLARIFY": "m4q", "CONVERSATIONAL": "m4q", "INSIGHT": "m4i", "CONTINUE": "m4n"}
 ANALYSIS_CHARS, RESEARCH_CHARS = 5000, 6000
 NUMBER_WORDS = {"satu": 1, "dua": 2, "tiga": 3, "empat": 4, "lima": 5, "enam": 6,
                 "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6}
@@ -93,6 +101,7 @@ class Mode4Orchestrator:
     Other attributes (analysis_path, conversation_reuse, registry, close, ...) are the inner orchestrator's."""
 
     mode4 = True
+    router = False  # AI_ENABLE_CONVERSATION_ROUTER, set in __init__
 
     def __init__(self, inner: AgentOrchestrator) -> None:
         self.inner = inner
@@ -100,6 +109,7 @@ class Mode4Orchestrator:
         self.min_angles, self.max_angles = int(limits.get("min_angles", 2)), int(limits.get("max_angles", 6))
         # the fewest angles the sandbox runs in one plan: a one-angle suggestion needs PY_SANDBOX_RESEARCH_MIN_ANGLES=1
         self.sandbox_min = int(limits.get("sandbox_min_angles") or 2)
+        self.router = bool(getattr(inner.settings, "ai_enable_conversation_router", False))
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self.inner, name)
@@ -125,6 +135,8 @@ class _Mode4Run:
         self.results: list[AgentRunResponse] = []
         self.notes: list[str] = []
         self.classifier: dict[str, Any] | None = None
+        self.turn_kind: str | None = None
+        self.router_usage: dict[str, Any] | None = None
         self.base_id = request.request_id[:190]
 
     # ------------------------------------------------------------------------------------------------ plumbing
@@ -134,7 +146,7 @@ class _Mode4Run:
 
     def sub(self, step: str, suffix: str, message: str, analysis_path: str | None, *,
             continuation: ContinuationInV2 | None = None, history: list[HistoryMessage] | None = None,
-            bounds: tuple[int, int] | None = None) -> AgentRunResponse | None:
+            bounds: tuple[int, int] | None = None, turn_kind: str | None = None) -> AgentRunResponse | None:
         request_id = f"{self.base_id}-{suffix}"
         left = self.remaining()
         if left < MIN_STEP_SECONDS:
@@ -148,11 +160,13 @@ class _Mode4Run:
                                       metadata=self.request.metadata, continuation=continuation,
                                       analysis_path=analysis_path)
         budget, angle_bounds = current_time_budget.set(left), current_angle_bounds.set(bounds)
+        kind = router.current_turn_kind.set(turn_kind)
         try:
             result = self.inner.run(sub_request, self.key, data_record=self.record)
         finally:
             current_time_budget.reset(budget)
             current_angle_bounds.reset(angle_bounds)
+            router.current_turn_kind.reset(kind)
         response, execution = result.response, result.execution
         plan_exec = execution.research_plan
         self.steps.append({
@@ -176,11 +190,47 @@ class _Mode4Run:
 
     def execute(self) -> AgentRunResponse:
         continuation = self.request.continuation
+        if continuation is not None and not isinstance(continuation, ContinuationInV2):
+            return self.inner.run(self.request, self.key)  # a research_plan/v1 plan: the path it was issued on
+        if self.owner.router and (continuation is not None or self.request.history):
+            return self.routed(continuation)
         if continuation is None:
             return self.first_round()
-        if not isinstance(continuation, ContinuationInV2):
-            return self.inner.run(self.request, self.key)  # a research_plan/v1 plan: the path it was issued on
         return self.follow_up(continuation)
+
+    def routed(self, continuation: ContinuationInV2 | None) -> AgentRunResponse:
+        """4d: a later turn, classified by the conversation router and handled by the backend's rules."""
+        pending = continuation is not None
+        explicit = continuation.action if pending else None
+        if explicit is not None:
+            kind, instruction = explicit, continuation.revision_instruction
+        else:
+            context = router.context(self.record, list(self.request.history),
+                                     plan_digest_v2(continuation.plan) if pending else None)
+            raw, instruction, self.router_usage = self.inner.classify_turn(f"{self.base_id}-m4r",
+                                                                           self.request.message, context)
+            kind = router.apply_rules(raw, pending)
+        self.turn_kind = kind
+        log_event("mode4_turn_routed", request_id=self.request.request_id, turn_kind=kind, pending=pending,
+                  source="EXPLICIT" if explicit else "ROUTER")
+        if kind in router.NEEDS_PENDING:
+            assert continuation is not None
+            return self.follow_up(continuation.model_copy(update={
+                "action": kind, "revision_instruction": instruction if kind == "REVISE" else None}))
+        if kind == "NEW_TOPIC":
+            if pending:
+                self.notes.append("Usulan riset sebelumnya dibatalkan karena ada pertanyaan baru.")
+            return self.first_round(cancelled_plan_id=continuation.plan_id if pending else None)
+        result = self.sub(kind.lower(), STEP_SUFFIX[kind], self.request.message,
+                          "ANALYSIS" if kind == "INSIGHT" else None, turn_kind=kind)
+        if pending and result is not None and result.response is not None \
+                and result.response.response_type in ("ANSWER", "LIMITATION"):
+            # rule 4: the suggestion is still pending (the conversation store keeps it)
+            self.notes.append(PENDING_LINE)
+            result = result.model_copy(update={"response": result.response.model_copy(update={
+                "limitations": _merge(result.response.limitations, [PENDING_LINE])})})
+            self.results[-1] = result
+        return self.finish(result, round_=kind, passthrough=True)
 
     def first_round(self, cancelled_plan_id: str | None = None) -> AgentRunResponse:
         question = self.request.message
@@ -297,6 +347,7 @@ class _Mode4Run:
         analysis = main if round_ == "FIRST" else None
         block: dict[str, Any] = {
             "version": MODE4_VERSION, "round": round_, "steps": self.steps, "notes": self.notes,
+            "turn_kind": self.turn_kind, "router": self.router_usage,
             "analysis": self._part(analysis), "research": self._part(research),
             "suggestion": self._part(suggestion), "cancelled_plan_id": cancelled_plan_id}
         research_ok = _ok(research, "ANSWER", "LIMITATION")
@@ -387,6 +438,8 @@ class _Mode4Run:
         retires the approved plan as EXECUTED and keeps the suggestion PENDING."""
         runs = [r.execution for r in self.results]
         costs = [e.cost for e in runs if e.cost is not None]
+        if (self.router_usage or {}).get("cost") is not None:
+            costs.append(self.router_usage["cost"])
         classifier = self.classifier or {}
         if classifier.get("cost") is not None:
             costs.append(classifier["cost"])
