@@ -49,6 +49,12 @@
       "expect": "question 5 (mode 4: analysis + G4) then 4d-5: CLARIFY (no data tools), INSIGHT (no research), CONTINUE G2, CONTINUE G3 (plan v1) + approval, CONTINUE G4 + approval, CLARIFY citing finding.<id>; research never repeated unasked"
     },
     {
+      "id": "g6_rsi_threshold",
+      "analysis_path": "RESEARCH",
+      "message": "Apakah saham bank yang RSI 14-nya di bawah 30 naik minimal 3% dalam 10 hari berikutnya? Anggap berhasil kalau naik ≥ 3%. Selisih di bawah 1 poin persen tidak penting buat saya.",
+      "expect": "HIGH ALERT H2 (M28/M26/M29): the backend success rule is >= 3% without the model having to pass it; min effect 1 pp; plan counts from feasibility; D14 warm-up. Baseline run ma-g6-20261002a (first event_summary used > 0, caught by the model). Follow-up 'ubah jadi 5%' needs a third turn (runner change pending)"
+    },
+    {
       "id": "g7_followup_definitions",
       "turns": [
         "Berapa total net beli investor asing di pasar Nego per saham untuk 5 saham bank dengan nilai transaksi terbesar selama 2025?",
