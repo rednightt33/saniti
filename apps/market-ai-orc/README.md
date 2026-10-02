@@ -1235,6 +1235,31 @@ User decisions 2026-10-02 (`G2_G3_REACTIVATION_PLAN.md` step 5b; sandbox README,
   mandatory limitation line naming the findings and the overlaps (at most 3, the rest counted) and the finding in the
   record keeps `in_sample`. Not covered: overlap with earlier research tests of the conversation.
 
+### HIGH ALERT: definitions across turns and the user's rules (2026-10-02)
+
+Plan: `HIGH_ALERT_IMPLEMENTATION_PLAN.md`, steps 2–5.
+
+- **History.** A later turn sees the whole earlier answer: the answer, then "Asumsi:", "Batasan:" and "Metodologi:"
+  (`conversations.assistant_text`). M63: the limitation "boards combined" had been dropped.
+- **Definitions.** The data record shows each request's filter, readable (`where …`, `restricted to …`, DERIVED from
+  the approved view). Each released output shows its `definition: …` (DECLARED in `emit_table`, or filled by a
+  helper) and keeps its lineage.
+- **INSIGHT.** `complete_analysis` of an INSIGHT turn is refused (`INSIGHT_SOURCE_NOT_OPENED`) until the run opened an
+  earlier result: `load_output` in successful code, or `get_session_output` of another request's output. A turn
+  without earlier results is not refused.
+- **Consistency claims** (`app/definition_check.py`). "konsisten dengan jawaban sebelumnya" and similar phrases are
+  checked against the definitions of the outputs this run released and of the earlier tables it loaded. A mismatch
+  is rejected once (`DEFINITION`); if the claim stays, a limitation states the difference.
+- **Every completion.** `execution.analysis_final_statuses` lists every completion of the run (M25); it is omitted
+  when there was none.
+- **Success rule** (M28):
+  - `success_rule {operator, value}` in plan v1 experiments and research_governance, compared exactly at submission;
+  - the value must be a number in the user's question or message (`PLAN_SUCCESS_RULE`);
+  - a REVISE ("ubah jadi 5%") sets a new one, and the earlier finding stays as `finding.<id>@n`;
+  - the data record shows "success rule applied".
+- **Plan scope counts** (M29). A number in a plan's universe or time_scope must come from the user's messages or
+  the feasibility result (`PLAN_TEXT_PROVENANCE`).
+
 ### Reasoning capture (dev measurement, off unless `AI_CAPTURE_REASONING=true`)
 
 `app/reasoning_capture.py` (user decision 2026-10-01). Most run time is model reasoning, but a run kept only the

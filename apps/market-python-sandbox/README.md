@@ -237,6 +237,26 @@ bundle of the same request.
     p-value. An unknown unit or column is refused (`OUTPUT_INVALID`); the collector re-checks them and keeps them in
     the output's `meta.units`, which `GET /v1/sessions/{id}/outputs/{output_id}` returns and market-ai-orc formats the
     answer's figures by.
+  - **Output definitions (H1, M63, 2026-10-02).** `emit_table` and `emit_json` take
+    `definition={'filters': [{'column', 'operator', 'value'}], 'period': {'start', 'end'}, 'entities', 'thresholds',
+    'notes'}`: how the result was made beyond the data request. The filters use the DataNeed scope operators.
+    - `{}` states that no filter beyond the data request was applied.
+    - The runtime validates the definition and the collector keeps it in `meta.definition`.
+    - `complete_analysis` does not release a TABLE or JSON whose latest version has no definition. It returns
+      `INCOMPLETE`, `next_action RUN_PYTHON` and `missing_definitions`.
+    - The helpers (`event_study`, `event_summary`) fill their own definitions.
+    - Released outputs carry `definition` and `lineage` (execution_id, code_sha256, need_id, bundle_id).
+    - Carried tables and `load_output(...).attrs` carry the definition, and `final_status.carried_inputs` lists the
+      definition of each loaded table.
+    - The approved view of a data need shows each request's `scope` and `restrictions`, readable (DERIVED).
+  - **Research records (S13).** The host refuses a second `research_call_`/`research_input_` record of an angle that a
+    successful execution of the epoch already stored (`rejected_outputs` reason `ANGLE_ALREADY_RECORDED`). It reads the
+    store, not the worker's memory.
+  - **Approved success rule (M28).** A hypothesis plan's `success_rule` `{operator, value}` reaches the session
+    (`session.json` `research_v1`).
+    - `event_summary` applies it and refuses a different `success_above` or a `success_column`.
+    - It records the rule used in `research_summary_<id>`.
+    - `research_findings.evaluate` returns INVALID when that rule is not the approved one.
 - Value types of every frame from `load`, `range`, `sql` and `join`:
   - the time column holds `datetime.date` objects (object dtype);
   - numeric columns are float64, and text columns are pandas strings.
@@ -1206,6 +1226,10 @@ the orc describes it to the model only with `AI_ENABLE_EVENT_STUDY`.
   `delta_p_value` P_VALUE; `outcome` of the events and baseline tables in `outcome_unit`), and the recalculation below
   also checks the summary's declared units. Research findings carry their units too: v2 `estimates.units`
   (`research_engines.estimate_units`) and v1 `units` (`research_stats.summary_units`).
+- **Event flow (S27, 2026-10-02).** The helper also releases `<name>_flow`, one row per segment: rows_in_window,
+  condition_unknown, condition_true (the qualifying events), censored, overlapping_dropped, used. condition_true =
+  censored + overlapping_dropped + used. The answer quotes these counts instead of deriving them, and the
+  recalculation below checks this table too (`FLOW_MISSING` when it is absent).
 - **Independent recalculation** (`app/event_study_validation.py`, at `complete_analysis`): the harness reads the
   declaration, rebuilds the input from the bundle files with `runtime/research_inputs.py`, recomputes the three tables
   with `runtime/event_study.py` and compares them with the released ones (counts exactly, numbers within a relative
