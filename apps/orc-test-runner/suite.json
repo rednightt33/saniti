@@ -1,40 +1,46 @@
 {
-  "prefix": "ma-batch-20261001a",
+  "prefix": "ma-golden-20261002a",
   "workers": 2,
-  "audit_wait_seconds": 30,
+  "audit_wait_seconds": 120,
   "items": [
     {
-      "id": "m01_broker_bank_crash",
-      "turns": [
-        "Siapa broker yg secara konsisten membeli saham bank ketika market crash",
-        "Kalau hanya saham bank BUMN, broker mana yang paling konsisten membeli saat crash?"
-      ],
-      "expect": "P1 aliases continue across steps and turns; P5 fewer catalog reads in m4b; P3 step times vs ma-steps-20261001a (3,193 s / 3,343 s)"
+      "id": "g1_foreign_net_banks",
+      "analysis_path": "ANALYSIS",
+      "message": "Berapa total net beli investor asing di pasar reguler per saham untuk 10 saham bank paling likuid selama 2025?",
+      "expect": "G1 SUM + ranking; key: IDX_Broker_Summary Foreign/Regular 2025 per ticker, liquidity by traded value"
     },
     {
-      "id": "e02_causal_prediction",
+      "id": "g2_bank_minmax",
+      "analysis_path": "ANALYSIS",
+      "message": "Berapa harga penutupan tertinggi dan terendah tiap saham bank selama 2025, dan berapa persen selisihnya?",
+      "expect": "G1 MIN/MAX per ticker; key: Price_Stock_Indonesia_IDX 2025"
+    },
+    {
+      "id": "g3_event_study",
+      "analysis_path": "ANALYSIS",
+      "message": "Bagaimana return 5 hari saham bank setelah hari turun 5% atau lebih (event per saham, tidak tumpang tindih), dibanding hari-hari lainnya?",
+      "expect": "G2 event_study, tables CALCULATION_VERIFIED; key: independent pandas over the range the AI declared"
+    },
+    {
+      "id": "g4_hypothesis_bbca",
       "analysis_path": "RESEARCH",
-      "message": "Buktikan bahwa net beli asing menyebabkan harga BBCA naik, lalu prediksi harga BBCA minggu depan.",
-      "expect": "repairs and final-turn seconds against ma-integrity-20261001a"
+      "message": "Apakah hari dengan net beli asing positif di BBCA diikuti return 1 hari lebih tinggi daripada hari lainnya?",
+      "expect": "G3 hypothesis plan (v1) approved once, event_summary; key: independent pandas difference and CI by date"
     },
     {
-      "id": "a05_universe_ranking",
-      "analysis_path": "ANALYSIS",
-      "message": "Urutkan return 1 bulan terakhir semua saham IDX. Tampilkan 10 saham teratas dan 10 terbawah beserta returnnya.",
-      "expect": "out.o1 references resolve; no extra-key re-ask"
-    },
-    {
-      "id": "a06_case_values",
-      "analysis_path": "ANALYSIS",
-      "message": "Berapa total net beli investor asing di pasar reguler untuk saham bbca selama Agustus 2026?",
-      "expect": "P14: lower-case or other spellings of Investor Type / Market Board / ticker resolved or refused with the stored values before extraction (TEXT_VALUE_RESOLVED / VALUE_NOT_FOUND)"
+      "id": "g5_conversation",
+      "turns": [
+        "Siapa broker yang konsisten membeli saham bank saat market crash?",
+        "Angka persentase tertinggi di jawaban tadi itu artinya apa?",
+        "Kenapa broker teratas itu paling tinggi? Insight-nya apa?",
+        "Coba event study: return saham bank 5 hari setelah broker teratas itu beli besar.",
+        "Uji ide saya: efeknya hanya di bank BUMN.",
+        "Setuju, jalankan rencana ujinya.",
+        "Cari 4 sudut lain.",
+        "Setuju, jalankan.",
+        "Jelaskan hasil uji tadi."
+      ],
+      "expect": "question 5 (mode 4: analysis + G4) then 4d-5: CLARIFY (no data tools), INSIGHT (no research), CONTINUE G2, CONTINUE G3 (plan v1) + approval, CONTINUE G4 + approval, CLARIFY citing finding.<id>; research never repeated unasked"
     }
-  ],
-  "audit_only": true,
-  "audit_request_ids": [
-    "ma-batch-20261001a-m01_broker_bank_crash-1-m4a",
-    "ma-batch-20261001a-m01_broker_bank_crash-1-m4b",
-    "ma-batch-20261001a-m01_broker_bank_crash-1-m4c",
-    "ma-batch-20261001a-m01_broker_bank_crash-1-m4d"
   ]
 }
