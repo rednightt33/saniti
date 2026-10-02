@@ -154,3 +154,30 @@ Sumber:
 - [Dialogue state tracking](https://www.usefini.com/glossary/what-is-dialogue-state-tracking-dst)
 - [Anthropic: Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
 - [LangGraph Graph API (state and reducers)](https://docs.langchain.com/oss/python/langgraph/graph-api)
+
+## Pembanding bentuk "definisi hasil" (2026-10-02)
+
+| Sumber | Bentuknya | Dibanding usulan |
+|---|---|---|
+| Cube (semantic layer) | Kueri = JSON: `filters: [{member, operator, values}]`, `timeDimensions: [{dimension, dateRange}]`. Definisi hasil adalah kueri itu sendiri, dan kueri itu yang dijalankan. | Bentuk usulan (kolom, operator, nilai, periode) hampir sama. Bedanya: di Cube definisinya dijalankan mesin, jadi pasti benar; di usulan, untuk tabel buatan kode AI, definisinya ditulis AI dan bisa keliru. |
+| dbt MetricFlow (saved query) | Metrik, group by, dan filter `where` disimpan terstruktur lalu dipakai ulang. | Sejalan: definisi disimpan sekali dan dipakai ulang di giliran berikutnya. |
+| OpenLineage / W3C PROV (lineage) | Setiap hasil mencatat aktivitas pembuatnya (`wasGeneratedBy`: job, SQL/kode) dan input yang dipakai (`used`). | Usulan belum punya ini. Ditambahkan: setiap tabel menyimpan rujukan ke eksekusi pembuatnya (id dan hash kode) serta permintaan data inputnya, supaya definisi yang ditulis AI bisa diaudit. |
+| Dialogue state tracking | Keputusan user disimpan sebagai slot terstruktur. | Sejalan untuk ambang sukses dan efek minimal di rencana. |
+
+### Penyesuaian
+
+1. **Satu tata bahasa definisi.** Tidak dibuat bentuk baru: definisi memakai bentuk cakupan (scope) DataNeed yang sudah
+   ada, yaitu PREDICATE dengan kolom, operator dan nilai. Dengan begitu filter di permintaan data, filter di kode, dan
+   ringkasan gudang G18 bisa dibandingkan mesin secara langsung.
+2. **Asal setiap isian definisi diberi label:**
+   - DERIVED: diturunkan sistem dari permintaan data atau ringkasan gudang yang dijalankan Governor. Pasti benar.
+   - DECLARED: ditulis AI untuk filter yang dipasang di kode. Bisa diaudit lewat lineage.
+3. **Lineage per tabel hasil:** rujukan ke eksekusi pembuatnya (id dan hash kode) dan permintaan data inputnya.
+4. **Arah utamanya:** sebanyak mungkin filter dipindah ke permintaan data atau ringkasan gudang, sehingga definisinya
+   DERIVED. Isian DECLARED hanya untuk sisanya.
+
+Sumber:
+- [Cube JSON query format](https://docs.cube.dev/api-reference/data/json-query)
+- [dbt saved queries](https://docs.getdbt.com/docs/build/saved-queries)
+- [OpenLineage facets](https://openlineage.io/docs/next/guides/facets/)
+- [W3C PROV-O](https://www.w3.org/TR/prov-o/)
