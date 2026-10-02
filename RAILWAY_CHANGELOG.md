@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-10-02 — Round 2 fixes of the golden test on dev from the branch (not `main`)
+
+User decision 2026-10-02: fix P23, P22, P24, M65, P25, M62 and M64 in this round. Tested locally first:
+market-ai-orc 977, market-python-sandbox 685 passed.
+
+- **Deployments** (CLI upload from the repository root of branch `claude/g2-g3-reactivation` at `ddde0e4`; `main`
+  untouched; rollback references: market-python-sandbox `9bdb521e`, market-ai-orc `ece48dd0`):
+  - market-python-sandbox `5bd4a078-2e16-4394-ae73-aa304ced36ce` `SUCCESS`; startup `isolation_enforced=true`;
+  - market-ai-orc `ec91d619-6dd7-4881-843a-b3c95ea73123` `SUCCESS`; startup `switch=1`
+    `model="deepseek/deepseek-v4.1-flash"`, `event_study=true hypothesis_plan=true`.
+- No variable, service, domain or database change; the method guides are unchanged (their hash still matches
+  `AI_method_guide`).
+- Live verification (golden test rerun) not run yet.
+
 ## 2026-10-02 — Golden test of G2/G3/4b/4d/5b on dev from the branch (not `main`); migration 20261002_001
 
 User decision 2026-10-02: test on dev before anything reaches `main`. Tested locally first: market-ai-orc 968,
