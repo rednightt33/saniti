@@ -255,45 +255,49 @@ Sumber:
 
 ## 7. Kesegaran dan isi data (C06, D06, D02)
 
-- **Masalah dan akar (terbukti):**
-  - **C06:**
-    - Jawaban menyebut data harga berakhir 25 September, padahal 28 September sudah ada.
-    - Harga dimuat 17:00 WIB, sedangkan ringkasan cakupan diperbarui job terpisah pukul 07:30 WIB. Akibatnya ringkasan
-      tertinggal ±14,5 jam setiap hari (lebih lama di akhir pekan), dan AI lebih percaya ringkasan daripada data yang
-      diterimanya.
-  - **D06:**
-    - Data broker berhenti 31 Agustus karena refresh manual.
-    - Jawabannya jujur (LIMITATION), tetapi pertanyaan September tidak terjawab.
-  - **D02:**
-    - Tiga saham punya sektor bernilai teks "0", yang muncul sebagai sektor sendiri.
-    - Nilai pengganti itu dari sumber.
-- **Kelas:** kesegaran per sumber dan nilai "tidak diketahui". Berlaku untuk semua sumber baru (FX, makro dengan jadwal
-  rilis berbeda).
-- **Praktik umum:**
-  - dbt source freshness: tanggal terakhir diambil dari waktu muat.
-  - Status lulus / peringatan / gagal per sumber, dengan ambang sesuai jadwal sumber, dicek otomatis.
-  - "Tidak diketahui" = NULL + alasan (sudah aturan A1.4 kita).
-- **Usulan:**
-  - **C06:**
-    - Cakupan diperbarui oleh pemuat itu sendiri setelah berhasil memuat; job harian tetap ada sebagai cadangan.
-    - Jawaban menyebut tanggal akhir dari data yang benar-benar diterima, ditulis backend.
-  - **D06:**
-    - Status kesegaran per sumber (SEGAR / TERLAMBAT / BASI), dihitung dari jadwal muat yang tercatat di katalog.
-    - Otomatisasi refresh broker = keputusan user.
-  - **D02:**
-    - Migrasi "0" → NULL + alasan; nilai asal disimpan di log.
-    - Tes kualitas yang menolak nilai pengganti di kolom kategori.
-- **Lapisan:** pemuat data, katalog cakupan, backend.
-- **Risiko dan mitigasi:**
-  - Gagal memperbarui cakupan tidak boleh menggagalkan muat data → dicatat terpisah.
-  - Migrasi D02 → cek jumlah baris dulu.
-- **Verifikasi (tanpa biaya model):**
-  - setelah muat 17:00, cakupan = MAX(Date) dalam hitungan menit;
-  - g1/g2 menyebut tanggal akhir yang benar;
-  - D02: 0 baris;
-  - kasus lain: tabel Feature, makro;
-  - kasus yang tidak berlaku: sumber manual (statusnya tampil BASI, datanya tidak jadi segar).
-- **Permanen.**
+**Dicek ulang 2026-10-02 (log service dan log pikiran AI):**
+- **C06, terbukti dan terulang hari ini:**
+  - harga 2 Oktober dimuat pukul 10:06 UTC dan Feature 01 selesai 10:08 UTC;
+  - ringkasan cakupan terakhir diperbarui 00:32 UTC, sehingga katalog masih menulis "sampai 2026-10-01";
+  - g6 (16:39 UTC) menulis di pikirannya "coverage 2018-01-02 to 2026-10-01 … use … to 2026-10-01", sama seperti golden a
+    (10:11–10:15 UTC);
+  - akibatnya hari bursa terbaru hilang diam-diam dari setiap analisis antara muat sore dan pembaruan pagi berikutnya.
+- **D06, masih:** cakupan broker berakhir 2026-08-31; jawaban menyebutkannya dengan jujur.
+- **D02, masih:** daftar lengkap Sector yang dibaca golden a g1 memuat nilai `0`.
+
+**Usulan (diperbarui):**
+1. **C06, cakupan diperbarui saat data masuk:**
+   - Pemuat harga dan Feature 01 memperbarui cakupan dataset-nya sendiri setelah berhasil.
+   - Kegagalan pembaruan dicatat terpisah dan tidak menggagalkan muat data. Job pagi tetap jalan sebagai cadangan.
+   - TEMPORARY sampai itu jadi: jadwal job cakupan ditambah satu kali setelah muat sore.
+2. **C06, rentang "sampai data terbaru":**
+   - Permintaan data boleh berakhir di "terbaru"; Governor mengisinya dengan tanggal terakhir yang benar-benar ada saat
+     penarikan, jadi tidak bergantung pada ringkasan.
+   - Jawaban menyebut tanggal akhir dari data yang diterima, ditulis sistem.
+3. **D06, status kesegaran per sumber:**
+   - SEGAR / TERLAMBAT / BASI dihitung dari jadwal muat yang diharapkan di katalog, ditampilkan di katalog dan
+     jawaban.
+   - Peringatan Telegram bila sebuah sumber BASI (`telegram-monitor` sudah ada).
+   - Otomatisasi refresh broker = keputusan user (token Stockbit masih manual).
+4. **D02, nilai pengganti:**
+   - Migrasi `0` → NULL beserta alasan; riwayat universe mencatat perubahannya.
+   - Cek kualitas di pemuat: nilai yang bukan kategori (angka murni di kolom kategori) ditolak atau ditandai.
+   - Tiga ticker-nya dicek lewat SQL sebelum migrasi.
+
+**Risiko dan mitigasi:**
+| Risiko | Mitigasi |
+|---|---|
+| Pemuat menjadi lebih rumit | Pembaruan cakupan dipisah dan gagalnya hanya dicatat; job pagi tetap jadi cadangan |
+| "Terbaru" membuat hasil berubah antar-run di hari yang sama | Tanggal akhir aktual dicatat di definisi hasil (H1) dan disebut di jawaban |
+| Peringatan BASI terlalu sering untuk sumber manual | Ambang sesuai jadwal sumber; satu peringatan per hari |
+| Migrasi D02 mengubah data historis | Nilai asal tersimpan di riwayat universe; jumlah baris dicek dulu |
+
+**Verifikasi (tanpa biaya model):**
+- setelah muat sore, katalog menunjukkan tanggal hari itu dalam hitungan menit;
+- analisis malam hari memakai tanggal terbaru;
+- query D02 = 0 baris;
+- kasus lain: tabel Feature 02/03 setelah broker diisi, data makro nanti;
+- kasus yang tidak berlaku: sumber yang memang manual (statusnya tampil BASI, datanya tetap tidak segar).
 
 ## 8. Angka hasil kode AI tidak diperiksa (S23)
 
