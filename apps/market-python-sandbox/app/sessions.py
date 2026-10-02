@@ -36,6 +36,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from . import carried as carried_tables
 from .executor import _rss_mb, child_environment, disk_usage
 from .records import utc_now
 
@@ -193,7 +194,8 @@ def research_view(research: dict[str, Any]) -> dict[str, Any]:
 HELPERS = ["requests()", "manifest()", "quality(request)", "load(request, columns=None)",
            "load_range(request, range_id, columns=None, include_buffers=False) (also saniti.range; plain range is "
            "Python's built-in)", "sql(query, params=None)",
-           "relation(request)", "join(relationship_id, left=None, right=None, how=None)",
+           "relation(request)", "load_output(output_id, columns=None) (a released table of this conversation; see "
+           "carried())", "carried()", "join(relationship_id, left=None, right=None, how=None)",
            "resample(frame, request, frequency=None)",
            "period_return(request, range_id, value_column='close', entity_column=None, date_column=None)",
            "event_study(request, event, outcome, horizon, *, range_id=None, overlap_policy='NON_OVERLAPPING', "
@@ -373,6 +375,10 @@ class SessionManager:
         self.bundles = bundles
         self.executor = analysis.executor
         self.workers: dict[str, Worker] = {}
+        # carried outputs (2026-10-02): per session the outputs it may load (None: every table of the conversation),
+        # and the profiles of the tables and bundle datasets already summarised
+        self.carried_allowed: dict[str, set[str] | None] = {}
+        self.profiles: dict[str, dict[str, Any]] = {}
         # S14: session workspaces are this manager's; the analysis janitor must leave them alone
         getattr(analysis, "foreign_prefixes", set()).add(SESSION_ID_PREFIX)
         self._lock = threading.Lock()
@@ -444,7 +450,7 @@ class SessionManager:
 
     def open(self, request_id: str, bundle_id: str, cpu_seconds: int | None = None, *,
              conversation_key: str | None = None, need_id: str | None = None, bound: bool = False,
-             research: dict[str, Any] | None = None) -> dict[str, Any]:
+             research: dict[str, Any] | None = None, carried_outputs: list[str] | None = None) -> dict[str, Any]:
         """A new session on a READY bundle of this request, or (bound) on an earlier bundle of the same conversation
         that the service bound to this request's approved need. With no free slot, the least recently used WARM_IDLE
         session is evicted; an ACTIVE or BUSY session never is."""
@@ -492,10 +498,47 @@ class SessionManager:
                                  "start_seq": 0, "attached_at": now.isoformat()})
         self._log("session_opened", request_id=request_id, session_id=session_id, bundle_id=bundle_id, uid=uid,
                   cpu_budget=budget, bound_bundle=bound, conversation=bool(conversation_key))
+        self.carried_allowed[session_id] = self._allowed(need_id, carried_outputs)
         view = self._view(session_id, bundle_id, need_id, manifest, budget, expires.isoformat())
         if research:
             view["research"] = research_view(research)
+        self._offer_carried(session_id, view)
         return view
+
+    def _allowed(self, need_id: str | None, carried_outputs: list[str] | None) -> set[str] | None:
+        """A RESEARCH need's session loads only the carried tables its approved plan names (none when it names none);
+        an analysis session may load every released table of its conversation."""
+        need = self.store.get_need(need_id) if need_id else None
+        if (need or {}).get("mode") == "RESEARCH":
+            return {str(o) for o in carried_outputs or []}
+        return None
+
+    def stage_carried(self, session_id: str) -> list[dict[str, Any]]:
+        """Link the session's carried tables into input/carried with their manifest (before every execution, so a
+        table released by another session of the conversation since is there too)."""
+        record = self.store.get_session(session_id)
+        worker = self.workers.get(session_id)
+        if record is None or worker is None or not self.settings.conversation_reuse:
+            return []
+        outputs = carried_tables.candidates(self.store, record.get("conversation_key"), session_id)
+        if not outputs and not (worker.directory / "input" / carried_tables.CARRIED_DIR).exists():
+            return []
+        return carried_tables.stage(worker.directory, outputs, outputs_root=self.outputs_root,
+                                    origin_of=self._release_origin,
+                                    allowed=self.carried_allowed.get(session_id), profiles=self.profiles,
+                                    now=utc_now())
+
+    def _offer_carried(self, session_id: str, view: dict[str, Any]) -> None:
+        try:
+            entries = self.stage_carried(session_id)
+        except Exception as exc:  # noqa: BLE001 - a carried table never blocks a session
+            self._log("carried_outputs_failed", session_id=session_id, error=type(exc).__name__)
+            entries = []
+        if entries:
+            view["carried_outputs"] = carried_tables.listing(entries)
+            view["carried_note"] = ("Tables released earlier in this conversation; load one with "
+                                    "load_output(output_id) and read its profile with carried(). Each keeps its "
+                                    "label: a figure derived from it is never stronger than that label.")
 
     def _free_slots(self) -> list[tuple[int, list[int]]]:
         used = {w.uid for w in self.workers.values() if w.alive}
@@ -511,7 +554,8 @@ class SessionManager:
                               **frame_estimate(int(d["rows"] or 0), [c.get("type") for c in d.get("columns") or []],
                                                s.frame_budget_mb),
                               "ranges": [w["range_id"] for w in d.get("ranges") or []],
-                              "quality_flags": (d.get("quality") or {}).get("quality_flags") or []}
+                              "quality_flags": (d.get("quality") or {}).get("quality_flags") or [],
+                              "profile": self._dataset_profile(manifest, d)}
                              for d in manifest["datasets"]],
                 "relationships": [{k: r.get(k) for k in ("relationship_id", "left_request_id", "right_request_id",
                                                          "join_type", "join_semantics")}
@@ -524,7 +568,23 @@ class SessionManager:
                            "max_outputs": s.session_max_outputs, "expires_at": expires_at},
                 "next_action": "RUN_PYTHON"}
 
-    def attach(self, session_id: str, request_id: str, need_id: str) -> dict[str, Any]:
+    def _dataset_profile(self, manifest: dict[str, Any], dataset: dict[str, Any]) -> dict[str, Any] | None:
+        """P1: the shape of a bundle dataset (computed once per bundle and request; a failure leaves it out)."""
+        key = f"{manifest['input_bundle_id']}:{dataset['data_request_id']}"
+        if key not in self.profiles:
+            try:
+                paths = [str(self.bundles.path_of(manifest["input_bundle_id"], part["file"]))
+                         for part in dataset.get("partitions") or []]
+                self.profiles[key] = carried_tables.profile(
+                    paths, time_column=dataset.get("time_column"), entity_column=dataset.get("entity_column"),
+                    columns=[c["name"] for c in dataset.get("columns") or []])
+            except Exception as exc:  # noqa: BLE001 - a profile never blocks a session
+                self._log("dataset_profile_failed", bundle_id=manifest.get("input_bundle_id"), error=type(exc).__name__)
+                return None
+        return self.profiles[key]
+
+    def attach(self, session_id: str, request_id: str, need_id: str,
+               carried_outputs: list[str] | None = None) -> dict[str, Any]:
         """A later request of the same conversation takes over a WARM_IDLE session (conversation reuse, S2): a new
         epoch starts for this request and its approved need. The namespace, the cumulative execution, failure and CPU
         counters and the expiry stay; earlier completions and released outputs are never changed."""
@@ -557,6 +617,8 @@ class SessionManager:
                                         "cpu_seconds_used": usage.get("cpu_seconds")},
                      "note": "The variables of the earlier message are still defined. Data read before counts for "
                              "coverage only with a successful execution and an output in this message."})
+        self.carried_allowed[session_id] = self._allowed(need_id, carried_outputs)
+        self._offer_carried(session_id, view)
         self._log("session_attached", request_id=request_id, session_id=session_id, epoch=epoch, need_id=need_id,
                   origin_request_id=record.get("origin_request_id"))
         return view
@@ -725,6 +787,10 @@ class SessionManager:
         self.store.update_session(session_id, status="BUSY", last_active_at=utc_now())
         started_at = utc_now()
         modules = imported_modules(code)
+        try:
+            self.stage_carried(session_id)
+        except Exception as exc:  # noqa: BLE001 - a carried table never blocks an execution
+            self._log("carried_outputs_failed", session_id=session_id, error=type(exc).__name__)
         self.store.insert_execution({"execution_id": execution_id, "session_id": session_id, "seq": seq,
                                      "kind": "EXECUTE", "code_sha256": hashlib.sha256(code.encode()).hexdigest(),
                                      "status": "RUNNING", "started_at": started_at,
@@ -869,6 +935,7 @@ class SessionManager:
 
     def _close_locked(self, session_id: str, reason: str) -> dict[str, Any]:
         worker = self.workers.pop(session_id, None)
+        self.carried_allowed.pop(session_id, None)
         if worker is not None:
             if reason in ABNORMAL_REASONS:
                 self._log("session_worker_ended", session_id=session_id, reason=reason,

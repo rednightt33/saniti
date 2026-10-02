@@ -55,7 +55,7 @@ from typing import Any
 
 __all__ = [
     "REQUESTS", "REFERENCE_DATE", "SEED", "requests", "manifest", "quality", "load", "range", "load_range", "sql",
-    "relation",
+    "relation", "load_output", "carried",
     "join", "join_report", "preaggregate", "resample", "period_return", "event_study", "insufficient_data",
     "intermediate_path", "duckdb_connection", "emit_table",
     "emit_chart", "emit_json", "emit_text", "emit_file", "emit_artifact", "add_warning", "SanitiError",
@@ -145,7 +145,7 @@ class PeriodReturnError(SanitiError):
 # ---------------------------------------------------------------- configuration (harness only)
 
 def _configure(session: dict[str, Any], session_dir: str) -> None:
-    global REFERENCE_DATE, SEED, _OUTPUT_DIR, _INTERMEDIATE_DIR
+    global REFERENCE_DATE, SEED, _OUTPUT_DIR, _INTERMEDIATE_DIR, _CARRIED_DIR
     REQUESTS.clear()
     REQUESTS.update(session["requests"])
     _BUNDLE.clear()
@@ -156,6 +156,7 @@ def _configure(session: dict[str, Any], session_dir: str) -> None:
     SEED = int(session["seed"])
     _OUTPUT_DIR = _os.path.join(session_dir, "output")
     _INTERMEDIATE_DIR = _os.path.join(session_dir, "intermediate")
+    _CARRIED_DIR = _os.path.join(session_dir, "input", "carried")
     _DUCKDB.clear()
     _DUCKDB.update(session["duckdb"])
     _FRAMES.clear()
@@ -338,6 +339,48 @@ def _frame(query: str, params: list | None = None, what: str = "This query resul
     return relation_.df(date_as_object=True)
 
 
+_CARRIED_DIR = ""
+
+
+def carried() -> list[dict[str, Any]]:
+    """Tables released earlier in this conversation that this session may load (refreshed before every execution):
+    output_id, name, kind (G1-G4), label (how the backend checked it) and its meaning, rows, columns, origin
+    (completion, request, time) and a profile (per column type, nulls, distinct, range or most frequent values, and
+    sample rows). A session of a research plan sees only the tables its approved plan names."""
+    path = _os.path.join(_CARRIED_DIR, "manifest.json")
+    if not _CARRIED_DIR or not _os.path.isfile(path):
+        return []
+    with open(path, encoding="utf-8") as handle:
+        return _json.load(handle)
+
+
+def load_output(output_id: str, columns: list[str] | None = None):
+    """A released table of this conversation (see carried()) as a DataFrame, within the frame budget. The frame's
+    attrs hold its label and origin: a figure derived from it is never better checked than that label."""
+    entries = {e["output_id"]: e for e in carried()}
+    entry = entries.get(output_id)
+    if entry is None:
+        named = [e for e in entries.values() if e.get("name") == output_id]
+        entry = named[0] if len(named) == 1 else None
+    if entry is None:
+        raise SanitiError(f"{output_id!r} is not a carried table of this session. Carried: "
+                          f"{[(e['output_id'], e.get('name')) for e in entries.values()][:20]}"
+                          + (" (a research plan's session loads only the tables its approved plan names)"
+                             if not entries else ""))
+    path = _os.path.join(_CARRIED_DIR, entry["file"])
+    available = list(entry.get("columns") or [])
+    chosen = list(columns) if columns else available
+    unknown = [c for c in chosen if available and c not in available]
+    if unknown:
+        raise SanitiError(f"{unknown} are not columns of {entry.get('name')!r}: {available}")
+    select = ", ".join(_ident(c) for c in chosen) if chosen else "*"
+    frame = _frame(f"SELECT {select} FROM read_parquet({_quote(path)})", what=f"load_output({output_id!r})")
+    frame.attrs.update({k: entry.get(k) for k in ("output_id", "name", "kind", "label", "origin")})
+    _log({"call": "load_output", "output_id": entry["output_id"], "name": entry.get("name"), "kind": entry.get("kind"),
+          "label": entry.get("label"), "rows": len(frame)})
+    return frame
+
+
 def load(request: str, columns: list[str] | None = None):
     """The whole dataset (every row of every partition and range, with the buffers) in delivered order."""
     r = _request(request)
@@ -412,8 +455,9 @@ def event_study(request: str, event: str, outcome: dict[str, Any], horizon: int,
 
     Emits two tables: <name> (one row per segment: event_count, effective_event_dates, mean, median, hit_rate,
     baseline_*, delta_mean with its CI and p-value from per-date clusters, censored_count, overlapping_dropped,
-    meets_min_events) and <name>_events (date, entity, outcome of every kept event). Returns the summary, the output
-    metadata and the events and baseline rows as frames (date, entity, outcome)."""
+    meets_min_events), <name>_events (date, entity, outcome of every kept event) and <name>_baseline (the baseline
+    rows). Returns the summary, the output metadata and the events and baseline rows as frames (date, entity,
+    outcome)."""
     import pandas as pd
     import event_study as ES
     import research_inputs
@@ -435,6 +479,7 @@ def event_study(request: str, event: str, outcome: dict[str, Any], horizon: int,
     label = name or f"event_study_{EVENT_STUDY_COUNT[0]}"
     _name(label)
     _name(f"{label}_events")
+    _name(f"{label}_baseline")
     windows_all = r.get("ranges") or []
     if range_id is not None and range_id not in {w["range_id"] for w in windows_all}:
         raise SanitiError(f"{range_id!r} is not a range of {r['logical_name']}. Ranges: "
@@ -467,9 +512,12 @@ def event_study(request: str, event: str, outcome: dict[str, Any], horizon: int,
                  f"observations ({outcome_unit.lower()}), {params['overlap_policy']}, baseline {params['baseline']}")
     table = emit_table(label, pd.DataFrame(summary, columns=list(ES.SUMMARY_COLUMNS)), described)
     kept = emit_table(f"{label}_events", events, f"Events kept by {label} (date, entity, outcome)")
+    baseline_rows = ES.baseline_rows(canonical, params)
+    compared = emit_table(f"{label}_baseline", baseline_rows,
+                          f"Baseline rows of {label} ({params['baseline']}: date, entity, outcome)")
     call = {"version": ES.VERSION, "name": label, "declaration": declaration, "parameters": params,
             "outcome_unit": outcome_unit, "ranges": [w["range_id"] for w in chosen],
-            "summary_output": label, "events_output": f"{label}_events",
+            "summary_output": label, "events_output": f"{label}_events", "baseline_output": f"{label}_baseline",
             "input_info": {k: info.get(k) for k in ("rows", "censored_outcome_rows", "forward_horizon",
                                                      "expressions", "outcome_source", "ranges")}}
     text = _json.dumps(_jsonable(call), ensure_ascii=False, separators=(",", ":"))
@@ -480,9 +528,9 @@ def event_study(request: str, event: str, outcome: dict[str, Any], horizon: int,
                                                                       "by the backend).")
     _log({"call": "event_study", "data_request_id": r["data_request_id"], "name": label,
           "events": int(summary[0]["event_count"] or 0)})
-    return {"name": label, "summary": summary, "parameters": params, "outputs": [table, kept],
+    return {"name": label, "summary": summary, "parameters": params, "outputs": [table, kept, compared],
             # G3: the same events and baseline as frames, e.g. for event_summary(events, baseline, ...)
-            "events": events, "baseline": ES.baseline_rows(canonical, params),
+            "events": events, "baseline": baseline_rows,
             "validation": "Recomputed independently by the backend at complete_analysis; a match is labelled "
                           "CALCULATION_VERIFIED, a difference fails completion (CALCULATION_MISMATCH)."}
 

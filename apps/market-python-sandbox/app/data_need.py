@@ -1116,6 +1116,44 @@ CONTRACT_REQUEST_FIELDS = ("data_request_id", "logical_name", "source_table", "e
                            "history_buffer", "future_buffer", "ordering", "catalog_table_sha256")
 
 
+# 2c (user decision 2026-10-02): an earlier bundle serves a later need when it holds everything the later need asks
+# for. The mode is not part of the data (an analysis bundle serves a research need and back); columns may be wider.
+COVER_EQUAL_FIELDS = tuple(f for f in CONTRACT_REQUEST_FIELDS if f not in ("columns", "extract_columns",
+                                                                            "column_types", "resample_rules"))
+
+
+def contract_covers(earlier: dict[str, Any], later: dict[str, Any]) -> str | None:
+    """None when the earlier approved need's data covers the later one's: the same requests (ids, tables, scope,
+    restrictions, windows, frequencies, resample rules, buffers, ordering, catalog versions), relationships, subject,
+    time basis and catalog, and every column the later one asks for; else the first difference. A narrower scope or a
+    shorter window is not served (the session would need to filter it): the data is extracted again."""
+    for key in ("relationships", "catalog_sha256"):
+        if (earlier.get(key) or None) != (later.get(key) or None):
+            return key
+    if (earlier.get("time_basis") or DEFAULT_TIME_BASIS) != (later.get("time_basis") or DEFAULT_TIME_BASIS):
+        return "time_basis"
+    if (earlier.get("spec") or {}).get("subject") != (later.get("spec") or {}).get("subject"):
+        return "subject"
+    old, new = earlier.get("requests") or {}, later.get("requests") or {}
+    if set(old) != set(new):
+        return "requests"
+    for rid, request in new.items():
+        before = old[rid]
+        for field in COVER_EQUAL_FIELDS:
+            if before.get(field) != request.get(field):
+                return f"{rid}.{field}"
+        if request.get("resample_semantics_version") != before.get("resample_semantics_version"):
+            return f"{rid}.resample_semantics_version"
+        for field in ("columns", "extract_columns"):
+            if not set(request.get(field) or []) <= set(before.get(field) or []):
+                return f"{rid}.{field}"
+        for field in ("column_types", "resample_rules"):
+            held = before.get(field) or {}
+            if any(c not in held or held[c] != v for c, v in (request.get(field) or {}).items()):
+                return f"{rid}.{field}"
+    return None
+
+
 def data_contract_sha256(approved: dict[str, Any]) -> str:
     """The data an approved need delivers, without the identity of the request that asked for it (conversation reuse,
     implementation plan 2026-09-27, S1): mode, subject, every request's table, columns, canonical scope and

@@ -55,7 +55,8 @@ def validate(*, bundle: dict[str, Any], path_of, outputs: list[dict[str, Any]], 
     for name in names:
         record = _last(calls, PREFIX + name)
         entry: dict[str, Any] = {"name": name, "status": "INVALID", "reason": None, "summary_output_id": None,
-                                 "events_output_id": None, "checked": 0, "mismatched": 0, "examples": []}
+                                 "events_output_id": None, "baseline_output_id": None, "checked": 0, "mismatched": 0,
+                                 "examples": []}
         studies.append(entry)
         try:
             call = json.loads((outputs_root / record["relative_path"]).read_text(encoding="utf-8"))
@@ -65,6 +66,12 @@ def validate(*, bundle: dict[str, Any], path_of, outputs: list[dict[str, Any]], 
         summary_output = _last(outputs, call.get("summary_output") or name)
         events_output = _last(outputs, call.get("events_output") or f"{name}_events")
         entry["events_output_id"] = (events_output or {}).get("output_id")
+        # 2b (2026-10-02): the baseline rows are released and recomputed too (a record without one predates it)
+        baseline_output = _last(outputs, call["baseline_output"]) if call.get("baseline_output") else None
+        entry["baseline_output_id"] = (baseline_output or {}).get("output_id")
+        if call.get("baseline_output") and baseline_output is None:
+            entry.update(status="FAIL", reason="BASELINE_MISSING")
+            continue
         entry["summary_output_id"] = (summary_output or {}).get("output_id")
         if summary_output is None or events_output is None:
             entry.update(status="FAIL", reason="SUMMARY_MISSING" if summary_output is None else "EVENTS_MISSING")
@@ -115,12 +122,20 @@ def validate(*, bundle: dict[str, Any], path_of, outputs: list[dict[str, Any]], 
 
             released = pq.read_table(outputs_root / summary_output["relative_path"]).to_pylist()
             released_events = pq.read_table(outputs_root / events_output["relative_path"]).to_pylist()
+            released_baseline = pq.read_table(outputs_root / baseline_output["relative_path"]).to_pylist() \
+                if baseline_output is not None else None
         except (OSError, ValueError, KeyError):
             entry.update(status="FAIL", reason="TABLE_UNREADABLE")
             continue
         mismatches = ES.compare(released, recomputed)
         mismatches += [{"table": "events", **m} for m in ES.compare_events(released_events, recomputed_events)]
-        entry["checked"] = len(recomputed) * (len(ES.SUMMARY_COLUMNS) - 1) + len(recomputed_events)
+        checked_baseline = 0
+        if released_baseline is not None:
+            expected_baseline = ES.baseline_rows(rebuilt, params)
+            mismatches += [{"table": "baseline", **m}
+                           for m in ES.compare_events(released_baseline, expected_baseline)]
+            checked_baseline = len(expected_baseline)
+        entry["checked"] = len(recomputed) * (len(ES.SUMMARY_COLUMNS) - 1) + len(recomputed_events) + checked_baseline
         entry["mismatched"] = len(mismatches)
         entry["examples"] = mismatches[:MAX_EXAMPLES]
         entry.update(status="FAIL" if mismatches else "PASS", reason="CALCULATION_MISMATCH" if mismatches else None)
@@ -128,7 +143,8 @@ def validate(*, bundle: dict[str, Any], path_of, outputs: list[dict[str, Any]], 
     status = min((s["status"] for s in studies), key=order.index) if studies else "NOT_PERFORMED"
     return {"status": status, "studies": studies,
             "verified_output_ids": [i for s in studies if s["status"] == "PASS"
-                                    for i in (s["summary_output_id"], s["events_output_id"]) if i],
+                                    for i in (s["summary_output_id"], s["events_output_id"],
+                                              s.get("baseline_output_id")) if i],
             "record_output_ids": [c["output_id"] for c in calls if c.get("output_id")]}
 
 

@@ -54,7 +54,9 @@ GUIDES: list[dict[str, Any]] = [
         "title": "Free analysis code in the session",
         "use_when": ["A calculation, ranking, screen, description or comparison that no other method covers.",
                      "Explaining a result (why, what drives it, what stands out) by computing it from the data and "
-                     "outputs already in the session."],
+                     "outputs already in the session.",
+                     "Exploring the data first: each dataset's profile (in the session view) shows its columns, "
+                     "ranges, frequent values and sample rows; print or inspect more before deciding the method."],
         "avoid_when": ["The outcome after an event, when event_study is offered (its result is recalculated by the "
                        "backend).",
                        "Testing a hypothesis with a verdict: that needs a research plan the user approves."],
@@ -64,6 +66,8 @@ GUIDES: list[dict[str, Any]] = [
                                   "processed.")],
         "limits": ["A frame larger than the session's frame budget is refused before it loads "
                    "(MaterializationLimitExceeded): reduce it in sql() first; the session and its variables stay.",
+                   "A table of an earlier result is loaded with load_output(output_id) (carried() lists them with "
+                   "their labels); a figure built on it is never better checked than its label.",
                    "complete_analysis needs every approved request and range read in a successful execution and at "
                    "least one output.",
                    "Only released outputs may be cited; print() is diagnostics only."],
@@ -350,7 +354,7 @@ GUIDES: list[dict[str, Any]] = [
         "title": "Reading the bundle: load, load_range and sql",
         "use_when": ["Every read of the approved data; sql() first for large requests (summaries in DuckDB)."],
         "avoid_when": ["Reading the input files directly: it counts as not processed."],
-        "helpers": ["load", "load_range", "sql"],
+        "helpers": ["load", "load_range", "sql", "load_output", "carried"],
         "inputs": [
             _input("request", "The data request id or logical name.", of="load"),
             _input("columns", "Columns to read (default: all).", of="load", default=None),
@@ -360,19 +364,31 @@ GUIDES: list[dict[str, Any]] = [
             _input("include_buffers", "True widens the range to its warm-up and future buffers.", of="load_range",
                    default=False),
             _input("query", "DuckDB SQL over one view per logical name.", of="sql"),
-            _input("params", "Query parameters.", of="sql", default=None)],
+            _input("params", "Query parameters.", of="sql", default=None),
+            _input("output_id", "A released table of this conversation (an analysis table, an event study's tables, "
+                                "a hypothesis plan's aggregates, a multi-angle angle's input), from carried() or the "
+                                "data record.", of="load_output"),
+            _input("columns", "Columns to read (default: all).", of="load_output", default=None)],
         "limits": ["A request shown as AGGREGATE_FIRST is reduced in sql() before it becomes a pandas frame.",
-                   "Every approved request and range must be read before complete_analysis."],
+                   "Every approved request and range must be read before complete_analysis.",
+                   "A research plan's session loads only the carried tables its approved plan names; an analysis "
+                   "session loads any released table of the conversation (24 hours)."],
         "verification": {"level": "DATA_COVERAGE_VERIFIED",
-                         "checked": ["what was read, per request and range, for coverage"],
+                         "checked": ["what was read, per request and range, for coverage",
+                                     "which carried tables were loaded (carried_inputs of the final status, with "
+                                     "their labels)"],
                          "not_checked": ["the SQL or pandas logic"]},
-        "results": "pandas frames; the time column holds datetime.date objects and numbers are float64.",
+        "results": "pandas frames; the time column holds datetime.date objects and numbers are float64; a carried "
+                   "frame's attrs hold its label and origin.",
         "common_errors": [
             {"code": "MaterializationLimitExceeded", "seen_in": "G14",
              "fix": "GROUP BY the entity and date columns in sql() first."},
             {"code": "SanitiError: 1 is not a data request", "seen_in": "S21",
              "fix": "plain range() is Python's; the helper is load_range."}],
         "examples": [
+            {"title": "An earlier result as input, with its label", "runnable": False,
+             "code": "for table in carried():\n    print(table['output_id'], table['name'], table['kind'], "
+                     "table['label'])\nearlier = load_output('<output_id>')\nprint(earlier.attrs['label'])"},
             {"title": "A summary in DuckDB, then one range in pandas", "runnable": True,
              "code": "daily = sql('SELECT date, avg(close) AS mean_close FROM prices GROUP BY date ORDER BY date')\n"
                      "previous = load_range('prices', 'previous_comparable')\nload('prices')\n"

@@ -143,13 +143,34 @@ def test_released_outputs_are_read_across_requests_of_the_conversation_only(reus
     assert hidden.status_code == 404
 
 
-def test_a_different_data_contract_is_not_reused(reuse) -> None:
+def test_a_contract_the_earlier_data_does_not_cover_is_not_reused(reuse) -> None:
     first_turn(reuse)
+    spec = ytd_spec()
+    spec["data_requests"][0]["time_ranges"][0]["start"] = "2026-02-02"  # a different window
+    need = approve(reuse, "req_turn_2", spec=spec)
+    result = post(reuse, "/v1/bundles/reuse", {"request_id": "req_turn_2", "need_id": need["need_id"]}).json()
+    assert result == {"status": "NO_MATCH", "reason": "NO_COVERING_CONTRACT"}
+
+
+def test_fewer_columns_or_another_mode_reuse_the_earlier_data(reuse) -> None:
+    """2c (2026-10-02): the earlier bundle holds every column of a narrower need, in any mode."""
+    one = first_turn(reuse)
     spec = ytd_spec()
     spec["data_requests"][0]["columns"] = [c for c in spec["data_requests"][0]["columns"] if c != "volume"]
     need = approve(reuse, "req_turn_2", spec=spec)
-    result = post(reuse, "/v1/bundles/reuse", {"request_id": "req_turn_2", "need_id": need["need_id"]}).json()
-    assert result == {"status": "NO_MATCH", "reason": "NO_EQUAL_CONTRACT"}
+    reused = post(reuse, "/v1/bundles/reuse", {"request_id": "req_turn_2", "need_id": need["need_id"]}).json()
+    assert reused["status"] == "READY" and reused["input_bundle_id"] == one["bundle_id"], reused
+    from test_research_findings_session import GOVERNANCE
+
+    governance = {k: v for k, v in GOVERNANCE.items() if k not in (
+        "expected_direction", "outcome_horizon_periods", "outcome_unit", "success_definition")}
+    governance["minimum_sample"] = {"value": 30, "unit": "EVENTS"}
+    body = {"request_id": "req_turn_3", "reference_time": REFERENCE, "timezone": "Asia/Jakarta",
+            "spec": ytd_spec(mode="RESEARCH"), "research_governance": governance}
+    research = post(reuse, "/v1/data-needs", body).json()
+    assert research["status"] == "APPROVED" and research["need_id"], research
+    result = post(reuse, "/v1/bundles/reuse", {"request_id": "req_turn_3", "need_id": research["need_id"]}).json()
+    assert result["status"] == "READY" and result["input_bundle_id"] == one["bundle_id"], result
     other = approve(reuse, "req_other", key=OTHER)
     elsewhere = post(reuse, "/v1/bundles/reuse", {"request_id": "req_other", "need_id": other["need_id"]},
                      key=OTHER).json()
@@ -263,9 +284,76 @@ def test_a_recomputed_event_study_stays_labelled_in_later_turns_and_its_record_i
     assert done["status"] == "COMPLETED" and done["final_status"]["event_studies"][0]["status"] == "PASS", done
     listed = reuse["api"].get(f"/v1/conversations/{KEY}/resources", headers=HEADERS).json()
     offered = {o["name"]: o for o in listed["released_outputs"]}
-    assert set(offered) == {"drops", "drops_events", "n"}
+    assert set(offered) == {"drops", "drops_events", "drops_baseline", "n"}
     assert offered["drops"]["calculation_verified"] is True and "calculation_verified" not in offered["n"]
     page = reuse["api"].get(f"/v1/sessions/{opened['session_id']}/outputs/{ids['drops']}",
                             params={"request_id": "req_turn_2"}, headers=headers()).json()
     assert page["origin"]["calculation_verified"] is True
     assert page["origin"]["calculation_validation"] == "PARTIAL"
+
+
+# ---------------------------------------------------------------- carried results and profiles (2026-10-02)
+
+def second_bundle(env, request_id: str, mode: str = "ANALYSIS"):
+    """A later message with a data need of its own (a different contract, so a new bundle and a new session)."""
+    from dataneed_fixtures import ytd_spec
+
+    spec = ytd_spec(mode=mode)
+    spec["data_requests"][0]["columns"] = [c for c in spec["data_requests"][0]["columns"] if c != "volume"]
+    body = {"request_id": request_id, "reference_time": REFERENCE, "timezone": "Asia/Jakarta", "spec": spec}
+    if mode == "RESEARCH":
+        from test_research_findings_session import GOVERNANCE
+
+        body["research_governance"] = GOVERNANCE
+    result = post(env, "/v1/data-needs", body).json()
+    assert result["status"] == "APPROVED", result
+    need = env["dataneed"].get_need(result["need_id"])
+    bundle = build(env, need, ytd_parts(env, need), request_id=request_id).json()
+    assert bundle["status"] == "READY", bundle
+    return bundle["input_bundle_id"]
+
+
+def test_a_released_table_is_carried_with_its_label_and_profile_into_a_later_session(reuse) -> None:
+    one = first_turn(reuse)
+    bundle = second_bundle(reuse, "req_turn_2")
+    opened = post(reuse, "/v1/sessions", {"request_id": "req_turn_2", "bundle_id": bundle}).json()
+    prices = next(d for d in opened["datasets"] if d["logical_name"] == "prices")
+    assert prices["profile"]["rows"] == prices["rows"] and prices["profile"]["entities"] == 3  # P1
+    assert prices["profile"]["columns"]["close"]["min"] is not None and len(prices["profile"]["sample"]) == 5
+    [carried] = opened["carried_outputs"]  # P2, P5
+    assert carried["output_id"] == one["output_id"] and carried["kind"] == "G1"
+    assert carried["label"] == "DATA_COVERAGE_VERIFIED" and carried["origin"]["completion_id"] == one["completion_id"]
+    body = execute(reuse, opened["session_id"], "req_turn_2", f"""
+earlier = load_output({one['output_id']!r})
+info = carried()[0]
+print(len(earlier), earlier.attrs['label'], info['profile']['rows'])
+load('prices'); load('stock_classification')
+emit_table('built_on_earlier', earlier)""")
+    assert body["status"] == "OK", body
+    assert body["stdout"].split() == ["3", "DATA_COVERAGE_VERIFIED", "3"]
+    done = complete(reuse, opened["session_id"], "req_turn_2")
+    assert done["final_status"]["carried_inputs"] == [{"output_id": one["output_id"], "name": "last_close",
+                                                       "kind": "G1", "label": "DATA_COVERAGE_VERIFIED"}]
+
+
+def test_a_research_session_loads_only_the_tables_its_plan_names(make_service, governor) -> None:
+    governor.catalog = data_need_catalog()
+    service = make_service(start=False, PY_SANDBOX_DATANEED_ENABLED="true", PY_SANDBOX_RESEARCH_FINDINGS_ENABLED="true",
+                           PY_SANDBOX_ENABLE_CONVERSATION_REUSE="true")
+    client = TestClient(create_app(service.settings, service=service, run_workers=False))
+    env = {"api": client, "governor": governor, "dataneed": client.app.state.dataneed, "service": service}
+    try:
+        one = first_turn(env)
+        bundle = second_bundle(env, "req_turn_2", mode="RESEARCH")
+        closed = post(env, "/v1/sessions", {"request_id": "req_turn_2", "bundle_id": bundle}).json()
+        assert "carried_outputs" not in closed  # the plan named none
+        refused = execute(env, closed["session_id"], "req_turn_2", f"load_output({one['output_id']!r})")
+        assert refused["status"] == "SCRIPT_ERROR" and "approved plan names" in str(refused)
+        post(env, f"/v1/sessions/{closed['session_id']}/close", {"request_id": "req_turn_2"})
+        named = post(env, "/v1/sessions", {"request_id": "req_turn_2", "bundle_id": bundle,
+                                           "carried_outputs": [one["output_id"]]}).json()
+        assert [c["output_id"] for c in named["carried_outputs"]] == [one["output_id"]]
+        assert execute(env, named["session_id"], "req_turn_2",
+                       f"print(len(load_output({one['output_id']!r})))")["stdout"].strip() == "3"
+    finally:
+        env["dataneed"].sessions.stop()

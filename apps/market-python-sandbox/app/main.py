@@ -336,11 +336,16 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
     @app.post("/v1/sessions", dependencies=dataneed_routes)
     def open_session(body: Any = Body(...), key: str | None = Depends(conversation_key)) -> Any:
         """A persistent analysis session on a READY bundle of the same request."""
-        body = session_body(body, {"request_id", "bundle_id"})
+        body = session_body(body, {"request_id", "bundle_id"}, {"carried_outputs"})
         if body is None or not isinstance(body["bundle_id"], str) or not BUNDLE_ID.fullmatch(body["bundle_id"]):
-            return invalid_body("{request_id, bundle_id}")
+            return invalid_body("{request_id, bundle_id, carried_outputs?}")
+        carried = body.get("carried_outputs")
+        if carried is not None and not (isinstance(carried, list) and len(carried) <= 40
+                                        and all(isinstance(o, str) and len(o) <= 64 for o in carried)):
+            return invalid_body("{request_id, bundle_id, carried_outputs: [output_id, ...] (at most 40)}")
         try:
-            return dataneed.open_session(body["request_id"], body["bundle_id"], conversation_key=key)
+            return dataneed.open_session(body["request_id"], body["bundle_id"], conversation_key=key,
+                                         carried_outputs=carried)
         except SessionError as exc:
             return session_error(exc)
 

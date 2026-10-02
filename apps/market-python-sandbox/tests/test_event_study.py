@@ -272,7 +272,7 @@ def test_an_event_study_is_recomputed_by_the_backend_and_its_tables_are_verified
     body = ok(session, STUDY.replace("EXTRA", "") + "emit_table('other', banks)\n"
                                                     "print(study['summary'][0]['event_count'])")
     names = [o["name"] for o in body["outputs"]]
-    assert names[:3] == ["drops", "drops_events", "event_study_call_drops"] and names[-1] == "other"
+    assert names[:4] == ["drops", "drops_events", "drops_baseline", "event_study_call_drops"] and names[-1] == "other"
     expected = expected_events(session)
     assert int(body["stdout"].strip()) == len(expected) > 0
     result = complete(session)
@@ -281,7 +281,7 @@ def test_an_event_study_is_recomputed_by_the_backend_and_its_tables_are_verified
     study = final["event_studies"][0]
     assert study["status"] == "PASS" and study["mismatched"] == 0 and study["checked"] > len(expected)
     ids = {o["name"]: o["output_id"] for o in body["outputs"]}
-    assert final["verified_output_ids"] == [ids["drops"], ids["drops_events"]]
+    assert final["verified_output_ids"] == [ids["drops"], ids["drops_events"], ids["drops_baseline"]]
     assert final["calculation_validation"] == "PARTIAL"  # the other table was not recomputed
     assert "event_study_call_drops" not in [o["name"] for o in result["released_outputs"]]
     assert "the calculation was independently verified" not in final["claims_forbidden"]
@@ -331,3 +331,11 @@ def test_the_record_names_are_reserved_and_a_bad_declaration_is_a_script_error(s
     shared = run(session, "event_study('prices', 'close < 0', {'forward_return': 'close'}, 1, "
                           "overlap_policy='SOMETIMES')").json()
     assert shared["status"] == "SCRIPT_ERROR" and "PARAMETER_INVALID" in str(shared)
+
+
+@requires_root
+def test_a_changed_baseline_table_fails_completion(session) -> None:
+    ok(session, STUDY.replace("EXTRA", "") + "fake = study['baseline'].copy()\nfake['outcome'] = fake['outcome'] + 1\n"
+                                          "emit_table('drops_baseline', fake)")
+    study = complete(session)["final_status"]["event_studies"][0]
+    assert study["status"] == "FAIL" and {m.get("table") for m in study["examples"]} == {"baseline"}

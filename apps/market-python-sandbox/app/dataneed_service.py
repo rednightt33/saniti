@@ -18,7 +18,7 @@ from .bundles import BundleBuilder, BundleError
 from .bundles import model_view as bundle_view
 from .coverage import execution_manifest, processing_coverage
 from .data_need import (COMPLETENESS_RULE, DEFAULT_TIME_BASIS, NULL_POLICY, PERIOD_POLICY, Limits, contract_tables,
-                        data_contract_sha256, sha256_json, validate)
+                        contract_covers, data_contract_sha256, sha256_json, validate)
 from .datasets import DatasetFailure
 from .dataneed_store import DRAFT_RETENTION_DAYS, DataNeedStore
 from .records import utc_now
@@ -511,7 +511,8 @@ class DataNeedService:
         if self.audit is not None:
             self.audit.stop()
 
-    def open_session(self, request_id: str, bundle_id: str, conversation_key: str | None = None) -> dict[str, Any]:
+    def open_session(self, request_id: str, bundle_id: str, conversation_key: str | None = None,
+                     carried_outputs: list[str] | None = None) -> dict[str, Any]:
         """A persistent session on a READY bundle; a RESEARCH need gets its approved compute budget.
 
         Conversation reuse (S2): a bundle of an earlier request is usable only through a binding to this request's
@@ -533,11 +534,11 @@ class DataNeedService:
             for warm in self.store.warm_sessions(key):
                 if warm["bundle_id"] == bundle_id and warm["session_id"] in self.sessions.workers:
                     try:
-                        return self.sessions.attach(warm["session_id"], request_id, need_id)
+                        return self.sessions.attach(warm["session_id"], request_id, need_id, carried_outputs)
                     except SessionError:
                         continue
         return self.sessions.open(request_id, bundle_id, cpu_seconds=cpu, conversation_key=key, need_id=need_id,
-                                  bound=binding is not None, research=research_v2)
+                                  bound=binding is not None, research=research_v2, carried_outputs=carried_outputs)
 
     def _session_research(self, research: dict[str, Any]) -> dict[str, Any] | None:
         """The research_v2 section of session.json for a need promoted by a multi-angle research run (flag on only)."""
@@ -567,9 +568,13 @@ class DataNeedService:
             return self._reused_view(bundle, need_id, 1, replayed=True)
         now = datetime.now(ZoneInfo("UTC"))
         candidates, expired, own = [], 0, None
+        later = record["approved"]
         for bundle in self.store.conversation_bundles(conversation_key):
             if bundle["contract_sha256"] != record["contract_sha256"]:
-                continue
+                # 2c: an earlier bundle that holds all of this need's data (any mode, same or wider columns)
+                earlier = self.store.get_need(bundle["need_id"]) if bundle.get("need_id") else None
+                if earlier is None or contract_covers(earlier.get("approved") or {}, later) is not None:
+                    continue
             manifest = bundle["manifest"]
             if datetime.fromisoformat(manifest["expires_at"]) <= now or not self._files_present(manifest):
                 expired += 1
@@ -585,7 +590,7 @@ class DataNeedService:
                       source_request_id=own["request_id"], candidates=1)
             return self._reused_view(own, need_id, 1, replayed=True)
         if not candidates:
-            return {"status": "NO_MATCH", "reason": "EXPIRED" if expired else "NO_EQUAL_CONTRACT"}
+            return {"status": "NO_MATCH", "reason": "EXPIRED" if expired else "NO_COVERING_CONTRACT"}
         chosen = candidates[0]  # the newest snapshot; the others hold the same contract
         self.store.insert_binding({"need_id": need_id, "request_id": request_id, "bundle_id": chosen["bundle_id"],
                                    "source_need_id": chosen["need_id"], "source_request_id": chosen["request_id"],
@@ -612,8 +617,9 @@ class DataNeedService:
                                      "expires_at": manifest["expires_at"], "equal_candidates": candidates},
                      "note": "No new extraction: this data need was already prepared in this request; its bundle is "
                              "returned." if manifest["need_id"] == need_id else
-                             "No new extraction: the data of an earlier message with the same approved data contract "
-                             "is reused. Disclose its extraction time as the as-of of the data."})
+                             "No new extraction: the data of an earlier message that holds all of this approved "
+                             "data contract (any mode; it may carry more columns) is reused. Disclose its extraction "
+                             "time as the as-of of the data."})
         return view
 
     def close_session(self, session_id: str, request_id: str, conversation_key: str | None = None
@@ -850,10 +856,20 @@ class DataNeedService:
                 "execution_ids": [e["execution_id"] for e in executions if e["status"] == "OK"]}
         if findings is not None and findings["status"] == "OK":
             final["research_findings"] = [findings["finding"]]
+        used = {}
+        for run in executions:
+            if run["status"] != "OK":
+                continue
+            for entry in run.get("access") or []:
+                if entry.get("call") == "load_output" and entry.get("output_id"):
+                    used[entry["output_id"]] = {k: entry.get(k) for k in ("output_id", "name", "kind", "label")}
+        if used:
+            # tables of earlier results this analysis built on: their labels bound what its figures can claim
+            final["carried_inputs"] = list(used.values())
         if studies is not None and studies["status"] != "NOT_PERFORMED":
             final["event_studies"] = [{k: study.get(k) for k in (
-                "name", "status", "reason", "summary_output_id", "events_output_id", "checked", "mismatched",
-                "examples")} for study in studies["studies"]]
+                "name", "status", "reason", "summary_output_id", "events_output_id", "baseline_output_id", "checked",
+                "mismatched", "examples")} for study in studies["studies"]]
             verified = [st["name"] for st in studies["studies"] if st["status"] == "PASS"]
             if passed and grouped is None:
                 final["calculation_validation"] = event_study_validation.level(
