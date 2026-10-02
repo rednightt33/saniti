@@ -160,22 +160,29 @@ ulang AI. Berlaku untuk event study, riset, `period_return` (pengecualian), dan 
 | GRADE / Cochrane | Kalimat hasil dibakukan per besar efek × tingkat kepastian ("mungkin menghasilkan sedikit atau tanpa perbedaan"). | Usulan awal berupa daftar frasa terlarang. Diganti: kalimat vonis baku dibuat sistem, dan daftar terlarang hanya jadi cadangan. |
 | Data-to-text (semantic accuracy, NLI) | Teks dicek terhadap data dengan model NLI untuk menemukan penghilangan dan karangan. | Tidak dipakai sebagai jalur utama karena probabilistik dan menambah biaya; label dan jumlah dibuat sistem secara pasti. |
 
+**Keputusan user 2026-10-02:** yang dipakai hanya butir 1 (tabel alur buatan sistem). Butir 2–4 tidak dipilih
+dan disimpan sebagai catatan. Akibatnya masih terbuka:
+- label pembanding yang bertentangan dengan pilihan sebenarnya (kasus "Hari-hari lainnya"), kecuali lewat definisi
+  terstruktur H1;
+- kalimat vonis INCONCLUSIVE yang terlalu keras (M24);
+- jawaban benar yang ditolak karena kata "lebih rendah" (P08).
+
 **Usulan yang disesuaikan:**
-1. **Tabel alur buatan sistem** untuk setiap helper yang menyaring data:
+1. **[DIPILIH] Tabel alur buatan sistem** untuk setiap helper yang menyaring data:
    - kandidat → dibuang (per alasan: tumpang tindih, disensor, tanpa harga sebelumnya) → dipakai;
    - setiap baris membawa label tetap;
    - divalidasi ulang seperti tabel event study lainnya;
    - jawaban mengutip angka lewat rujukan dengan label sistem.
-2. **Label kelompok dari parameter.** Nama pembanding diambil dari parameter yang dipakai, misalnya ALL_ELIGIBLE →
+2. **[TIDAK DIPILIH] Label kelompok dari parameter.** Nama pembanding diambil dari parameter yang dipakai, misalnya ALL_ELIGIBLE →
    "semua hari yang memenuhi syarat (termasuk hari event)", NON_EVENT → "hari tanpa event". Label kolom yang
    bertentangan dengan parameter ditolak gerbang.
-3. **Kalimat vonis baku per status:**
+3. **[TIDAK DIPILIH] Kalimat vonis baku per status:**
    - sistem menyediakan kalimat per status, misalnya INCONCLUSIVE → "data belum cukup untuk menyimpulkan; ini bukan
      bukti tidak ada efek";
    - jawaban wajib memuatnya lewat rujukan;
    - penjelasan bebas tetap boleh;
    - daftar frasa terlarang tetap ada sebagai cadangan.
-4. **Arah dari tanda angka (P08).** Format rujukan baru menulis kata arah dari tanda angkanya ("lebih rendah 0,61
+4. **[TIDAK DIPILIH] Arah dari tanda angka (P08).** Format rujukan baru menulis kata arah dari tanda angkanya ("lebih rendah 0,61
    poin" untuk −0,61), sehingga AI tidak perlu mengetik arah. Ini diturunkan, bukan daftar kata. Angka yang diketik
    AI tetap dicek seperti sekarang.
 
