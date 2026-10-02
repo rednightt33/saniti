@@ -1,7 +1,7 @@
 # Rencana: mode 4 sebagai percakapan yang luwes (M56)
 
-Status: **disetujui user 2026-10-02** ("Setuju untuk mode 4"), belum dijalankan. Keputusan 2 dan 3 di bagian 7 masih
-terbuka. Terkait `ERRORS_AND_SOLUTIONS.md` M56.
+Status: **disetujui user 2026-10-02** ("Setuju untuk mode 4"), difinalkan bersama `G2_G3_REACTIVATION_PLAN.md` (langkah 5
+di urutan kerjanya); belum dijalankan. Terkait `ERRORS_AND_SOLUTIONS.md` M56.
 
 > Diperluas oleh `G2_G3_REACTIVATION_PLAN.md` bagian 4d (2026-10-02): jenis giliran CLARIFY, INSIGHT (analisis pendorong) dan
 > CONTINUE dengan arah bebas G1–G4, state lintas giliran (temuan, manual, buku percobaan), berlaku untuk semua mode.
@@ -121,6 +121,7 @@ Kasus yang tidak berlaku: percakapan mode ANALYSIS atau RESEARCH tetap (bukan mo
 
 ## 7. Keputusan yang diminta dari user
 
-1. Setuju kelas dan aturan di bagian 3?
-2. **NEW_TOPIC** di percakapan yang sama: otomatis A+B+C+D (sesuai tujuan 1), atau hanya A plus tawaran riset?
-3. E1 (temuan riset bisa dikutip di giliran berikutnya) dikerjakan bersama router?
+1. ~~Kelas dan aturan~~: disetujui, diperluas di `G2_G3_REACTIVATION_PLAN.md` 4d-2 (CLARIFY dan INSIGHT menggantikan
+   FOLLOW_UP; CONTINUE dengan arah bebas G1–G4).
+2. ~~NEW_TOPIC~~: giliran pertama (A + riset) di mode 4.
+3. ~~E1~~: dikerjakan bersama router (langkah 5 urutan kerja `G2_G3_REACTIVATION_PLAN.md`).

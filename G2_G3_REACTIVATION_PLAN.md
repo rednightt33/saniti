@@ -1,11 +1,15 @@
 # Rencana: menghidupkan kembali G2 (event study) dan G3 (uji hipotesis bebas), lalu golden test 5 soal
 
-Status: **FINAL (2026-10-02)**, belum dijalankan; menunggu satu keputusan (bagian 10 butir 3). Keputusan user 2026-10-02:
+Status: **FINAL, disetujui user 2026-10-02** ("Great, finalize plan"); belum dijalankan. Tidak ada keputusan terbuka.
+Urutan kerja di bagian 8. Keputusan user 2026-10-02:
 - G2 dan G3 dihidupkan kembali;
 - keduanya bisa berdiri sendiri atau saling melengkapi;
 - yang disesuaikan adalah arsitektur dan kode G2/G3 agar cocok dengan infrastruktur sekarang (DataNeed, sesi
   sandbox, riset multi-angle G4, mode 4);
-- sesudahnya golden test 5 soal.
+- sesudahnya golden test 5 soal + satu skenario percakapan;
+- G3 jalur rencana terpisah (v1) di samping G4 (v2);
+- AI mengetahui alat lewat menu, manual dan contoh yang dibawa sepanjang percakapan (4b);
+- percakapan multi-giliran: CLARIFY / INSIGHT (analisis pendorong) / CONTINUE bebas G1–G4, riset hanya bila diminta (4d).
 
 Terkait:
 - `FACTOR_EVENT_RESEARCH_PLAN.md`: return abnormal, jalur event, S20, minimal 4 hipotesis;
@@ -295,8 +299,8 @@ Satu skenario multi-giliran ditambahkan ke golden test (bagian 7):
 Pertanyaan: "Apa yang terjadi pada saham bank setelah net jual asing besar?"
 - **G2 (analisis, tanpa rencana):** `saniti.event_study` menghitung return 5 hari setelah event, lalu pemeriksa
   independen PASS.
-- **G3 (di rencana):** hipotesis bebas "efeknya hanya di bank BUMN", memakai tabel event G2, lalu `event_summary`.
-- **G4 (di rencana):** 4 angle dari perpustakaan, misalnya `quantile_ranking` net asing dan `lead_lag`.
+- **G3 (rencana v1):** hipotesis bebas "efeknya hanya di bank BUMN", memakai tabel event G2, lalu `event_summary`.
+- **G4 (rencana v2):** 4 angle dari perpustakaan, misalnya `quantile_ranking` net asing dan `lead_lag`.
 
 Jawaban merujuk ketiganya. Setiap angka membawa label pemeriksaannya.
 
@@ -311,7 +315,7 @@ Keduanya memengaruhi kualitas jawaban di golden test.
   - Setelah rujukan diisi, salinan unit yang sama tepat di belakangnya dibuang dan dicatat di log.
   - Berlaku untuk semua format yang menambah unit (`pct`, `pctv`, `pp`, `x`, `rp`).
 
-## 7. Golden test 5 soal (sesudah langkah 1–4)
+## 7. Golden test 5 soal + skenario percakapan (sesudah langkah 1–6 di bagian 8)
 
 **Tujuan:** angka akurasi nyata, bukan perkiraan (S23).
 
@@ -328,6 +332,8 @@ Keduanya memengaruhi kualitas jawaban di golden test.
 | 4 | Apakah hari dengan net beli asing positif di BBCA diikuti return 1 hari lebih tinggi daripada hari lainnya? | **G3** (hipotesis bebas, `event_summary`) | pandas independen (selisih rata-rata dan CI dengan pengelompokan per tanggal) |
 | 5 | Siapa broker yang konsisten membeli saham bank saat market crash? (mode 4) | Alur lengkap: analisis + G4 4 angle (+ G2/G3 bila dipakai AI) | Bagian analisis dari pandas independen; riset dinilai dari kelengkapan dan konsistensi temuan, bukan angka tunggal |
 
+Ditambah skenario percakapan 7 giliran di 4d-5.
+
 **Dicatat per soal:**
 - angka benar/salah terhadap kunci (toleransi per kolom);
 - metode yang dipilih AI;
@@ -343,16 +349,20 @@ Saklar pikiran (`AI_CAPTURE_REASONING`) menyala, supaya kesalahan bisa ditelusur
 
 ## 8. Urutan kerja
 
-1. S21 + P22 (kecil; sandbox dan orc).
+1. **S21 + P22** (kecil; sandbox dan orc).
 2. **G2-A:** helper `event_study` + pemeriksa independen + CI per tanggal (sandbox), lalu render dan label (orc).
 3. **G3:** rencana v1 berdampingan dengan v2 (orc: prompt, skema, kelanjutan; sandbox: keduanya aktif bersamaan).
-3c. **Percakapan multi-giliran** (bagian 4d): state lintas giliran (temuan, manual, buku percobaan), router
-    CLARIFY / INSIGHT / CONTINUE / APPROVE / NEW_TOPIC / CONVERSATIONAL, helper insight, rantai antar G; bersama router `MODE4_CONVERSATION_PLAN.md`.
-3b. **Menu, manual dan contoh** (bagian 4b-3): `analysis_methods`, `get_method_guide`, kartu manual G1–G4 dan helper,
-    manual dibawa lewat catatan percakapan; sebelum uji live.
-4. Uji live singkat G2 dan G3 masing-masing sendiri, lalu bersama (saklar pikiran menyala).
-5. **Golden test 5 soal.**
-6. Sesudahnya, sesuai hasil golden test: G2-B (jalur event, return abnormal), S20, router mode 4, minimal 4 hipotesis.
+4. **Menu, manual dan contoh** (4b-3): `analysis_methods`, `get_method_guide`, kartu manual G1–G4 dan helper.
+5. **Percakapan multi-giliran** (4d), dikerjakan bersama router `MODE4_CONVERSATION_PLAN.md`:
+   - state lintas giliran: temuan (E1), manual, buku percobaan, rencana tertunda;
+   - router CLARIFY / INSIGHT / CONTINUE / APPROVE / REVISE / CANCEL / NEW_TOPIC / CONVERSATIONAL;
+   - helper `insight` (4d-3b);
+   - rantai antar G (4d-4).
+6. **Uji live singkat:** G2 dan G3 masing-masing sendiri, lalu bersama, lalu dua giliran lanjutan (saklar pikiran
+   menyala).
+7. **Golden test** 5 soal + skenario percakapan (bagian 7, 4d-5).
+8. **Sesudahnya, sesuai hasil golden test:** G2-B (jalur event, return abnormal), S20, minimal 4 hipotesis
+   (`FACTOR_EVENT_RESEARCH_PLAN.md`), analisis faktor.
 
 Setiap langkah:
 - `pytest` per service dengan PG scratch;
@@ -382,4 +392,6 @@ Setiap langkah:
 1. ~~G3 sebagai `experiments` di v2 atau jalur terpisah~~: **terpisah** (keputusan user 2026-10-02).
 2. ~~Ketersediaan G2~~: AI mengetahui alat lewat menu `get_system_capabilities`, manual `get_method_guide` dan contoh;
    manual yang dibuka dibawa sepanjang percakapan (bagian 4b-3, final).
-3. Lima soal golden test di bagian 7 cukup, atau ada soal yang ingin diganti?
+3. ~~Soal golden test~~: 5 soal di bagian 7 + skenario percakapan 4d-5 (disetujui bersama finalisasi 2026-10-02).
+4. ~~Topik baru di percakapan yang sama~~: di mode 4, NEW_TOPIC menjalankan giliran pertama (A + riset), sesuai tujuan
+   "selalu satu langkah lebih maju" (4d-2).
