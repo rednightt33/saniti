@@ -1,5 +1,28 @@
 # Database changelog
 
+## 2026-10-02 — HIGH ALERT: migrations 20261003_002 (method guides v2) and 20261003_003 (Tool_Catalog) on dev
+
+Plan `HIGH_ALERT_IMPLEMENTATION_PLAN.md` steps 3–5, approved by the user. Both files are generated
+(`scripts/generate_ai_method_guide_migration.py`, `scripts/generate_high_alert_tool_migration.py`) and drift-tested;
+since R27 every migration is also parsed in PostgreSQL by `apps/market-ai-orc/tests/test_migrations_parse.py`.
+
+- **`20261003_002_ai_method_guides_v2.sql`:** adds the 8 guides of version 2 to `public."AI_method_guide"` (every
+  released table or JSON states its definition; the event study's flow table; event_summary applies the approved
+  success rule; an explanation opens the explained table). The 8 version 1 rows stay active for a service still on
+  version 1.
+- **`20261003_003_high_alert_tool_catalog.sql`:** `Tool_Catalog` `submit_data_need_spec` v6 (research findings with
+  `success_rule`) and `run_python` v2 (`definition=` on emit_table/emit_json, the `_flow` table; closes the C08
+  drift of v1), both inactive like every market-ai-orc row; other columns copied from v5 / v1.
+- **First DRYRUN failed** (R27): an unescaped apostrophe in `20261003_003`; nothing was written. Fixed in
+  `06023a0` (the file had never been applied, so it was regenerated rather than superseded).
+- **Applied** through the temporary job `ha-mig-job` (DRYRUN `a3a33eb7`, APPLY `cae3bb11`; see
+  `RAILWAY_CHANGELOG.md`).
+- **Read back:** active guides by version `[[1, 8, 1], [2, 8, 1]]` (version, rows, distinct guides hashes);
+  `Tool_Catalog` 84 rows (was 82), active 25 (unchanged); `run_python` v1/v2 and `submit_data_need_spec` v1–v6 all
+  inactive. A second run of each file was refused by its own preflight.
+- The `AI_method_guide` table and its Table_Catalog / Column_Catalog rows are unchanged (no new column);
+  `Tool_Catalog` holds the new routine contracts.
+
 ## 2026-10-02 — D02: classification placeholder `0` → `Undefined` (migration 20261003_001) on dev
 
 User decisions 2026-10-02: keep the text `Undefined` for now (an exception to Part A A1.4), covering Sector and Industry

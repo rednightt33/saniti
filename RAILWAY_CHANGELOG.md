@@ -1,5 +1,38 @@
 # Railway changelog
 
+## 2026-10-02 — HIGH ALERT steps 4–5 on dev; migrations 20261003_002/003 through a temporary job (R27)
+
+Plan `HIGH_ALERT_IMPLEMENTATION_PLAN.md`, approved by the user. CLI upload from the repository root of branch
+`claude/g2-g3-reactivation` at `c625aa3`; `main` untouched. No variable of market-ai-orc or market-python-sandbox
+changed (AI_MODEL, AI_MODEL_2 and the switches untouched). No golden test was run (user instruction).
+
+- **Temporary job `ha-mig-job`:** the only variables were a `DATABASE_URL` reference to `Postgres` and `MODE`.
+  - `f0e00e3a` DRYRUN: `20261003_002` passed and rolled back; `20261003_003` failed with a syntax error (an unescaped
+    apostrophe, R27) and the job crashed after 11 restarts. Nothing was written: the before-state was unchanged.
+  - After the fix (`06023a0`), `a3a33eb7` DRYRUN: both files passed and rolled back.
+  - `cae3bb11` APPLY: both applied and read back (method guides version 2, 8 active rows beside version 1's 8;
+    Tool_Catalog 82 → 84 rows, `run_python` v2 and `submit_data_need_spec` v6 inactive, active count still 25). A
+    second run of each was refused.
+  - The service was deleted afterwards (absent from the service list) and `market-ai-orc` relinked.
+- **market-python-sandbox `b1983cf7` `SUCCESS`:** output definitions, the success rule from the approved plan,
+  method guides v2. Startup: `sandbox_started` with isolation enforced; `/ready` 200.
+- **market-ai-orc `b3aaae90` `SUCCESS`:** full answer in history, definitions in the data record, INSIGHT must open its
+  table, consistency-claim gate, plan success rule and plan-scope provenance (M29). Startup events: `ai_model_selected`,
+  `ai_mode_selected` (switch 4) and `mode4_active`; no `*_inactive` event, so the method guides (version 2, hash matched
+  with the table and the sandbox) and the event study are served.
+- Rollback references: market-python-sandbox `c7ff6e1c`, market-ai-orc `90ac9f64` (both before the method guides v2
+  rows existed; the version 1 rows stay, so the rollback still serves version 1).
+
+## 2026-10-02 — HIGH ALERT steps 2–3 on dev (S13, M25, S27)
+
+CLI upload from the repository root of branch `claude/g2-g3-reactivation` (commits `765737a`, `9cede8c`); `main`
+untouched; no variable changed.
+
+- market-python-sandbox `c7ff6e1c` `SUCCESS`: the host refuses a second record of a research angle
+  (`ANGLE_ALREADY_RECORDED`); the event study releases its recomputed flow table.
+- market-ai-orc `90ac9f64` `SUCCESS`: every completion kept in `analysis_final_statuses`.
+- Rollback references: market-python-sandbox `f1ecb50a`, market-ai-orc `f229727d`.
+
 ## 2026-10-02 — C06 TEMPORARY: coverage job twice a day; D02 read-only preflight
 
 Plan `HIGH_ALERT_IMPLEMENTATION_PLAN.md`, step 1, approved by the user.

@@ -46,6 +46,23 @@ menyatukannya menjadi urutan kerja.
 
 - **Keputusan user (jawaban AskUserQuestion):** "Sector + Industry, semua". Langkah 1d diperluas, lihat bawah.
 
+### Status per 2026-10-02 malam (dev, cabang `claude/g2-g3-reactivation`)
+
+| Langkah | Status | Bukti |
+|---|---|---|
+| 1a-TEMPORARY (cron dua kali sehari) | LIVE | `c3144f5b` SUCCESS; `RAILWAY_CHANGELOG.md` |
+| 1d (D02 → "Undefined") | LIVE | migrasi `20261003_001` diterapkan dan dibaca balik; `DATABASE_CHANGELOG.md` |
+| 2 (S13, M25) | LIVE | sandbox `c7ff6e1c`, orc `90ac9f64` |
+| 3 (S27 tabel alur) | LIVE | sandbox `c7ff6e1c` |
+| 4 (M63, H1) | LIVE | sandbox `b1983cf7`, orc `b3aaae90` |
+| 5 (M28, M29, H2) | LIVE | sandbox `b1983cf7`, orc `b3aaae90`; migrasi `20261003_002` (buku metode v2) dan `20261003_003` (Tool_Catalog) diterapkan |
+| 1a-permanen, 1b, 1c | BELUM | layanan pemuat/coverage/telegram bersumber `main`: tanya user sebelum deploy |
+| 6 (Prioritas 2, WAJIB) | BELUM | rencana teknis ditulis setelah 1a/1b/1c |
+| Golden test | TIDAK DIJALANKAN | menunggu perintah user |
+
+Kejadian: uji coba pertama migrasi `20261003_003` gagal (R27, tanda kutip tidak di-escape; tidak ada data berubah).
+Diperbaiki di semua generator, dan sekarang setiap migrasi diparse PostgreSQL di tes sebelum dikirim.
+
 ## Ringkasan untuk user (bahasa non-dev)
 
 | No | Apa yang dibereskan | Hasil yang terlihat |

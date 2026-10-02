@@ -3,6 +3,10 @@
 Status: rencana. Prioritas 1 = membereskan masalah di bawah. Prioritas 2 = bukti agregat (WAJIB), dikerjakan sesudah
 prioritas 1. Golden test tidak dijalankan sampai user menyuruh.
 
+Status 2026-10-02 malam: H1 (M63), H2 (M28, M29) dan H5 (S27) sudah diperbaiki dan live di dev (sandbox `b1983cf7`,
+orc `b3aaae90`), menunggu golden test. H3 (kamus istilah, M66/M13) menunggu daftar istilah dari user. Prioritas 2
+belum dikerjakan. Rincian per langkah: `HIGH_ALERT_IMPLEMENTATION_PLAN.md`, bagian "Status".
+
 ## Kenapa HIGH ALERT
 
 Masalah ini berbahaya karena tidak terlihat oleh pengguna:

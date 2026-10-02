@@ -1,6 +1,8 @@
 # Usulan solusi: kategori 2 (jawaban salah) dan 3 (buntu) yang UNDERADDRESSED (2026-10-02)
 
-Status: usulan, belum dikerjakan. Kode masalah merujuk ke `ERRORS_AND_SOLUTIONS.md`. Masalah dikelompokkan per kelas
+Status 2026-10-02 malam: grup 3 (M28, M29), 4 (S13, M25), 5 (S27) dan D02 serta C06 butir 1 TEMPORARY sudah live
+di dev, menunggu golden test (D02 dan C06 di luar golden test). C06 butir 1 permanen, butir 2 dan D06 butir 3 belum
+dikerjakan. Rincian: `HIGH_ALERT_IMPLEMENTATION_PLAN.md`, bagian "Status". Semula: usulan, belum dikerjakan. Kode masalah merujuk ke `ERRORS_AND_SOLUTIONS.md`. Masalah dikelompokkan per kelas
 (satu mekanisme yang sama), supaya satu perbaikan menutup semua kasus di kelas itu.
 
 Pembanding (praktik umum) dicari 2026-10-02; sumbernya di bagian akhir.
