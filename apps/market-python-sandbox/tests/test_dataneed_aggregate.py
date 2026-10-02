@@ -223,3 +223,46 @@ def test_a_dataset_without_the_approved_summary_fails_coverage(summing) -> None:
                  request_id="req_bundle_2").json()
     assert view.get("coverage_status") == "FAIL" or view.get("status") != "READY", view
     assert "EXECUTED_SCOPE_MISMATCH" in str(view)
+
+
+# ---------------------------------------------------------------- the model learns that a summary exists
+
+from app.data_need import summary_options  # noqa: E402
+from test_dataneed_bundles import REFERENCE  # noqa: E402
+
+
+def test_summary_options_are_derived_from_the_catalog() -> None:
+    meta, known = CATALOG["tables"][F2], CATALOG["columns"][F2]
+    options = summary_options(meta, known)
+    assert options["keep_in_group_by"] == ["date"]
+    assert options["drop_to_summarise"] == ["ticker", "market_board", "broker", "investor_type"]
+    assert options["sum_across_entities"] == ["net_value_1d", "net_value_5d"]
+    assert "buy_avg_price" in options["min_max"] and "buy_avg_price" not in options["sum_across_entities"]
+    assert options["example"]["group_by"] == ["date", "ticker"]
+    # the example is itself a valid summary
+    example = flows(group_by=options["example"]["group_by"], measures=options["example"]["measures"])
+    assert run(spec(example)).status == "APPROVED"
+    # a raw request's own columns narrow the measures; a table with no droppable key or measure offers none
+    assert summary_options(meta, known, ["date", "broker", "buy_avg_price"])["sum_across_entities"] == []
+    universe = CATALOG["tables"]["IDX_Stock_Universe"]
+    assert summary_options(universe, CATALOG["columns"]["IDX_Stock_Universe"], ["Ticker", "Industry"]) is None
+
+
+def approval(env, raw_spec, request_id="req_hint_1") -> dict:
+    body = {"request_id": request_id, "reference_time": REFERENCE, "timezone": "Asia/Jakarta", "spec": raw_spec}
+    return env["api"].post("/v1/data-needs", json=body, headers=HEADERS).json()
+
+
+@requires_root
+def test_a_raw_request_on_additive_columns_says_a_summary_is_available(env) -> None:
+    env["governor"].catalog = CATALOG
+    raw = approval(env, spec(flows(aggregate=None, columns=["broker", "net_value_1d"])))
+    assert raw["status"] == "APPROVED", raw
+    hint = raw["approved"]["requests"][0]["summary_available"]
+    assert hint["sum_across_entities"] == ["net_value_1d"] and "aggregate" in hint["note"]
+    # a summary already asked for, a request without additive columns, and research get no hint
+    summarised = approval(env, spec(flows()), request_id="req_hint_2")
+    assert "summary_available" not in summarised["approved"]["requests"][0]
+    prices_only = approval(env, spec(flows(aggregate=None, columns=["broker", "buy_avg_price"])),
+                           request_id="req_hint_3")
+    assert "summary_available" not in prices_only["approved"]["requests"][0]

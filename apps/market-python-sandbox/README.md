@@ -66,7 +66,7 @@ current flow; while the flag is off, its routes answer 404 and the service keeps
     resampled or preaggregated again). Profiling, delivery coverage (the executed `aggregate` must equal the approved
     one) and the session helpers follow that grain. A summary serves only the same summary for reuse
     (`contract_covers`), and a raw request's contract hash is unchanged. Not in phase 1: summaries over time, AVG
-    (send SUM and COUNT), medians, percentiles, correlations.
+    (send SUM and COUNT), medians, percentiles, correlations. An approved raw ANALYSIS request whose requested columns add up across entities carries `summary_available` (`summary_options`: groupable, kept and droppable columns, the summable measures and an example aggregate), so the model knows the option before it pulls raw rows.
   - **Preaggregation (IP1 Stage C).** A relationship with `requires_preaggregation = true` (Feature 02 → Feature 03)
     is no longer refused: its INNER restriction is a semi-join that never multiplies rows, and in the session
     `saniti.join` refuses a row join until the many side came from `saniti.preaggregate`. Each approved request

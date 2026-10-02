@@ -18,7 +18,7 @@ from .bundles import BundleBuilder, BundleError
 from .bundles import model_view as bundle_view
 from .coverage import execution_manifest, processing_coverage
 from .data_need import (COMPLETENESS_RULE, DEFAULT_TIME_BASIS, NULL_POLICY, PERIOD_POLICY, Limits, contract_tables,
-                        contract_covers, data_contract_sha256, sha256_json, validate)
+                        contract_covers, data_contract_sha256, sha256_json, summary_options, validate)
 from .datasets import DatasetFailure
 from .dataneed_store import DRAFT_RETENTION_DAYS, DataNeedStore
 from .records import utc_now
@@ -54,6 +54,22 @@ class DataNeedError(Exception):
         if action:
             body["next_action"] = action
         return body
+
+
+def _summary_hint(request: dict[str, Any], contract: dict[str, Any] | None, mode: str | None) -> dict[str, Any]:
+    """G18: a raw ANALYSIS request whose requested columns could be summarised in the warehouse names that option
+    ({"summary_available": ...}), derived from the catalog, so the model knows before it pulls every raw row."""
+    if mode != "ANALYSIS" or not contract:
+        return {}
+    meta = (contract.get("tables") or {}).get(request["source_table"]) or {}
+    known = (contract.get("columns") or {}).get(request["source_table"]) or {}
+    options = summary_options(meta, known, list(request.get("columns") or []))
+    if options is None or not options["sum_across_entities"]:
+        return {}
+    return {"summary_available": {
+        **options, "note": "These columns add up across entities: a total per group can be asked with this request's "
+                           "aggregate (one row per group instead of every raw row). Raw rows stay right when the "
+                           "analysis needs each row (a median, a percentile, a per-entity series)."}}
 
 
 def reference_date(reference_time: datetime, tz: str) -> date:
@@ -151,11 +167,13 @@ class DataNeedService:
                        for n in self.store.needs_for_request(request_id)
                        if n["mode"] == "RESEARCH" and n["extraction_allowed"]]
             research = governance_review(governance, spec, history, len(earlier), self.policy)
-        return self._record(request_id, spec, governance, submitted, submitted_sha, key, body, approved, research)
+        return self._record(request_id, spec, governance, submitted, submitted_sha, key, body, approved, research,
+                            contract=contract)
 
     def _record(self, request_id: str, spec: Any, governance: Any, submitted: dict[str, Any], submitted_sha: str,
                 conversation_key: str | None, body: dict[str, Any], approved: dict[str, Any] | None,
-                research: dict[str, Any] | None, **extra: Any) -> dict[str, Any]:
+                research: dict[str, Any] | None, *, contract: dict[str, Any] | None = None,
+                **extra: Any) -> dict[str, Any]:
         mode = spec.get("mode") if isinstance(spec, dict) else None
         status = body["status"]
         allowed = status == "APPROVED" and (mode != "RESEARCH" or (research or {}).get("decision") == "APPROVED")
@@ -182,9 +200,10 @@ class DataNeedService:
                               "source_table": r["source_table"], "extract_columns": r["extract_columns"],
                               "ranges": r["windows"], "scope_sha256": r["scope_sha256"],
                               "restricted_by": [x["relationship_id"] for x in r["restrictions"]],
-                              # G18: a summary names what the warehouse computes and the grain it delivers
+                              # G18: a summary names what the warehouse computes and the grain it delivers; a raw
+                              # analysis request whose columns could be summarised says so (derived from the catalog)
                               **({"aggregate": r["aggregate"], "key_columns": r["key_columns"]}
-                                 if r.get("aggregate") else {})}
+                                 if r.get("aggregate") else _summary_hint(r, contract, mode))}
                              for r in approved["requests"].values()]}
         self.store.insert_need({
             "need_id": need_id, "request_id": request_id,

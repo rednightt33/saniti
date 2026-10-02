@@ -756,6 +756,46 @@ def bind_aggregate(spec: dict[str, Any], contract: dict[str, Any], issues: Issue
             issues.add(rid, "AGGREGATE_DROPS_JOIN_KEY", f"{path}.group_by", lost)
 
 
+def summary_options(meta: dict[str, Any], known: dict[str, dict[str, Any]], columns: list[str] | None = None
+                    ) -> dict[str, Any] | None:
+    """G18: what a request on this table may ask the warehouse to summarise, derived from the catalog with the same
+    rules bind_aggregate enforces (shown to the model so it knows a summary exists before it pulls raw rows). columns
+    narrows the measures to those a raw request asked for. None when nothing can be summarised (no grain key besides
+    the time column, or no measure among the columns)."""
+    grain = grain_keys(meta)
+    time_column = meta.get("time_column")
+    droppable = [c for c in grain if c != time_column]
+    if not droppable:
+        return None
+    wanted = set(columns) if columns is not None else set(known)
+
+    def kind(name: str) -> tuple[str, str]:
+        info = known.get(name) or {}
+        return str(info.get("data_type") or "text").lower(), str(info.get("semantic_type") or "").upper()
+
+    sums = [c for c in known if c in wanted and (known[c] or {}).get("cross_entity_aggregation") == "SUM"]
+    min_max = [c for c in known if c in wanted and kind(c)[0] in NUMERIC and kind(c)[1] == "MEASURE"]
+    if not sums and not min_max:
+        return None
+    entity = meta.get("entity_column")
+    others = [c for c in droppable if c != entity]
+    # a derived example: one row per entity and date when finer keys exist (for example per stock over its brokers),
+    # else one row per date over every entity
+    group_by = [c for c in (time_column, entity if others else None) if c]
+    measure = sums[0] if sums else min_max[0]
+    return {
+        "group_by_allowed": [c for c, info in known.items() if (info or {}).get("group_by_allowed") or c in grain],
+        "keep_in_group_by": [time_column] if time_column else [],
+        "drop_to_summarise": droppable,
+        "sum_across_entities": sums,
+        "min_max": min_max,
+        "count_distinct": [c for c in known if kind(c)[1] in ("IDENTIFIER", "DIMENSION", "TIME")],
+        "example": {"group_by": group_by, "measures": [
+            {"column": measure, "function": "SUM" if sums else "MAX", "as": f"{measure}_{'sum' if sums else 'max'}"},
+            {"column": None, "function": "COUNT", "as": "row_count"}]},
+    }
+
+
 def aggregate_output(request: dict[str, Any], meta: dict[str, Any], types: dict[str, str]
                      ) -> dict[str, Any]:
     """The grain and columns an approved summary delivers: its group_by columns, then one column per measure; the

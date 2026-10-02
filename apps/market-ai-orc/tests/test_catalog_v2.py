@@ -192,12 +192,36 @@ def test_columns_carry_resample_rules_permissions_and_completeness(migrated_db: 
     # G18: the direction rule a summary across entities follows is shown, and the directionless list is named as such
     assert columns["net_value_20d"]["cross_entity_aggregation"] == "SUM"
     assert "does not permit a sum" in section["aggregation_rules"]
+    # the model learns from the columns it reads that the warehouse can summarise them
+    options = section["summaries"]["Feature_02_Broker_Rolling"]
+    assert options["sum_across_entities"] == ["net_value_1d", "net_value_20d"] and "aggregate" in section["summary_note"]
+    assert options["keep_in_group_by"] == ["date"] and options["example"]["measures"][0]["function"] == "SUM"
+
     assert section["completeness"]["Feature_02_Broker_Rolling"] == {
         "columns_returned": 2, "columns_total": 2, "complete": True}
     summary = [c["column_name"] for c in section["by_table"]["IDX_Broker_Summary"]]
     assert summary == ["Date", "Investor Type", "Undocumented Field"]  # hidden and sensitive columns stay out
     assert section["by_table"]["IDX_Broker_Summary"][2]["description"] is None
     assert "incomplete" not in section
+
+
+def test_the_catalog_summary_options_equal_the_validators() -> None:
+    """The model-facing derivation (catalog) and the authoritative one (sandbox validator) give the same answer."""
+    from app.tools.catalog import summary_options
+    from test_analysis_tools import sandbox_module
+
+    validator = sandbox_module("data_need")
+    meta = {"entity_column": "ticker", "time_column": "date",
+            "primary_key_columns": ["ticker", "market_board", "broker", "date"]}
+    known = {"ticker": {"semantic_type": "IDENTIFIER", "group_by_allowed": True, "data_type": "text"},
+             "broker": {"semantic_type": "IDENTIFIER", "group_by_allowed": True, "data_type": "text"},
+             "market_board": {"semantic_type": "IDENTIFIER", "group_by_allowed": True, "data_type": "text"},
+             "date": {"semantic_type": "IDENTIFIER", "group_by_allowed": True, "data_type": "date"},
+             "net_value_1d": {"semantic_type": "MEASURE", "data_type": "numeric", "cross_entity_aggregation": "SUM"},
+             "avg_price": {"semantic_type": "MEASURE", "data_type": "numeric", "cross_entity_aggregation": None}}
+    for columns in (None, ["broker", "avg_price"], ["broker"]):
+        assert summary_options(meta, known, columns) == validator.summary_options(meta, known, columns), columns
+    assert summary_options({"entity_column": "Ticker", "primary_key_columns": ["Ticker"]}, known, ["Ticker"]) is None
 
 
 def test_a_catalog_without_resample_rules_says_they_are_not_recorded(legacy_db: str) -> None:

@@ -733,7 +733,7 @@ parity test in `RAILWAY_CHANGELOG.md`. With the flags off, the Analysis Spec pat
   raw rows, so their spec and `extraction_sha256` are unchanged). `get_catalog_details` COLUMNS shows
   `cross_entity_aggregation` beside `resample_aggregation` and says that `allowed_aggregations` has no direction and
   never permits a sum; `DATANEED_RULES` tells the model when to summarise in the warehouse (a total across entities)
-  and what stays in the session (an average as SUM ÷ COUNT, medians, percentiles, correlations). Tool_Catalog:
+  and what stays in the session (an average as SUM ÷ COUNT, medians, percentiles, correlations). The model learns the option from the data itself: COLUMNS carries `summaries` per table (`summary_options`, the sandbox validator's derivation; `tests/test_catalog_v2.py` compares the two) and a `BUNDLE_TOO_LARGE` refusal names the requests whose columns add up across entities (`summary_hint`). Tool_Catalog:
   `submit_data_need_spec` v5 and `check_data_feasibility` v4, generated from the code by
   `scripts/generate_warehouse_summary_tool_migration.py` (migration `20261002_002`); `tests/test_data_need_tool.py`
   fails when the code and the migration drift apart.

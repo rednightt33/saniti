@@ -253,3 +253,18 @@ def test_g18_a_summary_reaches_the_governor_and_a_raw_request_is_unchanged() -> 
                "measures": [{"column": "net_value_1d", "function": "SUM", "as": "net_value_1d_sum"}]}
     spec = extraction_spec({**entry, "aggregate": summary}, part)
     assert spec["aggregate"] == summary and spec["columns"] == ["date", "broker", "net_value_1d_sum"]
+
+
+def test_g18_a_bundle_too_large_names_the_requests_that_could_be_summarised() -> None:
+    from app.tools.data_planner import summary_hint
+
+    need = {"mode": "ANALYSIS", "requests": {
+        "r_A": {"aggregation_rules": {"net_value_1d": "SUM", "avg_price": None}},
+        "r_B": {"aggregation_rules": {}},
+        "r_C": {"aggregation_rules": {"net_value_1d": "SUM"}, "aggregate": {"group_by": ["date"]}}}}
+    too_large = {"code": "BUNDLE_TOO_LARGE", "allowed_actions": ["REPORT_LIMITATION"]}
+    hint = summary_hint(need, too_large)
+    assert hint["summary_available"] == {"r_A": ["net_value_1d"]} and "aggregate" in hint["summary_note"]
+    assert hint["allowed_actions"][0] == "REVISE_DATA_NEED_SPEC_WITH_AGGREGATE"
+    assert summary_hint({**need, "mode": "RESEARCH"}, too_large) == {}
+    assert summary_hint(need, {"code": "SCAN_LIMIT"}) == {}

@@ -731,6 +731,63 @@ def _column_entry_v2(row: dict[str, Any], fields: tuple[str, ...], shorten: bool
     return entry
 
 
+NUMERIC_TYPES = ("smallint", "integer", "bigint", "numeric", "real", "double precision")
+SUMMARY_NOTE = ("summaries: what a data request on each table may ask the warehouse to summarise (its aggregate), "
+                "derived from these catalog rules: keep the time column in group_by, drop grain keys to total across "
+                "them, SUM only the sum_across_entities columns. One row per group comes back instead of every raw "
+                "row; use it when the answer needs totals or counts per group. Mode ANALYSIS only.")
+
+
+def summary_options(meta: dict[str, Any], known: dict[str, dict[str, Any]],
+                    columns: list[str] | None = None) -> dict[str, Any] | None:
+    """G18: the summaries a request on a table may ask for, from its catalog rows. The same derivation as the
+    sandbox's app/data_need.py summary_options (tests/test_catalog_v2.py compares the two); the sandbox validator and
+    the SQL Governor enforce the rules, this only tells the model the option exists."""
+    grain = list(dict.fromkeys(c for c in (meta.get("entity_column"), meta.get("time_column"),
+                                           *(meta.get("primary_key_columns") or [])) if c))
+    time_column = meta.get("time_column")
+    droppable = [c for c in grain if c != time_column]
+    if not droppable:
+        return None
+    wanted = set(columns) if columns is not None else set(known)
+
+    def kind(name: str) -> tuple[str, str]:
+        info = known.get(name) or {}
+        return str(info.get("data_type") or "text").lower(), str(info.get("semantic_type") or "").upper()
+
+    sums = [c for c in known if c in wanted and (known[c] or {}).get("cross_entity_aggregation") == "SUM"]
+    min_max = [c for c in known if c in wanted and kind(c)[0] in NUMERIC_TYPES and kind(c)[1] == "MEASURE"]
+    if not sums and not min_max:
+        return None
+    entity = meta.get("entity_column")
+    others = [c for c in droppable if c != entity]
+    group_by = [c for c in (time_column, entity if others else None) if c]
+    measure = sums[0] if sums else min_max[0]
+    return {
+        "group_by_allowed": [c for c, info in known.items() if (info or {}).get("group_by_allowed") or c in grain],
+        "keep_in_group_by": [time_column] if time_column else [],
+        "drop_to_summarise": droppable,
+        "sum_across_entities": sums,
+        "min_max": min_max,
+        "count_distinct": [c for c in known if kind(c)[1] in ("IDENTIFIER", "DIMENSION", "TIME")],
+        "example": {"group_by": group_by, "measures": [
+            {"column": measure, "function": "SUM" if sums else "MAX", "as": f"{measure}_{'sum' if sums else 'max'}"},
+            {"column": None, "function": "COUNT", "as": "row_count"}]},
+    }
+
+
+def _summaries(rows: list[dict[str, Any]], metas: list[dict[str, Any]]) -> dict[str, Any]:
+    by_table: dict[str, dict[str, dict[str, Any]]] = {}
+    for row in rows:
+        by_table.setdefault(row["table_name"], {})[row["column_name"]] = row
+    found = {}
+    for meta in metas:
+        options = summary_options(meta, by_table.get(meta["table_name"]) or {})
+        if options is not None:
+            found[meta["table_name"]] = options
+    return found
+
+
 def _columns_v2(rows: list[dict[str, Any]], tables: list[str], column_filter: list[str] | None,
                 budget: int, current_state: bool = False) -> dict[str, Any]:
     """COLUMNS with discovery v2: the FULL, COMPACT or MINIMAL tier that fits (all keep names, types, units,
@@ -1057,6 +1114,10 @@ class CatalogTools:
         if section == "COLUMNS" and self.discovery_v2:
             rows = run(COLUMNS_V2_SQL, (tables, columns, columns, ROW_CAPS["COLUMNS"] + 1))
             result = _columns_v2(rows, tables, columns, budget, current_state=self.point_in_time)
+            # G18: the model learns from the columns it reads that the warehouse can summarise them
+            summaries = _summaries(rows[:ROW_CAPS["COLUMNS"]], run(TABLE_META_SQL, (tables,)))
+            if summaries:
+                result.update(summaries=summaries, summary_note=SUMMARY_NOTE)
             if columns:
                 present = {row["column_name"] for row in run(FOUND_COLUMNS_SQL, (tables, columns))}
                 missing = [name for name in columns if name not in present]

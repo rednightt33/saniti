@@ -1,6 +1,7 @@
 # Plan 2: onboarding a new table for the AI (currency, FX, index, macro)
 
-Status (2026-10-01): **plan only, not executed** (user decision: record now, run later). Goal: when a new table is
+Status (2026-10-01): **plan only, not executed** (user decision: record now, run later). Updated 2026-10-02 with the
+summary rules a new table must carry (section 1a, G18 phase 1). Goal: when a new table is
 exposed to the AI, every existing guarantee keeps holding (catalog, Governor, sandbox, answer gates, coverage,
 audit), the user knows exactly what to define, the backend changes are known in advance, and the tests are fixed.
 
@@ -23,10 +24,39 @@ Collected before any load; the agent fills it in with the user and records the a
 | 7 | Per numeric column: unit, percent-or-decimal, sign convention, adjustment basis, meaning of NULL, sparse or not | `Column_Catalog`, `AI_column_catalog.unit` | A3.10–15 |
 | 8 | Per column: `ai_allowed`, `is_sensitive`, `filter_allowed`, `group_by_allowed`, `value_time_basis` (current-state columns marked) | `AI_column_catalog` | A2.8, A4.16 |
 | 9 | Resample rule per resamplable column (`FIRST`/`LAST`/`MAX`/`MIN`/`SUM`, or none) | `AI_column_catalog.resample_aggregation` | A4.18 |
+| 9b | **Summary rules (G18, see section 1a)**: per measure, whether it adds up across entities on one date (`cross_entity_aggregation` SUM or deliberately NULL) and over time (item 9); `semantic_type` (MEASURE, IDENTIFIER, DIMENSION, TIME) and `group_by_allowed` decided per column, not defaulted | `AI_column_catalog.cross_entity_aggregation`, `semantic_type`, `group_by_allowed` | A4.18 |
 | 10 | Safe joins to existing tables: columns, temporal rule (`EXACT_DATE`, `AS_OF` on the availability date, `EFFECTIVE_DATED`, `CURRENT_STATE`), output grain, pre-aggregation | `AI_catalog_relationships` | A4.17 |
 | 11 | Searchable description words (asset class, source, measure, abbreviations) | table and column descriptions | A4.19 |
 | 12 | Derived columns (if any): formula, interpretation, recommended use, misuse warning, evidence | `Feature_Catalog` | A4.16 |
 | 13 | Typical questions (3–5) with their expected answers, for the golden tests | this plan's test list | — |
+
+## 1a. Summary rules: what the model can ask the warehouse to total (added 2026-10-02, G18)
+
+Since G18 phase 1 a DataNeed request may carry an `aggregate`, and the warehouse returns one row per group instead
+of every raw row. The rules come only from the catalog, and the model is told from the catalog that a summary exists
+(`get_catalog_details` COLUMNS `summaries`, the `summary_available` note on an approved raw request and on
+`BUNDLE_TOO_LARGE`). A wrong catalog rule therefore produces a wrong total that passes every gate. This is the
+history to avoid: before 2026-09-25 the warehouse summed by `allowed_aggregations`, a list with no direction, which
+allowed SUM of prices, ratios, rolling totals over time and broker counts per board (`WAREHOUSE_AGGREGATION_PLAN.md`
+section 2).
+
+For every new table, decide with the user and record in the migration:
+
+| Question | Rule | Examples |
+|---|---|---|
+| Does the column add up across entities on one date? | `cross_entity_aggregation` = SUM only for flows and counts of things that do not overlap between entities; otherwise NULL | net value, volume in one currency: SUM. Price, rate, yield, index level, ratio, share, percent change, z-score, an HHI, a count of distinct brokers: NULL |
+| Does it add up over time? | `resample_aggregation` = SUM for flows; LAST/FIRST/MAX/MIN for levels; NULL for rolling windows | daily net: SUM. 5-day rolling total: NULL (summing overlapping windows counts days twice). Close: LAST |
+| Can the entities be mixed at all? | When a table holds several units or currencies in one column (FX pairs, macro series with different units), no measure may be SUM across entities: the rows are not the same quantity. Keep the unit or currency in the grain and leave `cross_entity_aggregation` NULL | macro: CPI (index) + GDP (IDR) in one value column: NULL. FX: USDIDR + EURIDR rates: NULL |
+| Which columns may group? | `group_by_allowed` true only for keys and dimensions; never for a measure | ticker, broker, board, sector: yes. net value: no |
+| What kind of column is it? | `semantic_type` decides MIN/MAX (MEASURE only) and COUNT_DISTINCT (IDENTIFIER, DIMENSION, TIME) | a date stored as an identifier still counts as TIME for the summary |
+| Is a key meaning-bearing? | Every key that changes the meaning of a value (currency, tenor, board, investor type) is in the grain, so dropping it is a visible decision of the request, never silent | — |
+
+Rules that stay true whatever the table:
+- `allowed_aggregations` is not a permission to sum (it has no direction); do not fill it in place of the two rules.
+- Phase 1 keeps the time column in every summary; totals over time (phase 2) will use `resample_aggregation` and the
+  Governor's coverage statistics. A rule set NULL now is safe: the request is refused and raw rows are pulled.
+- A new table's summary example (`summaries.example` in catalog details) must itself be approved by the validator
+  (test below), so what the model is shown can actually run.
 
 ## 2. Backend places that list tables by hand today (found 2026-10-01)
 
@@ -61,6 +91,7 @@ Each must be updated for a new table **today**; the plan replaces each with a va
 | Governor | extraction of one entity and of all entities over 400 days; row count equals `SELECT count(*)` (G13); refusal names a valid narrowing | limits and estimates hold |
 | Join | the new table with stock prices via its relationship (`AS_OF` for macro on `release_date`; calendar mismatch IDX vs 24/5); row counts before and after | no look-ahead, no dropped or duplicated rows |
 | Sandbox | DataNeed validation, bundle, `saniti.resample` against the source for one known month | helpers work on the new grain |
+| Summary (G18) | for each SUM-rule measure: a summary across entities equals `SELECT … GROUP BY` computed independently; a NULL-rule measure is refused `AGGREGATION_NOT_ADDITIVE`; the catalog `summaries.example` is approved by the validator; a multi-unit table offers no SUM | the catalog rules give right totals and refuse wrong ones |
 | Answer | value references to the new identity column (`rows[series=USDIDR]`), lists, nulls (P14); no positional row in a keyed table (M44) | figures stay bound to their entity |
 | Golden | the 3–5 user questions of item 13, with ground truth by SQL | end-to-end correctness |
 | Coverage | coverage row appears after the first load without waiting for the nightly job | freshness is visible |

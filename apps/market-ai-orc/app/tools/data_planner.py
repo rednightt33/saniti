@@ -144,6 +144,24 @@ class PlanBudget:
         return None if self.max_rows is None else max(0, self.max_rows - self.rows) + 1
 
 
+def summary_hint(need: dict[str, Any], outcome: dict[str, Any]) -> dict[str, Any]:
+    """G18: a data need too large for one bundle names the raw ANALYSIS requests whose columns add up across entities
+    (the approved aggregation_rules, from the catalog), so the next step can be a warehouse summary instead of a
+    narrower question."""
+    if outcome.get("code") != "BUNDLE_TOO_LARGE" or need.get("mode") != "ANALYSIS":
+        return {}
+    found = {rid: sorted(c for c, rule in (entry.get("aggregation_rules") or {}).items() if rule == "SUM")
+             for rid, entry in (need.get("requests") or {}).items() if not entry.get("aggregate")}
+    found = {rid: columns for rid, columns in found.items() if columns}
+    if not found:
+        return {}
+    return {"summary_available": found,
+            "summary_note": ("These requests have columns that add up across entities: when the answer needs totals "
+                             "or counts per group, resubmit the request with an aggregate (group_by keeps the time "
+                             "column) and the warehouse returns one row per group instead of every raw row."),
+            "allowed_actions": ["REVISE_DATA_NEED_SPEC_WITH_AGGREGATE", *outcome.get("allowed_actions", [])]}
+
+
 def extraction_spec(entry: dict[str, Any], part: Part) -> dict[str, Any]:
     return {"extraction_version": "extraction_spec/v1", "data_request_id": entry["data_request_id"],
             "source_table": entry["source_table"], "columns": list(entry["extract_columns"]),
@@ -196,7 +214,7 @@ class ExecutionPlanner:
                 planned.append({"data_request_id": rid, "envelopes": envelopes, "parts": parts})
                 decisions += self._decisions(entry, envelopes, parts)
         except PlanStop as stop:
-            return {**stop.outcome, "need_id": need_id, "plan_id": plan_id,
+            return {**stop.outcome, **summary_hint(need, stop.outcome), "need_id": need_id, "plan_id": plan_id,
                     "extracted_requests": [p["data_request_id"] for p in planned]}
         bundle = self.sandbox.build_bundle(request_id, need_id, {"plan_id": plan_id, "requests": planned,
                                                                  "decisions": decisions})
