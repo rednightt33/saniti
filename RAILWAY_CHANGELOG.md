@@ -1,5 +1,24 @@
 # Railway changelog
 
+## 2026-10-02 — Golden test `ma-golden-20261002c` after HIGH ALERT steps 1–5; audit reader key revoked
+
+The user asked for the planned golden test and a before/after comparison. Results:
+`GOLDEN_TEST_HIGH_ALERT_2026-10-02.md`.
+
+- **orc-test-runner `7959d2cf` `SUCCESS`:** suite commit `ea17bb1` (9 items, 25 turns, 2 workers, 19:30–20:01 UTC);
+  every turn answered HTTP 200; 8 audit readbacks COMPLETE. Reported model cost USD 1.26.
+  - Tested: market-python-sandbox `b1983cf7` and market-ai-orc `b3aaae90`; no variable of either changed
+    (AI_MODEL, AI_MODEL_2 and the switches untouched).
+- **orc-test-runner `b45aef68` `SUCCESS`:** audit-only readback `ma-audit-20261002c` of five mode 4 sub-requests (no
+  model call), from a scratch suite; the repository `suite.json` is unchanged.
+- **Close-out:** `AUDIT_STORE_READER_KEY` deleted from orc-test-runner (dev) with `railway variable delete` (the CLI
+  delete has no `--skip-deploys`; no new deployment appeared). The runner keeps only `MARKET_AI_ORC_API_KEY`.
+  - `railway config pull --force`: `.railway/railway.ts` drops the key.
+  - `railway config plan`: up to date.
+  - `AUDIT_STORE_SANDBOX_KEY` rotation stays the user's decision (R21).
+- **Found during the run:** S28 (sandbox session slots, `PY_SANDBOX_MAX_SESSIONS` unset = 2) and the other errors
+  listed in the report. No setting was changed for them.
+
 ## 2026-10-02 — HIGH ALERT steps 4–5 on dev; migrations 20261003_002/003 through a temporary job (R27)
 
 Plan `HIGH_ALERT_IMPLEMENTATION_PLAN.md`, approved by the user. CLI upload from the repository root of branch

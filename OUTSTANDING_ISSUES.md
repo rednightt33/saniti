@@ -21,18 +21,18 @@ g6 = usulan pertanyaan tambahan).
 
 ## 2. Ada jawaban, tetapi salah (fatal)
 
-- **[HIGH ALERT]** M66: pertanyaan sama, definisi "hari crash" / "bank BUMN" berbeda. --> UNDERADDRESSED + KEPUTUSAN USER (kamus istilah) (g5.1)
-- **[HIGH ALERT]** M63: penjelasan menghitung ulang dengan cakupan berbeda dari tabelnya. --> MENUNGGU GOLDEN TEST (diperbaiki dan live di dev 2026-10-02: definisi per tabel, wajib membuka tabel asal, klaim "konsisten" dicek) (g5.3, g7_followup_definitions)
-- **[HIGH ALERT]** M28: definisi sukses dari user diganti aturan bawaan. --> MENUNGGU GOLDEN TEST (diperbaiki dan live di dev: ambang angka dari rencana dipakai mesin) (g6, g6_rsi_threshold; giliran "ubah jadi 5%" perlu runner 3 giliran)
+- **[HIGH ALERT]** M66: pertanyaan sama, definisi "hari crash" / "bank BUMN" berbeda. --> UNDERADDRESSED + KEPUTUSAN USER (kamus istilah); terulang di GT 2026-10-02c (g1 vs g1_repeat: definisi "paling likuid" berbeda)
+- **[HIGH ALERT]** M63: penjelasan menghitung ulang dengan cakupan berbeda dari tabelnya. --> TERBUKTI (GT `ma-golden-20261002c`): g7 tetap di papan Nego, g5.3 menjelaskan dari tabel asal; celah baru M68 (nilai filter hilang dari catatan) UNDERADDRESSED
+- **[HIGH ALERT]** M28: definisi sukses dari user diganti aturan bawaan. --> TERBUKTI untuk rencana hipotesis (GT `ma-golden-20261002c`); jalur riset multi-sudut (mode 4) belum mengikat ambang: M69 UNDERADDRESSED
 - **[HIGH ALERT]** M26: SUPPORTED walau efek di bawah batas yang disebut user. --> KEPUTUSAN USER (g6)
-- **[HIGH ALERT]** M29: rencana menyebut 6 bank, eksekusi 48. --> MENUNGGU GOLDEN TEST (diperbaiki dan live di dev: angka cakupan rencana harus bersumber) (g5.5)
-- M25: temuan eksperimen pertama hilang dari metadata. --> MENUNGGU GOLDEN TEST (live di dev: `analysis_final_statuses`) (g4, g5.7–8)
-- S13: sudut riset INVALID karena rekaman ganda. --> MENUNGGU GOLDEN TEST (live di dev: rekaman ganda ditolak saat itu juga) (g5.1, g5.8)
-- S27: kalimat salah menyebut jumlah "memenuhi syarat". --> MENUNGGU GOLDEN TEST (live di dev: tabel alur `_flow` dibuat sistem) (g3, g4)
+- **[HIGH ALERT]** M29: rencana menyebut 6 bank, eksekusi 48. --> TERBUKTI (GT `ma-golden-20261002c`): gerbang menolak angka rencana tanpa sumber
+- M25: temuan eksperimen pertama hilang dari metadata. --> TERBUKTI (GT `ma-golden-20261002c`)
+- S13: sudut riset INVALID karena rekaman ganda. --> TIDAK MUNCUL LAGI (GT `ma-golden-20261002c`) (0 dari 25 sudut; jalur penolakan host belum terpicu)
+- S27: kalimat salah menyebut jumlah "memenuhi syarat". --> TERBUKTI (GT `ma-golden-20261002c`)
 - M24: INCONCLUSIVE terdengar seperti "ditolak". --> UNDERADDRESSED (g4, g6)
 - G11/D12, G08: saham keliru dikeluarkan; nilai terakhir saham tak likuid hilang. --> UNDERADDRESSED (g1, g2)
 - D14: RSI/EMA berbeda dari nilai sejarah penuh. --> KEPUTUSAN USER (g6)
-- C06: tanggal akhir data salah disebut. --> UNDERADDRESSED, sebagian (cron dua kali sehari TEMPORARY sudah live; penyegaran setelah muat dan rentang "LATEST" belum) (g1, g2, pertanyaan malam)
+- C06: tanggal akhir data salah disebut. --> UNDERADDRESSED, sebagian (cron dua kali sehari TEMPORARY sudah live, belum bisa dinilai di GT 2026-10-02c karena jadwal 10:30 UTC pertama baru besok; penyegaran setelah muat dan rentang "LATEST" belum)
 - D02: sektor bernilai "0". --> SELESAI di dev ("Undefined", migrasi 20261003_001, dibaca balik) (luar GT)
 - **[HIGH ALERT]** S23: angka hasil kode AI tidak diperiksa ulang backend. --> UNDERADDRESSED (g1–g4 dibandingkan hitungan independen)
 - **[HIGH ALERT]** M13: "saham terbaik" memakai definisi pilihan AI. --> UNDERADDRESSED, sebagian (AI wajib menyebut definisinya) (g1)
@@ -74,7 +74,12 @@ g6 = usulan pertanyaan tambahan).
 - R21: rotasi kunci audit. --> KEPUTUSAN USER (luar GT)
 - R07/R16: akses agen ke database terbatas. --> UNDERADDRESSED, sebagian (luar GT; diatasi job sementara)
 - R22: runner uji tidak mencatat timeout-nya sendiri. --> UNDERADDRESSED
-- R27: migrasi gagal karena tanda kutip tidak di-escape (tertangkap saat uji coba, tidak ada data berubah). --> SELESAI (semua migrasi kini diparse PostgreSQL di tes) (luar GT)
+- R27: migrasi gagal karena tanda kutip tidak di-escape (tertangkap saat uji coba, tidak ada data berubah). --> SELESAI, dikonfirmasi user (semua migrasi kini diparse PostgreSQL di tes) (luar GT)
+- **[HIGH ALERT]** M68: catatan data menulis filter tanpa nilainya ("Industry EQ"). --> UNDERADDRESSED (ditemukan GT 2026-10-02c)
+- **[HIGH ALERT]** M69: ambang sukses user tidak mengikat riset multi-sudut (mode 4). --> UNDERADDRESSED (ditemukan GT 2026-10-02c)
+- S28: slot sesi sandbox tertahan sampai 15 menit, analysis/riset gagal "penuh". --> UNDERADDRESSED (ditemukan GT 2026-10-02c)
+- G19: dataset riset kosong tetap lolos cakupan, riset jalan di atas data kosong. --> UNDERADDRESSED (ditemukan GT 2026-10-02c; penyebab kosong belum terverifikasi)
+- P26: satuan efek minimal (desimal) dibandingkan dengan hasil (persen). --> UNDERADDRESSED (ditemukan GT 2026-10-02c)
 - M14: catatan berbahasa Inggris di jawaban berbahasa Indonesia. --> UNDERADDRESSED (semua)
 - D08/D13: peringatan data historis; tanggal terbaru. --> UNDERADDRESSED, sebagian (g1)
 - W06–W11: masalah pencarian web. --> UNDERADDRESSED (luar GT, kecuali g7 web)
