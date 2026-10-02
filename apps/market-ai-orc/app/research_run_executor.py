@@ -33,7 +33,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from .research_plan import normalize_text
 from .research_plan_v2 import FINDINGS_V2, VerifiedPlanV2, governance_v2
 from .tools.registry import ToolSpec
-from .tools.session import SESSION_PATTERN, _call, released_contents
+from .tools.session import SESSION_PATTERN, _call, current_carried_outputs, released_contents
 
 LEVELS = ("EXECUTION_ONLY", "STATISTICS_VERIFIED", "FORMULA_AND_STATISTICS_VERIFIED")
 SESSION_GONE = frozenset({"SESSION_ENDED", "SESSION_CLOSED"})
@@ -186,8 +186,11 @@ class ResearchRunExecutor:
 
     def _open(self, group_id: str) -> dict[str, Any]:
         group = self.groups[group_id]
-        opened = _call(self.client, "POST", "/v1/sessions", timeout=self.timeout + 30,
-                       json={"request_id": self.request_id, "bundle_id": group["bundle_id"]})
+        body: dict[str, Any] = {"request_id": self.request_id, "bundle_id": group["bundle_id"]}
+        carried = current_carried_outputs.get()
+        if carried is not None:
+            body["carried_outputs"] = carried  # 2d: the tables the approved plan names
+        opened = _call(self.client, "POST", "/v1/sessions", timeout=self.timeout + 30, json=body)
         if opened.get("status") == "REJECTED" or not opened.get("session_id"):
             return opened
         group.update(session_id=opened["session_id"], status="RUNNING")
@@ -209,7 +212,7 @@ class ResearchRunExecutor:
             if result.get("released_outputs"):
                 result["released_contents"] = released_contents(
                     self.client, group["session_id"], result["released_outputs"], self.timeout, self.request_id,
-                    byte_budget=max(0, self.max_result_bytes // 3))
+                    byte_budget=max(0, self.max_result_bytes // 3), final_status=result.get("final_status"))
         return result
 
     # ------------------------------------------------------------------ tools

@@ -36,6 +36,7 @@ from .schemas import (
     ResearchPlanExecution, ResearchSummary, RunError, final_response_schema,
 )
 from . import conversation_router as router
+from . import in_sample as insample
 from . import method_guides
 from .provenance import (CONTEXT, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
                          parse_numbers, released_numbers, requested_statistics, weakest)
@@ -43,6 +44,7 @@ from .value_refs import ReferenceSources, Resolved, TableRows, format_value, ren
 from .tools import ToolOutcome, ToolRegistry, error_outcome
 from .tools.analysis import current_conversation_key, current_run_context, run_context
 from .tools.registry import strict_parameters_schema
+from .tools.session import current_carried_outputs
 from .tools.request_data import current_request_id
 
 
@@ -549,7 +551,10 @@ price column, adding the request id when the price is in another
 request of the angle, never a price level or a trailing return
 column). Prefer this declarative form, which the backend can
 reproduce; research_custom only when no helper fits, and it verifies
-execution only. Use the approved parameters, horizon and unit. Then
+execution only. A released table of an earlier result the research
+builds on is named in the plan's carried_inputs by its ref (out.oN) and
+loaded with load_output; a research session loads only the tables its
+plan names. Use the approved parameters, horizon and unit. Then
 call complete_research_run with finalize false; it lists any angle not
 yet recorded: record it and call it again. Finalize only an angle that
 truly cannot be recorded: it becomes NOT_RUN and the other angles still
@@ -632,9 +637,10 @@ candidate_count and pairwise_comparisons at most the approved values;
 minimum_sample at least the approved value in the same unit; a holdout
 when the plan requires one. Any other change needs a revised plan and a
 new approval.
-4. The events and the baseline rows may come from your own code or from
-an event study (its events and baseline frames). The backend recomputes
-the statistics from the rows you pass to event_summary
+4. The events and the baseline rows may come from your own code, from
+an event study (its events and baseline frames) or from a released
+table of an earlier result named in carried_inputs (load_output). The
+backend recomputes the statistics from the rows you pass to event_summary
 (STATISTICS_VERIFIED); it does not check how you built those rows, so
 the answer says the condition was built by the analysis code."""
 DUAL_RESEARCH_SENTENCE = ("A data need in mode RESEARCH is accepted only for an approved hypothesis plan (below); a "
@@ -1224,6 +1230,9 @@ PLAN_VERSION_INSTRUCTION = {
     True: "This deployment runs research as a multi-angle Research Plan: return research_plan in its multi-angle form "
           "(plan_version, root hypothesis and angles) after check_research_feasibility, not the single-experiment form.",
     False: "This deployment does not run multi-angle Research Plans: return research_plan in its experiment form."}
+CARRIED_INPUTS_INSTRUCTION = (
+    "carried_inputs names tables that are not released outputs of this conversation: {unknown}. Name a table by its "
+    "ref in the data record ({known}), or set carried_inputs to null.")
 PLAN_VERSION_NOTICE = "The Research Plan below is not in the form this deployment runs and cannot be approved. "
 RESEARCH_RUN_NOT_EXECUTED_INSTRUCTION = (
     "The user approved the multi-angle Research Plan, but no research run was started in this message. Call "
@@ -1511,6 +1520,10 @@ class RunState:
     # G2: released tables of an event study the sandbox recomputed and matched (CALCULATION_VERIFIED, not only
     # DATA_COVERAGE_VERIFIED)
     verified_outputs: set[str] = field(default_factory=set)
+    # 2d: the output ids of the carried tables the approved plan names (None when no plan is executed)
+    carried_outputs: list[str] | None = None
+    # IN_SAMPLE: finding id -> the overlaps of its test data with an earlier analysis of the conversation
+    in_sample: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     ref_next: int = 1  # P18: the next alias number; seeded from the data record, so numbering is conversation-wide
     # M47: the conversation's data record, seeded from earlier steps and turns and extended by this run
     data_record: dict[str, Any] = field(default_factory=records.empty)
@@ -1717,11 +1730,13 @@ class AgentOrchestrator:
         guard = current_research_guard.set(state.guard)
         key = current_conversation_key.set(conversation_key if self.conversation_reuse else None)
         research = current_research_context.set(state.research)
+        carried = None
         try:
             if self.conversation_reuse and conversation_key and request.history:
                 self._add_conversation_resources(state, conversation_key)
             self._prepare_plan_turn(request, state)
             self._apply_turn_kind(state)
+            carried = current_carried_outputs.set(state.carried_outputs)
             current_research_guard.set(state.guard)
             final = self._loop(state)
             state.experiments = self._research_summary(state, final.answer)
@@ -1769,6 +1784,8 @@ class AgentOrchestrator:
                 state, "INTERNAL_ERROR", f"Unexpected orchestrator error ({type(exc).__name__})."
             )
         finally:
+            if carried is not None:
+                current_carried_outputs.reset(carried)
             current_request_id.reset(token)
             current_run_context.reset(context)
             current_research_guard.reset(guard)
@@ -1902,7 +1919,7 @@ class AgentOrchestrator:
     def _path_mismatch(self, state: RunState, call_id: str, name: str, raw_arguments: Any) -> ToolOutcome | None:
         """AI_ENABLE_ANALYSIS_PATH: a data need in the other mode than the caller fixed is refused before it reaches
         the sandbox (bounded like other repairs)."""
-        arguments = self._normalized_arguments(raw_arguments)
+        arguments = self._tool_arguments(name, raw_arguments)
         mode = arguments.get("mode") if isinstance(arguments, dict) else None
         if mode is None or mode == state.forced_path:
             return None
@@ -2076,11 +2093,13 @@ class AgentOrchestrator:
                            note=CANCEL_NOTE)
         elif action == "APPROVE" and verified is not None and is_v2:
             state.verified_plan = verified
+            state.carried_outputs = self._carried_ids(state, verified.plan)
             self._approve_v2(state, request, verified, verification, plan_json)
             state.context_numbers.extend(numbers)
         elif action == "APPROVE" and verified is not None:
             # The approved plan becomes the guard's reference for this request only.
             state.verified_plan = verified
+            state.carried_outputs = self._carried_ids(state, verified.plan)
             self._set_turn(state, "EXECUTE_APPROVED", ALL_TYPES, None,
                            ResearchGuard(required=True, plan=verified.plan, plan_id=verified.plan_id,
                                          verification=verification),
@@ -2473,7 +2492,7 @@ class AgentOrchestrator:
             if refused is not None:
                 return self._repair_budget(state, call_id, name, refused)
         if self.multi_angle and not self.hypothesis_plans and name == "submit_data_need_spec":
-            arguments = self._normalized_arguments(raw_arguments)
+            arguments = self._tool_arguments(name, raw_arguments)
             if isinstance(arguments, dict) and arguments.get("mode") == "RESEARCH":
                 state.research_refusals += 1
                 log_event("multi_angle_research_data_need_refused", request_id=state.request_id)
@@ -2570,7 +2589,7 @@ class AgentOrchestrator:
         self._track_plan_guard(state, name, outcome)
         self._track_analysis(state, name, outcome, self._normalized_arguments(raw_arguments))
         self._track_sources(state, name, self._normalized_arguments(raw_arguments), outcome)
-        self._track_dataneed(state, name, self._normalized_arguments(raw_arguments), outcome)
+        self._track_dataneed(state, name, self._tool_arguments(name, raw_arguments), outcome)
         if self.value_references:
             self._track_references(state, name, outcome, self._normalized_arguments(raw_arguments))
         result_hash = stable_hash(outcome.output)
@@ -2672,11 +2691,24 @@ class AgentOrchestrator:
             state.analysis_values[f"research_released:{run_id}"] = {
                 "label": "DATA_COVERAGE_VERIFIED", "values": released_numbers(result.get("released_contents"))}
             state.context_numbers.extend(numbers_in(result.get("angle_completion"), ints_only=True))
+            seen = insample.analysis_ranges(state.data_record, state.request_id)
+            data_plan = getattr(executor.verified, "research_data_plan", None) or {}
+            loaded: dict[str, list[dict[str, Any]]] = {}  # angle -> earlier results its group's session loaded
+            for group in executor.groups.values():
+                completion = executor.completions.get(str(group.get("session_id"))) or {}
+                used = (completion.get("final_status") or {}).get("carried_inputs") or []
+                for angle_id in group.get("angle_ids") or []:
+                    loaded[str(angle_id)] = insample.carried(used, state.data_record)
             for finding in result.get("research_findings") or []:
                 if isinstance(finding, dict) and finding.get("angle_id"):
+                    overlap = insample.overlaps(seen, insample.research_ranges_v2(data_plan, str(finding["angle_id"])))
+                    overlap += loaded.get(str(finding["angle_id"])) or []
+                    if overlap:
+                        state.in_sample[str(finding["angle_id"])] = overlap
                     # E1: kept for later turns of the conversation (cited as finding.<angle_id>)
                     records.add_finding(state.data_record, state.request_id, kind="ANGLE",
-                                        finding_id=str(finding["angle_id"]), finding=finding,
+                                        finding_id=str(finding["angle_id"]),
+                                        finding={**finding, **({"in_sample": overlap} if overlap else {})},
                                         recorded_at=self.wall_clock().isoformat(timespec="seconds"))
             state.final_status = {k: result.get(k) for k in (
                 "status", "research_findings_version", "research_run_id", "plan_id", "calculation_validation",
@@ -3003,11 +3035,18 @@ class AgentOrchestrator:
                     values += [abs(v) for v in values if v < 0]
                     state.analysis_values[f"findings:{result.get('completion_id') or session_id}"] = {
                         "label": "DATA_COVERAGE_VERIFIED", "values": values}
+                    overlap = insample.overlaps(insample.analysis_ranges(state.data_record, state.request_id),
+                                                insample.research_ranges_v1(state.data_record, state.request_id))
+                    overlap += insample.carried(result["final_status"].get("carried_inputs") or [],
+                                                state.data_record)
                     for finding in findings:
                         state.research_findings[str(finding.get("hypothesis_id"))] = finding
+                        if overlap:
+                            state.in_sample[str(finding.get("hypothesis_id"))] = overlap
                         # E1: kept for later turns of the conversation (cited as finding.<hypothesis_id>)
                         records.add_finding(state.data_record, state.request_id, kind="HYPOTHESIS",
-                                            finding_id=str(finding.get("hypothesis_id")), finding=finding,
+                                            finding_id=str(finding.get("hypothesis_id")),
+                                            finding={**finding, **({"in_sample": overlap} if overlap else {})},
                                             recorded_at=_utc_now())
                 for study in result["final_status"].get("event_studies") or []:
                     if isinstance(study, dict) and study.get("status") == "PASS" and study.get("name"):
@@ -3076,6 +3115,9 @@ class AgentOrchestrator:
             codes = sorted({code for origin in state.inherited.values() for code in origin.get("warnings") or []})
             lines.extend(line for line in (WARNING_LINES[code] for code in codes if code in WARNING_LINES)
                          if line not in lines)
+        if state.in_sample:
+            lines.append(insample.LINE.format(ids=", ".join(sorted(state.in_sample)),
+                                              detail=insample.details(state.in_sample)))
         executor = self._executor(state)
         if executor is not None and executor.research_run_id is not None:
             run = executor.result
@@ -3157,7 +3199,9 @@ class AgentOrchestrator:
                 [str(k) for k in (rows[0] if rows and isinstance(rows[0], dict) else {}) if k != "_row"]
             records.add_output(state.data_record, state.request_id, alias=alias, output_id=output_id,
                                session_id=session_id, name=entry.get("name"), columns=[str(c) for c in columns],
-                               row_count=entry.get("row_count"))
+                               row_count=entry.get("row_count"),
+                               label="CALCULATION_VERIFIED" if output_id in state.verified_outputs
+                               else "DATA_COVERAGE_VERIFIED")
 
         if name == "complete_research_run":
             for finding in result.get("research_findings") or []:
@@ -3631,6 +3675,15 @@ class AgentOrchestrator:
             return self._forced(state, final, PLAN_FINDINGS_NOTICE,
                                 ["The Research Plan lacks expected_direction, outcome_horizon_periods, outcome_unit, "
                                  "success_definition or min_effect in its experiments."])
+        unknown = [i.output_ref for i in final.research_plan.carried_inputs or []
+                   if self._carried_id(state, i.output_ref) is None]
+        if unknown:
+            known = [o.get("ref") for o in state.data_record.get("outputs") or [] if o.get("ref")]
+            self._gate_once(state, "PLAN_CARRIED_INPUTS", CARRIED_INPUTS_INSTRUCTION.format(
+                unknown=", ".join(unknown), known=", ".join(known[-20:]) or "none"))
+            return self._forced(state, final, PLAN_VERSION_NOTICE, [f"The Research Plan names tables that are not "
+                                                                    f"released in this conversation: "
+                                                                    f"{', '.join(unknown)}."])
         if self.plan_feasibility and not is_v2 and state.feasible_draft is None:
             self._gate_once(state, "PLAN_FEASIBILITY", PLAN_FEASIBILITY_INSTRUCTION)
             return self._plan_not_feasible(state, final)
@@ -3645,6 +3698,24 @@ class AgentOrchestrator:
                                 [f"Figures without a source in this Research Plan: {numbers}."])
         state.evidence_label = None
         return final
+
+    @staticmethod
+    def _carried_id(state: RunState, ref: str) -> str | None:
+        """The output id of a released table of this conversation by its ref (out.oN), from the data record."""
+        return next((str(o["output_id"]) for o in state.data_record.get("outputs") or []
+                     if o.get("ref") == ref and o.get("output_id")), None)
+
+    def _carried_ids(self, state: RunState, plan: Any) -> list[str]:
+        """2d: the tables an approved plan names, as the output ids its research sessions may load (none when it
+        names none; a ref that no longer resolves is left out and logged)."""
+        ids = []
+        for item in getattr(plan, "carried_inputs", None) or []:
+            output_id = self._carried_id(state, item.output_ref)
+            if output_id is None:
+                log_event("carried_input_unresolved", request_id=state.request_id, ref=item.output_ref)
+                continue
+            ids.append(output_id)
+        return ids
 
     def _plan_form_runs(self, is_v2: bool, presenting: bool = False) -> bool:
         """Whether this deployment runs a plan of this form: the multi-angle form with Multi-Angle Research, the
@@ -3909,6 +3980,13 @@ class AgentOrchestrator:
                              assumptions=final.assumptions,
                              limitations=lines + [x for x in final.limitations if x not in lines],
                              research_findings=backend_findings(run) if run else None)
+
+    def _tool_arguments(self, name: str, raw: Any) -> Any:
+        """The arguments as the tool validates them (M55's envelope taken out by the registry's own rule): a wrapped
+        data need keeps its mode for the path and research guards and the data record."""
+        arguments = self._normalized_arguments(raw)
+        reader = getattr(self.registry, "arguments_of", None)
+        return reader(name, arguments) if reader is not None else arguments
 
     @staticmethod
     def _normalized_arguments(raw: Any) -> Any:

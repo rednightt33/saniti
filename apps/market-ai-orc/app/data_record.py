@@ -135,10 +135,11 @@ def add_catalog(record: dict[str, Any], tables: dict[str, Any], request_id: str)
 
 
 def add_output(record: dict[str, Any], request_id: str, *, alias: str, output_id: str, session_id: str | None,
-               name: Any, columns: list[str], row_count: Any) -> None:
+               name: Any, columns: list[str], row_count: Any, label: str | None = None) -> None:
     outputs = [o for o in record["outputs"] if o.get("output_id") != output_id]
     outputs.append({"ref": f"out.{alias}", "output_id": output_id, "session_id": session_id, "name": name,
-                    "columns": columns[:30], "row_count": row_count, "request_id": request_id})
+                    "columns": columns[:30], "row_count": row_count, "request_id": request_id,
+                    **({"label": label} if label else {})})
     record["outputs"] = outputs[-MAX_OUTPUTS:]
     record["next_alias"] = max(record.get("next_alias") or 1, _alias_number(f"out.{alias}") + 1)
 
@@ -214,7 +215,7 @@ def add_finding(record: dict[str, Any], request_id: str, *, kind: str, finding_i
     HYPOTHESIS of a hypothesis plan, EVENT_STUDY of a recomputed event study), kept so a later turn can explain and
     cite it as finding.<id> without running the research again; the newest of one id replaces the older. The
     findings are also the conversation's trial ledger: every test that ran, in order."""
-    kept = {k: copy.deepcopy(finding[k]) for k in FINDING_KEYS if k in finding}
+    kept = {k: copy.deepcopy(finding[k]) for k in (*FINDING_KEYS, "in_sample") if k in finding}
     for key, value in finding.items():
         if kind == "EVENT_STUDY" and key not in kept:
             kept[key] = copy.deepcopy(value)
@@ -226,6 +227,31 @@ def add_finding(record: dict[str, Any], request_id: str, *, kind: str, finding_i
 
 def is_empty(record: dict[str, Any] | None) -> bool:
     return not has_data(record) and not (record or {}).get("manuals")
+
+
+def finding_line(entry: dict[str, Any]) -> str:
+    """P3 (2026-10-02): a finding as the model reads it in later turns: what was tested, its status and how it was
+    checked, and its key figures (to interpret, not to cite: an answer cites them as finding.<id>)."""
+    f = entry.get("finding") or {}
+    parts = [f"{k}={f[k]}" for k in ("method_id", "status", "verdict", "sample_flag", "validation_level")
+             if f.get(k) is not None]
+    primary = ((f.get("estimates") or {}).get("primary") or {})
+    if primary:
+        parts += [f"estimate={primary.get('estimate')}", f"ci={primary.get('ci')}",
+                  f"p={primary.get('p_adjusted', primary.get('p_value'))}"]
+    angle_a = f.get("angle_a") or {}
+    if angle_a:
+        parts += [f"difference={angle_a.get('difference')}", f"ci=[{angle_a.get('ci_low')}, {angle_a.get('ci_high')}]",
+                  f"p={angle_a.get('p_value')}"]
+    sample = f.get("sample") or {}
+    if sample.get("effective") is not None:
+        parts.append(f"effective_sample={sample['effective']}")
+    if f.get("summary_output_id"):
+        parts.append(f"tables={', '.join(str(f[k]) for k in ('summary_output_id', 'events_output_id') if f.get(k))}")
+    if f.get("in_sample"):
+        parts.append("IN_SAMPLE (tested on data an earlier step already read)")
+    return (f"- finding.{entry.get('id')} ({entry.get('kind')}, {entry.get('request_id')}"
+            + (f", {entry.get('recorded_at')}" if entry.get("recorded_at") else "") + "): " + "; ".join(parts))
 
 
 def add_manual(record: dict[str, Any], request_id: str, *, name: str, version: Any, sha256: str,
@@ -294,18 +320,14 @@ def note(record: dict[str, Any]) -> str:
         ("Released outputs (newest first):", [
             f"- {o.get('ref')} = {o.get('output_id')} \"{o.get('name')}\" ({o.get('row_count')} rows; "
             f"{', '.join(o.get('columns') or [])}) session {o.get('session_id')}, {o.get('request_id')}"
+            + (f", label {o['label']}" if o.get("label") else "")
             for o in reversed(record["outputs"])]),
         ("Research angles (newest first):", [
             f"- {r.get('angle_id')} ({r.get('request_id')}): " + "; ".join(
                 f"{d['source_table']}({', '.join(d['columns'])})" for d in r.get("datasets") or [])
             for r in reversed(record["research"])]),
         ("Findings of this conversation (newest first; cite as finding.<id>, they are not run again unless the user asks):", [
-            f"- finding.{f.get('id')} ({f.get('kind')}, {f.get('request_id')}"
-            + (f", {f.get('recorded_at')}" if f.get('recorded_at') else "") + "): "
-            + ", ".join(f"{k}={(f.get('finding') or {}).get(k)}" for k in ("method_id", "status", "verdict",
-                                                                          "validation_level")
-                        if (f.get("finding") or {}).get(k) is not None)
-            for f in reversed(record.get("findings") or [])]),
+            finding_line(f) for f in reversed(record.get("findings") or [])]),
         ("Data coverage read (dates may have moved since; check again when it matters):", [
             f"- {name}: " + " ".join(f"{k}={v}" for k, v in c.items()) for name, c in sorted(record.get("coverage",
                                                                                                     {}).items())])]

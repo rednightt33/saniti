@@ -133,6 +133,7 @@ def test_released_outputs_are_read_across_requests_of_the_conversation_only(reus
     assert page["released"] is True and page["read_mode"] == "READ_RELEASED" and len(page["rows"]) == 3
     assert page["origin"]["completion_id"] == one["completion_id"]
     assert page["origin"]["evidence_label"] == "DATA_COVERAGE_VERIFIED"  # never raised
+    assert page["label"] == "DATA_COVERAGE_VERIFIED"  # P5
     assert reuse["api"].get(path, params=params, headers=headers(None)).status_code == 404
     assert reuse["api"].get(path, params=params, headers=headers(OTHER)).status_code == 404
     # an output of a later epoch is not readable by another request until that epoch completes
@@ -141,6 +142,9 @@ def test_released_outputs_are_read_across_requests_of_the_conversation_only(reus
     hidden = reuse["api"].get(f"/v1/sessions/{one['session_id']}/outputs/{draft['output_id']}",
                               params={"request_id": "req_turn_3"}, headers=headers())
     assert hidden.status_code == 404
+    own = reuse["api"].get(f"/v1/sessions/{one['session_id']}/outputs/{draft['output_id']}",
+                           params={"request_id": "req_turn_2"}, headers=headers()).json()
+    assert own["label"] == "NOT_RELEASED" and "may not be cited" in own["label_meaning"]  # P5
 
 
 def test_a_contract_the_earlier_data_does_not_cover_is_not_reused(reuse) -> None:
@@ -171,6 +175,11 @@ def test_fewer_columns_or_another_mode_reuse_the_earlier_data(reuse) -> None:
     assert research["status"] == "APPROVED" and research["need_id"], research
     result = post(reuse, "/v1/bundles/reuse", {"request_id": "req_turn_3", "need_id": research["need_id"]}).json()
     assert result["status"] == "READY" and result["input_bundle_id"] == one["bundle_id"], result
+    # the research session starts a fresh worker: the analysis variables in the warm worker are not part of what the
+    # research plan approved
+    opened = post(reuse, "/v1/sessions", {"request_id": "req_turn_3", "bundle_id": one["bundle_id"]}).json()
+    assert opened["session_id"] != one["session_id"] and not opened.get("reused_session"), opened
+    assert reuse["dataneed"].store.get_session(one["session_id"])["status"] == "WARM_IDLE"
     other = approve(reuse, "req_other", key=OTHER)
     elsewhere = post(reuse, "/v1/bundles/reuse", {"request_id": "req_other", "need_id": other["need_id"]},
                      key=OTHER).json()

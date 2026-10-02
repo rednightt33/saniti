@@ -36,6 +36,16 @@ class Counting(Tools):
         return registry
 
 
+class Wrapping(Counting):
+    """submit_data_need_spec as registered (M55): its argument object may arrive wrapped under data_need_spec."""
+
+    def registry(self):
+        registry = super().registry()
+        spec = registry.get("submit_data_need_spec")
+        registry._tools[spec.name] = dataclasses.replace(spec, envelope_key="data_need_spec")
+        return registry
+
+
 def agent(script: list, tools: Tools, **settings: str) -> tuple[AgentOrchestrator, ScriptedClient]:
     scripted = ScriptedClient(script)
     return AgentOrchestrator(make_settings(**{**ON, **settings}), scripted, tools.registry()), scripted
@@ -56,6 +66,20 @@ def test_a_fixed_analysis_path_refuses_research_and_labels_the_answer() -> None:
     assert path.requested == "ANALYSIS" and path.source == "CALLER" and path.mismatches_refused == 1
     assert result.execution.research_plan is None  # no plan turn, so a pending SERVER-mode plan stays untouched
     assert "check_data_feasibility" not in {t["name"] for t in scripted.payloads[0].get("tools", [])}
+
+
+def test_a_wrapped_data_need_in_the_other_mode_is_refused_too() -> None:
+    """The guard reads the arguments the tool validates: before, a RESEARCH spec wrapped under data_need_spec had no
+    top-level mode, passed the path check and reached the sandbox."""
+    tools = Wrapping([completed()])
+    wrapped = {"data_request_id": "x", "data_need_spec": json.dumps({"mode": "RESEARCH", "research_governance":
+                                                                     {"hypothesis_id": "h1"}})}
+    script = [call("submit_data_need_spec", wrapped, "c0"), *flow(),
+              final_response(answer("Return YTD BBCA 12,35% dan BBRI turun 4,32%."))]
+    orchestrator, scripted = agent(script, tools)
+    result = orchestrator.run(AgentRunRequest(request_id="p1", message="Broker mana ...?", analysis_path="ANALYSIS"))
+    assert result.status == "COMPLETED" and tools.modes == ["ANALYSIS"]
+    assert "PATH_MISMATCH" in json.dumps(scripted.payloads[1])
 
 
 def test_a_fixed_analysis_path_allows_no_research_plan() -> None:

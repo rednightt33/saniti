@@ -106,6 +106,7 @@ def test_complete_analysis_attaches_the_released_contents() -> None:
     outcome = call(registry(fake), "complete_analysis", {"session_id": SESSION})
     result = outcome.output["result"]
     assert result["released_contents"] == [{"output_id": table, "name": "t", "type": "TABLE",
+                                            "label": "DATA_COVERAGE_VERIFIED",
                                             "rows": [{"ticker": "BBCA", "ret": 0.12}], "row_count": 1,
                                             "truncated": False}]
     assert [c["path"] for c in fake.calls] == [f"/v1/sessions/{SESSION}/complete",
@@ -141,8 +142,8 @@ def test_a_wide_released_table_is_cut_to_fit_the_result_limit_instead_of_hiding_
     assert first["row_count"] == 835 and first["truncated"] is True and "get_session_output" in first["note"]
     assert not any(ch.isdigit() for ch in first["note"])  # provenance reads the numbers of released content
     # the small summary is kept whole; the wide table takes what is left
-    assert second == {"output_id": summary, "name": "summary", "type": "JSON", "content": {"up": 586, "down": 210},
-                      "truncated": False}
+    assert second == {"output_id": summary, "name": "summary", "type": "JSON", "label": "DATA_COVERAGE_VERIFIED",
+                      "content": {"up": 586, "down": 210}, "truncated": False}
 
 
 def test_two_wide_tables_share_the_result_budget() -> None:

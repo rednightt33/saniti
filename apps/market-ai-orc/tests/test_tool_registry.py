@@ -32,6 +32,14 @@ def test_an_argument_object_wrapped_under_the_envelope_key_is_taken_out() -> Non
         assert outcome.output["unwrapped_arguments"]["envelope"] == "data_need_spec"
 
 
+def test_a_caller_reads_the_arguments_the_tool_validates() -> None:
+    spec = {"mode": "RESEARCH", "question": "q"}
+    reg = registry()
+    assert reg.arguments_of("submit", {"data_request_id": "x", "data_need_spec": json.dumps(spec)}) == spec
+    assert reg.arguments_of("submit", spec) == spec
+    assert reg.arguments_of("unknown", {"data_need_spec": spec}) == {"data_need_spec": spec}
+
+
 def test_anything_else_is_refused_as_before() -> None:
     reg = registry()
     assert not reg.execute("c1", "submit", json.dumps({"mode": "A", "data_need_spec": {"mode": "A",

@@ -31,8 +31,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from . import research_library
 from .research_plan import (CLOCK_SKEW_SECONDS, IDENTIFIER, MAX_TTL_SECONDS, PLAN_ID, SHA256, TOKEN_KIND, Action,
-                            PlanVerificationError, _b64decode, _b64encode, _no_code, _no_duplicates, _utc,
-                            canonical_json, normalize_text)
+                            CarriedInputs, PlanVerificationError, _b64decode, _b64encode, _no_code, _no_duplicates,
+                            _utc, canonical_json, normalize_text)
 
 PLAN_VERSION_V2 = "research_plan/v2"
 DATA_PLAN_VERSION = "research_data_plan/v1"
@@ -325,7 +325,7 @@ class ResearchAngle(Strict):
         return angle_signature(self.model_dump(mode="json"))
 
 
-class ResearchPlanV2(Strict):
+class ResearchPlanV2(CarriedInputs, Strict):
     plan_version: Literal["research_plan/v2"]
     original_question: str = Field(min_length=1, max_length=4000)
     objective: str = Field(min_length=1, max_length=1000)

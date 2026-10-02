@@ -524,14 +524,22 @@ class DataNeedService:
         if binding is not None and binding["conversation_key"] != key:
             binding = None
         need_id = binding["need_id"] if binding else (record or {}).get("need_id")
-        cpu, research_v2 = None, None
+        cpu, research_v2, mode = None, None, None
         if need_id:
             need = self.store.get_need(need_id)
+            mode = (need or {}).get("mode")
             research = (need or {}).get("research") or {}
             cpu = (research.get("constraints") or {}).get("compute_seconds")
             research_v2 = self._session_research(research)
-        if key and record is not None and (binding is not None or record["request_id"] == request_id):
+        # A warm worker's namespace holds what its earlier epochs computed. 2c binds a need to a bundle of any mode, so
+        # the mode decides the attach: a RESEARCH need always starts a fresh worker (it reads only its bundle and the
+        # tables its approved plan names, with its own compute budget), and an ANALYSIS need never takes over a
+        # research worker.
+        if key and record is not None and mode != "RESEARCH" \
+                and (binding is not None or record["request_id"] == request_id):
             for warm in self.store.warm_sessions(key):
+                if warm.get("need_id") and (self.store.get_need(warm["need_id"]) or {}).get("mode") == "RESEARCH":
+                    continue
                 if warm["bundle_id"] == bundle_id and warm["session_id"] in self.sessions.workers:
                     try:
                         return self.sessions.attach(warm["session_id"], request_id, need_id, carried_outputs)
@@ -550,8 +558,9 @@ class DataNeedService:
                 "angles": constraints.get("angles") or {}}
 
     def reuse_bundle(self, request_id: str, need_id: str, conversation_key: str | None) -> dict[str, Any]:
-        """Conversation reuse (S1): bind this request's approved need to an earlier READY bundle of the same
-        conversation whose need has exactly the same data contract (data_contract_sha256), so no extraction runs.
+        """Conversation reuse (S1, 2c): bind this request's approved need to an earlier READY bundle of the same
+        conversation whose need has the same data contract (data_contract_sha256) or one that covers it
+        (contract_covers: any mode, same or wider columns), so no extraction runs.
         The earlier bundle's manifest and checksum are unchanged; the binding records the lineage. NO_MATCH (with a
         reason) sends the caller to the normal planner."""
         if not self.settings.conversation_reuse or not conversation_key:
@@ -591,7 +600,7 @@ class DataNeedService:
             return self._reused_view(own, need_id, 1, replayed=True)
         if not candidates:
             return {"status": "NO_MATCH", "reason": "EXPIRED" if expired else "NO_COVERING_CONTRACT"}
-        chosen = candidates[0]  # the newest snapshot; the others hold the same contract
+        chosen = candidates[0]  # the newest snapshot that holds this need's data
         self.store.insert_binding({"need_id": need_id, "request_id": request_id, "bundle_id": chosen["bundle_id"],
                                    "source_need_id": chosen["need_id"], "source_request_id": chosen["request_id"],
                                    "conversation_key": conversation_key, "created_at": utc_now()})

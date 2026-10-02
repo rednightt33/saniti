@@ -86,6 +86,8 @@ dan backend menjalankan aturan tegas berdasarkan kelasnya.
   percakapan dulu; minta data baru hanya bila tidak tersedia.
 - Pemakaian ulang bundle "sama atau lebih sempit" (Langkah 9 butir 4 di rencana kecepatan) membuat penyempitan
   seperti "hanya BUMN" tidak menarik ulang dari gudang.
+  Status 2026-10-02 (langkah 5b, branch): bundle dipakai ulang bila datanya mencakup kebutuhan baru (mode lain atau
+  kolom lebih sedikit). Cakupan atau rentang yang lebih sempit, seperti "hanya BUMN", masih ditarik ulang.
 
 **E4. Angka penjelasan tetap terjaga.**
 - Angka dari jawaban sebelumnya tidak dipercaya sebagai teks (keputusan lama tetap). Penjelasan merujuk `out.oN`

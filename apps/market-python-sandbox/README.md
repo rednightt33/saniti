@@ -298,14 +298,18 @@ completion, completion responses keep their shape).
   types, canonical scope and restrictions, extraction windows, frequencies, resample rules, buffers, ordering and
   catalog table version, the relationships, and the catalog version. The request group, revision and question are
   left out. A bundle built for such a need belongs to the same conversation.
-- **Bundle reuse (S1).** `POST /v1/bundles/reuse {request_id, need_id}` binds this request's own approved need to the
-  newest READY, unexpired bundle of the conversation from an earlier request whose need has exactly the same
-  `contract_sha256`, when all its files are still present. The binding (`bundle_bindings`) records the source need
-  and request. The bundle's manifest and checksum never change. The answer is the bundle view with the current
-  `need_id`, `reused: true` and `reused_from` (`bundle_id`, source `need_id` and `request_id`, `extracted_at`,
-  `expires_at`, `equal_candidates`). Otherwise the answer is `NO_MATCH` with a reason (`NO_EQUAL_CONTRACT`,
-  `EXPIRED`, `NEED_NOT_IN_CONVERSATION`). There is no subset or superset matching: any change in the contract
-  extracts again. A changed catalog changes `catalog_sha256`, so it never reuses.
+- **Bundle reuse (S1, coverage 2c).** `POST /v1/bundles/reuse {request_id, need_id}` binds this request's own
+  approved need to the newest READY, unexpired bundle of the conversation from an earlier request whose need has the
+  same `contract_sha256` or **covers** it, when all its files are still present. Covering (`data_need.contract_covers`,
+  user decision 2026-10-02): the mode is ignored (an analysis bundle serves a research need and back) and the earlier
+  columns, extract columns, column types and resample rules may be wider; every other contract field (requests and
+  their tables, scope, restrictions, windows, frequencies, buffers, ordering, catalog versions, relationships,
+  subject, time basis) must be equal. A narrower scope or a shorter window is not served: it extracts again (speed
+  plan step 9 item 4, open). The binding (`bundle_bindings`) records the source need and request. The bundle's
+  manifest and checksum never change. The answer is the bundle view with the current `need_id`, `reused: true` and
+  `reused_from` (`bundle_id`, source `need_id` and `request_id`, `extracted_at`, `expires_at`, `equal_candidates`).
+  Otherwise the answer is `NO_MATCH` with a reason (`NO_COVERING_CONTRACT`, `EXPIRED`, `NEED_NOT_IN_CONVERSATION`). A
+  changed catalog changes `catalog_sha256`, so it never reuses.
 - **Warm sessions (S2).** A passed completion of a session with a conversation key leaves the worker `WARM_IDLE`
   instead of closing it, unless an execution of that epoch timed out, which leaves the namespace uncertain.
   - `POST /v1/sessions` on a bound bundle (or the request's own) first looks for a `WARM_IDLE` session on it in the
@@ -343,8 +347,31 @@ completion, completion responses keep their shape).
   outputs survive within their retention (24 h), so a later message reuses the bundle and computes again, or reads
   the released outputs.
 - **Research.** Reuse never replaces approval. An attach needs this request's own approved need, and a RESEARCH need
-  is approved only with its Research Governor decision. Mode is part of the contract, so an ANALYSIS session never
-  serves a RESEARCH need or the other way round.
+  is approved only with its Research Governor decision. A bundle may serve both modes (2c), but a warm worker never
+  does: a RESEARCH need always opens a fresh worker (the variables of an earlier epoch are not part of what its plan
+  approved, and it gets its own compute budget), and an ANALYSIS need never takes over a research worker.
+- **Carried results (2a, 2d) and data profiles (P1, P2, P5), user decisions 2026-10-02.** Before every execution
+  the released PARQUET tables of the conversation (newest first, at most 40, never another session's backend records
+  `research_call_` / `event_study_call_`, never expired) are hard-linked read-only into the session's `input/carried/`
+  with a `manifest.json` (`app/carried.py`): per table its `output_id`, name, path (`kind`: G4 `research_input_`, G3
+  `research_events_` / `research_summary_`, G2 a recomputed event-study table, else G1), `label` and `label_meaning`,
+  columns, rows, `origin` (completion, request, need, time, calculation validation) and a `profile`.
+  - In code: `saniti.carried()` lists them; `saniti.load_output(output_id_or_name, columns=None)` loads one within the
+    frame budget, sets `frame.attrs` label, origin and kind, and logs the load; the completion lists the loaded tables
+    as `final_status.carried_inputs` (output id, name, kind, label), and market-ai-orc flags research findings that
+    loaded one as IN_SAMPLE.
+  - A session of a RESEARCH need carries only the tables its approved plan names: `POST /v1/sessions` takes
+    `carried_outputs` (at most 40 output ids); a RESEARCH need without it carries none (fail closed). Other needs
+    carry every released table of the conversation.
+  - The open view adds `carried_outputs` (a listing with labels and origins, at most 20 with a count of the rest) and
+    a `carried_note`; every bundle dataset in the view gets a `profile` (P1).
+  - Profile (one DuckDB scan, cached per table): rows, entities and date range; per column (first 40, the rest
+    counted) type, nulls, approximate distinct values and min / median / max (numbers), min / max (dates) or the 5
+    most frequent values (text, first 12 text columns); 5 sample rows. It is for understanding the data before writing
+    code; answers still cite released outputs and findings.
+  - P5: `GET /v1/sessions/{id}/outputs/{output_id}` adds `label` and `label_meaning` to every page
+    (CALCULATION_VERIFIED for a recomputed event-study table, else the completion's evidence label; NOT_RELEASED for an
+    output not released yet).
 - **SQLite.** Schema version 1 (`PRAGMA user_version`), applied at startup in one transaction per version, adds
   nullable or defaulted columns and two tables:
   - columns: `conversation_key` and `contract_sha256` on needs, `conversation_key` on bundles,
@@ -1152,16 +1179,18 @@ the orc describes it to the model only with `AI_ENABLE_EVENT_STUDY`.
 - **Outputs.** `<name>` (one row per segment: `event_count`, `event_dates`, `effective_event_dates`, `mean`,
   `median`, `hit_rate`, `baseline_count`, `baseline_mean`, `baseline_median`, `delta_mean`, `delta_ci_low`,
   `delta_ci_high`, `delta_p_value`, `censored_count`, `overlapping_dropped`, `meets_min_events`), `<name>_events`
-  (`date`, `entity`, `outcome` of every kept event) and the internal JSON record `event_study_call_<name>` (the
-  declaration and parameters). The prefix `event_study_call_` is reserved like `research_call_`.
+  (`date`, `entity`, `outcome` of every kept event), `<name>_baseline` (the baseline rows, same columns; 2b,
+  2026-10-02, so a later step can load it) and the internal JSON record `event_study_call_<name>` (the declaration and
+  parameters). The prefix `event_study_call_` is reserved like `research_call_`.
 - **Independent recalculation** (`app/event_study_validation.py`, at `complete_analysis`): the harness reads the
-  declaration, rebuilds the input from the bundle files with `runtime/research_inputs.py`, recomputes both tables with
-  `runtime/event_study.py` and compares them with the released ones (counts exactly, numbers within a relative 1e-9).
-  - PASS: `final_status.event_studies[*].status` PASS, the two output ids in `final_status.verified_output_ids`,
+  declaration, rebuilds the input from the bundle files with `runtime/research_inputs.py`, recomputes the three tables
+  with `runtime/event_study.py` and compares them with the released ones (counts exactly, numbers within a relative
+  1e-9).
+  - PASS: `final_status.event_studies[*].status` PASS, the three output ids in `final_status.verified_output_ids`,
     `calculation_validation` FORMULA_AND_STATISTICS_VERIFIED when every released output is such a table, else
     PARTIAL; the forbidden claims are scoped to the other calculations and an allowed claim names the studies;
-  - FAIL (CALCULATION_MISMATCH, SUMMARY_MISSING, EVENTS_MISSING): the completion is INCOMPLETE with `next_action`
-    RUN_PYTHON and a message naming the differing cells;
+  - FAIL (CALCULATION_MISMATCH, SUMMARY_MISSING, EVENTS_MISSING, BASELINE_MISSING, TABLE_UNREADABLE): the completion
+    is INCOMPLETE with `next_action` RUN_PYTHON and a message naming the differing cells;
   - INVALID (the record cannot be rebuilt; reason named): the completion is not blocked and the tables are released
     without the label.
 - **Return value.** The summary rows, the output metadata, and `events` and `baseline` as frames (`date`, `entity`,

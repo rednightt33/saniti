@@ -289,6 +289,7 @@ def test_an_event_study_is_recomputed_by_the_backend_and_its_tables_are_verified
     assert any("event studies ['drops'] were recomputed" in c for c in final["claims_allowed"])
     page = session["api"].get(f"/v1/sessions/{session['session_id']}/outputs/{ids['drops_events']}",
                               params={"request_id": "req_bundle_1", "limit": 500}, headers=HEADERS).json()
+    assert page["label"] == "CALCULATION_VERIFIED" and "recomputed" in page["label_meaning"]  # P5
     released = pd.DataFrame(page["rows"])
     assert list(released["entity"]) == list(expected["entity"])
     assert list(released["outcome"]) == pytest.approx(list(expected["outcome"]))

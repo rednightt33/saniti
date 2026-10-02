@@ -9,6 +9,7 @@ released for the final answer only when complete_analysis passes coverage.
 """
 from __future__ import annotations
 
+import contextvars
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -17,6 +18,11 @@ from ..compaction import dumps
 from .analysis import SandboxClient
 from .registry import ToolError, ToolSpec
 from .request_data import current_request_id
+
+# 2d (2026-10-02): the output ids of the carried tables the approved research plan names, set by the orchestrator
+# for the run that executes the plan (None: no approved plan, so the sandbox's own rule applies)
+current_carried_outputs: contextvars.ContextVar[list[str] | None] = contextvars.ContextVar(
+    "current_carried_outputs", default=None)
 
 SESSION_PATTERN = r"^sess_[0-9a-f]{24}$"
 BUNDLE_PATTERN = r"^bundle_[0-9a-f]{24}$"
@@ -215,11 +221,24 @@ def _within(contents: list[dict[str, Any]], budget: int) -> list[dict[str, Any]]
     return out
 
 
+def output_label(body: dict[str, Any], output_id: str, final_status: dict[str, Any] | None) -> str:
+    """P5: how the backend checked a released table. The sandbox's own label wins; an older sandbox's is derived from
+    the completion the same way (a recomputed event-study table, else the completion's evidence label)."""
+    if body.get("label"):
+        return str(body["label"])
+    status = final_status or {}
+    if output_id in (status.get("verified_output_ids") or []):
+        return "CALCULATION_VERIFIED"
+    return str(status.get("evidence_label") or "DATA_COVERAGE_VERIFIED")
+
+
 def released_contents(client: SandboxClient, session_id: str, outputs: list[dict[str, Any]], timeout: float,
-                      request_id: str, byte_budget: int | None = None) -> list[dict[str, Any]]:
+                      request_id: str, byte_budget: int | None = None,
+                      final_status: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     """The content of released outputs (bounded), so the answer can cite them and provenance can check them.
     With byte_budget the contents together stay within it, so a wide table cannot push the whole complete_analysis
-    result over the tool result limit (which would hide the completion from the model)."""
+    result over the tool result limit (which would hide the completion from the model). Each entry carries its label
+    (P5), counted inside the budget."""
     contents: list[dict[str, Any]] = []
     for output in outputs[:RELEASED_PREVIEW_OUTPUTS]:
         if output.get("type") not in ("TABLE", "PARQUET", "CSV", "JSON", "TEXT"):
@@ -228,7 +247,8 @@ def released_contents(client: SandboxClient, session_id: str, outputs: list[dict
                      params={"request_id": request_id, "offset": 0, "limit": RELEASED_PREVIEW_ROWS})
         if body.get("status") == "REJECTED" or not body.get("released"):
             continue
-        entry = {"output_id": output["output_id"], "name": output.get("name"), "type": output.get("type")}
+        entry = {"output_id": output["output_id"], "name": output.get("name"), "type": output.get("type"),
+                 "label": output_label(body, output["output_id"], final_status)}
         if "rows" in body:
             entry.update(rows=body["rows"], row_count=body.get("row_count"),
                          truncated=body.get("next_offset") is not None)
@@ -269,8 +289,11 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
 
     def open_session(arguments: BaseModel) -> dict[str, Any]:
         assert isinstance(arguments, OpenAnalysisSessionArgs)
-        result = _call(client, "POST", "/v1/sessions", timeout=timeout_seconds,
-                       json={"request_id": request_id(), "bundle_id": arguments.input_bundle_id})
+        body: dict[str, Any] = {"request_id": request_id(), "bundle_id": arguments.input_bundle_id}
+        carried = current_carried_outputs.get()
+        if carried is not None:
+            body["carried_outputs"] = carried
+        result = _call(client, "POST", "/v1/sessions", timeout=timeout_seconds, json=body)
         if result.get("status") == "REJECTED" and result.get("code") == "SESSION_CAPACITY_EXCEEDED":
             # The sandbox's RETRY_LATER is for callers that can wait; a retry within this run meets the same slots.
             result.pop("retry_after_seconds", None)
@@ -305,7 +328,8 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
             envelope = _size({"ok": True, "tool": "complete_analysis", "result": {**result, "released_contents": []}})
             result["released_contents"] = released_contents(
                 client, arguments.session_id, result["released_outputs"], timeout_seconds, request_id(),
-                byte_budget=max(0, max_result_bytes - envelope - RESULT_ENVELOPE_MARGIN))
+                byte_budget=max(0, max_result_bytes - envelope - RESULT_ENVELOPE_MARGIN),
+                final_status=result.get("final_status"))
         return result
 
     return [

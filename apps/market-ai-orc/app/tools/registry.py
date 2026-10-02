@@ -324,6 +324,12 @@ class ToolRegistry:
         sizes = sorted(((len(dumps(v).encode("utf-8")), k) for k, v in result.items()), reverse=True)[:3]
         return ", ".join(f"{k} {n} bytes" for n, k in sizes)
 
+    def arguments_of(self, name: str, parsed: Any) -> Any:
+        """The arguments a tool validates, for a caller that inspects them before the call (an envelope taken out
+        exactly as execute does), so a guard never reads a different object than the tool receives."""
+        spec = self._tools.get(name)
+        return self._unwrap(spec, parsed)[0] if spec is not None else parsed
+
     @staticmethod
     def _unwrap(spec: ToolSpec, parsed: Any) -> tuple[Any, dict[str, Any] | None]:
         key = spec.envelope_key

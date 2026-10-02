@@ -35,7 +35,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer, model_validator
 
 PLAN_VERSION = "research_plan/v1"
 TOKEN_VERSION = "rpc1"
@@ -66,6 +66,37 @@ SampleUnit = Literal["EVENTS", "OBSERVATIONS", "ENTITIES"]
 
 class Strict(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class CarriedInput(Strict):
+    """2d (user decision 2026-10-02): a released table of this conversation the research builds on, so it is part of
+    what the user approves; a research session loads only the tables its plan names."""
+    output_ref: str = Field(pattern=r"^out\.o[0-9]{1,4}$", description="The table's ref from the data record, e.g. "
+                                                                      "out.o3.")
+    purpose: str = Field(min_length=1, max_length=300, description="What the research takes from it, in plain words.")
+
+
+class CarriedInputs(BaseModel):
+    """carried_inputs appears in a plan's JSON only when it names a table, so plans without one keep their exact
+    shape, hash and signature (plans issued before 2d stay valid)."""
+
+    # required for the strict provider schema (null for none); a stored plan without it reads as null
+    carried_inputs: list[CarriedInput] | None = Field(max_length=8, description="Released tables of this conversation "
+                                                                               "the research builds on; null for none.")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _absent_inputs(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "carried_inputs" not in data:
+            return {**data, "carried_inputs": None}
+        return data
+
+    @model_serializer(mode="wrap")
+    def _without_empty_inputs(self, handler: Any) -> Any:
+        data = handler(self)
+        if isinstance(data, dict) and not data.get("carried_inputs"):
+            data.pop("carried_inputs", None)
+        return data
 
 
 def _no_code(value: str) -> str:
@@ -143,7 +174,7 @@ class ResearchExperimentFindings(ResearchExperiment):
         return _no_code(value)
 
 
-class ResearchPlan(Strict):
+class ResearchPlan(CarriedInputs, Strict):
     plan_version: Literal["research_plan/v1"]
     original_question: str = Field(min_length=1, max_length=4000, description="The user's question.")
     objective: str = Field(min_length=1, max_length=1000, description="The research objective in plain words.")

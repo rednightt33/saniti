@@ -41,7 +41,7 @@ def test_a_complete_analysis_passes_releases_its_outputs_and_closes_the_session(
                                                     "processing": "PROCESSED", "status": "PASS"}
     page = session["api"].get(f"/v1/sessions/{session['session_id']}/outputs/{table['output_id']}",
                               params={"request_id": "req_bundle_1"}, headers=HEADERS).json()
-    assert page["released"] is True
+    assert page["released"] is True and page["label"] == "DATA_COVERAGE_VERIFIED"  # P5
     state = session["api"].get(f"/v1/sessions/{session['session_id']}", params={"request_id": "req_bundle_1"},
                                headers=HEADERS).json()
     assert state["status"] == "CLOSED" and state["close_reason"] == "COMPLETED"

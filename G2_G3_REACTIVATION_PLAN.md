@@ -373,6 +373,23 @@ Saklar pikiran (`AI_CAPTURE_REASONING`) menyala, supaya kesalahan bisa ditelusur
    rencana tertunda tetap. Buku percobaan: daftar temuan di catatan percakapan adalah buku percobaannya (urut, semua
    uji); koreksi uji berganda lintas giliran belum ditegakkan backend (dicatat sebagai lanjutan, perlu perubahan
    pemeriksa rencana di sandbox).
+5b. **Hasil terbawa dari G ke G, data terlihat oleh AI, penanda IN_SAMPLE** (keputusan user 2026-10-02, sebelum
+   golden test). *Selesai di branch, belum di-deploy.*
+   - 2a `load_output` / `carried()`: tabel hasil yang sudah dirilis di percakapan yang sama bisa dimuat di kode,
+     lengkap dengan jalur asal (G1–G4), label dan riwayatnya;
+   - 2b tabel pembanding event study ikut dirilis dan dihitung ulang;
+   - 2c bundle dipakai ulang bila datanya mencakup kebutuhan baru (mode apa pun, kolom sama atau lebih banyak);
+     cakupan atau rentang yang lebih sempit masih ditarik ulang (Langkah 9 butir 4, belum);
+   - 2d rencana riset menyebut tabel yang dipakai (`carried_inputs`), ikut disetujui user; sesi riset hanya memuat
+     tabel itu, dan sesi riset selalu memakai worker baru (variabel analisis di memori tidak ikut);
+   - P1/P2 profil data (baris, entitas, rentang tanggal, per kolom tipe, kosong, nilai beda, min/median/maks atau
+     nilai tersering, 5 baris contoh) untuk setiap dataset bundle dan tabel terbawa;
+   - P3 temuan di catatan percakapan menampilkan angka kuncinya;
+   - P5 setiap hasil yang dibaca AI membawa labelnya;
+   - IN_SAMPLE: temuan riset yang diuji pada data yang sudah dilihat langkah sebelumnya ditandai di jawaban (tidak
+     ditolak);
+   - G3: baris event buatan AI tetap tidak dicek (keputusan user, S26).
+   Catatan: `ERRORS_AND_SOLUTIONS.md` S25, S26, M57, M58.
 6. **Uji live singkat:** G2 dan G3 masing-masing sendiri, lalu bersama, lalu dua giliran lanjutan (saklar pikiran
    menyala).
 7. **Golden test** 5 soal + skenario percakapan (bagian 7, 4d-5).

@@ -1162,7 +1162,37 @@ With `AI_ENABLE_HYPOTHESIS_PLAN` (active only when Multi-Angle Research, researc
 The sandbox needs nothing new: `complete_analysis` already runs findings v1 for a RESEARCH need without governance v2
 and the grouped findings for v2 (`PY_SANDBOX_RESEARCH_FINDINGS_ENABLED` and `PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED`
 together, tested). The findings v1 statistics are STATISTICS_VERIFIED: the backend recomputes them from the rows the
-analysis passes to `event_summary`, not how those rows were built.
+analysis passes to `event_summary`, not how those rows were built (S26: kept as a known gap by user decision
+2026-10-02).
+
+### Results carried from G to G, labels and IN_SAMPLE (step 5b)
+
+User decisions 2026-10-02 (`G2_G3_REACTIVATION_PLAN.md` step 5b; sandbox README, "Carried results").
+
+- **Plans name what they build on (2d).** Both plan forms have `carried_inputs` (`app/research_plan.py`
+  `CarriedInputs`): up to 8 `{output_ref, purpose}`, `output_ref` the table's ref in the data record (`out.oN`);
+  null for none. The field is required-nullable for the strict provider schema, a plan without it reads as null, and
+  a plan that names none is dumped without it, so plans issued before keep their JSON, hash and token. The plan gate
+  sends back a plan naming a ref the data record does not hold (`PLAN_CARRIED_INPUTS`, with the known refs). On
+  APPROVE the refs are resolved to output ids from the data record (`_carried_ids`; an unresolved one is logged
+  `carried_input_unresolved` and left out) and set for the run (`current_carried_outputs` in `app/tools/session.py`):
+  `open_analysis_session` and the research executor send them as `carried_outputs`, so the research sessions load
+  exactly those (an approved plan naming none sends an empty list: nothing). A run without an approved plan sends
+  nothing and the sandbox's own rule applies.
+- **Labels with every result (P5).** Each entry of `released_contents` (`complete_analysis`, `complete_research_run`)
+  carries `label`: the sandbox's own label of the page, else CALCULATION_VERIFIED for an id in
+  `final_status.verified_output_ids`, else the completion's evidence label. It is counted inside the result byte
+  budget. The data record keeps the label of each released output and the note shows it.
+- **Findings with their figures (P3).** `data_record.finding_line` shows a finding's method, status, verdict, sample
+  flag and validation level, its estimate with CI and p (adjusted when present) or an angle's difference with CI and
+  p, the effective sample, its tables and the IN_SAMPLE flag. The figures help interpret; an answer still cites
+  `finding.<id>`.
+- **IN_SAMPLE (M58).** `app/in_sample.py` flags a research finding (an angle of a multi-angle run, a hypothesis of a
+  hypothesis plan) whose test read a table over dates an earlier ANALYSIS need of the conversation read (data record
+  ranges against the angle's contract in the research data plan, or against this request's RESEARCH needs), or
+  whose session loaded an earlier result (the completion's `carried_inputs`). Nothing is refused: the answer gets a
+  mandatory limitation line naming the findings and the overlaps (at most 3, the rest counted) and the finding in the
+  record keeps `in_sample`. Not covered: overlap with earlier research tests of the conversation.
 
 ### Reasoning capture (dev measurement, off unless `AI_CAPTURE_REASONING=true`)
 
@@ -1203,13 +1233,14 @@ refused, and the refusal names `not checked: [...]` and `checked but missing: [.
   extra keys.
 - **P10, wrapped arguments.** A tool may name the key its argument object is wrapped under (`data_need_spec` for
   `submit_data_need_spec` and `check_data_feasibility`). The conversation resources note labels a spec
-  `submit_arguments`.
+  `submit_arguments`. The orchestrator's path guard, multi-angle RESEARCH refusal and DataNeed tracking read the
+  arguments through the same rule (`ToolRegistry.arguments_of`, M59, 2026-10-02), so a wrapped spec keeps its mode.
 
 ### The conversation's data record (M47)
 
 `app/data_record.py` keeps what the conversation has used and read of the data: per table the columns its approved
 needs extracted (`used`) and the catalog columns a run read (`read`), the approved needs, the released outputs (ref
-alias, id, columns, rows) and the FEASIBLE research angles' data. Mode 4 hands it from step to step; with
+alias, id, columns, rows, label) and the FEASIBLE research angles' data. Mode 4 hands it from step to step; with
 `history_mode` SERVER it is kept in `AI_conversation.state` between turns, independent of `AI_MAX_HISTORY_TOKENS`. Each
 run gets it as one `DATA RECORD` note (at most 8,000 characters, tables and columns first) and in its catalog ledger,
 so tables already read need no new catalog reads; the response carries `data_record` (absent when empty) and the audit

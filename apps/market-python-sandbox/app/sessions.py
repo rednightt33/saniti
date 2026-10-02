@@ -1052,6 +1052,10 @@ class SessionManager:
         if origin is not None:
             base["read_mode"] = "READ_RELEASED"
             base["origin"] = origin
+        # P5 (2026-10-02): every table the model reads carries how the backend checked it
+        label = carried_tables.label_of(origin or self._release_origin(session_id, output_id)) \
+            if output["released"] else "NOT_RELEASED"
+        base.update(label=label, label_meaning=carried_tables.LABEL_MEANING.get(label, ""))
         offset, limit = max(0, int(offset)), max(1, min(int(limit), 500))
         if output["format"] == "PARQUET":
             import pyarrow.parquet as pq
