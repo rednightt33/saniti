@@ -27,7 +27,11 @@ from .research_findings import evaluate as evaluate_findings
 from .research_methods import sha256_json as research_sha256
 from .sessions import SessionError, SessionManager
 from .research_governance import review as governance_review
-from . import research_validation
+from . import event_study_validation, research_validation
+
+# outputs only the saniti helpers write (runtime/saniti_session.py RESEARCH_RESERVED): records the backend recomputes
+# from, released for the audit but never offered as results
+BACKEND_RECORDS = ("research_input_", "research_call_", event_study_validation.PREFIX)
 
 logger = logging.getLogger("market_python_sandbox")
 
@@ -662,6 +666,8 @@ class DataNeedService:
         for output in self.store.released_outputs(conversation_key, max_outputs * 3):
             if len(outputs) >= max_outputs or output["expires_at"] <= now.isoformat():
                 continue
+            if str(output.get("name") or "").startswith(BACKEND_RECORDS):
+                continue  # a declaration the backend reads, not a result to answer from
             origin = self.sessions._release_origin(output["session_id"], output["output_id"]) or {}
             outputs.append({"output_id": output["output_id"], "session_id": output["session_id"],
                             "name": output["name"], "type": output["type"], "format": output["format"],
@@ -669,7 +675,8 @@ class DataNeedService:
                             "description": (output.get("meta") or {}).get("description"),
                             "completion_id": origin.get("completion_id"), "request_id": origin.get("request_id"),
                             "completed_at": origin.get("completed_at"), "expires_at": output["expires_at"],
-                            "evidence_label": origin.get("evidence_label"), "warnings": origin.get("warnings")})
+                            "evidence_label": origin.get("evidence_label"), "warnings": origin.get("warnings"),
+                            **({"calculation_verified": True} if origin.get("calculation_verified") else {})})
         return {"conversation_reuse": True, "bundles": bundles, "released_outputs": outputs,
                 "warm_sessions": len(warm)}
 
@@ -786,6 +793,27 @@ class DataNeedService:
                 and constraints.get("governance_version") != GOVERNANCE_V2:
             findings = evaluate_findings(research.get("constraints") or {}, outputs, self.sessions.outputs_root)
             passed = findings["status"] == "OK"
+        # G2 event study: every saniti.event_study of this epoch is rebuilt from its declaration and recomputed here,
+        # outside the model's process; a released table that differs fails the completion (CALCULATION_MISMATCH)
+        studies = None
+        if passed:
+            try:
+                studies = event_study_validation.validate(bundle=bundle, path_of=self.bundles.path_of,
+                                                          outputs=outputs, outputs_root=self.sessions.outputs_root)
+            except Exception as exc:  # noqa: BLE001 - a validator defect never fails a completion that did not use it
+                self._log("event_study_validation_failed", request_id=request_id, session_id=session_id,
+                          error=type(exc).__name__)
+                studies = {"status": "INVALID", "verified_output_ids": [],
+                           "record_output_ids": [o["output_id"] for o in outputs if str(o.get("name") or "")
+                                                 .startswith(event_study_validation.PREFIX)],
+                           "studies": [{"name": None, "status": "INVALID",
+                                        "reason": f"VALIDATOR_ERROR: {type(exc).__name__}"}]}
+                if not studies["record_output_ids"]:
+                    studies = None
+            if studies is not None and studies["status"] == "FAIL":
+                passed = False
+        records = {o["output_id"] for o in outputs
+                   if str(o.get("name") or "").startswith(event_study_validation.PREFIX)}
         final = {
             "data_need_validation": "PASS",
             "research_governance": research.get("decision", "APPROVED") if mode == "RESEARCH" else "NOT_APPLICABLE",
@@ -822,6 +850,24 @@ class DataNeedService:
                 "execution_ids": [e["execution_id"] for e in executions if e["status"] == "OK"]}
         if findings is not None and findings["status"] == "OK":
             final["research_findings"] = [findings["finding"]]
+        if studies is not None and studies["status"] != "NOT_PERFORMED":
+            final["event_studies"] = [{k: study.get(k) for k in (
+                "name", "status", "reason", "summary_output_id", "events_output_id", "checked", "mismatched",
+                "examples")} for study in studies["studies"]]
+            verified = [st["name"] for st in studies["studies"] if st["status"] == "PASS"]
+            if passed and grouped is None:
+                final["calculation_validation"] = event_study_validation.level(
+                    studies, [o["output_id"] for o in outputs if o["output_id"] not in records])
+            if passed and verified:
+                final["verified_output_ids"] = studies["verified_output_ids"]
+                scoped = f"a calculation other than the event studies {verified}"
+                final["claims_forbidden"] = [
+                    {"the calculation was independently verified": f"{scoped} was independently verified",
+                     "a backend validator recalculated the formula": f"a backend validator recalculated {scoped}"}
+                    .get(c, c) for c in final["claims_forbidden"]]
+                final["claims_allowed"] = [*final["claims_allowed"],
+                                           f"the event studies {verified} were recomputed independently by the "
+                                           "backend from their declaration (FORMULA_AND_STATISTICS_VERIFIED)"]
         if grouped is not None:
             final["calculation_validation"] = grouped["calculation_validation"] if passed else "NOT_PERFORMED"
             final["research_group"] = {"research_run_id": constraints.get("research_run_id"),
@@ -850,8 +896,9 @@ class DataNeedService:
         released = []
         if passed:
             self.store.release_outputs([o["output_id"] for o in outputs])
+            # an event study's declaration record is released for the audit but not listed for the answer
             released = [{k: o[k] for k in ("output_id", "name", "type", "format", "row_count", "columns")}
-                        for o in outputs]
+                        for o in outputs if o["output_id"] not in records]
         completion_id = f"cmp_{secrets.token_hex(12)}"
         result = {"completion_id": completion_id, "session_id": session_id, "bundle_id": record["bundle_id"],
                   "need_id": need_id, "status": "COMPLETED" if passed else "INCOMPLETE",
@@ -859,6 +906,15 @@ class DataNeedService:
                   "execution_manifest_sha256": sha256_json(manifest)}
         if passed:
             result["next_action"] = "ANSWER_FROM_RELEASED_OUTPUTS"
+        elif studies is not None and studies["status"] == "FAIL":
+            result["next_action"] = "RUN_PYTHON"
+            failed = [st for st in studies["studies"] if st["status"] == "FAIL"]
+            result["message"] = (
+                "Event study tables differ from the backend's recomputation: "
+                + "; ".join(f"{st['name']} ({st['reason']}"
+                            + (f", e.g. {st['examples'][0]}" if st.get("examples") else "") + ")" for st in failed)
+                + ". Run saniti.event_study again under that name and do not overwrite or re-emit its tables, then "
+                  "complete again.")
         elif grouped is not None and not passed:
             result["next_action"] = "RUN_PYTHON"
             parts = []

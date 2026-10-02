@@ -489,3 +489,84 @@ def test_every_completion_of_a_session_stays_a_source() -> None:
     result, _ = run(script, Tools([completed(), second]), AI_MAX_TOOL_ITERATIONS="12")
     assert result.response.response_type == "ANSWER", result.response
     assert result.execution.number_provenance.unsupported == []
+
+
+# --- G2: event-study tables the sandbox recomputed are CALCULATION_VERIFIED -----------------------------------------
+
+STUDY = "out_" + "6" * 24
+
+
+def studied(**final: Any) -> dict[str, Any]:
+    """A completion with an event-study summary the sandbox recomputed (STUDY) and a table it did not (OUTPUT)."""
+    base = completed(**{"calculation_validation": "PARTIAL", "verified_output_ids": [STUDY],
+                        "event_studies": [{"name": "drops", "status": "PASS", "reason": None,
+                                           "summary_output_id": STUDY, "events_output_id": None}], **final})
+    base["released_outputs"].append({"output_id": STUDY, "name": "drops", "type": "TABLE"})
+    base["released_contents"].append({"output_id": STUDY, "name": "drops", "type": "TABLE", "row_count": 1,
+                                      "rows": [{"segment": "ALL", "event_count": 41, "mean": -1.23456,
+                                                "delta_mean": -0.98765}], "truncated": False})
+    return base
+
+
+def test_an_answer_from_a_recomputed_event_study_is_calculation_verified() -> None:
+    result, _ = run([*flow(), final_response(answer("Setelah turun, rata-rata return 3 hari -1,23% (41 event)."))],
+                    Tools([studied()]), message="Berapa return 3 hari setelah saham turun 1%?")
+    assert result.status == "COMPLETED" and result.execution.number_provenance.unsupported == []
+    assert result.evidence_label == "CALCULATION_VERIFIED"
+    limitations = " ".join(result.response.limitations)
+    assert "event studies drops were recomputed independently" in limitations
+    assert "calculation_validation NOT_PERFORMED" not in limitations
+    assert result.execution.analysis_final_status["calculation_validation"] == "PARTIAL"
+
+
+def test_an_answer_that_also_cites_a_table_not_recomputed_takes_the_weaker_label() -> None:
+    result, _ = run([*flow(), final_response(answer("Rata-rata -1,23% setelah event; return YTD BBCA 12,35%."))],
+                    Tools([studied()]), message="Berapa return 3 hari setelah saham turun 1%?")
+    assert result.status == "COMPLETED" and result.evidence_label == "DATA_COVERAGE_VERIFIED"
+
+
+def test_a_reference_to_a_recomputed_event_study_carries_its_label() -> None:
+    result, _ = run([*flow(), final_response(answer(
+        "Rata-rata {{out.o2.rows[segment=ALL].mean|dec:2}}% dari {{out.o2.rows[segment=ALL].event_count}} event."))],
+        Tools([studied()]), message="Berapa return 3 hari setelah saham turun 1%?", AI_ENABLE_VALUE_REFERENCES="true")
+    assert result.status == "COMPLETED", result.response
+    assert "\u22121,23%" in result.response.answer and "41 event" in result.response.answer
+    assert result.evidence_label == "CALCULATION_VERIFIED"
+
+
+def test_an_event_study_the_backend_could_not_recompute_is_disclosed() -> None:
+    result, _ = run([*flow(), final_response(answer("Return YTD BBCA 12,35%."))],
+                    Tools([completed(event_studies=[{"name": "drops", "status": "INVALID",
+                                                     "reason": "REBUILD_FAILED: ValueError"}])]))
+    limitations = " ".join(result.response.limitations)
+    assert "could not recompute: drops (REBUILD_FAILED: ValueError)" in limitations
+    assert result.evidence_label == "DATA_COVERAGE_VERIFIED"
+
+
+def test_the_event_study_is_described_only_behind_its_flag() -> None:
+    from app.tools.session import COMPLETE_EVENT_STUDY_SENTENCE, EVENT_STUDY_SENTENCE
+
+    sandbox = SandboxClient("http://sandbox.test", "s" * 40, 10, 0, transport=httpx.MockTransport(
+        lambda r: httpx.Response(404)))
+    governor = GovernorClient("http://governor.test", "g" * 40, 10, transport=httpx.MockTransport(
+        lambda r: httpx.Response(404)))
+
+    def described(flag: bool) -> dict[str, str]:
+        registry = build_default_registry(sandbox_client=sandbox, governor_client=governor, dataneed_enabled=True,
+                                          event_study=flag)
+        return {d["name"]: d["description"] for d in registry.definitions()}
+
+    off, on = described(False), described(True)
+    assert "event_study" not in off["run_python"] and "event_study" not in off["complete_analysis"]
+    assert on["run_python"].endswith(EVENT_STUDY_SENTENCE)
+    assert on["complete_analysis"].endswith(COMPLETE_EVENT_STUDY_SENTENCE)
+    assert "forward_return" in EVENT_STUDY_SENTENCE and "never overwrite" in EVENT_STUDY_SENTENCE
+
+
+def test_saying_a_recomputed_event_study_was_verified_is_not_marked_but_mixing_in_other_figures_is() -> None:
+    claim = answer("Hasil event study ini telah diverifikasi: rata-rata -1,23% dari 41 event.")
+    result, _ = run([*flow(), final_response(claim)], Tools([studied()]))
+    assert result.annotations is None and result.evidence_label == "CALCULATION_VERIFIED"
+    mixed = answer("Hasil ini telah diverifikasi: rata-rata -1,23%, return YTD BBCA 12,35%.")
+    result, _ = run([*flow(), final_response(mixed)], Tools([studied()]))
+    assert [a.kind for a in result.annotations] == ["VERIFIED_CALCULATION"]

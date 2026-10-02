@@ -56,7 +56,8 @@ from typing import Any
 __all__ = [
     "REQUESTS", "REFERENCE_DATE", "SEED", "requests", "manifest", "quality", "load", "range", "load_range", "sql",
     "relation",
-    "join", "join_report", "preaggregate", "resample", "period_return", "insufficient_data", "intermediate_path", "duckdb_connection", "emit_table",
+    "join", "join_report", "preaggregate", "resample", "period_return", "event_study", "insufficient_data",
+    "intermediate_path", "duckdb_connection", "emit_table",
     "emit_chart", "emit_json", "emit_text", "emit_file", "emit_artifact", "add_warning", "SanitiError",
     "InsufficientInputData", "OutputLimitExceeded", "InvalidOutput", "ResampleRuleMissing", "PeriodReturnError",
     "JoinCardinalityError", "AggregationRuleMissing", "MaterializationLimitExceeded",
@@ -84,7 +85,7 @@ _SEQ = [0]
 _RESEARCH: dict[str, Any] = {}
 _RESEARCH_DONE: set[str] = set()
 _RESEARCH_PENDING: set[str] = set()
-RESEARCH_RESERVED = ("research_input_", "research_call_")
+RESEARCH_RESERVED = ("research_input_", "research_call_", "event_study_call_")
 RESEARCH_WRAPPER_VERSION = 1
 NAME = _re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\-. ]{0,79}$")
 INTERMEDIATE_NAME = _re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -388,6 +389,100 @@ def relation(request: str):
     r = _request(request)
     _log({"call": "relation", "data_request_id": r["data_request_id"], "full": True})
     return duckdb_connection().table(r["logical_name"])
+
+
+# ---------------------------------------------------------------- event study (G2)
+
+EVENT_STUDY_COUNT = [0]
+
+
+def event_study(request: str, event: str, outcome: dict[str, Any], horizon: int, *, range_id: str | None = None,
+                overlap_policy: str = "NON_OVERLAPPING", baseline: str = "ALL_ELIGIBLE", min_events: int | None = None,
+                holdout_start: str | None = None, outcome_unit: str = "PERCENT", name: str | None = None
+                ) -> dict[str, Any]:
+    """Event study (G2): the outcome `horizon` observations after each event against a baseline, computed from a
+    declaration so the backend recomputes it independently at complete_analysis (CALCULATION_VERIFIED when it matches).
+
+    request: a data request id or logical name. event: a condition in the research expression grammar over that
+    request's columns (per entity, past-only: lag, rolling_sum, rolling_mean, abs, log, where, comparisons, & | ~),
+    for example "close / lag(close, 1) - 1 <= -0.05". outcome: {"forward_return": "<price column>"} (add
+    "request": "<data request id>" when the price is in another request). range_id: one approved range (default: all
+    ranges). overlap_policy NON_OVERLAPPING (default) or ALL; baseline ALL_ELIGIBLE (default) or NON_EVENT;
+    min_events (default 30) is reported as meets_min_events; holdout_start adds IN_SAMPLE / OUT_OF_SAMPLE rows.
+
+    Emits two tables: <name> (one row per segment: event_count, effective_event_dates, mean, median, hit_rate,
+    baseline_*, delta_mean with its CI and p-value from per-date clusters, censored_count, overlapping_dropped,
+    meets_min_events) and <name>_events (date, entity, outcome of every kept event). Returns the summary and the
+    output metadata."""
+    import pandas as pd
+    import event_study as ES
+    import research_inputs
+
+    r = _request(request)
+    if not isinstance(event, str) or not event.strip():
+        raise SanitiError("event is a condition expression over the request's columns, for example "
+                          "\"close / lag(close, 1) - 1 <= -0.05\".")
+    if not isinstance(outcome, dict) or "forward_return" not in outcome:
+        raise SanitiError("outcome is {'forward_return': '<price column>'} (with 'request': '<data request id>' when "
+                          "the price is in another request).")
+    if outcome_unit not in ("PERCENT", "DECIMAL"):
+        raise SanitiError("outcome_unit is PERCENT or DECIMAL.")
+    try:
+        params = ES.parameters(horizon, overlap_policy, baseline, min_events, holdout_start)
+    except ES.EventStudyError as exc:
+        raise SanitiError(f"{exc.code}: {exc}") from None
+    EVENT_STUDY_COUNT[0] += 1
+    label = name or f"event_study_{EVENT_STUDY_COUNT[0]}"
+    _name(label)
+    _name(f"{label}_events")
+    windows_all = r.get("ranges") or []
+    if range_id is not None and range_id not in {w["range_id"] for w in windows_all}:
+        raise SanitiError(f"{range_id!r} is not a range of {r['logical_name']}. Ranges: "
+                          f"{[w['range_id'] for w in windows_all]}")
+    chosen = [w for w in windows_all if range_id is None or w["range_id"] == range_id]
+    keys = [c for c in (r.get("entity_column"), r["time_column"]) if c]
+    columns = [c for c in r["columns"] if c not in keys]
+    rows = load(r["data_request_id"], columns=list(dict.fromkeys(keys + columns)))
+    spec = dict(outcome)
+    related = {}
+    if isinstance(spec.get("request"), str):
+        other = _request(spec["request"])
+        spec["request"] = other["data_request_id"]
+        other_keys = [c for c in (other.get("entity_column"), other["time_column"]) if c]
+        other_columns = [c for c in other["columns"] if c not in other_keys]
+        related[other["data_request_id"]] = {
+            "rows": load(other["data_request_id"], columns=list(dict.fromkeys(other_keys + other_columns))),
+            "entity_column": other.get("entity_column"), "time_column": other["time_column"],
+            "columns": other_columns}
+    declaration = {"request": r["data_request_id"], "range_id": range_id,
+                   "roles": {"condition": event, "outcome": spec}}
+    try:
+        canonical, info = ES.build_input(
+            research_inputs, declaration, rows, entity_column=r.get("entity_column"), time_column=r["time_column"],
+            columns=columns, ranges=chosen, horizon=params["horizon"], unit=outcome_unit, related=related)
+        summary, events = ES.summarize(canonical, params)
+    except (research_inputs.InputError, ES.EventStudyError) as exc:
+        raise SanitiError(f"{exc.code}: {exc}") from None
+    described = (f"Event study: {event} -> forward return of {spec['forward_return']} over {params['horizon']} "
+                 f"observations ({outcome_unit.lower()}), {params['overlap_policy']}, baseline {params['baseline']}")
+    table = emit_table(label, pd.DataFrame(summary, columns=list(ES.SUMMARY_COLUMNS)), described)
+    kept = emit_table(f"{label}_events", events, f"Events kept by {label} (date, entity, outcome)")
+    call = {"version": ES.VERSION, "name": label, "declaration": declaration, "parameters": params,
+            "outcome_unit": outcome_unit, "ranges": [w["range_id"] for w in chosen],
+            "summary_output": label, "events_output": f"{label}_events",
+            "input_info": {k: info.get(k) for k in ("rows", "censored_outcome_rows", "forward_horizon",
+                                                     "expressions", "outcome_source", "ranges")}}
+    text = _json.dumps(_jsonable(call), ensure_ascii=False, separators=(",", ":"))
+    file_name = _file(_name(f"event_study_call_{label}", internal=True), "json")
+    with open(_os.path.join(_OUTPUT_DIR, file_name), "w", encoding="utf-8") as handle:
+        handle.write(text)
+    _record("JSON", "JSON", f"event_study_call_{label}", file_name, f"Declaration of event study {label} (recomputed "
+                                                                      "by the backend).")
+    _log({"call": "event_study", "data_request_id": r["data_request_id"], "name": label,
+          "events": int(summary[0]["event_count"] or 0)})
+    return {"name": label, "summary": summary, "parameters": params, "outputs": [table, kept],
+            "validation": "Recomputed independently by the backend at complete_analysis; a match is labelled "
+                          "CALCULATION_VERIFIED, a difference fails completion (CALCULATION_MISMATCH)."}
 
 
 # ---------------------------------------------------------------- relationships and resampling
@@ -1283,7 +1378,7 @@ def _name(name: str, internal: bool = False) -> str:
         raise InvalidOutput("Output names are 1-80 letters, digits, spaces, '_', '-' or '.'.")
     if not internal and name.startswith(RESEARCH_RESERVED):
         raise InvalidOutput(f"Output names starting with {RESEARCH_RESERVED} are written only by the research_* "
-                            "helpers.")
+                            "and event_study helpers.")
     return name
 
 

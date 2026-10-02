@@ -191,10 +191,14 @@ def research_view(research: dict[str, Any]) -> dict[str, Any]:
 
 
 HELPERS = ["requests()", "manifest()", "quality(request)", "load(request, columns=None)",
-           "load_range(request, range_id, columns=None, include_buffers=False) (also saniti.range; plain range is Python's built-in)", "sql(query, params=None)",
+           "load_range(request, range_id, columns=None, include_buffers=False) (also saniti.range; plain range is "
+           "Python's built-in)", "sql(query, params=None)",
            "relation(request)", "join(relationship_id, left=None, right=None, how=None)",
            "resample(frame, request, frequency=None)",
            "period_return(request, range_id, value_column='close', entity_column=None, date_column=None)",
+           "event_study(request, event, outcome, horizon, *, range_id=None, overlap_policy='NON_OVERLAPPING', "
+           "baseline='ALL_ELIGIBLE', min_events=None, holdout_start=None, outcome_unit='PERCENT', name=None) "
+           "(recomputed by the backend at complete_analysis)",
            "insufficient_data(request, range_id=None, value=None, unit='TRADING_OBSERVATIONS', "
            "requirement_type='ADDITIONAL_HISTORY', reason='')", "intermediate_path(name)",
            "emit_table(name, frame, description='')", "emit_chart(figure=None, name='chart', title='', description='')",
@@ -1020,7 +1024,9 @@ class SessionManager:
                 return {"completion_id": completion["completion_id"], "request_id": completion["request_id"],
                         "need_id": completion["need_id"], "completed_at": completion["created_at"],
                         "evidence_label": status.get("evidence_label"), "warnings": status.get("warnings") or [],
-                        "calculation_validation": status.get("calculation_validation")}
+                        "calculation_validation": status.get("calculation_validation"),
+                        # G2: a table of an event study the backend recomputed and matched
+                        "calculation_verified": output_id in (status.get("verified_output_ids") or [])}
         return None
 
     def outputs(self, session_id: str) -> list[dict[str, Any]]:

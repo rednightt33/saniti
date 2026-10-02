@@ -97,7 +97,8 @@ def create_app(
     settings = settings or Settings.from_env()
     log_event("ai_model_selected", switch=settings.ai_model_switch, model=settings.ai_model,
               reasoning=settings.reasoning(settings.ai_reasoning_effort),
-              max_output_tokens=settings.ai_max_output_tokens, capture_reasoning=settings.ai_capture_reasoning)
+              max_output_tokens=settings.ai_max_output_tokens, capture_reasoning=settings.ai_capture_reasoning,
+              event_study=settings.ai_enable_event_study)
     if conversations is None and settings.ai_enable_conversation_store and settings.conversation_database_url:
         conversations = ConversationStore(settings.conversation_database_url,
                                           retention_days=settings.ai_conversation_retention_days,
@@ -221,6 +222,7 @@ def create_app(
             dataneed_enabled=settings.ai_enable_dataneed,
             session_timeout_seconds=settings.py_sandbox_session_timeout_seconds,
             standard_period_return=settings.ai_enable_standard_period_return,
+            event_study=settings.ai_enable_event_study,
             catalog_discovery_v2=settings.ai_enable_catalog_discovery_v2,
             plan_feasibility=feasibility,
             composite_keys=composite,

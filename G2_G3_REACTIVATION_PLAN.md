@@ -343,8 +343,13 @@ Saklar pikiran (`AI_CAPTURE_REASONING`) menyala, supaya kesalahan bisa ditelusur
 
 ## 8. Urutan kerja
 
-1. **S21 + P22** (kecil; sandbox dan orc).
+1. **S21 + P22** (kecil; sandbox dan orc). *Selesai di branch (`1be3bf5`), belum di-deploy.*
 2. **G2-A:** helper `event_study` + pemeriksa independen + CI per tanggal (sandbox), lalu render dan label (orc).
+   *Selesai di branch, belum di-deploy.* Tambahan dari implementasi:
+   - setiap rentang dihitung di jendelanya sendiri, jadi return ke depan tidak pernah menyambung dua rentang (S24);
+   - tabel event ikut diperiksa, bukan hanya ringkasan;
+   - orc menjelaskan helper ke AI hanya dengan saklar `AI_ENABLE_EVENT_STUDY` (default mati), dinyalakan di dev pada
+     langkah 6; label CALCULATION_VERIFIED mengikuti hasil sandbox apa pun saklarnya.
 3. **G3:** rencana v1 berdampingan dengan v2 (orc: prompt, skema, kelanjutan; sandbox: keduanya aktif bersamaan).
 4. **Menu, manual dan contoh** (4b-3): `analysis_methods`, `get_method_guide`, kartu manual G1–G4 dan helper.
 5. **Percakapan multi-giliran** (4d), dikerjakan bersama router `MODE4_CONVERSATION_PLAN.md`:

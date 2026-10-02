@@ -212,6 +212,8 @@ bundle of the same request.
   - `resample(frame, request, frequency)` with the catalog rules;
   - `period_return(request, range_id, value_column='close', entity_column=None, date_column=None)`, a named
     calendar-period return per entity (see below);
+  - `event_study(request, event, outcome, horizon, ...)`, an event study the backend recomputes at completion (see
+    [Event study](#event-study-g2-2026-10-02));
   - `insufficient_data(...)`, `intermediate_path(name)`;
   - `emit_table`, `emit_chart`, `emit_json`, `emit_text`, `emit_file` (TABLE, CHART, JSON, TEXT, PARQUET, CSV, PNG,
     ARTIFACT).
@@ -1127,6 +1129,44 @@ from weekly. With the flag on:
 
 With the flag off, a `resample` request behaves as before. The legacy `saniti.resample()` aggregation was corrected to
 one rule per column (ERRORS_AND_SOLUTIONS S09); its output shape is unchanged.
+
+### Event study (G2, 2026-10-02)
+
+Plan: `G2_G3_REACTIVATION_PLAN.md` section 3 (repository root). Always available in analysis and research sessions;
+the orc describes it to the model only with `AI_ENABLE_EVENT_STUDY`.
+
+- **Helper.** `event_study(request, event, outcome, horizon, *, range_id=None, overlap_policy='NON_OVERLAPPING',
+  baseline='ALL_ELIGIBLE', min_events=None, holdout_start=None, outcome_unit='PERCENT', name=None)`:
+  - `event`: a condition in the research expression grammar over the request's columns (per entity, past values only),
+    for example `close / lag(close, 1) - 1 <= -0.05`; `outcome`: `{'forward_return': '<price column>'}`, with
+    `'request': '<data request id>'` when the price is in another request; `horizon`: observations (1 to 260);
+  - every range is built on its own extracted window (`extract_from`..`extract_to`), so a forward return never spans
+    two ranges (S24); overlapping ranges are refused; the request needs one row per entity and date;
+  - events: NON_OVERLAPPING keeps an entity's next event only `horizon` observations after the last kept one (ALL keeps
+    every one); an event whose outcome runs past the data is censored and counted apart;
+  - baseline: ALL_ELIGIBLE (every row with a defined condition and outcome, the Analysis Spec convention) or
+    NON_EVENT; `min_events` (default 30, a recorded policy value) sets `meets_min_events`; `holdout_start` adds
+    IN_SAMPLE and OUT_OF_SAMPLE rows;
+  - statistics from `runtime/research_engines.py`: dates are clusters and dates closer than the horizon are thinned,
+    so a market-wide day with many events counts once (the Analysis Spec version treated rows as independent).
+- **Outputs.** `<name>` (one row per segment: `event_count`, `event_dates`, `effective_event_dates`, `mean`,
+  `median`, `hit_rate`, `baseline_count`, `baseline_mean`, `baseline_median`, `delta_mean`, `delta_ci_low`,
+  `delta_ci_high`, `delta_p_value`, `censored_count`, `overlapping_dropped`, `meets_min_events`), `<name>_events`
+  (`date`, `entity`, `outcome` of every kept event) and the internal JSON record `event_study_call_<name>` (the
+  declaration and parameters). The prefix `event_study_call_` is reserved like `research_call_`.
+- **Independent recalculation** (`app/event_study_validation.py`, at `complete_analysis`): the harness reads the
+  declaration, rebuilds the input from the bundle files with `runtime/research_inputs.py`, recomputes both tables with
+  `runtime/event_study.py` and compares them with the released ones (counts exactly, numbers within a relative 1e-9).
+  - PASS: `final_status.event_studies[*].status` PASS, the two output ids in `final_status.verified_output_ids`,
+    `calculation_validation` FORMULA_AND_STATISTICS_VERIFIED when every released output is such a table, else
+    PARTIAL; the forbidden claims are scoped to the other calculations and an allowed claim names the studies;
+  - FAIL (CALCULATION_MISMATCH, SUMMARY_MISSING, EVENTS_MISSING): the completion is INCOMPLETE with `next_action`
+    RUN_PYTHON and a message naming the differing cells;
+  - INVALID (the record cannot be rebuilt; reason named): the completion is not blocked and the tables are released
+    without the label.
+- **Release.** The declaration record is released for the audit but left out of `released_outputs` and of the
+  conversation resources (the `research_input_` and `research_call_` records are left out of the resources too). A
+  read of a released event-study table in a later message carries `origin.calculation_verified`.
 
 ### Research findings v1 (off unless `PY_SANDBOX_RESEARCH_FINDINGS_ENABLED=true`)
 

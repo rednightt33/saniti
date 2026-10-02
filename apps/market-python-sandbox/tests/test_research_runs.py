@@ -231,7 +231,7 @@ def test_the_wrappers_fail_closed(env) -> None:
         "f = pd.DataFrame({'date': ['2019-01-02'] * 2, 'entity': ['BBCA', 'BBRI'], 'signal': [1.0, 2.0], "
         "'outcome': [0.1, 0.2]})\n"
         "saniti.research_quantiles('a2', f)")
-    assert "written only by the research_* helpers" in error(
+    assert "written only by the research_* and event_study helpers" in error(
         "import pandas as pd\nsaniti.emit_table('research_input_a1', pd.DataFrame({'x': [1]}))")
     assert run_code(env, session_id, DECLARATIVE)["status"] == "OK"
     assert "already recorded" in error(DECLARATIVE)

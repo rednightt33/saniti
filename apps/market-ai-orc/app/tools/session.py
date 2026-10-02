@@ -121,6 +121,29 @@ OUTPUT_DESCRIPTION = (
 )
 
 
+# Appended to RUN_DESCRIPTION and COMPLETE_DESCRIPTION only with AI_ENABLE_EVENT_STUDY (G2, 2026-10-02).
+EVENT_STUDY_SENTENCE = (
+    " Event study: event_study(request, event, outcome, horizon, range_id=None, overlap_policy='NON_OVERLAPPING', "
+    "baseline='ALL_ELIGIBLE', min_events=None, holdout_start=None, outcome_unit='PERCENT', name=None) measures the "
+    "outcome after an event against a baseline. event is a condition expression over the request's columns, per "
+    "entity and past values only (+ - * / **, comparisons, & | ~, abs log exp sqrt sign min max where, lag(x, k), "
+    "rolling_sum(x, n), rolling_mean(x, n)), e.g. 'close / lag(close, 1) - 1 <= -0.05'; outcome is "
+    "{'forward_return': '<price column>'} (add 'request': '<data_request_id>' when the price is in another request); "
+    "horizon counts observations; the request needs one row per entity and date. NON_OVERLAPPING keeps an entity's "
+    "next event only a horizon after the last one; ALL_ELIGIBLE compares with every row, NON_EVENT with the rows "
+    "without the event; holdout_start adds IN_SAMPLE and OUT_OF_SAMPLE rows. It emits <name> (one row per segment: "
+    "event_count, event_dates, effective_event_dates, mean, median, hit_rate, baseline_count, baseline_mean, "
+    "baseline_median, delta_mean, delta_ci_low, delta_ci_high, delta_p_value with dates as clusters, censored_count, "
+    "overlapping_dropped, meets_min_events) and <name>_events (date, entity, outcome) for further analysis; never "
+    "overwrite or re-emit them."
+)
+COMPLETE_EVENT_STUDY_SENTENCE = (
+    " Exception: the tables of saniti.event_study are recomputed by the backend from their declaration. "
+    "final_status.event_studies lists each study (PASS, FAIL with CALCULATION_MISMATCH, INVALID) and "
+    "verified_output_ids the matched tables; calculation_validation is then PARTIAL (other outputs exist) or "
+    "FORMULA_AND_STATISTICS_VERIFIED. Only those tables may be called independently recalculated; a FAIL makes the "
+    "completion INCOMPLETE: run the event study again and complete again."
+)
 COMPLETE_DESCRIPTION = (
     "Finish the analysis of a session. The backend builds the ExecutionManifest and runs the Coverage Validator: "
     "every approved data request and range must have been delivered as approved and read in full through the saniti "
@@ -238,7 +261,8 @@ def close_sessions(client: SandboxClient, request_id: str, session_ids: list[str
 
 
 def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_timeout_seconds: float,
-                  max_result_bytes: int, standard_period_return: bool = False) -> list[ToolSpec]:
+                  max_result_bytes: int, standard_period_return: bool = False, event_study: bool = False
+                  ) -> list[ToolSpec]:
     def request_id() -> str:
         return current_request_id.get() or ""
 
@@ -284,12 +308,15 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
         return result
 
     return [
-        ToolSpec(name="complete_analysis", description=COMPLETE_DESCRIPTION, arguments_model=CompleteAnalysisArgs,
+        ToolSpec(name="complete_analysis",
+                 description=COMPLETE_DESCRIPTION + (COMPLETE_EVENT_STUDY_SENTENCE if event_study else ""),
+                 arguments_model=CompleteAnalysisArgs,
                  handler=complete, timeout_seconds=timeout_seconds * 4, max_result_bytes=max_result_bytes),
         ToolSpec(name="open_analysis_session", description=OPEN_DESCRIPTION, arguments_model=OpenAnalysisSessionArgs,
                  handler=open_session, timeout_seconds=timeout_seconds + 30, max_result_bytes=max_result_bytes),
         ToolSpec(name="run_python", description=RUN_DESCRIPTION + (PERIOD_RETURN_SENTENCE if standard_period_return
-                                                                   else ""),
+                                                                   else "")
+                 + (EVENT_STUDY_SENTENCE if event_study else ""),
                  arguments_model=RunPythonArgs, handler=run,
                  timeout_seconds=execution_timeout_seconds + 5, max_result_bytes=max_result_bytes),
         ToolSpec(name="inspect_session", description=INSPECT_DESCRIPTION, arguments_model=InspectSessionArgs,

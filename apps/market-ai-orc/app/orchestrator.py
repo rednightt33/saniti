@@ -691,7 +691,8 @@ def conversation_resources_note(resources: dict[str, Any]) -> str:
     for o in resources.get("released_outputs") or []:
         outputs.append("- " + dumps({k: o.get(k) for k in ("output_id", "session_id", "name", "type", "columns",
                                                             "row_count", "description", "completed_at",
-                                                            "evidence_label", "warnings", "expires_at")
+                                                            "evidence_label", "calculation_verified", "warnings",
+                                                            "expires_at")
                                      if o.get(k) not in (None, [])}))
     bundles = resources.get("bundles") or []
     specs = [b.get("data_need_spec") for b in bundles]
@@ -1408,6 +1409,9 @@ class RunState:
     ref_facts: int = 0
     ref_tables: dict[str, TableRows] = field(default_factory=dict)  # M44: output_id -> rows by position
     ref_aliases: dict[str, str] = field(default_factory=dict)  # P18: output_id -> short alias (o1, o2, ...)
+    # G2: released tables of an event study the sandbox recomputed and matched (CALCULATION_VERIFIED, not only
+    # DATA_COVERAGE_VERIFIED)
+    verified_outputs: set[str] = field(default_factory=set)
     ref_next: int = 1  # P18: the next alias number; seeded from the data record, so numbering is conversation-wide
     # M47: the conversation's data record, seeded from earlier steps and turns and extended by this run
     data_record: dict[str, Any] = field(default_factory=records.empty)
@@ -2747,8 +2751,11 @@ class AgentOrchestrator:
             if result.get("read_mode") == "READ_RELEASED" and isinstance(result.get("origin"), dict):
                 # released by an earlier completion (an earlier message, or an earlier epoch of this session)
                 state.inherited[str(result.get("output_id"))] = {"name": result.get("name"), **result["origin"]}
-            record = state.analysis_values.setdefault(f"released:{result.get('output_id')}",
-                                                      {"label": "DATA_COVERAGE_VERIFIED", "values": []})
+                if result["origin"].get("calculation_verified"):
+                    state.verified_outputs.add(str(result.get("output_id")))
+            record = state.analysis_values.setdefault(f"released:{result.get('output_id')}", {
+                "label": "CALCULATION_VERIFIED" if str(result.get("output_id")) in state.verified_outputs
+                else "DATA_COVERAGE_VERIFIED", "values": []})
             record["values"].extend(released_numbers(result.get("rows")) + released_numbers(result.get("content")))
         elif name == "complete_analysis" and result.get("final_status"):
             session_id = result.get("session_id") or ((arguments or {}).get("session_id") if isinstance(
@@ -2765,8 +2772,17 @@ class AgentOrchestrator:
                                   "need_id": result.get("need_id"), "status": result.get("status"),
                                   **result["final_status"]}
             if result.get("status") == "COMPLETED":
+                verified = {str(i) for i in result["final_status"].get("verified_output_ids") or []}
+                state.verified_outputs |= verified
+                contents = [c for c in result.get("released_contents") or [] if isinstance(c, dict)]
                 state.analysis_values[f"completion:{result.get('completion_id') or session_id}"] = {
-                    "label": "DATA_COVERAGE_VERIFIED", "values": released_numbers(result.get("released_contents"))}
+                    "label": "DATA_COVERAGE_VERIFIED",
+                    "values": released_numbers([c for c in contents if str(c.get("output_id")) not in verified])}
+                if verified:
+                    # G2: the event-study tables the sandbox recomputed from their declaration
+                    state.analysis_values[f"verified:{result.get('completion_id') or session_id}"] = {
+                        "label": "CALCULATION_VERIFIED",
+                        "values": released_numbers([c for c in contents if str(c.get("output_id")) in verified])}
                 findings = result["final_status"].get("research_findings") or []
                 if findings:  # only a sandbox with research findings v1 sends them
                     values = numbers_in(findings)
@@ -2799,8 +2815,22 @@ class AgentOrchestrator:
                              f"execution {final.get('sandbox_execution')}; its outputs were not released.")
         completed = [c for c in state.completions.values() if c["status"] == "COMPLETED"]
         if completed:
-            lines.append("Data coverage was verified against the approved DataNeedSpec; the calculations themselves "
-                         "were not independently recalculated by the backend (calculation_validation NOT_PERFORMED).")
+            studies = [s for c in completed for s in c["final"].get("event_studies") or [] if isinstance(s, dict)]
+            passed = sorted({str(s.get("name")) for s in studies if s.get("status") == "PASS"})
+            if passed:
+                # G2: only the event-study tables were recomputed; every other calculation was not
+                lines.append(f"Data coverage was verified against the approved DataNeedSpec. The event studies "
+                             f"{', '.join(passed)} were recomputed independently by the backend from their "
+                             "declaration and matched (CALCULATION_VERIFIED); the other calculations were not "
+                             "independently recalculated.")
+            else:
+                lines.append("Data coverage was verified against the approved DataNeedSpec; the calculations "
+                             "themselves were not independently recalculated by the backend (calculation_validation "
+                             "NOT_PERFORMED).")
+            invalid = sorted({f"{s.get('name')} ({s.get('reason')})" for s in studies if s.get("status") == "INVALID"})
+            if invalid:
+                lines.append(f"Event studies the backend could not recompute: {', '.join(invalid)}; their tables are "
+                             "not independently verified.")
             codes = sorted({code for c in completed for code in c["final"].get("warnings") or []})
             lines.extend(WARNING_LINES[code] for code in codes if code in WARNING_LINES)
             if any(c["final"].get("derived_frequency") for c in completed):
@@ -2889,7 +2919,8 @@ class AgentOrchestrator:
                     state.ref_tables[output_id] = table
                 table.add(offset, entry["rows"], entry.get("row_count"))
                 registered = {**{k: v for k, v in entry.items() if k != "rows"}, "rows": table}
-            sources.add("out", output_id, registered, "DATA_COVERAGE_VERIFIED")
+            sources.add("out", output_id, registered, "CALCULATION_VERIFIED" if output_id in state.verified_outputs
+                        else "DATA_COVERAGE_VERIFIED")
             # P18 (2026-10-01): the model writes a short alias, not out_ + 24 hex characters after the out. namespace
             alias = state.ref_aliases.get(output_id)
             if alias is None:
@@ -2912,6 +2943,8 @@ class AgentOrchestrator:
             for entry in result.get("released_contents") or []:
                 output(entry)
         elif name == "complete_analysis" and result.get("status") == "COMPLETED":
+            state.verified_outputs |= {str(i) for i in (result.get("final_status") or {}).get("verified_output_ids")
+                                       or []}
             for entry in result.get("released_contents") or []:
                 output(entry)
             for finding in (result.get("final_status") or {}).get("research_findings") or []:
@@ -3175,10 +3208,12 @@ class AgentOrchestrator:
                 + (REFERENCE_HINT if self.value_references else ""))
             return self._forced(state, final, DATANEED_PROVENANCE_NOTICE.format(numbers=numbers),
                                 [f"Figures without a governed source in this run: {numbers}."] + lines)
-        # Multi-Angle Research: the backend recomputed the statistics, so saying so at the returned level is allowed
+        # Multi-Angle Research: the backend recomputed the statistics, so saying so at the returned level is allowed;
+        # G2: so is an answer whose every number comes from event-study tables the backend recomputed
         # P17 (user decision 2026-10-01): unsupported claims are marked in italics with annotations, never rejected
-        final = self._annotate_claims(state, final, dataneed=True, verified_ok=run is not None
-                                      and run.get("calculation_validation") in VERIFIED_LEVELS)
+        recomputed = bool(provenance.data_kinds) and weakest(provenance.data_kinds) == "CALCULATION_VERIFIED"
+        final = self._annotate_claims(state, final, dataneed=True, verified_ok=recomputed or (
+            run is not None and run.get("calculation_validation") in VERIFIED_LEVELS))
         final, problems = self._findings_problems(state, final)
         if problems:
             text = "; ".join(problems[:6])

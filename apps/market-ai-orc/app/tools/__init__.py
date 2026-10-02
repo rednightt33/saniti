@@ -37,6 +37,7 @@ def build_default_registry(
     dataneed_enabled: bool = False,
     session_timeout_seconds: float = 180.0,
     standard_period_return: bool = False,
+    event_study: bool = False,
     catalog_discovery_v2: bool = False,
     plan_feasibility: bool = False,
     composite_keys: bool = False,
@@ -109,7 +110,8 @@ def build_default_registry(
                 for spec in session_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
                                           execution_timeout_seconds=session_timeout_seconds,
                                           max_result_bytes=python_analysis_max_bytes,
-                                          standard_period_return=standard_period_return):
+                                          standard_period_return=standard_period_return,
+                                          event_study=event_study):
                     registry.register(spec)
                 multi_angle_active = multi_angle is not None and plan_feasibility and composite_keys
                 if plan_feasibility and not multi_angle_active:

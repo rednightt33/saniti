@@ -265,6 +265,7 @@ Gate and final-response log events (always on):
 | `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION` | no | `false` | DataNeed flow only: a research question first returns a Research Plan (`RESEARCH_PLAN_CONFIRMATION`, status `AWAITING_CONFIRMATION`) with a backend-signed continuation, and `submit_data_need_spec(mode="RESEARCH")` is refused unless the user approved that plan (see [Research Plan confirmation](#research-plan-confirmation)). Without `AI_ENABLE_DATANEED` it has no effect (logged at startup) |
 | `AI_RESEARCH_PLAN_SIGNING_KEY` | with confirmation (secret) | — | HMAC-SHA256 key of the plan continuation tokens: at least 32 characters, at least 10 distinct, no surrounding whitespace (use a random 64-hex value). The service refuses to start with confirmation on and no usable key. Rotating it invalidates every open plan |
 | `AI_RESEARCH_PLAN_TTL_SECONDS` | no | `3600` | Lifetime of a plan continuation (60–86400) |
+| `AI_ENABLE_EVENT_STUDY` | no | `false` | DataNeed flow only: `run_python` and `complete_analysis` describe `saniti.event_study` and its backend recalculation (G2); see [Event study labels](#event-study-labels-g2) |
 | `AI_ENABLE_STANDARD_PERIOD_RETURN` | no | `false` | DataNeed flow only: teach the named-period return convention (NAMED-PERIOD RETURNS prompt rule and one `run_python` sentence about `saniti.period_return`); see [Named-period returns](#named-period-returns) |
 | `AI_PROVIDER_SORT` | no | unset | OpenRouter `provider.sort` for every model call: `price`, `throughput` or `latency`. Unset keeps OpenRouter's load balancing (weighted to the lowest price). Setting it turns load balancing off; see [Run-time and cost controls](#run-time-and-cost-controls). **Not used:** the user decided on 2026-09-27 to keep OpenRouter's default routing (`AGENTS.md`) |
 | `AI_LOG_PROVIDER` | no | `false` | After each run, look up which provider served each model call (OpenRouter `/generation`, in a background thread) and log it as `ai_model_call_provider` |
@@ -1077,6 +1078,18 @@ case: m4a of `ma-integrity-20261001a` spent 510 s on six full rewrites of an 18,
 reference: `{{x|pp:2}} pp` shows `1,00 pp`, `Rp {{y|rp}}` shows `Rp 5 miliar`. The unit is read from the shown value
 (its non-numeric tail or head), so every unit-bearing format is covered; only an exact repeat is dropped, and each drop
 is logged as `ai_reference_unit_repeated`.
+
+### Event study labels (G2)
+
+The sandbox recomputes every `saniti.event_study` at `complete_analysis` (sandbox README, "Event study"). The orc reads
+`final_status.verified_output_ids`: those released tables are value-reference and provenance sources labelled
+CALCULATION_VERIFIED, every other released output stays DATA_COVERAGE_VERIFIED, and the answer's label is the weakest of
+the figures it cites. A later message that reads such a table carries `origin.calculation_verified`, and the
+conversation resources note shows it. The DataNeed limitation line names the recomputed studies and says the other
+calculations were not recomputed; an INVALID study is disclosed. Saying a calculation was verified is not marked when
+every figure of the answer is CALCULATION_VERIFIED, and is marked as before otherwise. `AI_ENABLE_EVENT_STUDY` only
+adds the description sentences (`EVENT_STUDY_SENTENCE`, `COMPLETE_EVENT_STUDY_SENTENCE` in `app/tools/session.py`);
+the labels follow the sandbox's result whatever the switch.
 
 ### Reasoning capture (dev measurement, off unless `AI_CAPTURE_REASONING=true`)
 

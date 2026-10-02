@@ -247,3 +247,25 @@ def test_coverage_is_inherited_from_every_earlier_passed_epoch(reuse) -> None:
     assert done["status"] == "COMPLETED", done
     assert {r["processing"] for r in done["coverage"]["requests"]} == {"INHERITED"}
     assert done["final_status"]["inherited_coverage"]["ancestor_completion_ids"][0] == one["completion_id"]
+
+
+def test_a_recomputed_event_study_stays_labelled_in_later_turns_and_its_record_is_not_offered(reuse) -> None:
+    """G2: the next message reads the event-study table as calculation_verified; the declaration record the backend
+    recomputed from is released for the audit but never listed as a result."""
+    need = approve(reuse, "req_turn_1")
+    bundle = build(reuse, need, ytd_parts(reuse, need), request_id="req_turn_1").json()
+    opened = post(reuse, "/v1/sessions", {"request_id": "req_turn_1", "bundle_id": bundle["input_bundle_id"]}).json()
+    body = execute(reuse, opened["session_id"], "req_turn_1",
+                   "event_study('prices', 'close / lag(close, 1) - 1 <= -0.01', {'forward_return': 'close'}, 3, "
+                   "name='drops', min_events=1)\nbanks = load('stock_classification')\nemit_table('n', banks)")
+    ids = {o["name"]: o["output_id"] for o in body["outputs"]}
+    done = complete(reuse, opened["session_id"], "req_turn_1")
+    assert done["status"] == "COMPLETED" and done["final_status"]["event_studies"][0]["status"] == "PASS", done
+    listed = reuse["api"].get(f"/v1/conversations/{KEY}/resources", headers=HEADERS).json()
+    offered = {o["name"]: o for o in listed["released_outputs"]}
+    assert set(offered) == {"drops", "drops_events", "n"}
+    assert offered["drops"]["calculation_verified"] is True and "calculation_verified" not in offered["n"]
+    page = reuse["api"].get(f"/v1/sessions/{opened['session_id']}/outputs/{ids['drops']}",
+                            params={"request_id": "req_turn_2"}, headers=headers()).json()
+    assert page["origin"]["calculation_verified"] is True
+    assert page["origin"]["calculation_validation"] == "PARTIAL"

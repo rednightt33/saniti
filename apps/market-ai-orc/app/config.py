@@ -105,6 +105,8 @@ class Settings:
     ai_research_plan_ttl_seconds: int = 3600
     # Named calendar-period returns use saniti.period_return (base: last valid value before the period start).
     ai_enable_standard_period_return: bool = False
+    # G2 (2026-10-02): run_python and complete_analysis describe saniti.event_study and its backend recalculation
+    ai_enable_event_study: bool = False
     # OpenRouter provider routing for the agent's model calls: provider.sort "price", "throughput" or "latency". Unset
     # keeps OpenRouter's default load balancing, which is weighted to the lowest price.
     ai_provider_sort: str | None = None
@@ -282,6 +284,7 @@ class Settings:
             ai_research_plan_signing_key=env.get("AI_RESEARCH_PLAN_SIGNING_KEY") or None,
             ai_research_plan_ttl_seconds=_integer(env, "AI_RESEARCH_PLAN_TTL_SECONDS", 3600, minimum=60),
             ai_enable_standard_period_return=_boolean(env, "AI_ENABLE_STANDARD_PERIOD_RETURN", False),
+            ai_enable_event_study=_boolean(env, "AI_ENABLE_EVENT_STUDY", False),
             ai_provider_sort=(env.get("AI_PROVIDER_SORT") or "").strip().lower() or None,
             ai_log_provider=_boolean(env, "AI_LOG_PROVIDER", False),
             ai_final_contract_in_prompt=_boolean(env, "AI_FINAL_CONTRACT_IN_PROMPT", False),
