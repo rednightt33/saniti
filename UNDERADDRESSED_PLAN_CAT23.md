@@ -265,22 +265,27 @@ Sumber:
 - **D06, masih:** cakupan broker berakhir 2026-08-31; jawaban menyebutkannya dengan jujur.
 - **D02, masih:** daftar lengkap Sector yang dibaca golden a g1 memuat nilai `0`.
 
+**Keputusan user 2026-10-02:** butir 1, 2 dan 3 disetujui (belum dikerjakan). D02: nilai `0` diganti teks
+`Undefined`, bukan NULL. Ini bertentangan dengan Part A A1.4 ("Unknown = NULL plus reason, never a fake category");
+perlu diputuskan apakah Part A diubah atau D02 dicatat sebagai pengecualian. Otomatisasi refresh broker (D06) masih
+keputusan user.
+
 **Usulan (diperbarui):**
-1. **C06, cakupan diperbarui saat data masuk:**
+1. **[DISETUJUI] C06, cakupan diperbarui saat data masuk:**
    - Pemuat harga dan Feature 01 memperbarui cakupan dataset-nya sendiri setelah berhasil.
    - Kegagalan pembaruan dicatat terpisah dan tidak menggagalkan muat data. Job pagi tetap jalan sebagai cadangan.
    - TEMPORARY sampai itu jadi: jadwal job cakupan ditambah satu kali setelah muat sore.
-2. **C06, rentang "sampai data terbaru":**
+2. **[DISETUJUI] C06, rentang "sampai data terbaru":**
    - Permintaan data boleh berakhir di "terbaru"; Governor mengisinya dengan tanggal terakhir yang benar-benar ada saat
      penarikan, jadi tidak bergantung pada ringkasan.
    - Jawaban menyebut tanggal akhir dari data yang diterima, ditulis sistem.
-3. **D06, status kesegaran per sumber:**
+3. **[DISETUJUI] D06, status kesegaran per sumber:**
    - SEGAR / TERLAMBAT / BASI dihitung dari jadwal muat yang diharapkan di katalog, ditampilkan di katalog dan
      jawaban.
    - Peringatan Telegram bila sebuah sumber BASI (`telegram-monitor` sudah ada).
    - Otomatisasi refresh broker = keputusan user (token Stockbit masih manual).
-4. **D02, nilai pengganti:**
-   - Migrasi `0` → NULL beserta alasan; riwayat universe mencatat perubahannya.
+4. **[DISETUJUI, diubah user] D02, nilai pengganti:**
+   - Migrasi `0` → `Undefined` (keputusan user); riwayat universe mencatat perubahannya.
    - Cek kualitas di pemuat: nilai yang bukan kategori (angka murni di kolom kategori) ditolak atau ditandai.
    - Tiga ticker-nya dicek lewat SQL sebelum migrasi.
 
