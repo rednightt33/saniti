@@ -34,6 +34,28 @@ Dua kekurangan yang disiapkan di rencana ini:
 - Batas jumlah angle mode 4: minimal `max(2, AI_RESEARCH_MIN_ANGLES)` (default 2), maksimal
   `AI_RESEARCH_MAX_ANGLES` (6); batas sandbox `PY_SANDBOX_RESEARCH_MIN_ANGLES=1` di dev.
 
+## 2b. Mesin lama yang sudah ada dan bedanya dengan rencana ini (dicek di kode 2026-10-02)
+
+| Generasi | Di mana | Status | Cara kerja | Yang kurang |
+|---|---|---|---|---|
+| G1 worker statistik | `apps/market-analytics-worker/worker.py` | Service dihapus 2026-09-26 | Menjalankan SQL DuckDB tulisan AI yang diberi label `EVENT_STUDY_SQL` / `SIGNIFICANCE_TEST_SQL`; tidak ada metode bawaan | Rumus dan statistik sepenuhnya dari AI, tanpa pemeriksaan |
+| G2 event study Analysis Spec | sandbox `app/spec.py` (metode `EVENT_STUDY`), `runtime/validator.py` (`_event_study_reference`, `_segment_stats`) | Jalur cadangan (aktif hanya bila DataNeed mati) | Event dari predikat sinyal; outcome FORWARD_RETURN; NON_OVERLAPPING; minimal 30 event; sensor ujung data; pembanding semua observasi eligible; mean, median, hit rate, delta; CI Welch; segmen in-sample / out-of-sample; validator menghitung ulang rumusnya | Return mentah (tanpa benchmark); satu horizon; CI menganggap baris independen (event di hari yang sama tidak dikelompokkan); koreksi hanya NONE/BONFERRONI |
+| G3 riset v1 | orc `app/research_plan.py` (rencana 1–4 eksperimen, satu hipotesis per eksperimen); sandbox `app/research_governance.py`, `app/research_findings.py`, `runtime/research_stats.py`, helper `saniti.event_summary` | Tidak aktif (multi-angle menyala) | Hipotesis dideklarasikan dulu (kondisi, outcome, pembanding, arah, horizon, efek minimum, kebijakan koreksi) dan disetujui user; anggaran 4 hipotesis, 6 eksperimen, 5 tindak lanjut per hipotesis. AI membangun event dan pembanding dengan Python bebas lalu memanggil `event_summary`; backend menghitung ulang statistik dari agregat per tanggal: selisih rata-rata dan selisih proporsi sukses, pengelompokan per tanggal, penjarangan horizon, MDE, kategori sampel, vonis | Cara event dan return dibangun tidak diperiksa (hanya statistiknya); return abnormal hanya kalau AI menghitung sendiri, tanpa pemeriksaan; satu horizon; tidak ada jalur hari sekitar event |
+| G4 riset multi-angle | `runtime/research_engines.py`, `app/research_methods.py`, `AI_research_library` | **Aktif** | 8 metode; peran dideklarasikan dan rumus dihitung ulang backend (DECLARATIVE) atau tabel buatan AI (FRAME); pengelompokan per tanggal; holdout; koreksi per kandidat (BONFERRONI/HOLM/BH); kategori sampel dan MDE | Tidak ada fungsi lintas saham, return abnormal, maupun jalur hari sekitar event; koreksi hanya per rencana (tanpa anggaran lintas giliran seperti G3) |
+
+**Yang dibawa dari mesin lama ke rencana ini:**
+- dari G2: definisi event, NON_OVERLAPPING, minimal event, sensor ujung data (langkah 3);
+- dari G3: hipotesis dideklarasikan dulu dengan arah dan efek minimum (sudah ada di G4), batas 4 hipotesis (dijadikan
+  **minimal** 4 di langkah 4), anggaran eksperimen dan tindak lanjut lintas giliran (buku percobaan, langkah 5),
+  pengelompokan per tanggal dan kategori sampel (sudah ada di G4).
+
+**Yang baru di rencana ini (tidak ada di generasi mana pun):**
+- return abnormal dengan benchmark dan model return normal yang dideklarasikan dan diperiksa backend;
+- jalur AAR/CAAR dengan beberapa jendela CAR yang ikut koreksi uji berganda;
+- fungsi lintas saham di rumus yang diperiksa (rata-rata pasar dan sektor tanpa jalur FRAME);
+- pengujian rumus event dan return oleh backend. G3 hanya memeriksa statistik; G2 memeriksa rumus tapi tanpa
+  pengelompokan per tanggal.
+
 ## 3. Benchmark praktik
 
 | Praktik | Rujukan | Yang dipakai di sini |

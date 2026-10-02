@@ -1,6 +1,7 @@
 # Rencana: mode 4 sebagai percakapan yang luwes (M56)
 
-Status: rencana, belum dijalankan (2026-10-02). Terkait `ERRORS_AND_SOLUTIONS.md` M56.
+Status: **disetujui user 2026-10-02** ("Setuju untuk mode 4"), belum dijalankan. Keputusan 2 dan 3 di bagian 7 masih
+terbuka. Terkait `ERRORS_AND_SOLUTIONS.md` M56.
 
 ## 1. Arahan user (2026-10-02)
 
