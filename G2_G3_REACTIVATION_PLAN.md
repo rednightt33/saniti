@@ -211,16 +211,18 @@ Router di setiap giliran: pengklasifikasi diperluas dari `MODE4_CONVERSATION_PLA
 
 | Jenis giliran | Contoh | Yang dijalankan | G yang boleh dipakai |
 |---|---|---|---|
-| **EXPLAIN**: arti angka, insight, penjelasan | "68,9% itu artinya apa?", "Kenapa XL tertinggi?", "Insight-nya apa?" | Satu langkah jawaban dari state (output, temuan, manual). Data ditarik atau dihitung hanya bila penjelasan butuh rincian (mis. per tahun, per saham) | G1 kecil (rincian), tanpa riset |
+| **CLARIFY**: arti angka, definisi, cara membaca | "68,9% itu artinya apa?", "Lift itu apa?", "Datanya dari mana?" | Jawaban dari state, manual dan katalog (definisi kolom, satuan, grain), tanpa hitungan baru | Tanpa alat data |
+| **INSIGHT**: kenapa, apa pendorongnya, apa yang menonjol | "Kenapa XL tertinggi?", "Insight-nya apa?", "Apa yang mendorong kenaikan ini?" | **Analisis pendorong** atas data dan output yang sudah ada (4d-3b): kontributor teratas/terbawah, perubahan antar periode, pendorong per dimensi, nilai tak biasa, konsentrasi. Hasilnya deskriptif (asosiasi, bukan sebab); boleh ditutup dengan tawaran uji (G2/G3/G4) | G1 + helper insight, tanpa riset kecuali diminta |
 | **CONTINUE**: user minta analisis lanjutan | "Coba lihat dampaknya setelah crash", "Uji ide saya", "Cari sudut lain" | AI memilih G dari menu sesuai permintaan; data dan output sebelumnya dipakai ulang | **Bebas G1–G4**: G1 dan G2 langsung di sesi; G3 dan G4 lewat rencana (persetujuan user mengikuti `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION`) |
 | **APPROVE / REVISE / CANCEL** | "Jalankan", "Pakai 5 tahun", "Tidak usah" | Seperti sekarang, untuk rencana v1 maupun v2 | G3 / G4 |
 | **NEW_TOPIC** | "Sekarang saham telko?" | Giliran pertama (mode 4: A + riset) | Sesuai mode |
 | **CONVERSATIONAL** | "Apa itu CAR?", "Metode apa yang dipakai?" | Jawaban langsung dari manual/state | Tanpa alat data |
 
 **Aturan backend:**
-1. Riset (G3/G4) hanya jalan bila diminta (CONTINUE yang meminta uji, APPROVE) atau NEW_TOPIC di mode 4. EXPLAIN dan
-   CONVERSATIONAL tidak pernah memicu riset.
-2. Kalau ragu antara EXPLAIN dan CONTINUE, pilih EXPLAIN dan tawarkan analisis lanjutan (salah ke arah yang murah).
+1. Riset (G3/G4) hanya jalan bila diminta (CONTINUE yang meminta uji, APPROVE) atau NEW_TOPIC di mode 4. CLARIFY,
+   INSIGHT dan CONVERSATIONAL tidak pernah memicu riset.
+2. Kalau ragu antara CLARIFY / INSIGHT dan CONTINUE yang meminta riset, pilih yang tanpa riset dan tawarkan uji lanjutan
+   (salah ke arah yang murah).
 3. Saran tertunda tidak hilang karena pertanyaan lanjutan.
 4. Arah lanjutan bebas: tidak ada urutan wajib G1 → G2 → G3 → G4. AI memilih dari menu; user boleh menyebut metode
    ("pakai event study").
@@ -233,6 +235,35 @@ Router di setiap giliran: pengklasifikasi diperluas dari `MODE4_CONVERSATION_PLA
 - **Insight:** interpretasi diberi label sebagai interpretasi. Klaim sebab atau prediksi tetap mengikuti aturan bukti
   (hanya dari temuan riset dengan status yang sesuai). Tingkat pemeriksaan angka ditulis (S23).
 - **Penyebab di luar database** (berita, aksi korporasi) tidak tersedia; jawaban menyatakannya.
+
+### 4d-3b. Benchmark dan rancangan INSIGHT (revisi 2026-10-02)
+
+Di produk analitik, "insight" dan "kenapa" bukan menjelaskan ulang angka, melainkan **analisis pendorong yang dihitung**:
+
+| Produk | Cara kerja "kenapa / insight" |
+|---|---|
+| Tableau Explain Data | Membangun dan menguji model statistik untuk menjelaskan kenapa satu titik tinggi/rendah, termasuk dimensi yang tidak ditampilkan |
+| Tableau Pulse | Jenis insight baku: perubahan antar periode, kontributor teratas/terbawah, pendorong teratas, nilai tak terduga, outlier, perubahan tren, konsentrasi |
+| Power BI | Key influencers (regresi logistik dan pohon keputusan) dan decomposition tree (memecah metrik per dimensi); "explain the increase/decrease" |
+| ThoughtSpot SpotIQ | Deteksi anomali, analisis perubahan (akar penyebab fluktuasi KPI), tren, analisis pendorong antar dua titik |
+
+**Rancangan untuk kita:**
+- Helper backend yang sudah dites, misalnya `saniti.insight(...)`, dengan jenis insight baku:
+  - perubahan antar periode;
+  - kontributor teratas/terbawah;
+  - pendorong per dimensi (anggota dimensi yang berubah searah metrik);
+  - nilai tak biasa terhadap riwayatnya sendiri;
+  - konsentrasi kontribusi.
+- **Tanpa hardcode:**
+  - metrik dan waktu adalah peran;
+  - dimensi diambil dari kolom `is_groupable` di katalog;
+  - agregasi mengikuti aturan katalog (SUM hanya untuk kolom ber-aturan SUM);
+  - ambang "tak biasa" dari kebijakan.
+- **Masukan:** output yang sudah ada (`out.oN`) atau bundle hangat. Tidak menarik ulang data kecuali dimensinya belum
+  ada.
+- **Label:** deskriptif ("berasosiasi dengan", bukan "menyebabkan"); tingkat pemeriksaan sesuai S23 (helper dihitung
+  backend). Penutup boleh berupa tawaran uji: G2 untuk dampak event, G3/G4 untuk hipotesis.
+- Masuk menu dan manual (4b-3) seperti metode lain.
 
 ### 4d-4. Rantai antar G (bebas arah)
 
@@ -249,12 +280,12 @@ sebagai bahan riset) dan dirujuk lintas giliran (E1).
 Satu skenario multi-giliran ditambahkan ke golden test (bagian 7):
 
 1. Pertanyaan awal (mode 4): jawaban + G4.
-2. "Angka 68,9% itu artinya apa?" → EXPLAIN, tanpa alat data, angka dari `out.oN`.
-3. "Kenapa XL paling tinggi? Rinci per tahun." → EXPLAIN dengan G1 kecil, tanpa riset.
+2. "Angka 68,9% itu artinya apa?" → CLARIFY, tanpa alat data, angka dari `out.oN`.
+3. "Kenapa XL paling tinggi? Insight-nya apa?" → INSIGHT: analisis pendorong (per tahun, per saham), tanpa riset.
 4. "Coba event study: return saham bank 5 hari setelah XL beli besar." → CONTINUE → G2.
 5. "Uji ide saya: efeknya hanya di bank BUMN." → CONTINUE → G3 (rencana v1, disetujui).
 6. "Cari 4 sudut lain." → CONTINUE → G4.
-7. "Jelaskan hasil uji tadi." → EXPLAIN dengan `finding.<id>`.
+7. "Jelaskan hasil uji tadi." → CLARIFY dengan `finding.<id>`.
 
 **Dicatat per giliran:** jenis giliran, G yang jalan, detik, rujukan angka, dan apakah riset terulang tanpa diminta
 (harus nol).
@@ -316,7 +347,7 @@ Saklar pikiran (`AI_CAPTURE_REASONING`) menyala, supaya kesalahan bisa ditelusur
 2. **G2-A:** helper `event_study` + pemeriksa independen + CI per tanggal (sandbox), lalu render dan label (orc).
 3. **G3:** rencana v1 berdampingan dengan v2 (orc: prompt, skema, kelanjutan; sandbox: keduanya aktif bersamaan).
 3c. **Percakapan multi-giliran** (bagian 4d): state lintas giliran (temuan, manual, buku percobaan), router
-    EXPLAIN / CONTINUE / APPROVE / NEW_TOPIC / CONVERSATIONAL, rantai antar G; bersama router `MODE4_CONVERSATION_PLAN.md`.
+    CLARIFY / INSIGHT / CONTINUE / APPROVE / NEW_TOPIC / CONVERSATIONAL, helper insight, rantai antar G; bersama router `MODE4_CONVERSATION_PLAN.md`.
 3b. **Menu, manual dan contoh** (bagian 4b-3): `analysis_methods`, `get_method_guide`, kartu manual G1–G4 dan helper,
     manual dibawa lewat catatan percakapan; sebelum uji live.
 4. Uji live singkat G2 dan G3 masing-masing sendiri, lalu bersama (saklar pikiran menyala).
@@ -340,7 +371,7 @@ Setiap langkah:
 | G3 tetap tidak mengecek rumus AI | Event buatan AI bisa salah | Label STATISTICS_VERIFIED tertulis di jawaban; AI dianjurkan memakai tabel event G2 (yang dicek) sebagai dasar G3 |
 | Uji makin banyak, peluang kebetulan naik | G2 + G3 + G4 dalam satu rencana | Koreksi menghitung semua uji di rencana; holdout |
 | Golden test terlalu kecil | 5 soal bukan ukuran statistik akurasi | Disebut sebagai baseline awal; soal ditambah setelah fitur berikutnya |
-| Router salah membaca giliran | Penjelasan dianggap permintaan riset, atau sebaliknya | Ragu → EXPLAIN plus tawaran; diukur di skenario 4d-5 (riset tak diminta harus nol) |
+| Router salah membaca giliran | Penjelasan dianggap permintaan riset, atau sebaliknya | Ragu → CLARIFY/INSIGHT plus tawaran; diukur di skenario 4d-5 (riset tak diminta harus nol) |
 | State percakapan membesar | Temuan, manual dan output menumpuk | Batas per bagian dengan penanda terlihat (pola P5); versi lengkap di store |
 | Waktu run | Pemeriksa independen menambah waktu penyelesaian | Diukur; pemeriksa hanya berjalan untuk output event study |
 | Token bertambah karena manual dibawa | Setiap manual yang dibuka ikut di setiap panggilan berikutnya | Kartu ringkas; prompt caching (`session_id` per run); kartu lama diringkas dengan penanda; token per run diukur |
