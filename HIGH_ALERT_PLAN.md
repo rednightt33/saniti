@@ -26,11 +26,13 @@ dengan tanda **HIGH ALERT** di kolom status, dan masuk golden test berikutnya.
 
 | Kelas | Perbaikan | Status |
 |---|---|---|
-| H1 | (1) Riwayat menyimpan jawaban lengkap (isi, asumsi, batasan, metodologi). (2) Setiap tabel hasil membawa definisinya (filter, ambang, periode, cakupan). (3) Pertanyaan lanjutan "kenapa/jelaskan" mulai dari tabel yang dijelaskan. (4) Klaim "konsisten dengan sebelumnya" hanya boleh bila definisinya sama; bila beda, jawaban wajib menyebut perbedaannya. | Disetujui user, belum dikerjakan |
-| H2 | Ambang sukses berupa angka dan dipakai mesin hitung; laporan menyebut aturan yang dipakai. Angka cakupan di rencana diisi backend dari hasil cek kelayakan. M26 (vonis memperhitungkan efek minimal): keputusan user. | Usulan; M26 menunggu keputusan |
+| H1 | Desain final, disetujui user 2026-10-02 (lihat "Pembanding" di bawah). (a) Riwayat menyimpan jawaban lengkap: isi, asumsi, batasan, metodologi. (b) Setiap tabel hasil membawa definisi terstruktur dalam bentuk cakupan DataNeed (PREDICATE: kolom, operator, nilai), plus periode, cakupan entitas dan ambang. Tiap isian diberi label DERIVED (diturunkan dari permintaan data atau ringkasan gudang) atau DECLARED (ditulis AI untuk filter di kode). (c) Lineage per tabel: eksekusi pembuatnya (id dan hash kode) dan permintaan data inputnya. (d) Filter diarahkan ke permintaan data atau ringkasan gudang, supaya DERIVED. (e) Pertanyaan lanjutan "kenapa/jelaskan" mulai dari tabel yang dijelaskan. (f) Klaim "konsisten dengan sebelumnya" dicek mesin dengan membandingkan definisi; bila beda, jawaban wajib menyebut perbedaannya. (g) Dilarang menebak: definisi yang tidak diketahui → buka tabel asal atau tanya user. | Disetujui user, belum dikerjakan |
+| H2 | Rencana yang disetujui = kontrak bertipe. Ambang sukses berupa angka (`{operator, nilai}`) dan efek minimal dibaca mesin hitung langsung dari rencana, bukan dari kalimat; argumen AI yang berbeda ditolak. Laporan menampilkan aturan yang dipakai mesin (ditulis sistem). Angka cakupan di rencana diisi backend dari hasil cek kelayakan. **Perubahan oleh user** (permintaan user 2026-10-02): "ubah jadi 5%" → revisi rencana versi baru; angka eksplisit dari user langsung dipakai, permintaan samar → AI mengusulkan dan user mengonfirmasi. Data tidak ditarik ulang. Hasil lama tetap disimpan dan ditampilkan berdampingan. Usulan mitigasi (belum disetujui): label "ambang diubah setelah melihat hasil" dan jumlah percobaan dicatat di daftar uji percakapan. M26 (vonis memperhitungkan efek minimal): keputusan user. | Disetujui user (ambang dan perubahan); M26 dan label perubahan menunggu keputusan |
 | H3 | Kamus istilah yang disetujui user (`UNDERADDRESSED_PLAN_CAT23.md` kelompok 1). | Usulan; perlu daftar istilah dari user |
 
 Rincian masing-masing ada di `UNDERADDRESSED_PLAN_CAT23.md`.
+
+**Pending golden test (tidak dijalankan sampai user menyuruh):** H1 lewat `g7_followup_definitions` dan g5 giliran 3/9; H2 lewat g6 (ambang ≥ 3%, lalu giliran "ubah jadi 5%"); H3 lewat `g1_foreign_net_banks_repeat` dan g5 giliran 1/5.
 
 ## Prioritas 2 (WAJIB): bukti agregat untuk setiap jawaban
 
