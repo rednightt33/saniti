@@ -1,5 +1,32 @@
 # Database changelog
 
+## 2026-10-02 — D02: classification placeholder `0` → `Undefined` (migration 20261003_001) on dev
+
+User decisions 2026-10-02: keep the text `Undefined` for now (an exception to Part A A1.4), covering Sector and Industry
+in every table.
+
+- **Preflight** (temporary read-only job `d02-check-job`, every public text column named sector/industry): `0` in
+  Sector and Industry for XCID, XCIS and XSPI only:
+  - `IDX_Stock_Universe`: 3 rows;
+  - `Universe_Equity_Description`: 3 rows;
+  - `IDX_Stock_Universe_History`: 3 rows;
+  - `Feature_01_Stock_Daily`: 3,365 rows (the Feature 01 refresh copies the universe values).
+- **Migration** `database/migrations/20261003_001_classification_placeholder_undefined.sql`:
+  - a guarded preflight with the exact counts and tickers;
+  - three UPDATEs;
+  - catalog notes;
+  - a postcheck.
+  Tested on a scratch database (apply, then a second run refused). On dev (temporary job `d02-mig-job`) it was run
+  as DRYRUN (rolled back) and then APPLY.
+- **Readback after APPLY:**
+  - no `0` left;
+  - `Undefined` in 3 / 3 / 3,365 rows;
+  - history rows of the three tickers 3 → 9 (new versions; the earlier `0` version stays as history);
+  - capture failures 0;
+  - Column_Catalog notes 6, AI_column_catalog notes 4;
+  - a second run was refused by the preflight.
+- Both temporary jobs were deleted. No schema change.
+
 ## 2026-10-02 — G18 phase 1 (warehouse summaries across entities): measurement and migration 20261002_002 on dev
 
 - Scope: `WAREHOUSE_AGGREGATION_PLAN.md` (user decision 2026-10-02: phase 1 across entities, a temporary dev job for

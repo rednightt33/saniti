@@ -18,6 +18,10 @@ Plan `HIGH_ALERT_IMPLEMENTATION_PLAN.md`, step 1, approved by the user.
   - Result: `0` in Sector and Industry for XCID, XCIS and XSPI in `IDX_Stock_Universe` (3),
     `Universe_Equity_Description` (3) and `IDX_Stock_Universe_History` (3), plus 3,365 rows of
     `Feature_01_Stock_Daily`.
+- **Temporary job `d02-mig-job`** (the same `DATABASE_URL` reference plus `MODE`): migration `20261003_001`.
+  - `6da0c8df` DRYRUN: rolled back.
+  - `70af68d4` APPLY: applied and read back; a second run was refused.
+  - The service was deleted afterwards (absent from the service list).
 
 ## 2026-10-02 — orc-test-runner: audit readback for M63 (no questions sent)
 
