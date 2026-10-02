@@ -1,5 +1,16 @@
 # Railway changelog
 
+## 2026-10-02 — G18 summary hints on dev from the branch
+
+The AI is told when a warehouse summary is available. The options are derived from the catalog. Tested locally first:
+market-python-sandbox 702, market-ai-orc 981 passed. CLI upload from the repository root of branch
+`claude/g2-g3-reactivation` at `449fe22`; `main` untouched. Rollback references: market-python-sandbox `8e2052ce`,
+market-ai-orc `6ac58d33`.
+
+- market-python-sandbox `f1ecb50a` `SUCCESS`; startup `sandbox_started isolation_enforced=true`.
+- market-ai-orc `f229727d` `SUCCESS`; startup complete, no error.
+- No variable changed and no migration. Live verification (the AI choosing a summary) is not run yet.
+
 ## 2026-10-02 — G18 phase 1 (warehouse summaries) on dev from the branch; temporary job for measurement and migration
 
 User decision 2026-10-02: phase 1 across entities; a temporary dev job may be created and deleted for the measurement
