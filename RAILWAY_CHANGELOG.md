@@ -1,5 +1,49 @@
 # Railway changelog
 
+## 2026-10-02 — Golden test of G2/G3/4b/4d/5b on dev from the branch (not `main`); migration 20261002_001
+
+User decision 2026-10-02: test on dev before anything reaches `main`. Tested locally first: market-ai-orc 968,
+market-python-sandbox 683 passed.
+
+- **Deployments** (CLI upload of branch `claude/g2-g3-reactivation` at `00bd377`; `main` untouched; rollback
+  references: market-python-sandbox `af42fb07`, market-ai-orc `3ebc44f1`):
+  - market-python-sandbox `25bc684c` build FAILED (`--path-as-root` against the service's root directory, R23), then
+    `9bdb521e-e3d5-4afe-8064-b3d350262fa4` `SUCCESS` (uploaded from the repository root); startup
+    `isolation_enforced=true`;
+  - market-ai-orc `ece48dd0-0758-44f2-baab-190c95af526e` `SUCCESS`; startup `event_study=true hypothesis_plan=true`,
+    no `method_guides_inactive`; model, provider and `AI_MODE_SWITCH` unchanged.
+  - A later push of `main` that touches these folders redeploys `main`'s code over the branch (watch paths).
+- **Variables** (market-ai-orc dev, `--skip-deploys`, deployed with the upload): `AI_ENABLE_EVENT_STUDY=true`,
+  `AI_ENABLE_HYPOTHESIS_PLAN=true`, `AI_ENABLE_METHOD_GUIDES=true`, `AI_ENABLE_CONVERSATION_ROUTER=true`.
+  `railway config pull --force` added them to `.railway/railway.ts`; `railway config plan`: up to date (R24: run it
+  without a wrapper command).
+- **Temporary service `ma-migrate-job`** (variables `DATABASE_URL` reference, `MODE`, `KEY_PARAMS`; no other
+  secret): migration 20261002_001 dry run `55ba6824` and apply `131d04c7` (`DATABASE_CHANGELOG.md`), then the
+  read-only golden answer keys (SQL and pandas, read-only session) `f8897f83`, `419d35c6`, `819dc4af`, the q3 key at the
+  AI's data end and `9eea1db6` (question 5). Deleted after use (`railway service delete`; absent from the service list;
+  config pulled again, plan up to date).
+- **Golden test** (`ma-golden-20261002a`, runner `f7eac2fd`; question 5 again as `ma-golden-20261002b`, runner
+  `3b6fe826`; audit readback `50226033`; about USD 0.61 + the rerun):
+
+  | Question | Path chosen | Time | Figures against the independent key |
+  |---|---|---:|---|
+  | 1 foreign net buy, 10 most liquid banks 2025 | G1 | 52 s | all 10 tickers and values right |
+  | 2 high/low close of every bank 2025 | G1 | 38 s | 48 of 48 right |
+  | 3 5-day return after a ≥5% fall (event study) | G2, CALCULATION_VERIFIED | 48 s | every figure right; one sentence mislabels a count (S27) |
+  | 4 BBCA foreign net buy → next-day return | G4 (expected G3, M62) | 57 + 44 s | difference and CI right; one figure 100× too small (P23), p shown 0,00 (P24) |
+  | 5 broker buying in crashes (mode 4, 9 turns) | analysis + G4, then CLARIFY, INSIGHT, G2, REVISE, G4 | run 1: 670 s turn 1 | analysis figures right (key); "selisih" column 100× too small (P23) |
+
+  - Run 1, question 5: the research step's four angles INVALID `DUPLICATE_ANGLE_OUTPUT` (S13 recurrence); turns 6–9
+    refused by OpenRouter "Key limit exceeded" (R25); the user raised the limit and the rerun completed all 9 turns.
+  - Router: CLARIFY (12.8 s / 9.8 s, read-only), INSIGHT (85 s / 63 s, no research), CONTINUE → event study, CONTINUE
+    → 4 new angles, CLARIFY from the kept findings (31 s); turn 5 read REVISE of the stale suggestion in both runs
+    (M64), so the hypothesis plan (G3) was never chosen in the suite (M62).
+  - IN_SAMPLE shown live (rerun turns 6 and 8); 13 findings and 40 outputs carried in the data record to turn 9.
+  - Rerun turn 4 forced to LIMITATION for "persentil ke-90" (P25); turn 9 paired an unadjusted CI with an adjusted p
+    (M65, a step-5b defect); definitions changed between runs (M66).
+  - Findings recorded in `ERRORS_AND_SOLUTIONS.md`: R23–R26, P22 (recurrence), P23–P25, S13 (recurrence), S27, M14
+    (seen again), M61–M66.
+
 ## 2026-10-01 — Reasoning capture switch `AI_CAPTURE_REASONING` on dev (market-ai-orc)
 
 User decision 2026-10-01: read what the model thinks on each call to find where mode 4 spends its time (m01: about

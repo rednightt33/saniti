@@ -140,12 +140,8 @@ export default defineRailway(() => {
     deploy: { restartPolicyType: "NEVER" },
     env: { DATABASE_URL: preserve() },
   });
-  const maMigrateJob = service("ma-migrate-job", {
-    replicas: { "sfo": 1 },
-    env: { DATABASE_URL: preserve(), MODE: preserve() },
-  });
 
   return project("lucid-patience", {
-    resources: [orcTestRunner, marketSqlGovernor, marketWebGovernor, marketPythonSandbox, marketAiOrc, idxPriceCron, pgweb, PostgresE8GM, telegramTrigger, webGovernorTestRunner, marketAuditStore, telegramMonitor, idxPriceRecoveryCron, Postgres, aiDataCoverage, feature01Worker, dbOpsRunner, maMigrateJob, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, postgresVolumeOz3T, marketWebGovernorData, marketSqlDatasets, marketAiAuditArtifacts],
+    resources: [orcTestRunner, marketSqlGovernor, marketWebGovernor, marketPythonSandbox, marketAiOrc, idxPriceCron, pgweb, PostgresE8GM, telegramTrigger, webGovernorTestRunner, marketAuditStore, telegramMonitor, idxPriceRecoveryCron, Postgres, aiDataCoverage, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, postgresVolumeOz3T, marketWebGovernorData, marketSqlDatasets, marketAiAuditArtifacts],
   });
 });

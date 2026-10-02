@@ -393,6 +393,10 @@ Saklar pikiran (`AI_CAPTURE_REASONING`) menyala, supaya kesalahan bisa ditelusur
 6. **Uji live singkat:** G2 dan G3 masing-masing sendiri, lalu bersama, lalu dua giliran lanjutan (saklar pikiran
    menyala).
 7. **Golden test** 5 soal + skenario percakapan (bagian 7, 4d-5).
+   *Langkah 6–7 dijalankan 2026-10-02 di dev dari branch (bukan `main`):* migrasi `20261002_001` diterapkan, empat
+   saklar menyala, suite `ma-golden-20261002a` + ulangan soal 5 `ma-golden-20261002b`. Hasil dan error di
+   `RAILWAY_CHANGELOG.md` dan `ERRORS_AND_SOLUTIONS.md` (R23–R26, P22–P25, S13, S27, M61–M66). Belum: perbaikan atas
+   temuan itu, lalu golden test ulang sebelum merge ke `main`.
 8. **Sesudahnya, sesuai hasil golden test:** G2-B (jalur event, return abnormal), S20, minimal 4 hipotesis
    (`FACTOR_EVENT_RESEARCH_PLAN.md`), analisis faktor.
 
