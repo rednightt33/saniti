@@ -4,7 +4,7 @@
 
 User decision 2026-10-02: phase 1 across entities; a temporary dev job may be created and deleted for the measurement
 and the Tool_Catalog migration. Tested locally first: market-sql-governor 238, market-python-sandbox 698 (+2 bundle
-path, root isolation), market-ai-orc 980 passed.
+path, root isolation), market-ai-orc 979 passed.
 
 - **Temporary service `wa-explain-job`** (`711008cb-ce5c-4e81-bba4-c98584e6288c`; variables: a `DATABASE_URL` reference
   to `Postgres` and `MODE`; no other secret):
