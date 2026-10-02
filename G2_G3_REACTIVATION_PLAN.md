@@ -1,6 +1,6 @@
 # Rencana: menghidupkan kembali G2 (event study) dan G3 (uji hipotesis bebas), lalu golden test 5 soal
 
-Status: rencana, belum dijalankan (2026-10-02). Keputusan user 2026-10-02:
+Status: rencana, belum dijalankan (2026-10-02). Keputusan user 2026-10-02 (diperbarui: bagian 4 dan 4b):
 - G2 dan G3 dihidupkan kembali;
 - keduanya bisa berdiri sendiri atau saling melengkapi;
 - yang disesuaikan adalah arsitektur dan kode G2/G3 agar cocok dengan infrastruktur sekarang (DataNeed, sesi
@@ -73,44 +73,70 @@ Terkait:
   - rata-rata lintas saham setelah S20 (S20 memindahkan hitungan itu dari AI ke backend; sebelum S20, benchmark yang
     dihitung AI tidak diperiksa).
 
-## 4. G3: uji hipotesis bebas di infrastruktur sekarang
+## 4. G3: uji hipotesis bebas di infrastruktur sekarang (keputusan user: jalur terpisah)
 
-**Bentuk:** rencana riset v2 diperluas dengan daftar **`experiments`** (G3) di samping **`angles`** (G4), dalam satu
-rencana, satu persetujuan dan satu token. Mode 4 dan alur persetujuan tidak perlu jalur baru. Satu rencana boleh
-berisi:
-- hanya `experiments` (G3 sendiri);
-- hanya `angles` (G4 sendiri);
-- keduanya (saling melengkapi).
-
-**Isi eksperimen G3** (dari rencana v1, tidak memakai perpustakaan metode):
-- hipotesis, tujuan, kondisi, outcome, pembanding (teks bebas);
-- arah yang diharapkan, horizon, satuan outcome, efek minimum, definisi sukses, kebijakan koreksi, holdout opsional.
-
-**Eksekusi:** di sesi grup riset yang sama.
-- AI membangun event dan pembanding dengan Python bebas, atau dari tabel event G2.
-- AI memanggil `saniti.event_summary(...)`.
-- Saat grup selesai, harness menghitung ulang statistik dari agregat per tanggal yang dirilis (`research_findings` v1
-  + `research_stats`), dengan nilai dari rencana yang disetujui.
-- Temuan G3 masuk respons dengan namespace rujukan sendiri (`finding.<hypothesis_id>`), berlabel **STATISTICS_VERIFIED**
-  (rumus buatan AI tidak dicek, ditulis jelas).
-
-**Anggaran dan disiplin (dari G3 lama):**
-- maksimal hipotesis dan eksperimen per run (kebijakan `PY_SANDBOX_RESEARCH_MAX_*`);
-- tindak lanjut (`followup_of`) dihitung ke hipotesis induknya;
-- jumlah uji untuk koreksi = angle G4 + eksperimen G3 di rencana itu (nanti ditambah buku percobaan percakapan).
+**Bentuk:** rencana riset **v1** (eksperimen, satu hipotesis per eksperimen) hidup **berdampingan** dengan rencana v2
+(G4), sebagai jalur terpisah. Tidak digabung ke `experiments` di v2.
 
 **Yang diubah:**
 - **orc:**
-  - skema rencana v2 + `experiments`;
-  - cek kelayakan untuk data eksperimen;
-  - prompt rencana dibangkitkan dari skema;
-  - `research_plan_v2` totals menghitung keduanya;
-  - render temuan G3.
-- **sandbox:**
-  - governance v2 menerima eksperimen;
-  - `validate_group` memanggil evaluator temuan v1 untuk eksperimen di grup itu;
-  - satu envelope temuan untuk angle dan eksperimen.
-- **Migrasi:** `Tool_Catalog` untuk skema alat rencana yang berubah, bila skemanya berubah.
+  - prompt tidak lagi memilih v1 *atau* v2 lewat satu saklar (`orchestrator.py` ~775); aturan kedua jenis rencana
+    tersedia, dan AI memilih jenis rencana sesuai hipotesisnya;
+  - alat rencana menerima kedua skema (v1 dan v2) dengan penanda jenis;
+  - kelanjutan rencana (persetujuan, revisi) menangani keduanya. `mode4.py` sudah meneruskan kelanjutan non-v2 ke
+    orchestrator (~186), yang perlu dicek dan dites;
+  - rujukan `finding.<hypothesis_id>` untuk temuan v1.
+- **sandbox:** penyelesaian sudah menangani v1 (`dataneed_service.py` ~785) di samping grup v2 (~773). Yang dicek dan
+  dites: keduanya aktif bersamaan (`PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED` dan `PY_SANDBOX_RESEARCH_FINDINGS_ENABLED`
+  menyala di dev) tanpa saling menolak.
+- **Mode 4:** langkah B saat ini selalu membuat rencana v2. Kapan langkah B atau D memakai v1 (G3) mengikuti router
+  mode 4 (`MODE4_CONVERSATION_PLAN.md`). Untuk tahap ini, G3 tersedia di mode RESEARCH dan bisa dipilih AI di langkah
+  B. Detailnya ditetapkan saat implementasi dan dicatat.
+
+**Isi eksperimen G3** (rencana v1 yang ada, tidak memakai perpustakaan metode):
+- hipotesis, tujuan, kondisi, outcome, pembanding (teks bebas);
+- arah yang diharapkan, horizon, satuan outcome, efek minimum, definisi sukses, kebijakan koreksi, holdout opsional;
+- anggaran Research Governor: maksimal 4 hipotesis, 6 eksperimen, 5 tindak lanjut per hipotesis (kebijakan
+  `PY_SANDBOX_RESEARCH_MAX_*`).
+
+**Eksekusi:**
+- AI membangun event dan pembanding dengan Python bebas, atau dari tabel event G2.
+- AI memanggil `saniti.event_summary(...)`.
+- Harness menghitung ulang statistik dari agregat per tanggal (`research_findings` v1 + `research_stats`).
+- Label hasil: **STATISTICS_VERIFIED** (rumus buatan AI tidak dicek, ditulis jelas).
+
+## 4b. Bagaimana AI tahu alat apa saja yang ada (keputusan user: lewat `get_system_capabilities`)
+
+**Kondisi sekarang (dicek di kode):**
+- `get_system_capabilities` (orc `app/tools/system.py`) hanya mengembalikan tanda ya/tidak per kemampuan
+  (`catalog_discovery`, `python_analysis`, …) dan **daftar nama alat**. Tidak ada metode analisis, helper sesi, event
+  study, jalur hipotesis, maupun kapan memakainya.
+- AI mengetahui helper sesi dari hasil `open_analysis_session` (daftar tanda tangan fungsi, `app/sessions.py`
+  `HELPERS`), ditambah `event_summary` di `extra_helpers`. Itu hanya nama; aturan pakainya ada di prompt riset v1, yang
+  sekarang mati.
+- AI mengetahui metode G4 dari `get_research_library`, dan hanya saat menyusun rencana riset.
+
+**Perubahan:** `get_system_capabilities` mengembalikan bagian baru `analysis_methods`, **dibangkitkan dari registri
+kode**, bukan ditulis tangan:
+- helper sesi (dari daftar helper sandbox lewat `GET /v1/runtime`), masing-masing dengan satu kalimat kegunaan dari
+  docstring-nya;
+- G2 `event_study`: kegunaan, tempat dipakai (sesi analisis dan riset), dan label pemeriksaannya;
+- G3 rencana v1 dan G4 rencana v2: kapan dipakai, label pemeriksaan, batas anggaran;
+- metode G4 (ringkas, rinciannya tetap di `get_research_library`);
+- tingkat pemeriksaan tiap jalur (tabel di `FACTOR_EVENT_RESEARCH_PLAN.md` 2c).
+
+Ini sejalan dengan `VALUE_DICTIONARY_PLAN.md` 5.4c: `get_system_capabilities` dijalankan sistem di awal setiap run,
+jadi AI selalu melihat daftar ini. Ada test konsistensi: setiap helper atau metode yang terdaftar di kode muncul di
+`analysis_methods`, dan sebaliknya.
+
+## 4c. Istilah G1–G4 (disepakati 2026-10-02)
+
+| Istilah | Arti |
+|---|---|
+| **G1** | **AI bebas memakai sandbox**: menulis kode Python/SQL sendiri (`run_python`) di mode ANALYSIS maupun RESEARCH. Yang dicek hanya asal angka dan cakupan data, bukan rumusnya (S23). Worker statistik lama (`market-analytics-worker`, dihapus) adalah bentuk lama dari pola yang sama. |
+| **G2** | Event study (helper + pemeriksa independen) |
+| **G3** | Uji hipotesis bebas (rencana v1 + `event_summary`) |
+| **G4** | Riset multi-angle (rencana v2 + perpustakaan metode) |
 
 ## 5. Bagaimana G2, G3, G4 saling melengkapi (contoh)
 
@@ -167,7 +193,8 @@ Saklar pikiran (`AI_CAPTURE_REASONING`) menyala, supaya kesalahan bisa ditelusur
 
 1. S21 + P22 (kecil; sandbox dan orc).
 2. **G2-A:** helper `event_study` + pemeriksa independen + CI per tanggal (sandbox), lalu render dan label (orc).
-3. **G3:** `experiments` di rencana v2 (orc), lalu governance dan evaluasi di grup (sandbox).
+3. **G3:** rencana v1 berdampingan dengan v2 (orc: prompt, skema, kelanjutan; sandbox: keduanya aktif bersamaan).
+3b. **`get_system_capabilities` + `analysis_methods`** (bagian 4b), sebelum uji live.
 4. Uji live singkat G2 dan G3 masing-masing sendiri, lalu bersama (saklar pikiran menyala).
 5. **Golden test 5 soal.**
 6. Sesudahnya, sesuai hasil golden test: G2-B (jalur event, return abnormal), S20, router mode 4, minimal 4 hipotesis.
@@ -184,8 +211,8 @@ Setiap langkah:
 | Risiko | Penjelasan non-dev | Mitigasi |
 |---|---|---|
 | Kode lama tidak cocok dengan data sekarang | Validator G2 dibuat untuk Analysis Spec (nama dataset, manifest lama) | Yang diangkat hanya logika hitung ulang; masukannya dari bundle DataNeed seperti `research_validation.py`; test dengan data sintetis dan data dev |
-| G2 dan G3 bertabrakan di satu rencana | Dua jenis uji di satu sesi | Satu envelope temuan, ID terpisah (`angle_id` vs `hypothesis_id`), test rencana campuran |
-| Rencana jadi lebih rumit untuk AI | Skema v2 ditambah `experiments` | `experiments` opsional; prompt dibangkitkan dari skema; diukur lewat golden test |
+| Dua jenis rencana membingungkan AI | AI memilih v1 atau v2 dengan salah | Aturan kapan memakai masing-masing di `analysis_methods`; pilihan AI dicatat dan diukur di golden test |
+| Prompt lebih panjang | Aturan v1 dan v2 sama-sama dimuat | Aturan dipadatkan; ukuran prompt dan waktu diukur |
 | G3 tetap tidak mengecek rumus AI | Event buatan AI bisa salah | Label STATISTICS_VERIFIED tertulis di jawaban; AI dianjurkan memakai tabel event G2 (yang dicek) sebagai dasar G3 |
 | Uji makin banyak, peluang kebetulan naik | G2 + G3 + G4 dalam satu rencana | Koreksi menghitung semua uji di rencana; holdout |
 | Golden test terlalu kecil | 5 soal bukan ukuran statistik akurasi | Disebut sebagai baseline awal; soal ditambah setelah fitur berikutnya |
@@ -193,7 +220,6 @@ Setiap langkah:
 
 ## 10. Keputusan yang diminta dari user
 
-1. G3 masuk sebagai `experiments` di rencana v2 (satu rencana untuk G3 dan G4, usulan), atau tetap jalur rencana
-   v1 terpisah?
-2. G2 tersedia di sesi analisis tanpa rencana riset (usulan), atau hanya di riset?
+1. ~~G3 sebagai `experiments` di v2 atau jalur terpisah~~: **terpisah** (keputusan user 2026-10-02).
+2. ~~Ketersediaan G2~~: AI mengetahui dan memakai alat lewat `get_system_capabilities` (bagian 4b).
 3. Lima soal golden test di bagian 7 cukup, atau ada soal yang ingin diganti?
