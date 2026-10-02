@@ -113,3 +113,44 @@ bawaan (papan Nego, bukan Reguler), lalu pertanyaan lanjutan.
   - tidak ada klaim "konsisten" yang keliru.
 
 Ditambah g6 (ambang sukses ≥ 3%, H2) dan pengulangan g1 (H3).
+
+## Pembanding (benchmark) untuk H1 dan H2: masalah percakapan multi-giliran (2026-10-02)
+
+| Sumber | Temuannya | Dibanding usulan kita |
+|---|---|---|
+| Laban dkk., "LLMs Get Lost in Multi-Turn Conversation" (ICLR 2026) | Semua model teratas rata-rata 39% lebih buruk di percakapan multi-giliran. Penyebab utamanya ketidakandalan (+112%), bukan kemampuan. Model membuat asumsi di awal dan tidak pulih. | Sama dengan M63: AI menebak "papan Reguler" lalu yakin. Usulan 1 (jawaban lengkap di riwayat) membantu, tetapi menurut temuan ini memberi lebih banyak teks saja tidak cukup andal. |
+| Dialogue state tracking / structured state | Keadaan percakapan disimpan sebagai isian terstruktur. Kalau keadaan disimpulkan ulang dari transkrip setiap giliran, hasilnya bergeser saat riwayat dipotong atau dikoreksi. | Usulan 2 dan 4 memakai prinsip ini. Kekurangan usulan awal: definisi tabel berupa teks bebas tulisan AI. Diperbaiki menjadi isian terstruktur (filter, periode, cakupan, ambang). |
+| Anthropic, "Effective context engineering" | Catatan terstruktur di luar konteks, dipanggil lagi saat perlu. Saat meringkas, utamakan tidak ada yang hilang, baru dirampingkan. | Catatan data kita sudah ada, tetapi tidak menyimpan definisi hasil dan dipotong 8.000 karakter. Definisi harus termasuk bagian yang tidak pernah dipotong. |
+| Agen dengan state bertipe dan persetujuan manusia (LangGraph) | Nilai yang disetujui disimpan sebagai field bertipe. Eksekusi membaca field itu, bukan teks rencana. | Sama dengan usulan H2. Dipertegas: backend sendiri yang memasang ambang ke mesin hitung, sehingga AI tidak bisa lupa atau mengubahnya. |
+
+### Usulan yang disesuaikan setelah pembanding
+
+- **H1-a. Riwayat lengkap:** riwayat menyimpan isi, asumsi, batasan dan metodologi. Tetap dikerjakan karena murah,
+  tetapi bukan perlindungan utama.
+- **H1-b. Definisi terstruktur, diturunkan bila bisa:**
+  - Filter yang dipasang di permintaan data (cakupan) sudah tercatat otomatis oleh backend. AI diarahkan dan didorong
+    memasang filter di permintaan data, bukan di kode.
+  - Filter yang tetap dipasang di kode wajib dinyatakan sebagai isian terstruktur saat tabel dirilis:
+    - filter: kolom, operator, nilai;
+    - periode;
+    - cakupan entitas;
+    - ambang.
+- **H1-c.** Pertanyaan lanjutan mulai dari tabel yang dijelaskan (tidak berubah).
+- **H1-d. Cek konsistensi mekanis:** definisi terstruktur tabel asal dan tabel penjelasan dibandingkan oleh backend.
+  Kalimat "konsisten dengan sebelumnya" hanya boleh bila hasilnya sama.
+- **H1-e. Bila definisi lama tidak diketahui:** AI wajib membuka tabel asal atau bertanya, tidak boleh menebak
+  (menjawab temuan Laban soal asumsi dini).
+- **H2. Rencana yang disetujui = kontrak bertipe:**
+  - ambang sukses dan efek minimal dibaca mesin hitung langsung dari rencana yang disetujui;
+  - argumen berbeda yang dikirim AI ditolak;
+  - laporan menampilkan aturan yang dipakai mesin.
+
+Yang tidak dicakup pembanding dan tetap kita tambahkan: bukti agregat per klaim (prioritas 2). Pembanding hanya
+membahas menjaga informasi, bukan memeriksa angka.
+
+Sumber:
+- [Laban dkk., LLMs Get Lost In Multi-Turn Conversation](https://www.alphaxiv.org/abs/2505.06120)
+- [A State-Update Prompting Strategy for Multi-turn Dialogue](https://arxiv.org/pdf/2509.17766)
+- [Dialogue state tracking](https://www.usefini.com/glossary/what-is-dialogue-state-tracking-dst)
+- [Anthropic: Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
+- [LangGraph Graph API (state and reducers)](https://docs.langchain.com/oss/python/langgraph/graph-api)
