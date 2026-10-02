@@ -98,3 +98,52 @@ def test_without_the_flag_event_summary_is_not_pre_bound_and_the_old_floor_appli
             "spec": ytd_spec(mode="RESEARCH"), "research_governance": GOVERNANCE}
     result = client.post("/v1/data-needs", json=body, headers=HEADERS).json()
     assert result["research_governance"]["reason_code"] == "MINIMUM_SAMPLE_TOO_LOW"
+
+
+# G3 (2026-10-02): the hypothesis plan runs beside Multi-Angle Research, and an event study (G2) can feed it
+
+CHAINED = """
+banks = load('stock_classification')
+study = event_study('prices', 'close / lag(close, 1) - 1 <= -0.01', {'forward_return': 'close'}, 1, name='drops',
+                    min_events=1)
+result = event_summary(study['events'], study['baseline'], hypothesis_id='bank_gain', outcome_column='outcome',
+                       date_column='date')
+print(len(study['events']), len(study['baseline']), result['verdict'])
+"""
+
+
+def test_a_hypothesis_plan_runs_beside_multi_angle_research_and_takes_an_event_studys_rows(make_service,
+                                                                                           governor) -> None:
+    governor.catalog = data_need_catalog()
+    service = make_service(start=False, PY_SANDBOX_DATANEED_ENABLED="true",
+                           PY_SANDBOX_RESEARCH_FINDINGS_ENABLED="true",
+                           PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED="true")
+    client = TestClient(create_app(service.settings, service=service, run_workers=False))
+    env = {"api": client, "governor": governor, "dataneed": client.app.state.dataneed, "service": service}
+    try:
+        runtime = client.get("/v1/runtime", headers=HEADERS).json()
+        assert runtime["research_findings"]["enabled"] is True
+        assert runtime["multi_angle_research"]["enabled"] is True
+        body = {"request_id": "req_bundle_1", "reference_time": REFERENCE, "timezone": "Asia/Jakarta",
+                "spec": ytd_spec(mode="RESEARCH"), "research_governance": GOVERNANCE}
+        result = client.post("/v1/data-needs", json=body, headers=HEADERS).json()
+        assert result["status"] == "APPROVED" and result["research_governance"]["decision"] == "APPROVED", result
+        need = env["dataneed"].get_need(result["need_id"])
+        bundle = build(env, need, ytd_parts(env, need)).json()
+        opened = client.post("/v1/sessions", json={"request_id": "req_bundle_1",
+                                                   "bundle_id": bundle["input_bundle_id"]}, headers=HEADERS).json()
+        env["session_id"] = opened["session_id"]
+        executed = run(env, CHAINED)
+        assert executed["status"] == "OK", executed
+        events, baseline, verdict = executed["stdout"].split()[:3]
+        assert int(events) > 0 and int(baseline) > int(events)
+        done = complete(env)
+        assert done["status"] == "COMPLETED", done
+        final = done["final_status"]
+        [finding] = final["research_findings"]
+        assert finding["hypothesis_id"] == "bank_gain" and finding["verdict"] == verdict
+        assert final["event_studies"][0]["status"] == "PASS"
+        # the research findings are recomputed statistics (v1), the event study tables a recomputed formula
+        assert "research_group" not in final and final["calculation_validation"] == "PARTIAL"
+    finally:
+        env["dataneed"].sessions.stop()

@@ -38,6 +38,7 @@ def build_default_registry(
     session_timeout_seconds: float = 180.0,
     standard_period_return: bool = False,
     event_study: bool = False,
+    hypothesis_plan: bool = False,
     catalog_discovery_v2: bool = False,
     plan_feasibility: bool = False,
     composite_keys: bool = False,
@@ -114,9 +115,10 @@ def build_default_registry(
                                           event_study=event_study):
                     registry.register(spec)
                 multi_angle_active = multi_angle is not None and plan_feasibility and composite_keys
-                if plan_feasibility and not multi_angle_active:
+                if plan_feasibility and (not multi_angle_active or hypothesis_plan):
                     # validation plus one estimate-only Governor call per extraction envelope (with Multi-Angle
-                    # Research check_research_feasibility replaces it, so the model sees one plan check)
+                    # Research check_research_feasibility replaces it, so the model sees one plan check; G3: a
+                    # hypothesis plan beside it still checks its DataNeedSpec here)
                     registry.register(feasibility_spec(
                         sandbox_client, ExecutionPlanner(sandbox_client, governor_client, preflight=preflight_parts,
                                                          limits=bundle_limits,

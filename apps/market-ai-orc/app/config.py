@@ -107,6 +107,8 @@ class Settings:
     ai_enable_standard_period_return: bool = False
     # G2 (2026-10-02): run_python and complete_analysis describe saniti.event_study and its backend recalculation
     ai_enable_event_study: bool = False
+    # G3 (2026-10-02): the hypothesis plan (research plan v1, findings v1) beside the multi-angle plan
+    ai_enable_hypothesis_plan: bool = False
     # OpenRouter provider routing for the agent's model calls: provider.sort "price", "throughput" or "latency". Unset
     # keeps OpenRouter's default load balancing, which is weighted to the lowest price.
     ai_provider_sort: str | None = None
@@ -285,6 +287,7 @@ class Settings:
             ai_research_plan_ttl_seconds=_integer(env, "AI_RESEARCH_PLAN_TTL_SECONDS", 3600, minimum=60),
             ai_enable_standard_period_return=_boolean(env, "AI_ENABLE_STANDARD_PERIOD_RETURN", False),
             ai_enable_event_study=_boolean(env, "AI_ENABLE_EVENT_STUDY", False),
+            ai_enable_hypothesis_plan=_boolean(env, "AI_ENABLE_HYPOTHESIS_PLAN", False),
             ai_provider_sort=(env.get("AI_PROVIDER_SORT") or "").strip().lower() or None,
             ai_log_provider=_boolean(env, "AI_LOG_PROVIDER", False),
             ai_final_contract_in_prompt=_boolean(env, "AI_FINAL_CONTRACT_IN_PROMPT", False),

@@ -412,8 +412,8 @@ def event_study(request: str, event: str, outcome: dict[str, Any], horizon: int,
 
     Emits two tables: <name> (one row per segment: event_count, effective_event_dates, mean, median, hit_rate,
     baseline_*, delta_mean with its CI and p-value from per-date clusters, censored_count, overlapping_dropped,
-    meets_min_events) and <name>_events (date, entity, outcome of every kept event). Returns the summary and the
-    output metadata."""
+    meets_min_events) and <name>_events (date, entity, outcome of every kept event). Returns the summary, the output
+    metadata and the events and baseline rows as frames (date, entity, outcome)."""
     import pandas as pd
     import event_study as ES
     import research_inputs
@@ -481,6 +481,8 @@ def event_study(request: str, event: str, outcome: dict[str, Any], horizon: int,
     _log({"call": "event_study", "data_request_id": r["data_request_id"], "name": label,
           "events": int(summary[0]["event_count"] or 0)})
     return {"name": label, "summary": summary, "parameters": params, "outputs": [table, kept],
+            # G3: the same events and baseline as frames, e.g. for event_summary(events, baseline, ...)
+            "events": events, "baseline": ES.baseline_rows(canonical, params),
             "validation": "Recomputed independently by the backend at complete_analysis; a match is labelled "
                           "CALCULATION_VERIFIED, a difference fails completion (CALCULATION_MISMATCH)."}
 

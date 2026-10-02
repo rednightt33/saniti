@@ -351,6 +351,12 @@ Saklar pikiran (`AI_CAPTURE_REASONING`) menyala, supaya kesalahan bisa ditelusur
    - orc menjelaskan helper ke AI hanya dengan saklar `AI_ENABLE_EVENT_STUDY` (default mati), dinyalakan di dev pada
      langkah 6; label CALCULATION_VERIFIED mengikuti hasil sandbox apa pun saklarnya.
 3. **G3:** rencana v1 berdampingan dengan v2 (orc: prompt, skema, kelanjutan; sandbox: keduanya aktif bersamaan).
+   *Selesai di branch, belum di-deploy.* Keputusan implementasi (dicatat sesuai bagian 4):
+   - saklar `AI_ENABLE_HYPOTHESIS_PLAN` (default mati), hanya aktif bila riset multi-angle, temuan v1 dan
+     `check_data_feasibility` tersedia;
+   - mode 4 langkah B/D tetap rencana multi-angle (G4); G3 dipilih AI di mode RESEARCH/AUTO; arah bebas G1–G4 di
+     mode 4 datang lewat router langkah 5;
+   - event study mengembalikan frame event dan pembanding, jadi G2 langsung menjadi masukan `event_summary` (G3).
 4. **Menu, manual dan contoh** (4b-3): `analysis_methods`, `get_method_guide`, kartu manual G1–G4 dan helper.
 5. **Percakapan multi-giliran** (4d), dikerjakan bersama router `MODE4_CONVERSATION_PLAN.md`:
    - state lintas giliran: temuan (E1), manual, buku percobaan, rencana tertunda;

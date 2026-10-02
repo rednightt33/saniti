@@ -474,6 +474,10 @@ or INSUFFICIENT sample as possible anomalies, not as a pattern; a
 pattern is never a cause, a prediction or a trading signal. The answer
 field tells the user the findings in their language, with the sample
 category and what it means."""
+# G3: beside the multi-angle findings, a hypothesis plan's answer carries the experiment form
+HYPOTHESIS_FINDINGS_CONTRACT = ("For an ANSWER that rests on a completed hypothesis plan, research_findings has one "
+                                "entry per experiment instead (hypothesis_id, the backend verdict unchanged, "
+                                "interpretation with answer, evidence, usefulness and follow_up). ")
 RESEARCH_FINDINGS_CONTRACT = ("research_findings: for an ANSWER that rests on completed research experiments, one "
                               "entry per experiment (hypothesis_id, the backend verdict unchanged, interpretation "
                               "with answer, evidence, usefulness and follow_up); otherwise null. ")
@@ -589,6 +593,71 @@ the data could not distinguish an effect. Use supported wording only for
 a SUPPORTED or PARTIALLY_SUPPORTED angle. Cite only figures that
 complete_research_run returned, the confidence level included. A pattern
 is never a cause, a prediction or a trading signal."""
+# G3 (AI_ENABLE_HYPOTHESIS_PLAN, user decision 2026-10-02): the hypothesis plan (research plan v1 with findings v1)
+# beside the multi-angle plan, as a separate path the model chooses per question. It replaces the last sentence of the
+# multi-angle rules, which refuses every RESEARCH data need.
+MULTI_ANGLE_ONLY_SENTENCE = ("A data need in mode RESEARCH is refused: research runs only through an approved "
+                             "multi-angle plan.")
+HYPOTHESIS_PLAN_RULES = """
+
+RESEARCH PLAN CONFIRMATION: HYPOTHESIS PLAN
+The second kind of Research Plan tests hypotheses you formulate
+yourself from the question and the data, not limited to the research
+library: one to four experiments, each one hypothesis (a condition, an
+outcome and a baseline you define). Choose it for a few specific
+condition -> outcome hypotheses you can build in Python; choose the
+multi-angle plan to examine one root hypothesis with library methods.
+Never mix the two in one plan.
+1. Before the user approved it, do not call submit_data_need_spec,
+prepare_data_bundle or any session tool for it. You may read the
+catalog. Call check_data_feasibility with the DataNeedSpec the plan
+will need (no research_governance) and present the plan only after a
+FEASIBLE check; when the check cannot pass, return LIMITATION naming
+what is missing and the alternatives.
+2. Return RESEARCH_PLAN_CONFIRMATION with research_plan in its
+experiment form: the objective, the universe and time scope in plain
+words, the analysis frequency, and the experiments, each with its
+hypothesis_id, hypothesis, objective, condition, outcome, baseline,
+candidate_count, pairwise_comparisons, multiple_testing_policy, whether
+a holdout is required and the minimum sample; then assumptions,
+limitations and a confirmation_question. No table names, SQL or Python
+in the plan. answer presents the plan and asks to approve, revise or
+cancel it. Only the application tells you that a plan was approved.
+3. After approval, each RESEARCH data need copies research_governance
+from its approved experiment: hypothesis_id, hypothesis, objective,
+condition, outcome, baseline and multiple_testing_policy exactly;
+candidate_count and pairwise_comparisons at most the approved values;
+minimum_sample at least the approved value in the same unit; a holdout
+when the plan requires one. Any other change needs a revised plan and a
+new approval.
+4. The events and the baseline rows may come from your own code or from
+an event study (its events and baseline frames). The backend recomputes
+the statistics from the rows you pass to event_summary
+(STATISTICS_VERIFIED); it does not check how you built those rows, so
+the answer says the condition was built by the analysis code."""
+DUAL_RESEARCH_SENTENCE = ("A data need in mode RESEARCH is accepted only for an approved hypothesis plan (below); a "
+                          "multi-angle plan runs only through start_research_run.")
+DUAL_FINDING_REFERENCE = ("{{finding.<angle_id>.<path>}} a backend finding of complete_research_run,",
+                          "{{finding.<angle_id>.<path>}} a backend finding of complete_research_run (a hypothesis "
+                          "plan's finding of complete_analysis is {{finding.<hypothesis_id>.<path>}}, for example "
+                          "angle_a.difference, angle_a.ci_low, sample.effective),")
+
+
+def _without_sentence(text: str, sentence: str, replacement: str) -> str:
+    """text with one sentence replaced, matched across the prompt's line breaks."""
+    pattern = r"\s+".join(re.escape(word) for word in sentence.split())
+    new, count = re.subn(pattern, lambda _: replacement, text)
+    if count != 1:
+        raise ValueError(f"expected the sentence once in the rules, found it {count} times")
+    return new
+
+
+def _dual_references(rules: str) -> str:
+    """VALUE REFERENCES with the hypothesis plan's findings named beside the angles'."""
+    old, new = DUAL_FINDING_REFERENCE
+    if old not in rules:
+        raise ValueError("the finding reference line changed")
+    return rules.replace(old, new)
 # AI_ENABLE_VALUE_REFERENCES (P11, user decision 2026-09-30): data figures are written as references the backend fills
 # in, and each angle's status, evidence and statistics are rendered from the backend's finding (#15)
 VALUE_REFERENCE_RULES = """
@@ -739,14 +808,20 @@ def schema_skeleton(schema: dict[str, Any]) -> str:
 
 
 def final_contract_block(contract: str, plan_confirmation: bool, research_findings: bool = False,
-                         multi_angle: bool = False) -> str:
+                         multi_angle: bool = False, dual: bool = False) -> str:
     """The final-response contract for the system prompt (AI_FINAL_CONTRACT_IN_PROMPT). Tool turns carry no output
     schema, so without it a finished run often answered in prose first and was re-asked for JSON (the 2026-09-26
     stress test: 15% of model time and 20% of cost). With Research Plan confirmation it adds the plan's exact field
     form, generated from the ResearchPlan model, so a plan validates the first time. It contains no digits: numbers
     in the system prompt count as sources for the provenance check."""
     block = FINAL_CONTRACT_PREFIX + contract
-    if plan_confirmation and multi_angle:
+    if plan_confirmation and multi_angle and dual:
+        # G3: the two plan forms, each with its own field rules
+        block += ("\nresearch_plan has exactly one of two forms. The multi-angle plan: "
+                  + schema_skeleton(strict_parameters_schema(ResearchPlanV2)) + "\n" + MULTI_ANGLE_FIELD_RULES
+                  + "\nThe hypothesis plan: " + schema_skeleton(strict_parameters_schema(ResearchPlanFindings))
+                  + "\n" + PLAN_FIELD_RULES)
+    elif plan_confirmation and multi_angle:
         block += ("\nresearch_plan has exactly this form: " + schema_skeleton(strict_parameters_schema(ResearchPlanV2))
                   + "\n" + MULTI_ANGLE_FIELD_RULES)
     elif plan_confirmation:
@@ -765,7 +840,8 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
                         methodology: bool = False, plan_feasibility: bool = False,
                         point_in_time: bool = False, derived_frequency: bool = False,
                         research_findings: bool = False, multi_angle: bool = False,
-                        angle_limits: tuple[int, int, int] = (2, 6, 0), value_references: bool = False) -> str:
+                        angle_limits: tuple[int, int, int] = (2, 6, 0), value_references: bool = False,
+                        hypothesis_plans: bool = False) -> str:
     """The system prompt for the registered tools. It is fixed for a deployment (AI_ENABLE_LOOKUP_FACT,
     AI_ENABLE_DATANEED, AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION, AI_ENABLE_STANDARD_PERIOD_RETURN,
     AI_FINAL_CONTRACT_IN_PROMPT), so every call of every run shares one byte-identical cacheable prefix. With the
@@ -774,14 +850,22 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
     template = SYSTEM_PROMPT_TEMPLATE
     # Multi-Angle Research replaces the Research Plan, plan feasibility and findings rules (it needs all three flows)
     multi_angle = multi_angle and dataneed and plan_confirmation and plan_feasibility
+    # G3: the hypothesis plan beside the multi-angle plan (needs research findings v1 for its verdicts)
+    dual = hypothesis_plans and multi_angle and research_findings
     if multi_angle:
         common, _ = SYSTEM_PROMPT_TEMPLATE.split("DATA QUERY RULES\n", 1)
-        template = common + DATANEED_RULES + MULTI_ANGLE_PLAN_RULES \
+        plan_rules = MULTI_ANGLE_PLAN_RULES
+        if dual:
+            plan_rules = _without_sentence(plan_rules, MULTI_ANGLE_ONLY_SENTENCE, DUAL_RESEARCH_SENTENCE) \
+                + HYPOTHESIS_PLAN_RULES
+        template = common + DATANEED_RULES + plan_rules \
             + (PERIOD_RETURN_RULES if period_return else "") + (CATALOG_PROTOCOL_RULES if catalog_protocol else "") \
             + (CONVERSATION_REUSE_RULES if conversation_reuse else "") + (METHODOLOGY_RULES if methodology else "") \
             + (POINT_IN_TIME_RULES if point_in_time else "") + (DERIVED_FREQUENCY_RULES if derived_frequency else "") \
             + (MULTI_ANGLE_FINDINGS_RULES_REFS if value_references else MULTI_ANGLE_FINDINGS_RULES) \
-            + (VALUE_REFERENCE_RULES if value_references else "")
+            + (RESEARCH_FINDINGS_RULES if dual else "") \
+            + (_dual_references(VALUE_REFERENCE_RULES) if dual and value_references
+               else VALUE_REFERENCE_RULES if value_references else "")
     elif dataneed:
         common, _ = SYSTEM_PROMPT_TEMPLATE.split("DATA QUERY RULES\n", 1)
         template = common + DATANEED_RULES + (RESEARCH_PLAN_RULES if plan_confirmation else "") \
@@ -794,9 +878,9 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
     if final_contract:
         # plan_confirmation and methodology reach here only together with dataneed (see AgentOrchestrator.__init__)
         contract = response_contract(plan_confirmation, methodology, research_findings, multi_angle,
-                                     value_references)
+                                     value_references, dual)
         template = template.replace(STRICT_SCHEMA_LINE, final_contract_block(contract, plan_confirmation,
-                                                                             research_findings, multi_angle))
+                                                                             research_findings, multi_angle, dual))
     # Multi-Angle Research: the negotiated angle limits (AI_RESEARCH_MIN_ANGLES / MAX_ANGLES / MIN_FAMILIES), in words
     low, high, families = angle_limits
     families_rule = (f" The angles use at least {NUMBER_WORDS[families]} of the five method families."
@@ -979,7 +1063,7 @@ METHODOLOGY_CONTRACT = ("methodology: for an ANSWER or LIMITATION that rests on 
 
 
 def response_contract(plan_confirmation: bool, methodology: bool = False, research_findings: bool = False,
-                      multi_angle: bool = False, value_references: bool = False) -> str:
+                      multi_angle: bool = False, value_references: bool = False, dual: bool = False) -> str:
     """The final-response contract text: RESPONSE_CONTRACT, with the Research Plan, methodology and research findings
     fields when on (Multi-Angle Research: the per-angle findings)."""
     contract = PLAN_RESPONSE_CONTRACT if plan_confirmation else RESPONSE_CONTRACT
@@ -989,6 +1073,7 @@ def response_contract(plan_confirmation: bool, methodology: bool = False, resear
     if multi_angle and plan_confirmation:
         contract = contract.replace("The output format is already defined",
                                     (ANGLE_NARRATIVE_CONTRACT if value_references else ANGLE_FINDINGS_CONTRACT)
+                                    + (HYPOTHESIS_FINDINGS_CONTRACT if dual else "")
                                     + "The output format is already defined")
     elif research_findings and plan_confirmation:
         contract = contract.replace("The output format is already defined", RESEARCH_FINDINGS_CONTRACT
@@ -1525,8 +1610,18 @@ class AgentOrchestrator:
         self.point_in_time = submit is not None and "time_basis" in submit.arguments_model.model_fields
         # research findings v1: active when the registered submit_data_need_spec declares the findings values
         # (AI_ENABLE_RESEARCH_FINDINGS and the sandbox capability, checked at startup) and plans are confirmed
-        self.research_findings = submit is not None and self.plan_confirmation \
-            and submit.arguments_model.__name__.endswith("Findings") and not self.multi_angle
+        findings_v1 = submit is not None and self.plan_confirmation \
+            and submit.arguments_model.__name__.endswith("Findings")
+        # G3 (user decision 2026-10-02): the hypothesis plan (v1 with findings v1) beside the multi-angle plan; it
+        # needs the findings capability and check_data_feasibility registered next to check_research_feasibility
+        self.hypothesis_plans = settings.ai_enable_hypothesis_plan and self.multi_angle and findings_v1 \
+            and "check_data_feasibility" in names
+        if settings.ai_enable_hypothesis_plan and not self.hypothesis_plans:
+            log_event("hypothesis_plan_inactive", reason="needs Multi-Angle Research, research findings v1 and "
+                                                         "check_data_feasibility")
+        if self.hypothesis_plans:
+            self.plan_tools = self.plan_tools | {"check_data_feasibility"}
+        self.research_findings = findings_v1 and (not self.multi_angle or self.hypothesis_plans)
         # caller-chosen path: a request may fix ANALYSIS or RESEARCH (both need the DataNeed flow and plan confirmation)
         self.analysis_path = settings.ai_enable_analysis_path and submit is not None and self.plan_confirmation
         if settings.ai_enable_analysis_path and not self.analysis_path:
@@ -1543,11 +1638,11 @@ class AgentOrchestrator:
                                                  (int(self.research_limits.get("min_angles", 2)),
                                                   int(self.research_limits.get("max_angles", 6)),
                                                   int(self.research_limits.get("min_families") or 0)),
-                                                 self.value_references)
+                                                 self.value_references, self.hypothesis_plans)
         self.final_schema = final_response_schema(self.plan_confirmation, self.methodology, self.research_findings,
-                                                  self.multi_angle, self.value_references)
+                                                  self.multi_angle, self.value_references, self.hypothesis_plans)
         contract = response_contract(self.plan_confirmation, self.methodology, self.research_findings,
-                                     self.multi_angle, self.value_references)
+                                     self.multi_angle, self.value_references, self.hypothesis_plans)
         self.response_contract = contract
         self.finalize_instruction = FINALIZE_PREFIX + contract
         self.context_budget_instruction = CONTEXT_BUDGET_PREFIX + contract
@@ -1901,8 +1996,8 @@ class AgentOrchestrator:
         verified, verification = None, "VERIFIED"
         is_v2 = isinstance(continuation, ContinuationInV2)
         try:
-            if is_v2 != self.multi_angle:
-                # a v1 plan while Multi-Angle Research is active, or a v2 plan while it is not: never executed
+            if not self._plan_form_runs(is_v2):
+                # a v1 plan while only Multi-Angle Research runs, or a v2 plan while it does not: never executed
                 raise PlanVerificationError("RESEARCH_PLAN_TOKEN_INVALID", "PLAN_VERSION")
             verified = (self.signer_v2 if is_v2 else self.signer).verify(continuation, request.conversation_id)
         except PlanVerificationError as exc:
@@ -2274,7 +2369,7 @@ class AgentOrchestrator:
             refused = self._path_mismatch(state, call_id, name, raw_arguments)
             if refused is not None:
                 return self._repair_budget(state, call_id, name, refused)
-        if self.multi_angle and name == "submit_data_need_spec":
+        if self.multi_angle and not self.hypothesis_plans and name == "submit_data_need_spec":
             arguments = self._normalized_arguments(raw_arguments)
             if isinstance(arguments, dict) and arguments.get("mode") == "RESEARCH":
                 state.research_refusals += 1
@@ -3386,7 +3481,7 @@ class AgentOrchestrator:
         the plan carries no evidence label."""
         assert final.research_plan is not None
         is_v2 = isinstance(final.research_plan, ResearchPlanV2)
-        if is_v2 != self.multi_angle:
+        if not self._plan_form_runs(is_v2, presenting=True):
             self._gate_once(state, "PLAN_VERSION", PLAN_VERSION_INSTRUCTION[self.multi_angle])
             return self._forced(state, final, PLAN_VERSION_NOTICE, ["The Research Plan is not in the form this "
                                                                     "deployment runs."])
@@ -3420,6 +3515,14 @@ class AgentOrchestrator:
                                 [f"Figures without a source in this Research Plan: {numbers}."])
         state.evidence_label = None
         return final
+
+    def _plan_form_runs(self, is_v2: bool, presenting: bool = False) -> bool:
+        """Whether this deployment runs a plan of this form: the multi-angle form with Multi-Angle Research, the
+        experiment form without it, and both with hypothesis plans (G3). Mode 4 sets angle bounds for the plans it
+        proposes, so a plan it presents is multi-angle (its steps count and continue angles)."""
+        if presenting and is_v2 is False and self.multi_angle and current_angle_bounds.get() is not None:
+            return False
+        return is_v2 == self.multi_angle or (self.hypothesis_plans and not is_v2)
 
     def _checked_angle_ids(self, state: RunState, plan: ResearchPlanV2) -> ResearchPlanV2:
         """M49 (2026-10-01, m01 m4b): an angle's id is the key the feasibility check gave its data and design; a plan

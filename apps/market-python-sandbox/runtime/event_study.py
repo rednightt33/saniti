@@ -191,6 +191,18 @@ def summarize(frame, params: dict[str, Any], alpha: float | None = None) -> tupl
     return [{k: E._clean(v) for k, v in row.items()} for row in rows], events
 
 
+def baseline_rows(frame, params: dict[str, Any]):
+    """The baseline rows of a study (date, entity, outcome), for a hypothesis test of the same events (G3:
+    event_summary(events, baseline, ...))."""
+    import pandas as pd
+
+    work = frame.reset_index(drop=True)
+    work = work.assign(date=pd.to_datetime(work["date"]).dt.normalize())
+    eligible, true, _, _, _ = _masks(work, params["horizon"], params["overlap_policy"])
+    chosen = eligible if params["baseline"] == "ALL_ELIGIBLE" else eligible & ~true
+    return work.loc[chosen, list(EVENT_COLUMNS)].reset_index(drop=True)
+
+
 def compare(released, recomputed: list[dict[str, Any]], rtol: float = 1e-9, atol: float = 1e-12
             ) -> list[dict[str, Any]]:
     """The cells of the released summary that differ from the recomputed one (counts exactly, numbers within rtol)."""

@@ -1164,6 +1164,9 @@ the orc describes it to the model only with `AI_ENABLE_EVENT_STUDY`.
     RUN_PYTHON and a message naming the differing cells;
   - INVALID (the record cannot be rebuilt; reason named): the completion is not blocked and the tables are released
     without the label.
+- **Return value.** The summary rows, the output metadata, and `events` and `baseline` as frames (`date`, `entity`,
+  `outcome`), so a hypothesis plan (G3) can pass the same rows to `event_summary(events, baseline, hypothesis_id=...,
+  outcome_column='outcome', date_column='date')`; findings v1 and Multi-Angle Research run in the same deployment.
 - **Release.** The declaration record is released for the audit but left out of `released_outputs` and of the
   conversation resources (the `research_input_` and `research_call_` records are left out of the resources too). A
   read of a released event-study table in a later message carries `origin.calculation_verified`.

@@ -265,6 +265,7 @@ Gate and final-response log events (always on):
 | `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION` | no | `false` | DataNeed flow only: a research question first returns a Research Plan (`RESEARCH_PLAN_CONFIRMATION`, status `AWAITING_CONFIRMATION`) with a backend-signed continuation, and `submit_data_need_spec(mode="RESEARCH")` is refused unless the user approved that plan (see [Research Plan confirmation](#research-plan-confirmation)). Without `AI_ENABLE_DATANEED` it has no effect (logged at startup) |
 | `AI_RESEARCH_PLAN_SIGNING_KEY` | with confirmation (secret) | — | HMAC-SHA256 key of the plan continuation tokens: at least 32 characters, at least 10 distinct, no surrounding whitespace (use a random 64-hex value). The service refuses to start with confirmation on and no usable key. Rotating it invalidates every open plan |
 | `AI_RESEARCH_PLAN_TTL_SECONDS` | no | `3600` | Lifetime of a plan continuation (60–86400) |
+| `AI_ENABLE_HYPOTHESIS_PLAN` | no | `false` | G3: with Multi-Angle Research, research findings v1 and `check_data_feasibility`, the model may also propose a hypothesis plan (research plan v1) beside the multi-angle plan; see [Hypothesis plans beside multi-angle plans](#hypothesis-plans-beside-multi-angle-plans-g3) |
 | `AI_ENABLE_EVENT_STUDY` | no | `false` | DataNeed flow only: `run_python` and `complete_analysis` describe `saniti.event_study` and its backend recalculation (G2); see [Event study labels](#event-study-labels-g2) |
 | `AI_ENABLE_STANDARD_PERIOD_RETURN` | no | `false` | DataNeed flow only: teach the named-period return convention (NAMED-PERIOD RETURNS prompt rule and one `run_python` sentence about `saniti.period_return`); see [Named-period returns](#named-period-returns) |
 | `AI_PROVIDER_SORT` | no | unset | OpenRouter `provider.sort` for every model call: `price`, `throughput` or `latency`. Unset keeps OpenRouter's load balancing (weighted to the lowest price). Setting it turns load balancing off; see [Run-time and cost controls](#run-time-and-cost-controls). **Not used:** the user decided on 2026-09-27 to keep OpenRouter's default routing (`AGENTS.md`) |
@@ -1090,6 +1091,33 @@ calculations were not recomputed; an INVALID study is disclosed. Saying a calcul
 every figure of the answer is CALCULATION_VERIFIED, and is marked as before otherwise. `AI_ENABLE_EVENT_STUDY` only
 adds the description sentences (`EVENT_STUDY_SENTENCE`, `COMPLETE_EVENT_STUDY_SENTENCE` in `app/tools/session.py`);
 the labels follow the sandbox's result whatever the switch.
+
+### Hypothesis plans beside multi-angle plans (G3)
+
+Plan: `G2_G3_REACTIVATION_PLAN.md` section 4 (user decision 2026-10-02: a separate path, not merged into the
+multi-angle plan). Before, `AI_ENABLE_MULTI_ANGLE_RESEARCH` switched the whole research path to plan v2: the v1
+prompt rules, plan form, findings form and `check_data_feasibility` disappeared, a v1 continuation was refused
+(PLAN_VERSION) and every RESEARCH data need was refused (MULTI_ANGLE_PLAN_REQUIRED).
+
+With `AI_ENABLE_HYPOTHESIS_PLAN` (active only when Multi-Angle Research, research findings v1 and
+`check_data_feasibility` are all present; otherwise `hypothesis_plan_inactive` is logged):
+
+- the prompt keeps the multi-angle rules, replaces their "RESEARCH data need is refused" sentence with
+  `DUAL_RESEARCH_SENTENCE`, and adds `HYPOTHESIS_PLAN_RULES` (one to four free hypotheses, checked with
+  `check_data_feasibility`, executed with RESEARCH data needs and `event_summary`, events and baseline from the
+  analysis code or from an event study) and `RESEARCH_FINDINGS_RULES`; VALUE REFERENCES names
+  `finding.<hypothesis_id>`;
+- the final schema accepts both plan forms and both findings forms (`anyOf`), and the contract block shows both
+  skeletons with their field rules;
+- `check_data_feasibility` is registered next to `check_research_feasibility`; both are plan tools;
+- a v1 continuation verifies and an approval runs as before the multi-angle switch (EXECUTE_APPROVED, the RESEARCH
+  data need is matched against the approved experiment by the research guard);
+- mode 4 still proposes multi-angle plans only: while it sets angle bounds, a v1 plan is refused with PLAN_VERSION.
+
+The sandbox needs nothing new: `complete_analysis` already runs findings v1 for a RESEARCH need without governance v2
+and the grouped findings for v2 (`PY_SANDBOX_RESEARCH_FINDINGS_ENABLED` and `PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED`
+together, tested). The findings v1 statistics are STATISTICS_VERIFIED: the backend recomputes them from the rows the
+analysis passes to `event_summary`, not how those rows were built.
 
 ### Reasoning capture (dev measurement, off unless `AI_CAPTURE_REASONING=true`)
 

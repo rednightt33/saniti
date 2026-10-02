@@ -354,19 +354,29 @@ METHODOLOGY_PROPERTY: dict[str, Any] = {
 
 def final_response_schema(research_plan_confirmation: bool, methodology: bool = False,
                           research_findings: bool = False, multi_angle: bool = False,
-                          value_references: bool = False) -> dict[str, Any]:
+                          value_references: bool = False, hypothesis_plans: bool = False) -> dict[str, Any]:
     """FINAL_RESPONSE_SCHEMA, or with Research Plan confirmation the same schema plus RESEARCH_PLAN_CONFIRMATION and a
     required nullable research_plan, and with AI_ENABLE_METHODOLOGY a required nullable methodology; with research
     findings (only together with plan confirmation) the plan's experiments carry the findings values and a required
     nullable research_findings is added. Without the flags the schema is byte-identical to the one before the
     features. Multi-Angle Research (only with plan confirmation) replaces the plan with research_plan/v2 and the
-    findings with one AngleFindingReport per angle."""
+    findings with one AngleFindingReport per angle. G3 (AI_ENABLE_HYPOTHESIS_PLAN, 2026-10-02): with hypothesis_plans
+    beside Multi-Angle Research both plan forms and both findings forms are accepted."""
     multi_angle = multi_angle and research_plan_confirmation
-    schema = _plan_schema(research_plan_confirmation, research_findings and research_plan_confirmation, multi_angle)
+    dual = hypothesis_plans and multi_angle and research_findings
+    schema = _plan_schema(research_plan_confirmation, research_findings and research_plan_confirmation, multi_angle,
+                          dual)
     if methodology:
         schema = {**schema, "properties": {**schema["properties"], "methodology": METHODOLOGY_PROPERTY},
                   "required": [*schema["required"], "methodology"]}
-    if multi_angle:
+    if dual:
+        angles, hypotheses = angle_findings_property(value_references), research_findings_property()
+        schema = {**schema, "properties": {**schema["properties"], "research_findings": {
+            "anyOf": [angles["anyOf"][0], hypotheses["anyOf"][0], {"type": "null"}],
+            "description": "For an ANSWER that rests on completed research: one entry per approved angle of a "
+                           "multi-angle run, or one per experiment of a hypothesis plan; otherwise null."}},
+                  "required": [*schema["required"], "research_findings"]}
+    elif multi_angle:
         schema = {**schema, "properties": {**schema["properties"],
                                            "research_findings": angle_findings_property(value_references)},
                   "required": [*schema["required"], "research_findings"]}
@@ -398,13 +408,14 @@ def angle_findings_property(narrative: bool = False) -> dict[str, Any]:
 
 
 def _plan_schema(research_plan_confirmation: bool, research_findings: bool = False,
-                 multi_angle: bool = False) -> dict[str, Any]:
+                 multi_angle: bool = False, dual: bool = False) -> dict[str, Any]:
     if not research_plan_confirmation:
         return FINAL_RESPONSE_SCHEMA
     from .tools.registry import strict_parameters_schema
 
     plan = strict_parameters_schema(ResearchPlanV2 if multi_angle
                                     else ResearchPlanFindings if research_findings else ResearchPlan)
+    plans = [plan, strict_parameters_schema(ResearchPlanFindings)] if dual else [plan]
     properties = dict(FINAL_RESPONSE_SCHEMA["properties"])
     properties["response_type"] = {
         "type": "string", "enum": ["ANSWER", "CLARIFICATION", "RESEARCH_PLAN_CONFIRMATION", "LIMITATION"],
@@ -414,7 +425,7 @@ def _plan_schema(research_plan_confirmation: bool, research_findings: bool = Fal
             "Plan before any data is used; LIMITATION when a required capability is unavailable."),
     }
     properties["research_plan"] = {
-        "anyOf": [plan, {"type": "null"}],
+        "anyOf": [*plans, {"type": "null"}],
         "description": "The Research Plan for RESEARCH_PLAN_CONFIRMATION (answer renders it for the user); "
                        "otherwise null.",
     }
