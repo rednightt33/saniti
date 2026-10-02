@@ -37,13 +37,19 @@ Pembanding (praktik umum) dicari 2026-10-02; sumbernya di bagian akhir.
 
 - **Masalah:** "kenapa broker teratas paling tinggi?" dijelaskan dengan data papan Reguler saja, padahal ranking di
   giliran 1 menjumlah semua papan.
-- **Akar:**
-  - Terbukti: cakupannya berbeda (baris cakupan kedua jawaban).
-  - Dugaan: tahap INSIGHT membuat permintaan data baru, tidak memuat tabel hasil giliran 1.
-  - Cek yang memastikan: jejak audit giliran 3.
+- **Akar (terbukti 2026-10-02, jejak audit `…-3-m4i` + log pikiran AI):**
+  - Giliran 3 meminta ulang data yang persis sama dengan giliran 1, jadi datanya tidak berbeda.
+  - AI tahu tabel hasil giliran 1 bisa dimuat (`load_output`), tetapi memilih menghitung ulang dari data mentah.
+  - Filter papan Reguler adalah tebakan AI: "analisis sebelumnya mungkin dibatasi ke Regular". Padahal jawaban
+    giliran 1 menyebut semua papan digabung.
+  - Jawaban giliran 3 lalu menulis "agar konsisten dengan jawaban sebelumnya", klaim yang tidak dicek.
+  - Mekanismenya: definisi hasil (filter yang dipasang di kode) tidak tersimpan bersama tabel hasil, sehingga
+    tindak lanjut menebaknya.
 - **Kelas:** setiap tindak lanjut yang menjelaskan hasil sebelumnya (INSIGHT, CLARIFY, "jelaskan angka ini").
 - **Praktik umum:** drill-down di BI mewarisi filter angka yang diklik, jadi cakupannya otomatis sama.
 - **Usulan:**
+  - Setiap tabel hasil menyimpan definisinya: filter, ambang, dan cakupan yang dipakai kode, dinyatakan saat tabel
+    dirilis dan ditampilkan bersama tabelnya.
   - INSIGHT mulai dari tabel hasil yang dijelaskan (`load_output` sudah ada).
   - Backend membandingkan cakupan data penjelasan (tabel, filter, rentang) dengan cakupan tabel yang dijelaskan.
   - Kalau berbeda, jawaban wajib menyebut "definisi berbeda: …" dan labelnya diturunkan.

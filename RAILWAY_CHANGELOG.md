@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-10-02 — orc-test-runner: audit readback for M63 (no questions sent)
+
+- orc-test-runner `31e7e507` `SUCCESS`, `audit_only` with `audit_full_trace`. The scratch suite held only the request
+  id `ma-golden-20261002a-g5_conversation-3-m4i`. No model call and no code change; the repository `suite.json` is
+  unchanged.
+- The orc reasoning log of that request was read from deployment `ece48dd0` (logs only).
+- Result recorded under M63 in `ERRORS_AND_SOLUTIONS.md`. `AUDIT_STORE_READER_KEY` is still set on the runner and is
+  revoked at close-out.
+
 ## 2026-10-02 — G18 summary hints on dev from the branch
 
 The AI is told when a warehouse summary is available. The options are derived from the catalog. Tested locally first:
