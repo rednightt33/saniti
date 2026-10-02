@@ -35,6 +35,11 @@ SUMMARY_COLUMNS = ("segment", "event_count", "event_dates", "effective_event_dat
 COUNT_COLUMNS = ("event_count", "event_dates", "effective_event_dates", "baseline_count", "censored_count",
                  "overlapping_dropped")
 EVENT_COLUMNS = ("date", "entity", "outcome")
+# S27 (golden test 2026-10-02, "2.258 event yang memenuhi syarat" where 3,658 qualified): the flow from the rows in the
+# window to the events used, one row per segment, so an answer quotes each stage instead of deriving it.
+# condition_true = censored + overlapping_dropped + used.
+FLOW_COLUMNS = ("segment", "rows_in_window", "condition_unknown", "condition_true", "censored",
+                "overlapping_dropped", "used")
 # P23 (2026-10-02): the unit of each figure, so the answer shows a fraction as a percent and a percent as it is. The
 # outcome columns are in the declared outcome unit; hit_rate is a share; delta_p_value is a p-value
 OUTCOME_COLUMNS = ("mean", "median", "baseline_mean", "baseline_median", "delta_mean", "delta_ci_low",
@@ -205,6 +210,44 @@ def summarize(frame, params: dict[str, Any], alpha: float | None = None) -> tupl
             "meets_min_events": bool(ev["rows"] >= params["min_events"])})
     events = work.loc[kept, ["date", "entity", "outcome"]].reset_index(drop=True)
     return [{k: E._clean(v) for k, v in row.items()} for row in rows], events
+
+
+def flow(frame, params: dict[str, Any]) -> list[dict[str, Any]]:
+    """The event flow per segment (FLOW_COLUMNS): rows in the window, rows whose condition is unknown, rows meeting
+    the condition (qualifying), then censored (no forward outcome), dropped as overlapping, and used."""
+    import numpy as np
+    import pandas as pd
+
+    work = frame.reset_index(drop=True)
+    work = work.assign(date=pd.to_datetime(work["date"]).dt.normalize())
+    _, true, kept, censored, dropped = _masks(work, params["horizon"], params["overlap_policy"])
+    unknown = np.array([c is None for c in work["condition"].to_numpy(dtype=object)], dtype=bool)
+    segments = [("ALL", np.ones(len(work), dtype=bool))]
+    if params.get("holdout_start"):
+        cut = (work["date"] >= pd.Timestamp(params["holdout_start"])).to_numpy()
+        segments += [("IN_SAMPLE", ~cut), ("OUT_OF_SAMPLE", cut)]
+    return [{"segment": name, "rows_in_window": int(mask.sum()), "condition_unknown": int((unknown & mask).sum()),
+             "condition_true": int((true & mask).sum()), "censored": int((censored & mask).sum()),
+             "overlapping_dropped": int((dropped & mask).sum()), "used": int((kept & mask).sum())}
+            for name, mask in segments]
+
+
+def compare_flow(released, recomputed: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The cells of a released flow table that differ from the recomputed one (counts, exactly)."""
+    by_segment = {r["segment"]: r for r in recomputed}
+    mismatches = [{"table": "flow", "segment": s, "column": "segment", "expected": s, "actual": None}
+                  for s in by_segment if s not in {r.get("segment") for r in released}]
+    for row in released:
+        want = by_segment.get(row.get("segment"))
+        if want is None:
+            mismatches.append({"table": "flow", "segment": row.get("segment"), "column": "segment",
+                               "expected": None, "actual": row.get("segment")})
+            continue
+        for column in FLOW_COLUMNS[1:]:
+            if row.get(column) is None or int(row[column]) != want[column]:
+                mismatches.append({"table": "flow", "segment": row.get("segment"), "column": column,
+                                   "expected": want[column], "actual": row.get(column)})
+    return mismatches
 
 
 def baseline_rows(frame, params: dict[str, Any]):

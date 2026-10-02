@@ -899,8 +899,8 @@ class DataNeedService:
             final["carried_inputs"] = list(used.values())
         if studies is not None and studies["status"] != "NOT_PERFORMED":
             final["event_studies"] = [{k: study.get(k) for k in (
-                "name", "status", "reason", "summary_output_id", "events_output_id", "baseline_output_id", "checked",
-                "mismatched", "examples")} for study in studies["studies"]]
+                "name", "status", "reason", "summary_output_id", "events_output_id", "baseline_output_id",
+                "flow_output_id", "checked", "mismatched", "examples")} for study in studies["studies"]]
             verified = [st["name"] for st in studies["studies"] if st["status"] == "PASS"]
             if passed and grouped is None:
                 final["calculation_validation"] = event_study_validation.level(

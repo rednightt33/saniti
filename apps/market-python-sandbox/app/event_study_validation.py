@@ -72,6 +72,12 @@ def validate(*, bundle: dict[str, Any], path_of, outputs: list[dict[str, Any]], 
         if call.get("baseline_output") and baseline_output is None:
             entry.update(status="FAIL", reason="BASELINE_MISSING")
             continue
+        # S27 (2026-10-02): the flow table is released and recomputed too (a record without one predates it)
+        flow_output = _last(outputs, call["flow_output"]) if call.get("flow_output") else None
+        entry["flow_output_id"] = (flow_output or {}).get("output_id")
+        if call.get("flow_output") and flow_output is None:
+            entry.update(status="FAIL", reason="FLOW_MISSING")
+            continue
         entry["summary_output_id"] = (summary_output or {}).get("output_id")
         if summary_output is None or events_output is None:
             entry.update(status="FAIL", reason="SUMMARY_MISSING" if summary_output is None else "EVENTS_MISSING")
@@ -124,6 +130,8 @@ def validate(*, bundle: dict[str, Any], path_of, outputs: list[dict[str, Any]], 
             released_events = pq.read_table(outputs_root / events_output["relative_path"]).to_pylist()
             released_baseline = pq.read_table(outputs_root / baseline_output["relative_path"]).to_pylist() \
                 if baseline_output is not None else None
+            released_flow = pq.read_table(outputs_root / flow_output["relative_path"]).to_pylist() \
+                if flow_output is not None else None
         except (OSError, ValueError, KeyError):
             entry.update(status="FAIL", reason="TABLE_UNREADABLE")
             continue
@@ -141,7 +149,13 @@ def validate(*, bundle: dict[str, Any], path_of, outputs: list[dict[str, Any]], 
             mismatches += [{"table": "baseline", **m}
                            for m in ES.compare_events(released_baseline, expected_baseline)]
             checked_baseline = len(expected_baseline)
-        entry["checked"] = len(recomputed) * (len(ES.SUMMARY_COLUMNS) - 1) + len(recomputed_events) + checked_baseline
+        checked_flow = 0
+        if released_flow is not None:
+            expected_flow = ES.flow(rebuilt, params)
+            mismatches += ES.compare_flow(released_flow, expected_flow)
+            checked_flow = len(expected_flow) * (len(ES.FLOW_COLUMNS) - 1)
+        entry["checked"] = (len(recomputed) * (len(ES.SUMMARY_COLUMNS) - 1) + len(recomputed_events) + checked_baseline
+                            + checked_flow)
         entry["mismatched"] = len(mismatches)
         entry["examples"] = mismatches[:MAX_EXAMPLES]
         entry.update(status="FAIL" if mismatches else "PASS", reason="CALCULATION_MISMATCH" if mismatches else None)
@@ -150,7 +164,7 @@ def validate(*, bundle: dict[str, Any], path_of, outputs: list[dict[str, Any]], 
     return {"status": status, "studies": studies,
             "verified_output_ids": [i for s in studies if s["status"] == "PASS"
                                     for i in (s["summary_output_id"], s["events_output_id"],
-                                              s.get("baseline_output_id")) if i],
+                                              s.get("baseline_output_id"), s.get("flow_output_id")) if i],
             "record_output_ids": [c["output_id"] for c in calls if c.get("output_id")]}
 
 

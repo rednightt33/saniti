@@ -480,6 +480,7 @@ def event_study(request: str, event: str, outcome: dict[str, Any], horizon: int,
     _name(label)
     _name(f"{label}_events")
     _name(f"{label}_baseline")
+    _name(f"{label}_flow")
     windows_all = r.get("ranges") or []
     if range_id is not None and range_id not in {w["range_id"] for w in windows_all}:
         raise SanitiError(f"{range_id!r} is not a range of {r['logical_name']}. Ranges: "
@@ -518,9 +519,15 @@ def event_study(request: str, event: str, outcome: dict[str, Any], horizon: int,
     compared = emit_table(f"{label}_baseline", baseline_rows,
                           f"Baseline rows of {label} ({params['baseline']}: date, entity, outcome)",
                           units=ES.rows_units(outcome_unit))
+    # S27: the flow (qualifying -> censored / overlapping -> used) is released so the answer quotes each count
+    flowed = emit_table(f"{label}_flow", pd.DataFrame(ES.flow(canonical, params), columns=list(ES.FLOW_COLUMNS)),
+                        f"Event flow of {label}: rows in the window, condition unknown, condition true (qualifying), "
+                        "censored, dropped as overlapping, used (condition_true = censored + overlapping_dropped + "
+                        "used)")
     call = {"version": ES.VERSION, "name": label, "declaration": declaration, "parameters": params,
             "outcome_unit": outcome_unit, "ranges": [w["range_id"] for w in chosen],
             "summary_output": label, "events_output": f"{label}_events", "baseline_output": f"{label}_baseline",
+            "flow_output": f"{label}_flow",
             "input_info": {k: info.get(k) for k in ("rows", "censored_outcome_rows", "forward_horizon",
                                                      "expressions", "outcome_source", "ranges")}}
     text = _json.dumps(_jsonable(call), ensure_ascii=False, separators=(",", ":"))
@@ -531,7 +538,7 @@ def event_study(request: str, event: str, outcome: dict[str, Any], horizon: int,
                                                                       "by the backend).")
     _log({"call": "event_study", "data_request_id": r["data_request_id"], "name": label,
           "events": int(summary[0]["event_count"] or 0)})
-    return {"name": label, "summary": summary, "parameters": params, "outputs": [table, kept, compared],
+    return {"name": label, "summary": summary, "parameters": params, "outputs": [table, kept, compared, flowed],
             # G3: the same events and baseline as frames, e.g. for event_summary(events, baseline, ...)
             "events": events, "baseline": baseline_rows,
             "validation": "Recomputed independently by the backend at complete_analysis; a match is labelled "

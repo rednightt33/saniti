@@ -293,7 +293,7 @@ def test_a_recomputed_event_study_stays_labelled_in_later_turns_and_its_record_i
     assert done["status"] == "COMPLETED" and done["final_status"]["event_studies"][0]["status"] == "PASS", done
     listed = reuse["api"].get(f"/v1/conversations/{KEY}/resources", headers=HEADERS).json()
     offered = {o["name"]: o for o in listed["released_outputs"]}
-    assert set(offered) == {"drops", "drops_events", "drops_baseline", "n"}
+    assert set(offered) == {"drops", "drops_events", "drops_baseline", "drops_flow", "n"}
     assert offered["drops"]["calculation_verified"] is True and "calculation_verified" not in offered["n"]
     page = reuse["api"].get(f"/v1/sessions/{opened['session_id']}/outputs/{ids['drops']}",
                             params={"request_id": "req_turn_2"}, headers=headers()).json()

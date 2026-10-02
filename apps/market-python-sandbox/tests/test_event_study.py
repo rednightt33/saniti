@@ -97,6 +97,23 @@ def test_the_baseline_is_every_eligible_row_or_only_the_rows_without_the_event()
     assert eligible["ALL"]["delta_mean"] == pytest.approx(np.mean([0, 2, 4, 6]) - np.mean(range(8)))
 
 
+def test_the_flow_accounts_for_every_qualifying_row() -> None:
+    """S27: condition_true (qualifying) = censored + overlapping_dropped + used, and used is the summary's event_count."""
+    d = days(10)
+    hits = {0, 1, 2, 5, 6, 9}
+    data = frame([(d[i], "A", i in hits, float(i) if i < 9 else math.nan) for i in range(10)]
+                 + [(d[0], "B", None, 1.0)])
+    params = ES.parameters(3, "NON_OVERLAPPING", "ALL_ELIGIBLE", 1, None)
+    (row,) = ES.flow(data, params)
+    kept, _ = summary(data, horizon=3, min_events=1)
+    assert row == {"segment": "ALL", "rows_in_window": 11, "condition_unknown": 1, "condition_true": 6,
+                   "censored": 1, "overlapping_dropped": 3, "used": 2}
+    assert row["condition_true"] == row["censored"] + row["overlapping_dropped"] + row["used"]
+    assert row["used"] == kept["ALL"]["event_count"] and row["overlapping_dropped"] == kept["ALL"]["overlapping_dropped"]
+    assert ES.compare_flow([row], [row]) == []
+    assert ES.compare_flow([{**row, "condition_true": 2}], [row])[0]["column"] == "condition_true"
+
+
 def test_a_holdout_date_adds_in_sample_and_out_of_sample_rows_that_add_up() -> None:
     d = days(40)
     rng = np.random.default_rng(3)
@@ -272,7 +289,8 @@ def test_an_event_study_is_recomputed_by_the_backend_and_its_tables_are_verified
     body = ok(session, STUDY.replace("EXTRA", "") + "emit_table('other', banks)\n"
                                                     "print(study['summary'][0]['event_count'])")
     names = [o["name"] for o in body["outputs"]]
-    assert names[:4] == ["drops", "drops_events", "drops_baseline", "event_study_call_drops"] and names[-1] == "other"
+    assert names[:5] == ["drops", "drops_events", "drops_baseline", "drops_flow", "event_study_call_drops"] \
+        and names[-1] == "other"
     expected = expected_events(session)
     assert int(body["stdout"].strip()) == len(expected) > 0
     result = complete(session)
@@ -281,7 +299,7 @@ def test_an_event_study_is_recomputed_by_the_backend_and_its_tables_are_verified
     study = final["event_studies"][0]
     assert study["status"] == "PASS" and study["mismatched"] == 0 and study["checked"] > len(expected)
     ids = {o["name"]: o["output_id"] for o in body["outputs"]}
-    assert final["verified_output_ids"] == [ids["drops"], ids["drops_events"], ids["drops_baseline"]]
+    assert final["verified_output_ids"] == [ids["drops"], ids["drops_events"], ids["drops_baseline"], ids["drops_flow"]]
     assert final["calculation_validation"] == "PARTIAL"  # the other table was not recomputed
     assert "event_study_call_drops" not in [o["name"] for o in result["released_outputs"]]
     assert "the calculation was independently verified" not in final["claims_forbidden"]
@@ -367,6 +385,17 @@ def test_the_record_names_are_reserved_and_a_bad_declaration_is_a_script_error(s
     shared = run(session, "event_study('prices', 'close < 0', {'forward_return': 'close'}, 1, "
                           "overlap_policy='SOMETIMES')").json()
     assert shared["status"] == "SCRIPT_ERROR" and "PARAMETER_INVALID" in str(shared)
+
+
+@requires_root
+def test_a_changed_flow_table_fails_completion(session) -> None:
+    """S27: the flow table is recomputed like the summary; a relabelled count fails the completion."""
+    ok(session, STUDY.replace("EXTRA", "") + "import pandas as pd\nfake = pd.DataFrame("
+                                          "[{'segment': 'ALL', 'rows_in_window': 1, 'condition_unknown': 0, "
+                                          "'condition_true': 1, 'censored': 0, 'overlapping_dropped': 0, 'used': 1}])\n"
+                                          "emit_table('drops_flow', fake)")
+    study = complete(session)["final_status"]["event_studies"][0]
+    assert study["status"] == "FAIL" and {m.get("table") for m in study["examples"]} == {"flow"}
 
 
 @requires_root
