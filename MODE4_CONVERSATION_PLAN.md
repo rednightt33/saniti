@@ -3,6 +3,9 @@
 Status: **disetujui user 2026-10-02** ("Setuju untuk mode 4"), belum dijalankan. Keputusan 2 dan 3 di bagian 7 masih
 terbuka. Terkait `ERRORS_AND_SOLUTIONS.md` M56.
 
+> Diperluas oleh `G2_G3_REACTIVATION_PLAN.md` bagian 4d (2026-10-02): jenis giliran EXPLAIN dan CONTINUE dengan arah
+> bebas G1–G4, state lintas giliran (temuan, manual, buku percobaan), berlaku untuk semua mode.
+
 ## 1. Arahan user (2026-10-02)
 
 - Apa pun isi jawabannya, pertanyaan lanjutan **tidak boleh membuat riset diulang dari awal**, kecuali user memang

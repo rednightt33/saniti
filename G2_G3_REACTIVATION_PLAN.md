@@ -181,6 +181,84 @@ Terkait:
 | **G3** | Uji hipotesis bebas (rencana v1 + `event_summary`) |
 | **G4** | Riset multi-angle (rencana v2 + perpustakaan metode) |
 
+## 4d. Desain percakapan multi-giliran (keputusan user 2026-10-02)
+
+**Tujuan:**
+- setelah G1–G4 berjalan, user bisa bertanya arti angka, insight dan penjelasan, seperti percakapan biasa;
+- bila user meminta, analisis berlanjut, dan arahnya bebas ke G1, G2, G3 atau G4;
+- tidak ada pengulangan riset dari awal kecuali diminta.
+
+Desain ini memperluas `MODE4_CONVERSATION_PLAN.md` (sudah disetujui) dan berlaku untuk semua mode (mode 4, ANALYSIS,
+RESEARCH).
+
+### 4d-1. Yang dibawa dari giliran ke giliran (state percakapan)
+
+Disimpan di `AI_conversation.state` (catatan data, M47) dan disuntikkan otomatis di awal setiap run dan sub-langkah:
+
+| Bagian | Isi | Untuk apa |
+|---|---|---|
+| Data | tabel, kolom, nilai kategori, relasi, coverage (sudah ada) | Tidak membaca katalog ulang |
+| Output G1/G2 | `out.oN` dengan nama, kolom, jumlah baris (sudah ada) | Mengutip dan memakai ulang tabel hasil |
+| Temuan G2/G3/G4 | status, estimasi, CI, p, sampel, label pemeriksaan, rentang data (baru, E1) | Menjelaskan dan mengutip temuan di giliran berikutnya |
+| Manual | kartu metode yang pernah dibuka (baru, 4b-3) | Tidak membuka manual ulang |
+| Rencana tertunda | saran v1 (G3) / v2 (G4) yang belum disetujui | User bisa menyetujui kapan saja |
+| Buku percobaan | semua uji yang pernah dijalankan (G2, G3, G4) | Koreksi uji berganda lintas giliran |
+| Sesi dan bundle hangat | sudah ada (conversation reuse) | Lanjutan tanpa menarik data ulang |
+
+### 4d-2. Jenis giliran dan apa yang dijalankan
+
+Router di setiap giliran: pengklasifikasi diperluas dari `MODE4_CONVERSATION_PLAN.md`, ditambah aturan backend.
+
+| Jenis giliran | Contoh | Yang dijalankan | G yang boleh dipakai |
+|---|---|---|---|
+| **EXPLAIN**: arti angka, insight, penjelasan | "68,9% itu artinya apa?", "Kenapa XL tertinggi?", "Insight-nya apa?" | Satu langkah jawaban dari state (output, temuan, manual). Data ditarik atau dihitung hanya bila penjelasan butuh rincian (mis. per tahun, per saham) | G1 kecil (rincian), tanpa riset |
+| **CONTINUE**: user minta analisis lanjutan | "Coba lihat dampaknya setelah crash", "Uji ide saya", "Cari sudut lain" | AI memilih G dari menu sesuai permintaan; data dan output sebelumnya dipakai ulang | **Bebas G1–G4**: G1 dan G2 langsung di sesi; G3 dan G4 lewat rencana (persetujuan user mengikuti `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION`) |
+| **APPROVE / REVISE / CANCEL** | "Jalankan", "Pakai 5 tahun", "Tidak usah" | Seperti sekarang, untuk rencana v1 maupun v2 | G3 / G4 |
+| **NEW_TOPIC** | "Sekarang saham telko?" | Giliran pertama (mode 4: A + riset) | Sesuai mode |
+| **CONVERSATIONAL** | "Apa itu CAR?", "Metode apa yang dipakai?" | Jawaban langsung dari manual/state | Tanpa alat data |
+
+**Aturan backend:**
+1. Riset (G3/G4) hanya jalan bila diminta (CONTINUE yang meminta uji, APPROVE) atau NEW_TOPIC di mode 4. EXPLAIN dan
+   CONVERSATIONAL tidak pernah memicu riset.
+2. Kalau ragu antara EXPLAIN dan CONTINUE, pilih EXPLAIN dan tawarkan analisis lanjutan (salah ke arah yang murah).
+3. Saran tertunda tidak hilang karena pertanyaan lanjutan.
+4. Arah lanjutan bebas: tidak ada urutan wajib G1 → G2 → G3 → G4. AI memilih dari menu; user boleh menyebut metode
+   ("pakai event study").
+
+### 4d-3. Menjawab arti angka dan insight dengan benar
+
+- **Angka** selalu dirujuk dari state (`out.oN`, `finding.<id>`). Angka turunan (selisih, rasio) lewat fungsi rujukan
+  (`diff`, `ratio`) atau dihitung di sesi. Angka dari teks jawaban sebelumnya tidak dipercaya (keputusan lama tetap).
+- **Arti angka:** definisi diambil dari manual metode dan katalog (arti kolom, satuan, grain), bukan dikarang.
+- **Insight:** interpretasi diberi label sebagai interpretasi. Klaim sebab atau prediksi tetap mengikuti aturan bukti
+  (hanya dari temuan riset dengan status yang sesuai). Tingkat pemeriksaan angka ditulis (S23).
+- **Penyebab di luar database** (berita, aksi korporasi) tidak tersedia; jawaban menyatakannya.
+
+### 4d-4. Rantai antar G (bebas arah)
+
+- G1 → G2: tabel hasil analisis menjadi daftar event atau universe untuk event study.
+- G2 → G3: tabel event G2 menjadi dasar hipotesis bebas (`event_summary`).
+- G4 → G2/G3: angle yang menarik ditindaklanjuti dengan event study atau hipotesis bebas.
+- G2/G3/G4 → G1: temuan dijelaskan atau dirinci dengan kode bebas.
+
+Prasyaratnya: output dan temuan bisa dimuat ulang di sesi berikutnya (Langkah 9 di rencana kecepatan: hasil analisis
+sebagai bahan riset) dan dirujuk lintas giliran (E1).
+
+### 4d-5. Verifikasi: skenario percakapan
+
+Satu skenario multi-giliran ditambahkan ke golden test (bagian 7):
+
+1. Pertanyaan awal (mode 4): jawaban + G4.
+2. "Angka 68,9% itu artinya apa?" → EXPLAIN, tanpa alat data, angka dari `out.oN`.
+3. "Kenapa XL paling tinggi? Rinci per tahun." → EXPLAIN dengan G1 kecil, tanpa riset.
+4. "Coba event study: return saham bank 5 hari setelah XL beli besar." → CONTINUE → G2.
+5. "Uji ide saya: efeknya hanya di bank BUMN." → CONTINUE → G3 (rencana v1, disetujui).
+6. "Cari 4 sudut lain." → CONTINUE → G4.
+7. "Jelaskan hasil uji tadi." → EXPLAIN dengan `finding.<id>`.
+
+**Dicatat per giliran:** jenis giliran, G yang jalan, detik, rujukan angka, dan apakah riset terulang tanpa diminta
+(harus nol).
+
 ## 5. Bagaimana G2, G3, G4 saling melengkapi (contoh)
 
 Pertanyaan: "Apa yang terjadi pada saham bank setelah net jual asing besar?"
@@ -237,6 +315,8 @@ Saklar pikiran (`AI_CAPTURE_REASONING`) menyala, supaya kesalahan bisa ditelusur
 1. S21 + P22 (kecil; sandbox dan orc).
 2. **G2-A:** helper `event_study` + pemeriksa independen + CI per tanggal (sandbox), lalu render dan label (orc).
 3. **G3:** rencana v1 berdampingan dengan v2 (orc: prompt, skema, kelanjutan; sandbox: keduanya aktif bersamaan).
+3c. **Percakapan multi-giliran** (bagian 4d): state lintas giliran (temuan, manual, buku percobaan), router
+    EXPLAIN / CONTINUE / APPROVE / NEW_TOPIC / CONVERSATIONAL, rantai antar G; bersama router `MODE4_CONVERSATION_PLAN.md`.
 3b. **Menu, manual dan contoh** (bagian 4b-3): `analysis_methods`, `get_method_guide`, kartu manual G1–G4 dan helper,
     manual dibawa lewat catatan percakapan; sebelum uji live.
 4. Uji live singkat G2 dan G3 masing-masing sendiri, lalu bersama (saklar pikiran menyala).
@@ -260,6 +340,8 @@ Setiap langkah:
 | G3 tetap tidak mengecek rumus AI | Event buatan AI bisa salah | Label STATISTICS_VERIFIED tertulis di jawaban; AI dianjurkan memakai tabel event G2 (yang dicek) sebagai dasar G3 |
 | Uji makin banyak, peluang kebetulan naik | G2 + G3 + G4 dalam satu rencana | Koreksi menghitung semua uji di rencana; holdout |
 | Golden test terlalu kecil | 5 soal bukan ukuran statistik akurasi | Disebut sebagai baseline awal; soal ditambah setelah fitur berikutnya |
+| Router salah membaca giliran | Penjelasan dianggap permintaan riset, atau sebaliknya | Ragu → EXPLAIN plus tawaran; diukur di skenario 4d-5 (riset tak diminta harus nol) |
+| State percakapan membesar | Temuan, manual dan output menumpuk | Batas per bagian dengan penanda terlihat (pola P5); versi lengkap di store |
 | Waktu run | Pemeriksa independen menambah waktu penyelesaian | Diukur; pemeriksa hanya berjalan untuk output event study |
 | Token bertambah karena manual dibawa | Setiap manual yang dibuka ikut di setiap panggilan berikutnya | Kartu ringkas; prompt caching (`session_id` per run); kartu lama diringkas dengan penanda; token per run diukur |
 | Manual basi | Manual tidak sesuai perilaku kode | Bagian teknis dibangkitkan dari kode; hash dan test sinkron; contoh dijalankan di test |
