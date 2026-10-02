@@ -265,6 +265,7 @@ Gate and final-response log events (always on):
 | `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION` | no | `false` | DataNeed flow only: a research question first returns a Research Plan (`RESEARCH_PLAN_CONFIRMATION`, status `AWAITING_CONFIRMATION`) with a backend-signed continuation, and `submit_data_need_spec(mode="RESEARCH")` is refused unless the user approved that plan (see [Research Plan confirmation](#research-plan-confirmation)). Without `AI_ENABLE_DATANEED` it has no effect (logged at startup) |
 | `AI_RESEARCH_PLAN_SIGNING_KEY` | with confirmation (secret) | — | HMAC-SHA256 key of the plan continuation tokens: at least 32 characters, at least 10 distinct, no surrounding whitespace (use a random 64-hex value). The service refuses to start with confirmation on and no usable key. Rotating it invalidates every open plan |
 | `AI_RESEARCH_PLAN_TTL_SECONDS` | no | `3600` | Lifetime of a plan continuation (60–86400) |
+| `AI_ENABLE_METHOD_GUIDES` | no | `false` | 4b: the menu of analysis methods at the start of every run and in `get_system_capabilities`, and `get_method_guide`; needs `AI_method_guide` (migration `20261002_001`) and the sandbox's `method_guides` with the same hash; see [Method guides](#method-guides-4b) |
 | `AI_ENABLE_HYPOTHESIS_PLAN` | no | `false` | G3: with Multi-Angle Research, research findings v1 and `check_data_feasibility`, the model may also propose a hypothesis plan (research plan v1) beside the multi-angle plan; see [Hypothesis plans beside multi-angle plans](#hypothesis-plans-beside-multi-angle-plans-g3) |
 | `AI_ENABLE_EVENT_STUDY` | no | `false` | DataNeed flow only: `run_python` and `complete_analysis` describe `saniti.event_study` and its backend recalculation (G2); see [Event study labels](#event-study-labels-g2) |
 | `AI_ENABLE_STANDARD_PERIOD_RETURN` | no | `false` | DataNeed flow only: teach the named-period return convention (NAMED-PERIOD RETURNS prompt rule and one `run_python` sentence about `saniti.period_return`); see [Named-period returns](#named-period-returns) |
@@ -1091,6 +1092,27 @@ calculations were not recomputed; an INVALID study is disclosed. Saying a calcul
 every figure of the answer is CALCULATION_VERIFIED, and is marked as before otherwise. `AI_ENABLE_EVENT_STUDY` only
 adds the description sentences (`EVENT_STUDY_SENTENCE`, `COMPLETE_EVENT_STUDY_SENTENCE` in `app/tools/session.py`);
 the labels follow the sandbox's result whatever the switch.
+
+### Method guides (4b)
+
+Plan: `G2_G3_REACTIVATION_PLAN.md` 4b (progressive disclosure, as in Agent Skills: menu, manual, examples). The guides
+are written once in `app/method_guides.py` (byte-identical in the sandbox), stored by migration `20261002_001` in
+`public."AI_method_guide"` and reported by the sandbox runtime (`method_guides`). With `AI_ENABLE_METHOD_GUIDES`,
+startup (`main._method_guides`) serves them only when the three hashes agree (else `method_guides_inactive`) and only
+for the methods this deployment offers (`active_guides`: G1 free code and the reading, resample and join helpers with
+the DataNeed flow; G2 with the event study active; G3 with hypothesis plans, or the v1 path without multi-angle
+research; G4 with multi-angle research; `period_return` with its switch).
+
+- **Menu (layer one):** every run starts with an `ANALYSIS METHODS` note (name, path, when to use, when not, how the
+  backend checks it); `get_system_capabilities` returns the same list as `analysis_methods`.
+- **Manual (layer two):** `get_method_guide(name)` returns the guide: inputs with defaults (tested against the helper
+  signatures), limits, what the backend checks and does not (S23), results and how to cite them, common errors from
+  real runs, and examples. A research library `method_id` returns its library entry.
+- **Examples (layer three):** in the guide; the sandbox test runs every runnable example in a session.
+- **Carried:** an opened guide is stored in the data record (`manuals`: name, version, hash, guide). Every later run
+  of the conversation, and every mode 4 step, gets a `METHOD GUIDES OPENED EARLIER` note with the current version
+  (a changed hash replaces the stored guide), newest first within 16,000 characters, the rest named with a marker.
+- Logs: `method_guides_offered` (menu size, manuals carried, refreshed, characters), `method_guide_opened`.
 
 ### Hypothesis plans beside multi-angle plans (G3)
 

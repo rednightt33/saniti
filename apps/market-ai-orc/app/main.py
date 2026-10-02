@@ -32,9 +32,10 @@ from .tools import build_default_registry
 from .tools.analysis import SandboxClient
 from .tools.catalog import CatalogTools
 from .tools.library import read_research_library
+from .tools.method_guides import active_guides, guides_problem, menu as guide_menu, read_method_guides
 from .tools.registry import ToolError
 from .tools.request_data import GovernorClient
-from .tools.session import close_sessions, read_output
+from .tools.session import EVENT_STUDY_VERSION, close_sessions, read_output
 
 REUSE_VERSION = 1  # the conversation reuse contract both services must report
 FEASIBILITY_VERSION = 1  # the Research Plan feasibility endpoints of the sandbox
@@ -72,6 +73,25 @@ def _with_research_library(multi_angle: dict, catalog: CatalogStore | None) -> t
     if problem is not None:
         return None, problem
     return {**multi_angle, "library": rows}, None
+
+
+def _method_guides(sandbox: SandboxClient | None, catalog: CatalogStore | None, *, dataneed: bool,
+                   event_study: bool, hypothesis_plan: bool, multi_angle: bool,
+                   period_return: bool) -> tuple[dict | None, str | None]:
+    """4b: the guides of the methods this deployment offers, when AI_method_guide, the sandbox and this service carry
+    the same guides (fail closed)."""
+    if catalog is None or sandbox is None:
+        return None, "needs the catalog database and the sandbox"
+    try:
+        rows = read_method_guides(catalog)
+    except ToolError as exc:
+        return None, f"AI_method_guide could not be read: {exc}"
+    problem = guides_problem(rows, sandbox.runtime().get("method_guides"))
+    if problem is not None:
+        return None, problem
+    names = active_guides(dataneed=dataneed, event_study=event_study, hypothesis_plan=hypothesis_plan,
+                          multi_angle=multi_angle, period_return=period_return)
+    return ({"names": names, "menu": guide_menu(names)} if names else None), "no method is offered"
 
 
 def _bundle_limits(sandbox: SandboxClient) -> dict | None:
@@ -197,6 +217,25 @@ def create_app(
                 log_event("multi_angle_research_inactive", reason=reason)
         # G14: the sandbox's bundle limits, so the planners check a bundle's size before extracting it
         bundle_limits = _bundle_limits(sandbox) if sandbox is not None and settings.ai_enable_dataneed else None
+        # G2: the event study is described only when the sandbox runs it (fail closed)
+        event_study = False
+        if settings.ai_enable_event_study:
+            capability = (sandbox.runtime().get("event_study") or {}) if sandbox is not None else {}
+            event_study = capability.get("enabled") is True and capability.get("version") == EVENT_STUDY_VERSION \
+                and settings.ai_enable_dataneed
+            if not event_study:
+                log_event("event_study_inactive", reason="needs AI_ENABLE_DATANEED and a sandbox reporting "
+                                                         f"event_study version {EVENT_STUDY_VERSION}")
+        multi_angle_active = multi_angle is not None and feasibility and composite
+        hypothesis_plan = settings.ai_enable_hypothesis_plan and research_findings
+        method_guides = None
+        if settings.ai_enable_method_guides:
+            method_guides, reason = _method_guides(
+                sandbox, catalog, dataneed=settings.ai_enable_dataneed, event_study=event_study,
+                hypothesis_plan=(hypothesis_plan if multi_angle_active else research_findings),
+                multi_angle=multi_angle_active, period_return=settings.ai_enable_standard_period_return)
+            if method_guides is None:
+                log_event("method_guides_inactive", reason=reason)
         registry = build_default_registry(
             catalog,
             catalog_timeout_seconds=(
@@ -222,8 +261,9 @@ def create_app(
             dataneed_enabled=settings.ai_enable_dataneed,
             session_timeout_seconds=settings.py_sandbox_session_timeout_seconds,
             standard_period_return=settings.ai_enable_standard_period_return,
-            event_study=settings.ai_enable_event_study,
-            hypothesis_plan=settings.ai_enable_hypothesis_plan and research_findings,
+            event_study=event_study,
+            hypothesis_plan=hypothesis_plan,
+            method_guides=method_guides,
             catalog_discovery_v2=settings.ai_enable_catalog_discovery_v2,
             plan_feasibility=feasibility,
             composite_keys=composite,

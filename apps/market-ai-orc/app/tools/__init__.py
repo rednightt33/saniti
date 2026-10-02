@@ -39,6 +39,7 @@ def build_default_registry(
     standard_period_return: bool = False,
     event_study: bool = False,
     hypothesis_plan: bool = False,
+    method_guides: dict | None = None,
     catalog_discovery_v2: bool = False,
     plan_feasibility: bool = False,
     composite_keys: bool = False,
@@ -133,6 +134,13 @@ def build_default_registry(
                                           max_result_bytes=python_analysis_max_bytes, point_in_time=point_in_time,
                                           preflight_parts=preflight_parts, bundle_limits=bundle_limits,
                                           planner_parallel_parts=planner_parallel_parts)
+    if method_guides and dataneed_enabled:
+        # 4b: the manual of each offered method; a research library method_id opens its library entry
+        from .method_guides import method_guide_spec
+
+        library = (multi_angle or {}).get("library") if multi_angle else None
+        registry.register(method_guide_spec(method_guides["names"], library_rows=library))
+        registry.method_guides = method_guides
     return registry
 
 

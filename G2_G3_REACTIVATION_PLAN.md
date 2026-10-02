@@ -358,6 +358,11 @@ Saklar pikiran (`AI_CAPTURE_REASONING`) menyala, supaya kesalahan bisa ditelusur
      mode 4 datang lewat router langkah 5;
    - event study mengembalikan frame event dan pembanding, jadi G2 langsung menjadi masukan `event_summary` (G3).
 4. **Menu, manual dan contoh** (4b-3): `analysis_methods`, `get_method_guide`, kartu manual G1–G4 dan helper.
+   *Selesai di branch, belum di-deploy.* Saklar `AI_ENABLE_METHOD_GUIDES` (default mati). Migrasi
+   `20261002_001_create_ai_method_guide.sql` (tabel `AI_method_guide`, Table/Column_Catalog, Tool_Catalog
+   `get_method_guide` v1) sudah ditulis dan dicoba di database scratch; diterapkan ke dev di langkah 6, lalu
+   `DATABASE_SCHEMA.md` dan `DATABASE_CHANGELOG.md` diperbarui. 8 kartu: G1–G4, `period_return`, `resample`,
+   `join_and_preaggregate`, `reading_data`; panduan insight (4d-3b) ada di kartu G1.
 5. **Percakapan multi-giliran** (4d), dikerjakan bersama router `MODE4_CONVERSATION_PLAN.md`:
    - state lintas giliran: temuan (E1), manual, buku percobaan, rencana tertunda;
    - router CLARIFY / INSIGHT / CONTINUE / APPROVE / REVISE / CANCEL / NEW_TOPIC / CONVERSATIONAL;

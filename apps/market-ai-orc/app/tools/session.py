@@ -121,6 +121,7 @@ OUTPUT_DESCRIPTION = (
 )
 
 
+EVENT_STUDY_VERSION = 1  # the sandbox's event_study capability version this service describes
 # Appended to RUN_DESCRIPTION and COMPLETE_DESCRIPTION only with AI_ENABLE_EVENT_STUDY (G2, 2026-10-02).
 EVENT_STUDY_SENTENCE = (
     " Event study: event_study(request, event, outcome, horizon, range_id=None, overlap_policy='NON_OVERLAPPING', "

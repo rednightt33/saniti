@@ -16,6 +16,8 @@ from pydantic import ValidationError
 from .config import Settings
 from .bundles import BUNDLE_ID
 from .dataneed_service import DataNeedError, DataNeedService
+from .event_study_validation import EVENT_STUDY_VERSION
+from .method_guides import GUIDES_SHA256, GUIDES_VERSION
 from .data_need import SPEC_VERSIONS
 from .sessions import SessionError
 from .dataneed_store import DataNeedStore
@@ -130,6 +132,11 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                                       "version": RESEARCH_FINDINGS_VERSION},
                 # Multi-Angle Research: 3-6 angles, promoted drafts per bundle group, backend findings per angle
                 "multi_angle_research": multi_angle_capability(),
+                # G2: saniti.event_study, recomputed by the harness at complete_analysis
+                "event_study": {"enabled": dataneed is not None, "version": EVENT_STUDY_VERSION},
+                # 4b: the method guides (menu and manual), hash-bound with market-ai-orc and AI_method_guide
+                "method_guides": {"enabled": dataneed is not None, "version": GUIDES_VERSION,
+                                  "sha256": GUIDES_SHA256},
                 "limits": {**settings.child_limits(), "max_runtime_seconds": settings.max_runtime_seconds,
                            "max_memory_mb": settings.max_memory_mb, "duckdb_memory_mb": settings.duckdb_memory_mb,
                            "max_logical_datasets": settings.max_logical_datasets,

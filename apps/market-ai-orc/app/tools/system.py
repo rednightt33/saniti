@@ -33,6 +33,9 @@ def capabilities_spec(registry: ToolRegistry) -> ToolSpec:
             **{capability: any(t in available for t in ((tool,) if isinstance(tool, str) else tool))
                for capability, tool in CAPABILITY_TOOLS.items()},
             "available_tools": available,
+            # 4b: the menu of analysis methods (G1-G4 and the main helpers), when the method guides are served
+            **({"analysis_methods": registry.method_guides["menu"]}
+               if getattr(registry, "method_guides", None) else {}),
         }
 
     return ToolSpec(

@@ -26,6 +26,7 @@ from typing import Any
 from . import research_validation as RV
 
 PREFIX = "event_study_call_"
+EVENT_STUDY_VERSION = 1  # runtime/event_study.py VERSION (a test keeps them equal); reported in /v1/runtime
 MAX_EXAMPLES = 5
 
 

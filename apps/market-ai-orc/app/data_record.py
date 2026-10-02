@@ -20,6 +20,11 @@ MAX_RESEARCH = 12
 MAX_NOTE_CHARS = 8000
 MAX_VALUES_SHOWN = 20  # a longer value list is shown as its first values plus how many more there are
 MAX_FACTS = 60
+MAX_MANUALS = 12  # 4b: method guides opened in the conversation, newest kept
+MAX_MANUAL_NOTE_CHARS = 16000
+MANUALS_HEADER = ("METHOD GUIDES OPENED EARLIER IN THIS CONVERSATION (application context from the backend, not from "
+                  "the user): the manuals of these methods are already here, current version; do not open them "
+                  "again.")
 
 NOTE_HEADER = ("DATA RECORD (application context: the data this conversation has already used and read, kept by the "
                "backend; not from the user). Tables and columns listed here were read from the catalog in this "
@@ -30,7 +35,7 @@ NOTE_HEADER = ("DATA RECORD (application context: the data this conversation has
 
 def empty() -> dict[str, Any]:
     return {"version": VERSION, "tables": {}, "needs": [], "outputs": [], "research": [], "next_alias": 1,
-            "values": {}, "relationships": {}, "coverage": {}}
+            "values": {}, "relationships": {}, "coverage": {}, "manuals": []}
 
 
 def normalize(record: Any) -> dict[str, Any]:
@@ -49,6 +54,7 @@ def normalize(record: Any) -> dict[str, Any]:
         clean[key] = [dict(item) for item in record.get(key) or [] if isinstance(item, dict)]
     for key in ("values", "relationships", "coverage"):
         clean[key] = {str(k): dict(v) for k, v in (record.get(key) or {}).items() if isinstance(v, dict)}
+    clean["manuals"] = [dict(m) for m in record.get("manuals") or [] if isinstance(m, dict) and m.get("name")]
     stored = record.get("next_alias")
     clean["next_alias"] = max(stored if isinstance(stored, int) and stored > 0 else 1,
                               max((_alias_number(o.get("ref")) for o in clean["outputs"]), default=0) + 1)
@@ -191,8 +197,51 @@ def seed_ledger(record: dict[str, Any], ledger: Any) -> None:
         seen.columns.update(table.get("read") or [])
 
 
+def has_data(record: dict[str, Any] | None) -> bool:
+    return bool(record) and any(record.get(k) for k in ("tables", "needs", "outputs", "values", "relationships"))
+
+
 def is_empty(record: dict[str, Any] | None) -> bool:
-    return not record or not any(record.get(k) for k in ("tables", "needs", "outputs", "values", "relationships"))
+    return not has_data(record) and not (record or {}).get("manuals")
+
+
+def add_manual(record: dict[str, Any], request_id: str, *, name: str, version: Any, sha256: str,
+               guide: dict[str, Any]) -> None:
+    """4b: a method guide the model opened; one entry per name (the newest replaces the older), newest last."""
+    record["manuals"] = [m for m in record.get("manuals") or [] if m.get("name") != name]
+    record["manuals"].append({"name": name, "version": version, "sha256": sha256, "guide": guide,
+                              "request_id": request_id})
+    del record["manuals"][:-MAX_MANUALS]
+
+
+def manuals_note(record: dict[str, Any], current: dict[str, dict[str, Any]]) -> tuple[str | None, list[str]]:
+    """The opened guides in their current version (current: name -> {sha256, version, guide}; a guide no longer offered
+    is left out), newest first within MAX_MANUAL_NOTE_CHARS; the rest are named with a marker (P5). Returns the note
+    and the names whose stored version was replaced by the current one (the record is updated)."""
+    refreshed, shown, omitted = [], [], []
+    entries = [m for m in record.get("manuals") or [] if m.get("name") in current]
+    for entry in entries:
+        now = current[entry["name"]]
+        if entry.get("sha256") != now["sha256"]:
+            entry.update(version=now["version"], sha256=now["sha256"], guide=now["guide"])
+            refreshed.append(entry["name"])
+    if not entries:
+        return None, refreshed
+    import json
+
+    text = MANUALS_HEADER
+    for entry in reversed(entries):
+        block = f"\n- {entry['name']} (version {entry['version']}): " + json.dumps(
+            entry["guide"], ensure_ascii=False, separators=(",", ":"))
+        if len(text) + len(block) + 200 > MAX_MANUAL_NOTE_CHARS:
+            omitted.append(entry["name"])
+            continue
+        text += block
+        shown.append(entry["name"])
+    if omitted:
+        text += (f"\n- … {len(omitted)} more opened earlier, not shown here: {', '.join(omitted)}; open again with "
+                 "get_method_guide when needed")
+    return text, refreshed
 
 
 def note(record: dict[str, Any]) -> str:

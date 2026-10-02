@@ -35,6 +35,7 @@ from .schemas import (
     ReplyClassifierUsage,
     ResearchPlanExecution, ResearchSummary, RunError, final_response_schema,
 )
+from . import method_guides
 from .provenance import (CONTEXT, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
                          parse_numbers, released_numbers, requested_statistics, weakest)
 from .value_refs import ReferenceSources, Resolved, TableRows, format_value, render
@@ -1122,7 +1123,13 @@ PLAN_TYPES = frozenset({"RESEARCH_PLAN_CONFIRMATION", "CLARIFICATION", "LIMITATI
 RESEARCH_RUN_TOOLS = frozenset({"start_research_run", "run_research_code", "complete_research_run"})
 # get_research_library (C07) is registered only while multi-angle research serves the research library
 DISCOVERY_TOOLS = frozenset({"get_system_capabilities", "discover_catalog", "get_catalog_details",
-                             "read_catalog_rows", "get_dimension_values", "get_research_library"})
+                             "read_catalog_rows", "get_dimension_values", "get_research_library",
+                             "get_method_guide"})
+# 4b (G2_G3_REACTIVATION_PLAN.md): the menu offered at the start of every run when the method guides are served
+METHOD_MENU_HEADER = ("ANALYSIS METHODS (application context from the backend, not from the user): the analysis paths "
+                      "and helpers this deployment offers, when to use each, when not to, and how the backend checks "
+                      "its result. Choose the method that fits the question; open its manual with "
+                      "get_method_guide(name) before using it the first time in this conversation.")
 PLAN_NOTE_PREFIX = "Application note, not from the user: "
 APPROVED_NOTE = (PLAN_NOTE_PREFIX + "the user approved Research Plan {plan_id}; the approval was verified. Carry out "
                  "its experiments now. Each RESEARCH data need copies research_governance from its experiment as the "
@@ -1818,7 +1825,8 @@ class AgentOrchestrator:
         state.data_record = records.copy_of(data_record)
         # P18: the aliases of earlier steps and turns keep their numbers; new outputs continue after them
         state.ref_aliases, state.ref_next = records.aliases(state.data_record)
-        if records.is_empty(state.data_record):
+        self._offer_methods(state)
+        if not records.has_data(state.data_record):
             return
         records.seed_ledger(state.data_record, state.catalog)
         note = records.note(state.data_record)
@@ -1826,6 +1834,26 @@ class AgentOrchestrator:
         log_event("data_record_offered", request_id=state.request_id, tables=len(state.data_record["tables"]),
                   needs=len(state.data_record["needs"]), outputs=len(state.data_record["outputs"]),
                   note_chars=len(note))
+
+    def _offer_methods(self, state: RunState) -> None:
+        """4b: the menu of analysis methods, then the manuals opened earlier in the conversation (current version), as
+        application notes; carried from step to step of mode 4 and from turn to turn by the data record."""
+        guides = getattr(self.registry, "method_guides", None)
+        if not guides:
+            return
+        menu = METHOD_MENU_HEADER + "\n" + "\n".join(
+            "- " + dumps({k: entry[k] for k in ("name", "g", "title", "use_when", "avoid_when", "verification")})
+            for entry in guides["menu"])
+        state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": menu})
+        current = {name: {"sha256": method_guides.guide_sha256(method_guides.by_name()[name]),
+                          "version": method_guides.GUIDES_VERSION, "guide": method_guides.by_name()[name]}
+                   for name in guides["names"]}
+        note, refreshed = records.manuals_note(state.data_record, current)
+        if note:
+            state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": note})
+        log_event("method_guides_offered", request_id=state.request_id, menu=len(guides["menu"]),
+                  manuals=len(state.data_record.get("manuals") or []), refreshed=refreshed,
+                  manual_chars=len(note or ""))
 
     def _add_conversation_resources(self, state: RunState, conversation_key: str) -> None:
         """Conversation reuse: a bounded application note listing what earlier messages of the conversation left in
@@ -2439,6 +2467,14 @@ class AgentOrchestrator:
             self._track_feasibility(state, outcome)
         if name == "check_research_feasibility":
             self._track_research_feasibility(state, outcome, normalized)
+        if name == "get_method_guide" and outcome.ok:
+            opened = outcome.output.get("result")
+            if isinstance(opened, dict) and isinstance(opened.get("guide"), dict):
+                # 4b: an opened manual stays in the conversation (data record), so it is not opened twice
+                records.add_manual(state.data_record, state.request_id, name=str(opened["name"]),
+                                   version=opened.get("version"), sha256=str(opened.get("sha256")),
+                                   guide=opened["guide"])
+                log_event("method_guide_opened", request_id=state.request_id, name=opened["name"])
         if name == "get_research_library" and outcome.ok:
             # P12 (e04 "95%"): the library's own figures (interval level, minimum samples) may be named in a plan
             state.context_numbers.extend(released_numbers(outcome.output.get("result")))
