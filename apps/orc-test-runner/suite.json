@@ -47,6 +47,15 @@
         "Jelaskan hasil uji tadi."
       ],
       "expect": "question 5 (mode 4: analysis + G4) then 4d-5: CLARIFY (no data tools), INSIGHT (no research), CONTINUE G2, CONTINUE G3 (plan v1) + approval, CONTINUE G4 + approval, CLARIFY citing finding.<id>; research never repeated unasked"
+    },
+    {
+      "id": "g7_followup_definitions",
+      "turns": [
+        "Berapa total net beli investor asing di pasar Nego per saham untuk 5 saham bank dengan nilai transaksi terbesar selama 2025?",
+        "Kenapa saham teratas itu paling tinggi?",
+        "Bandingkan dengan tahun 2024 memakai definisi yang sama."
+      ],
+      "expect": "HIGH ALERT H1 (M63): turns 2 and 3 keep the Nego board and the same liquidity rule as turn 1; the answers state the definition; no 'consistent with the previous answer' claim unless the definition is the same"
     }
   ]
 }

@@ -21,11 +21,11 @@ g6 = usulan pertanyaan tambahan).
 
 ## 2. Ada jawaban, tetapi salah (fatal)
 
-- M66: pertanyaan sama, definisi "hari crash" / "bank BUMN" berbeda. --> UNDERADDRESSED + KEPUTUSAN USER (kamus istilah) (g5.1)
-- M63: penjelasan menghitung ulang dengan cakupan berbeda dari tabelnya. --> UNDERADDRESSED (g5.3)
-- M28: definisi sukses dari user diganti aturan bawaan. --> UNDERADDRESSED (g6)
-- M26: SUPPORTED walau efek di bawah batas yang disebut user. --> KEPUTUSAN USER (g6)
-- M29: rencana menyebut 6 bank, eksekusi 48. --> UNDERADDRESSED (g5.5)
+- **[HIGH ALERT]** M66: pertanyaan sama, definisi "hari crash" / "bank BUMN" berbeda. --> UNDERADDRESSED + KEPUTUSAN USER (kamus istilah) (g5.1)
+- **[HIGH ALERT]** M63: penjelasan menghitung ulang dengan cakupan berbeda dari tabelnya. --> UNDERADDRESSED (g5.3)
+- **[HIGH ALERT]** M28: definisi sukses dari user diganti aturan bawaan. --> UNDERADDRESSED (g6)
+- **[HIGH ALERT]** M26: SUPPORTED walau efek di bawah batas yang disebut user. --> KEPUTUSAN USER (g6)
+- **[HIGH ALERT]** M29: rencana menyebut 6 bank, eksekusi 48. --> UNDERADDRESSED (g5.5)
 - M25: temuan eksperimen pertama hilang dari metadata. --> UNDERADDRESSED (g4, g5.7–8)
 - S13: sudut riset INVALID karena rekaman ganda. --> UNDERADDRESSED (g5.1, g5.8)
 - S27: kalimat salah menyebut jumlah "memenuhi syarat". --> UNDERADDRESSED (g3, g4)
@@ -34,8 +34,8 @@ g6 = usulan pertanyaan tambahan).
 - D14: RSI/EMA berbeda dari nilai sejarah penuh. --> KEPUTUSAN USER (g6)
 - C06: tanggal akhir data salah disebut. --> UNDERADDRESSED (g1, g2; cek database tanpa biaya model)
 - D02: sektor bernilai "0". --> UNDERADDRESSED (luar GT, perbaikan data)
-- S23: angka hasil kode AI tidak diperiksa ulang backend. --> UNDERADDRESSED (g1–g4 dibandingkan hitungan independen)
-- M13: "saham terbaik" memakai definisi pilihan AI. --> UNDERADDRESSED, sebagian (AI wajib menyebut definisinya) (g1)
+- **[HIGH ALERT]** S23: angka hasil kode AI tidak diperiksa ulang backend. --> UNDERADDRESSED (g1–g4 dibandingkan hitungan independen)
+- **[HIGH ALERT]** M13: "saham terbaik" memakai definisi pilihan AI. --> UNDERADDRESSED, sebagian (AI wajib menyebut definisinya) (g1)
 
 ## 3. Tidak keluar jawaban (buntu)
 
