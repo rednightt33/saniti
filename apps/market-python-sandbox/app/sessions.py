@@ -114,6 +114,8 @@ DATA_TYPES = ("Frames from load, range, sql and join: the time column holds date
               "frame[col] = pd.to_datetime(frame[col]).")
 STATE_CORRUPTED_HINT = ("The code changed the session's own state (the saniti_session/research_* modules, stdin or the "
                         "protocol pipe). Do not import or modify the sandbox's internal modules.")
+# S13: the per-angle records the research_* helpers write; one of each per angle and epoch
+RESEARCH_RECORDS = ("research_call_", "research_input_")
 RESEARCH_HELPERS = ["research_conditional", "research_persistence", "research_group_comparison", "research_quantiles",
                     "research_temporal_dependency", "research_custom"]
 
@@ -840,7 +842,8 @@ class SessionManager:
                                execution_id=execution_id, close_reason=reason)
         cpu = round(max(0.0, _cpu_seconds(worker.process.pid) - cpu_before), 3)
         status = answer.get("status") or "SCRIPT_ERROR"
-        outputs, rejected = self._collect(session_id, execution_id, worker, answer.get("outputs") or [])
+        outputs, rejected = self._collect(session_id, execution_id, worker, answer.get("outputs") or [],
+                                          recorded=self._recorded_angles(session_id, record))
         failed = status != "OK"
         usage = dict(record.get("usage") or {})
         usage["cpu_seconds"] = round(float(usage.get("cpu_seconds") or 0) + cpu, 3)
@@ -975,16 +978,34 @@ class SessionManager:
 
     # ------------------------------------------------------------------ outputs
 
-    def _collect(self, session_id: str, execution_id: str, worker: Worker, entries: list[dict[str, Any]]
-                 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-        """Copy each emitted output into the root-only output store (checksum), with its verified metadata."""
+    def _recorded_angles(self, session_id: str, record: dict[str, Any]) -> dict[str, str]:
+        """S13: the research records (research_call_/research_input_<angle>) already stored by a successful execution
+        of this epoch, by name. Read from the store, not from the worker's memory, which can be reset."""
+        start = int(record.get("epoch_start_seq") or 0)
+        ok = {e["execution_id"]: e["seq"] for e in self.store.executions_for(session_id)
+              if e["status"] == "OK" and int(e["seq"]) > start}
+        return {str(o["name"]): o["output_id"] for o in self.store.outputs_for(session_id)
+                if o["execution_id"] in ok and str(o.get("name") or "").startswith(RESEARCH_RECORDS)}
+
+    def _collect(self, session_id: str, execution_id: str, worker: Worker, entries: list[dict[str, Any]],
+                 recorded: dict[str, str] | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Copy each emitted output into the root-only output store (checksum), with its verified metadata. A research
+        record of an angle already recorded in this epoch is refused here (S13), so it never reaches the validator as
+        a duplicate that would make the angle INVALID."""
         s = self.settings
         drop = self.executor.drop_privileges
         accepted, rejected = [], []
+        recorded = dict(recorded or {})
         now = datetime.now(timezone.utc).replace(microsecond=0)
         folder = self.outputs_root / session_id
         folder.mkdir(mode=0o700, exist_ok=True)
         for entry in entries[: s.session_max_outputs]:
+            output_name = str(entry.get("name") or "")
+            if output_name.startswith(RESEARCH_RECORDS) and output_name in recorded:
+                rejected.append({"name": output_name, "reason": "ANGLE_ALREADY_RECORDED",
+                                 "message": f"{output_name} is already stored ({recorded[output_name]}); an angle is "
+                                            "recorded once and its finding is final. This copy was not kept."})
+                continue
             name = str(entry.get("file") or "")
             if "/" in name or name.startswith(".") or not name:
                 rejected.append({"name": entry.get("name"), "reason": "invalid file name"})
@@ -1034,6 +1055,8 @@ class SessionManager:
                       "released": 0, "created_at": now.isoformat(),
                       "expires_at": (now + timedelta(hours=s.result_retention_hours)).isoformat()}
             self.store.insert_output(record)
+            if record["name"].startswith(RESEARCH_RECORDS):
+                recorded[record["name"]] = output_id
             accepted.append({"output_id": output_id, "name": record["name"], "type": kind, "format": fmt,
                              "columns": columns, "row_count": rows, "byte_count": size,
                              "description": record["meta"].get("description"),

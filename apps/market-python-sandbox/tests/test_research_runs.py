@@ -243,6 +243,23 @@ def test_the_wrappers_fail_closed(env) -> None:
     assert run_code(env, session_id, FRAME)["status"] == "OK"
 
 
+def test_a_second_record_of_an_angle_is_refused_by_the_host(env) -> None:
+    """S13 (golden test 2026-10-02: every angle INVALID DUPLICATE_ANGLE_OUTPUT): the worker's own guard lives in its
+    memory; the host refuses a second record of an angle from the stored outputs, so the first one stays valid."""
+    run, session_id = three_angles(env)
+    assert run_code(env, session_id, READ_ALL + DECLARATIVE + FRAME + CUSTOM)["status"] == "OK"
+    # a record written past the worker's guard (as when its memory was reset) reaches the host
+    again = run_code(env, session_id, "saniti._write_research_call('a1', {'angle_id': 'a1', 'again': True})")
+    assert again["status"] == "OK", again
+    refused = {r["name"]: r for r in again.get("rejected_outputs") or []}
+    assert refused["research_call_a1"]["reason"] == "ANGLE_ALREADY_RECORDED"
+    assert not [o for o in again["outputs"] if o["name"] == "research_call_a1"]
+    final = complete(env, session_id)
+    assert final["status"] == "COMPLETED", final
+    findings = {f["angle_id"]: f for f in final["final_status"]["research_findings_v2"]}
+    assert findings["a1"]["status"] != "INVALID", findings["a1"]
+
+
 def test_a_missing_angle_keeps_the_group_incomplete_until_finalized(env) -> None:
     run, session_id = three_angles(env)
     assert run_code(env, session_id, READ_ALL + DECLARATIVE + FRAME)["status"] == "OK"

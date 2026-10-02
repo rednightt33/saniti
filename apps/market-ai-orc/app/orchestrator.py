@@ -1537,6 +1537,8 @@ class RunState:
     sessions: dict[str, dict[str, Any]] = field(default_factory=dict)
     completions: dict[str, dict[str, Any]] = field(default_factory=dict)
     final_status: dict[str, Any] | None = None
+    # M25: every completion of the run, in order (final_status keeps the latest for the existing readers)
+    final_statuses: list[dict[str, Any]] = field(default_factory=list)
     # Research Plan confirmation: what this request may do (turn), which final response types and tools it allows
     # (None: every registered tool), the guard for submit_data_need_spec, and the continuation to return.
     plan_turn: str | None = None
@@ -2762,6 +2764,7 @@ class AgentOrchestrator:
             state.final_status = {k: result.get(k) for k in (
                 "status", "research_findings_version", "research_run_id", "plan_id", "calculation_validation",
                 "angle_completion", "missing_angle_ids")}
+            state.final_statuses.append(state.final_status)
             log_event("research_run_completed", request_id=state.request_id, research_run_id=run_id,
                       status=result.get("status"), calculation_validation=result.get("calculation_validation"),
                       angle_completion=result.get("angle_completion"),
@@ -3064,6 +3067,7 @@ class AgentOrchestrator:
             state.final_status = {"completion_id": result.get("completion_id"), "session_id": session_id,
                                   "need_id": result.get("need_id"), "status": result.get("status"),
                                   **result["final_status"]}
+            state.final_statuses.append(state.final_status)
             if result.get("status") == "COMPLETED":
                 verified = {str(i) for i in result["final_status"].get("verified_output_ids") or []}
                 state.verified_outputs |= verified
@@ -4365,6 +4369,7 @@ class AgentOrchestrator:
             research=ResearchSummary(experiments=[ExperimentSummary(**e) for e in state.experiments])
             if state.experiments else None,
             analysis_final_status=state.final_status,
+            analysis_final_statuses=state.final_statuses or None,
             research_plan=self._plan_execution(state),
             analysis_path=AnalysisPathExecution(requested=state.forced_path, mismatches_refused=state.path_refusals)
             if state.forced_path else None,

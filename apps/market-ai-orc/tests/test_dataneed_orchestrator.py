@@ -215,6 +215,11 @@ def test_an_incomplete_analysis_is_rejected_until_it_completes() -> None:
     assert "INCOMPLETE (data_coverage FAIL" in first_rejection
     assert result.response.response_type == "ANSWER" and result.evidence_label == "DATA_COVERAGE_VERIFIED"
     assert result.execution.analysis_final_status["completion_id"] == "cmp_1"
+    # M25: both completions of the run are kept, in order; the latest stays analysis_final_status
+    statuses = result.execution.analysis_final_statuses
+    assert [s["status"] for s in statuses][-1] == "COMPLETED" and len(statuses) == 2
+    assert statuses[-1] == result.execution.analysis_final_status
+    assert "analysis_final_statuses" in result.execution.model_dump(mode="json")
 
 
 def test_stdout_and_unreleased_outputs_are_not_sources() -> None:

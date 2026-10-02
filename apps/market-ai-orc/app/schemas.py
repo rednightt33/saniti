@@ -564,6 +564,8 @@ class ExecutionMetadata(BaseModel):
     # DataNeed flow: the final status of the latest complete_analysis (data coverage, sandbox execution,
     # calculation_validation NOT_PERFORMED, evidence label, warnings); null when no analysis was completed.
     analysis_final_status: dict[str, Any] | None = None
+    # M25: every completion of the run (analysis_final_status is the latest); absent when there was none
+    analysis_final_statuses: list[dict[str, Any]] | None = None
     # Research Plan confirmation: what this request did with a plan (null when confirmation is off or unused).
     research_plan: "ResearchPlanExecution | None" = None
     # AI_ENABLE_ANALYSIS_PATH: present only when the caller fixed the path (omitted, not null, otherwise)
@@ -573,10 +575,11 @@ class ExecutionMetadata(BaseModel):
 
     @model_serializer(mode="wrap")
     def _without_unused_path(self, handler: Any) -> Any:
-        """analysis_path and mode appear only when set, so runs without them keep their exact shape."""
+        """analysis_path, mode and analysis_final_statuses appear only when set, so runs without them keep their exact
+        shape."""
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("analysis_path", "mode"):
+            for key in ("analysis_path", "mode", "analysis_final_statuses"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data

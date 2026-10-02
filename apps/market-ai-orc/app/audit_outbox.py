@@ -129,6 +129,7 @@ def build_payload(*, request: Any, result: Any, trace: list[dict[str, Any]], sta
         "events": trace[:MAX_EVENTS],
         "final_response": response,
         "analysis_final_status": sanitize(execution.analysis_final_status),
+        "analysis_final_statuses": sanitize(execution.analysis_final_statuses),
         "expected": {"execution_ids": sorted(set(execution_ids)), "completion_ids": sorted(set(completion_ids))},
         "resources": {"session_ids": sorted(set(sessions)), "bundle_ids": sorted(set(bundles))},
     }
