@@ -286,7 +286,7 @@ def expected_events(env) -> pd.DataFrame:
 
 @requires_root
 def test_an_event_study_is_recomputed_by_the_backend_and_its_tables_are_verified(session) -> None:
-    body = ok(session, STUDY.replace("EXTRA", "") + "emit_table('other', banks)\n"
+    body = ok(session, STUDY.replace("EXTRA", "") + "emit_table('other', banks, definition={})\n"
                                                     "print(study['summary'][0]['event_count'])")
     names = [o["name"] for o in body["outputs"]]
     assert names[:5] == ["drops", "drops_events", "drops_baseline", "drops_flow", "event_study_call_drops"] \
@@ -343,7 +343,7 @@ def test_units_follow_the_declared_outcome_unit_and_the_estimate_kind() -> None:
 @requires_root
 def test_the_tables_carry_their_units_and_a_declaration_is_checked(session) -> None:
     body = ok(session, STUDY.replace("EXTRA", "") + "t = pd.DataFrame({'broker': ['A'], 'share': [0.25]})\n"
-                                                    "emit_table('shares', t, units={'share': 'FRACTION'})")
+                                                    "emit_table('shares', t, units={'share': 'FRACTION'}, definition={})")
     units = {o["name"]: o.get("units") for o in body["outputs"]}
     assert units["drops"] == ES.summary_units("PERCENT") and units["shares"] == {"share": "FRACTION"}
     assert units["drops_events"] == {"outcome": "PERCENT"}
@@ -361,7 +361,7 @@ def test_the_tables_carry_their_units_and_a_declaration_is_checked(session) -> N
 @requires_root
 def test_a_changed_event_study_table_fails_completion_until_the_study_is_run_again(session) -> None:
     ok(session, STUDY.replace("EXTRA", "") + "fake = pd.DataFrame(study['summary'])\nfake['mean'] = fake['mean'] + 1\n"
-                                          "emit_table('drops', fake)")
+                                          "emit_table('drops', fake, definition={})")
     result = complete(session)
     assert result["status"] == "INCOMPLETE" and result["next_action"] == "RUN_PYTHON"
     study = result["final_status"]["event_studies"][0]
@@ -393,7 +393,7 @@ def test_a_changed_flow_table_fails_completion(session) -> None:
     ok(session, STUDY.replace("EXTRA", "") + "import pandas as pd\nfake = pd.DataFrame("
                                           "[{'segment': 'ALL', 'rows_in_window': 1, 'condition_unknown': 0, "
                                           "'condition_true': 1, 'censored': 0, 'overlapping_dropped': 0, 'used': 1}])\n"
-                                          "emit_table('drops_flow', fake)")
+                                          "emit_table('drops_flow', fake, definition={})")
     study = complete(session)["final_status"]["event_studies"][0]
     assert study["status"] == "FAIL" and {m.get("table") for m in study["examples"]} == {"flow"}
 
@@ -401,6 +401,6 @@ def test_a_changed_flow_table_fails_completion(session) -> None:
 @requires_root
 def test_a_changed_baseline_table_fails_completion(session) -> None:
     ok(session, STUDY.replace("EXTRA", "") + "fake = study['baseline'].copy()\nfake['outcome'] = fake['outcome'] + 1\n"
-                                          "emit_table('drops_baseline', fake)")
+                                          "emit_table('drops_baseline', fake, definition={})")
     study = complete(session)["final_status"]["event_studies"][0]
     assert study["status"] == "FAIL" and {m.get("table") for m in study["examples"]} == {"baseline"}

@@ -101,7 +101,12 @@ RUN_DESCRIPTION = (
     "emit_chart(figure, name, title), emit_file(name, data, format); emit_table and emit_json take units={column: "
     "'FRACTION' | 'PERCENT' | 'P_VALUE'} for every column holding a share or a return as a decimal, a value "
     "already in percent, or a p-value, so the answer's value references are formatted by the data's "
-    "unit; each returns output metadata and the tool "
+    "unit, and definition={'filters': [{'column', 'operator', 'value'}], 'period': {'start', 'end'}, 'entities', "
+    "'thresholds', 'notes'}: how the result was made beyond the data request (filters in the data need's operators "
+    "EQ, NEQ, GT, GTE, LT, LTE, IN, NOT_IN, BETWEEN, IS_NULL, IS_NOT_NULL; {} when the code applied none), which "
+    "later turns read instead of guessing; complete_analysis does not release a table or JSON without one. A "
+    "table of an earlier result opened with load_output carries its definition in .attrs; each returns output "
+    "metadata and the tool "
     "result lists output_ids. print() is diagnostics only. Results: OK; SCRIPT_ERROR with error_type, line, field "
     "(e.g. a missing column) and traceback: fix the code and rerun (earlier variables remain); TIMEOUT (the "
     "execution was interrupted, the session remains); INSUFFICIENT_INPUT_DATA after "
@@ -144,8 +149,10 @@ EVENT_STUDY_SENTENCE = (
     "without the event; holdout_start adds IN_SAMPLE and OUT_OF_SAMPLE rows. It emits <name> (one row per segment: "
     "event_count, event_dates, effective_event_dates, mean, median, hit_rate, baseline_count, baseline_mean, "
     "baseline_median, delta_mean, delta_ci_low, delta_ci_high, delta_p_value with dates as clusters, censored_count, "
-    "overlapping_dropped, meets_min_events) and <name>_events (date, entity, outcome) for further analysis; never "
-    "overwrite or re-emit them."
+    "overlapping_dropped, meets_min_events), <name>_events (date, entity, outcome), <name>_baseline and <name>_flow "
+    "(rows_in_window, condition_unknown, condition_true = the qualifying events, censored, overlapping_dropped, used; "
+    "condition_true = censored + overlapping_dropped + used): quote each count from <name>_flow, never derive it; "
+    "never overwrite or re-emit them."
 )
 COMPLETE_EVENT_STUDY_SENTENCE = (
     " Exception: the tables of saniti.event_study are recomputed by the backend from their declaration. "
@@ -255,6 +262,13 @@ def released_contents(client: SandboxClient, session_id: str, outputs: list[dict
         units = (body.get("meta") or {}).get("units") if isinstance(body.get("meta"), dict) else None
         if units:
             entry["units"] = units  # P23: the declared unit of each column, so a figure is shown by its unit
+        meta = body.get("meta") if isinstance(body.get("meta"), dict) else {}
+        if isinstance(meta.get("definition"), dict) or isinstance(output.get("definition"), dict):
+            # H1 (M63): how the result was made, so the answer and later turns read it instead of guessing
+            entry["definition"] = meta.get("definition") if isinstance(meta.get("definition"), dict) \
+                else output["definition"]
+        if isinstance(output.get("lineage"), dict):
+            entry["lineage"] = output["lineage"]
         if "rows" in body:
             entry.update(rows=body["rows"], row_count=body.get("row_count"),
                          truncated=body.get("next_offset") is not None)

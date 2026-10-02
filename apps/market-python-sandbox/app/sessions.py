@@ -85,6 +85,18 @@ OUTPUT_EXTENSIONS = {"PARQUET": "parquet", "CSV": "csv", "PNG": "png", "JSON": "
 VALUE_UNITS = ("FRACTION", "PERCENT", "P_VALUE")
 
 
+def _output_definition(definition: Any) -> dict[str, Any] | None:
+    """H1: the definition the runtime validated (a dict; {} states no filter beyond the data request). Anything else
+    or anything oversized is dropped, so the completion asks for it again."""
+    if not isinstance(definition, dict):
+        return None
+    try:
+        size = len(json.dumps(definition, ensure_ascii=False))
+    except (TypeError, ValueError):
+        return None
+    return definition if size <= DEFINITION_MAX_CHARS else None
+
+
 def _output_units(units: Any, columns: list[str] | None) -> dict[str, str]:
     """P23 (2026-10-02): the units an output declared ({column or field: FRACTION | PERCENT | P_VALUE}), re-checked
     here because the manifest is written inside the session: unknown units and, for a table, unknown columns are
@@ -116,6 +128,8 @@ STATE_CORRUPTED_HINT = ("The code changed the session's own state (the saniti_se
                         "protocol pipe). Do not import or modify the sandbox's internal modules.")
 # S13: the per-angle records the research_* helpers write; one of each per angle and epoch
 RESEARCH_RECORDS = ("research_call_", "research_input_")
+# H1: the largest output definition kept (runtime/saniti_session.py DEFINITION_MAX_CHARS)
+DEFINITION_MAX_CHARS = 4000
 RESEARCH_HELPERS = ["research_conditional", "research_persistence", "research_group_comparison", "research_quantiles",
                     "research_temporal_dependency", "research_custom"]
 
@@ -216,9 +230,12 @@ HELPERS = ["requests()", "manifest()", "quality(request)", "load(request, column
            "(recomputed by the backend at complete_analysis)",
            "insufficient_data(request, range_id=None, value=None, unit='TRADING_OBSERVATIONS', "
            "requirement_type='ADDITIONAL_HISTORY', reason='')", "intermediate_path(name)",
-           "emit_table(name, frame, description='', units=None)",
+           "emit_table(name, frame, description='', units=None, definition=None) (definition required to release: "
+           "{'filters': [{'column', 'operator', 'value'}], 'period', 'entities', 'thresholds', 'notes'}; {} when the "
+           "code added no filter to the data request)",
            "emit_chart(figure=None, name='chart', title='', description='')",
-           "emit_json(name, value, description='', units=None)", "emit_text(name, text, description='')",
+           "emit_json(name, value, description='', units=None, definition=None) (definition as for emit_table)",
+           "emit_text(name, text, description='')",
            "emit_file(name, data, format='PARQUET'|'CSV'|'PNG'|..., description='')", "add_warning(code, message)"]
 
 
@@ -1051,7 +1068,9 @@ class SessionManager:
                       "name": str(entry.get("name"))[:80], "type": kind, "format": fmt, "relative_path": relative,
                       "byte_count": size, "row_count": rows, "columns": columns, "checksum_sha256": digest.hexdigest(),
                       "meta": {**{k: entry.get(k) for k in ("description", "title", "characters") if entry.get(k)},
-                               **({"units": units} if (units := _output_units(entry.get("units"), columns)) else {})},
+                               **({"units": units} if (units := _output_units(entry.get("units"), columns)) else {}),
+                               **({"definition": defined} if (defined := _output_definition(entry.get("definition")))
+                                  is not None else {})},
                       "released": 0, "created_at": now.isoformat(),
                       "expires_at": (now + timedelta(hours=s.result_retention_hours)).isoformat()}
             self.store.insert_output(record)
@@ -1060,6 +1079,8 @@ class SessionManager:
             accepted.append({"output_id": output_id, "name": record["name"], "type": kind, "format": fmt,
                              "columns": columns, "row_count": rows, "byte_count": size,
                              "description": record["meta"].get("description"),
+                             **({"definition": record["meta"]["definition"]}
+                                if "definition" in record["meta"] else {}),
                              **({"units": record["meta"]["units"]} if record["meta"].get("units") else {})})
         return accepted, rejected
 

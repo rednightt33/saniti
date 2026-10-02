@@ -103,6 +103,42 @@ def _note_request(table: dict[str, Any], request_id: str) -> None:
         table["requests"] = (table["requests"] + [request_id])[-5:]
 
 
+def scope_text(scope: Any) -> str:
+    """A DataNeed scope (ALL / PREDICATE / AND / OR / NOT) as one readable line, e.g. "Industry EQ Banks"."""
+    if not isinstance(scope, dict):
+        return "all rows"
+    kind = scope.get("type")
+    if kind == "PREDICATE":
+        value = scope.get("value")
+        shown = "" if value is None else " " + (", ".join(map(str, value)) if isinstance(value, list) else str(value))
+        return f"{scope.get('column')} {scope.get('operator')}{shown}"
+    if kind in ("AND", "OR"):
+        return "(" + f" {kind} ".join(scope_text(c) for c in scope.get("children") or []) + ")"
+    if kind == "NOT":
+        return f"NOT {scope_text(scope.get('child'))}"
+    return "all rows"
+
+
+def definition_text(definition: Any) -> str:
+    """A released output's definition (filters in the DataNeed grammar, period, entities, thresholds, notes) as one
+    readable line; {} reads as no filter beyond the data request."""
+    if not isinstance(definition, dict):
+        return "NOT STATED"
+    parts = []
+    filters = [scope_text({"type": "PREDICATE", **f}) for f in definition.get("filters") or [] if isinstance(f, dict)]
+    parts.append("filters: " + ("; ".join(filters) if filters else "none beyond the data request"))
+    period = definition.get("period")
+    if isinstance(period, dict) and (period.get("start") or period.get("end")):
+        parts.append(f"period {period.get('start')}..{period.get('end')}")
+    if definition.get("entities"):
+        parts.append(f"entities {definition['entities']}")
+    if isinstance(definition.get("thresholds"), dict) and definition["thresholds"]:
+        parts.append("thresholds " + ", ".join(f"{k}={v}" for k, v in definition["thresholds"].items()))
+    if definition.get("notes"):
+        parts.append(f"notes: {definition['notes']}")
+    return "; ".join(parts)
+
+
 def add_need(record: dict[str, Any], request_id: str, result: dict[str, Any], mode: str | None = None) -> None:
     """An approved data need (submit_data_need_spec): its tables and extracted columns, and the need itself."""
     approved = result.get("approved")
@@ -119,7 +155,12 @@ def add_need(record: dict[str, Any], request_id: str, result: dict[str, Any], mo
                          "source_table": entry["source_table"], "columns": list(entry.get("extract_columns") or []),
                          "ranges": [{k: r.get(k) for k in ("range_id", "start", "end")}
                                     for r in entry.get("ranges") or [] if isinstance(r, dict)][:6],
-                         "scope_sha256": entry.get("scope_sha256")})
+                         "scope_sha256": entry.get("scope_sha256"),
+                         # H1 (M63): the row filter the backend applied, readable (DERIVED)
+                         **({"scope": scope_text(entry["scope"])} if entry.get("scope") else {}),
+                         **({"restrictions": [f"{x.get('right_table')}: {scope_text(x.get('right_scope'))}"
+                                              for x in entry["restrictions"] if isinstance(x, dict)]}
+                            if entry.get("restrictions") else {})})
     needs = [n for n in record["needs"] if n.get("need_id") != result["need_id"]]
     needs.append({"need_id": result["need_id"], "request_id": request_id, "mode": mode,
                   "spec_sha256": approved.get("spec_sha256"), "catalog_sha256": approved.get("catalog_sha256"),
@@ -147,14 +188,20 @@ def _next_seq(record: dict[str, Any]) -> int:
 
 def add_output(record: dict[str, Any], request_id: str, *, alias: str, output_id: str, session_id: str | None,
                name: Any, columns: list[str], row_count: Any, label: str | None = None,
-               kind: str | None = None) -> None:
+               kind: str | None = None, definition: dict[str, Any] | None = None,
+               lineage: dict[str, Any] | None = None) -> None:
     earlier = next((o for o in record["outputs"] if o.get("output_id") == output_id), None)
     outputs = [o for o in record["outputs"] if o.get("output_id") != output_id]
     # M64: an output read again keeps the place it was produced at; only a new output is newer than what came before
     seq = earlier.get("seq") if earlier is not None and isinstance(earlier.get("seq"), int) else _next_seq(record)
     outputs.append({"ref": f"out.{alias}", "output_id": output_id, "session_id": session_id, "name": name,
                     "columns": columns[:30], "row_count": row_count, "request_id": request_id, "seq": seq,
-                    **({"label": label} if label else {}), **({"type": kind} if kind else {})})
+                    **({"label": label} if label else {}), **({"type": kind} if kind else {}),
+                    # H1: how it was made and what produced it (an output read again keeps what it had)
+                    **({"definition": definition} if isinstance(definition, dict)
+                       else {"definition": earlier["definition"]} if earlier and "definition" in earlier else {}),
+                    **({"lineage": lineage} if isinstance(lineage, dict)
+                       else {"lineage": earlier["lineage"]} if earlier and "lineage" in earlier else {})})
     record["outputs"] = outputs[-MAX_OUTPUTS:]
     record["next_alias"] = max(record.get("next_alias") or 1, _alias_number(f"out.{alias}") + 1)
 
@@ -364,9 +411,11 @@ def note(record: dict[str, Any]) -> str:
             f"- {rid}: {r.get('left_table')}({', '.join(r.get('left_columns') or [])}) -> {r.get('right_table')}("
             f"{', '.join(r.get('right_columns') or [])}) {r.get('temporal_rule') or ''}".rstrip()
             for rid, r in sorted(record.get("relationships", {}).items())]),
-        ("Approved data needs (newest first):", [
+        ("Approved data needs (newest first; the filter each request applied):", [
         f"- {n.get('need_id')} ({n.get('mode') or 'ANALYSIS'}, {n.get('request_id')}): " + "; ".join(
             f"{r.get('logical_name')}={r.get('source_table')}({', '.join(r.get('columns') or [])})"
+            + (f" where {r['scope']}" if r.get("scope") else "")
+            + (f" restricted to {'; '.join(r['restrictions'])}" if r.get("restrictions") else "")
             for r in n.get("requests") or []) for n in reversed(record["needs"])]),
         ("Released outputs (newest first):", [
             f"- {o.get('ref')} = {o.get('output_id')} \"{o.get('name')}\" "
@@ -374,6 +423,7 @@ def note(record: dict[str, Any]) -> str:
             + f"({o.get('row_count')} rows; "
             f"{', '.join(o.get('columns') or [])}) session {o.get('session_id')}, {o.get('request_id')}"
             + (f", label {o['label']}" if o.get("label") else "")
+            + f"; definition: {definition_text(o.get('definition'))}"
             for o in reversed(record["outputs"])]),
         ("Research angles (newest first):", [
             f"- {r.get('angle_id')} ({r.get('request_id')}): " + "; ".join(

@@ -118,7 +118,10 @@ NOTES = {
                 "about an earlier result. Answer with a computed breakdown of the data and outputs this conversation "
                 "already used (the free_code guide's insight section: change between periods, top and bottom "
                 "contributors, the measure by a groupable dimension, unusual values, concentration), reusing the "
-                "approved data need or the warm session when they cover it. Call it an association, not a cause; say "
+                "approved data need or the warm session when they cover it. Start from the explained result's own "
+                "table (load_output) and its definition in the data record (filters, period, thresholds); never guess "
+                "how an earlier result was made, and when you use another definition, say how it differs. Call it an "
+                "association, not a cause; say "
                 "that causes outside the database are not available. No research plan runs in this turn: end by "
                 "offering a test (an event study or a research plan) when the user wants evidence."),
     "CONTINUE": ("Application note (conversation router), not from the user: the user asks for further analysis. "

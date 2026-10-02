@@ -22,7 +22,7 @@ daily = saniti.load('prices')
 banks = load('stock_classification')
 weekly = saniti.resample(daily, 'prices')
 returns = saniti.resampled_returns(weekly, 'prices')
-emit_table('weekly_returns', returns[returns['period_complete']].head(50))
+emit_table('weekly_returns', returns[returns['period_complete']].head(50), definition={})
 """
 
 

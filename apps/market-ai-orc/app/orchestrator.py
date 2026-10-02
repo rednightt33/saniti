@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 
 from .audit_outbox import build_payload, final_event, model_event, tool_event, unrendered_event
 from . import data_record as records
+from . import definition_check
 from . import edit_repair
 from .catalog_protocol import CACHE_NOTE, CACHEABLE_TOOLS, CatalogLedger, cache_key, gaps, record
 from .compaction import dumps, estimate_tokens, stable_hash, trim_history
@@ -245,6 +246,10 @@ It returns one row per group instead of every raw row; mode ANALYSIS
 only. An average is SUM divided by COUNT in the session; medians,
 percentiles and correlations need raw rows. allowed_aggregations has no
 direction and never permits a sum.
+Put row filters (a board, an industry, an investor type, tickers) in the
+request's scope, not in the code: the backend then records how the data
+was selected. A filter applied in code is stated in the released
+table's definition (emit_table(..., definition=...)).
 2. prepare_data_bundle(need_id) extracts and verifies the data. Read
 the quality flags and relationship warnings; disclose those that
 affect the answer.
@@ -1024,6 +1029,13 @@ def annotate_claims(text: str, spans: list[tuple[str, int, int]]) -> tuple[str, 
         cursor = right
     pieces.append(text[cursor:])
     return "".join(pieces), annotations
+DEFINITION_CLAIM_INSTRUCTION = (
+    "The answer says its result follows the definition of an earlier result, but the backend sees otherwise: "
+    "{problems}. Either use the earlier result's definition (open it with load_output and keep its filters, period "
+    "and thresholds), or keep your result and state plainly how its definition differs instead of calling it "
+    "consistent.")
+DEFINITION_CLAIM_NOTICE = ("Catatan sistem: klaim bahwa hasil ini mengikuti definisi hasil sebelumnya tidak didukung; "
+                           "{problems}.")
 DATANEED_GATE_INSTRUCTION = (
     "Your answer relies on data analysis that did not complete: {findings}. Only outputs released by "
     "complete_analysis may support an answer. Follow its next_action (process what was not read, revise the "
@@ -1539,6 +1551,9 @@ class RunState:
     final_status: dict[str, Any] | None = None
     # M25: every completion of the run, in order (final_status keeps the latest for the existing readers)
     final_statuses: list[dict[str, Any]] = field(default_factory=list)
+    # H1 (M63): whether this run opened a result of an earlier turn (load_output in successful code, or
+    # get_session_output of another request's released output); an INSIGHT turn must, before it completes
+    opened_earlier: bool = False
     # Research Plan confirmation: what this request may do (turn), which final response types and tools it allows
     # (None: every registered tool), the guard for submit_data_need_spec, and the continuation to return.
     plan_turn: str | None = None
@@ -1579,6 +1594,8 @@ class RunState:
     reference_annotated: bool = False
     # P17 (2026-10-01): the claims marked in the final answer (italics); returned as the response's annotations
     claim_annotations: list[dict[str, Any]] = field(default_factory=list)
+    # H1: a consistency claim the definitions did not support stayed, with a limitation stating the difference
+    definition_annotated: bool = False
     raw_final: dict[str, Any] | None = None
     # the model's latest final output as it arrived (for the final.rejected / final.forced audit events)
     current_raw: str = ""
@@ -1980,6 +1997,25 @@ class AgentOrchestrator:
             f"The caller fixed this request to the {state.forced_path} path; submit the data need with mode "
             f"{state.forced_path}." + (" Answer it as a descriptive analysis; no Research Plan is used."
                                        if state.forced_path == "ANALYSIS" else ""))
+
+    def _insight_source_unopened(self, state: RunState, call_id: str, name: str) -> ToolOutcome | None:
+        """H1 (M63, golden test 2026-10-02): an explanation of an earlier result starts from that result. An INSIGHT
+        turn that never opened a released table of an earlier turn (load_output in its code, or get_session_output)
+        is refused before it completes, with the tables it can open; a turn without earlier results is not."""
+        if state.plan_meta.get("turn_kind") != "INSIGHT" or state.opened_earlier:
+            return None
+        earlier = [o for o in (state.data_record or {}).get("outputs") or []
+                   if o.get("request_id") != state.request_id and o.get("type") in (None, "TABLE", "JSON")]
+        if not earlier:
+            return None
+        listed = [f"{o.get('ref')} {o.get('output_id')} \"{o.get('name')}\"" for o in earlier[-8:]]
+        log_event("insight_source_not_opened", request_id=state.request_id, earlier=len(earlier))
+        return error_outcome(
+            call_id, name, "INSIGHT_SOURCE_NOT_OPENED",
+            "This turn explains an earlier result, so it starts from that result's own table: load it in the session "
+            "with load_output('<output_id>') (or read it with get_session_output) and use its definition from the "
+            "data record; do not rebuild it with a guessed definition. When you need other data, state how its "
+            f"definition differs. Earlier results: {'; '.join(listed)}.")
 
     def _one_open_session(self, state: RunState, call_id: str, name: str) -> ToolOutcome | None:
         """One open analysis session per run (S08): the sandbox has few session slots for every run together, and a run
@@ -2604,8 +2640,18 @@ class AgentOrchestrator:
             refused = self._one_open_session(state, call_id, name)
             if refused is not None:
                 return self._repair_budget(state, call_id, name, refused)
+        if name == "complete_analysis":
+            refused = self._insight_source_unopened(state, call_id, name)
+            if refused is not None:
+                return self._repair_budget(state, call_id, name, refused)
         outcome = self._repair_budget(state, call_id, name, self.registry.execute(call_id, name, raw_arguments))
         normalized = self._normalized_arguments(raw_arguments)
+        if outcome.ok and isinstance(normalized, dict):
+            result = outcome.output.get("result") if isinstance(outcome.output.get("result"), dict) else {}
+            if (name == "run_python" and "load_output(" in str(normalized.get("code") or "")
+                    and result.get("status") == "OK") \
+                    or (name == "get_session_output" and result.get("origin")):
+                state.opened_earlier = True
         if name == "submit_data_need_spec" and isinstance(normalized, dict) and normalized.get("mode") == "RESEARCH":
             state.research_attempted = True  # an attempt, whatever its outcome (M19)
         if name == "check_data_feasibility":
@@ -3263,11 +3309,14 @@ class AgentOrchestrator:
             columns = entry.get("columns") if isinstance(entry.get("columns"), list) else \
                 [str(k) for k in (rows[0] if rows and isinstance(rows[0], dict) else {}) if k != "_row"]
             columns = [str(c.get("name")) if isinstance(c, dict) else str(c) for c in columns]
+            definition = entry.get("definition") if isinstance(entry.get("definition"), dict) \
+                else meta.get("definition") if isinstance(meta.get("definition"), dict) else None
             records.add_output(state.data_record, state.request_id, alias=alias, output_id=output_id,
                                session_id=owner, name=entry.get("name"), columns=columns,
                                row_count=entry.get("row_count"),
                                label="CALCULATION_VERIFIED" if output_id in state.verified_outputs
-                               else "DATA_COVERAGE_VERIFIED", kind=entry.get("type"))
+                               else "DATA_COVERAGE_VERIFIED", kind=entry.get("type"), definition=definition,
+                               lineage=entry.get("lineage") if isinstance(entry.get("lineage"), dict) else None)
 
         def released(result: dict[str, Any]) -> None:
             """A (user decision 2026-10-02): every released output gets its ref and its place in the data record, not
@@ -3526,7 +3575,7 @@ class AgentOrchestrator:
                                 [f"Figures without a governed source in this run: {numbers}."] + lines)
 
         final = self._annotate_claims(state, final)  # P17: marked, never rejected
-        annotated = state.reference_annotated or bool(state.claim_annotations)
+        annotated = state.reference_annotated or bool(state.claim_annotations) or state.definition_annotated
 
         missing_lines = [line for line in lines if line not in final.limitations]
         if state.analyses:
@@ -3599,8 +3648,9 @@ class AgentOrchestrator:
                 # LIMITATION keeps each angle's backend status, reason and effective sample, labelled as such
                 forced = forced.model_copy(update={"research_findings": backend_findings(run)})
             return forced
+        final = self._definition_claims(state, final)
         missing_lines = [line for line in lines if line not in final.limitations]
-        annotated = state.reference_annotated or bool(state.claim_annotations)
+        annotated = state.reference_annotated or bool(state.claim_annotations) or state.definition_annotated
         if state.sessions or state.completions or state.inherited or run is not None:
             state.validation_gate = "ANNOTATED" if missing_lines or annotated else "PASSED"
         elif annotated:
@@ -3613,6 +3663,24 @@ class AgentOrchestrator:
         if not missing_lines:
             return final
         return final.model_copy(update={"limitations": [*final.limitations, *missing_lines]})
+
+    def _definition_claims(self, state: RunState, final: FinalResponse) -> FinalResponse:
+        """H1 (M63): "consistent with the previous answer" only when the definitions match. Rejected once for repair;
+        if it stays, the answer keeps its figures and a limitation states the difference (never a silent claim)."""
+        if final.response_type != "ANSWER":
+            return final
+        produced = [{"name": o.get("name"), "definition": o.get("definition")}
+                    for o in (state.data_record or {}).get("outputs") or [] if o.get("request_id") == state.request_id]
+        opened = [i for c in state.completions.values() for i in (c.get("final") or {}).get("carried_inputs") or []
+                  if isinstance(i, dict)]
+        found = definition_check.problems(final.answer, produced, opened)
+        if not found:
+            return final
+        text = "; ".join(found[:4])
+        self._gate_once(state, "DEFINITION", DEFINITION_CLAIM_INSTRUCTION.format(problems=text))
+        line = DEFINITION_CLAIM_NOTICE.format(problems=text)
+        state.definition_annotated = True
+        return final.model_copy(update={"limitations": [*final.limitations, line]})
 
     def _findings_problems(self, state: RunState, final: FinalResponse) -> tuple[FinalResponse, list[str]]:
         """Research findings v1: an ANSWER resting on completed research experiments carries one research_findings

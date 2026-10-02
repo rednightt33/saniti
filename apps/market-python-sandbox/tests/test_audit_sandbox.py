@@ -26,7 +26,7 @@ prices = load('prices')
 banks = load('stock_classification')
 last = prices.groupby('ticker', as_index=False)['close'].last()
 print(statistics.mean(last['close']), scipy.stats.__name__)
-emit_table('last_close', last)
+emit_table('last_close', last, definition={})
 """
 
 

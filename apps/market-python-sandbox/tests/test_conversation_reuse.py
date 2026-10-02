@@ -22,7 +22,7 @@ YTD = """
 prices = load('prices')
 banks = load('stock_classification')
 last = prices.groupby('ticker', as_index=False)['close'].last()
-emit_table('last_close', last)
+emit_table('last_close', last, definition={})
 """
 
 
@@ -97,7 +97,7 @@ def test_a_follow_up_reuses_the_bundle_and_the_warm_session_with_a_new_epoch(reu
     assert stale.status_code == 404 and stale.json()["error"]["code"] == "SESSION_NOT_FOUND"
     # filter the earlier DataFrame without reading the data again
     body = execute(reuse, one["session_id"], "req_turn_2",
-                   "high = last[last['close'] >= last['close'].median()]\nemit_table('high_close', high)")
+                   "high = last[last['close'] >= last['close'].median()]\nemit_table('high_close', high, definition={'filters': [{'column': 'close', 'operator': 'GTE', 'value': 'median'}]})")
     assert body["status"] == "OK" and body["session"]["executions_used"] == 2
     done = complete(reuse, one["session_id"], "req_turn_2")
     assert done["status"] == "COMPLETED" and done["epoch"] == 2 and done["need_id"] != one["need"]["need_id"]
@@ -138,7 +138,7 @@ def test_released_outputs_are_read_across_requests_of_the_conversation_only(reus
     assert reuse["api"].get(path, params=params, headers=headers(OTHER)).status_code == 404
     # an output of a later epoch is not readable by another request until that epoch completes
     attach(reuse, "req_turn_2")
-    draft = execute(reuse, one["session_id"], "req_turn_2", "emit_json('draft', {'n': 1})")["outputs"][0]
+    draft = execute(reuse, one["session_id"], "req_turn_2", "emit_json('draft', {'n': 1}, definition={})")["outputs"][0]
     hidden = reuse["api"].get(f"/v1/sessions/{one['session_id']}/outputs/{draft['output_id']}",
                               params={"request_id": "req_turn_3"}, headers=headers())
     assert hidden.status_code == 404
@@ -269,10 +269,10 @@ def test_coverage_is_inherited_from_every_earlier_passed_epoch(reuse) -> None:
     # the data epoch 1 read in full in the same namespace
     one = first_turn(reuse)
     attach(reuse, "req_turn_2")
-    execute(reuse, one["session_id"], "req_turn_2", "emit_json('count', {'n': int(len(last))})")
+    execute(reuse, one["session_id"], "req_turn_2", "emit_json('count', {'n': int(len(last))}, definition={})")
     assert complete(reuse, one["session_id"], "req_turn_2")["status"] == "COMPLETED"
     attach(reuse, "req_turn_3")
-    execute(reuse, one["session_id"], "req_turn_3", "emit_json('top', {'close': float(last['close'].max())})")
+    execute(reuse, one["session_id"], "req_turn_3", "emit_json('top', {'close': float(last['close'].max())}, definition={})")
     done = complete(reuse, one["session_id"], "req_turn_3")
     assert done["status"] == "COMPLETED", done
     assert {r["processing"] for r in done["coverage"]["requests"]} == {"INHERITED"}
@@ -287,7 +287,7 @@ def test_a_recomputed_event_study_stays_labelled_in_later_turns_and_its_record_i
     opened = post(reuse, "/v1/sessions", {"request_id": "req_turn_1", "bundle_id": bundle["input_bundle_id"]}).json()
     body = execute(reuse, opened["session_id"], "req_turn_1",
                    "event_study('prices', 'close / lag(close, 1) - 1 <= -0.01', {'forward_return': 'close'}, 3, "
-                   "name='drops', min_events=1)\nbanks = load('stock_classification')\nemit_table('n', banks)")
+                   "name='drops', min_events=1)\nbanks = load('stock_classification')\nemit_table('n', banks, definition={})")
     ids = {o["name"]: o["output_id"] for o in body["outputs"]}
     done = complete(reuse, opened["session_id"], "req_turn_1")
     assert done["status"] == "COMPLETED" and done["final_status"]["event_studies"][0]["status"] == "PASS", done
@@ -337,12 +337,18 @@ earlier = load_output({one['output_id']!r})
 info = carried()[0]
 print(len(earlier), earlier.attrs['label'], info['profile']['rows'])
 load('prices'); load('stock_classification')
-emit_table('built_on_earlier', earlier)""")
+emit_table('built_on_earlier', earlier, definition={{}})""")
     assert body["status"] == "OK", body
     assert body["stdout"].split() == ["3", "DATA_COVERAGE_VERIFIED", "3"]
     done = complete(reuse, opened["session_id"], "req_turn_2")
     assert done["final_status"]["carried_inputs"] == [{"output_id": one["output_id"], "name": "last_close",
-                                                       "kind": "G1", "label": "DATA_COVERAGE_VERIFIED"}]
+                                                       "kind": "G1", "label": "DATA_COVERAGE_VERIFIED",
+                                                       "definition": {}}]
+    # H1: the carried table brings its definition, and the new result states its own with its lineage
+    released = {o["name"]: o for o in done["released_outputs"]}
+    assert released["built_on_earlier"]["definition"] == {}
+    assert released["built_on_earlier"]["lineage"]["execution_id"].startswith("exe_")
+    assert released["built_on_earlier"]["lineage"]["code_sha256"]
 
 
 def test_a_research_session_loads_only_the_tables_its_plan_names(make_service, governor) -> None:

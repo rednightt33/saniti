@@ -189,7 +189,11 @@ def stage(directory: Path, outputs: list[dict[str, Any]], *, outputs_root: Path,
             "columns": output.get("columns"), "rows": output.get("row_count"),
             "origin": {k: origin.get(k) for k in ("completion_id", "request_id", "need_id", "completed_at",
                                                   "calculation_validation")},
-            "expires_at": output.get("expires_at"), "profile": profiles[output_id]})
+            "expires_at": output.get("expires_at"), "profile": profiles[output_id],
+            # H1 (M63): how the table was made, so a later step reads it instead of guessing
+            "definition": (output.get("meta") or {}).get("definition") if isinstance(output.get("meta"), dict)
+            else None,
+            "execution_id": output.get("execution_id")})
     for stale in target.iterdir():
         if stale.name not in keep and stale.name != MANIFEST:
             stale.unlink(missing_ok=True)
@@ -203,7 +207,8 @@ def stage(directory: Path, outputs: list[dict[str, Any]], *, outputs_root: Path,
 
 def listing(entries: list[dict[str, Any]], limit: int = 20) -> list[dict[str, Any]]:
     """What the session's open view lists (P2, P5): each table with its label and origin; profiles via carried()."""
-    shown = [{k: e[k] for k in ("output_id", "name", "kind", "label", "label_meaning", "rows", "columns", "origin")}
+    shown = [{k: e.get(k) for k in ("output_id", "name", "kind", "label", "label_meaning", "rows", "columns", "origin",
+                                     "definition")}
              for e in entries[:limit]]
     if len(entries) > limit:
         shown.append({"not_shown": len(entries) - limit})

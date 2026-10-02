@@ -52,7 +52,7 @@ import numpy as np
 from math import sqrt
 prices = load('prices')
 load('stock_classification')
-emit_table('summary', pd.DataFrame({'n': [len(prices)], 'root': [sqrt(np.float64(4))]}))
+emit_table('summary', pd.DataFrame({'n': [len(prices)], 'root': [sqrt(np.float64(4))]}), definition={})
 """
 
 

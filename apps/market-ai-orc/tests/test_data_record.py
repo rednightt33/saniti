@@ -178,3 +178,37 @@ def test_category_values_relationships_and_coverage_are_kept_and_shown_without_s
         records.add_output(many, "q", alias=f"o{n + 1}", output_id=f"out_{n:024x}", session_id="s", name="x" * 60,
                            columns=[f"c{i}" for i in range(30)], row_count=n)
     assert "more not shown (the full record is kept by the backend)" in records.note(many)
+
+
+def test_the_note_shows_each_request_filter_and_each_output_definition() -> None:
+    """H1 (M63): the filter applied by the data request (derived) and the filters applied in code (declared) are read
+    by later turns, so the definition of an earlier result is never guessed."""
+    record = records.empty()
+    records.add_need(record, "req_1", {"need_id": "need_1", "approved": {"spec_sha256": "s", "requests": [{
+        "data_request_id": "r_A", "logical_name": "flows", "source_table": "Feature_02_Broker_Rolling",
+        "extract_columns": ["ticker", "date", "net_value_1d"], "ranges": [], "scope_sha256": "x",
+        "scope": {"type": "AND", "children": [
+            {"type": "PREDICATE", "column": "market_board", "operator": "EQ", "value": "Regular"},
+            {"type": "PREDICATE", "column": "investor_type", "operator": "IN", "value": ["F", "D"]}]},
+        "restrictions": [{"right_table": "IDX_Stock_Universe",
+                          "right_scope": {"type": "PREDICATE", "column": "Industry", "operator": "EQ",
+                                          "value": "Banks"}}]}]}}, "ANALYSIS")
+    records.add_output(record, "req_1", alias="o1", output_id="out_1", session_id="sess_1", name="ranking",
+                       columns=["broker"], row_count=10,
+                       definition={"filters": [], "period": {"start": "2022-01-03", "end": "2026-08-31"},
+                                   "notes": "all boards combined"},
+                       lineage={"execution_id": "exe_1", "code_sha256": "c", "need_id": "need_1"})
+    records.add_output(record, "req_1", alias="o2", output_id="out_2", session_id="sess_1", name="old",
+                       columns=["x"], row_count=1)
+    text = records.note(record)
+    assert "where (investor_type IN F, D AND market_board EQ Regular)" in text \
+        or "where (market_board EQ Regular AND investor_type IN F, D)" in text
+    assert "restricted to IDX_Stock_Universe: Industry EQ Banks" in text
+    assert "definition: filters: none beyond the data request; period 2022-01-03..2026-08-31; notes: all boards " \
+           "combined" in text
+    assert "out.o2 = out_2 \"old\"" in text and "definition: NOT STATED" in text
+    # an output read again keeps its definition and lineage
+    records.add_output(record, "req_2", alias="o1", output_id="out_1", session_id="sess_1", name="ranking",
+                       columns=["broker"], row_count=10)
+    again = next(o for o in record["outputs"] if o["output_id"] == "out_1")
+    assert again["definition"]["notes"] == "all boards combined" and again["lineage"]["execution_id"] == "exe_1"

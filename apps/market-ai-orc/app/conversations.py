@@ -89,13 +89,22 @@ def fingerprint(request: AgentRunRequest) -> str:
 
 def assistant_text(result: AgentRunResponse) -> str | None:
     """What later turns see as the assistant message: the clarification question for a CLARIFICATION, else the
-    answer. None without a response (a failed run), so it never becomes history."""
+    answer followed by its assumptions, limitations and methodology. M63 (golden test 2026-10-02): a later turn saw
+    only the answer, not the limitation that said the market boards were combined, and guessed another definition.
+    None without a response (a failed run), so it never becomes history."""
     response = result.response
     if response is None:
         return None
-    text = response.clarification_question if response.response_type == "CLARIFICATION" \
-        and response.clarification_question else response.answer
-    return (text or "")[:MAX_ASSISTANT_TEXT] or None
+    if response.response_type == "CLARIFICATION" and response.clarification_question:
+        return response.clarification_question[:MAX_ASSISTANT_TEXT] or None
+    parts = [response.answer or ""]
+    for title, items in (("Asumsi", response.assumptions), ("Batasan", response.limitations)):
+        if items:
+            parts.append(f"{title}:\n" + "\n".join(f"- {item}" for item in items))
+    if getattr(response, "methodology", None):
+        parts.append(f"Metodologi:\n{response.methodology}")
+    text = "\n\n".join(p for p in parts if p)
+    return text[:MAX_ASSISTANT_TEXT] or None
 
 
 @dataclass

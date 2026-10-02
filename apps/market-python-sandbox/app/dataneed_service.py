@@ -81,6 +81,22 @@ def reference_date(reference_time: datetime, tz: str) -> date:
     return moment.astimezone(zone).date()
 
 
+def undefined_outputs(outputs: list[dict[str, Any]]) -> list[str]:
+    """H1: the names of tables and JSON results whose latest version has no definition (backend records and charts or
+    text are exempt; the latest output of a name counts, so emitting it again with a definition fixes it)."""
+    latest: dict[str, dict[str, Any]] = {}
+    for output in outputs:
+        latest[str(output.get("name") or "")] = output
+    missing = []
+    for name, output in latest.items():
+        if output.get("type") not in ("TABLE", "JSON") or name.startswith(BACKEND_RECORDS):
+            continue
+        meta = output.get("meta") if isinstance(output.get("meta"), dict) else {}
+        if not isinstance(meta.get("definition"), dict):
+            missing.append(name)
+    return missing
+
+
 class DataNeedService:
     def __init__(self, analysis: Any, store: DataNeedStore, limits: Limits = Limits()) -> None:
         self.analysis = analysis
@@ -199,7 +215,13 @@ class DataNeedService:
                 "requests": [{"data_request_id": r["data_request_id"], "logical_name": r["logical_name"],
                               "source_table": r["source_table"], "extract_columns": r["extract_columns"],
                               "ranges": r["windows"], "scope_sha256": r["scope_sha256"],
+                              # H1 (M63): the row filter itself, readable, so a later turn reads the definition of
+                              # the data instead of guessing it (DERIVED: the backend applied it at extraction)
+                              "scope": r.get("scope"),
                               "restricted_by": [x["relationship_id"] for x in r["restrictions"]],
+                              "restrictions": [{"relationship_id": x["relationship_id"],
+                                                "right_table": x.get("right_table"),
+                                                "right_scope": x.get("right_scope")} for x in r["restrictions"]],
                               # G18: a summary names what the warehouse computes and the grain it delivers; a raw
                               # analysis request whose columns could be summarised says so (derived from the catalog)
                               **({"aggregate": r["aggregate"], "key_columns": r["key_columns"]}
@@ -710,6 +732,9 @@ class DataNeedService:
                             "name": output["name"], "type": output["type"], "format": output["format"],
                             "columns": output.get("columns"), "row_count": output.get("row_count"),
                             "description": (output.get("meta") or {}).get("description"),
+                            # H1: its definition and the execution that produced it
+                            "definition": (output.get("meta") or {}).get("definition"),
+                            "execution_id": output.get("execution_id"),
                             "completion_id": origin.get("completion_id"), "request_id": origin.get("request_id"),
                             "completed_at": origin.get("completed_at"), "expires_at": output["expires_at"],
                             "evidence_label": origin.get("evidence_label"), "warnings": origin.get("warnings"),
@@ -851,6 +876,10 @@ class DataNeedService:
                 passed = False
         records = {o["output_id"] for o in outputs
                    if str(o.get("name") or "").startswith(event_study_validation.PREFIX)}
+        # H1 (M63): every released table or JSON states how it was made, so a later turn reads it instead of guessing
+        undefined = undefined_outputs(outputs) if passed else []
+        if undefined:
+            passed = False
         final = {
             "data_need_validation": "PASS",
             "research_governance": research.get("decision", "APPROVED") if mode == "RESEARCH" else "NOT_APPLICABLE",
@@ -893,7 +922,8 @@ class DataNeedService:
                 continue
             for entry in run.get("access") or []:
                 if entry.get("call") == "load_output" and entry.get("output_id"):
-                    used[entry["output_id"]] = {k: entry.get(k) for k in ("output_id", "name", "kind", "label")}
+                    used[entry["output_id"]] = {k: entry.get(k) for k in ("output_id", "name", "kind", "label",
+                                                                          "definition")}
         if used:
             # tables of earlier results this analysis built on: their labels bound what its figures can claim
             final["carried_inputs"] = list(used.values())
@@ -944,7 +974,14 @@ class DataNeedService:
         if passed:
             self.store.release_outputs([o["output_id"] for o in outputs])
             # an event study's declaration record is released for the audit but not listed for the answer
-            released = [{k: o[k] for k in ("output_id", "name", "type", "format", "row_count", "columns")}
+            code_of = {e["execution_id"]: e.get("code_sha256") for e in executions}
+            released = [{**{k: o[k] for k in ("output_id", "name", "type", "format", "row_count", "columns")},
+                         **({"definition": (o.get("meta") or {})["definition"]}
+                            if isinstance(o.get("meta"), dict) and "definition" in o["meta"] else {}),
+                         # H1: the execution, code and data that produced it
+                         "lineage": {"execution_id": o.get("execution_id"),
+                                     "code_sha256": code_of.get(o.get("execution_id")), "need_id": need_id,
+                                     "bundle_id": record["bundle_id"]}}
                         for o in outputs if o["output_id"] not in records]
         completion_id = f"cmp_{secrets.token_hex(12)}"
         result = {"completion_id": completion_id, "session_id": session_id, "bundle_id": record["bundle_id"],
@@ -953,6 +990,15 @@ class DataNeedService:
                   "execution_manifest_sha256": sha256_json(manifest)}
         if passed:
             result["next_action"] = "ANSWER_FROM_RELEASED_OUTPUTS"
+        elif undefined:
+            result["next_action"] = "RUN_PYTHON"
+            result["missing_definitions"] = undefined
+            result["message"] = (
+                f"Every released table or JSON states how it was made. Missing a definition: {undefined}. Emit each "
+                "again under the same name with definition=..., for example emit_table(name, frame, description, "
+                "definition={'filters': [{'column': 'market_board', 'operator': 'EQ', 'value': 'Regular'}], "
+                "'period': {'start': 'YYYY-MM-DD', 'end': 'YYYY-MM-DD'}, 'thresholds': {...}, 'notes': '...'}) "
+                "(definition={} when the code applied no filter beyond the data request), then complete again.")
         elif studies is not None and studies["status"] == "FAIL":
             result["next_action"] = "RUN_PYTHON"
             failed = [st for st in studies["studies"] if st["status"] == "FAIL"]

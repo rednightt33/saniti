@@ -12,7 +12,7 @@ YTD = """
 prices = load('prices')
 banks = load('stock_classification')
 last = prices.groupby('ticker', as_index=False)['close'].last()
-emit_table('last_close', last)
+emit_table('last_close', last, definition={})
 """
 
 
@@ -52,7 +52,7 @@ def test_a_complete_analysis_passes_releases_its_outputs_and_closes_the_session(
 
 
 def test_unprocessed_requests_and_ranges_fail_coverage_and_the_session_stays_open(session) -> None:
-    ok(session, "cur = saniti.range('prices', 'current_ytd')\nemit_json('n', {'rows': len(cur)})")
+    ok(session, "cur = saniti.range('prices', 'current_ytd')\nemit_json('n', {'rows': len(cur)}, definition={})")
     result = complete(session)
     assert result["status"] == "INCOMPLETE" and result["final_status"]["data_coverage"] == "FAIL"
     assert result["final_status"]["evidence_label"] == "NOT_VALIDATED" and result["released_outputs"] == []
@@ -69,7 +69,7 @@ def test_reading_the_input_files_directly_is_not_processing(session) -> None:
     ok(session, """
 import glob, os
 frames = [pd.read_parquet(p) for p in glob.glob(os.path.join(os.getcwd(), '..', 'input', '*.parquet'))]
-emit_json('rows', {'rows': sum(len(f) for f in frames)})
+emit_json('rows', {'rows': sum(len(f) for f in frames)}, definition={})
 """)
     result = complete(session)
     assert result["final_status"]["data_coverage"] == "FAIL"
@@ -105,7 +105,23 @@ def test_an_incomplete_completion_with_coverage_pass_is_evaluated_again(session)
     ok(session, "prices = load('prices')\nbanks = load('stock_classification')")
     first = complete(session)
     assert first["status"] == "INCOMPLETE" and first["coverage"]["coverage_status"] == "PASS"
-    ok(session, "emit_table('last_close', prices.groupby('ticker', as_index=False)['close'].last())")
+    ok(session, "emit_table('last_close', prices.groupby('ticker', as_index=False)['close'].last(), definition={})")
     second = complete(session)
     assert second["status"] == "COMPLETED" and not second.get("replayed")
     assert second["completion_id"] != first["completion_id"]
+
+
+def test_a_released_result_without_a_definition_keeps_the_analysis_open(session) -> None:
+    """H1 (M63): a table without a definition is not released; emitting it again with one completes the analysis."""
+    ok(session, YTD.replace(", definition={}", ""))
+    first = complete(session)
+    assert first["status"] == "INCOMPLETE" and first["next_action"] == "RUN_PYTHON"
+    assert first["missing_definitions"] == ["last_close"] and "definition=" in first["message"]
+    assert first["released_outputs"] == []
+    ok(session, "emit_table('last_close', last, definition={'filters': [{'column': 'close', 'operator': "
+                "'IS_NOT_NULL'}], 'notes': 'last close per ticker'})")
+    second = complete(session)
+    assert second["status"] == "COMPLETED", second
+    [released] = [o for o in second["released_outputs"] if o["name"] == "last_close"][-1:]
+    assert released["definition"]["notes"] == "last close per ticker"
+    assert released["lineage"]["need_id"] and released["lineage"]["bundle_id"]

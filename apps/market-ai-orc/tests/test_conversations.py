@@ -276,3 +276,24 @@ def test_an_unavailable_store_refuses_server_mode_only() -> None:
     refused = api.post(server("h9-a", "Halo"))
     assert refused.status_code == 503 and refused.json()["detail"]["code"] == "CONVERSATION_STORE_UNAVAILABLE"
     assert api.post({"request_id": "h9-b", "message": "Halo"}).json()["status"] == "COMPLETED"
+
+
+def test_history_keeps_the_assumptions_limitations_and_methodology() -> None:
+    """M63 (golden test 2026-10-02): the limitation "the boards are combined" was dropped from history and the next
+    turn guessed the Regular board; a later turn now sees the whole answer."""
+    from types import SimpleNamespace
+
+    from app.conversations import assistant_text
+
+    answer = SimpleNamespace(response_type="ANSWER", answer="TF tertinggi.", clarification_question=None,
+                             assumptions=["Hari crash = median return <= -1%."],
+                             limitations=["Market Board (Regular/Nego/Tunai) digabung."],
+                             methodology="Net value per broker per hari dijumlahkan.")
+    text = assistant_text(SimpleNamespace(response=answer))
+    assert text.startswith("TF tertinggi.")
+    assert "Batasan:\n- Market Board (Regular/Nego/Tunai) digabung." in text
+    assert "Asumsi:\n- Hari crash" in text and "Metodologi:\nNet value per broker" in text
+    question = SimpleNamespace(response_type="CLARIFICATION", answer="", clarification_question="Periode mana?",
+                               assumptions=["x"], limitations=["y"], methodology=None)
+    assert assistant_text(SimpleNamespace(response=question)) == "Periode mana?"
+    assert assistant_text(SimpleNamespace(response=None)) is None

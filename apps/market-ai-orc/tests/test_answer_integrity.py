@@ -328,3 +328,55 @@ def test_p25_a_refused_number_from_the_runs_own_code_is_named_as_a_code_literal(
     hint = AgentOrchestrator._code_literal_hint(state, text, ["90", "7,7%"])
     assert "Of these, 90 appear only as literals in the code that ran" in hint and "7,7%" not in hint
     assert "methodology" in hint and "emit_json" in hint
+
+
+def test_an_insight_turn_must_open_the_result_it_explains() -> None:
+    """H1 (M63, golden test 2026-10-02): turn 3 explained the turn 1 ranking with a guessed board filter instead of
+    opening the ranking; an INSIGHT turn is refused at complete_analysis until it opens an earlier result."""
+    from app import data_record as records
+
+    orc = tracker()
+    state = RunState(request_id="req_3", started=0.0, input_items=[])
+    state.plan_meta["turn_kind"] = "INSIGHT"
+    records.add_output(state.data_record, "req_1", alias="o1", output_id="out_rank", session_id="s1", name="ranking",
+                       columns=["broker"], row_count=5, kind="TABLE")
+    refused = orc._insight_source_unopened(state, "c1", "complete_analysis")
+    assert refused is not None and refused.output["error"]["code"] == "INSIGHT_SOURCE_NOT_OPENED"
+    assert "out_rank" in refused.output["error"]["message"] and "load_output" in refused.output["error"]["message"]
+    state.opened_earlier = True
+    assert orc._insight_source_unopened(state, "c1", "complete_analysis") is None
+    # another turn kind, or an INSIGHT turn with no earlier result, is never refused
+    other = RunState(request_id="req_3", started=0.0, input_items=[])
+    other.plan_meta["turn_kind"] = "CONTINUE"
+    other.data_record = state.data_record
+    assert orc._insight_source_unopened(other, "c1", "complete_analysis") is None
+    fresh = RunState(request_id="req_3", started=0.0, input_items=[])
+    fresh.plan_meta["turn_kind"] = "INSIGHT"
+    assert orc._insight_source_unopened(fresh, "c1", "complete_analysis") is None
+
+
+def test_a_consistency_claim_with_another_definition_is_repaired_or_stated() -> None:
+    """H1 (M63): the answer is sent back once; if the claim stays, a limitation states the difference."""
+    import pytest
+    from conftest import ANSWER
+
+    from app import data_record as records
+    from app.orchestrator import GateRejection
+    from app.schemas import FinalResponse
+
+    orc = tracker()
+    orc.audit_outbox = None
+    state = RunState(request_id="req_3", started=0.0, input_items=[])
+    records.add_output(state.data_record, "req_3", alias="o2", output_id="out_top", session_id="s", name="top15",
+                       columns=["broker"], row_count=15, kind="TABLE",
+                       definition={"filters": [{"column": "market_board", "operator": "EQ", "value": "Regular"}]})
+    state.completions["s"] = {"status": "COMPLETED", "final": {"carried_inputs": [
+        {"output_id": "out_rank", "name": "ranking", "definition": {"filters": [], "notes": "boards combined"}}]}}
+    final = FinalResponse.model_validate({**ANSWER, "answer": "Dibatasi pada board Regular agar konsisten dengan "
+                                                              "jawaban sebelumnya."})
+    with pytest.raises(GateRejection):
+        orc._definition_claims(state, final)
+    state.gate_kinds_rejected.add("DEFINITION")
+    kept = orc._definition_claims(state, final)
+    assert kept.answer == final.answer and state.definition_annotated
+    assert any("tidak didukung" in line and "Regular" in line for line in kept.limitations)

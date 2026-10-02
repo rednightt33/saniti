@@ -375,9 +375,9 @@ def load_output(output_id: str, columns: list[str] | None = None):
         raise SanitiError(f"{unknown} are not columns of {entry.get('name')!r}: {available}")
     select = ", ".join(_ident(c) for c in chosen) if chosen else "*"
     frame = _frame(f"SELECT {select} FROM read_parquet({_quote(path)})", what=f"load_output({output_id!r})")
-    frame.attrs.update({k: entry.get(k) for k in ("output_id", "name", "kind", "label", "origin")})
+    frame.attrs.update({k: entry.get(k) for k in ("output_id", "name", "kind", "label", "origin", "definition")})
     _log({"call": "load_output", "output_id": entry["output_id"], "name": entry.get("name"), "kind": entry.get("kind"),
-          "label": entry.get("label"), "rows": len(frame)})
+          "label": entry.get("label"), "rows": len(frame), "definition": entry.get("definition")})
     return frame
 
 
@@ -511,19 +511,27 @@ def event_study(request: str, event: str, outcome: dict[str, Any], horizon: int,
         raise SanitiError(f"{exc.code}: {exc}") from None
     described = (f"Event study: {event} -> forward return of {spec['forward_return']} over {params['horizon']} "
                  f"observations ({outcome_unit.lower()}), {params['overlap_policy']}, baseline {params['baseline']}")
+    # H1: the study's own definition, from its parameters (DERIVED by the helper, not typed by the model)
+    defined = {"filters": [], "thresholds": {"event": event, "outcome": f"forward return of "
+                                             f"{spec['forward_return']} over {params['horizon']} observations",
+                                             "overlap_policy": params["overlap_policy"],
+                                             "baseline": params["baseline"], "ranges": [w["range_id"] for w in chosen],
+                                             **({"holdout_start": params["holdout_start"]}
+                                                if params.get("holdout_start") else {})},
+               "notes": f"event_study {label} of request {r['data_request_id']}"}
     table = emit_table(label, pd.DataFrame(summary, columns=list(ES.SUMMARY_COLUMNS)), described,
-                       units=ES.summary_units(outcome_unit))
+                       units=ES.summary_units(outcome_unit), definition=defined)
     kept = emit_table(f"{label}_events", events, f"Events kept by {label} (date, entity, outcome)",
-                      units=ES.rows_units(outcome_unit))
+                      units=ES.rows_units(outcome_unit), definition=defined)
     baseline_rows = ES.baseline_rows(canonical, params)
     compared = emit_table(f"{label}_baseline", baseline_rows,
                           f"Baseline rows of {label} ({params['baseline']}: date, entity, outcome)",
-                          units=ES.rows_units(outcome_unit))
+                          units=ES.rows_units(outcome_unit), definition=defined)
     # S27: the flow (qualifying -> censored / overlapping -> used) is released so the answer quotes each count
     flowed = emit_table(f"{label}_flow", pd.DataFrame(ES.flow(canonical, params), columns=list(ES.FLOW_COLUMNS)),
                         f"Event flow of {label}: rows in the window, condition unknown, condition true (qualifying), "
                         "censored, dropped as overlapping, used (condition_true = censored + overlapping_dropped + "
-                        "used)")
+                        "used)", definition=defined)
     call = {"version": ES.VERSION, "name": label, "declaration": declaration, "parameters": params,
             "outcome_unit": outcome_unit, "ranges": [w["range_id"] for w in chosen],
             "summary_output": label, "events_output": f"{label}_events", "baseline_output": f"{label}_baseline",
@@ -992,10 +1000,16 @@ def event_summary(events, baseline, *, hypothesis_id: str, outcome_column: str, 
     for group, frame in (("CONDITION", events), ("BASELINE", baseline)):
         values = pd.to_numeric(frame[outcome_column], errors="coerce").dropna()
         summary["groups"][group]["median"] = float(values.median()) if len(values) else None
+    defined = {"filters": [], "thresholds": {"success": (f"{success_column} is true" if success_column
+                                                         else f"{outcome_column} > {success_above}"),
+                                             "horizon_periods": horizon_periods,
+                                             "expected_direction": expected_direction,
+                                             "min_effect": min_effect},
+               "notes": f"event_summary of hypothesis {hypothesis_id}"}
     emit_table(f"research_events_{hypothesis_id}", table,
-               "Per-date aggregates of the condition and baseline rows (research findings input).")
+               "Per-date aggregates of the condition and baseline rows (research findings input).", definition=defined)
     emit_json(f"research_summary_{hypothesis_id}", summary, "Research findings: both angles, sample and verdict.",
-              units=research_stats.summary_units(outcome_unit))
+              units=research_stats.summary_units(outcome_unit), definition=defined)
     _log({"call": "event_summary", "hypothesis_id": hypothesis_id, "rows": int(table["n"].sum()),
           "dates": int(len(table)), "flag": summary["sample"]["flag"], "verdict": summary["verdict"]})
     return summary
@@ -1500,17 +1514,64 @@ def _units(units, fields: list[str] | None) -> dict[str, str]:
     return clean
 
 
-def emit_table(name: str, data, description: str = "", units: dict[str, str] | None = None) -> dict[str, Any]:
+# H1 (M63, 2026-10-02): how a released result was made, so a later turn reads it instead of guessing. The filters use
+# the DataNeed scope grammar (app/data_need.py OPERATORS; tests/test_output_definition.py keeps the two equal)
+DEFINITION_KEYS = ("filters", "period", "entities", "thresholds", "notes")
+DEFINITION_OPERATORS = ("EQ", "NEQ", "GT", "GTE", "LT", "LTE", "IN", "NOT_IN", "BETWEEN", "IS_NULL", "IS_NOT_NULL")
+DEFINITION_MAX_CHARS = 4000
+DEFINITION_EXAMPLE = ("definition={'filters': [{'column': 'market_board', 'operator': 'EQ', 'value': 'Regular'}], "
+                      "'period': {'start': '2022-01-03', 'end': '2026-08-31'}, 'thresholds': {'crash_day': "
+                      "'median return_1d_pct <= -1'}, 'notes': 'net value summed per broker and day'}")
+
+
+def _definition(definition) -> dict[str, Any] | None:
+    """The definition of an output: the row filters applied in code (beyond the data request's own scope, which the
+    backend records itself), the period, the entities, the thresholds and a note. {} states that the code applied no
+    filter beyond the data request."""
+    if definition is None:
+        return None
+    if not isinstance(definition, dict):
+        raise InvalidOutput(f"definition is a dict, for example {DEFINITION_EXAMPLE}.")
+    unknown = sorted(set(map(str, definition)) - set(DEFINITION_KEYS))
+    if unknown:
+        raise InvalidOutput(f"definition has unknown keys {unknown}; use {list(DEFINITION_KEYS)}.")
+    filters = definition.get("filters") or []
+    if not isinstance(filters, list):
+        raise InvalidOutput("definition['filters'] is a list of {'column', 'operator', 'value'}.")
+    for item in filters:
+        if not isinstance(item, dict) or not isinstance(item.get("column"), str) \
+                or item.get("operator") not in DEFINITION_OPERATORS:
+            raise InvalidOutput(f"Each definition filter is {{'column': <name>, 'operator': one of "
+                                f"{list(DEFINITION_OPERATORS)}, 'value': <value>}}; got {item!r}.")
+    period = definition.get("period")
+    if period is not None and (not isinstance(period, dict) or set(period) - {"start", "end"}):
+        raise InvalidOutput("definition['period'] is {'start': 'YYYY-MM-DD', 'end': 'YYYY-MM-DD'}.")
+    for key in ("thresholds",):
+        if definition.get(key) is not None and not isinstance(definition[key], dict):
+            raise InvalidOutput(f"definition[{key!r}] is a dict {{name: value}}.")
+    clean = _jsonable(definition)
+    if len(_json.dumps(clean, ensure_ascii=False)) > DEFINITION_MAX_CHARS:
+        raise OutputLimitExceeded(f"A definition is at most {DEFINITION_MAX_CHARS} characters; keep the filters and "
+                                  "thresholds, shorten the notes.")
+    return clean
+
+
+def emit_table(name: str, data, description: str = "", units: dict[str, str] | None = None,
+               definition: dict[str, Any] | None = None) -> dict[str, Any]:
     """A TABLE output (stored as Parquet; readable back page by page). units: {column: FRACTION | PERCENT | P_VALUE}
-    for the columns holding a share, a percent or a p-value, so the answer formats them right."""
+    for the columns holding a share, a percent or a p-value, so the answer formats them right. definition: how the
+    table was made (filters applied in code, period, entities, thresholds, notes; {} when the code added no filter
+    to the data request); required for a released table."""
     import pyarrow.parquet as pq
 
     table = _arrow(data)
     declared = _units(units, table.column_names)
+    defined = _definition(definition)
     file_name = _file(_name(name), "parquet")
     pq.write_table(table, _os.path.join(_OUTPUT_DIR, file_name), compression="zstd")
     return _record("TABLE", "PARQUET", name, file_name, description, columns=table.column_names,
-                   row_count=table.num_rows, **({"units": declared} if declared else {}))
+                   row_count=table.num_rows, **({"units": declared} if declared else {}),
+                   **({"definition": defined} if defined is not None else {}))
 
 
 def emit_chart(figure=None, name: str = "chart", title: str = "", description: str = "") -> dict[str, Any]:
@@ -1548,17 +1609,20 @@ def _jsonable(value: Any, depth: int = 0) -> Any:
     return str(value)
 
 
-def emit_json(name: str, value, description: str = "", units: dict[str, str] | None = None) -> dict[str, Any]:
+def emit_json(name: str, value, description: str = "", units: dict[str, str] | None = None,
+              definition: dict[str, Any] | None = None) -> dict[str, Any]:
     """A JSON output (numbers, strings, lists and objects). units: {field: FRACTION | PERCENT | P_VALUE}, a field
-    named by its key (or a dotted path of keys)."""
+    named by its key (or a dotted path of keys). definition: as for emit_table; required for a released JSON."""
     declared = _units(units, None)
+    defined = _definition(definition)
     text = _json.dumps(_jsonable(value), ensure_ascii=False, separators=(",", ":"))
     if len(text.encode("utf-8")) > int(_LIMITS["max_json_bytes"]):
         raise OutputLimitExceeded(f"A JSON output is at most {_LIMITS['max_json_bytes']} bytes.")
     file_name = _file(_name(name), "json")
     with open(_os.path.join(_OUTPUT_DIR, file_name), "w", encoding="utf-8") as handle:
         handle.write(text)
-    return _record("JSON", "JSON", name, file_name, description, **({"units": declared} if declared else {}))
+    return _record("JSON", "JSON", name, file_name, description, **({"units": declared} if declared else {}),
+                   **({"definition": defined} if defined is not None else {}))
 
 
 def emit_text(name: str, text: str, description: str = "") -> dict[str, Any]:
