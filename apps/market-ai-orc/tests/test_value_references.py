@@ -80,8 +80,9 @@ def test_a_unit_typed_next_to_a_reference_that_shows_it_is_dropped_once() -> Non
     out = render("Selisih {{finding.a_fall.estimates.primary.estimate|pp:2}} pp; porsi {{fact.1|pctv:1}} %, "
                  "rasio {{ratio(out.out_1.rows.1.close, out.out_1.rows.0.close)|x:2}} kali lipat, "
                  "nilai Rp {{out.out_1.rows.0.close|rp}} dan {{out.out_1.rows.1.close|rp}} rupiah.", sources())
-    assert out.text == ("Selisih 1,00 pp; porsi 12,5%, rasio 1,33 kali lipat, nilai Rp 4.500 dan Rp 6.000 rupiah.")
-    assert out.dropped_units == ["pp", "%", "kali", "Rp"]
+    # P22 (golden test 2026-10-02): "rupiah" after a shown "Rp" repeats the currency too
+    assert out.text == ("Selisih 1,00 pp; porsi 12,5%, rasio 1,33 kali lipat, nilai Rp 4.500 dan Rp 6.000.")
+    assert out.dropped_units == ["pp", "%", "kali", "Rp", "rupiah"]
     # a different word or a longer one is kept: "ppm" is not "pp", "kalinya" is not "kali"
     kept = render("{{finding.a_fall.estimates.primary.estimate|pp:2}} ppm, {{fact.1|x:1}} kalinya", sources())
     assert kept.text == "1,00 pp ppm, 12,5 kali kalinya" and kept.dropped_units == []
@@ -89,6 +90,88 @@ def test_a_unit_typed_next_to_a_reference_that_shows_it_is_dropped_once() -> Non
     big.add("out", "out_9", {"rows": [{"v": 6.94e10}, {"v": -2.5e10}]}, "DATA_COVERAGE_VERIFIED")
     shown = render("{{out.out_9.rows.0.v|rp}} miliar dan Rp {{out.out_9.rows.1.v|rp}}", big)
     assert shown.text == "Rp 69,40 miliar dan \u2212Rp 25,00 miliar" and shown.dropped_units == ["miliar", "Rp"]
+
+
+def test_a_synonym_of_the_unit_or_one_behind_emphasis_is_dropped_too() -> None:
+    """P22 (golden test ma-golden-20261002a): "−0,10 pp poin persentase" (question 3) and "**1,58 kali** kali"
+    (question 5): the unit's other names and Markdown emphasis hid the copy from the exact-copy rule."""
+    out = render("Selisih {{finding.a_fall.estimates.primary.estimate|pp:2}} poin persentase, porsi "
+                 "**{{fact.1|pctv:1}}** persen, rasio "
+                 "**{{ratio(out.out_1.rows.1.close, out.out_1.rows.0.close)|x:2}}** kali dan {{fact.1|pp:1}} percentage points.", sources())
+    assert out.text == "Selisih 1,00 pp, porsi **12,5%**, rasio **1,33 kali** dan 12,5 pp."
+    assert out.dropped_units == ["poin persentase", "persen", "kali", "percentage points"]
+    # emphasis that opens a new phrase is not a copy, and a word that only starts like the unit is kept
+    kept = render("{{fact.1|pctv:1}} **persen naik**, {{fact.1|pctv:1}} persentase", sources())
+    assert kept.text == "12,5% **persen naik**, 12,5% persentase" and kept.dropped_units == []
+
+
+def unit_sources() -> ReferenceSources:
+    """A research finding (v2) and a hypothesis finding (v1) with the units the sandbox declares, an event-study table
+    with its declared column units and a table of the model's own code with none."""
+    refs = ReferenceSources()
+    refs.add("finding", "persist", {"estimates": {
+        "kind": "RATE_DIFFERENCE", "primary": {"estimate": 0.2259, "ci": [0.1729, 0.2761], "p_value": 3.8e-24,
+                                               "p_adjusted": 1.5e-23},
+        "units": {"estimate": "FRACTION", "ci": "FRACTION", "ci_adjusted": "FRACTION", "p_value": "P_VALUE",
+                  "p_adjusted": "P_VALUE"}}}, "DATA_COVERAGE_VERIFIED")
+    refs.add("finding", "bank_gain", {"angle_a": {"difference": -0.10, "p_value": 0.3456},
+                                      "angle_b": {"difference": 0.0412, "p_value": 0.0031},
+                                      "units": {"angle_a.difference": "PERCENT", "angle_b.difference": "FRACTION",
+                                                "p_value": "P_VALUE"}}, "DATA_COVERAGE_VERIFIED")
+    refs.add("out", "out_es", {"rows": [{"segment": "ALL", "delta_mean": 0.78, "hit_rate": 0.62,
+                                         "delta_p_value": 0.345}],
+                               "units": {"delta_mean": "PERCENT", "hit_rate": "FRACTION", "delta_p_value": "P_VALUE"}},
+             "CALCULATION_VERIFIED")
+    refs.add("out", "out_own", {"rows": [{"broker": "TF", "consistency": 0.909, "gap": 0.344}]},
+             "DATA_COVERAGE_VERIFIED")
+    refs.alias("out", "o1", "out_es")
+    refs.alias("out", "o2", "out_own")
+    return refs
+
+
+def test_a_value_of_known_unit_is_shown_by_its_unit_not_by_the_format_written() -> None:
+    """P23 (golden test ma-golden-20261002a, question 4): a rate difference of 0.2259 was shown as "0,23 pp" (100 times
+    too small) because the renderer did not know the value's unit."""
+    out = render("Laju naik {{finding.persist.estimates.primary.estimate|pp:2}} (CI "
+                 "{{finding.persist.estimates.primary.ci.0|pp:2}}–{{finding.persist.estimates.primary.ci.1|pp:2}}); "
+                 "ditulis lain: {{finding.persist.estimates.primary.estimate|dec:2}} pp, "
+                 "{{finding.persist.estimates.primary.estimate|pctv:1}}, "
+                 "{{finding.persist.estimates.primary.estimate|dec:1}} persen; selang "
+                 "{{finding.persist.estimates.primary.ci|pp:1}}.", unit_sources())
+    assert out.problems == []
+    assert out.text == ("Laju naik 22,59 pp (CI 17,29 pp–27,61 pp); ditulis lain: 22,59 pp, 22,6%, 22,6%; selang "
+                        "17,3 pp; 27,6 pp.")
+    assert {c["shown_as"] for c in out.corrected_units} == {"pp", "pctv", "pct"} and out.unknown_units == []
+    index = SourceIndex()
+    index.add("DATA_COVERAGE_VERIFIED", [v.value for v in out.values])
+    assert check_answer(out.text, index).unsupported == []
+    # a percent value is not scaled again by pct, and the path picks the right one of two "difference" fields
+    v1 = render("A {{finding.bank_gain.angle_a.difference|pct:2}}, B {{finding.bank_gain.angle_b.difference|pp:1}}; "
+                "tabel {{out.o1.rows[segment=ALL].delta_mean|pp:2}} pp, "
+                "kena {{out.o1.rows[segment=ALL].hit_rate|pctv:0}}, "
+                "{{diff(finding.persist.estimates.primary.ci.1, finding.persist.estimates.primary.ci.0)|pp:1}}",
+                unit_sources())
+    assert v1.text == "A −0,10%, B 4,1 pp; tabel 0,78 pp, kena 62%, 10,3 pp"
+    # a value nobody declared a unit for keeps the format's assumption, and is counted for measurement
+    own = render("{{out.o2.rows[broker=TF].consistency|pct:1}} dan {{out.o2.rows[broker=TF].gap|pp:1}}", unit_sources())
+    assert own.text == "90,9% dan 0,3 pp" and own.unknown_units == ["out.o2.rows[broker=TF].consistency",
+                                                                    "out.o2.rows[broker=TF].gap"]
+
+
+def test_the_p_format_shows_a_tiny_p_value_without_rounding_it_to_zero() -> None:
+    """P24 (golden test ma-golden-20261002a, question 4): "p=0,00" for p = 3.8e-24."""
+    for value, shown in ((3.8e-24, "p < 0,001"), (0.0031, "p = 0,003"), (0.3456, "p = 0,35"), (0.05, "p = 0,05")):
+        assert format_value(value, "p") == shown
+        out = render(f"hasil {{{{fact.1|p}}}}", ReferenceSources(objects={"fact": {"1": (value, "FACT")}}))
+        index = SourceIndex()
+        index.add("FACT", [v.value for v in out.values])
+        assert out.text == f"hasil {shown}" and check_answer(out.text, index).unsupported == []
+    # a typed "p =" is not repeated, and a declared p-value is shown with p whatever format was written
+    out = render("(p = {{finding.persist.estimates.primary.p_adjusted|p}}; "
+                 "p={{finding.bank_gain.angle_b.p_value|dec:2}}; nilai p {{out.o1.rows[segment=ALL].delta_p_value|dec:3}})", unit_sources())
+    assert out.text == "(p < 0,001; p = 0,003; nilai p = 0,345)" and out.problems == []  # dec:3 keeps 3 places
+    wrong = render("{{finding.persist.estimates.primary.p_value|pct:1}}", unit_sources())
+    assert wrong.failed and "write it with |p" in wrong.problems[0]
 
 
 def test_an_unknown_reference_names_what_exists() -> None:

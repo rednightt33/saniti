@@ -82,6 +82,17 @@ def imported_modules(code: str) -> list[str]:
 logger = logging.getLogger("market_python_sandbox")
 SESSION_ID_PREFIX = "sess_"
 OUTPUT_EXTENSIONS = {"PARQUET": "parquet", "CSV": "csv", "PNG": "png", "JSON": "json", "TEXT": "txt", "BIN": "bin"}
+VALUE_UNITS = ("FRACTION", "PERCENT", "P_VALUE")
+
+
+def _output_units(units: Any, columns: list[str] | None) -> dict[str, str]:
+    """P23 (2026-10-02): the units an output declared ({column or field: FRACTION | PERCENT | P_VALUE}), re-checked
+    here because the manifest is written inside the session: unknown units and, for a table, unknown columns are
+    dropped."""
+    if not isinstance(units, dict):
+        return {}
+    return {str(k)[:120]: v for k, v in list(units.items())[:200]
+            if v in VALUE_UNITS and (columns is None or str(k) in columns)}
 READ_LIMIT = 16 << 20
 GRACE_SECONDS = 5.0
 # S16 (suite20b r09, 2026-09-29): the worker's pipe closes while Python is still finalizing, so poll() right after
@@ -203,8 +214,9 @@ HELPERS = ["requests()", "manifest()", "quality(request)", "load(request, column
            "(recomputed by the backend at complete_analysis)",
            "insufficient_data(request, range_id=None, value=None, unit='TRADING_OBSERVATIONS', "
            "requirement_type='ADDITIONAL_HISTORY', reason='')", "intermediate_path(name)",
-           "emit_table(name, frame, description='')", "emit_chart(figure=None, name='chart', title='', description='')",
-           "emit_json(name, value, description='')", "emit_text(name, text, description='')",
+           "emit_table(name, frame, description='', units=None)",
+           "emit_chart(figure=None, name='chart', title='', description='')",
+           "emit_json(name, value, description='', units=None)", "emit_text(name, text, description='')",
            "emit_file(name, data, format='PARQUET'|'CSV'|'PNG'|..., description='')", "add_warning(code, message)"]
 
 
@@ -1017,13 +1029,15 @@ class SessionManager:
             record = {"output_id": output_id, "session_id": session_id, "execution_id": execution_id,
                       "name": str(entry.get("name"))[:80], "type": kind, "format": fmt, "relative_path": relative,
                       "byte_count": size, "row_count": rows, "columns": columns, "checksum_sha256": digest.hexdigest(),
-                      "meta": {k: entry.get(k) for k in ("description", "title", "characters") if entry.get(k)},
+                      "meta": {**{k: entry.get(k) for k in ("description", "title", "characters") if entry.get(k)},
+                               **({"units": units} if (units := _output_units(entry.get("units"), columns)) else {})},
                       "released": 0, "created_at": now.isoformat(),
                       "expires_at": (now + timedelta(hours=s.result_retention_hours)).isoformat()}
             self.store.insert_output(record)
             accepted.append({"output_id": output_id, "name": record["name"], "type": kind, "format": fmt,
                              "columns": columns, "row_count": rows, "byte_count": size,
-                             "description": record["meta"].get("description")})
+                             "description": record["meta"].get("description"),
+                             **({"units": record["meta"]["units"]} if record["meta"].get("units") else {})})
         return accepted, rejected
 
     def read_output(self, session_id: str, request_id: str, output_id: str, offset: int, limit: int,

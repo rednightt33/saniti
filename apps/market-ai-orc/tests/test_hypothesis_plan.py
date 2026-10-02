@@ -10,8 +10,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from app.orchestrator import (DUAL_RESEARCH_SENTENCE, HYPOTHESIS_PLAN_RULES, MULTI_ANGLE_ONLY_SENTENCE,
-                              RESEARCH_FINDINGS_RULES, AgentOrchestrator, build_system_prompt)
+from app.orchestrator import (DUAL_OPENING, DUAL_RESEARCH_SENTENCE, HYPOTHESIS_PLAN_RULES, MULTI_ANGLE_ONLY_SENTENCE,
+                              MULTI_ANGLE_OPENING, RESEARCH_FINDINGS_RULES, AgentOrchestrator, build_system_prompt)
 from app.research_plan import ResearchPlanFindings
 from app.research_plan_v2 import current_angle_bounds
 from app.schemas import AgentRunRequest, final_response_schema
@@ -80,6 +80,14 @@ def test_the_prompt_and_schema_offer_both_forms_only_with_the_switch() -> None:
     assert build_system_prompt(False, True, True, **args, hypothesis_plans=False) == base
     assert HYPOTHESIS_PLAN_RULES not in base and HYPOTHESIS_PLAN_RULES in dual and RESEARCH_FINDINGS_RULES in dual
     assert DUAL_RESEARCH_SENTENCE in dual and MULTI_ANGLE_ONLY_SENTENCE.split(":")[0] not in dual
+    # M62 (golden test 2026-10-02, question 4): one decision rule names both forms; no rule claims every research
+    # question for the multi-angle plan while the hypothesis plan is offered
+    flat = " ".join(dual.split())
+    assert DUAL_OPENING in flat and " ".join(MULTI_ANGLE_OPENING.split()) not in flat
+    assert " ".join(MULTI_ANGLE_OPENING.split()) in " ".join(base.split()) and DUAL_OPENING not in base
+    assert flat.index(DUAL_OPENING) < flat.index("RESEARCH PLAN CONFIRMATION: HYPOTHESIS PLAN")
+    assert "even when a library method could also test them" in flat
+    assert not __import__("re").search(r"\d", DUAL_OPENING)  # the prompt is a number source: no digits
     assert "The hypothesis plan: " in dual and '"experiments": [' in dual and '"angles": [' in dual
     refs = build_system_prompt(False, True, True, **args, value_references=True, hypothesis_plans=True)
     assert "{{finding.<hypothesis_id>.<path>}}" in refs

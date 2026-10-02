@@ -42,6 +42,21 @@ POWER = 0.80
 # standardized effect (0.2 standard deviations)
 DEFAULT_MIN_EFFECT = {"PERCENT": 0.5, "DECIMAL": 0.005}
 SMALL_STANDARDIZED_EFFECT = 0.2
+VALUE_UNITS = {"PERCENT": "PERCENT", "DECIMAL": "FRACTION"}
+
+
+def summary_units(outcome_unit: str) -> dict[str, str]:
+    """P23 (2026-10-02): {field path: FRACTION | PERCENT | P_VALUE} of a summary, so the answer formats each figure
+    by its unit: angle A and the group means are in the outcome unit (none for OTHER), angle B's rates are shares."""
+    unit = VALUE_UNITS.get(outcome_unit)
+    outcome = {path: unit for path in (
+        "angle_a.condition_mean", "angle_a.baseline_mean", "angle_a.difference", "angle_a.ci_low", "angle_a.ci_high",
+        "angle_a.standard_error", "mean", "median", "sd", "sample.minimum_detectable_effect",
+        "sample.smallest_effect_of_interest")} if unit else {}
+    shares = {path: "FRACTION" for path in (
+        "angle_b.condition_rate", "angle_b.baseline_rate", "angle_b.difference", "angle_b.ci_low", "angle_b.ci_high",
+        "angle_b.condition_ci", "angle_b.baseline_ci", "success_rate")}
+    return {**outcome, **shares, "p_value": "P_VALUE"}
 
 
 class ResearchStatsError(ValueError):

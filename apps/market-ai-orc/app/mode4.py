@@ -33,6 +33,7 @@ import re
 from typing import Any
 
 from . import conversation_router as router
+from . import data_record as records
 from .orchestrator import AgentOrchestrator, current_time_budget, log_event
 from .provenance import LABEL_ORDER
 from .research_plan_v2 import ContinuationInV2, ContinuationOutV2, current_angle_bounds, plan_digest_v2
@@ -205,11 +206,16 @@ class _Mode4Run:
         if explicit is not None:
             kind, instruction = explicit, continuation.revision_instruction
         else:
+            # M64: the results produced after the pending suggestion, from the data record's own order
+            newer = records.results_after_suggestion(self.record, continuation.plan_id) if pending else None
             context = router.context(self.record, list(self.request.history),
-                                     plan_digest_v2(continuation.plan) if pending else None)
+                                     plan_digest_v2(continuation.plan) if pending else None, newer)
             raw, instruction, self.router_usage = self.inner.classify_turn(f"{self.base_id}-m4r",
                                                                            self.request.message, context)
-            kind = router.apply_rules(raw, pending)
+            kind = router.apply_rules(raw, pending, newer, (self.router_usage or {}).get("referent"))
+            if kind != raw and raw in ("APPROVE", "REVISE") and newer:
+                log_event("mode4_stale_suggestion", request_id=self.request.request_id, router_kind=raw,
+                          referent=(self.router_usage or {}).get("referent"), newer_results=newer[-5:])
         self.turn_kind = kind
         log_event("mode4_turn_routed", request_id=self.request.request_id, turn_kind=kind, pending=pending,
                   source="EXPLICIT" if explicit else "ROUTER")

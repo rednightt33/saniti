@@ -151,7 +151,9 @@ def envelope(context: dict[str, Any], angle_id: str, angle: dict[str, Any], *, s
         "estimates": {"kind": result.get("estimate_kind"), "primary": {k: primary.get(k) for k in (
             "candidate", "estimate", "ci", "ci_adjusted", "p_value", "p_adjusted", "standard_error", "effective")},
             "candidates": [{k: c.get(k) for k in ("candidate", "estimate", "ci", "ci_adjusted", "p_value",
-                                                  "p_adjusted")} for c in (result.get("candidates") or [])[:50]]},
+                                                  "p_adjusted")} for c in (result.get("candidates") or [])[:50]],
+            # P23 (2026-10-02): the unit of each estimate, so the answer shows a share as a percent
+            "units": engines().estimate_units(result.get("estimate_kind"), angle.get("outcome_unit"))},
         # found live (golden run 2, 2026-09-29): answers named the intervals' confidence level, which no finding
         # carried, so the provenance gate refused it
         "confidence_level": round(1 - getattr(engines(), "ALPHA", 0.05), 6),

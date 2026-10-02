@@ -40,7 +40,7 @@ from . import in_sample as insample
 from . import method_guides
 from .provenance import (CONTEXT, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
                          parse_numbers, released_numbers, requested_statistics, weakest)
-from .value_refs import ReferenceSources, Resolved, TableRows, format_value, render
+from .value_refs import UNITS, ReferenceSources, Resolved, TableRows, format_value, render
 from .tools import ToolOutcome, ToolRegistry, error_outcome
 from .tools.analysis import current_conversation_key, current_run_context, run_context
 from .tools.registry import strict_parameters_schema
@@ -611,10 +611,10 @@ RESEARCH PLAN CONFIRMATION: HYPOTHESIS PLAN
 The second kind of Research Plan tests hypotheses you formulate
 yourself from the question and the data, not limited to the research
 library: one to four experiments, each one hypothesis (a condition, an
-outcome and a baseline you define). Choose it for a few specific
-condition -> outcome hypotheses you can build in Python; choose the
-multi-angle plan to examine one root hypothesis with library methods.
-Never mix the two in one plan.
+outcome and a baseline you define). Choose it for one or a few explicit
+condition -> outcome hypotheses, even when a library method could also
+test them; choose the multi-angle plan to examine one root hypothesis
+from several sides with library methods. Never mix the two in one plan.
 1. Before the user approved it, do not call submit_data_need_spec,
 prepare_data_bundle or any session tool for it. You may read the
 catalog. Call check_data_feasibility with the DataNeedSpec the plan
@@ -645,6 +645,15 @@ backend recomputes the statistics from the rows you pass to event_summary
 the answer says the condition was built by the analysis code."""
 DUAL_RESEARCH_SENTENCE = ("A data need in mode RESEARCH is accepted only for an approved hypothesis plan (below); a "
                           "multi-angle plan runs only through start_research_run.")
+# M62 (golden test 2026-10-02, question 4): with both plans on, the multi-angle opening still claimed every research
+# question, and the model followed it for one explicit hypothesis. One decision rule names both forms.
+MULTI_ANGLE_OPENING = ("A research question (whether a condition historically precedes an outcome, or a bounded "
+                       "exploration) starts with a multi-angle Research Plan, not with data:")
+DUAL_OPENING = ("A research question starts with a Research Plan, not with data. Choose its form by the question: one "
+                "or a few explicit condition -> outcome hypotheses (the user's own idea, \"does X precede Y\", \"test "
+                "my idea\") take the hypothesis plan (below), with no angles the user did not ask for; one root "
+                "hypothesis to examine from several sides with the research library, or a bounded exploration, takes "
+                "the multi-angle plan. The multi-angle plan:")
 DUAL_FINDING_REFERENCE = ("{{finding.<angle_id>.<path>}} a backend finding of complete_research_run,",
                           "{{finding.<angle_id>.<path>}} a backend finding of complete_research_run (a hypothesis "
                           "plan's finding of complete_analysis is {{finding.<hypothesis_id>.<path>}}, for example "
@@ -690,8 +699,14 @@ rows.<index>.<column> for a table without an identifying column;
 Every referable object in a tool result carries its "ref".
 After | add a format: dec:N (N decimals), int, pct:N (a fraction shown
 as a percent), pctv:N (already a percent), pp:N (percentage points), rp
-(rupiah), x:N (times). A derived figure uses diff(a, b), abs(a),
-ratio(a, b) or chg(a, b) of references, for example
+(rupiah), x:N (times), p (a p-value, shown as "p = ..." or "p < ..."). A
+format shows its own unit: type no unit or "p =" next to the reference.
+A value whose unit the backend knows (a finding's estimates, an event
+study's columns, a column released with units= in emit_table) is shown
+by that unit whichever of pct, pctv and pp you write; declare units= for
+every share, percent or p-value column you release. A derived figure
+uses diff(a, b), abs(a), ratio(a, b) or chg(a, b) of references, for
+example
 {{diff(finding.a.estimates.primary.ci.1, finding.a.estimates.primary.ci.0)|pp:2}}.
 Compute anything else in the analysis and release it. A figure the user
 wrote, a date and a year may be typed as they are. A text value (a ticker,
@@ -870,8 +885,9 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
         common, _ = SYSTEM_PROMPT_TEMPLATE.split("DATA QUERY RULES\n", 1)
         plan_rules = MULTI_ANGLE_PLAN_RULES
         if dual:
-            plan_rules = _without_sentence(plan_rules, MULTI_ANGLE_ONLY_SENTENCE, DUAL_RESEARCH_SENTENCE) \
-                + HYPOTHESIS_PLAN_RULES
+            plan_rules = _without_sentence(_without_sentence(plan_rules, MULTI_ANGLE_ONLY_SENTENCE,
+                                                             DUAL_RESEARCH_SENTENCE),
+                                           MULTI_ANGLE_OPENING, DUAL_OPENING) + HYPOTHESIS_PLAN_RULES
         template = common + DATANEED_RULES + plan_rules \
             + (PERIOD_RETURN_RULES if period_return else "") + (CATALOG_PROTOCOL_RULES if catalog_protocol else "") \
             + (CONVERSATION_REUSE_RULES if conversation_reuse else "") + (METHODOLOGY_RULES if methodology else "") \
@@ -1015,6 +1031,13 @@ DATANEED_PROVENANCE_INSTRUCTION = (
     "run_python stdout, unreleased outputs and preview rows are not sources. Remove or correct those numbers, obtain "
     "them from a released output, or return response_type \"LIMITATION\"."
 )
+# P25 (golden test rerun 2026-10-02, turn 4): a complete answer was forced to LIMITATION over "persentil ke-90", the
+# threshold its own code chose; the refusal did not say where the number came from. Code literals stay sources of the
+# methodology only (a result typed into code must not pass), but the refusal names them and the two right places
+CODE_LITERAL_HINT = (" Of these, {numbers} appear only as literals in the code that ran (a parameter such as a "
+                     "threshold, a percentile or a window): state a parameter in methodology, or release it with the "
+                     "result (for example emit_json of the parameters) and reference it; a number typed into code is "
+                     "not a result.")
 DATANEED_GATE_NOTICE = ("The data analysis behind this response did not complete; any figures below are not a "
                         "verified answer to the request. ")
 DATANEED_ROUTING_NOTICE = ("This request needs a completed analysis ({families}), and none supports this response; "
@@ -1348,7 +1371,9 @@ def backend_summary(finding: dict[str, Any]) -> BackendAngleSummary:
         estimate_kind=estimates.get("kind"), estimate=_float(primary.get("estimate")),
         ci=[_float(v) for v in ci][:2] if isinstance(ci, (list, tuple)) else None,
         p_value=_float(primary.get("p_value")), p_adjusted=_float(primary.get("p_adjusted")),
-        confidence_level=_float(finding.get("confidence_level")))
+        confidence_level=_float(finding.get("confidence_level")),
+        estimate_unit=unit if (unit := (estimates.get("units") or {}).get("estimate")) in ("FRACTION", "PERCENT")
+        else None)
 
 
 def evidence_sentence(summary: BackendAngleSummary) -> str:
@@ -1359,16 +1384,20 @@ def evidence_sentence(summary: BackendAngleSummary) -> str:
     if summary.effective_sample is not None:
         unit = SAMPLE_UNITS.get(str(summary.sample_unit or "").upper(), str(summary.sample_unit or "").lower())
         parts.append(f"sampel efektif {format_value(summary.effective_sample)}" + (f" {unit}" if unit else ""))
+    # P23: a difference of known unit is shown in percentage points (a fraction scaled by 100); P24: p-values with p
+    fmt, unit = ("pp", summary.estimate_unit) if summary.estimate_unit else (None, None)
     if summary.estimate is not None:
         text = f"estimasi utama{f' ({summary.estimate_kind})' if summary.estimate_kind else ''} " \
-               f"{format_value(summary.estimate)}"
+               f"{format_value(summary.estimate, fmt, unit=unit)}"
         if summary.ci and len(summary.ci) == 2 and None not in summary.ci:
             level = f" {format_value(summary.confidence_level * 100)}%" if summary.confidence_level else ""
-            text += f" (CI{level} {format_value(summary.ci[0])} s/d {format_value(summary.ci[1])})"
+            text += (f" (CI{level} {format_value(summary.ci[0], fmt, unit=unit)} s/d "
+                     f"{format_value(summary.ci[1], fmt, unit=unit)})")
         parts.append(text)
     if summary.p_value is not None:
-        parts.append(f"p {format_value(summary.p_value)}"
-                     + (f", p terkoreksi {format_value(summary.p_adjusted)}" if summary.p_adjusted is not None else ""))
+        parts.append(format_value(summary.p_value, "p")
+                     + (f" (terkoreksi: {format_value(summary.p_adjusted, 'p')})" if summary.p_adjusted is not None
+                        else ""))
     if summary.evidence_direction:
         parts.append(f"arah bukti {summary.evidence_direction}")
     return "; ".join(parts) + "."
@@ -1774,6 +1803,9 @@ class AgentOrchestrator:
             elif state.plan_unexecuted and state.verified_plan is not None:
                 # M19: an approval is consumed by an attempt, not by a turn; the same continuation goes back unchanged
                 state.continuation = self._same_continuation(state.verified_plan)
+            if final.response_type == "RESEARCH_PLAN_CONFIRMATION" and state.continuation is not None:
+                # M64: when the suggestion was issued, so a later turn knows which results are newer than it
+                records.mark_suggestion(state.data_record, state.continuation.plan_id, request.request_id)
             result = AgentRunResponse(
                 request_id=request.request_id,
                 status=STATUS_BY_RESPONSE_TYPE[final.response_type],
@@ -2214,11 +2246,12 @@ class AgentOrchestrator:
             record.update(input_tokens=usage["input_tokens"], output_tokens=usage["output_tokens"], cost=usage["cost"])
             parsed = router.TurnClassification.model_validate_json(self._output_text(response).strip() or "{}")
             kind, instruction = parsed.turn_kind, parsed.revision_instruction
-            record["status"] = "COMPLETED"
+            record.update(status="COMPLETED", referent=parsed.referent)  # M64: what the message is about
         except Exception as exc:  # noqa: BLE001 - the backend's fallback class applies
             log_event("conversation_router_failed", request_id=request_id, error=type(exc).__name__)
         record["latency_ms"] = int((time.monotonic() - started) * 1000)
         log_event("conversation_turn_classified", request_id=request_id, turn_kind=kind, status=record["status"],
+                  referent=record.get("referent"),
                   latency_ms=record["latency_ms"], input_tokens=record["input_tokens"],
                   output_tokens=record["output_tokens"])
         return kind, instruction, record
@@ -3163,6 +3196,10 @@ class AgentOrchestrator:
             body = self.row_reader(session_id, output_id, state.request_id, offset, limit)
             if not body.get("released") or not isinstance(body.get("rows"), list):
                 return [], body.get("row_count")
+            units = (body.get("meta") or {}).get("units") if isinstance(body.get("meta"), dict) else None
+            if units and ("out", output_id) not in state.ref_sources.units:
+                # P23: a table listed without its content learns its declared units with its first page
+                state.ref_sources.units[("out", output_id)] = {str(k): v for k, v in units.items() if v in UNITS}
             return body["rows"], body.get("row_count")
         return fetch
 
@@ -3184,6 +3221,9 @@ class AgentOrchestrator:
                 return
             output_id = str(entry["output_id"])
             owner = entry.get("session_id") or session_id
+            meta = entry.get("meta") if isinstance(entry.get("meta"), dict) else {}
+            if not isinstance(entry.get("units"), dict) and isinstance(meta.get("units"), dict):
+                entry["units"] = meta["units"]  # P23: get_session_output carries the declared units in its meta
             registered = entry
             listed_only = "rows" not in entry and "content" not in entry  # A: released, its content not shown
             if isinstance(entry.get("rows"), list) or (listed_only and entry.get("type") in TABULAR_OUTPUTS):
@@ -3259,6 +3299,17 @@ class AgentOrchestrator:
                 sources.add("analysis", str(result["analysis_id"]), result.get("outputs"), label)
                 result["ref"] = f"analysis.{result['analysis_id']}.<output path>"
 
+    @staticmethod
+    def _code_literal_hint(state: RunState, text: str | None, unsupported: list[str]) -> str:
+        """P25: the refused numbers that are literals of the run's successful code, named in the refusal."""
+        if not state.code_numbers or not unsupported:
+            return ""
+        index = SourceIndex()
+        index.add(CONTEXT, state.code_numbers)
+        in_code = set(unsupported) - set(check_answer(text or "", index).unsupported)
+        literals = [n for n in unsupported if n in in_code]
+        return CODE_LITERAL_HINT.format(numbers=", ".join(literals[:20])) if literals else ""
+
     def _source_index(self, state: RunState) -> SourceIndex:
         index = SourceIndex()
         for resolved in state.ref_values:  # P11: a value the backend filled in counts under its source's label
@@ -3302,6 +3353,13 @@ class AgentOrchestrator:
             count += rendering.count
             if rendering.dropped_units:
                 log_event("ai_reference_unit_repeated", request_id=state.request_id, units=rendering.dropped_units)
+            if rendering.corrected_units:
+                # P23: a figure shown by its data's unit rather than by the format the model wrote
+                log_event("ai_reference_unit_corrected", request_id=state.request_id,
+                          references=rendering.corrected_units[:20])
+            if rendering.unknown_units:
+                log_event("ai_reference_unit_unknown", request_id=state.request_id,
+                          references=rendering.unknown_units[:20])
             return rendering.text
 
         update: dict[str, Any] = {"answer": fill(final.answer), "limitations": [fill(x) for x in final.limitations],
@@ -3448,7 +3506,8 @@ class AgentOrchestrator:
         state.number_provenance = {"checked": provenance.checked, "unsupported": provenance.unsupported[:50]}
         if provenance.unsupported:
             numbers = ", ".join(provenance.unsupported[:20])
-            self._gate_once(state, "PROVENANCE", PROVENANCE_INSTRUCTION.format(numbers=numbers))
+            self._gate_once(state, "PROVENANCE", PROVENANCE_INSTRUCTION.format(numbers=numbers)
+                            + self._code_literal_hint(state, final.answer, provenance.unsupported))
             return self._forced(state, final, PROVENANCE_NOTICE.format(numbers=numbers),
                                 [f"Figures without a governed source in this run: {numbers}."] + lines)
 
@@ -3498,6 +3557,7 @@ class AgentOrchestrator:
             numbers = ", ".join(provenance.unsupported[:20])
             self._gate_once(state, "PROVENANCE", DATANEED_PROVENANCE_INSTRUCTION.format(
                 numbers=numbers, lookup=", a lookup_fact result" if self.settings.ai_enable_lookup_fact else "")
+                + self._code_literal_hint(state, final.answer, provenance.unsupported)
                 + (REFERENCE_HINT if self.value_references else ""))
             return self._forced(state, final, DATANEED_PROVENANCE_NOTICE.format(numbers=numbers),
                                 [f"Figures without a governed source in this run: {numbers}."] + lines)

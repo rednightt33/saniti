@@ -205,6 +205,7 @@ class BackendAngleSummary(BaseModel):
     p_value: float | None = None
     p_adjusted: float | None = None
     confidence_level: float | None = None
+    estimate_unit: str | None = None  # P23: FRACTION or PERCENT (the sandbox's declaration); None when unknown
 
 
 class AngleFindingReport(BaseModel):

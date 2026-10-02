@@ -289,3 +289,42 @@ def test_g13_an_e02_shaped_plan_over_the_bundle_limit_is_stopped_before_the_user
     ])
     outcome = run_plan(planner(rows=rows, max_rows=2_000_000)[0], args)
     assert outcome["status"] != "FEASIBLE", outcome["view"]  # never a plan that its bundle cannot hold
+
+
+# ---------------------------------------------------------------- P23 and P25 (golden test 2026-10-02)
+
+def test_p23_a_released_table_is_shown_by_the_units_it_declared() -> None:
+    """The declared units travel with the table: in the completion's contents, in a page read later, and for a table
+    listed without its content (learned with its first page)."""
+    rows = [{"segment": "ALL", "delta_mean": 0.78, "hit_rate": 0.62}]
+    units = {"delta_mean": "PERCENT", "hit_rate": "FRACTION"}
+
+    def read(session_id, output_id, request_id, offset, limit):
+        return {"released": True, "rows": [dict(r) for r in rows], "row_count": 1, "meta": {"units": units}}
+
+    orc, state = tracker(read), RunState(request_id="r", started=0.0, input_items=[])
+    shown = {"status": "COMPLETED", "session_id": "sess_1", "released_contents": [
+        {"output_id": "out_es", "name": "drops", "type": "TABLE", "rows": [dict(r) for r in rows], "row_count": 1,
+         "units": units}],
+        "released_outputs": [{"output_id": "out_es"}, {"output_id": "out_hidden", "name": "drops2", "type": "TABLE",
+                                                         "row_count": 1}]}
+    track(orc, state, "complete_analysis", shown)
+    out = render("{{out.o1.rows[segment=ALL].delta_mean|pct:2}}, {{out.o1.rows[segment=ALL].hit_rate|pctv:0}}, "
+                 "{{out.o2.rows[segment=ALL].hit_rate|dec:1}} persen", state.ref_sources)
+    assert out.problems == [] and out.text == "0,78%, 62%, 62,0%"
+    page = {"output_id": "out_es", "released": True, "offset": 0, "row_count": 1, "rows": [dict(r) for r in rows],
+            "meta": {"units": units}}
+    track(orc, state, "get_session_output", page, {"session_id": "sess_1"})
+    assert render("{{out.o1.rows[segment=ALL].hit_rate|pp:1}}", state.ref_sources).text == "62,0 pp"
+
+
+def test_p25_a_refused_number_from_the_runs_own_code_is_named_as_a_code_literal() -> None:
+    """A threshold the code chose ("persentil ke-90") is not a result source, but the refusal says where it came from
+    and where it belongs; a number from nowhere is not named so."""
+    state = RunState(request_id="r", started=0.0, input_items=[])
+    text = "Pembelian di atas persentil ke-90 diikuti return 7,7%."
+    assert AgentOrchestrator._code_literal_hint(state, text, ["90", "7,7%"]) == ""  # no successful code
+    state.code_numbers.extend([50.0, 75.0, 90.0, 0.9])
+    hint = AgentOrchestrator._code_literal_hint(state, text, ["90", "7,7%"])
+    assert "Of these, 90 appear only as literals in the code that ran" in hint and "7,7%" not in hint
+    assert "methodology" in hint and "emit_json" in hint

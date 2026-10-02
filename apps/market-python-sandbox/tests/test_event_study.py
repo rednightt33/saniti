@@ -307,6 +307,39 @@ def test_a_completion_of_event_study_tables_only_is_formula_verified(session) ->
     assert [r["segment"] for r in rows] == ["ALL", "IN_SAMPLE", "OUT_OF_SAMPLE"]
 
 
+def test_units_follow_the_declared_outcome_unit_and_the_estimate_kind() -> None:
+    """P23 (2026-10-02): a figure's unit comes from the data's declaration, never from the words typed next to it."""
+    assert ES.summary_units("DECIMAL")["delta_mean"] == "FRACTION"
+    assert ES.summary_units("PERCENT")["delta_ci_low"] == "PERCENT"
+    assert ES.summary_units("PERCENT")["hit_rate"] == "FRACTION"  # a share whatever the outcome unit
+    assert ES.summary_units("PERCENT")["delta_p_value"] == "P_VALUE"
+    assert ES.rows_units("DECIMAL") == {"outcome": "FRACTION"}
+    assert E.estimate_units("RATE_DIFFERENCE", "PERCENT")["estimate"] == "FRACTION"
+    assert E.estimate_units("MEAN_DIFFERENCE", "PERCENT")["ci_adjusted"] == "PERCENT"
+    assert E.estimate_units("SPREAD", "DECIMAL")["ci"] == "FRACTION"
+    assert "estimate" not in E.estimate_units("MEAN_DIFFERENCE", "OTHER")  # unknown: no unit is claimed
+    assert "estimate" not in E.estimate_units("CORRELATION", "PERCENT")
+    assert E.estimate_units("CORRELATION", "PERCENT")["p_adjusted"] == "P_VALUE"
+
+
+@requires_root
+def test_the_tables_carry_their_units_and_a_declaration_is_checked(session) -> None:
+    body = ok(session, STUDY.replace("EXTRA", "") + "t = pd.DataFrame({'broker': ['A'], 'share': [0.25]})\n"
+                                                    "emit_table('shares', t, units={'share': 'FRACTION'})")
+    units = {o["name"]: o.get("units") for o in body["outputs"]}
+    assert units["drops"] == ES.summary_units("PERCENT") and units["shares"] == {"share": "FRACTION"}
+    assert units["drops_events"] == {"outcome": "PERCENT"}
+    for code in ("emit_table('x', pd.DataFrame({'a': [1]}), units={'a': 'PERCENTS'})",
+                 "emit_table('x', pd.DataFrame({'a': [1]}), units={'b': 'FRACTION'})"):
+        refused = run(session, code).json()
+        assert refused["status"] == "SCRIPT_ERROR" and refused["error_type"] == "InvalidOutput", refused
+    result = complete(session)
+    shares = next(o for o in result["released_outputs"] if o["name"] == "shares")
+    page = session["api"].get(f"/v1/sessions/{session['session_id']}/outputs/{shares['output_id']}",
+                              params={"request_id": "req_bundle_1"}, headers=HEADERS).json()
+    assert page["meta"]["units"] == {"share": "FRACTION"}
+
+
 @requires_root
 def test_a_changed_event_study_table_fails_completion_until_the_study_is_run_again(session) -> None:
     ok(session, STUDY.replace("EXTRA", "") + "fake = pd.DataFrame(study['summary'])\nfake['mean'] = fake['mean'] + 1\n"
@@ -315,7 +348,9 @@ def test_a_changed_event_study_table_fails_completion_until_the_study_is_run_aga
     assert result["status"] == "INCOMPLETE" and result["next_action"] == "RUN_PYTHON"
     study = result["final_status"]["event_studies"][0]
     assert study["status"] == "FAIL" and study["reason"] == "CALCULATION_MISMATCH"
-    assert {m["column"] for m in study["examples"]} == {"mean"}
+    assert {m["column"] for m in study["examples"] if m.get("table") != "units"} == {"mean"}
+    # P23: the re-emitted table also lost the units the helper declared
+    assert any(m.get("table") == "units" for m in study["examples"])
     assert "drops (CALCULATION_MISMATCH" in result["message"] and result["released_outputs"] == []
     ok(session, STUDY.replace("EXTRA", ""))
     again = complete(session)

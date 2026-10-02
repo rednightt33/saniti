@@ -85,6 +85,10 @@ def test_a_research_session_reports_the_backend_verdict(research) -> None:
     assert finding["verdict"] in ("SUPPORTED", "NOT_SUPPORTED", "INCONCLUSIVE", "NOT_EVALUATED")
     assert finding["parameters"]["expected_direction"] == "HIGHER"
     assert finding["success_definition"] == "next-day return > 0"
+    # P23: each figure carries its unit (angle A in the approved outcome unit, angle B's rates are shares)
+    unit = {"PERCENT": "PERCENT", "DECIMAL": "FRACTION"}.get(finding["parameters"]["outcome_unit"])
+    assert finding["units"]["angle_b.difference"] == "FRACTION" and finding["units"]["p_value"] == "P_VALUE"
+    assert finding["units"].get("angle_a.difference") == unit
     assert body["stdout"].split()[:2] == [finding["sample_flag"], finding["verdict"]]
 
 

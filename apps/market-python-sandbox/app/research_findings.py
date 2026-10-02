@@ -78,5 +78,7 @@ def evaluate(constraints: dict[str, Any], outputs: list[dict[str, Any]], outputs
                "groups": {g: {k: v for k, v in d.items() if k != "sd_of_date_means"}
                           for g, d in summary["groups"].items()},
                "parameters": summary["parameters"],
-               "success_definition": (constraints.get("findings") or {}).get("success_definition")}
+               "success_definition": (constraints.get("findings") or {}).get("success_definition"),
+               # P23: each figure's unit from the approved outcome unit, so the answer cannot show it 100 times off
+               "units": stats.summary_units(params["outcome_unit"])}
     return {"status": "OK", "finding": finding}

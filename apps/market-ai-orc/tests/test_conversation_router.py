@@ -21,18 +21,19 @@ HISTORY = [HistoryMessage(role="user", content="Siapa broker yang membeli saham 
 
 
 class RoutedInner(FakeInner):
-    def __init__(self, script: dict[str, Any], kind: str | None, **kwargs: Any) -> None:
+    def __init__(self, script: dict[str, Any], kind: str | None, referent: str | None = None, **kwargs: Any) -> None:
         super().__init__(script, **kwargs)
-        self.kind, self.contexts = kind, []
+        self.kind, self.referent, self.contexts = kind, referent, []
 
     def classify_turn(self, request_id: str, message: str, context: dict[str, Any]):
         self.contexts.append(context)
-        return self.kind, "pakai 5 tahun" if self.kind == "REVISE" else None, {"status": "COMPLETED", "cost": 0.0005}
+        return self.kind, "pakai 5 tahun" if self.kind == "REVISE" else None, {"status": "COMPLETED", "cost": 0.0005,
+                                                                              "referent": self.referent}
 
 
-def routed(script: dict[str, Any], kind: str | None):
+def routed(script: dict[str, Any], kind: str | None, referent: str | None = None):
     wrapper, _ = stub({})
-    inner = RoutedInner(script, kind)
+    inner = RoutedInner(script, kind, referent)
     wrapper.inner, wrapper.router = inner, True
     return wrapper, inner
 
@@ -142,3 +143,64 @@ def test_findings_of_an_earlier_turn_are_cited_again_without_running_the_researc
                                                                          "tadi."), data_record=first.data_record)
     assert second.status == "COMPLETED", second.response
     assert "−0,61" in second.response.answer and second.execution.number_provenance.unsupported == []
+
+
+# ---------------------------------------------------------------- M64: the newest result is the default subject
+
+def suggested_then_studied() -> dict[str, Any]:
+    """A conversation record: an analysis table, then the suggestion rp_d (issued after it), then an event study."""
+    record = records.empty()
+    records.add_output(record, "q-m4a", alias="o1", output_id="out_" + "a" * 24, session_id=None, name="ranking",
+                       columns=["broker"], row_count=10)
+    records.mark_suggestion(record, "rp_d", "q-m4d")
+    records.add_output(record, "q4-m4n", alias="o2", output_id="out_" + "b" * 24, session_id=None, name="rb_buys",
+                       columns=["segment"], row_count=1)
+    records.add_finding(record, "q4-m4n", kind="EVENT_STUDY", finding_id="rb_buys", finding={"status": "PASS"})
+    return record
+
+
+def test_the_record_knows_which_results_came_after_the_suggestion() -> None:
+    record = suggested_then_studied()
+    assert records.results_after_suggestion(record, "rp_d") == ["out.o2 rb_buys", "finding.rb_buys (EVENT_STUDY)"]
+    assert records.results_after_suggestion(record, "rp_other") is None  # another plan: unknown, not "none"
+    assert records.results_after_suggestion(records.empty(), "rp_d") is None  # a record written before M64
+    # reading an older output again does not make it newer, and issuing the same plan again keeps its place
+    records.add_output(record, "q5-m4q", alias="o1", output_id="out_" + "a" * 24, session_id=None, name="ranking",
+                       columns=["broker"], row_count=10)
+    records.mark_suggestion(record, "rp_d", "q5")
+    assert records.results_after_suggestion(record, "rp_d") == ["out.o2 rb_buys", "finding.rb_buys (EVENT_STUDY)"]
+    # a new suggestion is newer than everything before it
+    records.mark_suggestion(record, "rp_e", "q5-m4n")
+    assert records.results_after_suggestion(record, "rp_e") == []
+    assert records.normalize(record)["suggestion"]["plan_id"] == "rp_e"  # kept in the stored record
+
+
+def test_rule_5_a_stale_suggestion_is_revised_or_approved_only_when_the_message_names_it() -> None:
+    newer = ["out.o2 rb_buys"]
+    assert router.apply_rules("REVISE", True, newer, "NEWEST_RESULT") == "CONTINUE"
+    assert router.apply_rules("REVISE", True, newer, "UNCLEAR") == "CONTINUE"
+    assert router.apply_rules("APPROVE", True, newer, None) == "CONTINUE"
+    assert router.apply_rules("REVISE", True, newer, "PENDING_SUGGESTION") == "REVISE"
+    assert router.apply_rules("CANCEL", True, newer, "NEWEST_RESULT") == "CANCEL"
+    assert router.apply_rules("REVISE", True, [], "NEWEST_RESULT") == "REVISE"  # nothing newer: the suggestion
+    assert router.apply_rules("REVISE", True, None, None) == "REVISE"  # unknown order: unchanged
+    assert router.ROUTER_SCHEMA["required"] == ["turn_kind", "revision_instruction", "referent"]
+
+
+def test_m64_a_follow_up_on_the_newest_result_is_not_a_revision_of_an_old_suggestion() -> None:
+    """Golden test question 5, turn 5 ("Uji ide saya: efeknya hanya di bank BUMN.", after turn 4's event study): the
+    router read REVISE of the suggestion pending since turn 1. Now the turn continues from the newest result and the
+    suggestion stays pending."""
+    wrapper, inner = routed(single("m4n"), "REVISE", "NEWEST_RESULT")
+    result = wrapper.run(m4(request_id="q3", message="Uji ide saya: efeknya hanya di bank BUMN.", history=HISTORY,
+                            continuation=fake_continuation()), data_record=suggested_then_studied())
+    assert inner.contexts[0]["results_after_pending_suggestion"] == ["out.o2 rb_buys",
+                                                                     "finding.rb_buys (EVENT_STUDY)"]
+    assert [(r.request_id, r.analysis_path, r.continuation) for r in inner.requests] == [("q3-m4n", None, None)]
+    assert result.mode4["turn_kind"] == "CONTINUE"
+    assert any("masih menunggu" in line for line in result.response.limitations)  # the suggestion stays pending
+    # the same message about the suggestion itself still revises it
+    wrapper, inner = routed(follow_up_script(), "REVISE", "PENDING_SUGGESTION")
+    result = wrapper.run(m4(request_id="q3", message="Ubah usulan riset tadi: pakai 5 tahun.", history=HISTORY,
+                            continuation=fake_continuation()), data_record=suggested_then_studied())
+    assert result.mode4["turn_kind"] == "REVISE" and inner.requests[0].continuation.action == "REVISE"

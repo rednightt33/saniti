@@ -128,6 +128,12 @@ def validate(*, bundle: dict[str, Any], path_of, outputs: list[dict[str, Any]], 
             entry.update(status="FAIL", reason="TABLE_UNREADABLE")
             continue
         mismatches = ES.compare(released, recomputed)
+        # P23: the summary's declared units are part of what is checked (the answer formats its figures by them)
+        declared = ((summary_output.get("meta") or {}).get("units") or {}) \
+            if isinstance(summary_output.get("meta"), dict) else {}
+        expected_units = ES.summary_units(call.get("outcome_unit") or "PERCENT")
+        if declared != expected_units:
+            mismatches.append({"table": "units", "declared": declared, "expected": expected_units})
         mismatches += [{"table": "events", **m} for m in ES.compare_events(released_events, recomputed_events)]
         checked_baseline = 0
         if released_baseline is not None:

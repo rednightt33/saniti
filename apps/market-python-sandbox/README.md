@@ -216,7 +216,11 @@ bundle of the same request.
     [Event study](#event-study-g2-2026-10-02));
   - `insufficient_data(...)`, `intermediate_path(name)`;
   - `emit_table`, `emit_chart`, `emit_json`, `emit_text`, `emit_file` (TABLE, CHART, JSON, TEXT, PARQUET, CSV, PNG,
-    ARTIFACT).
+    ARTIFACT). `emit_table` and `emit_json` take `units={column or field: 'FRACTION' | 'PERCENT' | 'P_VALUE'}` (P23,
+    2026-10-02): FRACTION is a share or a decimal return (0.12 is 12%), PERCENT a value already in percent, P_VALUE a
+    p-value. An unknown unit or column is refused (`OUTPUT_INVALID`); the collector re-checks them and keeps them in
+    the output's `meta.units`, which `GET /v1/sessions/{id}/outputs/{output_id}` returns and market-ai-orc formats the
+    answer's figures by.
 - Value types of every frame from `load`, `range`, `sql` and `join`:
   - the time column holds `datetime.date` objects (object dtype);
   - numeric columns are float64, and text columns are pandas strings.
@@ -1181,7 +1185,11 @@ the orc describes it to the model only with `AI_ENABLE_EVENT_STUDY`.
   `delta_ci_high`, `delta_p_value`, `censored_count`, `overlapping_dropped`, `meets_min_events`), `<name>_events`
   (`date`, `entity`, `outcome` of every kept event), `<name>_baseline` (the baseline rows, same columns; 2b,
   2026-10-02, so a later step can load it) and the internal JSON record `event_study_call_<name>` (the declaration and
-  parameters). The prefix `event_study_call_` is reserved like `research_call_`.
+  parameters). The prefix `event_study_call_` is reserved like `research_call_`. P23: the tables declare their units
+  (`event_study.summary_units`: the outcome columns in `outcome_unit`, DECIMAL as FRACTION; `hit_rate` FRACTION;
+  `delta_p_value` P_VALUE; `outcome` of the events and baseline tables in `outcome_unit`), and the recalculation below
+  also checks the summary's declared units. Research findings carry their units too: v2 `estimates.units`
+  (`research_engines.estimate_units`) and v1 `units` (`research_stats.summary_units`).
 - **Independent recalculation** (`app/event_study_validation.py`, at `complete_analysis`): the harness reads the
   declaration, rebuilds the input from the bundle files with `runtime/research_inputs.py`, recomputes the three tables
   with `runtime/event_study.py` and compares them with the released ones (counts exactly, numbers within a relative

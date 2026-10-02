@@ -98,7 +98,10 @@ RUN_DESCRIPTION = (
     "MaterializationLimitExceeded, before anything is loaded; the session, its data and variables stay, so revise "
     "the code, never the data need. Write any logic you need; define functions and call them "
     "later. Emit results with emit_table(name, frame), emit_json(name, value), emit_text(name, text), "
-    "emit_chart(figure, name, title), emit_file(name, data, format); each returns output metadata and the tool "
+    "emit_chart(figure, name, title), emit_file(name, data, format); emit_table and emit_json take units={column: "
+    "'FRACTION' | 'PERCENT' | 'P_VALUE'} for every column holding a share or a return as a decimal, a value "
+    "already in percent, or a p-value, so the answer's value references are formatted by the data's "
+    "unit; each returns output metadata and the tool "
     "result lists output_ids. print() is diagnostics only. Results: OK; SCRIPT_ERROR with error_type, line, field "
     "(e.g. a missing column) and traceback: fix the code and rerun (earlier variables remain); TIMEOUT (the "
     "execution was interrupted, the session remains); INSUFFICIENT_INPUT_DATA after "
@@ -249,6 +252,9 @@ def released_contents(client: SandboxClient, session_id: str, outputs: list[dict
             continue
         entry = {"output_id": output["output_id"], "name": output.get("name"), "type": output.get("type"),
                  "label": output_label(body, output["output_id"], final_status)}
+        units = (body.get("meta") or {}).get("units") if isinstance(body.get("meta"), dict) else None
+        if units:
+            entry["units"] = units  # P23: the declared unit of each column, so a figure is shown by its unit
         if "rows" in body:
             entry.update(rows=body["rows"], row_count=body.get("row_count"),
                          truncated=body.get("next_offset") is not None)

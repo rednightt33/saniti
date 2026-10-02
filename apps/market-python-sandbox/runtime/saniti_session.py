@@ -510,11 +510,14 @@ def event_study(request: str, event: str, outcome: dict[str, Any], horizon: int,
         raise SanitiError(f"{exc.code}: {exc}") from None
     described = (f"Event study: {event} -> forward return of {spec['forward_return']} over {params['horizon']} "
                  f"observations ({outcome_unit.lower()}), {params['overlap_policy']}, baseline {params['baseline']}")
-    table = emit_table(label, pd.DataFrame(summary, columns=list(ES.SUMMARY_COLUMNS)), described)
-    kept = emit_table(f"{label}_events", events, f"Events kept by {label} (date, entity, outcome)")
+    table = emit_table(label, pd.DataFrame(summary, columns=list(ES.SUMMARY_COLUMNS)), described,
+                       units=ES.summary_units(outcome_unit))
+    kept = emit_table(f"{label}_events", events, f"Events kept by {label} (date, entity, outcome)",
+                      units=ES.rows_units(outcome_unit))
     baseline_rows = ES.baseline_rows(canonical, params)
     compared = emit_table(f"{label}_baseline", baseline_rows,
-                          f"Baseline rows of {label} ({params['baseline']}: date, entity, outcome)")
+                          f"Baseline rows of {label} ({params['baseline']}: date, entity, outcome)",
+                          units=ES.rows_units(outcome_unit))
     call = {"version": ES.VERSION, "name": label, "declaration": declaration, "parameters": params,
             "outcome_unit": outcome_unit, "ranges": [w["range_id"] for w in chosen],
             "summary_output": label, "events_output": f"{label}_events", "baseline_output": f"{label}_baseline",
@@ -984,7 +987,8 @@ def event_summary(events, baseline, *, hypothesis_id: str, outcome_column: str, 
         summary["groups"][group]["median"] = float(values.median()) if len(values) else None
     emit_table(f"research_events_{hypothesis_id}", table,
                "Per-date aggregates of the condition and baseline rows (research findings input).")
-    emit_json(f"research_summary_{hypothesis_id}", summary, "Research findings: both angles, sample and verdict.")
+    emit_json(f"research_summary_{hypothesis_id}", summary, "Research findings: both angles, sample and verdict.",
+              units=research_stats.summary_units(outcome_unit))
     _log({"call": "event_summary", "hypothesis_id": hypothesis_id, "rows": int(table["n"].sum()),
           "dates": int(len(table)), "flag": summary["sample"]["flag"], "verdict": summary["verdict"]})
     return summary
@@ -1467,15 +1471,39 @@ def _arrow(frame):
     return pa.Table.from_pandas(flat, preserve_index=False)
 
 
-def emit_table(name: str, data, description: str = "") -> dict[str, Any]:
-    """A TABLE output (stored as Parquet; readable back page by page)."""
+VALUE_UNITS = ("FRACTION", "PERCENT", "P_VALUE")
+
+
+def _units(units, fields: list[str] | None) -> dict[str, str]:
+    """P23 (2026-10-02): {column or field: FRACTION | PERCENT | P_VALUE}. FRACTION is a share or a return as a
+    decimal (0.12 is 12%), PERCENT a value already in percent (12 is 12%), P_VALUE a p-value. The answer's value
+    references are formatted by this unit, not by the words typed next to them."""
+    if units is None:
+        return {}
+    if not isinstance(units, dict):
+        raise InvalidOutput("units is a dict {column: 'FRACTION' | 'PERCENT' | 'P_VALUE'}.")
+    clean = {}
+    for key, unit in units.items():
+        if unit not in VALUE_UNITS:
+            raise InvalidOutput(f"units[{key!r}] is {unit!r}; use one of {', '.join(VALUE_UNITS)} (FRACTION: 0.12 is "
+                                f"12%; PERCENT: 12 is 12%).")
+        if fields is not None and str(key) not in fields:
+            raise InvalidOutput(f"units names {key!r}, which is not a column or field of the output.")
+        clean[str(key)] = unit
+    return clean
+
+
+def emit_table(name: str, data, description: str = "", units: dict[str, str] | None = None) -> dict[str, Any]:
+    """A TABLE output (stored as Parquet; readable back page by page). units: {column: FRACTION | PERCENT | P_VALUE}
+    for the columns holding a share, a percent or a p-value, so the answer formats them right."""
     import pyarrow.parquet as pq
 
     table = _arrow(data)
+    declared = _units(units, table.column_names)
     file_name = _file(_name(name), "parquet")
     pq.write_table(table, _os.path.join(_OUTPUT_DIR, file_name), compression="zstd")
     return _record("TABLE", "PARQUET", name, file_name, description, columns=table.column_names,
-                   row_count=table.num_rows)
+                   row_count=table.num_rows, **({"units": declared} if declared else {}))
 
 
 def emit_chart(figure=None, name: str = "chart", title: str = "", description: str = "") -> dict[str, Any]:
@@ -1513,15 +1541,17 @@ def _jsonable(value: Any, depth: int = 0) -> Any:
     return str(value)
 
 
-def emit_json(name: str, value, description: str = "") -> dict[str, Any]:
-    """A JSON output (numbers, strings, lists and objects)."""
+def emit_json(name: str, value, description: str = "", units: dict[str, str] | None = None) -> dict[str, Any]:
+    """A JSON output (numbers, strings, lists and objects). units: {field: FRACTION | PERCENT | P_VALUE}, a field
+    named by its key (or a dotted path of keys)."""
+    declared = _units(units, None)
     text = _json.dumps(_jsonable(value), ensure_ascii=False, separators=(",", ":"))
     if len(text.encode("utf-8")) > int(_LIMITS["max_json_bytes"]):
         raise OutputLimitExceeded(f"A JSON output is at most {_LIMITS['max_json_bytes']} bytes.")
     file_name = _file(_name(name), "json")
     with open(_os.path.join(_OUTPUT_DIR, file_name), "w", encoding="utf-8") as handle:
         handle.write(text)
-    return _record("JSON", "JSON", name, file_name, description)
+    return _record("JSON", "JSON", name, file_name, description, **({"units": declared} if declared else {}))
 
 
 def emit_text(name: str, text: str, description: str = "") -> dict[str, Any]:

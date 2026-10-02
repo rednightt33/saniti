@@ -33,7 +33,7 @@ class Api:
                                        wall_clock=clock or Clock(datetime.now(timezone.utc)))
         self.seen: list[AgentRunRequest] = []
         run = self.agent.run
-        self.agent.run = lambda request: (self.seen.append(request), run(request))[1]
+        self.agent.run = lambda request, **_: (self.seen.append(request), run(request))[1]
         self.client = TestClient(create_app(settings, orchestrator=self.agent, conversations=store_for(url)))
 
     def post(self, request_id: str, message: str, conversation_id: str | None = None, **extra):

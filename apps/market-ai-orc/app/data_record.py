@@ -24,7 +24,7 @@ MAX_FINDINGS = 30  # E1: research findings and event studies of the conversation
 # what a finding keeps for later turns: the fields an answer cites and references by path
 FINDING_KEYS = ("angle_id", "hypothesis_id", "method_id", "status", "status_reason", "verdict", "verdict_reason",
                 "evidence_direction", "validation_level", "sample", "sample_flag", "estimates", "comparator",
-                "holdout", "multiple_testing", "angle_a", "angle_b", "confidence_level", "parameters")
+                "holdout", "multiple_testing", "angle_a", "angle_b", "confidence_level", "parameters", "units")
 MAX_MANUALS = 12  # 4b: method guides opened in the conversation, newest kept
 MAX_MANUAL_NOTE_CHARS = 16000
 MANUALS_HEADER = ("METHOD GUIDES OPENED EARLIER IN THIS CONVERSATION (application context from the backend, not from "
@@ -40,7 +40,8 @@ NOTE_HEADER = ("DATA RECORD (application context: the data this conversation has
 
 def empty() -> dict[str, Any]:
     return {"version": VERSION, "tables": {}, "needs": [], "outputs": [], "research": [], "next_alias": 1,
-            "values": {}, "relationships": {}, "coverage": {}, "manuals": [], "findings": []}
+            "values": {}, "relationships": {}, "coverage": {}, "manuals": [], "findings": [], "seq": 0,
+            "suggestion": None}
 
 
 def normalize(record: Any) -> dict[str, Any]:
@@ -61,6 +62,11 @@ def normalize(record: Any) -> dict[str, Any]:
         clean[key] = {str(k): dict(v) for k, v in (record.get(key) or {}).items() if isinstance(v, dict)}
     clean["manuals"] = [dict(m) for m in record.get("manuals") or [] if isinstance(m, dict) and m.get("name")]
     clean["findings"] = [dict(f) for f in record.get("findings") or [] if isinstance(f, dict) and f.get("id")]
+    # M64: the order results and research suggestions were produced in (a record written before it has none)
+    seq = record.get("seq")
+    clean["seq"] = seq if isinstance(seq, int) and seq > 0 else 0
+    suggestion = record.get("suggestion")
+    clean["suggestion"] = dict(suggestion) if isinstance(suggestion, dict) and suggestion.get("plan_id") else None
     stored = record.get("next_alias")
     clean["next_alias"] = max(stored if isinstance(stored, int) and stored > 0 else 1,
                               max((_alias_number(o.get("ref")) for o in clean["outputs"]), default=0) + 1)
@@ -134,12 +140,20 @@ def add_catalog(record: dict[str, Any], tables: dict[str, Any], request_id: str)
         _note_request(table, request_id)
 
 
+def _next_seq(record: dict[str, Any]) -> int:
+    record["seq"] = int(record.get("seq") or 0) + 1
+    return record["seq"]
+
+
 def add_output(record: dict[str, Any], request_id: str, *, alias: str, output_id: str, session_id: str | None,
                name: Any, columns: list[str], row_count: Any, label: str | None = None,
                kind: str | None = None) -> None:
+    earlier = next((o for o in record["outputs"] if o.get("output_id") == output_id), None)
     outputs = [o for o in record["outputs"] if o.get("output_id") != output_id]
+    # M64: an output read again keeps the place it was produced at; only a new output is newer than what came before
+    seq = earlier.get("seq") if earlier is not None and isinstance(earlier.get("seq"), int) else _next_seq(record)
     outputs.append({"ref": f"out.{alias}", "output_id": output_id, "session_id": session_id, "name": name,
-                    "columns": columns[:30], "row_count": row_count, "request_id": request_id,
+                    "columns": columns[:30], "row_count": row_count, "request_id": request_id, "seq": seq,
                     **({"label": label} if label else {}), **({"type": kind} if kind else {})})
     record["outputs"] = outputs[-MAX_OUTPUTS:]
     record["next_alias"] = max(record.get("next_alias") or 1, _alias_number(f"out.{alias}") + 1)
@@ -222,12 +236,35 @@ def add_finding(record: dict[str, Any], request_id: str, *, kind: str, finding_i
             kept[key] = copy.deepcopy(value)
     record["findings"] = [f for f in record.get("findings") or [] if f.get("id") != finding_id]
     record["findings"].append({"id": finding_id, "kind": kind, "request_id": request_id, "recorded_at": recorded_at,
-                               "finding": kept})
+                               "seq": _next_seq(record), "finding": kept})
     del record["findings"][:-MAX_FINDINGS]
 
 
+def mark_suggestion(record: dict[str, Any], plan_id: str, request_id: str) -> None:
+    """M64: a research suggestion (a plan waiting for the user's decision) was issued now; results produced later are
+    newer than it. Issuing the same plan again keeps its place."""
+    current = record.get("suggestion")
+    if isinstance(current, dict) and current.get("plan_id") == plan_id:
+        return
+    record["suggestion"] = {"plan_id": plan_id, "request_id": request_id, "seq": int(record.get("seq") or 0)}
+
+
+def results_after_suggestion(record: dict[str, Any] | None, plan_id: str | None) -> list[str] | None:
+    """M64: the results (released outputs and findings, newest last) produced after the pending suggestion was issued;
+    None when the record does not know when it was issued (an older record, or another plan)."""
+    suggestion = (record or {}).get("suggestion")
+    if not plan_id or not isinstance(suggestion, dict) or suggestion.get("plan_id") != plan_id:
+        return None
+    issued = int(suggestion.get("seq") or 0)
+    later = [(o["seq"], f"{o.get('ref')} {o.get('name')}") for o in (record or {}).get("outputs") or []
+             if isinstance(o.get("seq"), int) and o["seq"] > issued]
+    later += [(f["seq"], f"finding.{f.get('id')} ({f.get('kind')})") for f in (record or {}).get("findings") or []
+              if isinstance(f.get("seq"), int) and f["seq"] > issued]
+    return [name for _, name in sorted(later)]
+
+
 def is_empty(record: dict[str, Any] | None) -> bool:
-    return not has_data(record) and not (record or {}).get("manuals")
+    return not has_data(record) and not (record or {}).get("manuals") and not (record or {}).get("suggestion")
 
 
 def finding_line(entry: dict[str, Any]) -> str:
@@ -236,14 +273,27 @@ def finding_line(entry: dict[str, Any]) -> str:
     f = entry.get("finding") or {}
     parts = [f"{k}={f[k]}" for k in ("method_id", "status", "verdict", "sample_flag", "validation_level")
              if f.get(k) is not None]
-    primary = ((f.get("estimates") or {}).get("primary") or {})
+    estimates = f.get("estimates") or {}
+    primary = estimates.get("primary") or {}
     if primary:
-        parts += [f"estimate={primary.get('estimate')}", f"ci={primary.get('ci')}",
-                  f"p={primary.get('p_adjusted', primary.get('p_value'))}"]
+        # M65 (golden test rerun 2026-10-02): an interval and a p-value are printed in the pair they belong to,
+        # labelled; the unadjusted interval once went out beside the adjusted p and the answer paired them
+        unit = (estimates.get("units") or {}).get("estimate")
+        parts.append(f"estimate={primary.get('estimate')}" + (f" ({unit})" if unit else ""))
+        adjusted = primary.get("p_adjusted") is not None or primary.get("ci_adjusted") is not None
+        if adjusted:
+            parts.append(f"adjusted for multiple testing: ci={primary.get('ci_adjusted')}, "
+                         f"p={primary.get('p_adjusted')}")
+        parts.append(("unadjusted: " if adjusted else "") + f"ci={primary.get('ci')}, p={primary.get('p_value')}")
     angle_a = f.get("angle_a") or {}
     if angle_a:
-        parts += [f"difference={angle_a.get('difference')}", f"ci=[{angle_a.get('ci_low')}, {angle_a.get('ci_high')}]",
-                  f"p={angle_a.get('p_value')}"]
+        # research findings v1: the interval is at the adjusted confidence level, the p-value is unadjusted
+        alpha = (f.get("parameters") or {}).get("alpha_adjusted")
+        unit = (f.get("units") or {}).get("angle_a.difference")
+        parts += [f"difference={angle_a.get('difference')}" + (f" ({unit})" if unit else ""),
+                  f"ci=[{angle_a.get('ci_low')}, {angle_a.get('ci_high')}]"
+                  + (f" (at alpha {alpha})" if alpha is not None else ""),
+                  f"unadjusted p={angle_a.get('p_value')}"]
     sample = f.get("sample") or {}
     if sample.get("effective") is not None:
         parts.append(f"effective_sample={sample['effective']}")

@@ -35,6 +35,22 @@ SUMMARY_COLUMNS = ("segment", "event_count", "event_dates", "effective_event_dat
 COUNT_COLUMNS = ("event_count", "event_dates", "effective_event_dates", "baseline_count", "censored_count",
                  "overlapping_dropped")
 EVENT_COLUMNS = ("date", "entity", "outcome")
+# P23 (2026-10-02): the unit of each figure, so the answer shows a fraction as a percent and a percent as it is. The
+# outcome columns are in the declared outcome unit; hit_rate is a share; delta_p_value is a p-value
+OUTCOME_COLUMNS = ("mean", "median", "baseline_mean", "baseline_median", "delta_mean", "delta_ci_low",
+                   "delta_ci_high")
+VALUE_UNITS = {"PERCENT": "PERCENT", "DECIMAL": "FRACTION"}
+
+
+def summary_units(outcome_unit: str) -> dict[str, str]:
+    """{column: unit} of the summary table (units: FRACTION, PERCENT, P_VALUE)."""
+    units = {column: VALUE_UNITS[outcome_unit] for column in OUTCOME_COLUMNS} if outcome_unit in VALUE_UNITS else {}
+    return {**units, "hit_rate": "FRACTION", "delta_p_value": "P_VALUE"}
+
+
+def rows_units(outcome_unit: str) -> dict[str, str]:
+    """{column: unit} of the events and baseline tables."""
+    return {"outcome": VALUE_UNITS[outcome_unit]} if outcome_unit in VALUE_UNITS else {}
 
 
 class EventStudyError(ValueError):

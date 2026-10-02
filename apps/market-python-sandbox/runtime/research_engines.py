@@ -46,6 +46,16 @@ METHODS: dict[str, str] = {
 FAMILIES = ("CONDITIONAL_OUTCOME", "PERSISTENCE", "GROUP_COMPARISON", "QUANTILE_RANKING", "TEMPORAL_DEPENDENCY")
 DIRECTIONS = ("HIGHER", "LOWER", "DIFFERENT")
 UNITS = ("PERCENT", "DECIMAL", "OTHER")
+VALUE_UNITS = {"PERCENT": "PERCENT", "DECIMAL": "FRACTION"}
+
+
+def estimate_units(estimate_kind: str | None, outcome_unit: str | None) -> dict[str, str]:
+    """P23 (2026-10-02): {field: FRACTION | PERCENT | P_VALUE} of a finding's estimates. A mean difference or a spread
+    is in the angle's outcome unit (none for OTHER), a rate difference is a share, a correlation has no unit."""
+    unit = "FRACTION" if estimate_kind == "RATE_DIFFERENCE" else \
+        VALUE_UNITS.get(outcome_unit or "") if estimate_kind in ("MEAN_DIFFERENCE", "SPREAD") else None
+    values = {field: unit for field in ("estimate", "ci", "ci_adjusted", "standard_error")} if unit else {}
+    return {**values, "p_value": "P_VALUE", "p_adjusted": "P_VALUE"}
 POLICIES = ("NONE", "BONFERRONI", "HOLM", "BENJAMINI_HOCHBERG")
 STATUSES = ("SUPPORTED", "PARTIALLY_SUPPORTED", "INSUFFICIENT_EVIDENCE", "INVALID", "NOT_RUN")
 LEVELS = ("FORMULA_AND_STATISTICS_VERIFIED", "STATISTICS_VERIFIED", "EXECUTION_ONLY")

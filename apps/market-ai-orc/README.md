@@ -1000,7 +1000,18 @@ data figure; it writes where the value is, and `app/value_refs.py` fills it in:
 Tool results the application received (never the model) register these sources with their evidence label; each
 referable object carries a `"ref"` key with its prefix. Formats, Indonesian notation: `auto` (default), `dec:N`,
 `int`, `pct:N` (a fraction shown as percent), `pctv:N` (already a percent), `pp:N`, `rp` (ribu/juta/miliar/triliun),
-`x:N` ("kali"). Functions computed by code: `diff(a,b)`, `abs(a)`, `ratio(a,b)`, `chg(a,b)`; no free expressions.
+`x:N` ("kali"), `p` (P24: a p-value, "p < 0,001" below 0,001, three decimals below 0,01, else two). Functions computed
+by code: `diff(a,b)`, `abs(a)`, `ratio(a,b)`, `chg(a,b)`; no free expressions.
+
+P23 (2026-10-02): a value's unit is declared by the object that holds it, never inferred from the text: a research
+finding's `estimates.units`, a hypothesis finding's `units` (by field path), the columns an event study or the model's
+code released with `units=` (`FRACTION`, `PERCENT`, `P_VALUE`; carried in the output's `meta` and in
+`released_contents`). `ReferenceSources.unit` finds it (the innermost declaration on the path wins; a row selector or
+an index is not part of the name). With a known unit `pct`, `pctv` and `pp` show a FRACTION ×100 and a PERCENT as it
+is, a P_VALUE is shown with `p` (a percent format on it is refused), and a percent-type word typed after a `dec`,
+`int` or `auto` reference ("{{x|dec:2}} pp") picks the display. `diff` and `abs` keep the shared unit, `ratio` has
+none, `chg` is a FRACTION. Logs: `ai_reference_unit_corrected` (shown by the data's unit rather than as written) and
+`ai_reference_unit_unknown` (a percent format on a value with no declared unit: the cases still left to the format).
 
 P13 (suite20c, 2026-09-30): a text value (a ticker, a broker, a label) may be referenced without a format and is shown
 as written (one line, at most 200 characters; the numbers inside it become sources under the same label; a text value
@@ -1011,7 +1022,9 @@ Rendering applies to `answer`, the findings narratives, `methodology` and `limit
 unknown reference or format fails the new REFERENCE gate (the message names the valid keys nearby), then a
 LIMITATION. The resolved values join the provenance sources under their label, so the gates run unchanged on the
 rendered text; a literal figure outside a reference is still checked by the parser, and its rejection says to write
-the figure as a reference. The user receives the rendered text; the audit keeps the unrendered one
+the figure as a reference. P25: when a refused number is a literal of the run's successful code (a threshold, a
+percentile, a window), the refusal says so and names the two right places, methodology or a released parameter
+(`emit_json`) referenced like any figure (`CODE_LITERAL_HINT`); code literals stay sources of methodology only. The user receives the rendered text; the audit keeps the unrendered one
 (`final.unrendered`). The plan turn is unchanged.
 
 Missing fields, dotted keys and repairs (M43, P14, P15, P16; user decisions 2026-09-30, every mode):
@@ -1079,8 +1092,11 @@ case: m4a of `ma-integrity-20261001a` spent 510 s on six full rewrites of an 18,
 
 `value_refs.render` drops a copy of the unit a format already shows when the model typed it right next to the
 reference: `{{x|pp:2}} pp` shows `1,00 pp`, `Rp {{y|rp}}` shows `Rp 5 miliar`. The unit is read from the shown value
-(its non-numeric tail or head), so every unit-bearing format is covered; only an exact repeat is dropped, and each drop
-is logged as `ai_reference_unit_repeated`.
+(its non-numeric tail or head), so every unit-bearing format is covered. A copy is any word of the unit's family
+(`UNIT_FAMILIES`: "pp"/"poin persentase"/"poin persen"/"persentase poin"/"percentage point(s)", "%"/"persen"/
+"percent", "kali"/"times", "Rp"/"IDR"/"rupiah", the scale words; a unit outside them is matched as itself), also
+behind closing Markdown emphasis (`**{{x|x:2}}** kali` shows `**1,58 kali**`); a longer word is kept. The `p` format
+shows its own "p", so a typed "p =" before it is dropped. Each drop is logged as `ai_reference_unit_repeated`.
 
 ### Event study labels (G2)
 
@@ -1110,7 +1126,12 @@ suggestion, never figures) and handled by backend rules:
 | NEW_TOPIC | a new first round (A, B, C, D); the pending suggestion is cancelled | yes |
 
 Without a pending suggestion APPROVE and REVISE are CONTINUE and CANCEL is CONVERSATIONAL; a failed classification is
-INSIGHT. A pending suggestion survives the single-step classes (the answer says it still waits). E1: findings of
+INSIGHT. A pending suggestion survives the single-step classes (the answer says it still waits). M64 (rule 5): the
+data record numbers every released output and finding in order (`seq`; an output read again keeps its place) and
+records when the pending suggestion was issued (`suggestion`); the router sees `results_after_pending_suggestion` and
+returns a `referent`. Once newer results exist, APPROVE and REVISE act on the suggestion only when the referent is
+PENDING_SUGGESTION; otherwise the turn is CONTINUE from the newest result and the suggestion stays pending (logged as
+`mode4_stale_suggestion`). A record without the order keeps the old behaviour. E1: findings of
 multi-angle runs, hypothesis plans and passed event studies are kept in the data record (`findings`) and are value
 reference and provenance sources in later turns (`finding.<id>`), so an explanation needs no rerun. Logs:
 `conversation_turn_classified`, `mode4_turn_routed`, `conversation_turn_routed`; the mode4 block carries `turn_kind`
@@ -1148,7 +1169,9 @@ With `AI_ENABLE_HYPOTHESIS_PLAN` (active only when Multi-Angle Research, researc
 `check_data_feasibility` are all present; otherwise `hypothesis_plan_inactive` is logged):
 
 - the prompt keeps the multi-angle rules, replaces their "RESEARCH data need is refused" sentence with
-  `DUAL_RESEARCH_SENTENCE`, and adds `HYPOTHESIS_PLAN_RULES` (one to four free hypotheses, checked with
+  `DUAL_RESEARCH_SENTENCE` and their opening sentence, which claimed every research question for the multi-angle plan,
+  with `DUAL_OPENING` (M62: one decision rule naming both forms; one or a few explicit condition -> outcome hypotheses
+  take the hypothesis plan, one root hypothesis examined from several sides takes the multi-angle plan), and adds `HYPOTHESIS_PLAN_RULES` (one to four free hypotheses, checked with
   `check_data_feasibility`, executed with RESEARCH data needs and `event_summary`, events and baseline from the
   analysis code or from an event study) and `RESEARCH_FINDINGS_RULES`; VALUE REFERENCES names
   `finding.<hypothesis_id>`;
@@ -1189,8 +1212,9 @@ User decisions 2026-10-02 (`G2_G3_REACTIVATION_PLAN.md` step 5b; sandbox README,
   and the result carries `contents_not_shown_note`; a table's rows are fetched on demand for value references.
   `complete_research_run` lists the released outputs of every completed group with their `session_id`.
 - **Findings with their figures (P3).** `data_record.finding_line` shows a finding's method, status, verdict, sample
-  flag and validation level, its estimate with CI and p (adjusted when present) or an angle's difference with CI and
-  p, the effective sample, its tables and the IN_SAMPLE flag. The figures help interpret; an answer still cites
+  flag and validation level, its estimate with its unit, then each CI with the p-value of the same test, labelled
+  (M65: "adjusted for multiple testing: ci, p" and "unadjusted: ci, p"; a hypothesis finding's CI is at the adjusted
+  alpha and its p unadjusted), the effective sample, its tables and the IN_SAMPLE flag. The figures help interpret; an answer still cites
   `finding.<id>`.
 - **IN_SAMPLE (M58).** `app/in_sample.py` flags a research finding (an angle of a multi-angle run, a hypothesis of a
   hypothesis plan) whose test read a table over dates an earlier ANALYSIS need of the conversation read (data record

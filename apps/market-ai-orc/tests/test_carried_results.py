@@ -266,7 +266,26 @@ def test_a_finding_in_the_note_shows_its_figures_and_flags() -> None:
 def test_an_angle_finding_shows_its_difference() -> None:
     entry = {"id": "a_fall", "kind": "ANGLE", "request_id": "q-3", "finding": {
         "status": "SUPPORTED", "angle_a": {"difference": 1.25, "ci_low": 0.4, "ci_high": 2.1, "p_value": 0.01}}}
-    assert "difference=1.25; ci=[0.4, 2.1]; p=0.01" in records.finding_line(entry)
+    assert "difference=1.25; ci=[0.4, 2.1]; unadjusted p=0.01" in records.finding_line(entry)
+
+
+def test_an_interval_and_a_p_value_stay_in_the_pair_they_belong_to() -> None:
+    """M65 (golden test rerun ma-golden-20261002b, turn 9): the note printed the unadjusted CI beside the adjusted p and
+    the answer paired them ("selang −0,27 pp sampai 0,76 pp, p = 0,856"). A multi-threshold angle shows both pairs,
+    labelled, and the estimate's unit."""
+    entry = {"id": "broad_selling_side", "kind": "ANGLE", "request_id": "q-5", "finding": {
+        "status": "INSUFFICIENT_EVIDENCE", "estimates": {
+            "kind": "MEAN_DIFFERENCE", "units": {"estimate": "PERCENT"},
+            "primary": {"estimate": 0.24, "ci": [-0.27, 0.76], "p_value": 0.354, "ci_adjusted": [-0.39, 0.87],
+                        "p_adjusted": 0.856}}}}
+    line = records.finding_line(entry)
+    assert "estimate=0.24 (PERCENT)" in line
+    assert "adjusted for multiple testing: ci=[-0.39, 0.87], p=0.856" in line
+    assert "unadjusted: ci=[-0.27, 0.76], p=0.354" in line
+    assert "ci=[-0.27, 0.76], p=0.856" not in line
+    single = {"id": "one", "kind": "ANGLE", "finding": {"estimates": {"primary": {
+        "estimate": 0.1, "ci": [0.02, 0.18], "p_value": 0.01, "p_adjusted": None, "ci_adjusted": None}}}}
+    assert "ci=[0.02, 0.18], p=0.01" in records.finding_line(single) and "adjusted" not in records.finding_line(single)
 
 
 def test_every_released_output_in_the_note_shows_its_label() -> None:

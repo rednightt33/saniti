@@ -172,6 +172,8 @@ def test_a_research_run_records_one_backend_finding_per_angle(env) -> None:
         assert finding["findings_version"] == "research_findings/v2" and finding["bundle_group_id"] == "g1"
         assert finding["hashes"]["research_data_plan_sha256"] and finding["released_output_ids"]
         assert finding["status"] in ("SUPPORTED", "PARTIALLY_SUPPORTED", "INSUFFICIENT_EVIDENCE")
+        # P23: each estimate's unit, derived from its kind and the angle's outcome unit
+        assert finding["estimates"]["units"]["p_adjusted"] == "P_VALUE"
     assert findings["a1"]["input"]["declaration"]["roles"]["outcome"] == {"forward_return": "close"}
     view = env["api"].get(f"/v1/research-runs/{run['research_run_id']}", params={"request_id": RUN},
                           headers=HEADERS).json()
