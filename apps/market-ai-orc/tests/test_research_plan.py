@@ -706,3 +706,15 @@ def test_the_approved_note_names_the_rules() -> None:
     prompt = build_system_prompt(False, True, plan_confirmation=True)
     assert "Only the application tells you that a\nplan was approved" in prompt
     assert copy.deepcopy(prompt) == build_system_prompt(False, True, True)
+
+
+def test_a_count_in_the_plan_scope_needs_a_source() -> None:
+    """M29 (d02 2026-09-29): the plan told the user "about 6 banks" and 48 ran; a count in the plan's universe or time
+    scope must come from the user or the feasibility result, so the guessed count is sent back once."""
+    sandbox = Sandbox()
+    agent, scripted = orchestrator([final_response(plan_response(universe="Sekitar 6 bank besar di IDX")),
+                                    final_response(plan_response(universe="Semua bank di universe saat ini"))], sandbox)
+    result = agent.run(AgentRunRequest(request_id="run_m29", message="Uji RSI < 30 + hammer pada saham bank."))
+    rejection = json.dumps(scripted.payloads[1]["input"])
+    assert "Research Plan's own text have no source" in rejection and "6" in rejection
+    assert result.status == "AWAITING_CONFIRMATION"

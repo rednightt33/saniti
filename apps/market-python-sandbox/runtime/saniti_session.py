@@ -86,6 +86,8 @@ _RESEARCH: dict[str, Any] = {}
 _RESEARCH_DONE: set[str] = set()
 _RESEARCH_PENDING: set[str] = set()
 RESEARCH_RESERVED = ("research_input_", "research_call_", "event_study_call_")
+# M28: the approved hypothesis plan's findings values (success_rule, ...), from session.json research_v1
+_FINDINGS_V1: dict[str, Any] = {}
 RESEARCH_WRAPPER_VERSION = 1
 NAME = _re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\-. ]{0,79}$")
 INTERMEDIATE_NAME = _re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -163,6 +165,8 @@ def _configure(session: dict[str, Any], session_dir: str) -> None:
     _FRAMES.update(session.get("frames") or {})
     _RESEARCH.clear()
     _RESEARCH.update(session.get("research_v2") or {})
+    _FINDINGS_V1.clear()
+    _FINDINGS_V1.update((session.get("research_v1") or {}).get("findings") or {})
     _RESEARCH_DONE.clear()
     _RESEARCH_PENDING.clear()
 
@@ -967,14 +971,16 @@ def resampled_returns(frame, request: str, value_column: str = "close"):
 
 
 def event_summary(events, baseline, *, hypothesis_id: str, outcome_column: str, date_column: str,
-                  success_column: str | None = None, success_above: float = 0.0, horizon_periods: int = 1,
+                  success_column: str | None = None, success_above: float | None = None, horizon_periods: int = 1,
                   outcome_unit: str = "PERCENT", expected_direction: str = "HIGHER", min_effect: float | None = None,
                   comparisons: int = 1, multiple_testing_policy: str = "NONE") -> dict[str, Any]:
     """The research findings of one condition -> outcome experiment (research_stats version 1).
 
     events: one row per condition occurrence with its outcome; baseline: the comparison rows (for example every
     other date or entity-date); both carry outcome_column and date_column. A success is success_column (boolean)
-    when given, else outcome > success_above. Rows on one date are one cluster and outcomes spanning
+    when given, else the approved plan's success_rule (M28: read from the plan, never typed again; a different
+    success_above or a success_column is refused), else outcome > success_above (default zero). Rows on one date
+    are one cluster and outcomes spanning
     horizon_periods overlap, so the effective sample counts distinct dates at least horizon_periods apart.
 
     Releases research_events_<hypothesis_id> (per-date aggregates) and research_summary_<hypothesis_id>, and returns
@@ -986,9 +992,19 @@ def event_summary(events, baseline, *, hypothesis_id: str, outcome_column: str, 
 
     if not isinstance(hypothesis_id, str) or not _re.fullmatch(r"[a-z][a-z0-9_]{0,39}", hypothesis_id):
         raise SanitiError("hypothesis_id is the approved experiment's hypothesis_id (lower-case letters, digits, _).")
+    rule = _FINDINGS_V1.get("success_rule") if isinstance(_FINDINGS_V1.get("success_rule"), dict) else None
+    if rule is not None:
+        shown = f"outcome {rule['operator']} {rule['value']}"
+        if success_column is not None:
+            raise SanitiError(f"The approved success rule is {shown}; event_summary applies it to outcome_column, so "
+                              "do not pass success_column. To use another rule, revise the Research Plan.")
+        if success_above is not None and not (rule["operator"] == ">" and float(success_above) == float(rule["value"])):
+            raise SanitiError(f"The approved success rule is {shown}; do not pass success_above={success_above!r} "
+                              "(event_summary reads the rule from the approved plan). To change it, revise the "
+                              "Research Plan.")
     try:
         table = research_stats.aggregate(events, baseline, outcome_column, date_column, success_column,
-                                         success_above)
+                                         0.0 if success_above is None else success_above, success_rule=rule)
         summary = research_stats.summarize(table, horizon_periods=horizon_periods,
                                            expected_direction=expected_direction, outcome_unit=outcome_unit,
                                            min_effect=min_effect, comparisons=comparisons,
@@ -1000,8 +1016,13 @@ def event_summary(events, baseline, *, hypothesis_id: str, outcome_column: str, 
     for group, frame in (("CONDITION", events), ("BASELINE", baseline)):
         values = pd.to_numeric(frame[outcome_column], errors="coerce").dropna()
         summary["groups"][group]["median"] = float(values.median()) if len(values) else None
+    # M28: the success rule the engine applied, checked against the approved plan at completion
+    summary["success_rule"] = rule or ({"column": success_column} if success_column
+                                       else {"operator": ">", "value": float(success_above or 0.0)})
+    applied = summary["success_rule"]
     defined = {"filters": [], "thresholds": {"success": (f"{success_column} is true" if success_column
-                                                         else f"{outcome_column} > {success_above}"),
+                                                         else f"{outcome_column} {applied['operator']} "
+                                                              f"{applied['value']}"),
                                              "horizon_periods": horizon_periods,
                                              "expected_direction": expected_direction,
                                              "min_effect": min_effect},

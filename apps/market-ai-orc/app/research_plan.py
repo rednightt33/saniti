@@ -142,7 +142,17 @@ class ResearchExperiment(Strict):
 
 Direction = Literal["HIGHER", "LOWER", "DIFFERENT"]
 OutcomeUnit = Literal["PERCENT", "DECIMAL", "OTHER"]
-FINDINGS_FIELDS = ("expected_direction", "outcome_horizon_periods", "outcome_unit", "success_definition", "min_effect")
+FINDINGS_FIELDS = ("expected_direction", "outcome_horizon_periods", "outcome_unit", "success_definition", "min_effect",
+                   "success_rule")
+
+
+class SuccessRule(Strict):
+    """M28 (golden g6 2026-10-02): when one outcome is a success, as a number the engine applies (outcome <operator>
+    value, in the outcome's unit), not only a sentence."""
+
+    operator: Literal[">=", ">", "<=", "<"] = Field(description="How the outcome is compared with value.")
+    value: float = Field(ge=-1_000_000_000, le=1_000_000_000,
+                         description="The threshold in the outcome's unit, from the user's own words.")
 
 
 class ResearchExperimentFindings(ResearchExperiment):
@@ -165,6 +175,19 @@ class ResearchExperimentFindings(ResearchExperiment):
         gt=0, le=1_000_000_000,
         description="The smallest effect worth knowing, in the outcome's unit, only when the user named one; "
                     "otherwise null (the backend then uses a round-trip trading cost for returns).")
+    success_rule: SuccessRule | None = Field(
+        description="The success threshold as a number when the user named one (for example rises at least three "
+                    "percent: operator >= and value three, in the outcome's unit); the engine applies it and the "
+                    "answer reports the rule it used. Null when the user named none (success is then above zero). A "
+                    "change the user asks for later is a revised plan.")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _success_rule_absent_is_null(cls, data: Any) -> Any:
+        """The strict schema lists success_rule as required (nullable); a plan written before it reads as null."""
+        if isinstance(data, dict) and "success_rule" not in data:
+            return {**data, "success_rule": None}
+        return data
 
     @field_validator("success_definition")
     @classmethod
@@ -514,6 +537,10 @@ def match_governance(governance: dict[str, Any] | None, plan: ResearchPlan, plan
         if governance.get("min_effect") != experiment.min_effect:
             issues.append(_issue(experiment, "min_effect", "EXACT_MATCH", experiment.min_effect,
                                  governance.get("min_effect")))
+        approved_rule = experiment.success_rule.model_dump() if experiment.success_rule is not None else None
+        submitted_rule = governance.get("success_rule")
+        if (approved_rule or None) != (submitted_rule or None):
+            issues.append(_issue(experiment, "success_rule", "EXACT_MATCH", approved_rule, submitted_rule))
     if not issues:
         return None
     return rejection("RESEARCH_PLAN_MISMATCH", "The research declaration differs from its approved experiment. Resubmit "

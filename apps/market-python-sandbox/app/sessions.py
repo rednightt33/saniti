@@ -481,7 +481,8 @@ class SessionManager:
 
     def open(self, request_id: str, bundle_id: str, cpu_seconds: int | None = None, *,
              conversation_key: str | None = None, need_id: str | None = None, bound: bool = False,
-             research: dict[str, Any] | None = None, carried_outputs: list[str] | None = None) -> dict[str, Any]:
+             research: dict[str, Any] | None = None, carried_outputs: list[str] | None = None,
+             findings: dict[str, Any] | None = None) -> dict[str, Any]:
         """A new session on a READY bundle of this request, or (bound) on an earlier bundle of the same conversation
         that the service bound to this request's approved need. With no free slot, the least recently used WARM_IDLE
         session is evicted; an ACTIVE or BUSY session never is."""
@@ -510,7 +511,7 @@ class SessionManager:
             directory = Path(s.jobs_dir) / session_id
             budget = max(10, min(int(cpu_seconds or s.session_cpu_seconds), s.session_cpu_seconds))
             try:
-                worker = self._launch(session_id, uid, cpus, directory, manifest, budget, research)
+                worker = self._launch(session_id, uid, cpus, directory, manifest, budget, research, findings)
             except SessionError:
                 shutil.rmtree(directory, ignore_errors=True)
                 raise
@@ -666,7 +667,8 @@ class SessionManager:
         return epoch
 
     def _launch(self, session_id: str, uid: int, cpus: list[int], directory: Path, manifest: dict[str, Any],
-                budget: int, research: dict[str, Any] | None = None) -> Worker:
+                budget: int, research: dict[str, Any] | None = None, findings: dict[str, Any] | None = None
+                ) -> Worker:
         s = self.settings
         drop = self.executor.drop_privileges
         root = Path(s.jobs_dir)
@@ -722,6 +724,8 @@ class SessionManager:
                                   *(RESEARCH_HELPERS if research else [])]}
                if s.research_findings_enabled or research else {}),
             **({"research_v2": research} if research else {}),
+            # M28: the approved hypothesis plan's findings values (success_rule, min_effect, ...), read by event_summary
+            **({"research_v1": {"findings": findings}} if findings else {}),
             "bundle": {k: manifest.get(k) for k in ("input_bundle_id", "need_id", "request_group_id", "revision",
                                                      "mode", "reference_date", "relationships",
                                                      "relationship_warnings")},

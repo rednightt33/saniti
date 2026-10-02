@@ -29,7 +29,9 @@ POLICIES = ("NONE", "BONFERRONI", "HOLM", "BENJAMINI_HOCHBERG")
 SAMPLE_UNITS = ("EVENTS", "OBSERVATIONS", "ENTITIES")
 DECLARATIONS = ("condition", "outcome", "baseline")
 # research findings v1: what the backend needs to recompute the sample category and the verdict
-FINDINGS = ("expected_direction", "outcome_horizon_periods", "outcome_unit", "min_effect", "success_definition")
+FINDINGS = ("expected_direction", "outcome_horizon_periods", "outcome_unit", "min_effect", "success_definition",
+            "success_rule")
+SUCCESS_OPERATORS = (">=", ">", "<=", "<")  # runtime/research_stats.py SUCCESS_OPERATORS
 FINDINGS_REQUIRED = ("expected_direction", "outcome_horizon_periods", "outcome_unit")
 DIRECTIONS = ("HIGHER", "LOWER", "DIFFERENT")
 OUTCOME_UNITS = ("PERCENT", "DECIMAL", "OTHER")
@@ -131,6 +133,12 @@ def check_request(raw: Any, findings_required: bool = False) -> list[dict[str, A
     success = raw.get("success_definition")
     if success is not None and (not isinstance(success, str) or not success.strip() or len(success) > 500):
         add("INVALID_FIELD_VALUE", ".success_definition", success)
+    # M28: the success threshold as a number the engine reads, not a sentence
+    rule = raw.get("success_rule")
+    if rule is not None and (not isinstance(rule, dict) or set(rule) != {"operator", "value"}
+                             or rule.get("operator") not in SUCCESS_OPERATORS
+                             or isinstance(rule.get("value"), bool) or not isinstance(rule.get("value"), (int, float))):
+        add("INVALID_FIELD_VALUE", ".success_rule", rule)
     return problems
 
 

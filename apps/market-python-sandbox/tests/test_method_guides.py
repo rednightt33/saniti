@@ -75,8 +75,10 @@ def test_the_migration_holds_the_guides_of_the_code() -> None:
     spec = importlib.util.spec_from_file_location("generate_ai_method_guide_migration", script)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    assert module.TARGET.read_text(encoding="utf-8") == module.render(), \
-        "regenerate with scripts/generate_ai_method_guide_migration.py (as a new forward migration once applied)"
+    assert module.target().read_text(encoding="utf-8") == module.render(), \
+        "regenerate with scripts/generate_ai_method_guide_migration.py (a new guides version is a new forward migration)"
+    # the applied creation migration is frozen: it still holds the version 1 table and registration
+    assert "CREATE TABLE public.\"AI_method_guide\"" in module.CREATE_TARGET.read_text(encoding="utf-8")
 
 
 @pytest.fixture

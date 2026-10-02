@@ -321,3 +321,21 @@ def test_the_warehouse_summary_migration_matches_the_tool_definitions() -> None:
     for name, definition in generator.definitions().items():
         assert f"'{generator.schema_text(definition)}'" in migration, name
         assert "aggregate" in definition["parameters"]["properties"]["data_requests"]["items"]["properties"]
+
+
+def test_the_high_alert_tool_migration_matches_the_tool_definitions() -> None:
+    """HIGH ALERT steps 3-5: submit_data_need_spec v6 (success_rule) and run_python v2 (output definitions, event
+    flow) are generated from the registry under the dev flags; a schema or description change regenerates them."""
+    import importlib.util
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[3]
+    spec = importlib.util.spec_from_file_location(
+        "generate_high_alert_tool_migration", root / "scripts/generate_high_alert_tool_migration.py")
+    generator = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(generator)
+    migration = (root / "database/migrations/20261003_003_high_alert_tool_catalog.sql").read_text()
+    assert generator.render() == migration, "regenerate with scripts/generate_high_alert_tool_migration.py"
+    found = generator.definitions()
+    assert "success_rule" in generator.schema_text(found["submit_data_need_spec"])
+    assert "definition=" in found["run_python"]["description"] and "_flow" in found["run_python"]["description"]

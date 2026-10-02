@@ -71,10 +71,25 @@ def _finite(value: Any) -> float | None:
     return number if math.isfinite(number) else None
 
 
+SUCCESS_OPERATORS = (">=", ">", "<=", "<")
+
+
+def success_mask(outcome, rule: dict[str, Any]):
+    """M28: outcome compared with the approved success rule {operator, value} (NaN where the outcome is missing)."""
+    import numpy as np
+
+    operator, value = rule.get("operator"), float(rule.get("value"))
+    if operator not in SUCCESS_OPERATORS:
+        raise ResearchStatsError(f"success_rule operator {operator!r} is not one of {list(SUCCESS_OPERATORS)}.")
+    compare = {">=": np.greater_equal, ">": np.greater, "<=": np.less_equal, "<": np.less}[operator]
+    return compare(outcome, value)
+
+
 def aggregate(events, baseline, outcome_column: str, date_column: str, success_column: str | None = None,
-              success_above: float = 0.0):
+              success_above: float = 0.0, success_rule: dict[str, Any] | None = None):
     """Per-date aggregates of the condition rows (events) and the baseline rows. A success is success_column when
-    given (boolean), else outcome > success_above."""
+    given (boolean), else the outcome compared by success_rule ({operator, value}, M28) when given, else
+    outcome > success_above."""
     import numpy as np
     import pandas as pd
 
@@ -91,7 +106,9 @@ def aggregate(events, baseline, outcome_column: str, date_column: str, success_c
             raw = frame[success_column]
             success = raw.map(lambda v: None if v is None or (isinstance(v, float) and math.isnan(v)) else bool(v))
         else:
-            success = pd.Series(np.where(outcome.notna(), outcome > float(success_above), None), index=frame.index)
+            rule = success_rule or {"operator": ">", "value": float(success_above)}
+            success = pd.Series(np.where(outcome.notna(), success_mask(outcome.to_numpy(), rule), None),
+                                index=frame.index)
         work = pd.DataFrame({"date": dates, "outcome": outcome, "success": success})
         work = work[work["date"].notna()]
         valid = work["outcome"].notna()

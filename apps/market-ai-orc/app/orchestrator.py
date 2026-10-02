@@ -1217,7 +1217,9 @@ PLAN_NOT_EXECUTED_LINE = ("The approved Research Plan was not executed in this m
                           "approving it again runs it.")
 REVISE_NOTE = (PLAN_NOTE_PREFIX + "the user asked to revise Research Plan {plan_id}: {instruction}\nReturn the revised "
                "plan as RESEARCH_PLAN_CONFIRMATION (it needs a new approval), or CLARIFICATION if the change is "
-               "unclear. No data may be used in this turn; you may read the catalog. The previous plan{unverified}: "
+               "unclear. A new success threshold the user states (for example \"ubah jadi 5%\") goes into the "
+               "experiment's success_rule exactly as the user wrote it; when the user's wish has no number, propose one "
+               "and ask. No data may be used in this turn; you may read the catalog. The previous plan{unverified}: "
                "{plan}")
 REPLAN_NOTES = {
     "RESEARCH_PLAN_TOKEN_EXPIRED": (
@@ -1438,6 +1440,30 @@ PLAN_PROVENANCE_INSTRUCTION = (
     "them, or return response_type \"LIMITATION\"."
 )
 PLAN_PROVENANCE_NOTICE = "Some figures below could not be traced to the Research Plan or another source: {numbers}. "
+PLAN_SUCCESS_RULE_INSTRUCTION = (
+    "The success_rule value {values} is not a number the user stated. A success threshold is the user's: take it from "
+    "their words, or set success_rule to null and ask them in the plan's confirmation question.")
+PLAN_TEXT_PROVENANCE_INSTRUCTION = (
+    "These numbers in the Research Plan's own text have no source: {numbers}. A count, size or level written in the "
+    "plan (how many stocks, rows or days, a threshold) must come from the user's message or this run's feasibility "
+    "result; otherwise describe it without a number (for example \"every bank in the current universe\").")
+
+
+def _plan_texts(value: Any, depth: int = 0) -> list[str]:
+    """M29: the plan's scope text (the universe and time scope fields, wherever they appear), whose numbers are
+    counts and sizes of the data and so must come from the user or the feasibility result. Method parameters in
+    hypotheses (a window length, a threshold) are design values and are not checked here."""
+    if depth > 8:
+        return []
+    if isinstance(value, dict):
+        return [t for k, v in value.items() for t in ([v] if k in PLAN_SCOPE_FIELDS and isinstance(v, str)
+                                                      else _plan_texts(v, depth + 1))]
+    if isinstance(value, list):
+        return [t for v in value for t in _plan_texts(v, depth + 1)]
+    return []
+
+
+PLAN_SCOPE_FIELDS = {"universe", "time_scope"}
 
 
 class ResponsesTransport(Protocol):
@@ -2707,6 +2733,8 @@ class AgentOrchestrator:
                               for r in result.get("requests") or [] if isinstance(r, dict)
                               and r.get("governor_status") not in ("WITHIN_LIMITS", "NEEDS_PARTITIONING")]}
         state.feasibility_checks.append(entry)
+        # M29: the checked counts (rows, parts, entities) may be named in the plan's text
+        state.context_numbers.extend(numbers_in(result.get("requests"), ints_only=True))
         # the plan binds the last FEASIBLE draft; a later failing check does not unbind it (the model may present
         # the plan it checked), but a later FEASIBLE one replaces it
         if result.get("status") == "FEASIBLE" and result.get("draft_id"):
@@ -3853,6 +3881,28 @@ class AgentOrchestrator:
         if self.plan_feasibility and not is_v2 and state.feasible_draft is None:
             self._gate_once(state, "PLAN_FEASIBILITY", PLAN_FEASIBILITY_INSTRUCTION)
             return self._plan_not_feasible(state, final)
+        # M28 / H2: a success threshold is the user's number (their question or this message), never the model's
+        stated = released_numbers([state.user_text, getattr(final.research_plan, "original_question", "")])
+        invented = [e.success_rule.value for e in getattr(final.research_plan, "experiments", None) or []
+                    if getattr(e, "success_rule", None) is not None
+                    and not any(abs(n - e.success_rule.value) < 1e-9 or abs(n * 100 - e.success_rule.value) < 1e-9
+                                or abs(n / 100 - e.success_rule.value) < 1e-9 for n in stated)]
+        if invented:
+            values = ", ".join(f"{v:g}" for v in invented)
+            self._gate_once(state, "PLAN_SUCCESS_RULE", PLAN_SUCCESS_RULE_INSTRUCTION.format(values=values))
+            return self._forced(state, final, PLAN_PROVENANCE_NOTICE.format(numbers=values),
+                                [f"Success thresholds the user did not state: {values}."])
+        # M29 (d02 2026-09-29: "about 6 banks" planned, 48 run): a number written in the plan's own text (universe,
+        # scope, hypotheses, assumptions) needs a source too; the plan's structured fields are design values
+        plan_json = final.research_plan.model_dump(mode="json")
+        own = self._source_index(state)
+        own.add(CONTEXT, numbers_in(plan_json))
+        written = check_answer("\n".join(_plan_texts(plan_json)), own)
+        if written.unsupported:
+            numbers = ", ".join(written.unsupported[:20])
+            self._gate_once(state, "PLAN_TEXT_PROVENANCE", PLAN_TEXT_PROVENANCE_INSTRUCTION.format(numbers=numbers))
+            return self._forced(state, final, PLAN_PROVENANCE_NOTICE.format(numbers=numbers),
+                                [f"Figures without a source in the Research Plan's text: {numbers}."])
         index = self._source_index(state)
         index.add(CONTEXT, released_numbers(final.research_plan.model_dump(mode="json")))  # P12
         provenance = check_answer(final.answer, index)

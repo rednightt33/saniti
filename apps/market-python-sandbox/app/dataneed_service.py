@@ -568,13 +568,16 @@ class DataNeedService:
         if binding is not None and binding["conversation_key"] != key:
             binding = None
         need_id = binding["need_id"] if binding else (record or {}).get("need_id")
-        cpu, research_v2, mode = None, None, None
+        cpu, research_v2, mode, findings = None, None, None, None
         if need_id:
             need = self.store.get_need(need_id)
             mode = (need or {}).get("mode")
             research = (need or {}).get("research") or {}
             cpu = (research.get("constraints") or {}).get("compute_seconds")
             research_v2 = self._session_research(research)
+            constraints = research.get("constraints") or {}
+            if research_v2 is None and constraints.get("governance_version") != GOVERNANCE_V2:
+                findings = constraints.get("findings") or None  # M28: research findings v1
         # A warm worker's namespace holds what its earlier epochs computed. 2c binds a need to a bundle of any mode, so
         # the mode decides the attach: a RESEARCH need always starts a fresh worker (it reads only its bundle and the
         # tables its approved plan names, with its own compute budget), and an ANALYSIS need never takes over a
@@ -590,7 +593,8 @@ class DataNeedService:
                     except SessionError:
                         continue
         return self.sessions.open(request_id, bundle_id, cpu_seconds=cpu, conversation_key=key, need_id=need_id,
-                                  bound=binding is not None, research=research_v2, carried_outputs=carried_outputs)
+                                  bound=binding is not None, research=research_v2, carried_outputs=carried_outputs,
+                                  findings=findings)
 
     def _session_research(self, research: dict[str, Any]) -> dict[str, Any] | None:
         """The research_v2 section of session.json for a need promoted by a multi-angle research run (flag on only)."""

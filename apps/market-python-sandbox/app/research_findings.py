@@ -9,6 +9,8 @@ or passed to event_summary is trusted for these values.
 """
 from __future__ import annotations
 
+import json
+
 import importlib.util
 import sys
 from pathlib import Path
@@ -71,6 +73,24 @@ def evaluate(constraints: dict[str, Any], outputs: list[dict[str, Any]], outputs
     except Exception as exc:  # noqa: BLE001 - a malformed table is reported, never trusted
         return {"status": "INVALID", "message": f"{wanted} could not be evaluated ({type(exc).__name__}: "
                                                 f"{str(exc)[:200]}); rebuild it with event_summary()."}
+    # M28 (golden g6 2026-10-02: the first event_summary used outcome > 0 for an approved ">= 3%"): the rule the
+    # engine applied, recorded in research_summary_<id>, must be the approved one
+    approved_rule = (constraints.get("findings") or {}).get("success_rule")
+    if isinstance(approved_rule, dict):
+        summaries = [o for o in outputs if o.get("name") == f"research_summary_{hypothesis}"]
+        applied = None
+        if summaries:
+            try:
+                applied = json.loads((outputs_root / summaries[-1]["relative_path"]).read_text(encoding="utf-8")
+                                     ).get("success_rule")
+            except (OSError, ValueError, KeyError, AttributeError):
+                applied = None
+        if not isinstance(applied, dict) or applied.get("operator") != approved_rule.get("operator") \
+                or float(applied.get("value", float("nan"))) != float(approved_rule.get("value")):
+            return {"status": "INVALID", "message": (
+                f"The approved success rule is outcome {approved_rule.get('operator')} {approved_rule.get('value')}, "
+                f"but {wanted} was built with {applied!r}. Call event_summary again without success_above or "
+                "success_column (it reads the approved rule), then complete again.")}
     finding = {"hypothesis_id": hypothesis, "version": VERSION, "output_id": matches[-1].get("output_id"),
                "verdict": summary["verdict"], "verdict_reason": summary["verdict_reason"],
                "sample_flag": summary["sample"]["flag"], "angles_disagree": summary["angles_disagree"],
@@ -79,6 +99,8 @@ def evaluate(constraints: dict[str, Any], outputs: list[dict[str, Any]], outputs
                           for g, d in summary["groups"].items()},
                "parameters": summary["parameters"],
                "success_definition": (constraints.get("findings") or {}).get("success_definition"),
+               # M28: the rule the engine applied (the approved one, checked above), shown instead of the text
+               **({"success_rule": approved_rule} if isinstance(approved_rule, dict) else {}),
                # P23: each figure's unit from the approved outcome unit, so the answer cannot show it 100 times off
                "units": stats.summary_units(params["outcome_unit"])}
     return {"status": "OK", "finding": finding}

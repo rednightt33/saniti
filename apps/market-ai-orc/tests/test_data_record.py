@@ -212,3 +212,19 @@ def test_the_note_shows_each_request_filter_and_each_output_definition() -> None
                        columns=["broker"], row_count=10)
     again = next(o for o in record["outputs"] if o["output_id"] == "out_1")
     assert again["definition"]["notes"] == "all boards combined" and again["lineage"]["execution_id"] == "exe_1"
+
+
+def test_a_finding_run_again_with_another_rule_keeps_the_earlier_one() -> None:
+    """H2 (user decision 2026-10-02): "ubah jadi 5%" runs the test again; the 3% result stays beside the new one."""
+    record = records.empty()
+    three = {"hypothesis_id": "h1", "verdict": "SUPPORTED", "success_rule": {"operator": ">=", "value": 3.0}}
+    five = {**three, "verdict": "INCONCLUSIVE", "success_rule": {"operator": ">=", "value": 5.0}}
+    records.add_finding(record, "req_1", kind="HYPOTHESIS", finding_id="h1", finding=three)
+    records.add_finding(record, "req_2", kind="HYPOTHESIS", finding_id="h1", finding=five)
+    ids = {f["id"]: f["finding"] for f in record["findings"]}
+    assert ids["h1"]["success_rule"]["value"] == 5.0 and ids["h1@1"]["success_rule"]["value"] == 3.0
+    text = records.note(record)
+    assert "finding.h1 " in text and "finding.h1@1" in text and "success rule applied: outcome >= 3.0" in text
+    # the same rule recorded again replaces it (a repeat, not a new test)
+    records.add_finding(record, "req_3", kind="HYPOTHESIS", finding_id="h1", finding=five)
+    assert sorted(f["id"] for f in record["findings"]) == ["h1", "h1@1"]

@@ -187,3 +187,31 @@ def test_without_backend_findings_the_field_is_dropped() -> None:
     kept, problems = orchestrator._findings_problems(empty, final())
     assert problems == [] and kept.research_findings is None
     assert "{problems}" in FINDINGS_INSTRUCTION
+
+
+def test_the_success_threshold_is_the_users_number() -> None:
+    """M28 / H2: success_rule is the user's threshold (their question or this message); an invented one is sent back,
+    and a REVISE message such as "ubah jadi 5%" supplies the new one."""
+    import pytest
+
+    from app.orchestrator import GateRejection
+
+    orchestrator = agent()
+    orchestrator.audit_outbox = None
+
+    def plan_with(value: float, question: str) -> FinalResponse:
+        plan = findings_plan()
+        plan["original_question"] = question
+        plan["experiments"][0]["success_rule"] = {"operator": ">=", "value": value}
+        return FinalResponse.model_validate({"response_type": "RESEARCH_PLAN_CONFIRMATION", "answer": "Rencana uji.",
+                                             "clarification_question": None, "assumptions": [], "limitations": [],
+                                             "research_plan": plan})
+
+    s = state(orchestrator)
+    s.user_text = "Naik minimal 3%?"
+    with pytest.raises(GateRejection, match="success_rule value 7"):
+        orchestrator._plan_gate(s, plan_with(7.0, "Naik minimal 3%?"))
+    s = state(orchestrator)
+    s.user_text = "ubah jadi 5%"
+    passed = orchestrator._plan_gate(s, plan_with(5.0, "Naik minimal 3%?"))
+    assert passed.research_plan.experiments[0].success_rule.value == 5.0

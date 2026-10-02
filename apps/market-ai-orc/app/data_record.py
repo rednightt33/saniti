@@ -24,7 +24,8 @@ MAX_FINDINGS = 30  # E1: research findings and event studies of the conversation
 # what a finding keeps for later turns: the fields an answer cites and references by path
 FINDING_KEYS = ("angle_id", "hypothesis_id", "method_id", "status", "status_reason", "verdict", "verdict_reason",
                 "evidence_direction", "validation_level", "sample", "sample_flag", "estimates", "comparator",
-                "holdout", "multiple_testing", "angle_a", "angle_b", "confidence_level", "parameters", "units")
+                "holdout", "multiple_testing", "angle_a", "angle_b", "confidence_level", "parameters", "units",
+                "success_rule", "success_definition")
 MAX_MANUALS = 12  # 4b: method guides opened in the conversation, newest kept
 MAX_MANUAL_NOTE_CHARS = 16000
 MANUALS_HEADER = ("METHOD GUIDES OPENED EARLIER IN THIS CONVERSATION (application context from the backend, not from "
@@ -281,7 +282,17 @@ def add_finding(record: dict[str, Any], request_id: str, *, kind: str, finding_i
     for key, value in finding.items():
         if kind == "EVENT_STUDY" and key not in kept:
             kept[key] = copy.deepcopy(value)
-    record["findings"] = [f for f in record.get("findings") or [] if f.get("id") != finding_id]
+    findings = record.get("findings") or []
+    earlier = next((f for f in findings if f.get("id") == finding_id), None)
+    if earlier is not None and any((earlier.get("finding") or {}).get(k) != kept.get(k)
+                                   for k in ("success_rule", "parameters")):
+        # H2 (user decision 2026-10-02): a test run again with another rule (e.g. "ubah jadi 5%") does not erase the
+        # earlier result; it stays as <id>@<n> so the answer can show both
+        archived = sum(1 for f in findings if str(f.get("id") or "").startswith(f"{finding_id}@"))
+        earlier["id"] = f"{finding_id}@{archived + 1}"
+    else:
+        findings = [f for f in findings if f.get("id") != finding_id]
+    record["findings"] = findings
     record["findings"].append({"id": finding_id, "kind": kind, "request_id": request_id, "recorded_at": recorded_at,
                                "seq": _next_seq(record), "finding": kept})
     del record["findings"][:-MAX_FINDINGS]
@@ -341,6 +352,10 @@ def finding_line(entry: dict[str, Any]) -> str:
                   f"ci=[{angle_a.get('ci_low')}, {angle_a.get('ci_high')}]"
                   + (f" (at alpha {alpha})" if alpha is not None else ""),
                   f"unadjusted p={angle_a.get('p_value')}"]
+    rule = f.get("success_rule")
+    if isinstance(rule, dict) and rule.get("operator"):
+        # M28: the rule the engine applied, from the approved plan (not the plan's wording)
+        parts.append(f"success rule applied: outcome {rule['operator']} {rule.get('value')}")
     sample = f.get("sample") or {}
     if sample.get("effective") is not None:
         parts.append(f"effective_sample={sample['effective']}")

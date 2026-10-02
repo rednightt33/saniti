@@ -151,3 +151,51 @@ def test_a_hypothesis_plan_runs_beside_multi_angle_research_and_takes_an_event_s
         assert "research_group" not in final and final["calculation_validation"] == "PARTIAL"
     finally:
         env["dataneed"].sessions.stop()
+
+
+RULE = {"operator": ">=", "value": 0.5}
+
+
+@pytest.fixture
+def ruled(make_service, governor):
+    """A hypothesis plan whose success is a number (M28): next-day return >= 0.5 percent."""
+    governor.catalog = data_need_catalog()
+    service = make_service(start=False, PY_SANDBOX_DATANEED_ENABLED="true",
+                           PY_SANDBOX_RESEARCH_FINDINGS_ENABLED="true")
+    client = TestClient(create_app(service.settings, service=service, run_workers=False))
+    env = {"api": client, "governor": governor, "dataneed": client.app.state.dataneed, "service": service}
+    governance = {**GOVERNANCE, "success_definition": "next-day return of at least 0.5 percent", "success_rule": RULE}
+    body = {"request_id": "req_bundle_1", "reference_time": REFERENCE, "timezone": "Asia/Jakarta",
+            "spec": ytd_spec(mode="RESEARCH"), "research_governance": governance}
+    result = client.post("/v1/data-needs", json=body, headers=HEADERS).json()
+    assert result["status"] == "APPROVED", result
+    need = env["dataneed"].get_need(result["need_id"])
+    assert need["research_governance"]["constraints"]["findings"]["success_rule"] == RULE
+    bundle = build(env, need, ytd_parts(env, need)).json()
+    opened = client.post("/v1/sessions", json={"request_id": "req_bundle_1", "bundle_id": bundle["input_bundle_id"]},
+                         headers=HEADERS)
+    env.update(need=need, session_id=opened.json()["session_id"])
+    yield env
+    env["dataneed"].sessions.stop()
+
+
+def test_the_approved_success_rule_is_applied_by_the_engine(ruled) -> None:
+    """M28 (golden g6 2026-10-02): the plan said >= 3 percent and the engine used > 0 because the model did not pass
+    the threshold. The engine reads the approved rule itself and refuses another one."""
+    other = run(ruled, CODE.replace("date_column='date')", "date_column='date', success_above=0.0)"))
+    assert other["status"] == "SCRIPT_ERROR" and "approved success rule is outcome >= 0.5" in other["message"]
+    body = run(ruled, CODE + "print(result['success_rule'])")
+    assert body["status"] == "OK", body
+    result = complete(ruled)
+    assert result["status"] == "COMPLETED", result
+    [finding] = result["final_status"]["research_findings"]
+    assert finding["success_rule"] == RULE
+
+
+def test_a_summary_built_with_another_rule_is_invalid(ruled) -> None:
+    body = run(ruled, CODE + "result['success_rule'] = {'operator': '>', 'value': 0.0}\n"
+                             "emit_json('research_summary_bank_gain', result, definition={})")
+    assert body["status"] == "OK", body
+    result = complete(ruled)
+    assert result["status"] == "INCOMPLETE" and result["research_findings_status"] == "INVALID"
+    assert "approved success rule is outcome >= 0.5" in result["message"]

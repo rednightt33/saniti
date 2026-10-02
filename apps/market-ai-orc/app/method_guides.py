@@ -21,7 +21,7 @@ import hashlib
 import json
 from typing import Any
 
-GUIDES_VERSION = 1
+GUIDES_VERSION = 2  # 2 (2026-10-02, HIGH ALERT): output definitions, event flow, approved success rule
 
 # How the backend checks a result (ERRORS_AND_SOLUTIONS S23), from weakest to strongest.
 VERIFICATION_LEVELS = {
@@ -70,6 +70,11 @@ GUIDES: list[dict[str, Any]] = [
                    "their labels); a figure built on it is never better checked than its label.",
                    "complete_analysis needs every approved request and range read in a successful execution and at "
                    "least one output.",
+                   "Every released table or JSON states how it was made: emit_table(name, frame, description, "
+                   "definition={'filters': [{'column', 'operator', 'value'}], 'period': {'start', 'end'}, "
+                   "'thresholds': {...}, 'notes': '...'}) ({} when the code applied no filter beyond the data request); "
+                   "complete_analysis does not release a result without one. Put row filters in the data request's "
+                   "scope where you can, so the backend records them itself.",
                    "Only released outputs may be cited; print() is diagnostics only."],
         "verification": {"level": "DATA_COVERAGE_VERIFIED",
                          "checked": ["every approved request and range was delivered and read",
@@ -78,7 +83,10 @@ GUIDES: list[dict[str, Any]] = [
                                          "recalculated"]},
         "results": "Released outputs of complete_analysis, cited as value references such as "
                    "{{out.o1.rows[<column>=<value>].<column>}}.",
-        "insight": ["Answer why with a computed breakdown, not a guess: change between periods, top and bottom "
+        "insight": ["Start from the explained result's own table (load_output) and its definition in the data "
+                    "record (filters, period, thresholds); never guess how an earlier result was made, and say how "
+                    "a different definition differs.",
+                    "Answer why with a computed breakdown, not a guess: change between periods, top and bottom "
                     "contributors, the measure split by a dimension, unusual values, concentration.",
                     "Split only by catalog columns that are groupable; add values only where the catalog's "
                     "aggregation rule is SUM.",
@@ -100,13 +108,13 @@ GUIDES: list[dict[str, Any]] = [
         "examples": [
             {"title": "Ranking from a SQL summary", "runnable": True,
              "code": "top = sql('SELECT ticker, max(close) AS high, min(close) AS low FROM prices GROUP BY ticker "
-                     "ORDER BY high DESC')\nload('stock_classification')\nemit_table('high_low', top)"},
+                     "ORDER BY high DESC')\nload('stock_classification')\nemit_table('high_low', top, definition={})"},
             {"title": "Contribution of each entity to a change between two ranges", "runnable": True,
              "code": "now = load_range('prices', 'current_ytd')\nbefore = load_range('prices', "
                      "'previous_comparable')\nload('stock_classification')\nchange = (now.groupby('ticker')"
                      "['close'].last() - before.groupby('ticker')['close'].last()).rename('change')\n"
                      "share = (change / change.abs().sum()).rename('share_of_total_move')\n"
-                     "emit_table('drivers', pd.concat([change, share], axis=1).sort_values('change'))"}],
+                     "emit_table('drivers', pd.concat([change, share], axis=1).sort_values('change'), definition={})"}],
     },
     {
         "name": "event_study", "g": "G2", "kind": "PATH",
@@ -148,12 +156,15 @@ GUIDES: list[dict[str, Any]] = [
                                      "CALCULATION_VERIFIED",
                                      "a released table that differs fails completion (CALCULATION_MISMATCH)"],
                          "not_checked": ["anything you compute afterwards from the tables or frames in your own code"]},
-        "results": "Two tables: <name> (one row per segment ALL, IN_SAMPLE, OUT_OF_SAMPLE: event_count, event_dates, "
+        "results": "Four tables: <name> (one row per segment ALL, IN_SAMPLE, OUT_OF_SAMPLE: event_count, event_dates, "
                    "effective_event_dates, mean, median, hit_rate, baseline_count, baseline_mean, baseline_median, "
                    "delta_mean, delta_ci_low, delta_ci_high, delta_p_value, censored_count, overlapping_dropped, "
-                   "meets_min_events) and <name>_events (date, entity, outcome); the call also returns the events and "
-                   "baseline frames. Cite {{out.o1.rows[segment=ALL].delta_mean}}. The interval and p-value treat "
-                   "events on one date as one observation.",
+                   "meets_min_events), <name>_events (date, entity, outcome), <name>_baseline and <name>_flow "
+                   "(rows_in_window, condition_unknown, condition_true = the qualifying events, censored, "
+                   "overlapping_dropped, used; condition_true = censored + overlapping_dropped + used); the call also "
+                   "returns the events and baseline frames. Cite {{out.o1.rows[segment=ALL].delta_mean}}; quote every "
+                   "count of the event flow from <name>_flow, never derive one. The interval and p-value treat events "
+                   "on one date as one observation.",
         "common_errors": [
             {"code": "DUPLICATE_ENTITY_DATE", "seen_in": "event_study",
              "fix": "use a request with one row per entity and date, or narrow its scope."},
@@ -194,10 +205,11 @@ GUIDES: list[dict[str, Any]] = [
             _input("hypothesis_id", "The approved experiment's hypothesis_id.", of="event_summary"),
             _input("outcome_column", "The outcome column of both frames.", of="event_summary"),
             _input("date_column", "The date column of both frames.", of="event_summary"),
-            _input("success_column", "A boolean column for success; else outcome > success_above.", of="event_summary",
-                   default=None),
-            _input("success_above", "The success threshold when there is no success column.", of="event_summary",
-                   default=0.0),
+            _input("success_column", "A boolean column for success; refused when the approved plan has a "
+                                     "success_rule.", of="event_summary", default=None),
+            _input("success_above", "Leave unset: the approved plan's success_rule is applied by the backend (outcome "
+                                    "above zero when the plan has none); a different value is refused.",
+                   of="event_summary", default=None),
             _input("horizon_periods", "Periods one outcome spans (overlapping outcomes count once).",
                    of="event_summary", default=1),
             _input("outcome_unit", "PERCENT, DECIMAL or OTHER.", of="event_summary", default="PERCENT"),
@@ -298,7 +310,7 @@ GUIDES: list[dict[str, Any]] = [
         "examples": [
             {"title": "Year-to-date return per entity", "runnable": True,
              "code": "ytd = period_return('prices', 'current_ytd')\nload('prices')\nload('stock_classification')\n"
-                     "emit_table('ytd', ytd)"}],
+                     "emit_table('ytd', ytd, definition={})"}],
     },
     {
         "name": "resample", "g": None, "kind": "HELPER",
@@ -392,7 +404,7 @@ GUIDES: list[dict[str, Any]] = [
             {"title": "A summary in DuckDB, then one range in pandas", "runnable": True,
              "code": "daily = sql('SELECT date, avg(close) AS mean_close FROM prices GROUP BY date ORDER BY date')\n"
                      "previous = load_range('prices', 'previous_comparable')\nload('prices')\n"
-                     "load('stock_classification')\nemit_table('daily_mean', daily)"}],
+                     "load('stock_classification')\nemit_table('daily_mean', daily, definition={})"}],
     },
 ]
 

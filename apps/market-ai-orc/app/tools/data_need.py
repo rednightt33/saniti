@@ -234,6 +234,13 @@ class ResearchGovernance(Strict):
                                                 "this one follows up; else null.")
 
 
+class SuccessRuleArg(Strict):
+    """M28: the approved success threshold (outcome <operator> value, in the outcome's unit)."""
+
+    operator: Literal[">=", ">", "<=", "<"] = Field(description="How the outcome is compared with value.")
+    value: float = Field(description="The threshold in the outcome's unit.")
+
+
 class ResearchGovernanceFindings(ResearchGovernance):
     """research_governance with the research findings v1 values, copied from the approved experiment."""
 
@@ -243,6 +250,15 @@ class ResearchGovernanceFindings(ResearchGovernance):
     outcome_unit: Literal["PERCENT", "DECIMAL", "OTHER"] = Field(description="The approved experiment's outcome_unit.")
     success_definition: str = Field(description="The approved experiment's success_definition.")
     min_effect: float | None = Field(description="The approved experiment's min_effect (null when it has none).")
+    success_rule: SuccessRuleArg | None = Field(
+        description="The approved experiment's success_rule, or null; the engine applies it.")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _success_rule_absent_is_null(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "success_rule" not in data:
+            return {**data, "success_rule": None}
+        return data
 
 
 class DataNeedSpecBody(Strict):
