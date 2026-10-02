@@ -191,7 +191,7 @@ def research_view(research: dict[str, Any]) -> dict[str, Any]:
 
 
 HELPERS = ["requests()", "manifest()", "quality(request)", "load(request, columns=None)",
-           "range(request, range_id, columns=None, include_buffers=False)", "sql(query, params=None)",
+           "load_range(request, range_id, columns=None, include_buffers=False) (also saniti.range; plain range is Python's built-in)", "sql(query, params=None)",
            "relation(request)", "join(relationship_id, left=None, right=None, how=None)",
            "resample(frame, request, frequency=None)",
            "period_return(request, range_id, value_column='close', entity_column=None, date_column=None)",

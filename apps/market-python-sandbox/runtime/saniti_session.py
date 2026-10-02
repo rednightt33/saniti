@@ -8,8 +8,9 @@ needs; nothing here computes an indicator or checks a formula.
     manifest()                      the bundle: need, relationships (with join semantics) and their warnings
     quality(request)                the Data Quality Manifest of one request
     load(request, columns=None)     the whole dataset as a pandas DataFrame, in delivered order
-    range(request, range_id, columns=None, include_buffers=False)
-                                    the rows of one approved range (with its history/future buffers if asked)
+    load_range(request, range_id, columns=None, include_buffers=False)
+                                    the rows of one approved range (with its history/future buffers if asked); also
+                                    saniti.range (S21: not pre-bound as `range`, which stays Python's built-in)
     sql(query, params=None)         DuckDB SQL over one view per logical name (read-only)
     relation(request)               a lazy DuckDB relation over one dataset
     join(relationship_id, left=None, right=None, how=None)
@@ -53,7 +54,8 @@ import re as _re
 from typing import Any
 
 __all__ = [
-    "REQUESTS", "REFERENCE_DATE", "SEED", "requests", "manifest", "quality", "load", "range", "sql", "relation",
+    "REQUESTS", "REFERENCE_DATE", "SEED", "requests", "manifest", "quality", "load", "range", "load_range", "sql",
+    "relation",
     "join", "join_report", "preaggregate", "resample", "period_return", "insufficient_data", "intermediate_path", "duckdb_connection", "emit_table",
     "emit_chart", "emit_json", "emit_text", "emit_file", "emit_artifact", "add_warning", "SanitiError",
     "InsufficientInputData", "OutputLimitExceeded", "InvalidOutput", "ResampleRuleMissing", "PeriodReturnError",
@@ -363,6 +365,11 @@ def range(request: str, range_id: str, columns: list[str] | None = None, include
     _log({"call": "range", "data_request_id": r["data_request_id"], "range_id": range_id,
           "include_buffers": bool(include_buffers), "columns": chosen[:30], "rows": len(frame)})
     return frame
+
+
+def load_range(request: str, range_id: str, columns: list[str] | None = None, include_buffers: bool = False):
+    """The rows of one approved range (saniti.range under a name that does not shadow Python's built-in range)."""
+    return range(request, range_id, columns, include_buffers)
 
 
 def sql(query: str, params: list | None = None):

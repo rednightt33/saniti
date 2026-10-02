@@ -26,6 +26,7 @@ with EXIT_STATE_CORRUPTED. This is robustness, not a security boundary: the code
 """
 from __future__ import annotations
 
+import builtins
 import io
 import json
 import os
@@ -162,8 +163,10 @@ def main(session_dir: str, response_fd: str) -> int:
     random.seed(saniti.SEED)
     numpy.random.seed(saniti.SEED)
     saniti._lock_duckdb()
+    # S21: a helper whose name is a Python built-in (saniti.range) is reachable as saniti.<name> only, so ordinary
+    # code such as range(3) keeps the built-in
     namespace = {"__name__": "__main__", "__builtins__": __builtins__, "saniti": saniti, "pd": pandas, "np": numpy,
-                 **{name: getattr(saniti, name) for name in saniti.__all__}}
+                 **{name: getattr(saniti, name) for name in saniti.__all__ if not hasattr(builtins, name)}}
     # helpers of features switched on for this session only (the flag-off namespace stays unchanged)
     for name in session.get("extra_helpers") or []:
         if name in saniti.EXTRA_HELPERS:

@@ -191,7 +191,8 @@ bundle of the same request.
 - `POST /v1/sessions/{id}/close` closes the session.
 - Helpers (`saniti`, pre-bound by name with `pd` and `np`):
   - `requests()`, `manifest()`, `quality(request)`;
-  - `load(request)` (the whole dataset in delivered order), `range(request, range_id, include_buffers=False)`,
+  - `load(request)` (the whole dataset in delivered order), `load_range(request, range_id, include_buffers=False)` (also `saniti.range`; S21: a helper named
+    like a Python built-in is not pre-bound, so plain `range()` stays the built-in),
     `sql(query)` (one read-only DuckDB view per logical name), `relation(request)`;
   - `join(relationship_id, left, right, how)`, the approved relationship with its point-in-time semantics
     (CURRENT_STATE, EXACT_DATE, AS_OF backward, EFFECTIVE_DATED half-open), on every key pair. It checks the

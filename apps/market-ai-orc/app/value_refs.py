@@ -429,6 +429,8 @@ class Rendering:
     # M43: references to a field that does not exist (or to an object), shown as [field]: (expression, field, message)
     missing: list[tuple[str, str, str]] = field(default_factory=list)
     failed: list[str] = field(default_factory=list)  # the expressions of the other unresolved references
+    # P22: units the model typed next to a reference whose format already shows them ("{{x|pp}} pp" -> "1,00 pp")
+    dropped_units: list[str] = field(default_factory=list)
 
 
 def _text(value: str) -> str:
@@ -510,11 +512,48 @@ def render(text: str | None, sources: ReferenceSources) -> Rendering:
         out.values.append(resolved)
         return shown
 
-    out.text = REF_RE.sub(replace, text)
+    out.text = _without_repeated_units(text, replace, out)
     if "{{" in out.text or "}}" in out.text:
         out.failed.append("{{")
         out.problems.append(_invalid_form(out.text))
     return out
+
+
+# P22: the unit a format adds is read from the shown value itself (its non-numeric tail and head), so every format that
+# shows a unit (pct, pctv, pp, x, rp and any later one) is covered without a per-format list
+UNIT_TAIL_RE = re.compile(r"[0-9)](\s*[^\s0-9.,()\u2212-][^0-9]*)$")
+UNIT_HEAD_RE = re.compile(r"^\u2212?([^\s0-9.,\u2212-]+\s*)")
+
+
+def _without_repeated_units(text: str, replace, out: Rendering) -> str:
+    """Fill every reference and drop a copy of its unit typed right next to it: "{{x|pp:2}} pp" shows "1,00 pp", not
+    "1,00 pp pp", and "Rp {{y|rp}}" shows "Rp 5 miliar", not "Rp Rp 5 miliar". Only an exact repeat of the unit (case
+    and surrounding spaces aside) is dropped; each drop is recorded in out.dropped_units."""
+    parts: list[str] = []
+    position = 0
+    for match in REF_RE.finditer(text):
+        if match.start() < position:
+            continue
+        before = text[position:match.start()]
+        shown = replace(match)
+        head = UNIT_HEAD_RE.match(shown)
+        if head:
+            unit = head.group(1).strip()
+            repeat = re.search(r"(?:^|(?<=\s))" + re.escape(unit) + r"\s*$", before, re.IGNORECASE)
+            if unit and repeat:
+                before = before[:repeat.start()]
+                out.dropped_units.append(unit)
+        parts.append(before + shown)
+        position = match.end()
+        tail = UNIT_TAIL_RE.search(shown)
+        if tail:
+            unit = tail.group(1).strip()
+            repeat = re.match(r"\s*" + re.escape(unit) + r"(?![\w%])", text[position:], re.IGNORECASE)
+            if unit and repeat and not REF_RE.match(text, position):
+                position += repeat.end()
+                out.dropped_units.append(unit)
+    parts.append(text[position:])
+    return "".join(parts)
 
 
 LEFTOVER_RE = re.compile(r"\{\{([^{}]{0,300}?)\}\}")

@@ -101,6 +101,15 @@ print(str(cur['date'].min()), str(cur['date'].max()), len(wide) > len(cur), 'Ind
     assert ("range", "data_request_1_A", "current_ytd") in calls and ("sql", "data_request_1_A", None) in calls
 
 
+def test_plain_range_is_the_builtin_and_the_range_helper_keeps_its_names(session) -> None:
+    # S21 (ma-agg-20261001a q3): range(1, 11) called the data helper and failed with "1 is not a data request"
+    body = ok(session, "ranks = list(range(1, 4))\n"
+                       "a = load_range('prices', 'current_ytd')\nb = saniti.range('prices', 'current_ytd')\n"
+                       "print(ranks, len(a) == len(b) > 0)")
+    assert body["stdout"].split("\n")[0] == "[1, 2, 3] True"
+    assert "load_range(request, range_id, columns=None, include_buffers=False)" in " ".join(session["opened"]["helpers"])
+
+
 def test_outputs_are_stored_with_checksums_and_readable_back_unreleased(session) -> None:
     body = ok(session, """
 import matplotlib.pyplot as plt

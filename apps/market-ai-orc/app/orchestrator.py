@@ -2975,6 +2975,8 @@ class AgentOrchestrator:
             missing.extend(rendering.missing)
             values.extend(rendering.values)
             count += rendering.count
+            if rendering.dropped_units:
+                log_event("ai_reference_unit_repeated", request_id=state.request_id, units=rendering.dropped_units)
             return rendering.text
 
         update: dict[str, Any] = {"answer": fill(final.answer), "limitations": [fill(x) for x in final.limitations],

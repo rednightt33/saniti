@@ -75,6 +75,22 @@ def test_references_resolve_paths_selectors_and_functions() -> None:
     assert {v.label for v in out.values} == {"DATA_COVERAGE_VERIFIED", "FACT"}
 
 
+def test_a_unit_typed_next_to_a_reference_that_shows_it_is_dropped_once() -> None:
+    # P22 (ma-reason-20261001b m01): "{{finding....estimate|pp:2}} pp" read "-0,10 pp pp"
+    out = render("Selisih {{finding.a_fall.estimates.primary.estimate|pp:2}} pp; porsi {{fact.1|pctv:1}} %, "
+                 "rasio {{ratio(out.out_1.rows.1.close, out.out_1.rows.0.close)|x:2}} kali lipat, "
+                 "nilai Rp {{out.out_1.rows.0.close|rp}} dan {{out.out_1.rows.1.close|rp}} rupiah.", sources())
+    assert out.text == ("Selisih 1,00 pp; porsi 12,5%, rasio 1,33 kali lipat, nilai Rp 4.500 dan Rp 6.000 rupiah.")
+    assert out.dropped_units == ["pp", "%", "kali", "Rp"]
+    # a different word or a longer one is kept: "ppm" is not "pp", "kalinya" is not "kali"
+    kept = render("{{finding.a_fall.estimates.primary.estimate|pp:2}} ppm, {{fact.1|x:1}} kalinya", sources())
+    assert kept.text == "1,00 pp ppm, 12,5 kali kalinya" and kept.dropped_units == []
+    big = ReferenceSources()
+    big.add("out", "out_9", {"rows": [{"v": 6.94e10}, {"v": -2.5e10}]}, "DATA_COVERAGE_VERIFIED")
+    shown = render("{{out.out_9.rows.0.v|rp}} miliar dan Rp {{out.out_9.rows.1.v|rp}}", big)
+    assert shown.text == "Rp 69,40 miliar dan \u2212Rp 25,00 miliar" and shown.dropped_units == ["miliar", "Rp"]
+
+
 def test_an_unknown_reference_names_what_exists() -> None:
     out = render("{{finding.a_rank.sample.effective}} {{finding.a_fall.samples}} {{fact.1|money}} {{out.out_1.rows"
                  "[ticker=XXXX].close}} {{finding.a_fall.estimates}}", sources())

@@ -1071,6 +1071,13 @@ response, and no edit is offered for prose, cut-off drafts or strict-schema turn
 is taken as a full response. The repair budget is unchanged. Off: no edit is offered and refusals are as before. Live
 case: m4a of `ma-integrity-20261001a` spent 510 s on six full rewrites of an 18,952-character report.
 
+### Repeated units next to a reference (P22)
+
+`value_refs.render` drops a copy of the unit a format already shows when the model typed it right next to the
+reference: `{{x|pp:2}} pp` shows `1,00 pp`, `Rp {{y|rp}}` shows `Rp 5 miliar`. The unit is read from the shown value
+(its non-numeric tail or head), so every unit-bearing format is covered; only an exact repeat is dropped, and each drop
+is logged as `ai_reference_unit_repeated`.
+
 ### Reasoning capture (dev measurement, off unless `AI_CAPTURE_REASONING=true`)
 
 `app/reasoning_capture.py` (user decision 2026-10-01). Most run time is model reasoning, but a run kept only the
