@@ -12,7 +12,11 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from sql_text import sql_json, sql_literal  # noqa: E402,F401
 
 ROOT = Path(__file__).resolve().parents[1]
 CREATE_TARGET = ROOT / "database/migrations/20261002_001_create_ai_method_guide.sql"
@@ -49,8 +53,7 @@ def load_guides():
     return module
 
 
-def _sql_text(text: str) -> str:
-    return text.replace("'", "''")
+_sql_text = sql_literal
 
 
 def render_create() -> str:

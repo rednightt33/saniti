@@ -11,6 +11,9 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from sql_text import sql_json, sql_literal  # noqa: E402,F401
+
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "database/migrations/20261002_002_warehouse_summary_tool_catalog.sql"
 VERSIONS = {"submit_data_need_spec": ("v4", "v5"), "check_data_feasibility": ("v3", "v4")}
@@ -40,7 +43,7 @@ def definitions() -> dict[str, dict]:
 
 
 def schema_text(definition: dict) -> str:
-    return json.dumps(definition["parameters"], sort_keys=True, separators=(",", ":")).replace("'", "''")
+    return sql_json(definition["parameters"], sort_keys=True, separators=(",", ":"))
 
 
 def render() -> str:
@@ -53,7 +56,7 @@ def render() -> str:
                                               "aggregate; registered from code (market-ai-orc), inactive here"}
     rows = ",\n".join(
         f"    ('{name}', '{old}', '{new}', '{schema_text(found[name])}',\n"
-        f"     '{found[name]['description'].replace(chr(39), chr(39) * 2)}')"
+        f"     '{sql_literal(found[name]['description'])}')"
         for name, (old, new) in VERSIONS.items())
     preflight_versions = " OR ".join(f"(tool_name = '{n}' AND version = '{new}')" for n, (_, new) in VERSIONS.items())
     return f"""-- G18 phase 1 (WAREHOUSE_AGGREGATION_PLAN.md, user decision 2026-10-02): a DataNeed request may ask the SQL
@@ -100,7 +103,7 @@ SELECT tool_name, tool_family, tool_type, next.purpose, next.input_schema::jsonb
        timeout_seconds, max_output_bytes, max_llm_result_rows,
        max_llm_result_bytes, max_llm_result_tokens,
        requires_analytics_worker, requires_feature_catalog, requires_data_readiness,
-       tool_specific_limits || '{json.dumps(limits, sort_keys=True, separators=(",", ":"))}'::jsonb, next.version, false
+       tool_specific_limits || '{sql_json(limits, sort_keys=True, separators=(",", ":"))}'::jsonb, next.version, false
 FROM public."Tool_Catalog" AS previous
 JOIN (VALUES
 {rows}
@@ -108,10 +111,10 @@ JOIN (VALUES
   ON previous.tool_name = next.name AND previous.version = next.from_version;
 
 COMMENT ON COLUMN public."AI_column_catalog".cross_entity_aggregation IS
-    '{COLUMN_DEFINITION.replace(chr(39), chr(39) * 2)}';
+    '{sql_literal(COLUMN_DEFINITION)}';
 
 UPDATE public."Column_Catalog"
-SET definition = '{COLUMN_DEFINITION.replace(chr(39), chr(39) * 2)}',
+SET definition = '{sql_literal(COLUMN_DEFINITION)}',
     source_code_paths = ARRAY['database/migrations/20260927_005_cross_entity_aggregation_and_v2_contracts.sql',
                               'database/migrations/20261002_002_warehouse_summary_tool_catalog.sql',
                               'apps/market-sql-governor/app/catalog_contract.py',

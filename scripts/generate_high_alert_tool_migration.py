@@ -13,6 +13,9 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from sql_text import sql_json, sql_literal  # noqa: E402,F401
+
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "database/migrations/20261003_003_high_alert_tool_catalog.sql"
 VERSIONS = {"submit_data_need_spec": ("v5", "v6"), "run_python": ("v1", "v2")}
@@ -37,7 +40,7 @@ def definitions() -> dict[str, dict]:
 
 
 def schema_text(definition: dict) -> str:
-    return json.dumps(definition["parameters"], sort_keys=True, separators=(",", ":")).replace("'", "''")
+    return sql_json(definition["parameters"], sort_keys=True, separators=(",", ":"))
 
 
 def render() -> str:
@@ -49,7 +52,7 @@ def render() -> str:
               "success_rule": "the approved plan's numeric success threshold, applied by event_summary (M28)"}
     rows = ",\n".join(
         f"    ('{name}', '{old}', '{new}', '{schema_text(found[name])}',\n"
-        f"     '{found[name]['description'].replace(chr(39), chr(39) * 2)}')"
+        f"     '{sql_literal(found[name]['description'])}')"
         for name, (old, new) in VERSIONS.items())
     previous = ", ".join(f"('{n}', '{old}')" for n, (old, _) in VERSIONS.items())
     registered = " OR ".join(f"(tool_name = '{n}' AND version = '{new}')" for n, (_, new) in VERSIONS.items())
@@ -69,7 +72,7 @@ SET LOCAL statement_timeout = '1min';
 DO $preflight$
 BEGIN
     IF (SELECT count(*) FROM public."Tool_Catalog" WHERE (tool_name, version) IN ({previous})) <> {len(VERSIONS)} THEN
-        RAISE EXCEPTION 'Expected the previous tool versions {previous}';
+        RAISE EXCEPTION 'Expected the previous tool versions {sql_literal(previous)}';
     END IF;
     IF EXISTS (SELECT 1 FROM public."Tool_Catalog" WHERE {registered}) THEN
         RAISE EXCEPTION 'The HIGH ALERT tool versions are already registered';
@@ -92,7 +95,7 @@ SELECT tool_name, tool_family, tool_type, next.purpose, next.input_schema::jsonb
        timeout_seconds, max_output_bytes, max_llm_result_rows,
        max_llm_result_bytes, max_llm_result_tokens,
        requires_analytics_worker, requires_feature_catalog, requires_data_readiness,
-       tool_specific_limits || '{json.dumps(limits, sort_keys=True, separators=(",", ":"))}'::jsonb, next.version, false
+       tool_specific_limits || '{sql_json(limits, sort_keys=True, separators=(",", ":"))}'::jsonb, next.version, false
 FROM public."Tool_Catalog" AS previous
 JOIN (VALUES
 {rows}

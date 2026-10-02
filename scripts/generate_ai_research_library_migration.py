@@ -8,7 +8,11 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from sql_text import sql_json, sql_literal  # noqa: E402,F401
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "database/migrations/20260930_001_create_ai_research_library.sql"
@@ -50,7 +54,7 @@ def render() -> str:
     payload = json.dumps(rows, ensure_ascii=False, sort_keys=True, indent=1)
     assert "$library$" not in payload
     sha = library.LIBRARY_SHA256
-    definitions = "\n".join(f"        WHEN '{name}' THEN '{text.replace(chr(39), chr(39) * 2)}'"
+    definitions = "\n".join(f"        WHEN '{name}' THEN '{sql_literal(text)}'"
                             for name, _, text in COLUMNS)
     return f"""-- Multi-Angle Research: the research library (C07; MULTI_ANGLE_FIX_PLAN.md item 2, user decision 2026-09-29).
 -- public."AI_research_library" is the model-facing description of the eight methods the sandbox engines compute;
