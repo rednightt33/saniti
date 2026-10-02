@@ -755,7 +755,8 @@ class Extractor:
                 raise self._runtime_stop(state, "ROWS") from None
         checksum = hashlib.sha256(payload).hexdigest()
         columns = [OutputColumn(name=c["name"], type=c["data_type"], source_table=bound.spec.source_table,
-                                source_column=c["name"], aggregation=None, unit=c.get("unit")).model_dump()
+                                source_column=(c.get("source_column") or "*") if c.get("function") else c["name"],
+                                aggregation=c.get("function"), unit=c.get("unit")).model_dump()
                    for c in bound.columns]
         executed = ex.executed_scope(bound)
         spec_json = bound.spec.model_dump(mode="json", by_alias=True)

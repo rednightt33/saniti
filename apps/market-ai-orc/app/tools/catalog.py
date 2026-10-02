@@ -209,6 +209,7 @@ SELECT c.table_name, c.column_name, c.description, c.data_type, c.semantic_type,
        c.group_by_allowed, c.example_value, c.documentation_status,
        to_jsonb(c) ->> 'resample_aggregation' AS resample_aggregation,
        (to_jsonb(c) ? 'resample_aggregation') AS resample_recorded,
+       to_jsonb(c) ->> 'cross_entity_aggregation' AS cross_entity_aggregation,
        to_jsonb(c) ->> 'value_time_basis' AS value_time_basis,
        count(*) OVER (PARTITION BY c.table_name) AS table_total,
        count(*) OVER () AS total_matching
@@ -641,16 +642,17 @@ COLUMN_FULL = (
 )
 COLUMN_SUMMARY = ("table_name", "column_name", "description", "data_type", "semantic_type", "unit")
 # v2 tiers: prose is shortened, then dropped, before any identifier, permission, unit or resample rule is.
-COLUMN_FULL_V2 = (*COLUMN_FULL, "resample_aggregation")
+# G18: cross_entity_aggregation is the direction rule a warehouse summary across entities follows (aggregate)
+COLUMN_FULL_V2 = (*COLUMN_FULL, "resample_aggregation", "cross_entity_aggregation")
 COLUMN_COMPACT_V2 = (
     "table_name", "column_name", "description", "data_type", "semantic_type", "unit", "nullable", "is_primary_key",
-    "allowed_aggregations", "filter_allowed", "group_by_allowed", "resample_aggregation",
+    "allowed_aggregations", "filter_allowed", "group_by_allowed", "resample_aggregation", "cross_entity_aggregation",
 )
 COLUMN_MINIMAL_V2 = (
     "table_name", "column_name", "data_type", "unit", "is_primary_key", "allowed_aggregations", "filter_allowed",
-    "group_by_allowed", "resample_aggregation",
+    "group_by_allowed", "resample_aggregation", "cross_entity_aggregation",
 )
-COLUMN_NULLS_V2 = ("description", "unit", "resample_aggregation")
+COLUMN_NULLS_V2 = ("description", "unit", "resample_aggregation", "cross_entity_aggregation")
 JOIN_FIELDS_V2 = ("left_time_column", "right_time_column", "effective_from_column", "effective_to_column")
 CALCULATION_FULL = (
     "target_table", "calculation_name", "version", "status", "target_columns", "definition",
@@ -767,7 +769,14 @@ def _columns_v2(rows: list[dict[str, Any]], tables: list[str], column_filter: li
         "total_matching": total,
         "completeness": completeness,
         "null_meaning": "A null unit, description or resample_aggregation is not recorded in the catalog. A null "
-                        "resample_aggregation means no established rule: never assume LAST or any other default.",
+                        "resample_aggregation means no established rule: never assume LAST or any other default. "
+                        "A null cross_entity_aggregation means the column does not add up across entities: a "
+                        "summary may not SUM it.",
+        # G18: allowed_aggregations has no direction (it listed SUM for prices and ratios); the two direction rules
+        # decide what a summary may compute
+        "aggregation_rules": "A data request's aggregate sums a column across entities only where "
+                             "cross_entity_aggregation is SUM; over time only where resample_aggregation allows it. "
+                             "allowed_aggregations has no direction and does not permit a sum.",
     }
     if detail != "FULL":
         section["detail_note"] = ("Descriptions were shortened (COMPACT) or left out (MINIMAL) to fit; names, types, "

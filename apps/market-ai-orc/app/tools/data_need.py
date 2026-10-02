@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from ..research_plan import guard_research_submission
 from .analysis import SandboxClient, current_run_context
@@ -94,6 +94,26 @@ class Ordering(Strict):
     direction: Literal["ASC", "DESC"]
 
 
+class Measure(Strict):
+    # "as" is a Python keyword: the field is as_, sent and shown as "as"
+    model_config = ConfigDict(extra="forbid", populate_by_name=True, serialize_by_alias=True)
+
+    column: str | None = Field(description="The measured catalog column; null for COUNT (rows at the table's grain).")
+    function: Literal["SUM", "MIN", "MAX", "COUNT", "COUNT_DISTINCT"] = Field(
+        description="SUM only for a column whose catalog cross_entity_aggregation is SUM; MIN/MAX for numeric "
+                    "measures; COUNT counts rows; COUNT_DISTINCT for an identifier or dimension column. No AVG: send "
+                    "SUM and COUNT and divide in the session.")
+    as_: str = Field(alias="as", description="Output column name (lower-case letters, digits, _), not a catalog "
+                                             "column name.")
+
+
+class Aggregate(Strict):
+    group_by: list[str] = Field(description="Columns the warehouse groups by; must include the time column of a dated "
+                                            "table; drop the entity or other key columns to summarise across them "
+                                            "(e.g. [date, broker] sums over tickers).")
+    measures: list[Measure] = Field(description="One to twenty summaries per group.")
+
+
 class DataRequest(Strict):
     data_request_id: str = Field(description="<request_group_id>_<suffix>, suffix 1-12 letters/digits, e.g. "
                                              "data_request_1_A. Stable across revisions.")
@@ -113,6 +133,27 @@ class DataRequest(Strict):
                                                      "if none.")
     ordering: list[Ordering] = Field(description="Row order of the delivered dataset ([] for none).")
     sampling_allowed: bool = Field(description="Always false: data is never sampled.")
+
+
+class AnalysisDataRequest(DataRequest):
+    """A request of submit_data_need_spec / check_data_feasibility: it may ask for a summary (G18). Research angle
+    requests (check_research_feasibility) keep DataRequest: a summary is refused in mode RESEARCH."""
+
+    columns: list[str] = Field(description="Catalog columns needed (entity and time columns are always added). With "
+                                           "aggregate: exactly the group_by and measured columns.")
+    aggregate: Aggregate | None = Field(
+        description="ANALYSIS only: let the warehouse summarise across entities before delivery "
+                                  "(one row per group instead of every raw row); null for raw rows. Refused "
+                                  "(AGGREGATION_NOT_ADDITIVE) for a measure the catalog does not allow to be summed.")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _aggregate_absent_is_null(cls, data: Any) -> Any:
+        """The strict schema lists aggregate as required (nullable); a request written before it, or by a provider
+        that leaves null fields out, means raw rows."""
+        if isinstance(data, dict) and "aggregate" not in data:
+            return {**data, "aggregate": None}
+        return data
 
 
 class Relationship(Strict):
@@ -214,7 +255,7 @@ class DataNeedSpecBody(Strict):
     mode: Literal["ANALYSIS", "RESEARCH"]
     question: str = Field(description="The user's question, restated.")
     subject: Subject
-    data_requests: list[DataRequest] = Field(description="1-8 logical data requests.")
+    data_requests: list[AnalysisDataRequest] = Field(description="1-8 logical data requests.")
     relationships: list[Relationship] = Field(description="Catalog relationships between requests ([] for none).")
 
 

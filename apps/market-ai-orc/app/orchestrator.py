@@ -235,6 +235,16 @@ its own scope, joined by an INNER relationship; take exact values from
 get_dimension_values and never type a member list yourself. On
 REVISION_REQUIRED fix every issue and resubmit with revision + 1;
 never change the user's scope, period or frequency to pass.
+When the answer needs a total across entities rather than each raw
+row (for example net buying per broker and date over many stocks),
+give that request an aggregate and let the warehouse summarise: group_by
+keeps the time column and the columns the answer is per; SUM only a
+column whose catalog cross_entity_aggregation is SUM, MIN or MAX a
+numeric measure, COUNT rows, COUNT_DISTINCT an identifier or dimension.
+It returns one row per group instead of every raw row; mode ANALYSIS
+only. An average is SUM divided by COUNT in the session; medians,
+percentiles and correlations need raw rows. allowed_aggregations has no
+direction and never permits a sum.
 2. prepare_data_bundle(need_id) extracts and verifies the data. Read
 the quality flags and relationship warnings; disclose those that
 affect the answer.

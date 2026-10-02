@@ -11,7 +11,7 @@ Delivery coverage (this module, at bundle creation) checks, per data request:
 
 - every approved data_request_id is delivered, and nothing else is;
 - every part's lineage names this need, plan, request and part, and its executed scope equals the approved scope,
-  restrictions, columns and table, with no sampling and no truncation;
+  restrictions, columns, table and summary (G18 aggregate), with no sampling and no truncation;
 - the catalog version each part ran under equals the one the spec was approved against;
 - the partitions tile every approved extraction window: on every date of every window each entity residue is
   covered exactly once (a gap is MISSING_PARTITION, a double cover OVERLAPPING_PARTITIONS);
@@ -73,7 +73,9 @@ def check_part(approved: dict[str, Any], request: dict[str, Any], plan_id: str, 
               "source_table": request["source_table"], "columns": request["extract_columns"],
               "scope_sha256": request["scope_sha256"], "restriction_sha256": request["restriction_sha256"],
               "entity_partition": part.get("entity_partition"), "part_key": part["part_key"],
-              "sampling": False, "truncation": False}
+              "sampling": False, "truncation": False,
+              # G18: the summary the Governor computed is the approved one (both absent for raw rows)
+              "aggregate": request.get("aggregate")}
     for key, value in checks.items():
         if executed.get(key) != value:
             code = {"sampling": "SAMPLING_DETECTED", "truncation": "TRUNCATION_DETECTED"}.get(

@@ -14,7 +14,11 @@ writes one). The spec is catalog identifiers and canonical values only, never SQ
 - window: the physical date window of a dated table (an envelope of approved ranges, or a date partition of it);
 - entity_partition: optional {modulus, remainder}: rows whose entity hashes to the remainder (a complete, disjoint
   split of the entities);
-- order_by: requested ordering; the table's key columns are appended so the order is total and deterministic.
+- order_by: requested ordering; the table's key columns are appended so the order is total and deterministic;
+- aggregate (G18 phase 1, optional): a summary across entities, {group_by, measures}. The Governor re-derives from its
+  own catalog contract whether each measure may be computed (SUM only where cross_entity_aggregation is SUM, MIN/MAX on
+  numeric MEASURE columns, COUNT of rows, COUNT_DISTINCT of IDENTIFIER/DIMENSION/TIME columns); a dated table keeps its
+  time column in group_by. The rows are then the groups, ordered by the group_by columns.
 
 The Governor re-validates everything against the catalog (tables, columns, filter permissions, value types,
 relationship ids, supported join semantics, time and effective columns, temporal direction), compiles parameterized
@@ -141,6 +145,23 @@ class OrderKey(Strict):
     direction: Literal["ASC", "DESC"]
 
 
+AGGREGATE_FUNCTIONS = ("SUM", "MIN", "MAX", "COUNT", "COUNT_DISTINCT")
+ALIAS_PATTERN = r"^[a-z][a-z0-9_]{0,39}$"
+
+
+class Measure(Strict):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    column: str | None = Field(pattern=COLUMN_PATTERN)
+    function: Literal["SUM", "MIN", "MAX", "COUNT", "COUNT_DISTINCT"]
+    alias: str = Field(alias="as", pattern=ALIAS_PATTERN)
+
+
+class Aggregate(Strict):
+    group_by: list[str] = Field(min_length=1, max_length=20)
+    measures: list[Measure] = Field(min_length=1, max_length=20)
+
+
 class ExtractionSpec(Strict):
     extraction_version: Literal["extraction_spec/v1"]
     data_request_id: str = Field(pattern=r"^[a-z][a-z0-9_]{0,39}_[A-Za-z0-9]{1,12}$")
@@ -151,6 +172,8 @@ class ExtractionSpec(Strict):
     window: Window | None
     entity_partition: EntityPartition | None
     order_by: list[OrderKey] = Field(max_length=12)
+    # G18: absent for a raw extraction, so its JSON and every hash of it are unchanged
+    aggregate: Aggregate | None = None
 
 
 class Envelope(Strict):
@@ -274,6 +297,7 @@ class BoundExtraction:
     window: tuple[date, date] | None
     order_by: list[tuple[str, str]]
     warnings: list[str] = field(default_factory=list)
+    aggregate: dict[str, Any] | None = None  # G18: canonical {group_by, measures} of a summary
 
     @property
     def time_column(self) -> str | None:
@@ -281,7 +305,12 @@ class BoundExtraction:
 
     @property
     def entity_column(self) -> str | None:
-        return self.table.get("entity_column")
+        """The entity column of the delivered rows: none when a summary dropped it (an entity split would then cut
+        groups in parts)."""
+        entity = self.table.get("entity_column")
+        if self.aggregate is not None and entity not in self.aggregate["group_by"]:
+            return None
+        return entity
 
     @property
     def source_tables(self) -> list[str]:
@@ -428,6 +457,64 @@ def _bind_restriction(index: int, item: Restriction, source_meta: dict[str, Any]
     return BoundRestriction(index, item, item.right_table, scope, entry)
 
 
+def _bind_aggregate(spec: ExtractionSpec, meta: dict[str, Any], known: dict[str, dict[str, Any]]
+                    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """G18 phase 1: the output columns of a summary and its canonical form, re-derived from the catalog contract (the
+    sandbox's approval is not trusted)."""
+    item = spec.aggregate
+    assert item is not None
+    table = spec.source_table
+    grain = list(dict.fromkeys(c for c in (meta.get("entity_column"), meta.get("time_column"),
+                                           *(meta.get("primary_key_columns") or [])) if c))
+    group_by = list(item.group_by)
+    if len(set(group_by)) != len(group_by):
+        raise policy("AGGREGATE_INVALID", f"{table}: a group_by column is repeated.")
+    columns: list[dict[str, Any]] = []
+    for name in group_by:
+        info = known.get(name)
+        if info is None:
+            raise policy("COLUMN_NOT_ALLOWED", f"{table}.{name} is not an AI-allowed catalog column.")
+        if not (info.get("group_by_allowed") or name in grain):
+            raise policy("AGGREGATE_GROUP_BY_NOT_ALLOWED", f"{table}.{name} cannot be grouped.")
+        columns.append({"name": name, "data_type": info.get("data_type") or "text", "unit": info.get("unit")})
+    time_column = meta.get("time_column")
+    if time_column and time_column not in group_by:
+        raise policy("AGGREGATE_TIME_REQUIRED", f"{table}: a summary keeps the time column {time_column} in group_by.")
+    dropped = [c for c in grain if c not in group_by]
+    if not dropped:
+        raise policy("AGGREGATE_NOT_NEEDED", f"{table}: group_by keeps the whole grain; nothing is summarised.")
+    aliases = set()
+    for measure in item.measures:
+        label = f"{table}.{measure.column or '*'} {measure.function}"
+        if measure.alias in aliases or measure.alias in known or measure.alias in group_by:
+            raise policy("AGGREGATE_INVALID", f"{label}: the name {measure.alias!r} is taken.")
+        aliases.add(measure.alias)
+        if (measure.function == "COUNT") != (measure.column is None):
+            raise policy("AGGREGATE_INVALID", f"{label}: COUNT counts rows (column null); the others name a column.")
+        info = known.get(measure.column) if measure.column else {}
+        if info is None:
+            raise policy("COLUMN_NOT_ALLOWED", f"{label}: not an AI-allowed catalog column.")
+        kind = str(info.get("data_type") or "text").lower()
+        semantic = str(info.get("semantic_type") or "").upper()
+        if measure.function == "SUM" and info.get("cross_entity_aggregation") != "SUM":
+            raise policy("AGGREGATION_NOT_ADDITIVE", f"{label}: the catalog has no SUM rule across "
+                                                     f"{', '.join(dropped)}.", dropped=dropped)
+        if measure.function in ("MIN", "MAX") and (kind not in NUMERIC or semantic != "MEASURE"):
+            raise policy("AGGREGATION_NOT_ALLOWED", f"{label}: MIN and MAX apply to numeric measures.")
+        if measure.function == "COUNT_DISTINCT" and semantic not in ("IDENTIFIER", "DIMENSION", "TIME"):
+            raise policy("AGGREGATION_NOT_ALLOWED", f"{label}: COUNT_DISTINCT applies to identifiers and dimensions.")
+        counted = measure.function in ("COUNT", "COUNT_DISTINCT")
+        columns.append({"name": measure.alias, "data_type": "bigint" if counted else info.get("data_type") or "numeric",
+                        "unit": None if counted else info.get("unit"), "function": measure.function,
+                        "source_column": measure.column})
+    if list(spec.columns) != [c["name"] for c in columns]:
+        raise policy("AGGREGATE_COLUMNS_MISMATCH", f"{table}: columns must be the group_by columns, then the measure "
+                                                   f"names, in order: {[c['name'] for c in columns]}.")
+    canonical_form = {"group_by": group_by, "measures": [
+        {"column": m.column, "function": m.function, "as": m.alias} for m in item.measures]}
+    return columns, canonical_form
+
+
 def bind(spec: ExtractionSpec, contract: dict[str, Any], *, max_in_values: int, max_columns: int) -> BoundExtraction:
     """Validate an ExtractionSpec against the catalog contract of its tables (pure)."""
     tables = contract.get("tables") or {}
@@ -439,13 +526,19 @@ def bind(spec: ExtractionSpec, contract: dict[str, Any], *, max_in_values: int, 
         raise policy("TOO_MANY_COLUMNS", f"At most {max_columns} columns per extraction.", limit=max_columns)
     if len(set(spec.columns)) != len(spec.columns):
         raise policy("DUPLICATE_COLUMN", "Each column may be extracted once.")
-    columns = []
-    for name in spec.columns:
-        info = known.get(name)
-        if info is None:
-            raise policy("COLUMN_NOT_ALLOWED", f"{spec.source_table}.{name} is not an AI-allowed catalog column.")
-        columns.append({"name": name, "data_type": info.get("data_type") or "text", "unit": info.get("unit")})
+    aggregate = None
+    if spec.aggregate is not None:
+        columns, aggregate = _bind_aggregate(spec, meta, known)
+    else:
+        columns = []
+        for name in spec.columns:
+            info = known.get(name)
+            if info is None:
+                raise policy("COLUMN_NOT_ALLOWED", f"{spec.source_table}.{name} is not an AI-allowed catalog column.")
+            columns.append({"name": name, "data_type": info.get("data_type") or "text", "unit": info.get("unit")})
     keys = [c for c in (meta.get("entity_column"), meta.get("time_column")) if c]
+    if aggregate is not None:
+        keys = [c for c in keys if c in aggregate["group_by"]]  # a summary keeps its time column, maybe its entity
     missing = [c for c in keys if c not in spec.columns]
     if missing:
         raise policy("KEY_COLUMNS_REQUIRED", f"The extraction must include the key columns {missing}.")
@@ -464,20 +557,27 @@ def bind(spec: ExtractionSpec, contract: dict[str, Any], *, max_in_values: int, 
     elif spec.window is not None:
         raise policy("INVALID_TIME_WINDOW", f"{spec.source_table} has no time column; the window must be null.")
     if spec.entity_partition is not None:
-        if not meta.get("entity_column"):
-            raise policy("ENTITY_PARTITION_NOT_POSSIBLE", f"{spec.source_table} has no entity column.")
+        if not meta.get("entity_column") or (aggregate is not None
+                                             and meta["entity_column"] not in aggregate["group_by"]):
+            raise policy("ENTITY_PARTITION_NOT_POSSIBLE", f"{spec.source_table} has no entity column in the delivered "
+                                                          "rows.")
         if spec.entity_partition.remainder >= spec.entity_partition.modulus:
             raise policy("INVALID_ENTITY_PARTITION", "remainder must be below modulus.")
     ordered: list[tuple[str, str]] = []
+    orderable = aggregate["group_by"] if aggregate is not None else spec.columns
     for key in spec.order_by:
-        if key.column not in spec.columns or key.column in {c for c, _ in ordered}:
-            raise policy("ORDERING_COLUMN_INVALID", f"{key.column} is not an extracted column (or is repeated).")
+        if key.column not in orderable or key.column in {c for c, _ in ordered}:
+            raise policy("ORDERING_COLUMN_INVALID", f"{key.column} is not an extracted key column (or is repeated).")
         ordered.append((key.column, key.direction))
-    # the table's keys complete the order, so equal checksums mean equal rows in equal order
-    for column in [*keys, *(meta.get("primary_key_columns") or [])]:
+    # the table's keys (a summary: its group_by columns) complete the order, so equal checksums mean equal rows in
+    # equal order
+    completing = [*keys, *(meta.get("primary_key_columns") or [])] if aggregate is None else \
+        [*keys, *aggregate["group_by"]]
+    for column in completing:
         if column in spec.columns and column not in {c for c, _ in ordered}:
             ordered.append((column, "ASC"))
-    return BoundExtraction(spec, meta, columns, scope, canonical(scope), restrictions, window, ordered)
+    return BoundExtraction(spec, meta, columns, scope, canonical(scope), restrictions, window, ordered,
+                           aggregate=aggregate)
 
 
 # ---------------------------------------------------------------- compilation
@@ -544,13 +644,26 @@ def _restriction_sql(r: BoundRestriction, base: str, time_column: str | None, pa
         table=table, alias=sql.Identifier(alias), conditions=sql.SQL(" AND ").join(parts))
 
 
+def _output(base: str, column: dict[str, Any]) -> sql.Composable:
+    """A delivered column: the column itself, or a summary's measure (G18)."""
+    function = column.get("function")
+    if function is None:
+        return _column(base, column["name"])
+    if function == "COUNT":
+        return sql.SQL("count(*)")
+    source = _column(base, column["source_column"])
+    if function == "COUNT_DISTINCT":
+        return sql.SQL("count(DISTINCT {})").format(source)
+    return sql.SQL("{}({})").format(sql.SQL(function.lower()), source)
+
+
 def compile_extraction(bound: BoundExtraction, row_cap: int | None, *, ordered: bool = True) -> CompiledQuery:
     """Parameterized SQL of a bound extraction; row_cap None compiles the EXPLAIN form (no LIMIT). ordered=False
     (G15) leaves out the ORDER BY: the count form, whose rows are the same and whose LIMIT then stops the scan early
     instead of after a sort of every row."""
     base = "t0"
     params: list[Any] = []
-    select = sql.SQL(", ").join(sql.SQL("{} AS {}").format(_column(base, c["name"]), sql.Identifier(c["name"]))
+    select = sql.SQL(", ").join(sql.SQL("{} AS {}").format(_output(base, c), sql.Identifier(c["name"]))
                                 for c in bound.columns)
     conditions: list[sql.Composable] = []
     if bound.window is not None:
@@ -569,7 +682,19 @@ def compile_extraction(bound: BoundExtraction, row_cap: int | None, *, ordered: 
         sql.Identifier("public", bound.spec.source_table), sql.Identifier(base))]
     if conditions:
         parts += [sql.SQL(" WHERE "), sql.SQL(" AND ").join(conditions)]
-    if bound.order_by and ordered:
+    if bound.aggregate is not None:
+        parts += [sql.SQL(" GROUP BY "), sql.SQL(", ").join(_column(base, c) for c in bound.aggregate["group_by"])]
+        if bound.order_by and ordered:
+            # G18 (measured on dev 2026-10-02, DATABASE_CHANGELOG.md): ordered by its group keys, a summary let the
+            # planner sort every source row before grouping (Feature 02 x banks 2022-2026: over 60 s, 53.6 s through
+            # the extraction cursor); computed first as a materialized CTE and then sorted, the same 95,397 groups
+            # took 3.0 s (5.6 s through the cursor)
+            parts = [sql.SQL("WITH {} AS MATERIALIZED (").format(sql.Identifier("summary")), *parts,
+                     sql.SQL(") SELECT * FROM {} ORDER BY ").format(sql.Identifier("summary")),
+                     sql.SQL(", ").join(sql.SQL("{} {}").format(sql.Identifier(c), sql.SQL("ASC" if d == "ASC"
+                                                                                          else "DESC"))
+                                        for c, d in bound.order_by)]
+    elif bound.order_by and ordered:
         parts += [sql.SQL(" ORDER BY "), sql.SQL(", ").join(
             sql.SQL("{} {}").format(_column(base, c), sql.SQL("ASC" if d == "ASC" else "DESC"))
             for c, d in bound.order_by)]
@@ -593,7 +718,9 @@ def executed_scope(bound: BoundExtraction) -> dict[str, Any]:
             "entity_partition": partition,
             "part_key": part_key({"from": window["from"], "to": window["to"]} if window else None, partition),
             "order_by": [{"column": c, "direction": d} for c, d in bound.order_by],
-            "sampling": False, "truncation": False}
+            "sampling": False, "truncation": False,
+            # G18: only a summary carries it, so a raw extraction's executed scope and its hash are unchanged
+            **({"aggregate": bound.aggregate} if bound.aggregate is not None else {})}
 
 
 # ---------------------------------------------------------------- partitioning decisions (pure)

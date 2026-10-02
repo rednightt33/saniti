@@ -79,7 +79,14 @@ TOP_FIELDS_V2 = TOP_FIELDS | {"time_basis"}
 SUBJECT_FIELDS = {"data_domain", "entity_type", "asset_type"}
 REQUEST_FIELDS = {"data_request_id", "logical_name", "source_table", "entity_column", "time_column", "columns", "scope",
                   "time_ranges", "source_frequency", "analysis_frequency", "resample", "history_buffer",
-                  "future_buffer", "ordering", "sampling_allowed"}
+                  "future_buffer", "ordering", "sampling_allowed", "aggregate"}
+# G18 phase 1 (WAREHOUSE_AGGREGATION_PLAN.md, user decision 2026-10-02): a request may ask the warehouse to summarise
+# across entities (the time column stays in group_by). Whether a measure may be summed is derived from the catalog's
+# direction rule (cross_entity_aggregation), never from allowed_aggregations, which knows no direction
+AGGREGATE_FIELDS = {"group_by", "measures"}
+MEASURE_FIELDS = {"column", "function", "as"}
+AGGREGATE_FUNCTIONS = ("SUM", "MIN", "MAX", "COUNT", "COUNT_DISTINCT")
+MAX_MEASURES = 20
 RANGE_FIELDS = {"range_id", "start", "end"}
 BUFFER_FIELDS = {"value", "unit"}
 ORDER_FIELDS = {"column", "direction"}
@@ -326,7 +333,9 @@ def check_schema(raw: Any, limits: Limits, issues: Issues) -> bool:
             seen_ids.add(rid)
         rid = rid if isinstance(rid, str) else None
         _fields(request, REQUEST_FIELDS, {"entity_column", "time_column", "resample", "history_buffer",
-                                          "future_buffer"}, path, rid, issues)
+                                          "future_buffer", "aggregate"}, path, rid, issues)
+        if request.get("aggregate") is not None:
+            _aggregate_schema(request["aggregate"], f"{path}.aggregate", rid, issues)
         name = request.get("logical_name")
         if not isinstance(name, str) or not NAME.fullmatch(name):
             issues.add(rid, "INVALID_FIELD_VALUE", f"{path}.logical_name", name)
@@ -447,6 +456,41 @@ def check_schema(raw: Any, limits: Limits, issues: Issues) -> bool:
                 if value is not None and (not isinstance(value, str) or not COLUMN.fullmatch(value)):
                     issues.add(rid, "TIME_COLUMN_MISMATCH", f"{path}.{key}", value)
     return not issues
+
+
+def _aggregate_schema(value: Any, path: str, rid: str | None, issues: Issues) -> None:
+    """G18: {"group_by": [column, ...], "measures": [{"column", "function", "as"}, ...]}; COUNT counts rows and takes
+    column null."""
+    if not isinstance(value, dict):
+        issues.add(rid, "INVALID_FIELD_TYPE", path, value)
+        return
+    _fields(value, AGGREGATE_FIELDS, set(), path, rid, issues)
+    group_by, measures = value.get("group_by"), value.get("measures")
+    if not isinstance(group_by, list) or not group_by:
+        issues.add(rid, "AGGREGATE_INVALID", f"{path}.group_by", group_by)
+    elif len(set(map(str, group_by))) != len(group_by) or not all(isinstance(c, str) and COLUMN.fullmatch(c)
+                                                                  for c in group_by):
+        issues.add(rid, "AGGREGATE_INVALID", f"{path}.group_by", group_by)
+    if not isinstance(measures, list) or not measures or len(measures) > MAX_MEASURES:
+        issues.add(rid, "AGGREGATE_INVALID", f"{path}.measures", measures)
+        return
+    names: set[str] = set()
+    for position, measure in enumerate(measures):
+        where = f"{path}.measures[{position}]"
+        if not isinstance(measure, dict) or set(measure) != MEASURE_FIELDS:
+            issues.add(rid, "AGGREGATE_INVALID", where, measure)
+            continue
+        if measure["function"] not in AGGREGATE_FUNCTIONS:
+            issues.add(rid, "AGGREGATE_FUNCTION_INVALID", f"{where}.function", measure["function"])
+        column = measure["column"]
+        if (measure["function"] == "COUNT") != (column is None) or (
+                column is not None and (not isinstance(column, str) or not COLUMN.fullmatch(column))):
+            issues.add(rid, "AGGREGATE_INVALID", f"{where}.column", column)
+        alias = measure["as"]
+        if not isinstance(alias, str) or not NAME.fullmatch(alias) or alias in names:
+            issues.add(rid, "AGGREGATE_INVALID", f"{where}.as", alias)
+        else:
+            names.add(alias)
 
 
 def _key_schema(rel: dict[str, Any], v2: bool, path: str, rid: str | None, issues: Issues) -> None:
@@ -629,6 +673,104 @@ def bind_catalog(spec: dict[str, Any], contract: dict[str, Any], limits: Limits,
     wanted = (subject["data_domain"], subject["entity_type"], subject.get("asset_type"))
     if contract.get("subject_metadata", True) and subjects and wanted not in subjects:
         issues.add(None, "SUBJECT_TABLE_MISMATCH", "subject", subject)
+
+
+def grain_keys(meta: dict[str, Any]) -> list[str]:
+    """The table's grain: entity, time and every other primary-key column, in that order."""
+    return list(dict.fromkeys(c for c in (meta.get("entity_column"), meta.get("time_column"),
+                                          *(meta.get("primary_key_columns") or [])) if c))
+
+
+def bind_aggregate(spec: dict[str, Any], contract: dict[str, Any], issues: Issues) -> None:
+    """G18 phase 1: a summary the warehouse may compute, decided from the catalog (fail closed).
+
+    - mode ANALYSIS only; no resample on the same request;
+    - group_by: catalog columns that may be grouped (group_by_allowed) or grain keys; a dated table keeps its time
+      column (phase 1 summarises across entities only, so the coverage of every date stays checkable from the rows);
+      at least one grain key is dropped (else there is nothing to summarise);
+    - the dropped grain keys are the direction (across entities); SUM needs cross_entity_aggregation = SUM, MIN and
+      MAX a numeric MEASURE, COUNT counts the rows at the table's grain, COUNT_DISTINCT an IDENTIFIER, DIMENSION or
+      TIME column;
+    - `columns` lists exactly the grouped and measured columns; ordering uses grouped columns;
+    - a relationship of the request keeps its key columns in group_by, so the summary can still be joined."""
+    tables, columns = contract.get("tables") or {}, contract.get("columns") or {}
+    keys_by_request: dict[str, set[str]] = {}
+    for rel in spec.get("relationships") or []:
+        for side in ("left", "right"):
+            rid = rel.get(f"{side}_request_id")
+            keys = set(rel.get(f"{side}_columns") or []) | {rel.get(f"{side}_column"), rel.get(f"{side}_time_column")}
+            keys_by_request.setdefault(rid, set()).update(k for k in keys if k)
+    for index, request in enumerate(spec["data_requests"]):
+        aggregate = request.get("aggregate")
+        if aggregate is None:
+            continue
+        rid, path = request["data_request_id"], f"data_requests[{index}].aggregate"
+        meta = tables.get(request["source_table"]) or {}
+        known = columns.get(request["source_table"]) or {}
+        if spec.get("mode") != "ANALYSIS":
+            issues.add(rid, "AGGREGATE_MODE_UNSUPPORTED", path, spec.get("mode"))
+        if request.get("resample") is not None:
+            issues.add(rid, "AGGREGATE_WITH_RESAMPLE", path, request["resample"])
+        grain = grain_keys(meta)
+        group_by = list(aggregate["group_by"])
+        for position, column in enumerate(group_by):
+            info = known.get(column)
+            if info is None or not (info.get("group_by_allowed") or column in grain):
+                issues.add(rid, "AGGREGATE_GROUP_BY_NOT_ALLOWED", f"{path}.group_by[{position}]", column)
+        time_column = meta.get("time_column")
+        if time_column and time_column not in group_by:
+            issues.add(rid, "AGGREGATE_TIME_REQUIRED", f"{path}.group_by", time_column)
+        dropped = [c for c in grain if c not in group_by]
+        if not dropped:
+            issues.add(rid, "AGGREGATE_NOT_NEEDED", f"{path}.group_by", group_by)
+        measured = []
+        for position, measure in enumerate(aggregate["measures"]):
+            where, column, function = f"{path}.measures[{position}]", measure["column"], measure["function"]
+            if measure["as"] in known or measure["as"] in group_by:
+                issues.add(rid, "AGGREGATE_INVALID", f"{where}.as", measure["as"])
+            if column is None:
+                continue
+            measured.append(column)
+            info = known.get(column)
+            if info is None:
+                issues.add(rid, "UNKNOWN_COLUMN", f"{where}.column", column)
+                continue
+            kind = str(info.get("data_type") or "text").lower()
+            semantic = str(info.get("semantic_type") or "").upper()
+            if function == "SUM" and info.get("cross_entity_aggregation") != "SUM":
+                # the catalog has no rule that this column adds up across the dropped keys
+                issues.add(rid, "AGGREGATION_NOT_ADDITIVE", f"{where}.column",
+                           f"{column}: no SUM across {', '.join(dropped)}")
+            elif function in ("MIN", "MAX") and (kind not in NUMERIC or semantic != "MEASURE"):
+                issues.add(rid, "AGGREGATION_NOT_ALLOWED", f"{where}.column", column)
+            elif function == "COUNT_DISTINCT" and semantic not in ("IDENTIFIER", "DIMENSION", "TIME"):
+                issues.add(rid, "AGGREGATION_NOT_ALLOWED", f"{where}.column", column)
+        if set(request["columns"]) != set(group_by) | set(measured):
+            issues.add(rid, "AGGREGATE_COLUMNS_MISMATCH", f"data_requests[{index}].columns", request["columns"])
+        for position, item in enumerate(request["ordering"]):
+            if item["column"] not in group_by:
+                issues.add(rid, "ORDERING_COLUMN_INVALID", f"data_requests[{index}].ordering[{position}].column",
+                           item["column"])
+        lost = sorted(keys_by_request.get(rid, set()) - set(group_by))
+        if lost:
+            issues.add(rid, "AGGREGATE_DROPS_JOIN_KEY", f"{path}.group_by", lost)
+
+
+def aggregate_output(request: dict[str, Any], meta: dict[str, Any], types: dict[str, str]
+                     ) -> dict[str, Any]:
+    """The grain and columns an approved summary delivers: its group_by columns, then one column per measure; the
+    entity and primary-key columns are those kept in group_by."""
+    aggregate = request["aggregate"]
+    group_by = list(aggregate["group_by"])
+    measures = [{"column": m["column"], "function": m["function"], "as": m["as"]} for m in aggregate["measures"]]
+    out_types = {c: types.get(c) for c in group_by}
+    for m in measures:
+        out_types[m["as"]] = "bigint" if m["function"] in ("COUNT", "COUNT_DISTINCT") else types.get(m["column"])
+    return {"aggregate": {"group_by": group_by, "measures": measures},
+            "entity_column": meta.get("entity_column") if meta.get("entity_column") in group_by else None,
+            "primary_key_columns": [c for c in meta.get("primary_key_columns") or [] if c in group_by],
+            "key_columns": group_by, "extract_columns": group_by + [m["as"] for m in measures],
+            "column_types": out_types}
 
 
 TEXT_OPERATORS = ("EQ", "NEQ", "IN", "NOT_IN")
@@ -993,6 +1135,8 @@ def validate(raw: Any, contract: dict[str, Any] | None, reference: date, limits:
     warnings: list[dict[str, Any]] = []
     bind_catalog(raw, contract, limits, issues)
     if not issues:
+        bind_aggregate(raw, contract, issues)
+    if not issues:
         resolve_text_values(raw, contract, issues, warnings)
     bound = cross_request(raw, contract, issues, warnings)
     feasibility(raw, contract, reference, limits, issues)
@@ -1047,6 +1191,7 @@ def approved_contract(spec: dict[str, Any], contract: dict[str, Any], bound: lis
         extract_columns = list(dict.fromkeys(keys + list(request["columns"])))
         resample_rules = {c: (columns[request["source_table"]].get(c) or {}).get("resample_aggregation")
                           for c in request["columns"] if c not in keys}
+        summary = aggregate_output(request, meta, types) if request.get("aggregate") is not None else {}
         requests[request["data_request_id"]] = {
             "data_request_id": request["data_request_id"], "logical_name": request["logical_name"],
             "source_table": request["source_table"], "entity_column": meta.get("entity_column"),
@@ -1067,6 +1212,9 @@ def approved_contract(spec: dict[str, Any], contract: dict[str, Any], bound: lis
             "catalog_table_sha256": meta.get("catalog_table_sha256"), "restrictions": [],
             # IP1 Stage D: the table's availability contract (Table_Catalog), when the catalog exposes it
             **({"availability": meta["availability"]} if meta.get("availability") else {})}
+        if summary:
+            # G18: the summary's own grain and columns; it is never preaggregated or resampled again
+            requests[request["data_request_id"]].update(summary, resample_rules={}, aggregation_rules={})
     relationships = []
     for b in bound:
         right = requests[b.right]
@@ -1144,6 +1292,8 @@ def contract_covers(earlier: dict[str, Any], later: dict[str, Any]) -> str | Non
                 return f"{rid}.{field}"
         if request.get("resample_semantics_version") != before.get("resample_semantics_version"):
             return f"{rid}.resample_semantics_version"
+        if request.get("aggregate") != before.get("aggregate"):
+            return f"{rid}.aggregate"  # G18: a summary serves only the same summary
         for field in ("columns", "extract_columns"):
             if not set(request.get(field) or []) <= set(before.get(field) or []):
                 return f"{rid}.{field}"
@@ -1169,6 +1319,8 @@ def data_contract_sha256(approved: dict[str, Any]) -> str:
         # the resample semantics version enters only where it is set (IP2), so every other hash is unchanged
         "requests": {rid: {**{k: request.get(k) for k in CONTRACT_REQUEST_FIELDS},
                            **({"resample_semantics_version": request["resample_semantics_version"]}
-                              if request.get("resample_semantics_version") is not None else {})}
+                              if request.get("resample_semantics_version") is not None else {}),
+                           # G18: a summary enters only where it is set, so every raw request's hash is unchanged
+                           **({"aggregate": request["aggregate"]} if request.get("aggregate") is not None else {})}
                      for rid, request in sorted((approved.get("requests") or {}).items())},
         "relationships": approved.get("relationships") or [], "catalog_sha256": approved.get("catalog_sha256")})

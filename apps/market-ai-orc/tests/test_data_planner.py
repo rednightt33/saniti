@@ -237,3 +237,19 @@ def test_the_tool_is_registered_only_with_the_flag_and_both_services() -> None:
     off = build_default_registry(sandbox_client=sandbox, governor_client=governor).names()
     assert "prepare_data_bundle" in on and "prepare_data_bundle" not in off
     assert "prepare_data_bundle" not in build_default_registry(sandbox_client=sandbox, dataneed_enabled=True).names()
+
+
+def test_g18_a_summary_reaches_the_governor_and_a_raw_request_is_unchanged() -> None:
+    """The extraction spec carries the approved summary as is (the Governor re-checks it against its own catalog);
+    a raw request's spec, and so its extraction_sha256, has no aggregate key at all."""
+    from app.tools.data_planner import Part, extraction_spec
+
+    entry = {"data_request_id": "data_request_1_A", "source_table": "Feature_02_Broker_Rolling",
+             "extract_columns": ["date", "broker", "net_value_1d_sum"], "scope": {"type": "ALL"}, "restrictions": [],
+             "ordering": [{"column": "date", "direction": "ASC"}]}
+    part = Part({"from": "2025-01-02", "to": "2025-03-31"}, None, None)
+    assert "aggregate" not in extraction_spec(entry, part)
+    summary = {"group_by": ["date", "broker"],
+               "measures": [{"column": "net_value_1d", "function": "SUM", "as": "net_value_1d_sum"}]}
+    spec = extraction_spec({**entry, "aggregate": summary}, part)
+    assert spec["aggregate"] == summary and spec["columns"] == ["date", "broker", "net_value_1d_sum"]

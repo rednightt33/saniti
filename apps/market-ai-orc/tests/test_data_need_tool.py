@@ -12,9 +12,8 @@ import pytest
 
 from app.tools import build_default_registry
 from app.tools.analysis import SandboxClient, current_run_context, run_context
-from app.tools.data_need import (DataRequest, Relationship, ResearchGovernance, ResearchGovernanceFindings,
-                                 ScopeNode, SubmitDataNeedSpecArgs,
-                                 argument_issues)
+from app.tools.data_need import (AnalysisDataRequest, DataRequest, Relationship, ResearchGovernance,
+                                 ResearchGovernanceFindings, ScopeNode, SubmitDataNeedSpecArgs, argument_issues)
 from app.tools.registry import strict_parameters_schema
 from app.tools.request_data import current_request_id
 from conftest import make_settings
@@ -107,7 +106,12 @@ def test_the_model_facing_fields_equal_the_validator_fields() -> None:
     validator = sandbox_module("data_need")
     governance = sandbox_module("research_governance")
     assert set(SubmitDataNeedSpecArgs.model_fields) - {"research_governance"} == validator.TOP_FIELDS
-    assert set(DataRequest.model_fields) == validator.REQUEST_FIELDS
+    assert set(AnalysisDataRequest.model_fields) == validator.REQUEST_FIELDS
+    # G18: research angle requests have no summary (refused in mode RESEARCH)
+    assert set(DataRequest.model_fields) == validator.REQUEST_FIELDS - {"aggregate"}
+    measure = AnalysisDataRequest.model_fields["aggregate"].annotation.__args__[0].model_fields["measures"]
+    functions = measure.annotation.__args__[0].model_fields["function"].annotation.__args__
+    assert tuple(functions) == validator.AGGREGATE_FUNCTIONS
     assert set(Relationship.model_fields) == validator.RELATIONSHIP_FIELDS
     assert set(ResearchGovernance.model_fields) == governance.FIELDS - set(governance.FINDINGS)
     assert set(ResearchGovernanceFindings.model_fields) == governance.FIELDS  # research findings v1
@@ -299,3 +303,21 @@ def test_omitted_nullable_fields_are_filled_before_validation() -> None:
     outcome = call(registry_with(fake), arguments)
     assert outcome.ok, outcome.output
     assert fake.calls[0]["body"]["spec"]["data_requests"][0]["scope"]["type"] == "ALL"
+
+
+def test_the_warehouse_summary_migration_matches_the_tool_definitions() -> None:
+    """C08 lesson (2026-10-02): a Tool_Catalog row that documents a code-owned schema needs a drift test. The
+    migration is generated from the registry under the dev flags; a schema or purpose change regenerates it."""
+    import importlib.util
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[3]
+    spec = importlib.util.spec_from_file_location(
+        "generate_warehouse_summary_tool_migration", root / "scripts/generate_warehouse_summary_tool_migration.py")
+    generator = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(generator)
+    migration = (root / "database/migrations/20261002_002_warehouse_summary_tool_catalog.sql").read_text()
+    assert generator.render() == migration, "regenerate with scripts/generate_warehouse_summary_tool_migration.py"
+    for name, definition in generator.definitions().items():
+        assert f"'{generator.schema_text(definition)}'" in migration, name
+        assert "aggregate" in definition["parameters"]["properties"]["data_requests"]["items"]["properties"]

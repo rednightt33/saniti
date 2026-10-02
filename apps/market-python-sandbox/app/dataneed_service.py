@@ -181,7 +181,10 @@ class DataNeedService:
                 "requests": [{"data_request_id": r["data_request_id"], "logical_name": r["logical_name"],
                               "source_table": r["source_table"], "extract_columns": r["extract_columns"],
                               "ranges": r["windows"], "scope_sha256": r["scope_sha256"],
-                              "restricted_by": [x["relationship_id"] for x in r["restrictions"]]}
+                              "restricted_by": [x["relationship_id"] for x in r["restrictions"]],
+                              # G18: a summary names what the warehouse computes and the grain it delivers
+                              **({"aggregate": r["aggregate"], "key_columns": r["key_columns"]}
+                                 if r.get("aggregate") else {})}
                              for r in approved["requests"].values()]}
         self.store.insert_need({
             "need_id": need_id, "request_id": request_id,

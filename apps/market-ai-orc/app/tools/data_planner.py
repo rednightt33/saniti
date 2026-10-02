@@ -149,7 +149,9 @@ def extraction_spec(entry: dict[str, Any], part: Part) -> dict[str, Any]:
             "source_table": entry["source_table"], "columns": list(entry["extract_columns"]),
             "scope": entry["scope"], "restrictions": [dict(r) for r in entry.get("restrictions") or []],
             "window": part.window, "entity_partition": part.entity_partition,
-            "order_by": [dict(o) for o in entry.get("ordering") or []]}
+            "order_by": [dict(o) for o in entry.get("ordering") or []],
+            # G18: a summary the warehouse computes (absent for raw rows, so their spec and hashes are unchanged)
+            **({"aggregate": entry["aggregate"]} if entry.get("aggregate") else {})}
 
 
 class ExecutionPlanner:

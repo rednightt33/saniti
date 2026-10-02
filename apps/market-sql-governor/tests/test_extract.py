@@ -645,3 +645,114 @@ def test_g15_count_cap_is_validated_and_only_with_estimate_only(tmp_path) -> Non
                 {"count_cap": "10", "estimate_only": True}):
         answer = api.post("/v1/extract", json={**body, **bad}, headers=headers)
         assert answer.status_code == 422 and "count_cap" in answer.text
+
+
+# ---------------------------------------------------------------- G18 phase 1: summaries across entities
+
+def summary_contract() -> dict[str, Any]:
+    """The unit contract with the catalog's direction rules (a synthetic SUM rule on volume for the test)."""
+    catalog = contract()
+    columns = catalog["columns"][PRICE]
+    for name, semantic in (("ticker", "IDENTIFIER"), ("date", "TIME"), ("close", "MEASURE"), ("volume", "MEASURE")):
+        columns[name]["semantic_type"] = semantic
+        columns[name]["group_by_allowed"] = semantic != "MEASURE"
+    columns["volume"]["cross_entity_aggregation"] = "SUM"
+    columns["close"]["cross_entity_aggregation"] = None
+    return catalog
+
+
+def summary(group_by=("date",), measures=None, window=("2025-01-02", "2025-03-31"), **overrides: Any
+            ) -> dict[str, Any]:
+    measures = measures if measures is not None else [{"column": "volume", "function": "SUM", "as": "volume_sum"},
+                                                      {"column": None, "function": "COUNT", "as": "row_count"}]
+    spec = extraction(columns=(*group_by, *(m["as"] for m in measures)), window=window)
+    spec["aggregate"] = {"group_by": list(group_by), "measures": measures}
+    spec.update(overrides)
+    return spec
+
+
+def test_a_summary_is_grouped_by_its_keys_computed_first_and_then_ordered() -> None:
+    bound = bind(summary(), summary_contract())
+    assert bound.entity_column is None and bound.order_by == [("date", "ASC")]
+    assert [c["name"] for c in bound.columns] == ["date", "volume_sum", "row_count"]
+    text = ex.compile_extraction(bound, 1001).text
+    assert text.startswith('WITH "summary" AS MATERIALIZED (SELECT "t0"."date" AS "date", sum("t0"."volume") AS '
+                           '"volume_sum", count(*) AS "row_count" FROM')
+    assert 'GROUP BY "t0"."date") SELECT * FROM "summary" ORDER BY "date" ASC LIMIT' in text
+    counting = ex.compile_extraction(bound, 1001, ordered=False).text  # G15 count form: no CTE, no sort
+    assert "WITH" not in counting and "ORDER BY" not in counting and 'GROUP BY "t0"."date" LIMIT' in counting
+    executed = ex.executed_scope(bound)
+    assert executed["aggregate"] == {"group_by": ["date"], "measures": [
+        {"column": "volume", "function": "SUM", "as": "volume_sum"}, {"column": None, "function": "COUNT",
+                                                                       "as": "row_count"}]}
+    assert "aggregate" not in ex.executed_scope(bind(extraction()))  # a raw extraction's scope is unchanged
+
+
+@pytest.mark.parametrize("spec, code", [
+    (summary(measures=[{"column": "close", "function": "SUM", "as": "close_sum"}]), "AGGREGATION_NOT_ADDITIVE"),
+    (summary(measures=[{"column": "ticker", "function": "MAX", "as": "m"}]), "AGGREGATION_NOT_ALLOWED"),
+    (summary(measures=[{"column": "volume", "function": "COUNT_DISTINCT", "as": "m"}]), "AGGREGATION_NOT_ALLOWED"),
+    (summary(measures=[{"column": "volume", "function": "COUNT", "as": "m"}]), "AGGREGATE_INVALID"),
+    (summary(measures=[{"column": None, "function": "COUNT", "as": "close"}]), "AGGREGATE_INVALID"),
+    (summary(group_by=("ticker",)), "AGGREGATE_TIME_REQUIRED"),
+    (summary(group_by=("ticker", "date")), "AGGREGATE_NOT_NEEDED"),
+    (summary(group_by=("date", "volume")), "AGGREGATE_GROUP_BY_NOT_ALLOWED"),
+    (summary(columns=["volume_sum", "date", "row_count"]), "AGGREGATE_COLUMNS_MISMATCH"),
+    (summary(entity_partition={"modulus": 2, "remainder": 0}), "ENTITY_PARTITION_NOT_POSSIBLE"),
+    (summary(order_by=[{"column": "volume_sum", "direction": "DESC"}]), "ORDERING_COLUMN_INVALID"),
+])
+def test_a_summary_is_rechecked_against_the_catalog(spec, code) -> None:
+    """The Governor does not trust the sandbox's approval: every rule is derived again from its own contract."""
+    with pytest.raises(ex.ExtractStop) as caught:
+        bind(spec, summary_contract())
+    assert (caught.value.status, caught.value.code) == ("REJECTED_POLICY", code)
+
+
+def test_a_summary_that_dropped_the_entity_is_split_by_date_never_by_entity() -> None:
+    """An entity split would cut each group into partial sums; only a split along a kept key is exact."""
+    limits = ex.Limits(max_scan_rows=10_000, max_result_rows=100, max_plan_cost=1e9, max_window_days=4000,
+                       max_parts=64)
+    grouped = bind(summary(window=("2025-01-02", "2025-12-31")), summary_contract())
+    decision = ex.partitioning(grouped, ex.Estimates(1000, 450, 10), limits, set())
+    assert decision.details["partitioning"]["kind"] == "DATE"
+    one_day = bind(summary(window=("2025-01-02", "2025-01-02")), summary_contract())
+    assert ex.partitioning(one_day, ex.Estimates(1000, 450, 10), limits, set()).status == "REJECTED_ROW_LIMIT"
+
+
+@pytest.fixture
+def volume_rule(governed_db):
+    """A synthetic SUM rule on volume across tickers in the test catalog (the column exists on dev since
+    20260927_005; the test database may lack it)."""
+    present = admin(governed_db, "SELECT 1 FROM information_schema.columns WHERE table_name = 'AI_column_catalog' "
+                                 "AND column_name = 'cross_entity_aggregation'")
+    if not present:
+        admin(governed_db, 'ALTER TABLE public."AI_column_catalog" ADD COLUMN cross_entity_aggregation text')
+    admin(governed_db, 'UPDATE public."AI_column_catalog" SET cross_entity_aggregation = \'SUM\' '
+                       "WHERE table_name = %s AND column_name = 'volume'", (PRICE,))
+    yield
+    if present:
+        admin(governed_db, 'UPDATE public."AI_column_catalog" SET cross_entity_aggregation = NULL '
+                           "WHERE table_name = %s AND column_name = 'volume'", (PRICE,))
+    else:
+        admin(governed_db, 'ALTER TABLE public."AI_column_catalog" DROP COLUMN cross_entity_aggregation')
+
+
+def test_a_summary_extraction_equals_the_same_summary_computed_independently(governed_db, tmp_path,
+                                                                             volume_rule) -> None:
+    ext = extractor(governed_db, tmp_path)
+    spec = summary(window=("2025-01-02", "2025-03-31"))
+    outcome = submit(ext, spec)
+    rows = rows_of(ext, outcome)
+    expected = admin(governed_db, 'SELECT date, sum(volume), count(*) FROM public."Price_Stock_Indonesia_IDX" '
+                                  "WHERE date BETWEEN '2025-01-02' AND '2025-03-31' GROUP BY date ORDER BY date")
+    assert len(rows) == len(expected) > 1
+    assert [(r["date"], float(r["volume_sum"]), r["row_count"]) for r in rows] == \
+        [(d, float(v), n) for d, v, n in expected]
+    manifest = manifest_of(ext, outcome)
+    measures = {c["name"]: c for c in manifest["schema"]}
+    assert measures["volume_sum"]["aggregation"] == "SUM" and measures["volume_sum"]["source_column"] == "volume"
+    assert measures["row_count"]["aggregation"] == "COUNT" and measures["row_count"]["type"] == "bigint"
+    assert manifest["executed_scope"]["aggregate"]["group_by"] == ["date"]
+    assert manifest["entities_present_count"] is None  # the entity was summed away
+    refused = submit(ext, summary(measures=[{"column": "close", "function": "SUM", "as": "close_sum"}]))
+    assert (refused["status"], refused["code"]) == ("REJECTED_POLICY", "AGGREGATION_NOT_ADDITIVE")

@@ -56,6 +56,9 @@ WHERE left_table = 'Feature_02_Broker_Rolling' AND right_table = 'Feature_03_Sto
 ALTER TABLE public."AI_column_catalog" ADD COLUMN resample_aggregation text;
 UPDATE public."AI_column_catalog" SET resample_aggregation = 'SUM'
 WHERE table_name = 'Feature_02_Broker_Rolling' AND column_name = 'net_value_1d';
+ALTER TABLE public."AI_column_catalog" ADD COLUMN cross_entity_aggregation text;
+UPDATE public."AI_column_catalog" SET cross_entity_aggregation = 'SUM'
+WHERE table_name = 'Feature_02_Broker_Rolling' AND column_name IN ('net_value_1d', 'net_value_20d');
 '''
 EXTRA_TABLES = 55
 EXTRA_FORMULAS = 60
@@ -186,6 +189,9 @@ def test_columns_carry_resample_rules_permissions_and_completeness(migrated_db: 
     assert columns["net_value_20d"]["resample_aggregation"] is None  # recorded as NULL, shown as null
     assert columns["net_value_20d"]["filter_allowed"] is True and columns["net_value_20d"]["unit"] == "IDR"
     assert "never assume LAST" in section["null_meaning"]
+    # G18: the direction rule a summary across entities follows is shown, and the directionless list is named as such
+    assert columns["net_value_20d"]["cross_entity_aggregation"] == "SUM"
+    assert "does not permit a sum" in section["aggregation_rules"]
     assert section["completeness"]["Feature_02_Broker_Rolling"] == {
         "columns_returned": 2, "columns_total": 2, "complete": True}
     summary = [c["column_name"] for c in section["by_table"]["IDX_Broker_Summary"]]
