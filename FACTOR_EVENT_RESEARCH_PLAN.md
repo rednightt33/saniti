@@ -67,6 +67,33 @@ Dua kekurangan yang disiapkan di rencana ini:
 | Untuk event study saja? | Ya | Tidak, semua jenis hipotesis | **Tidak**, semua jenis hipotesis; event study hanya salah satu metodenya |
 | Status | Belum ada (rencana ini) | Kode ada dan berbasis DataNeed, tapi tidak aktif: satu saklar (`AI_ENABLE_MULTI_ANGLE_RESEARCH`) memilih G3 **atau** G4, tidak keduanya | Aktif |
 
+**Hubungan antar G (arahan user 2026-10-02):** G2, G3 dan G4 adalah **alat yang berdiri sendiri** dan bisa dipakai
+**bersamaan, saling melengkapi** hasil masing-masing. G3 bukan alat penguji G2 atau G4. Contoh dalam satu percakapan:
+- G4 menguji 4 hipotesis beragam;
+- G2 mengukur dampak event yang muncul dari temuan itu;
+- G3 menguji hipotesis lain yang dirumuskan AI sendiri di luar perpustakaan metode.
+
+Setiap alat juga bisa dipakai sendirian. Rancangan teknisnya:
+- tidak ada alat yang mewajibkan alat lain;
+- hasil masing-masing dicatat di catatan percakapan (temuan, `MODE4_CONVERSATION_PLAN.md` E1) sehingga alat lain dan
+  jawaban berikutnya bisa merujuknya;
+- buku percobaan menghitung uji dari ketiganya.
+
+**Sandbox bisa menghitung semuanya; yang berbeda adalah siapa yang memeriksa** (koreksi 2026-10-02 atas analogi
+"kalkulator" sebelumnya). Rata-rata pasar, peringkat harian, breadth dan relatif sektor bisa dihitung AI di sandbox
+(pandas/DuckDB) di semua alat. Tingkat pemeriksaannya:
+
+| Cara | Siapa menghitung | Diperiksa backend |
+|---|---|---|
+| Analisis biasa (`run_python`) | AI | Asal angka (gerbang provenance) dan cakupan data; rumus tidak (`calculation_validation: NOT_PERFORMED`, `DATANEED_ARCHITECTURE.md`) |
+| G3 (`event_summary`) | AI | Statistik dari agregat per tanggal; rumus tidak |
+| G4 FRAME | AI | Statistik; rumus tidak |
+| G4 DECLARATIVE | Backend dari deklarasi | Rumus dan statistik |
+
+S20 **bukan** syarat agar hitungan lintas saham bisa dilakukan. S20 adalah **peningkatan pemeriksaan**: hitungan
+lintas saham ikut diperiksa rumusnya oleh backend (DECLARATIVE). Tanpa S20 semuanya tetap bisa jalan di tingkat
+"statistik diperiksa, rumus tidak".
+
 **Konsekuensi untuk rencana:**
 - **G3 dibangun ulang sebagai jalur sendiri di samping G4**, bukan dilebur ke G4 dan bukan lewat perpustakaan metode.
   Yang perlu dikerjakan: G3 dan G4 bisa aktif bersamaan (saklar menjadi pilihan per rencana, bukan per deployment),
@@ -218,16 +245,14 @@ aktif (G4) dengan fungsi per entitas yang sudah ada.
 
 | Risiko | Dampak (non-dev) | Contoh | Mitigasi bila varian dipilih |
 |---|---|---|---|
-| R1. Event study tanpa pembanding pasar | Pola yang terlihat sebenarnya gerakan seluruh pasar. Ini kesalahan utama yang ingin dihindari metode MacKinlay | "Saham bank naik 5 hari setelah crash" padahal semua saham naik (pantulan pasar) | Model RAW/CONSTANT_MEAN diberi label tegas di hasil ("tidak dibandingkan pasar"); gerbang jawaban melarang kata "abnormal" / "di atas pasar" tanpa benchmark |
-| R2. Pertanyaan tingkat pasar tetap lewat FRAME | Rumus event dan benchmark dibuat AI dengan Python bebas, backend hanya memeriksa statistiknya; salah rumus tidak ketahuan | m01: 2 dari 4 angle (crash_rebound, fall_depth) memang FRAME | Tingkat pemeriksaan FRAME ditulis di jawaban; jumlah angle FRAME diukur tiap suite |
+| R1. Pembanding pasar dihitung AI, tidak diperiksa rumusnya | Return abnormal tetap bisa: AI menghitung rata-rata pasar di sandbox lalu menyerahkannya sebagai tabel (FRAME, atau G3). Kalau AI salah rumus (mis. saham suspensi ikut dirata-rata, tanggal bergeser satu hari), backend tidak tahu; statistiknya tetap diperiksa | crash_rebound dan fall_depth di m01 | Tingkat pemeriksaan per angka ditulis di jawaban; jumlah angle FRAME diukur; S20 menaikkan tingkat pemeriksaan nanti |
+| R2. Model RAW dipilih karena lebih mudah | Bila AI tidak membangun benchmark sendiri, event study memakai return mentah dan pola pasar bisa terbaca sebagai keistimewaan saham | "Saham bank naik setelah crash" padahal semua saham naik | Label model di setiap hasil; gerbang jawaban melarang "abnormal" / "di atas pasar" tanpa benchmark; instruksi metode menganjurkan benchmark |
 | R3. Godaan jalan pintas yang di-hardcode | Untuk menutup R1, muncul "rata-rata pasar bawaan" di dalam event study. Itu S20 versi sempit, dan nanti ada dua implementasi berbeda | Benchmark bawaan sama bobot yang diam-diam dipakai | Tidak membuat benchmark bawaan. Kalau dibutuhkan, dibuat sebagai fungsi internal yang nanti dibuka oleh S20 (satu jalur kode) |
 | R4. Sebagian angle G4 turun kelas | Hanya angle G4 yang butuh agregat lintas saham (rata-rata pasar, breadth, relatif sektor) yang jatuh ke FRAME atau tidak bisa dibuat; angle lain (peringkat lintas saham, lead-lag, streak, perbandingan kelompok) tidak terdampak. G3 tidak terdampak karena AI menghitung sendiri (statistik tetap diperiksa) | Pertanyaan tingkat pasar seperti m01 | Tidak ada angle pengisi; jumlah layak dilaporkan; tingkat pemeriksaan per angle ditulis di jawaban |
 | R5. Kerja ulang | Saat S20 masuk, deklarasi benchmark, test dan deskripsi metode diperluas lagi | Migrasi `AI_research_library` dua kali | Skema benchmark sejak awal sudah menyediakan tempat untuk bentuk lintas entitas (ditolak dengan pesan jelas sampai S20 ada) |
 | R6. Ekspektasi user | Fitur "event study" ada, tapi jawaban crash tetap memakai return mentah | User membaca CAR sebagai return abnormal | Label model di setiap angka (R1) |
 
-**Penilaian:** G3 (jalur hipotesis bebas, bagian 2c) aman dibangun tanpa S20. Untuk G2, varian ini memberi event study yang benar untuk event per saham,
-tapi tidak untuk pertanyaan pasar dan sektor. Padahal pertanyaan pasar adalah sebagian besar pertanyaan seperti m01,
-dan R1 adalah jenis kesalahan yang paling sering terjadi di event study.
+**Penilaian (direvisi 2026-10-02):** G2, G3 dan G4 bisa dibangun tanpa S20. Hitungan lintas saham dilakukan AI di sandbox, dengan tingkat pemeriksaan "statistik diperiksa, rumus tidak". S20 meningkatkan pemeriksaan untuk hitungan itu dan bisa menyusul tanpa memblokir G2/G3/G4.
 
 ## 10. Risiko dan mitigasi
 
