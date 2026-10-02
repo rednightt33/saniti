@@ -1,5 +1,24 @@
 # Railway changelog
 
+## 2026-10-02 — C06 TEMPORARY: coverage job twice a day; D02 read-only preflight
+
+Plan `HIGH_ALERT_IMPLEMENTATION_PLAN.md`, step 1, approved by the user.
+
+- **ai-data-coverage cron:** `30 0 * * *` → `30 0,10 * * *`, i.e. 07:30 and 17:30 WIB. The 17:30 run follows the
+  daily price load (about 10:06 UTC) and the Feature 01 calculation (about 10:08 UTC).
+  - Applied through a reviewed pinned plan (`railway config plan --verbose --out`, then `railway config apply --plan`;
+    1 change, safe, deploy effect).
+  - Deployment `c3144f5b` reached `SUCCESS`.
+  - `railway config pull --force` and `railway config plan`: up to date.
+  - TEMPORARY until the loaders refresh coverage themselves (plan step 1a, permanent part).
+  - The 23:00 UTC recovery run is still covered only by the morning run.
+- **Temporary job `d02-check-job`:** read-only (`default_transaction_read_only`, `statement_timeout` 60 s); the only
+  variable was a `DATABASE_URL` reference to `Postgres`.
+  - Deployment `e8afdd3f` `SUCCESS`; the service was deleted afterwards (absent from the service list).
+  - Result: `0` in Sector and Industry for XCID, XCIS and XSPI in `IDX_Stock_Universe` (3),
+    `Universe_Equity_Description` (3) and `IDX_Stock_Universe_History` (3), plus 3,365 rows of
+    `Feature_01_Stock_Daily`.
+
 ## 2026-10-02 — orc-test-runner: audit readback for M63 (no questions sent)
 
 - orc-test-runner `31e7e507` `SUCCESS`, `audit_only` with `audit_full_trace`. The scratch suite held only the request

@@ -122,7 +122,7 @@ export default defineRailway(() => {
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/ai-data-coverage/**"] },
     start: "python coverage_job.py --mode nightly",
     replicas: { "sfo": 1 },
-    deploy: { cronSchedule: "30 0 * * *", restartPolicyType: "NEVER" },
+    deploy: { cronSchedule: "30 0,10 * * *", restartPolicyType: "NEVER" },
     env: { DATABASE_URL: preserve() },
   });
   const feature01Worker = service("feature-01-worker", {

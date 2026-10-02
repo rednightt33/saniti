@@ -25,6 +25,27 @@ menyatukannya menjadi urutan kerja.
 - Catatan di `ERRORS_AND_SOLUTIONS.md`, `RAILWAY_CHANGELOG.md`, `DATABASE_CHANGELOG.md`, dan README service.
 - Tidak mengubah AI_MODEL / AI_MODEL_2 / switch.
 
+## Progres (dihentikan karena mode rencana diaktifkan lagi oleh user)
+
+- **Sudah:**
+  - rencana disimpan di repo (`HIGH_ALERT_IMPLEMENTATION_PLAN.md`, commit `c5a04cf`);
+  - 1a-TEMPORARY sudah live: cron ai-data-coverage diubah menjadi `30 0,10 * * *` lewat pinned plan
+    (`railway config apply --plan`, 1 perubahan, aman). Deploy `c3144f5b` SUCCESS. `railway config pull --force` dan
+    `railway config plan` menunjukkan tidak ada drift;
+  - preflight D02 lewat job read-only sementara `d02-check-job` (deployment `e8afdd3f`), sudah dihapus.
+- **Belum di-commit:** `.railway/railway.ts` (baris cron). Entri `RAILWAY_CHANGELOG.md` untuk cron dan job sementara
+  belum ditulis. Keduanya jadi pekerjaan pertama setelah rencana disetujui lagi.
+- **Hasil preflight D02:** nilai `0` ada di **Sector dan Industry** untuk 3 ticker yang sama (XCID, XCIS, XSPI):
+
+  | Tabel | Baris berisi `0` |
+  |---|---|
+  | `IDX_Stock_Universe` | 3 |
+  | `Universe_Equity_Description` | 3 |
+  | `IDX_Stock_Universe_History` | 3 (riwayat, tidak diubah) |
+  | `Feature_01_Stock_Daily` (`sector`, `industry`) | 3.365 |
+
+- **Keputusan user (jawaban AskUserQuestion):** "Sector + Industry, semua". Langkah 1d diperluas, lihat bawah.
+
 ## Ringkasan untuk user (bahasa non-dev)
 
 | No | Apa yang dibereskan | Hasil yang terlihat |
@@ -99,14 +120,22 @@ menyatukannya menjadi urutan kerja.
 
 ### 1d. D02: "0" → "Undefined"
 
-1. **Preflight (job sementara, read-only):** hitung baris `Sector = '0'` di `IDX_Stock_Universe`,
-   `Universe_Equity_Description`, `Feature_01_Stock_Daily.sector` dan `IDX_Stock_Universe_History`. Catat ticker-nya.
-2. **Forward migration** `database/migrations/20261003_001_sector_placeholder_undefined.sql`:
-   - pola `20260907_001`: BEGIN, guard `DO $check$` jumlah baris, UPDATE `'0'` → `'Undefined'` di universe dan
-     description, COMMIT;
-   - trigger `reference_history_capture` mencatat perubahan;
-   - Feature_01 hanya disentuh bila preflight menemukan nilai di sana; tabel Feature dikunci, jadi pakai jalur ubah
-     yang diizinkan atau dicatat sebagai kandidat terpisah.
+1. **Preflight:** SELESAI (lihat "Progres").
+2. **Forward migration** `database/migrations/20261003_001_classification_placeholder_undefined.sql`:
+   - Pola `20260907_001`: BEGIN; guard `DO $check$` memastikan jumlah baris tepat sama dengan preflight (3 / 3 / 3.365,
+     ticker XCID/XCIS/XSPI); UPDATE `'0'` → `'Undefined'` untuk `Sector` dan `Industry` di `IDX_Stock_Universe` dan
+     `Universe_Equity_Description`, serta `sector` dan `industry` di `Feature_01_Stock_Daily`; COMMIT.
+   - `IDX_Stock_Universe_History` tidak diubah: trigger `reference_history_capture` menambah versi baru, dan versi lama
+     `0` tetap sebagai riwayat.
+   - **Sebelum menulis migrasi, dicek read-only:**
+     - trigger atau aturan di `Feature_01_Stock_Daily` yang bisa menolak UPDATE langsung (migrasi `20260912_001`
+       memakai advisory lock refresh);
+     - apakah UPDATE universe memicu antrean hitung ulang Feature 01 (trigger antrean di `Feature_Calculation_Queue`).
+
+     Bila hitung ulang otomatis sudah menangani Feature_01, UPDATE langsung di Feature_01 tidak dilakukan; hitung ulang
+     dibiarkan berjalan lalu hasilnya diverifikasi.
+   - Dijalankan lewat job sementara: DRYRUN dulu (rollback), lalu APPLY, dibaca balik, dan job dihapus. Pola sama
+     dengan `wa-explain-job`.
 3. **Metadata:**
    - Column_Catalog `Sector`: arti "Undefined" (keputusan user 2026-10-02);
    - `DATABASE_CHANGELOG.md`;
