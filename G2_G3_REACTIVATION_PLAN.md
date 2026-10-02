@@ -1,6 +1,6 @@
 # Rencana: menghidupkan kembali G2 (event study) dan G3 (uji hipotesis bebas), lalu golden test 5 soal
 
-Status: rencana, belum dijalankan (2026-10-02). Keputusan user 2026-10-02 (diperbarui: bagian 4 dan 4b):
+Status: **FINAL (2026-10-02)**, belum dijalankan; menunggu satu keputusan (bagian 10 butir 3). Keputusan user 2026-10-02:
 - G2 dan G3 dihidupkan kembali;
 - keduanya bisa berdiri sendiri atau saling melengkapi;
 - yang disesuaikan adalah arsitektur dan kode G2/G3 agar cocok dengan infrastruktur sekarang (DataNeed, sesi
@@ -105,55 +105,72 @@ Terkait:
 - Harness menghitung ulang statistik dari agregat per tanggal (`research_findings` v1 + `research_stats`).
 - Label hasil: **STATISTICS_VERIFIED** (rumus buatan AI tidak dicek, ditulis jelas).
 
-## 4b. Bagaimana AI tahu alat apa saja yang ada (keputusan user: lewat `get_system_capabilities`)
+## 4b. Bagaimana AI tahu alat apa saja yang ada dan cara memakainya (FINAL 2026-10-02)
 
-**Kondisi sekarang (dicek di kode):**
-- `get_system_capabilities` (orc `app/tools/system.py`) hanya mengembalikan tanda ya/tidak per kemampuan
-  (`catalog_discovery`, `python_analysis`, …) dan **daftar nama alat**. Tidak ada metode analisis, helper sesi, event
-  study, jalur hipotesis, maupun kapan memakainya.
-- AI mengetahui helper sesi dari hasil `open_analysis_session` (daftar tanda tangan fungsi, `app/sessions.py`
-  `HELPERS`), ditambah `event_summary` di `extra_helpers`. Itu hanya nama; aturan pakainya ada di prompt riset v1, yang
-  sekarang mati.
-- AI mengetahui metode G4 dari `get_research_library`, dan hanya saat menyusun rencana riset.
+### 4b-1. Kondisi sekarang (dicek di kode)
 
-**Perubahan:** `get_system_capabilities` mengembalikan bagian baru `analysis_methods`, **dibangkitkan dari registri
-kode**, bukan ditulis tangan:
-- helper sesi (dari daftar helper sandbox lewat `GET /v1/runtime`), masing-masing dengan satu kalimat kegunaan dari
-  docstring-nya;
-- G2 `event_study`: kegunaan, tempat dipakai (sesi analisis dan riset), dan label pemeriksaannya;
-- G3 rencana v1 dan G4 rencana v2: kapan dipakai, label pemeriksaan, batas anggaran;
-- metode G4 (ringkas, rinciannya tetap di `get_research_library`);
-- tingkat pemeriksaan tiap jalur (tabel di `FACTOR_EVENT_RESEARCH_PLAN.md` 2c).
+- Setiap panggilan model adalah satu request OpenRouter `POST /responses` (orc `_payload`) berisi `instructions`
+  (system prompt), `tools` (7–14 alat per tahap, dengan deskripsi dan skema) dan `input` (percakapan run dan semua hasil
+  alat). `store: false`: OpenRouter dan DeepSeek tidak menyimpan apa pun. Pengetahuan AI tentang alat hanya yang ada di
+  request itu.
+- `get_system_capabilities` hanya mengembalikan tanda ya/tidak per kemampuan dan daftar nama alat.
+- Helper sandbox, G2 dan G3 adalah fungsi di dalam sandbox, bukan alat API. AI hanya melihat namanya saat sesi dibuka
+  (`HELPERS`, `extra_helpers`). Aturan `event_summary` ada di prompt riset v1, yang sekarang mati.
+- Manual hanya ada untuk G4 (`get_research_library`), saat menyusun rencana riset.
 
-Ini sejalan dengan `VALUE_DICTIONARY_PLAN.md` 5.4c: `get_system_capabilities` dijalankan sistem di awal setiap run,
-jadi AI selalu melihat daftar ini. Ada test konsistensi: setiap helper atau metode yang terdaftar di kode muncul di
-`analysis_methods`, dan sebaliknya.
-
-### 4b-2. Benchmark cara AI mengetahui alat (2026-10-02)
+### 4b-2. Benchmark
 
 | Praktik | Sumber | Inti |
 |---|---|---|
-| Deskripsi alat berorientasi **kapan dipakai** | OpenAI function calling guide; Anthropic *Writing effective tools* | Deskripsi menyebut skenario pemakaian, batas, dan bentuk hasil, bukan sekadar fungsi; tanpa kata kunci yang tumpang tindih antar alat |
-| Jumlah alat per giliran kecil | OpenAI (< ~20 alat untuk akurasi); Anthropic Tool Search (3–5 alat utama selalu dimuat, sisanya dicari) | Alat yang tidak relevan untuk tahap itu tidak ditawarkan |
-| **Progressive disclosure** | Anthropic Agent Skills | Lapis 1: nama + deskripsi singkat (~100 token) **selalu** di konteks. Lapis 2: petunjuk lengkap dimuat saat dibutuhkan. Lapis 3: file atau contoh saat eksekusi |
-| Penemuan alat terstandar | Model Context Protocol (`tools/list`, `search_tools`) | Daftar dibangkitkan dari server (kode), bukan ditulis ulang di prompt |
+| Deskripsi berorientasi kapan dipakai | OpenAI function calling guide; Anthropic *Writing effective tools* | Situasi pemakaian, batas, bentuk hasil; tanpa tumpang tindih antar alat |
+| Sedikit alat per langkah | OpenAI (< ~20); Anthropic Tool Search | Hanya alat relevan per tahap (kita sudah 7–14) |
+| Progressive disclosure | Anthropic Agent Skills | Lapis 1 menu selalu dimuat; lapis 2 manual (SKILL.md) dibuka saat relevan; lapis 3 contoh saat eksekusi. Di belakang layar manual dibaca lewat panggilan alat dan masuk konteks sebagai hasil alat |
+| Daftar dari sistem | Model Context Protocol (`tools/list`) | Dibangkitkan dari server, bukan ditulis ulang |
 
-**Kondisi kita dibanding benchmark:**
-- Jumlah alat per giliran sudah sesuai: 7–14, disaring per tahap (log `ai_model_call.tools_offered`, run
-  `ma-reason-20261001b`).
-- **Lapis 1 belum ada untuk metode analisis.** Helper sandbox, G2 dan G3 adalah fungsi di dalam sandbox, bukan alat
-  API, jadi tidak ikut daftar alat. AI hanya melihat namanya saat sesi dibuka.
-- Lapis 2 hanya ada untuk G4 (`get_research_library`).
-- Lapis 3 (penolakan dengan langkah berikut) sudah berjalan.
+### 4b-3. Desain final
 
-**Penyesuaian rancangan 4b:**
-1. **Lapis 1, selalu terlihat:** `analysis_methods` di `get_system_capabilities` dijalankan sistem di awal setiap run
-   (VALUE_DICTIONARY_PLAN 5.4c). Setiap entri ditulis berorientasi skenario ("pakai saat user bertanya dampak suatu
-   kejadian …"), dibangkitkan dari kode, singkat, dan saling eksklusif antara G1/G2/G3/G4.
-2. **Lapis 2, sesuai kebutuhan:** `get_research_library` diperluas menjadi panduan metode untuk semua jalur (helper,
-   G2, G3, G4), dibangkitkan dari docstring dan baris perpustakaan. Nama alat ditetapkan saat implementasi.
-3. **Lapis 3:** pesan penolakan G2 dan G3 dengan langkah berikut, mengikuti pola `allowed_actions`.
-4. **Diukur:** golden test mencatat alat yang dipilih AI per soal dibanding alat yang semestinya.
+**Lapis 1: menu (selalu ada).**
+- `get_system_capabilities` ditambah bagian `analysis_methods`.
+- Isinya: G1 kode bebas, G2 event study, G3 hipotesis bebas, G4 multi-angle, dan setiap helper sandbox. Per entri:
+  nama, satu kalimat **kapan dipakai** dan **kapan tidak**, tingkat pemeriksaan (tabel di
+  `FACTOR_EVENT_RESEARCH_PLAN.md` 2c), dan versi manualnya.
+- Dibangkitkan dari registri kode, lewat `GET /v1/runtime` sandbox untuk helper dan metode.
+- Sistem menjalankannya otomatis di awal setiap run (`VALUE_DICTIONARY_PLAN.md` 5.4c), dan hasilnya masuk `input`.
+
+**Lapis 2: buku manual per metode (dibuka saat perlu).**
+- Alat `get_method_guide(nama)` menggantikan dan memperluas `get_research_library` (alias lama tetap berlaku untuk G4).
+- Isi kartu manual:
+  1. untuk apa, kapan dipakai dan kapan tidak;
+  2. masukan (peran dan parameter);
+  3. batasan (minimal event, aturan overlap, kolom yang boleh dijumlah menurut katalog, anggaran hipotesis);
+  4. tingkat pemeriksaan: apa yang dicek sistem dan apa yang tidak (S23);
+  5. hasil dan cara mengutipnya (`out.oN`, `finding.<id>`);
+  6. kesalahan umum dari log nyata (S15, S21, P22, …).
+- **Penyimpanan:**
+  - parameter, default dan batasan dibangkitkan dari kode;
+  - panduan teks disimpan berversi di database dengan hash, pola `AI_research_library`;
+  - test gagal bila manual dan kode tidak sinkron.
+
+**Lapis 3: contoh (ikut di manual).**
+- Satu atau dua contoh lengkap per metode.
+- Setiap contoh **dijalankan di test**, jadi dijamin masih bekerja.
+
+**Manual yang sudah dibuka dibawa sepanjang percakapan.**
+- Catatan percakapan (`data_record`) mendapat bagian baru `manuals`: nama metode, versi, hash, dan isi kartu.
+- **Antar sub-langkah mode 4** (A → B → C → D) dan **antar giliran percakapan**, manual yang pernah dibuka
+  disuntikkan otomatis di awal run berikutnya, di sebelah menu. AI tidak perlu membukanya lagi.
+- **Versi:** bila manual di kode berubah (hash beda), versi baru yang disuntikkan, dan catatan diperbarui.
+- **Ukuran:** kartu ditulis ringkas (target per kartu ditetapkan saat implementasi dan diukur). Bila jumlah kartu
+  melewati batas catatan, yang paling lama tidak dipakai diringkas menjadi menu + "buka lagi dengan
+  `get_method_guide`", dengan penanda yang terlihat (pola P5, tidak dipotong diam-diam).
+- Disimpan bersama catatan data di `AI_conversation.state`, ikut di respons API dan audit (pola M47).
+
+**Lapis tambahan: umpan balik saat salah.**
+- Penolakan G2 dan G3 menyebut alasan dan langkah berikutnya (pola `allowed_actions`).
+
+**Pengukuran.**
+- Golden test mencatat metode yang dipilih AI per soal dibanding metode yang semestinya.
+- Juga dicatat: berapa kali manual dibuka, dan token tambahan per run.
 
 ## 4c. Istilah G1–G4 (disepakati 2026-10-02)
 
@@ -220,7 +237,8 @@ Saklar pikiran (`AI_CAPTURE_REASONING`) menyala, supaya kesalahan bisa ditelusur
 1. S21 + P22 (kecil; sandbox dan orc).
 2. **G2-A:** helper `event_study` + pemeriksa independen + CI per tanggal (sandbox), lalu render dan label (orc).
 3. **G3:** rencana v1 berdampingan dengan v2 (orc: prompt, skema, kelanjutan; sandbox: keduanya aktif bersamaan).
-3b. **`get_system_capabilities` + `analysis_methods`** (bagian 4b), sebelum uji live.
+3b. **Menu, manual dan contoh** (bagian 4b-3): `analysis_methods`, `get_method_guide`, kartu manual G1–G4 dan helper,
+    manual dibawa lewat catatan percakapan; sebelum uji live.
 4. Uji live singkat G2 dan G3 masing-masing sendiri, lalu bersama (saklar pikiran menyala).
 5. **Golden test 5 soal.**
 6. Sesudahnya, sesuai hasil golden test: G2-B (jalur event, return abnormal), S20, router mode 4, minimal 4 hipotesis.
@@ -243,9 +261,12 @@ Setiap langkah:
 | Uji makin banyak, peluang kebetulan naik | G2 + G3 + G4 dalam satu rencana | Koreksi menghitung semua uji di rencana; holdout |
 | Golden test terlalu kecil | 5 soal bukan ukuran statistik akurasi | Disebut sebagai baseline awal; soal ditambah setelah fitur berikutnya |
 | Waktu run | Pemeriksa independen menambah waktu penyelesaian | Diukur; pemeriksa hanya berjalan untuk output event study |
+| Token bertambah karena manual dibawa | Setiap manual yang dibuka ikut di setiap panggilan berikutnya | Kartu ringkas; prompt caching (`session_id` per run); kartu lama diringkas dengan penanda; token per run diukur |
+| Manual basi | Manual tidak sesuai perilaku kode | Bagian teknis dibangkitkan dari kode; hash dan test sinkron; contoh dijalankan di test |
 
 ## 10. Keputusan yang diminta dari user
 
 1. ~~G3 sebagai `experiments` di v2 atau jalur terpisah~~: **terpisah** (keputusan user 2026-10-02).
-2. ~~Ketersediaan G2~~: AI mengetahui dan memakai alat lewat `get_system_capabilities` (bagian 4b).
+2. ~~Ketersediaan G2~~: AI mengetahui alat lewat menu `get_system_capabilities`, manual `get_method_guide` dan contoh;
+   manual yang dibuka dibawa sepanjang percakapan (bagian 4b-3, final).
 3. Lima soal golden test di bagian 7 cukup, atau ada soal yang ingin diganti?
