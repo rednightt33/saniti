@@ -177,11 +177,12 @@ class CarriedRunSandbox(RunSandbox):
         return response
 
 
-def approved_v2(record: dict[str, Any], sandbox: RunSandbox, carried: list[dict[str, Any]] | None = None):
+def approved_v2(record: dict[str, Any], sandbox: RunSandbox, carried: list[dict[str, Any]] | None = None,
+                **settings: str):
     plan = {**plan_v2(), **({"carried_inputs": carried} if carried else {})}
     issued = signer().issue(ResearchPlanV2.model_validate(plan), data_plan(), "run_001", "conv_1")
     scripted = ScriptedClient([*RUN_SCRIPT, final_response(findings_answer())])
-    runner = AgentOrchestrator(make_settings(**MA), scripted, ma_registry(sandbox), wall_clock=Clock(),
+    runner = AgentOrchestrator(make_settings(**MA, **settings), scripted, ma_registry(sandbox), wall_clock=Clock(),
                                draft_reader=lambda draft_id: None)
     result = runner.run(AgentRunRequest(request_id="run_002", conversation_id="conv_1", message="Setuju.",
                                         continuation=continuation(issued, the_plan=copy.deepcopy(plan),
@@ -275,3 +276,65 @@ def test_every_released_output_in_the_note_shows_its_label() -> None:
     note = records.note(record)
     assert "out.o1 = " + EARLIER in note and "label CALCULATION_VERIFIED" in note
     assert record["outputs"][1].get("label") is None  # an older record without labels still reads
+
+
+# ---------------------------------------------------------------- A: every released output is listed
+
+def test_every_released_output_gets_its_ref_also_beyond_the_preview_and_charts() -> None:
+    """A (user decision 2026-10-02): the preview shows the first ten tables, JSON and text and never a chart; before,
+    only previewed outputs got a ref and a data-record entry, so the eleventh table and every chart were lost to the
+    answer and to later turns."""
+    from app.orchestrator import CONTENTS_NOT_SHOWN_NOTE, RunState
+    from app.tools import ToolOutcome
+    from app.value_refs import render
+    from test_value_references import tracker
+
+    session = "sess_" + "1" * 24
+    ids = [f"out_{i:024d}" for i in range(13)]
+    released = [{"output_id": ids[i], "name": f"t{i}", "type": "TABLE", "row_count": 3,
+                 "columns": [{"name": "ticker", "type": "VARCHAR"}, {"name": "ret", "type": "DOUBLE"}]}
+                for i in range(12)] + [{"output_id": ids[12], "name": "trend", "type": "CHART"}]
+    contents = [{"output_id": ids[i], "name": f"t{i}", "type": "TABLE", "row_count": 3,
+                 "rows": [{"ticker": "BBCA", "ret": 0.01 * i}], "truncated": True} for i in range(10)]
+    reads: list[tuple] = []
+
+    def reader(session_id, output_id, request_id, offset, limit):
+        reads.append((session_id, output_id, offset))
+        return {"released": True, "row_count": 3, "rows": [{"ticker": "BBRI", "ret": 0.0567}]}
+
+    state = RunState(request_id="r", started=0.0, input_items=[])
+    completion = {"result": {"status": "COMPLETED", "session_id": session, "final_status": {},
+                             "released_outputs": released, "released_contents": contents}}
+    tracker(reader)._track_references(state, "complete_analysis", ToolOutcome(
+        call_id="c", name="complete_analysis", ok=True, output=completion))
+    result = completion["result"]
+    assert [o.get("ref") for o in result["released_outputs"][10:]] == ["out.o11", "out.o12", "out.o13"]
+    assert all(o["content_shown"] is False for o in result["released_outputs"][10:])
+    assert not any("content_shown" in c for c in contents)  # the previewed ones are shown
+    assert result["contents_not_shown_note"] == CONTENTS_NOT_SHOWN_NOTE
+    recorded = {o["ref"]: o for o in state.data_record["outputs"]}
+    assert len(recorded) == 13 and recorded["out.o11"]["columns"] == ["ticker", "ret"]
+    assert recorded["out.o13"]["type"] == "CHART" and 'CHART (None rows' in records.note(state.data_record)
+    # a row of a table whose content was not shown is read on demand, from its own session
+    out = render("BBRI {{out.o11.rows[ticker=BBRI].ret|pct:2}}", state.ref_sources)
+    assert out.text == "BBRI 5,67%" and out.problems == [] and reads[0][:2] == (session, ids[10])
+
+
+def test_a_research_run_lists_its_released_outputs_with_refs() -> None:
+    sandbox = RunSandbox()
+    original = sandbox.handler
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        response = original(request)
+        if request.url.path.endswith("/complete"):
+            body = json.loads(response.content)
+            session = request.url.path.split("/")[3]
+            body["released_outputs"] = [{"output_id": "out_" + session[-24:], "name": f"in_{session[-2:]}",
+                                         "type": "TABLE", "row_count": 5}]
+            return httpx.Response(200, json=body)
+        return response
+
+    sandbox.handler = handler
+    result = approved_v2(records.empty(), sandbox, AI_ENABLE_VALUE_REFERENCES="true")
+    assert result.status == "COMPLETED", result.response
+    assert [(o["ref"], o["name"]) for o in result.data_record["outputs"]] == [("out.o1", "in_01")]

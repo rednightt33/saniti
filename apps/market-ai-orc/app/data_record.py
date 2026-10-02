@@ -135,11 +135,12 @@ def add_catalog(record: dict[str, Any], tables: dict[str, Any], request_id: str)
 
 
 def add_output(record: dict[str, Any], request_id: str, *, alias: str, output_id: str, session_id: str | None,
-               name: Any, columns: list[str], row_count: Any, label: str | None = None) -> None:
+               name: Any, columns: list[str], row_count: Any, label: str | None = None,
+               kind: str | None = None) -> None:
     outputs = [o for o in record["outputs"] if o.get("output_id") != output_id]
     outputs.append({"ref": f"out.{alias}", "output_id": output_id, "session_id": session_id, "name": name,
                     "columns": columns[:30], "row_count": row_count, "request_id": request_id,
-                    **({"label": label} if label else {})})
+                    **({"label": label} if label else {}), **({"type": kind} if kind else {})})
     record["outputs"] = outputs[-MAX_OUTPUTS:]
     record["next_alias"] = max(record.get("next_alias") or 1, _alias_number(f"out.{alias}") + 1)
 
@@ -318,7 +319,9 @@ def note(record: dict[str, Any]) -> str:
             f"{r.get('logical_name')}={r.get('source_table')}({', '.join(r.get('columns') or [])})"
             for r in n.get("requests") or []) for n in reversed(record["needs"])]),
         ("Released outputs (newest first):", [
-            f"- {o.get('ref')} = {o.get('output_id')} \"{o.get('name')}\" ({o.get('row_count')} rows; "
+            f"- {o.get('ref')} = {o.get('output_id')} \"{o.get('name')}\" "
+            + (f"{o['type']} " if o.get("type") not in (None, "TABLE") else "")
+            + f"({o.get('row_count')} rows; "
             f"{', '.join(o.get('columns') or [])}) session {o.get('session_id')}, {o.get('request_id')}"
             + (f", label {o['label']}" if o.get("label") else "")
             for o in reversed(record["outputs"])]),

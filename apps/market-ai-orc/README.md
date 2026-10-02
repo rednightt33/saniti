@@ -1183,6 +1183,11 @@ User decisions 2026-10-02 (`G2_G3_REACTIVATION_PLAN.md` step 5b; sandbox README,
   carries `label`: the sandbox's own label of the page, else CALCULATION_VERIFIED for an id in
   `final_status.verified_output_ids`, else the completion's evidence label. It is counted inside the result byte
   budget. The data record keeps the label of each released output and the note shows it.
+- **Every released output is listed (A, M60).** With value references on, every entry of `released_outputs` gets
+  its ref and a data-record entry (type, columns, rows, label), not only the previewed ones (the first 10 tables,
+  JSON and text). An output whose content is not previewed (beyond those, or a chart) is marked `content_shown: false`
+  and the result carries `contents_not_shown_note`; a table's rows are fetched on demand for value references.
+  `complete_research_run` lists the released outputs of every completed group with their `session_id`.
 - **Findings with their figures (P3).** `data_record.finding_line` shows a finding's method, status, verdict, sample
   flag and validation level, its estimate with CI and p (adjusted when present) or an angle's difference with CI and
   p, the effective sample, its tables and the IN_SAMPLE flag. The figures help interpret; an answer still cites

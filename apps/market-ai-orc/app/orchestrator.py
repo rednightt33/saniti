@@ -1230,6 +1230,12 @@ PLAN_VERSION_INSTRUCTION = {
     True: "This deployment runs research as a multi-angle Research Plan: return research_plan in its multi-angle form "
           "(plan_version, root hypothesis and angles) after check_research_feasibility, not the single-experiment form.",
     False: "This deployment does not run multi-angle Research Plans: return research_plan in its experiment form."}
+TABULAR_OUTPUTS = ("TABLE", "PARQUET", "CSV")
+CONTENTS_NOT_SHOWN_NOTE = (
+    "The released outputs marked content_shown false are listed without their content (this result previews only "
+    "the first tables, JSON and text, never a chart). Each has its ref and is in the data record: read a table or JSON "
+    "with get_session_output by its output_id before you describe it; a chart's picture is not readable, so describe "
+    "it only from the table it was drawn from.")
 CARRIED_INPUTS_INSTRUCTION = (
     "carried_inputs names tables that are not released outputs of this conversation: {unknown}. Name a table by its "
     "ref in the data record ({known}), or set carried_inputs to null.")
@@ -3177,14 +3183,19 @@ class AgentOrchestrator:
             if not (isinstance(entry, dict) and entry.get("output_id")):
                 return
             output_id = str(entry["output_id"])
+            owner = entry.get("session_id") or session_id
             registered = entry
-            if isinstance(entry.get("rows"), list):
+            listed_only = "rows" not in entry and "content" not in entry  # A: released, its content not shown
+            if isinstance(entry.get("rows"), list) or (listed_only and entry.get("type") in TABULAR_OUTPUTS):
                 table = state.ref_tables.get(output_id)
                 if table is None:
-                    table = TableRows(entry.get("row_count"), fetch=self._row_fetcher(state, session_id, output_id))
+                    table = TableRows(entry.get("row_count"), fetch=self._row_fetcher(state, owner, output_id))
                     state.ref_tables[output_id] = table
-                table.add(offset, entry["rows"], entry.get("row_count"))
+                if isinstance(entry.get("rows"), list):
+                    table.add(offset, entry["rows"], entry.get("row_count"))
                 registered = {**{k: v for k, v in entry.items() if k != "rows"}, "rows": table}
+            if listed_only:
+                entry["content_shown"] = False
             sources.add("out", output_id, registered, "CALCULATION_VERIFIED" if output_id in state.verified_outputs
                         else "DATA_COVERAGE_VERIFIED")
             # P18 (2026-10-01): the model writes a short alias, not out_ + 24 hex characters after the out. namespace
@@ -3197,24 +3208,37 @@ class AgentOrchestrator:
             rows = entry.get("rows") if isinstance(entry.get("rows"), list) else []
             columns = entry.get("columns") if isinstance(entry.get("columns"), list) else \
                 [str(k) for k in (rows[0] if rows and isinstance(rows[0], dict) else {}) if k != "_row"]
+            columns = [str(c.get("name")) if isinstance(c, dict) else str(c) for c in columns]
             records.add_output(state.data_record, state.request_id, alias=alias, output_id=output_id,
-                               session_id=session_id, name=entry.get("name"), columns=[str(c) for c in columns],
+                               session_id=owner, name=entry.get("name"), columns=columns,
                                row_count=entry.get("row_count"),
                                label="CALCULATION_VERIFIED" if output_id in state.verified_outputs
-                               else "DATA_COVERAGE_VERIFIED")
+                               else "DATA_COVERAGE_VERIFIED", kind=entry.get("type"))
+
+        def released(result: dict[str, Any]) -> None:
+            """A (user decision 2026-10-02): every released output gets its ref and its place in the data record, not
+            only the ones whose content the result previews (the first tables, JSON and text); charts and the rest
+            are listed with content_shown false and a note, and a table's rows are read on demand."""
+            for entry in result.get("released_contents") or []:
+                output(entry)
+            shown = {str(c.get("output_id")) for c in result.get("released_contents") or [] if isinstance(c, dict)}
+            hidden = [e for e in result.get("released_outputs") or []
+                      if isinstance(e, dict) and e.get("output_id") and str(e["output_id"]) not in shown]
+            for entry in hidden:
+                output(entry)
+            if hidden:
+                result["contents_not_shown_note"] = CONTENTS_NOT_SHOWN_NOTE
 
         if name == "complete_research_run":
             for finding in result.get("research_findings") or []:
                 if isinstance(finding, dict) and finding.get("angle_id"):
                     sources.add("finding", str(finding["angle_id"]), finding, "DATA_COVERAGE_VERIFIED")
                     finding["ref"] = f"finding.{finding['angle_id']}"
-            for entry in result.get("released_contents") or []:
-                output(entry)
+            released(result)
         elif name == "complete_analysis" and result.get("status") == "COMPLETED":
             state.verified_outputs |= {str(i) for i in (result.get("final_status") or {}).get("verified_output_ids")
                                        or []}
-            for entry in result.get("released_contents") or []:
-                output(entry)
+            released(result)
             for finding in (result.get("final_status") or {}).get("research_findings") or []:
                 if isinstance(finding, dict) and finding.get("hypothesis_id"):
                     sources.add("finding", str(finding["hypothesis_id"]), finding, "DATA_COVERAGE_VERIFIED")

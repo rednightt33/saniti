@@ -393,6 +393,10 @@ class ResearchRunExecutor:
             "research_synthesis_map": synthesis_map(self.verified.plan, self.verified.research_data_plan, findings,
                                                     groups),
             "released_contents": (last or {}).get("released_contents") or [],
+            # A: every group's released outputs (the previews above are the last group's only)
+            "released_outputs": [{**o, "session_id": session_id} for session_id, c in self.completions.items()
+                                 if c.get("status") == "COMPLETED" for o in c.get("released_outputs") or []
+                                 if isinstance(o, dict)],
             "next_action": "ANSWER_FROM_RESEARCH_FINDINGS" if status == "COMPLETED" else "REPORT_LIMITATION"}
         return self.result
 
