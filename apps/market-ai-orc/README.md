@@ -725,6 +725,18 @@ parity test in `RAILWAY_CHANGELOG.md`. With the flags off, the Analysis Spec pat
   method, ranking or output.
 - Strict tools cannot express a recursive schema, so the scope tree is unrolled to the validator's maximum depth
   of 4 (`ScopeNode` → `ScopeNode2` → `ScopeNode3` → `ScopePredicate`). Nothing expressible is lost.
+- **Warehouse summaries (G18 phase 1, 2026-10-02).** A request of `submit_data_need_spec` / `check_data_feasibility`
+  (`AnalysisDataRequest`) has a required, nullable `aggregate` `{group_by, measures: [{column, function, as}]}`; a
+  request that leaves it out means raw rows. Research angle requests (`DataRequest`, `check_research_feasibility`) have
+  no summary. The sandbox validator and the SQL Governor decide what may be summarised from the catalog (sandbox and
+  Governor READMEs); the Execution Planner only forwards the approved `aggregate` in the extraction spec (absent for
+  raw rows, so their spec and `extraction_sha256` are unchanged). `get_catalog_details` COLUMNS shows
+  `cross_entity_aggregation` beside `resample_aggregation` and says that `allowed_aggregations` has no direction and
+  never permits a sum; `DATANEED_RULES` tells the model when to summarise in the warehouse (a total across entities)
+  and what stays in the session (an average as SUM ÷ COUNT, medians, percentiles, correlations). Tool_Catalog:
+  `submit_data_need_spec` v5 and `check_data_feasibility` v4, generated from the code by
+  `scripts/generate_warehouse_summary_tool_migration.py` (migration `20261002_002`); `tests/test_data_need_tool.py`
+  fails when the code and the migration drift apart.
 - The tool enforces only types and enums. market-python-sandbox's DataNeedValidator is authoritative and answers
   `APPROVED`, `REVISION_REQUIRED` or `CATALOG_UNAVAILABLE` with issues
   `{data_request_id, code, field_path, rejected_value}` and no suggested replacement.

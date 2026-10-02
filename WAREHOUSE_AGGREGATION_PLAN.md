@@ -1,6 +1,37 @@
 # Rencana: ringkasan di gudang data (Langkah 10 / G18 / M67)
 
-Status: **usulan, belum disetujui, belum dikerjakan** (2026-10-02).
+Status (2026-10-02): **fase 1 (antar-entitas) dikerjakan dan di-deploy di dev**, belum di `main`; verifikasi live
+(golden test ulang) belum. **Fase 2 (antar-waktu) belum dikerjakan.** Keputusan user 2026-10-02: antar-entitas dulu;
+job dev sementara dan migrasi Tool_Catalog disetujui.
+
+### Ringkasan fase 1 (lihat `ERRORS_AND_SOLUTIONS.md` G18, `DATABASE_CHANGELOG.md` 2026-10-02)
+
+- Field `aggregate` per request DataNeed, mode ANALYSIS saja. Kolom tanggal wajib tetap di `group_by`, jadi
+  pemeriksa cakupan bekerja seperti biasa.
+- Aturan diturunkan dari katalog oleh sandbox **dan** diperiksa ulang oleh Governor dari kontrak katalognya sendiri:
+  - SUM hanya bila `cross_entity_aggregation` = SUM;
+  - MIN/MAX untuk kolom MEASURE numerik;
+  - COUNT untuk jumlah baris;
+  - COUNT_DISTINCT untuk kolom IDENTIFIER/DIMENSION/TIME;
+  - kunci join tetap di-group.
+- Hasil ringkasan tidak pernah dipecah per entitas yang dibuang (total per bagian akan terpotong). Pemecahan hanya per
+  tanggal.
+- Pengukuran di dev (job hanya-baca `wa-explain-job`, sudah dihapus):
+
+  | Bentuk | Mentah | Ringkasan |
+  |---|---|---|
+  | Bank 2 bulan | 63.292 baris (628 ms) | 3.483 grup (73 ms) |
+  | Semua saham 1 bulan | 500.001+ baris (35 detik) | 2.141 grup (1,8 detik) |
+  | Bank 2022–2026 | 1,84 juta baris | 95.397 grup |
+
+  Bentuk SQL berurutan biasa membuat planner mengurutkan semua baris sumber (lebih dari 60 detik). Karena itu
+  Governor menghitung ringkasan dalam CTE MATERIALIZED, lalu mengurutkan grupnya (3,0 detik).
+- Migrasi `20261002_002` (Tool_Catalog `submit_data_need_spec` v5, `check_data_feasibility` v4, dibuat dari kode,
+  dijaga test drift) sudah diterapkan di dev.
+- Fase 2 (belum): ringkasan antar-waktu (total per periode) dengan statistik cakupan dari Governor; AVG tetap
+  SUM ÷ COUNT di sesi.
+
+Status awal: usulan (2026-10-02).
 
 ## 1. Masalah (terverifikasi)
 

@@ -219,7 +219,19 @@ values:
 - the window (an envelope of approved ranges, or a date partition of it);
 - an optional entity partition `{modulus, remainder}` over `hashtextextended(entity)`: a complete, disjoint split
   of the entities;
-- the requested ordering. The Governor appends the key columns, so the order is total and deterministic.
+- the requested ordering. The Governor appends the key columns, so the order is total and deterministic;
+- an optional `aggregate` (G18 phase 1, 2026-10-02): `{group_by, measures: [{column, function, as}]}`, a summary
+  across entities. The Governor derives every rule again from its own catalog contract, never from the sandbox's
+  approval: `group_by` columns are `group_by_allowed` or grain keys, a dated table keeps its time column, at least one
+  grain key is dropped; SUM only where `cross_entity_aggregation` is SUM (`AGGREGATION_NOT_ADDITIVE` otherwise), MIN
+  and MAX of numeric MEASURE columns, COUNT of rows (`column` null), COUNT_DISTINCT of IDENTIFIER, DIMENSION or TIME
+  columns; `columns` are the group_by columns then the measure names, in order. The rows are the groups, ordered by
+  the group keys; an ordered summary is compiled as `WITH summary AS MATERIALIZED (… GROUP BY …) SELECT * FROM summary
+  ORDER BY …` (measured on dev: 3.0 s against over 60 s when the planner sorted every source row first; see
+  `DATABASE_CHANGELOG.md` 2026-10-02), while the bounded count keeps the plain unordered form. A summary that dropped
+  the entity column is never split by entity (the delivered rows have no entity; a split would cut groups): only date
+  partitions, which the time column makes exact. The executed scope adds `aggregate` (absent for raw rows, so their
+  hashes are unchanged) and each measure's manifest column carries its `aggregation` and `source_column`.
 
 The Governor re-validates everything against the catalog: tables, AI-allowed columns, filter permissions, value
 types (canonical text values must round-trip), relationship ids, `supported_join_semantics`, time and effective

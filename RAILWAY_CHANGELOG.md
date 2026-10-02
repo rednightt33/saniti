@@ -1,5 +1,29 @@
 # Railway changelog
 
+## 2026-10-02 — G18 phase 1 (warehouse summaries) on dev from the branch; temporary job for measurement and migration
+
+User decision 2026-10-02: phase 1 across entities; a temporary dev job may be created and deleted for the measurement
+and the Tool_Catalog migration. Tested locally first: market-sql-governor 238, market-python-sandbox 698 (+2 bundle
+path, root isolation), market-ai-orc 980 passed.
+
+- **Temporary service `wa-explain-job`** (`711008cb-ce5c-4e81-bba4-c98584e6288c`; variables: a `DATABASE_URL` reference
+  to `Postgres` and `MODE`; no other secret):
+  - `f7b718a7` and `dc3a53a0`: read-only measurement (`default_transaction_read_only`, `statement_timeout` 60 s) of
+    raw extraction against GROUP BY and of four plan forms; results in `DATABASE_CHANGELOG.md`;
+  - `bf157117` (`MODE=DRYRUN`): migration `20261002_002` run and rolled back;
+  - `8dc00ac8` (`MODE=APPLY`): applied, read back, second run refused;
+  - deleted afterwards (verified absent from the service list). The job logs held counts and plans only, no DSN.
+- **Deployments** (CLI upload from the repository root of branch `claude/g2-g3-reactivation` at `f36efe9`; `main`
+  untouched; rollback references: market-sql-governor = the latest `main` build (`e7238f0`), market-python-sandbox
+  `5bd4a078`, market-ai-orc `ec91d619`):
+  - market-sql-governor `deae118b-57d9-49f4-b193-063bd0850470` `SUCCESS`;
+  - market-python-sandbox `8e2052ce-6a08-4424-ad9b-f19648cc421b` `SUCCESS`; startup `isolation_enforced=true`;
+  - market-ai-orc `6ac58d33-8875-49ea-b210-37b43b41f7c4` `SUCCESS`; startup `switch=1`
+    `model="deepseek/deepseek-v4.1-flash"`.
+- `railway config pull --force` and `railway config plan` after the job's deletion: no drift. No variable of a
+  permanent service changed.
+- Live verification (a summary through the AI, golden test question 5) not run yet.
+
 ## 2026-10-02 — Round 2 fixes of the golden test on dev from the branch (not `main`)
 
 User decision 2026-10-02: fix P23, P22, P24, M65, P25, M62 and M64 in this round. Tested locally first:

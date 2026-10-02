@@ -51,6 +51,22 @@ current flow; while the flag is off, its routes answer 404 and the service keeps
     `left_column` / `right_column` (so single-key contracts and their hashes do not change between v1 and v2), two or
     more as `left_columns` / `right_columns` in catalog order; restrictions follow the same rule. Approved
     relationships also carry `relationship_type` (read in the spec's orientation) and `requires_preaggregation`.
+  - **Warehouse summaries (G18 phase 1, 2026-10-02).** A request may carry `aggregate`:
+    `{"group_by": [columns], "measures": [{"column", "function", "as"}]}` and the SQL Governor then delivers one row
+    per group instead of every raw row (`bind_aggregate` in `app/data_need.py`; the Governor re-checks the same rules
+    from its own contract). Rules, derived from the catalog, fail closed: mode ANALYSIS only and no `resample`;
+    `group_by` columns are `group_by_allowed` or grain keys, a dated table keeps its time column (phase 1 summarises
+    across entities only, so every date stays checkable), at least one grain key is dropped; SUM needs
+    `cross_entity_aggregation` = SUM (`AGGREGATION_NOT_ADDITIVE` names the dropped keys), MIN and MAX a numeric
+    MEASURE, COUNT counts rows (`column` null), COUNT_DISTINCT an IDENTIFIER, DIMENSION or TIME column; `columns` are
+    exactly the grouped and measured columns; ordering uses grouped columns; a relationship of the request keeps its
+    key columns grouped (`AGGREGATE_DROPS_JOIN_KEY`). The approved request carries the summary's grain: `aggregate`,
+    `key_columns` = `group_by`, `extract_columns` = `group_by` + measure names, `entity_column` only when kept, the
+    output column types (counts `bigint`), and empty `resample_rules` / `aggregation_rules` (a summary is not
+    resampled or preaggregated again). Profiling, delivery coverage (the executed `aggregate` must equal the approved
+    one) and the session helpers follow that grain. A summary serves only the same summary for reuse
+    (`contract_covers`), and a raw request's contract hash is unchanged. Not in phase 1: summaries over time, AVG
+    (send SUM and COUNT), medians, percentiles, correlations.
   - **Preaggregation (IP1 Stage C).** A relationship with `requires_preaggregation = true` (Feature 02 → Feature 03)
     is no longer refused: its INNER restriction is a semi-join that never multiplies rows, and in the session
     `saniti.join` refuses a row join until the many side came from `saniti.preaggregate`. Each approved request
