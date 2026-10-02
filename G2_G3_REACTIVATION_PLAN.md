@@ -129,6 +129,32 @@ Ini sejalan dengan `VALUE_DICTIONARY_PLAN.md` 5.4c: `get_system_capabilities` di
 jadi AI selalu melihat daftar ini. Ada test konsistensi: setiap helper atau metode yang terdaftar di kode muncul di
 `analysis_methods`, dan sebaliknya.
 
+### 4b-2. Benchmark cara AI mengetahui alat (2026-10-02)
+
+| Praktik | Sumber | Inti |
+|---|---|---|
+| Deskripsi alat berorientasi **kapan dipakai** | OpenAI function calling guide; Anthropic *Writing effective tools* | Deskripsi menyebut skenario pemakaian, batas, dan bentuk hasil, bukan sekadar fungsi; tanpa kata kunci yang tumpang tindih antar alat |
+| Jumlah alat per giliran kecil | OpenAI (< ~20 alat untuk akurasi); Anthropic Tool Search (3–5 alat utama selalu dimuat, sisanya dicari) | Alat yang tidak relevan untuk tahap itu tidak ditawarkan |
+| **Progressive disclosure** | Anthropic Agent Skills | Lapis 1: nama + deskripsi singkat (~100 token) **selalu** di konteks. Lapis 2: petunjuk lengkap dimuat saat dibutuhkan. Lapis 3: file atau contoh saat eksekusi |
+| Penemuan alat terstandar | Model Context Protocol (`tools/list`, `search_tools`) | Daftar dibangkitkan dari server (kode), bukan ditulis ulang di prompt |
+
+**Kondisi kita dibanding benchmark:**
+- Jumlah alat per giliran sudah sesuai: 7–14, disaring per tahap (log `ai_model_call.tools_offered`, run
+  `ma-reason-20261001b`).
+- **Lapis 1 belum ada untuk metode analisis.** Helper sandbox, G2 dan G3 adalah fungsi di dalam sandbox, bukan alat
+  API, jadi tidak ikut daftar alat. AI hanya melihat namanya saat sesi dibuka.
+- Lapis 2 hanya ada untuk G4 (`get_research_library`).
+- Lapis 3 (penolakan dengan langkah berikut) sudah berjalan.
+
+**Penyesuaian rancangan 4b:**
+1. **Lapis 1, selalu terlihat:** `analysis_methods` di `get_system_capabilities` dijalankan sistem di awal setiap run
+   (VALUE_DICTIONARY_PLAN 5.4c). Setiap entri ditulis berorientasi skenario ("pakai saat user bertanya dampak suatu
+   kejadian …"), dibangkitkan dari kode, singkat, dan saling eksklusif antara G1/G2/G3/G4.
+2. **Lapis 2, sesuai kebutuhan:** `get_research_library` diperluas menjadi panduan metode untuk semua jalur (helper,
+   G2, G3, G4), dibangkitkan dari docstring dan baris perpustakaan. Nama alat ditetapkan saat implementasi.
+3. **Lapis 3:** pesan penolakan G2 dan G3 dengan langkah berikut, mengikuti pola `allowed_actions`.
+4. **Diukur:** golden test mencatat alat yang dipilih AI per soal dibanding alat yang semestinya.
+
 ## 4c. Istilah G1–G4 (disepakati 2026-10-02)
 
 | Istilah | Arti |
