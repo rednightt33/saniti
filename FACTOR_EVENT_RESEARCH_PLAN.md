@@ -170,6 +170,41 @@ Lapisan: mesin riset, metode baru `event_study` di keluarga `CONDITIONAL_OUTCOME
   dalam koreksi uji berganda.
 - **Jalur dan pintu** (eksplorasi tanpa rencana vs konfirmasi): dibahas setelah ini, sesuai arahan user.
 
+## 9b. Varian: G2 dan G3 dibangun ulang tanpa S20 (diminta user 2026-10-02, untuk ditimbang)
+
+Langkah 1 (S20) dilewati. G2 (event study, langkah 2–3) dan G3 (disiplin hipotesis, langkah 4–5) dibangun di mesin
+aktif (G4) dengan fungsi per entitas yang sudah ada.
+
+**Yang tetap jalan penuh, diperiksa backend:**
+- event yang didefinisikan **per saham** (return saham itu ≤ −5%, net jual asing terbesar saham itu dalam 60 hari,
+  streak beli broker di saham itu);
+- jalur AAR/CAAR dan CAR per jendela, NON_OVERLAPPING, minimal event, sensor ujung data, pengelompokan per tanggal;
+- model return normal `RAW` dan `CONSTANT_MEAN`;
+- `MARKET_ADJUSTED` dan `MARKET_MODEL` **hanya** dengan deret benchmark dari permintaan data lain. Database belum punya
+  tabel indeks, jadi untuk saat ini praktis tidak bisa dipakai;
+- seluruh G3: hipotesis dideklarasikan dulu, minimal 4, anggaran dan buku percobaan lintas giliran, kategori sampel.
+  G3 tidak bergantung pada S20.
+
+**Yang tidak bisa (atau turun ke jalur FRAME yang hanya diperiksa statistiknya):**
+- return abnormal terhadap pasar atau sektor, karena benchmark "rata-rata pasar" adalah hitungan lintas saham;
+- event tingkat pasar (hari crash dari rata-rata pasar, breadth harian);
+- perbandingan relatif sektor dan netral sektor.
+
+**Risiko varian ini:**
+
+| Risiko | Dampak (non-dev) | Contoh | Mitigasi bila varian dipilih |
+|---|---|---|---|
+| R1. Event study tanpa pembanding pasar | Pola yang terlihat sebenarnya gerakan seluruh pasar. Ini kesalahan utama yang ingin dihindari metode MacKinlay | "Saham bank naik 5 hari setelah crash" padahal semua saham naik (pantulan pasar) | Model RAW/CONSTANT_MEAN diberi label tegas di hasil ("tidak dibandingkan pasar"); gerbang jawaban melarang kata "abnormal" / "di atas pasar" tanpa benchmark |
+| R2. Pertanyaan tingkat pasar tetap lewat FRAME | Rumus event dan benchmark dibuat AI dengan Python bebas, backend hanya memeriksa statistiknya; salah rumus tidak ketahuan | m01: 2 dari 4 angle (crash_rebound, fall_depth) memang FRAME | Tingkat pemeriksaan FRAME ditulis di jawaban; jumlah angle FRAME diukur tiap suite |
+| R3. Godaan jalan pintas yang di-hardcode | Untuk menutup R1, muncul "rata-rata pasar bawaan" di dalam event study. Itu S20 versi sempit, dan nanti ada dua implementasi berbeda | Benchmark bawaan sama bobot yang diam-diam dipakai | Tidak membuat benchmark bawaan. Kalau dibutuhkan, dibuat sebagai fungsi internal yang nanti dibuka oleh S20 (satu jalur kode) |
+| R4. Minimal 4 hipotesis dengan alat terbatas | AI punya lebih sedikit metode yang diperiksa penuh untuk pertanyaan pasar, sehingga 4 angle cenderung jatuh ke FRAME atau angle yang lemah | Pertanyaan crash: hampir semua angle butuh rata-rata pasar | Tidak ada angle pengisi; jumlah layak dilaporkan; keputusan 3 di bagian 12 |
+| R5. Kerja ulang | Saat S20 masuk, deklarasi benchmark, test dan deskripsi metode diperluas lagi | Migrasi `AI_research_library` dua kali | Skema benchmark sejak awal sudah menyediakan tempat untuk bentuk lintas entitas (ditolak dengan pesan jelas sampai S20 ada) |
+| R6. Ekspektasi user | Fitur "event study" ada, tapi jawaban crash tetap memakai return mentah | User membaca CAR sebagai return abnormal | Label model di setiap angka (R1) |
+
+**Penilaian:** G3 aman dibangun tanpa S20. Untuk G2, varian ini memberi event study yang benar untuk event per saham,
+tapi tidak untuk pertanyaan pasar dan sektor. Padahal pertanyaan pasar adalah sebagian besar pertanyaan seperti m01,
+dan R1 adalah jenis kesalahan yang paling sering terjadi di event study.
+
 ## 10. Risiko dan mitigasi
 
 | Risiko | Penjelasan non-dev | Mitigasi |
