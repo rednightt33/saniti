@@ -96,6 +96,7 @@ g6 = usulan pertanyaan tambahan).
 ## Usulan golden test berikutnya (satu putaran)
 
 1. g1–g5 tanpa perubahan kata-kata, supaya bisa dibandingkan dengan run a dan b.
+   g1 dijalankan dua kali di percakapan terpisah (`g1_foreign_net_banks_repeat`, sudah ada di `apps/orc-test-runner/suite.json`): definisi "paling likuid" dan 10 tickernya harus sama (M66/M13).
 2. g6 (RESEARCH): "Apakah saham bank yang RSI 14-nya di bawah 30 naik minimal 3% dalam 10 hari berikutnya? Anggap
    berhasil kalau naik ≥ 3%." Mencakup M28, M26, P05/P08, D14, M24, S27.
 3. g7 web (opsional, biaya provider web): W17–W20, W06–W08, W22.

@@ -10,6 +10,12 @@
       "expect": "G1 SUM + ranking; key: IDX_Broker_Summary Foreign/Regular 2025 per ticker, liquidity by traded value"
     },
     {
+      "id": "g1_foreign_net_banks_repeat",
+      "analysis_path": "ANALYSIS",
+      "message": "Berapa total net beli investor asing di pasar reguler per saham untuk 10 saham bank paling likuid selama 2025?",
+      "expect": "Same question as g1 in a separate conversation: the definition of 'paling likuid' (measure, period, exclusions) and the 10 tickers must equal g1's; any difference is recorded under M66/M13"
+    },
+    {
       "id": "g2_bank_minmax",
       "analysis_path": "ANALYSIS",
       "message": "Berapa harga penutupan tertinggi dan terendah tiap saham bank selama 2025, dan berapa persen selisihnya?",
