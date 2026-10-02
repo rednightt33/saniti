@@ -1,7 +1,8 @@
 # Rencana: menghidupkan kembali G2 (event study) dan G3 (uji hipotesis bebas), lalu golden test 5 soal
 
 Status: **FINAL, disetujui user 2026-10-02** ("Great, finalize plan"); belum dijalankan. Tidak ada keputusan terbuka.
-Urutan kerja di bagian 8. Keputusan user 2026-10-02:
+Urutan kerja di bagian 8. Dikerjakan di branch `claude/g2-g3-reactivation` (keputusan user 2026-10-02).
+Keputusan user 2026-10-02:
 - G2 dan G3 dihidupkan kembali;
 - keduanya bisa berdiri sendiri atau saling melengkapi;
 - yang disesuaikan adalah arsitektur dan kode G2/G3 agar cocok dengan infrastruktur sekarang (DataNeed, sesi
@@ -216,7 +217,7 @@ Router di setiap giliran: pengklasifikasi diperluas dari `MODE4_CONVERSATION_PLA
 | Jenis giliran | Contoh | Yang dijalankan | G yang boleh dipakai |
 |---|---|---|---|
 | **CLARIFY**: arti angka, definisi, cara membaca | "68,9% itu artinya apa?", "Lift itu apa?", "Datanya dari mana?" | Jawaban dari state, manual dan katalog (definisi kolom, satuan, grain), tanpa hitungan baru | Tanpa alat data |
-| **INSIGHT**: kenapa, apa pendorongnya, apa yang menonjol | "Kenapa XL tertinggi?", "Insight-nya apa?", "Apa yang mendorong kenaikan ini?" | **Analisis pendorong** atas data dan output yang sudah ada (4d-3b): kontributor teratas/terbawah, perubahan antar periode, pendorong per dimensi, nilai tak biasa, konsentrasi. Hasilnya deskriptif (asosiasi, bukan sebab); boleh ditutup dengan tawaran uji (G2/G3/G4) | G1 + helper insight, tanpa riset kecuali diminta |
+| **INSIGHT**: kenapa, apa pendorongnya, apa yang menonjol | "Kenapa XL tertinggi?", "Insight-nya apa?", "Apa yang mendorong kenaikan ini?" | **Analisis pendorong** atas data dan output yang sudah ada (4d-3b): kontributor teratas/terbawah, perubahan antar periode, pendorong per dimensi, nilai tak biasa, konsentrasi. Hasilnya deskriptif (asosiasi, bukan sebab); boleh ditutup dengan tawaran uji (G2/G3/G4) | G1 (AI menghitung di sandbox), tanpa riset kecuali diminta |
 | **CONTINUE**: user minta analisis lanjutan | "Coba lihat dampaknya setelah crash", "Uji ide saya", "Cari sudut lain" | AI memilih G dari menu sesuai permintaan; data dan output sebelumnya dipakai ulang | **Bebas G1–G4**: G1 dan G2 langsung di sesi; G3 dan G4 lewat rencana (persetujuan user mengikuti `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION`) |
 | **APPROVE / REVISE / CANCEL** | "Jalankan", "Pakai 5 tahun", "Tidak usah" | Seperti sekarang, untuk rencana v1 maupun v2 | G3 / G4 |
 | **NEW_TOPIC** | "Sekarang saham telko?" | Giliran pertama (mode 4: A + riset) | Sesuai mode |
@@ -251,23 +252,16 @@ Di produk analitik, "insight" dan "kenapa" bukan menjelaskan ulang angka, melain
 | Power BI | Key influencers (regresi logistik dan pohon keputusan) dan decomposition tree (memecah metrik per dimensi); "explain the increase/decrease" |
 | ThoughtSpot SpotIQ | Deteksi anomali, analisis perubahan (akar penyebab fluktuasi KPI), tren, analisis pendorong antar dua titik |
 
-**Rancangan untuk kita:**
-- Helper backend yang sudah dites, misalnya `saniti.insight(...)`, dengan jenis insight baku:
-  - perubahan antar periode;
-  - kontributor teratas/terbawah;
-  - pendorong per dimensi (anggota dimensi yang berubah searah metrik);
-  - nilai tak biasa terhadap riwayatnya sendiri;
-  - konsentrasi kontribusi.
-- **Tanpa hardcode:**
-  - metrik dan waktu adalah peran;
-  - dimensi diambil dari kolom `is_groupable` di katalog;
-  - agregasi mengikuti aturan katalog (SUM hanya untuk kolom ber-aturan SUM);
-  - ambang "tak biasa" dari kebijakan.
-- **Masukan:** output yang sudah ada (`out.oN`) atau bundle hangat. Tidak menarik ulang data kecuali dimensinya belum
-  ada.
-- **Label:** deskriptif ("berasosiasi dengan", bukan "menyebabkan"); tingkat pemeriksaan sesuai S23 (helper dihitung
-  backend). Penutup boleh berupa tawaran uji: G2 untuk dampak event, G3/G4 untuk hipotesis.
-- Masuk menu dan manual (4b-3) seperti metode lain.
+**Rancangan untuk kita (keputusan user 2026-10-02: tanpa helper dulu):**
+- INSIGHT memakai **G1**: AI menghitung analisis pendorong sendiri di sandbox (pandas/DuckDB) atas output dan bundle
+  yang sudah ada.
+- Jenis insight baku di atas (perubahan antar periode, kontributor, pendorong per dimensi, nilai tak biasa,
+  konsentrasi) ditulis di **manual G1** (4b-3) sebagai panduan, bukan sebagai kode.
+- Dimensi pemecah dipilih dari kolom `is_groupable` di katalog; penjumlahan mengikuti aturan katalog.
+- **Label:** deskriptif ("berasosiasi dengan", bukan "menyebabkan"); tingkat pemeriksaan G1 (rumus tidak dicek, S23)
+  ditulis. Penutup boleh berupa tawaran uji (G2 untuk dampak event, G3/G4 untuk hipotesis).
+- Helper `saniti.insight(...)` yang dites backend menjadi kandidat sesudah golden test, bila hasilnya menunjukkan
+  perlu.
 
 ### 4d-4. Rantai antar G (bebas arah)
 
@@ -356,7 +350,7 @@ Saklar pikiran (`AI_CAPTURE_REASONING`) menyala, supaya kesalahan bisa ditelusur
 5. **Percakapan multi-giliran** (4d), dikerjakan bersama router `MODE4_CONVERSATION_PLAN.md`:
    - state lintas giliran: temuan (E1), manual, buku percobaan, rencana tertunda;
    - router CLARIFY / INSIGHT / CONTINUE / APPROVE / REVISE / CANCEL / NEW_TOPIC / CONVERSATIONAL;
-   - helper `insight` (4d-3b);
+   - INSIGHT lewat G1 dengan panduan di manual (4d-3b, tanpa helper);
    - rantai antar G (4d-4).
 6. **Uji live singkat:** G2 dan G3 masing-masing sendiri, lalu bersama, lalu dua giliran lanjutan (saklar pikiran
    menyala).
