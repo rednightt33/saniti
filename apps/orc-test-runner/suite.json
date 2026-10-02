@@ -1,5 +1,5 @@
 {
-  "prefix": "ma-golden-20261002a",
+  "prefix": "ma-golden-20261002c",
   "workers": 2,
   "audit_wait_seconds": 120,
   "items": [
@@ -52,7 +52,7 @@
       "id": "g6_rsi_threshold",
       "analysis_path": "RESEARCH",
       "message": "Apakah saham bank yang RSI 14-nya di bawah 30 naik minimal 3% dalam 10 hari berikutnya? Anggap berhasil kalau naik ≥ 3%. Selisih di bawah 1 poin persen tidak penting buat saya.",
-      "expect": "HIGH ALERT H2 (M28/M26/M29): the backend success rule is >= 3% without the model having to pass it; min effect 1 pp; plan counts from feasibility; D14 warm-up. Baseline run ma-g6-20261002a (first event_summary used > 0, caught by the model). Follow-up 'ubah jadi 5%' needs a third turn (runner change pending)"
+      "expect": "HIGH ALERT H2 (M28/M26/M29): the backend success rule is >= 3% without the model having to pass it; min effect 1 pp; plan counts from feasibility; D14 warm-up. Baseline run ma-g6-20261002a (first event_summary used > 0, caught by the model). Follow-up 'ubah jadi 5%': item g6_revise_threshold"
     },
     {
       "id": "g7_followup_definitions",
@@ -62,6 +62,16 @@
         "Bandingkan dengan tahun 2024 memakai definisi yang sama."
       ],
       "expect": "HIGH ALERT H1 (M63): turns 2 and 3 keep the Nego board and the same liquidity rule as turn 1; the answers state the definition; no 'consistent with the previous answer' claim unless the definition is the same"
+    },
+    {
+      "id": "g6_revise_threshold",
+      "turns": [
+        "Apakah saham bank yang RSI 14-nya di bawah 30 naik minimal 3% dalam 10 hari berikutnya? Anggap berhasil kalau naik ≥ 3%. Selisih di bawah 1 poin persen tidak penting buat saya.",
+        "Setuju, jalankan rencana ujinya.",
+        "Ubah ambang suksesnya jadi naik minimal 5%.",
+        "Setuju, jalankan."
+      ],
+      "expect": "HIGH ALERT H2 (M28, user decision 2026-10-02): turn 2 applies >= 3 from the plan; turn 3 revises the plan to >= 5 taken from the user's message; turn 4 applies >= 5 and the earlier finding stays as <id>@n beside the new one"
     }
   ]
 }
