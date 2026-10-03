@@ -354,6 +354,107 @@ dan S20 untuk rata-rata lintas saham.
 
 ---
 
+## Langkah 7 — Perbaikan dari golden test `ma-golden-20261002c` (round ini; BELUM dijalankan, user masih menyeleksi solusi)
+
+Bukti dan diagnosis: `GOLDEN_TEST_HIGH_ALERT_2026-10-02.md` dan `ERRORS_AND_SOLUTIONS.md`. Isi round ini:
+
+| Kode | Status di plan | Rincian |
+|---|---|---|
+| M68 | Disetujui masuk plan | `FUTURE_PLAN.md` §1 (orc membaca `values`; tes kontrak dengan `canonical_scope` asli sandbox) |
+| S28 + R-STORE | Disetujui masuk plan round ini | `FUTURE_PLAN.md` §1 (lepas ruang kerja di akhir jawaban, tabel hasil di Postgres) |
+| **M69** | Disetujui, kedua tahap (2026-10-03) | 7a di bawah |
+| **P26** | Disetujui (2026-10-03) | 7b di bawah |
+
+### 7a. M69 — aturan sukses user mengikat semua jalur riset (HIGH ALERT H2)
+
+**Akar masalah (terverifikasi):**
+- Mode 4 hanya mengajukan rencana multi-sudut. `orchestrator._plan_form_runs`: "a plan it presents is multi-angle"; rencana
+  hipotesis v1 ditolak dengan gerbang `PLAN_VERSION`.
+- Metode multi-sudut (`research_library.py`: conditional_distribution, threshold_sensitivity, …) hanya mengukur rata-rata
+  dan arah; tidak ada aturan sukses.
+- Pikiran AI di g6_revise: *"The library can't test the +3% threshold directly… hypothesis plan (v1) has success_rule…
+  exactly designed for this user's criterion"*.
+- Ikut terlihat: horizon dari user (10 hari) bergeser diam-diam ke 5 hari pada usulan lanjutan.
+
+**Kelas masalah:** parameter yang dinyatakan user (ambang sukses, horizon, efek minimal) diikat ke satu jalur saja.
+Jalur lain (multi-sudut, mode 4, usulan lanjutan) bisa mengabaikannya.
+
+**Tahap 1 — pilihan jalur oleh sistem (cepat, permanen):**
+- Bila pesan user memuat aturan sukses yang eksplisit, mode 4 boleh mengajukan rencana hipotesis (v1, `success_rule`)
+  di tempat rencana multi-sudut.
+  - Syaratnya diturunkan dari isi rencana: rencana v1 dengan `success_rule` yang angkanya ada di pesan user, dicek oleh
+    gerbang `PLAN_SUCCESS_RULE` yang sudah ada. Keputusan tidak diserahkan ke AI.
+- Yang diubah:
+  - `_plan_form_runs` / gerbang `PLAN_VERSION` di `apps/market-ai-orc/app/orchestrator.py`;
+  - langkah dan hitungan sudut mode 4 (`app/mode4.py`, yang sudah meneruskan rencana v1 ke jalurnya);
+  - `PLAN_VERSION_INSTRUCTION`.
+
+**Tahap 2 — ukuran "hit rate" di riset multi-sudut (lengkap, permanen):**
+- Rencana multi-sudut (research_plan/v2) mendapat `success_rule {operator, value, unit}` di tingkat hipotesis akar.
+- Metode conditional_distribution dan threshold_sensitivity menghitung, di samping rata-rata, porsi kejadian yang
+  memenuhi aturan (hit rate) dan selisihnya terhadap pembanding, beserta interval dan p-value.
+  - Lokasi: sandbox `app/research_methods.py`, helper `research_*` di `runtime/saniti_session.py`.
+- Validator independen (`app/research_validation.py`) menghitung ulang hit rate; selisih → INVALID.
+- `research_findings` membawa `success_rule` per sudut; gerbang orc memastikan angkanya sama dengan pesan user, dan
+  perubahan ("ubah jadi 5%") lewat REVISE menyimpan temuan lama (`<id>@n`), seperti v1.
+- **Horizon:** angka horizon yang disebut user wajib dipakai semua sudut, termasuk usulan lanjutan. Perubahan horizon
+  harus diusulkan eksplisit ("horizon 5 hari, bukan 10, karena …") dan disetujui user; dicek gerbang rencana dari pesan
+  user (pola M29).
+- **Metadata:**
+  - library riset versi baru: migrasi generator `scripts/generate_ai_research_library_migration.py` (pola target beku);
+  - Tool_Catalog `check_research_feasibility` dan `submit_data_need_spec` versi baru (generator + tes drift);
+  - buku metode `multi_angle`;
+  - `AI_TOOLS.md` (aturan baru).
+
+**Benchmark:**
+- pre-registration (kriteria sukses dicatat sebelum uji dan wajib dipakai semua analisis);
+- hit rate sebagai ukuran standar backtest di samping rata-rata return.
+
+**Risiko dan mitigasi:**
+- *Mode 4 punya dua bentuk rencana.* Aturan pemilihan satu tempat di backend, dites dengan beberapa pertanyaan.
+- *Uji statistik hit rate salah.* Dihitung ulang validator independen, dengan tes yang membandingkan hitungan manual.
+- *Horizon dikunci mengurangi kebebasan AI.* Usulan horizon lain tetap boleh, asal eksplisit dan disetujui.
+
+**Cakupan:**
+- Tertutup: (a) "naik ≥ 5% dalam 20 hari" di mode 4; (b) "turun > 2% setelah sinyal jual"; (c) usulan lanjutan yang
+  mengganti horizon.
+- Tidak tertutup: aturan non-angka ("lebih baik dari IHSG"), yang ditangani lewat baseline.
+
+**Verifikasi:**
+- tes orc dan sandbox;
+- golden test g6_revise yang ditulis ulang untuk alur mode 4: aturan ≥ 3% dan ≥ 5% dihitung dan diperiksa mesin,
+  temuan lama tersimpan, horizon tetap 10 hari kecuali disetujui.
+
+### 7b. P26 — angka di rencana membawa satuannya
+
+**Akar masalah (terverifikasi):**
+- Pikiran AI g6: *"success_rule 0.03? Hmm… if outcome_unit is PERCENT, the value should be 3. Ambiguity."*
+- Rencana tercatat `outcome_unit DECIMAL`, `min_effect 0.01`, `success_rule 3.0`.
+- Backend membandingkan 0,01 dengan MDE dalam persen (2,82), sehingga menyarankan 14.868.205 sampel.
+
+**Kelas masalah:** angka tanpa satuan yang berpindah antar-bagian sistem. Ini berlaku untuk ambang sukses, efek minimal,
+return, dan nanti suku bunga atau inflasi (persen vs basis poin) di data makro.
+
+**Perbaikan (permanen, validasi rencana di backend):**
+- Setiap ambang di rencana (v1 dan v2) menyimpan satuannya: `{value, unit: PERCENT | DECIMAL | BASIS_POINT}`.
+- Backend mengonversi ke satuan hasil sebelum menghitung (`event_summary`, `research_stats`, perhitungan daya uji), atau
+  menolak rencana yang satuannya tidak bisa diselaraskan, dengan pesan yang menyebut angkanya.
+- Rencana lama tanpa satuan dianggap memakai satuan hasilnya, dengan peringatan tercatat.
+
+**Benchmark:** angka bersatuan ala Pint dan UCUM; kegagalan klasik Mars Climate Orbiter (1999).
+
+**Perbandingan:** versi ringan Pint (hanya angka di rencana). Alternatif "selalu persen" gagal untuk basis poin.
+
+**Risiko dan mitigasi:**
+- *Rencana lama menjadi tidak sah.* Bawaan = satuan hasil, plus peringatan.
+
+**Cakupan:**
+- Tertutup: (a) ambang ≥ 3% ditulis dalam desimal; (b) efek minimal dalam basis poin untuk suku bunga.
+- Tidak tertutup: satuan uang (Rp vs USD), yang menjadi urusan katalog kolom.
+
+**Verifikasi:** tes konversi (0,03 DECIMAL = 3 PERCENT = 300 BASIS_POINT); rencana g6 dengan satuan bercampur
+menghasilkan rekomendasi sampel yang wajar (±1.487, seperti run sebelumnya).
+
 ## Migrasi dan catatan
 
 - **Tool_Catalog** (generator + tes drift):
