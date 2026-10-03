@@ -109,7 +109,14 @@ def dump(tag, payload):
 def run_turns(item, prefix, results):
     """Mode 4: the item's messages in one SERVER conversation, each sent as plain text."""
     conversation = None
-    for turn, message in enumerate(item["turns"], start=1):
+    turn = 0
+    for message in item["turns"]:
+        if isinstance(message, dict) and message.get("wait_seconds"):
+            # round 2026-10-03 GT: let the sandbox copies (1-hour retention during the test) and the plan expire
+            log("wait", item=item["id"], seconds=message["wait_seconds"])
+            time.sleep(int(message["wait_seconds"]))
+            continue
+        turn += 1
         body = {"request_id": f"{prefix}-{item['id']}-{turn}", "conversation_id": conversation,
                 "history_mode": "SERVER", "message": message}
         code, body, seconds = post(body)
