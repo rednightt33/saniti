@@ -1,5 +1,25 @@
 # Railway changelog
 
+## 2026-10-03 — Round phase B on dev: G19, P26, M69 stage 1, 1b, 1c
+
+Plan: `ROUND_PLAN_2026-10-03.md` phase B. CLI upload from the repository root of branch `claude/g2-g3-reactivation`
+at `a49d76b`; `main` untouched. AI_MODEL, AI_MODEL_2, AI_MODEL_SWITCH and AI_MODE_SWITCH untouched; no variable changed.
+
+- **Temporary job `b-mig-job`** (dev): created with `DATABASE_URL` as the reference `${{Postgres.DATABASE_URL}}` (no
+  value recorded) and `MODE=DRYRUN`; DRYRUN `3a25b169` rolled back both files, APPLY `1341f411` applied migrations
+  20261003_004/005 (see `DATABASE_CHANGELOG.md`); then deleted. `railway config pull --force` and
+  `railway config plan`: up to date.
+- **market-python-sandbox `707318d9` `SUCCESS`:** P26 (helpers use the approved outcome unit, the findings harness
+  checks the unit), 1b (`LATEST` bound to the reference date, `end_requested` in the bundle), method guides v3.
+  Startup: `sandbox_started` (isolation enforced), `sessions_started`.
+- **market-ai-orc `60136c77` `SUCCESS`:** G19 layers 1 and 3 (full merge key, `EMPTY_REQUEST`/`EMPTY_INPUT`, whole
+  audit arguments), P26 (threshold units), M69 stage 1 and M70 (hypothesis plan for a user's success rule in mode 4,
+  horizon locked, gates read the user's words), 1b/1c (`LATEST`, freshness in COVERAGE). Tests: orc 1,123 passed,
+  sandbox 717 passed. Startup: `mode4_active`, `ai_mode_selected`; no `method_guides_inactive` or
+  `event_study_inactive` event (guides v3 accepted).
+- **Live check pending:** no model request was sent; the golden test runs on the user's command.
+- **Rollback:** market-ai-orc `8b522304` (Phase A); market-python-sandbox `b1983cf7`. The migrations add inactive rows and a new guides version; the earlier versions stay.
+
 ## 2026-10-03 — Round Phase A on dev: M68, tool envelope, AI_TOOLS.md
 
 Plan: `ROUND_PLAN_2026-10-03.md`, approved by the user 2026-10-03. CLI upload from the repository root of branch

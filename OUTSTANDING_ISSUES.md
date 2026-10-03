@@ -32,7 +32,7 @@ g6 = usulan pertanyaan tambahan).
 - M24: INCONCLUSIVE terdengar seperti "ditolak". --> UNDERADDRESSED (g4, g6)
 - G11/D12, G08: saham keliru dikeluarkan; nilai terakhir saham tak likuid hilang. --> UNDERADDRESSED (g1, g2)
 - D14: RSI/EMA berbeda dari nilai sejarah penuh. --> KEPUTUSAN USER (g6)
-- C06: tanggal akhir data salah disebut. --> UNDERADDRESSED, sebagian (cron dua kali sehari TEMPORARY sudah live, belum bisa dinilai di GT 2026-10-02c karena jadwal 10:30 UTC pertama baru besok; penyegaran setelah muat dan rentang "LATEST" belum)
+- C06: tanggal akhir data salah disebut. --> MITIGATED di dev 2026-10-03 (rentang "LATEST" + catatan katalog bisa tertinggal; cron dua kali sehari TEMPORARY tetap live); penyegaran setelah muat (1a-permanen) menunggu `main`; belum diverifikasi live
 - D02: sektor bernilai "0". --> SELESAI di dev ("Undefined", migrasi 20261003_001, dibaca balik) (luar GT)
 - **[HIGH ALERT]** S23: angka hasil kode AI tidak diperiksa ulang backend. --> UNDERADDRESSED (g1–g4 dibandingkan hitungan independen)
 - **[HIGH ALERT]** M13: "saham terbaik" memakai definisi pilihan AI. --> UNDERADDRESSED, sebagian (AI wajib menyebut definisinya) (g1)
@@ -76,10 +76,10 @@ g6 = usulan pertanyaan tambahan).
 - R22: runner uji tidak mencatat timeout-nya sendiri. --> UNDERADDRESSED
 - R27: migrasi gagal karena tanda kutip tidak di-escape (tertangkap saat uji coba, tidak ada data berubah). --> SELESAI, dikonfirmasi user (semua migrasi kini diparse PostgreSQL di tes) (luar GT)
 - **[HIGH ALERT]** M68: catatan data menulis filter tanpa nilainya ("Industry EQ"). --> UNDERADDRESSED (ditemukan GT 2026-10-02c; rencana perbaikan di FUTURE_PLAN.md, belum dijalankan)
-- **[HIGH ALERT]** M69: ambang sukses user tidak mengikat riset multi-sudut (mode 4). --> UNDERADDRESSED (ditemukan GT 2026-10-02c)
+- **[HIGH ALERT]** M69: ambang sukses user tidak mengikat riset multi-sudut (mode 4). --> tahap 1 DEPLOYED dev 2026-10-03 (mode 4 boleh rencana hipotesis dengan success_rule; horizon user dikunci; gerbang membaca kata-kata user saja, M70); belum diverifikasi live; tahap 2 di Fase E
 - S28: slot sesi sandbox tertahan sampai 15 menit, analysis/riset gagal "penuh". --> UNDERADDRESSED (ditemukan GT 2026-10-02c; rencana di FUTURE_PLAN.md, belum dijalankan)
-- G19: dataset riset kosong tetap lolos cakupan, riset jalan di atas data kosong. --> FIXED IN CODE (penyebab terverifikasi: kunci penggabungan pesanan; lapis 1 kunci lengkap + lapis 3 gerbang kosong EMPTY_REQUEST/EMPTY_INPUT + argumen audit utuh; belum deploy/verifikasi live; lapis 2 menunggu keputusan 6)
-- P26: satuan efek minimal (desimal) dibandingkan dengan hasil (persen). --> UNDERADDRESSED (ditemukan GT 2026-10-02c)
+- G19: dataset riset kosong tetap lolos cakupan, riset jalan di atas data kosong. --> DEPLOYED dev 2026-10-03 (penyebab terverifikasi: kunci penggabungan pesanan; lapis 1 kunci lengkap + lapis 3 gerbang kosong EMPTY_REQUEST/EMPTY_INPUT + argumen audit utuh); belum diverifikasi live; lapis 2 menunggu keputusan 6
+- P26: satuan efek minimal (desimal) dibandingkan dengan hasil (persen). --> DEPLOYED dev 2026-10-03 (ambang membawa satuan, alat bantu memakai satuan rencana, harness memeriksa satuan); belum diverifikasi live
 - M14: catatan berbahasa Inggris di jawaban berbahasa Indonesia. --> UNDERADDRESSED (semua)
 - D08/D13: peringatan data historis; tanggal terbaru. --> UNDERADDRESSED, sebagian (g1)
 - W06–W11: masalah pencarian web. --> UNDERADDRESSED (luar GT, kecuali g7 web)

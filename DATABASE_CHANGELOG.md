@@ -1,5 +1,24 @@
 # Database changelog
 
+## 2026-10-03 — Round phase B: migrations 20261003_004 (method guides v3) and 20261003_005 (Tool_Catalog) on dev
+
+Plan `ROUND_PLAN_2026-10-03.md` phase B, approved by the user. Both files are generated
+(`scripts/generate_ai_method_guide_migration.py`, `scripts/generate_round_b_tool_migration.py`), drift-tested on the
+newest registration and parsed in PostgreSQL (`tests/test_migrations_parse.py`).
+
+- **`20261003_004_ai_method_guides_v3.sql`:** the 8 guides of version 3 in `public."AI_method_guide"` (P26: a
+  research threshold carries its unit; event_study and event_summary use the approved outcome unit). Versions 1 and 2
+  stay active for a service still on them.
+- **`20261003_005_round_b_tool_catalog.sql`:** `Tool_Catalog` `submit_data_need_spec` v7, `check_data_feasibility`
+  v5, `check_research_feasibility` v4 (a time range may end `LATEST`, 1b) and `run_python` v3 (`outcome_unit=None`,
+  P26), inactive like every market-ai-orc row; other columns copied from the previous versions.
+- **Applied** through the temporary job `b-mig-job` (DRYRUN `3a25b169`, APPLY `1341f411`; see `RAILWAY_CHANGELOG.md`).
+- **Read back:** active guides by version `[[1, 8, 1], [2, 8, 1], [3, 8, 1]]`; `Tool_Catalog` 88 rows (was 84), active
+  25 (unchanged); the four new versions inactive. A second run of each file was refused by its own preflight.
+- **History frozen (R28):** `database/migrations/APPLIED.sha256` lists the hash of every applied migration (88 files
+  with these two); `apps/market-ai-orc/tests/test_migrations_frozen.py` fails when one changes.
+- No table or column changed: `DATABASE_SCHEMA.md`, Table_Catalog and Column_Catalog are unchanged.
+
 ## 2026-10-02 — HIGH ALERT: migrations 20261003_002 (method guides v2) and 20261003_003 (Tool_Catalog) on dev
 
 Plan `HIGH_ALERT_IMPLEMENTATION_PLAN.md` steps 3–5, approved by the user. Both files are generated

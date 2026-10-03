@@ -104,6 +104,25 @@ A (fondasi: M68, ENV, TOOLS-DOC) ─► B (benar secara data: G19-1/3, P26, M69-
       ─► E (riset lanjutan: M69-2, G19-2) ─► F (golden test + perbandingan)
 ```
 
+**Progres:**
+
+| Fase | Status | Bukti |
+|---|---|---|
+| A | LIVE dev 2026-10-03 | orc `1ad568b7`/`8b522304`; `RAILWAY_CHANGELOG.md` |
+| B | LIVE dev 2026-10-03 (belum diverifikasi live) | orc `60136c77`, sandbox `707318d9`, migrasi 20261003_004/005; orc 1.123 tes, sandbox 717 tes lulus |
+| C–E | belum | |
+| F | hanya atas perintah user | |
+
+Catatan Fase B:
+- **P26:** satuan ditambahkan sebagai field terpisah (`min_effect_unit`, `success_rule.unit`), bukan objek `{value, unit}`.
+  Angka tetap ditulis seperti kata user, dan backend yang mengonversi.
+- **Tambahan di luar rencana:**
+  - M70: gerbang rencana di mode 4 ikut membaca konteks aplikasi sebagai kata-kata user.
+  - R28: tes drift memeriksa migrasi yang sudah diterapkan. Diganti tes registrasi terbaru dan `APPLIED.sha256`.
+- **Belum termasuk:**
+  - Status BASI di `final_status.warnings` dan notifikasi Telegram (1c). Bagian ini ada di layanan yang bersumber `main`.
+  - Penyegaran cakupan setelah setiap muat (1a-permanen).
+
 Setiap fase:
 1. tes lokal (orc dan sandbox; Governor bila berubah);
 2. commit;
