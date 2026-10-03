@@ -27,7 +27,8 @@ from conftest import BASE_ENV, ScriptedClient, final_response, make_settings
 ADMIN_URL = os.environ.get("ORC_TEST_POSTGRES_URL", "")
 pytestmark = pytest.mark.skipif(not ADMIN_URL, reason="ORC_TEST_POSTGRES_URL not set")
 REPO = Path(__file__).resolve().parents[3]
-MIGRATION = REPO / "database/migrations/20260927_002_create_ai_conversation_store.sql"
+MIGRATIONS = [REPO / "database/migrations/20260927_002_create_ai_conversation_store.sql",
+              REPO / "database/migrations/20261003_006_conversation_results.sql"]
 AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}"}
 
 # The columns of the legacy documentation tables the migration writes to (DATABASE_SCHEMA.md).
@@ -64,7 +65,8 @@ def databases() -> Iterator[tuple[str, str]]:
     try:
         with psycopg.connect(admin_url, autocommit=True) as connection:
             connection.execute(CATALOG_STUBS)
-            connection.execute(MIGRATION.read_text())
+            for migration in MIGRATIONS:
+                connection.execute(migration.read_text())
         password = secrets.token_hex(24)
         spec = importlib.util.spec_from_file_location("provision", REPO / "scripts/provision_market_ai_conversation_login.py")
         module = importlib.util.module_from_spec(spec)
@@ -268,7 +270,9 @@ def test_the_login_reaches_the_conversation_tables_only(databases) -> None:
             with pytest.raises(psycopg.errors.InsufficientPrivilege):
                 connection.execute(f'SELECT 1 FROM public."{table}"')
             connection.rollback()
-        assert connection.execute('SELECT count(*) FROM public."AI_conversation"').fetchone()[0] >= 0
+        for table in ("AI_conversation", "AI_conversation_turn", "AI_conversation_output", "AI_conversation_execution",
+                      "AI_conversation_export"):
+            assert connection.execute(f'SELECT count(*) FROM public."{table}"').fetchone()[0] >= 0
 
 
 def test_an_unavailable_store_refuses_server_mode_only() -> None:

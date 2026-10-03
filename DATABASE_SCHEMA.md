@@ -12,6 +12,9 @@ Generated from PostgreSQL schema `public` at `2026-09-27T08:23:59+00:00`.
 | `AI_catalog_relationships` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing safe join, temporal alignment, preaggregation, and output-grain contracts. |
 | `AI_column_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing column semantics and bounded-query permissions for the seven approved tables. |
 | `AI_conversation` | Unclassified | Unknown | — | `2026-09-27 08:23:59+00:00` | Baseline only | market-ai-orc conversations kept by the server (history_mode SERVER): one row per chat box with its owner, retention and the lease that allows one active run at a time. |
+| `AI_conversation_execution` | System | Event-driven / each sandbox execution (R-STORE) | — | `2026-10-03` | Added by hand (20261003_006) | The code of each sandbox execution of a market-ai-orc conversation, so a result can be traced and reproduced after the sandbox copy expired. |
+| `AI_conversation_export` | System | Event-driven / each export (phase D) | — | `2026-10-03` | Added by hand (20261003_006) | Files exported from a market-ai-orc conversation for the user to download (CSV, XLSX or Parquet, at most 20 MB). |
+| `AI_conversation_output` | System | Event-driven / each released output (R-STORE) | — | `2026-10-03` | Added by hand (20261003_006) | Released outputs of market-ai-orc conversations (tables, JSON, text, charts) with their definition, units, lineage and the last date of the data they were computed from; the content up to 20 MB is here, a larger one in the bucket market-ai-conversation-outputs. |
 | `AI_conversation_turn` | Unclassified | Unknown | — | `2026-09-27 08:23:59+00:00` | Baseline only | One message of a market-ai-orc conversation: the user message, the run status and the response returned to the caller. |
 | `AI_data_coverage` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | Automated actual raw-source coverage plus explicitly inferred expectations for derived Feature tables. |
 | `AI_formula_reference` | Unclassified | Unknown | — | `2026-09-24 09:22:02+00:00` | Baseline only | Global reference catalog of calculation formulas for the orchestrator; entries document a formula, not a verified or executable implementation. |
@@ -261,6 +264,143 @@ market-ai-orc conversations kept by the server (history_mode SERVER): one row pe
 | `AI_conversation_pkey` | `CREATE UNIQUE INDEX "AI_conversation_pkey" ON public."AI_conversation" USING btree (conversation_id)` |
 | `ai_conversation_expiry_idx` | `CREATE INDEX ai_conversation_expiry_idx ON public."AI_conversation" USING btree (expires_at)` |
 | `ai_conversation_owner_idx` | `CREATE INDEX ai_conversation_owner_idx ON public."AI_conversation" USING btree (owner_key, updated_at DESC)` |
+
+## AI_conversation_execution
+
+The code of each sandbox execution of a market-ai-orc conversation, so a result can be traced and reproduced after the sandbox copy expired.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `execution_id` | `text` | No | — | The sandbox execution_id (exe_ + 24 hex). |
+| `conversation_id` | `text` | No | — | The conversation the execution belongs to. |
+| `request_id` | `text` | No | — | The market-ai-orc request that ran the code. |
+| `session_id` | `text` | Yes | — | The sandbox session that ran the code. |
+| `code` | `text` | No | — | The code that ran (its first 65,536 characters when code_truncated). |
+| `code_truncated` | `boolean` | No | `false` | True when the code was longer than 65,536 characters and only its start is stored. |
+| `code_sha256` | `text` | No | — | SHA-256 of the whole code, as the sandbox recorded it. |
+| `modules` | `jsonb` | Yes | — | Modules the code imported, as the sandbox reported them. |
+| `access` | `jsonb` | Yes | — | The data the code read (requests, ranges, carried tables), as the sandbox reported it. |
+| `status` | `text` | Yes | — | The execution status the sandbox returned (OK, SCRIPT_ERROR, TIMEOUT, ...). |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | When the execution was stored. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `ai_conversation_execution_code_check` | Check | `CHECK ((length(code) <= 65536))` |
+| `ai_conversation_execution_id_check` | Check | `CHECK ((execution_id ~ '^exe_[0-9a-f]{24}$'::text))` |
+| `ai_conversation_execution_json_check` | Check | `CHECK ((((modules IS NULL) OR (jsonb_typeof(modules) = 'array'::text)) AND ((access IS NULL) OR (jsonb_typeof(access) = ANY (ARRAY['array'::text, 'object'::text])))))` |
+| `ai_conversation_execution_request_check` | Check | `CHECK ((request_id ~ '^[A-Za-z0-9._:-]{1,200}$'::text))` |
+| `ai_conversation_execution_session_check` | Check | `CHECK (((session_id IS NULL) OR (session_id ~ '^sess_[0-9a-f]{24}$'::text)))` |
+| `ai_conversation_execution_sha_check` | Check | `CHECK ((code_sha256 ~ '^[0-9a-f]{64}$'::text))` |
+| `AI_conversation_execution_conversation_id_fkey` | Foreign key | `FOREIGN KEY (conversation_id) REFERENCES "AI_conversation"(conversation_id) ON DELETE CASCADE` |
+| `AI_conversation_execution_pkey` | Primary key | `PRIMARY KEY (execution_id)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `AI_conversation_execution_pkey` | `CREATE UNIQUE INDEX "AI_conversation_execution_pkey" ON public."AI_conversation_execution" USING btree (execution_id)` |
+| `ai_conversation_execution_conversation_idx` | `CREATE INDEX ai_conversation_execution_conversation_idx ON public."AI_conversation_execution" USING btree (conversation_id, created_at)` |
+
+## AI_conversation_export
+
+Files exported from a market-ai-orc conversation for the user to download (CSV, XLSX or Parquet, at most 20 MB).
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `export_id` | `text` | No | — | Id of the export (exp_ + 24 hex). |
+| `conversation_id` | `text` | No | — | The conversation the export belongs to. |
+| `request_id` | `text` | No | — | The market-ai-orc request that created the export. |
+| `source_ref` | `text` | No | — | What was exported: an output ref or id, or an evidence reference. |
+| `format` | `text` | No | — | CSV, XLSX or PARQUET. |
+| `file_name` | `text` | No | — | The download file name. |
+| `mime_type` | `text` | No | — | The media type sent with the download. |
+| `size_bytes` | `bigint` | No | — | Size of the file in bytes (at most 20 MB). |
+| `sha256` | `text` | No | — | SHA-256 of the file. |
+| `content` | `bytea` | No | — | The file. |
+| `includes` | `jsonb` | No | `'{}'::jsonb` | What the file contains besides the rows (definitions, lineage). |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | When the export was created. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `ai_conversation_export_format_check` | Check | `CHECK ((format = ANY (ARRAY['CSV'::text, 'XLSX'::text, 'PARQUET'::text])))` |
+| `ai_conversation_export_id_check` | Check | `CHECK ((export_id ~ '^exp_[0-9a-f]{24}$'::text))` |
+| `ai_conversation_export_includes_check` | Check | `CHECK ((jsonb_typeof(includes) = 'object'::text))` |
+| `ai_conversation_export_name_check` | Check | `CHECK ((file_name ~ '^[A-Za-z0-9._-]{1,120}$'::text))` |
+| `ai_conversation_export_request_check` | Check | `CHECK ((request_id ~ '^[A-Za-z0-9._:-]{1,200}$'::text))` |
+| `ai_conversation_export_sha_check` | Check | `CHECK ((sha256 ~ '^[0-9a-f]{64}$'::text))` |
+| `ai_conversation_export_size_check` | Check | `CHECK (((size_bytes = octet_length(content)) AND ((size_bytes >= 1) AND (size_bytes <= 20971520))))` |
+| `ai_conversation_export_source_check` | Check | `CHECK (((length(source_ref) >= 1) AND (length(source_ref) <= 200)))` |
+| `AI_conversation_export_conversation_id_fkey` | Foreign key | `FOREIGN KEY (conversation_id) REFERENCES "AI_conversation"(conversation_id) ON DELETE CASCADE` |
+| `AI_conversation_export_pkey` | Primary key | `PRIMARY KEY (export_id)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `AI_conversation_export_pkey` | `CREATE UNIQUE INDEX "AI_conversation_export_pkey" ON public."AI_conversation_export" USING btree (export_id)` |
+| `ai_conversation_export_conversation_idx` | `CREATE INDEX ai_conversation_export_conversation_idx ON public."AI_conversation_export" USING btree (conversation_id, created_at)` |
+
+## AI_conversation_output
+
+Released outputs of market-ai-orc conversations (tables, JSON, text, charts) with their definition, units, lineage and the last date of the data they were computed from; the content up to 20 MB is here, a larger one in the bucket market-ai-conversation-outputs.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `output_id` | `text` | No | — | The sandbox output_id (out_ + 24 hex); the same id the data record and load_output use. |
+| `conversation_id` | `text` | No | — | The conversation the output belongs to. |
+| `request_id` | `text` | No | — | The market-ai-orc request that released the output. |
+| `session_id` | `text` | Yes | — | The sandbox session that produced the output. |
+| `execution_id` | `text` | Yes | — | The sandbox execution that produced the output (see AI_conversation_execution). |
+| `name` | `text` | No | — | The output name given in emit_table / emit_json (at most 80 characters). |
+| `output_type` | `text` | No | — | The sandbox output type (TABLE, JSON, TEXT, CHART or FILE). |
+| `format` | `text` | No | — | The stored file format: PARQUET, CSV, PNG, JSON, TEXT or BIN. |
+| `label` | `text` | Yes | — | The evidence label the sandbox gave the output (for example DATA_COVERAGE_VERIFIED). |
+| `definition` | `jsonb` | Yes | — | How the output was made: filters, period, entities, thresholds and notes, as declared when it was released. |
+| `units` | `jsonb` | Yes | — | Unit of each column that has one (FRACTION, PERCENT or P_VALUE). |
+| `lineage` | `jsonb` | Yes | — | Where the output came from: need_id, bundle_id, execution code hash and reference date. |
+| `data_as_of` | `date` | Yes | — | The last date of the data the output was computed from (the largest actual end date of its bundle ranges); a recomputation of the conversation uses the same date unless the user asks for newer data. |
+| `row_count` | `bigint` | Yes | — | Rows of a table output; NULL for other outputs. |
+| `columns` | `jsonb` | Yes | — | Column names of a table output, in order; NULL for other outputs. |
+| `byte_count` | `bigint` | No | — | Size of the stored file in bytes. |
+| `checksum_sha256` | `text` | No | — | SHA-256 of the stored file; checked when the file is loaded into a new session. |
+| `storage` | `text` | No | — | POSTGRES (content holds the file, at most 20 MB) or BUCKET (object_key names it in market-ai-conversation-outputs). |
+| `content` | `bytea` | Yes | — | The file when storage is POSTGRES; NULL otherwise. |
+| `object_key` | `text` | Yes | — | The bucket key (outputs/<conversation_id>/<output_id>.<ext>) when storage is BUCKET; NULL otherwise. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | When the output was stored. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `ai_conversation_output_checksum_check` | Check | `CHECK ((checksum_sha256 ~ '^[0-9a-f]{64}$'::text))` |
+| `ai_conversation_output_execution_check` | Check | `CHECK (((execution_id IS NULL) OR (execution_id ~ '^exe_[0-9a-f]{24}$'::text)))` |
+| `ai_conversation_output_format_check` | Check | `CHECK ((format = ANY (ARRAY['PARQUET'::text, 'CSV'::text, 'PNG'::text, 'JSON'::text, 'TEXT'::text, 'BIN'::text])))` |
+| `ai_conversation_output_id_check` | Check | `CHECK ((output_id ~ '^out_[0-9a-f]{24}$'::text))` |
+| `ai_conversation_output_json_check` | Check | `CHECK ((((definition IS NULL) OR (jsonb_typeof(definition) = 'object'::text)) AND ((units IS NULL) OR (jsonb_typeof(units) = 'object'::text)) AND ((lineage IS NULL) OR (jsonb_typeof(lineage) = 'object'::text)) AND ((columns IS NULL) OR (jsonb_typeof(columns) = 'array'::text))))` |
+| `ai_conversation_output_name_check` | Check | `CHECK (((length(name) >= 1) AND (length(name) <= 80)))` |
+| `ai_conversation_output_request_check` | Check | `CHECK ((request_id ~ '^[A-Za-z0-9._:-]{1,200}$'::text))` |
+| `ai_conversation_output_session_check` | Check | `CHECK (((session_id IS NULL) OR (session_id ~ '^sess_[0-9a-f]{24}$'::text)))` |
+| `ai_conversation_output_size_check` | Check | `CHECK (((byte_count >= 0) AND ((row_count IS NULL) OR (row_count >= 0))))` |
+| `ai_conversation_output_storage_check` | Check | `CHECK ((((storage = 'POSTGRES'::text) AND (content IS NOT NULL) AND (object_key IS NULL) AND (octet_length(content) = byte_count) AND (byte_count <= 20971520)) OR ((storage = 'BUCKET'::text) AND (content IS NULL) AND (object_key IS NOT NULL) AND (object_key ~ '^outputs/conv_[0-9a-f]{32}/out_[0-9a-f]{24}\.[a-z]{3,7}$'::text))))` |
+| `AI_conversation_output_conversation_id_fkey` | Foreign key | `FOREIGN KEY (conversation_id) REFERENCES "AI_conversation"(conversation_id) ON DELETE CASCADE` |
+| `AI_conversation_output_pkey` | Primary key | `PRIMARY KEY (output_id)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `AI_conversation_output_pkey` | `CREATE UNIQUE INDEX "AI_conversation_output_pkey" ON public."AI_conversation_output" USING btree (output_id)` |
+| `ai_conversation_output_conversation_idx` | `CREATE INDEX ai_conversation_output_conversation_idx ON public."AI_conversation_output" USING btree (conversation_id, created_at)` |
 
 ## AI_conversation_turn
 

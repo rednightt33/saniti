@@ -1,5 +1,27 @@
 # Database changelog
 
+## 2026-10-03 — Round phase C2a: migration 20261003_006 (conversation results, R-STORE) on dev
+
+Plan `ROUND_PLAN_2026-10-03_FASE_C.md` C2a, approved by the user. Hand-written DDL in the pattern of
+`20260927_002`, parsed in PostgreSQL by `tests/test_migrations_parse.py` and applied in the scratch database of
+`tests/test_conversations.py` (login reaches the five conversation tables only).
+
+- **New tables** (main database, next to `AI_conversation`; deleted with their conversation):
+  - `AI_conversation_output` (21 columns): released outputs with definition, units, lineage and `data_as_of`;
+    content ≤ 20 MB in `content`, larger in the new bucket (`object_key`).
+  - `AI_conversation_execution` (11 columns): code of each sandbox execution (≤ 65,536 characters, hash of the whole).
+  - `AI_conversation_export` (12 columns): exported files ≤ 20 MB (user decision 2026-10-03; written in phase D).
+- **Grants:** SELECT, INSERT, UPDATE, DELETE to `market_ai_conversation_store` (member: login
+  `market_ai_conversation`); PUBLIC revoked. `scripts/provision_market_ai_conversation_login.py` now expects the five
+  tables.
+- **Catalog:** 3 `Table_Catalog` rows and 44 `Column_Catalog` rows (VERIFIED: definitions written with the code).
+  `DATABASE_SCHEMA.md` sections added by hand in the generated format, from a scratch database with the same
+  migration.
+- **Applied** through the temporary job `c-mig-job` (DRYRUN `ca7fed55`, APPLY `3858a020`), then deleted.
+- **Read back:** the three tables exist; catalog rows 3 and 44; the login `market_ai_conversation` has full access to
+  exactly `AI_conversation`, `AI_conversation_execution`, `AI_conversation_export`, `AI_conversation_output`,
+  `AI_conversation_turn`. A second run was refused by the preflight. `APPLIED.sha256` updated.
+
 ## 2026-10-03 — Round phase B: migrations 20261003_004 (method guides v3) and 20261003_005 (Tool_Catalog) on dev
 
 Plan `ROUND_PLAN_2026-10-03.md` phase B, approved by the user. Both files are generated

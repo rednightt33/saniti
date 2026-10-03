@@ -18,7 +18,9 @@ from psycopg.rows import dict_row
 
 LOGIN = "market_ai_conversation"
 GROUP = "market_ai_conversation_store"
-TABLES = {"AI_conversation", "AI_conversation_turn"}
+# 20260927_002: the conversation and its turns; 20261003_006 (R-STORE): its outputs, executions and exports
+TABLES = {"AI_conversation", "AI_conversation_turn", "AI_conversation_output", "AI_conversation_execution",
+          "AI_conversation_export"}
 
 
 def main() -> None:
