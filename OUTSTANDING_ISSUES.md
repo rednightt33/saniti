@@ -75,9 +75,9 @@ g6 = usulan pertanyaan tambahan).
 - R07/R16: akses agen ke database terbatas. --> UNDERADDRESSED, sebagian (luar GT; diatasi job sementara)
 - R22: runner uji tidak mencatat timeout-nya sendiri. --> UNDERADDRESSED
 - R27: migrasi gagal karena tanda kutip tidak di-escape (tertangkap saat uji coba, tidak ada data berubah). --> SELESAI, dikonfirmasi user (semua migrasi kini diparse PostgreSQL di tes) (luar GT)
-- **[HIGH ALERT]** M68: catatan data menulis filter tanpa nilainya ("Industry EQ"). --> UNDERADDRESSED (ditemukan GT 2026-10-02c)
+- **[HIGH ALERT]** M68: catatan data menulis filter tanpa nilainya ("Industry EQ"). --> UNDERADDRESSED (ditemukan GT 2026-10-02c; rencana perbaikan di FUTURE_PLAN.md, belum dijalankan)
 - **[HIGH ALERT]** M69: ambang sukses user tidak mengikat riset multi-sudut (mode 4). --> UNDERADDRESSED (ditemukan GT 2026-10-02c)
-- S28: slot sesi sandbox tertahan sampai 15 menit, analysis/riset gagal "penuh". --> UNDERADDRESSED (ditemukan GT 2026-10-02c)
+- S28: slot sesi sandbox tertahan sampai 15 menit, analysis/riset gagal "penuh". --> UNDERADDRESSED (ditemukan GT 2026-10-02c; rencana di FUTURE_PLAN.md, belum dijalankan)
 - G19: dataset riset kosong tetap lolos cakupan, riset jalan di atas data kosong. --> UNDERADDRESSED (ditemukan GT 2026-10-02c; penyebab kosong belum terverifikasi)
 - P26: satuan efek minimal (desimal) dibandingkan dengan hasil (persen). --> UNDERADDRESSED (ditemukan GT 2026-10-02c)
 - M14: catatan berbahasa Inggris di jawaban berbahasa Indonesia. --> UNDERADDRESSED (semua)
