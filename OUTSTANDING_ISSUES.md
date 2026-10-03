@@ -77,7 +77,7 @@ g6 = usulan pertanyaan tambahan).
 - R27: migrasi gagal karena tanda kutip tidak di-escape (tertangkap saat uji coba, tidak ada data berubah). --> SELESAI, dikonfirmasi user (semua migrasi kini diparse PostgreSQL di tes) (luar GT)
 - **[HIGH ALERT]** M68: catatan data menulis filter tanpa nilainya ("Industry EQ"). --> UNDERADDRESSED (ditemukan GT 2026-10-02c; rencana perbaikan di FUTURE_PLAN.md, belum dijalankan)
 - **[HIGH ALERT]** M69: ambang sukses user tidak mengikat riset multi-sudut (mode 4). --> tahap 1 DEPLOYED dev 2026-10-03 (mode 4 boleh rencana hipotesis dengan success_rule; horizon user dikunci; gerbang membaca kata-kata user saja, M70); belum diverifikasi live; tahap 2 di Fase E
-- S28: slot sesi sandbox tertahan sampai 15 menit, analysis/riset gagal "penuh". --> UNDERADDRESSED (ditemukan GT 2026-10-02c; rencana di FUTURE_PLAN.md, belum dijalankan)
+- S28: slot sesi sandbox tertahan sampai 15 menit, analysis/riset gagal "penuh". --> DEPLOYED dev 2026-10-03 (ruang kerja dilepas di akhir setiap jawaban, satu sesi aktif per jawaban, antrean 60 detik); belum diverifikasi live
 - G19: dataset riset kosong tetap lolos cakupan, riset jalan di atas data kosong. --> DEPLOYED dev 2026-10-03 (penyebab terverifikasi: kunci penggabungan pesanan; lapis 1 kunci lengkap + lapis 3 gerbang kosong EMPTY_REQUEST/EMPTY_INPUT + argumen audit utuh); belum diverifikasi live; lapis 2 menunggu keputusan 6
 - P26: satuan efek minimal (desimal) dibandingkan dengan hasil (persen). --> DEPLOYED dev 2026-10-03 (ambang membawa satuan, alat bantu memakai satuan rencana, harness memeriksa satuan); belum diverifikasi live
 - M14: catatan berbahasa Inggris di jawaban berbahasa Indonesia. --> UNDERADDRESSED (semua)

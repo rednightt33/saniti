@@ -1382,6 +1382,19 @@ Boundaries:
 - `PY_SANDBOX_DATASET_CACHE_BYTES` (1 GiB)
 - `PY_SANDBOX_DATASET_URL_SCHEMES` (`https`; `file` is for tests only)
 
+### Session release and the open queue (S28, round 2026-10-03)
+
+- `POST /v1/requests/{request_id}/release`: the orchestrator calls it when the answer of a request ends. Each open
+  session of the request that completed goes to `WARM_IDLE` (reusable by the conversation, evicted when a slot is
+  needed); any other session closes with `RELEASED`. Idempotent.
+- One active session per request: opening another session in the same request settles its completed sessions to
+  `WARM_IDLE`; with no free slot, the request's own uncompleted session is closed (`REPLACED_IN_REQUEST`) before
+  anything else of another request is touched (an ACTIVE or BUSY session of another request never is).
+- `PY_SANDBOX_OPEN_WAIT_SECONDS` (default 0, maximum 120; dev 60): with every slot in use, an open waits in arrival
+  order and retries the eviction; after the wait, `SESSION_CAPACITY_EXCEEDED` carries `waited_seconds`.
+- `GET /v1/runtime` reports `session_release {enabled, version 1, open_wait_seconds}`. The 900 s idle sweep remains
+  the safety net.
+
 ## Railway service
 
 Deployed on `dev` as `market-python-sandbox`, with no public domain. The Railway volume is mounted

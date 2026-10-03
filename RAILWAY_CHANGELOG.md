@@ -1,5 +1,21 @@
 # Railway changelog
 
+## 2026-10-03 — Round phase C1 on dev: S28 session release and open queue
+
+Plan: `ROUND_PLAN_2026-10-03.md` phase C (approved 2026-10-03). CLI upload from branch `claude/g2-g3-reactivation` at
+`e7821c9`; `main` untouched; AI_MODEL, AI_MODEL_2 and the switches untouched.
+
+- **Variable `PY_SANDBOX_OPEN_WAIT_SECONDS=60`** on market-python-sandbox (dev; not a secret), set with
+  `--skip-deploys` before the deployment below. `railway config pull --force` added the name to
+  `.railway/railway.ts`; `railway config plan`: up to date.
+- **market-python-sandbox `3748d45c` `SUCCESS`:** release endpoint, one active session per request, open queue.
+  Startup: `sandbox_started` (isolation enforced), `sessions_started`.
+- **market-ai-orc `fdcb156b` `SUCCESS`:** release at the end of every run. Startup: `mode4_active`,
+  `ai_mode_selected`; no `session_release_inactive` (the sandbox's capability was accepted).
+- Tests: orc 1,127 passed, sandbox 725 passed (`test_budgets_capacity_and_closing` updated to the S28 rule).
+- **Live check pending:** no model request was sent (golden test on the user's command).
+- **Rollback:** sandbox `707318d9`, orc `60136c77`; or `PY_SANDBOX_OPEN_WAIT_SECONDS=0`.
+
 ## 2026-10-03 — Round phase B on dev: G19, P26, M69 stage 1, 1b, 1c
 
 Plan: `ROUND_PLAN_2026-10-03.md` phase B. CLI upload from the repository root of branch `claude/g2-g3-reactivation`
