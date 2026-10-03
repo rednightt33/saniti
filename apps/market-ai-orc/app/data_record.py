@@ -104,19 +104,52 @@ def _note_request(table: dict[str, Any], request_id: str) -> None:
         table["requests"] = (table["requests"] + [request_id])[-5:]
 
 
+# M68: a predicate's values are shown in full up to this many characters; beyond it the count of the rest is stated
+SCOPE_VALUES_MAX_CHARS = 400
+
+
+def _scope_values(scope: dict[str, Any]) -> list[Any] | None:
+    """The values of a predicate in either form: the sandbox's canonical scope carries ``values`` (a list; M68), the
+    model's DataNeed and definition filters carry ``value`` (a scalar or a list); None when the predicate has none."""
+    if "values" in scope and scope["values"] is not None:
+        values = scope["values"]
+        return list(values) if isinstance(values, (list, tuple)) else [values]
+    value = scope.get("value")
+    if value is None:
+        return None
+    return list(value) if isinstance(value, (list, tuple)) else [value]
+
+
+def _values_text(values: list[Any]) -> str:
+    shown: list[str] = []
+    used = 0
+    for item in values:
+        text = str(item)
+        if shown and used + len(text) + 2 > SCOPE_VALUES_MAX_CHARS:
+            return ", ".join(shown) + f", … (+{len(values) - len(shown)} more of {len(values)} values)"
+        shown.append(text)
+        used += len(text) + 2
+    return ", ".join(shown)
+
+
 def scope_text(scope: Any) -> str:
-    """A DataNeed scope (ALL / PREDICATE / AND / OR / NOT) as one readable line, e.g. "Industry EQ Banks"."""
+    """A DataNeed scope (ALL / PREDICATE / AND / OR / NOT) as one readable line, e.g. "Industry EQ Banks". Reads both
+    the model's form (``value``, NOT with ``child``) and the sandbox's canonical form (``values``, NOT with
+    ``children``), so a scope read back from the sandbox keeps its values (M68)."""
     if not isinstance(scope, dict):
         return "all rows"
     kind = scope.get("type")
     if kind == "PREDICATE":
-        value = scope.get("value")
-        shown = "" if value is None else " " + (", ".join(map(str, value)) if isinstance(value, list) else str(value))
+        values = _scope_values(scope)
+        shown = "" if values is None else " " + _values_text(values)
         return f"{scope.get('column')} {scope.get('operator')}{shown}"
     if kind in ("AND", "OR"):
         return "(" + f" {kind} ".join(scope_text(c) for c in scope.get("children") or []) + ")"
     if kind == "NOT":
-        return f"NOT {scope_text(scope.get('child'))}"
+        child = scope.get("child")
+        if child is None and scope.get("children"):
+            child = scope["children"][0]
+        return f"NOT {scope_text(child)}"
     return "all rows"
 
 

@@ -44,6 +44,7 @@ from .provenance import (CONTEXT, LABEL_ORDER, SourceIndex, analysis_label, chec
 from .value_refs import UNITS, ReferenceSources, Resolved, TableRows, format_value, render
 from .tools import ToolOutcome, ToolRegistry, error_outcome
 from .tools.analysis import current_conversation_key, current_run_context, run_context
+from .tools.envelope import envelope
 from .tools.registry import strict_parameters_schema
 from .tools.session import current_carried_outputs
 from .tools.request_data import current_request_id
@@ -222,6 +223,12 @@ Data the catalog does not contain (for example macro data, yields,
 fundamentals, or news) is unavailable: say so and never substitute
 another dataset. A documented formula whose inputs are not in the
 catalog cannot be calculated."""
+TOOL_ENVELOPE_RULE = (
+    "TOOL RESULTS: every tool result is {status, tool, data, warnings, errors, meta}. status OK: use data. PARTIAL: "
+    "data is incomplete (meta.truncated true: read the next page before you describe all of it). REJECTED or ERROR: "
+    "do not repeat the same call; follow errors[].next_action (FIX_ARGUMENTS: correct the arguments named in the "
+    "message; WAIT_AND_RETRY: retry once later; CALL:<tool>: call that tool first; ANSWER_LIMITATION or "
+    "RETURN_FINAL_RESPONSE: answer with what you have and state the limitation).")
 DATANEED_RULES = """DATA NEED RULES
 Every answer that needs market data follows one path:
 1. submit_data_need_spec declares only the data needed: logical data
@@ -1756,6 +1763,8 @@ class AgentOrchestrator:
                                                   int(self.research_limits.get("max_angles", 6)),
                                                   int(self.research_limits.get("min_families") or 0)),
                                                  self.value_references, self.hypothesis_plans)
+        if getattr(settings, "ai_enable_tool_envelope", False):
+            self.system_prompt += "\n\n" + TOOL_ENVELOPE_RULE
         self.final_schema = final_response_schema(self.plan_confirmation, self.methodology, self.research_findings,
                                                   self.multi_angle, self.value_references, self.hypothesis_plans)
         contract = response_contract(self.plan_confirmation, self.methodology, self.research_findings,
@@ -2577,18 +2586,24 @@ class AgentOrchestrator:
                 f"This call was cut off at the output limit ({self.settings.ai_max_output_tokens} tokens, reasoning "
                 "included) before its arguments were complete, so it was not run. Send the complete call again and "
                 "keep the reasoning before it short."))
-        else:
+        duration_ms = None
+        if not truncated:
             started = time.monotonic()
             outcome = self._execute(state, call_id, name, raw_arguments)
+            duration_ms = int((time.monotonic() - started) * 1000)
             if self.audit_outbox is not None:
                 state.audit_trace.append(tool_event(
                     tool=name, call_id=call_id, iteration=state.iterations, arguments=raw_arguments,
                     output=outcome.output, ok=outcome.ok, error_code=self._rejection_code(name, outcome),
-                    duration_ms=int((time.monotonic() - started) * 1000), occurred_at=self.wall_clock()))
+                    duration_ms=duration_ms, occurred_at=self.wall_clock()))
+        text = dumps(outcome.output)
+        if getattr(self.settings, "ai_enable_tool_envelope", False):
+            # ENV (round 2026-10-03): the model's view only; outcome.output stays what the gates read
+            text = dumps(envelope(outcome, duration_ms=duration_ms, result_bytes=len(text.encode("utf-8"))))
         state.input_items.append({
             "type": "function_call_output",
             "call_id": outcome.call_id,
-            "output": dumps(outcome.output),
+            "output": text,
         })
 
     def _execute(self, state: RunState, call_id: str, name: str, raw_arguments: Any) -> ToolOutcome:
