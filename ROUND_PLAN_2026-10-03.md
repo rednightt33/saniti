@@ -1,7 +1,6 @@
 # Rencana round 2026-10-03: anti-menyesatkan, anti-"kejedot", efisien
 
-**Status:** disetujui user per item (2026-10-03), **belum dijalankan**. Pekerjaan dimulai hanya setelah user memberi
-aba-aba.
+**Status:** disetujui user (2026-10-03), termasuk keputusan 1–5 di §8. Pengerjaan dimulai dari Fase A.
 
 - **Bukti dan diagnosis:** `GOLDEN_TEST_HIGH_ALERT_2026-10-02.md`, `ERRORS_AND_SOLUTIONS.md` (M68, M69, S28, G19, P26).
 - **Rencana sebelumnya:** `HIGH_ALERT_IMPLEMENTATION_PLAN.md` (Langkah 1–7) dan `FUTURE_PLAN.md`.
@@ -88,7 +87,7 @@ User ─► market-ai-backend ─► market-ai-orc (orkestrator, alat model, ger
 | R-STORE | ✔ | ✔ impor tabel | | | ✔ tabel baru | ✔ tabel besar |
 | inspect_dataset | | ✔ profiler | | | | |
 | get_artifact / get_lineage | ✔ alat | ✔ endpoint lineage | | | ✔ (R-STORE) | |
-| export_result | ✔ alat + API unduh | ✔ penulis file | | | | ✔ bucket ekspor |
+| export_result | ✔ alat + API unduh | ✔ penulis file | | | ✔ `conversation_exports` | |
 | get_evidence | ✔ alat + gerbang akhir | ✔ (tabel dasar) | ✔ (resep ringkasan) | | ✔ | |
 | query_metric | ✔ alat | | ✔ ringkasan antar-waktu | ✔ `AI_metric_catalog` | | |
 
@@ -322,19 +321,23 @@ Deskripsi alat dibuat pendek; detail dipindah ke buku metode supaya token per pa
   manifest berisi query Governor; eksekusi berisi modul dan akses), dan R-STORE.
 - Tidak ada data baris. Dipakai AI untuk menjawab "angka ini dari mana", dan untuk gerbang klaim "konsisten" (M63).
 
-#### D4. export_result
+#### D4. export_result (file di Postgres, keputusan user 2026-10-03)
 
 - **Request:** `{"source": {"ref": "out.o3"} | {"evidence_id": "..."}, "format": "CSV | XLSX | PARQUET",
   "options": {"include_definition": true, "include_lineage": true}}`.
-- **Sandbox** menulis file dari R-STORE / output, ditambah lembar "definisi" dan "lineage" untuk XLSX.
-  - Butuh dependensi `openpyxl` (baru, di requirements sandbox).
-  - CSV dan Parquet tanpa dependensi baru.
-- **Bucket ekspor** (keputusan user: bucket baru `market-ai-exports` atau prefix di bucket yang ada). Retensi = umur
-  percakapan.
-- **Unduhan:** API orc `GET /v1/artifacts/{artifact_id}/download` (auth sama dengan API), atau URL presigned berumur
-  pendek seperti dataset Governor (120 detik).
-- **Response ke model:** hanya `artifact_id`, nama, ukuran dan format. Respons API mendapat `artifacts[]` untuk
-  ditampilkan ke user. File tidak pernah masuk konteks model.
+- **Sandbox** menulis file dari output (CSV dan Parquet tanpa dependensi baru; XLSX dengan `openpyxl` baru, ditambah
+  lembar "definisi" dan "lineage").
+- **Penyimpanan:** tabel terpisah `conversation_exports` di DB percakapan.
+  - Kolom: export_id, conversation_id, request_id, source_ref, format, file_name, mime_type, size_bytes, sha256, content
+    bytea, includes, created_at, expires_at (umur percakapan, 30 hari).
+  - Grant hanya untuk login `market_ai_conversation`.
+  - Tidak ada bucket ekspor dan tidak ada URL publik.
+- **Batas 20 MB per file.** Lebih besar → `EXPORT_TOO_LARGE`, dengan `next_action`: kurangi kolom atau baris, atau pilih
+  Parquet.
+- **Unduhan:** API orc `GET /v1/exports/{export_id}/download` (auth sama dengan API, streaming dari Postgres). Respons
+  API mendapat `artifacts[]`.
+- **Response ke model:** hanya `export_id`, nama, ukuran dan format. File tidak pernah masuk konteks model.
+- **Penghapusan:** dihapus bersama percakapan.
 
 #### D5. get_evidence: tabel bukti per klaim (Prioritas 2, WAJIB)
 
@@ -426,7 +429,7 @@ Untuk setiap item dicatat: status, waktu, biaya, iterasi, **indeks kejedot**, da
 
 | Migrasi | DB | Isi |
 |---|---|---|
-| R-STORE | Percakapan | `conversation_outputs`, `conversation_executions`, grant |
+| R-STORE + export | Percakapan | `conversation_outputs`, `conversation_executions`, `conversation_exports`, grant |
 | query_metric | Katalog | `AI_metric_catalog` + Table/Column_Catalog + grant + metrik awal yang disetujui |
 | Tool_Catalog | Katalog | Versi baru: `submit_data_need_spec` (LATEST, satuan), `check_research_feasibility` (satuan, success_rule v2), `get_session_output` → get_artifact; alat baru `get_lineage`, `export_result`, `get_evidence`, `query_metric` (inactive) |
 | Library riset | Katalog | Versi baru untuk hit rate (E1) |
@@ -458,24 +461,19 @@ dan dibaca balik.
 | Evidence memperlambat jawaban | Batas 10 resep / 120 detik; tingkat 2 tanpa query baru |
 | query_metric dipakai untuk pertanyaan yang butuh analisis | Hanya metrik di katalog; di luar itu `next_action: CALL:submit_data_need_spec` |
 | Gerbang data kosong menolak kasus wajar | Hanya pesanan wajib; pesan mengarahkan ke temuan "tidak ada transaksi" |
-| Bucket ekspor bocor | Akses hanya lewat API orc ber-auth atau URL presigned 120 detik; tidak ada URL publik |
+| DB percakapan membesar karena file ekspor | Batas 20 MB per file, retensi 30 hari, ukuran total dicatat di log |
 | Perubahan besar sekaligus | Fase berurutan, flag per fitur, rollback ke deployment sebelumnya per service |
 
-## 8. Keputusan user yang dibutuhkan sebelum fase terkait
+## 8. Keputusan user (2026-10-03)
 
-1. **query_metric:** daftar metrik awal. Usulan:
-   - net beli asing (per saham / papan);
-   - net beli per broker;
-   - nilai transaksi;
-   - volume;
-   - harga penutupan terakhir;
-   - harga tertinggi / terendah dalam periode.
-2. **export_result:** bucket baru `market-ai-exports` atau prefix di bucket yang ada; retensi = umur percakapan (30
-   hari).
-3. **R-STORE:** batas ukuran tabel di Postgres (usulan 50.000 baris / 20 MB; lebih besar ke bucket).
-4. **Resume:** bawaan memakai batas tanggal data lama dan menawarkan hitung ulang dengan data terbaru.
-5. **S28:** lama tunggu antrean (usulan 60 detik).
-6. **E2:** sumber dan nama kolom ciri kelompok (contoh: `is_state_owned` untuk BUMN).
+| No | Keputusan | Status |
+|---|---|---|
+| 1 | Metrik awal query_metric: net beli asing (per saham/papan), net beli per broker, nilai transaksi, volume, harga penutupan terakhir, harga tertinggi/terendah dalam periode | **Diputuskan: OK** |
+| 2 | Tempat file export | **Diputuskan: tabel Postgres terpisah** (`conversation_exports`, D4) |
+| 3 | Batas tabel hasil di Postgres 50.000 baris / 20 MB; lebih besar ke bucket | **Diputuskan: OK.** Bucketnya (prefix di bucket yang ada atau bucket baru) ditentukan saat Fase C dan dicatat di `RAILWAY_CHANGELOG.md` |
+| 4 | Resume: batas tanggal data lama + tawaran hitung ulang dengan data terbaru | **Diputuskan: OK** |
+| 5 | Antrean ruang kerja 60 detik | **Diputuskan: OK** (`PY_SANDBOX_OPEN_WAIT_SECONDS=60`) |
+| 6 | Sumber dan nama kolom ciri kelompok (contoh `is_state_owned` untuk BUMN) | **Terbuka**: ditanyakan sebelum E2 |
 
 ## 9. Perkiraan urutan kerja
 
