@@ -21,7 +21,7 @@ import hashlib
 import json
 from typing import Any
 
-GUIDES_VERSION = 3  # 2 (2026-10-02, HIGH ALERT): output definitions, event flow, approved success rule; 3 (2026-10-03, P26): thresholds with units, the approved outcome unit
+GUIDES_VERSION = 4  # 2 (2026-10-02, HIGH ALERT): output definitions, event flow, approved success rule; 3 (2026-10-03, P26): thresholds with units, the approved outcome unit; 4 (2026-10-03, D6): base tables for claims, get_evidence
 
 # How the backend checks a result (ERRORS_AND_SOLUTIONS S23), from weakest to strongest.
 VERIFICATION_LEVELS = {
@@ -75,10 +75,16 @@ GUIDES: list[dict[str, Any]] = [
                    "'thresholds': {...}, 'notes': '...'}) ({} when the code applied no filter beyond the data request); "
                    "complete_analysis does not release a result without one. Put row filters in the data request's "
                    "scope where you can, so the backend records them itself.",
-                   "Only released outputs may be cited; print() is diagnostics only."],
+                   "Only released outputs may be cited; print() is diagnostics only.",
+                   "For each main claim also release its base table: the rows a count, sum or extreme is computed "
+                   "from (for example one row per crash day for the broker), so get_evidence can recount the claim "
+                   "from it (BASE_TABLE: conditions and a measure); a claim about a governed table itself is checked "
+                   "from that table (WAREHOUSE: filters, measure, period)."],
         "verification": {"level": "DATA_COVERAGE_VERIFIED",
                          "checked": ["every approved request and range was delivered and read",
-                                     "every figure of the answer comes from a released output (value references)"],
+                                     "every figure of the answer comes from a released output (value references)",
+                                     "the main claims you check with get_evidence: TERCEK or TIDAK COCOK, recomputed "
+                                     "apart from your code; the user sees the evidence rows"],
                          "not_checked": ["the formula of your code: say that the calculation was not independently "
                                          "recalculated"]},
         "results": "Released outputs of complete_analysis, cited as value references such as "

@@ -59,6 +59,8 @@ ERROR_ACTIONS: dict[str, tuple[str, bool]] = {
     # D5: query_metric
     "METRIC_NOT_IN_CATALOG": ("CALL:submit_data_need_spec", False),
     "METRIC_DIMENSION_NOT_ALLOWED": (FIX_ARGUMENTS, True),
+    # D6: get_evidence and the evidence gate
+    "EVIDENCE_NOT_FOUND": (FIX_ARGUMENTS, True),
 }
 REJECTED_STATUSES = frozenset({
     "REJECTED", "FAILED", "FAIL", "INVALID", "INVALID_SPEC", "NOT_FEASIBLE", "REVISION_REQUIRED", "NOT_FOUND",

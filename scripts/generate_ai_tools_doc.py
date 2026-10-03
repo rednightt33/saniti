@@ -40,6 +40,7 @@ SWITCHES = {
     "AI_ENABLE_POINT_IN_TIME": "point_in_time", "AI_ENABLE_RESEARCH_FINDINGS": "research_findings",
     "AI_ENABLE_PREFLIGHT_PARTS": "preflight_parts", "AI_ENABLE_MULTI_ANGLE_RESEARCH": "multi_angle",
     "AI_ENABLE_LINEAGE_TOOL": "lineage_tool", "AI_ENABLE_EXPORT": "export", "AI_ENABLE_QUERY_METRIC": "metrics",
+    "AI_ENABLE_EVIDENCE": "evidence",
 }
 
 # One plain-language sentence per name (Indonesian, for non-developers).
@@ -58,6 +59,7 @@ PLAIN = {
     "open_analysis_session": "Membuka ruang kerja Python di atas data yang sudah disiapkan.",
     "run_python": "Menjalankan hitungan di ruang kerja dengan alat bantu bawaan; setiap tabel hasil wajib membawa definisinya.",
     "inspect_session": "Melihat isi variabel di ruang kerja sebelum hasil dirilis, atau statistik semua kolom satu dataset (kosong, min/median/maks, celah) tanpa baris data.",
+    "get_evidence": "Memeriksa klaim utama sebelum menjawab: backend menghitung ulang setiap angka dari gudang data atau dari tabel dasar hasil analisis, lalu memberi status TERCEK atau TIDAK COCOK; tabel buktinya untuk user.",
     "export_result": "Membuat file unduhan dari tabel hasil (CSV, XLSX dengan lembar definisi dan asal data, atau Parquet), maks. 20 MB; AI hanya melihat nama dan ukurannya.",
     "query_metric": "Jalan pintas pertanyaan sederhana: metrik resmi (net beli asing, net beli per broker, volume, harga penutupan, tertinggi/terendah) dihitung langsung oleh database dalam satu panggilan per periode.",
     "get_lineage": "Menelusuri asal angka: tabel hasil, kode yang membuatnya, data yang dibaca, saringan baris, query Governor, dan tabel sumbernya; tanpa isi baris.",

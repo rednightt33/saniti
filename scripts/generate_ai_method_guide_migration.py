@@ -28,9 +28,12 @@ VERSION_CHANGES = {
        "explanation starts from the explained result's own table",
     3: "ROUND_PLAN_2026-10-03.md B2, P26: a research threshold carries its unit (min_effect_unit,\n-- "
        "success_rule.unit); event_study and event_summary use the approved experiment's outcome unit",
+    4: "ROUND_PLAN_2026-10-03_FASE_D.md D6: a base table released for each main claim, checked with\n-- "
+       "get_evidence (BASE_TABLE or WAREHOUSE)",
 }
 VERSION_TARGETS = {2: ROOT / "database/migrations/20261003_002_ai_method_guides_v2.sql",
-                   3: ROOT / "database/migrations/20261003_004_ai_method_guides_v3.sql"}
+                   3: ROOT / "database/migrations/20261003_004_ai_method_guides_v3.sql",
+                   4: ROOT / "database/migrations/20261003_010_ai_method_guides_v4.sql"}
 COLUMNS = [
     ("name", "text", "Guide name (free_code, event_study, hypothesis_plan, multi_angle or a session helper's guide)."),
     ("guides_version", "integer", "Version of the method guides content."),

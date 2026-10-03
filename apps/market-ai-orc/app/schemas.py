@@ -680,12 +680,15 @@ class AgentRunResponse(BaseModel):
     # D4 (round 2026-10-03): files the answer exported, downloaded with GET /v1/exports/{export_id}/download (same
     # authorization and owner); absent when there is none
     artifacts: list[dict[str, Any]] | None = None
+    # D6 (round 2026-10-03, HIGH_ALERT_PLAN.md Prioritas 2): checked claims (TERCEK, TIDAK_COCOK, ...) with at most 200
+    # evidence rows each, then the answer's value references (DIRUJUK); absent when there is none
+    evidence: list[dict[str, Any]] | None = None
 
     @model_serializer(mode="wrap")
     def _without_mode4(self, handler: Any) -> Any:
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("mode4", "annotations", "data_record", "artifacts"):
+            for key in ("mode4", "annotations", "data_record", "artifacts", "evidence"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data

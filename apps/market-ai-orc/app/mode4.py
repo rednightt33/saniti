@@ -411,7 +411,9 @@ class _Mode4Run:
             annotations=self._annotations(response, (analysis, research, suggestion) if base is not None
                                           else (result,)) or None,
             mode4=block, data_record=self.record or None,
-            artifacts=_artifacts(analysis, research, suggestion, result))
+            artifacts=_artifacts(analysis, research, suggestion, result),
+            evidence=[e for r in (analysis, research, suggestion) if r is not None for e in r.evidence or []]
+            or (result.evidence if base is None else None) or None)
         log_event("mode4_completed", request_id=self.request.request_id, round=round_, status=combined.status,
                   steps=[(s["step"], s["status"]) for s in self.steps], cost=execution.cost,
                   duration_ms=execution.duration_ms, suggestion=suggestion is not None)

@@ -18,11 +18,10 @@ from .artifacts import (current_results, record_source_tables, resolve_ref, shor
                         stored_op)
 from .registry import ToolError, ToolSpec
 
-EXPORT_VERSION = 1
 DESCRIPTION = (
     "Write an output as a file the user downloads (CSV, XLSX with definition and lineage sheets, or PARQUET), at most "
-    "20 MB. Give ref (out.o3) or output_id. Returns export_id, file name, size and format only; the answer names the "
-    "file, the user downloads it."
+    "20 MB. Give ref (out.o3), output_id, or evidence_id (a checked claim's evidence rows). Returns export_id, file "
+    "name, size and format only; the answer names the file, the user downloads it."
 )
 
 
@@ -31,14 +30,15 @@ class ExportResultArgs(BaseModel):
 
     ref: str | None = Field(pattern=r"^(out\.)?o[1-9][0-9]{0,3}$", description="The output's value reference.")
     output_id: str | None = Field(pattern=r"^out_[0-9a-f]{24}$")
+    evidence_id: str | None = Field(pattern=r"^evd_[0-9a-f]{24}$", description="A checked claim's evidence rows.")
     format: Literal["CSV", "XLSX", "PARQUET"]
     include_definition: bool | None = Field(description="XLSX: a sheet with the output's definition (default true).")
     include_lineage: bool | None = Field(description="XLSX: a sheet with where the data came from (default true).")
 
     @model_validator(mode="after")
     def _one_source(self) -> "ExportResultArgs":
-        if (self.ref is None) == (self.output_id is None):
-            raise ValueError("give exactly one of ref or output_id")
+        if sum(v is not None for v in (self.ref, self.output_id, self.evidence_id)) != 1:
+            raise ValueError("give exactly one of ref, output_id or evidence_id")
         return self
 
 
@@ -54,6 +54,8 @@ def export_specs(client: SandboxClient, *, timeout_seconds: float, max_result_by
         if results is None or results.store is None or not results.conversation_id:
             return {"status": "REJECTED", "code": "EXPORT_NOT_AVAILABLE", "next_action": "REPORT_LIMITATION",
                     "message": "Exports are kept with a conversation; this request has none."}
+        if arguments.evidence_id is not None:
+            return _export_evidence(client, results, arguments, timeout_seconds)
         entry = resolve_ref(results.record, arguments.ref) if arguments.ref else next(
             (o for o in results.record.get("outputs") or [] if o.get("output_id") == arguments.output_id), None)
         if arguments.ref and entry is None:
@@ -79,21 +81,58 @@ def export_specs(client: SandboxClient, *, timeout_seconds: float, max_result_by
                 **({"lineage": lineage} if includes["lineage"] and arguments.format == "XLSX" else {})}
         status, body, headers = stored_op(client, "export", data, meta, timeout=timeout_seconds)
         if status != 200:
-            error = body.get("error") if isinstance(body, dict) and isinstance(body.get("error"), dict) else {}
-            return {"status": "REJECTED", "code": error.get("code") or f"HTTP_{status}",
-                    "message": str(error.get("message") or "")[:600],
-                    "next_action": (body.get("next_action") if isinstance(body, dict) else None)
-                    or "REPORT_LIMITATION"}
-        mime = headers.get("content-type", "application/octet-stream").split(";")[0]
-        extension = headers.get("x-saniti-extension") or arguments.format.lower()
-        try:
-            saved = results.store.save_export(results.conversation_id, results.request_id,
-                                              (entry or {}).get("ref") or output_id, arguments.format,
-                                              file_name(lineage["name"], output_id, extension), mime, body, includes)
-        except Exception as exc:  # noqa: BLE001 - the model gets a plain refusal, the log the cause
-            raise ToolError(f"The export could not be kept ({type(exc).__name__}).", code="EXPORT_NOT_SAVED") from None
-        return {"status": "EXPORTED", **saved, "download": f"/v1/exports/{saved['export_id']}/download",
-                "note": "The user downloads the file from the answer's artifacts; never paste its content."}
+            return _refused(status, body)
+        return _kept(results, arguments.format, (entry or {}).get("ref") or output_id,
+                     file_name(lineage["name"], output_id,
+                               headers.get("x-saniti-extension") or arguments.format.lower()),
+                     headers, body, includes)
 
     return [ToolSpec(name="export_result", description=DESCRIPTION, arguments_model=ExportResultArgs,
                      handler=handler, timeout_seconds=timeout_seconds + 30, max_result_bytes=max_result_bytes)]
+
+
+def _refused(status: int, body: Any) -> dict[str, Any]:
+    error = body.get("error") if isinstance(body, dict) and isinstance(body.get("error"), dict) else {}
+    return {"status": "REJECTED", "code": error.get("code") or f"HTTP_{status}",
+            "message": str(error.get("message") or "")[:600],
+            "next_action": (body.get("next_action") if isinstance(body, dict) else None) or "REPORT_LIMITATION"}
+
+
+def _kept(results: Any, fmt: str, source_ref: str, name: str, headers: dict[str, str], body: bytes,
+          includes: dict[str, Any]) -> dict[str, Any]:
+    mime = headers.get("content-type", "application/octet-stream").split(";")[0]
+    try:
+        saved = results.store.save_export(results.conversation_id, results.request_id, source_ref, fmt, name, mime,
+                                          body, includes)
+    except Exception as exc:  # noqa: BLE001 - the model gets a plain refusal, the log the cause
+        raise ToolError(f"The export could not be kept ({type(exc).__name__}).", code="EXPORT_NOT_SAVED") from None
+    return {"status": "EXPORTED", **saved, "download": f"/v1/exports/{saved['export_id']}/download",
+            "note": "The user downloads the file from the answer's artifacts; never paste its content."}
+
+
+def _export_evidence(client: SandboxClient, results: Any, arguments: ExportResultArgs, timeout: float
+                     ) -> dict[str, Any]:
+    """D6: a checked claim's evidence rows as a file, with the claim and its recipe as the definition sheet."""
+    import json
+
+    found = results.store.evidence(results.conversation_id, arguments.evidence_id)
+    if found is None:
+        return {"status": "REJECTED", "code": "EVIDENCE_NOT_FOUND", "next_action": "FIX_ARGUMENTS",
+                "message": "No checked claim with this id belongs to this conversation."}
+    if not found.get("rows"):
+        return {"status": "REJECTED", "code": "EXPORT_NOT_TABULAR", "next_action": "FIX_ARGUMENTS",
+                "message": "This claim has no evidence rows to export."}
+    data = json.dumps({"rows": found["rows"]}, default=str).encode()
+    meta = {"format": "JSON", "checksum_sha256": hashlib.sha256(data).hexdigest(), "target": arguments.format,
+            **({"definition": {"claim": found["claim"], "value_text": found["value_text"], "status": found["status"],
+                               "backend_value": found.get("backend_value"), "recipe": found.get("recipe")}}
+               if arguments.include_definition is not False and arguments.format == "XLSX" else {}),
+            **({"lineage": found.get("source") or {}}
+               if arguments.include_lineage is not False and arguments.format == "XLSX" else {})}
+    status, body, headers = stored_op(client, "export", data, meta, timeout=timeout)
+    if status != 200:
+        return _refused(status, body)
+    return _kept(results, arguments.format, arguments.evidence_id,
+                 file_name(f"bukti_{arguments.evidence_id}", arguments.evidence_id,
+                           headers.get("x-saniti-extension") or arguments.format.lower()),
+                 headers, body, {"definition": "definition" in meta, "lineage": "lineage" in meta})

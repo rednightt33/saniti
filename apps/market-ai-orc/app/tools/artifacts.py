@@ -41,6 +41,7 @@ class RunResults:
     record: dict[str, Any] = field(default_factory=dict)  # the conversation's data record (live)
     fetch: Callable[[str, str], bytes] | None = None  # (session_id, output_id) -> the sandbox's released file
     pending: list[dict[str, Any]] = field(default_factory=list)  # this run's executions, kept when it ends (live)
+    evidence: list[dict[str, Any]] = field(default_factory=list)  # D6: this run's checked claims (live)
 
 
 current_results: contextvars.ContextVar[RunResults | None] = contextvars.ContextVar("current_results", default=None)
@@ -182,7 +183,8 @@ def pending_execution(results: RunResults, execution_id: str) -> dict[str, Any] 
     return None
 
 
-def source_bytes(results: RunResults | None, output_id: str, session_id: str | None) -> tuple[bytes, StoredOutput | None]:
+def source_bytes(results: RunResults | None, output_id: str, session_id: str | None
+                 ) -> tuple[bytes, StoredOutput | None]:
     """The file of an output for export or evidence: the sandbox's while it has it, else the stored copy."""
     if results is None:
         raise ToolError("Results of this conversation are not available.", code="OUTPUT_NOT_AVAILABLE")

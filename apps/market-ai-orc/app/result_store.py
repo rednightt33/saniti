@@ -205,6 +205,28 @@ class ResultStore:
                 'status, created_at::text AS created_at FROM public."AI_conversation_execution" '
                 "WHERE conversation_id = %s AND execution_id = %s", (conversation_id, execution_id)).fetchone()
 
+    # ----------------------------------------------------------------------------------------------- evidence
+
+    def save_evidence(self, conversation_id: str, request_id: str, entry: dict[str, Any]) -> None:
+        """D6 (round 2026-10-03): one checked claim with at most 200 rows of evidence."""
+        with self._connect() as connection, connection.transaction():
+            connection.execute(f"SET LOCAL statement_timeout = '{WRITE_TIMEOUT}'")
+            connection.execute(
+                'INSERT INTO public."AI_conversation_evidence" (evidence_id, conversation_id, request_id, claim, '
+                "value_text, kind, recipe, status, backend_value, difference, source, rows, rows_matched) VALUES (%s, "
+                "%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (entry["evidence_id"], conversation_id, request_id, str(entry["claim"])[:300],
+                 str(entry["value_text"])[:40], entry["kind"], _json(entry.get("recipe") or {}), entry["status"],
+                 entry.get("backend_value"), entry.get("difference"), _json(entry.get("source") or {}),
+                 _json(list(entry.get("rows") or [])[:200], list), entry.get("rows_matched")))
+
+    def evidence(self, conversation_id: str, evidence_id: str) -> dict[str, Any] | None:
+        with self._connect() as connection:
+            return connection.execute(
+                "SELECT evidence_id, request_id, claim, value_text, kind, recipe, status, backend_value, difference, "
+                'source, rows, rows_matched FROM public."AI_conversation_evidence" WHERE conversation_id = %s '
+                "AND evidence_id = %s", (conversation_id, evidence_id)).fetchone()
+
     # ------------------------------------------------------------------------------------------------ exports
 
     def save_export(self, conversation_id: str, request_id: str, source_ref: str, fmt: str, file_name: str,

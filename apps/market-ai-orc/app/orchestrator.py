@@ -43,7 +43,7 @@ from . import method_guides
 from .user_words import allowed_periods, current_user_words, stated_horizons
 from .provenance import (CONTEXT, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
                          parse_numbers, released_numbers, requested_statistics, weakest)
-from .value_refs import UNITS, ReferenceSources, Resolved, TableRows, format_value, render
+from .value_refs import REF_RE, UNITS, ReferenceSources, Resolved, TableRows, format_value, render
 from .tools import ToolOutcome, ToolRegistry, error_outcome
 from .tools.analysis import DataDate, current_conversation_key, current_data_date, current_run_context, run_context
 from .tools.envelope import envelope
@@ -1087,6 +1087,19 @@ METHODOLOGY_PROVENANCE_INSTRUCTION = (
     "as the answer, the approved plan, the DataNeedSpec or the code that ran. Remove or correct them.")
 METHODOLOGY_MISSING_LINE = "No methodology note was provided for this response."
 METHODOLOGY_WITHHELD_LINE = "The methodology note was withheld because it cited figures without a source: {numbers}."
+# D6 (round 2026-10-03, HIGH_ALERT_PLAN.md Prioritas 2): the evidence gate
+EVIDENCE_INSTRUCTION = (
+    "Your answer cites data figures but none was checked. Call get_evidence for the main claims (at most 10): for "
+    "each, the claim, the number exactly as you write it, and a recipe the backend recomputes apart from your code "
+    "(warehouse: a governed table, filters, measure, period; base_table: a released base table, conditions and a "
+    "measure). Then answer with the checked numbers.")
+EVIDENCE_MISMATCH_INSTRUCTION = (
+    "get_evidence found numbers in your answer that do not match the backend's recomputation: {items}. Correct them "
+    "(or recheck with a corrected recipe) before answering; if a difference stays, say so in the answer.")
+EVIDENCE_NOT_COMPUTED_LINE = ("Bukti klaim tidak dihitung: jawaban ini tidak memeriksa angka utamanya dengan hitung "
+                              "ulang backend.")
+EVIDENCE_MISMATCH_LINE = "Klaim \"{claim}\" ({value}): TIDAK COCOK, backend menghitung {backend}."
+EVIDENCE_LIMIT_LINE = "{count} klaim tidak dicek karena batas per jawaban (bukti tidak dihitung)."
 DATANEED_PROVENANCE_NOTICE = ("Some figures below could not be traced to a released analysis output or another "
                               "governed source in this run: {numbers}. ")
 WARNING_LINES = {
@@ -1601,6 +1614,8 @@ class RunState:
     store_outputs: list[dict[str, Any]] = field(default_factory=list)
     store_executions: list[dict[str, Any]] = field(default_factory=list)
     artifacts: list[dict[str, Any]] = field(default_factory=list)  # D4: this run's export files (API artifacts)
+    evidence_items: list[dict[str, Any]] = field(default_factory=list)  # D6: claims checked by get_evidence (rows)
+    referenced: list[str] = field(default_factory=list)  # D6: value references of the final answer (DIRUJUK)
     reference_date: Any = None  # the run's reference date in the analysis timezone
     data_date: Any = None  # R-STORE: the run's DataDate (the conversation's data date and whether NEWEST was asked)
     research_attempted: bool = False
@@ -1894,7 +1909,7 @@ class AgentOrchestrator:
             conversation_id=request.conversation_id if self.result_store is not None else None,
             request_id=request.request_id, store=self.result_store, record=state.data_record,
             fetch=(lambda sid, oid: fetch(sid, oid, request.request_id)) if fetch is not None else None,
-            pending=state.store_executions))
+            pending=state.store_executions, evidence=state.evidence_items))
         carried = None
         try:
             if self.conversation_reuse and conversation_key and request.history:
@@ -1945,6 +1960,7 @@ class AgentOrchestrator:
                 continuation=state.continuation,
                 annotations=[ClaimAnnotation(**a) for a in state.claim_annotations] or None,
                 artifacts=state.artifacts or None,
+                evidence=self._evidence(state),
             )
         except (RunFailure, ProviderError) as exc:
             result = self._failed(state, exc.code, str(exc))
@@ -3648,6 +3664,8 @@ class AgentOrchestrator:
         state.reference_annotated = False  # it describes this final only, not an earlier refused draft
         if not self.value_references or final.response_type not in ("ANSWER", "LIMITATION"):
             return final, False
+        # D6: the references the answer cites, listed as evidence (DIRUJUK) next to the checked claims
+        state.referenced = list(dict.fromkeys(m.group("expr").strip() for m in REF_RE.finditer(final.answer or "")))
         problems: list[str] = []
         failed: list[str] = []
         missing: list[tuple[str, str, str]] = []
@@ -3899,6 +3917,7 @@ class AgentOrchestrator:
                 forced = forced.model_copy(update={"research_findings": backend_findings(run)})
             return forced
         final = self._definition_claims(state, final)
+        final = self._evidence_gate(state, final, provenance.data_kinds)
         missing_lines = [line for line in lines if line not in final.limitations]
         annotated = state.reference_annotated or bool(state.claim_annotations) or state.definition_annotated
         if state.sessions or state.completions or state.inherited or run is not None:
@@ -3913,6 +3932,50 @@ class AgentOrchestrator:
         if not missing_lines:
             return final
         return final.model_copy(update={"limitations": [*final.limitations, *missing_lines]})
+
+    def _evidence_gate(self, state: RunState, final: FinalResponse, data_kinds: list[str]) -> FinalResponse:
+        """D6 (HIGH_ALERT_PLAN.md Prioritas 2): an answer that cites data figures checks its main claims with
+        get_evidence (asked once while tools are available; after that a limitation says the evidence was not
+        computed), and a claim the backend found not matching is sent back once with the difference, then stated in
+        the answer's limitations, never hidden."""
+        if final.response_type != "ANSWER" or "get_evidence" not in self.registry.names():
+            return final
+        extra: list[str] = []
+        data_figures = bool(data_kinds) or bool(state.referenced)
+        if data_figures and not state.evidence_items:
+            self._gate_once(state, "EVIDENCE", EVIDENCE_INSTRUCTION)
+            extra.append(EVIDENCE_NOT_COMPUTED_LINE)
+        mismatched = [e for e in state.evidence_items if e.get("status") == "TIDAK_COCOK"
+                      and e.get("value_text") and e["value_text"] in (final.answer or "")]
+        if mismatched:
+            items = "; ".join(f"{e['claim']} ({e['value_text']}): backend {e.get('backend_value')}"
+                              for e in mismatched[:5])
+            self._gate_once(state, "EVIDENCE_MISMATCH", EVIDENCE_MISMATCH_INSTRUCTION.format(items=items))
+            extra += [EVIDENCE_MISMATCH_LINE.format(claim=e["claim"], value=e["value_text"],
+                                                    backend=e.get("backend_value")) for e in mismatched]
+        skipped = sum(1 for e in state.evidence_items if e.get("status") == "TIDAK_DICEK_BATAS")
+        if skipped:
+            extra.append(EVIDENCE_LIMIT_LINE.format(count=skipped))
+        extra = [line for line in extra if line not in final.limitations]
+        if extra:
+            state.reference_annotated = True
+            return final.model_copy(update={"limitations": [*final.limitations, *extra]})
+        return final
+
+    def _evidence(self, state: RunState) -> list[dict[str, Any]] | None:
+        """D6: the API's evidence[]: every checked claim with its rows, then the answer's value references (DIRUJUK:
+        where each cited figure comes from, without a recomputation)."""
+        items = [{k: e.get(k) for k in ("evidence_id", "claim", "value_text", "kind", "status", "backend_value",
+                                        "difference", "reason", "recipe", "source", "rows", "rows_matched")
+                  if e.get(k) is not None} for e in state.evidence_items]
+        outputs = {o.get("ref"): o for o in (state.data_record or {}).get("outputs") or [] if isinstance(o, dict)}
+        for expr in state.referenced[:20]:
+            head = ".".join(expr.split(".")[:2])
+            output = outputs.get(head)
+            items.append({"kind": "REFERENCED", "status": "DIRUJUK", "claim": expr,
+                          "source": {k: output.get(k) for k in ("ref", "output_id", "name", "label", "data_as_of")}
+                          if output else {"ref": head}})
+        return items or None
 
     def _definition_claims(self, state: RunState, final: FinalResponse) -> FinalResponse:
         """H1 (M63): "consistent with the previous answer" only when the definitions match. Rejected once for repair;

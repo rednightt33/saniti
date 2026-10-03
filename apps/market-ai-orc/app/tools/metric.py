@@ -93,20 +93,20 @@ class QueryMetricArgs(BaseModel):
         "Last date of trading-day periods; null: the conversation's data date, else today."))
 
 
-def _predicate(column: str, values: list[str]) -> dict[str, Any]:
+def predicate(column: str, values: list[str]) -> dict[str, Any]:
     if len(values) == 1:
         return {"type": "PREDICATE", "column": column, "operator": "EQ", "values": list(values)}
     return {"type": "PREDICATE", "column": column, "operator": "IN", "values": sorted(set(values))}
 
 
-def _scope(default: dict[str, Any], parts: list[dict[str, Any]]) -> dict[str, Any]:
+def scope_of(default: dict[str, Any], parts: list[dict[str, Any]]) -> dict[str, Any]:
     children = ([] if default.get("type") == "ALL" else [default]) + parts
     if not children:
         return {"type": "ALL"}
     return children[0] if len(children) == 1 else {"type": "AND", "children": children}
 
 
-def _as_of(given: str | None) -> str:
+def as_of_date(given: str | None) -> str:
     if given:
         return given
     data_date = current_data_date.get()
@@ -136,10 +136,10 @@ def metric_specs(governor: GovernorClient, metrics: list[dict[str, Any]], *, tim
             return {"status": "REJECTED", "code": "METRIC_DIMENSION_NOT_ALLOWED", "next_action": "FIX_ARGUMENTS",
                     "message": f"{', '.join(unknown)} is not a dimension of {arguments.metric}.",
                     "allowed_dimensions": allowed}
-        parts = [_predicate(metric["entity_column"], arguments.entities)] if arguments.entities else []
-        parts += [_predicate(f.column, f.values) for f in arguments.filters or []]
-        scope = _scope(metric["default_scope"] or {"type": "ALL"}, parts)
-        as_of = _as_of(arguments.as_of)
+        parts = [predicate(metric["entity_column"], arguments.entities)] if arguments.entities else []
+        parts += [predicate(f.column, f.values) for f in arguments.filters or []]
+        scope = scope_of(metric["default_scope"] or {"type": "ALL"}, parts)
+        as_of = as_of_date(arguments.as_of)
         periods = []
         for period in arguments.periods:
             window = {"trading_days": period.trading_days, "as_of": as_of} if period.trading_days is not None \

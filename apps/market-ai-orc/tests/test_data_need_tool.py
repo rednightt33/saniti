@@ -332,10 +332,19 @@ def test_the_round_b_tool_migration_is_frozen() -> None:
     assert "20261003_005_round_b_tool_catalog.sql" in applied()
 
 
+def test_the_round_c_tool_migration_is_frozen() -> None:
+    """Round 2026-10-03 phase C registered submit_data_need_spec v8, check_data_feasibility v6 and
+    check_research_feasibility v5 with data_as_of_policy (20261003_007, applied)."""
+    from test_migrations_frozen import applied
+
+    assert "20261003_007_round_c_tool_catalog.sql" in applied()
+
+
 def test_the_newest_tool_migration_matches_the_tool_definitions() -> None:
     """The newest registration of each changed tool is generated from the registry under the dev flags
     (scripts/generate_tool_catalog_migration.py, newest round); a schema or description change needs a new round
-    (an applied migration is frozen). Round C (R-STORE C2e): data_as_of_policy on the three DataNeed tools."""
+    (an applied migration is frozen). Every tool any round registered must still match the round that registered it
+    last, so a change to a tool of an older, frozen round is caught too (not only the newest round's tools)."""
     import importlib.util
     from pathlib import Path
 
@@ -346,7 +355,10 @@ def test_the_newest_tool_migration_matches_the_tool_definitions() -> None:
     spec.loader.exec_module(generator)
     target = generator.ROUNDS[generator.NEWEST]["target"]
     assert generator.render() == target.read_text(), "regenerate with scripts/generate_tool_catalog_migration.py"
-    found = generator.definitions()
-    for name in ("submit_data_need_spec", "check_data_feasibility", "check_research_feasibility"):
-        text = generator.schema_text(found[name])
-        assert "data_as_of_policy" in text and "LATEST" in text, name
+    latest = {}
+    for spec in generator.ROUNDS.values():  # rounds in order: the last one naming a tool registered it last
+        for name in [*spec["versions"], *(spec.get("new") or {})]:
+            latest[name] = spec["target"]
+    registry = generator._tools_doc()._registry()
+    for name, path in latest.items():
+        assert generator.schema_text(registry[name]) in path.read_text(), f"{name} changed since {path.name}: new round"

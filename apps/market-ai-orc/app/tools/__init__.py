@@ -52,6 +52,7 @@ def build_default_registry(
     lineage_tool: bool = False,
     export: bool = False,
     metrics: list[dict] | None = None,
+    evidence: bool = False,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
@@ -124,6 +125,13 @@ def build_default_registry(
 
                     for spec in export_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
                                              max_result_bytes=python_analysis_max_bytes):
+                        registry.register(spec)
+                if evidence:
+                    # D6 (AI_ENABLE_EVIDENCE): claims recomputed by the Governor or from a released base table
+                    from .evidence import evidence_specs
+
+                    for spec in evidence_specs(sandbox_client, governor_client, timeout_seconds=sandbox_timeout_seconds,
+                                               max_result_bytes=python_analysis_max_bytes):
                         registry.register(spec)
                 if lineage_tool:
                     # D3 (AI_ENABLE_LINEAGE_TOOL): where an output's numbers came from
