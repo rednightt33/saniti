@@ -62,8 +62,36 @@ def summary(item_id, turn, code, body, seconds):
             "cost": execution.get("cost"), "unsupported": (execution.get("number_provenance") or {}).get("unsupported"),
             "limitations": (response.get("limitations") or [])[:6],
             "mode": execution.get("mode"),
+            # round 2026-10-03: the kejedot index, checked claims, exports and their download check
+            "friction": execution.get("friction"),
+            "evidence": [(e.get("status"), e.get("kind")) for e in body.get("evidence") or []] or None,
+            "artifacts": [(a.get("file_name"), a.get("size_bytes"), download_check(a)) for a in body.get("artifacts")
+                          or []] or None,
+            "data_as_of": (body.get("data_record") or {}).get("answers", [{}])[-1].get("data_as_of")
+            if (body.get("data_record") or {}).get("answers") else None,
             "mode4": [(s.get("step"), s.get("status"), s.get("turn"), s.get("angles"), s.get("cost"),
                        s.get("duration_ms")) for s in (body.get("mode4") or {}).get("steps") or []] or None}
+
+
+def download_check(artifact):
+    """D4: the export downloads for its owner with the sha256 it was listed with, and not for another owner."""
+    import hashlib
+
+    def get(owner):
+        request = urllib.request.Request(BASE + artifact["download_path"], headers={
+            "Authorization": f"Bearer {KEY}", "X-Saniti-Owner": owner})
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                return response.status, response.read()
+        except urllib.error.HTTPError as error:
+            return error.code, b""
+        except Exception:  # noqa: BLE001
+            return 0, b""
+
+    code, data = get("golden-multi-angle")
+    other, _ = get("someone-else")
+    return {"http": code, "sha_ok": hashlib.sha256(data).hexdigest() == artifact.get("sha256"),
+            "xlsx": data[:2] == b"PK", "other_owner_http": other}
 
 
 def dump(tag, payload):
