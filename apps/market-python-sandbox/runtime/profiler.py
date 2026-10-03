@@ -8,7 +8,9 @@ no imputation, no outlier removal. Per data request it reports
   (OK, PARTIAL, EMPTY);
 - per partition: rows, first and last date, rows outside the partition's window;
 - duplicate primary keys (groups and excess rows);
-- null counts per column;
+- null counts per column, and per column (round 2026-10-03 D1) its type and min / median / max (numbers), first and
+  last value (dates) or an approximate distinct count (anything else), so the model sees the shape of the data before
+  it computes;
 - frequency gaps: per entity, dates of the dataset's own calendar inside the range that the entity misses between
   its first and last observation (a listing or a delisting is not a gap);
 - history- and future-buffer shortfalls per range (entities with fewer observations than the buffer asked for);
@@ -27,6 +29,9 @@ import sys
 from datetime import date, timedelta
 from typing import Any
 
+NUMERIC = ("TINYINT", "SMALLINT", "INTEGER", "BIGINT", "HUGEINT", "UTINYINT", "USMALLINT", "UINTEGER", "UBIGINT",
+           "FLOAT", "DOUBLE", "REAL", "DECIMAL")
+TEMPORAL = ("DATE", "TIMESTAMP", "TIME")
 FREQUENCY_DAYS = {"MIN": 1 / 1440, "H": 1 / 24, "D": 1, "W": 7, "M": 30, "Q": 91, "Y": 365}
 EXAMPLES = 5
 
@@ -43,6 +48,13 @@ def _iso(value: Any) -> str | None:
     if value is None:
         return None
     return value.isoformat() if hasattr(value, "isoformat") else str(value)
+
+
+def _number(value: Any) -> Any:
+    if value is None:
+        return None
+    number = float(value)
+    return int(number) if number.is_integer() and abs(number) < 2 ** 53 else round(number, 6)
 
 
 def _tolerance_days(frequency: str | None) -> int:
@@ -95,8 +107,12 @@ class Profiler:
         result["null_by_column"] = nulls
         if any(nulls.values()):
             flags.append("NULL_VALUES")
+        result["columns"] = self._columns(view, request["columns"], nulls)
         if t:
-            result["requested_ranges"] = self._ranges(view, request, e, t, flags)
+            gap_entities: set[str] = set()
+            result["requested_ranges"] = self._ranges(view, request, e, t, flags, gap_entities)
+            if e:
+                result["entities_with_gaps"] = len(gap_entities)
             result["date_ordering"] = self._ordering(view, request, e, t, flags)
         explicit = request.get("explicit_entities")
         if e and explicit:
@@ -108,6 +124,37 @@ class Profiler:
                 flags.append("EMPTY_ENTITY")
         result["quality_flags"] = sorted(set(flags))
         return result
+
+    def _columns(self, view: str, columns: list[str], nulls: dict[str, int]) -> list[dict[str, Any]]:
+        """Per column: its type and, in one scan, min / median / max (numbers), first and last (dates) or an
+        approximate distinct count (text and anything else). No row values beyond those."""
+        types = {str(r[0]): str(r[1]).upper() for r in self.rows(f"DESCRIBE {view}")}
+        out: list[dict[str, Any]] = []
+        expressions: list[str] = []
+        for column in columns:
+            kind = types.get(column, "")
+            c = _ident(column)
+            entry: dict[str, Any] = {"name": column, "type": kind.split("(")[0], "nulls": nulls.get(column, 0)}
+            if kind.startswith(NUMERIC):
+                entry["_q"] = len(expressions)
+                expressions += [f"min({c})", f"approx_quantile({c}, 0.5)", f"max({c})"]
+            elif kind.startswith(TEMPORAL):
+                entry["_q"] = len(expressions)
+                expressions += [f"min({c})", f"max({c})"]
+            else:
+                entry["_q"] = len(expressions)
+                expressions.append(f"approx_count_distinct({c})")
+            out.append(entry)
+        values = self.rows(f"SELECT {', '.join(expressions)} FROM {view}")[0] if expressions else ()
+        for entry in out:
+            at = entry.pop("_q")
+            if entry["type"].startswith(NUMERIC):
+                entry.update(min=_number(values[at]), median=_number(values[at + 1]), max=_number(values[at + 2]))
+            elif entry["type"].startswith(TEMPORAL):
+                entry.update(min=_iso(values[at]), max=_iso(values[at + 1]))
+            else:
+                entry["distinct"] = int(values[at] or 0)
+        return out
 
     def _partitions(self, view: str, files: list[dict[str, Any]], e: str | None, t: str | None, flags: list[str]
                     ) -> list[dict[str, Any]]:
@@ -149,12 +196,12 @@ class Profiler:
             flags.append("DUPLICATE_KEYS")
         return {"key_columns": keys, "groups": int(groups), "excess_rows": int(excess), "examples": examples}
 
-    def _ranges(self, view: str, request: dict[str, Any], e: str | None, t: str, flags: list[str]
-                ) -> list[dict[str, Any]]:
+    def _ranges(self, view: str, request: dict[str, Any], e: str | None, t: str, flags: list[str],
+                gap_entities: set[str]) -> list[dict[str, Any]]:
         tolerance = _tolerance_days(request.get("source_frequency"))
         history, future = request.get("history_buffer"), request.get("future_buffer")
         out = []
-        gaps_total, gap_entities = 0, set()
+        gaps_total = 0
         for item in request["ranges"]:
             start, end = date.fromisoformat(item["start"]), date.fromisoformat(item["end"])
             inside = f"{t} BETWEEN DATE {_literal(item['start'])} AND DATE {_literal(item['end'])}"

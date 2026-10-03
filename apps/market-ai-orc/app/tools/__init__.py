@@ -49,6 +49,8 @@ def build_default_registry(
     multi_angle: dict | None = None,
     bundle_limits: dict | None = None,
     planner_parallel_parts: int = 1,
+    lineage_tool: bool = False,
+    export: bool = False,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
@@ -115,6 +117,20 @@ def build_default_registry(
                                           standard_period_return=standard_period_return,
                                           event_study=event_study):
                     registry.register(spec)
+                if export:
+                    # D4 (AI_ENABLE_EXPORT): a download file of an output, kept with the conversation
+                    from .export import export_specs
+
+                    for spec in export_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
+                                             max_result_bytes=python_analysis_max_bytes):
+                        registry.register(spec)
+                if lineage_tool:
+                    # D3 (AI_ENABLE_LINEAGE_TOOL): where an output's numbers came from
+                    from .lineage import lineage_specs
+
+                    for spec in lineage_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
+                                              max_result_bytes=python_analysis_max_bytes):
+                        registry.register(spec)
                 multi_angle_active = multi_angle is not None and plan_feasibility and composite_keys
                 if plan_feasibility and (not multi_angle_active or hypothesis_plan):
                     # validation plus one estimate-only Governor call per extraction envelope (with Multi-Angle

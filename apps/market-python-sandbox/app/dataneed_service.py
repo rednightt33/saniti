@@ -1108,3 +1108,16 @@ class DataNeedService:
     def get_bundle(self, bundle_id: str) -> dict[str, Any] | None:
         record = self.store.get_bundle(bundle_id)
         return None if record is None else {**record["manifest"], "status": record["status"]}
+
+    def bundle_lineage(self, bundle_id: str, request_id: str, conversation_key: str | None) -> dict[str, Any]:
+        """D3 (round 2026-10-03): how a bundle was made, for its own request or a later request of the same
+        conversation; another conversation's bundle is not found."""
+        from .bundles import lineage_view
+
+        record = self.store.get_bundle(bundle_id)
+        allowed = record is not None and (record.get("request_id") == request_id or (
+            conversation_key is not None and record.get("conversation_key") == conversation_key))
+        if not allowed:
+            raise DataNeedError("BUNDLE_NOT_FOUND", "No bundle with this id belongs to this request or conversation.",
+                                404)
+        return {**lineage_view(record["manifest"]), "status": record["status"]}

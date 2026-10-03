@@ -677,12 +677,15 @@ class AgentRunResponse(BaseModel):
     # M47 (user decision 2026-10-01): the conversation's data record after this run (tables and columns used and read,
     # approved data needs, released outputs with their ref, research angles' data); absent when empty
     data_record: dict[str, Any] | None = None
+    # D4 (round 2026-10-03): files the answer exported, downloaded with GET /v1/exports/{export_id}/download (same
+    # authorization and owner); absent when there is none
+    artifacts: list[dict[str, Any]] | None = None
 
     @model_serializer(mode="wrap")
     def _without_mode4(self, handler: Any) -> Any:
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("mode4", "annotations", "data_record"):
+            for key in ("mode4", "annotations", "data_record", "artifacts"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data

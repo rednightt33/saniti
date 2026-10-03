@@ -140,6 +140,8 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                 # R-STORE: GET .../outputs/{output_id}/file and POST /v1/sessions/{id}/carried
                 "result_store": {"enabled": dataneed is not None and settings.conversation_reuse,
                                  "version": RESTORE_VERSION, "restore_max_bytes": settings.restore_max_bytes},
+                # D3 (round 2026-10-03): GET /v1/bundles/{id}/lineage, Governor query ids in new bundle manifests
+                "bundle_lineage": {"enabled": dataneed is not None, "version": 1},
                 # D0 (round 2026-10-03): POST /v1/stored-tables/{op} on a stored table uploaded by market-ai-orc
                 "stored_tables": {"enabled": dataneed is not None, "version": stored_tables.STORED_TABLES_VERSION,
                                   "ops": list(stored_tables.OPS), "max_bytes": settings.restore_max_bytes,
@@ -336,6 +338,17 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
         except DataNeedError as exc:
             return dataneed_error(exc)
 
+    @app.get("/v1/bundles/{bundle_id}/lineage", dependencies=dataneed_routes)
+    def bundle_lineage(bundle_id: str, request_id: str = Query(..., max_length=128),
+                       key: str | None = Depends(conversation_key)) -> Any:
+        """D3: how the bundle was made (source tables, row filters, ranges, Governor queries); no rows."""
+        if not BUNDLE_ID.fullmatch(bundle_id):
+            raise HTTPException(status_code=404, detail="Unknown bundle_id")
+        try:
+            return dataneed.bundle_lineage(bundle_id, request_id, key)
+        except DataNeedError as exc:
+            return dataneed_error(exc)
+
     @app.get("/v1/bundles/{bundle_id}", dependencies=dataneed_routes)
     def get_bundle(bundle_id: str) -> Any:
         """The complete bundle manifest with its Data Quality Manifests and delivery coverage (backend and audit)."""
@@ -400,12 +413,21 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
     @app.post("/v1/sessions/{session_id}/inspect", dependencies=dataneed_routes)
     def inspect(session_id: str, body: Any = Body(...)) -> Any:
         """Describe session variables (all names, or up to 20 with a bounded preview)."""
-        body = session_body(body, {"request_id"}, {"names", "max_rows"})
+        body = session_body(body, {"request_id"}, {"names", "max_rows", "dataset"})
         if body is None:
-            return invalid_body("{request_id, names?, max_rows?}")
+            return invalid_body("{request_id, names?, max_rows?, dataset?}")
         rows = body.get("max_rows", 5)
         if isinstance(rows, bool) or not isinstance(rows, int):
             return invalid_body("{request_id, names?, max_rows: integer}")
+        if body.get("dataset") is not None:
+            # D1: the profiler's full column statistics of one dataset of the session's bundle (no rows)
+            if not isinstance(body["dataset"], str) or not 0 < len(body["dataset"]) <= 120:
+                return invalid_body("{request_id, dataset: a logical name or data_request_id}")
+            try:
+                return dataneed.sessions.inspect_dataset(session_id_or_404(session_id), body["request_id"],
+                                                         body["dataset"])
+            except SessionError as exc:
+                return session_error(exc)
         try:
             return dataneed.sessions.inspect(session_id_or_404(session_id), body["request_id"], body.get("names"),
                                              rows)

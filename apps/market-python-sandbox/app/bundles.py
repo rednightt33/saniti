@@ -324,7 +324,9 @@ class BundleBuilder:
                                 "window": p["window"], "entity_partition": p["entity_partition"],
                                 "rows": files[p["partition_id"]]["rows"],
                                 "checksum_sha256": files[p["partition_id"]]["checksum_sha256"],
-                                "file": files[p["partition_id"]]["relative"]} for p in parts],
+                                "file": files[p["partition_id"]]["relative"],
+                                # D3 (round 2026-10-03): which Governor query delivered it, for get_lineage
+                                "governor": governor_ids(grants[p["partition_id"]])} for p in parts],
                 "rows": sum(files[p["partition_id"]]["rows"] for p in parts),
                 "ranges": entry.get("windows") or [], "source_frequency": entry.get("source_frequency"),
                 "analysis_frequency": entry.get("analysis_frequency"), "resample": entry.get("resample"),
@@ -385,11 +387,62 @@ class BundleBuilder:
         return removed
 
 
+def governor_ids(grant: Any) -> dict[str, Any]:
+    """The Governor's identifiers of one delivered dataset (query, query hash, rows); no SQL, no values."""
+    manifest = getattr(grant, "manifest", None) or {}
+    validator = manifest.get("validator_manifest") or {}
+    return {"dataset_id": manifest.get("dataset_id"), "query_id": manifest.get("query_id"),
+            "query_hash": validator.get("query_hash"), "rows": getattr(grant, "row_count", None)}
+
+
+def lineage_view(manifest: dict[str, Any]) -> dict[str, Any]:
+    """D3: how a bundle was made, without rows or files: per dataset its source table, row filter hash, restricting
+    relationships, rows, actual ranges and the Governor queries that delivered it (NOT_RECORDED before D3)."""
+    datasets = []
+    for d in manifest.get("datasets") or []:
+        quality = d.get("quality") or {}
+        parts = d.get("partitions") or []
+        governor = [p["governor"] for p in parts if isinstance(p.get("governor"), dict)]
+        datasets.append({
+            "data_request_id": d.get("data_request_id"), "logical_name": d.get("logical_name"),
+            "source_table": d.get("source_table"), "scope_sha256": d.get("scope_sha256"),
+            "restricted_by": d.get("restricted_by") or [], "rows": d.get("rows"),
+            "ranges": [{k: r.get(k) for k in ("range_id", "requested_start", "requested_end", "actual_start",
+                                               "actual_end", "rows", "status")}
+                       for r in quality.get("requested_ranges") or []],
+            "governor": governor if len(governor) == len(parts) and parts else "NOT_RECORDED"})
+    relationships = [{k: r.get(k) for k in ("relationship_id", "left_request_id", "left_column", "right_request_id",
+                                            "right_column", "join_type", "join_semantics") if r.get(k) is not None}
+                     for r in manifest.get("relationships") or [] if isinstance(r, dict)]
+    return {"input_bundle_id": manifest.get("input_bundle_id"), "need_id": manifest.get("need_id"),
+            "status": manifest.get("status"), "reference_date": manifest.get("reference_date"),
+            "spec_sha256": manifest.get("spec_sha256"), "catalog_sha256": manifest.get("catalog_sha256"),
+            "created_at": manifest.get("created_at"), "datasets": datasets, "relationships": relationships}
+
+
+VIEW_COLUMNS = 30  # D1: column statistics shown per dataset; the rest via inspect_session(dataset=...)
+STAT_KEYS = ("nulls", "min", "median", "max", "distinct")
+
+
+def column_stats(quality: dict[str, Any], limit: int | None = VIEW_COLUMNS) -> dict[str, Any]:
+    """D1 (round 2026-10-03): the profiler's per-column statistics, at most limit columns (None: all)."""
+    columns = [c for c in quality.get("columns") or [] if isinstance(c, dict)]
+    shown = columns if limit is None else columns[:limit]
+    out: dict[str, Any] = {"column_stats": [{"name": c["name"], "type": c.get("type"),
+                                             **{k: c[k] for k in STAT_KEYS if k in c}} for c in shown]}
+    if len(columns) > len(shown):
+        out["columns_not_shown"] = len(columns) - len(shown)
+    if quality.get("entities_with_gaps") is not None:
+        out["entities_with_gaps"] = quality["entities_with_gaps"]
+    return out
+
+
 def model_view(manifest: dict[str, Any]) -> dict[str, Any]:
     """The bundle as market-ai-orc returns it to the model: no file paths, no dataset internals."""
     datasets = []
     for d in manifest.get("datasets") or []:
         q = d.get("quality") or {}
+        stats = column_stats(q) if q.get("columns") else {}
         datasets.append({
             "data_request_id": d["data_request_id"], "logical_name": d["logical_name"],
             "source_table": d["source_table"], "rows": d["rows"], "entities": q.get("entities"),
@@ -401,7 +454,7 @@ def model_view(manifest: dict[str, Any]) -> dict[str, Any]:
                        for r in q.get("requested_ranges") or []],
             "quality_manifest_id": d["quality_manifest_id"], "quality_flags": q.get("quality_flags") or [],
             "source_frequency": d.get("source_frequency"), "analysis_frequency": d.get("analysis_frequency"),
-            "resample": d.get("resample")})
+            "resample": d.get("resample"), **stats})
     coverage = manifest.get("coverage") or {}
     return {"status": manifest["status"], "input_bundle_id": manifest["input_bundle_id"],
             "need_id": manifest["need_id"], "request_group_id": manifest["request_group_id"],

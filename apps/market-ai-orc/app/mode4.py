@@ -102,6 +102,15 @@ def _ok(result: AgentRunResponse | None, *types: str) -> bool:
         and result.response.response_type in types
 
 
+def _artifacts(*results: AgentRunResponse | None) -> list[dict[str, Any]] | None:
+    """D4: the export files of every step of the turn, once each."""
+    seen: dict[str, dict[str, Any]] = {}
+    for result in results:
+        for artifact in (result.artifacts or []) if result is not None else []:
+            seen.setdefault(str(artifact.get("export_id")), artifact)
+    return list(seen.values()) or None
+
+
 class Mode4Orchestrator:
     """Wraps AgentOrchestrator: a request with analysis_path MODE4 runs mode 4, every other one goes straight to it.
     Other attributes (analysis_path, conversation_reuse, registry, close, ...) are the inner orchestrator's."""
@@ -401,7 +410,8 @@ class _Mode4Run:
             and response.response_type == "RESEARCH_PLAN_CONFIRMATION" else None,
             annotations=self._annotations(response, (analysis, research, suggestion) if base is not None
                                           else (result,)) or None,
-            mode4=block, data_record=self.record or None)
+            mode4=block, data_record=self.record or None,
+            artifacts=_artifacts(analysis, research, suggestion, result))
         log_event("mode4_completed", request_id=self.request.request_id, round=round_, status=combined.status,
                   steps=[(s["step"], s["status"]) for s in self.steps], cost=execution.cost,
                   duration_ms=execution.duration_ms, suggestion=suggestion is not None)

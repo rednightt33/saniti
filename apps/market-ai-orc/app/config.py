@@ -164,6 +164,12 @@ class Settings:
     # Postgres keeps go to the bucket named by RESULT_BUCKET_* (references to market-ai-conversation-outputs)
     ai_enable_result_store: bool = False
     result_bucket: dict[str, str] | None = field(default=None, repr=False)
+    # D3 (round 2026-10-03): get_lineage, where an output's numbers came from (needs DataNeed and a sandbox reporting
+    # bundle_lineage version 1)
+    ai_enable_lineage_tool: bool = False
+    # D4 (round 2026-10-03): export_result and GET /v1/exports/{export_id}/download (needs the result store and a
+    # sandbox reporting stored_tables version 1)
+    ai_enable_export: bool = False
     # A model-written methodology note beside a DataNeed answer: data, steps, methods and parameters in plain words,
     # its numbers checked like the answer's (plus the parameters of the code that ran). Only in the DataNeed flow.
     ai_enable_methodology: bool = False
@@ -331,6 +337,8 @@ class Settings:
             ai_conversation_upkeep_seconds=_integer(env, "AI_CONVERSATION_UPKEEP_SECONDS", 3600, minimum=60),
             ai_enable_conversation_reuse=_boolean(env, "AI_ENABLE_CONVERSATION_REUSE", False),
             ai_enable_result_store=_boolean(env, "AI_ENABLE_RESULT_STORE", False),
+            ai_enable_lineage_tool=_boolean(env, "AI_ENABLE_LINEAGE_TOOL", False),
+            ai_enable_export=_boolean(env, "AI_ENABLE_EXPORT", False),
             result_bucket=_result_bucket(env),
             ai_enable_methodology=_boolean(env, "AI_ENABLE_METHODOLOGY", False),
             ai_enable_plan_feasibility=_boolean(env, "AI_ENABLE_PLAN_FEASIBILITY", False),
@@ -450,6 +458,8 @@ class Settings:
             raise ConfigError("AI_PROVIDER_SORT must be price, throughput or latency")
         if settings.ai_catalog_summary_in_prompt and not settings.catalog_database_url:
             raise ConfigError("AI_CATALOG_SUMMARY_IN_PROMPT needs CATALOG_DATABASE_URL")
+        if settings.ai_enable_export and not settings.ai_enable_result_store:
+            raise ConfigError("AI_ENABLE_EXPORT requires AI_ENABLE_RESULT_STORE (exports are kept with the conversation)")
         if settings.ai_enable_result_store and not settings.ai_enable_conversation_reuse:
             raise ConfigError("AI_ENABLE_RESULT_STORE requires AI_ENABLE_CONVERSATION_REUSE (and the conversation "
                               "store): results are kept per server conversation")

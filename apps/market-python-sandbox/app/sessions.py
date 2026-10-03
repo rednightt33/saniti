@@ -1072,6 +1072,33 @@ class SessionManager:
         variables = json.loads(text) if len(text) <= 60_000 else json.loads(text[:0] + "[]")
         return {"session_id": session_id, "variables": variables, "truncated": len(text) > 60_000}
 
+    def inspect_dataset(self, session_id: str, request_id: str, dataset: str) -> dict[str, Any]:
+        """D1 (round 2026-10-03): the profiler's full statistics of one dataset of the session's bundle (every column,
+        gaps, empty entities, duplicate keys); no row values. Read from the bundle manifest, so it works after the
+        session closed and after the bundle's files expired."""
+        record = self.store.get_session(session_id)
+        if record is None or record["request_id"] != request_id:
+            raise SessionError("SESSION_NOT_FOUND", "No session with this id exists for this request.", 404,
+                               "OPEN_ANALYSIS_SESSION")
+        manifest = (self.store.get_bundle(record["bundle_id"]) or {}).get("manifest") or {}
+        datasets = manifest.get("datasets") or []
+        found = next((d for d in datasets if dataset in (d.get("logical_name"), d.get("data_request_id"))), None)
+        if found is None:
+            raise SessionError("DATASET_NOT_FOUND", f"The session's bundle has no dataset '{dataset}'.", 404,
+                               "FIX_ARGUMENTS", datasets=[d.get("logical_name") for d in datasets])
+        from .bundles import column_stats
+
+        quality = found.get("quality") or {}
+        ranges = [{k: r.get(k) for k in ("range_id", "actual_start", "actual_end", "rows", "entities", "status",
+                                         "frequency_gaps")} for r in quality.get("requested_ranges") or []]
+        return {"session_id": session_id, "dataset": found.get("logical_name"),
+                "data_request_id": found.get("data_request_id"), "source_table": found.get("source_table"),
+                "rows": quality.get("rows"), "entities": quality.get("entities"),
+                **column_stats(quality, None), "ranges": ranges,
+                "duplicate_keys": {k: v for k, v in (quality.get("duplicate_keys") or {}).items() if k != "examples"},
+                "empty_entities": quality.get("empty_entities") or [],
+                "quality_flags": quality.get("quality_flags") or []}
+
     def close(self, session_id: str, reason: str = "CLOSED_BY_CALLER") -> dict[str, Any]:
         return self._close_locked(session_id, reason)
 

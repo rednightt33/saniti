@@ -204,6 +204,16 @@ class ToolRegistry:
         self._schemas[spec.name] = strict_parameters_schema(spec.arguments_model)
         self._tools[spec.name] = spec
 
+    def disable(self, name: str) -> bool:
+        """Withdraw a registered tool whose prerequisite turned out inactive at startup; True when it was offered."""
+        import dataclasses
+
+        spec = self._tools.get(name)
+        if spec is None or not spec.enabled:
+            return False
+        self._tools[name] = dataclasses.replace(spec, enabled=False)
+        return True
+
     def names(self) -> list[str]:
         return [name for name, spec in self._tools.items() if spec.enabled]
 

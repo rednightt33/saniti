@@ -205,6 +205,57 @@ class ResultStore:
                 'status, created_at::text AS created_at FROM public."AI_conversation_execution" '
                 "WHERE conversation_id = %s AND execution_id = %s", (conversation_id, execution_id)).fetchone()
 
+    # ------------------------------------------------------------------------------------------------ exports
+
+    def save_export(self, conversation_id: str, request_id: str, source_ref: str, fmt: str, file_name: str,
+                    mime_type: str, data: bytes, includes: dict[str, Any]) -> dict[str, Any]:
+        """D4 (round 2026-10-03): a download file, kept in Postgres with the conversation (user decision 2)."""
+        import secrets
+
+        export_id = f"exp_{secrets.token_hex(12)}"
+        sha = hashlib.sha256(data).hexdigest()
+        with self._connect() as connection, connection.transaction():
+            connection.execute(f"SET LOCAL statement_timeout = '{WRITE_TIMEOUT}'")
+            connection.execute(
+                'INSERT INTO public."AI_conversation_export" (export_id, conversation_id, request_id, source_ref, '
+                "format, file_name, mime_type, size_bytes, sha256, content, includes) VALUES (%s, %s, %s, %s, %s, %s, "
+                "%s, %s, %s, %s, %s)", (export_id, conversation_id, request_id, source_ref[:200], fmt, file_name,
+                                       mime_type, len(data), sha, data, _json(includes)))
+        return {"export_id": export_id, "file_name": file_name, "format": fmt, "size_bytes": len(data),
+                "sha256": sha}
+
+    def export(self, conversation_id: str, export_id: str) -> dict[str, Any] | None:
+        """An export's metadata (no content), within its conversation."""
+        with self._connect() as connection:
+            return connection.execute(
+                "SELECT export_id, request_id, source_ref, format, file_name, mime_type, size_bytes, sha256, includes, "
+                'created_at::text AS created_at FROM public."AI_conversation_export" '
+                "WHERE conversation_id = %s AND export_id = %s", (conversation_id, export_id)).fetchone()
+
+    def owned_export(self, owner: str, export_id: str) -> dict[str, Any] | None:
+        """An export's metadata when its conversation belongs to this owner (the download's access rule)."""
+        with self._connect() as connection:
+            return connection.execute(
+                "SELECT e.export_id, e.conversation_id, e.format, e.file_name, e.mime_type, e.size_bytes, e.sha256 "
+                'FROM public."AI_conversation_export" e JOIN public."AI_conversation" c '
+                "ON c.conversation_id = e.conversation_id WHERE e.export_id = %s AND c.owner_key = %s",
+                (export_id, owner)).fetchone()
+
+    def export_chunks(self, conversation_id: str, export_id: str, chunk: int = 1024 * 1024):
+        """The file in chunks read with substring, so a 20 MB file is never held whole in memory."""
+        position = 1
+        with self._connect() as connection:
+            while True:
+                row = connection.execute(
+                    'SELECT substring(content FROM %s FOR %s) AS part FROM public."AI_conversation_export" '
+                    "WHERE conversation_id = %s AND export_id = %s", (position, chunk, conversation_id,
+                                                                      export_id)).fetchone()
+                part = bytes(row["part"]) if row and row["part"] is not None else b""
+                if not part:
+                    return
+                yield part
+                position += len(part)
+
     def object_keys(self, conversation_ids: list[str]) -> list[str]:
         """Bucket keys of these conversations (deleted before their rows by the conversation cleanup)."""
         if not conversation_ids:

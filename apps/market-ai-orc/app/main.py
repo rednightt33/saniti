@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
+import re
 import sys
 import threading
 import time
@@ -10,7 +11,7 @@ from contextlib import asynccontextmanager
 from functools import partial
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from .catalog_store import CatalogStore
 from .catalog_summary import CatalogSummary
@@ -37,9 +38,12 @@ from .tools.registry import ToolError
 from .tools.request_data import GovernorClient
 from .result_store import ResultBucket, ResultStore
 from .tools.session import (EVENT_STUDY_VERSION, RESULT_STORE_VERSION, SESSION_RELEASE_VERSION, close_sessions,
-                            output_file, read_output, release_request, restore_carried)
+                            output_file, release_request, restore_carried)
+from .tools.artifacts import STORED_TABLES_VERSION, read_output_any
+from .tools.lineage import BUNDLE_LINEAGE_VERSION
 
 REUSE_VERSION = 1  # the conversation reuse contract both services must report
+EXPORT_ID_RE = re.compile(r"^exp_[0-9a-f]{24}$")
 FEASIBILITY_VERSION = 1  # the Research Plan feasibility endpoints of the sandbox
 POINT_IN_TIME_VERSION = 1
 RESAMPLE_SEMANTICS_VERSION = 1  # market-python-sandbox runtime/saniti_session.py  # the sandbox's data_need_spec/v2 time_basis checks (IP1 Stage D)
@@ -238,6 +242,24 @@ def create_app(
                 multi_angle=multi_angle_active, period_return=settings.ai_enable_standard_period_return)
             if method_guides is None:
                 log_event("method_guides_inactive", reason=reason)
+        export = False
+        if settings.ai_enable_export:
+            # D4: the sandbox writes the file (stored_tables v1); the result store is checked below
+            capability = (sandbox.runtime().get("stored_tables") or {}) if sandbox is not None else {}
+            export = settings.ai_enable_dataneed and capability.get("enabled") is True \
+                and capability.get("version") == STORED_TABLES_VERSION
+            if not export:
+                log_event("export_inactive", reason="needs AI_ENABLE_DATANEED and a sandbox reporting stored_tables "
+                                                    f"version {STORED_TABLES_VERSION}")
+        lineage_tool = False
+        if settings.ai_enable_lineage_tool:
+            # D3: the sandbox must serve GET /v1/bundles/{id}/lineage (bundle_lineage v1); otherwise off (fail closed)
+            capability = (sandbox.runtime().get("bundle_lineage") or {}) if sandbox is not None else {}
+            lineage_tool = settings.ai_enable_dataneed and capability.get("enabled") is True \
+                and capability.get("version") == BUNDLE_LINEAGE_VERSION
+            if not lineage_tool:
+                log_event("lineage_tool_inactive", reason="needs AI_ENABLE_DATANEED and a sandbox reporting "
+                                                          f"bundle_lineage version {BUNDLE_LINEAGE_VERSION}")
         registry = build_default_registry(
             catalog,
             catalog_timeout_seconds=(
@@ -275,6 +297,8 @@ def create_app(
             planner_parallel_parts=settings.ai_planner_parallel_parts,
             multi_angle=multi_angle,
             bundle_limits=bundle_limits,
+            lineage_tool=lineage_tool,
+            export=export,
         )
         auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
             if sandbox is not None or settings.research_audit_database_url else None
@@ -302,7 +326,8 @@ def create_app(
                 log_event("session_release_inactive", reason="the sandbox does not report session_release "
                                                              f"version {SESSION_RELEASE_VERSION}")
         # (session_id, output_id, request_id, offset, limit): rows of a released output an answer references (M44)
-        row_reader = partial(read_output, sandbox) if sandbox is not None and settings.ai_enable_dataneed else None
+        # D2: the sandbox's copy, else the conversation's stored copy (when the run has a results context)
+        row_reader = partial(read_output_any, sandbox) if sandbox is not None and settings.ai_enable_dataneed else None
         resources = None
         if settings.ai_enable_conversation_reuse and sandbox is not None and settings.ai_enable_dataneed:
             # both services must have reuse on, at the same version; otherwise reuse stays off (fail closed)
@@ -330,6 +355,8 @@ def create_app(
                                                           f"{RESULT_STORE_VERSION}")
         elif settings.ai_enable_result_store:
             log_event("result_store_inactive", reason="needs conversation reuse, the conversation store and the sandbox")
+        if result_store is None and registry.disable("export_result"):
+            log_event("export_inactive", reason="exports are kept with the conversation: the result store is inactive")
         orchestrator = AgentOrchestrator(settings, owned_client, registry, auditor=auditor,
                                          catalog_summary=summary, provider_logger=provider_logger,
                                          session_closer=closer, session_releaser=releaser,
@@ -471,6 +498,25 @@ def create_app(
             "conversation_id": start.conversation_id, "turn_index": start.turn_index,
             "persistence": "SAVED" if saved else "NOT_SAVED", "replayed": False,
             "research_plan": plan_summary(start.state)}})
+
+    @app.get("/v1/exports/{export_id}/download", dependencies=[Depends(authorize)])
+    def download_export(export_id: str, x_saniti_owner: str | None = Header(default=None)) -> Any:
+        """D4: an exported file of one of the owner's conversations, streamed from Postgres in 1 MB chunks."""
+        store = getattr(orchestrator, "result_store", None)
+        try:
+            owner = owner_from_header(x_saniti_owner)
+        except ConversationError as error:
+            return refuse(error)
+        found = store.owned_export(owner, export_id) \
+            if store is not None and EXPORT_ID_RE.fullmatch(export_id) else None
+        if found is None:
+            return JSONResponse(status_code=404, content={"detail": {"code": "EXPORT_NOT_FOUND",
+                                                                     "message": "No such export for this owner."}})
+        return StreamingResponse(store.export_chunks(found["conversation_id"], export_id),
+                                 media_type=found["mime_type"], headers={
+                                     "Content-Disposition": f'attachment; filename="{found["file_name"]}"',
+                                     "Content-Length": str(found["size_bytes"]),
+                                     "X-Saniti-Sha256": found["sha256"]})
 
     @app.get("/v1/conversations/{conversation_id}/messages", dependencies=[Depends(authorize)])
     def conversation_messages(conversation_id: str, after: int | None = None, limit: int | None = None,

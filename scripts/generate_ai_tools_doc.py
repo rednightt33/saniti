@@ -39,6 +39,7 @@ SWITCHES = {
     "AI_ENABLE_PLAN_FEASIBILITY": "plan_feasibility", "AI_ENABLE_COMPOSITE_KEYS": "composite_keys",
     "AI_ENABLE_POINT_IN_TIME": "point_in_time", "AI_ENABLE_RESEARCH_FINDINGS": "research_findings",
     "AI_ENABLE_PREFLIGHT_PARTS": "preflight_parts", "AI_ENABLE_MULTI_ANGLE_RESEARCH": "multi_angle",
+    "AI_ENABLE_LINEAGE_TOOL": "lineage_tool", "AI_ENABLE_EXPORT": "export",
 }
 
 # One plain-language sentence per name (Indonesian, for non-developers).
@@ -56,8 +57,10 @@ PLAIN = {
     "prepare_data_bundle": "Mengambil data yang sudah disetujui secara utuh dan memeriksa kelengkapannya.",
     "open_analysis_session": "Membuka ruang kerja Python di atas data yang sudah disiapkan.",
     "run_python": "Menjalankan hitungan di ruang kerja dengan alat bantu bawaan; setiap tabel hasil wajib membawa definisinya.",
-    "inspect_session": "Melihat isi variabel di ruang kerja sebelum hasil dirilis.",
-    "get_session_output": "Membaca ulang tabel atau JSON hasil, termasuk dari giliran sebelumnya.",
+    "inspect_session": "Melihat isi variabel di ruang kerja sebelum hasil dirilis, atau statistik semua kolom satu dataset (kosong, min/median/maks, celah) tanpa baris data.",
+    "export_result": "Membuat file unduhan dari tabel hasil (CSV, XLSX dengan lembar definisi dan asal data, atau Parquet), maks. 20 MB; AI hanya melihat nama dan ukurannya.",
+    "get_lineage": "Menelusuri asal angka: tabel hasil, kode yang membuatnya, data yang dibaca, saringan baris, query Governor, dan tabel sumbernya; tanpa isi baris.",
+    "get_session_output": "Membaca ulang tabel atau JSON hasil, termasuk dari giliran sebelumnya lewat ref (out.o3) setelah sandbox menghapusnya, dan kode yang dijalankan sebuah eksekusi.",
     "complete_analysis": "Menutup analisis: sistem memeriksa kelengkapan data dan definisi, lalu merilis hasil yang boleh dikutip.",
     "check_data_feasibility": "Sebelum mengajukan rencana riset, mengecek data ada dan ukurannya muat (tanpa membaca data).",
     "get_research_library": "Daftar metode riset beserta aturan dan cara membaca hasilnya.",

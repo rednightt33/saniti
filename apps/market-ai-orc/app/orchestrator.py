@@ -49,6 +49,7 @@ from .tools.analysis import DataDate, current_conversation_key, current_data_dat
 from .tools.envelope import envelope
 from .tools.registry import strict_parameters_schema
 from .result_store import restore_missing, store_released
+from .tools.artifacts import RunResults, current_results
 from .tools.session import current_carried_outputs, current_carried_restorer
 from .tools.request_data import current_request_id
 
@@ -1599,6 +1600,7 @@ class RunState:
     # R-STORE: the released outputs and executions of this run, kept at its end (output entries with session_id)
     store_outputs: list[dict[str, Any]] = field(default_factory=list)
     store_executions: list[dict[str, Any]] = field(default_factory=list)
+    artifacts: list[dict[str, Any]] = field(default_factory=list)  # D4: this run's export files (API artifacts)
     reference_date: Any = None  # the run's reference date in the analysis timezone
     data_date: Any = None  # R-STORE: the run's DataDate (the conversation's data date and whether NEWEST was asked)
     research_attempted: bool = False
@@ -1885,6 +1887,13 @@ class AgentOrchestrator:
         state.data_date = DataDate(records.data_as_of(state.data_record)) if self.result_store is not None else None
         state.reference_date = moment.astimezone(ZoneInfo(self.settings.analysis_timezone)).date()
         data_date = current_data_date.set(state.data_date)
+        # D2: what get_session_output (and the phase D tools) may open of this conversation's kept results
+        fetch = self.output_fetcher
+        results = current_results.set(RunResults(
+            conversation_id=request.conversation_id if self.result_store is not None else None,
+            request_id=request.request_id, store=self.result_store, record=state.data_record,
+            fetch=(lambda sid, oid: fetch(sid, oid, request.request_id)) if fetch is not None else None,
+            pending=state.store_executions))
         carried = None
         try:
             if self.conversation_reuse and conversation_key and request.history:
@@ -1934,6 +1943,7 @@ class AgentOrchestrator:
                 evidence_label=state.evidence_label,
                 continuation=state.continuation,
                 annotations=[ClaimAnnotation(**a) for a in state.claim_annotations] or None,
+                artifacts=state.artifacts or None,
             )
         except (RunFailure, ProviderError) as exc:
             result = self._failed(state, exc.code, str(exc))
@@ -1950,6 +1960,7 @@ class AgentOrchestrator:
             current_research_context.reset(research)
             current_carried_restorer.reset(restorer)
             current_data_date.reset(data_date)
+            current_results.reset(results)
         self._store_results(state, request.conversation_id)
         result = self._data_date_lines(state, request, result)
         result = result.model_copy(update={"data_record": records.public(state.data_record)})
@@ -2169,6 +2180,14 @@ class AgentOrchestrator:
                 return result
             return self._failed(state, "AUDIT_UNAVAILABLE", "The run could not be recorded for audit, which this "
                                                             "deployment requires, so its answer is withheld.")
+
+    @staticmethod
+    def _track_artifacts(state: RunState, name: str, outcome: ToolOutcome) -> None:
+        """D4: the downloads the API response lists (artifacts); the model saw only the id, name and size."""
+        result = outcome.output.get("result") if outcome.ok else None
+        if name == "export_result" and isinstance(result, dict) and result.get("status") == "EXPORTED":
+            state.artifacts.append({k: result.get(k) for k in ("export_id", "file_name", "format", "size_bytes",
+                                                               "sha256")} | {"download_path": result.get("download")})
 
     def _track_results(self, state: RunState, name: str, outcome: ToolOutcome, arguments: Any) -> None:
         """R-STORE: what this run releases and the code it runs, kept with the conversation at the run's end."""
@@ -2415,7 +2434,7 @@ class AgentOrchestrator:
         state.research.executor = self.research_limits["factory"](verified, request.request_id)
         data_plan = verified.research_data_plan
         groups = {g.get("bundle_group_id"): g.get("angle_ids") for g in data_plan.get("bundle_groups") or []}
-        tools = (DISCOVERY_TOOLS | RESEARCH_RUN_TOOLS | {"inspect_session", "get_session_output"}) \
+        tools = (DISCOVERY_TOOLS | RESEARCH_RUN_TOOLS | {"inspect_session", "get_session_output", "get_lineage"}) \
             & frozenset(self.registry.names())
         self._set_turn(state, "EXECUTE_APPROVED", ALL_TYPES, frozenset(tools),
                        ResearchGuard(required=True, verification=verification),
@@ -2889,6 +2908,7 @@ class AgentOrchestrator:
         self._track_dataneed(state, name, self._tool_arguments(name, raw_arguments), outcome)
         if self.value_references:
             self._track_references(state, name, outcome, self._normalized_arguments(raw_arguments))
+        self._track_artifacts(state, name, outcome)
         if self.result_store is not None:
             self._track_results(state, name, outcome, self._normalized_arguments(raw_arguments))
         result_hash = stable_hash(outcome.output)
@@ -3453,7 +3473,9 @@ class AgentOrchestrator:
         return lines
 
     def _row_fetcher(self, state: RunState, session_id: str | None, output_id: str) -> Any:
-        if self.row_reader is None or not session_id:
+        # D2: an output of an earlier answer is read from the conversation's store when the sandbox lost it, so a
+        # reference to it renders without its session
+        if self.row_reader is None or not (session_id or self.result_store is not None):
             return None
 
         def fetch(offset: int, limit: int) -> tuple[list[Any], int | None]:

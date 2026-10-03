@@ -12,10 +12,11 @@ from __future__ import annotations
 import contextvars
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..compaction import dumps
 from .analysis import SandboxClient
+from .artifacts import current_results, read_execution, read_output_any, resolve_ref
 from .registry import ToolError, ToolSpec
 from .request_data import current_request_id
 
@@ -83,6 +84,7 @@ current_carried_outputs: contextvars.ContextVar[list[str] | None] = contextvars.
 SESSION_PATTERN = r"^sess_[0-9a-f]{24}$"
 BUNDLE_PATTERN = r"^bundle_[0-9a-f]{24}$"
 OUTPUT_PATTERN = r"^out_[0-9a-f]{24}$"
+EXECUTION_PATTERN = r"^exe_[0-9a-f]{24}$"
 
 
 class Strict(BaseModel):
@@ -103,6 +105,8 @@ class InspectSessionArgs(Strict):
     names: list[str] | None = Field(max_length=20, description="Variables to describe with a preview; null lists "
                                                                "every variable (names, types, shapes).")
     max_rows: int | None = Field(ge=0, le=20, description="Preview rows per DataFrame (default 5).")
+    dataset: str | None = Field(min_length=1, max_length=120, description=(
+        "A dataset of the session's bundle (logical name): its full column statistics instead of variables."))
 
 
 class CompleteAnalysisArgs(Strict):
@@ -110,10 +114,23 @@ class CompleteAnalysisArgs(Strict):
 
 
 class GetSessionOutputArgs(Strict):
-    session_id: str = Field(pattern=SESSION_PATTERN)
-    output_id: str = Field(pattern=OUTPUT_PATTERN)
+    session_id: str | None = Field(pattern=SESSION_PATTERN, description=(
+        "The session that made the output; null for an output of an earlier answer."))
+    output_id: str | None = Field(pattern=OUTPUT_PATTERN)
+    ref: str | None = Field(pattern=r"^(out\.)?o[1-9][0-9]{0,3}$", description=(
+        "The value reference of an output (out.o3), instead of output_id."))
+    execution_id: str | None = Field(pattern=EXECUTION_PATTERN, description=(
+        "An execution instead of an output: its code, what it read and the outputs it released."))
+    include_content: bool | None = Field(description="With execution_id: true also returns the code.")
     offset: int | None = Field(ge=0, description="First row (tables) or chunk (text); default 0.")
     limit: int | None = Field(ge=1, le=200, description="Rows (tables) or chunks (text) to return; default 50.")
+
+    @model_validator(mode="after")
+    def _one_source(self) -> "GetSessionOutputArgs":
+        given = [n for n in ("output_id", "ref", "execution_id") if getattr(self, n) is not None]
+        if len(given) != 1:
+            raise ValueError("give exactly one of output_id, ref or execution_id")
+        return self
 
 
 def _call(client: SandboxClient, method: str, path: str, timeout: float | None = None, **kwargs: Any
@@ -182,13 +199,16 @@ PERIOD_RETURN_SENTENCE = (
 
 INSPECT_DESCRIPTION = (
     "Describe session variables: with names null, every variable (name, type, shape); with names, up to 20 variables "
-    "with dtypes and up to max_rows preview rows. Use it to check intermediate results before emitting outputs."
+    "with dtypes and up to max_rows preview rows. Use it to check intermediate results before emitting outputs. "
+    "With dataset, the profiler's statistics of every column of that dataset (nulls, min/median/max, distinct "
+    "counts, entities with gaps), no rows."
 )
 
 OUTPUT_DESCRIPTION = (
-    "Read back one output of the session: table rows page by page (offset, limit), JSON content or text chunks; "
-    "charts and files return metadata only. released is false until complete_analysis passes: only released "
-    "outputs may be cited in the final answer."
+    "Read back one output: table rows page by page (offset, limit), JSON content or text chunks; charts and files "
+    "return metadata only. released is false until complete_analysis passes: only released outputs may be cited in "
+    "the final answer. An output of an earlier answer opens by its ref (out.o3) or output_id, also after the sandbox "
+    "deleted it; execution_id opens the code an execution ran (include_content true), what it read and released."
 )
 
 
@@ -404,14 +424,28 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
                                 else arguments.max_rows}
         if arguments.names is not None:
             body["names"] = arguments.names
+        if arguments.dataset is not None:
+            body["dataset"] = arguments.dataset  # D1: the dataset's column statistics, not variables
         return _call(client, "POST", f"/v1/sessions/{arguments.session_id}/inspect", timeout=timeout_seconds,
                      json=body)
 
     def output(arguments: BaseModel) -> dict[str, Any]:
         assert isinstance(arguments, GetSessionOutputArgs)
-        return _call(client, "GET", f"/v1/sessions/{arguments.session_id}/outputs/{arguments.output_id}",
-                     timeout=timeout_seconds, params={"request_id": request_id(), "offset": arguments.offset or 0,
-                                                      "limit": arguments.limit or 50})
+        results = current_results.get()
+        if arguments.execution_id is not None:
+            return read_execution(results, arguments.execution_id, bool(arguments.include_content))
+        output_id, session_id = arguments.output_id, arguments.session_id
+        if arguments.ref is not None:
+            entry = resolve_ref(results.record if results is not None else {}, arguments.ref)
+            if entry is None:
+                return {"status": "REJECTED", "code": "REF_NOT_FOUND", "next_action": "FIX_ARGUMENTS",
+                        "message": "No output of this conversation has this reference; the data record lists them."}
+            output_id, session_id = str(entry["output_id"]), entry.get("session_id")
+        result = read_output_any(client, session_id, str(output_id), request_id(), arguments.offset or 0,
+                                 arguments.limit or 50, timeout_seconds)
+        if session_id and "session_id" not in result and result.get("status") != "REJECTED":
+            result["session_id"] = session_id  # the owner, for value references (the call may have named a ref)
+        return result
 
     def complete(arguments: BaseModel) -> dict[str, Any]:
         assert isinstance(arguments, CompleteAnalysisArgs)

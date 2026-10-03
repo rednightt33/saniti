@@ -133,7 +133,7 @@ NOTES = {
 # CLARIFY and CONVERSATIONAL read; they never extract data or run code (rule 1, enforced by the tool filter)
 READ_ONLY_TOOLS = frozenset({"get_system_capabilities", "discover_catalog", "get_catalog_details", "read_catalog_rows",
                              "get_dimension_values", "get_research_library", "get_method_guide",
-                             "get_session_output"})
+                             "get_session_output", "get_lineage"})
 
 # set by mode 4 around one sub-run: the orchestrator adds the class's note and, for CLARIFY and CONVERSATIONAL, keeps
 # only the read-only tools and the answer types (no plan)
