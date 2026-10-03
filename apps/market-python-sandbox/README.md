@@ -1411,6 +1411,24 @@ Boundaries:
   ending `LATEST` then ends there when it is earlier than the reference date (the window records `as_of_date`).
 - `GET /v1/runtime` reports `result_store {enabled, version 1, restore_max_bytes}`.
 
+### Phase D tools (round 2026-10-03, `ROUND_PLAN_2026-10-03_FASE_D.md`)
+
+- **Column statistics (D1):** the Data Quality Profiler adds `quality.columns[]` per dataset (type, nulls, min /
+  median / max of numbers, first and last date, approximate distinct count of anything else) and
+  `entities_with_gaps` (entities missing dates of the dataset's own calendar inside their own span, so monthly or macro
+  data is not counted as gaps). The bundle view shows at most 30 columns (`column_stats`, `columns_not_shown`);
+  `POST /v1/sessions/{id}/inspect` with `dataset` returns all of them, read from the manifest (no rows).
+- **Stored-table operations (D0):** `POST /v1/stored-tables/{page|export|recount}` take the stored file as the body and
+  `X-Saniti-Output-Meta` (base64url JSON: `format`, `checksum_sha256` and the operation's arguments). The checksum is
+  verified; the size limit is `PY_SANDBOX_RESTORE_MAX_BYTES`. `page` reads rows like a session output; `export` writes
+  CSV, Parquet or XLSX (`openpyxl`, sheets `data`, `definisi`, `lineage`), at most 20 MB (`EXPORT_TOO_LARGE`, 413);
+  `recount` recomputes COUNT, COUNT_DISTINCT, SUM, MIN, MAX or MEAN under `where` conditions and returns at most 200
+  matching rows (evidence tier 2). Capability `stored_tables` v1.
+- **Lineage (D3):** new bundle manifests keep each partition's Governor `query_id`, `query_hash`, dataset id and rows
+  (`governor`); `GET /v1/bundles/{id}/lineage?request_id=` returns source tables, row filter hashes, restricting
+  relationships, rows, actual ranges and those ids (older bundles: `NOT_RECORDED`), for the bundle's request or its
+  conversation only. Capability `bundle_lineage` v1.
+
 ## Railway service
 
 Deployed on `dev` as `market-python-sandbox`, with no public domain. The Railway volume is mounted

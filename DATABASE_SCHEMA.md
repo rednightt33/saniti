@@ -19,6 +19,7 @@ Generated from PostgreSQL schema `public` at `2026-09-27T08:23:59+00:00`.
 | `AI_data_coverage` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | Automated actual raw-source coverage plus explicitly inferred expectations for derived Feature tables. |
 | `AI_formula_reference` | Unclassified | Unknown | — | `2026-09-24 09:22:02+00:00` | Baseline only | Global reference catalog of calculation formulas for the orchestrator; entries document a formula, not a verified or executable implementation. |
 | `AI_method_guide` | Unclassified | Unknown | — | `2026-10-02 10:05 UTC` | Baseline only | Model-facing menu and manual of the analysis paths (G1–G4) and session helpers; generated from code, hash-bound (guides_sha256). Enforcement stays in code. |
+| `AI_metric_catalog` | System | Event-driven / forward migrations (round D5) | — | `2026-10-03` | Added by hand (20261003_008) | Official metrics for market-ai-orc's query_metric (one SQL Governor summary per period); units and additivity read from AI_column_catalog. |
 | `AI_research_catalog` | Unclassified | Unknown | — | `2026-09-24 07:24:52+00:00` | Baseline only | Global reference catalog of research methods for the orchestrator; entries do not enable sandbox execution. |
 | `AI_research_library` | Unclassified | Unknown | — | `2026-09-29 18:31–18:35 UTC` | Baseline only | Model-facing description of the Multi-Angle Research methods the sandbox engines compute; generated from code, hash-bound (library_sha256). Enforcement stays in code. |
 | `AI_research_run_audit` | Unclassified | Unknown | — | `2026-09-24 12:33:35+00:00` | Baseline only | Durable audit of market-ai-orc runs: the question, the final answer, its evidence label and gate outcome, and every experiment with its Research Governor decision, validation, evidence decision and fingerprints. |
@@ -568,6 +569,52 @@ Model-facing menu and manual of the analysis paths and session helpers; generate
 | Name | Definition |
 |---|---|
 | `AI_method_guide_pkey` | `CREATE UNIQUE INDEX "AI_method_guide_pkey" ON public."AI_method_guide" USING btree (name, guides_version)` |
+
+## AI_metric_catalog
+
+Official metrics market-ai-orc's query_metric answers in one SQL Governor summary per period: source table, measure column, rule over time, dimensions, default row filter and meaning. Units and additivity are read from `AI_column_catalog`, never repeated here. Created by `database/migrations/20261003_008_ai_metric_catalog.sql`; read by `market_ai_catalog_reader` only. The six initial rows are `INFERRED` (user decisions 1, D-a and D-c of 2026-10-03; transaction value postponed).
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `metric_id` | `text` | No | — | Stable name of the metric the model passes to query_metric. |
+| `metric_version` | `integer` | No | `1` | Version of the metric definition; a change is a new version. |
+| `label` | `text` | No | — | Indonesian label shown to users. |
+| `description` | `text` | No | — | What the metric measures, in plain words. |
+| `source_table` | `text` | No | — | The governed table the metric is computed from. |
+| `measure_column` | `text` | No | — | The column the metric summarises. |
+| `time_function` | `text` | No | — | How the metric runs over the period: SUM, MIN, MAX, FIRST, LAST or COUNT; checked against the column's catalog rule by the Governor. |
+| `entity_column` | `text` | No | — | The column the entities of a question (tickers or symbols) filter. |
+| `default_dimensions` | `text[]` | No | `ARRAY[]::text[]` | The columns the result is split by when the question names none. |
+| `allowed_dimensions` | `text[]` | No | `ARRAY[]::text[]` | Every column the result may be split by. |
+| `default_scope` | `jsonb` | No | `'{"type": "ALL"}'::jsonb` | A canonical scope tree always applied (ALL: none). |
+| `formula` | `text` | No | — | The computation in words. |
+| `interpretation` | `text` | No | — | How to read the value. |
+| `recommended_use` | `text` | No | — | The questions the metric answers. |
+| `misuse_warning` | `text` | No | — | How the metric is misread or misused. |
+| `review_status` | `text` | No | `'INFERRED'` | INFERRED (proposed), REVIEWED or VERIFIED (confirmed by the user). |
+| `source_decision` | `text` | No | — | The user decision the metric comes from. |
+| `is_active` | `boolean` | No | `true` | Whether query_metric offers this version. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | When the row was inserted. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `ai_metric_catalog_dimensions` | Check | `CHECK (default_dimensions <@ allowed_dimensions AND entity_column = ANY (allowed_dimensions))` |
+| `ai_metric_catalog_function` | Check | `CHECK (time_function IN ('SUM', 'MIN', 'MAX', 'FIRST', 'LAST', 'COUNT'))` |
+| `ai_metric_catalog_id` | Check | `CHECK (metric_id ~ '^[a-z][a-z0-9_]{0,63}$' AND metric_version >= 1)` |
+| `ai_metric_catalog_review` | Check | `CHECK (review_status IN ('INFERRED', 'REVIEWED', 'VERIFIED'))` |
+| `ai_metric_catalog_scope` | Check | `CHECK (jsonb_typeof(default_scope) = 'object' AND default_scope ? 'type')` |
+| `AI_metric_catalog_pkey` | Primary key | `PRIMARY KEY (metric_id, metric_version)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `AI_metric_catalog_pkey` | `CREATE UNIQUE INDEX "AI_metric_catalog_pkey" ON public."AI_metric_catalog" USING btree (metric_id, metric_version)` |
+| `ai_metric_catalog_one_active` | `CREATE UNIQUE INDEX ai_metric_catalog_one_active ON public."AI_metric_catalog" USING btree (metric_id) WHERE is_active` |
 
 ## AI_research_catalog
 

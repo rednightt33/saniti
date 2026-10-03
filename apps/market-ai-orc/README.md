@@ -2137,6 +2137,25 @@ frontend, and Telegram.
   registration) and method guides v3. Applied migrations are frozen by `database/migrations/APPLIED.sha256`
   (`tests/test_migrations_frozen.py`).
 
+### Phase D (round 2026-10-03, `ROUND_PLAN_2026-10-03_FASE_D.md`)
+
+- **get_session_output (D2):** also `ref` (`out.o3`), `output_id` without a session, or `execution_id` (the stored
+  code, at most 20,000 characters with `include_content`, what it read and released). An output the sandbox deleted is
+  read from the conversation's store and paged by the sandbox's stored-table operation; value references read rows
+  the same way. Without a results context (no conversation, result store off) only the sandbox is read.
+- **get_lineage (D3, `AI_ENABLE_LINEAGE_TOOL`, sandbox `bundle_lineage` v1):** output → execution → bundle →
+  Governor queries → source tables, and earlier outputs the code loaded (three levels); no rows.
+- **export_result (D4, `AI_ENABLE_EXPORT`, needs `AI_ENABLE_RESULT_STORE` and sandbox `stored_tables` v1):** CSV,
+  XLSX (definition and lineage sheets) or Parquet of an output, at most 20 MB, kept in `AI_conversation_export`. The
+  model sees only id, name, size and format; the response lists `artifacts[]`; `GET /v1/exports/{export_id}/download`
+  streams the file (same Bearer key, `X-Saniti-Owner` must own the conversation, otherwise 404).
+- **query_metric (D5, `AI_ENABLE_QUERY_METRIC`):** the active metrics of `AI_metric_catalog`, read at startup and
+  offered in a METRICS note each run; one SQL Governor `POST /v1/summary` per period (trading days of the table's own
+  calendar up to the conversation's data date, or a date range). Values count as `DATABASE_AGGREGATE` for number
+  provenance and are cited as `metric.mN…`. Outside the catalog: `METRIC_NOT_IN_CATALOG`, next action a data need.
+- **Kejedot index (D0):** `execution.friction` (`rejected_tool_calls`, `gate_repairs`, `repeated_data_orders`,
+  `capacity_refusals`) in the response and the `ai_run_completed` log.
+
 ## Railway deployment
 
 - Service `market-ai-orc` (`41dc17ee-3bac-41ef-90ec-8b9356815c71`) runs in project `lucid-patience`, environment `dev`.

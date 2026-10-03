@@ -284,6 +284,21 @@ would get. No row is read and nothing is stored. The lineage may then name a fea
 `need_…`); a draft sent without `estimate_only` is refused with `LINEAGE_MISMATCH`. The log line carries
 `estimate_only`.
 
+## Summaries over a period (`POST /v1/summary`, G18 phase 2, round 2026-10-03 D5)
+
+Body `{request_id, summary, lineage}`, orc key only. `summary` (`summary_spec/v1`, `app/summary.py`): `source_table`,
+`scope` and `restrictions` as in `/v1/extract`, `group_by` (never the time column), `measures` `{column, function,
+as}` with SUM, MIN, MAX, FIRST, LAST or COUNT, and `period` `{from, to}` or `{trading_days, as_of}` (the last N dates
+of the table's own calendar, by a loose index scan). `lineage` `{purpose: METRIC|EVIDENCE, recipe_sha256, metric_id?}`;
+`recipe_sha256` must be the hash of the summary as sent.
+
+Rules, from the Governor's own catalog contract: SUM needs `resample_aggregation` SUM over time and
+`cross_entity_aggregation` SUM across every grain key the summary drops (`AGGREGATION_NOT_ADDITIVE`); FIRST and LAST
+need that `resample_aggregation` and keep every non-time grain key; MIN and MAX apply to numeric MEASURE columns.
+Every group returns `days_present`, `first_date` and `last_date`; the response gives the window's `calendar_dates`.
+EXPLAIN limits (plan cost, scanned rows) and the statement timeout apply; at most 200 rows (`SUMMARY_TOO_MANY_ROWS`,
+never truncated). Log event `sql_governor_summary`. Measured plans: `DATABASE_CHANGELOG.md` (2026-10-03, phase D5).
+
 ## Lookup facts
 
 `POST /v1/lookup` answers specific factual questions (a close on a date, a week's total volume)

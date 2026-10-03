@@ -454,3 +454,19 @@ Setelah perubahan variabel Railway: `railway config pull --force` + `railway con
 | query_metric | Sama dengan SQL independen |
 | Klaim TIDAK COCOK | Tampil apa adanya |
 | Indeks kejedot dan iterasi | Turun dibanding baseline (bila baseline tersedia) |
+
+---
+
+## Progres (2026-10-03)
+
+| Bagian | Status |
+|---|---|
+| D0 fondasi | LIVE dev: operasi tabel tersimpan (sandbox), baca ResultStore, `output_bytes`, `execution.friction` |
+| D1 statistik kolom | LIVE dev (sandbox `920d7cc4`) |
+| D2 buka hasil/kode lama | LIVE dev (orc `9ce37963`); nama alat tetap `get_session_output`. **Beda dari rencana:** isi tabel tetap dikirim berhalaman seperti sebelumnya (bawaan `include_content` hanya untuk kode), supaya alur yang sudah ada tidak berubah |
+| D3 get_lineage | LIVE dev, `AI_ENABLE_LINEAGE_TOOL=true` |
+| D4 export_result | LIVE dev, `AI_ENABLE_EXPORT=true` |
+| D5 G18-2 + query_metric | LIVE dev: Governor `0fa3f146`, migrasi `20261003_008` (diterapkan dan dibaca balik), `AI_ENABLE_QUERY_METRIC=true`; EXPLAIN terukur, tidak ada indeks baru; uji asap `/v1/summary` = SQL langsung |
+| D6 get_evidence | Belum mulai. Nomor migrasi bergeser: 008 dipakai katalog metrik, jadi bukti = 009, buku metode v4 = 010, Tool_Catalog round D = 011 |
+
+Tes: orc 1.167, sandbox 745, Governor 254 lulus. Belum ada lalu lintas model (golden test atas perintah user).

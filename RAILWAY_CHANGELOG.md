@@ -1,5 +1,39 @@
 # Railway changelog
 
+## 2026-10-03 — Round phase D0–D5 on dev: tools for the AI and the user (Governor, sandbox, orc)
+
+Plan: `ROUND_PLAN_2026-10-03_FASE_D.md` (approved by the user). CLI uploads from branch `claude/g2-g3-reactivation` at
+`e07643c`; `main` untouched; AI_MODEL, AI_MODEL_2, AI_MODEL_SWITCH and AI_MODE_SWITCH untouched.
+
+- **Temporary job `d5-mig-job`** (dev): `DATABASE_URL` as the reference `${{Postgres.DATABASE_URL}}`; DRYRUN
+  `3c15362c`, APPLY `2438029f` of migration 20261003_008 plus bounded `EXPLAIN (ANALYZE, BUFFERS)` of the summary
+  patterns (see `DATABASE_CHANGELOG.md`); then deleted.
+- **market-sql-governor `0fa3f146` `SUCCESS`** (was `deae118b`): `POST /v1/summary` (G18 phase 2). Startup and
+  `/ready` 200.
+- **market-python-sandbox `920d7cc4` `SUCCESS`** (was `8270c163`): stored-table operations (page, export, recount;
+  `openpyxl` 3.1.5 added), column statistics in the profiler, `inspect_session` dataset mode, Governor query ids in
+  new bundle manifests, `GET /v1/bundles/{id}/lineage`. Startup: `sandbox_started` (isolation enforced),
+  `sessions_started`.
+- **Variables on market-ai-orc** (dev, not secrets, `--skip-deploys` before the deployment below):
+  `AI_ENABLE_LINEAGE_TOOL=true`, `AI_ENABLE_EXPORT=true`, `AI_ENABLE_QUERY_METRIC=true`.
+- **market-ai-orc `9ce37963` `SUCCESS`** (was `b458843d`): get_session_output opens earlier results from the store,
+  get_lineage, export_result with `GET /v1/exports/{export_id}/download`, query_metric, `execution.friction`.
+  Startup: `query_metric_active` (six metrics), `result_store_active` (bucket true), `mode4_active`; no
+  `*_inactive` event (lineage and export active).
+- **Temporary job `d5-smoke-job`** (dev): `POST /v1/summary` with `GOVERNOR_URL` and `GOVERNOR_KEY` as references to
+  market-ai-orc's `SQL_GOVERNOR_URL` and `SQL_GOVERNOR_API_KEY` (no value recorded) against the same summaries in
+  plain SQL: net foreign value BBCA 5 trading days (2 boards, 72 ms) and last close + period high of 5 banks over 20
+  trading days (33 ms) equal the SQL exactly; a volume total across tickers is refused with
+  `AGGREGATION_NOT_ADDITIVE`. Then deleted.
+- `railway config pull --force` recorded the three flags (names only, `preserve()`); `railway config plan`: up to date.
+  `AI_TOOLS.md` regenerated with the dev flags (names and true/false only).
+- Tests: orc 1,167, sandbox 745, Governor 254 passed.
+- **Not yet in the Tool_Catalog:** the new and changed tool definitions are registered by one round D migration at the
+  end of phase D (D6).
+- **Live check with the model pending:** golden test on the user's command (Bagian 2 of the plan).
+- **Rollback:** flags off (`AI_ENABLE_LINEAGE_TOOL`, `AI_ENABLE_EXPORT`, `AI_ENABLE_QUERY_METRIC`); or orc `b458843d`,
+  sandbox `8270c163`, Governor `deae118b`.
+
 ## 2026-10-03 — Round phase C2 on dev: R-STORE save, restore and resume
 
 Plan: `ROUND_PLAN_2026-10-03_FASE_C.md`. CLI upload from branch `claude/g2-g3-reactivation` at `e3129b0`; `main`
