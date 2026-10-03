@@ -43,6 +43,7 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - Market Audit Store (durable, queryable audit of AI runs: schema `ai_audit` through login `market_ai_audit`, the only holder of the audit-bucket credentials; producers market-sql-governor, market-python-sandbox and market-ai-orc in shadow mode since 2026-09-30, `AI_AUDIT_STORE_REQUIRED=false`): `market-audit-store`
 - Market Audit Store service ID: `956b1479-e8c6-4f6d-bd39-2af46390a22a` (private only: `market-audit-store.railway.internal:8080`; no public domain)
 - Audit artifact bucket: `market-ai-audit-artifacts` (`f29461fa-0ad8-4886-bbf1-2df2b4966357`, region `sjc`; private, content-addressed objects)
+- Conversation result bucket: `market-ai-conversation-outputs` (`b61d08dc-0203-40d1-a13c-3a0fb25dbf3f`, region `sjc`; private; R-STORE tables larger than 20 MB, keys `outputs/<conversation_id>/<output_id>.<ext>`, deleted with their conversation; only market-ai-orc holds its credentials as `RESULT_BUCKET_*` references)
 - market-ai-orc test runner: `orc-test-runner` (`09358b92-09d4-4da2-b547-bf8f621e226c`), restart `NEVER`, no domain; code in `apps/orc-test-runner` (CLI upload). Variables are references only: `MARKET_AI_ORC_API_KEY`, and while a suite reads the audit back, `AUDIT_STORE_READER_KEY`.
 - Market Web Governor (provider-neutral web evidence service; not connected to `market-ai-orc` yet): `market-web-governor`
 - Market Web Governor service ID: `1c43a00e-9deb-4b17-84f0-acfa35142ac6` (private: `market-web-governor.railway.internal:8080`)

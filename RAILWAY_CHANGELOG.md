@@ -1,5 +1,25 @@
 # Railway changelog
 
+## 2026-10-03 — Round phase C2a/C2b on dev: conversation result tables and bucket
+
+Plan: `ROUND_PLAN_2026-10-03_FASE_C.md` (user decisions 2026-10-03: a new dedicated bucket for result tables larger
+than 20 MB). `main` untouched.
+
+- **Temporary job `c-mig-job`** (dev): `DATABASE_URL` as the reference `${{Postgres.DATABASE_URL}}`, DRYRUN `ca7fed55`,
+  APPLY `3858a020` of migration 20261003_006 (see `DATABASE_CHANGELOG.md`), then deleted.
+- **Bucket `market-ai-conversation-outputs`** (`b61d08dc-0203-40d1-a13c-3a0fb25dbf3f`, region `sjc`, private).
+  - `railway bucket create` answered "Bad Access". The bucket was created as for the audit bucket: added to
+    `.railway/railway.ts`, `railway config plan --verbose --out` pinned a plan with exactly one change (create the
+    bucket; 0 changed, 0 destroyed; plan sha256 `d1bb5ad6ed46a0f09c75279fc6782378460ab3e9735223c905cf26d1eb397e0d`),
+    then `railway config apply --plan … --yes`.
+- **Variables on market-ai-orc** (dev, `--skip-deploys`, no redeploy):
+  - `RESULT_BUCKET_NAME`, `RESULT_BUCKET_ENDPOINT`, `RESULT_BUCKET_REGION`, `RESULT_BUCKET_ACCESS_KEY_ID`,
+    `RESULT_BUCKET_SECRET_ACCESS_KEY`, as references to `${{market-ai-conversation-outputs.*}}`. No value is recorded.
+  - All five resolve (checked by name and a resolved flag only).
+  - Unused until `AI_ENABLE_RESULT_STORE` and the C2c code are deployed.
+- `railway config pull --force` recorded the bucket and the five names in `.railway/railway.ts`; `railway config plan`:
+  up to date.
+
 ## 2026-10-03 — Round phase C1 on dev: S28 session release and open queue
 
 Plan: `ROUND_PLAN_2026-10-03.md` phase C (approved 2026-10-03). CLI upload from branch `claude/g2-g3-reactivation` at
