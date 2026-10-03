@@ -39,9 +39,9 @@ def _sha(value: Any) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, default=str, separators=(",", ":")).encode()).hexdigest()
 
 
-def sanitize(value: Any, depth: int = 0) -> Any:
+def sanitize(value: Any, depth: int = 0, *, max_string: int = MAX_STRING, max_depth: int = 8) -> Any:
     """Bounded, secret-free and reasoning-free copy of a JSON value."""
-    if depth > 8:
+    if depth > max_depth:
         return "[depth limit]"
     if isinstance(value, dict):
         out = {}
@@ -49,30 +49,49 @@ def sanitize(value: Any, depth: int = 0) -> Any:
             name = str(key)
             if name.lower() in FORBIDDEN:
                 continue
-            out[name] = "[redacted]" if SECRET_KEY.search(name) else sanitize(item, depth + 1)
+            out[name] = "[redacted]" if SECRET_KEY.search(name) else sanitize(item, depth + 1, max_string=max_string,
+                                                                               max_depth=max_depth)
         return out
     if isinstance(value, list):
-        items = [sanitize(item, depth + 1) for item in value[:MAX_ITEMS]]
+        items = [sanitize(item, depth + 1, max_string=max_string, max_depth=max_depth) for item in value[:MAX_ITEMS]]
         return items + ([f"[{len(value) - MAX_ITEMS} more]"] if len(value) > MAX_ITEMS else [])
     if isinstance(value, str):
         text = URL.sub("[url]", value)
-        return text if len(text) <= MAX_STRING else text[:MAX_STRING] + f"...[{len(text) - MAX_STRING} more chars]"
+        return text if len(text) <= max_string else text[:max_string] + f"...[{len(text) - max_string} more chars]"
     return value
 
 
-def bounded(value: Any, limit: int = MAX_EVENT_CHARS) -> Any:
-    clean = sanitize(value)
+def bounded(value: Any, limit: int = MAX_EVENT_CHARS, *, sanitized: bool = False) -> Any:
+    """A value bounded to `limit` JSON characters; sanitized=True when it was already sanitized with its own bounds."""
+    clean = value if sanitized else sanitize(value)
     text = json.dumps(clean, default=str, separators=(",", ":"))
     return clean if len(text) <= limit else {"truncated": True, "chars": len(text), "preview": text[:limit]}
 
 
+# G19 (2026-10-03): a tool's arguments are what an auditor needs to explain its result (the scopes of a feasibility
+# check, the code of run_python); they arrived as one JSON string cut at MAX_STRING (2,018 characters), so the scopes
+# that returned 0 rows could not be read back. They are parsed and kept whole up to these bounds.
+MAX_ARGUMENT_STRING = 20_000
+MAX_ARGUMENT_CHARS = 64_000
+MAX_ARGUMENT_DEPTH = 14
+
+
+def _arguments(arguments: Any) -> Any:
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except ValueError:
+            pass
+    return sanitize(arguments, max_string=MAX_ARGUMENT_STRING, max_depth=MAX_ARGUMENT_DEPTH)
+
+
 def tool_event(*, tool: str, call_id: str, iteration: int, arguments: Any, output: dict[str, Any], ok: bool,
                error_code: str | None, duration_ms: int, occurred_at: datetime) -> dict[str, Any]:
-    clean_args, clean_out = sanitize(arguments), sanitize(output)
+    clean_args, clean_out = _arguments(arguments), sanitize(output)
     return {"type": "tool.call", "occurred_at": occurred_at.isoformat(), "tool": tool, "call_id": call_id,
             "iteration": iteration, "ok": ok, "error_code": error_code, "duration_ms": duration_ms,
-            "arguments": bounded(clean_args), "arguments_sha256": _sha(clean_args),
-            "result": bounded(clean_out), "result_sha256": _sha(clean_out)}
+            "arguments": bounded(clean_args, MAX_ARGUMENT_CHARS, sanitized=True), "arguments_sha256": _sha(clean_args),
+            "result": bounded(clean_out, sanitized=True), "result_sha256": _sha(clean_out)}
 
 
 def model_event(record: dict[str, Any], occurred_at: datetime) -> dict[str, Any]:

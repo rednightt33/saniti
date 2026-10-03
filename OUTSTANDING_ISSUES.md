@@ -78,7 +78,7 @@ g6 = usulan pertanyaan tambahan).
 - **[HIGH ALERT]** M68: catatan data menulis filter tanpa nilainya ("Industry EQ"). --> UNDERADDRESSED (ditemukan GT 2026-10-02c; rencana perbaikan di FUTURE_PLAN.md, belum dijalankan)
 - **[HIGH ALERT]** M69: ambang sukses user tidak mengikat riset multi-sudut (mode 4). --> UNDERADDRESSED (ditemukan GT 2026-10-02c)
 - S28: slot sesi sandbox tertahan sampai 15 menit, analysis/riset gagal "penuh". --> UNDERADDRESSED (ditemukan GT 2026-10-02c; rencana di FUTURE_PLAN.md, belum dijalankan)
-- G19: dataset riset kosong tetap lolos cakupan, riset jalan di atas data kosong. --> UNDERADDRESSED (ditemukan GT 2026-10-02c; penyebab kosong belum terverifikasi)
+- G19: dataset riset kosong tetap lolos cakupan, riset jalan di atas data kosong. --> FIXED IN CODE (penyebab terverifikasi: kunci penggabungan pesanan; lapis 1 kunci lengkap + lapis 3 gerbang kosong EMPTY_REQUEST/EMPTY_INPUT + argumen audit utuh; belum deploy/verifikasi live; lapis 2 menunggu keputusan 6)
 - P26: satuan efek minimal (desimal) dibandingkan dengan hasil (persen). --> UNDERADDRESSED (ditemukan GT 2026-10-02c)
 - M14: catatan berbahasa Inggris di jawaban berbahasa Indonesia. --> UNDERADDRESSED (semua)
 - D08/D13: peringatan data historis; tanggal terbaru. --> UNDERADDRESSED, sebagian (g1)

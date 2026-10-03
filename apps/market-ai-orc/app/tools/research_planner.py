@@ -41,6 +41,7 @@ from ..research_plan_v2 import (CONTRACT_VERSION, DATA_PLAN_VERSION, MAX_CANDIDA
                                 sha256_json)
 from .analysis import current_run_context
 from .data_need import DataRequest, RelationshipV2, Subject, argument_issues
+from .data_planner import empty_requests
 from .registry import ToolError, ToolSpec
 
 MAX_REQUESTS_PER_SPEC = 8
@@ -351,14 +352,23 @@ class ResearchDataPlanner:
 
     @staticmethod
     def _key(angle: dict[str, Any], local_id: str, stack: tuple[str, ...] = ()) -> str:
+        """What makes two angles' requests the same request: the request's own fields plus every INNER relationship
+        that touches it, on either side, with the key of the request at the other end (recursively; a request already
+        on the path is not followed again). G19 (2026-10-03): the key held only the relationships where the request
+        was the LEFT side, so a flow or price request restricted to BUMN banks and the same request restricted to
+        non-BUMN banks (both the RIGHT side of the universe relationship) got one key, were merged, and the merged
+        request carried both restrictions: 0 rows."""
         request = next(r for r in angle["data_requests"] if r["data_request_id"] == local_id)
         restrictions = []
         if local_id not in stack:
             for rel in angle["relationships"]:
-                if rel["left_request_id"] == local_id and rel["join_type"] == "INNER":
-                    restrictions.append({k: rel[k] for k in rel if k not in ("left_request_id", "right_request_id")}
-                                        | {"right": ResearchDataPlanner._key(angle, rel["right_request_id"],
-                                                                             stack + (local_id,))})
+                if rel["join_type"] != "INNER" or local_id not in (rel["left_request_id"], rel["right_request_id"]):
+                    continue
+                side = "left" if rel["left_request_id"] == local_id else "right"
+                other = rel["right_request_id"] if side == "left" else rel["left_request_id"]
+                restrictions.append({k: rel[k] for k in rel if k not in ("left_request_id", "right_request_id")}
+                                    | {"side": side,
+                                       "other": ResearchDataPlanner._key(angle, other, stack + (local_id,))})
         return sha256_json({k: request.get(k) for k in ("source_table", "entity_column", "time_column", "scope",
                                                         "source_frequency", "analysis_frequency", "resample")}
                            | {"restrictions": sorted(restrictions, key=sha256_json)})
@@ -549,6 +559,15 @@ class ResearchDataPlanner:
                                                   "governor_status": r.get("governor_status"),
                                                   "message": r.get("message"), "source_table": r.get("source_table")}
                                                  for r in refused], attempts=attempts)
+                empty = empty_requests(result["draft"], estimate)
+                if empty:
+                    reverse = {v: k for k, v in letters.items()}
+                    for issue in empty:
+                        owners = [s for s in merged[reverse[issue["data_request_id"]]]["sources"]
+                                  if s["angle_id"] in members] if issue["data_request_id"] in reverse else []
+                        issue.update(angle_ids=sorted({s["angle_id"] for s in owners}) or members,
+                                     angle_request_ids=[s["data_request_id"] for s in owners])
+                    return self._outcome("REVISION_REQUIRED", None, issues=empty, attempts=attempts)
                 for request in estimate["requests"]:
                     index = {v: k for k, v in letters.items()}.get(request["data_request_id"])
                     if index is not None:

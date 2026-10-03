@@ -629,6 +629,30 @@ CHECK_FEASIBILITY_DESCRIPTION = (
 )
 
 
+def empty_requests(draft: dict[str, Any], estimate: dict[str, Any]) -> list[dict[str, Any]]:
+    """G19 (2026-10-03): the requests the Governor COUNTED at 0 rows. A counted 0 is not an estimate: the request's
+    scope, or its restriction to another request, matches no data (g5 turns 5-8: BUMN AND NOT BUMN), so a plan built
+    on it would run on nothing. One issue per request, with its table, scope and restrictions in readable form."""
+    from ..data_record import scope_text
+
+    issues = []
+    for request in estimate.get("requests") or []:
+        if request.get("row_basis") != "COUNTED" or int(request.get("estimated_rows") or 0) != 0:
+            continue
+        entry = (draft.get("requests") or {}).get(request["data_request_id"]) or {}
+        restrictions = [f"{r.get('right_table')}: {scope_text(r.get('right_scope'))}"
+                        for r in entry.get("restrictions") or [] if isinstance(r, dict)]
+        issues.append({
+            "code": "EMPTY_REQUEST", "data_request_id": request["data_request_id"],
+            "source_table": request.get("source_table"), "scope": scope_text(entry.get("scope")),
+            "restrictions": restrictions,
+            "message": "Counted at 0 rows: its scope or its restriction to another request matches no data. Check the "
+                       "stored values (get_dimension_values) and that the requests of different groups are not "
+                       "restricted to each other's groups. When no data is the answer (for example a broker that never "
+                       "traded these stocks), report it as a finding instead of an angle or experiment."})
+    return issues
+
+
 def check_feasibility(client: Any, planner: ExecutionPlanner, arguments: BaseModel) -> dict[str, Any]:
     context = current_run_context.get()
     if context is None:
@@ -650,6 +674,11 @@ def check_feasibility(client: Any, planner: ExecutionPlanner, arguments: BaseMod
     limit = planner.max_bundle_rows
     too_large = limit is not None and total > limit
     feasible = estimate["feasible"] and not too_large
+    empty = empty_requests(draft, estimate) if feasible else []
+    if empty:
+        return {"status": "REVISION_REQUIRED", "draft_id": None, "requests": estimate["requests"],
+                "issues": empty, "warnings": checked.get("warnings") or [],
+                "next_action": "REVISE_DATA_NEED_SPEC_OR_REPORT_LIMITATION"}
     return {"status": "FEASIBLE" if feasible else "NOT_FEASIBLE", "draft_id": checked["draft_id"],
             "requests": estimate["requests"], "warnings": checked.get("warnings") or [],
             **({"bundle": {"code": "BUNDLE_TOO_LARGE", "estimated_rows": total, "limit_rows": limit,

@@ -248,6 +248,13 @@ class ResearchRunExecutor:
                                        for d in bundle.get("datasets") or []],
                              warnings=[w.get("code") for w in bundle.get("relationship_warnings") or []
                                        if isinstance(w, dict)])
+                # G19 (2026-10-03): a group whose bundle delivered an empty dataset does not run its angles on
+                # nothing; they become NOT_RUN with the reason EMPTY_INPUT (not INSUFFICIENT_EVIDENCE)
+                empty = [d.get("logical_name") or d.get("data_request_id") for d in group["datasets"]
+                         if "EMPTY_DATASET" in (d.get("quality_flags") or []) or d.get("rows") == 0]
+                if empty:
+                    group["empty_datasets"] = empty
+                    self._close_group(group_id, "EMPTY_INPUT")
             else:
                 self._close_group(group_id, str(bundle.get("code") or "BUNDLE_NOT_READY"))
         first = next((g for g in self.order if self.groups[g]["status"] == "READY"), None)
@@ -440,7 +447,7 @@ class ResearchRunExecutor:
     def _state(self, status: str) -> dict[str, Any]:
         return {"status": status, "research_run_id": self.research_run_id,
                 "groups": [{k: self.groups[g].get(k) for k in ("bundle_group_id", "angle_ids", "status", "reason",
-                                                               "datasets", "warnings", "session_id")}
+                                                               "datasets", "warnings", "session_id", "empty_datasets")}
                            for g in self.order]}
 
     def open_sessions(self) -> list[str]:
