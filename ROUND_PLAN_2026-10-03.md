@@ -111,7 +111,7 @@ A (fondasi: M68, ENV, TOOLS-DOC) ─► B (benar secara data: G19-1/3, P26, M69-
 | A | LIVE dev 2026-10-03 | orc `1ad568b7`/`8b522304`; `RAILWAY_CHANGELOG.md` |
 | B | LIVE dev 2026-10-03 (belum diverifikasi live) | orc `60136c77`, sandbox `707318d9`, migrasi 20261003_004/005; orc 1.123 tes, sandbox 717 tes lulus |
 | C1 (S28) | LIVE dev 2026-10-03 (belum diverifikasi live) | sandbox `3748d45c`, orc `fdcb156b`, `PY_SANDBOX_OPEN_WAIT_SECONDS=60` |
-| C2 (R-STORE) | dikerjakan | rincian dan keputusan Fase C: `ROUND_PLAN_2026-10-03_FASE_C.md` |
+| C2 (R-STORE) | LIVE dev 2026-10-03 (belum diverifikasi live) | migrasi 20261003_006/007, bucket `market-ai-conversation-outputs`, sandbox `8270c163`, orc `b458843d`, `AI_ENABLE_RESULT_STORE=true`; rincian: `ROUND_PLAN_2026-10-03_FASE_C.md` |
 | D–E | belum | |
 | F | hanya atas perintah user | |
 

@@ -1,5 +1,26 @@
 # Railway changelog
 
+## 2026-10-03 — Round phase C2 on dev: R-STORE save, restore and resume
+
+Plan: `ROUND_PLAN_2026-10-03_FASE_C.md`. CLI upload from branch `claude/g2-g3-reactivation` at `e3129b0`; `main`
+untouched; AI_MODEL, AI_MODEL_2, AI_MODEL_SWITCH and AI_MODE_SWITCH untouched.
+
+- **Temporary job `tc-mig-job`** (dev): `DATABASE_URL` as the reference `${{Postgres.DATABASE_URL}}`; DRYRUN
+  `60036dda`, APPLY `01638b07` of migration 20261003_007 (see `DATABASE_CHANGELOG.md`); then deleted.
+- **Variable `AI_ENABLE_RESULT_STORE=true`** on market-ai-orc (dev; not a secret), set with `--skip-deploys` before the
+  deployment below.
+- **market-python-sandbox `8270c163` `SUCCESS`:** output file route, `data_as_of` in the release lineage, carried
+  restore route, `as_of_date`, capability `result_store` v1. Startup: `sandbox_started` (isolation enforced),
+  `sessions_started`.
+- **market-ai-orc `b458843d` `SUCCESS`:** R-STORE (boto3 added for the bucket). Startup: `result_store_active`
+  (bucket true), `mode4_active`, `ai_mode_selected`; no `*_inactive` event.
+- `railway config pull --force` recorded `AI_ENABLE_RESULT_STORE` in `.railway/railway.ts`; `railway config plan`: up
+  to date. `AI_TOOLS.md` regenerated with the dev flags: unchanged (no model tool or tool switch changed).
+- Tests: orc 1,140 passed, sandbox 729 passed.
+- **Live check pending:** no model request was sent (golden test on the user's command).
+- **Rollback:** `AI_ENABLE_RESULT_STORE=false` (the store stops; the tables stay); or orc `fdcb156b`, sandbox
+  `3748d45c`.
+
 ## 2026-10-03 — Round phase C2a/C2b on dev: conversation result tables and bucket
 
 Plan: `ROUND_PLAN_2026-10-03_FASE_C.md` (user decisions 2026-10-03: a new dedicated bucket for result tables larger

@@ -1395,6 +1395,22 @@ Boundaries:
 - `GET /v1/runtime` reports `session_release {enabled, version 1, open_wait_seconds}`. The 900 s idle sweep remains
   the safety net.
 
+### Durable results (R-STORE, round 2026-10-03)
+
+- `GET /v1/sessions/{id}/outputs/{output_id}/file?request_id=`: the stored file of a released output (headers
+  `X-Saniti-Checksum-Sha256`, `X-Saniti-Format`), under the access rule of the output route; market-ai-orc copies it
+  into its conversation store.
+- A completion's `released_outputs[].lineage` carries `data_as_of` (the largest actual end date of the bundle's
+  ranges) and `reference_date`.
+- `POST /v1/sessions/{id}/carried?request_id=` (raw Parquet body; metadata as base64url JSON in
+  `X-Saniti-Output-Meta`): a stored table of the same conversation uploaded back, checksum and Parquet verified, kept as
+  a released output of the session under its original `output_id` with `restored`, its origin label, definition,
+  units and `data_as_of`; `carried()` and `load_output` offer it as before. At most `PY_SANDBOX_RESTORE_MAX_BYTES`
+  (256 MiB) per table.
+- The open view lists every carried id (`carried_output_ids`); a DataNeed body may carry `as_of_date`, and a range
+  ending `LATEST` then ends there when it is earlier than the reference date (the window records `as_of_date`).
+- `GET /v1/runtime` reports `result_store {enabled, version 1, restore_max_bytes}`.
+
 ## Railway service
 
 Deployed on `dev` as `market-python-sandbox`, with no public domain. The Railway volume is mounted
