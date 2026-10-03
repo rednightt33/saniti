@@ -36,7 +36,9 @@ from . import conversation_router as router
 from . import data_record as records
 from .orchestrator import AgentOrchestrator, current_time_budget, log_event
 from .provenance import LABEL_ORDER
+from .research_plan import ContinuationIn, ContinuationOut
 from .research_plan_v2 import ContinuationInV2, ContinuationOutV2, current_angle_bounds, plan_digest_v2
+from .user_words import current_user_words
 from .schemas import (MAX_HISTORY_ITEMS, MAX_MESSAGE_CHARACTERS, AgentRunRequest, AgentRunResponse,
                       AnalysisPathExecution, HistoryMessage, ReplyClassifierUsage)
 
@@ -57,13 +59,16 @@ B_CONTEXT = ("Application context (mode 4), not from the user: the question abov
              "descriptive analysis below, which the user has received.\n<analysis>\n{analysis}\n</analysis>\n"
              "Propose a Research Plan whose angles test or deepen what this analysis found: for example whether the "
              "pattern is real and larger than chance, stable over time and across groups, or explained by something "
-             "else. Do not repeat the analysis itself.")
+             "else. Do not repeat the analysis itself. When the user stated a success threshold (a rise of at least "
+             "some percent), a hypothesis plan whose experiment carries it as success_rule tests it directly; keep "
+             "the outcome horizon the user stated.")
 D_CONTEXT = ("Application context (mode 4), not from the user: the user has received the results below.\n"
              "{analysis}<research>\n{research}\n</research>\n"
              "These angles already ran: {ran}.\nPropose a Research Plan with exactly {count} new angle{plural} that "
              "follow{verb} up on these results (what they leave open, a condition to test, a different group or "
-             "period). Do not repeat an angle that already ran. It is a suggestion: the user decides whether it "
-             "runs.")
+             "period). Do not repeat an angle that already ran. Keep the outcome horizon and success threshold the "
+             "user stated; a different one is only mentioned as an option. It is a suggestion: the user decides "
+             "whether it runs.")
 
 
 def requested_count(message: str) -> tuple[str, int] | None:
@@ -146,7 +151,7 @@ class _Mode4Run:
         return self.settings.ai_mode4_max_seconds - (self.inner.clock() - self.started)
 
     def sub(self, step: str, suffix: str, message: str, analysis_path: str | None, *,
-            continuation: ContinuationInV2 | None = None, history: list[HistoryMessage] | None = None,
+            continuation: ContinuationInV2 | ContinuationIn | None = None, history: list[HistoryMessage] | None = None,
             bounds: tuple[int, int] | None = None, turn_kind: str | None = None) -> AgentRunResponse | None:
         request_id = f"{self.base_id}-{suffix}"
         left = self.remaining()
@@ -162,12 +167,17 @@ class _Mode4Run:
                                       analysis_path=analysis_path)
         budget, angle_bounds = current_time_budget.set(left), current_angle_bounds.set(bounds)
         kind = router.current_turn_kind.set(turn_kind)
+        # M69 tahap 1 / H2: the plan gates bind thresholds and horizons to the user's messages, not to this step's
+        # application context (the model's own analysis and research text)
+        words = current_user_words.set("\n".join(
+            [m.content for m in self.request.history if m.role == "user"] + [self.request.message]))
         try:
             result = self.inner.run(sub_request, self.key, data_record=self.record)
         finally:
             current_time_budget.reset(budget)
             current_angle_bounds.reset(angle_bounds)
             router.current_turn_kind.reset(kind)
+            current_user_words.reset(words)
         response, execution = result.response, result.execution
         plan_exec = execution.research_plan
         self.steps.append({
@@ -175,8 +185,8 @@ class _Mode4Run:
             "response_type": response.response_type if response else None, "evidence_label": result.evidence_label,
             "turn": plan_exec.turn if plan_exec else None,
             "plan_id": result.continuation.plan_id if result.continuation else None,
-            "angles": len(response.research_plan.angles) if response and response.research_plan is not None
-            and hasattr(response.research_plan, "angles") else None,
+            "angles": len(self._angles(response.research_plan)) if response and response.research_plan is not None
+            else None,
             "error_code": result.error.code if result.error else None, "cost": execution.cost,
             "duration_ms": execution.duration_ms})
         log_event("mode4_step", request_id=self.request.request_id, **{k: v for k, v in self.steps[-1].items()
@@ -258,12 +268,17 @@ class _Mode4Run:
         plan = self.sub("research_plan", "m4b", question + "\n\n" + B_CONTEXT.format(
             analysis=answer[:ANALYSIS_CHARS]), "RESEARCH", bounds=bounds)
         research = None
-        if _ok(plan, "RESEARCH_PLAN_CONFIRMATION") and isinstance(plan.continuation, ContinuationOutV2):
+        if _ok(plan, "RESEARCH_PLAN_CONFIRMATION") and isinstance(plan.continuation, (ContinuationOutV2,
+                                                                                         ContinuationOut)):
             issued = plan.continuation
+            # M69 tahap 1: a hypothesis plan (the user's success threshold) is approved the same way as a multi-angle
+            # plan; its token is signed and verified as usual
             approval = ContinuationInV2(kind="RESEARCH_PLAN", plan_id=issued.plan_id,
                                         origin_request_id=issued.origin_request_id, plan=plan.response.research_plan,
                                         research_data_plan=issued.research_data_plan, token=issued.token,
-                                        action="APPROVE")
+                                        action="APPROVE") if isinstance(issued, ContinuationOutV2) else ContinuationIn(
+                kind="RESEARCH_PLAN", plan_id=issued.plan_id, origin_request_id=issued.origin_request_id,
+                plan=plan.response.research_plan, token=issued.token, action="APPROVE")
             history = [*self.request.history, HistoryMessage(role="user", content=question[:MAX_MESSAGE_CHARACTERS]),
                        HistoryMessage(role="assistant", content=answer[:MAX_MESSAGE_CHARACTERS])]
             research = self.sub("research", "m4c", APPROVAL_MESSAGE, None, continuation=approval, history=history)
@@ -329,7 +344,9 @@ class _Mode4Run:
 
     @staticmethod
     def _angles(plan: Any) -> list[str]:
-        return [f"{a.angle_id}: {a.title}" for a in getattr(plan, "angles", None) or []]
+        """What ran or is proposed: the angles of a multi-angle plan, the experiments of a hypothesis plan."""
+        return [f"{a.angle_id}: {a.title}" for a in getattr(plan, "angles", None) or []] + [
+            f"{e.hypothesis_id}: {e.hypothesis}" for e in getattr(plan, "experiments", None) or []]
 
     @staticmethod
     def _reason(result: AgentRunResponse | None) -> str:

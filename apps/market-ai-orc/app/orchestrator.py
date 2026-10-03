@@ -39,6 +39,7 @@ from .schemas import (
 from . import conversation_router as router
 from . import in_sample as insample
 from . import method_guides
+from .user_words import allowed_periods, current_user_words, stated_horizons
 from .provenance import (CONTEXT, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
                          parse_numbers, released_numbers, requested_statistics, weakest)
 from .value_refs import UNITS, ReferenceSources, Resolved, TableRows, format_value, render
@@ -1288,6 +1289,9 @@ PLAN_VERSION_INSTRUCTION = {
     True: "This deployment runs research as a multi-angle Research Plan: return research_plan in its multi-angle form "
           "(plan_version, root hypothesis and angles) after check_research_feasibility, not the single-experiment form.",
     False: "This deployment does not run multi-angle Research Plans: return research_plan in its experiment form."}
+# M69 tahap 1: with hypothesis plans (G3), a user's success threshold is tested by a hypothesis plan
+PLAN_VERSION_SUCCESS_RULE_LINE = (" Only when the user stated a success threshold may a hypothesis plan (experiment "
+                                  "form) whose experiment carries it as success_rule test it instead.")
 TABULAR_OUTPUTS = ("TABLE", "PARQUET", "CSV")
 CONTENTS_NOT_SHOWN_NOTE = (
     "The released outputs marked content_shown false are listed without their content (this result previews only "
@@ -1454,6 +1458,11 @@ PLAN_PROVENANCE_NOTICE = "Some figures below could not be traced to the Research
 PLAN_SUCCESS_RULE_INSTRUCTION = (
     "The success_rule value {values} is not a number the user stated. A success threshold is the user's: take it from "
     "their words, or set success_rule to null and ask them in the plan's confirmation question.")
+# M69 tahap 1 (golden g6_revise 2026-10-02: the user's "within 10 days" became 5 days in the follow-up suggestion)
+PLAN_HORIZON_INSTRUCTION = (
+    "The user stated the outcome horizon ({stated}); {plan_items} use {used} periods instead. The horizon is the "
+    "user's: use {allowed} periods in every experiment and angle. A different horizon is the user's decision: you may "
+    "mention it as an option in the answer and use it only after the user asks for it.")
 PLAN_TEXT_PROVENANCE_INSTRUCTION = (
     "These numbers in the Research Plan's own text have no source: {numbers}. A count, size or level written in the "
     "plan (how many stocks, rows or days, a threshold) must come from the user's message or this run's feasibility "
@@ -3868,8 +3877,9 @@ class AgentOrchestrator:
         the plan carries no evidence label."""
         assert final.research_plan is not None
         is_v2 = isinstance(final.research_plan, ResearchPlanV2)
-        if not self._plan_form_runs(is_v2, presenting=True):
-            self._gate_once(state, "PLAN_VERSION", PLAN_VERSION_INSTRUCTION[self.multi_angle])
+        if not self._plan_form_runs(is_v2, presenting=True, plan=final.research_plan):
+            self._gate_once(state, "PLAN_VERSION", PLAN_VERSION_INSTRUCTION[self.multi_angle] + (
+                PLAN_VERSION_SUCCESS_RULE_LINE if self.multi_angle and self.hypothesis_plans else ""))
             return self._forced(state, final, PLAN_VERSION_NOTICE, ["The Research Plan is not in the form this "
                                                                     "deployment runs."])
         if is_v2:
@@ -3901,7 +3911,11 @@ class AgentOrchestrator:
             self._gate_once(state, "PLAN_FEASIBILITY", PLAN_FEASIBILITY_INSTRUCTION)
             return self._plan_not_feasible(state, final)
         # M28 / H2: a success threshold is the user's number (their question or this message), never the model's
-        stated = released_numbers([state.user_text, getattr(final.research_plan, "original_question", "")])
+        words = self._user_words(state)
+        # a pipeline's own user words are the whole source; a plan's original_question is the model's restatement
+        sources = [words] if current_user_words.get() is not None else [
+            words, getattr(final.research_plan, "original_question", "")]
+        stated = released_numbers(sources)
         invented = [e.success_rule.value for e in getattr(final.research_plan, "experiments", None) or []
                     if getattr(e, "success_rule", None) is not None
                     and not any(abs(n - e.success_rule.value) < 1e-9 or abs(n * 100 - e.success_rule.value) < 1e-9
@@ -3911,6 +3925,22 @@ class AgentOrchestrator:
             self._gate_once(state, "PLAN_SUCCESS_RULE", PLAN_SUCCESS_RULE_INSTRUCTION.format(values=values))
             return self._forced(state, final, PLAN_PROVENANCE_NOTICE.format(numbers=values),
                                 [f"Success thresholds the user did not state: {values}."])
+        # M69 tahap 1: an outcome horizon the user stated binds every experiment and angle
+        horizons = stated_horizons(*sources)
+        allowed = allowed_periods(horizons, getattr(final.research_plan, "analysis_frequency", None))
+        items = [(getattr(i, "angle_id", None) or getattr(i, "experiment_id", "?"), i.outcome_horizon_periods)
+                 for i in (getattr(final.research_plan, "angles", None) or getattr(final.research_plan, "experiments",
+                                                                                   None) or [])
+                 if getattr(i, "outcome_horizon_periods", None) is not None]
+        drifted = [(name, used) for name, used in items if allowed and used not in allowed]
+        if drifted:
+            stated_text = ", ".join(f"{n} {u.lower()}{'s' if n > 1 else ''}" for n, u in sorted(horizons))
+            self._gate_once(state, "PLAN_HORIZON", PLAN_HORIZON_INSTRUCTION.format(
+                stated=stated_text, plan_items=", ".join(n for n, _ in drifted),
+                used=", ".join(sorted({str(u) for _, u in drifted})),
+                allowed=" or ".join(str(a) for a in sorted(allowed))))
+            return self._forced(state, final, PLAN_VERSION_NOTICE, [
+                f"The Research Plan changes the outcome horizon the user stated ({stated_text})."])
         # M29 (d02 2026-09-29: "about 6 banks" planned, 48 run): a number written in the plan's own text (universe,
         # scope, hypotheses, assumptions) needs a source too; the plan's structured fields are design values
         plan_json = final.research_plan.model_dump(mode="json")
@@ -3952,13 +3982,23 @@ class AgentOrchestrator:
             ids.append(output_id)
         return ids
 
-    def _plan_form_runs(self, is_v2: bool, presenting: bool = False) -> bool:
+    def _plan_form_runs(self, is_v2: bool, presenting: bool = False, plan: Any = None) -> bool:
         """Whether this deployment runs a plan of this form: the multi-angle form with Multi-Angle Research, the
         experiment form without it, and both with hypothesis plans (G3). Mode 4 sets angle bounds for the plans it
-        proposes, so a plan it presents is multi-angle (its steps count and continue angles)."""
+        proposes, so a plan it presents is multi-angle, except (M69 tahap 1, golden g6_revise 2026-10-02) a hypothesis
+        plan whose experiments carry a success_rule: the multi-angle methods have no success rule, so a user's
+        threshold ("up at least 3% within 10 days") is tested only by the hypothesis plan (event_summary). Whether
+        the threshold is the user's number is the PLAN_SUCCESS_RULE gate's check."""
         if presenting and is_v2 is False and self.multi_angle and current_angle_bounds.get() is not None:
-            return False
+            return self.hypothesis_plans and any(getattr(e, "success_rule", None) is not None
+                                                 for e in getattr(plan, "experiments", None) or [])
         return is_v2 == self.multi_angle or (self.hypothesis_plans and not is_v2)
+
+    @staticmethod
+    def _user_words(state: RunState) -> str:
+        """The user's own words in this run (a pipeline's sub-run adds application context to its message)."""
+        words = current_user_words.get()
+        return state.user_text if words is None else words
 
     def _checked_angle_ids(self, state: RunState, plan: ResearchPlanV2) -> ResearchPlanV2:
         """M49 (2026-10-01, m01 m4b): an angle's id is the key the feasibility check gave its data and design; a plan
