@@ -33,7 +33,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from .research_plan import normalize_text
 from .research_plan_v2 import FINDINGS_V2, VerifiedPlanV2, governance_v2
 from .tools.registry import ToolSpec
-from .tools.session import SESSION_PATTERN, _call, current_carried_outputs, released_contents
+from .tools.session import SESSION_PATTERN, _call, current_carried_outputs, released_contents, restore_into
 
 LEVELS = ("EXECUTION_ONLY", "STATISTICS_VERIFIED", "FORMULA_AND_STATISTICS_VERIFIED")
 SESSION_GONE = frozenset({"SESSION_ENDED", "SESSION_CLOSED"})
@@ -194,6 +194,7 @@ class ResearchRunExecutor:
                        json=body)
         if opened.get("status") == "REJECTED" or not opened.get("session_id"):
             return opened
+        restore_into(opened, carried if carried is not None else [])  # R-STORE: only the plan's tables
         group.update(session_id=opened["session_id"], status="RUNNING")
         self.sessions[opened["session_id"]] = {"bundle_group_id": group_id, "bundle_id": group["bundle_id"],
                                                "need_id": group["need_id"], "executions": []}

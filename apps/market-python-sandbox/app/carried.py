@@ -142,7 +142,9 @@ def candidates(store: Any, conversation_key: str | None, session_id: str) -> lis
     found = []
     for output in store.released_outputs(conversation_key, MAX_CARRIED * 3):
         name = str(output.get("name") or "")
-        if output.get("session_id") == session_id or output.get("format") != "PARQUET" \
+        meta = output.get("meta") if isinstance(output.get("meta"), dict) else {}
+        # a table restored into this session from the orchestrator's store is carried, unlike its own outputs
+        if (output.get("session_id") == session_id and not meta.get("restored")) or output.get("format") != "PARQUET" \
                 or name.startswith(RECORD_PREFIXES):
             continue
         found.append(output)
@@ -193,7 +195,11 @@ def stage(directory: Path, outputs: list[dict[str, Any]], *, outputs_root: Path,
             # H1 (M63): how the table was made, so a later step reads it instead of guessing
             "definition": (output.get("meta") or {}).get("definition") if isinstance(output.get("meta"), dict)
             else None,
-            "execution_id": output.get("execution_id")})
+            "execution_id": output.get("execution_id"),
+            # R-STORE: a table restored from the orchestrator's store, and the last date of its data
+            **({"restored": True} if (output.get("meta") or {}).get("restored") else {}),
+            **({"data_as_of": (output.get("meta") or {})["data_as_of"]}
+               if (output.get("meta") or {}).get("data_as_of") else {})})
     for stale in target.iterdir():
         if stale.name not in keep and stale.name != MANIFEST:
             stale.unlink(missing_ok=True)

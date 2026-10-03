@@ -24,6 +24,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import secrets
 import select
 import shutil
@@ -116,6 +117,8 @@ EXIT_STATE_CORRUPTED = 3  # runtime/session_worker.py: the code broke the worker
 WORKER_LOG_TAIL = 600
 # close reasons of a worker that ended abnormally: the tail of its worker.log (a Python traceback) is logged before
 # the workspace is removed; it never goes to the model
+OUTPUT_ID_RE = re.compile(r"^out_[0-9a-f]{24}$")
+RESTORE_VERSION = 1  # R-STORE: POST /v1/sessions/{id}/carried and GET .../outputs/{id}/file
 SESSION_RELEASE_VERSION = 1  # S28: POST /v1/requests/{request_id}/release and the open queue
 ABNORMAL_REASONS = frozenset({"WORKER_CRASHED", "WORKER_UNRESPONSIVE", "SESSION_STATE_CORRUPTED", "PROTOCOL_ERROR",
                               "FORBIDDEN_OPERATION", "CPU_BUDGET_EXCEEDED", "MEMORY_LIMIT_EXCEEDED",
@@ -563,6 +566,9 @@ class SessionManager:
         except Exception as exc:  # noqa: BLE001 - a carried table never blocks a session
             self._log("carried_outputs_failed", session_id=session_id, error=type(exc).__name__)
             entries = []
+        # R-STORE: every carried output_id (the listing below shows at most 20), so the orchestrator uploads only
+        # the stored tables this sandbox no longer holds
+        view["carried_output_ids"] = [e["output_id"] for e in entries]
         if entries:
             view["carried_outputs"] = carried_tables.listing(entries)
             view["carried_note"] = ("Tables released earlier in this conversation; load one with "
@@ -1193,22 +1199,7 @@ class SessionManager:
                     conversation_key: str | None = None) -> dict[str, Any]:
         """An output of this request's session; with conversation reuse also a RELEASED output of an earlier
         request of the same conversation (READ_RELEASED), with the evidence of the completion that released it."""
-        record = self.store.get_session(session_id)
-        output = self.store.get_output(output_id)
-        if record is None or output is None or output["session_id"] != session_id:
-            raise SessionError("OUTPUT_NOT_FOUND", "No output with this id exists in this session.", 404)
-        origin: dict[str, Any] | None = None
-        if record["request_id"] != request_id or self._epoch_of(output) != int(record.get("epoch") or 1):
-            # another request's output, or an earlier epoch's: only a released one, only within the conversation
-            same_request = record["request_id"] == request_id
-            if not (same_request or (self.settings.conversation_reuse and conversation_key
-                                     and record.get("conversation_key") == conversation_key)) \
-                    or not output["released"]:
-                raise SessionError("OUTPUT_NOT_FOUND", "No output with this id exists in this session.", 404)
-            origin = self._release_origin(session_id, output_id)
-        path = self.outputs_root / output["relative_path"]
-        if not path.is_file():
-            raise SessionError("OUTPUT_EXPIRED", "The output has expired.", 410)
+        output, path, origin = self._readable_output(session_id, request_id, output_id, conversation_key)
         base = {k: output[k] for k in ("output_id", "name", "type", "format", "row_count", "columns", "byte_count",
                                        "checksum_sha256")} | {"released": bool(output["released"]),
                                                               "meta": output.get("meta") or {}}
@@ -1244,13 +1235,103 @@ class SessionManager:
                     "next_offset": offset + limit if offset * 100 + limit * 100 < len(text) else None}
         return {**base, "note": "Binary output (chart or file): metadata only."}
 
+    def _readable_output(self, session_id: str, request_id: str, output_id: str, conversation_key: str | None
+                         ) -> tuple[dict[str, Any], Path, dict[str, Any] | None]:
+        """(output row, file path, release origin or None) when the caller may read the output: this request's
+        session and epoch, or, with conversation reuse, a RELEASED output of an earlier request of the same
+        conversation."""
+        record = self.store.get_session(session_id)
+        output = self.store.get_output(output_id)
+        if record is None or output is None or output["session_id"] != session_id:
+            raise SessionError("OUTPUT_NOT_FOUND", "No output with this id exists in this session.", 404)
+        origin: dict[str, Any] | None = None
+        if record["request_id"] != request_id or self._epoch_of(output) != int(record.get("epoch") or 1):
+            # another request's output, or an earlier epoch's: only a released one, only within the conversation
+            same_request = record["request_id"] == request_id
+            if not (same_request or (self.settings.conversation_reuse and conversation_key
+                                     and record.get("conversation_key") == conversation_key)) \
+                    or not output["released"]:
+                raise SessionError("OUTPUT_NOT_FOUND", "No output with this id exists in this session.", 404)
+            origin = self._release_origin(session_id, output_id)
+        path = self.outputs_root / output["relative_path"]
+        if not path.is_file():
+            raise SessionError("OUTPUT_EXPIRED", "The output has expired.", 410)
+        return output, path, origin
+
+    def output_file(self, session_id: str, request_id: str, output_id: str, conversation_key: str | None = None
+                    ) -> tuple[Path, dict[str, Any]]:
+        """R-STORE (round 2026-10-03 C2c): the stored file of a RELEASED output, for the orchestrator to keep it
+        beyond this sandbox's retention; the same access rule as read_output."""
+        output, path, _ = self._readable_output(session_id, request_id, output_id, conversation_key)
+        if not output["released"]:
+            raise SessionError("OUTPUT_NOT_RELEASED", "Only a released output can be copied.", 409)
+        return path, output
+
+    def restore_output(self, session_id: str, request_id: str, conversation_key: str | None, meta: dict[str, Any],
+                       data: bytes) -> dict[str, Any]:
+        """R-STORE (round 2026-10-03 C2d): a released table of this conversation that this sandbox no longer holds,
+        uploaded back by the orchestrator from its durable store. It is kept as a released output of this session
+        under its original output_id (marked restored, with its original label, definition, units and data date), so
+        carried() and load_output offer it as before; the checksum and the Parquet file are verified first."""
+        record = self.store.get_session(session_id)
+        if record is None or record["request_id"] != request_id or record["status"] not in ("ACTIVE", "BUSY"):
+            raise SessionError("SESSION_NOT_FOUND", "No open session with this id exists for this request.", 404)
+        if not (self.settings.conversation_reuse and conversation_key
+                and record.get("conversation_key") == conversation_key):
+            raise SessionError("RESTORE_NOT_ALLOWED", "Only a session of the same conversation takes a stored table.",
+                               409)
+        output_id = str(meta.get("output_id") or "")
+        if not OUTPUT_ID_RE.fullmatch(output_id) or str(meta.get("format")) != "PARQUET" \
+                or not isinstance(meta.get("name"), str) or not 1 <= len(meta["name"]) <= 80:
+            raise SessionError("RESTORE_INVALID", "A stored table needs output_id, name and format PARQUET.", 422)
+        if hashlib.sha256(data).hexdigest() != meta.get("checksum_sha256"):
+            raise SessionError("RESTORE_CHECKSUM_MISMATCH", "The uploaded file does not match its checksum.", 422)
+        existing = self.store.get_output(output_id)
+        if existing is not None and (self.outputs_root / existing["relative_path"]).is_file():
+            return {"output_id": output_id, "status": "ALREADY_PRESENT"}
+        relative = f"restored/{session_id}/{output_id}.parquet"
+        path = self.outputs_root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        os.chmod(path, 0o400)
+        try:
+            import pyarrow.parquet as pq
+
+            parquet = pq.ParquetFile(path)
+            columns, rows = parquet.schema_arrow.names, parquet.metadata.num_rows
+        except Exception:  # noqa: BLE001 - an unreadable file is refused
+            path.unlink(missing_ok=True)
+            raise SessionError("RESTORE_INVALID", "The uploaded file is not a readable Parquet table.", 422) from None
+        if existing is not None:
+            self.store.delete_output(output_id)
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        origin = meta.get("origin") if isinstance(meta.get("origin"), dict) else {}
+        self.store.insert_output({
+            "output_id": output_id, "session_id": session_id,
+            "execution_id": str(meta.get("execution_id") or "exe_restored"), "name": meta["name"], "type": "TABLE",
+            "format": "PARQUET", "relative_path": relative, "byte_count": len(data), "row_count": rows,
+            "columns": columns, "checksum_sha256": meta["checksum_sha256"],
+            "meta": {"restored": True, "origin": {**origin, "restored": True},
+                     **({"definition": d} if (d := _output_definition(meta.get("definition"))) is not None else {}),
+                     **({"units": u} if (u := _output_units(meta.get("units"), columns)) else {}),
+                     **({"data_as_of": str(meta["data_as_of"])[:10]} if meta.get("data_as_of") else {})},
+            "released": 1, "created_at": now.isoformat(),
+            "expires_at": (now + timedelta(hours=self.settings.result_retention_hours)).isoformat()})
+        self._log("carried_restored", request_id=request_id, session_id=session_id, output_id=output_id,
+                  rows=rows, bytes=len(data))
+        return {"output_id": output_id, "status": "RESTORED", "rows": rows}
+
     def _epoch_of(self, output: dict[str, Any]) -> int:
         execution = self.store.get_execution(output["execution_id"]) or {}
         return int(execution.get("epoch") or 1)
 
     def _release_origin(self, session_id: str, output_id: str) -> dict[str, Any] | None:
         """The completion that released an output: its id, request, evidence label, warnings and time (the as-of of
-        the result). Its label is never raised."""
+        the result). Its label is never raised. A restored table keeps the origin it was stored with."""
+        output = self.store.get_output(output_id) or {}
+        meta = output.get("meta") if isinstance(output.get("meta"), dict) else {}
+        if meta.get("restored"):
+            return meta.get("origin") or {"restored": True}
         for completion in reversed(self.store.passed_completions(session_id)):
             final = completion.get("final_status") or {}
             if any(o.get("output_id") == output_id for o in final.get("released_outputs") or []):

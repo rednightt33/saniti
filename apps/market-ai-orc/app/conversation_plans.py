@@ -97,8 +97,11 @@ def continuation_for(state: dict[str, Any] | None, request: AgentRunRequest,
             raise PlanReplyError("RESEARCH_PLAN_NOT_PENDING", f"This Research Plan is {plan.get('status')}; an "
                                  "approval is used once. Ask for a new or revised plan.")
         return _continuation(plan, reply.action, reply.revision_instruction)
-    if plan is None or plan.get("status") != PENDING or _expired(plan, now):
+    if plan is None or plan.get("status") != PENDING:
         return None
+    # R-STORE C2e (resume): an expired pending plan still goes with a free-text reply. The orchestrator's verification
+    # finds it expired: an approval then presents the plan again for a new approval (REPLAN), and an unrelated
+    # message runs as a new question. Without it, "jalankan" the next day reached the model with no plan at all.
     return _continuation(plan, None, None)
 
 

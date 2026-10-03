@@ -22,7 +22,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from ..research_plan import guard_research_submission
-from .analysis import SandboxClient, current_run_context
+from .analysis import SandboxClient, current_run_context, pinned_body, take_data_date_policy
 from .registry import ToolError, ToolSpec
 
 SPEC_VERSION = "data_need_spec/v1"
@@ -276,6 +276,17 @@ class DataNeedSpecBody(Strict):
     subject: Subject
     data_requests: list[AnalysisDataRequest] = Field(description="1-8 logical data requests.")
     relationships: list[Relationship] = Field(description="Catalog relationships between requests ([] for none).")
+    data_as_of_policy: Literal["CONVERSATION", "NEWEST"] | None = Field(
+        description="Null or CONVERSATION: a range ending LATEST ends at the conversation's data date, so a later "
+                    "answer uses the same data as the earlier ones. NEWEST only when the user asks for newer data; the "
+                    "answer then states both dates.")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _policy_absent_is_null(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "data_as_of_policy" not in data:
+            return {**data, "data_as_of_policy": None}
+        return data
 
 
 class SubmitDataNeedSpecArgs(DataNeedSpecBody):
@@ -399,6 +410,7 @@ def submit_data_need(client: SandboxClient,
     if context is None:
         raise ToolError("No user request is available to anchor the data need's reference date.")
     payload = arguments.model_dump(mode="json")
+    take_data_date_policy(payload)
     governance = payload.pop("research_governance")
     if arguments.mode == "RESEARCH":
         # The research execution guard: arguments are validated, nothing has reached the sandbox yet. Without a
@@ -416,7 +428,7 @@ def submit_data_need(client: SandboxClient,
                             "timezone": context.timezone, "spec": payload}
     if governance is not None:
         body["research_governance"] = governance
-    response = client._call("POST", "/v1/data-needs", json=body)
+    response = client._call("POST", "/v1/data-needs", json=pinned_body(body))
     result = client._json(response)
     if response.status_code == 200 and "status" in result:
         return result

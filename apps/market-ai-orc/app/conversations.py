@@ -129,6 +129,8 @@ class ConversationStore:
         self.lease_seconds = lease_seconds
         self.connect_timeout_seconds = connect_timeout_seconds
         self.max_history_turns = max_history_turns
+        # R-STORE: (conversation_ids) -> None, run by cleanup before those conversations are deleted
+        self.before_delete: Any = None
 
     def _connect(self) -> psycopg.Connection:
         try:
@@ -371,14 +373,21 @@ class ConversationStore:
         return len(rows)
 
     def cleanup(self, batch: int = 500) -> int:
-        """Delete up to batch expired conversations (their turns cascade); a running one is left for later."""
-        with self._connect() as connection:
-            return connection.execute(
-                '''DELETE FROM public."AI_conversation" WHERE conversation_id IN (
-                       SELECT conversation_id FROM public."AI_conversation"
-                       WHERE expires_at <= CURRENT_TIMESTAMP
-                         AND (active_request_id IS NULL OR lease_expires_at <= CURRENT_TIMESTAMP)
-                       ORDER BY expires_at LIMIT %s FOR UPDATE SKIP LOCKED)''', (batch,)).rowcount
+        """Delete up to batch expired conversations (their turns, outputs, executions and exports cascade); a running
+        one is left for later. R-STORE: before_delete(conversation_ids) removes what they keep outside Postgres (the
+        bucket objects of their large tables) first; when it fails, nothing is deleted and the next pass retries."""
+        with self._connect() as connection, connection.transaction():
+            ids = [row["conversation_id"] for row in connection.execute(
+                '''SELECT conversation_id FROM public."AI_conversation"
+                   WHERE expires_at <= CURRENT_TIMESTAMP
+                     AND (active_request_id IS NULL OR lease_expires_at <= CURRENT_TIMESTAMP)
+                   ORDER BY expires_at LIMIT %s FOR UPDATE SKIP LOCKED''', (batch,)).fetchall()]
+            if not ids:
+                return 0
+            if self.before_delete is not None:
+                self.before_delete(ids)
+            return connection.execute('DELETE FROM public."AI_conversation" WHERE conversation_id = ANY(%s)',
+                                      (ids,)).rowcount
 
     def upkeep(self) -> None:
         try:

@@ -1188,11 +1188,14 @@ def bind_latest(raw: Any, reference: date) -> tuple[Any, set[tuple[str, str]]]:
     return spec, bound
 
 
-def validate(raw: Any, contract: dict[str, Any] | None, reference: date, limits: Limits = Limits()) -> Validation:
+def validate(raw: Any, contract: dict[str, Any] | None, reference: date, limits: Limits = Limits(),
+             latest_bound: date | None = None) -> Validation:
     """All four layers. `contract` is the Governor's catalog contract of the spec's tables, or None when the catalog
     could not be read (CATALOG_UNAVAILABLE). Approval is atomic: one issue anywhere refuses the whole spec."""
     issues = Issues()
-    raw, latest = bind_latest(raw, reference)
+    # R-STORE (C2e): a conversation that resumes keeps its data date; LATEST then ends there, not at today
+    pinned = latest_bound if latest_bound is not None and latest_bound < reference else None
+    raw, latest = bind_latest(raw, pinned or reference)
     if not check_schema(raw, limits, issues):
         return Validation("REVISION_REQUIRED", issues.items)
     if contract is None:
@@ -1217,6 +1220,8 @@ def validate(raw: Any, contract: dict[str, Any] | None, reference: date, limits:
         for window in approved["requests"][rid]["windows"]:
             if window["range_id"] == range_id:
                 window["end_requested"] = LATEST  # bound to the reference date; the profile reports actual_end
+                if pinned is not None:
+                    window["as_of_date"] = pinned.isoformat()  # bound to the conversation's data date instead
     if limits.derived_frequency:
         for request in approved["requests"].values():
             if request.get("resample") is not None:

@@ -39,7 +39,7 @@ from ..research_plan_v2 import (CONTRACT_VERSION, DATA_PLAN_VERSION, MAX_CANDIDA
                                 USES, AngleParameters, MethodId, OutcomeUnit, Policy, contract_sha256, data_plan_sha256,
                                 current_angle_bounds, design_sha256, family_count, holdout_start, parameter_problems,
                                 sha256_json)
-from .analysis import current_run_context
+from .analysis import current_run_context, take_data_date_policy
 from .data_need import DataRequest, RelationshipV2, Subject, argument_issues
 from .data_planner import empty_requests
 from .registry import ToolError, ToolSpec
@@ -114,6 +114,16 @@ class ResearchFeasibilityArgs(Strict):
     question: str = Field(description="The user's question, restated.")
     subject: Subject
     angles: list[AngleRequirement] = Field(description="One data requirement per angle of the planned Research Plan.")
+    data_as_of_policy: Literal["CONVERSATION", "NEWEST"] | None = Field(
+        description="Null or CONVERSATION: a range ending LATEST ends at the conversation's data date. NEWEST only "
+                    "when the user asks for newer data; the answer then states both dates.")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _policy_absent_is_null(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "data_as_of_policy" not in data:
+            return {**data, "data_as_of_policy": None}
+        return data
 
 
 TIME_BASIS = Literal["HISTORICAL_DESCRIPTIVE", "POINT_IN_TIME"]
@@ -720,7 +730,9 @@ def research_feasibility_spec(planner: ResearchDataPlanner, *, timeout_seconds: 
 
     def handler(arguments: BaseModel) -> dict[str, Any]:
         assert isinstance(arguments, (ResearchFeasibilityArgs, ResearchFeasibilityArgsPIT))
-        outcome = planner.plan(arguments.model_dump(mode="json"))
+        args = arguments.model_dump(mode="json")
+        take_data_date_policy(args)  # R-STORE: the pin applies to the planner's checks below
+        outcome = planner.plan(args)
         if on_result is not None:
             on_result(outcome)
         return outcome["view"]

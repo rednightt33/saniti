@@ -243,3 +243,49 @@ def test_s28_release_and_the_capacity_wait() -> None:
     assert result["code"] == "SESSION_CAPACITY_EXCEEDED" and result["next_action"] == "REPORT_LIMITATION"
     assert "waited 60 seconds" in result["message"] and "retry_after_seconds" not in result
     assert seen[-1][2]["read"] == 105  # the request timeout plus the sandbox's wait
+
+
+def test_r_store_file_copy_restore_upload_and_the_open_hook() -> None:
+    """R-STORE: a released file is copied only when its checksum matches; a stored table is uploaded with its
+    metadata in a base64url header; a session that opens gets the conversation's missing tables back and says so."""
+    import base64
+    import hashlib
+    import json
+
+    import httpx
+    import pytest
+
+    from app.tools.analysis import SandboxClient
+    from app.tools.registry import ToolError
+    from app.tools.session import current_carried_restorer, output_file, restore_carried, restore_into
+
+    data, seen = b"PAR1 table", {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            checksum = hashlib.sha256(data).hexdigest() if "good" in request.url.path else "0" * 64
+            return httpx.Response(200, content=data, headers={"X-Saniti-Checksum-Sha256": checksum})
+        meta = request.headers["X-Saniti-Output-Meta"]
+        seen["meta"] = json.loads(base64.urlsafe_b64decode(meta + "==="))
+        seen["body"] = request.content
+        return httpx.Response(200, json={"output_id": seen["meta"]["output_id"], "status": "RESTORED"})
+
+    client = SandboxClient("http://s", "s" * 40, 45, 20, transport=httpx.MockTransport(handler))
+    assert output_file(client, "sess_" + "a" * 24, "out_good", "r1") == data
+    with pytest.raises(ToolError):
+        output_file(client, "sess_" + "a" * 24, "out_bad", "r1")
+    answer = restore_carried(client, "sess_" + "a" * 24, "r1", {"output_id": "out_" + "1" * 24, "name": "t"}, data)
+    assert answer["status"] == "RESTORED" and seen["body"] == data and seen["meta"]["name"] == "t"
+
+    view = {"session_id": "sess_" + "a" * 24}
+    token = current_carried_restorer.set(lambda sid, v, allowed: [{"output_id": "out_" + "1" * 24, "name": "t",
+                                                                   "status": "RESTORED", "allowed": allowed}])
+    try:
+        restore_into(view, None)
+    finally:
+        current_carried_restorer.reset(token)
+    assert view["restored_outputs"] == [{"output_id": "out_" + "1" * 24, "name": "t", "status": "RESTORED"}]
+    assert "load_output" in view["restored_note"]
+    rejected = {"status": "REJECTED"}
+    restore_into(rejected, None)  # no session, no restorer: unchanged
+    assert rejected == {"status": "REJECTED"}

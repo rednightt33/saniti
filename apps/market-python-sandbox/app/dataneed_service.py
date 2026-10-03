@@ -97,6 +97,15 @@ def undefined_outputs(outputs: list[dict[str, Any]]) -> list[str]:
     return missing
 
 
+def data_as_of(manifest: dict[str, Any]) -> dict[str, Any]:
+    """{data_as_of, reference_date} of a bundle (R-STORE, round 2026-10-03 C2c): the largest actual end date of its
+    requested ranges (the last date of the data an output was computed from) and the reference date it was bound
+    to; a static bundle has no data_as_of."""
+    ends = [str(r["actual_end"])[:10] for d in manifest.get("datasets") or []
+            for r in (d.get("quality") or {}).get("requested_ranges") or [] if r.get("actual_end")]
+    return {"data_as_of": max(ends) if ends else None, "reference_date": manifest.get("reference_date")}
+
+
 class DataNeedService:
     def __init__(self, analysis: Any, store: DataNeedStore, limits: Limits = Limits()) -> None:
         self.analysis = analysis
@@ -123,7 +132,8 @@ class DataNeedService:
     # ------------------------------------------------------------------------------------------ data need specs
 
     def submit(self, request_id: str, reference_time: datetime, tz: str, spec: Any,
-               governance: Any | None, conversation_key: str | None = None) -> dict[str, Any]:
+               governance: Any | None, conversation_key: str | None = None, as_of: date | None = None
+               ) -> dict[str, Any]:
         """Validate one DataNeedSpec revision; RESEARCH specs also go to the Research Governor. conversation_key
         (conversation reuse only) records which conversation the need belongs to, with its data contract hash."""
         key = conversation_key if self.settings.conversation_reuse else None
@@ -159,7 +169,7 @@ class DataNeedService:
                 contract = self.analysis.datasets.catalog_contract(tables, request_id=request_id)
             except DatasetFailure:
                 contract = None
-        outcome = validate(spec, contract, ref, self.limits)
+        outcome = validate(spec, contract, ref, self.limits, latest_bound=as_of)
         body = outcome.body()
         mode = spec.get("mode") if isinstance(spec, dict) else None
         research = None
@@ -242,7 +252,8 @@ class DataNeedService:
                   warnings=[w["code"] for w in result["warnings"]])
         return result
 
-    def check(self, request_id: str, reference_time: datetime, tz: str, spec: Any) -> dict[str, Any]:
+    def check(self, request_id: str, reference_time: datetime, tz: str, spec: Any, as_of: date | None = None
+              ) -> dict[str, Any]:
         """Research Plan feasibility: validate a DataNeedSpec with all four layers before any plan is approved, without
         a revision, a Research Governor review or anything extractable. An approved spec is kept as a draft (draft_id)
         whose approved contract the backend planner sends to the Governor as estimate-only extractions; mode RESEARCH
@@ -255,7 +266,7 @@ class DataNeedService:
                 contract = self.analysis.datasets.catalog_contract(tables, request_id=request_id)
             except DatasetFailure:
                 contract = None
-        outcome = validate(spec, contract, ref, self.limits)
+        outcome = validate(spec, contract, ref, self.limits, latest_bound=as_of)
         body = outcome.body()
         result: dict[str, Any] = {"status": body["status"], "draft_id": None, "issues": body["issues"],
                                   "warnings": body["warnings"], "next_action": NEXT_ACTION[body["status"]]}
@@ -986,7 +997,9 @@ class DataNeedService:
                          # H1: the execution, code and data that produced it
                          "lineage": {"execution_id": o.get("execution_id"),
                                      "code_sha256": code_of.get(o.get("execution_id")), "need_id": need_id,
-                                     "bundle_id": record["bundle_id"]}}
+                                     "bundle_id": record["bundle_id"],
+                                     # R-STORE: the data's last date, so a later recomputation can use the same one
+                                     **data_as_of(bundle)}}
                         for o in outputs if o["output_id"] not in records]
         completion_id = f"cmp_{secrets.token_hex(12)}"
         result = {"completion_id": completion_id, "session_id": session_id, "bundle_id": record["bundle_id"],

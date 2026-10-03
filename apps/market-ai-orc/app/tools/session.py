@@ -21,6 +21,62 @@ from .request_data import current_request_id
 
 # 2d (2026-10-02): the output ids of the carried tables the approved research plan names, set by the orchestrator
 # for the run that executes the plan (None: no approved plan, so the sandbox's own rule applies)
+# R-STORE (round 2026-10-03 C2d): (session_id, open view, allowed output ids or None) -> what was restored; set by
+# the orchestrator for a run whose conversation keeps its results, so a new session gets back the conversation's
+# stored tables that the sandbox no longer holds
+current_carried_restorer: contextvars.ContextVar[Any] = contextvars.ContextVar("current_carried_restorer",
+                                                                              default=None)
+RESTORED_NOTE = ("Tables of earlier answers that the sandbox no longer held were put back from the conversation's "
+                 "store (restored_outputs): load them with load_output(output_id) as before; each keeps its label, "
+                 "definition and data date. A table listed as STORED_NOT_LOADED or RESTORE_FAILED is not available "
+                 "in this session.")
+
+
+def restore_into(result: dict[str, Any], allowed: list[str] | None) -> None:
+    """Put the conversation's stored tables back into a session that just opened (R-STORE); never fails the open."""
+    restorer = current_carried_restorer.get()
+    if restorer is None or not result.get("session_id"):
+        return
+    try:
+        restored = restorer(str(result["session_id"]), result, allowed)
+    except Exception:  # noqa: BLE001 - the open stands without the restored tables
+        restored = []
+    if restored:
+        result["restored_outputs"] = [{k: r.get(k) for k in ("output_id", "name", "status")} for r in restored]
+        result["restored_note"] = RESTORED_NOTE
+
+
+def output_file(client: SandboxClient, session_id: str, output_id: str, request_id: str, timeout: float = 120.0
+                ) -> bytes:
+    """R-STORE: the file of a released output, checked against the sandbox's checksum."""
+    import hashlib
+
+    response = client._call("GET", f"/v1/sessions/{session_id}/outputs/{output_id}/file", timeout=timeout,
+                            params={"request_id": request_id})
+    response.raise_for_status()
+    data = response.content
+    if hashlib.sha256(data).hexdigest() != response.headers.get("X-Saniti-Checksum-Sha256"):
+        raise ToolError("The output file does not match its checksum.")
+    return data
+
+
+def restore_carried(client: SandboxClient, session_id: str, request_id: str, meta: dict[str, Any], data: bytes,
+                    timeout: float = 120.0) -> dict[str, Any]:
+    """R-STORE: upload a stored table into a session of the same conversation (POST /v1/sessions/{id}/carried)."""
+    import base64
+    import json
+
+    encoded = base64.urlsafe_b64encode(json.dumps(meta, default=str).encode()).decode().rstrip("=")
+    response = client._call("POST", f"/v1/sessions/{session_id}/carried", timeout=timeout,
+                            params={"request_id": request_id}, content=data,
+                            headers={"X-Saniti-Output-Meta": encoded, "Content-Type": "application/octet-stream"})
+    body = client._json(response)
+    if response.status_code == 200:
+        return body
+    error = body.get("error") if isinstance(body.get("error"), dict) else {}
+    return {"status": "REJECTED", "code": error.get("code") or f"HTTP_{response.status_code}"}
+
+
 current_carried_outputs: contextvars.ContextVar[list[str] | None] = contextvars.ContextVar(
     "current_carried_outputs", default=None)
 
@@ -172,6 +228,7 @@ COMPLETE_DESCRIPTION = (
     "(read what was not processed, then complete again), REVISE_DATA_NEED_SPEC, or REPORT_LIMITATION. The backend "
     "does not recalculate your formulas: never say a calculation was independently verified."
 )
+RESULT_STORE_VERSION = 1  # R-STORE: the sandbox's output file and carried restore routes
 SESSION_RELEASE_VERSION = 1  # S28: the sandbox's POST /v1/requests/{request_id}/release
 CAPACITY_MESSAGE = (
     "Every analysis session slot of the sandbox is in use by other requests{waited}. Do not retry open_analysis_session or "
@@ -325,6 +382,7 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
             body["carried_outputs"] = carried
         # S28: the sandbox may wait up to its open_wait_seconds for a slot before it answers
         result = _call(client, "POST", "/v1/sessions", timeout=timeout_seconds + client.open_wait_seconds, json=body)
+        restore_into(result, carried)
         if result.get("status") == "REJECTED" and result.get("code") == "SESSION_CAPACITY_EXCEEDED":
             # The sandbox's RETRY_LATER is for callers that can wait; it already waited, and a retry within this run
             # meets the same slots.

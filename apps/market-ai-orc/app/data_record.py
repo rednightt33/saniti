@@ -26,6 +26,7 @@ FINDING_KEYS = ("angle_id", "hypothesis_id", "method_id", "status", "status_reas
                 "evidence_direction", "validation_level", "sample", "sample_flag", "estimates", "comparator",
                 "holdout", "multiple_testing", "angle_a", "angle_b", "confidence_level", "parameters", "units",
                 "success_rule", "success_definition")
+MAX_ANSWERS = 30  # R-STORE (C2e): one line per earlier answer, so a turn no longer in the history is not guessed
 MAX_MANUALS = 12  # 4b: method guides opened in the conversation, newest kept
 MAX_MANUAL_NOTE_CHARS = 16000
 MANUALS_HEADER = ("METHOD GUIDES OPENED EARLIER IN THIS CONVERSATION (application context from the backend, not from "
@@ -42,7 +43,7 @@ NOTE_HEADER = ("DATA RECORD (application context: the data this conversation has
 def empty() -> dict[str, Any]:
     return {"version": VERSION, "tables": {}, "needs": [], "outputs": [], "research": [], "next_alias": 1,
             "values": {}, "relationships": {}, "coverage": {}, "manuals": [], "findings": [], "seq": 0,
-            "suggestion": None}
+            "suggestion": None, "answers": []}
 
 
 def normalize(record: Any) -> dict[str, Any]:
@@ -63,6 +64,7 @@ def normalize(record: Any) -> dict[str, Any]:
         clean[key] = {str(k): dict(v) for k, v in (record.get(key) or {}).items() if isinstance(v, dict)}
     clean["manuals"] = [dict(m) for m in record.get("manuals") or [] if isinstance(m, dict) and m.get("name")]
     clean["findings"] = [dict(f) for f in record.get("findings") or [] if isinstance(f, dict) and f.get("id")]
+    clean["answers"] = [dict(a) for a in record.get("answers") or [] if isinstance(a, dict) and a.get("request_id")]
     # M64: the order results and research suggestions were produced in (a record written before it has none)
     seq = record.get("seq")
     clean["seq"] = seq if isinstance(seq, int) and seq > 0 else 0
@@ -235,9 +237,41 @@ def add_output(record: dict[str, Any], request_id: str, *, alias: str, output_id
                     **({"definition": definition} if isinstance(definition, dict)
                        else {"definition": earlier["definition"]} if earlier and "definition" in earlier else {}),
                     **({"lineage": lineage} if isinstance(lineage, dict)
-                       else {"lineage": earlier["lineage"]} if earlier and "lineage" in earlier else {})})
+                       else {"lineage": earlier["lineage"]} if earlier and "lineage" in earlier else {}),
+                    # R-STORE: the last date of the data it was computed from, and whether the conversation keeps it
+                    **({"data_as_of": d} if (d := (lineage or {}).get("data_as_of") if isinstance(lineage, dict)
+                                              else (earlier or {}).get("data_as_of")) else {}),
+                    **({"stored": earlier["stored"]} if earlier and "stored" in earlier else {})})
     record["outputs"] = outputs[-MAX_OUTPUTS:]
     record["next_alias"] = max(record.get("next_alias") or 1, _alias_number(f"out.{alias}") + 1)
+
+
+def add_answer(record: dict[str, Any], request_id: str, *, question: str, response_type: str | None, answer: str,
+               data_as_of: str | None) -> None:
+    """R-STORE (C2e): one line per answer of the conversation (what was asked, the start of the answer, the outputs
+    it released and its data date), so a later turn knows what an answer that left the history said instead of
+    guessing it. Kept only for a conversation that used data (the record is the data record)."""
+    refs = [o.get("ref") for o in record["outputs"] if o.get("request_id") == request_id and o.get("ref")]
+    findings = [f.get("id") for f in record.get("findings") or [] if f.get("request_id") == request_id]
+    answers = [a for a in record.get("answers") or [] if a.get("request_id") != request_id]
+    answers.append({"request_id": request_id, "seq": _next_seq(record), "question": " ".join(question.split())[:200],
+                    "response_type": response_type, "summary": " ".join((answer or "").split())[:300],
+                    "outputs": refs[:10], "findings": findings[:10],
+                    **({"data_as_of": data_as_of} if data_as_of else {})})
+    record["answers"] = answers[-MAX_ANSWERS:]
+
+
+def mark_stored(record: dict[str, Any], stored: dict[str, str]) -> None:
+    """R-STORE: which outputs the conversation keeps (output_id -> POSTGRES, BUCKET, ALREADY_STORED or FAILED)."""
+    for output in record["outputs"]:
+        if output.get("output_id") in stored:
+            output["stored"] = stored[output["output_id"]] != "FAILED"
+
+
+def data_as_of(record: dict[str, Any]) -> str | None:
+    """The conversation's data date: the latest data_as_of of its released outputs (None before any)."""
+    dates = [str(o["data_as_of"]) for o in record.get("outputs") or [] if o.get("data_as_of")]
+    return max(dates) if dates else None
 
 
 def add_research(record: dict[str, Any], request_id: str, feasible: dict[str, Any]) -> None:
@@ -471,12 +505,19 @@ def note(record: dict[str, Any]) -> str:
             + f"({o.get('row_count')} rows; "
             f"{', '.join(o.get('columns') or [])}) session {o.get('session_id')}, {o.get('request_id')}"
             + (f", label {o['label']}" if o.get("label") else "")
+            + (f", data to {o['data_as_of']}" if o.get("data_as_of") else "")
             + f"; definition: {definition_text(o.get('definition'))}"
             for o in reversed(record["outputs"])]),
         ("Research angles (newest first):", [
             f"- {r.get('angle_id')} ({r.get('request_id')}): " + "; ".join(
                 f"{d['source_table']}({', '.join(d['columns'])})" for d in r.get("datasets") or [])
             for r in reversed(record["research"])]),
+        ("Earlier answers of this conversation (newest first; a turn no longer in the history is known only from "
+         "this line: never guess what else it said):", [
+            f"- {a.get('request_id')} [{a.get('response_type')}] Q: {a.get('question')} | A: {a.get('summary')}"
+            + (f" | outputs {', '.join(a['outputs'])}" if a.get("outputs") else "")
+            + (f" | data to {a['data_as_of']}" if a.get("data_as_of") else "")
+            for a in reversed(record.get("answers") or [])]),
         ("Findings of this conversation (newest first; cite as finding.<id>, they are not run again unless the user asks):", [
             finding_line(f) for f in reversed(record.get("findings") or [])]),
         ("Data coverage read (dates may have moved since; check again when it matters):", [

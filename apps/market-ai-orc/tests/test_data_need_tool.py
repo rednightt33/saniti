@@ -96,6 +96,7 @@ def contract() -> dict[str, Any]:
 def wire(arguments: dict[str, Any]) -> tuple[dict[str, Any], Any]:
     """What the tool sends: the validated model's JSON, research_governance split from the spec."""
     payload = SubmitDataNeedSpecArgs.model_validate(arguments).model_dump(mode="json")
+    payload.pop("data_as_of_policy")  # R-STORE: an orchestrator argument, never sent in the spec
     governance = payload.pop("research_governance")
     return payload, governance
 
@@ -105,7 +106,9 @@ def wire(arguments: dict[str, Any]) -> tuple[dict[str, Any], Any]:
 def test_the_model_facing_fields_equal_the_validator_fields() -> None:
     validator = sandbox_module("data_need")
     governance = sandbox_module("research_governance")
-    assert set(SubmitDataNeedSpecArgs.model_fields) - {"research_governance"} == validator.TOP_FIELDS
+    # data_as_of_policy is the orchestrator's (R-STORE): removed before the spec is sent
+    assert set(SubmitDataNeedSpecArgs.model_fields) - {"research_governance", "data_as_of_policy"} \
+        == validator.TOP_FIELDS
     assert set(AnalysisDataRequest.model_fields) == validator.REQUEST_FIELDS
     # G18: research angle requests have no summary (refused in mode RESEARCH)
     assert set(DataRequest.model_fields) == validator.REQUEST_FIELDS - {"aggregate"}
@@ -321,22 +324,29 @@ def test_the_high_alert_tool_migration_is_frozen() -> None:
     assert "20261003_003_high_alert_tool_catalog.sql" in applied()
 
 
-def test_the_round_b_tool_migration_matches_the_tool_definitions() -> None:
-    """Round 2026-10-03 phase B: the newest registration of submit_data_need_spec (v7), check_data_feasibility (v5),
-    check_research_feasibility (v4) and run_python (v3) is generated from the registry under the dev flags; a schema
-    or description change needs a new migration (the applied one is frozen)."""
+def test_the_round_b_tool_migration_is_frozen() -> None:
+    """Round 2026-10-03 phase B registered submit_data_need_spec v7, check_data_feasibility v5,
+    check_research_feasibility v4 and run_python v3 (20261003_005, applied)."""
+    from test_migrations_frozen import applied
+
+    assert "20261003_005_round_b_tool_catalog.sql" in applied()
+
+
+def test_the_newest_tool_migration_matches_the_tool_definitions() -> None:
+    """The newest registration of each changed tool is generated from the registry under the dev flags
+    (scripts/generate_tool_catalog_migration.py, newest round); a schema or description change needs a new round
+    (an applied migration is frozen). Round C (R-STORE C2e): data_as_of_policy on the three DataNeed tools."""
     import importlib.util
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[3]
     spec = importlib.util.spec_from_file_location(
-        "generate_round_b_tool_migration", root / "scripts/generate_round_b_tool_migration.py")
+        "generate_tool_catalog_migration", root / "scripts/generate_tool_catalog_migration.py")
     generator = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(generator)
-    migration = (root / "database/migrations/20261003_005_round_b_tool_catalog.sql").read_text()
-    assert generator.render() == migration, "regenerate with scripts/generate_round_b_tool_migration.py"
+    target = generator.ROUNDS[generator.NEWEST]["target"]
+    assert generator.render() == target.read_text(), "regenerate with scripts/generate_tool_catalog_migration.py"
     found = generator.definitions()
     for name in ("submit_data_need_spec", "check_data_feasibility", "check_research_feasibility"):
-        assert "LATEST" in generator.schema_text(found[name]), name
-    assert "success_rule" in generator.schema_text(found["submit_data_need_spec"])
-    assert "outcome_unit=None" in found["run_python"]["description"] and "_flow" in found["run_python"]["description"]
+        text = generator.schema_text(found[name])
+        assert "data_as_of_policy" in text and "LATEST" in text, name

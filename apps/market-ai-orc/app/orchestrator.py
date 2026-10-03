@@ -44,10 +44,11 @@ from .provenance import (CONTEXT, LABEL_ORDER, SourceIndex, analysis_label, chec
                          parse_numbers, released_numbers, requested_statistics, weakest)
 from .value_refs import UNITS, ReferenceSources, Resolved, TableRows, format_value, render
 from .tools import ToolOutcome, ToolRegistry, error_outcome
-from .tools.analysis import current_conversation_key, current_run_context, run_context
+from .tools.analysis import DataDate, current_conversation_key, current_data_date, current_run_context, run_context
 from .tools.envelope import envelope
 from .tools.registry import strict_parameters_schema
-from .tools.session import current_carried_outputs
+from .result_store import restore_missing, store_released
+from .tools.session import current_carried_outputs, current_carried_restorer
 from .tools.request_data import current_request_id
 
 
@@ -1237,7 +1238,9 @@ REPLAN_NOTES = {
     "RESEARCH_PLAN_TOKEN_EXPIRED": (
         PLAN_NOTE_PREFIX + "the user's reply to Research Plan {plan_id} arrived after the plan expired, so it cannot "
         "be used. Present the plan again as RESEARCH_PLAN_CONFIRMATION for a new approval, unchanged unless the "
-        "dates or data require a change. No data may be used in this turn. The expired plan: {plan}"),
+        "dates or data require a change, and say in the answer that the plan was made earlier and expired before "
+        "the approval, so it needs the user's approval again. No data may be used in this turn. The expired plan: "
+        "{plan}"),
     "RESEARCH_PLAN_TOKEN_INVALID": (
         PLAN_NOTE_PREFIX + "the Research Plan approval sent with this message could not be verified, so no plan is "
         "approved. Present a Research Plan again as RESEARCH_PLAN_CONFIRMATION, from the conversation, for a new "
@@ -1458,6 +1461,22 @@ PLAN_PROVENANCE_NOTICE = "Some figures below could not be traced to the Research
 PLAN_SUCCESS_RULE_INSTRUCTION = (
     "The success_rule value {values} is not a number the user stated. A success threshold is the user's: take it from "
     "their words, or set success_rule to null and ask them in the plan's confirmation question.")
+def previous_weekday(day: Any) -> str:
+    """The weekday before day (ISO): the newest trading date a daily load can have delivered by then (holidays are
+    not known here, so the day after one reads as one day older)."""
+    from datetime import timedelta
+
+    previous = day - timedelta(days=1)
+    while previous.weekday() >= 5:
+        previous -= timedelta(days=1)
+    return previous.isoformat()
+
+
+# R-STORE (C2e, user decision 4): the backend's own lines about an answer's data date
+DATA_DATE_CHANGED_LINE = ("Data jawaban ini sampai {new}; jawaban sebelumnya di percakapan ini memakai data sampai "
+                          "{old}, jadi angkanya bisa berbeda.")
+DATA_DATE_PINNED_LINE = ("Angka ini memakai data sampai {date}, sama dengan jawaban sebelumnya di percakapan ini. "
+                         "Minta \"pakai data terbaru\" untuk menghitung ulang dengan data terbaru.")
 # M69 tahap 1 (golden g6_revise 2026-10-02: the user's "within 10 days" became 5 days in the follow-up suggestion)
 PLAN_HORIZON_INSTRUCTION = (
     "The user stated the outcome horizon ({stated}); {plan_items} use {used} periods instead. The horizon is the "
@@ -1576,6 +1595,11 @@ class RunState:
     research_findings: dict[str, dict[str, Any]] = field(default_factory=dict)
     audit_started_at: datetime | None = None
     execution_ids: list[str] = field(default_factory=list)
+    # R-STORE: the released outputs and executions of this run, kept at its end (output entries with session_id)
+    store_outputs: list[dict[str, Any]] = field(default_factory=list)
+    store_executions: list[dict[str, Any]] = field(default_factory=list)
+    reference_date: Any = None  # the run's reference date in the analysis timezone
+    data_date: Any = None  # R-STORE: the run's DataDate (the conversation's data date and whether NEWEST was asked)
     research_attempted: bool = False
     # AI_ENABLE_ANALYSIS_PATH: the data-need mode the caller fixed for this request, and the refusals it caused
     forced_path: str | None = None
@@ -1670,6 +1694,9 @@ class AgentOrchestrator:
         provider_logger: Any | None = None,
         session_closer: Callable[[str, list[str]], dict[str, str]] | None = None,
         session_releaser: Callable[[str], list[dict[str, Any]]] | None = None,
+        result_store: Any = None,
+        output_fetcher: Callable[[str, str, str], bytes] | None = None,
+        carried_uploader: Callable[[str, str, dict[str, Any], bytes], dict[str, Any]] | None = None,
         conversation_resources: Callable[[str], dict[str, Any] | None] | None = None,
         draft_reader: Callable[[str], dict[str, Any] | None] | None = None,
         derived_frequency: bool = False,
@@ -1693,6 +1720,12 @@ class AgentOrchestrator:
         # closes the analysis sessions a run leaves open (S05): (request_id, session_ids) -> {session_id: reason}
         self.session_closer = session_closer
         self.session_releaser = session_releaser
+        # R-STORE (round 2026-10-03 C2): the conversation's durable results, with the sandbox calls that copy a released
+        # output out (session_id, output_id, request_id) and put a stored table back (session_id, request_id, meta,
+        # data); all three or none
+        self.result_store = result_store if output_fetcher is not None and carried_uploader is not None else None
+        self.output_fetcher = output_fetcher
+        self.carried_uploader = carried_uploader
         self.client = client
         self.registry = registry
         self.auditor = auditor
@@ -1844,6 +1877,11 @@ class AgentOrchestrator:
         guard = current_research_guard.set(state.guard)
         key = current_conversation_key.set(conversation_key if self.conversation_reuse else None)
         research = current_research_context.set(state.research)
+        restorer = current_carried_restorer.set(self._restorer(request))
+        # R-STORE (C2e, user decision 4): a conversation keeps its data date unless this run asks for newer data
+        state.data_date = DataDate(records.data_as_of(state.data_record)) if self.result_store is not None else None
+        state.reference_date = moment.astimezone(ZoneInfo(self.settings.analysis_timezone)).date()
+        data_date = current_data_date.set(state.data_date)
         carried = None
         try:
             if self.conversation_reuse and conversation_key and request.history:
@@ -1907,6 +1945,10 @@ class AgentOrchestrator:
             current_run_context.reset(context)
             current_research_guard.reset(guard)
             current_research_context.reset(research)
+            current_carried_restorer.reset(restorer)
+            current_data_date.reset(data_date)
+        self._store_results(state, request.conversation_id)
+        result = self._data_date_lines(state, request, result)
         result = result.model_copy(update={"data_record": records.public(state.data_record)})
         # the closes still carry the conversation key, so an attached session that ran nothing is detached, not lost
         self._end_sessions(state)
@@ -2124,6 +2166,81 @@ class AgentOrchestrator:
             return self._failed(state, "AUDIT_UNAVAILABLE", "The run could not be recorded for audit, which this "
                                                             "deployment requires, so its answer is withheld.")
 
+    def _track_results(self, state: RunState, name: str, outcome: ToolOutcome, arguments: Any) -> None:
+        """R-STORE: what this run releases and the code it runs, kept with the conversation at the run's end."""
+        result = outcome.output.get("result") if outcome.ok else None
+        if not isinstance(result, dict):
+            return
+        if name in ("run_python", "run_research_code") and result.get("execution_id"):
+            code = arguments.get("code") if isinstance(arguments, dict) else None
+            if isinstance(code, str):
+                state.store_executions.append({"execution_id": str(result["execution_id"]),
+                                               "session_id": result.get("session_id"), "code": code,
+                                               "status": result.get("status"), "modules": result.get("modules"),
+                                               "access": result.get("access")})
+        elif (name == "complete_analysis" and result.get("status") == "COMPLETED") or name == "complete_research_run":
+            verified = {str(i) for i in (result.get("final_status") or {}).get("verified_output_ids") or []}
+            for entry in result.get("released_outputs") or []:
+                owner = entry.get("session_id") or result.get("session_id") if isinstance(entry, dict) else None
+                if owner and entry.get("output_id"):
+                    state.store_outputs.append({
+                        **entry, "session_id": owner,
+                        "label": "CALCULATION_VERIFIED" if str(entry["output_id"]) in verified | state.verified_outputs
+                        else "DATA_COVERAGE_VERIFIED"})
+
+    def _data_date_lines(self, state: RunState, request: AgentRunRequest, result: AgentRunResponse) -> AgentRunResponse:
+        """R-STORE (C2e, user decision 4): the answer states its data date when it differs from the earlier answers'
+        (the user asked for newer data), or offers a recomputation when it kept an older one; the backend writes the
+        line from the outputs' own dates, so it never depends on the model. The answer's line goes to the data record."""
+        if state.data_date is None:
+            return result
+        produced = sorted({str(o["lineage"]["data_as_of"]) for o in state.store_outputs
+                           if isinstance(o.get("lineage"), dict) and o["lineage"].get("data_as_of")})
+        earlier, line = state.data_date.as_of, None
+        if produced and earlier and produced[-1] != earlier:
+            line = DATA_DATE_CHANGED_LINE.format(new=produced[-1], old=earlier)
+        elif produced and earlier and not state.data_date.newest \
+                and state.reference_date is not None and earlier < previous_weekday(state.reference_date):
+            line = DATA_DATE_PINNED_LINE.format(date=earlier)
+        response = result.response
+        if records.has_data(state.data_record) and response is not None:
+            records.add_answer(state.data_record, state.request_id, question=request.message,
+                               response_type=response.response_type, answer=response.answer,
+                               data_as_of=produced[-1] if produced else None)
+            result = result.model_copy(update={"data_record": records.public(state.data_record)})
+        if line and response is not None and response.response_type in ("ANSWER", "LIMITATION") \
+                and line not in response.limitations:
+            result = result.model_copy(update={"response": response.model_copy(update={
+                "limitations": [*response.limitations, line]})})
+        return result
+
+    def _restorer(self, request: AgentRunRequest) -> Callable[..., list[dict[str, Any]]] | None:
+        """R-STORE: put the conversation's stored tables back into each session this run opens."""
+        if self.result_store is None or not request.conversation_id:
+            return None
+        store, upload, conversation_id = self.result_store, self.carried_uploader, request.conversation_id
+
+        def restore(session_id: str, view: dict[str, Any], allowed: list[str] | None) -> list[dict[str, Any]]:
+            return restore_missing(store, lambda sid, meta, data: upload(sid, request.request_id, meta, data),
+                                   conversation_id, request.request_id, session_id, view, allowed)
+        return restore
+
+    def _store_results(self, state: RunState, conversation_id: str | None) -> None:
+        """R-STORE: keep this run's released outputs and executions for the life of the conversation; the data record
+        says which were stored. Never fails the answer."""
+        if self.result_store is None or not conversation_id or not (state.store_outputs or state.store_executions):
+            return
+        fetch = self.output_fetcher
+        stored = store_released(self.result_store, lambda sid, oid: fetch(sid, oid, state.request_id),
+                                conversation_id, state.request_id, state.store_outputs)
+        records.mark_stored(state.data_record, stored)
+        for execution in state.store_executions:
+            try:
+                self.result_store.save_execution(conversation_id, state.request_id, execution)
+            except Exception as exc:  # noqa: BLE001 - storing never fails the answer
+                log_event("result_store_failed", request_id=state.request_id,
+                          execution_id=execution.get("execution_id"), error=type(exc).__name__)
+
     def _end_sessions(self, state: RunState) -> None:
         """S28 (golden g7 2026-10-02): the answer of this request ended, so every sandbox session it holds is released
         (completed: WARM_IDLE, reusable or evictable; any other: closed), including a completed session that ran
@@ -2239,6 +2356,13 @@ class AgentOrchestrator:
         guard = ResearchGuard(required=True, verification=verification)
         if action in ("CANCEL", "UNRELATED"):
             state.user_text = request.message  # the reply itself, not the research question it answers
+        if action == "UNRELATED" and verification == "RESEARCH_PLAN_TOKEN_EXPIRED":
+            # R-STORE C2e: a new question after a plan expired is answered as one; the expired plan is not presented
+            self._set_turn(state, "PROPOSE", ALL_TYPES, None, ResearchGuard(required=True),
+                           verification="NOT_PRESENTED")
+            log_event("research_plan_turn", request_id=request.request_id, turn=state.plan_turn, action=action,
+                      action_source=source, verification=verification, plan_id=continuation.plan_id)
+            return
         if action == "CANCEL":
             self._set_turn(state, "CANCEL", frozenset({"ANSWER", "LIMITATION"}), frozenset(), guard,
                            note=CANCEL_NOTE)
@@ -2760,6 +2884,8 @@ class AgentOrchestrator:
         self._track_dataneed(state, name, self._tool_arguments(name, raw_arguments), outcome)
         if self.value_references:
             self._track_references(state, name, outcome, self._normalized_arguments(raw_arguments))
+        if self.result_store is not None:
+            self._track_results(state, name, outcome, self._normalized_arguments(raw_arguments))
         result_hash = stable_hash(outcome.output)
         count = count + 1 if last_result in (None, result_hash) else 1
         state.call_history[key] = (count, result_hash)
@@ -3395,7 +3521,11 @@ class AgentOrchestrator:
             """A (user decision 2026-10-02): every released output gets its ref and its place in the data record, not
             only the ones whose content the result previews (the first tables, JSON and text); charts and the rest
             are listed with content_shown false and a note, and a table's rows are read on demand."""
+            lineage = {str(e.get("output_id")): e for e in result.get("released_outputs") or [] if isinstance(e, dict)}
             for entry in result.get("released_contents") or []:
+                if isinstance(entry, dict) and "lineage" not in entry and isinstance(
+                        lineage.get(str(entry.get("output_id")), {}).get("lineage"), dict):
+                    entry["lineage"] = lineage[str(entry["output_id"])]["lineage"]  # R-STORE: its data date
                 output(entry)
             shown = {str(c.get("output_id")) for c in result.get("released_contents") or [] if isinstance(c, dict)}
             hidden = [e for e in result.get("released_outputs") or []

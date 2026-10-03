@@ -35,7 +35,9 @@ from .tools.library import read_research_library
 from .tools.method_guides import active_guides, guides_problem, menu as guide_menu, read_method_guides
 from .tools.registry import ToolError
 from .tools.request_data import GovernorClient
-from .tools.session import EVENT_STUDY_VERSION, SESSION_RELEASE_VERSION, close_sessions, read_output, release_request
+from .result_store import ResultBucket, ResultStore
+from .tools.session import (EVENT_STUDY_VERSION, RESULT_STORE_VERSION, SESSION_RELEASE_VERSION, close_sessions,
+                            output_file, read_output, release_request, restore_carried)
 
 REUSE_VERSION = 1  # the conversation reuse contract both services must report
 FEASIBILITY_VERSION = 1  # the Research Plan feasibility endpoints of the sandbox
@@ -310,9 +312,29 @@ def create_app(
             else:
                 log_event("conversation_reuse_inactive", reason="the sandbox does not report conversation_reuse "
                                                                 f"version {REUSE_VERSION}")
+        # R-STORE (round 2026-10-03 C2): the conversation keeps its results when the sandbox can copy a released file
+        # out and take a stored table back (result_store v1) and conversation reuse is on; otherwise off (fail closed)
+        result_store, fetcher, uploader = None, None, None
+        if settings.ai_enable_result_store and resources is not None and conversations is not None:
+            capability = sandbox.runtime().get("result_store") or {}
+            if capability.get("enabled") is True and capability.get("version") == RESULT_STORE_VERSION:
+                bucket = ResultBucket(**settings.result_bucket) if settings.result_bucket else None
+                result_store = ResultStore(settings.conversation_database_url, bucket)
+                fetcher = lambda sid, oid, rid: output_file(sandbox, sid, oid, rid)  # noqa: E731
+                uploader = lambda sid, rid, meta, data: restore_carried(sandbox, sid, rid, meta, data)  # noqa: E731
+                if bucket is not None:
+                    conversations.before_delete = lambda ids: bucket.delete(result_store.object_keys(ids))
+                log_event("result_store_active", bucket=bucket is not None)
+            else:
+                log_event("result_store_inactive", reason="the sandbox does not report result_store version "
+                                                          f"{RESULT_STORE_VERSION}")
+        elif settings.ai_enable_result_store:
+            log_event("result_store_inactive", reason="needs conversation reuse, the conversation store and the sandbox")
         orchestrator = AgentOrchestrator(settings, owned_client, registry, auditor=auditor,
                                          catalog_summary=summary, provider_logger=provider_logger,
                                          session_closer=closer, session_releaser=releaser,
+                                         result_store=result_store, output_fetcher=fetcher,
+                                         carried_uploader=uploader,
                                          conversation_resources=resources,
                                          draft_reader=sandbox.get_draft if feasibility else None,
                                          derived_frequency=derived_frequency, audit_outbox=audit_outbox,

@@ -71,6 +71,37 @@ class RunContext:
 
 current_run_context: contextvars.ContextVar[RunContext | None] = contextvars.ContextVar("current_run_context",
                                                                                          default=None)
+@dataclass
+class DataDate:
+    """R-STORE (round 2026-10-03 C2e, user decision 4): a conversation that comes back keeps its data date. as_of is
+    the last date of the data its earlier answers used; a range ending LATEST is bound to it unless this run asked for
+    the newest data (a data need with data_as_of_policy NEWEST, after the user asked). Mutable: a tool handler marks
+    newest for the rest of the run."""
+
+    as_of: str | None
+    newest: bool = False
+
+
+current_data_date: contextvars.ContextVar[DataDate | None] = contextvars.ContextVar("current_data_date",
+                                                                                    default=None)
+
+
+def pinned_body(body: dict[str, Any]) -> dict[str, Any]:
+    """A DataNeed body with the conversation's data date (as_of_date) while the run has not asked for newer data."""
+    data_date = current_data_date.get()
+    if data_date is not None and data_date.as_of and not data_date.newest and "as_of_date" not in body:
+        return {**body, "as_of_date": data_date.as_of}
+    return body
+
+
+def take_data_date_policy(payload: dict[str, Any]) -> None:
+    """R-STORE: data_as_of_policy is not part of the spec the sandbox validates; NEWEST lifts the run's pin."""
+    if payload.pop("data_as_of_policy", None) == "NEWEST":
+        data_date = current_data_date.get()
+        if data_date is not None:
+            data_date.newest = True
+
+
 # Conversation reuse (AI_ENABLE_CONVERSATION_REUSE): the key of the current SERVER conversation, derived by the
 # application from the conversation and its owner. The sandbox client sends it as a header on every call of the run;
 # no tool argument can set it.
@@ -668,7 +699,7 @@ class SandboxClient:
 
     def check_data_need(self, body: dict[str, Any]) -> dict[str, Any]:
         """Research Plan feasibility: validate a DataNeedSpec into a never-extracted draft (POST /v1/data-needs/check)."""
-        response = self._call("POST", "/v1/data-needs/check", json=body)
+        response = self._call("POST", "/v1/data-needs/check", json=pinned_body(body))
         result = self._json(response)
         if response.status_code == 200 and "status" in result:
             return result

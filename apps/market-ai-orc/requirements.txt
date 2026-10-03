@@ -3,3 +3,4 @@ httpx==0.28.1
 pydantic==2.11.7
 uvicorn[standard]==0.35.0
 psycopg[binary]==3.2.10
+boto3==1.43.100

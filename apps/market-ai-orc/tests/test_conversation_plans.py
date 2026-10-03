@@ -133,24 +133,28 @@ def test_cancel_and_an_unrelated_reply(databases) -> None:
     assert api.seen[-1].continuation is None and api.sandbox.calls == []
 
 
-def test_an_expired_plan_is_attached_only_to_an_explicit_reply(databases) -> None:
+def test_an_expired_plan_goes_with_a_reply_and_a_new_question_is_answered_as_one(databases) -> None:
+    """R-STORE C2e (resume): a free-text reply after the plan expired carries it, so an approval the next day presents
+    it again (REPLAN) instead of reaching the model with no plan; an unrelated question is answered as one."""
     _, url = databases
     past = Clock(datetime.now(timezone.utc) - timedelta(hours=3))  # the plan's hour-long token expired
-    api = Api(url, [final_response(plan_response()), final_response(answer("Halo.")),
+    api = Api(url, [final_response(plan_response()), classifier("UNRELATED"), final_response(answer("Halo.")),
+                    classifier("APPROVE"),
+                    final_response(plan_response(answer="Rencana ini dibuat sebelumnya dan kedaluwarsa; setujui lagi?")),
                     final_response(plan_response(answer="Rencana riset yang sama, perlu persetujuan baru."))],
               clock=past)
     first = plan_turn(api, "h2-e1")
     conversation_id, plan_id = first["conversation"]["conversation_id"], first["continuation"]["plan_id"]
     assert first["conversation"]["research_plan"]["status"] == "EXPIRED"
-    api.post("h2-e2", "Halo.", conversation_id)
-    assert api.seen[-1].continuation is None  # free text after expiry: an ordinary turn
     past.moment = datetime.now(timezone.utc)  # the signer and the run clock move to the present
-    replanned = api.post("h2-e3", "Setuju.", conversation_id,
-                         plan_reply={"plan_id": plan_id, "action": "APPROVE"}).json()
-    assert replanned["execution"]["research_plan"]["turn"] == "REPLAN"
-    assert replanned["execution"]["research_plan"]["verification"] == "RESEARCH_PLAN_TOKEN_EXPIRED"
-    assert replanned["conversation"]["research_plan"]["status"] == "PENDING"
-    assert replanned["continuation"]["plan_id"] != plan_id and api.sandbox.calls == []
+    hello = api.post("h2-e2", "Halo.", conversation_id).json()
+    assert api.seen[-1].continuation is not None  # the expired plan went with the reply ...
+    assert hello["execution"]["research_plan"]["turn"] == "PROPOSE"  # ... and a new question is answered as one
+    again = api.post("h2-e2b", "jalankan", conversation_id).json()
+    assert again["execution"]["research_plan"]["turn"] == "REPLAN"
+    assert again["execution"]["research_plan"]["verification"] == "RESEARCH_PLAN_TOKEN_EXPIRED"
+    plan_id = again["continuation"]["plan_id"]
+    assert again["conversation"]["research_plan"]["status"] == "PENDING" and api.sandbox.calls == []
 
 
 def test_plan_reply_and_continuation_belong_to_one_history_mode_each(databases) -> None:

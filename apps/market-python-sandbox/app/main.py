@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import hmac
+import json
 import logging
 import re
 import sys
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query, status
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query, Request, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import ValidationError
 
@@ -19,7 +23,7 @@ from .dataneed_service import DataNeedError, DataNeedService
 from .event_study_validation import EVENT_STUDY_VERSION
 from .method_guides import GUIDES_SHA256, GUIDES_VERSION
 from .data_need import SPEC_VERSIONS
-from .sessions import SESSION_RELEASE_VERSION, SessionError
+from .sessions import RESTORE_VERSION, SESSION_RELEASE_VERSION, SessionError
 from .dataneed_store import DataNeedStore
 from .models import ANALYSIS_ID, REQUEST_ID, AnalysisRequest, RunReport
 from .outputs import CONTENT_TYPES
@@ -40,7 +44,19 @@ RESEARCH_RUN_ID = re.compile(r"^rrun_[0-9a-f]{24}$")
 GROUP_ID = re.compile(r"^g[1-9][0-9]?$")
 SESSION_ID = re.compile(r"^sess_[0-9a-f]{24}$")
 OUTPUT_ID = re.compile(r"^out_[0-9a-f]{24}$")
-DATA_NEED_KEYS = {"request_id", "reference_time", "timezone", "spec", "research_governance"}
+def as_of_date(body: dict) -> Any:
+    """R-STORE (round 2026-10-03 C2e): the conversation's data date; a range ending LATEST is bound to it when it is
+    earlier than the reference date. None when absent, False when malformed."""
+    value = body.get("as_of_date")
+    if value is None:
+        return None
+    try:
+        return date.fromisoformat(value) if isinstance(value, str) and len(value) == 10 else False
+    except ValueError:
+        return False
+
+
+DATA_NEED_KEYS = {"request_id", "reference_time", "timezone", "spec", "research_governance", "as_of_date"}
 # Conversation reuse (S1/S2): market-ai-orc derives the key from the conversation and its owner and sends it as a
 # header, never from the model. Ignored while PY_SANDBOX_ENABLE_CONVERSATION_REUSE is off.
 CONVERSATION_HEADER = "X-Saniti-Conversation-Key"
@@ -119,6 +135,9 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                           "no extensions or attachments, configuration locked",
                 "conversation_reuse": {"enabled": settings.conversation_reuse and dataneed is not None,
                                        "version": REUSE_VERSION},
+                # R-STORE: GET .../outputs/{output_id}/file and POST /v1/sessions/{id}/carried
+                "result_store": {"enabled": dataneed is not None and settings.conversation_reuse,
+                                 "version": RESTORE_VERSION, "restore_max_bytes": settings.restore_max_bytes},
                 # S28: POST /v1/requests/{request_id}/release, and how long opening a session waits for a slot
                 "session_release": {"enabled": dataneed is not None, "version": SESSION_RELEASE_VERSION,
                                     "open_wait_seconds": settings.open_wait_seconds},
@@ -222,9 +241,13 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
             return JSONResponse(status_code=422, content={"status": "REJECTED", "error": {
                 "code": "INVALID_REQUEST", "message": "reference_time must be an ISO timestamp."}})
         timezone = body.get("timezone") if isinstance(body.get("timezone"), str) else "Asia/Jakarta"
+        as_of = as_of_date(body)
+        if as_of is False:
+            return JSONResponse(status_code=422, content={"status": "REJECTED", "error": {
+                "code": "INVALID_REQUEST", "message": "as_of_date must be YYYY-MM-DD or null."}})
         try:
             return dataneed.submit(body["request_id"], reference_time, timezone[:64], body["spec"],
-                                   body.get("research_governance"), conversation_key=key)
+                                   body.get("research_governance"), conversation_key=key, as_of=as_of)
         except DataNeedError as exc:
             return dataneed_error(exc)
 
@@ -232,7 +255,7 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
     def check_data_need(body: Any = Body(...)) -> Any:
         """Research Plan feasibility: validate a DataNeedSpec into a never-extracted draft (no revision, no review)."""
         if not isinstance(body, dict) or not {"request_id", "reference_time", "spec"} <= set(body) \
-                <= {"request_id", "reference_time", "timezone", "spec"} \
+                <= {"request_id", "reference_time", "timezone", "spec", "as_of_date"} \
                 or not isinstance(body["request_id"], str) or not re.fullmatch(REQUEST_ID, body["request_id"]):
             return JSONResponse(status_code=422, content={"status": "REJECTED", "error": {
                 "code": "INVALID_REQUEST", "message": "Body must be {request_id, reference_time, timezone, spec}."}})
@@ -242,8 +265,12 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
             return JSONResponse(status_code=422, content={"status": "REJECTED", "error": {
                 "code": "INVALID_REQUEST", "message": "reference_time must be an ISO timestamp."}})
         timezone = body.get("timezone") if isinstance(body.get("timezone"), str) else "Asia/Jakarta"
+        as_of = as_of_date(body)
+        if as_of is False:
+            return JSONResponse(status_code=422, content={"status": "REJECTED", "error": {
+                "code": "INVALID_REQUEST", "message": "as_of_date must be YYYY-MM-DD or null."}})
         try:
-            return dataneed.check(body["request_id"], reference_time, timezone[:64], body["spec"])
+            return dataneed.check(body["request_id"], reference_time, timezone[:64], body["spec"], as_of=as_of)
         except DataNeedError as exc:
             return dataneed_error(exc)
 
@@ -382,6 +409,42 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
     def session_state(session_id: str, request_id: str = Query(..., max_length=128)) -> Any:
         try:
             return dataneed.sessions.state(session_id_or_404(session_id), request_id)
+        except SessionError as exc:
+            return session_error(exc)
+
+    @app.get("/v1/sessions/{session_id}/outputs/{output_id}/file", dependencies=dataneed_routes)
+    def session_output_file(session_id: str, output_id: str, request_id: str = Query(..., max_length=128),
+                            key: str | None = Depends(conversation_key)) -> Any:
+        """R-STORE: the stored file of a released output, for the orchestrator's durable copy."""
+        if not OUTPUT_ID.fullmatch(output_id):
+            raise HTTPException(status_code=404, detail="Unknown output_id")
+        try:
+            path, output = dataneed.sessions.output_file(session_id_or_404(session_id), request_id, output_id,
+                                                         conversation_key=key)
+        except SessionError as exc:
+            return session_error(exc)
+        return FileResponse(path, media_type="application/octet-stream",
+                            headers={"X-Saniti-Checksum-Sha256": output["checksum_sha256"],
+                                     "X-Saniti-Format": output["format"]})
+
+    @app.post("/v1/sessions/{session_id}/carried", dependencies=dataneed_routes)
+    async def restore_carried(session_id: str, request: Request, request_id: str = Query(..., max_length=128),
+                              x_saniti_output_meta: str | None = Header(default=None),
+                              key: str | None = Depends(conversation_key)) -> Any:
+        """R-STORE: a stored table of this conversation uploaded back into this session (raw Parquet body; its
+        metadata as base64url JSON in X-Saniti-Output-Meta)."""
+        try:
+            meta = json.loads(base64.urlsafe_b64decode((x_saniti_output_meta or "").encode() + b"==="))
+            if not isinstance(meta, dict):
+                raise ValueError
+        except (ValueError, binascii.Error):
+            return invalid_body("raw Parquet body with X-Saniti-Output-Meta: base64url JSON {output_id, name, ...}")
+        data = await request.body()
+        if not data or len(data) > settings.restore_max_bytes:
+            return invalid_body(f"a Parquet body of at most {settings.restore_max_bytes} bytes")
+        try:
+            return await run_in_threadpool(dataneed.sessions.restore_output, session_id_or_404(session_id),
+                                           request_id, key, meta, data)
         except SessionError as exc:
             return session_error(exc)
 

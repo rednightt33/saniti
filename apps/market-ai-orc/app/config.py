@@ -36,6 +36,22 @@ def _ratio(env: Mapping[str, str], name: str, default: float, low: float, high: 
     return value
 
 
+RESULT_BUCKET_KEYS = {"name": "RESULT_BUCKET_NAME", "endpoint": "RESULT_BUCKET_ENDPOINT",
+                      "region": "RESULT_BUCKET_REGION", "access_key_id": "RESULT_BUCKET_ACCESS_KEY_ID",
+                      "secret_access_key": "RESULT_BUCKET_SECRET_ACCESS_KEY"}
+
+
+def _result_bucket(env: Mapping[str, str]) -> dict[str, str] | None:
+    """The R-STORE bucket's settings when all are set; None when none is; an error when only some are."""
+    values = {k: (env.get(v) or "").strip() for k, v in RESULT_BUCKET_KEYS.items()}
+    if not any(values.values()):
+        return None
+    missing = [RESULT_BUCKET_KEYS[k] for k, v in values.items() if not v and k != "region"]
+    if missing:
+        raise ConfigError(f"Set every RESULT_BUCKET_* variable or none (missing: {', '.join(missing)})")
+    return values
+
+
 def _boolean(env: Mapping[str, str], name: str, default: bool) -> bool:
     raw = env.get(name, "true" if default else "false").strip().lower()
     if raw not in {"true", "false"}:
@@ -144,6 +160,10 @@ class Settings:
     # Conversation reuse (phases S1/S2): in history_mode SERVER, released outputs, bundles and warm Python sessions of
     # earlier messages of the conversation. Needs the conversation store and a sandbox that reports the capability.
     ai_enable_conversation_reuse: bool = False
+    # R-STORE (round 2026-10-03 C2): released outputs and executions kept with the conversation; tables larger than
+    # Postgres keeps go to the bucket named by RESULT_BUCKET_* (references to market-ai-conversation-outputs)
+    ai_enable_result_store: bool = False
+    result_bucket: dict[str, str] | None = field(default=None, repr=False)
     # A model-written methodology note beside a DataNeed answer: data, steps, methods and parameters in plain words,
     # its numbers checked like the answer's (plus the parameters of the code that ran). Only in the DataNeed flow.
     ai_enable_methodology: bool = False
@@ -310,6 +330,8 @@ class Settings:
             ai_conversation_lease_seconds=_integer(env, "AI_CONVERSATION_LEASE_SECONDS", 0, minimum=0),
             ai_conversation_upkeep_seconds=_integer(env, "AI_CONVERSATION_UPKEEP_SECONDS", 3600, minimum=60),
             ai_enable_conversation_reuse=_boolean(env, "AI_ENABLE_CONVERSATION_REUSE", False),
+            ai_enable_result_store=_boolean(env, "AI_ENABLE_RESULT_STORE", False),
+            result_bucket=_result_bucket(env),
             ai_enable_methodology=_boolean(env, "AI_ENABLE_METHODOLOGY", False),
             ai_enable_plan_feasibility=_boolean(env, "AI_ENABLE_PLAN_FEASIBILITY", False),
             ai_enable_composite_keys=_boolean(env, "AI_ENABLE_COMPOSITE_KEYS", False),
@@ -428,6 +450,9 @@ class Settings:
             raise ConfigError("AI_PROVIDER_SORT must be price, throughput or latency")
         if settings.ai_catalog_summary_in_prompt and not settings.catalog_database_url:
             raise ConfigError("AI_CATALOG_SUMMARY_IN_PROMPT needs CATALOG_DATABASE_URL")
+        if settings.ai_enable_result_store and not settings.ai_enable_conversation_reuse:
+            raise ConfigError("AI_ENABLE_RESULT_STORE requires AI_ENABLE_CONVERSATION_REUSE (and the conversation "
+                              "store): results are kept per server conversation")
         if settings.ai_enable_conversation_reuse and not settings.ai_enable_conversation_store:
             raise ConfigError("AI_ENABLE_CONVERSATION_REUSE needs AI_ENABLE_CONVERSATION_STORE")
         if settings.ai_audit_store_enabled:
