@@ -1,5 +1,20 @@
 # Railway changelog
 
+## 2026-10-03 — Round Phase A on dev: M68, tool envelope, AI_TOOLS.md
+
+Plan: `ROUND_PLAN_2026-10-03.md`, approved by the user 2026-10-03. CLI upload from the repository root of branch
+`claude/g2-g3-reactivation` at `24d8f55`; `main` untouched. AI_MODEL, AI_MODEL_2 and the switches are untouched.
+
+- **market-ai-orc `1ad568b7` `SUCCESS`:** M68 (data record shows the canonical scope values), the tool envelope code
+  (switch off at that point), `AI_TOOLS.md` generator and drift test. Tests: 1,093 passed locally.
+  - Startup events: `ai_model_selected`, `ai_mode_selected`, `mode4_active`; no `*_inactive` event.
+- **Variable `AI_ENABLE_TOOL_ENVELOPE=true`** (market-ai-orc, dev; not a secret).
+  - The automatic redeploy `8b522304` reached `SUCCESS`, with the same startup events.
+  - `railway config pull --force` added the name to `.railway/railway.ts`; `railway config plan`: up to date.
+- **Live check pending:** no model request was sent. The envelope and the M68 note are checked in the next golden test
+  (on the user's command).
+- **Rollback:** market-ai-orc `b3aaae90`, or `AI_ENABLE_TOOL_ENVELOPE=false`.
+
 ## 2026-10-02 — Golden test `ma-golden-20261002c` after HIGH ALERT steps 1–5; audit reader key revoked
 
 The user asked for the planned golden test and a before/after comparison. Results:
