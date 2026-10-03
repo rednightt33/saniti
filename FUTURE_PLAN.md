@@ -70,6 +70,70 @@ diambil ulang dari database, tetapi rencana dan definisinya tetap sama karena ad
 - *Antrean membuat jawaban lebih lama.* Ada batas tunggu, posisi antrean diumumkan, dan ada pesan jelas bila habis
   waktu.
 
+### R-STORE — tabel hasil tahan lama, ruang kerja sementara (masuk round ini, 2026-10-03; belum dijalankan)
+
+**Benchmark:**
+- [OpenAI Code Interpreter](https://developers.openai.com/api/docs/guides/tools-code-interpreter): ruang kerja
+  kedaluwarsa setelah 20 menit tidak dipakai, isinya dibuang, dan OpenAI menyarankan data disimpan di sistem sendiri.
+- [Claude code execution](https://platform.claude.com/docs/en/agents-and-tools/tool-use/code-execution-tool): setelah
+  sekitar 5 menit menganggur, ruang kerja di-checkpoint dan bisa dipulihkan sampai 30 hari.
+- Platform data besar (Databricks, Snowflake, BigQuery, QuantConnect): data tinggal di gudang, mesin hitung sementara,
+  dan yang disimpan lama adalah resep serta hasil kecil.
+
+**Kondisi sekarang:**
+
+| Barang | Disimpan di | Bertahan | Saat percakapan aktif lagi |
+|---|---|---|---|
+| Riwayat tanya-jawab | Postgres (orc) | 30 hari | Ke AI, hanya ±4.000 token terbaru (`AI_MAX_HISTORY_TOKENS`) |
+| Buku catatan | Postgres (orc) | 30 hari | Ke AI, maks. 8.000 karakter (`MAX_NOTE_CHARS`) |
+| Tabel hasil | Disk sandbox | 24 jam (`PY_SANDBOX_RESULT_RETENTION_HOURS`) | Lewat 24 jam hilang, harus dihitung ulang |
+| Data mentah (bundle) | Disk sandbox satu mesin | 24 jam | Lewat 24 jam diambil ulang; angka bisa bergeser karena data bertambah |
+| Memori sesi Python | Sandbox | 15 menit menganggur | Mulai kosong |
+
+**Kondisi ideal:**
+
+| Barang | Disimpan di | Bertahan | Saat percakapan aktif lagi |
+|---|---|---|---|
+| Riwayat | Postgres | Selama percakapan ada | Ke AI |
+| Buku catatan + resep lengkap (pesanan data, kode, **batas tanggal data**) | Postgres | Selama percakapan ada | Ke AI |
+| Tabel hasil | **Postgres** (tabel besar: file di bucket, alamatnya di Postgres) | Selama percakapan ada | Hanya tabel yang **dibuka AI** (`load_output`) dimuat ke sesi baru |
+| Data mentah | Cache bersama | Jam | Dipakai ulang, atau dibuat ulang dari resep dengan batas tanggal yang sama |
+| Memori sesi Python | Sandbox | Dilepas di akhir setiap jawaban | Mulai kosong |
+
+**Alur saat percakapan aktif lagi:**
+1. Orc mengambil riwayat dan buku catatan dari Postgres, lalu memberikannya ke AI. Keduanya tidak masuk ke sandbox.
+2. Kalau jawabannya sudah ada di catatan, AI menjawab tanpa sandbox.
+3. Kalau perlu hitung, sesi baru dibuka dalam keadaan kosong. Tabel lama yang dipanggil AI diambil dari Postgres; data
+   mentah diambil dari cache atau resep.
+4. Jawaban selesai: tabel baru disimpan ke Postgres, lalu sesi dilepas.
+
+**Tiga celah yang ikut ditutup:**
+- **Persetujuan basi.** Tiket rencana riset kedaluwarsa 1 jam (`AI_RESEARCH_PLAN_TTL_SECONDS`). Usulan: rencana yang
+  kedaluwarsa diajukan ulang otomatis dari catatan, dengan pesan "rencana ini dibuat kemarin, setujui ulang?".
+- **Ingatan percakapan panjang.** Giliran lama terbuang dari riwayat. Usulan: buku catatan wajib memuat ringkasan setiap
+  jawaban (angka utama + definisi), sehingga giliran lama tetap bisa dirujuk; AI tidak boleh menebak isi giliran yang
+  tidak terlihat.
+- **Angka bergeser.** Hitung ulang memakai batas tanggal data yang sama. Kalau user minta data terbaru, AI wajib
+  menyebut bahwa angkanya berbeda dari jawaban sebelumnya.
+
+**Hubungan dengan S28:** penyimpanan tahan lama membuat pelepasan ruang kerja di akhir setiap jawaban aman (tidak ada
+yang hilang). S28 tetap butuh tiga langkahnya sendiri (lepas di akhir jawaban, satu ruang aktif per jawaban, antrean).
+Untuk 100 pengguna bersamaan tetap perlu bagian 2.
+
+**Keputusan terbuka:**
+- batas ukuran tabel hasil di Postgres (usulan: 50.000 baris; lebih dari itu disimpan sebagai file di bucket);
+- bawaan saat user kembali: batas tanggal lama + tawaran hitung ulang dengan data terbaru.
+
+**Risiko dan mitigasi:**
+- *Biaya penyimpanan.* Batas ukuran per tabel, dan tabel dihapus bersama percakapan.
+- *Migrasi skema baru di Postgres.* Forward migration + catalog, sesuai AGENTS.md.
+- *Tabel lama di disk sandbox saat transisi.* Dibaca dari keduanya selama masa peralihan.
+
+**Verifikasi:**
+- tes lokal;
+- golden test baru: percakapan panjang dengan jeda lebih dari 24 jam (simulasi dengan memajukan waktu kedaluwarsa)
+  yang membuka tabel lama dan mendapat angka sama.
+
 ## 2. Masa depan: banyak pengguna bersamaan (contoh 100 orang)
 
 **Kondisi sekarang:**
