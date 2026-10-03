@@ -16,6 +16,7 @@ from .audit_outbox import build_payload, final_event, model_event, tool_event, u
 from . import data_record as records
 from . import definition_check
 from . import edit_repair
+from . import friction as kejedot
 from .catalog_protocol import CACHE_NOTE, CACHEABLE_TOOLS, CatalogLedger, cache_key, gaps, record
 from .compaction import dumps, estimate_tokens, stable_hash, trim_history
 from .config import Settings
@@ -1609,6 +1610,8 @@ class RunState:
     methodology_provenance: dict[str, Any] | None = None
     # Repair ledger: "tool:reason_code" -> rejections seen this run (bounded retries, see _repair_budget)
     repairs: dict[str, int] = field(default_factory=dict)
+    # the kejedot index (app/friction.py), counted as the run goes; gate_repairs is filled from gate_rejections
+    friction: dict[str, int] = field(default_factory=kejedot.empty)
     evidence_label: str | None = None
     # analysis_id -> the validator's evidence assessment (compact); warning codes the sandbox attached
     evidence: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -1985,6 +1988,7 @@ class AgentOrchestrator:
             total_tokens=state.total_tokens,
             duration_ms=result.execution.duration_ms,
             repair_ledger=state.repairs or None,
+            friction=self._friction(state),
         )
         log_event("ai_model_usage_summary", **self._usage_summary(state))
         if state.reuse or state.inherited:
@@ -2750,6 +2754,7 @@ class AgentOrchestrator:
                     tool=name, call_id=call_id, iteration=state.iterations, arguments=raw_arguments,
                     output=outcome.output, ok=outcome.ok, error_code=self._rejection_code(name, outcome),
                     duration_ms=duration_ms, occurred_at=self.wall_clock()))
+        kejedot.count_tool(state.friction, name, outcome, state.data_record)
         text = dumps(outcome.output)
         if getattr(self.settings, "ai_enable_tool_envelope", False):
             # ENV (round 2026-10-03): the model's view only; outcome.output stays what the gates read
@@ -4697,7 +4702,12 @@ class AgentOrchestrator:
             research_plan=self._plan_execution(state),
             analysis_path=AnalysisPathExecution(requested=state.forced_path, mismatches_refused=state.path_refusals)
             if state.forced_path else None,
+            friction=self._friction(state),
         )
+
+    @staticmethod
+    def _friction(state: RunState) -> dict[str, int]:
+        return {**state.friction, "gate_repairs": state.gate_rejections}
 
     @staticmethod
     def _plan_execution(state: RunState) -> ResearchPlanExecution | None:

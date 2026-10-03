@@ -68,8 +68,11 @@ def test_run_returns_deterministic_envelope(api: TestClient) -> None:
         "provider", "model", "provider_response_id", "iterations", "tool_call_count",
         "input_tokens", "output_tokens", "reasoning_tokens", "total_tokens", "cached_input_tokens",
         "cache_write_tokens", "cost", "duration_ms", "tools_withdrawn_reason", "analyses", "validation_gate", "number_provenance", "research",
-        "analysis_final_status", "research_plan", "methodology_provenance", "mode",
+        "analysis_final_status", "research_plan", "methodology_provenance", "mode", "friction",
     }
+    # the kejedot index (round 2026-10-03 D0): nothing hit a wall in this run
+    assert body["execution"]["friction"] == {"rejected_tool_calls": 0, "gate_repairs": 0, "repeated_data_orders": 0,
+                                             "capacity_refusals": 0}
     assert body["execution"]["tools_withdrawn_reason"] is None
     assert body["execution"]["analyses"] == [] and body["execution"]["validation_gate"] == "NOT_APPLICABLE"
     assert body["execution"]["research_plan"] is None

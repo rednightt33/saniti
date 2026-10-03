@@ -572,6 +572,8 @@ class ExecutionMetadata(BaseModel):
     analysis_path: AnalysisPathExecution | None = None
     # the mode switcher (app/modes.py): which mode answered; set by the API, omitted when not set
     mode: ModeExecution | None = None
+    # the kejedot index (app/friction.py): rejected tool calls, gate repairs, repeated data orders, capacity refusals
+    friction: dict[str, int] | None = None
 
     @model_serializer(mode="wrap")
     def _without_unused_path(self, handler: Any) -> Any:
@@ -579,7 +581,7 @@ class ExecutionMetadata(BaseModel):
         shape."""
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("analysis_path", "mode", "analysis_final_statuses"):
+            for key in ("analysis_path", "mode", "analysis_final_statuses", "friction"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data

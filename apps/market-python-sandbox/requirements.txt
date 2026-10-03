@@ -3,3 +3,5 @@ fastapi==0.116.1
 uvicorn==0.35.0
 pydantic==2.11.7
 httpx==0.28.1
+# D4 (round 2026-10-03): the harness writes XLSX downloads (POST /v1/stored-tables/export); not for analysis code
+openpyxl==3.1.5

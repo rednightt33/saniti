@@ -178,6 +178,33 @@ class ResultStore:
             raise RuntimeError("the stored table disappeared")
         return bytes(row["content"])
 
+    def output(self, conversation_id: str, output_id: str) -> StoredOutput | None:
+        """One stored output of this conversation (any format), or None; another conversation's never."""
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT output_id, name, format, byte_count, checksum_sha256, storage, object_key, label, definition, "
+                "units, lineage, data_as_of::text AS data_as_of, request_id, execution_id "
+                'FROM public."AI_conversation_output" WHERE conversation_id = %s AND output_id = %s',
+                (conversation_id, output_id)).fetchone()
+        return StoredOutput(**row) if row else None
+
+    def outputs_of_execution(self, conversation_id: str, execution_id: str) -> list[dict[str, Any]]:
+        """The outputs one execution released (a chart's tables), without content."""
+        with self._connect() as connection:
+            return connection.execute(
+                "SELECT output_id, name, output_type, format, row_count FROM public.\"AI_conversation_output\" "
+                "WHERE conversation_id = %s AND execution_id = %s ORDER BY created_at", (conversation_id,
+                                                                                       execution_id)).fetchall()
+
+    def execution(self, conversation_id: str, execution_id: str) -> dict[str, Any] | None:
+        """One stored execution of this conversation: code (as stored, at most 65,536 characters), its sha256 of the
+        whole code, modules, access (what it read) and status."""
+        with self._connect() as connection:
+            return connection.execute(
+                "SELECT execution_id, request_id, session_id, code, code_truncated, code_sha256, modules, access, "
+                'status, created_at::text AS created_at FROM public."AI_conversation_execution" '
+                "WHERE conversation_id = %s AND execution_id = %s", (conversation_id, execution_id)).fetchone()
+
     def object_keys(self, conversation_ids: list[str]) -> list[str]:
         """Bucket keys of these conversations (deleted before their rows by the conversation cleanup)."""
         if not conversation_ids:
@@ -186,6 +213,24 @@ class ResultStore:
             return [r["object_key"] for r in connection.execute(
                 'SELECT object_key FROM public."AI_conversation_output" WHERE conversation_id = ANY(%s) '
                 "AND object_key IS NOT NULL", (conversation_ids,)).fetchall()]
+
+
+def output_bytes(store: ResultStore | None, fetch: Callable[[str, str], bytes] | None, conversation_id: str | None,
+                 output_id: str, session_id: str | None) -> tuple[bytes, StoredOutput | None]:
+    """D0 (round 2026-10-03): the file of an output, from the sandbox while it still holds it, else from R-STORE
+    (Postgres or bucket). Used by get_session_output, export_result and get_evidence. Raises LookupError when neither
+    has it."""
+    if fetch is not None and session_id:
+        try:
+            return fetch(session_id, output_id), None
+        except Exception:  # noqa: BLE001 - the sandbox's copy expired or the session is gone: try the durable copy
+            pass
+    if store is None or not conversation_id:
+        raise LookupError("the output is no longer in the sandbox and results are not stored for this conversation")
+    stored = store.output(conversation_id, output_id)
+    if stored is None:
+        raise LookupError("the output is not stored for this conversation")
+    return store.content(conversation_id, stored), stored
 
 
 def _json(value: Any, kind: type = dict) -> Any:

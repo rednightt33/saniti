@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 import hmac
 import json
 import logging
@@ -14,7 +15,7 @@ from typing import Any
 
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import ValidationError
 
 from .config import Settings
@@ -24,6 +25,7 @@ from .event_study_validation import EVENT_STUDY_VERSION
 from .method_guides import GUIDES_SHA256, GUIDES_VERSION
 from .data_need import SPEC_VERSIONS
 from .sessions import RESTORE_VERSION, SESSION_RELEASE_VERSION, SessionError
+from . import stored_tables
 from .dataneed_store import DataNeedStore
 from .models import ANALYSIS_ID, REQUEST_ID, AnalysisRequest, RunReport
 from .outputs import CONTENT_TYPES
@@ -138,6 +140,11 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                 # R-STORE: GET .../outputs/{output_id}/file and POST /v1/sessions/{id}/carried
                 "result_store": {"enabled": dataneed is not None and settings.conversation_reuse,
                                  "version": RESTORE_VERSION, "restore_max_bytes": settings.restore_max_bytes},
+                # D0 (round 2026-10-03): POST /v1/stored-tables/{op} on a stored table uploaded by market-ai-orc
+                "stored_tables": {"enabled": dataneed is not None, "version": stored_tables.STORED_TABLES_VERSION,
+                                  "ops": list(stored_tables.OPS), "max_bytes": settings.restore_max_bytes,
+                                  "export_formats": list(stored_tables.EXPORT_FORMATS),
+                                  "export_max_bytes": stored_tables.EXPORT_MAX_BYTES},
                 # S28: POST /v1/requests/{request_id}/release, and how long opening a session waits for a slot
                 "session_release": {"enabled": dataneed is not None, "version": SESSION_RELEASE_VERSION,
                                     "open_wait_seconds": settings.open_wait_seconds},
@@ -447,6 +454,40 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                                            request_id, key, meta, data)
         except SessionError as exc:
             return session_error(exc)
+
+    @app.post("/v1/stored-tables/{op}", dependencies=dataneed_routes)
+    async def stored_table(op: str, request: Request, x_saniti_output_meta: str | None = Header(default=None)) -> Any:
+        """D0: page, export or recount a stored table without a session. The body is the stored file; its metadata
+        (format, checksum_sha256 and the operation's arguments) is base64url JSON in X-Saniti-Output-Meta."""
+        if op not in stored_tables.OPS:
+            raise HTTPException(status_code=404, detail="Unknown operation")
+        try:
+            meta = json.loads(base64.urlsafe_b64decode((x_saniti_output_meta or "").encode() + b"==="))
+            if not isinstance(meta, dict):
+                raise ValueError
+        except (ValueError, binascii.Error):
+            return invalid_body("the stored file with X-Saniti-Output-Meta: base64url JSON {format, checksum_sha256}")
+        data = await request.body()
+        if not data or len(data) > settings.restore_max_bytes:
+            return invalid_body(f"a file of at most {settings.restore_max_bytes} bytes")
+        try:
+            if op == "page":
+                return await run_in_threadpool(stored_tables.page, data, meta, int(meta.get("offset") or 0),
+                                               int(meta.get("limit") or 100))
+            if op == "recount":
+                return await run_in_threadpool(stored_tables.recount, data, meta)
+            body, mime, ext = await run_in_threadpool(stored_tables.export, data, meta)
+        except stored_tables.StoredTableError as exc:
+            content: dict[str, Any] = {"status": "REJECTED", "error": {"code": exc.code, "message": exc.message,
+                                                                        **exc.details}}
+            if exc.next_action:
+                content["next_action"] = exc.next_action
+            return JSONResponse(status_code=exc.http_status, content=content)
+        except (ValueError, TypeError, OSError) as exc:  # unreadable file (pyarrow raises ArrowInvalid, a ValueError)
+            return JSONResponse(status_code=422, content={"status": "REJECTED", "error": {
+                "code": "STORED_TABLE_UNREADABLE", "message": f"The file could not be read: {type(exc).__name__}."}})
+        return Response(content=body, media_type=mime, headers={
+            "X-Saniti-Checksum-Sha256": hashlib.sha256(body).hexdigest(), "X-Saniti-Extension": ext})
 
     @app.get("/v1/sessions/{session_id}/outputs/{output_id}", dependencies=dataneed_routes)
     def session_output(session_id: str, output_id: str, request_id: str = Query(..., max_length=128),
