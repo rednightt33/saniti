@@ -5,6 +5,8 @@ Kode masalah merujuk ke `ERRORS_AND_SOLUTIONS.md`; hasil uji ada di `GOLDEN_TEST
 
 ## 1. Antrean perbaikan dekat
 
+M68, S28 dan R-STORE sudah ditarik ke round 2026-10-03; urutan dan rinciannya di `ROUND_PLAN_2026-10-03.md`.
+
 ### M68 — catatan untuk AI kehilangan nilai saringan (HIGH ALERT, disetujui masuk rencana 2026-10-03)
 
 - **Masalah:**

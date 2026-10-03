@@ -356,7 +356,7 @@ dan S20 untuk rata-rata lintas saham.
 
 ## Langkah 7 — Perbaikan dari golden test `ma-golden-20261002c` (round ini; BELUM dijalankan, user masih menyeleksi solusi)
 
-Bukti dan diagnosis: `GOLDEN_TEST_HIGH_ALERT_2026-10-02.md` dan `ERRORS_AND_SOLUTIONS.md`. Isi round ini:
+Bukti dan diagnosis: `GOLDEN_TEST_HIGH_ALERT_2026-10-02.md` dan `ERRORS_AND_SOLUTIONS.md`. **Rencana round lengkap (urutan, alat baru, migrasi, flag, golden test): `ROUND_PLAN_2026-10-03.md`.** Isi round ini:
 
 | Kode | Status di plan | Rincian |
 |---|---|---|
