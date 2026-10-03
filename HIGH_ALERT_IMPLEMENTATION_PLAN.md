@@ -364,6 +364,7 @@ Bukti dan diagnosis: `GOLDEN_TEST_HIGH_ALERT_2026-10-02.md` dan `ERRORS_AND_SOLU
 | S28 + R-STORE | Disetujui masuk plan round ini | `FUTURE_PLAN.md` §1 (lepas ruang kerja di akhir jawaban, tabel hasil di Postgres) |
 | **M69** | Disetujui, kedua tahap (2026-10-03) | 7a di bawah |
 | **P26** | Disetujui (2026-10-03) | 7b di bawah |
+| **G19** | Disetujui, tiga lapis (2026-10-03) | 7c di bawah |
 
 ### 7a. M69 — aturan sukses user mengikat semua jalur riset (HIGH ALERT H2)
 
@@ -454,6 +455,76 @@ return, dan nanti suku bunga atau inflasi (persen vs basis poin) di data makro.
 
 **Verifikasi:** tes konversi (0,03 DECIMAL = 3 PERCENT = 300 BASIS_POINT); rencana g6 dengan satuan bercampur
 menghasilkan rekomendasi sampel yang wajar (±1.487, seperti run sebelumnya).
+
+### 7c. G19 — riset perbandingan kelompok mendapat data kosong (HIGH ALERT)
+
+**Akar masalah (terverifikasi 2026-10-03):**
+- Perencana riset multi-sudut menggabungkan pesanan data yang "sama" dari beberapa sudut
+  (`apps/market-ai-orc/app/tools/research_planner.py` `_key`/`_merge`/`_group_spec`).
+- Kunci "sama" hanya memasukkan sambungan INNER di mana pesanan berada di sisi kiri. Pesanan transaksi broker dan harga
+  berada di sisi kanan sambungan ke daftar saham (relasi 17 dan 2).
+- Akibatnya, pesanan sudut BUMN dan non-BUMN digabung menjadi satu dan membawa kedua syarat sekaligus. Governor
+  menggabungkan syarat dengan AND (`compile_extraction`), jadi hasilnya 0 baris.
+- Bukti:
+  - reproduksi lokal dengan kode perencana;
+  - log Governor (`mar6249eb4d_g1_A`/`_C`, `mard9a11af6_g1_A`/`_C` = 0; daftar saham 4/46/42 ada isinya);
+  - pikiran AI giliran 7 ("it might fail again").
+- Cek kelayakan sudah menghitung 0 baris, tetapi tetap menjawab FEASIBLE; bundle tetap READY / coverage PASS.
+
+**Kelas masalah:**
+- Kunci penggabungan yang melewatkan parameter yang mengubah isi data. Ini berlaku untuk setiap riset yang
+  membandingkan kelompok lewat tabel yang disambung: BUMN vs non-BUMN, sektor, ukuran, papan/investor, dan negara di
+  data makro.
+- Risikonya naik seiring jumlah kelompok (4, 20 kriteria).
+
+**Perbaikan (tiga lapis, semuanya permanen):**
+1. **Kunci penggabungan lengkap.**
+   - `_key` memasukkan setiap sambungan INNER yang menyentuh pesanan, di sisi kiri maupun kanan, beserta kunci
+     pesanan di seberangnya (rekursif, dengan penjaga siklus).
+   - Pesanan hanya digabung bila semua syarat yang mengubah barisnya identik.
+   - Tes: dua sudut BUMN/non-BUMN menghasilkan pesanan terpisah; 20 kelompok tidak pernah menghasilkan syarat yang
+     saling bertentangan.
+2. **Pola "ambil sekali, beri label" untuk perbandingan kelompok.**
+   - Kelompok yang berbeda di atas tabel yang sama dilayani oleh satu pesanan untuk gabungannya (misalnya semua
+     bank).
+   - Ciri kelompok dibawa sebagai kolom label dari daftar saham, lalu mesin riset membagi data menurut label
+     (cohort/regime comparison sudah bekerja dengan label).
+   - Hasilnya, jumlah pesanan tetap (±3) untuk 2 maupun 20 kelompok.
+   - Perencana menulis ulang pesanan per kelompok menjadi pola ini bila sumber dan sambungannya sama. Buku panduan
+     metode `multi_angle` dan pesan kelayakan mengarahkan AI ke pola ini.
+   - Ciri kelompok yang belum menjadi kolom (contoh: BUMN, kini tersirat dari nama perusahaan) didaftarkan di katalog
+     sebagai kolom resmi, misalnya `is_state_owned`, lewat forward migration + Column_Catalog. Keputusan nama dan
+     sumber kolom dikonfirmasi ke user sebelum memuat data. Ini sekaligus menutup definisi "bank BUMN" yang
+     berubah-ubah (M66).
+3. **Pengaman data kosong.**
+   - Cek kelayakan menolak rencana bila Governor menghitung 0 baris untuk pesanan yang wajib dipakai sudut, dengan
+     pesan yang menyebut pesanannya.
+   - Bundle yang tetap kosong menghentikan riset sebelum sudut dijalankan, dengan status `EMPTY_INPUT`, bukan
+     INSUFFICIENT_EVIDENCE.
+   - Data yang memang wajar kosong ("broker X tidak pernah beli saham Y") dilaporkan sebagai temuan, bukan ditolak
+     diam-diam.
+   - Audit menyimpan argumen alat secara utuh (sekarang terpotong 2.018 karakter), supaya penyebab kosong di masa depan
+     bisa dibaca balik.
+
+**Benchmark:**
+- Kunci cache/deduplikasi harus mencakup semua parameter yang mengubah hasil (cache query BI, dedup pipeline data).
+- `GROUP BY` / `groupby` dan panel berlabel di riset kuant untuk perbandingan kelompok.
+- Gerbang "row count > 0" ala Great Expectations / dbt tests.
+
+**Risiko dan mitigasi:**
+- *Pesanan gabungan lebih besar.* Batas ukuran tetap berlaku; dipecah per tanggal, bukan per kelompok.
+- *Ciri kelompok belum ada sebagai kolom.* Didaftarkan di katalog lewat migrasi, dikonfirmasi user.
+- *Pengaman kosong menolak kasus yang wajar.* Hanya berlaku untuk pesanan wajib, dan pesannya mengarahkan ke temuan
+  "tidak ada transaksi".
+
+**Cakupan:**
+- Tertutup: (a) BUMN vs non-BUMN; (b) 4 sektor sekaligus; (c) kode broker salah tulis (lapis 3).
+- Tidak tertutup: data yang tidak kosong tetapi terlalu sedikit, yang ditangani aturan ukuran sampel yang ada.
+
+**Verifikasi:**
+- Tes perencana: 2, 4 dan 20 kelompok. Jumlah baris per kelompok sama dengan baris gabungan, dan tidak ada kelompok yang
+  kosong tanpa alasan.
+- Golden test g5 giliran 5–8: data RB dan harga terisi, sudut BUMN dan non-BUMN mendapat hasil.
 
 ## Migrasi dan catatan
 
