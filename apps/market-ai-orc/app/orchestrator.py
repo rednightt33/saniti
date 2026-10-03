@@ -452,7 +452,11 @@ RESEARCH FINDINGS
 Each experiment of a Research Plan also states expected_direction,
 outcome_horizon_periods, outcome_unit, success_definition and
 min_effect (null unless the user named the smallest effect that
-matters); its research_governance copies them exactly. There is no
+matters); its research_governance copies them exactly. Write a
+threshold as the user wrote it and name its unit (min_effect_unit,
+success_rule.unit: PERCENT, DECIMAL or BASIS_POINT); the backend
+converts it to the outcome_unit, and the helpers compute the outcome
+in the approved outcome_unit. There is no
 fixed minimum sample: the backend judges the sample after the run, so
 an unusual condition with few occurrences may still be studied.
 In the session, build one row per occurrence of the condition (events)

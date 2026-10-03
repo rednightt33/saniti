@@ -43,6 +43,40 @@ def parameters(constraints: dict[str, Any]) -> dict[str, Any]:
             "multiple_testing_policy": constraints.get("multiple_testing_policy") or "NONE"}
 
 
+# P26 (golden g6 2026-10-02): the plan's outcome unit was DECIMAL and the outcomes were percent, so a decimal smallest
+# effect was compared with a percent minimum detectable effect. An outcome is a return in the approved unit; a return
+# whose root mean square is above one whole (100 %) per outcome is not a fraction (the bound of
+# research_inputs.outcome_problem). A percent series with very small moves is not detected by this bound.
+DECIMAL_RMS_LIMIT = 1.0
+
+
+def unit_problem(table, outcome_unit: str, outputs: list[dict[str, Any]], outputs_root: Path,
+                 hypothesis: str) -> str | None:
+    """A reason when the released outcomes are not in the approved outcome unit, else None."""
+    import math
+
+    summaries = [o for o in outputs if o.get("name") == f"research_summary_{hypothesis}"]
+    if summaries:
+        try:
+            built = json.loads((outputs_root / summaries[-1]["relative_path"]).read_text(encoding="utf-8")
+                               ).get("parameters", {}).get("outcome_unit")
+        except (OSError, ValueError, AttributeError):
+            built = None
+        if built and built != outcome_unit:
+            return (f"The approved outcome unit is {outcome_unit}, but research_events_{hypothesis} was built with "
+                    f"outcome_unit {built}. Call event_summary (and event_study) again without outcome_unit: they use "
+                    "the approved unit.")
+    rows = float(table["n"].sum())
+    if outcome_unit == "DECIMAL" and rows > 0:
+        rms = math.sqrt(max(float(table["total_sq"].sum()), 0.0) / rows)
+        if rms > DECIMAL_RMS_LIMIT:
+            return (f"The approved outcome unit is DECIMAL (a fraction: 0.03 is three percent), but the released "
+                    f"outcomes have a root mean square of {rms:.4g}, a move of more than 100 % per outcome: they look "
+                    "like percent. Compute the outcome as a fraction (event_study uses the approved unit when "
+                    "outcome_unit is unset), or revise the Research Plan to outcome_unit PERCENT.")
+    return None
+
+
 def evaluate(constraints: dict[str, Any], outputs: list[dict[str, Any]], outputs_root: Path) -> dict[str, Any]:
     """{"status": "OK", "finding": {...}} or {"status": "MISSING" | "INVALID", "message": ...}.
     outputs: this epoch's outputs of successful executions, in order (the last matching one counts)."""
@@ -69,6 +103,9 @@ def evaluate(constraints: dict[str, Any], outputs: list[dict[str, Any]], outputs
                 or (table["k"] > table["m"]).any():
             raise ValueError("unexpected groups or counts")
         params = parameters(constraints)
+        problem = unit_problem(table, params["outcome_unit"], outputs, outputs_root, hypothesis)
+        if problem:
+            return {"status": "INVALID", "message": problem}
         summary = stats.summarize(table, **params)
     except Exception as exc:  # noqa: BLE001 - a malformed table is reported, never trusted
         return {"status": "INVALID", "message": f"{wanted} could not be evaluated ({type(exc).__name__}: "

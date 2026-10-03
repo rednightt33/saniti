@@ -199,3 +199,35 @@ def test_a_summary_built_with_another_rule_is_invalid(ruled) -> None:
     result = complete(ruled)
     assert result["status"] == "INCOMPLETE" and result["research_findings_status"] == "INVALID"
     assert "approved success rule is outcome >= 0.5" in result["message"]
+
+
+@pytest.fixture
+def decimal(make_service, governor):
+    """P26: a hypothesis plan whose outcome unit is DECIMAL."""
+    governor.catalog = data_need_catalog()
+    service = make_service(start=False, PY_SANDBOX_DATANEED_ENABLED="true",
+                           PY_SANDBOX_RESEARCH_FINDINGS_ENABLED="true")
+    client = TestClient(create_app(service.settings, service=service, run_workers=False))
+    env = {"api": client, "governor": governor, "dataneed": client.app.state.dataneed, "service": service}
+    body = {"request_id": "req_bundle_1", "reference_time": REFERENCE, "timezone": "Asia/Jakarta",
+            "spec": ytd_spec(mode="RESEARCH"), "research_governance": {**GOVERNANCE, "outcome_unit": "DECIMAL"}}
+    result = client.post("/v1/data-needs", json=body, headers=HEADERS).json()
+    assert result["status"] == "APPROVED", result
+    need = env["dataneed"].get_need(result["need_id"])
+    bundle = build(env, need, ytd_parts(env, need)).json()
+    opened = client.post("/v1/sessions", json={"request_id": "req_bundle_1", "bundle_id": bundle["input_bundle_id"]},
+                         headers=HEADERS)
+    env.update(need=need, session_id=opened.json()["session_id"])
+    yield env
+    env["dataneed"].sessions.stop()
+
+
+def test_the_helpers_use_the_approved_outcome_unit(decimal) -> None:
+    """P26 (golden g6 2026-10-02): event_summary defaulted to PERCENT under a DECIMAL plan. It now takes the
+    approved unit and refuses another one."""
+    other = run(decimal, CODE.replace("date_column='date')", "date_column='date', outcome_unit='PERCENT')"))
+    assert other["status"] == "SCRIPT_ERROR" and "approved outcome unit is DECIMAL" in other["message"]
+    body = run(decimal, CODE.replace("* 100", "") + "print('UNIT', result['parameters']['outcome_unit'])")
+    assert body["status"] == "OK", body
+    assert "UNIT DECIMAL" in body.get("stdout", "")
+    assert complete(decimal)["status"] == "COMPLETED"

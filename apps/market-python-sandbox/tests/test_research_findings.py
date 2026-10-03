@@ -218,3 +218,40 @@ def test_the_runtime_and_the_backend_compute_the_same_numbers(tmp_path) -> None:
     assert backend["verdict"] == direct["verdict"]
     assert math.isclose(backend["angle_a"]["difference"], direct["angle_a"]["difference"])
     assert math.isclose(backend["sample"]["minimum_detectable_effect"], direct["sample"]["minimum_detectable_effect"])
+
+
+# ------------------------------------------------------------------------------------------ P26 units
+
+def test_the_same_data_in_percent_or_decimal_gives_the_same_judgement() -> None:
+    """P26 (golden g6): a smallest effect of one point is 1.0 for percent outcomes and 0.01 for decimal outcomes; the
+    recommended sample is the same, not 10,000 times larger."""
+    events, base = frames(184, effect=0.7, sd=7.0)
+    percent = summary(events, base, outcome_unit="PERCENT", min_effect=1.0, horizon_periods=1)
+    events_d, base_d = events.assign(ret=events["ret"] / 100), base.assign(ret=base["ret"] / 100)
+    decimal = summary(events_d, base_d, outcome_unit="DECIMAL", min_effect=0.01, horizon_periods=1)
+    assert percent["sample"]["recommended_effective_per_group"] == decimal["sample"]["recommended_effective_per_group"]
+    assert percent["sample"]["flag"] == decimal["sample"]["flag"] and percent["verdict"] == decimal["verdict"]
+    mixed = summary(events, base, outcome_unit="DECIMAL", min_effect=0.01, horizon_periods=1)  # the g6 mistake
+    assert mixed["sample"]["recommended_effective_per_group"] > 1000 * percent["sample"]["recommended_effective_per_group"]
+
+
+def test_percent_outcomes_under_a_decimal_plan_are_invalid(tmp_path) -> None:
+    events, base = frames(120, effect=0.7, sd=7.0)  # ten-day returns in percent, as in g6
+    output = write(tmp_path, "research_events_gap_down", rs.aggregate(events, base, "ret", "date"))
+    result = evaluate(constraints(outcome_unit="DECIMAL", min_effect=0.01), [output], tmp_path)
+    assert result["status"] == "INVALID" and "look like percent" in result["message"]
+    events_d, base_d = events.assign(ret=events["ret"] / 100), base.assign(ret=base["ret"] / 100)
+    output = write(tmp_path, "research_events_gap_down", rs.aggregate(events_d, base_d, "ret", "date"))
+    assert evaluate(constraints(outcome_unit="DECIMAL", min_effect=0.01), [output], tmp_path)["status"] == "OK"
+
+
+def test_a_summary_built_in_another_unit_is_invalid(tmp_path) -> None:
+    import json
+
+    events, base = frames(60, effect=0.01, sd=0.02)
+    table = write(tmp_path, "research_events_gap_down", rs.aggregate(events, base, "ret", "date"))
+    built = rs.summarize(rs.aggregate(events, base, "ret", "date"), outcome_unit="PERCENT")
+    (tmp_path / "sess" / "summary.json").write_text(json.dumps(built, default=str), encoding="utf-8")
+    summary_output = {"name": "research_summary_gap_down", "format": "JSON", "relative_path": "sess/summary.json"}
+    result = evaluate(constraints(outcome_unit="DECIMAL"), [table, summary_output], tmp_path)
+    assert result["status"] == "INVALID" and "built with outcome_unit PERCENT" in result["message"]

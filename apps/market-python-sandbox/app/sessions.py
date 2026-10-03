@@ -226,8 +226,9 @@ HELPERS = ["requests()", "manifest()", "quality(request)", "load(request, column
            "resample(frame, request, frequency=None)",
            "period_return(request, range_id, value_column='close', entity_column=None, date_column=None)",
            "event_study(request, event, outcome, horizon, *, range_id=None, overlap_policy='NON_OVERLAPPING', "
-           "baseline='ALL_ELIGIBLE', min_events=None, holdout_start=None, outcome_unit='PERCENT', name=None) "
-           "(recomputed by the backend at complete_analysis)",
+           "baseline='ALL_ELIGIBLE', min_events=None, holdout_start=None, outcome_unit=None, name=None) "
+           "(recomputed by the backend at complete_analysis; outcome_unit is the approved experiment's in a research "
+           "session, else PERCENT)",
            "insufficient_data(request, range_id=None, value=None, unit='TRADING_OBSERVATIONS', "
            "requirement_type='ADDITIONAL_HISTORY', reason='')", "intermediate_path(name)",
            "emit_table(name, frame, description='', units=None, definition=None) (definition required to release: "

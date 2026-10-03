@@ -144,7 +144,8 @@ GUIDES: list[dict[str, Any]] = [
                                  "the study.", of="event_study", default=None),
             _input("holdout_start", "A date YYYY-MM-DD: adds IN_SAMPLE and OUT_OF_SAMPLE rows.", of="event_study",
                    default=None),
-            _input("outcome_unit", "PERCENT or DECIMAL.", of="event_study", default="PERCENT"),
+            _input("outcome_unit", "PERCENT or DECIMAL; leave unset in a research session (the approved experiment's unit "
+                                   "is used, a different one is refused).", of="event_study", default=None),
             _input("name", "The output name (event_study_<n> when omitted).", of="event_study", default=None)],
         "limits": ["One row per entity and date (DUPLICATE_ENTITY_DATE otherwise).",
                    "Ranges of the request may not overlap (RANGES_OVERLAP); choose one with range_id.",
@@ -197,7 +198,8 @@ GUIDES: list[dict[str, Any]] = [
             _input("experiments", "One to four, each with hypothesis_id, hypothesis, objective, condition, outcome, "
                                   "baseline, candidate_count, pairwise_comparisons, multiple_testing_policy, "
                                   "holdout_required, minimum sample, expected_direction, outcome_horizon_periods, "
-                                  "outcome_unit, success_definition and min_effect."),
+                                  "outcome_unit, success_definition and min_effect (each threshold as the user wrote it, with its "
+                                  "unit: min_effect_unit, success_rule.unit)."),
             _input("events", "One row per occurrence of the condition with its outcome and date (your code, or an "
                              "event study's events frame).", of="event_summary"),
             _input("baseline", "The comparison rows with outcome and date (your code, or an event study's baseline "
@@ -212,7 +214,8 @@ GUIDES: list[dict[str, Any]] = [
                    of="event_summary", default=None),
             _input("horizon_periods", "Periods one outcome spans (overlapping outcomes count once).",
                    of="event_summary", default=1),
-            _input("outcome_unit", "PERCENT, DECIMAL or OTHER.", of="event_summary", default="PERCENT"),
+            _input("outcome_unit", "Leave unset: the approved experiment's outcome_unit is used (a different one is "
+                                   "refused).", of="event_summary", default=None),
             _input("expected_direction", "HIGHER, LOWER or DIFFERENT.", of="event_summary", default="HIGHER"),
             _input("min_effect", "The smallest effect that matters, when the user named one.", of="event_summary",
                    default=None),

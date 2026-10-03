@@ -443,9 +443,22 @@ def relation(request: str):
 EVENT_STUDY_COUNT = [0]
 
 
+def _approved_unit(outcome_unit: str | None) -> str:
+    """P26 (golden g6 2026-10-02): the outcome's unit is the approved experiment's, not a default. The plan said
+    DECIMAL, event_study computed percent by default, and the backend compared a percent minimum detectable effect
+    with a decimal smallest effect. Without an approved research experiment the default stays PERCENT."""
+    approved = _FINDINGS_V1.get("outcome_unit")
+    if approved in ("PERCENT", "DECIMAL"):
+        if outcome_unit is not None and outcome_unit != approved:
+            raise SanitiError(f"The approved outcome unit is {approved}; leave outcome_unit unset (the helpers use the "
+                              f"approved unit) instead of {outcome_unit!r}. To change it, revise the Research Plan.")
+        return approved
+    return outcome_unit or "PERCENT"
+
+
 def event_study(request: str, event: str, outcome: dict[str, Any], horizon: int, *, range_id: str | None = None,
                 overlap_policy: str = "NON_OVERLAPPING", baseline: str = "ALL_ELIGIBLE", min_events: int | None = None,
-                holdout_start: str | None = None, outcome_unit: str = "PERCENT", name: str | None = None
+                holdout_start: str | None = None, outcome_unit: str | None = None, name: str | None = None
                 ) -> dict[str, Any]:
     """Event study (G2): the outcome `horizon` observations after each event against a baseline, computed from a
     declaration so the backend recomputes it independently at complete_analysis (CALCULATION_VERIFIED when it matches).
@@ -473,6 +486,7 @@ def event_study(request: str, event: str, outcome: dict[str, Any], horizon: int,
     if not isinstance(outcome, dict) or "forward_return" not in outcome:
         raise SanitiError("outcome is {'forward_return': '<price column>'} (with 'request': '<data request id>' when "
                           "the price is in another request).")
+    outcome_unit = _approved_unit(outcome_unit)
     if outcome_unit not in ("PERCENT", "DECIMAL"):
         raise SanitiError("outcome_unit is PERCENT or DECIMAL.")
     try:
@@ -972,7 +986,7 @@ def resampled_returns(frame, request: str, value_column: str = "close"):
 
 def event_summary(events, baseline, *, hypothesis_id: str, outcome_column: str, date_column: str,
                   success_column: str | None = None, success_above: float | None = None, horizon_periods: int = 1,
-                  outcome_unit: str = "PERCENT", expected_direction: str = "HIGHER", min_effect: float | None = None,
+                  outcome_unit: str | None = None, expected_direction: str = "HIGHER", min_effect: float | None = None,
                   comparisons: int = 1, multiple_testing_policy: str = "NONE") -> dict[str, Any]:
     """The research findings of one condition -> outcome experiment (research_stats version 1).
 
@@ -992,6 +1006,7 @@ def event_summary(events, baseline, *, hypothesis_id: str, outcome_column: str, 
 
     if not isinstance(hypothesis_id, str) or not _re.fullmatch(r"[a-z][a-z0-9_]{0,39}", hypothesis_id):
         raise SanitiError("hypothesis_id is the approved experiment's hypothesis_id (lower-case letters, digits, _).")
+    outcome_unit = _approved_unit(outcome_unit)
     rule = _FINDINGS_V1.get("success_rule") if isinstance(_FINDINGS_V1.get("success_rule"), dict) else None
     if rule is not None:
         shown = f"outcome {rule['operator']} {rule['value']}"

@@ -37,6 +37,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer, model_validator
 
+from .units import ThresholdUnit, UnitError, in_outcome_unit
+
 PLAN_VERSION = "research_plan/v1"
 TOKEN_VERSION = "rpc1"
 TOKEN_KIND = "RESEARCH_PLAN"
@@ -152,7 +154,19 @@ class SuccessRule(Strict):
 
     operator: Literal[">=", ">", "<=", "<"] = Field(description="How the outcome is compared with value.")
     value: float = Field(ge=-1_000_000_000, le=1_000_000_000,
-                         description="The threshold in the outcome's unit, from the user's own words.")
+                         description="The threshold as the user wrote it.")
+    unit: ThresholdUnit | None = Field(
+        description="P26: the unit of value as the user wrote it (PERCENT for a percent, DECIMAL for a fraction, "
+                    "BASIS_POINT for basis points); the backend converts it to the outcome's unit. Null means the "
+                    "outcome's unit.")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _unit_absent_is_null(cls, data: Any) -> Any:
+        """A rule written before P26 has no unit: the outcome's unit."""
+        if isinstance(data, dict) and "unit" not in data:
+            return {**data, "unit": None}
+        return data
 
 
 class ResearchExperimentFindings(ResearchExperiment):
@@ -173,8 +187,11 @@ class ResearchExperimentFindings(ResearchExperiment):
                     "example: the forward return is above zero.")
     min_effect: float | None = Field(
         gt=0, le=1_000_000_000,
-        description="The smallest effect worth knowing, in the outcome's unit, only when the user named one; "
+        description="The smallest effect worth knowing, as the user wrote it, only when the user named one; "
                     "otherwise null (the backend then uses a round-trip trading cost for returns).")
+    min_effect_unit: ThresholdUnit | None = Field(
+        description="P26: the unit of min_effect as the user wrote it (PERCENT, DECIMAL or BASIS_POINT; a percentage "
+                    "point is PERCENT); the backend converts it to the outcome's unit. Null means the outcome's unit.")
     success_rule: SuccessRule | None = Field(
         description="The success threshold as a number when the user named one (for example rises at least three "
                     "percent: operator >= and value three, in the outcome's unit); the engine applies it and the "
@@ -186,8 +203,27 @@ class ResearchExperimentFindings(ResearchExperiment):
     def _success_rule_absent_is_null(cls, data: Any) -> Any:
         """The strict schema lists success_rule as required (nullable); a plan written before it reads as null."""
         if isinstance(data, dict) and "success_rule" not in data:
-            return {**data, "success_rule": None}
+            data = {**data, "success_rule": None}
+        if isinstance(data, dict) and "min_effect_unit" not in data:
+            data = {**data, "min_effect_unit": None}
         return data
+
+    @model_validator(mode="after")
+    def _thresholds_convert(self) -> "ResearchExperimentFindings":
+        """P26: every threshold can be expressed in the outcome's unit (the message carries the numbers)."""
+        try:
+            self.thresholds()
+        except UnitError as exc:
+            raise ValueError(str(exc)) from None
+        return self
+
+    def thresholds(self) -> dict[str, Any]:
+        """min_effect and success_rule in the outcome's unit: what the engine compares with the outcome."""
+        rule = self.success_rule
+        return {"min_effect": in_outcome_unit(self.min_effect, self.min_effect_unit, self.outcome_unit, "min_effect"),
+                "success_rule": None if rule is None else {
+                    "operator": rule.operator,
+                    "value": in_outcome_unit(rule.value, rule.unit, self.outcome_unit, "success_rule.value")}}
 
     @field_validator("success_definition")
     @classmethod
@@ -483,6 +519,15 @@ def _issue(experiment: ResearchExperiment, field: str, rule: str, approved: Any,
             "submitted_value": submitted}
 
 
+def _same_number(submitted: Any, *approved: float | None) -> bool:
+    """submitted equals one of the approved forms (None only for None; floats within a relative 1e-9)."""
+    if submitted is None or isinstance(submitted, bool):
+        return submitted is None and all(a is None for a in approved)
+    if not isinstance(submitted, int | float):
+        return False
+    return any(a is not None and abs(float(submitted) - a) <= 1e-9 * max(1.0, abs(a)) for a in approved)
+
+
 def match_governance(governance: dict[str, Any] | None, plan: ResearchPlan, plan_id: str | None = None
                      ) -> dict[str, Any] | None:
     """None when the declaration is covered by an approved experiment; otherwise the structured rejection.
@@ -534,14 +579,22 @@ def match_governance(governance: dict[str, Any] | None, plan: ResearchPlan, plan
         if not isinstance(submitted, str) or normalize_text(submitted) != normalize_text(experiment.success_definition):
             issues.append(_issue(experiment, "success_definition", "EXACT_MATCH", experiment.success_definition,
                                  submitted))
-        if governance.get("min_effect") != experiment.min_effect:
+        # P26: the threshold as the plan wrote it or already in the outcome's unit; either way the sandbox receives
+        # it in the outcome's unit (governance is rewritten below once nothing else differs)
+        converted = experiment.thresholds()
+        if not _same_number(governance.get("min_effect"), experiment.min_effect, converted["min_effect"]):
             issues.append(_issue(experiment, "min_effect", "EXACT_MATCH", experiment.min_effect,
                                  governance.get("min_effect")))
-        approved_rule = experiment.success_rule.model_dump() if experiment.success_rule is not None else None
+        rule = experiment.success_rule
+        approved_rule = None if rule is None else {"operator": rule.operator, "value": rule.value}
         submitted_rule = governance.get("success_rule")
-        if (approved_rule or None) != (submitted_rule or None):
+        if (approved_rule is None) != (not submitted_rule) or (approved_rule is not None and (
+                not isinstance(submitted_rule, dict) or submitted_rule.get("operator") != rule.operator
+                or not _same_number(submitted_rule.get("value"), rule.value, converted["success_rule"]["value"]))):
             issues.append(_issue(experiment, "success_rule", "EXACT_MATCH", approved_rule, submitted_rule))
     if not issues:
+        if isinstance(experiment, ResearchExperimentFindings):
+            governance.update(experiment.thresholds())
         return None
     return rejection("RESEARCH_PLAN_MISMATCH", "The research declaration differs from its approved experiment. Resubmit "
                      "with the approved values (fewer candidates or comparisons, a larger minimum sample in the same "

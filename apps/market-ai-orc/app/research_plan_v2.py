@@ -30,6 +30,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from . import research_library
+from .units import ThresholdUnit, UnitError, in_outcome_unit
 from .research_plan import (CLOCK_SKEW_SECONDS, IDENTIFIER, MAX_TTL_SECONDS, PLAN_ID, SHA256, TOKEN_KIND, Action,
                             CarriedInputs, PlanVerificationError, _b64decode, _b64encode, _no_code, _no_duplicates,
                             _utc, canonical_json, normalize_text)
@@ -272,8 +273,12 @@ class ResearchAngle(Strict):
                                                       "or below the comparator; DIFFERENT when it names no direction.")
     outcome_horizon_periods: int = Field(ge=1, le=260, description="Analysis periods one outcome spans.")
     outcome_unit: OutcomeUnit
-    min_effect: float | None = Field(gt=0, le=1_000_000_000, description="The smallest effect worth knowing, only "
-                                                                         "when the user named one; else null.")
+    min_effect: float | None = Field(gt=0, le=1_000_000_000, description="The smallest effect worth knowing, as the "
+                                                                         "user wrote it, only when the user named "
+                                                                         "one; else null.")
+    min_effect_unit: ThresholdUnit | None = Field(
+        description="P26: the unit of min_effect as the user wrote it (PERCENT, DECIMAL or BASIS_POINT); the backend "
+                    "converts it to the outcome's unit. Null means the outcome's unit.")
     parameters: AngleParameters
     candidate_count: int = Field(ge=1, le=MAX_CANDIDATES_PER_ANGLE,
                                  description="Thresholds, lags, lengths or conditions evaluated inside this angle.")
@@ -297,7 +302,13 @@ class ResearchAngle(Strict):
             used = USES[data["method_id"]]
             data = {**data, "parameters": {key: (value if key in used else None)
                                            for key, value in data["parameters"].items()}}
+        if isinstance(data, dict) and "min_effect_unit" not in data:
+            data = {**data, "min_effect_unit": None}  # a plan written before P26: the outcome's unit
         return data
+
+    def min_effect_in_outcome_unit(self) -> float | None:
+        """P26: min_effect in the outcome's unit, what the engines compare with the outcome."""
+        return in_outcome_unit(self.min_effect, self.min_effect_unit, self.outcome_unit, "min_effect")
 
     @field_validator("title", "angle_question", "objective", "condition", "outcome", "baseline_or_comparator",
                      "why_distinct")
@@ -311,6 +322,10 @@ class ResearchAngle(Strict):
     def _consistent(self) -> "ResearchAngle":
         if METHODS[self.method_id] != self.method_family:
             raise ValueError(f"{self.method_id} belongs to method_family {METHODS[self.method_id]}")
+        try:
+            self.min_effect_in_outcome_unit()
+        except UnitError as exc:
+            raise ValueError(str(exc)) from None
         if (self.minimum_sample_value is None) != (self.minimum_sample_unit is None):
             raise ValueError("minimum_sample_value and minimum_sample_unit are both set or both null")
         if self.multiple_testing_policy == "NONE" and max(self.candidate_count, self.pairwise_comparisons) > 1:
@@ -549,7 +564,8 @@ def governance_v2(verified: VerifiedPlanV2) -> dict[str, Any]:
             "method_family": angle.method_family, "angle_signature": angle.signature(), "condition": angle.condition,
             "outcome": angle.outcome, "baseline_or_comparator": angle.baseline_or_comparator,
             "expected_direction": angle.expected_direction, "outcome_horizon_periods": angle.outcome_horizon_periods,
-            "outcome_unit": angle.outcome_unit, "min_effect": angle.min_effect, "parameters": dumped["parameters"],
+            "outcome_unit": angle.outcome_unit, "min_effect": angle.min_effect_in_outcome_unit(),
+            "parameters": dumped["parameters"],
             "candidate_count": angle.candidate_count, "pairwise_comparisons": angle.pairwise_comparisons,
             "multiple_testing_policy": angle.multiple_testing_policy, "holdout_required": angle.holdout_required,
             "minimum_sample": {"value": angle.minimum_sample_value, "unit": angle.minimum_sample_unit}
