@@ -276,6 +276,27 @@ class GovernorClient:
             raise ToolError("The SQL Governor returned an invalid response.")
         return result
 
+    def summary(self, spec: dict[str, Any], lineage: dict[str, Any], timeout: float | None = None) -> dict[str, Any]:
+        """G18 phase 2 (round 2026-10-03 D5): POST /v1/summary, a summary over a period (at most 200 rows)."""
+        request_id = current_request_id.get() or f"orc-{uuid.uuid4().hex[:16]}"
+        try:
+            response = self._client.post("/v1/summary", json={"request_id": request_id, "summary": spec,
+                                                             "lineage": lineage},
+                                         **({"timeout": timeout} if timeout is not None else {}))
+        except httpx.TimeoutException as exc:
+            raise ToolError("The SQL Governor did not answer in time.", code="TOOL_TIMEOUT") from exc
+        except httpx.HTTPError as exc:
+            raise ToolError("The SQL Governor is unreachable.") from exc
+        if response.status_code != 200:
+            raise ToolError(f"The SQL Governor is unavailable (HTTP {response.status_code}).")
+        try:
+            result = response.json()
+        except ValueError as exc:
+            raise ToolError("The SQL Governor returned an invalid response.") from exc
+        if not isinstance(result, dict) or "status" not in result:
+            raise ToolError("The SQL Governor returned an invalid response.")
+        return result
+
     def manifest(self, dataset_id: str) -> dict[str, Any]:
         """The Governor's bounded safe manifest subset, or an explicit DATASET_EXPIRED / NOT_FOUND status."""
         try:

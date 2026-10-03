@@ -1652,6 +1652,7 @@ class RunState:
     ref_sources: ReferenceSources = field(default_factory=ReferenceSources)
     ref_values: list[Resolved] = field(default_factory=list)
     ref_facts: int = 0
+    ref_metrics: int = 0  # D5: metric.mN references of query_metric results
     ref_tables: dict[str, TableRows] = field(default_factory=dict)  # M44: output_id -> rows by position
     ref_aliases: dict[str, str] = field(default_factory=dict)  # P18: output_id -> short alias (o1, o2, ...)
     # G2: released tables of an event study the sandbox recomputed and matched (CALCULATION_VERIFIED, not only
@@ -2025,6 +2026,7 @@ class AgentOrchestrator:
         state.ref_aliases, state.ref_next = records.aliases(state.data_record)
         self._seed_findings(state)
         self._offer_methods(state)
+        self._offer_metrics(state)
         if not records.has_data(state.data_record):
             return
         records.seed_ledger(state.data_record, state.catalog)
@@ -2048,6 +2050,13 @@ class AgentOrchestrator:
                                                                         "values": values}
             if self.value_references:
                 state.ref_sources.add("finding", str(entry["id"]), finding, "DATA_COVERAGE_VERIFIED")
+
+    def _offer_metrics(self, state: RunState) -> None:
+        """D5: the official metrics query_metric answers (from AI_metric_catalog at startup), as an application note,
+        so the tool's own definition stays the same when a metric is added."""
+        menu = getattr(self.registry, "metric_menu", None)
+        if menu and "query_metric" in self.registry.names():
+            state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": menu})
 
     def _offer_methods(self, state: RunState) -> None:
         """4b: the menu of analysis methods, then the manuals opened earlier in the conversation (current version), as
@@ -3244,6 +3253,12 @@ class AgentOrchestrator:
                 kind = "DATABASE_AGGREGATE" if fact.get("kind") == "AGGREGATE" else "FACT"
                 state.facts.append({"kind": kind, "aggregation": fact.get("aggregation"),
                                     "values": numbers_in(fact.get("value"))})
+        elif name == "query_metric" and result.get("status") == "OK":
+            # D5: computed by the database from governed rows in one summary, like a lookup aggregate
+            for period in result.get("periods") or []:
+                state.facts.append({"kind": "DATABASE_AGGREGATE",
+                                    "aggregation": (result.get("metric") or {}).get("time_function"),
+                                    "values": numbers_in(period.get("rows"))})
         elif name == "request_data" and result.get("decision") == "DATASET_READY":
             state.context_numbers.extend(numbers_in(result.get("dataset"), ints_only=True))
         elif name == "prepare_analysis_data" and result.get("status") == "READY":
@@ -3585,6 +3600,11 @@ class AgentOrchestrator:
                     kind = "DATABASE_AGGREGATE" if fact.get("kind") == "AGGREGATE" else "FACT"
                     sources.add("fact", str(state.ref_facts), fact.get("value"), kind)
                     fact["ref"] = f"fact.{state.ref_facts}"
+        elif name == "query_metric" and result.get("status") == "OK":
+            state.ref_metrics += 1
+            key = f"m{state.ref_metrics}"
+            sources.add("metric", key, {"periods": result.get("periods") or []}, "DATABASE_AGGREGATE")
+            result["ref"] = f"metric.{key}.periods[<i>].rows[<dimension>=<value>].<column>"
         elif name in ("run_python_analysis", "get_analysis_result") and result.get("analysis_id"):
             label = analysis_label(result.get("execution_status"), result.get("validation_status"),
                                    result.get("validation_level"))

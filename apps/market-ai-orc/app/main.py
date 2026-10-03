@@ -41,6 +41,7 @@ from .tools.session import (EVENT_STUDY_VERSION, RESULT_STORE_VERSION, SESSION_R
                             output_file, release_request, restore_carried)
 from .tools.artifacts import STORED_TABLES_VERSION, read_output_any
 from .tools.lineage import BUNDLE_LINEAGE_VERSION
+from .tools.metric import read_metrics
 
 REUSE_VERSION = 1  # the conversation reuse contract both services must report
 EXPORT_ID_RE = re.compile(r"^exp_[0-9a-f]{24}$")
@@ -242,6 +243,18 @@ def create_app(
                 multi_angle=multi_angle_active, period_return=settings.ai_enable_standard_period_return)
             if method_guides is None:
                 log_event("method_guides_inactive", reason=reason)
+        metrics = None
+        if settings.ai_enable_query_metric:
+            # D5: the active metrics of AI_metric_catalog, read once; none (or no Governor): off (fail closed)
+            try:
+                metrics = read_metrics(catalog) if catalog is not None and governor is not None else None
+            except Exception as exc:  # noqa: BLE001 - the tool stays off; the reason is logged
+                log_event("query_metric_inactive", reason=f"AI_metric_catalog unreadable ({type(exc).__name__})")
+                metrics = None
+            if metrics:
+                log_event("query_metric_active", metrics=[m["metric_id"] for m in metrics])
+            else:
+                log_event("query_metric_inactive", reason="needs the catalog, the Governor and an active metric")
         export = False
         if settings.ai_enable_export:
             # D4: the sandbox writes the file (stored_tables v1); the result store is checked below
@@ -299,6 +312,7 @@ def create_app(
             bundle_limits=bundle_limits,
             lineage_tool=lineage_tool,
             export=export,
+            metrics=metrics or None,
         )
         auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
             if sandbox is not None or settings.research_audit_database_url else None

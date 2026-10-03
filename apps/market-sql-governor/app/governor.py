@@ -799,3 +799,111 @@ def _for_partitioning(estimates: ex.Estimates) -> ex.Estimates:
 
 def _details(details: dict[str, Any]) -> dict[str, Any]:
     return json.loads(json.dumps(details, default=_jsonable))
+
+
+class Summarizer:
+    """POST /v1/summary (app/summary.py, G18 phase 2): a summary over a period, at most 200 rows, returned as rows."""
+
+    def __init__(self, governor: Governor) -> None:
+        self.governor = governor
+        self.settings = governor.settings
+
+    def handle(self, request_id: str, raw_spec: Any, raw_lineage: Any) -> dict[str, Any]:
+        from . import summary as sm
+
+        started = time.monotonic()
+        query_id = f"qry_{uuid.uuid4().hex[:24]}"
+        state: dict[str, Any] = {"source_tables": []}
+        try:
+            try:
+                spec = sm.SummarySpec.model_validate(raw_spec)
+                lineage = sm.SummaryLineage.model_validate(raw_lineage)
+            except ValidationError as exc:
+                issues = "; ".join(f"{'.'.join(str(p) for p in e['loc']) or 'spec'}: {e['msg']}"
+                                   for e in exc.errors(include_url=False, include_input=False)[:8])
+                raise ex.policy("INVALID_SUMMARY_SPEC", f"The summary spec is invalid: {issues}") from exc
+            if lineage.recipe_sha256 != sm.recipe_sha256(raw_spec):
+                raise ex.policy("LINEAGE_MISMATCH", "recipe_sha256 does not describe this summary spec.")
+            state["purpose"], state["metric_id"] = lineage.purpose, lineage.metric_id
+            outcome = self._run(request_id, query_id, spec, state)
+        except ex.ExtractStop as stop:
+            outcome = {"status": stop.status, "code": stop.code, "message": stop.message,
+                       "next_action": "REVISE_SUMMARY" if stop.status == "REJECTED_POLICY" else "NARROW_SUMMARY",
+                       "request_id": request_id, "query_id": query_id, "query_hash": state.get("query_hash"),
+                       "details": _details(stop.details), "estimates": state.get("estimates")}
+        except psycopg.errors.QueryCanceled:
+            outcome = {"status": "REJECTED_TIMEOUT_RISK", "code": "TIME_LIMIT", "next_action": "NARROW_SUMMARY",
+                       "message": "The summary exceeded the statement timeout.", "request_id": request_id,
+                       "query_id": query_id, "query_hash": state.get("query_hash")}
+        except psycopg.errors.InsufficientPrivilege:
+            outcome = {"status": "REJECTED_POLICY", "code": "DATABASE_PERMISSION_DENIED", "request_id": request_id,
+                       "next_action": "REVISE_SUMMARY", "query_id": query_id,
+                       "message": "The governed database role cannot read a requested table."}
+        except psycopg.OperationalError as exc:
+            raise GovernorUnavailable("The governed database is unavailable.") from exc
+        except psycopg.Error:
+            outcome = {"status": "REJECTED_POLICY", "code": "QUERY_FAILED", "request_id": request_id,
+                       "next_action": "REVISE_SUMMARY", "query_id": query_id,
+                       "message": "The database rejected the compiled summary."}
+        outcome["runtime_ms"] = int((time.monotonic() - started) * 1000)
+        _log("sql_governor_summary", request_id=request_id, query_id=query_id, status=outcome["status"],
+             code=outcome.get("code"), purpose=state.get("purpose"), metric_id=state.get("metric_id"),
+             source_tables=state.get("source_tables"), query_hash=outcome.get("query_hash"),
+             rows=outcome.get("row_count"), estimates=state.get("estimates"), runtime_ms=outcome["runtime_ms"])
+        return outcome
+
+    def _run(self, request_id: str, query_id: str, spec: Any, state: dict[str, Any]) -> dict[str, Any]:
+        from . import summary as sm
+
+        s = self.settings
+        with self.governor.database.session() as connection:
+            def run(statement: Any, params: tuple[Any, ...]) -> list[dict[str, Any]]:
+                with connection.cursor(row_factory=dict_row) as cursor:
+                    return list(cursor.execute(statement, params).fetchall())
+
+            contract = load_contract(run, [spec.source_table, *(r.right_table for r in spec.restrictions)])
+            bound = sm.bind_summary(spec, contract, max_in_values=s.extract_max_in_values)
+            state["source_tables"] = bound.source_tables
+            calendar = sm.calendar_sql(spec.source_table, bound.time_column)
+            period = spec.period
+            if period.trading_days is not None:
+                as_of = date.fromisoformat(period.as_of)
+                earliest = date.fromordinal(as_of.toordinal() - (period.trading_days * 3 + 31))
+                dates = [r["d"] for r in run(calendar, (as_of, earliest, earliest, period.trading_days))]
+                if not dates:
+                    raise ex.policy("NO_DATES_IN_PERIOD", f"{spec.source_table} has no date at or before {as_of}.")
+                start, end = min(dates), max(dates)
+                window = {"from": start.isoformat(), "to": end.isoformat(), "trading_days": period.trading_days,
+                          "as_of": as_of.isoformat(), "calendar_dates": len(dates)}
+            else:
+                start, end = date.fromisoformat(period.start), date.fromisoformat(period.end)
+                if start > end or (end - start).days > sm.MAX_RANGE_DAYS:
+                    raise ex.policy("INVALID_TIME_WINDOW", f"The period must run forward and span at most "
+                                                           f"{sm.MAX_RANGE_DAYS} days.")
+                dates = [r["d"] for r in run(calendar, (end, start, start, sm.MAX_RANGE_DAYS))]
+                window = {"from": start.isoformat(), "to": end.isoformat(), "calendar_dates": len(dates)}
+            explain = sm.compile_summary(bound, start, end, None)
+            state["query_hash"] = explain.query_hash
+            scan_rows, cost, result_rows = self.governor._explain(connection, explain, run)
+            state["estimates"] = {"scan_rows": scan_rows, "plan_cost": cost, "result_rows": result_rows}
+            if cost > s.max_plan_cost:
+                raise ex.ExtractStop("REJECTED_COMPUTE_COST", "COST_LIMIT", f"The summary's plan cost {cost:.0f} is "
+                                     f"above {s.max_plan_cost}; narrow the scope or the period.")
+            if scan_rows > s.max_estimated_scan_rows:
+                raise ex.ExtractStop("REJECTED_SCAN_SIZE", "SCAN_LIMIT", f"The summary would scan about {scan_rows} "
+                                     f"rows; the limit is {s.max_estimated_scan_rows}. Narrow the scope or period.")
+            compiled = sm.compile_summary(bound, start, end, sm.MAX_ROWS + 1)
+            rows = run(compiled.statement, compiled.params)
+        if len(rows) > sm.MAX_ROWS:
+            raise ex.ExtractStop("REJECTED_ROW_LIMIT", "SUMMARY_TOO_MANY_ROWS", f"The summary has more than "
+                                 f"{sm.MAX_ROWS} groups; narrow the scope or group by fewer columns.")
+        return {"status": "OK", "code": "OK", "request_id": request_id, "query_id": query_id,
+                "query_hash": compiled.query_hash, "source_table": spec.source_table,
+                "source_tables": bound.source_tables, "period": window,
+                "columns": [{"name": g["name"], "unit": g["unit"]} for g in bound.group_by]
+                + [{"name": m["name"], "function": m["function"], "source_column": m["source_column"],
+                    "unit": m["unit"]} for m in bound.measures]
+                + [{"name": "days_present", "unit": None}, {"name": "first_date", "unit": None},
+                   {"name": "last_date", "unit": None}],
+                "rows": json.loads(json.dumps(rows, default=_jsonable)), "row_count": len(rows),
+                "estimates": state.get("estimates")}

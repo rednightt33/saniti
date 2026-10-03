@@ -17,7 +17,7 @@ from .catalog_contract import MAX_CONTRACT_TABLES
 from .config import Settings
 from .datasets import DatasetError, DatasetService
 from .decisions import GovernorResponse, LookupResponse
-from .governor import Database, Extractor, Governor, GovernorUnavailable
+from .governor import Database, Extractor, Governor, GovernorUnavailable, Summarizer
 from .janitor import DatasetJanitor
 from .spec import COLUMN_PATTERN, TABLE_PATTERN, DataPlanLineage
 from .store import build_store
@@ -157,6 +157,24 @@ def create_app(settings: Settings | None = None, governor: Governor | None = Non
             return extractor.handle(request_id, body["extraction"], body["lineage"], part_count=planned,
                                     estimate_only=estimate_only,
                                     **({"count_cap": count_cap} if count_cap is not None else {}))
+        except GovernorUnavailable:
+            return JSONResponse(status_code=503, content={"detail": "Governed database unavailable"})
+
+    summarizer = Summarizer(governor) if isinstance(governor, Governor) else getattr(governor, "summarizer", None)
+
+    @app.post("/v1/summary", dependencies=[Depends(authorize)])
+    def summarize(body: Any = Body(...)) -> Any:
+        """G18 phase 2 (round 2026-10-03 D5): a summary over a period, per entity or group, at most 200 rows
+        (market-ai-orc's query_metric and get_evidence only)."""
+        if not isinstance(body, dict) or set(body) != {"request_id", "summary", "lineage"}:
+            raise HTTPException(status_code=422, detail="Body must be {request_id, summary, lineage}")
+        request_id = body["request_id"]
+        if not isinstance(request_id, str) or not REQUEST_ID.fullmatch(request_id):
+            raise HTTPException(status_code=422, detail="request_id must match ^[A-Za-z0-9._:-]{1,128}$")
+        if summarizer is None:
+            raise HTTPException(status_code=404, detail="Not Found")
+        try:
+            return summarizer.handle(request_id, body["summary"], body["lineage"])
         except GovernorUnavailable:
             return JSONResponse(status_code=503, content={"detail": "Governed database unavailable"})
 

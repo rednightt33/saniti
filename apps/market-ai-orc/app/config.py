@@ -170,6 +170,9 @@ class Settings:
     # D4 (round 2026-10-03): export_result and GET /v1/exports/{export_id}/download (needs the result store and a
     # sandbox reporting stored_tables version 1)
     ai_enable_export: bool = False
+    # D5 (round 2026-10-03): query_metric, the official metrics of AI_metric_catalog in one SQL Governor summary per
+    # period (needs the catalog and the Governor; off when the catalog has no active metric)
+    ai_enable_query_metric: bool = False
     # A model-written methodology note beside a DataNeed answer: data, steps, methods and parameters in plain words,
     # its numbers checked like the answer's (plus the parameters of the code that ran). Only in the DataNeed flow.
     ai_enable_methodology: bool = False
@@ -339,6 +342,7 @@ class Settings:
             ai_enable_result_store=_boolean(env, "AI_ENABLE_RESULT_STORE", False),
             ai_enable_lineage_tool=_boolean(env, "AI_ENABLE_LINEAGE_TOOL", False),
             ai_enable_export=_boolean(env, "AI_ENABLE_EXPORT", False),
+            ai_enable_query_metric=_boolean(env, "AI_ENABLE_QUERY_METRIC", False),
             result_bucket=_result_bucket(env),
             ai_enable_methodology=_boolean(env, "AI_ENABLE_METHODOLOGY", False),
             ai_enable_plan_feasibility=_boolean(env, "AI_ENABLE_PLAN_FEASIBILITY", False),

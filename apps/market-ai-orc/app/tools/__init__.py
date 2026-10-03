@@ -51,6 +51,7 @@ def build_default_registry(
     planner_parallel_parts: int = 1,
     lineage_tool: bool = False,
     export: bool = False,
+    metrics: list[dict] | None = None,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
@@ -150,6 +151,14 @@ def build_default_registry(
                                           max_result_bytes=python_analysis_max_bytes, point_in_time=point_in_time,
                                           preflight_parts=preflight_parts, bundle_limits=bundle_limits,
                                           planner_parallel_parts=planner_parallel_parts)
+    if metrics and governor_client is not None:
+        # D5 (AI_ENABLE_QUERY_METRIC): an official metric over periods in one Governor summary per period
+        from .metric import menu, metric_specs
+
+        for spec in metric_specs(governor_client, metrics, timeout_seconds=governor_timeout_seconds,
+                                 max_result_bytes=python_analysis_max_bytes):
+            registry.register(spec)
+        registry.metric_menu = menu(metrics)
     if method_guides and dataneed_enabled:
         # 4b: the manual of each offered method; a research library method_id opens its library entry
         from .method_guides import method_guide_spec
