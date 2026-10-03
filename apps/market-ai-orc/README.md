@@ -2153,6 +2153,14 @@ frontend, and Telegram.
   offered in a METRICS note each run; one SQL Governor `POST /v1/summary` per period (trading days of the table's own
   calendar up to the conversation's data date, or a date range). Values count as `DATABASE_AGGREGATE` for number
   provenance and are cited as `metric.mN…`. Outside the catalog: `METRIC_NOT_IN_CATALOG`, next action a data need.
+- **get_evidence (D6, `AI_ENABLE_EVIDENCE`, needs the result store, the Governor and sandbox `stored_tables` v1):**
+  each main claim recomputed apart from the model's code, tier 1 by a Governor summary (WAREHOUSE), tier 2 by the
+  sandbox from the released base table (BASE_TABLE), compared with the number as written by the provenance rounding
+  rule: TERCEK, TIDAK_COCOK (with the difference), TIDAK_BISA_DICEK, TIDAK_DICEK_BATAS (10 claims, 120 s, 30 s per
+  query). The model sees status and difference; the response's `evidence[]` carries the rows (at most 200) and the
+  answer's value references (DIRUJUK); rows are kept in `AI_conversation_evidence` and exportable by `evidence_id`.
+  The final gate asks once for evidence when an answer cites data figures without any, and states a remaining
+  mismatch as a limitation, never hides it.
 - **Kejedot index (D0):** `execution.friction` (`rejected_tool_calls`, `gate_repairs`, `repeated_data_orders`,
   `capacity_refusals`) in the response and the `ai_run_completed` log.
 

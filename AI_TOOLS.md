@@ -95,6 +95,7 @@ Diambil  dari Railway (nama dan nilai true/false saja).
 | `AI_ENABLE_COMPOSITE_KEYS` | on |
 | `AI_ENABLE_DATANEED` | on |
 | `AI_ENABLE_EVENT_STUDY` | on |
+| `AI_ENABLE_EVIDENCE` | on |
 | `AI_ENABLE_EXPORT` | on |
 | `AI_ENABLE_HYPOTHESIS_PLAN` | on |
 | `AI_ENABLE_LINEAGE_TOOL` | on |

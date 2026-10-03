@@ -467,6 +467,6 @@ Setelah perubahan variabel Railway: `railway config pull --force` + `railway con
 | D3 get_lineage | LIVE dev, `AI_ENABLE_LINEAGE_TOOL=true` |
 | D4 export_result | LIVE dev, `AI_ENABLE_EXPORT=true` |
 | D5 G18-2 + query_metric | LIVE dev: Governor `0fa3f146`, migrasi `20261003_008` (diterapkan dan dibaca balik), `AI_ENABLE_QUERY_METRIC=true`; EXPLAIN terukur, tidak ada indeks baru; uji asap `/v1/summary` = SQL langsung |
-| D6 get_evidence | Belum mulai. Nomor migrasi bergeser: 008 dipakai katalog metrik, jadi bukti = 009, buku metode v4 = 010, Tool_Catalog round D = 011 |
+| D6 get_evidence | LIVE dev: migrasi 009 (bukti), 010 (buku metode v4), 011 (Tool_Catalog round D) diterapkan dan dibaca balik; sandbox `5a7e839a`, orc `f2b1cfbc`, `AI_ENABLE_EVIDENCE=true`. **Beda dari rencana:** TIDAK COCOK yang tersisa ditulis sebagai baris keterbatasan jawaban (bukan anotasi miring); referensi nilai jawaban masuk `evidence[]` sebagai DIRUJUK (asal angka, tanpa hitung ulang) |
 
-Tes: orc 1.167, sandbox 745, Governor 254 lulus. Belum ada lalu lintas model (golden test atas perintah user).
+Tes: orc 1.178, sandbox 745, Governor 254 lulus. Tes drift Tool_Catalog kini memeriksa setiap alat terhadap round terakhir yang mendaftarkannya (bukan hanya round terbaru). Belum ada lalu lintas model (golden test atas perintah user).

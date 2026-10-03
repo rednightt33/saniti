@@ -1,5 +1,27 @@
 # Railway changelog
 
+## 2026-10-03 — Round phase D6 on dev: get_evidence, method guides v4, Tool_Catalog round D
+
+Plan: `ROUND_PLAN_2026-10-03_FASE_D.md` D6. CLI uploads from branch `claude/g2-g3-reactivation` at `8a16081`; `main`
+untouched; AI_MODEL, AI_MODEL_2, AI_MODEL_SWITCH and AI_MODE_SWITCH untouched.
+
+- **Temporary job `d6-mig-job`** (dev): `DATABASE_URL` as the reference `${{Postgres.DATABASE_URL}}`; DRYRUN
+  `28f4a05b`, APPLY `dc9a42f4` of migrations 20261003_009, 010 and 011 (see `DATABASE_CHANGELOG.md`); then deleted.
+- **market-python-sandbox `5a7e839a` `SUCCESS`** (was `920d7cc4`): method guides v4 (same file as market-ai-orc).
+  Startup: `sandbox_started` (isolation enforced), `sessions_started`.
+- **Variable `AI_ENABLE_EVIDENCE=true`** on market-ai-orc (dev; not a secret), `--skip-deploys` before the deployment
+  below.
+- **market-ai-orc `f2b1cfbc` `SUCCESS`** (was `9ce37963`): get_evidence, the evidence gate, `evidence[]` in the response,
+  export by `evidence_id`, method guides v4. Startup: `query_metric_active`, `result_store_active`, `mode4_active`; no
+  `*_inactive` event (method guides v4 served: the table, the sandbox and the code carry the same hash; evidence
+  active).
+- `railway config pull --force` recorded `AI_ENABLE_EVIDENCE` (name only, `preserve()`); `railway config plan`: up to
+  date. `AI_TOOLS.md` regenerated with the dev flags.
+- Tests: orc 1,178, sandbox 745, Governor 254 passed.
+- **Live check with the model pending:** golden test on the user's command.
+- **Rollback:** `AI_ENABLE_EVIDENCE=false`; or orc `9ce37963`, sandbox `920d7cc4` (their method guides v3 rows stay in
+  the table).
+
 ## 2026-10-03 — Round phase D0–D5 on dev: tools for the AI and the user (Governor, sandbox, orc)
 
 Plan: `ROUND_PLAN_2026-10-03_FASE_D.md` (approved by the user). CLI uploads from branch `claude/g2-g3-reactivation` at

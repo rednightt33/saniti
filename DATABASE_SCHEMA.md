@@ -12,6 +12,7 @@ Generated from PostgreSQL schema `public` at `2026-09-27T08:23:59+00:00`.
 | `AI_catalog_relationships` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing safe join, temporal alignment, preaggregation, and output-grain contracts. |
 | `AI_column_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing column semantics and bounded-query permissions for the seven approved tables. |
 | `AI_conversation` | Unclassified | Unknown | — | `2026-09-27 08:23:59+00:00` | Baseline only | market-ai-orc conversations kept by the server (history_mode SERVER): one row per chat box with its owner, retention and the lease that allows one active run at a time. |
+| `AI_conversation_evidence` | System | Event-driven / each checked claim (round D6) | — | `2026-10-03` | Added by hand (20261003_009) | Claims of market-ai-orc answers recomputed by the backend (Governor summary or base table), with the status, the backend value and at most 200 rows of evidence. |
 | `AI_conversation_execution` | System | Event-driven / each sandbox execution (R-STORE) | — | `2026-10-03` | Added by hand (20261003_006) | The code of each sandbox execution of a market-ai-orc conversation, so a result can be traced and reproduced after the sandbox copy expired. |
 | `AI_conversation_export` | System | Event-driven / each export (phase D) | — | `2026-10-03` | Added by hand (20261003_006) | Files exported from a market-ai-orc conversation for the user to download (CSV, XLSX or Parquet, at most 20 MB). |
 | `AI_conversation_output` | System | Event-driven / each released output (R-STORE) | — | `2026-10-03` | Added by hand (20261003_006) | Released outputs of market-ai-orc conversations (tables, JSON, text, charts) with their definition, units, lineage and the last date of the data they were computed from; the content up to 20 MB is here, a larger one in the bucket market-ai-conversation-outputs. |
@@ -265,6 +266,49 @@ market-ai-orc conversations kept by the server (history_mode SERVER): one row pe
 | `AI_conversation_pkey` | `CREATE UNIQUE INDEX "AI_conversation_pkey" ON public."AI_conversation" USING btree (conversation_id)` |
 | `ai_conversation_expiry_idx` | `CREATE INDEX ai_conversation_expiry_idx ON public."AI_conversation" USING btree (expires_at)` |
 | `ai_conversation_owner_idx` | `CREATE INDEX ai_conversation_owner_idx ON public."AI_conversation" USING btree (owner_key, updated_at DESC)` |
+
+## AI_conversation_evidence
+
+Claims of market-ai-orc answers recomputed by the backend on a path separate from the model's code (SQL Governor summary or the released base table), with the status, the backend value and at most 200 rows of evidence. Created by `database/migrations/20261003_009_conversation_evidence.sql`; read and written by `market_ai_conversation_store` only; deleted with its conversation.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `evidence_id` | `text` | No | — | Id of the check (evd_ + 24 hex); export_result takes it as a source. |
+| `conversation_id` | `text` | No | — | The conversation the claim belongs to. |
+| `request_id` | `text` | No | — | The market-ai-orc request that checked the claim. |
+| `claim` | `text` | No | — | The claim in words, as the model stated it (at most 300 characters). |
+| `value_text` | `text` | No | — | The number as written in the answer (for example 1,25 miliar or 116); compared with the rounding it shows. |
+| `kind` | `text` | No | — | WAREHOUSE (recomputed by a SQL Governor summary) or BASE_TABLE (recomputed from a released base table). |
+| `recipe` | `jsonb` | No | — | How the backend recomputed the claim: table, filters, measure and period, or the base table, conditions and measure. |
+| `status` | `text` | No | — | TERCEK (matches within the rounding shown), TIDAK_COCOK, TIDAK_BISA_DICEK (the recipe was refused) or TIDAK_DICEK_BATAS (over the per-answer limit). |
+| `backend_value` | `double precision` | Yes | — | The value the backend computed; NULL when it could not. |
+| `difference` | `double precision` | Yes | — | backend_value minus the claimed value; NULL when not compared. |
+| `source` | `jsonb` | No | `'{}'::jsonb` | Where the evidence came from: output id and reference, or source table, Governor query id and period. |
+| `rows` | `jsonb` | No | `'[]'::jsonb` | At most 200 rows of evidence a user can read (the matching base rows or the summary rows). |
+| `rows_matched` | `bigint` | Yes | — | Rows that matched the recipe before the 200-row limit. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | When the claim was checked. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `ai_conversation_evidence_claim_check` | Check | `CHECK (length(claim) BETWEEN 1 AND 300 AND length(value_text) BETWEEN 1 AND 40)` |
+| `ai_conversation_evidence_id_check` | Check | `CHECK (evidence_id ~ '^evd_[0-9a-f]{24}$')` |
+| `ai_conversation_evidence_json_check` | Check | `CHECK (jsonb_typeof(recipe) = 'object' AND jsonb_typeof(source) = 'object' AND jsonb_typeof(rows) = 'array' AND jsonb_array_length(rows) <= 200)` |
+| `ai_conversation_evidence_kind_check` | Check | `CHECK (kind IN ('WAREHOUSE', 'BASE_TABLE'))` |
+| `ai_conversation_evidence_request_check` | Check | `CHECK (request_id ~ '^[A-Za-z0-9._:-]{1,200}$')` |
+| `ai_conversation_evidence_status_check` | Check | `CHECK (status IN ('TERCEK', 'TIDAK_COCOK', 'TIDAK_BISA_DICEK', 'TIDAK_DICEK_BATAS'))` |
+| `AI_conversation_evidence_conversation_id_fkey` | Foreign key | `FOREIGN KEY (conversation_id) REFERENCES "AI_conversation"(conversation_id) ON DELETE CASCADE` |
+| `AI_conversation_evidence_pkey` | Primary key | `PRIMARY KEY (evidence_id)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `AI_conversation_evidence_pkey` | `CREATE UNIQUE INDEX "AI_conversation_evidence_pkey" ON public."AI_conversation_evidence" USING btree (evidence_id)` |
+| `ai_conversation_evidence_conversation_idx` | `CREATE INDEX ai_conversation_evidence_conversation_idx ON public."AI_conversation_evidence" USING btree (conversation_id, created_at)` |
 
 ## AI_conversation_execution
 

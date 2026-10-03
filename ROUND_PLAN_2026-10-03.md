@@ -113,7 +113,7 @@ A (fondasi: M68, ENV, TOOLS-DOC) ─► B (benar secara data: G19-1/3, P26, M69-
 | C1 (S28) | LIVE dev 2026-10-03 (belum diverifikasi live) | sandbox `3748d45c`, orc `fdcb156b`, `PY_SANDBOX_OPEN_WAIT_SECONDS=60` |
 | C2 (R-STORE) | LIVE dev 2026-10-03 (belum diverifikasi live) | migrasi 20261003_006/007, bucket `market-ai-conversation-outputs`, sandbox `8270c163`, orc `b458843d`, `AI_ENABLE_RESULT_STORE=true`; rincian: `ROUND_PLAN_2026-10-03_FASE_C.md` |
 | D0–D5 | LIVE dev 2026-10-03 (belum diverifikasi live) | Governor `0fa3f146`, sandbox `920d7cc4`, orc `9ce37963`, migrasi 20261003_008, flag `AI_ENABLE_LINEAGE_TOOL`/`EXPORT`/`QUERY_METRIC`; rincian: `ROUND_PLAN_2026-10-03_FASE_D.md` |
-| D6 | belum | get_evidence, migrasi bukti, buku metode v4, Tool_Catalog round D |
+| D6 | LIVE dev 2026-10-03 (belum diverifikasi live) | orc `f2b1cfbc`, sandbox `5a7e839a`, migrasi 20261003_009/010/011, `AI_ENABLE_EVIDENCE=true` |
 | E | belum | |
 | F | hanya atas perintah user | |
 
