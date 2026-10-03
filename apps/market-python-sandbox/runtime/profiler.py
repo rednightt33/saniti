@@ -166,6 +166,8 @@ class Profiler:
                                      "extract_to": item["extract_to"], "actual_start": _iso(low),
                                      "actual_end": _iso(high), "rows": int(rows),
                                      "entities": int(entities) if entities is not None else None}
+            if item.get("end_requested"):
+                entry["end_requested"] = item["end_requested"]  # 1b: "LATEST", bound to the reference date
             if not rows:
                 entry["status"] = "EMPTY"
                 flags.append("EMPTY_RANGE")

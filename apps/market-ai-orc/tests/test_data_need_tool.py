@@ -305,37 +305,38 @@ def test_omitted_nullable_fields_are_filled_before_validation() -> None:
     assert fake.calls[0]["body"]["spec"]["data_requests"][0]["scope"]["type"] == "ALL"
 
 
-def test_the_warehouse_summary_migration_matches_the_tool_definitions() -> None:
-    """C08 lesson (2026-10-02): a Tool_Catalog row that documents a code-owned schema needs a drift test. The
-    migration is generated from the registry under the dev flags; a schema or purpose change regenerates it."""
+def test_the_warehouse_summary_migration_is_frozen() -> None:
+    """C08 lesson (2026-10-02): a Tool_Catalog row that documents a code-owned schema needs a drift test. Its tools'
+    newest registration is now 20261003_005 (test below); this applied file stays as it was."""
+    from test_migrations_frozen import applied
+
+    assert "20261002_002_warehouse_summary_tool_catalog.sql" in applied()
+
+
+def test_the_high_alert_tool_migration_is_frozen() -> None:
+    """HIGH ALERT steps 3-5 registered submit_data_need_spec v6 and run_python v2 (20261003_003, applied); their
+    newest registration is 20261003_005 (test below)."""
+    from test_migrations_frozen import applied
+
+    assert "20261003_003_high_alert_tool_catalog.sql" in applied()
+
+
+def test_the_round_b_tool_migration_matches_the_tool_definitions() -> None:
+    """Round 2026-10-03 phase B: the newest registration of submit_data_need_spec (v7), check_data_feasibility (v5),
+    check_research_feasibility (v4) and run_python (v3) is generated from the registry under the dev flags; a schema
+    or description change needs a new migration (the applied one is frozen)."""
     import importlib.util
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[3]
     spec = importlib.util.spec_from_file_location(
-        "generate_warehouse_summary_tool_migration", root / "scripts/generate_warehouse_summary_tool_migration.py")
+        "generate_round_b_tool_migration", root / "scripts/generate_round_b_tool_migration.py")
     generator = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(generator)
-    migration = (root / "database/migrations/20261002_002_warehouse_summary_tool_catalog.sql").read_text()
-    assert generator.render() == migration, "regenerate with scripts/generate_warehouse_summary_tool_migration.py"
-    for name, definition in generator.definitions().items():
-        assert f"'{generator.schema_text(definition)}'" in migration, name
-        assert "aggregate" in definition["parameters"]["properties"]["data_requests"]["items"]["properties"]
-
-
-def test_the_high_alert_tool_migration_matches_the_tool_definitions() -> None:
-    """HIGH ALERT steps 3-5: submit_data_need_spec v6 (success_rule) and run_python v2 (output definitions, event
-    flow) are generated from the registry under the dev flags; a schema or description change regenerates them."""
-    import importlib.util
-    from pathlib import Path
-
-    root = Path(__file__).resolve().parents[3]
-    spec = importlib.util.spec_from_file_location(
-        "generate_high_alert_tool_migration", root / "scripts/generate_high_alert_tool_migration.py")
-    generator = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(generator)
-    migration = (root / "database/migrations/20261003_003_high_alert_tool_catalog.sql").read_text()
-    assert generator.render() == migration, "regenerate with scripts/generate_high_alert_tool_migration.py"
+    migration = (root / "database/migrations/20261003_005_round_b_tool_catalog.sql").read_text()
+    assert generator.render() == migration, "regenerate with scripts/generate_round_b_tool_migration.py"
     found = generator.definitions()
+    for name in ("submit_data_need_spec", "check_data_feasibility", "check_research_feasibility"):
+        assert "LATEST" in generator.schema_text(found[name]), name
     assert "success_rule" in generator.schema_text(found["submit_data_need_spec"])
-    assert "definition=" in found["run_python"]["description"] and "_flow" in found["run_python"]["description"]
+    assert "outcome_unit=None" in found["run_python"]["description"] and "_flow" in found["run_python"]["description"]

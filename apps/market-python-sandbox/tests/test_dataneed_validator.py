@@ -380,3 +380,27 @@ def test_every_catalog_key_column_is_extracted_so_rows_stay_identifiable() -> No
     entry = outcome.approved["requests"]["data_request_1_A"]
     assert entry["key_columns"] == ["ticker", "date", "market_board", "broker", "investor_type"]
     assert entry["extract_columns"] == entry["key_columns"] + ["net_value"]
+
+
+# ------------------------------------------------------------------------------------------ 1b: end LATEST
+
+def test_an_end_latest_is_bound_to_the_reference_date_on_a_copy() -> None:
+    """1b / C06 (golden a and g6, 2026-10-02): the model copied the end date from a lagging catalog summary and left
+    out the newest trading day. LATEST is bound to the reference date; the submitted spec keeps LATEST, because the
+    orchestrator hashed it (spec_sha256 of a research data plan)."""
+    spec = ytd_spec(data_requests=[prices(time_ranges=[
+        {"range_id": "current_ytd", "start": "2026-01-01", "end": "LATEST"},
+        {"range_id": "previous_comparable", "start": "2025-01-01", "end": "2025-09-25"}]), classification()])
+    submitted = copy.deepcopy(spec)
+    outcome = run(spec)
+    assert outcome.status == "APPROVED", outcome.issues
+    assert spec == submitted
+    windows = {w["range_id"]: w for w in outcome.approved["requests"]["data_request_1_A"]["windows"]}
+    assert windows["current_ytd"]["end"] == REF.isoformat() and windows["current_ytd"]["end_requested"] == "LATEST"
+    assert "end_requested" not in windows["previous_comparable"]
+
+
+def test_latest_is_only_an_end() -> None:
+    spec = ytd_spec(data_requests=[prices(time_ranges=[
+        {"range_id": "current_ytd", "start": "LATEST", "end": "2026-09-25"}]), classification()])
+    assert "INVALID_TIME_RANGE" in codes(run(spec))

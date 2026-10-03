@@ -81,7 +81,10 @@ class ScopeNode(Strict):
 class TimeRange(Strict):
     range_id: str = Field(description="Unique within the request, e.g. current_ytd, previous_comparable.")
     start: str = Field(description="YYYY-MM-DD, first date of the range.")
-    end: str = Field(description="YYYY-MM-DD, last date of the range; not after the reference date.")
+    end: str = Field(description="YYYY-MM-DD, last date of the range, not after the reference date; or LATEST for "
+                                 "the newest data available (bound to the reference date; the bundle reports the "
+                                 "actual last date). Use LATEST when the user names no end date: the catalog "
+                                 "coverage summary can lag the newest load.")
 
 
 class Buffer(Strict):

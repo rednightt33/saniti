@@ -9,6 +9,7 @@ from typing import Any, Literal, Protocol
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ..compaction import dumps
+from ..freshness import freshness
 from .registry import ToolError, ToolSpec
 from .rows import CursorCodec
 from .system import NoArguments
@@ -184,7 +185,7 @@ GROUP BY implementation_status ORDER BY implementation_status
 '''
 
 RESOLVE_TABLES_SQL = f'''
-SELECT t.table_name, t.coverage_enabled
+SELECT t.table_name, t.coverage_enabled, t.freshness_sla::text AS freshness_sla
 FROM public."AI_table_catalog" t
 WHERE t.table_name IN ({VISIBLE_TABLES}) AND t.table_name = ANY(%s)
 '''
@@ -359,6 +360,18 @@ WHERE coverage_scope = 'ENTITY' AND dataset_name = ANY(%s) AND entity_id = ANY(%
 ORDER BY dataset_name, entity_id
 LIMIT %s
 '''
+
+
+def _reference_date() -> date:
+    """The run's reference date in its timezone (the date data requests are bound to), else today in UTC."""
+    from zoneinfo import ZoneInfo
+
+    from .analysis import current_run_context
+
+    context = current_run_context.get()
+    if context is None:
+        return datetime.now(ZoneInfo("UTC")).date()
+    return context.reference_time.astimezone(ZoneInfo(context.timezone)).date()
 
 
 def _availability(row: dict[str, Any]) -> str:
@@ -1254,11 +1267,19 @@ class CatalogTools:
             return result
 
         datasets = run(COVERAGE_DATASET_SQL, (enabled,))
+        today = _reference_date()
         by_dataset = {
-            row["dataset_name"]: {**_entry(row, COVERAGE_FIELDS), "availability_interpretation": _availability(row)}
+            row["dataset_name"]: {**_entry(row, COVERAGE_FIELDS), "availability_interpretation": _availability(row),
+                                  # 1c / D06: SEGAR, TERLAMBAT or BASI against the table's freshness SLA
+                                  "freshness": freshness(row, found.get(row["dataset_name"], {}).get("freshness_sla"),
+                                                         today)}
             for row in datasets
         }
         result["datasets"] = by_dataset
+        # 1b / C06: this summary is refreshed by a scheduled check and can lag the newest load
+        result["end_date_note"] = (
+            "These dates are a summary checked at last_checked_at and can lag the newest load. For data up to the "
+            "newest date use end LATEST in the DataNeed time range; the bundle reports the actual last date.")
         without = [name for name in enabled if name not in by_dataset]
         if without:
             result["no_coverage_record"] = without

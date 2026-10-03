@@ -88,6 +88,10 @@ MEASURE_FIELDS = {"column", "function", "as"}
 AGGREGATE_FUNCTIONS = ("SUM", "MIN", "MAX", "COUNT", "COUNT_DISTINCT")
 MAX_MEASURES = 20
 RANGE_FIELDS = {"range_id", "start", "end"}
+# 1b / C06 (2026-10-02): "up to the newest data". The model copied the end date from the catalog summary, which lags
+# the loads (golden a and g6 left out the newest trading day). end "LATEST" is bound to the reference date when the
+# spec is validated, on a copy: the submitted spec, and the hashes the orchestrator computed from it, keep "LATEST".
+LATEST = "LATEST"
 BUFFER_FIELDS = {"value", "unit"}
 ORDER_FIELDS = {"column", "direction"}
 RELATIONSHIP_FIELDS = {"relationship_id", "left_request_id", "left_column", "right_request_id", "right_column",
@@ -1163,10 +1167,32 @@ class Validation:
         return {"status": self.status, "issues": self.issues, "warnings": self.warnings}
 
 
+def bind_latest(raw: Any, reference: date) -> tuple[Any, set[tuple[str, str]]]:
+    """(the spec with every end "LATEST" set to the reference date, {(data_request_id, range_id)} bound). The spec
+    given is never changed: a copy is returned when anything was bound."""
+    requests = raw.get("data_requests") if isinstance(raw, dict) else None
+    if not isinstance(requests, list) or not any(
+            isinstance(item, dict) and item.get("end") == LATEST
+            for request in requests if isinstance(request, dict)
+            for item in (request.get("time_ranges") if isinstance(request.get("time_ranges"), list) else [])):
+        return raw, set()
+    bound: set[tuple[str, str]] = set()
+    spec = json.loads(json.dumps(raw))
+    for request in spec["data_requests"]:
+        if not isinstance(request, dict) or not isinstance(request.get("time_ranges"), list):
+            continue
+        for item in request["time_ranges"]:
+            if isinstance(item, dict) and item.get("end") == LATEST:
+                item["end"] = reference.isoformat()
+                bound.add((str(request.get("data_request_id")), str(item.get("range_id"))))
+    return spec, bound
+
+
 def validate(raw: Any, contract: dict[str, Any] | None, reference: date, limits: Limits = Limits()) -> Validation:
     """All four layers. `contract` is the Governor's catalog contract of the spec's tables, or None when the catalog
     could not be read (CATALOG_UNAVAILABLE). Approval is atomic: one issue anywhere refuses the whole spec."""
     issues = Issues()
+    raw, latest = bind_latest(raw, reference)
     if not check_schema(raw, limits, issues):
         return Validation("REVISION_REQUIRED", issues.items)
     if contract is None:
@@ -1187,6 +1213,10 @@ def validate(raw: Any, contract: dict[str, Any] | None, reference: date, limits:
     if issues:
         return Validation("REVISION_REQUIRED", issues.items, warnings)
     approved = approved_contract(raw, contract, bound, reference)
+    for rid, range_id in latest:
+        for window in approved["requests"][rid]["windows"]:
+            if window["range_id"] == range_id:
+                window["end_requested"] = LATEST  # bound to the reference date; the profile reports actual_end
     if limits.derived_frequency:
         for request in approved["requests"].values():
             if request.get("resample") is not None:

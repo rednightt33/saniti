@@ -146,6 +146,9 @@ def test_coverage_dataset_status_entities_and_disabled(database: str) -> None:
     assert dataset["coverage_mode"] == "EXPECTED_DERIVED"
     assert dataset["expected_min_date"] == "2018-01-02" and "actual_min_date" not in dataset
     assert dataset["availability_interpretation"].startswith("EXPECTED_NOT_CONFIRMED")
+    # 1c / 1b: freshness against the table's SLA, and the note that the summary can lag (use LATEST)
+    assert dataset["freshness"]["status"] in ("SEGAR", "TERLAMBAT", "BASI", "UNKNOWN")
+    assert "LATEST" in coverage["end_date_note"]
     assert coverage["entity_status_counts"]["Feature_02_Broker_Rolling"] == [{
         "pipeline_status": "MANUAL_REFRESH_REQUIRED", "verification_status": "UNVERIFIED",
         "quality_status": "WARNING", "entity_count": 2,

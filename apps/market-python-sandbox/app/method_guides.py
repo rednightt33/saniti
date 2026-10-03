@@ -21,7 +21,7 @@ import hashlib
 import json
 from typing import Any
 
-GUIDES_VERSION = 2  # 2 (2026-10-02, HIGH ALERT): output definitions, event flow, approved success rule
+GUIDES_VERSION = 3  # 2 (2026-10-02, HIGH ALERT): output definitions, event flow, approved success rule; 3 (2026-10-03, P26): thresholds with units, the approved outcome unit
 
 # How the backend checks a result (ERRORS_AND_SOLUTIONS S23), from weakest to strongest.
 VERIFICATION_LEVELS = {

@@ -397,6 +397,7 @@ def model_view(manifest: dict[str, Any]) -> dict[str, Any]:
             "columns": [c["name"] for c in d.get("columns") or []], "partitions": len(d.get("partitions") or []),
             "ranges": [{k: r.get(k) for k in ("range_id", "requested_start", "requested_end", "actual_start",
                                                "actual_end", "rows", "entities", "status")}
+                       | ({"end_requested": r["end_requested"]} if r.get("end_requested") else {})
                        for r in q.get("requested_ranges") or []],
             "quality_manifest_id": d["quality_manifest_id"], "quality_flags": q.get("quality_flags") or [],
             "source_frequency": d.get("source_frequency"), "analysis_frequency": d.get("analysis_frequency"),

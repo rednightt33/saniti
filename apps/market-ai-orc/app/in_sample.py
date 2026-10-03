@@ -15,7 +15,11 @@ from __future__ import annotations
 from typing import Any
 
 
+LATEST_END = "9999-12-31"  # 1b: a range ending "LATEST" reaches the newest data, after every dated end
+
+
 def _overlap(a: tuple[str, str], b: tuple[str, str]) -> bool:
+    a, b = tuple(LATEST_END if v == "LATEST" else v for v in a), tuple(LATEST_END if v == "LATEST" else v for v in b)
     return bool(a[0] and a[1] and b[0] and b[1]) and max(a[0], b[0]) <= min(a[1], b[1])
 
 
