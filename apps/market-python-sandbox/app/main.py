@@ -19,7 +19,7 @@ from .dataneed_service import DataNeedError, DataNeedService
 from .event_study_validation import EVENT_STUDY_VERSION
 from .method_guides import GUIDES_SHA256, GUIDES_VERSION
 from .data_need import SPEC_VERSIONS
-from .sessions import SessionError
+from .sessions import SESSION_RELEASE_VERSION, SessionError
 from .dataneed_store import DataNeedStore
 from .models import ANALYSIS_ID, REQUEST_ID, AnalysisRequest, RunReport
 from .outputs import CONTENT_TYPES
@@ -119,6 +119,9 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                           "no extensions or attachments, configuration locked",
                 "conversation_reuse": {"enabled": settings.conversation_reuse and dataneed is not None,
                                        "version": REUSE_VERSION},
+                # S28: POST /v1/requests/{request_id}/release, and how long opening a session waits for a slot
+                "session_release": {"enabled": dataneed is not None, "version": SESSION_RELEASE_VERSION,
+                                    "open_wait_seconds": settings.open_wait_seconds},
                 # POST /v1/data-needs/check and GET /v1/data-need-drafts/{draft_id} (Research Plan feasibility)
                 "plan_feasibility": {"enabled": dataneed is not None, "version": FEASIBILITY_VERSION},
                 # IP1 Stage B: data_need_spec/v2 names every key pair of a composite relationship
@@ -455,6 +458,13 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
             return dataneed.close_session(session_id_or_404(session_id), body["request_id"], conversation_key=key)
         except SessionError as exc:
             return session_error(exc)
+
+    @app.post("/v1/requests/{request_id}/release", dependencies=dataneed_routes)
+    def release_request(request_id: str) -> Any:
+        """S28: the orchestrator's answer for this request ended; its sessions go WARM_IDLE (completed) or close."""
+        if not re.fullmatch(REQUEST_ID, request_id):
+            raise HTTPException(status_code=404, detail="Unknown request_id")
+        return {"request_id": request_id, "sessions": dataneed.sessions.release(request_id)}
 
     @app.get("/v1/runs/{request_id}", dependencies=[Depends(authorize)])
     def run_summary(request_id: str) -> Any:

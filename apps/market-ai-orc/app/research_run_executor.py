@@ -190,7 +190,8 @@ class ResearchRunExecutor:
         carried = current_carried_outputs.get()
         if carried is not None:
             body["carried_outputs"] = carried  # 2d: the tables the approved plan names
-        opened = _call(self.client, "POST", "/v1/sessions", timeout=self.timeout + 30, json=body)
+        opened = _call(self.client, "POST", "/v1/sessions", timeout=self.timeout + 30 + self.client.open_wait_seconds,
+                       json=body)
         if opened.get("status") == "REJECTED" or not opened.get("session_id"):
             return opened
         group.update(session_id=opened["session_id"], status="RUNNING")

@@ -213,3 +213,33 @@ def test_close_sessions_closes_each_session_of_the_request_and_never_raises() ->
     down = SandboxClient("http://sandbox.test", SANDBOX_KEY, 10, 0, transport=httpx.MockTransport(
         lambda r: httpx.Response(502, text="bad gateway")))
     assert close_sessions(down, "run-1", [SESSION]) == {SESSION: "CLOSE_FAILED"}
+
+
+def test_s28_release_and_the_capacity_wait() -> None:
+    """S28: the answer's end posts the request's release; an open after the sandbox's wait says how long it waited
+    and still tells the model to report the limitation."""
+    import httpx
+
+    from app.tools.analysis import SandboxClient
+    from app.tools.session import release_request, session_specs
+
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, request.url.path, request.extensions.get("timeout")))
+        if request.url.path.endswith("/release"):
+            return httpx.Response(200, json={"request_id": "r1", "sessions": [
+                {"session_id": "sess_" + "a" * 24, "status": "WARM_IDLE"}]})
+        return httpx.Response(429, json={"status": "REJECTED", "error": {
+            "code": "SESSION_CAPACITY_EXCEEDED", "message": "busy", "waited_seconds": 60, "retry_after_seconds": 15}})
+
+    client = SandboxClient("http://s", "s" * 40, 45, 20, transport=httpx.MockTransport(handler))
+    assert release_request(client, "r1") == [{"session_id": "sess_" + "a" * 24, "status": "WARM_IDLE"}]
+    client.open_wait_seconds = 60
+    specs = {s.name: s for s in session_specs(client, timeout_seconds=45, execution_timeout_seconds=150,
+                                                    max_result_bytes=60_000)}
+    result = specs["open_analysis_session"].handler(
+        specs["open_analysis_session"].arguments_model.model_validate({"input_bundle_id": "bundle_" + "1" * 24}))
+    assert result["code"] == "SESSION_CAPACITY_EXCEEDED" and result["next_action"] == "REPORT_LIMITATION"
+    assert "waited 60 seconds" in result["message"] and "retry_after_seconds" not in result
+    assert seen[-1][2]["read"] == 105  # the request timeout plus the sandbox's wait

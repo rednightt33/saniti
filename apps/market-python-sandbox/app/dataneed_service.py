@@ -692,6 +692,7 @@ class DataNeedService:
                 and int(record.get("epoch") or 1) > 1 and record["executions"] == record.get("epoch_start_seq") \
                 and session_id in self.sessions.workers and self.sessions.workers[session_id].alive:
             self.store.update_session(session_id, status="WARM_IDLE", last_active_at=utc_now())
+            self.sessions._slot_freed()  # S28: a waiting open may evict it
             self._log("session_detached", request_id=request_id, session_id=session_id, epoch=record.get("epoch"))
             return {"session_id": session_id, "status": "WARM_IDLE", "close_reason": "DETACHED_UNCHANGED"}
         return self.sessions.close(session_id, "CLOSED_BY_CALLER")
@@ -1078,6 +1079,7 @@ class DataNeedService:
                                              updated_at=utc_now())
         if warm:
             self.store.update_session(session_id, status="WARM_IDLE", last_active_at=utc_now())
+            self.sessions._slot_freed()  # S28: a waiting open may evict it
         elif passed:
             self.sessions.close(session_id, "COMPLETED")
         self._log("analysis_completed", request_id=request_id, session_id=session_id, completion_id=completion_id,

@@ -416,6 +416,50 @@ def test_capacity_refusals_are_bounded_by_the_repair_budget() -> None:
     assert codes == ["SESSION_CAPACITY_EXCEEDED"] * 3 + ["REPAIR_BUDGET_EXHAUSTED"] * 2
 
 
+# --- S28: the answer's end releases every session of the request ---------------------------------------------------
+
+class Releaser:
+    def __init__(self, fail: bool = False) -> None:
+        self.calls: list[str] = []
+        self.fail = fail
+
+    def __call__(self, request_id: str) -> list[dict]:
+        self.calls.append(request_id)
+        if self.fail:
+            raise RuntimeError("sandbox down")
+        return [{"session_id": SESSION, "status": "WARM_IDLE"}]
+
+
+def releasing_run(script: list, tools: Tools, releaser: Releaser, closer: Closer):
+    orchestrator = AgentOrchestrator(make_settings(AI_ENABLE_DATANEED="true"), ScriptedClient(script),
+                                     tools.registry(), session_closer=closer, session_releaser=releaser)
+    return orchestrator.run(AgentRunRequest(request_id="dn", message="Berapa return YTD BBCA dan BBRI?"))
+
+
+def test_a_completed_run_releases_its_request_instead_of_skipping_completed_sessions() -> None:
+    """g7: a completed session that ran code again was skipped by the per-session closes and held a slot."""
+    releaser, closer = Releaser(), Closer()
+    result = releasing_run([*flow(), final_response(answer("Return YTD BBCA 12,35%."))], Tools([completed()]),
+                           releaser, closer)
+    assert result.evidence_label == "DATA_COVERAGE_VERIFIED"
+    assert releaser.calls == ["dn"] and closer.calls == []
+
+
+def test_a_failed_run_is_released_and_a_failed_release_falls_back_to_the_closes() -> None:
+    releaser, closer = Releaser(), Closer()
+    result = releasing_run(flow(run=False, complete=False), Tools([]), releaser, closer)
+    assert result.status == "FAILED" and releaser.calls == ["dn"] and closer.calls == []
+    releaser, closer = Releaser(fail=True), Closer()
+    releasing_run([*flow(complete=False), final_response(answer("x", "LIMITATION"))], Tools([]), releaser, closer)
+    assert releaser.calls == ["dn"] and closer.calls == [("dn", [SESSION])]
+
+
+def test_a_run_without_sandbox_work_releases_nothing() -> None:
+    releaser = Releaser()
+    releasing_run([final_response(answer("Halo."))], Tools([]), releaser, Closer())
+    assert releaser.calls == []
+
+
 # --- S08: one open analysis session per run ------------------------------------------------------------------------
 
 SESSION_2 = "sess_" + "4" * 24

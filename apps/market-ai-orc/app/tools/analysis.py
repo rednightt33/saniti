@@ -556,6 +556,8 @@ class SandboxClient:
     def __init__(self, base_url: str, api_key: str, timeout_seconds: float, poll_wait_seconds: int,
                  transport: httpx.BaseTransport | None = None) -> None:
         self.poll_wait_seconds = poll_wait_seconds
+        # S28: how long the sandbox may hold an open request waiting for a slot (from GET /v1/runtime at startup)
+        self.open_wait_seconds = 0
         self._client = httpx.Client(base_url=base_url.rstrip("/"), timeout=timeout_seconds, transport=transport,
                                     headers={"Authorization": f"Bearer {api_key}"})
 

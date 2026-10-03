@@ -1669,6 +1669,7 @@ class AgentOrchestrator:
         catalog_summary: Any | None = None,
         provider_logger: Any | None = None,
         session_closer: Callable[[str, list[str]], dict[str, str]] | None = None,
+        session_releaser: Callable[[str], list[dict[str, Any]]] | None = None,
         conversation_resources: Callable[[str], dict[str, Any] | None] | None = None,
         draft_reader: Callable[[str], dict[str, Any] | None] | None = None,
         derived_frequency: bool = False,
@@ -1691,6 +1692,7 @@ class AgentOrchestrator:
         self.conversation_resources = conversation_resources
         # closes the analysis sessions a run leaves open (S05): (request_id, session_ids) -> {session_id: reason}
         self.session_closer = session_closer
+        self.session_releaser = session_releaser
         self.client = client
         self.registry = registry
         self.auditor = auditor
@@ -1907,8 +1909,7 @@ class AgentOrchestrator:
             current_research_context.reset(research)
         result = result.model_copy(update={"data_record": records.public(state.data_record)})
         # the closes still carry the conversation key, so an attached session that ran nothing is detached, not lost
-        self._close_sessions(state)
-        self._close_research_sessions(state)
+        self._end_sessions(state)
         current_conversation_key.reset(key)
         if self.auditor is not None:
             try:
@@ -2122,6 +2123,22 @@ class AgentOrchestrator:
                 return result
             return self._failed(state, "AUDIT_UNAVAILABLE", "The run could not be recorded for audit, which this "
                                                             "deployment requires, so its answer is withheld.")
+
+    def _end_sessions(self, state: RunState) -> None:
+        """S28 (golden g7 2026-10-02): the answer of this request ended, so every sandbox session it holds is released
+        (completed: WARM_IDLE, reusable or evictable; any other: closed), including a completed session that ran
+        code again, which the per-session closes below skip. Without the sandbox's release (an older sandbox, or a
+        failed call) the per-session closes run."""
+        if self.session_releaser is not None and (state.sessions or state.needs or state.research is not None):
+            try:
+                released = self.session_releaser(state.request_id)
+                log_event("request_sessions_released", request_id=state.request_id,
+                          sessions={r.get("session_id"): r.get("status") for r in released})
+                return
+            except Exception as exc:  # noqa: BLE001 - release is best effort; the closes and the idle timeout remain
+                log_event("request_release_failed", request_id=state.request_id, error=type(exc).__name__)
+        self._close_sessions(state)
+        self._close_research_sessions(state)
 
     def _close_sessions(self, state: RunState) -> None:
         """Close every analysis session this run opened that did not complete (S05). The sandbox closes a session

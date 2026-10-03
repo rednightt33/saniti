@@ -35,7 +35,7 @@ from .tools.library import read_research_library
 from .tools.method_guides import active_guides, guides_problem, menu as guide_menu, read_method_guides
 from .tools.registry import ToolError
 from .tools.request_data import GovernorClient
-from .tools.session import EVENT_STUDY_VERSION, close_sessions, read_output
+from .tools.session import EVENT_STUDY_VERSION, SESSION_RELEASE_VERSION, close_sessions, read_output, release_request
 
 REUSE_VERSION = 1  # the conversation reuse contract both services must report
 FEASIBILITY_VERSION = 1  # the Research Plan feasibility endpoints of the sandbox
@@ -289,6 +289,16 @@ def create_app(
         provider_logger = ProviderLogger(owned_client) if settings.ai_log_provider else None
         # (request_id, session_ids): the sessions a run leaves open are closed when it ends (S05)
         closer = partial(close_sessions, sandbox) if sandbox is not None and settings.ai_enable_dataneed else None
+        # S28: (request_id) -> the answer's end releases every session of the request; fail closed to the closer
+        releaser = None
+        if closer is not None:
+            capability = sandbox.runtime().get("session_release") or {}
+            if capability.get("enabled") is True and capability.get("version") == SESSION_RELEASE_VERSION:
+                releaser = partial(release_request, sandbox)
+                sandbox.open_wait_seconds = int(capability.get("open_wait_seconds") or 0)
+            else:
+                log_event("session_release_inactive", reason="the sandbox does not report session_release "
+                                                             f"version {SESSION_RELEASE_VERSION}")
         # (session_id, output_id, request_id, offset, limit): rows of a released output an answer references (M44)
         row_reader = partial(read_output, sandbox) if sandbox is not None and settings.ai_enable_dataneed else None
         resources = None
@@ -302,7 +312,8 @@ def create_app(
                                                                 f"version {REUSE_VERSION}")
         orchestrator = AgentOrchestrator(settings, owned_client, registry, auditor=auditor,
                                          catalog_summary=summary, provider_logger=provider_logger,
-                                         session_closer=closer, conversation_resources=resources,
+                                         session_closer=closer, session_releaser=releaser,
+                                         conversation_resources=resources,
                                          draft_reader=sandbox.get_draft if feasibility else None,
                                          derived_frequency=derived_frequency, audit_outbox=audit_outbox,
                                          row_reader=row_reader)

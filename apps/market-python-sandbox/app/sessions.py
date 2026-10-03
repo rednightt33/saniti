@@ -19,6 +19,7 @@ user, bound to one request and one READY bundle. The harness
 from __future__ import annotations
 
 import ast
+import contextlib
 import hashlib
 import json
 import logging
@@ -31,6 +32,7 @@ import stat
 import subprocess
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -114,6 +116,7 @@ EXIT_STATE_CORRUPTED = 3  # runtime/session_worker.py: the code broke the worker
 WORKER_LOG_TAIL = 600
 # close reasons of a worker that ended abnormally: the tail of its worker.log (a Python traceback) is logged before
 # the workspace is removed; it never goes to the model
+SESSION_RELEASE_VERSION = 1  # S28: POST /v1/requests/{request_id}/release and the open queue
 ABNORMAL_REASONS = frozenset({"WORKER_CRASHED", "WORKER_UNRESPONSIVE", "SESSION_STATE_CORRUPTED", "PROTOCOL_ERROR",
                               "FORBIDDEN_OPERATION", "CPU_BUDGET_EXCEEDED", "MEMORY_LIMIT_EXCEEDED",
                               "DISK_LIMIT_EXCEEDED", "EXECUTION_TIMEOUT_UNINTERRUPTIBLE", "WORKER_START_FAILED"})
@@ -414,6 +417,9 @@ class SessionManager:
         # S14: session workspaces are this manager's; the analysis janitor must leave them alone
         getattr(analysis, "foreign_prefixes", set()).add(SESSION_ID_PREFIX)
         self._lock = threading.Lock()
+        # S28: openers waiting for a slot, first come first served; woken when a slot may have been freed
+        self._freed = threading.Condition()
+        self._waiting: deque[object] = deque()
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []
         # IP2: set by DataNeedService when PY_SANDBOX_AUDIT_STORE_ENABLED (app/audit.py AuditOutbox)
@@ -496,18 +502,8 @@ class SessionManager:
         if datetime.fromisoformat(manifest["expires_at"]) <= datetime.now(timezone.utc):
             raise SessionError("BUNDLE_EXPIRED", "The bundle has expired; prepare it again.", 410,
                                "PREPARE_DATA_BUNDLE")
-        with self._lock:
-            free = self._free_slots()
-            if not free:
-                for warm in self.store.warm_sessions():
-                    if warm["session_id"] in self.workers:
-                        self._close_locked(warm["session_id"], "EVICTED")
-                        break
-                free = self._free_slots()
-            if not free:
-                raise SessionError("SESSION_CAPACITY_EXCEEDED", "Every analysis session slot is in use.", 429,
-                                   "RETRY_LATER", retry_after_seconds=s.retry_after_seconds)
-            uid, cpus = free[0]
+        self._settle_request(request_id)
+        with self._slot(request_id) as (uid, cpus):
             session_id = f"{SESSION_ID_PREFIX}{secrets.token_hex(12)}"
             directory = Path(s.jobs_dir) / session_id
             budget = max(10, min(int(cpu_seconds or s.session_cpu_seconds), s.session_cpu_seconds))
@@ -576,6 +572,109 @@ class SessionManager:
     def _free_slots(self) -> list[tuple[int, list[int]]]:
         used = {w.uid for w in self.workers.values() if w.alive}
         return [slot for slot in self.slots if slot[0] not in used]
+
+    # ------------------------------------------------------------------ S28: slots, release and the open queue
+
+    def _settle_request(self, request_id: str) -> None:
+        """S28 (golden g7 2026-10-02: three sessions opened in one answer): one active session per request. Opening
+        another session moves this request's ACTIVE sessions that already completed to WARM_IDLE, so they can be
+        reused or evicted; a session without a completion keeps its work until a slot is needed."""
+        if not self.settings.conversation_reuse:
+            return
+        for record in self.store.sessions_for(request_id):
+            worker = self.workers.get(record["session_id"])
+            if record["status"] == "ACTIVE" and worker is not None and worker.alive \
+                    and self.store.passed_completions(record["session_id"]):
+                self.store.update_session(record["session_id"], status="WARM_IDLE", last_active_at=utc_now())
+                self._log("session_settled", request_id=request_id, session_id=record["session_id"])
+
+    def _take_slot(self, request_id: str) -> tuple[int, list[int]] | None:
+        """A free slot, after evicting the least recently used WARM_IDLE session, then this request's own ACTIVE
+        sessions that never completed (the caller opened another one instead); ACTIVE sessions of other requests and
+        BUSY sessions are never taken. Called with self._lock held."""
+        free = self._free_slots()
+        if not free:
+            for warm in self.store.warm_sessions():
+                if warm["session_id"] in self.workers:
+                    self._close_locked(warm["session_id"], "EVICTED")
+                    break
+            free = self._free_slots()
+        if not free:
+            for record in self.store.sessions_for(request_id):
+                if record["status"] == "ACTIVE" and record["session_id"] in self.workers:
+                    self._close_locked(record["session_id"], "REPLACED_IN_REQUEST")
+                    break
+            free = self._free_slots()
+        return free[0] if free else None
+
+    @contextlib.contextmanager
+    def _slot(self, request_id: str):
+        """Hold self._lock with a free slot. With no slot, wait up to PY_SANDBOX_OPEN_WAIT_SECONDS in arrival order
+        (S28: a refusal at once failed the answer while another conversation finished seconds later)."""
+        s = self.settings
+        ticket, started = object(), time.monotonic()
+        with self._freed:
+            self._waiting.append(ticket)
+        try:
+            while True:
+                with self._freed:
+                    first = self._waiting[0] is ticket
+                if first:
+                    with self._lock:
+                        slot = self._take_slot(request_id)
+                        if slot is not None:
+                            with self._freed:
+                                self._waiting.remove(ticket)
+                                self._freed.notify_all()
+                            ticket = None
+                            waited = time.monotonic() - started
+                            if waited >= 1:
+                                self._log("session_open_waited", request_id=request_id, seconds=round(waited, 1))
+                            yield slot
+                            return
+                left = s.open_wait_seconds - (time.monotonic() - started)
+                if left <= 0:
+                    raise SessionError(
+                        "SESSION_CAPACITY_EXCEEDED",
+                        f"Every analysis session slot is in use (waited {int(time.monotonic() - started)} s).", 429,
+                        "RETRY_LATER", retry_after_seconds=s.retry_after_seconds,
+                        waited_seconds=int(time.monotonic() - started))
+                with self._freed:
+                    self._freed.wait(min(1.0, left))
+        finally:
+            if ticket is not None:
+                with self._freed:
+                    if ticket in self._waiting:
+                        self._waiting.remove(ticket)
+                    self._freed.notify_all()
+
+    def _slot_freed(self) -> None:
+        with self._freed:
+            self._freed.notify_all()
+
+    def release(self, request_id: str) -> list[dict[str, Any]]:
+        """S28: the end of a request's answer. Each of its open sessions that completed goes to WARM_IDLE (reusable
+        by the conversation, or evicted when a slot is needed); any other (never completed, or BUSY with an
+        execution the caller stopped waiting for) is closed with RELEASED."""
+        done = []
+        for record in self.store.sessions_for(request_id):
+            if record["status"] not in ("ACTIVE", "BUSY", "WARM_IDLE"):
+                continue
+            worker = self.workers.get(record["session_id"])
+            keep = self.settings.conversation_reuse and bool(record.get("conversation_key")) \
+                and record["status"] != "BUSY" and worker is not None and worker.alive \
+                and bool(self.store.passed_completions(record["session_id"]))
+            if keep:
+                if record["status"] != "WARM_IDLE":
+                    self.store.update_session(record["session_id"], status="WARM_IDLE", last_active_at=utc_now())
+                done.append({"session_id": record["session_id"], "status": "WARM_IDLE"})
+            else:
+                done.append({k: v for k, v in self.close(record["session_id"], "RELEASED").items()
+                             if k in ("session_id", "status")})
+        self._slot_freed()
+        self._log("request_released", request_id=request_id, sessions=len(done),
+                  warm=sum(1 for d in done if d["status"] == "WARM_IDLE"))
+        return done
 
     def _view(self, session_id: str, bundle_id: str, need_id: str, manifest: dict[str, Any], budget: Any,
               expires_at: str) -> dict[str, Any]:
@@ -996,6 +1095,7 @@ class SessionManager:
         if record is not None and record["status"] != "CLOSED":
             self.store.update_session(session_id, status="CLOSED", closed_at=utc_now(), close_reason=reason)
             self._log("session_closed", session_id=session_id, reason=reason)
+        self._slot_freed()
         return {"session_id": session_id, "status": "CLOSED", "close_reason": reason}
 
     # ------------------------------------------------------------------ outputs

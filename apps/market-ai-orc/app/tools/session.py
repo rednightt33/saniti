@@ -72,7 +72,8 @@ def _call(client: SandboxClient, method: str, path: str, timeout: float | None =
     if error and response.status_code in (404, 409, 410, 422, 429, 500, 503):
         return {"status": "REJECTED", "code": error.get("code"), "message": str(error.get("message") or "")[:600],
                 "next_action": body.get("next_action") or "REPORT_LIMITATION",
-                **{k: v for k, v in error.items() if k in ("close_reason", "retry_after_seconds", "execution_id")}}
+                **{k: v for k, v in error.items() if k in ("close_reason", "retry_after_seconds", "execution_id",
+                                                           "waited_seconds")}}
     raise ToolError(f"The Python sandbox is unavailable (HTTP {response.status_code}).")
 
 
@@ -171,8 +172,9 @@ COMPLETE_DESCRIPTION = (
     "(read what was not processed, then complete again), REVISE_DATA_NEED_SPEC, or REPORT_LIMITATION. The backend "
     "does not recalculate your formulas: never say a calculation was independently verified."
 )
+SESSION_RELEASE_VERSION = 1  # S28: the sandbox's POST /v1/requests/{request_id}/release
 CAPACITY_MESSAGE = (
-    "Every analysis session slot of the sandbox is in use by other requests. Do not retry open_analysis_session or "
+    "Every analysis session slot of the sandbox is in use by other requests{waited}. Do not retry open_analysis_session or "
     "prepare_data_bundle in this run: return response_type \"LIMITATION\" saying that the analysis could not start "
     "because the analysis sandbox was busy and that the question can be asked again later."
 )
@@ -285,6 +287,14 @@ def read_output(client: SandboxClient, session_id: str, output_id: str, request_
                  params={"request_id": request_id, "offset": offset, "limit": limit})
 
 
+def release_request(client: SandboxClient, request_id: str, timeout: float = 15.0) -> list[dict[str, Any]]:
+    """S28: the answer of this request ended. The sandbox moves each of its sessions that completed to WARM_IDLE
+    (reusable, or evicted when a slot is needed) and closes the others; [{session_id, status}]."""
+    response = client._call("POST", f"/v1/requests/{request_id}/release", timeout=timeout)
+    response.raise_for_status()
+    return list(response.json().get("sessions") or [])
+
+
 def close_sessions(client: SandboxClient, request_id: str, session_ids: list[str], timeout: float = 15.0
                    ) -> dict[str, str]:
     """Close sessions of this request (S05): session_id -> close_reason, or CLOSE_FAILED. The sandbox closes a
@@ -313,11 +323,16 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
         carried = current_carried_outputs.get()
         if carried is not None:
             body["carried_outputs"] = carried
-        result = _call(client, "POST", "/v1/sessions", timeout=timeout_seconds, json=body)
+        # S28: the sandbox may wait up to its open_wait_seconds for a slot before it answers
+        result = _call(client, "POST", "/v1/sessions", timeout=timeout_seconds + client.open_wait_seconds, json=body)
         if result.get("status") == "REJECTED" and result.get("code") == "SESSION_CAPACITY_EXCEEDED":
-            # The sandbox's RETRY_LATER is for callers that can wait; a retry within this run meets the same slots.
+            # The sandbox's RETRY_LATER is for callers that can wait; it already waited, and a retry within this run
+            # meets the same slots.
             result.pop("retry_after_seconds", None)
-            result.update(message=CAPACITY_MESSAGE, next_action="REPORT_LIMITATION")
+            waited = result.get("waited_seconds")
+            result.update(message=CAPACITY_MESSAGE.format(
+                waited=f" (the sandbox waited {waited} seconds for a slot)" if waited else ""),
+                next_action="REPORT_LIMITATION")
         return result
 
     def run(arguments: BaseModel) -> dict[str, Any]:

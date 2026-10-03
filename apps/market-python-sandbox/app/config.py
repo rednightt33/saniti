@@ -104,6 +104,9 @@ class Settings:
     session_max_executions: int
     session_max_failed: int
     session_max_outputs: int
+    # S28 (round 2026-10-03): how long opening a session waits for a free slot before SESSION_CAPACITY_EXCEEDED
+    # (0: refuse at once, the earlier behaviour)
+    open_wait_seconds: int
     # Conversation reuse (implementation plan 2026-09-27, phases S1/S2): released outputs, bundles and warm sessions
     # of earlier messages of the same conversation, for an authenticated orchestrator request only; off by default
     conversation_reuse: bool
@@ -265,6 +268,7 @@ class Settings:
             session_cpu_seconds=_integer(env, "PY_SANDBOX_SESSION_CPU_SECONDS", 900, minimum=10, maximum=86400),
             session_idle_seconds=_integer(env, "PY_SANDBOX_SESSION_IDLE_SECONDS", 900, minimum=30, maximum=86400),
             session_max_seconds=_integer(env, "PY_SANDBOX_SESSION_MAX_SECONDS", 3600, minimum=60, maximum=86400),
+            open_wait_seconds=_integer(env, "PY_SANDBOX_OPEN_WAIT_SECONDS", 0, minimum=0, maximum=120),
             session_max_executions=_integer(env, "PY_SANDBOX_SESSION_MAX_EXECUTIONS", 40, maximum=500),
             session_max_failed=_integer(env, "PY_SANDBOX_SESSION_MAX_FAILED", 15, maximum=500),
             session_max_outputs=_integer(env, "PY_SANDBOX_SESSION_MAX_OUTPUTS", 40, maximum=500),

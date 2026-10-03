@@ -223,20 +223,19 @@ def test_budgets_capacity_and_closing(session) -> None:
     assert run(session, "c = 3").json()["error"]["code"] == "SESSION_EXECUTION_LIMIT"
     settings.__dict__["max_sessions"] = 1
     session["dataneed"].sessions.slots = session["dataneed"].sessions.slots[:1]
+    # S28 (round 2026-10-03): with no free slot, a second open in the same request replaces the request's session
+    # that never completed (refusals for other requests: tests/test_session_release.py)
     second = session["api"].post("/v1/sessions", json={"request_id": "req_bundle_1",
                                                        "bundle_id": session["bundle_id"]}, headers=HEADERS)
-    assert second.status_code == 429 and second.json()["error"]["code"] == "SESSION_CAPACITY_EXCEEDED"
-    closed = session["api"].post(f"/v1/sessions/{session['session_id']}/close", json={"request_id": "req_bundle_1"},
-                                 headers=HEADERS).json()
-    assert closed["status"] == "CLOSED"
+    assert second.status_code == 200, second.text
     assert run(session, "print(1)").json()["error"]["code"] == "SESSION_CLOSED"
-    again = session["api"].post("/v1/sessions", json={"request_id": "req_bundle_1",
-                                                      "bundle_id": session["bundle_id"]}, headers=HEADERS)
-    assert again.status_code == 200
     state = session["api"].get(f"/v1/sessions/{session['session_id']}", params={"request_id": "req_bundle_1"},
                                headers=HEADERS).json()
-    assert state["status"] == "CLOSED" and state["close_reason"] == "CLOSED_BY_CALLER"
+    assert state["status"] == "CLOSED" and state["close_reason"] == "REPLACED_IN_REQUEST"
     assert len(state["execution_log"]) == 2
+    closed = session["api"].post(f"/v1/sessions/{second.json()['session_id']}/close",
+                                 json={"request_id": "req_bundle_1"}, headers=HEADERS).json()
+    assert closed["status"] == "CLOSED" and closed["close_reason"] == "CLOSED_BY_CALLER"
 
 
 def test_a_session_belongs_to_its_request_and_a_restart_closes_it(session) -> None:
