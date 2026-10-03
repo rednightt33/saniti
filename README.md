@@ -66,6 +66,7 @@ Every successful change to Railway or its PostgreSQL database must be recorded a
 - Railway service, environment, networking, deployment, or non-secret variable change: update `.railway/railway.ts` when represented there and append `RAILWAY_CHANGELOG.md`.
 - Secret change: record only the variable name, scope, and action. Never record its value.
 - Process or navigation change: update this README, `PROJECT_CONTEXT.md`, or `AGENTS.md` as applicable.
+- AI tool, session helper, method guide or its switch change: regenerate [`AI_TOOLS.md`](AI_TOOLS.md) with `scripts/generate_ai_tools_doc.py` (see `AGENTS.md`).
 
 Required finish sequence:
 

@@ -1,0 +1,249 @@
+"""Write AI_TOOLS.md: every tool the market-ai-orc model can call, every session helper of the Python sandbox and every
+method guide, with the switch that turns each on and a plain-language summary (round 2026-10-03, A3).
+
+Derived from the code, not written by hand:
+- model tools: market-ai-orc's registry built with every switch on, then once with each switch off; a tool that
+  disappears needs that switch, a tool that appears only with a switch off is the older path the switch replaces;
+- session helpers: HELPERS and RESEARCH_HELPERS of apps/market-python-sandbox/app/sessions.py and EXTRA_HELPERS of
+  runtime/saniti_session.py, read with ast (the sandbox is not imported);
+- method guides: GUIDES of apps/market-ai-orc/app/method_guides.py.
+The only hand-written part is PLAIN, one sentence per name; the generator fails on a name without a sentence or a
+sentence for a name that no longer exists. market-ai-orc tests/test_ai_tools_doc.py fails when AI_TOOLS.md drifts.
+
+The dev snapshot (which switches are on) is live state, not code: pass --flags with a JSON object of AI_ENABLE_*
+names to true/false (names and booleans only, e.g. from `railway variables --kv`, never other values). Without --flags
+the snapshot already in AI_TOOLS.md is kept.
+
+Usage (from apps/market-ai-orc, its venv): python ../../scripts/generate_ai_tools_doc.py [--flags flags.json]
+"""
+from __future__ import annotations
+
+import argparse
+import ast
+import json
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+TARGET = ROOT / "AI_TOOLS.md"
+SNAPSHOT_START = "<!-- dev-snapshot:start -->"
+SNAPSHOT_END = "<!-- dev-snapshot:end -->"
+
+# switch name -> build_default_registry argument
+SWITCHES = {
+    "AI_ENABLE_LOOKUP_FACT": "lookup_fact_enabled", "AI_ENABLE_REQUEST_DATA": "request_data_enabled",
+    "AI_ENABLE_DATANEED": "dataneed_enabled", "AI_ENABLE_STANDARD_PERIOD_RETURN": "standard_period_return",
+    "AI_ENABLE_EVENT_STUDY": "event_study", "AI_ENABLE_HYPOTHESIS_PLAN": "hypothesis_plan",
+    "AI_ENABLE_METHOD_GUIDES": "method_guides", "AI_ENABLE_CATALOG_DISCOVERY_V2": "catalog_discovery_v2",
+    "AI_ENABLE_PLAN_FEASIBILITY": "plan_feasibility", "AI_ENABLE_COMPOSITE_KEYS": "composite_keys",
+    "AI_ENABLE_POINT_IN_TIME": "point_in_time", "AI_ENABLE_RESEARCH_FINDINGS": "research_findings",
+    "AI_ENABLE_PREFLIGHT_PARTS": "preflight_parts", "AI_ENABLE_MULTI_ANGLE_RESEARCH": "multi_angle",
+}
+
+# One plain-language sentence per name (Indonesian, for non-developers).
+PLAIN = {
+    # model tools
+    "get_system_capabilities": "Melaporkan kemampuan dan alat apa saja yang sedang aktif.",
+    "discover_catalog": "Mencari tabel data di katalog dari kata kunci (broker, harga, dan seterusnya).",
+    "get_catalog_details": "Detail sampai 3 tabel: arti kolom, satuan, cara menyambung tabel, cakupan tanggal, rumus.",
+    "read_catalog_rows": "Membaca isi lengkap satu tabel katalog, halaman per halaman.",
+    "preview_table_rows": "Contoh maksimal 20 baris dari tabel pasar; hanya contoh, bukan untuk analisis.",
+    "get_dimension_values": "Nilai persis sebuah kategori (misalnya ejaan 'Banks' atau 'Regular'), supaya saringan tidak salah tulis.",
+    "request_data": "Jalur lama: query data langsung lewat SQL Governor (diganti alur DataNeed).",
+    "lookup_fact": "Jalur lama: mengambil satu fakta pendek dari data (diganti alur DataNeed).",
+    "submit_data_need_spec": "AI menyatakan data yang dibutuhkan (tabel, kolom, saringan, periode); sistem memeriksa sebelum data diambil.",
+    "prepare_data_bundle": "Mengambil data yang sudah disetujui secara utuh dan memeriksa kelengkapannya.",
+    "open_analysis_session": "Membuka ruang kerja Python di atas data yang sudah disiapkan.",
+    "run_python": "Menjalankan hitungan di ruang kerja dengan alat bantu bawaan; setiap tabel hasil wajib membawa definisinya.",
+    "inspect_session": "Melihat isi variabel di ruang kerja sebelum hasil dirilis.",
+    "get_session_output": "Membaca ulang tabel atau JSON hasil, termasuk dari giliran sebelumnya.",
+    "complete_analysis": "Menutup analisis: sistem memeriksa kelengkapan data dan definisi, lalu merilis hasil yang boleh dikutip.",
+    "check_data_feasibility": "Sebelum mengajukan rencana riset, mengecek data ada dan ukurannya muat (tanpa membaca data).",
+    "get_research_library": "Daftar metode riset beserta aturan dan cara membaca hasilnya.",
+    "check_research_feasibility": "Mengecek desain dan data setiap sudut riset sebelum rencana diajukan.",
+    "start_research_run": "Menjalankan rencana riset yang disetujui: menyiapkan data per kelompok sudut.",
+    "run_research_code": "Mencatat setiap sudut riset tepat satu kali dengan alat bantu riset.",
+    "complete_research_run": "Sistem menghitung ulang statistik setiap sudut dan memberi vonis (SUPPORTED, INSUFFICIENT_EVIDENCE, NOT_RUN, dan seterusnya).",
+    "get_method_guide": "Membuka buku panduan satu metode atau alat bantu.",
+    "prepare_analysis_data": "Jalur lama (tanpa DataNeed): menyiapkan data analisis.",
+    "create_analysis_spec": "Jalur lama (tanpa DataNeed): menulis spesifikasi analisis.",
+    "run_python_analysis": "Jalur lama (tanpa DataNeed): menjalankan analisis Python sekali jalan.",
+    "get_analysis_result": "Jalur lama (tanpa DataNeed): membaca hasil analisis.",
+    "get_dataset_manifest": "Jalur lama (tanpa DataNeed): membaca daftar isi dataset yang disiapkan.",
+    # session helpers
+    "requests": "Daftar permintaan data di sesi ini.",
+    "manifest": "Daftar isi data bundle (baris, rentang, kualitas).",
+    "quality": "Catatan kualitas satu permintaan data (celah tanggal, nilai kosong).",
+    "load": "Membaca satu permintaan data secara utuh.",
+    "load_range": "Membaca satu rentang tanggal yang disetujui.",
+    "sql": "Query DuckDB atas data sesi.",
+    "relation": "Data satu permintaan sebagai relasi DuckDB.",
+    "load_output": "Membuka tabel hasil yang dirilis di giliran sebelumnya.",
+    "carried": "Daftar tabel giliran sebelumnya yang bisa dibuka.",
+    "join": "Menyambung dua permintaan lewat relasi katalog yang disetujui.",
+    "resample": "Mengubah data harian menjadi mingguan/bulanan dengan aturan katalog.",
+    "period_return": "Return untuk periode bernama (YTD, bulan, kuartal, tahun).",
+    "event_study": "Event study: hasil setelah kejadian dibanding pembanding; dihitung ulang sistem, termasuk tabel alur.",
+    "event_summary": "Ringkasan hipotesis dengan aturan sukses dari rencana yang disetujui.",
+    "insufficient_data": "Menyatakan data tidak cukup untuk suatu hitungan, dengan alasannya.",
+    "intermediate_path": "Lokasi file kerja sementara di sesi.",
+    "emit_table": "Merilis tabel hasil beserta definisinya.",
+    "emit_chart": "Merilis grafik.",
+    "emit_json": "Merilis hasil JSON beserta definisinya.",
+    "emit_text": "Merilis teks.",
+    "emit_file": "Merilis file (Parquet, CSV, PNG, dan lain-lain).",
+    "add_warning": "Menambah peringatan ke hasil.",
+    "research_conditional": "Riset: hasil setelah kondisi dibanding tanpa kondisi.",
+    "research_persistence": "Riset: apakah kondisi cenderung berlanjut (streak).",
+    "research_group_comparison": "Riset: perbandingan antar kelompok atau rezim.",
+    "research_quantiles": "Riset: peringkat kuantil dan selisih atas-bawah.",
+    "research_temporal_dependency": "Riset: korelasi dan hubungan mendahului (lead-lag).",
+    "research_custom": "Riset: rumus khusus yang tetap diperiksa sistem.",
+    # method guides
+    "free_code": "Panduan G1: analisis kode bebas.",
+    "event_study_guide": "Panduan G2: event study.",
+    "hypothesis_plan": "Panduan G3: rencana hipotesis dengan vonis backend.",
+    "multi_angle": "Panduan G4: riset multi-sudut.",
+    "reading_data": "Panduan membaca data bundle.",
+    "resample_guide": "Panduan resample harian ke mingguan/bulanan.",
+    "join_and_preaggregate": "Panduan menyambung dua permintaan.",
+    "period_return_guide": "Panduan return per periode.",
+}
+# a guide that shares its name with a helper is listed under "<name>_guide" in PLAIN
+GUIDE_ALIAS = {"event_study": "event_study_guide", "resample": "resample_guide", "period_return": "period_return_guide"}
+
+
+def _registry(off: tuple[str, ...] = ()) -> dict[str, dict]:
+    sys.path.insert(0, str(ROOT / "apps/market-ai-orc"))
+    import httpx
+
+    from app import research_library
+    from app.tools import build_default_registry
+    from app.tools import method_guides
+    from app.tools.analysis import SandboxClient
+    from app.tools.request_data import GovernorClient
+
+    transport = httpx.MockTransport(lambda request: httpx.Response(404))
+    names = method_guides.active_guides(dataneed=True, event_study=True, hypothesis_plan=True, multi_angle=True,
+                                        period_return=True)
+    kwargs = {argument: True for argument in SWITCHES.values()}
+    kwargs["method_guides"] = {"names": names, "menu": method_guides.menu(names)}
+    kwargs["multi_angle"] = {"max_groups": 2, "min_angles": 2, "max_angles": 5, "library": research_library.rows()}
+    for switch in off:
+        argument = SWITCHES[switch]
+        kwargs[argument] = None if argument in ("method_guides", "multi_angle") else False
+    registry = build_default_registry(
+        object(), cursor_secret=b"x" * 32,
+        governor_client=GovernorClient("http://g", "k" * 40, 90, transport=transport),
+        sandbox_client=SandboxClient("http://s", "s" * 40, 45, 20, transport=transport), **kwargs)
+    return {d["name"]: d for d in registry.definitions()}
+
+
+def model_tools() -> list[dict]:
+    full = _registry()
+    needs: dict[str, list[str]] = {name: [] for name in full}
+    replaced_by: dict[str, list[str]] = {}
+    for switch in SWITCHES:
+        without = _registry((switch,))
+        for name in set(full) - set(without):
+            needs[name].append(switch)
+        for name in set(without) - set(full):
+            replaced_by.setdefault(name, []).append(switch)
+    rows = [{"name": n, "path": "current", "switches": sorted(needs[n])} for n in full]
+    rows += [{"name": n, "path": "older", "switches": sorted(s)} for n, s in sorted(replaced_by.items())]
+    return rows
+
+
+def _literal(path: Path, name: str):
+    for node in ast.parse(path.read_text(encoding="utf-8")).body:
+        if isinstance(node, ast.Assign) and any(getattr(t, "id", None) == name for t in node.targets):
+            return ast.literal_eval(node.value)
+    raise RuntimeError(f"{name} not found in {path}")
+
+
+def session_helpers() -> list[str]:
+    sandbox = ROOT / "apps/market-python-sandbox"
+    names = [re.match(r"[A-Za-z_]\w*", h).group(0) for h in _literal(sandbox / "app/sessions.py", "HELPERS")]
+    for extra in [*_literal(sandbox / "app/sessions.py", "RESEARCH_HELPERS"),
+                  *_literal(sandbox / "runtime/saniti_session.py", "EXTRA_HELPERS")]:
+        if extra not in names:
+            names.append(extra)
+    return names
+
+
+def method_guides() -> list[dict]:
+    sys.path.insert(0, str(ROOT / "apps/market-ai-orc"))
+    from app import method_guides as guides
+
+    return [{"name": g["name"], "g": g.get("g"), "kind": g.get("kind"), "title": g.get("title")}
+            for g in guides.GUIDES]
+
+
+def _plain(name: str) -> str:
+    if name not in PLAIN:
+        raise SystemExit(f"PLAIN has no sentence for {name!r}: add one in scripts/generate_ai_tools_doc.py")
+    return PLAIN[name]
+
+
+def render(snapshot: str) -> str:
+    tools, helpers, guides = model_tools(), session_helpers(), method_guides()
+    used = {t["name"] for t in tools} | set(helpers) | {GUIDE_ALIAS.get(g["name"], g["name"]) for g in guides}
+    stale = sorted(set(PLAIN) - used)
+    if stale:
+        raise SystemExit(f"PLAIN has sentences for names that no longer exist: {stale}")
+    lines = ["# Alat AI (dibuat dari kode)", "",
+             "GENERATED by `scripts/generate_ai_tools_doc.py` from market-ai-orc's tool registry, the sandbox session "
+             "helpers and the method guides; `apps/market-ai-orc/tests/test_ai_tools_doc.py` fails when this file and the "
+             "code drift apart. Do not edit by hand: change the code or the PLAIN sentences, then regenerate "
+             "(AGENTS.md, Mandatory workflow).", "",
+             "## Alat yang bisa dipanggil model (market-ai-orc)", "",
+             "| Alat | Fungsi | Jalur | Saklar yang dibutuhkan |", "|---|---|---|---|"]
+    for tool in tools:
+        path = "sekarang" if tool["path"] == "current" else "lama (muncul bila saklar ini mati)"
+        switches = ", ".join(f"`{s}`" for s in tool["switches"]) or "selalu"
+        lines.append(f"| `{tool['name']}` | {_plain(tool['name'])} | {path} | {switches} |")
+    lines += ["", "## Alat bantu di ruang kerja Python (market-python-sandbox)", "",
+              "| Alat bantu | Fungsi |", "|---|---|"]
+    lines += [f"| `{h}` | {_plain(h)} |" for h in helpers]
+    lines += ["", "## Buku panduan metode (get_method_guide)", "", "| Panduan | Jalur | Jenis | Judul | Fungsi |",
+              "|---|---|---|---|---|"]
+    for g in guides:
+        lines.append(f"| `{g['name']}` | {g['g'] or '-'} | {g['kind']} | {g['title']} | "
+                     f"{_plain(GUIDE_ALIAS.get(g['name'], g['name']))} |")
+    lines += ["", "## Snapshot saklar di dev", "", SNAPSHOT_START, snapshot.strip("\n"), SNAPSHOT_END, ""]
+    return "\n".join(lines)
+
+
+def snapshot_from_flags(flags: dict[str, bool], date: str) -> str:
+    rows = [f"Diambil {date} dari Railway (nama dan nilai true/false saja).", "", "| Saklar | dev |", "|---|---|"]
+    rows += [f"| `{name}` | {'on' if flags.get(name) else 'off'} |" for name in sorted(SWITCHES)]
+    return "\n".join(rows)
+
+
+def current_snapshot() -> str:
+    if not TARGET.exists():
+        return "Belum diambil."
+    text = TARGET.read_text(encoding="utf-8")
+    if SNAPSHOT_START not in text or SNAPSHOT_END not in text:
+        return "Belum diambil."
+    return text.split(SNAPSHOT_START, 1)[1].split(SNAPSHOT_END, 1)[0].strip("\n")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--flags", help="JSON file: AI_ENABLE_* name -> true/false (names and booleans only)")
+    parser.add_argument("--date", help="date of the snapshot, e.g. 2026-10-03")
+    args = parser.parse_args()
+    snapshot = current_snapshot()
+    if args.flags:
+        flags = json.loads(Path(args.flags).read_text())
+        if not all(isinstance(v, bool) for v in flags.values()):
+            raise SystemExit("--flags must map names to true/false only")
+        snapshot = snapshot_from_flags(flags, args.date or "")
+    TARGET.write_text(render(snapshot), encoding="utf-8")
+    print(f"wrote {TARGET.relative_to(ROOT)}")
+
+
+if __name__ == "__main__":
+    main()
