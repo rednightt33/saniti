@@ -1,5 +1,17 @@
 # Railway changelog
 
+## 2026-10-04 — Final plan phase 3 on dev: units by recomputation, undefined conditions, "Pilihan AI", reasoning replay
+
+- **market-python-sandbox `567c7a48` `SUCCESS`** (CLI upload of `claude/g2-g3-reactivation` at `078de45`; meta without a
+  branch): `outcome_unit_check`, `forward_return`, undefined conditions out of `event_summary`.
+- **Variable `AI_REPLAY_REASONING=true`** on market-ai-orc (dev; new; not a secret; user decision K7), set with
+  `--skip-deploys`.
+- **market-ai-orc `06d6be4a` `SUCCESS`** (CLI upload at `078de45`; meta without a branch): "Pilihan AI", reasoning replay.
+  Startup: `ai_provider_policy` ignored `inference-net`.
+- OpenRouter probe (under USD 0.01): DeepSeek's reasoning item sent back as input was accepted; MiMo flash returned
+  reasoning items on one of two prompts (none on a trivial one), and its replay path relies on the refusal fallback.
+- `railway config pull --force`; `railway config plan`: up to date.
+
 ## 2026-10-04 — Final plan phases 1–2 on dev: model MiMo flash, provider routing, G23 and router fix (market-ai-orc)
 
 - **Variables on market-ai-orc (dev), set with `--skip-deploys`** (not secrets; user decisions K1 and the provider
