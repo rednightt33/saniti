@@ -104,57 +104,75 @@ Lihat `PLAN_EVIDENCE_GATE_2026-10-04.md`:
   - kondisi kosong di tengah (celah data);
   - hasil kosong di akhir periode.
 
-### S4: kelompok yang tidak ada datanya (M71, BBCA sebagai BUMN)
+### S4: semua pilihan AI terlihat (M71 BBCA sebagai BUMN; juga M13, P25, P05/P08)
 
-- **Masalah yang sebenarnya:** daftar anggota kelompok **tersembunyi**.
-  - Rencana g5 yang disetujui user hanya menulis "bank BUMN = bank milik negara", tanpa daftar saham. User tidak bisa
-    melihat BBCA ada di dalamnya.
-  - Daftarnya baru muncul di kode, yang tidak dibaca user.
-- **Prinsip:** AI **tidak perlu bertanya** untuk bisa bekerja. AI boleh memakai pengetahuannya sendiri, asalkan daftar itu
-  **terlihat dan diberi label sumbernya** di tempat user memutuskan. Bertanya hanya salah satu pilihan, bukan kewajiban.
-  Revisi ini menggantikan usulan sebelumnya ("wajib tanya user"), karena aturan itu akan menghambat uji hipotesis dan
-  mengulang pola P05/P08 (gerbang terlalu ketat).
-- **Solusi (orc + sandbox, permanen): kelompok wajib dideklarasikan, bukan wajib ditanyakan.**
-  1. Setiap kelompok yang dipakai untuk menyaring atau mengelompokkan dideklarasikan sekali:
-     `groups: [{name, members, source}]`. `source` salah satu dari:
-     - `DATA` (kolom atau tabel referensi);
-     - `USER` (disebut user, termasuk nama perusahaan yang dicocokkan ke ticker);
-     - `AI_KNOWLEDGE` (pengetahuan AI, belum diverifikasi data).
-  2. **Uji hipotesis dan riset:** daftar dan sumbernya tampil di rencana yang memang disetujui user. **Tidak ada langkah
-     tambahan.** Contoh: "BUMN (pengetahuan AI, belum diverifikasi): BBCA, BBRI, BMRI, BBNI, BBTN, BRIS". User bisa
-     mengoreksi saat menyetujui.
-  3. **Analisis biasa (tanpa tahap persetujuan):** AI langsung jalan. Jawaban menampilkan daftar dan label sumber di
-     bagian asumsi. AI boleh memilih bertanya (`CLARIFICATION`) bila kelompoknya penting dan ia tidak yakin, tetapi itu
-     tidak diwajibkan.
-  4. Penegakan oleh sistem: daftar nilai dari kolom dimensi atau identitas yang ditulis di kode, **tanpa deklarasi**,
-     ditolak dengan pesan "deklarasikan kelompok ini beserta sumbernya". Kolom yang diperiksa diturunkan dari katalog.
-     Ini berlaku untuk semua jenis daftar: ticker, broker, sektor, tipe investor, papan, dan nanti negara, indeks, seri
-     makro. Nilai yang dihitung kode dari data, misalnya "hari crash", tidak terkena aturan.
-  5. **Angka dan parameter desain** (ambang 3%, horizon 10 hari, persentil 95) **tidak terkena aturan ini.** Itu pilihan
-     desain yang sudah dideklarasikan di rencana; satuannya dijaga P26 dan S3.
-  6. Label `AI_KNOWLEDGE` ikut tercatat di definisi hasil, sehingga bisa ditelusuri lewat `get_lineage` dan ekspor.
-- **Data (keputusan 6, user):** atribut kepemilikan negara bersumber resmi. Begitu ada, kelompok BUMN otomatis bersumber
-  `DATA`. Fakta saat ini: BBRI, BMRI, BBNI dan BBTN adalah BUMN; BRIS anak usaha BUMN; BBCA swasta.
-- **Uji ulang pada kasus g5:**
-  - Dengan aturan ini, rencana g5.5 akan menampilkan keenam saham dengan label `AI_KNOWLEDGE` **sebelum** user menyetujui.
-  - Kesalahan BBCA dan BRIS bisa terlihat di tahap persetujuan, dengan 0 langkah tambahan.
-  - AbstentionBench: model reasoning jarang mau bilang "tidak tahu". Karena itu penegakannya **membuat tebakan terlihat**,
-    bukan berharap AI menolak.
-- **Risiko dan mitigasi:**
+**Kelas masalah:** hasil analisis bergantung pada masukan yang **tidak berasal dari data atau dari user**, yaitu pilihan
+AI (daftar anggota kelompok, definisi istilah, ambang, persentil), dan pilihan itu **tidak terlihat** oleh user.
+
+- Kasus BBCA: rencana g5 hanya menulis "bank BUMN = bank milik negara"; daftarnya hanya ada di kode.
+- Kasus sebaliknya, P25/P05/P08: pilihan AI (persentil ke-90) terlihat, tetapi justru *ditolak*, sehingga jawaban benar
+  dipaksa LIMITATION.
+
+**Satu prinsip, tanpa daftar skenario:**
+- Sistem, bukan AI, menentukan asal setiap masukan yang ditulis di kode.
+- Masukan yang bukan dari data dan bukan dari user **ditampilkan otomatis** sebagai "Pilihan AI".
+- Tidak ada penolakan dan tidak ada kewajiban bertanya.
+
+**Mekanisme (sandbox + orc, permanen):**
+1. Saat kode berhasil jalan, sandbox membaca nilai tertulis (teks dan angka) yang dipakai untuk menyaring, mengelompokkan
+   atau sebagai ambang. Ini perluasan dari pembacaan angka tertulis yang sudah ada untuk P25.
+2. Asal setiap nilai **diturunkan**, tidak didaftar:
+   - teks yang ada sebagai nilai di dataset yang dimuat kode (ticker, broker, sektor, negara, apa pun kolomnya) adalah
+     nilai data;
+   - nilai yang muncul di pesan user, atau di hasil alat sebelumnya di percakapan ini, berasal dari user/data;
+   - sisanya adalah **pilihan AI**.
+3. Orc menambahkan bagian **"Pilihan AI"** ke jawaban (dan ke rencana bila pilihan itu sudah ada saat rencana dibuat),
+   ditulis oleh backend, bukan oleh model. Contoh: "Kelompok dipilih AI: BBCA, BBNI, BBRI, BBTN, BMRI, BRIS; persentil
+   95." Bagian ini ikut tercatat di definisi hasil, lineage dan ekspor.
+4. Gerbang angka tidak lagi menolak angka yang berasal dari kode AI sendiri. Angka itu dipindah ke "Pilihan AI". Ini
+   menutup P25/P05/P08 dengan mekanisme yang sama.
+
+**Kenapa ini fleksibel:**
+- Tidak ada aturan per jenis daftar, per jenis dialog, atau per tabel.
+- "Cari broker yang akumulasi", "kamu yang tentukan berdasarkan X", BUMN, data makro nanti: semuanya masuk ke jalur yang
+  sama.
+  - Bila AI memilih dari data lewat kode, tidak ada nilai tertulis, sehingga hasilnya data.
+  - Bila AI menulis daftar dari ingatannya, daftar itu tampil sebagai pilihan AI.
+- AI tetap bebas bertanya bila ia mau, tetapi tidak diwajibkan.
+
+**Uji pada data nyata** (prototipe pada 59 eksekusi kode putaran `ma-golden-20261004a`):
+
+| Eksekusi | Ditandai sebagai pilihan AI | Benar? |
+|---|---|---|
+| g5.6 (2 eksekusi) | BBCA, BBNI, BBRI, BBTN, BMRI, BRIS; persentil 95 | Ya, tepat kesalahan M71 dan ambang pilihan AI |
+| g6 (2 eksekusi) | 2,5 dan 97,5 (batas interval 95%) | Ya, pilihan metode AI |
+| g6 ambang 30, 3%, 10 hari | **Tidak** ditandai | Benar, berasal dari kata-kata user |
+| 55 eksekusi lain | Tidak ada | Tidak ada tanda yang salah |
+
+Prototipe memakai 48 ticker bank sebagai "nilai data". Versi sebenarnya memakai nilai dari dataset yang benar-benar dimuat
+kode.
+
+**Yang tidak dicakup (jujur):**
+- Mekanisme ini membuat tebakan **terlihat**, tidak membuatnya benar. Kesalahan BBCA tampil di jawaban, dan user bisa
+  meminta ulang.
+- Bila daftar baru dibuat di kode setelah rencana disetujui, ia tampil di jawaban, bukan di rencana.
+- Data resmi BUMN tetap keputusan 6. Fakta saat ini: BBRI, BMRI, BBNI dan BBTN adalah BUMN; BRIS anak usaha BUMN; BBCA
+  swasta.
+
+**Risiko dan mitigasi:**
 
 | Risiko | Mitigasi |
 |---|---|
-| User tidak membaca daftar di rencana, dan kesalahan tetap lolos | Label `AI_KNOWLEDGE` juga tampil di jawaban akhir dan di bukti; keputusan 6 menghapus tebakan untuk BUMN |
-| Penolakan keliru, misalnya nama perusahaan dari user | Nama yang cocok di tabel referensi dihitung `USER`; setiap penolakan dicatat dan ditinjau di golden test |
-| Rencana jadi lebih panjang | Daftar > 20 anggota diringkas ("48 saham Industry = Banks"); daftar lengkap ada di definisi hasil |
+| Daftar "Pilihan AI" penuh hal remeh | Hanya nilai yang dipakai untuk menyaring, mengelompokkan atau sebagai ambang; angka 0 dan 1 diabaikan; uji di atas: 4 dari 59 eksekusi |
+| Nilai dari user tidak dikenali (nama perusahaan vs ticker, "3%" vs 0,03) | Pencocokan memakai tabel referensi (nama ↔ ticker) dan bentuk angka setara (persen ↔ pecahan); salah kenal hanya menambah satu baris di "Pilihan AI", tidak menolak apa pun |
+| User tidak membaca bagian itu | Bagian "Pilihan AI" selalu di bagian atas asumsi, dan ikut di bukti dan ekspor |
 
-- **Tes:**
-  - g5.5: rencana menampilkan daftar BUMN + label, dan uji tetap jalan tanpa bertanya;
-  - daftar dari user dipakai dengan label `USER`;
-  - kelompok berkolom (Industry = Banks) berlabel `DATA`;
-  - daftar ticker di kode tanpa deklarasi ditolak;
-  - ambang dan horizon angka tidak pernah ditolak oleh aturan ini;
-  - kasus broker (daftar kode broker) diperlakukan sama.
+**Tes:**
+- g5.6 menampilkan daftar dan persentil;
+- g6 tidak menampilkan ambang dari user;
+- angka pilihan AI (P25 "persentil ke-90") tidak lagi menyebabkan LIMITATION;
+- kasus lain selain yang diamati: daftar kode broker tertulis di kode, dan pilihan dari data lewat kode (tidak
+  ditandai).
 
 ## 4. G22: database kewalahan
 
