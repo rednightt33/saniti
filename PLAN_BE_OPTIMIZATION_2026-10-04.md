@@ -1,6 +1,6 @@
 # Rencana optimasi backend (2026-10-04)
 
-Status: **RENCANA, belum dieksekusi.** Dasar: `GT_FINAL_2026-10-04.md` (log otak AI golden test `ma-golden-final-20261004a`).
+Status (2026-10-04, sore): **O2, O3, O4 dan P28-D live di dev** (`main` `5dbe0de`, orc `6b47c80f` SUCCESS). **O1 tidak dikerjakan: keputusan user "as is dulu"**; rute penyedia tetap seperti sekarang. Dasar: `GT_FINAL_2026-10-04.md` (log otak AI golden test `ma-golden-final-20261004a`).
 Setiap usulan di-benchmark dulu; yang tidak terbukti tidak dipasang.
 
 ## Evaluasi jujur putaran sebelumnya
@@ -110,6 +110,15 @@ besar; untuk itu perlu ringkasan buatan model (compaction), yang belum diusulkan
 - Gerbang hanya meminta AI untuk angka yang **diketik** (bukan rujukan) dan berasal dari kode AI.
 
 **Tidak mencakup:** angka yang diketik AI tanpa rujukan; untuk itu gerbang tetap meminta sekali.
+
+**Hasil eksekusi (2026-10-04):**
+- Data dump golden test: 54 dari 65 cek BASE_TABLE hanya membaca ulang satu sel tabel yang sudah dirujuk jawaban
+  (`rows_matched` = 1). Cek ini tidak menambah bukti dibanding DIRUJUK.
+- Backend **tidak bisa** menghitung ulang sel turunan (rata-rata, median) tanpa resepnya; bagian "backend menghitung
+  ulang sendiri" di atas tidak bisa diturunkan. Yang dipasang: angka yang ditulis sebagai rujukan diberi label
+  DIRUJUK; gerbang hanya menyebut angka yang **diketik** AI (jawaban tanpa rujukan, angka tulisan user dikecualikan).
+- Tes: `tests/test_g23_desk.py` (semua rujukan → label; angka diketik di samping rujukan → diminta dengan angkanya;
+  angka tulisan user → bukan klaim).
 
 **Benchmark:** jawaban g1, g3, g5.3, g6.1. Ukur berapa klaim yang bisa dicek otomatis, berapa panggilan model yang
 hilang, dan apakah status bukti sama.

@@ -1,5 +1,20 @@
 # Railway changelog
 
+## 2026-10-04 — Branch merged to `main`; backend fixes O2, O3, O4, P28-D on dev; QA suite started
+
+- `claude/g2-g3-reactivation` fast-forwarded into `main` (`e7238f0` → `a6d7ded`, 125 commits). Auto-deploys from
+  `main`: market-ai-orc `66b78258` SUCCESS, market-sql-governor `baed5b02` SUCCESS; market-python-sandbox `61cf9357`
+  and market-web-governor `a520eea7` SKIPPED by Railway (their live CLI deployments `8f460c32` and `1ccfc59b` run the
+  same code). From now on the services deploy from `main`; R31 (a variable change redeploys from `main`) no longer
+  differs from the branch.
+- market-ai-orc variable `AI_MAX_HISTORY_TOKENS` set to 150000 (O2, user decision), `--skip-deploys`; picked up by the
+  next deploy. `AI_MAX_CONTEXT_TOKENS` 500000, `AI_MODEL_SWITCH` 1, `AI_MODE_SWITCH` 4 unchanged.
+- market-ai-orc `d979ca92` SUCCESS (`c8d028b`, O3 + O2) and `6b47c80f` SUCCESS (`5dbe0de`, O4 + P28-D); startup clean.
+- O1 (provider routing) not done: user decision 2026-10-04 "as is dulu". `AI_PROVIDER_MAX_CACHE_PRICE_RATIO` stays.
+- A temporary sandbox retention of 1 hour for the g9 expiry test was **not** applied (permission refused); retention
+  stays 24 hours.
+- orc-test-runner deployment `f13b6bc6` (CLI upload, `7cbda41`): suite `ma-qa-20261004a` (4 workers).
+
 ## 2026-10-04 — Fact finder on, final golden test A started (dev)
 
 - **market-web-governor `1ccfc59b` `SUCCESS`** (CLI upload at the W-F1 fix; meta without a branch).

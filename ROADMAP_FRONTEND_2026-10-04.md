@@ -99,9 +99,9 @@ Status: **USULAN**, belum dikerjakan; menunggu keputusan user (bagian 5).
 - [ ] Kebijakan privasi dan masa simpan percakapan untuk pengguna luar
 
 **Prasyarat dari backend (sebelum pengguna nyata):**
-- [ ] Waktu jawaban turun (O1 penyedia, `PLAN_BE_OPTIMIZATION_2026-10-04.md`); sekarang 4–36 menit
-- [ ] Riwayat percakapan tidak hilang setelah jawaban panjang (O2)
-- [ ] Ekspor dan aksi atas hasil lama tersedia di langkah baca (O3)
+- [ ] Waktu jawaban turun; sekarang 4–36 menit. O1 (penyedia) ditunda: keputusan user "as is dulu"
+- [x] Riwayat percakapan tidak hilang setelah jawaban panjang (O2; live 2026-10-04)
+- [x] Ekspor dan aksi atas hasil lama tersedia di langkah baca (O3; live 2026-10-04)
 - [ ] Golden test sisa (g5.6–9, g9.2–3, g11, g13) dan uji beban 5 worker (suite B)
 
 **Tahap 1 — gateway:**
