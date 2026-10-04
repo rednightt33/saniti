@@ -106,46 +106,55 @@ Lihat `PLAN_EVIDENCE_GATE_2026-10-04.md`:
 
 ### S4: kelompok yang tidak ada datanya (M71, BBCA sebagai BUMN)
 
-- **Masalah:** AI menebak anggota kelompok dari ingatannya.
-- **Solusi (orc + katalog, permanen):**
-  - Kelompok yang disebut user (BUMN, grup usaha, indeks, nanti region makro) harus berasal dari kolom atau tabel
-    referensi yang ada.
-  - **AI diberi jalan keluar resmi** untuk bilang "tidak tahu" atau bertanya:
-    - Ia menjawab dengan jenis jawaban `CLARIFICATION`, yang sudah ada di sistem dan dipakai di g7.2. Isinya: "Data
-      kelompok BUMN tidak ada di database. Mohon kirim daftar tickernya, atau saya pakai kelompok yang ada (mis.
-      Industry = Banks)."
-    - Jawaban ini **bukan kegagalan**: tidak ditolak gerbang, tidak dihitung "buntu", dan biayanya kecil (1–2 langkah).
-    - Buku metode dan perintah penolakan menyebut jalan keluar ini secara eksplisit (sama seperti C di
-      `PLAN_EVIDENCE_GATE_2026-10-04.md`).
-  - Daftar dari user dicatat di definisi hasil sebagai "dari user". Bila user menyebut ticker langsung di pertanyaannya,
-    daftar itu sah.
-  - Penegakan, **berlaku untuk semua daftar nilai, bukan hanya saham**:
-    - Daftar nilai dari kolom dimensi atau identitas mana pun yang ditulis AI sebagai teks di kode untuk menyaring atau
-      mengelompokkan, ditolak sebelum dijalankan bila tidak punya sumber. Contoh: ticker, kode broker, nama sektor/industri,
-      tipe investor, papan, dan nanti kode negara, nama indeks, seri makro.
-    - Daftar kolom yang diperiksa **diturunkan dari katalog** (kolom berperan DIMENSION/IDENTIFIER), bukan ditulis tangan,
-      sehingga tabel baru otomatis ikut.
-    - Sumber yang sah:
-      1. pertanyaan user (termasuk nama perusahaan yang dicocokkan ke ticker lewat tabel referensi);
-      2. hasil alat di percakapan ini (`get_dimension_values`, katalog, tabel yang sudah dirilis);
-      3. jawaban user atas klarifikasi.
-    - Nilai yang dihitung oleh kode dari data (misalnya "hari crash" hasil filter) bukan teks tertulis, jadi tidak
-      terkena aturan ini.
-    - Polanya sama dengan penolakan angka tertulis di kode (P25).
-    - Pesan penolakannya menunjuk ke jalan keluar: "tanyakan ke user dengan CLARIFICATION".
-  - **Risiko:** penolakan keliru, misalnya user menulis "Bank Central Asia" dan AI menulis `BBCA`. **Mitigasi:** nama yang
-    cocok di tabel referensi dihitung sebagai sumber; setiap penolakan dicatat di log untuk ditinjau di golden test.
-- **Data (keputusan 6, user):** tambah atribut kepemilikan negara, bersumber resmi (BP BUMN / laporan emiten), dengan
-  tanggal berlaku. Fakta saat ini: BBRI, BMRI, BBNI, BBTN adalah BUMN; BRIS anak usaha BUMN; BBCA swasta.
-- **Hasil benchmark:**
-  - Daftar AI salah 2 dari 6.
-  - AbstentionBench: model reasoning 24% lebih jarang mau bilang "tidak tahu". Karena itu penegakannya harus di sistem,
-    bukan di instruksi.
+- **Masalah yang sebenarnya:** daftar anggota kelompok **tersembunyi**.
+  - Rencana g5 yang disetujui user hanya menulis "bank BUMN = bank milik negara", tanpa daftar saham. User tidak bisa
+    melihat BBCA ada di dalamnya.
+  - Daftarnya baru muncul di kode, yang tidak dibaca user.
+- **Prinsip:** AI **tidak perlu bertanya** untuk bisa bekerja. AI boleh memakai pengetahuannya sendiri, asalkan daftar itu
+  **terlihat dan diberi label sumbernya** di tempat user memutuskan. Bertanya hanya salah satu pilihan, bukan kewajiban.
+  Revisi ini menggantikan usulan sebelumnya ("wajib tanya user"), karena aturan itu akan menghambat uji hipotesis dan
+  mengulang pola P05/P08 (gerbang terlalu ketat).
+- **Solusi (orc + sandbox, permanen): kelompok wajib dideklarasikan, bukan wajib ditanyakan.**
+  1. Setiap kelompok yang dipakai untuk menyaring atau mengelompokkan dideklarasikan sekali:
+     `groups: [{name, members, source}]`. `source` salah satu dari:
+     - `DATA` (kolom atau tabel referensi);
+     - `USER` (disebut user, termasuk nama perusahaan yang dicocokkan ke ticker);
+     - `AI_KNOWLEDGE` (pengetahuan AI, belum diverifikasi data).
+  2. **Uji hipotesis dan riset:** daftar dan sumbernya tampil di rencana yang memang disetujui user. **Tidak ada langkah
+     tambahan.** Contoh: "BUMN (pengetahuan AI, belum diverifikasi): BBCA, BBRI, BMRI, BBNI, BBTN, BRIS". User bisa
+     mengoreksi saat menyetujui.
+  3. **Analisis biasa (tanpa tahap persetujuan):** AI langsung jalan. Jawaban menampilkan daftar dan label sumber di
+     bagian asumsi. AI boleh memilih bertanya (`CLARIFICATION`) bila kelompoknya penting dan ia tidak yakin, tetapi itu
+     tidak diwajibkan.
+  4. Penegakan oleh sistem: daftar nilai dari kolom dimensi atau identitas yang ditulis di kode, **tanpa deklarasi**,
+     ditolak dengan pesan "deklarasikan kelompok ini beserta sumbernya". Kolom yang diperiksa diturunkan dari katalog.
+     Ini berlaku untuk semua jenis daftar: ticker, broker, sektor, tipe investor, papan, dan nanti negara, indeks, seri
+     makro. Nilai yang dihitung kode dari data, misalnya "hari crash", tidak terkena aturan.
+  5. **Angka dan parameter desain** (ambang 3%, horizon 10 hari, persentil 95) **tidak terkena aturan ini.** Itu pilihan
+     desain yang sudah dideklarasikan di rencana; satuannya dijaga P26 dan S3.
+  6. Label `AI_KNOWLEDGE` ikut tercatat di definisi hasil, sehingga bisa ditelusuri lewat `get_lineage` dan ekspor.
+- **Data (keputusan 6, user):** atribut kepemilikan negara bersumber resmi. Begitu ada, kelompok BUMN otomatis bersumber
+  `DATA`. Fakta saat ini: BBRI, BMRI, BBNI dan BBTN adalah BUMN; BRIS anak usaha BUMN; BBCA swasta.
+- **Uji ulang pada kasus g5:**
+  - Dengan aturan ini, rencana g5.5 akan menampilkan keenam saham dengan label `AI_KNOWLEDGE` **sebelum** user menyetujui.
+  - Kesalahan BBCA dan BRIS bisa terlihat di tahap persetujuan, dengan 0 langkah tambahan.
+  - AbstentionBench: model reasoning jarang mau bilang "tidak tahu". Karena itu penegakannya **membuat tebakan terlihat**,
+    bukan berharap AI menolak.
+- **Risiko dan mitigasi:**
+
+| Risiko | Mitigasi |
+|---|---|
+| User tidak membaca daftar di rencana, dan kesalahan tetap lolos | Label `AI_KNOWLEDGE` juga tampil di jawaban akhir dan di bukti; keputusan 6 menghapus tebakan untuk BUMN |
+| Penolakan keliru, misalnya nama perusahaan dari user | Nama yang cocok di tabel referensi dihitung `USER`; setiap penolakan dicatat dan ditinjau di golden test |
+| Rencana jadi lebih panjang | Daftar > 20 anggota diringkas ("48 saham Industry = Banks"); daftar lengkap ada di definisi hasil |
+
 - **Tes:**
-  - BUMN tanpa kolom: AI bertanya, tidak menebak;
-  - daftar dari user dipakai dan dicatat;
-  - kelompok yang ada kolomnya (Industry = Banks) tetap jalan;
-  - daftar ticker yang memang disebut user di pertanyaan tidak ditolak.
+  - g5.5: rencana menampilkan daftar BUMN + label, dan uji tetap jalan tanpa bertanya;
+  - daftar dari user dipakai dengan label `USER`;
+  - kelompok berkolom (Industry = Banks) berlabel `DATA`;
+  - daftar ticker di kode tanpa deklarasi ditolak;
+  - ambang dan horizon angka tidak pernah ditolak oleh aturan ini;
+  - kasus broker (daftar kode broker) diperlakukan sama.
 
 ## 4. G22: database kewalahan
 
