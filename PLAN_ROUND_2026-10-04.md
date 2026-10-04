@@ -120,12 +120,29 @@ Lihat `PLAN_EVIDENCE_GATE_2026-10-04.md`:
      - `DATA` (kolom atau tabel referensi);
      - `USER` (disebut user, termasuk nama perusahaan yang dicocokkan ke ticker);
      - `AI_KNOWLEDGE` (pengetahuan AI, belum diverifikasi data).
+     - `DATA_RULE` (dipilih dari data dengan aturan yang ditulis, misalnya "10 broker dengan net beli 20 hari terbesar"
+       atau "broker berprofil Institutional-heavy"). Anggota yang terpilih dihitung kode dari data, dan aturannya ikut
+       tampil.
   2. **Uji hipotesis dan riset:** daftar dan sumbernya tampil di rencana yang memang disetujui user. **Tidak ada langkah
      tambahan.** Contoh: "BUMN (pengetahuan AI, belum diverifikasi): BBCA, BBRI, BMRI, BBNI, BBTN, BRIS". User bisa
      mengoreksi saat menyetujui.
   3. **Analisis biasa (tanpa tahap persetujuan):** AI langsung jalan. Jawaban menampilkan daftar dan label sumber di
      bagian asumsi. AI boleh memilih bertanya (`CLARIFICATION`) bila kelompoknya penting dan ia tidak yakin, tetapi itu
      tidak diwajibkan.
+  3b. **Pilih dari data dulu, baru tanya.** Bila kelompok bisa dipilih dari data dengan kriteria yang tersirat di
+     pertanyaan ("broker yang akumulasi", "saham paling likuid"), AI memilihnya sendiri (`DATA_RULE`) dan menampilkan
+     aturan beserta hasilnya, bukan bertanya "broker mana?". Istilah seperti "akumulasi" didefinisikan dan ditampilkan
+     (M66/M13).
+  3c. **User mendelegasikan** ("kamu yang tentukan berdasarkan X"):
+     - X berupa ukuran dari data (net beli, frekuensi beli, nilai transaksi) menjadi `DATA_RULE` dengan aturan X;
+     - X berupa atribut yang ada di katalog (asing/domestik, profil institusi/ritel di `IDX_Broker_Profile`) menjadi
+       `DATA`;
+     - X yang tidak ada di data (misalnya "broker milik grup konglomerat") menjadi `AI_KNOWLEDGE`, dengan label di
+       jawaban.
+     Pada semua kasus, jawaban menyebut "dipilih AI atas permintaan Anda: aturan …, hasil …", sehingga user bisa
+     merevisi.
+  3d. **Kelompok disimpan di percakapan** (nama, anggota, sumber, aturan), sehingga pertanyaan lanjutan ("bagaimana
+     return-nya setelah broker itu beli?") memakai kelompok yang sama, tidak memilih ulang dengan definisi lain (M66).
   4. Penegakan oleh sistem: daftar nilai dari kolom dimensi atau identitas yang ditulis di kode, **tanpa deklarasi**,
      ditolak dengan pesan "deklarasikan kelompok ini beserta sumbernya". Kolom yang diperiksa diturunkan dari katalog.
      Ini berlaku untuk semua jenis daftar: ticker, broker, sektor, tipe investor, papan, dan nanti negara, indeks, seri
@@ -155,6 +172,12 @@ Lihat `PLAN_EVIDENCE_GATE_2026-10-04.md`:
   - daftar ticker di kode tanpa deklarasi ditolak;
   - ambang dan horizon angka tidak pernah ditolak oleh aturan ini;
   - kasus broker (daftar kode broker) diperlakukan sama.
+  - dialog "cari broker yang akumulasi" → AI langsung memilih dengan aturan dari data (tanpa bertanya), menampilkan
+    aturan dan daftar;
+  - dialog "kamu yang tentukan berdasarkan profil institusi" → `DATA` dari `IDX_Broker_Profile`;
+  - "berdasarkan net beli" → `DATA_RULE`;
+  - "berdasarkan grup konglomerat" → `AI_KNOWLEDGE` dengan label;
+  - pertanyaan lanjutan memakai kelompok yang tersimpan.
 
 ## 4. G22: database kewalahan
 
