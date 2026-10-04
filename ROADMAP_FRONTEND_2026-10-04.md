@@ -86,3 +86,43 @@ Status: **USULAN**, belum dikerjakan; menunggu keputusan user (bagian 5).
 | Database bersama kewalahan (G22) | Antrean Governor (sudah aktif, N=2); uji beban sebelum produksi; database terpisah (G22-6, keputusan user) |
 | Pengguna melihat data pengguna lain | Owner dari login di gateway; orc dan unduhan sudah memeriksa pemilik |
 | Orc terbuka ke internet | Orc tetap privat; hanya gateway yang publik |
+
+## 7. To-do list (status 2026-10-04)
+
+**Belum dikonfirmasi user (menahan tahap 1):**
+- [ ] Pengguna: tim internal atau publik?
+- [ ] Cara login: email/kata sandi, Google, atau Telegram?
+- [ ] Bentuk front-end: web app, bot Telegram, atau keduanya; mana yang pertama?
+- [ ] Batas biaya per pengguna per hari dan total per hari
+- [ ] Lingkungan production terpisah dan domain
+- [ ] Database terpisah untuk percakapan/audit (G22-6)
+- [ ] Kebijakan privasi dan masa simpan percakapan untuk pengguna luar
+
+**Prasyarat dari backend (sebelum pengguna nyata):**
+- [ ] Waktu jawaban turun (O1 penyedia, `PLAN_BE_OPTIMIZATION_2026-10-04.md`); sekarang 4–36 menit
+- [ ] Riwayat percakapan tidak hilang setelah jawaban panjang (O2)
+- [ ] Ekspor dan aksi atas hasil lama tersedia di langkah baca (O3)
+- [ ] Golden test sisa (g5.6–9, g9.2–3, g11, g13) dan uji beban 5 worker (suite B)
+
+**Tahap 1 — gateway:**
+- [ ] Desain tabel tugas dan pengguna (Postgres), migrasi
+- [ ] Login dan pemetaan pengguna → owner
+- [ ] Antrean tugas + pekerja yang memanggil orc
+- [ ] Kuota per pengguna dari `execution.cost`
+- [ ] Unduhan diteruskan, cek pemilik
+- [ ] Uji dua akun bersamaan
+
+**Tahap 2 — orc:**
+- [ ] Endpoint daftar percakapan per owner
+- [ ] Endpoint progres langkah (mode 4)
+- [ ] Endpoint pembatalan
+
+**Tahap 3 — front-end:**
+- [ ] Chat + render tabel
+- [ ] Tombol setuju/revisi/batal rencana
+- [ ] Panel bukti, "Pilihan AI", "Fakta web"
+- [ ] Riwayat dan unduhan
+
+**Tahap 4–5:**
+- [ ] Dashboard pemantauan internal
+- [ ] Production, domain, batas laju, cadangan, uji beban
