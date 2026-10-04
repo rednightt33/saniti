@@ -43,7 +43,18 @@ Setiap usulan di-benchmark dulu; yang tidak terbukti tidak dipasang.
 - Pesan user selalu dibawa utuh.
 - Jawaban AI terbaru selalu dibawa. Jawaban lama dipadatkan, tidak dibuang.
 
-**Perbaikan (orc, permanen):**
+**Keputusan user (2026-10-04): solusi sederhana dipakai, belum dieksekusi.**
+- Ubah setelan `AI_MAX_HISTORY_TOKENS` dari 4.000 ke 150.000 di dev, tanpa ubah kode.
+- Batas yang sudah ada tetap berlaku: maks. 50 pesan riwayat, 40.000 karakter per jawaban AI, 16.000 karakter per pesan
+  user. Kasus terburuk ± 250 rb token, di bawah `AI_MAX_CONTEXT_TOKENS` 500 rb.
+- **Prompt caching:** riwayat berada di bagian depan yang tetap (instruksi → catatan tanggal → riwayat → pesan baru),
+  sehingga di dalam satu jawaban hanya panggilan pertama yang membayar penuh. Mode 4 membayar penuh sekali per langkah
+  (± USD 0,002–0,005 untuk riwayat 30 rb token).
+- **Verifikasi:** ulang g5.1 → g5.2; jawaban tidak lagi balik bertanya dan merujuk angka yang benar.
+
+Usulan lanjutan di bawah (pemadatan jawaban lama) hanya diperlukan bila percakapan melewati 150 rb token.
+
+**Perbaikan lanjutan (orc, permanen; bila diperlukan nanti):**
 1. **Anggaran riwayat** diturunkan dari batas konteks: persentase `AI_MAX_CONTEXT_TOKENS`, misalnya 10%, bukan angka
    tetap 4.000.
 2. **Urutan pengisian:**
