@@ -1,5 +1,7 @@
 # Rencana perbaikan G23: gerbang bukti, daftar alat AI, dan jalan keluar saat buntu (2026-10-04)
 
+> **Digantikan oleh `PLAN_FINAL_2026-10-04.md` (2026-10-04).** Dokumen ini disimpan sebagai riwayat diskusi.
+
 Status: **RENCANA, belum dieksekusi.** Menunggu persetujuan user. Dasar: `GT_ANALYSIS_2026-10-04.md` §1a dan
 `ERRORS_AND_SOLUTIONS.md` G23.
 

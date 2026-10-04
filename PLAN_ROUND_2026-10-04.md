@@ -1,5 +1,7 @@
 # Rencana putaran 2026-10-04: ganti model, perbaiki 3 jawaban salah, G22, dan G23
 
+> **Digantikan oleh `PLAN_FINAL_2026-10-04.md` (2026-10-04).** Dokumen ini disimpan sebagai riwayat diskusi.
+
 Status: **RENCANA, belum dieksekusi.** Perbaikan G23 (gerbang bukti dan jalan keluar saat buntu) ada di
 `PLAN_EVIDENCE_GATE_2026-10-04.md`. Dasar analisis: `GT_ANALYSIS_2026-10-04.md`.
 
