@@ -224,3 +224,30 @@ pertanyaan analisis baru dibawa ke riset). Usulan S6 ditarik. Data ini disimpan 
   - "Coba event study: …" dibaca sebagai setuju (3/3);
   - "pakai data 5 tahun terakhir untuk ranking tadi" dibaca sebagai revisi (3/3).
 - **Dampak sisa:** usulan tetap menunggu (aturan 4), sehingga user bisa mengulang.
+
+## Lampiran S4b: benchmark pencari fakta web ringan (2026-10-04, `fact-bench-20261004a`)
+
+20 fakta dengan jawaban yang diketahui, 4 paralel, lewat `web-governor-test-runner` (`09496358`). Setelah 9 fakta,
+kunci OpenRouter mencapai batas USD 25 (R30), sehingga semua panggilan berikutnya gagal seketika.
+
+| Fakta | Status | Nilai | Benar? | Detik |
+|---|---|---|---|---|
+| BBRI status | CONFIRMED | BUMN | Ya | 13,7 |
+| BMRI status | CONFIRMED | BUMN (milik negara) | Ya | 8,1 |
+| BBNI status | PARTIAL (1 situs) | BUMN (milik negara) | Ya | 9,3 |
+| BBTN status | CONFIRMED | BUMN (milik negara) | Ya | 10,0 |
+| BBCA status | CONFIRMED | swasta | Ya | 12,4 |
+| BRIS status | CONFIRMED | BUMN | Kurang tepat: anak usaha BUMN | 11,5 |
+| BNGA status | CONFIRMED | swasta | Ya | 10,6 |
+| BDMN status | CONFIRMED | swasta | Ya | 6,4 |
+| PNBN status | NOT_FOUND (ekstraksi gagal: batas kunci) | — | Tidak diuji | 5,2 |
+| 11 fakta lain (pengendali, LQ45, tahun IPO) | NOT_FOUND (pencarian gagal: batas kunci) | — | Tidak diuji | 0,1 |
+| 3 ulangan (cache) | sama dengan pertama (bila tersimpan) | — | — | < 0,1 |
+
+**Temuan:**
+- 8 dari 8 fakta yang terjawab sejalan dengan jawaban yang diketahui; BRIS disederhanakan menjadi "BUMN".
+- Biaya sekitar USD 0,015 per fakta, di atas perkiraan rencana (< 0,01).
+- Waktu maksimal 13,7 detik, di bawah batas 30 detik.
+- **Kelas temuan BRIS:** nilai yang benar sebagian (anak usaha vs induk) tidak bisa dibedakan dari cuplikan pendek.
+  Bukan kesalahan kutipan; kutipan memang menyebut "BUMN".
+- **Belum dinyalakan di orc** (`AI_ENABLE_WEB_FACT`): sisa benchmark menunggu batas kunci dinaikkan.

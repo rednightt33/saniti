@@ -1,5 +1,22 @@
 # Railway changelog
 
+## 2026-10-04 — Final plan phases 4–5 on dev: light fact finder, Governor queue, conversation save retry
+
+- **Temporary service `f4-mig-job`** (dev; `CATALOG_URL`/`EVENT_URL` as references to `${{Postgres.DATABASE_URL}}` and
+  `${{Postgres-E8GM.DATABASE_URL}}`, `MODE`): DRYRUN `2f01727f`, APPLY `d6c4c6d9` (`DATABASE_CHANGELOG.md`); deleted.
+- **market-web-governor `9b3d4a7d` `SUCCESS`** (CLI upload of `claude/g2-g3-reactivation` at `02d1b59`; meta without a
+  branch): `POST /v1/fact`. A later push of `main` that touches the folder would replace it.
+- **web-governor-test-runner `09496358`** (CLI upload): fact benchmark, 20 facts + 3 cache repeats. Nine answered, then
+  every call failed: the OpenRouter key reached its USD 25 limit (R30). Results: `GT_ANALYSIS_2026-10-04.md` appendix S4b.
+- **Variable `SQL_HEAVY_QUERY_CONCURRENCY=2`** on market-sql-governor (dev; new; not a secret), set with `--skip-deploys`;
+  **market-sql-governor `a23aa316` `SUCCESS`** (CLI upload at `e20ec54`; meta without a branch).
+- **Variables `WEB_GOVERNOR_URL`** (the private address of market-web-governor) **and `WEB_GOVERNOR_API_KEY`** (a
+  reference to market-web-governor's key; secret, value not recorded) on market-ai-orc (dev), set with `--skip-deploys`.
+  `AI_ENABLE_WEB_FACT` is **not** set yet: the benchmark must finish first.
+- **market-ai-orc `fba3574e` `SUCCESS`** (CLI upload at `e20ec54`; meta without a branch): `find_web_fact` code (off),
+  conversation save retry.
+- `railway config pull --force`; `railway config plan`: up to date.
+
 ## 2026-10-04 — Final plan phase 3 on dev: units by recomputation, undefined conditions, "Pilihan AI", reasoning replay
 
 - **market-python-sandbox `567c7a48` `SUCCESS`** (CLI upload of `claude/g2-g3-reactivation` at `078de45`; meta without a

@@ -11,6 +11,23 @@ The first adapter uses OpenRouter's Responses API with the `openrouter:web_searc
 tools. Provider details remain behind the internal adapter interface so callers depend only on the v1 Saniti
 contract.
 
+## Light fact (`POST /v1/fact`)
+
+One fact that is not in the market data (group membership, controlling shareholder, company status) in about 30
+seconds (PLAN_FINAL_2026-10-04.md Fase 4, S4b). `{"request_id", "subject", "attribute", "refresh"?}`.
+
+- **Cache:** `web_fact` on Postgres-E8GM (`event_store/003_web_fact.sql`), keyed by subject and attribute (case and
+  punctuation ignored); only CONFIRMED and CONFLICTING results are kept, 30 days. A hit answers in under a second.
+- **Search:** two `openrouter:web_search` calls in parallel, no planner model: one open, one limited to the official
+  domains of the source policy; each at most five results.
+- **Extraction:** one model call (slot 1, reasoning off, strict JSON): each source's value and a quote.
+- **Status, decided by code:** a quote must appear in its source's text (else dropped, `QUOTE_NOT_VERBATIM`).
+  - CONFIRMED: two independent domains agree, or one official source.
+  - CONFLICTING: different values, each version with its domains and quotes.
+  - PARTIAL: one non-official source, or the 30-second deadline with sources read.
+  - NOT_FOUND: nothing usable.
+- **Measured 2026-10-04:** 5–14 s and about USD 0.015 per fact; cached repeats under 0.1 s.
+
 ## Lean ask (`POST /v1/ask`), recommended path
 
 One question in, one cited answer out. It runs next to the older web-need flow (kept for comparison until the lean

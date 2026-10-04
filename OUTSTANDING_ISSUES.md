@@ -45,8 +45,8 @@ g6 = usulan pertanyaan tambahan).
 - G23: gerbang bukti meminta get_evidence di run yang tidak punya alat itu, sehingga model loop (g9.2 gagal di 60 iterasi; 29% panggilan model di run ini terbuang). --> DIPERBAIKI di kode dan live di dev (orc `26ee862e`), menunggu golden test akhir (g9.1–2, g5, g6, g7, g11)
 - M74: router membaca pertanyaan lanjutan sebagai revisi usulan riset (g7.3 "bandingkan dengan 2024"). --> DIPERBAIKI sebagian (benchmark: salah baca 14/60 → 8/60 di MiMo; sisa "Coba event study" dibaca setuju), menunggu golden test akhir (g7, g5)
 - M73: mode 4 menjalankan riset untuk setiap pertanyaan baru. --> SESUAI DESAIN (tujuan 1 mode 4); ditutup 2026-10-04
-- G22: database bersama kewalahan saat 5 worker paralel; rencana dan riwayat percakapan gagal disimpan/dibaca, Governor 503. --> UNDERADDRESSED, menunggu keputusan perbaikan (GT `ma-golden-20261003e` g4.2, g5.1, g2)
-- R30: kredit akun OpenRouter habis (HTTP 402). --> KEPUTUSAN USER: tambah kredit (GT `ma-golden-20261003e`)
+- G22: database bersama kewalahan saat 5 worker paralel; rencana dan riwayat percakapan gagal disimpan/dibaca, Governor 503. --> DIPERBAIKI di kode (Governor `a23aa316`: satu timeout per pesanan, antrean N=2; orc `fba3574e`: simpan coba ulang sekali), menunggu golden test akhir 5 worker; database terpisah (G22-6) menunggu keputusan user (GT `ma-golden-20261003e` g4.2, g5.1, g2)
+- R30: kredit akun OpenRouter habis (HTTP 402) / batas kunci tercapai (403). --> KEPUTUSAN USER: naikkan batas kunci (terulang 2026-10-04 ± 12:00 UTC: batas kunci USD 25 habis; memblokir sisa benchmark fakta dan golden test akhir)
 - R31: ubah variabel tanpa `--skip-deploys` men-deploy ulang dari `main`. --> diatasi lewat proses; tuntas setelah cabang masuk `main` (luar GT)
 - P05/P08: jawaban benar dipaksa LIMITATION karena angka parameter. --> DIPERBAIKI (orc `06d6be4a`: ambang/persentil ketikan AI tampil sebagai "Pilihan AI", tidak ditolak), menunggu golden test akhir (g3, g6)
 - G10: FEASIBLE tetapi 7 dari 8 penarikan ditolak. --> MENUNGGU GOLDEN TEST (lewat G13) (g5.7–8)

@@ -434,6 +434,9 @@ mistake.
 | `SQL_EXTRACT_MAX_COLUMNS` | 60 | Columns per extraction |
 | `SQL_EXTRACT_MAX_WINDOW_DAYS` | 3660 | Longest window of one extraction part; longer windows are split by date |
 | `SQL_ESTIMATE_COUNT_ENABLED` | false | G13: an estimate-only extraction counts its rows instead of trusting the planner (see below) |
+| `SQL_COUNT_TIMEOUT_MEMORY_SECONDS` | 900 | G22-3: after one count of a data order (need_id + data request) times out, its other parts keep the planner's estimate (`ROW_ESTIMATE_UNCERTAIN`, log `skipped: EARLIER_PART_TIMED_OUT`) for this long; the split already bounds each part |
+| `SQL_HEAVY_QUERY_CONCURRENCY` | 0 (no limit) | G22-4: at most this many extractions and counts at once; others wait (log `sql_governor_queue` WAITED). Dev: 2 |
+| `SQL_HEAVY_QUERY_WAIT_SECONDS` | 120 | G22-4: the longest wait for a slot; then HTTP 503 (busy, log `sql_governor_queue` BUSY), never a data decision |
 | `SQL_ESTIMATE_COUNT_TIMEOUT_MS` | 7000 | Timeout of one count (user decision 2026-10-01); with counting on it may not exceed `SQL_STATEMENT_TIMEOUT_SECONDS` |
 | `SQL_ESTIMATE_COUNT_MIN_ROWS` | 0 | Count only when the planner estimates at least this many rows (0: every estimate-only part) |
 

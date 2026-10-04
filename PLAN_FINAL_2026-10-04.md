@@ -10,7 +10,11 @@ Status: **FINAL, disetujui user 2026-10-04. Dieksekusi:**
   - S4 di orc: pemeriksaan pada 59 eksekusi nyata menandai 6, sesuai prototipe. Penanda hanya tampil di asumsi
     jawaban; lineage dan ekspor belum memuatnya.
   - S4c di orc (`AI_REPLAY_REASONING=true`). Parameter `condition_columns` tidak ditambahkan; deteksi otomatis
-    sudah mencakup kasusnya. Dokumen ini menggantikan `PLAN_ROUND_2026-10-04.md` dan
+    sudah mencakup kasusnya.
+- **Fase 4:** kode, migrasi dan deploy selesai (web-governor `9b3d4a7d`, orc `fba3574e` dengan alat masih mati).
+  Benchmark terhenti di 9 dari 20 fakta karena batas kunci OpenRouter (R30); 8 dari 8 terjawab sesuai.
+- **Fase 5:** selesai (Governor `a23aa316` dengan antrean N=2, orc `fba3574e`).
+- **Fase 6:** menunggu batas kunci OpenRouter dinaikkan. Dokumen ini menggantikan `PLAN_ROUND_2026-10-04.md` dan
 `PLAN_EVIDENCE_GATE_2026-10-04.md` (keduanya disimpan sebagai riwayat diskusi). Dasar bukti:
 `GT_ANALYSIS_2026-10-04.md`, `GOLDEN_TEST_ROUND_2026-10-03.md` bagian 3, dan `ERRORS_AND_SOLUTIONS.md` (G22, G23, P27,
 M71, M72, M73).

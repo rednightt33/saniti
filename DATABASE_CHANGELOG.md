@@ -1,5 +1,17 @@
 # Database changelog
 
+## 2026-10-04 — Final plan phase 4: Tool_Catalog round F (find_web_fact) on dev and web_fact on Postgres-E8GM dev
+
+- **`20261004_002_web_fact_tool_catalog.sql`** (generated, round `round_f`): the first row of `find_web_fact` (QUERY,
+  RETRIEVAL, v1, inactive; flag `AI_ENABLE_WEB_FACT`). Temporary job `f4-mig-job` (references to the catalog and
+  Postgres-E8GM URLs; deleted afterwards): DRYRUN `2f01727f` rolled back; APPLY `d6c4c6d9`. Read back: `Tool_Catalog` 99
+  rows (was 98); a second run was refused. `APPLIED.sha256` updated.
+- **`apps/market-web-governor/event_store/003_web_fact.sql`** on Postgres-E8GM (same job): table `web_fact` (14 columns;
+  one row per fact key, CONFIRMED and CONFLICTING only, 30 days). Grants: `web_event_writer` SELECT, INSERT, DELETE;
+  `web_event_reader` SELECT. Read back: 14 columns, 0 rows, grants as listed.
+- **Data:** the fact benchmark (`fact-bench-20261004a-*`) stored the settled facts of the first nine questions before the
+  OpenRouter key limit stopped it (R30); the rows expire after 30 days.
+
 ## 2026-10-04 — Migration 20261004_001 (Tool_Catalog round E) on dev
 
 - **`20261004_001_evidence_days_tool_catalog.sql`** (generated, round `round_e`): `get_evidence` v2 with the DAYS
