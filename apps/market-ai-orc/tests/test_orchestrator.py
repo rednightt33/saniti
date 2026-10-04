@@ -157,7 +157,8 @@ def test_max_iterations_is_enforced() -> None:
     ]
     agent, client = orchestrator(responses, registry=registry, AI_MAX_TOOL_ITERATIONS="3")
     result = agent.run(request())
-    assert result.status == "FAILED" and result.response is None
+    # G23 D (K3): no total failure; the limit stays visible as the error code
+    assert result.status == "LIMITED" and "Tidak bisa dihitung" in result.response.answer
     assert result.error.code == "MAX_ITERATIONS"
     assert len(client.payloads) == 3 and result.execution.iterations == 3
 

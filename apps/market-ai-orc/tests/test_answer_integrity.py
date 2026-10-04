@@ -3,13 +3,14 @@ never the last page read, keyed tables are referenced by their key, and every JS
 from __future__ import annotations
 
 from app.orchestrator import AgentOrchestrator, RunState
-from app.tools import ToolOutcome
+from app.tools import ToolOutcome, build_default_registry
 from app.value_refs import ReferenceSources, TableRows, render
 
 
 def tracker(row_reader=None) -> AgentOrchestrator:
     orc = AgentOrchestrator.__new__(AgentOrchestrator)
     orc.row_reader = row_reader
+    orc.registry = build_default_registry()
     return orc
 
 

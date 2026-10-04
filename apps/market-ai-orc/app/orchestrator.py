@@ -51,6 +51,7 @@ from .tools.registry import strict_parameters_schema
 from .result_store import restore_missing, store_released
 from .tools.artifacts import RunResults, current_results
 from .tools.session import current_carried_outputs, current_carried_restorer
+from .tools.system import current_step_tools
 from .tools.request_data import current_request_id
 
 
@@ -1096,6 +1097,17 @@ EVIDENCE_INSTRUCTION = (
 EVIDENCE_MISMATCH_INSTRUCTION = (
     "get_evidence found numbers in your answer that do not match the backend's recomputation: {items}. Correct them "
     "(or recheck with a corrected recipe) before answering; if a difference stays, say so in the answer.")
+# G23 C (K2, PLAN_FINAL_2026-10-04.md): every one-time gate request says it is asked once and the way out
+GATE_ONCE_NOTE = (" This check asks only once. If you cannot make the change with the tools you have in this step, send "
+                  "your answer again unchanged: it is then delivered with the backend's note.")
+# G23 B: figures the backend computed or recomputed itself (lookup facts, Governor aggregates, recomputed analyses)
+BACKEND_RECOMPUTED_KINDS = frozenset({"FACT", "DATABASE_AGGREGATE", "CALCULATION_VERIFIED"})
+EVIDENCE_BACKEND_LINE = ("Angka jawaban ini dihitung atau dihitung ulang oleh backend (fakta, agregat Governor, metrik "
+                         "resmi atau analisis yang dihitung ulang), sehingga tidak dicek ulang terpisah.")
+# G23 D (K3): the step limit or time ran out; the last draft still reaches the user
+EXHAUSTED_LINE = "Pemeriksaan tidak selesai ({reason}). Kode permintaan: {request_id}."
+EXHAUSTED_NO_DRAFT = "Tidak bisa dihitung: {reason} sebelum ada jawaban. Kode permintaan: {request_id}."
+EXHAUSTED_REASONS = {"MAX_ITERATIONS": "batas langkah tercapai", "ANALYSIS_TIMEOUT": "batas waktu tercapai"}
 EVIDENCE_NOT_COMPUTED_LINE = ("Bukti klaim tidak dihitung: jawaban ini tidak memeriksa angka utamanya dengan hitung "
                               "ulang backend.")
 EVIDENCE_MISMATCH_LINE = "Klaim \"{claim}\" ({value}): TIDAK COCOK, backend menghitung {backend}."
@@ -1207,6 +1219,10 @@ SESSION_ID_RE = re.compile(r"^sess_[0-9a-f]{24}$")
 ALL_TYPES = BASE_TYPES | {"RESEARCH_PLAN_CONFIRMATION"}
 PLAN_TYPES = frozenset({"RESEARCH_PLAN_CONFIRMATION", "CLARIFICATION", "LIMITATION"})
 RESEARCH_RUN_TOOLS = frozenset({"start_research_run", "run_research_code", "complete_research_run"})
+# G23 A: the tools an analysis repair calls (the gates that ask for one declare them)
+LEGACY_ANALYSIS_TOOLS = frozenset({"create_analysis_spec", "prepare_analysis_data", "run_python_analysis"})
+DATANEED_ANALYSIS_TOOLS = frozenset({"submit_data_need_spec", "prepare_data_bundle", "open_analysis_session",
+                                     "run_python", "complete_analysis"})
 # get_research_library (C07) is registered only while multi-angle research serves the research library
 DISCOVERY_TOOLS = frozenset({"get_system_capabilities", "discover_catalog", "get_catalog_details",
                              "read_catalog_rows", "get_dimension_values", "get_research_library",
@@ -1690,6 +1706,9 @@ class RunState:
     raw_final: dict[str, Any] | None = None
     # the model's latest final output as it arrived (for the final.rejected / final.forced audit events)
     current_raw: str = ""
+    # G23 D (K3): the last final draft that parsed, and the limit that ended the run (MAX_ITERATIONS, ANALYSIS_TIMEOUT)
+    last_draft: FinalResponse | None = None
+    exhausted: str | None = None
     # M45 (AI_ENABLE_EDIT_REPAIR): the refused draft an edit object of the next reply applies to; set only when the
     # refusal offered the edit
     repair_base: dict[str, Any] | None = None
@@ -1970,6 +1989,10 @@ class AgentOrchestrator:
                 artifacts=state.artifacts or None,
                 evidence=self._evidence(state),
             )
+            if state.exhausted is not None:
+                # G23 D: the answer is delivered, and the limit that ended the run stays visible for statistics
+                result = result.model_copy(update={"error": RunError(
+                    code=state.exhausted, message=f"{state.exhausted}: the last draft was delivered as a limitation")})
         except (RunFailure, ProviderError) as exc:
             result = self._failed(state, exc.code, str(exc))
         except Exception as exc:
@@ -2599,7 +2622,7 @@ class AgentOrchestrator:
             limit = self.settings.ai_max_analysis_seconds if budget is None \
                 else min(budget, self.settings.ai_max_analysis_seconds)
             if self.clock() - state.started >= limit:
-                raise RunFailure("ANALYSIS_TIMEOUT", "AI_MAX_ANALYSIS_SECONDS exhausted before a final answer")
+                return self._exhausted(state, "ANALYSIS_TIMEOUT")
 
             tools = [] if state.tools_locked or state.structured_only else self._turn_tools(state)
             context_tokens = self._estimate_context(state, tools)
@@ -2665,8 +2688,12 @@ class AgentOrchestrator:
                     log_event("ai_output_truncated", request_id=state.request_id, iteration=state.iterations,
                               output_tokens=usage["output_tokens"], reasoning_tokens=usage["reasoning_tokens"],
                               tools=[str(call.get("name")) for call in calls])
-                for call in calls:
-                    self._handle_call(state, call, truncated=truncated)
+                step_tools = current_step_tools.set(self._desk(state))
+                try:
+                    for call in calls:
+                        self._handle_call(state, call, truncated=truncated)
+                finally:
+                    current_step_tools.reset(step_tools)
                 continue
 
             raw = self._output_text(response)
@@ -2679,6 +2706,7 @@ class AgentOrchestrator:
                     raise unapplied
                 dropped: dict[str, Any] = {}
                 parsed = self._parse_final_output(raw, dropped)
+                state.last_draft = parsed
                 if dropped:
                     self._note_extra_keys(state, dropped)
                 final = self._check_budget_limitations(state, self._turn_type(state, parsed))
@@ -2707,13 +2735,37 @@ class AgentOrchestrator:
                     self._request_structured_final(state, raw, issue)
                 else:
                     self._reject_final(state, raw, issue)
-        raise RunFailure("MAX_ITERATIONS", "AI_MAX_TOOL_ITERATIONS reached before a final answer")
+        return self._exhausted(state, "MAX_ITERATIONS")
+
+    def _exhausted(self, state: RunState, code: str) -> FinalResponse:
+        """G23 D (K3, PLAN_FINAL_2026-10-04.md): the step limit or the time ran out. The last draft that parsed goes
+        through every gate once more with the tools withdrawn, so each gate applies its own outcome (unsourced figures
+        are still marked or refused, never passed silently), and reaches the user as a LIMITATION with the request id.
+        Without a usable draft the user gets a plain "cannot be computed" message. The run keeps its error code."""
+        state.exhausted = code
+        reason = EXHAUSTED_REASONS[code]
+        line = EXHAUSTED_LINE.format(reason=reason, request_id=state.request_id)
+        draft = state.last_draft
+        final = None
+        if draft is not None and draft.response_type in ("ANSWER", "LIMITATION"):
+            state.tools_locked = True  # every gate applies its own outcome; none can ask for a repair now
+            try:
+                final, forced = self._resolve_references(state, draft)
+                final = self._finalize_findings(state, final if forced else self._validation_gate(state, final))
+            except (TurnRuleError, GateRejection, ValueError):
+                final = None
+        log_event("ai_run_exhausted", request_id=state.request_id, code=code, iterations=state.iterations,
+                  draft=draft.response_type if draft is not None else None, delivered=final is not None)
+        if final is not None and final.response_type in ("ANSWER", "LIMITATION"):
+            return final.model_copy(update={"response_type": "LIMITATION",
+                                            "limitations": [*final.limitations, line]})
+        return FinalResponse(response_type="LIMITATION",
+                             answer=EXHAUSTED_NO_DRAFT.format(reason=reason, request_id=state.request_id),
+                             assumptions=[], limitations=[line])
 
     def _turn_tools(self, state: RunState) -> list[dict[str, Any]]:
-        definitions = self.registry.definitions()
-        if state.tool_filter is None:
-            return definitions
-        return [d for d in definitions if d["name"] in state.tool_filter]
+        desk = self._desk(state)
+        return [d for d in self.registry.definitions() if d["name"] in desk]
 
     @staticmethod
     def _turn_type(state: RunState, final: FinalResponse) -> FinalResponse:
@@ -3772,17 +3824,23 @@ class AgentOrchestrator:
         return entries or None
 
     def _gate_once(self, state: RunState, kind: str, message: str, allowed: bool = True,
-                   outcome: str = "FORCED_LIMITATION") -> None:
+                   outcome: str = "FORCED_LIMITATION", needs: frozenset[str] | None = None) -> None:
         """Reject a final answer once per kind of problem while the model can still repair it with tools. allowed:
-        False when the kind's repair budget is spent (P16); outcome: what happens when no repair is possible."""
-        no_tools_this_turn = state.tool_filter is not None and not state.tool_filter
+        False when the kind's repair budget is spent (P16); outcome: what happens when no repair is possible; needs:
+        the tools the repair calls (any one is enough). G23 A: a repair whose tools are not on this step's desk is
+        never asked for; the gate's own outcome applies at once."""
+        desk = self._desk(state)
+        no_tools_this_turn = not desk
+        missing_tool = bool(needs) and not (needs & desk)
         repairable = allowed and kind not in state.gate_kinds_rejected and not state.tools_locked \
-            and not no_tools_this_turn
+            and not no_tools_this_turn and not missing_tool
         log_event("ai_final_gate", request_id=state.request_id, iteration=state.iterations, kind=kind,
                   outcome="REJECTED_FOR_REPAIR" if repairable else outcome,
                   reason=None if repairable else ("already_rejected" if kind in state.gate_kinds_rejected
                                                   else "repair_budget" if not allowed
-                                                  else "tools_withdrawn" if state.tools_locked else "no_tools"),
+                                                  else "tools_withdrawn" if state.tools_locked
+                                                  else "no_tools" if no_tools_this_turn
+                                                  else "tool_not_in_step"),
                   detail=message[:300])
         if self.audit_outbox is not None and (repairable or outcome == "FORCED_LIMITATION"):
             state.audit_trace.append(final_event("final.rejected" if repairable else "final.forced",
@@ -3791,7 +3849,14 @@ class AgentOrchestrator:
         if repairable:
             state.gate_kinds_rejected.add(kind)
             state.gate_rejections += 1
-            raise GateRejection(message)
+            raise GateRejection(message + GATE_ONCE_NOTE)
+
+    def _desk(self, state: RunState) -> frozenset[str]:
+        """G23 A: the tools this step can call — one source for the tools sent to the model, the gates and
+        get_system_capabilities. Empty once the tools are withdrawn."""
+        if state.tools_locked:
+            return frozenset()
+        return state.tool_filter if state.tool_filter is not None else frozenset(self.registry.names())
 
     def _consulted_labels(self, state: RunState) -> list[str]:
         labels = [record["label"] for record in state.analysis_values.values() if record["label"]]
@@ -3812,7 +3877,9 @@ class AgentOrchestrator:
             # M19: an approved plan is executed, or the model names what blocks it after one reminder; either way an
             # approval without any attempt is not consumed
             self._gate_once(state, "PLAN_NOT_EXECUTED", RESEARCH_RUN_NOT_EXECUTED_INSTRUCTION
-                            if self._executor(state) is not None else PLAN_NOT_EXECUTED_INSTRUCTION)
+                            if self._executor(state) is not None else PLAN_NOT_EXECUTED_INSTRUCTION,
+                            needs=RESEARCH_RUN_TOOLS if self._executor(state) is not None
+                            else DATANEED_ANALYSIS_TOOLS | LEGACY_ANALYSIS_TOOLS)
             state.plan_unexecuted = True
             if PLAN_NOT_EXECUTED_LINE not in final.limitations:
                 final = final.model_copy(update={"limitations": [*final.limitations, PLAN_NOT_EXECUTED_LINE]})
@@ -3820,12 +3887,14 @@ class AgentOrchestrator:
         if executor is not None and executor.research_run_id is not None and executor.result is None:
             # found live (golden run 2026-09-29): the model stopped after recording some angles and never completed
             # the run, so no finding existed even for the recorded angles
-            self._gate_once(state, "RESEARCH_RUN_INCOMPLETE", RESEARCH_RUN_INCOMPLETE_INSTRUCTION)
+            self._gate_once(state, "RESEARCH_RUN_INCOMPLETE", RESEARCH_RUN_INCOMPLETE_INSTRUCTION,
+                            needs=frozenset({"complete_research_run"}))
         if self.dataneed:
             return self._dataneed_gate(state, final)
         blocking, lines = self._gate_findings(state)
         if blocking and final.response_type == "ANSWER":
-            self._gate_once(state, "ANALYSIS", VALIDATION_GATE_INSTRUCTION.format(findings="; ".join(blocking)))
+            self._gate_once(state, "ANALYSIS", VALIDATION_GATE_INSTRUCTION.format(findings="; ".join(blocking)),
+                            needs=LEGACY_ANALYSIS_TOOLS)
             return self._forced(state, final, GATE_NOTICE, lines)
 
         families, plain_average = requested_statistics(state.user_text)
@@ -3836,7 +3905,7 @@ class AgentOrchestrator:
             missing = ["AVERAGE"]
         if missing and final.response_type == "ANSWER":
             names = ", ".join(missing)
-            self._gate_once(state, "ROUTING", ROUTING_INSTRUCTION.format(families=names))
+            self._gate_once(state, "ROUTING", ROUTING_INSTRUCTION.format(families=names), needs=LEGACY_ANALYSIS_TOOLS)
             return self._forced(state, final, ROUTING_NOTICE.format(families=names),
                                 [f"The request needs a validated analysis ({names}); no such analysis supports this "
                                  f"response."] + lines)
@@ -3872,7 +3941,8 @@ class AgentOrchestrator:
         calculation" claims are marked in italics with annotations, never rejected (P17, user decision 2026-10-01)."""
         blocking, lines = self._dataneed_findings(state)
         if blocking and final.response_type == "ANSWER":
-            self._gate_once(state, "ANALYSIS", DATANEED_GATE_INSTRUCTION.format(findings="; ".join(blocking)))
+            self._gate_once(state, "ANALYSIS", DATANEED_GATE_INSTRUCTION.format(findings="; ".join(blocking)),
+                            needs=DATANEED_ANALYSIS_TOOLS)
             return self._forced(state, final, DATANEED_GATE_NOTICE, lines)
         families, plain_average = requested_statistics(state.user_text)
         # a released output of an earlier message read in this run is a completed analysis's result (reuse)
@@ -3886,7 +3956,8 @@ class AgentOrchestrator:
             missing = ["AVERAGE"]
         if missing and final.response_type == "ANSWER":
             names = ", ".join(missing)
-            self._gate_once(state, "ROUTING", DATANEED_ROUTING_INSTRUCTION.format(families=names))
+            self._gate_once(state, "ROUTING", DATANEED_ROUTING_INSTRUCTION.format(families=names),
+                            needs=DATANEED_ANALYSIS_TOOLS)
             return self._forced(state, final, DATANEED_ROUTING_NOTICE.format(families=names),
                                 [f"The request needs a completed analysis ({names}); none supports this "
                                  f"response."] + lines)
@@ -3949,10 +4020,13 @@ class AgentOrchestrator:
         if final.response_type != "ANSWER" or "get_evidence" not in self.registry.names():
             return final
         extra: list[str] = []
-        data_figures = bool(data_kinds) or bool(state.referenced)
-        if data_figures and not state.evidence_items:
-            self._gate_once(state, "EVIDENCE", EVIDENCE_INSTRUCTION)
+        # G23 B: only figures from the model's own code need a separate check; the backend's own figures are labelled
+        own_figures = [kind for kind in data_kinds if kind not in BACKEND_RECOMPUTED_KINDS]
+        if own_figures and not state.evidence_items:
+            self._gate_once(state, "EVIDENCE", EVIDENCE_INSTRUCTION, needs=frozenset({"get_evidence"}))
             extra.append(EVIDENCE_NOT_COMPUTED_LINE)
+        elif data_kinds and not state.evidence_items:
+            extra.append(EVIDENCE_BACKEND_LINE)
         mismatched = [e for e in state.evidence_items if e.get("status") == "TIDAK_COCOK"
                       and e.get("value_text") and e["value_text"] in (final.answer or "")]
         if mismatched:
@@ -4173,7 +4247,8 @@ class AgentOrchestrator:
                                                                     f"released in this conversation: "
                                                                     f"{', '.join(unknown)}."])
         if self.plan_feasibility and not is_v2 and state.feasible_draft is None:
-            self._gate_once(state, "PLAN_FEASIBILITY", PLAN_FEASIBILITY_INSTRUCTION)
+            self._gate_once(state, "PLAN_FEASIBILITY", PLAN_FEASIBILITY_INSTRUCTION,
+                            needs=frozenset({"check_data_feasibility"}))
             return self._plan_not_feasible(state, final)
         # M28 / H2: a success threshold is the user's number (their question or this message), never the model's
         words = self._user_words(state)
