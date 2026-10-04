@@ -107,9 +107,10 @@ def dump(tag, payload):
 
 
 def run_turns(item, prefix, results):
-    """Mode 4: the item's messages in one SERVER conversation, each sent as plain text."""
-    conversation = None
-    turn = 0
+    """Mode 4: the item's messages in one SERVER conversation, each sent as plain text. An item may continue an earlier
+    conversation of the same owner (conversation_id) from a given turn number (first_turn)."""
+    conversation = item.get("conversation_id")
+    turn = int(item.get("first_turn", 1)) - 1
     for message in item["turns"]:
         if isinstance(message, dict) and message.get("wait_seconds"):
             # round 2026-10-03 GT: let the sandbox copies (1-hour retention during the test) and the plan expire
@@ -119,6 +120,8 @@ def run_turns(item, prefix, results):
         turn += 1
         body = {"request_id": f"{prefix}-{item['id']}-{turn}", "conversation_id": conversation,
                 "history_mode": "SERVER", "message": message}
+        if item.get("analysis_path"):
+            body["analysis_path"] = item["analysis_path"]
         code, body, seconds = post(body)
         log("turn", **summary(item["id"], turn, code, body, seconds))
         results.append({"item": item["id"], "turn": turn, "body": body})
