@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-10-04 — Back to DeepSeek on dev (user decision)
+
+- **Variable `AI_MODEL_SWITCH=1`** on market-ai-orc (dev; was `2`), set with `--skip-deploys`; `railway redeploy` of the
+  branch deployment: **market-ai-orc `6f31e62f` `SUCCESS`** (meta without a branch). Startup: `ai_model_selected switch=1
+  model=deepseek/deepseek-v4.1-flash reasoning={"effort":"high"}`; `ai_provider_policy` 30 endpoints, ignored
+  `inference-net`, `relace`, `wafer`.
+- OpenRouter key limit raised by the user to USD 30 (remaining USD 4.96 at 12:12 UTC; account credits 35, used 27.68).
+- `railway config pull --force`; `railway config plan`: up to date.
+
 ## 2026-10-04 — Final plan phases 4–5 on dev: light fact finder, Governor queue, conversation save retry
 
 - **Temporary service `f4-mig-job`** (dev; `CATALOG_URL`/`EVENT_URL` as references to `${{Postgres.DATABASE_URL}}` and

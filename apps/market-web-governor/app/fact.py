@@ -128,22 +128,45 @@ def verified(quote: str, text: str) -> bool:
     return len(quote) >= 8 and quote in _squash(text)
 
 
-def decide(entries: list[dict[str, Any]], sources: list[dict[str, Any]]) -> tuple[str, str | None, list[dict]]:
+def _tokens(text: str) -> frozenset[str]:
+    """The words of a value, case and punctuation ignored ("Sdn. Bhd." and "Sdn Bhd" are the same)."""
+    return frozenset(re.findall(r"[0-9a-z]+", (text or "").lower()))
+
+
+def decide(entries: list[dict[str, Any]], sources: list[dict[str, Any]],
+           attribute: str = "") -> tuple[str, str | None, list[dict]]:
     """(status, value, versions) from the verified entries, decided by code. A version is one value with the sources
-    that state it; independence is by domain."""
-    by_value: dict[str, dict[str, Any]] = {}
+    that state it; independence is by domain.
+
+    Benchmark 2026-10-04 (fact-bench-20261004b): four false conflicts were one answer in different words. Values are
+    therefore compared by their words, not their spelling: punctuation and case are ignored, a value whose words are
+    all in another value is the same answer at less detail ("2003" and "10 November 2003"), and a value that is the
+    attribute itself is no answer ("pemegang saham pengendali" for the controlling shareholder); one option of the
+    attribute ("swasta" for "BUMN atau swasta") is an answer."""
+    asked = _tokens(attribute)
+    groups: list[dict[str, Any]] = []
     for entry in entries:
+        words = _tokens(entry["value"])
+        if not words or words == asked:  # the question repeated, not an answer (an option of it is an answer)
+            continue
         source = sources[entry["source"] - 1]
-        key = _squash(entry["value"]).strip(" .")
-        version = by_value.setdefault(key, {"value": entry["value"].strip(), "domains": set(), "official": False,
-                                            "quotes": []})
-        version["domains"].add(source["domain"])
-        version["official"] = version["official"] or source["source_tier"] == "PRIMARY"
-        version["quotes"].append({"source": entry["source"], "quote": entry["quote"], "url": source["url"],
-                                  "domain": source["domain"], "date": source.get("date"),
-                                  "source_tier": source["source_tier"]})
-    versions = [{"value": v["value"], "domains": sorted(v["domains"]), "official": v["official"],
-                 "quotes": v["quotes"]} for v in by_value.values()]
+        quote = {"source": entry["source"], "quote": entry["quote"], "url": source["url"], "domain": source["domain"],
+                 "date": source.get("date"), "source_tier": source["source_tier"]}
+        group = next((g for g in groups if words <= g["words"] or g["words"] <= words), None)
+        if group is None:
+            group = {"words": words, "values": [], "domains": set(), "official": False, "quotes": []}
+            groups.append(group)
+        group["words"] |= words if group["words"] <= words else frozenset()
+        group["values"].append(entry["value"].strip())
+        group["domains"].add(source["domain"])
+        group["official"] = group["official"] or source["source_tier"] == "PRIMARY"
+        group["quotes"].append(quote)
+    versions = []
+    for g in groups:
+        # the most detailed wording names the version; the others are kept in its quotes
+        value = max(g["values"], key=lambda v: (len(_tokens(v)), len(v)))
+        versions.append({"value": value, "domains": sorted(g["domains"]), "official": g["official"],
+                         "quotes": g["quotes"]})
     versions.sort(key=lambda v: (not v["official"], -len(v["domains"])))
     if not versions:
         return "NOT_FOUND", None, []
@@ -193,7 +216,7 @@ class FactService:
             if entries is None:
                 timed_out = True
             else:
-                status, value, versions = decide(entries, sources)
+                status, value, versions = decide(entries, sources, request.attribute)
         elif sources:
             timed_out = True
         if timed_out and status == "NOT_FOUND" and sources:

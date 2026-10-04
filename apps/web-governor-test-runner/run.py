@@ -539,7 +539,8 @@ def fact(prefix: str, facts: list[dict], workers: int = 4, repeat_cached: bool =
         index, item = pair
         request_id = f"{prefix}f{index}"
         result = call("POST", "/v1/fact", {"request_id": request_id, "subject": item["subject"],
-                                           "attribute": item["attribute"]}, timeout=120)
+                                           "attribute": item["attribute"], "refresh": bool(item.get("refresh"))},
+                    timeout=120)
         body = result.get("body") or {}
         log("fact", id=request_id, http=result.get("http"), seconds=result.get("seconds"),
             status=body.get("status"), value=body.get("value"), expected=item.get("expected"),
@@ -593,7 +594,7 @@ def main() -> None:
     elif plan["phase"] == "ask":
         ask(plan["prefix"], plan["questions"])
     elif plan["phase"] == "fact":
-        fact(plan["prefix"], plan["facts"], int(plan.get("workers", 4)))
+        fact(plan["prefix"], plan["facts"], int(plan.get("workers", 4)), bool(plan.get("repeat_cached", True)))
     elif plan["phase"] == "smoke":
         smoke(plan["prefix"])
     elif plan["phase"] == "post":

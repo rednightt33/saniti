@@ -1,107 +1,32 @@
 {
  "phase": "fact",
- "prefix": "fact-bench-20261004a-",
+ "prefix": "fact-bench-20261004c-",
  "workers": 4,
+ "repeat_cached": false,
  "facts": [
-  {
-   "subject": "BBRI (Bank Rakyat Indonesia)",
-   "attribute": "status kepemilikan: BUMN (milik negara) atau swasta",
-   "expected": "BUMN"
-  },
-  {
-   "subject": "BMRI (Bank Mandiri)",
-   "attribute": "status kepemilikan: BUMN (milik negara) atau swasta",
-   "expected": "BUMN"
-  },
-  {
-   "subject": "BBNI (Bank Negara Indonesia)",
-   "attribute": "status kepemilikan: BUMN (milik negara) atau swasta",
-   "expected": "BUMN"
-  },
-  {
-   "subject": "BBTN (Bank Tabungan Negara)",
-   "attribute": "status kepemilikan: BUMN (milik negara) atau swasta",
-   "expected": "BUMN"
-  },
-  {
-   "subject": "BBCA (Bank Central Asia)",
-   "attribute": "status kepemilikan: BUMN (milik negara) atau swasta",
-   "expected": "swasta"
-  },
-  {
-   "subject": "BRIS (Bank Syariah Indonesia)",
-   "attribute": "status kepemilikan: BUMN (milik negara) atau swasta",
-   "expected": "anak usaha BUMN"
-  },
-  {
-   "subject": "BNGA (Bank CIMB Niaga)",
-   "attribute": "status kepemilikan: BUMN (milik negara) atau swasta",
-   "expected": "swasta (CIMB Group)"
-  },
-  {
-   "subject": "BDMN (Bank Danamon)",
-   "attribute": "status kepemilikan: BUMN (milik negara) atau swasta",
-   "expected": "swasta (MUFG)"
-  },
-  {
-   "subject": "PNBN (Bank Panin)",
-   "attribute": "status kepemilikan: BUMN (milik negara) atau swasta",
-   "expected": "swasta"
-  },
-  {
-   "subject": "BJBR (Bank BJB)",
-   "attribute": "status kepemilikan: BUMN (milik negara) atau swasta",
-   "expected": "BUMD (Pemprov Jawa Barat)"
-  },
   {
    "subject": "BBCA (Bank Central Asia)",
    "attribute": "pemegang saham pengendali",
-   "expected": "PT Dwimuria Investama Andalan (Hartono)"
+   "expected": "PT Dwimuria Investama Andalan (Hartono)",
+   "refresh": true
   },
   {
    "subject": "ASII (Astra International)",
    "attribute": "pemegang saham pengendali",
-   "expected": "Jardine Cycle & Carriage"
-  },
-  {
-   "subject": "UNVR (Unilever Indonesia)",
-   "attribute": "pemegang saham pengendali",
-   "expected": "Unilever Indonesia Holding B.V."
-  },
-  {
-   "subject": "TLKM (Telkom Indonesia)",
-   "attribute": "pemegang saham pengendali",
-   "expected": "negara RI / Danantara"
+   "expected": "Jardine Cycle & Carriage",
+   "refresh": true
   },
   {
    "subject": "BNGA (Bank CIMB Niaga)",
    "attribute": "pemegang saham pengendali",
-   "expected": "CIMB Group Holdings"
-  },
-  {
-   "subject": "BBCA",
-   "attribute": "anggota indeks LQ45",
-   "expected": "ya"
-  },
-  {
-   "subject": "BMRI",
-   "attribute": "anggota indeks LQ45",
-   "expected": "ya"
-  },
-  {
-   "subject": "ASII",
-   "attribute": "anggota indeks LQ45",
-   "expected": "ya"
-  },
-  {
-   "subject": "BBCA (Bank Central Asia)",
-   "attribute": "tahun pencatatan saham perdana (IPO) di bursa",
-   "expected": "2000"
+   "expected": "CIMB Group Holdings",
+   "refresh": true
   },
   {
    "subject": "BBRI (Bank Rakyat Indonesia)",
    "attribute": "tahun pencatatan saham perdana (IPO) di bursa",
-   "expected": "2003"
+   "expected": "2003",
+   "refresh": true
   }
  ]
 }

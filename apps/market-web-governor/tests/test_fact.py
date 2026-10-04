@@ -164,3 +164,30 @@ def test_the_endpoint(tmp_path) -> None:
                            headers=HEADERS)
         assert body.status_code == 200 and body.json()["status"] == "CONFIRMED"
         assert client.post("/v1/fact", json={"request_id": "r1", "subject": "BBCA", "attribute": "x"}).status_code == 401
+
+
+def _src(n, domain, tier="SECONDARY"):
+    return {"n": n, "url": f"https://{domain}/{n}", "domain": domain, "source_tier": tier}
+
+
+def test_the_same_answer_in_other_words_is_one_version() -> None:
+    """fact-bench-20261004b: four false conflicts."""
+    sources = [_src(1, "a.com"), _src(2, "b.com"), _src(3, "c.com")]
+    e = lambda n, v: {"source": n, "value": v, "quote": "q"}  # noqa: E731
+    # punctuation
+    assert decide([e(1, "CIMB Group Sdn Bhd"), e(2, "CIMB Group Sdn. Bhd.")], sources)[0] == "CONFIRMED"
+    # less detail
+    status, value, _ = decide([e(1, "2003"), e(2, "10 November 2003")], sources)
+    assert status == "CONFIRMED" and value == "10 November 2003"
+    # a value that only repeats the question is no answer
+    status, value, _ = decide([e(1, "Jardine Cycle & Carriage"), e(2, "Jardine Cycle & Carriage Limited"),
+                               e(3, "Pemegang Saham Pengendali")], sources, "pemegang saham pengendali")
+    assert status == "CONFIRMED" and value == "Jardine Cycle & Carriage Limited"
+
+
+def test_different_answers_stay_a_conflict() -> None:
+    """The case this change does not touch: two different entities (direct holder vs the family behind it)."""
+    sources = [_src(1, "a.com"), _src(2, "b.com")]
+    status, _, versions = decide([{"source": 1, "value": "PT Dwimuria Investama Andalan", "quote": "q"},
+                                  {"source": 2, "value": "Robert Budi Hartono", "quote": "q"}], sources)
+    assert status == "CONFLICTING" and len(versions) == 2
