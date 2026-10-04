@@ -189,6 +189,31 @@ Dampak di putaran `ma-golden-20261004a`:
     kata "ya".
   - Setiap keputusan router dicatat (`asks_test`) dan ditinjau di golden test.
   - `analysis_path` per permintaan tetap bisa memaksa jalur.
+- **Benchmark router (2026-10-04, sebelum dikerjakan):**
+  - **Sumber pesan:** 61 pesan unik dari semua suite golden test; label "meminta uji" diberi manual (YA: putusan/uji pola,
+    rencana uji, sudut lain, setuju/revisi rencana uji; TIDAK: angka, tabel, peringkat, penjelasan, ekspor, hitungan
+    deskriptif).
+  - **Cara uji:** 2 model × 2 versi × 3 ulangan = 732 panggilan, USD 0,10.
+  - **Versi sekarang** = pesan pertama selalu riset; pesan lanjutan riset bila `turn_kind` ∈ {CONTINUE, APPROVE,
+    NEW_TOPIC}.
+  - **Versi usulan** = instruksi router yang sama + `asks_test`.
+
+| Model | Versi | Akurasi | Riset padahal tidak diminta | Uji yang terlewat | Pesan tidak stabil (3 ulangan) | Waktu median |
+|---|---|---|---|---|---|---|
+| DeepSeek v4.1 flash | sekarang | 58,5% | 71 / 90 (79%) | 5 / 93 | 2 / 60 | 1,5 s |
+| DeepSeek v4.1 flash | usulan | **93,4%** | **12 / 89 (13%)** | **0 / 93** | 2 / 60 | 1,8 s |
+| MiMo v2.6 flash | sekarang | 59,6% | 69 / 90 (77%) | 5 / 93 | 2 / 60 | 3,1 s |
+| MiMo v2.6 flash | usulan | **94,0%** | **11 / 90 (12%)** | **0 / 92** | 2 / 60 | 2,8 s |
+
+  - Sisa salah semuanya ke arah "riset dijalankan" (perilaku hari ini), pada permintaan yang memang di batas: "Coba event
+    study…", "Bagaimana return 5 hari setelah turun 5%… dibanding hari lainnya", dan "Siapa broker yang konsisten membeli
+    saat crash" (M42).
+  - Tidak ada satu pun permintaan uji yang terlewat.
+  - Penyebab terbesar riset tak diminta hari ini adalah dua aturan struktural: pesan pertama tidak dinilai, dan
+    NEW_TOPIC dihitung jalur riset. Keduanya diperbaiki oleh `asks_test`.
+  - Instruksi tambahan tidak disetel ke kasus yang salah. Sisa 12–13% diterima: arahnya sama dengan hari ini, dan
+    tercatat untuk ditinjau.
+  - Biaya router ± USD 0,0001 per pesan; tambahan waktu ± 2–3 detik.
 - **Uji ulang (kontrafaktual dari log `ma-golden-20261004a`):** pada 4 pertanyaan angka, waktu model turun dari 1.818
   detik menjadi ± 248 detik (−86%) dan biaya dari USD 0,51 menjadi ± USD 0,15. g9.1 turun dari 877 detik ke ± 1 menit.
   RouteLLM melaporkan penghematan 35–85% untuk perutean sejenis.
