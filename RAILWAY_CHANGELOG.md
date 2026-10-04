@@ -1,5 +1,11 @@
 # Railway changelog
 
+## 2026-10-04 — Read-only analysis jobs for the golden-test analysis (dev)
+
+- **Temporary services `verify-job2`** (deployments `1f10b0ff`, then `b73da35b` after escaping `LIKE`) and **`verify-job3`** (`eb4303d8`),
+  `DATABASE_URL` as the reference `${{Postgres.DATABASE_URL}}`, read-only connection: the stored execution code of g5.6, g6 and
+  g9, and the return scale of 6,150 ticker-years. Both deleted afterwards. Results: `GT_ANALYSIS_2026-10-04.md`.
+
 ## 2026-10-04 — Golden test round 2026-10-03 (part 3) and manual verification on dev
 
 - Retention 1 h for the run: variables set with `--skip-deploys`, then `railway redeploy` of the branch deployment
