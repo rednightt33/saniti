@@ -416,7 +416,7 @@ Dijalankan setelah fase 1–5 terdeploy di dev. File suite sudah disiapkan:
 Saat eksekusi, file disalin ke `suite.json` (runner membaca `suite.json`). Masa simpan sandbox 1 jam selama bagian A
 (untuk g9); variabel diubah dengan `--skip-deploys`, lalu `railway redeploy`.
 
-### Bagian A: 3 worker, 34 pesan, perkiraan USD 2–3, ± 2 jam (termasuk jeda 66 menit g9)
+### Bagian A: 3 worker, 33 pesan (13 percakapan), perkiraan USD 2–3, ± 2 jam (termasuk jeda 66 menit g9)
 
 | # | Item | Pesan | Membuktikan | Ukuran lulus |
 |---|---|---|---|---|
