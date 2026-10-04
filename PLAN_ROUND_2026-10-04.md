@@ -109,7 +109,9 @@ Lihat `PLAN_EVIDENCE_GATE_2026-10-04.md`:
 **Kelas masalah:** hasil analisis bergantung pada masukan yang **tidak berasal dari data atau dari user**, yaitu pilihan
 AI (daftar anggota kelompok, definisi istilah, ambang, persentil), dan pilihan itu **tidak terlihat** oleh user.
 
-- Kasus BBCA: rencana g5 hanya menulis "bank BUMN = bank milik negara"; daftarnya hanya ada di kode.
+- Kasus BBCA: daftar tampil di Asumsi rencana, tetapi di antara banyak asumsi lain, tanpa label sumber ("pengetahuan AI"), dan disetujui tanpa dibaca.
+
+**Koreksi 2026-10-04 (log reasoning g5.5–g5.6):** daftar BUMN *tampil* di bagian Asumsi rencana g5.5 ("Bank BUMN = …: BBCA, BBRI, BMRI, BBNI, BBTN, dan BSI/BRIS"), bukan tersembunyi; persetujuan diberikan runner otomatis. Jejak reasoning: it1–it2 benar ("BBCA is private (Djarum); BUMN banks: BMRI, BBRI, BBNI, BBTN"), katalog dicek dan tidak ada kolom BUMN; it3 memakai aturan dari data (nama perusahaan mengandung "(Persero)", yang menambah BRIS); it5 daftar akhir menambah BBCA, bertentangan dengan reasoning-nya sendiri (kemungkinan terbawa "empat bank besar BBCA, BBRI, BMRI, BBNI" dari jawaban g5.4). g5.6 memakai asumsi rencana yang sudah disetujui. **Tidak ada pencarian web:** tidak ada alat web yang ditawarkan maupun dipanggil di seluruh run.
 - Kasus sebaliknya, P25/P05/P08: pilihan AI (persentil ke-90) terlihat, tetapi justru *ditolak*, sehingga jawaban benar
   dipaksa LIMITATION.
 

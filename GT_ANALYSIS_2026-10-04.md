@@ -103,6 +103,8 @@ menambah 219 detik. Mode bawaan 4 adalah keputusan user (2026-09-30).
 - **Kelas masalah:** setiap pengelompokan yang disebut user tetapi tidak punya kolom di data, misalnya BUMN, grup
   konglomerasi, keanggotaan indeks, kelompok negara/region untuk makro.
 
+**Koreksi 2026-10-04 (log reasoning g5.5–g5.6):** daftar BUMN *tampil* di bagian Asumsi rencana g5.5 ("Bank BUMN = …: BBCA, BBRI, BMRI, BBNI, BBTN, dan BSI/BRIS"), bukan tersembunyi; persetujuan diberikan runner otomatis. Jejak reasoning: it1–it2 benar ("BBCA is private (Djarum); BUMN banks: BMRI, BBRI, BBNI, BBTN"), katalog dicek dan tidak ada kolom BUMN; it3 memakai aturan dari data (nama perusahaan mengandung "(Persero)", yang menambah BRIS); it5 daftar akhir menambah BBCA, bertentangan dengan reasoning-nya sendiri (kemungkinan terbawa "empat bank besar BBCA, BBRI, BMRI, BBNI" dari jawaban g5.4). g5.6 memakai asumsi rencana yang sudah disetujui. **Tidak ada pencarian web:** tidak ada alat web yang ditawarkan maupun dipanggil di seluruh run.
+
 ### M72: g6_revise pesan 1, baris tanpa nilai RSI masuk ke kelompok pembanding.
 
 - **Letak kesalahan model:** kode `exe_94b6…`:
