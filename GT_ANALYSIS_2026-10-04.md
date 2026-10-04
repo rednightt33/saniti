@@ -237,7 +237,7 @@ kunci OpenRouter mencapai batas USD 25 (R30), sehingga semua panggilan berikutny
 | BBNI status | PARTIAL (1 situs) | BUMN (milik negara) | Ya | 9,3 |
 | BBTN status | CONFIRMED | BUMN (milik negara) | Ya | 10,0 |
 | BBCA status | CONFIRMED | swasta | Ya | 12,4 |
-| BRIS status | CONFIRMED | BUMN | Kurang tepat: anak usaha BUMN | 11,5 |
+| BRIS status | CONFIRMED | BUMN | Ya (dikoreksi user 2026-10-04; jawaban kunci benchmark yang salah) | 11,5 |
 | BNGA status | CONFIRMED | swasta | Ya | 10,6 |
 | BDMN status | CONFIRMED | swasta | Ya | 6,4 |
 | PNBN status | NOT_FOUND (ekstraksi gagal: batas kunci) | — | Tidak diuji | 5,2 |
@@ -245,11 +245,9 @@ kunci OpenRouter mencapai batas USD 25 (R30), sehingga semua panggilan berikutny
 | 3 ulangan (cache) | sama dengan pertama (bila tersimpan) | — | — | < 0,1 |
 
 **Temuan:**
-- 8 dari 8 fakta yang terjawab sejalan dengan jawaban yang diketahui; BRIS disederhanakan menjadi "BUMN".
+- 8 dari 8 fakta yang terjawab benar (BRIS = BUMN; kunci benchmark semula keliru, dikoreksi user).
 - Biaya sekitar USD 0,015 per fakta, di atas perkiraan rencana (< 0,01).
 - Waktu maksimal 13,7 detik, di bawah batas 30 detik.
-- **Kelas temuan BRIS:** nilai yang benar sebagian (anak usaha vs induk) tidak bisa dibedakan dari cuplikan pendek.
-  Bukan kesalahan kutipan; kutipan memang menyebut "BUMN".
 - **Belum dinyalakan di orc** (`AI_ENABLE_WEB_FACT`): sisa benchmark menunggu batas kunci dinaikkan.
 
 ### Lanjutan benchmark S4b setelah batas kunci dinaikkan (`fact-bench-20261004b`, `…c`)
@@ -269,7 +267,7 @@ kunci OpenRouter mencapai batas USD 25 (R30), sehingga semua panggilan berikutny
 | 3 ulangan cache | < 0,05 detik, nilai sama | — |
 
 **Hasil akhir:**
-- 20 dari 20 fakta terjawab; 19 tepat. BRIS disebut "BUMN" (tepatnya anak usaha BUMN).
+- 20 dari 20 fakta terjawab dan tepat (BRIS = BUMN; koreksi user atas kunci benchmark).
 - Waktu 4,6–14,2 detik, di bawah batas 30. Biaya sekitar USD 0,015 per fakta.
 
 **Temuan W-F1, dan perbaikannya:**
