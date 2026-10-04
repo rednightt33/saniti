@@ -220,6 +220,10 @@ class Settings:
     # AI_CAPTURE_REASONING (user decision 2026-10-01, dev measurement only): log the reasoning text of each model call
     # as ai_model_reasoning events (app/reasoning_capture.py). Never sent to the audit store or back to the model.
     ai_capture_reasoning: bool = False
+    # S4c (K7, PLAN_FINAL_2026-10-04.md): the reasoning items of a run's earlier tool turns are sent back, exactly as
+    # received, so a conclusion reached in reasoning is not lost a few steps later. Never across messages. A provider
+    # that refuses them turns it off for the rest of the run.
+    ai_replay_reasoning: bool = False
     # Multi-Angle Research (MULTI_ANGLE_RESEARCH.md): research_plan/v2 with 3-6 angles, rpc2, per-angle data contracts,
     # grouped execution behind start/run/complete_research_run and backend findings per angle. Needs DataNeed v2,
     # Research Plan confirmation and feasibility, and a sandbox reporting the matching multi_angle_research capability
@@ -371,6 +375,7 @@ class Settings:
             ai_planner_parallel_parts=_integer(env, "AI_PLANNER_PARALLEL_PARTS", 1),
             ai_enable_edit_repair=_boolean(env, "AI_ENABLE_EDIT_REPAIR", False),
             ai_capture_reasoning=_boolean(env, "AI_CAPTURE_REASONING", False),
+            ai_replay_reasoning=_boolean(env, "AI_REPLAY_REASONING", False),
             ai_enable_multi_angle_research=_boolean(env, "AI_ENABLE_MULTI_ANGLE_RESEARCH", False),
             ai_research_min_angles=_integer(env, "AI_RESEARCH_MIN_ANGLES", 2),
             ai_research_max_angles=_integer(env, "AI_RESEARCH_MAX_ANGLES", 6),

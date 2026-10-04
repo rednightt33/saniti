@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
+from . import ai_choices
 from .audit_outbox import build_payload, final_event, model_event, tool_event, unrendered_event
 from . import data_record as records
 from . import definition_check
@@ -1614,6 +1615,12 @@ class RunState:
     # AI_ENABLE_METHODOLOGY: numbers in the code of successful run_python calls (parameters that actually ran; a
     # source for methodology only, never for the answer) and the methodology's own provenance result
     code_numbers: list[float] = field(default_factory=list)
+    # S4 (K6): the AI's own choices typed in code, and what the user and the data supplied (their origins)
+    ai_choices: list[dict[str, Any]] = field(default_factory=list)
+    choice_numbers: list[float] = field(default_factory=list)
+    seen_strings: set[str] = field(default_factory=set)
+    seen_sets: set[frozenset[str]] = field(default_factory=set)
+    user_history: str = ""
     # Research Plan feasibility and execution: the last FEASIBLE draft of this run, the checks made, whether a RESEARCH
     # data need was submitted (an attempt consumes an approval), the verified approval, and a plan left unexecuted
     feasible_draft: str | None = None
@@ -1706,6 +1713,9 @@ class RunState:
     raw_final: dict[str, Any] | None = None
     # the model's latest final output as it arrived (for the final.rejected / final.forced audit events)
     current_raw: str = ""
+    # S4c: reasoning items were sent back in this run; replay_off once a provider refused them
+    reasoning_replayed: bool = False
+    replay_off: bool = False
     # G23 D (K3): the last final draft that parsed, and the limit that ended the run (MAX_ITERATIONS, ANALYSIS_TIMEOUT)
     last_draft: FinalResponse | None = None
     exhausted: str | None = None
@@ -1907,6 +1917,7 @@ class AgentOrchestrator:
             history_turns_dropped=dropped,
             user_text=self._routing_text(request),
             instructions=self._instructions(),
+            user_history="\n".join(turn.content for turn in request.history if turn.role == "user"),
         )
         state.audit_started_at = moment
         self._seed_data_record(state, data_record)
@@ -1946,6 +1957,7 @@ class AgentOrchestrator:
             carried = current_carried_outputs.set(state.carried_outputs)
             current_research_guard.set(state.guard)
             final = self._loop(state)
+            final = self._with_ai_choices(state, final)
             state.experiments = self._research_summary(state, final.answer)
             if state.forced_path == "ANALYSIS" and final.response_type == "ANSWER" and state.final_status \
                     and ANALYSIS_PATH_LINE not in final.limitations:
@@ -2641,7 +2653,18 @@ class AgentOrchestrator:
                 raise RunFailure("CONTEXT_LIMIT", "Request would exceed AI_MAX_CONTEXT_TOKENS")
 
             call_started = time.monotonic()
-            response = self.client.create(payload)
+            try:
+                response = self.client.create(payload)
+            except ProviderError as exc:
+                if not (state.reasoning_replayed and exc.code == "PROVIDER_REJECTED"):
+                    raise
+                # S4c: a provider that refuses replayed reasoning items: drop them and stop replaying in this run
+                state.input_items = [i for i in state.input_items if i.get("type") != "reasoning"]
+                state.reasoning_replayed, state.replay_off = False, True
+                log_event("ai_reasoning_replay_refused", request_id=state.request_id, iteration=state.iterations + 1,
+                          status_code=exc.status_code)
+                payload = self._payload(state, tools)
+                response = self.client.create(payload)
             latency_ms = int((time.monotonic() - call_started) * 1000)
             state.iterations += 1
             usage = self._add_usage(state, response)
@@ -2678,6 +2701,13 @@ class AgentOrchestrator:
                 raise RunFailure("CONTEXT_LIMIT", "Provider-reported input exceeded AI_MAX_CONTEXT_TOKENS")
 
             if calls:
+                if self.settings.ai_replay_reasoning and not state.replay_off:
+                    # S4c (K7): the reasoning that led to these calls goes back with them, as received
+                    replay = [item for item in response.get("output", [])
+                              if isinstance(item, dict) and item.get("type") == "reasoning"]
+                    if replay:
+                        state.input_items.extend(replay)
+                        state.reasoning_replayed = True
                 if state.final_reask_sent:
                     state.structured_only = True  # it was asked for the final response, not for a tool
                 # OpenRouter closes a tool call cut off at max_output_tokens and still reports it completed; its
@@ -2736,6 +2766,15 @@ class AgentOrchestrator:
                 else:
                     self._reject_final(state, raw, issue)
         return self._exhausted(state, "MAX_ITERATIONS")
+
+    @staticmethod
+    def _with_ai_choices(state: RunState, final: FinalResponse) -> FinalResponse:
+        """S4 (K6): the AI's own choices, written by the system as the first assumption (never by the model)."""
+        line = ai_choices.describe(state.ai_choices)
+        if line is None or final.response_type == "CLARIFICATION" or line in final.assumptions:
+            return final
+        log_event("ai_choices", request_id=state.request_id, choices=state.ai_choices[:ai_choices.MAX_CHOICES])
+        return final.model_copy(update={"assumptions": [line, *final.assumptions]})
 
     def _exhausted(self, state: RunState, code: str) -> FinalResponse:
         """G23 D (K3, PLAN_FINAL_2026-10-04.md): the step limit or the time ran out. The last draft that parsed goes
@@ -2835,7 +2874,7 @@ class AgentOrchestrator:
         name = str(call.get("name") or "")
         raw_arguments = call.get("arguments")
         state.tools_requested.append(name)
-        # Only the call itself is echoed back; provider reasoning items are never replayed.
+        # The call itself is echoed back; its reasoning items only with AI_REPLAY_REASONING (S4c), added by _loop.
         state.input_items.append({
             "type": "function_call",
             "call_id": call_id,
@@ -2987,6 +3026,7 @@ class AgentOrchestrator:
                                           self.wall_clock().isoformat(timespec="seconds"))
             if self.catalog_protocol:
                 state.catalog.cache[cache_key(name, arguments)] = outcome.output
+        self._track_choices(state, name, self._normalized_arguments(raw_arguments), outcome)
         self._track_plan_guard(state, name, outcome)
         self._track_analysis(state, name, outcome, self._normalized_arguments(raw_arguments))
         self._track_sources(state, name, self._normalized_arguments(raw_arguments), outcome)
@@ -3315,6 +3355,29 @@ class AgentOrchestrator:
                 and history[-2].role == "user":
             text = history[-2].content + "\n" + text
         return text
+
+    def _track_choices(self, state: RunState, name: str, arguments: Any, outcome: ToolOutcome) -> None:
+        """S4 (K6): the filter, group and threshold values the model typed into code that ran, traced to their origin
+        (the user's words, the values tool results returned, else the AI's own choice); then this result's values
+        join what the data returned. Read before this result is added, so a list the code printed is not its own
+        source."""
+        if not outcome.ok or not isinstance(outcome.output.get("result"), dict):
+            return
+        result = outcome.output["result"]
+        code = arguments.get("code") if isinstance(arguments, dict) else None
+        if name in ("run_python", "run_research_code"):
+            if result.get("status") != "OK" or not isinstance(code, str):
+                return
+            typed = ai_choices.typed_values(code)
+            state.choice_numbers.extend(float(t.value) for t in typed if t.kind == "NUMBER")
+            words = self._user_words(state) + "\n" + state.user_history
+            for choice in ai_choices.classify(typed, words, state.seen_strings, state.seen_sets,
+                                              state.context_numbers):
+                if choice not in state.ai_choices and len(state.ai_choices) < ai_choices.MAX_CHOICES:
+                    state.ai_choices.append(choice)
+            return  # a run's printed text and its own outputs are not values the data supplied
+        ai_choices.string_leaves(result, state.seen_strings)
+        ai_choices.string_sets(result, state.seen_sets)
 
     @staticmethod
     def _track_sources(state: RunState, name: str, arguments: Any, outcome: ToolOutcome) -> None:
@@ -3704,7 +3767,7 @@ class AgentOrchestrator:
         for resolved in state.ref_values:  # P11: a value the backend filled in counts under its source's label
             index.add(resolved.label if resolved.label in LABEL_ORDER else CONTEXT, [resolved.value])
         static = self.system_prompt + "\n" + "\n".join(str(d.get("description", "")) for d in self.registry.definitions())
-        index.add(CONTEXT, state.context_numbers
+        index.add(CONTEXT, state.context_numbers + state.choice_numbers
                   + [value for shown in parse_numbers(static) for value, _ in shown.candidates])
         for fact in state.facts:
             index.add(fact["kind"], fact["values"])

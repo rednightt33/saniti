@@ -56,7 +56,8 @@ from typing import Any
 __all__ = [
     "REQUESTS", "REFERENCE_DATE", "SEED", "requests", "manifest", "quality", "load", "range", "load_range", "sql",
     "relation", "load_output", "carried",
-    "join", "join_report", "preaggregate", "resample", "period_return", "event_study", "insufficient_data",
+    "join", "join_report", "preaggregate", "resample", "period_return", "forward_return", "event_study",
+    "insufficient_data",
     "intermediate_path", "duckdb_connection", "emit_table",
     "emit_chart", "emit_json", "emit_text", "emit_file", "emit_artifact", "add_warning", "SanitiError",
     "InsufficientInputData", "OutputLimitExceeded", "InvalidOutput", "ResampleRuleMissing", "PeriodReturnError",
@@ -984,6 +985,176 @@ def resampled_returns(frame, request: str, value_column: str = "close"):
     return out
 
 
+# S3 (P27, PLAN_FINAL_2026-10-04.md): the outcome unit is checked by recomputation, never only declared. A sample of the
+# outcome rows is recomputed as a forward return from every numeric column of every loaded request that holds the
+# rows' entities and dates (no column is named here); a column whose return matches the outcome row by row at one
+# scale tells the outcome's real unit. A scale rule alone was rejected: on 6,150 ticker-years no threshold separates
+# percent from fraction.
+UNIT_SAMPLE_ROWS = 500
+UNIT_MIN_ROWS = 10
+UNIT_AGREEMENT = 0.8   # share of sampled rows within UNIT_TOLERANCE of the scale
+UNIT_TOLERANCE = 0.1   # a log return or a rounded value still matches a simple return
+UNIT_SCALES = {"DECIMAL": 1.0, "PERCENT": 100.0}
+_NUMERIC_TYPES = ("TINYINT", "SMALLINT", "INTEGER", "BIGINT", "HUGEINT", "FLOAT", "DOUBLE", "REAL", "DECIMAL",
+                  "UTINYINT", "USMALLINT", "UINTEGER", "UBIGINT")
+
+
+def _entity_column(frame, request: dict[str, Any], skip: set[str]) -> str | None:
+    """The frame's column that holds the request's entities: the same name, else a text column whose sampled values
+    are (at least 80 %) entities of the request."""
+    entity = request.get("entity_column")
+    if not entity:
+        return None
+    if entity in frame.columns:
+        return entity
+    for column in frame.columns:
+        import pandas as pd
+
+        dtype = frame[column].dtype
+        if column in skip or not (pd.api.types.is_string_dtype(dtype) or pd.api.types.is_object_dtype(dtype)
+                                  or isinstance(dtype, pd.CategoricalDtype)):
+            continue
+        values = [str(v) for v in frame[column].dropna().unique()[:200]]
+        if not values:
+            continue
+        found = _CONNECTION.execute(
+            f"SELECT COUNT(DISTINCT {_ident(entity)}) FROM {_ident(request['logical_name'])} "
+            f"WHERE CAST({_ident(entity)} AS VARCHAR) IN ({', '.join('?' for _ in values)})", values).fetchone()[0]
+        if found >= UNIT_AGREEMENT * len(values):
+            return column
+    return None
+
+
+def outcome_unit_check(frame, outcome_column: str, date_column: str, horizons: list[int], unit: str,
+                       entity_column: str | None = None) -> dict[str, Any]:
+    """{"status": "CHECKED" | "MISMATCH" | "NOT_CHECKED", ...}: whether sampled outcome rows equal a forward return of
+    a loaded price-like column at the approved unit's scale (1 for DECIMAL, 100 for PERCENT)."""
+    import numpy as np
+    import pandas as pd
+
+    expected = UNIT_SCALES.get(unit)
+    if expected is None or _CONNECTION is None or outcome_column not in frame.columns \
+            or date_column not in frame.columns:
+        return {"status": "NOT_CHECKED", "reason": "no return unit or no loaded data to recompute from"}
+    outcome = pd.to_numeric(frame[outcome_column], errors="coerce")
+    rows = frame[outcome.notna() & np.isfinite(outcome.astype("float64"))]
+    if len(rows) < UNIT_MIN_ROWS:
+        return {"status": "NOT_CHECKED", "reason": "too few outcome rows"}
+    sample = rows.sample(min(UNIT_SAMPLE_ROWS, len(rows)), random_state=0)
+    dates = pd.to_datetime(sample[date_column], errors="coerce").dt.strftime("%Y-%m-%d")
+    skip = {outcome_column, date_column}
+    for request in REQUESTS.values():
+        time = request.get("time_column")
+        if not time:
+            continue
+        entity = None
+        if request.get("entity_column"):
+            entity = entity_column if entity_column in sample.columns else _entity_column(sample, request, skip)
+            if entity is None:
+                continue
+        view = _CONNECTION.table(request["logical_name"])
+        keys = {request.get("entity_column"), time}
+        numeric = [c for c, t in zip(view.columns, view.types)
+                   if c not in keys and str(t).upper().split("(")[0] in _NUMERIC_TYPES]
+        if not numeric:
+            continue
+        frame_keys = pd.DataFrame({"t": dates.to_numpy(),
+                                   "e": sample[entity].astype(str).to_numpy() if entity else "",
+                                   "outcome": pd.to_numeric(sample[outcome_column]).to_numpy(dtype="float64")})
+        where, params = f"CAST({_ident(time)} AS DATE) >= CAST(? AS DATE)", [frame_keys["t"].min()]
+        if entity:
+            values = sorted(set(frame_keys["e"]))
+            where += f" AND CAST({_ident(request['entity_column'])} AS VARCHAR) IN ({', '.join('?' for _ in values)})"
+            params += values
+        partition = f"PARTITION BY {_ident(request['entity_column'])} " if entity else ""
+        for horizon in dict.fromkeys(h for h in horizons if isinstance(h, int) and h > 0):
+            returns = ", ".join(f"LEAD({_ident(c)}, {horizon}) OVER w / NULLIF({_ident(c)}, 0) - 1 AS r{i}"
+                                for i, c in enumerate(numeric))
+            entity_select = f"CAST({_ident(request['entity_column'])} AS VARCHAR)" if entity else "''"
+            recomputed = _CONNECTION.execute(
+                f"SELECT {entity_select} AS e, strftime(CAST({_ident(time)} AS DATE), '%Y-%m-%d') AS t, {returns} "
+                f"FROM {_ident(request['logical_name'])} WHERE {where} "
+                f"WINDOW w AS ({partition}ORDER BY {_ident(time)})", params).df()
+            merged = frame_keys.merge(recomputed, on=["e", "t"], how="inner")
+            for i, column in enumerate(numeric):
+                r = merged[f"r{i}"].astype("float64")
+                usable = r.notna() & np.isfinite(r) & (r.abs() > 1e-6)
+                if usable.sum() < UNIT_MIN_ROWS:
+                    continue
+                ratio = (merged["outcome"][usable] / r[usable]).to_numpy()
+                for name, scale in UNIT_SCALES.items():
+                    share = float(np.mean(np.abs(ratio / scale - 1) <= UNIT_TOLERANCE))
+                    if share >= UNIT_AGREEMENT:
+                        found = {"source_request": request["data_request_id"], "price_column": column,
+                                 "horizon": horizon, "rows_compared": int(usable.sum()), "agreement": round(share, 3),
+                                 "observed_unit": name}
+                        if name == unit:
+                            return {"status": "CHECKED", **found}
+                        return {"status": "MISMATCH", **found,
+                                "message": (f"UNIT_MISMATCH: the approved outcome unit is {unit}, but {outcome_column} "
+                                            f"equals the {horizon}-period forward return of {column} in {name} "
+                                            f"({int(usable.sum())} sampled rows, {share:.0%} agree): "
+                                            + ("multiply it by 100." if unit == "PERCENT" else "divide it by 100.")
+                                            + " Use saniti.forward_return(prices, horizon), which returns the approved "
+                                              "unit.")}
+    return {"status": "NOT_CHECKED", "reason": "the outcome is not a forward return of a loaded column (unit declared, "
+                                               "not checked)"}
+
+
+def forward_return(prices, horizon: int, *, value_column: str | None = None, entity_column: str | None = None,
+                   date_column: str | None = None):
+    """S3: the forward return over `horizon` observations of each row (value[t+horizon] / value[t] - 1, per entity
+    in date order), in the approved outcome unit (PERCENT: times 100). prices: a frame or a pandas Series. With a
+    frame, name value_column (and entity_column / date_column unless the frame is one series in date order)."""
+    import pandas as pd
+
+    if not isinstance(horizon, int) or horizon < 1:
+        raise SanitiError("horizon is a whole number of observations, at least 1.")
+    scale = UNIT_SCALES.get(_approved_unit(None), 100.0)
+    if isinstance(prices, pd.Series):
+        values = pd.to_numeric(prices, errors="coerce")
+        return (values.shift(-horizon) / values - 1) * scale
+    if value_column is None or value_column not in prices.columns:
+        raise SanitiError("value_column is the price column of the frame.")
+    work = prices.sort_values([c for c in (entity_column, date_column) if c]) if (entity_column or date_column) \
+        else prices
+    values = pd.to_numeric(work[value_column], errors="coerce")
+    ahead = values.groupby(work[entity_column]).shift(-horizon) if entity_column else values.shift(-horizon)
+    return ((ahead / values - 1) * scale).reindex(prices.index)
+
+
+# S5 (M72): a row whose condition cannot be evaluated (an indicator's warm-up or a gap) is neither event nor baseline.
+def _undefined_condition(events, baseline, outcome_column: str, date_column: str,
+                         condition_columns: list[str] | None, skip: set[str]):
+    """(events, baseline, report): rows with a missing condition input dropped from both groups. The inputs are the
+    columns named in condition_columns, else derived: a column both groups carry that is missing in one group only
+    (a negated condition that let missing values through)."""
+    import pandas as pd
+
+    shared = [c for c in events.columns if c in baseline.columns and c not in skip]
+    if condition_columns:
+        unknown = [c for c in condition_columns if c not in shared]
+        if unknown:
+            raise SanitiError(f"condition_columns {unknown} are not columns of both the events and the baseline rows.")
+        inputs = list(condition_columns)
+    else:
+        inputs = []
+        for column in shared:
+            missing_events, missing_baseline = events[column].isna().any(), baseline[column].isna().any()
+            if missing_events != missing_baseline and pd.api.types.is_numeric_dtype(baseline[column]) \
+                    and pd.api.types.is_numeric_dtype(events[column]):
+                inputs.append(column)
+    report = {"columns": inputs, "CONDITION": 0, "BASELINE": 0}
+    if not inputs:
+        return events, baseline, report
+    kept = []
+    for group, frame in (("CONDITION", events), ("BASELINE", baseline)):
+        undefined = frame[inputs].isna().any(axis=1)
+        report[group] = int(undefined.sum())
+        kept.append(frame[~undefined])
+    return kept[0], kept[1], report
+
+
 def event_summary(events, baseline, *, hypothesis_id: str, outcome_column: str, date_column: str,
                   success_column: str | None = None, success_above: float | None = None, horizon_periods: int = 1,
                   outcome_unit: str | None = None, expected_direction: str = "HIGHER", min_effect: float | None = None,
@@ -1017,6 +1188,21 @@ def event_summary(events, baseline, *, hypothesis_id: str, outcome_column: str, 
             raise SanitiError(f"The approved success rule is {shown}; do not pass success_above={success_above!r} "
                               "(event_summary reads the rule from the approved plan). To change it, revise the "
                               "Research Plan.")
+    import pandas as pd
+
+    for group, frame in (("events", events), ("baseline", baseline)):
+        if not isinstance(frame, pd.DataFrame):
+            raise SanitiError(f"The {group} rows must be a pandas DataFrame.")
+    # S5 (M72): rows whose condition cannot be evaluated leave both groups; the count is reported
+    events, baseline, undefined = _undefined_condition(events, baseline, outcome_column, date_column, None,
+                                                       {outcome_column, date_column, success_column})
+    # S3 (P27): the outcome's unit is recomputed from the loaded prices where it can be
+    approved_horizon = _FINDINGS_V1.get("outcome_horizon_periods")
+    unit_check = outcome_unit_check(pd.concat([events, baseline], ignore_index=True), outcome_column, date_column,
+                                    [int(horizon_periods)] + ([int(approved_horizon)] if approved_horizon else []),
+                                    outcome_unit)
+    if unit_check["status"] == "MISMATCH":
+        raise SanitiError(unit_check["message"])
     try:
         table = research_stats.aggregate(events, baseline, outcome_column, date_column, success_column,
                                          0.0 if success_above is None else success_above, success_rule=rule)
@@ -1031,6 +1217,8 @@ def event_summary(events, baseline, *, hypothesis_id: str, outcome_column: str, 
     for group, frame in (("CONDITION", events), ("BASELINE", baseline)):
         values = pd.to_numeric(frame[outcome_column], errors="coerce").dropna()
         summary["groups"][group]["median"] = float(values.median()) if len(values) else None
+    summary["rows_condition_undefined"] = undefined
+    summary["unit_check"] = {k: v for k, v in unit_check.items() if k != "message"}
     # M28: the success rule the engine applied, checked against the approved plan at completion
     summary["success_rule"] = rule or ({"column": success_column} if success_column
                                        else {"operator": ">", "value": float(success_above or 0.0)})
@@ -1047,7 +1235,8 @@ def event_summary(events, baseline, *, hypothesis_id: str, outcome_column: str, 
     emit_json(f"research_summary_{hypothesis_id}", summary, "Research findings: both angles, sample and verdict.",
               units=research_stats.summary_units(outcome_unit), definition=defined)
     _log({"call": "event_summary", "hypothesis_id": hypothesis_id, "rows": int(table["n"].sum()),
-          "dates": int(len(table)), "flag": summary["sample"]["flag"], "verdict": summary["verdict"]})
+          "dates": int(len(table)), "flag": summary["sample"]["flag"], "verdict": summary["verdict"],
+          "unit_check": unit_check["status"], "rows_condition_undefined": undefined["CONDITION"] + undefined["BASELINE"]})
     return summary
 
 
@@ -1231,6 +1420,14 @@ def _research(family: str, angle_id: str, frame, request: str | None, range_id: 
     problem = research_inputs.outcome_problem(method, canonical, angle.get("outcome_unit"))
     if problem:
         raise SanitiError(f"OUTCOME_NOT_APPROVED: {problem}")
+    if mode == "FRAME" and "outcome" in canonical.columns and "date" in canonical.columns:
+        # S3 (P27): a model-built outcome is recomputed from the loaded prices where it can be
+        check = outcome_unit_check(canonical, "outcome", "date", [int(angle.get("outcome_horizon_periods") or 1)],
+                                   angle.get("outcome_unit"), entity_column="entity" if "entity" in canonical.columns
+                                   else None)
+        if check["status"] == "MISMATCH":
+            raise SanitiError(check["message"])
+        info["unit_check"] = check["status"]
     try:
         result = research_engines.evaluate(method, canonical, _research_approved(angle))
     except research_engines.EngineError as exc:
