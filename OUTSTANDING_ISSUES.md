@@ -1,4 +1,4 @@
-# Masalah yang belum selesai: status (2026-10-02)
+# Masalah yang belum selesai: status (2026-10-02, diperbarui 2026-10-04 malam)
 
 Sumber: `ERRORS_AND_SOLUTIONS.md` (kode adalah rujukan ke sana). Satu masalah dimasukkan ke satu kategori saja, yaitu
 dampak terberatnya.
@@ -40,10 +40,19 @@ g6 = usulan pertanyaan tambahan).
 - **[HIGH ALERT]** S23: angka hasil kode AI tidak diperiksa ulang backend. --> UNDERADDRESSED (g1–g4 dibandingkan hitungan independen)
 - **[HIGH ALERT]** M13: "saham terbaik" memakai definisi pilihan AI. --> UNDERADDRESSED, sebagian (AI wajib menyebut definisinya) (g1)
 
-- M75: jawaban lambat 4–36 menit karena hampir semua panggilan jatuh ke penyedia lambat (Morph). --> KEPUTUSAN USER (O1)
-- M76: pertanyaan lanjutan kehilangan riwayat setelah jawaban panjang. --> DIPUTUSKAN (O2: `AI_MAX_HISTORY_TOKENS` 150.000), belum dieksekusi
-- M77: ekspor tidak tersedia di langkah baca. --> DIRENCANAKAN (O3)
-- P28: penolakan angka karena angka dari layar print / alarm palsu; putaran bukti tanpa temuan. --> DIUSULKAN (perbaikan pembaca angka, O4)
+- M75: jawaban lambat 4–36 menit karena hampir semua panggilan jatuh ke penyedia lambat (Morph). --> KEPUTUSAN USER 2026-10-04: rute penyedia **as is** (O1 tidak dikerjakan); dikurangi lewat router (M79)
+- M76: pertanyaan lanjutan kehilangan riwayat setelah jawaban panjang. --> DIPERBAIKI (O2, `AI_MAX_HISTORY_TOKENS` 150.000, live); belum diuji live dengan pesan lanjutan khusus
+- M77: ekspor tidak tersedia di langkah baca. --> DIPERBAIKI (O3, sifat alat; live); belum teruji karena g5.11 dirouting CONTINUE (lihat M80 b)
+- P28: penolakan angka karena angka dari layar print / alarm palsu; putaran bukti tanpa temuan. --> D dan bukti DIPERBAIKI (P28-D, O4; live, terlihat di q4); A/B (angka dari print, hitung di kepala) gerbang tetap
+- P29: "data terbaru berakhir 31 Agustus" padahal harga sampai 2 Okt (g9.3). --> UNDERADDRESSED (dugaan, cek log reasoning dulu)
+- P30: AI menolak membuat trade setup. --> DITUNDA user
+
+## 2b. Baru 2026-10-04 (suite `ma-qa-20261004a`, router)
+
+- M78: penyedia berhenti di tengah jawaban → giliran kosong → AI dipaksa menjawab tanpa alat → LIMITED (q2, q3). --> DIPERBAIKI, live (orc `5e41129f`); belum terpicu lagi
+- M79: pertanyaan fakta/sapaan menjalani mode 4 penuh (g13 23 menit). --> DIPERBAIKI dan TERBUKTI live: router pesan pertama (g13 44 detik, sapaan 23 detik), penahan riset tanpa angka data
+- M80: hasil riset multi-sudut tidak bisa diekspor (bukan tabel); ekspor dirouting CONTINUE. --> DISETUJUI, sedang dikerjakan: (a) temuan riset jadi tabel standar, (b) ekspor = aksi baca (benchmark dulu)
+- Tes kedaluwarsa R-STORE (S29). --> DISETUJUI user, masuk putaran `qa_20261004b`
 
 ## 3. Tidak keluar jawaban (buntu)
 
