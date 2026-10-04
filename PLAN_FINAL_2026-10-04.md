@@ -1,6 +1,10 @@
 # Rencana final putaran 2026-10-04
 
-Status: **FINAL, disetujui user 2026-10-04, belum dieksekusi.** Dokumen ini menggantikan `PLAN_ROUND_2026-10-04.md` dan
+Status: **FINAL, disetujui user 2026-10-04. Dieksekusi:**
+- **Fase 1:** selesai. Model dan rute penyedia live di dev, orc `26ee862e`. Golden test kecil dilewati atas keputusan
+  user; tingkat reasoning tidak terbukti dibedakan, sehingga `enabled` dipakai.
+- **Fase 2:** selesai, orc `26ee862e`. S7 memakai perbaikan instruksi, bukan aturan backend; lihat
+  `GT_ANALYSIS_2026-10-04.md` lampiran S7. Dokumen ini menggantikan `PLAN_ROUND_2026-10-04.md` dan
 `PLAN_EVIDENCE_GATE_2026-10-04.md` (keduanya disimpan sebagai riwayat diskusi). Dasar bukti:
 `GT_ANALYSIS_2026-10-04.md`, `GOLDEN_TEST_ROUND_2026-10-03.md` bagian 3, dan `ERRORS_AND_SOLUTIONS.md` (G22, G23, P27,
 M71, M72, M73).

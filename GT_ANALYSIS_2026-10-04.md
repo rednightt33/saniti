@@ -194,3 +194,33 @@ panggilan, USD 0,10).
 
 **Catatan:** "riset tanpa diminta" pada versi sekarang adalah **perilaku yang disengaja** di mode 4 (tujuan 1: setiap
 pertanyaan analisis baru dibawa ke riset). Usulan S6 ditarik. Data ini disimpan bila mode bawaan suatu saat diubah.
+
+## Lampiran S7: router saat usulan riset menunggu (2026-10-04)
+
+**Set uji:** 34 pesan, dikirim saat ada usulan riset menunggu dan belum ada hasil baru setelah usulan itu (kondisi g7.3).
+- **18 pesan nyata** dari suite dan log golden test (g5, g6, g7, g9, g11, m01, m02).
+- **16 varian** dengan kelas yang sama:
+  - pertanyaan atau permintaan baru yang menyebut perubahan periode, kelompok atau ambang;
+  - revisi, persetujuan dan pembatalan usulan yang sah.
+- **Label:** SUGGESTION (setuju, revisi atau batal atas usulan) atau OTHER (pertanyaan atau permintaan).
+- **Pengulangan:** 2 model × 3 ulangan, router dengan instruksi produksi. Biaya ± USD 0,07 untuk tiga putaran.
+
+| Model | Varian | OTHER dibaca sebagai usulan | SUGGESTION dikenali |
+|---|---|---|---|
+| DeepSeek v4.1 flash | sekarang | 16/60 | 42/42 |
+| DeepSeek v4.1 flash | aturan backend di rencana (referent wajib) | 16/60 | 42/42 |
+| DeepSeek v4.1 flash | **instruksi: "tentang usulan" = menyebut usulan / menjawab pertanyaan konfirmasinya** | **4/60** | **42/42** |
+| DeepSeek v4.1 flash | instruksi + "analisis dengan syarat sendiri bukan APPROVE" | 2/60 | 42/42 |
+| MiMo v2.6 flash | sekarang | 14/60 | 37/42 |
+| MiMo v2.6 flash | aturan backend di rencana | 14/60 | 37/42 |
+| MiMo v2.6 flash | **instruksi (dipakai)** | **8/60** | **41/42** |
+| MiMo v2.6 flash | instruksi + kalimat kedua | 7/60 | 38/42 |
+
+**Temuan:**
+- Aturan backend di rencana tidak mengubah apa pun. Setiap salah baca juga diberi `referent = PENDING_SUGGESTION`; referent adalah
+  penilaian yang sama, bukan pemeriksaan terpisah.
+- Yang diterapkan: definisi "pesan tentang usulan" di instruksi router. g7.3 benar di semua ulangan.
+- **Sisa (MiMo):**
+  - "Coba event study: …" dibaca sebagai setuju (3/3);
+  - "pakai data 5 tahun terakhir untuk ranking tadi" dibaca sebagai revisi (3/3).
+- **Dampak sisa:** usulan tetap menunggu (aturan 4), sehingga user bisa mengulang.

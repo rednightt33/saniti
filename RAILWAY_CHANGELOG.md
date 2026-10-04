@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-10-04 — Final plan phases 1–2 on dev: model MiMo flash, provider routing, G23 and router fix (market-ai-orc)
+
+- **Variables on market-ai-orc (dev), set with `--skip-deploys`** (not secrets; user decisions K1 and the provider
+  routing approval, 2026-10-04): `AI_MODEL_2=xiaomi/mimo-v2.6-flash` (was unset, default `xiaomi/mimo-v2.6-pro`),
+  `AI_MODEL_SWITCH=2` (was `1`), `AI_MODEL_2_REASONING_FORM=enabled` (new), `AI_PROVIDER_MAX_CACHE_PRICE_RATIO=0.25`
+  (new). `AI_MODEL` stays `deepseek/deepseek-v4.1-flash` (way back: `AI_MODEL_SWITCH=1`); `AI_PROVIDER_SORT` unset.
+- **market-ai-orc `26ee862e` `SUCCESS`** (CLI upload of `claude/g2-g3-reactivation` at `cf7d367`; deployment meta
+  without a branch). Startup log: `ai_model_selected switch=2 model=xiaomi/mimo-v2.6-flash reasoning={"enabled":true}`;
+  `ai_provider_policy` 8 endpoints, ignored `inference-net` (cache-read price 0.957 of its prompt price).
+- The reasoning-level probe (OpenRouter, about 13 calls, under USD 0.03) found no reliable difference between
+  `effort: high` and `low`; it was stopped and `enabled` kept. The planned small golden test was skipped by the user.
+- `railway config pull --force` (records the two new variable names with `preserve()`); `railway config plan`: up to
+  date.
+
 ## 2026-10-04 — Read-only analysis jobs for the golden-test analysis (dev)
 
 - **Temporary services `verify-job2`** (deployments `1f10b0ff`, then `b73da35b` after escaping `LIKE`) and **`verify-job3`** (`eb4303d8`),

@@ -42,7 +42,8 @@ g6 = usulan pertanyaan tambahan).
 
 ## 3. Tidak keluar jawaban (buntu)
 
-- G23: gerbang bukti meminta get_evidence di run yang tidak punya alat itu, sehingga model loop (g9.2 gagal di 60 iterasi; 29% panggilan model di run ini terbuang). --> UNDERADDRESSED, akar terverifikasi (g9.1–2, g5, g6, g7, g11)
+- G23: gerbang bukti meminta get_evidence di run yang tidak punya alat itu, sehingga model loop (g9.2 gagal di 60 iterasi; 29% panggilan model di run ini terbuang). --> DIPERBAIKI di kode dan live di dev (orc `26ee862e`), menunggu golden test akhir (g9.1–2, g5, g6, g7, g11)
+- M74: router membaca pertanyaan lanjutan sebagai revisi usulan riset (g7.3 "bandingkan dengan 2024"). --> DIPERBAIKI sebagian (benchmark: salah baca 14/60 → 8/60 di MiMo; sisa "Coba event study" dibaca setuju), menunggu golden test akhir (g7, g5)
 - M73: mode 4 menjalankan riset untuk setiap pertanyaan baru. --> SESUAI DESAIN (tujuan 1 mode 4); ditutup 2026-10-04
 - G22: database bersama kewalahan saat 5 worker paralel; rencana dan riwayat percakapan gagal disimpan/dibaca, Governor 503. --> UNDERADDRESSED, menunggu keputusan perbaikan (GT `ma-golden-20261003e` g4.2, g5.1, g2)
 - R30: kredit akun OpenRouter habis (HTTP 402). --> KEPUTUSAN USER: tambah kredit (GT `ma-golden-20261003e`)
