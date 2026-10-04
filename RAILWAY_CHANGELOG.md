@@ -1,5 +1,15 @@
 # Railway changelog
 
+## 2026-10-04 — Golden test round 2026-10-03 (part 3) and manual verification on dev
+
+- Retention 1 h for the run: variables set with `--skip-deploys`, then `railway redeploy` of the branch deployment
+  (market-python-sandbox `b36561f8` `SUCCESS`, meta without a branch). Restored to 24 the same way: `bdb0bcce` `SUCCESS`.
+- **orc-test-runner `5901537c`** (CLI upload): suite `ma-golden-20261004a`, 10 items, 31 turns, 3 workers; USD 2.19; no provider
+  refusal. Results: `GOLDEN_TEST_ROUND_2026-10-03.md` part 3.
+- **Temporary service `verify-job`** (dev, `DATABASE_URL` as the reference `${{Postgres.DATABASE_URL}}`, read-only connection):
+  deployment `2d811a7c` `SUCCESS`, an independent recount of the answers' numbers; deleted afterwards.
+- `railway config pull --force` and `railway config plan`: up to date.
+
 ## 2026-10-04 — Golden test round 2026-10-03 (part 2) on dev
 
 - OpenRouter key checked before the run (numbers only): limit USD 25, remaining USD 2.97 (R30 lifted by the user).

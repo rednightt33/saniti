@@ -21,6 +21,9 @@ g6 = usulan pertanyaan tambahan).
 
 ## 2. Ada jawaban, tetapi salah (fatal)
 
+- P27: hasil uji dari kode AI berbentuk pecahan tetapi berlabel persen; putusan dibandingkan dengan ambang 100× terlalu besar. --> UNDERADDRESSED (GT `ma-golden-20261004a` g5.6)
+- M71: kelompok tanpa kolom di data (BUMN) ditebak AI; BBCA dimasukkan ke BUMN. --> KEPUTUSAN USER (keputusan 6) + UNDERADDRESSED (g5.5–6)
+- M72: baris tanpa nilai indikator (RSI awal) dimasukkan ke kelompok pembanding. --> UNDERADDRESSED, dampak kecil (g6_revise.1)
 - **[HIGH ALERT]** M66: pertanyaan sama, definisi "hari crash" / "bank BUMN" berbeda. --> UNDERADDRESSED + KEPUTUSAN USER (kamus istilah); terulang di GT 2026-10-02c (g1 vs g1_repeat: definisi "paling likuid" berbeda)
 - **[HIGH ALERT]** M63: penjelasan menghitung ulang dengan cakupan berbeda dari tabelnya. --> TERBUKTI (GT `ma-golden-20261002c`): g7 tetap di papan Nego, g5.3 menjelaskan dari tabel asal; celah baru M68 (nilai filter hilang dari catatan) UNDERADDRESSED
 - **[HIGH ALERT]** M28: definisi sukses dari user diganti aturan bawaan. --> TERBUKTI untuk rencana hipotesis (GT `ma-golden-20261002c`); jalur riset multi-sudut (mode 4) belum mengikat ambang: M69 UNDERADDRESSED
@@ -39,6 +42,7 @@ g6 = usulan pertanyaan tambahan).
 
 ## 3. Tidak keluar jawaban (buntu)
 
+- G23: pertanyaan lanjutan sederhana setelah tabel kedaluwarsa gagal di batas 60 iterasi. --> UNDERADDRESSED, akar belum diverifikasi (g9.2)
 - G22: database bersama kewalahan saat 5 worker paralel; rencana dan riwayat percakapan gagal disimpan/dibaca, Governor 503. --> UNDERADDRESSED, menunggu keputusan perbaikan (GT `ma-golden-20261003e` g4.2, g5.1, g2)
 - R30: kredit akun OpenRouter habis (HTTP 402). --> KEPUTUSAN USER: tambah kredit (GT `ma-golden-20261003e`)
 - R31: ubah variabel tanpa `--skip-deploys` men-deploy ulang dari `main`. --> diatasi lewat proses; tuntas setelah cabang masuk `main` (luar GT)
