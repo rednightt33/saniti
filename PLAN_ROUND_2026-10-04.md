@@ -119,11 +119,22 @@ Lihat `PLAN_EVIDENCE_GATE_2026-10-04.md`:
       `PLAN_EVIDENCE_GATE_2026-10-04.md`).
   - Daftar dari user dicatat di definisi hasil sebagai "dari user". Bila user menyebut ticker langsung di pertanyaannya,
     daftar itu sah.
-  - Penegakan:
-    - Kode yang menulis daftar ticker sebagai teks (`['BBCA', …]`) untuk membentuk kelompok, tanpa sumber (kolom,
-      pertanyaan user, atau jawaban klarifikasi), ditolak sebelum dijalankan. Polanya sama dengan penolakan angka tertulis
-      di kode (P25).
+  - Penegakan, **berlaku untuk semua daftar nilai, bukan hanya saham**:
+    - Daftar nilai dari kolom dimensi atau identitas mana pun yang ditulis AI sebagai teks di kode untuk menyaring atau
+      mengelompokkan, ditolak sebelum dijalankan bila tidak punya sumber. Contoh: ticker, kode broker, nama sektor/industri,
+      tipe investor, papan, dan nanti kode negara, nama indeks, seri makro.
+    - Daftar kolom yang diperiksa **diturunkan dari katalog** (kolom berperan DIMENSION/IDENTIFIER), bukan ditulis tangan,
+      sehingga tabel baru otomatis ikut.
+    - Sumber yang sah:
+      1. pertanyaan user (termasuk nama perusahaan yang dicocokkan ke ticker lewat tabel referensi);
+      2. hasil alat di percakapan ini (`get_dimension_values`, katalog, tabel yang sudah dirilis);
+      3. jawaban user atas klarifikasi.
+    - Nilai yang dihitung oleh kode dari data (misalnya "hari crash" hasil filter) bukan teks tertulis, jadi tidak
+      terkena aturan ini.
+    - Polanya sama dengan penolakan angka tertulis di kode (P25).
     - Pesan penolakannya menunjuk ke jalan keluar: "tanyakan ke user dengan CLARIFICATION".
+  - **Risiko:** penolakan keliru, misalnya user menulis "Bank Central Asia" dan AI menulis `BBCA`. **Mitigasi:** nama yang
+    cocok di tabel referensi dihitung sebagai sumber; setiap penolakan dicatat di log untuk ditinjau di golden test.
 - **Data (keputusan 6, user):** tambah atribut kepemilikan negara, bersumber resmi (BP BUMN / laporan emiten), dengan
   tanggal berlaku. Fakta saat ini: BBRI, BMRI, BBNI, BBTN adalah BUMN; BRIS anak usaha BUMN; BBCA swasta.
 - **Hasil benchmark:**
