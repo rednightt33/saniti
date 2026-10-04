@@ -1205,6 +1205,11 @@ FINALIZE_PREFIX = (
     "tool results above. Do not call tools. "
 )
 FINALIZE_INSTRUCTION = FINALIZE_PREFIX + RESPONSE_CONTRACT
+# M78 (ma-qa-20261004a q2): a turn with neither text nor a tool call is an interrupted generation (the provider stopped
+# after the reasoning), not a draft answer; it is retried with the same tools instead of asking for the final response
+EMPTY_TURN_NOTE = ("Application note, not from the user: your previous turn ended without output (the generation "
+                   "stopped). Continue the task from where it was: call the next tool, or give the final response.")
+MAX_EMPTY_TURN_RETRIES = 2
 CONTEXT_BUDGET_PREFIX = (
     "Tool access has ended because this run reached its context budget; no further tools can be "
     "called. Answer my latest message using only the information already retrieved in the tool "
@@ -1645,6 +1650,7 @@ class RunState:
     evidence_items: list[dict[str, Any]] = field(default_factory=list)  # D6: claims checked by get_evidence (rows)
     referenced: list[str] = field(default_factory=list)  # D6: value references of the final answer (DIRUJUK)
     typed_answer: str | None = None  # O4: the final answer with its value references removed (the typed figures)
+    empty_turn_retries: int = 0  # M78: turns with neither text nor a tool call, retried with the same tools
     reference_date: Any = None  # the run's reference date in the analysis timezone
     data_date: Any = None  # R-STORE: the run's DataDate (the conversation's data date and whether NEWEST was asked)
     research_attempted: bool = False
@@ -2760,6 +2766,14 @@ class AgentOrchestrator:
                 state.input_items.append({"role": "user", "content": str(exc) + self._offer_edit(state, raw)})
             except ValueError as exc:
                 issue = str(exc)
+                if tools and not raw.strip() and unapplied is None \
+                        and state.empty_turn_retries < MAX_EMPTY_TURN_RETRIES:
+                    state.empty_turn_retries += 1
+                    state.input_items.append({"role": "user", "content": EMPTY_TURN_NOTE})
+                    log_event("ai_empty_turn_retried", request_id=state.request_id, iteration=state.iterations,
+                              retry=state.empty_turn_retries, provider=response.get("provider"),
+                              output_tokens=usage["output_tokens"], reasoning_tokens=usage["reasoning_tokens"])
+                    continue
                 if usage["output_tokens"] >= self.settings.ai_max_output_tokens:
                     # found live (golden run 2026-09-29): a long plan was cut off mid-JSON and the model only saw
                     # "EOF while parsing"
