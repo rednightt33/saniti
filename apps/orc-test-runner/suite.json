@@ -84,6 +84,30 @@
     "Bandingkan dengan tahun 2024 memakai definisi yang sama."
    ],
    "expect": "HIGH ALERT H1 (M63): turns 2 and 3 keep the Nego board and the same liquidity rule as turn 1; the answers state the definition; no 'consistent with the previous answer' claim unless the definition is the same"
+  },
+  {
+   "id": "g8_metric",
+   "turns": [
+    "Berapa net beli asing BBCA 5 hari dan 20 hari bursa terakhir?"
+   ],
+   "expect": "query_metric in one call (Feature_03), as_of and coverage stated, evidence TERCEK, no Python session."
+  },
+  {
+   "id": "g7_lineage_export",
+   "turns": [
+    "Berapa total net beli investor asing di pasar Nego per saham untuk 5 saham bank dengan nilai transaksi terbesar selama 2025?",
+    "Angka saham teratas tadi asalnya dari tabel dan saringan apa?",
+    "Tolong ekspor tabel hasilnya ke Excel."
+   ],
+   "expect": "Turn 2 get_lineage (source tables, query ids), no data re-ordered (repeated_data_orders 0); turn 3 export_result XLSX, download sha ok, other owner 404; sessions released (S28)."
+  },
+  {
+   "id": "g6_rsi_threshold",
+   "turns": [
+    "Apakah saham bank yang RSI 14-nya di bawah 30 naik minimal 3% dalam 10 hari berikutnya? Anggap berhasil kalau naik ≥ 3%. Selisih di bawah 1 poin persen tidak penting buat saya.",
+    "Setuju, jalankan rencana ujinya."
+   ],
+   "expect": "Mode 4 plan keeps the user's success rule (≥3%) and horizon 10 days (M69/M70), units consistent (P26), runs; 3 parallel workers without SESSION_CAPACITY_EXCEEDED (S28)."
   }
  ]
 }
