@@ -4,32 +4,65 @@ Status: **RENCANA, belum dieksekusi.** Keputusan user yang sudah ada:
 - router pesan pertama memakai DeepSeek V4.1 Flash, reasoning low;
 - daftar model dimasukkan ke repo dan dijaga terbaru lewat AGENTS.md.
 
-## 0. Kondisi infrastruktur (dibaca 2026-10-04)
+## 0. Kondisi infrastruktur (dicek ulang 2026-10-04 malam, baca saja)
 
-**Railway:** proyek lucid-patience, satu environment `dev`, 15 layanan. Yang memanggil model AI hanya dua:
+**Railway:** proyek lucid-patience, satu environment `dev`, 15 layanan.
 
-| Layanan | Model | Sumber deploy | Kunci |
+**Deployment yang sedang jalan:**
+
+| Layanan | Deployment aktif | Asal | Catatan |
 |---|---|---|---|
-| `market-ai-orc` | `AI_MODEL` = `deepseek/deepseek-v4.1-flash` (`AI_MODEL_SWITCH=1`), cadangan `AI_MODEL_2` | GitHub `main`, watch `/apps/market-ai-orc/**` | `OPENROUTER_API_KEY` (batas kunci USD 30, sisa ± USD 3,62) |
-| `market-web-governor` | Slot `WEB_SLOT_1..3_*` + `WEB_OPENROUTER_MODEL` (slot 1 = DeepSeek V4.1 Flash) | GitHub `main`, watch `/apps/market-web-governor/**` | Kunci OpenRouter milik layanan sendiri |
+| `market-ai-orc` | `6b47c80f` SUCCESS | `main` `5dbe0de` (O2–O4, P28-D) | **M78 belum live**: commit `a3141c0` hanya di branch |
+| `market-sql-governor` | `baed5b02` SUCCESS | `main` `a6d7ded` | Sesuai `main` |
+| `market-python-sandbox` | `8f460c32` SUCCESS | **unggahan CLI 13:49** (sebelum merge) | Build dari `main` di-SKIP Railway. Isi diasumsikan sama dengan `main`, tetapi tidak bisa dibuktikan dari meta deployment |
+| `market-web-governor` | `1ccfc59b` SUCCESS | **unggahan CLI 12:15** (sebelum merge) | Sama seperti sandbox |
+| `orc-test-runner` | `f13b6bc6` SUCCESS | unggahan CLI | Suite `ma-qa-20261004a` selesai |
 
-**Layanan lain tanpa kunci atau variabel model:** sandbox, governor, audit-store, telegram-monitor/trigger,
-ai-data-coverage, feature-01-worker dan cron harga (dicek nama variabelnya saja).
+**Git:**
+- `origin/main` = `81bfbea`;
+- branch `claude/g2-g3-reactivation` = `cae9886`, **11 commit di depan `main`**: M78 (kode orc), fixture dan suite runner,
+  dokumen benchmark dan rencana.
 
-**Kode lama `apps/market-ai-backend`:** masih memanggil model, tetapi **tidak punya layanan Railway**; dicatat sebagai
-"tidak dideploy".
+**Model yang dipakai (nilai variabel dev, bukan rahasia):**
 
-**Titik panggilan model** (dipindai dari kode, AST):
-- **orc:** loop utama `_payload`, router percakapan `classify_turn`, klasifikasi balasan rencana `_classify_reply`.
-- **web-governor:**
-  - `/v1/fact`: `_search`, `_extract`;
-  - `/v1/ask`: `_plan`, `_scan`, `_read_articles`, `_review`, jawaban, `_implications`, `_follow_ups`;
-  - `provider.py`: `research_criterion`, `read_document`, `classify`.
+| Layanan | Panggilan | Model | Setelan |
+|---|---|---|---|
+| orc | Semua panggilan (loop utama, router percakapan, klasifikasi balasan rencana) | `AI_MODEL` = `deepseek/deepseek-v4.1-flash` (`AI_MODEL_SWITCH=1`); cadangan `AI_MODEL_2` = `xiaomi/mimo-v2.6-flash` | Lihat rincian di bawah |
+| web-governor `/v1/fact`, `/v1/ask`, riset kriteria | Slot bawaan `WEB_DEFAULT_SLOT=1` | `deepseek/deepseek-v4.1-flash` (`WEB_OPENROUTER_MODEL`) | `WEB_OPENROUTER_MAX_OUTPUT_TOKENS=8000`, engine `exa`, `WEB_MAX_RESULTS_PER_SEARCH=30`, timeout 90 s, 3 retry |
+| web-governor klasifikasi event | `WEB_CLASSIFIER_SLOT=2`, cek silang `WEB_CLASSIFIER_CHECK_SLOT=1` | **`xiaomi/mimo-v2.5`** (slot 2), dicek DeepSeek (slot 1) | Reasoning klasifikasi mati (bawaan kode) |
+| web-governor slot 3 | Tidak dipakai endpoint mana pun secara bawaan | `z-ai/glm-5.3-flashx` | — |
 
-**Cara deploy sekarang:**
-- push ke `main` yang menyentuh folder layanan langsung men-deploy layanan itu;
-- runner tes diunggah lewat CLI;
-- perubahan variabel memakai `--skip-deploys` lalu redeploy.
+Rincian setelan orc:
+- `AI_REASONING_EFFORT=high` (router dan klasifikasi memakai `low` di kode);
+- `AI_MAX_OUTPUT_TOKENS=24000`, `AI_MAX_CONTEXT_TOKENS=500000`, `AI_MAX_HISTORY_TOKENS=150000`;
+- `AI_REPLAY_REASONING=true`, `AI_CAPTURE_REASONING=true`;
+- `AI_PROVIDER_MAX_CACHE_PRICE_RATIO=0.25`, `AI_PROVIDER_SORT` tidak diset;
+- `AI_MODE_SWITCH=4`, `AI_MAX_ANALYSIS_SECONDS=1800`, `AI_REQUEST_TIMEOUT_SECONDS=600`.
+
+**Layanan lain** (sandbox, governor, audit-store, telegram-monitor/trigger, ai-data-coverage, feature-01-worker, cron
+harga): tidak punya variabel model atau kunci.
+
+**Kode `apps/market-ai-backend`** (memanggil OpenAI/OpenRouter) **tidak punya layanan Railway**.
+
+**Sandbox:** masa simpan hasil dan bundle 24 jam.
+
+**Kunci OpenRouter orc:** batas USD 30, sisa **± USD 3,61**. Web-governor memakai kunci sendiri; sisanya belum dicek.
+
+**Dampak pada rencana:**
+1. Push ke `main` akan men-deploy orc (M78 + kode baru). Folder sandbox dan web-governor tidak berubah, jadi build
+   mereka akan di-SKIP lagi dan tetap berjalan dari unggahan CLI.
+2. Supaya semua layanan terbukti berjalan dari `main`, sandbox dan web-governor perlu dideploy ulang dari `main`
+   sekali. Langkah 0b.
+3. **Pemakaian MiMo V2.5 di klasifikasi web-governor** belum tercatat di AGENTS.md. `AI_MODELS.md` akan mencatatnya.
+   Mengganti modelnya tetap butuh keputusan user.
+
+## 0b. Sinkronkan deployment dengan `main` (baru)
+
+- **Langkah:** sandbox dan web-governor dideploy dari `main` (redeploy dari sumber GitHub `main`, bukan unggahan
+  CLI). Ditunggu `SUCCESS`, cek `/v1/runtime` sandbox dan log startup web-governor.
+- **Kapan:** sebelum tes R-STORE, supaya hasil tes berasal dari kode yang tercatat.
+- **Risiko:** pertanyaan yang sedang berjalan terputus. Tidak ada saat ini; runner selesai.
+- **Catatan:** `RAILWAY_CHANGELOG.md`, `config pull`/`plan`.
 
 ## 1. Deploy M78 (sudah dikodekan, menunggu)
 
@@ -71,6 +104,17 @@ aturan penyedia untuk setiap panggilan tidak bisa dilihat di satu tempat, dan bi
    membuat generator gagal.
 
 **Tes drift:** `apps/market-ai-orc/tests/test_ai_models_doc.py` (pola `test_ai_tools_doc.py`).
+
+**Rincian eksekusi:**
+1. Generator membaca kode tiga folder (`market-ai-orc`, `market-web-governor`, `market-ai-backend`) tanpa
+   mengimpor layanan lain.
+2. Pemetaan slot web-governor ke endpoint diturunkan dari kode (`settings.slot(None)`, `classifier_slot`,
+   `classifier_check_slot`), bukan ditulis tangan.
+3. Snapshot dev dibuat dari perintah baca `railway variables --kv`. Hanya nama yang lolos saringan; nilai rahasia
+   ditolak.
+4. Jalankan tes orc penuh + tes doc baru.
+5. Push ke branch dulu. Push ke `main` digabung dengan langkah 3 (satu deploy orc), karena tes orc menyentuh folder
+   orc.
 
 **AGENTS.md:** aturan baru di "Mandatory workflow". Setiap kali titik panggilan model ditambah atau diubah, atau
 variabel model/reasoning/token/penyedia diubah di Railway, regenerasi `AI_MODELS.md` di task yang sama (dengan
@@ -176,9 +220,10 @@ Dijalankan setelah langkah 1 dan 3 (satu unggahan runner):
 
 | Urutan | Langkah | Deploy | Catatan |
 |---|---|---|---|
+| 0 | Langkah 0b (sinkron `main`) | Sandbox + web-governor | Baca hasil, tanpa biaya model |
 | 1 | Langkah 2 | Tanpa deploy layanan | Dokumen + tes. Tes orc menyentuh `apps/market-ai-orc` → ikut deploy berikutnya |
 | 2 | Langkah 3 + M78 | Satu deploy orc | — |
 | 3 | Verifikasi live langkah 3 | — | ± USD 0,05 |
 | 4 | Langkah 4 | — | ± USD 0,5–1,0 |
 
-Total sisa kunci ± USD 3,62.
+Total sisa kunci orc ± USD 3,61 (dicek 2026-10-04 malam).
