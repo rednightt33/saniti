@@ -48,16 +48,19 @@ Perbaikannya: **satu sumber kebenaran**, yaitu set alat langkah itu. Semua yang 
      terpisah `other_tools_not_in_this_step`, dengan penjelasan "tidak bisa dipanggil di langkah ini".
    - **Teks perintah gerbang:** dibentuk dari set langkah (lihat C).
 
-### B. Pengecekan diminta hanya di tempat yang perlu (orc + router)
+### B. Pengecekan diminta hanya untuk angka yang perlu dicek (orc)
 
-| Jenis langkah | Perlakuan baru | Alasan |
-|---|---|---|
-| Analisis | Tetap: `get_evidence` ada, gerbang meminta sekali | Angka dari kode AI |
-| Klarifikasi / baca ulang (router `CLARIFY`, mode 4 `m4q`) | `get_evidence` **ditambahkan** ke set alat baca-saja | Pengecekan murah (hitung ulang dari tabel yang sudah dirilis atau ringkasan Governor); user sering meminta angka "persis" |
-| Riset (`m4c`, lanjutan rencana yang menjalankan riset) | Gerbang bukti **tidak meminta**; angka temuan riset ditandai "dihitung ulang backend" | Temuan riset sudah dihitung ulang backend dari deklarasi (FORMULA_AND_STATISTICS_VERIFIED). Jalur frame (STATISTICS_VERIFIED) ditangani S3 di analisis, bukan oleh gerbang ini |
+Tidak ada daftar per jenis langkah. Aturannya diturunkan dari **asal angka**, yang sudah diketahui pelacak asal angka
+(provenance):
 
-`get_evidence` hanya membaca dan menghitung ulang; ia menulis baris bukti ke `AI_conversation_evidence` milik percakapan
-itu sendiri, bukan data pasar. Karena itu ia boleh masuk set baca-saja. Ini dicatat di README orc.
+- Angka yang **dihitung ulang backend** (temuan riset, ringkasan Governor, `query_metric`) tidak perlu dicek lagi.
+  Labelnya "dihitung ulang backend".
+- Angka yang **berasal dari kode AI** perlu dicek sekali bila alat pemeriksanya ada di meja langkah itu (A). Bila alatnya
+  tidak ada, angka itu diberi label "belum dicek ulang".
+
+`get_evidence` hanya membaca dan menghitung ulang; ia menulis baris bukti milik percakapan itu sendiri, bukan data pasar.
+Karena itu ia boleh berada di set alat baca-saja, sehingga langkah baca ulang (misalnya g9.2) bisa mengecek. Ini satu
+perubahan set alat, bukan aturan per skenario.
 
 ### C. AI diberi tahu aturannya (orc, keputusan user 1)
 
