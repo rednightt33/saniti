@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-10-04 — Golden test round 2026-10-03 (part 2) on dev
+
+- OpenRouter key checked before the run (numbers only): limit USD 25, remaining USD 2.97 (R30 lifted by the user).
+- **Variables `PY_SANDBOX_RESULT_RETENTION_HOURS=1` and `PY_SANDBOX_BUNDLE_RETENTION_HOURS=1`** on market-python-sandbox (dev;
+  not secrets; both were unset, default 24) for the expiry turns of g9 and g11. The change redeployed the sandbox from
+  `main` (`295219ea`, R31); redeployed the branch by CLI upload: **market-python-sandbox `22e6e641` `SUCCESS`**.
+  `railway config pull --force` recorded both names (`preserve()`); `railway config plan`: up to date.
+- **orc-test-runner `b2c2a5be`** (CLI upload): suite `ma-golden-20261003e`, 12 items, 5 workers.
+
 ## 2026-10-04 — Golden test round 2026-10-03 (part 1) and the evidence fix on dev
 
 - **orc-test-runner `5e690200`** (CLI upload, branch `claude/g2-g3-reactivation`): suite `ma-golden-20261003d`, 4 items,
