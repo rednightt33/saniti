@@ -40,6 +40,11 @@ g6 = usulan pertanyaan tambahan).
 - **[HIGH ALERT]** S23: angka hasil kode AI tidak diperiksa ulang backend. --> UNDERADDRESSED (g1–g4 dibandingkan hitungan independen)
 - **[HIGH ALERT]** M13: "saham terbaik" memakai definisi pilihan AI. --> UNDERADDRESSED, sebagian (AI wajib menyebut definisinya) (g1)
 
+- M75: jawaban lambat 4–36 menit karena hampir semua panggilan jatuh ke penyedia lambat (Morph). --> KEPUTUSAN USER (O1)
+- M76: pertanyaan lanjutan kehilangan riwayat setelah jawaban panjang. --> DIPUTUSKAN (O2: `AI_MAX_HISTORY_TOKENS` 150.000), belum dieksekusi
+- M77: ekspor tidak tersedia di langkah baca. --> DIRENCANAKAN (O3)
+- P28: penolakan angka karena angka dari layar print / alarm palsu; putaran bukti tanpa temuan. --> DIUSULKAN (perbaikan pembaca angka, O4)
+
 ## 3. Tidak keluar jawaban (buntu)
 
 - G23: gerbang bukti meminta get_evidence di run yang tidak punya alat itu, sehingga model loop (g9.2 gagal di 60 iterasi; 29% panggilan model di run ini terbuang). --> DIPERBAIKI di kode dan live di dev (orc `26ee862e`), menunggu golden test akhir (g9.1–2, g5, g6, g7, g11)
