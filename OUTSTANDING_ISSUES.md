@@ -43,7 +43,7 @@ g6 = usulan pertanyaan tambahan).
 ## 3. Tidak keluar jawaban (buntu)
 
 - G23: gerbang bukti meminta get_evidence di run yang tidak punya alat itu, sehingga model loop (g9.2 gagal di 60 iterasi; 29% panggilan model di run ini terbuang). --> UNDERADDRESSED, akar terverifikasi (g9.1–2, g5, g6, g7, g11)
-- M73: mode 4 menjalankan riset otomatis pada pertanyaan angka (6× waktu jawaban). --> KEPUTUSAN USER (g7, g8, g9.1)
+- M73: mode 4 menjalankan riset untuk setiap pertanyaan baru. --> SESUAI DESAIN (tujuan 1 mode 4); ditutup 2026-10-04
 - G22: database bersama kewalahan saat 5 worker paralel; rencana dan riwayat percakapan gagal disimpan/dibaca, Governor 503. --> UNDERADDRESSED, menunggu keputusan perbaikan (GT `ma-golden-20261003e` g4.2, g5.1, g2)
 - R30: kredit akun OpenRouter habis (HTTP 402). --> KEPUTUSAN USER: tambah kredit (GT `ma-golden-20261003e`)
 - R31: ubah variabel tanpa `--skip-deploys` men-deploy ulang dari `main`. --> diatasi lewat proses; tuntas setelah cabang masuk `main` (luar GT)

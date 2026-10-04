@@ -179,3 +179,18 @@ angka yang sudah terverifikasi benar.
 - Bank Central Asia (Wikipedia) — https://en.wikipedia.org/wiki/Bank_Central_Asia ; kepemilikan Hartono (Kontan) — https://insight.kontan.co.id/news/bbca-bagi-bagi-dividen-duo-hartono-pemilik-djarum-kebagian-jatah-rp-585-triliun
 - RouteLLM — https://www.lmsys.org/blog/2024-07-01-routellm/
 - OpenRouter provider routing — https://openrouter.ai/docs/guides/routing/provider-selection
+
+## Lampiran: benchmark router "meminta uji" (2026-10-04)
+
+**Data:** 61 pesan unik dari semua suite golden test, label manual. Diuji pada 2 model × 2 versi × 3 ulangan (732
+panggilan, USD 0,10).
+
+| Model | Versi | Akurasi | Riset tanpa diminta | Uji terlewat |
+|---|---|---|---|---|
+| DeepSeek v4.1 flash | sekarang | 58,5% | 71/90 | 5/93 |
+| DeepSeek v4.1 flash | `asks_test` | 93,4% | 12/89 | 0/93 |
+| MiMo v2.6 flash | sekarang | 59,6% | 69/90 | 5/93 |
+| MiMo v2.6 flash | `asks_test` | 94,0% | 11/90 | 0/92 |
+
+**Catatan:** "riset tanpa diminta" pada versi sekarang adalah **perilaku yang disengaja** di mode 4 (tujuan 1: setiap
+pertanyaan analisis baru dibawa ke riset). Usulan S6 ditarik. Data ini disimpan bila mode bawaan suatu saat diubah.
