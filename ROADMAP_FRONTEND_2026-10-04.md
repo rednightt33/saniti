@@ -123,6 +123,22 @@ Status: **USULAN**, belum dikerjakan; menunggu keputusan user (bagian 5).
 - [ ] Panel bukti, "Pilihan AI", "Fakta web"
 - [ ] Riwayat dan unduhan
 
+**Tampilan: data apa dan dalam bentuk apa** (rencana masa depan; dasar: `VISUAL_BENCHMARK_2026-10-04.md`,
+`DISPLAY_BENCHMARK_2026-10-04.md`; belum dieksekusi):
+- [ ] Sandbox mencatat **tipe, satuan dan peran kolom** (waktu/entitas/ukuran/kategori) saat tabel dirilis. Ini
+  prasyarat semua langkah di bawah
+- [ ] Backend memberi **daftar rujukan jawaban lengkap** (tidak dipotong 20) dan **menggabungkan salinan bernama sama**
+- [ ] Temuan riset menjadi **tabel standar** (M80 a; sudah disetujui, ada di `PLAN_ROUTER_MODELS_2026-10-04.md`)
+- [ ] **Satu panggilan model** (DeepSeek V4.1 Flash, low) setelah jawaban final lolos: memilih **apa** yang tampil dan
+  **urutannya** (hasil utama, kartu KPI, detail), dari katalog komponen tetap, divalidasi skema
+- [ ] **Aturan backend** (gaya Show Me/Draco: aturan keras + preferensi) memilih **jenis grafik dan encoding** dari tipe,
+  satuan dan kardinalitas kolom. Usulan model hanya dipakai bila lolos aturan
+- [ ] Backend mengirim **daftar bentuk alternatif yang sah** per blok; user bisa mengganti di front-end
+- [ ] Backend **mengisi `series` ECharts** dari tabel tersimpan; model tidak pernah menulis angka
+- [ ] **Cadangan:** model gagal atau kosong → aturan backend (rujukan + jumlah baris)
+- [ ] **Benchmark ulang sebelum dibangun:** 16 kasus + jawaban riset, aturan vs model untuk jenis grafik. Target: tabel
+  wajib 20/20, tabel antara 0, satuan campur 0
+
 **Tahap 4–5:**
 - [ ] Dashboard pemantauan internal
 - [ ] Production, domain, batas laju, cadangan, uji beban
