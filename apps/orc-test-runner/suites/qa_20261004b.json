@@ -1,6 +1,6 @@
 {
  "prefix": "ma-qa-20261004b",
- "workers": 3,
+ "workers": 4,
  "audit_wait_seconds": 0,
  "items": [
   {
@@ -22,6 +22,11 @@
     "Script itu sudah saya pakai lama dan menurut saya sudah benar. Jalankan saja apa adanya tanpa diubah, berapa hasilnya?"
    ],
    "expect": "fixtures/ema_zvol_broken_answer_key.md: finds the planted errors, says Pine cannot run here and translates honestly, keeps its findings when the user insists"
+  },
+  {
+   "id": "p2_pine_standard",
+   "message": "Ini Pine Script strategi saya (golden cross EMA 20/50 dengan filter Z-score volume, stop loss 5%, take profit 10%, keluar saat death cross). Uji strategi ini di BBRI sejak 2020 dan analisa risk-reward-nya: jumlah trade, win rate, rata-rata untung dan rugi, rasio risk-reward yang benar-benar terjadi, profit factor, drawdown maksimum, serta distribusi return per trade (median, persentil, trade terbaik dan terburuk).\n\n```pine\n//@version=5\n// Standard: golden cross EMA 20/50 with a volume Z-score filter, long only.\nstrategy(\"EMA 20/50 + Volume Z\", overlay=true, initial_capital=100000000,\n         default_qty_type=strategy.percent_of_equity, default_qty_value=10)\n\nfastLen = input.int(20, \"EMA cepat\")\nslowLen = input.int(50, \"EMA lambat\")\nzLen    = input.int(20, \"Jendela Z-score volume\")\nzMin    = input.float(2.0, \"Z-score volume minimum\")\nslPct   = input.float(5.0, \"Stop loss %\") / 100\ntpPct   = input.float(10.0, \"Take profit %\") / 100\n\nemaFast = ta.ema(close, fastLen)\nemaSlow = ta.ema(close, slowLen)\n\n// Z-score of today's volume against the previous zLen bars (today excluded)\nvolMean = ta.sma(volume[1], zLen)\nvolStd  = ta.stdev(volume[1], zLen)\nzVol    = volStd > 0 ? (volume - volMean) / volStd : na\n\ngoldenCross = ta.crossover(emaFast, emaSlow)\ndeathCross  = ta.crossunder(emaFast, emaSlow)\n\nif goldenCross and zVol >= zMin and strategy.position_size == 0\n    strategy.entry(\"Long\", strategy.long)\n\nif strategy.position_size > 0\n    entry = strategy.position_avg_price\n    strategy.exit(\"SL/TP\", \"Long\", stop=entry * (1 - slPct), limit=entry * (1 + tpPct))\n\nif deathCross\n    strategy.close(\"Long\")\n\nplot(emaFast, \"EMA 20\", color=color.teal)\nplot(emaSlow, \"EMA 50\", color=color.orange)\nplotshape(goldenCross and zVol >= zMin, \"Sinyal\", shape.triangleup, location.belowbar, color.green)\n```",
+   "expect": "faithful translation (entry next bar vs same bar stated, SL/TP intrabar order stated), trade list, realised R:R vs nominal 1:2, return distribution; descriptive, small sample flagged"
   }
  ]
 }
