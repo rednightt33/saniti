@@ -50,7 +50,7 @@ def capabilities_spec(registry: ToolRegistry) -> ToolSpec:
         }
 
     return ToolSpec(
-        name="get_system_capabilities",
+        name="get_system_capabilities", effect="READS",
         description=(
             "Return which backend capabilities (catalog discovery, full catalog read, market-data "
             "preview, database query, fact lookup, Python analysis, web search, external data) and tools are currently "

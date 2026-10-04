@@ -116,7 +116,7 @@ def test_a_clarify_turn_offers_only_read_only_tools_and_no_plan() -> None:
     finally:
         router.current_turn_kind.reset(token)
     offered = {t["name"] for t in scripted.payloads[0]["tools"]}
-    assert offered <= router.READ_ONLY_TOOLS and "run_python" not in offered
+    assert offered == {"get_session_output"}  # the fake registry's only READS tool (O3: derived from effects)
     refused = json.loads(scripted.payloads[1]["input"][-1]["output"])
     assert refused["error"]["code"] == "TOOL_NOT_AVAILABLE_IN_THIS_TURN"
     assert any(router.NOTES["CLARIFY"] == i.get("content") for i in scripted.payloads[0]["input"])

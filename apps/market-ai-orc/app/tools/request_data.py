@@ -323,7 +323,7 @@ def request_data_spec(client: GovernorClient, *, timeout_seconds: float, max_res
         return client.query(arguments)  # the Governor's decision and next_action are returned unchanged
 
     return ToolSpec(
-        name="request_data",
+        name="request_data", effect="FETCHES_DATA",
         description=DESCRIPTION,
         arguments_model=DataRequestSpec,
         handler=handler,
@@ -355,7 +355,7 @@ def dimension_values_spec(client: GovernorClient, *, timeout_seconds: float) -> 
         assert isinstance(arguments, DimensionValuesArgs)
         return client.dimension_values(arguments.table, arguments.column, arguments.match)
 
-    return ToolSpec(name="get_dimension_values", description=DIMENSION_DESCRIPTION, arguments_model=DimensionValuesArgs,
+    return ToolSpec(name="get_dimension_values", effect="READS", description=DIMENSION_DESCRIPTION, arguments_model=DimensionValuesArgs,
                     handler=handler, timeout_seconds=timeout_seconds, max_result_bytes=16000)
 
 
@@ -365,7 +365,7 @@ def lookup_fact_spec(client: GovernorClient, *, timeout_seconds: float, max_resu
         return client.lookup(arguments)
 
     return ToolSpec(
-        name="lookup_fact",
+        name="lookup_fact", effect="FETCHES_DATA",
         description=LOOKUP_DESCRIPTION,
         arguments_model=LookupFactSpec,
         handler=handler,

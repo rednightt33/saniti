@@ -236,5 +236,5 @@ def evidence_specs(client: SandboxClient, governor: GovernorClient, *, timeout_s
                 "note": "Write each checked number as value_text; a TIDAK_COCOK number must be corrected or stated as "
                         "not matching. The user sees the evidence rows; never paste them."}
 
-    return [ToolSpec(name="get_evidence", description=DESCRIPTION, arguments_model=GetEvidenceArgs, handler=handler,
+    return [ToolSpec(name="get_evidence", effect="OWN_ARTIFACT", description=DESCRIPTION, arguments_model=GetEvidenceArgs, handler=handler,
                      timeout_seconds=TOTAL_SECONDS + QUERY_SECONDS + 10, max_result_bytes=max_result_bytes)]

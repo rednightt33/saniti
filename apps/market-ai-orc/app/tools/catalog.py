@@ -1319,7 +1319,7 @@ def catalog_specs(reader: CatalogReader, *, timeout_seconds: float, discovery_v2
     if discovery_v2:
         return [
             ToolSpec(
-                name="discover_catalog",
+                name="discover_catalog", effect="READS",
                 description=(
                     "Find data tables in Saniti's AI catalog. Each entry gives the description, category, grain, "
                     "keys, time and entity columns, subject values (data_domain, entity_type, asset_type, "
@@ -1334,7 +1334,7 @@ def catalog_specs(reader: CatalogReader, *, timeout_seconds: float, discovery_v2
                 timeout_seconds=timeout_seconds,
             ),
             ToolSpec(
-                name="get_catalog_details",
+                name="get_catalog_details", effect="READS",
                 description=(
                     f"Retrieve catalog metadata for up to {MAX_TABLES_PER_CALL} tables returned by discover_catalog, "
                     "with every section you need in one call. The result starts with table_metadata (grain, keys, "
@@ -1356,7 +1356,7 @@ def catalog_specs(reader: CatalogReader, *, timeout_seconds: float, discovery_v2
         ]
     return [
         ToolSpec(
-            name="discover_catalog",
+            name="discover_catalog", effect="READS",
             description=(
                 "List the data tables available in Saniti's AI catalog with their descriptions, "
                 "category, grain, keys, documentation status, and how much column, calculation, "
@@ -1368,7 +1368,7 @@ def catalog_specs(reader: CatalogReader, *, timeout_seconds: float, discovery_v2
             timeout_seconds=timeout_seconds,
         ),
         ToolSpec(
-            name="get_catalog_details",
+            name="get_catalog_details", effect="READS",
             description=(
                 f"Retrieve catalog metadata for up to {MAX_TABLES_PER_CALL} tables returned by "
                 "discover_catalog. COLUMNS: column meanings, types, units, and allowed "

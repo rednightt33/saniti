@@ -101,7 +101,7 @@ def method_guide_spec(names: list[str], *, library_rows: list[dict[str, Any]] | 
                 "message": f"{name!r} is not an analysis method of this deployment.",
                 "available": sorted(offered) + sorted(library), "next_action": "CALL_WITH_A_LISTED_NAME"}
 
-    return ToolSpec(name="get_method_guide", description=GET_METHOD_GUIDE_DESCRIPTION, arguments_model=MethodGuideArgs,
+    return ToolSpec(name="get_method_guide", effect="READS", description=GET_METHOD_GUIDE_DESCRIPTION, arguments_model=MethodGuideArgs,
                     handler=handler, timeout_seconds=timeout_seconds)
 
 

@@ -31,6 +31,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .tools import registry as registry_effects
+
 TURN_KINDS = ("CLARIFY", "INSIGHT", "CONTINUE", "APPROVE", "REVISE", "CANCEL", "NEW_TOPIC", "CONVERSATIONAL")
 REFERENTS = ("PENDING_SUGGESTION", "NEWEST_RESULT", "UNCLEAR", "NONE")
 NEEDS_PENDING = ("APPROVE", "REVISE", "CANCEL")
@@ -136,12 +138,10 @@ NOTES = {
                  "(RESEARCH_PLAN_CONFIRMATION). Reuse the conversation's data, outputs and findings; do not repeat a "
                  "test that already ran unless the user asks."),
 }
-# CLARIFY and CONVERSATIONAL read; they never extract data or run code (rule 1, enforced by the tool filter).
-# get_evidence (G23 B) only recomputes a claim and records the conversation's own evidence row, so a re-read can check
-# a figure it repeats.
-READ_ONLY_TOOLS = frozenset({"get_system_capabilities", "discover_catalog", "get_catalog_details", "read_catalog_rows",
-                             "get_dimension_values", "get_research_library", "get_method_guide",
-                             "get_session_output", "get_lineage", "get_evidence"})
+# CLARIFY and CONVERSATIONAL read; they never extract data or run code (rule 1, enforced by the tool filter). The tools
+# they keep are derived from each tool's effect (O3, M77): READS, or OWN_ARTIFACT (get_evidence records the
+# conversation's own evidence row; export_result writes the conversation's own file from an existing result).
+READ_EFFECTS = registry_effects.READ_EFFECTS
 
 # set by mode 4 around one sub-run: the orchestrator adds the class's note and, for CLARIFY and CONVERSATIONAL, keeps
 # only the read-only tools and the answer types (no plan)

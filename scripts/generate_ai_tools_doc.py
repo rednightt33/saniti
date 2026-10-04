@@ -121,7 +121,7 @@ PLAIN = {
 GUIDE_ALIAS = {"event_study": "event_study_guide", "resample": "resample_guide", "period_return": "period_return_guide"}
 
 
-def _registry(off: tuple[str, ...] = ()) -> dict[str, dict]:
+def _build(off: tuple[str, ...] = ()):
     sys.path.insert(0, str(ROOT / "apps/market-ai-orc"))
     import httpx
 
@@ -152,21 +152,40 @@ def _registry(off: tuple[str, ...] = ()) -> dict[str, dict]:
         object(), cursor_secret=b"x" * 32,
         governor_client=GovernorClient("http://g", "k" * 40, 90, transport=transport),
         sandbox_client=SandboxClient("http://s", "s" * 40, 45, 20, transport=transport), **kwargs)
-    return {d["name"]: d for d in registry.definitions()}
+    return registry
+
+
+def _registry(off: tuple[str, ...] = ()) -> dict[str, dict]:
+    return {d["name"]: d for d in _build(off).definitions()}
+
+
+def _effects(off: tuple[str, ...] = ()) -> dict[str, str]:
+    """O3: each offered tool's effect class; read-only steps derive their tools from it, so an unclassed tool is a
+    defect."""
+    registry = _build(off)
+    effects = {name: registry.get(name).effect for name in registry.names()}
+    unclassed = sorted(name for name, effect in effects.items() if effect is None)
+    if unclassed:
+        raise SystemExit(f"tools without an effect class (ToolSpec.effect): {unclassed}")
+    return effects
 
 
 def model_tools() -> list[dict]:
-    full = _registry()
+    full = _effects()
     needs: dict[str, list[str]] = {name: [] for name in full}
     replaced_by: dict[str, list[str]] = {}
     for switch in SWITCHES:
-        without = _registry((switch,))
+        without = _effects((switch,))
         for name in set(full) - set(without):
             needs[name].append(switch)
         for name in set(without) - set(full):
             replaced_by.setdefault(name, []).append(switch)
-    rows = [{"name": n, "path": "current", "switches": sorted(needs[n])} for n in full]
-    rows += [{"name": n, "path": "older", "switches": sorted(s)} for n, s in sorted(replaced_by.items())]
+    older = {}
+    for switch in SWITCHES:
+        older.update(_effects((switch,)))
+    rows = [{"name": n, "path": "current", "switches": sorted(needs[n]), "effect": full[n]} for n in full]
+    rows += [{"name": n, "path": "older", "switches": sorted(s), "effect": older[n]}
+             for n, s in sorted(replaced_by.items())]
     return rows
 
 
@@ -213,11 +232,14 @@ def render(snapshot: str) -> str:
              "code drift apart. Do not edit by hand: change the code or the PLAIN sentences, then regenerate "
              "(AGENTS.md, Mandatory workflow).", "",
              "## Alat yang bisa dipanggil model (market-ai-orc)", "",
-             "| Alat | Fungsi | Jalur | Saklar yang dibutuhkan |", "|---|---|---|---|"]
+             "Sifat: READS tidak mengubah apa pun; OWN_ARTIFACT hanya menulis catatan percakapan itu sendiri (bukti, file "
+             "ekspor); FETCHES_DATA menarik data gudang atau web; COMPUTES membuka sesi atau menjalankan kode. Langkah "
+             "baca (CLARIFY, CONVERSATIONAL) hanya memakai alat READS dan OWN_ARTIFACT.", "",
+             "| Alat | Fungsi | Sifat | Jalur | Saklar yang dibutuhkan |", "|---|---|---|---|---|"]
     for tool in tools:
         path = "sekarang" if tool["path"] == "current" else "lama (muncul bila saklar ini mati)"
         switches = ", ".join(f"`{s}`" for s in tool["switches"]) or "selalu"
-        lines.append(f"| `{tool['name']}` | {_plain(tool['name'])} | {path} | {switches} |")
+        lines.append(f"| `{tool['name']}` | {_plain(tool['name'])} | {tool['effect']} | {path} | {switches} |")
     lines += ["", "## Alat bantu di ruang kerja Python (market-python-sandbox)", "",
               "| Alat bantu | Fungsi |", "|---|---|"]
     lines += [f"| `{h}` | {_plain(h)} |" for h in helpers]

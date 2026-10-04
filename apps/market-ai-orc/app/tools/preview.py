@@ -92,7 +92,7 @@ class PreviewTool:
 
 def preview_spec(reader: CatalogReader, *, timeout_seconds: float) -> ToolSpec:
     return ToolSpec(
-        name="preview_table_rows",
+        name="preview_table_rows", effect="FETCHES_DATA",
         description=(
             "Return up to 20 example rows (all columns) from one of seven approved market-data "
             "tables, in a fixed deterministic order stated in the result. No filters, offsets, "

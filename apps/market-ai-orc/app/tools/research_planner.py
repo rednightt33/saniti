@@ -737,6 +737,6 @@ def research_feasibility_spec(planner: ResearchDataPlanner, *, timeout_seconds: 
             on_result(outcome)
         return outcome["view"]
 
-    return ToolSpec(name="check_research_feasibility", description=CHECK_RESEARCH_FEASIBILITY_DESCRIPTION,
+    return ToolSpec(name="check_research_feasibility", effect="FETCHES_DATA", description=CHECK_RESEARCH_FEASIBILITY_DESCRIPTION,
                     arguments_model=model, handler=handler, timeout_seconds=timeout_seconds,
                     max_result_bytes=max_result_bytes, argument_errors=argument_issues)

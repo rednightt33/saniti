@@ -87,7 +87,7 @@ def export_specs(client: SandboxClient, *, timeout_seconds: float, max_result_by
                                headers.get("x-saniti-extension") or arguments.format.lower()),
                      headers, body, includes)
 
-    return [ToolSpec(name="export_result", description=DESCRIPTION, arguments_model=ExportResultArgs,
+    return [ToolSpec(name="export_result", effect="OWN_ARTIFACT", description=DESCRIPTION, arguments_model=ExportResultArgs,
                      handler=handler, timeout_seconds=timeout_seconds + 30, max_result_bytes=max_result_bytes)]
 
 

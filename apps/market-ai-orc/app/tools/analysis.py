@@ -776,7 +776,7 @@ def manifest_spec(client: GovernorClient, *, timeout_seconds: float) -> ToolSpec
         assert isinstance(arguments, GetDatasetManifestArgs)
         return client.manifest(arguments.dataset_id)
 
-    return ToolSpec(name="get_dataset_manifest", description=MANIFEST_DESCRIPTION,
+    return ToolSpec(name="get_dataset_manifest", effect="READS", description=MANIFEST_DESCRIPTION,
                     arguments_model=GetDatasetManifestArgs, handler=handler, timeout_seconds=timeout_seconds)
 
 
@@ -804,10 +804,10 @@ def analysis_specs(client: SandboxClient, *, timeout_seconds: float, max_result_
         return client.result(arguments.analysis_id)
 
     return [
-        ToolSpec(name="create_analysis_spec", description=SPEC_DESCRIPTION, arguments_model=CreateAnalysisSpecArgs,
+        ToolSpec(name="create_analysis_spec", effect="COMPUTES", description=SPEC_DESCRIPTION, arguments_model=CreateAnalysisSpecArgs,
                  handler=create, timeout_seconds=timeout_seconds, max_result_bytes=max_result_bytes),
-        ToolSpec(name="run_python_analysis", description=RUN_DESCRIPTION, arguments_model=RunPythonAnalysisArgs,
+        ToolSpec(name="run_python_analysis", effect="COMPUTES", description=RUN_DESCRIPTION, arguments_model=RunPythonAnalysisArgs,
                  handler=run, timeout_seconds=timeout_seconds, max_result_bytes=max_result_bytes),
-        ToolSpec(name="get_analysis_result", description=RESULT_DESCRIPTION, arguments_model=GetAnalysisResultArgs,
+        ToolSpec(name="get_analysis_result", effect="READS", description=RESULT_DESCRIPTION, arguments_model=GetAnalysisResultArgs,
                  handler=result, timeout_seconds=timeout_seconds, max_result_bytes=max_result_bytes),
     ]

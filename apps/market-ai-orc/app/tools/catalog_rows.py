@@ -185,7 +185,7 @@ def catalog_rows_spec(
         page_max_bytes=page_max_bytes,
     )
     return ToolSpec(
-        name="read_catalog_rows",
+        name="read_catalog_rows", effect="READS",
         description=(
             "Read the complete records of one AI catalog table (every column and row, in primary-key "
             f"order), one page at a time. Default page_size {default_page_size}, maximum "

@@ -160,5 +160,5 @@ def lineage_specs(client: SandboxClient, *, timeout_seconds: float, max_result_b
             output_id = str(entry["output_id"])
         return lineage_of(client, results, output_id, arguments.execution_id)
 
-    return [ToolSpec(name="get_lineage", description=DESCRIPTION, arguments_model=GetLineageArgs, handler=handler,
+    return [ToolSpec(name="get_lineage", effect="READS", description=DESCRIPTION, arguments_model=GetLineageArgs, handler=handler,
                      timeout_seconds=timeout_seconds + 30, max_result_bytes=max_result_bytes)]

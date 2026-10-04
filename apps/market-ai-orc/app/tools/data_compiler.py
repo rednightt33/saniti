@@ -266,7 +266,7 @@ def prepare_spec(compiler: DataRequestCompiler, *, timeout_seconds: float, max_r
         assert isinstance(arguments, PrepareAnalysisDataArgs)
         return compiler.prepare(arguments.spec_id)
 
-    return ToolSpec(name="prepare_analysis_data", description=PREPARE_DESCRIPTION,
+    return ToolSpec(name="prepare_analysis_data", effect="FETCHES_DATA", description=PREPARE_DESCRIPTION,
                     arguments_model=PrepareAnalysisDataArgs, handler=handler, timeout_seconds=timeout_seconds,
                     max_result_bytes=max_result_bytes)
 

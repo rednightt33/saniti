@@ -2542,7 +2542,7 @@ class AgentOrchestrator:
         state.plan_meta["turn_kind"] = kind
         if kind in ("CLARIFY", "CONVERSATIONAL"):
             available = state.tool_filter if state.tool_filter is not None else frozenset(self.registry.names())
-            state.tool_filter = frozenset(available) & router.READ_ONLY_TOOLS
+            state.tool_filter = frozenset(available) & self.registry.names_with_effect(router.READ_EFFECTS)
             state.allowed_types = BASE_TYPES
         note = router.NOTES.get(kind)
         if note:

@@ -17,14 +17,15 @@ from conftest import ANSWER, ScriptedClient, final_response, make_settings, tool
 from test_evidence import Governor, registry as evidence_registry
 from test_artifacts import FakeSandbox
 from test_orchestrator import ListHandler, counting_registry, orchestrator, request
+from test_tool_effects import production_read_only
 
 FIGURES = FinalResponse(response_type="ANSWER", answer="RB beli bersih 116 dari 132 hari.",
                         clarification_question=None, assumptions=[], limitations=[])
 
 # every desk a step can have: the router's read-only set, an approved research run, the analysis path, none
 DESKS = {
-    "read_only": router.READ_ONLY_TOOLS - {"get_evidence"},
-    "read_only_with_evidence": router.READ_ONLY_TOOLS,
+    "read_only": production_read_only() - {"get_evidence"},
+    "read_only_with_evidence": production_read_only(),
     "research_run": DISCOVERY_TOOLS | RESEARCH_RUN_TOOLS | {"inspect_session", "get_session_output", "get_lineage"},
     "analysis": DATANEED_ANALYSIS_TOOLS | DISCOVERY_TOOLS | {"get_evidence"},
     "none": frozenset(),

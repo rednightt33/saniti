@@ -474,7 +474,7 @@ def data_need_specs(client: SandboxClient, *, timeout_seconds: float, max_result
                                       SubmitDataNeedSpecArgsPITFindings))
         return submit_data_need(client, arguments)
 
-    return [ToolSpec(name="submit_data_need_spec", description=SUBMIT_DESCRIPTION,
+    return [ToolSpec(name="submit_data_need_spec", effect="FETCHES_DATA", description=SUBMIT_DESCRIPTION,
                      arguments_model=model, handler=submit, timeout_seconds=timeout_seconds,
                      max_result_bytes=max_result_bytes, argument_errors=argument_issues,
                      envelope_key="data_need_spec")]

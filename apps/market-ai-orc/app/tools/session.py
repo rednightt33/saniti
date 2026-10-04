@@ -460,19 +460,19 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
         return result
 
     return [
-        ToolSpec(name="complete_analysis",
+        ToolSpec(name="complete_analysis", effect="COMPUTES",
                  description=COMPLETE_DESCRIPTION + (COMPLETE_EVENT_STUDY_SENTENCE if event_study else ""),
                  arguments_model=CompleteAnalysisArgs,
                  handler=complete, timeout_seconds=timeout_seconds * 4, max_result_bytes=max_result_bytes),
-        ToolSpec(name="open_analysis_session", description=OPEN_DESCRIPTION, arguments_model=OpenAnalysisSessionArgs,
+        ToolSpec(name="open_analysis_session", effect="COMPUTES", description=OPEN_DESCRIPTION, arguments_model=OpenAnalysisSessionArgs,
                  handler=open_session, timeout_seconds=timeout_seconds + 30, max_result_bytes=max_result_bytes),
-        ToolSpec(name="run_python", description=RUN_DESCRIPTION + (PERIOD_RETURN_SENTENCE if standard_period_return
+        ToolSpec(name="run_python", effect="COMPUTES", description=RUN_DESCRIPTION + (PERIOD_RETURN_SENTENCE if standard_period_return
                                                                    else "")
                  + (EVENT_STUDY_SENTENCE if event_study else ""),
                  arguments_model=RunPythonArgs, handler=run,
                  timeout_seconds=execution_timeout_seconds + 5, max_result_bytes=max_result_bytes),
-        ToolSpec(name="inspect_session", description=INSPECT_DESCRIPTION, arguments_model=InspectSessionArgs,
+        ToolSpec(name="inspect_session", effect="READS", description=INSPECT_DESCRIPTION, arguments_model=InspectSessionArgs,
                  handler=inspect, timeout_seconds=timeout_seconds + 5, max_result_bytes=max_result_bytes),
-        ToolSpec(name="get_session_output", description=OUTPUT_DESCRIPTION, arguments_model=GetSessionOutputArgs,
+        ToolSpec(name="get_session_output", effect="READS", description=OUTPUT_DESCRIPTION, arguments_model=GetSessionOutputArgs,
                  handler=output, timeout_seconds=timeout_seconds + 5, max_result_bytes=max_result_bytes),
     ]

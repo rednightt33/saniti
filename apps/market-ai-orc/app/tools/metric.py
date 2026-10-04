@@ -169,5 +169,5 @@ def metric_specs(governor: GovernorClient, metrics: list[dict[str, Any]], *, tim
 
     if not metrics:
         raise ToolError("No active metric in AI_metric_catalog.")
-    return [ToolSpec(name="query_metric", description=DESCRIPTION, arguments_model=QueryMetricArgs, handler=handler,
+    return [ToolSpec(name="query_metric", effect="FETCHES_DATA", description=DESCRIPTION, arguments_model=QueryMetricArgs, handler=handler,
                      timeout_seconds=timeout_seconds * MAX_PERIODS + 10, max_result_bytes=max_result_bytes)]

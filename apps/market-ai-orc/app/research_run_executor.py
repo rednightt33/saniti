@@ -511,12 +511,12 @@ def executor_specs(*, timeout_seconds: float, execution_timeout_seconds: float, 
         return run.complete(arguments.finalize, calls_left)
 
     return [
-        ToolSpec(name="start_research_run", description=START_DESCRIPTION, arguments_model=StartResearchRunArgs,
+        ToolSpec(name="start_research_run", effect="COMPUTES", description=START_DESCRIPTION, arguments_model=StartResearchRunArgs,
                  handler=start, timeout_seconds=timeout_seconds * 20, max_result_bytes=max_result_bytes),
-        ToolSpec(name="run_research_code", description=RUN_DESCRIPTION, arguments_model=RunResearchCodeArgs,
+        ToolSpec(name="run_research_code", effect="COMPUTES", description=RUN_DESCRIPTION, arguments_model=RunResearchCodeArgs,
                  handler=run_code, timeout_seconds=execution_timeout_seconds + timeout_seconds * 4,
                  max_result_bytes=max_result_bytes),
-        ToolSpec(name="complete_research_run", description=COMPLETE_DESCRIPTION,
+        ToolSpec(name="complete_research_run", effect="COMPUTES", description=COMPLETE_DESCRIPTION,
                  arguments_model=CompleteResearchRunArgs, handler=complete, timeout_seconds=timeout_seconds * 8,
                  max_result_bytes=max_result_bytes),
     ]

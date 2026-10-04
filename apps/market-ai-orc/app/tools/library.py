@@ -62,7 +62,7 @@ def research_library_spec(rows: list[dict[str, Any]], *, timeout_seconds: float 
                 "note": "These are the only methods an angle can use; AI_research_catalog lists reference methods "
                         "that cannot run."}
 
-    return ToolSpec(name="get_research_library", description=GET_RESEARCH_LIBRARY_DESCRIPTION,
+    return ToolSpec(name="get_research_library", effect="READS", description=GET_RESEARCH_LIBRARY_DESCRIPTION,
                     arguments_model=ResearchLibraryArgs, handler=handler, timeout_seconds=timeout_seconds)
 
 

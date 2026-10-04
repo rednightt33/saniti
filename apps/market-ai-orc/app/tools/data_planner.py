@@ -702,7 +702,7 @@ def feasibility_spec(client: Any, planner: ExecutionPlanner, *, timeout_seconds:
                                       CheckDataFeasibilityArgsPIT))
         return check_feasibility(client, planner, arguments)
 
-    return ToolSpec(name="check_data_feasibility", description=CHECK_FEASIBILITY_DESCRIPTION,
+    return ToolSpec(name="check_data_feasibility", effect="FETCHES_DATA", description=CHECK_FEASIBILITY_DESCRIPTION,
                     arguments_model=model, handler=handler, timeout_seconds=timeout_seconds,
                     max_result_bytes=max_result_bytes, argument_errors=argument_issues,
                     envelope_key="data_need_spec")
@@ -713,7 +713,7 @@ def prepare_bundle_spec(planner: ExecutionPlanner, *, timeout_seconds: float, ma
         assert isinstance(arguments, PrepareDataBundleArgs)
         return planner.prepare(arguments.need_id)
 
-    return ToolSpec(name="prepare_data_bundle", description=PREPARE_BUNDLE_DESCRIPTION,
+    return ToolSpec(name="prepare_data_bundle", effect="FETCHES_DATA", description=PREPARE_BUNDLE_DESCRIPTION,
                     arguments_model=PrepareDataBundleArgs, handler=handler, timeout_seconds=timeout_seconds,
                     max_result_bytes=max_result_bytes)
 

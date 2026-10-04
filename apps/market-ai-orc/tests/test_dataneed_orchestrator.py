@@ -107,8 +107,11 @@ class Tools:
                 else [{"ticker": "BBCA", "draft": 0.5555}]}),
             ("complete_analysis", SessionArgs, lambda a: self.completions.pop(0)),
         ]
+        effects = {"submit_data_need_spec": "FETCHES_DATA", "prepare_data_bundle": "FETCHES_DATA",
+                   "get_session_output": "READS"}
         for name, model, handler in specs:
-            registry.register(ToolSpec(name=name, description=name, arguments_model=model, handler=handler))
+            registry.register(ToolSpec(name=name, description=name, arguments_model=model, handler=handler,
+                                       effect=effects.get(name, "COMPUTES")))
         return registry
 
 
