@@ -11,6 +11,7 @@ import hashlib
 import json
 import logging
 import math
+import threading
 import time
 import uuid
 from collections.abc import Iterator
@@ -558,6 +559,45 @@ class Extractor:
     def __init__(self, governor: Governor) -> None:
         self.governor = governor
         self.settings = governor.settings
+        # G22-3: data orders (need_id, data_request_id) whose count timed out, with when
+        self._count_timeouts: dict[tuple[str, str], float] = {}
+        self._count_lock = threading.Lock()
+        # G22-4: the heavy-query queue (extractions and counts); None: no limit
+        n = self.settings.heavy_query_concurrency
+        self._heavy = threading.BoundedSemaphore(n) if n > 0 else None
+
+    @contextmanager
+    def _heavy_slot(self, request_id: str):
+        """G22-4: wait for one of SQL_HEAVY_QUERY_CONCURRENCY slots, up to SQL_HEAVY_QUERY_WAIT_SECONDS."""
+        if self._heavy is None:
+            yield
+            return
+        started = time.monotonic()
+        if not self._heavy.acquire(timeout=self.settings.heavy_query_wait_seconds):
+            _log("sql_governor_queue", request_id=request_id, outcome="BUSY",
+                 waited_ms=int((time.monotonic() - started) * 1000))
+            raise GovernorUnavailable("The governed database is busy with other extractions; try again shortly.")
+        waited = int((time.monotonic() - started) * 1000)
+        if waited >= 1000:
+            _log("sql_governor_queue", request_id=request_id, outcome="WAITED", waited_ms=waited)
+        try:
+            yield
+        finally:
+            self._heavy.release()
+
+    def _count_timed_out(self, order: tuple[str, str]) -> bool:
+        memory = self.settings.count_timeout_memory_seconds
+        now = time.monotonic()
+        with self._count_lock:
+            for key in [k for k, at in self._count_timeouts.items() if now - at > memory]:
+                del self._count_timeouts[key]
+            return order in self._count_timeouts
+
+    def _note_count_timeout(self, order: tuple[str, str]) -> None:
+        with self._count_lock:
+            if len(self._count_timeouts) > 10_000:
+                self._count_timeouts.clear()
+            self._count_timeouts[order] = time.monotonic()
 
     def limits(self) -> ex.Limits:
         s = self.settings
@@ -645,7 +685,7 @@ class Extractor:
         s = self.settings
         state.update(need_id=lineage.need_id, plan_id=lineage.plan_id, part_key=lineage.part_key,
                      part_count=part_count)
-        with self.governor.database.session() as connection:
+        with self._heavy_slot(request_id), self.governor.database.session() as connection:
             def run(statement: str, params: tuple[Any, ...]) -> list[dict[str, Any]]:
                 with connection.cursor(row_factory=dict_row) as cursor:
                     return list(cursor.execute(statement, params).fetchall())
@@ -663,10 +703,22 @@ class Extractor:
             state["query_hash"] = explain.query_hash
             scan_rows, cost, result_rows = self.governor._explain(connection, explain, run)
             estimates = ex.Estimates(scan_rows=scan_rows, result_rows=result_rows, plan_cost=cost)
+            order = (lineage.need_id, lineage.data_request_id)
             if estimate_only and s.estimate_count_enabled and result_rows >= s.estimate_count_min_rows:
-                cap = min(count_cap or s.max_dataset_rows + 1, s.max_dataset_rows + 1)
-                estimates = self._counted(connection, ex.compile_extraction(bound, cap, ordered=False), estimates,
-                                          state, cap=cap, query_hash=explain.query_hash)
+                if self._count_timed_out(order):
+                    # G22-3: one count of this data order already timed out; its other parts keep the planner's
+                    # estimate (the split already bounds each part) instead of waiting out the same timeout
+                    state.setdefault("warnings", []).append("ROW_ESTIMATE_UNCERTAIN")
+                    _log("sql_governor_count", query_hash=explain.query_hash, row_basis="PLANNER", timed_out=False,
+                         skipped="EARLIER_PART_TIMED_OUT", planner_rows=result_rows)
+                    estimates = ex.Estimates(scan_rows=scan_rows, result_rows=result_rows, plan_cost=cost,
+                                             row_basis="PLANNER", planner_rows=result_rows)
+                else:
+                    cap = min(count_cap or s.max_dataset_rows + 1, s.max_dataset_rows + 1)
+                    estimates = self._counted(connection, ex.compile_extraction(bound, cap, ordered=False),
+                                              estimates, state, cap=cap, query_hash=explain.query_hash)
+                    if estimates.row_basis == "PLANNER":
+                        self._note_count_timeout(order)
             state["estimates"] = estimates.as_dict()
             decision = ex.partitioning(bound, _for_partitioning(estimates), self.limits(), index_columns,
                                        part_count=part_count)

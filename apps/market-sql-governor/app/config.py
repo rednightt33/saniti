@@ -85,6 +85,13 @@ class Settings:
     estimate_count_enabled: bool = False
     estimate_count_timeout_ms: int = 7000
     estimate_count_min_rows: int = 0
+    # G22-3 (PLAN_FINAL_2026-10-04.md Fase 5): after one count of a data order (need_id + data request) times out, its
+    # other parts keep the planner's estimate for this long instead of timing out again (the split bounds each part)
+    count_timeout_memory_seconds: int = 900
+    # G22-4: at most this many extractions and counts at once (0: no limit); a request waits up to
+    # SQL_HEAVY_QUERY_WAIT_SECONDS for a slot, then gets 503 (busy), never a data decision
+    heavy_query_concurrency: int = 0
+    heavy_query_wait_seconds: int = 120
 
     @property
     def dataset_storage_configured(self) -> bool:
@@ -180,6 +187,10 @@ class Settings:
             "estimate_count_timeout_ms": _integer(env, "SQL_ESTIMATE_COUNT_TIMEOUT_MS", 7000, minimum=100,
                                                   maximum=60000),
             "estimate_count_min_rows": _integer(env, "SQL_ESTIMATE_COUNT_MIN_ROWS", 0, minimum=0),
+            "count_timeout_memory_seconds": _integer(env, "SQL_COUNT_TIMEOUT_MEMORY_SECONDS", 900, minimum=0,
+                                                     maximum=86400),
+            "heavy_query_concurrency": _integer(env, "SQL_HEAVY_QUERY_CONCURRENCY", 0, minimum=0, maximum=64),
+            "heavy_query_wait_seconds": _integer(env, "SQL_HEAVY_QUERY_WAIT_SECONDS", 120, minimum=1, maximum=600),
         }
         if counting["estimate_count_enabled"] \
                 and counting["estimate_count_timeout_ms"] > settings.statement_timeout_seconds * 1000:

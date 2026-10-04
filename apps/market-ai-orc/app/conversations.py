@@ -29,6 +29,7 @@ import logging
 import re
 import secrets
 import threading
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -123,12 +124,14 @@ class ConversationStore:
     """PostgreSQL access through the market_ai_conversation login (CONVERSATION_DATABASE_URL)."""
 
     def __init__(self, url: str, *, retention_days: int, lease_seconds: int, connect_timeout_seconds: int = 5,
-                 max_history_turns: int = MAX_HISTORY_ITEMS // 2) -> None:
+                 max_history_turns: int = MAX_HISTORY_ITEMS // 2, save_retry_seconds: float = 2.0) -> None:
         self.url = url
         self.retention_days = retention_days
         self.lease_seconds = lease_seconds
         self.connect_timeout_seconds = connect_timeout_seconds
         self.max_history_turns = max_history_turns
+        # G22-5 (PLAN_FINAL_2026-10-04.md Fase 5): a save that failed on the database is tried once more after this
+        self.save_retry_seconds = save_retry_seconds
         # R-STORE: (conversation_ids) -> None, run by cleanup before those conversations are deleted
         self.before_delete: Any = None
 
@@ -261,38 +264,60 @@ class ConversationStore:
     def finish(self, start: TurnStart, request_id: str, result: AgentRunResponse) -> bool:
         """Store the response, the conversation state (the latest Research Plan, H2) and release the lease, only with
         the generation the turn started with. False when the turn was taken over (its lease lapsed) or the store
-        failed: the caller is told it was not saved."""
+        failed twice: the caller is told it was not saved.
+
+        G22-5: a database failure (golden test 2026-10-03: the shared database was saturated and a plan was lost) is
+        tried once more after save_retry_seconds. The write is fenced by the lease generation, so a retry can never
+        overwrite another runner's turn; when the first attempt did commit, the retry finds the turn COMPLETED by this
+        request and generation and reports it saved."""
+        for attempt in (1, 2):
+            try:
+                return self._finish_once(start, request_id, result, retry=attempt == 2)
+            except (psycopg.Error, ConversationError):
+                logger.exception(json.dumps({"event": "conversation_store_failed", "request_id": request_id,
+                                             "conversation_id": start.conversation_id, "attempt": attempt}))
+                if attempt == 2:
+                    return False
+                time.sleep(self.save_retry_seconds)
+        return False
+
+    def _finish_once(self, start: TurnStart, request_id: str, result: AgentRunResponse, *, retry: bool) -> bool:
         body = result.model_dump(mode="json")
         response = result.response
         state = plans.advance(start.state, result, request_id, start.turn_index)
-        try:
-            with self._connect() as connection:
-                stored = connection.execute(
-                    '''UPDATE public."AI_conversation_turn" t
-                       SET status = 'COMPLETED', run_status = %s, response_type = %s, assistant_text = %s,
-                           response = %s, error_code = %s, completed_at = CURRENT_TIMESTAMP
-                       FROM public."AI_conversation" c
-                       WHERE t.request_id = %s AND t.status = 'RUNNING' AND t.lease_generation = %s
-                         AND c.conversation_id = t.conversation_id AND c.conversation_id = %s
-                         AND c.active_request_id = %s AND c.lease_generation = %s''',
-                    (result.status, response.response_type if response else None, assistant_text(result),
-                     Jsonb(body), result.error.code if result.error else None, request_id, start.generation,
-                     start.conversation_id, request_id, start.generation)).rowcount
-                if stored != 1:
-                    connection.rollback()
-                    return False
-                connection.execute(
-                    '''UPDATE public."AI_conversation"
-                       SET active_request_id = NULL, lease_expires_at = NULL, updated_at = CURRENT_TIMESTAMP,
-                           expires_at = CURRENT_TIMESTAMP + make_interval(days => %s), state = %s
-                       WHERE conversation_id = %s AND active_request_id = %s AND lease_generation = %s''',
-                    (self.retention_days, Jsonb(state), start.conversation_id, request_id, start.generation))
-            start.state = state
-            return True
-        except (psycopg.Error, ConversationError):
-            logger.exception(json.dumps({"event": "conversation_store_failed", "request_id": request_id,
-                                         "conversation_id": start.conversation_id}))
-            return False
+        with self._connect() as connection:
+            stored = connection.execute(
+                '''UPDATE public."AI_conversation_turn" t
+                   SET status = 'COMPLETED', run_status = %s, response_type = %s, assistant_text = %s,
+                       response = %s, error_code = %s, completed_at = CURRENT_TIMESTAMP
+                   FROM public."AI_conversation" c
+                   WHERE t.request_id = %s AND t.status = 'RUNNING' AND t.lease_generation = %s
+                     AND c.conversation_id = t.conversation_id AND c.conversation_id = %s
+                     AND c.active_request_id = %s AND c.lease_generation = %s''',
+                (result.status, response.response_type if response else None, assistant_text(result),
+                 Jsonb(body), result.error.code if result.error else None, request_id, start.generation,
+                 start.conversation_id, request_id, start.generation)).rowcount
+            if stored != 1:
+                connection.rollback()
+                if retry and connection.execute(
+                        "SELECT 1 FROM public.\"AI_conversation_turn\" WHERE request_id = %s "
+                        "AND status = 'COMPLETED' AND lease_generation = %s",
+                        (request_id, start.generation)).fetchone() is not None:
+                    logger.info(json.dumps({"event": "conversation_store_retry_found_saved",
+                                            "request_id": request_id}))
+                    start.state = state
+                    return True
+                return False
+            connection.execute(
+                '''UPDATE public."AI_conversation"
+                   SET active_request_id = NULL, lease_expires_at = NULL, updated_at = CURRENT_TIMESTAMP,
+                       expires_at = CURRENT_TIMESTAMP + make_interval(days => %s), state = %s
+                   WHERE conversation_id = %s AND active_request_id = %s AND lease_generation = %s''',
+                (self.retention_days, Jsonb(state), start.conversation_id, request_id, start.generation))
+        start.state = state
+        if retry:
+            logger.info(json.dumps({"event": "conversation_store_retry_saved", "request_id": request_id}))
+        return True
 
     def abandon(self, start: TurnStart, request_id: str, code: str) -> None:
         """Mark a turn FAILED and release the lease when the run raised instead of returning a response."""

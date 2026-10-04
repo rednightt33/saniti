@@ -529,6 +529,33 @@ def smoke(prefix: str) -> None:
     log("usage", usage=((result.get("body") or {}).get("execution") or {}).get("usage"))
 
 
+def fact(prefix: str, facts: list[dict], workers: int = 4, repeat_cached: bool = True) -> None:
+    """Light fact finder benchmark (PLAN_FINAL_2026-10-04.md Fase 4): POST /v1/fact for facts with a known answer,
+    a few in parallel; then the first three again, which must come from the cache. The expected value is compared
+    by the reader of the dump, not here."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def one(pair):
+        index, item = pair
+        request_id = f"{prefix}f{index}"
+        result = call("POST", "/v1/fact", {"request_id": request_id, "subject": item["subject"],
+                                           "attribute": item["attribute"]}, timeout=120)
+        body = result.get("body") or {}
+        log("fact", id=request_id, http=result.get("http"), seconds=result.get("seconds"),
+            status=body.get("status"), value=body.get("value"), expected=item.get("expected"),
+            versions=[[v.get("value"), v.get("domains")] for v in body.get("versions") or []],
+            cost=body.get("cost_usd"), cached=body.get("cached"),
+            warnings=sorted({w.get("code") for w in body.get("warnings") or []}))
+        RESULTS.append({"test": "fact", "request_id": request_id, "item": item, **result})
+        return result
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        list(pool.map(one, enumerate(facts, 1)))
+    if repeat_cached:
+        for index, item in enumerate(facts[:3], 1):
+            one((f"{index}c", item))
+
+
 def dump() -> None:
     blob = base64.b64encode(gzip.compress(json.dumps(RESULTS, ensure_ascii=False).encode())).decode()
     size = 800
@@ -565,6 +592,8 @@ def main() -> None:
         webneed(plan["prefix"], int(plan.get("results", 5)))
     elif plan["phase"] == "ask":
         ask(plan["prefix"], plan["questions"])
+    elif plan["phase"] == "fact":
+        fact(plan["prefix"], plan["facts"], int(plan.get("workers", 4)))
     elif plan["phase"] == "smoke":
         smoke(plan["prefix"])
     elif plan["phase"] == "post":
