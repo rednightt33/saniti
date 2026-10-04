@@ -144,6 +144,7 @@ def test_the_gate_asks_once_for_evidence_and_states_a_mismatch() -> None:
     final = FinalResponse(response_type="ANSWER", answer="RB beli bersih 116 dari 132 hari.",
                           clarification_question=None, assumptions=[], limitations=[])
     state = RunState(request_id="req_gate", started=0.0, input_items=[])
+    state.analysis_values["exe_1"] = {"label": "DATA_COVERAGE_VERIFIED", "values": [116.0, 132.0]}  # typed figures
     try:
         orchestrator._evidence_gate(state, final, ["DATA_COVERAGE_VERIFIED"])
         raise AssertionError("the first answer without evidence is sent back")

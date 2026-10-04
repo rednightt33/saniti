@@ -43,6 +43,20 @@ DATE_PATTERNS = [
     r"\b[qQ][1-4]\b|\b[hH][12]\b",               # quarters and halves
 ]
 DATE_RE = re.compile("|".join(DATE_PATTERNS), re.IGNORECASE)
+# P28 D (final golden test 2026-10-04): numbers a reader does not take as data values, masked like dates.
+# - a day range within one month, "24–31 Agustus" / "1 s.d. 5 Mei" (the date pattern only saw the last day);
+# - a confidence or significance level, "95% CI", "interval kepercayaan 99%", "α = 0,05" (a convention of the method);
+# - a number naming an object, "relasi 17", "relationship #24", "versi 4", "ID 3" (an identifier, not a quantity).
+RANGE_LINK = r"\s*(?:[-–—]|s\.?\s?d\.?|sampai(?:\s+dengan)?|hingga|to|until|through)\s*"
+NON_FIGURE_PATTERNS = [
+    rf"\b\d{{1,2}}{RANGE_LINK}\d{{1,2}}\s+(?:{MONTHS})\b",
+    r"\b\d{2}(?:[.,]\d+)?\s?%\s*(?:CI\b|C\.I\.|confidence|kepercayaan|keyakinan)",
+    r"(?:\bCI\b|confidence(?:\s+(?:interval|level))?|(?:interval|selang|tingkat|taraf)\s+(?:kepercayaan|keyakinan))"
+    r"\s*(?:of\s+|sebesar\s+)?[(:=]?\s*\d{2}(?:[.,]\d+)?\s?%",
+    r"(?:α|\balpha|\balfa|\bsignifi[ck]an(?:si|ce)(?:\s+level)?|\btaraf\s+nyata)\s*[=:]?\s*\d(?:[.,]\d+)?\s?%?",
+    r"\b(?:relasi|relationship|relation|versi|version|id|kode|code)\s*(?:no\.?\s*)?#?\s*\d+(?![.,]?\d)\b",
+]
+NON_FIGURE_RE = re.compile("|".join(NON_FIGURE_PATTERNS), re.IGNORECASE)
 LIST_MARKER_RE = re.compile(r"(?m)^\s*(?:\(?\d{1,2}[.)]|\d{1,2}\.)\s+|(?:(?<=\s)|^)\(\d{1,2}\)\s")
 # A Markdown table whose first column numbers its rows: the header is a row-number label and the cells count 1, 2, 3,
 # ... (or 0, 1, 2, ... for a pasted DataFrame index) in row order. Those cells are list markers, not figures (P02).
@@ -123,7 +137,8 @@ def _mask_row_numbers(text: str) -> str:
 
 def parse_numbers(text: str) -> list[DisplayedNumber]:
     """Numbers a reader would take as data values in free text (tables included)."""
-    masked = DATE_RE.sub(lambda m: " " * len(m.group(0)), text or "")
+    masked = NON_FIGURE_RE.sub(lambda m: " " * len(m.group(0)), text or "")
+    masked = DATE_RE.sub(lambda m: " " * len(m.group(0)), masked)
     masked = LIST_MARKER_RE.sub(lambda m: " " * len(m.group(0)), masked)
     masked = _mask_row_numbers(masked)
     found: list[DisplayedNumber] = []
@@ -288,6 +303,21 @@ def check_answer(text: str, index: SourceIndex) -> ProvenanceResult:
         if data:
             kinds.append(min(data, key=LABEL_ORDER.index))
     return ProvenanceResult(checked=len(numbers), unsupported=list(dict.fromkeys(unsupported)), data_kinds=kinds)
+
+
+def typed_figures(text: str, index: SourceIndex) -> list[tuple[str, str]]:
+    """O4: (shown text, strongest data kind) of each number written in text that matches a data source and not the
+    user's or the application's own text (CONTEXT). Called on an answer with its value references removed, it lists
+    the figures the model typed itself; a number without any source is the provenance gate's, not this list's."""
+    found: list[tuple[str, str]] = []
+    for shown in parse_numbers(text):
+        start = text.find(shown.text)
+        window = text[max(0, start - 40):start] if start >= 0 else ""
+        matched = index.kinds_matching(shown, bool(NEGATIVE_WORDS.search(window)))
+        if not matched or CONTEXT in matched:
+            continue
+        found.append((shown.text, min(matched, key=LABEL_ORDER.index)))
+    return found
 
 
 def weakest(labels: list[str]) -> str | None:

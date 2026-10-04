@@ -9,7 +9,8 @@ import logging
 import pytest
 
 from app import conversation_router as router
-from app.orchestrator import (DATANEED_ANALYSIS_TOOLS, DISCOVERY_TOOLS, EVIDENCE_BACKEND_LINE, GATE_ONCE_NOTE,
+from app.orchestrator import (DATANEED_ANALYSIS_TOOLS, DISCOVERY_TOOLS, EVIDENCE_BACKEND_LINE,
+                              EVIDENCE_REFERENCED_LINE, GATE_ONCE_NOTE,
                               LEGACY_ANALYSIS_TOOLS, RESEARCH_RUN_TOOLS, AgentOrchestrator, GateRejection, RunState)
 from app.schemas import FinalResponse
 from app.tools.system import current_step_tools
@@ -39,9 +40,11 @@ def evidence_orchestrator() -> AgentOrchestrator:
     return AgentOrchestrator(make_settings(), ScriptedClient([]), evidence_registry(FakeSandbox(), Governor()))
 
 
-def state_with(desk: frozenset[str] | None) -> RunState:
+def state_with(desk: frozenset[str] | None, label: str = "DATA_COVERAGE_VERIFIED") -> RunState:
+    """A step whose analysis released the figures of FIGURES (116 and 132) under label."""
     state = RunState(request_id="req_g23", started=0.0, input_items=[])
     state.tool_filter = desk
+    state.analysis_values["exe_1"] = {"label": label, "values": [116.0, 132.0]}
     return state
 
 
@@ -83,13 +86,47 @@ def test_the_analysis_step_is_still_asked_once() -> None:
 def test_backend_figures_are_labelled_not_sent_back(kinds: list[str]) -> None:
     """G23 B: research findings, Governor summaries and query_metric are computed by the backend."""
     orc = evidence_orchestrator()
-    out = orc._evidence_gate(state_with(None), FIGURES, kinds)
+    out = orc._evidence_gate(state_with(None, kinds[0]), FIGURES, kinds)
     assert EVIDENCE_BACKEND_LINE in out.limitations
 
 
 def test_a_mixed_answer_still_checks_the_models_own_figures() -> None:
+    state = state_with(None)
+    state.analysis_values["exe_2"] = {"label": "CALCULATION_VERIFIED", "values": [132.0]}
     with pytest.raises(GateRejection):
-        evidence_orchestrator()._evidence_gate(state_with(None), FIGURES, ["CALCULATION_VERIFIED", "SCOPE_VERIFIED"])
+        evidence_orchestrator()._evidence_gate(state, FIGURES, ["CALCULATION_VERIFIED", "SCOPE_VERIFIED"])
+
+
+# ---------------------------------------------------------------- O4: only typed figures are asked for
+
+def referenced_state(typed_answer: str) -> RunState:
+    state = state_with(None)
+    state.referenced = ["out.o3.net_days[0]", "out.o3.days[0]"]
+    state.typed_answer = typed_answer
+    return state
+
+
+def test_an_answer_whose_figures_are_all_value_references_is_labelled_not_sent_back() -> None:
+    """O4 (final golden test: 54 of 65 table checks re-read the one cell the answer referenced)."""
+    out = evidence_orchestrator()._evidence_gate(referenced_state("RB beli bersih   dari   hari."), FIGURES,
+                                                 ["DATA_COVERAGE_VERIFIED"])
+    assert EVIDENCE_REFERENCED_LINE in out.limitations
+
+
+def test_a_typed_figure_beside_references_is_asked_for_by_its_number() -> None:
+    state = referenced_state("RB beli bersih   dari 132 hari.")
+    with pytest.raises(GateRejection) as raised:
+        evidence_orchestrator()._evidence_gate(state, FIGURES, ["DATA_COVERAGE_VERIFIED"])
+    assert "132" in str(raised.value) and "116" not in str(raised.value)
+
+
+def test_a_number_the_user_wrote_is_not_a_claim_to_check() -> None:
+    """Another case than the observed one: "10 saham bank" repeats the question, it is no figure from the code."""
+    state = referenced_state("Untuk 10 saham bank, RB beli bersih   hari.")
+    state.analysis_values["exe_3"] = {"label": "DATA_COVERAGE_VERIFIED", "values": [10.0]}
+    state.context_numbers = [10.0]
+    out = evidence_orchestrator()._evidence_gate(state, FIGURES, ["DATA_COVERAGE_VERIFIED"])
+    assert EVIDENCE_REFERENCED_LINE in out.limitations
 
 
 def test_capabilities_report_the_tools_of_the_step() -> None:

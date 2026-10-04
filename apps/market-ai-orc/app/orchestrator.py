@@ -42,7 +42,7 @@ from . import conversation_router as router
 from . import in_sample as insample
 from . import method_guides
 from .user_words import allowed_periods, current_user_words, stated_horizons
-from .provenance import (CONTEXT, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
+from .provenance import (CONTEXT, typed_figures, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
                          parse_numbers, released_numbers, requested_statistics, weakest)
 from .value_refs import REF_RE, UNITS, ReferenceSources, Resolved, TableRows, format_value, render
 from .tools import ToolOutcome, ToolRegistry, error_outcome
@@ -1091,10 +1091,11 @@ METHODOLOGY_MISSING_LINE = "No methodology note was provided for this response."
 METHODOLOGY_WITHHELD_LINE = "The methodology note was withheld because it cited figures without a source: {numbers}."
 # D6 (round 2026-10-03, HIGH_ALERT_PLAN.md Prioritas 2): the evidence gate
 EVIDENCE_INSTRUCTION = (
-    "Your answer cites data figures but none was checked. Call get_evidence for the main claims (at most 10): for "
-    "each, the claim, the number exactly as you write it, and a recipe the backend recomputes apart from your code "
-    "(warehouse: a governed table, filters, measure, period; base_table: a released base table, conditions and a "
-    "measure). Then answer with the checked numbers.")
+    "Your answer types these figures from your own code without a value reference, and none was checked: {numbers}. "
+    "Either write each as a value reference to the released table that holds it, or call get_evidence for the main "
+    "ones (at most 10): for each, the claim, the number exactly as you write it, and a recipe the backend recomputes "
+    "apart from your code (warehouse: a governed table, filters, measure, period; base_table: a released base table, "
+    "conditions and a measure). Figures you already wrote as value references need nothing.")
 EVIDENCE_MISMATCH_INSTRUCTION = (
     "get_evidence found numbers in your answer that do not match the backend's recomputation: {items}. Correct them "
     "(or recheck with a corrected recipe) before answering; if a difference stays, say so in the answer.")
@@ -1109,6 +1110,9 @@ EVIDENCE_BACKEND_LINE = ("Angka jawaban ini dihitung atau dihitung ulang oleh ba
 EXHAUSTED_LINE = "Pemeriksaan tidak selesai ({reason}). Kode permintaan: {request_id}."
 EXHAUSTED_NO_DRAFT = "Tidak bisa dihitung: {reason} sebelum ada jawaban. Kode permintaan: {request_id}."
 EXHAUSTED_REASONS = {"MAX_ITERATIONS": "batas langkah tercapai", "ANALYSIS_TIMEOUT": "batas waktu tercapai"}
+# O4: every figure from the model's code is a value reference; the backend read each from its released table
+EVIDENCE_REFERENCED_LINE = ("Angka hasil analisis di jawaban ini dibaca backend langsung dari tabel hasil yang dirujuk "
+                            "(bukti DIRUJUK), tanpa hitung ulang terpisah dari kode AI.")
 EVIDENCE_NOT_COMPUTED_LINE = ("Bukti klaim tidak dihitung: jawaban ini tidak memeriksa angka utamanya dengan hitung "
                               "ulang backend.")
 EVIDENCE_MISMATCH_LINE = "Klaim \"{claim}\" ({value}): TIDAK COCOK, backend menghitung {backend}."
@@ -1640,6 +1644,7 @@ class RunState:
     artifacts: list[dict[str, Any]] = field(default_factory=list)  # D4: this run's export files (API artifacts)
     evidence_items: list[dict[str, Any]] = field(default_factory=list)  # D6: claims checked by get_evidence (rows)
     referenced: list[str] = field(default_factory=list)  # D6: value references of the final answer (DIRUJUK)
+    typed_answer: str | None = None  # O4: the final answer with its value references removed (the typed figures)
     reference_date: Any = None  # the run's reference date in the analysis timezone
     data_date: Any = None  # R-STORE: the run's DataDate (the conversation's data date and whether NEWEST was asked)
     research_attempted: bool = False
@@ -3798,6 +3803,7 @@ class AgentOrchestrator:
             return final, False
         # D6: the references the answer cites, listed as evidence (DIRUJUK) next to the checked claims
         state.referenced = list(dict.fromkeys(m.group("expr").strip() for m in REF_RE.finditer(final.answer or "")))
+        state.typed_answer = REF_RE.sub(" ", final.answer or "")
         problems: list[str] = []
         failed: list[str] = []
         missing: list[tuple[str, str, str]] = []
@@ -4092,11 +4098,20 @@ class AgentOrchestrator:
         if final.response_type != "ANSWER" or "get_evidence" not in self.registry.names():
             return final
         extra: list[str] = []
-        # G23 B: only figures from the model's own code need a separate check; the backend's own figures are labelled
+        # G23 B: only figures from the model's own code need a separate check; the backend's own figures are labelled.
+        # O4 (PLAN_BE_OPTIMIZATION_2026-10-04.md): a figure written as a value reference is read by the backend from
+        # its released table (DIRUJUK), so only the figures the model typed itself are asked for; 54 of 65 table
+        # checks in the final golden test only read back the one cell the answer already referenced.
         own_figures = [kind for kind in data_kinds if kind not in BACKEND_RECOMPUTED_KINDS]
-        if own_figures and not state.evidence_items:
-            self._gate_once(state, "EVIDENCE", EVIDENCE_INSTRUCTION, needs=frozenset({"get_evidence"}))
+        typed_text = state.typed_answer if state.typed_answer is not None else (final.answer or "")
+        typed = [shown for shown, kind in typed_figures(typed_text, self._source_index(state))
+                 if kind not in BACKEND_RECOMPUTED_KINDS]
+        if typed and not state.evidence_items:
+            self._gate_once(state, "EVIDENCE", EVIDENCE_INSTRUCTION.format(
+                numbers=", ".join(list(dict.fromkeys(typed))[:12])), needs=frozenset({"get_evidence"}))
             extra.append(EVIDENCE_NOT_COMPUTED_LINE)
+        elif own_figures and state.referenced and not state.evidence_items:
+            extra.append(EVIDENCE_REFERENCED_LINE)
         elif data_kinds and not state.evidence_items:
             extra.append(EVIDENCE_BACKEND_LINE)
         mismatched = [e for e in state.evidence_items if e.get("status") == "TIDAK_COCOK"
