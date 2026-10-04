@@ -251,3 +251,34 @@ kunci OpenRouter mencapai batas USD 25 (R30), sehingga semua panggilan berikutny
 - **Kelas temuan BRIS:** nilai yang benar sebagian (anak usaha vs induk) tidak bisa dibedakan dari cuplikan pendek.
   Bukan kesalahan kutipan; kutipan memang menyebut "BUMN".
 - **Belum dinyalakan di orc** (`AI_ENABLE_WEB_FACT`): sisa benchmark menunggu batas kunci dinaikkan.
+
+### Lanjutan benchmark S4b setelah batas kunci dinaikkan (`fact-bench-20261004b`, `…c`)
+
+| Fakta | Putaran b | Setelah perbaikan (c) |
+|---|---|---|
+| PNBN status | CONFIRMED swasta | — |
+| BJBR status | CONFIRMED BUMD | — |
+| BBCA pengendali | CONFLICTING (Hartono ×2 ejaan, PT Dwimuria) | CONFIRMED PT Dwimuria Investama Andalan |
+| ASII pengendali | CONFLICTING (Jardine C&C vs "Pemegang Saham Pengendali") | CONFIRMED Jardine Cycle & Carriage Limited |
+| UNVR pengendali | CONFIRMED Unilever Indonesia Holding B.V. | — |
+| TLKM pengendali | CONFIRMED Negara RI | — |
+| BNGA pengendali | CONFLICTING ("CIMB Group Sdn Bhd" vs "Sdn. Bhd.") | CONFIRMED CIMB Group Sdn Bhd |
+| LQ45: BBCA, BMRI, ASII | CONFIRMED (ya) ×3 | — |
+| IPO BBCA | CONFIRMED 31 Mei 2000 | — |
+| IPO BBRI | CONFLICTING ("2003" vs "10 November 2003") | CONFIRMED 10 November 2003 |
+| 3 ulangan cache | < 0,05 detik, nilai sama | — |
+
+**Hasil akhir:**
+- 20 dari 20 fakta terjawab; 19 tepat. BRIS disebut "BUMN" (tepatnya anak usaha BUMN).
+- Waktu 4,6–14,2 detik, di bawah batas 30. Biaya sekitar USD 0,015 per fakta.
+
+**Temuan W-F1, dan perbaikannya:**
+- Empat hasil "bertentangan" palsu, karena nilai dibandingkan per ejaan.
+- Perbaikan (web-governor `1ccfc59b`, permanen): nilai dibandingkan per kata.
+  - Tanda baca diabaikan.
+  - Nilai yang katanya tercakup nilai lain dianggap jawaban yang sama, versi lebih rinci yang dipakai.
+  - Nilai yang hanya mengulang pertanyaan dibuang.
+  - Satu pilihan dari pertanyaan ("swasta" untuk "BUMN atau swasta") tetap jawaban.
+- Dua entitas berbeda (pemegang langsung vs keluarga) tetap CONFLICTING (tes).
+
+Alat `find_web_fact` dinyalakan di dev (orc `bc116273`).

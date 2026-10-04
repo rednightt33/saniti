@@ -1,5 +1,18 @@
 # Railway changelog
 
+## 2026-10-04 — Fact finder on, final golden test A started (dev)
+
+- **market-web-governor `1ccfc59b` `SUCCESS`** (CLI upload at the W-F1 fix; meta without a branch).
+- **web-governor-test-runner `fd3162ea`, then the refresh rerun** (CLI upload): the rest of the fact benchmark
+  (`fact-bench-20261004b`, `…c`); results in `GT_ANALYSIS_2026-10-04.md`.
+- **Variable `AI_ENABLE_WEB_FACT=true`** on market-ai-orc (dev; new), `--skip-deploys`, then `railway redeploy`:
+  **market-ai-orc `bc116273` `SUCCESS`** (meta without a branch). `AI_TOOLS.md` regenerated with the dev flags.
+- **Retention 1 h for the golden test:** `PY_SANDBOX_RESULT_RETENTION_HOURS=1` and `PY_SANDBOX_BUNDLE_RETENTION_HOURS=1`
+  on market-python-sandbox (dev; were 24), `--skip-deploys`, `railway redeploy`: **`be1900f2` `SUCCESS`** (meta without a
+  branch). To be restored to 24 after the run.
+- **orc-test-runner `ffe06063`** (CLI upload): suite `ma-golden-final-20261004a` (13 items, 32 turns, 3 workers),
+  started 12:19 UTC.
+
 ## 2026-10-04 — Back to DeepSeek on dev (user decision)
 
 - **Variable `AI_MODEL_SWITCH=1`** on market-ai-orc (dev; was `2`), set with `--skip-deploys`; `railway redeploy` of the
