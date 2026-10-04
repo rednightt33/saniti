@@ -129,16 +129,25 @@ data.
 
 **Desain (orc):**
 - **Saklar baru `AI_ENABLE_FIRST_TURN_ROUTER`:** bawaan mati, nyala di dev.
-- **Kapan router dipakai:** hanya bila
-  - permintaan tanpa `analysis_path`;
-  - mode bawaan = 4;
-  - **tidak** ada rencana yang menunggu;
-  - percakapan belum punya giliran.
+- **Kapan router dipakai (keputusan user 2026-10-04 malam):** pada **setiap pesan pertama** percakapan yang tidak
+  sedang membalas rencana yang menunggu, **juga bila pemanggil mengisi `analysis_path`**.
+  - **Tidak ada mode bawaan lagi.** `AI_MODE_SWITCH` hanya menjadi saklar darurat (memaksa satu mode tanpa deploy).
+  - Pesan lanjutan tetap memakai router percakapan yang ada (model dan reasoning sama).
+- **`analysis_path` dari pemanggil menjadi batasan, bukan jalan pintas:**
+  - router menjawab CHAT/FACT → dijawab sebagai obrolan/fakta, apa pun `analysis_path`-nya (user bisa saja hanya
+    ngobrol atau bertanya perkembangan terbaru);
+  - router menjawab rute data (ANALYSIS/RESEARCH/EXPLORE) → kedalaman mengikuti `analysis_path` pemanggil bila diisi
+    (ANALYSIS → satu langkah, RESEARCH → rencana, MODE4 → mode 4 penuh), selain itu mengikuti rute router.
+- **Router gagal atau kosong (keputusan user):** satu langkah analisis + penahan backend, bukan mode 4 penuh.
+- **"Perkembangan terbaru":**
+  - bila jawabannya dari data gudang (harga, aliran asing) → rute data;
+  - bila berita/web → FACT dengan alat web.
 
-  Pesan lanjutan tetap memakai router percakapan yang ada.
+  Diverifikasi dulu: alat web apa yang tersedia di orc. Sekarang hanya `find_web_fact` (fakta ringan); riset berita
+  `/v1/ask` web-governor belum menjadi alat orc.
 - **Panggilan:** satu panggilan tanpa alat, `self.settings.reasoning("low")`, model `AI_MODEL`, keluaran
   `json_schema` ketat {route, reason}. Pola yang sama dengan `classify_turn`, dan dicatat di log seperti router
-  sekarang. Gagal → perilaku lama (mode 4 penuh).
+  sekarang. Gagal → satu langkah analisis (lihat di atas).
 - **Rute → yang dijalankan:**
 
   | Rute | Dijalankan |
@@ -158,7 +167,8 @@ data.
 **Tes:**
 - satu tes per rute;
 - router gagal → mode 4 penuh;
-- `analysis_path` diisi → router tidak dipanggil;
+- `analysis_path` diisi + pesan obrolan → dijawab sebagai obrolan; `analysis_path` diisi + pertanyaan data → kedalaman mengikuti `analysis_path`;
+- router gagal → satu langkah analisis, bukan mode 4;
 - pesan lanjutan → router lama;
 - penahan: A tanpa angka data → B–D tidak jalan; A dengan angka data → jalan;
 - tes mode 4 lama tetap lulus dengan saklar mati.
