@@ -28,10 +28,10 @@ Setiap solusi diuji dengan tiga pertanyaan; yang gagal tidak masuk rencana.
 | K8 | Pencari fakta web ringan, maks. 30 detik (S4b), masuk putaran ini |
 | K9 | Perbaikan G22 nomor 1–3 (satu timeout per pesanan, antrean query berat, simpan percakapan coba sekali lagi) |
 | K10 | Golden test setelah semua fase, mencakup perbaikan putaran ini **dan** daftar "menunggu golden test" |
+| K11 | Mode 4: riset hanya **ditawarkan**, tidak dijalankan otomatis, untuk permintaan yang tidak meminta uji/riset; berlaku per pesan, di pesan ke berapa pun, termasuk pesan berisi beberapa pertanyaan (S6) |
 
 **Masih menunggu keputusan user (tidak dikerjakan di putaran ini):**
 - keputusan 6 (kolom BUMN resmi);
-- S6 (mode 4 tanpa riset otomatis untuk pertanyaan angka, M73);
 - S7 (pengaturan provider);
 - G22-6 (database terpisah);
 - rotasi kunci audit (R21).
@@ -41,7 +41,7 @@ Setiap solusi diuji dengan tiga pertanyaan; yang gagal tidak masuk rencana.
 | Fase | Isi | Layanan |
 |---|---|---|
 | 1 | Ganti model + uji tingkat reasoning + golden test kecil | orc (setelan) |
-| 2 | G23: alat di meja AI, gerbang bukti, jalan keluar | orc |
+| 2 | G23: alat di meja AI, gerbang bukti, jalan keluar; S6 riset ditawarkan, bukan otomatis | orc |
 | 3 | Kebenaran jawaban: S3 satuan, S5 nilai kosong, S4 "Pilihan AI", S4c catatan pikiran | sandbox, orc |
 | 4 | S4b pencari fakta web ringan | web-governor, orc |
 | 5 | G22 database | Governor, orc |
@@ -153,6 +153,46 @@ Dampak di putaran `ma-golden-20261004a`:
 - batas langkah habis: dengan draf, draf dengan angka tanpa sumber, dan tanpa draf.
 
 **Ukuran:** panggilan setelah gerbang di langkah tanpa alat = 0 (baseline 245); gagal total = 0 (baseline 1).
+
+### S6. Mode 4: riset hanya ditawarkan untuk permintaan yang tidak meminta uji (M73, K11)
+
+- **Masalah (terverifikasi di log):** mode 4 menjalankan rencana riset → riset → usulan setelah **setiap** jawaban.
+  - Pada 4 pertanyaan angka, jawabannya sendiri 248 detik / USD 0,15; riset tambahan yang tidak diminta 1.570 detik (6×) /
+    USD 0,36.
+  - Kasus tabel g9.1 ("tampilkan tabel total return"): jawaban dan tabel selesai dalam **24 detik waktu model** (13
+    panggilan). Setelah itu ada rencana riset (113 detik), riset (619 detik, 45 di antaranya loop `get_lineage` dari
+    G23) dan usulan (23 detik). Total 877 detik.
+- **Kelas masalah:** jalur yang dipilih per **mode**, bukan per **permintaan**.
+- **Solusi (orc, permanen), diputuskan per pesan, di pesan ke berapa pun:**
+  1. Router percakapan yang sudah ada (memberi `turn_kind` untuk setiap pesan) ditambah satu keluaran: **apakah pesan ini
+     meminta uji atau riset** (`asks_test`). Ini dibaca dari isi pesan oleh router; tidak ada daftar kata kunci.
+  2. `asks_test` = salah: mode 4 hanya menjalankan langkah analisis (jawaban), lalu menambahkan **satu kalimat tawaran**
+     ("Mau saya uji apakah pola ini bermakna?"). Tawaran disimpan di percakapan; "ya" di pesan berikutnya menjalankan
+     rencana riset (jalur persetujuan yang sudah ada).
+  3. `asks_test` = benar: alur mode 4 seperti sekarang.
+  4. **Satu pesan berisi beberapa pertanyaan:** langkah analisis menjawab **semua** bagian dalam satu jawaban, dengan
+     bagian per pertanyaan; ini sudah didukung. Bila salah satu bagian meminta uji, `asks_test` = benar untuk pesan itu,
+     dan rencana riset hanya mencakup bagian yang meminta uji. Bagian angka tidak menunggu riset: jawabannya ikut di
+     jawaban analisis.
+  5. Pesan lanjutan (pesan ke-8, dst.) diperlakukan sama. Router sudah menilai setiap pesan, dan rencana yang sedang
+     menunggu persetujuan tetap dijaga aturan yang ada (M64, rencana kedaluwarsa).
+- **Risiko:**
+  - Router salah menilai. Contoh M42: "siapa broker…" pernah dijawab dengan rencana riset.
+  - User kehilangan wawasan riset yang dulu otomatis.
+- **Mitigasi:**
+  - Bila ragu, router memilih "tidak meminta uji": jawaban tetap keluar, dan riset tetap bisa dijalankan dengan satu
+    kata "ya".
+  - Setiap keputusan router dicatat (`asks_test`) dan ditinjau di golden test.
+  - `analysis_path` per permintaan tetap bisa memaksa jalur.
+- **Uji ulang (kontrafaktual dari log `ma-golden-20261004a`):** pada 4 pertanyaan angka, waktu model turun dari 1.818
+  detik menjadi ± 248 detik (−86%) dan biaya dari USD 0,51 menjadi ± USD 0,15. g9.1 turun dari 877 detik ke ± 1 menit.
+  RouteLLM melaporkan penghematan 35–85% untuk perutean sejenis.
+- **Tes:**
+  - pertanyaan angka di pesan pertama dan di pesan ke-8: tidak ada riset otomatis, ada kalimat tawaran;
+  - "ya" atas tawaran menjalankan rencana;
+  - pertanyaan uji ("apakah … cenderung …"): riset jalan seperti sekarang;
+  - satu pesan berisi 3 pertanyaan angka + 1 permintaan uji: tiga dijawab langsung, satu menjadi rencana;
+  - satu pesan berisi 5 pertanyaan angka: semua dijawab, tanpa riset.
 
 ---
 
@@ -376,7 +416,8 @@ tetap timeout; ambang 1 juta hanya menangkap 4/24).
 | g4 hipotesis BBCA | P25/P20/P21, M62 |
 | g5 pesan 1–9 | M64, G13, M47–M55, **S3**, **S4** ("Pilihan AI" BUMN), **S4c** (daftar sesuai kesimpulan), **S4b** (BUMN lewat web) |
 | g6_revise | **S5** (84.166 baris), P26 |
-| g8, g9 (3 pesan) | **G23** (0 loop, g9.2 menjawab), **D**, model baru |
+| g8, g9 (3 pesan) | **G23** (0 loop, g9.2 menjawab), **D**, **S6** (tabel g9.1 ± 1 menit, tawaran riset), model baru |
+| baru: g12 (pesan 1 angka; pesan 2 berisi 3 pertanyaan angka + 1 permintaan uji; pesan 3 "ya") | **S6** di pesan lanjutan dan pesan multi-pertanyaan |
 | g11 | Riset tanpa gerbang bukti |
 
 **Bagian B, 5 worker:** g1, g3, g5.1, g11 → **G22**.
@@ -409,7 +450,6 @@ perbaikannya sendiri:
 - G10: penarikan data ditolak.
 - D06: data broker berhenti 31 Agustus (muat ulang data).
 - M42: salah jenis jawaban.
-- M73: riset otomatis mode 4 (keputusan user, S6).
 
 ## Catatan yang diperbarui saat eksekusi
 
