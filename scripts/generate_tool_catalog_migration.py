@@ -5,8 +5,9 @@ registering the new versions of the tools whose contract changed in that round.
   (a time range may end "LATEST", 1b / C06) and run_python v3 (event_study takes the approved outcome unit, P26).
 - round_c (20261003_007, applied): submit_data_need_spec v8, check_data_feasibility v6, check_research_feasibility
   v5 (data_as_of_policy: a resumed conversation keeps its data date unless the user asks for newer data, R-STORE C2e).
-- round_d (20261003_011): inspect_session v2, get_session_output v2, and the first rows of the new tools get_lineage,
+- round_d (20261003_011, applied): inspect_session v2, get_session_output v2, and the first rows of the new tools get_lineage,
   export_result, query_metric and get_evidence (phase D; "new" entries, no previous version to copy).
+- round_e (20261004_001): get_evidence v2 with DAYS (golden test ma-golden-20261003d).
 
 Registered from the code with every switch of the dev environment on (the registry of scripts/generate_ai_tools_doc.py,
 one source for both). An applied migration is frozen (database/migrations/APPLIED.sha256); market-ai-orc's
@@ -89,8 +90,17 @@ ROUNDS = {
                     "new tools get_lineage (D3), export_result (D4), query_metric (D5) and get_evidence (D6)."],
         "limits": {"phase_d": "ROUND_PLAN_2026-10-03_FASE_D.md; every new tool behind its own AI_ENABLE_* flag"},
     },
+    "round_e": {
+        "target": ROOT / "database/migrations/20261004_001_evidence_days_tool_catalog.sql",
+        "versions": {"get_evidence": ("v1", "v2")},
+        "contracts": {"get_evidence": ("input_schema", "DAYS")},
+        "title": "golden test fix",
+        "summary": ["get_evidence v2: a WAREHOUSE recipe may count distinct dates (DAYS) from the summary's own",
+                    "coverage (GT ma-golden-20261003d: a count of days checked as a count of rows)."],
+        "limits": {"days": "DAYS reads the group's days_present (distinct dates with a row) of the Governor summary"},
+    },
 }
-NEWEST = "round_d"
+NEWEST = "round_e"
 
 
 def _tools_doc():

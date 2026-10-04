@@ -18,6 +18,7 @@ from __future__ import annotations
 import hashlib
 import secrets
 import time
+from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -81,7 +82,8 @@ class WarehouseRecipe(Strict):
     filters: list[Filter] | None = Field(max_length=6)
     group_by: list[str] | None = Field(max_length=4)
     measure_column: str | None = Field(max_length=63, description="Null for COUNT.")
-    function: Literal["SUM", "MIN", "MAX", "FIRST", "LAST", "COUNT"]
+    function: Literal["SUM", "MIN", "MAX", "FIRST", "LAST", "COUNT", "DAYS"] = Field(description=(
+        "DAYS: the number of distinct dates with a row (measure_column null)."))
     period: Period
     as_of: str | None = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     row: list[Equal] | None = Field(max_length=4, description="The group the claim is about (its group_by values).")
@@ -102,6 +104,21 @@ class Claim(Strict):
 
 class GetEvidenceArgs(Strict):
     claims: list[Claim] = Field(min_length=1, max_length=MAX_CLAIMS + 5)
+
+
+def as_number(value: Any) -> float | None:
+    """A backend value as a number: the Governor sends numeric aggregates as decimal text (exact), the sandbox as
+    JSON numbers."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(Decimal(value.strip()))
+        except (InvalidOperation, ValueError):
+            return None
+    return None
 
 
 def compare(value_text: str, backend: float | None) -> tuple[str, float | None]:
@@ -140,8 +157,9 @@ def _base_table(client: SandboxClient, recipe: BaseTableRecipe) -> dict[str, Any
 
 
 def _warehouse(governor: GovernorClient, recipe: WarehouseRecipe) -> dict[str, Any]:
-    if (recipe.function == "COUNT") != (recipe.measure_column is None):
-        return {"refused": "COUNT counts rows (measure_column null); the other functions name a column"}
+    counted = recipe.function in ("COUNT", "DAYS")
+    if counted != (recipe.measure_column is None):
+        return {"refused": "COUNT and DAYS take measure_column null; the other functions name a column"}
     as_of = as_of_date(recipe.as_of)
     period = recipe.period
     window = {"trading_days": period.trading_days, "as_of": as_of} if period.trading_days is not None \
@@ -149,7 +167,9 @@ def _warehouse(governor: GovernorClient, recipe: WarehouseRecipe) -> dict[str, A
     spec = {"summary_version": "summary_spec/v1", "source_table": recipe.source_table,
             "scope": scope_of({"type": "ALL"}, [predicate(f.column, f.values) for f in recipe.filters or []]),
             "restrictions": [], "group_by": list(recipe.group_by or []),
-            "measures": [{"column": recipe.measure_column, "function": recipe.function, "as": "claimed_value"}],
+            # DAYS reads the summary's own days_present (distinct dates of the group), next to a row count
+            "measures": [{"column": recipe.measure_column, "function": "COUNT" if counted else recipe.function,
+                          "as": "claimed_value"}],
             "period": window}
     answer = governor.summary(spec, {"purpose": "EVIDENCE", "recipe_sha256": sha256_json(spec)},
                               timeout=QUERY_SECONDS)
@@ -162,7 +182,8 @@ def _warehouse(governor: GovernorClient, recipe: WarehouseRecipe) -> dict[str, A
     if len(chosen) != 1:
         return {"refused": f"the recipe selects {len(chosen)} rows of {len(rows)}; name the group in row",
                 "rows": rows[:200], "source": source}
-    return {"value": chosen[0].get("claimed_value"), "rows": rows[:200], "rows_matched": len(rows), "source": source}
+    value = chosen[0].get("days_present") if recipe.function == "DAYS" else chosen[0].get("claimed_value")
+    return {"value": value, "rows": rows[:200], "rows_matched": len(rows), "source": source}
 
 
 def evidence_specs(client: SandboxClient, governor: GovernorClient, *, timeout_seconds: float,
@@ -193,9 +214,11 @@ def evidence_specs(client: SandboxClient, governor: GovernorClient, *, timeout_s
                 if "refused" in found:
                     entry.update(status="TIDAK_BISA_DICEK", reason=found["refused"])
                 else:
-                    value = found.get("value")
-                    entry["backend_value"] = float(value) if isinstance(value, (int, float)) else None
+                    entry["backend_value"] = as_number(found.get("value"))
                     entry["status"], entry["difference"] = compare(claim.value_text, entry["backend_value"])
+                    if entry["status"] == "TIDAK_BISA_DICEK":  # never without a reason
+                        entry["reason"] = "the backend found no value for the recipe" \
+                            if entry["backend_value"] is None else "the number as written could not be read"
             if results is not None:
                 results.evidence.append(entry)
                 if results.store is not None and results.conversation_id:

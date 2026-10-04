@@ -27,7 +27,8 @@ CRASH_ROWS = [{"date": "2026-01-02", "broker": "RB", "net_value": 5.0}]
 class Governor:
     def __init__(self, rows=None, status: str = "OK") -> None:
         self.bodies: list[dict] = []
-        self.rows = rows if rows is not None else [{"ticker": "BBCA", "claimed_value": 9450.0, "days_present": 20,
+        # as the live Governor sends them: numeric aggregates as decimal text (GT ma-golden-20261003d)
+        self.rows = rows if rows is not None else [{"ticker": "BBCA", "claimed_value": "9450.00", "days_present": 20,
                                                     "first_date": "2026-09-03", "last_date": "2026-10-02"}]
         self.status = status
 
@@ -188,3 +189,21 @@ def test_evidence_is_kept_with_the_conversation_and_exported(databases) -> None:
     assert result.output["result"]["file_name"].startswith("bukti_evd_")
     sent = json.loads(sandbox.calls[-1]["body"])
     assert len(sent["rows"]) == 3
+
+
+def test_distinct_days_are_checked_from_the_summary_coverage() -> None:
+    """GT ma-golden-20261003d g7: "BRIS traded on 128 days" was checked with COUNT (broker rows, 179) and judged
+    TIDAK_COCOK; DAYS reads the distinct dates of the group instead (any table, its own calendar)."""
+    governor = Governor(rows=[{"Symbol": "BRIS", "claimed_value": 179, "days_present": 128}])
+    claim = warehouse("128", function="DAYS", measure_column=None, group_by=["Symbol"],
+                      row=[{"column": "Symbol", "value": "BRIS"}])
+    outcome, _ = check([claim], governor=governor)
+    assert outcome.output["result"]["claims"][0]["status"] == "TERCEK"
+    assert governor.bodies[0]["summary"]["measures"][0]["function"] == "COUNT"
+
+
+def test_an_unreadable_backend_value_says_why() -> None:
+    outcome, _ = check([warehouse()], governor=Governor(rows=[{"ticker": "BBCA", "claimed_value": None}]))
+    claim = outcome.output["result"]["claims"][0]
+    assert claim["status"] == "TIDAK_BISA_DICEK" and claim["reason"]
+
