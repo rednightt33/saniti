@@ -110,4 +110,5 @@ Diambil  dari Railway (nama dan nilai true/false saja).
 | `AI_ENABLE_REQUEST_DATA` | off |
 | `AI_ENABLE_RESEARCH_FINDINGS` | on |
 | `AI_ENABLE_STANDARD_PERIOD_RETURN` | on |
+| `AI_ENABLE_WEB_FACT` | on |
 <!-- dev-snapshot:end -->
