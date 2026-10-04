@@ -1,0 +1,290 @@
+{
+ "note": "First-message router benchmark set (ROUTER_BENCHMARK_2026-10-04.md). Labels were written by one reviewer; 'heldout' was labelled before its first run. Each case: message and the acceptable routes.",
+ "development": [
+  {
+   "message": "bagaimana kabarmu",
+   "routes": [
+    "CHAT"
+   ]
+  },
+  {
+   "message": "halo",
+   "routes": [
+    "CHAT"
+   ]
+  },
+  {
+   "message": "terima kasih ya, sangat membantu",
+   "routes": [
+    "CHAT"
+   ]
+  },
+  {
+   "message": "kamu bisa bantu apa saja?",
+   "routes": [
+    "CHAT",
+    "FACT"
+   ]
+  },
+  {
+   "message": "selamat pagi",
+   "routes": [
+    "CHAT"
+   ]
+  },
+  {
+   "message": "Apakah BBCA dan BRIS termasuk bank BUMN? Sebutkan sumbernya.",
+   "routes": [
+    "FACT"
+   ]
+  },
+  {
+   "message": "Apa itu Z-score volume?",
+   "routes": [
+    "FACT"
+   ]
+  },
+  {
+   "message": "Apa bedanya EMA dan SMA?",
+   "routes": [
+    "FACT"
+   ]
+  },
+  {
+   "message": "Data broker summary tersedia sampai tanggal berapa?",
+   "routes": [
+    "FACT"
+   ]
+  },
+  {
+   "message": "Siapa pemegang saham pengendali BBCA?",
+   "routes": [
+    "FACT"
+   ]
+  },
+  {
+   "message": "Hitung Z-score volume harian tiap saham bank pada hari bursa terakhir yang ada datanya, dibanding rata-rata dan simpangan baku 20 hari bursa sebelumnya.",
+   "routes": [
+    "ANALYSIS"
+   ]
+  },
+  {
+   "message": "Bagaimana distribusi volume harian BBRI selama 2025?",
+   "routes": [
+    "ANALYSIS"
+   ]
+  },
+  {
+   "message": "Bagaimana tren net beli 5 broker dengan nilai transaksi terbesar di BBCA selama 3 bulan terakhir?",
+   "routes": [
+    "ANALYSIS"
+   ]
+  },
+  {
+   "message": "Identifikasi pola candle hammer, doji dan engulfing pada BBCA, BBRI, BMRI, BBNI selama 20 hari bursa terakhir.",
+   "routes": [
+    "ANALYSIS"
+   ]
+  },
+  {
+   "message": "Saham bank mana yang mengalami golden cross EMA 20/50 dalam 30 hari bursa terakhir, dan berapa rata-rata return 10 hari setelahnya sejak 2020?",
+   "routes": [
+    "ANALYSIS"
+   ]
+  },
+  {
+   "message": "Berapa total net beli investor asing di pasar reguler per saham untuk 10 saham bank paling likuid selama 2025?",
+   "routes": [
+    "ANALYSIS"
+   ]
+  },
+  {
+   "message": "Berapa harga penutupan tertinggi dan terendah tiap saham bank selama 2025?",
+   "routes": [
+    "ANALYSIS"
+   ]
+  },
+  {
+   "message": "Berapa harga penutupan BBRI kemarin?",
+   "routes": [
+    "ANALYSIS",
+    "FACT"
+   ]
+  },
+  {
+   "message": "Bagaimana perkembangan pasar terkini? Ringkas pergerakan saham bank besar, aliran dana asing dan volume 10 hari bursa terakhir.",
+   "routes": [
+    "ANALYSIS"
+   ]
+  },
+  {
+   "message": "Bagaimana return 5 hari saham bank setelah hari turun 5% atau lebih, dibanding hari-hari lainnya?",
+   "routes": [
+    "ANALYSIS",
+    "RESEARCH"
+   ]
+  },
+  {
+   "message": "Apakah hari dengan net beli asing positif di BBCA diikuti return 1 hari lebih tinggi daripada hari lainnya?",
+   "routes": [
+    "RESEARCH"
+   ]
+  },
+  {
+   "message": "Apakah saham bank yang RSI 14-nya di bawah 30 naik minimal 3% dalam 10 hari berikutnya? Anggap berhasil kalau naik ≥ 3%.",
+   "routes": [
+    "RESEARCH"
+   ]
+  },
+  {
+   "message": "Apakah saham bank yang turun 3% atau lebih dalam sehari cenderung naik dalam 5 hari berikutnya? Buatkan rencana ujinya.",
+   "routes": [
+    "RESEARCH"
+   ]
+  },
+  {
+   "message": "Uji apakah broker asing yang akumulasi 5 hari berturut-turut diikuti kenaikan harga.",
+   "routes": [
+    "RESEARCH"
+   ]
+  },
+  {
+   "message": "Siapa broker yang konsisten membeli saham bank saat market crash?",
+   "routes": [
+    "ANALYSIS",
+    "EXPLORE"
+   ]
+  },
+  {
+   "message": "Bagaimana perkembangan ekspor Indonesia sejak perang dagang terakhir? Cari saham yang diuntungkan.",
+   "routes": [
+    "EXPLORE"
+   ]
+  },
+  {
+   "message": "Saham bank mana yang paling menarik sekarang dan kenapa? Lihat dari berbagai sisi.",
+   "routes": [
+    "EXPLORE"
+   ]
+  },
+  {
+   "message": "Cari pola apa saja yang mendahului kenaikan besar saham bank.",
+   "routes": [
+    "EXPLORE",
+    "RESEARCH"
+   ]
+  },
+  {
+   "message": "Ini Pine Script saya untuk golden cross EMA 20/50. Tolong cek apakah sudah benar lalu uji di BBRI sejak 2020. ```pine\n//@version=5\nstrategy(\"x\")\n```",
+   "routes": [
+    "ANALYSIS"
+   ]
+  },
+  {
+   "message": "Buatkan trade setup untuk BBRI: entry, stop loss, target dan risikonya.",
+   "routes": [
+    "ANALYSIS"
+   ]
+  }
+ ],
+ "heldout": [
+  {
+   "message": "pagi bro, gimana pasar hari ini?",
+   "routes": [
+    "ANALYSIS"
+   ]
+  },
+  {
+   "message": "hi there, how are you doing?",
+   "routes": [
+    "CHAT"
+   ]
+  },
+  {
+   "message": "mantap, makasih",
+   "routes": [
+    "CHAT"
+   ]
+  },
+  {
+   "message": "ok",
+   "routes": [
+    "CHAT"
+   ]
+  },
+  {
+   "message": "what does foreign net buy mean?",
+   "routes": [
+    "FACT"
+   ]
+  },
+  {
+   "message": "BMRI itu punya pemerintah bukan sih",
+   "routes": [
+    "FACT"
+   ]
+  },
+  {
+   "message": "kolom apa aja yg ada di data broker",
+   "routes": [
+    "FACT"
+   ]
+  },
+  {
+   "message": "brp volume bbca kemaren",
+   "routes": [
+    "ANALYSIS"
+   ]
+  },
+  {
+   "message": "top 5 saham bank yg naik paling tinggi bulan ini",
+   "routes": [
+    "ANALYSIS"
+   ]
+  },
+  {
+   "message": "show me the ATR of BBNI over the last 30 days",
+   "routes": [
+    "ANALYSIS"
+   ]
+  },
+  {
+   "message": "bener ga sih kalau asing beli besar terus harga naik minggu depannya? coba buktiin",
+   "routes": [
+    "RESEARCH"
+   ]
+  },
+  {
+   "message": "is there evidence that Monday returns are lower for bank stocks?",
+   "routes": [
+    "RESEARCH"
+   ]
+  },
+  {
+   "message": "menurutmu sektor apa yang bakal diuntungkan kalau BI turunkan suku bunga, cek datanya juga",
+   "routes": [
+    "EXPLORE"
+   ]
+  },
+  {
+   "message": "analisa lengkap BBRI dari teknikal, bandarmologi dan asing",
+   "routes": [
+    "EXPLORE",
+    "ANALYSIS"
+   ]
+  },
+  {
+   "message": "halo, tolong hitung return BBCA tahun 2024",
+   "routes": [
+    "ANALYSIS"
+   ]
+  },
+  {
+   "message": "kamu pakai data dari mana?",
+   "routes": [
+    "FACT",
+    "CHAT"
+   ]
+  }
+ ]
+}

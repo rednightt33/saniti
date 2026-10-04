@@ -233,7 +233,7 @@ def render(snapshot: str) -> str:
              "(AGENTS.md, Mandatory workflow).", "",
              "## Alat yang bisa dipanggil model (market-ai-orc)", "",
              "Sifat: READS tidak mengubah apa pun; OWN_ARTIFACT hanya menulis catatan percakapan itu sendiri (bukti, file "
-             "ekspor); FETCHES_DATA menarik data gudang atau web; COMPUTES membuka sesi atau menjalankan kode. Langkah "
+             "ekspor); FETCHES_WEB membaca fakta web publik; FETCHES_DATA menarik data gudang; COMPUTES membuka sesi atau menjalankan kode. Langkah "
              "baca (CLARIFY, CONVERSATIONAL) hanya memakai alat READS dan OWN_ARTIFACT.", "",
              "| Alat | Fungsi | Sifat | Jalur | Saklar yang dibutuhkan |", "|---|---|---|---|---|"]
     for tool in tools:

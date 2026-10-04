@@ -40,11 +40,13 @@ from .research_plan import ContinuationIn, ContinuationOut
 from .research_plan_v2 import ContinuationInV2, ContinuationOutV2, current_angle_bounds, plan_digest_v2
 from .user_words import current_user_words
 from .schemas import (MAX_HISTORY_ITEMS, MAX_MESSAGE_CHARACTERS, AgentRunRequest, AgentRunResponse,
-                      AnalysisPathExecution, HistoryMessage, ReplyClassifierUsage)
+                      AnalysisPathExecution, HistoryMessage, ModeExecution, ReplyClassifierUsage)
 
 MODE4_VERSION = 1
 MIN_STEP_SECONDS = 120  # a step is not started with less time left than this
 APPROVAL_MESSAGE = "Setuju, jalankan rencana ini."
+NO_DATA_LINE = "Riset tidak dijalankan: jawaban analisis tidak memakai angka dari data, jadi tidak ada temuan untuk diuji."
+PATH_MODES = {"ANALYSIS": (2, "ANALYSIS"), "RESEARCH": (3, "RESEARCH"), "MODE4": (4, "MODE4")}
 PENDING_LINE = "Usulan riset sebelumnya masih menunggu keputusan Anda; balas \"jalankan\" kapan saja untuk menjalankannya."
 STEP_SUFFIX = {"CLARIFY": "m4q", "CONVERSATIONAL": "m4q", "INSIGHT": "m4i", "CONTINUE": "m4n"}
 ANALYSIS_CHARS, RESEARCH_CHARS = 5000, 6000
@@ -117,6 +119,7 @@ class Mode4Orchestrator:
 
     mode4 = True
     router = False  # AI_ENABLE_CONVERSATION_ROUTER, set in __init__
+    first_router = False  # AI_ENABLE_FIRST_TURN_ROUTER, set in __init__
 
     def __init__(self, inner: AgentOrchestrator) -> None:
         self.inner = inner
@@ -125,6 +128,7 @@ class Mode4Orchestrator:
         # the fewest angles the sandbox runs in one plan: a one-angle suggestion needs PY_SANDBOX_RESEARCH_MIN_ANGLES=1
         self.sandbox_min = int(limits.get("sandbox_min_angles") or 2)
         self.router = bool(getattr(inner.settings, "ai_enable_conversation_router", False))
+        self.first_router = bool(getattr(inner.settings, "ai_enable_first_turn_router", False))
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self.inner, name)
@@ -133,9 +137,40 @@ class Mode4Orchestrator:
             data_record: dict[str, Any] | None = None) -> AgentRunResponse:
         """analysis_path MODE4 runs the pipeline; any other request (the mode switcher, app/modes.py, has set its path:
         none for AUTO) goes to the orchestrator unchanged."""
+        if self.first_router and request.continuation is None and not request.history:
+            return self._first_message(request, conversation_key, data_record)
         if request.analysis_path != "MODE4":
             return self.inner.run(request, conversation_key, data_record=data_record)
         return _Mode4Run(self, request, conversation_key, data_record).execute()
+
+    def _first_message(self, request: AgentRunRequest, conversation_key: str | None,
+                       data_record: dict[str, Any] | None) -> AgentRunResponse:
+        """The first-message router (conversation_router.FIRST_ROUTE_RULES): CHAT and FACT run one step without
+        warehouse data whatever the caller's analysis_path; a data route runs at the caller's depth, else at the
+        route's; a failed router call runs one analysis step. The mode record names the route."""
+        route, _, usage = self.inner.classify_first(f"{request.request_id[:190]}-m4f", request.message)
+        step, path = router.first_route_path(route, request.analysis_path)
+        if step in ("CHAT", "FACT"):
+            run = _Mode4Run(self, request, conversation_key, data_record)
+            run.router_usage = {**usage, "route": route}
+            kind = "CONVERSATIONAL" if step == "CHAT" else "FACT"
+            run.turn_kind = kind
+            result = run.finish(run.sub(step.lower(), "m4q", request.message, None, turn_kind=kind),
+                                round_=step, passthrough=True)
+            mode = ModeExecution(mode=4, name="MODE4", source="ROUTER", route=route)
+        else:
+            number, name = PATH_MODES[path or "ANALYSIS"]
+            routed = request.model_copy(update={"analysis_path": path})
+            if path == "MODE4":
+                run = _Mode4Run(self, routed, conversation_key, data_record)
+                run.router_usage = {**usage, "route": route}
+                result = run.execute()
+            else:
+                result = self.inner.run(routed, conversation_key, data_record=data_record)
+            mode = ModeExecution(mode=number, name=name, source="ROUTER", route=route or "ROUTER_FAILED")
+        log_event("first_message_handled", request_id=request.request_id, route=route or "ROUTER_FAILED",
+                  caller_path=request.analysis_path, step=step, analysis_path=path, status=result.status)
+        return result.model_copy(update={"execution": result.execution.model_copy(update={"mode": mode})})
 
 
 class _Mode4Run:
@@ -267,6 +302,13 @@ class _Mode4Run:
             self.notes.append("Riset tidak dijalankan karena analisis tidak menghasilkan jawaban.")
             return self.finish(analysis, round_="FIRST", cancelled_plan_id=cancelled_plan_id)
         assert analysis is not None and analysis.response is not None
+        if analysis.evidence_label is None:
+            # M79 (user decision 2026-10-04): research tests what the data showed; an answer without figures from
+            # data (a fact, a definition, small talk, a refusal) has nothing to test, so B-D do not run
+            self.notes.append(NO_DATA_LINE)
+            log_event("mode4_research_skipped", request_id=self.request.request_id, reason="NO_DATA_FIGURES",
+                      response_type=analysis.response.response_type)
+            return self.finish(analysis, round_="FIRST", cancelled_plan_id=cancelled_plan_id)
         answer = analysis.response.answer
         low = max(2, self.owner.min_angles)
         if count and count[0] == "ANGLE":

@@ -517,7 +517,16 @@ class ModeExecution(BaseModel):
 
     mode: Literal[1, 2, 3, 4]
     name: Literal["AUTO", "ANALYSIS", "RESEARCH", "MODE4"]
-    source: Literal["CALLER", "CONTINUATION", "SWITCH", "FALLBACK"]
+    source: Literal["CALLER", "CONTINUATION", "SWITCH", "FALLBACK", "ROUTER"]
+    # first-message router (AI_ENABLE_FIRST_TURN_ROUTER): its route, or ROUTER_FAILED when it answered nothing usable
+    route: Literal["CHAT", "FACT", "ANALYSIS", "RESEARCH", "EXPLORE", "ROUTER_FAILED"] | None = None
+
+    @model_serializer(mode="wrap")
+    def _without_route(self, handler: Any) -> Any:
+        data = handler(self)
+        if isinstance(data, dict) and data.get("route") is None:
+            data.pop("route", None)
+        return data
 
 
 class AnalysisPathExecution(BaseModel):

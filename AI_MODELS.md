@@ -27,7 +27,7 @@ Nilai seperti `self.settings.ai_model` atau `slot.model` dibaca dari setelan di 
 
 | Fungsi | Untuk apa | Model | Reasoning | Maks. token keluaran | Alat | Keluaran terstruktur | Penyedia / sesi |
 |---|---|---|---|---|---|---|---|
-| `orchestrator.py:classify_turn` | Router percakapan untuk pesan lanjutan: menggolongkan pesan (CLARIFY, INSIGHT, CONTINUE, APPROVE, ...) tanpa alat. | `self.settings.ai_model` | `self.settings.reasoning('low')` | `min(2000, self.settings.ai_max_output_tokens)` | - | `json_schema conversation_turn` | `self._provider() ; f'{request_id}:turn-router'` |
+| `orchestrator.py:_router_call` | Dua router (satu panggilan kecil tanpa alat, kriteria di AI_ROUTER.md): router pesan pertama (classify_first: CHAT, FACT, ANALYSIS, RESEARCH, EXPLORE) dan router pesan lanjutan (classify_turn: CLARIFY, INSIGHT, CONTINUE, APPROVE, ...). | `self.settings.ai_model` | `self.settings.reasoning('low')` | `min(2000, self.settings.ai_max_output_tokens)` | - | `json_schema schema_name` | `self._provider() ; f'{request_id}:{session}'` |
 | `orchestrator.py:_classify_reply` | Membaca balasan user atas rencana riset yang menunggu (setuju, ubah, batal, topik lain). | `self.settings.ai_model` | `self.settings.reasoning('low')` | `min(2000, self.settings.ai_max_output_tokens)` | - | `json_schema research_plan_reply` | `self._provider() ; f'{state.request_id}:plan-reply'` |
 | `orchestrator.py:_loop` | Loop utama AI analis: setiap langkah percakapan dengan alat (data, sandbox, bukti, fakta web) sampai jawaban final; dipakai juga oleh setiap langkah mode 4. | `self.settings.ai_model` | `self.settings.reasoning(self.settings.ai_reasoning_effort)` | `self.settings.ai_max_output_tokens` | `tools` | `json_schema RESPONSE_FORMAT_NAME` | `self._provider() ; state.request_id` |
 
@@ -67,6 +67,7 @@ Nilai seperti `self.settings.ai_model` atau `slot.model` dibaca dari setelan di 
 | `AI_CONVERSATION_LEASE_SECONDS` | `0` |
 | `AI_CONVERSATION_UPKEEP_SECONDS` | `3600` |
 | `AI_ENABLE_CONVERSATION_ROUTER` | `False` |
+| `AI_ENABLE_FIRST_TURN_ROUTER` | `False` |
 | `AI_ENABLE_MODE4` | `False` |
 | `AI_LOG_PROVIDER` | `False` |
 | `AI_MAX_ANALYSIS_SECONDS` | `600` |
@@ -134,6 +135,7 @@ Diambil 2026-10-04 dari `railway variables --kv` (hanya nama di daftar setelan; 
 |---|---|
 | `AI_CAPTURE_REASONING` | `true` |
 | `AI_ENABLE_CONVERSATION_ROUTER` | `true` |
+| `AI_ENABLE_FIRST_TURN_ROUTER` | `true` |
 | `AI_ENABLE_MODE4` | `true` |
 | `AI_LOG_PROVIDER` | `true` |
 | `AI_MAX_ANALYSIS_SECONDS` | `1800` |

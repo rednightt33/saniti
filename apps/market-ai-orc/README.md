@@ -277,6 +277,7 @@ Gate and final-response log events (always on):
 | `AI_RESEARCH_PLAN_SIGNING_KEY` | with confirmation (secret) | — | HMAC-SHA256 key of the plan continuation tokens: at least 32 characters, at least 10 distinct, no surrounding whitespace (use a random 64-hex value). The service refuses to start with confirmation on and no usable key. Rotating it invalidates every open plan |
 | `AI_RESEARCH_PLAN_TTL_SECONDS` | no | `3600` | Lifetime of a plan continuation (60–86400) |
 | `AI_ENABLE_CONVERSATION_ROUTER` | no | `false` | 4d / M56: mode 4 classifies every later turn (CLARIFY, INSIGHT, CONTINUE, APPROVE, REVISE, CANCEL, NEW_TOPIC, CONVERSATIONAL) and runs research only for CONTINUE, APPROVE and NEW_TOPIC; see [Conversation router](#conversation-router-4d) |
+| `AI_ENABLE_FIRST_TURN_ROUTER` | no | `false` | User decision 2026-10-04: every first message is routed (CHAT, FACT, ANALYSIS, RESEARCH, EXPLORE) by one small call (AI_MODEL, reasoning low), also with the caller's analysis_path (which then sets only the depth of a data route); no default mode. Needs `AI_ENABLE_MODE4`. Criteria and rules: [AI_ROUTER.md](../../AI_ROUTER.md) |
 | `AI_ENABLE_METHOD_GUIDES` | no | `false` | 4b: the menu of analysis methods at the start of every run and in `get_system_capabilities`, and `get_method_guide`; needs `AI_method_guide` (migration `20261002_001`) and the sandbox's `method_guides` with the same hash; see [Method guides](#method-guides-4b) |
 | `AI_ENABLE_HYPOTHESIS_PLAN` | no | `false` | G3: with Multi-Angle Research, research findings v1 and `check_data_feasibility`, the model may also propose a hypothesis plan (research plan v1) beside the multi-angle plan; see [Hypothesis plans beside multi-angle plans](#hypothesis-plans-beside-multi-angle-plans-g3) |
 | `AI_ENABLE_EVENT_STUDY` | no | `false` | DataNeed flow only: `run_python` and `complete_analysis` describe `saniti.event_study` and its backend recalculation (G2); see [Event study labels](#event-study-labels-g2) |
@@ -1137,6 +1138,10 @@ calculations were not recomputed; an INVALID study is disclosed. Saying a calcul
 every figure of the answer is CALCULATION_VERIFIED, and is marked as before otherwise. `AI_ENABLE_EVENT_STUDY` only
 adds the description sentences (`EVENT_STUDY_SENTENCE`, `COMPLETE_EVENT_STUDY_SENTENCE` in `app/tools/session.py`);
 the labels follow the sandbox's result whatever the switch.
+
+### First-message router (2026-10-04)
+
+With `AI_ENABLE_FIRST_TURN_ROUTER` the first message of a conversation is routed before anything runs; the routes, their criteria, the backend's rules (caller's `analysis_path`, fallback, the mode 4 guard) and the exact instructions are generated from `app/conversation_router.py` into [AI_ROUTER.md](../../AI_ROUTER.md). M79: in mode 4 the research steps run only when the analysis step's answer has figures from data.
 
 ### Conversation router (4d)
 

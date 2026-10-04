@@ -129,6 +129,9 @@ class Settings:
     ai_enable_method_guides: bool = False
     # 4d (2026-10-02): mode 4 routes every later turn (CLARIFY, INSIGHT, CONTINUE, ...) instead of a new round
     ai_enable_conversation_router: bool = False
+    # first-message router (user decision 2026-10-04, ROUTER_BENCHMARK_2026-10-04.md): every first message is routed
+    # (CHAT, FACT, ANALYSIS, RESEARCH, EXPLORE) instead of taking AI_MODE_SWITCH's default; needs AI_ENABLE_MODE4
+    ai_enable_first_turn_router: bool = False
     # OpenRouter provider routing for the agent's model calls: provider.sort "price", "throughput" or "latency". Unset
     # keeps OpenRouter's default load balancing, which is weighted to the lowest price.
     ai_provider_sort: str | None = None
@@ -346,6 +349,7 @@ class Settings:
             ai_enable_hypothesis_plan=_boolean(env, "AI_ENABLE_HYPOTHESIS_PLAN", False),
             ai_enable_method_guides=_boolean(env, "AI_ENABLE_METHOD_GUIDES", False),
             ai_enable_conversation_router=_boolean(env, "AI_ENABLE_CONVERSATION_ROUTER", False),
+            ai_enable_first_turn_router=_boolean(env, "AI_ENABLE_FIRST_TURN_ROUTER", False),
             ai_provider_sort=(env.get("AI_PROVIDER_SORT") or "").strip().lower() or None,
             ai_log_provider=_boolean(env, "AI_LOG_PROVIDER", False),
             ai_provider_max_cache_price_ratio=_ratio(env, "AI_PROVIDER_MAX_CACHE_PRICE_RATIO", 0.0, 0.0, 1.0)
@@ -471,6 +475,8 @@ class Settings:
             raise ConfigError("AI_RESEARCH_MIN_FAMILIES must be from 0 (off) to 5 and at most AI_RESEARCH_MAX_ANGLES")
         if settings.ai_mode_switch not in (1, 2, 3, 4):
             raise ConfigError("AI_MODE_SWITCH must be 1 (AUTO), 2 (ANALYSIS), 3 (RESEARCH) or 4 (MODE4)")
+        if settings.ai_enable_first_turn_router and not settings.ai_enable_mode4:
+            raise ConfigError("AI_ENABLE_FIRST_TURN_ROUTER needs AI_ENABLE_MODE4=true")
         if settings.ai_mode_switch == 4 and not settings.ai_enable_mode4:
             raise ConfigError("AI_MODE_SWITCH=4 needs AI_ENABLE_MODE4=true")
         if settings.ai_mode_switch in (2, 3) and not settings.ai_enable_analysis_path:

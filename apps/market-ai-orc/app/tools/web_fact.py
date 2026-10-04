@@ -67,5 +67,5 @@ def web_fact_spec(client: WebFactClient) -> ToolSpec:
         result = client.fact(current_request_id.get() or "unknown", arguments.subject, arguments.attribute)
         return model_view(result)
 
-    return ToolSpec(name="find_web_fact", effect="FETCHES_DATA", description=DESCRIPTION, arguments_model=WebFactArguments,
+    return ToolSpec(name="find_web_fact", effect="FETCHES_WEB", description=DESCRIPTION, arguments_model=WebFactArguments,
                     handler=handler, timeout_seconds=45.0)

@@ -41,14 +41,31 @@ def suggestion_plan() -> dict[str, Any]:
     return {**plan_response(angles=angles()[:1]), "answer": "Usulan: uji satu sudut, penurunan besar. Setujui?"}
 
 
-def mode4_agent(script: list, sandbox_min: int = 1) -> tuple[Mode4Orchestrator, ScriptedClient, RunSandbox]:
+def mode4_agent(script: list, sandbox_min: int = 1, data_analysis: bool = True
+                ) -> tuple[Mode4Orchestrator, ScriptedClient, RunSandbox]:
     run_sandbox = RunSandbox()
     registry = ma_registry(run_sandbox)
     registry.multi_angle["sandbox_min_angles"] = sandbox_min
     scripted = ScriptedClient(script)
     inner = AgentOrchestrator(make_settings(**MODE4), scripted, registry, wall_clock=Clock(),
                               draft_reader=lambda draft_id: None)
+    if data_analysis:
+        analysis_from_data(inner)
     return Mode4Orchestrator(inner), scripted, run_sandbox
+
+
+def analysis_from_data(inner: AgentOrchestrator) -> None:
+    """These scripts stand for an analysis that read data (its tool calls are not scripted): step A's answer gets the
+    evidence label a data answer has, so the research steps run (M79: they do not after an answer without data)."""
+    run = inner.run
+
+    def labelled(request: AgentRunRequest, *args: Any, **kwargs: Any) -> AgentRunResponse:
+        result = run(request, *args, **kwargs)
+        if request.request_id.endswith("-m4a") and result.evidence_label is None and result.response is not None \
+                and result.response.response_type in ("ANSWER", "LIMITATION"):
+            result = result.model_copy(update={"evidence_label": "DATA_COVERAGE_VERIFIED"})
+        return result
+    inner.run = labelled
 
 
 FIRST_ROUND = [final_response(ANALYSIS),                                                      # A
@@ -177,8 +194,9 @@ def run_result(rid: str, final: FinalResponse | None, *, status: str | None = No
                                                         total_tokens=110, cost=cost, duration_ms=1000,
                                                         research_plan=plan_exec,
                                                         analysis_path=AnalysisPathExecution(requested="ANALYSIS")),
-                            evidence_label="DATA_COVERAGE_VERIFIED" if final and final.response_type == "ANSWER"
-                            else None,
+                            # an analysis that read data has a label, also as a LIMITATION (M43: research runs on it)
+                            evidence_label="DATA_COVERAGE_VERIFIED" if final and final.response_type
+                            in ("ANSWER", "LIMITATION") else None,
                             continuation=issued(plan_id, rid) if plan_id else None)
 
 

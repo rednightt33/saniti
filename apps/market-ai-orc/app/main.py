@@ -470,6 +470,10 @@ def create_app(
     def routed(request: AgentRunRequest, continuation: object) -> tuple[AgentRunRequest, ModeExecution]:
         """The request with the analysis_path of its mode (AUTO: none) and the mode record for execution.mode."""
         number, source = resolve_mode(request.analysis_path, continuation, default_mode)
+        if source == "SWITCH" and getattr(orchestrator, "first_router", False) and not request.history:
+            # first-message router (AI_ROUTER.md): no default mode; the router chooses, the caller set no depth
+            return (request.model_copy(update={"analysis_path": None}),
+                    ModeExecution(mode=number, name=MODES[number], source="ROUTER"))
         if source == "SWITCH" and default_mode != settings.ai_mode_switch:
             source = "FALLBACK"
         if number == 4 and not getattr(orchestrator, "mode4", False):  # a mode 4 plan after mode 4 was turned off
@@ -478,6 +482,8 @@ def create_app(
                 ModeExecution(mode=number, name=MODES[number], source=source))
 
     def with_mode(result: AgentRunResponse, mode: ModeExecution) -> AgentRunResponse:
+        if result.execution.mode is not None and result.execution.mode.source == "ROUTER":
+            return result  # the first-message router recorded the mode it chose
         return result.model_copy(update={"execution": result.execution.model_copy(update={"mode": mode})})
 
     @app.post("/v1/agent/run", response_model=AgentRunResponse, dependencies=[Depends(authorize)])

@@ -2551,9 +2551,11 @@ class AgentOrchestrator:
         if kind is None:
             return
         state.plan_meta["turn_kind"] = kind
-        if kind in ("CLARIFY", "CONVERSATIONAL"):
+        if kind in ("CLARIFY", "CONVERSATIONAL", "FACT"):
             available = state.tool_filter if state.tool_filter is not None else frozenset(self.registry.names())
-            state.tool_filter = frozenset(available) & self.registry.names_with_effect(router.READ_EFFECTS)
+            # FACT (first-message router) also reads public web facts; no step of these kinds pulls warehouse data
+            effects = router.READ_EFFECTS | ({"FETCHES_WEB"} if kind == "FACT" else frozenset())
+            state.tool_filter = frozenset(available) & self.registry.names_with_effect(frozenset(effects))
             state.allowed_types = BASE_TYPES
         note = router.NOTES.get(kind)
         if note:
@@ -2565,36 +2567,58 @@ class AgentOrchestrator:
                       ) -> tuple[str | None, str | None, dict[str, Any]]:
         """The conversation router's model call (one small tool-free call, reasoning low): the turn kind and a
         revision instruction, with its usage record. A failure returns None (the backend's rules pick the class)."""
+        parsed, record = self._router_call(
+            request_id, "turn-router", router.ROUTER_INSTRUCTIONS,
+            dumps({"conversation": context, "user_message": message[:4000]}), "conversation_turn",
+            router.ROUTER_SCHEMA, router.TurnClassification, "conversation_router_failed")
+        if parsed is not None:
+            record["referent"] = parsed.referent  # M64: what the message is about
+        log_event("conversation_turn_classified", request_id=request_id, turn_kind=parsed.turn_kind if parsed else None,
+                  status=record["status"], referent=record.get("referent"),
+                  latency_ms=record["latency_ms"], input_tokens=record["input_tokens"],
+                  output_tokens=record["output_tokens"])
+        return (parsed.turn_kind if parsed else None), (parsed.revision_instruction if parsed else None), record
+
+    def classify_first(self, request_id: str, message: str) -> tuple[str | None, str | None, dict[str, Any]]:
+        """The first-message router (ROUTER_BENCHMARK_2026-10-04.md; one small tool-free call, reasoning low): the
+        route and its reason, with its usage record. A failure returns None (the backend's fallback applies)."""
+        parsed, record = self._router_call(
+            request_id, "first-router", router.FIRST_INSTRUCTIONS, message[:4000], "first_message_route",
+            router.FIRST_SCHEMA, router.FirstRoute, "first_message_router_failed")
+        log_event("first_message_routed", request_id=request_id, route=parsed.route if parsed else None,
+                  reason=(parsed.reason[:300] if parsed else None), status=record["status"],
+                  latency_ms=record["latency_ms"], input_tokens=record["input_tokens"],
+                  output_tokens=record["output_tokens"])
+        return (parsed.route if parsed else None), (parsed.reason if parsed else None), record
+
+    def _router_call(self, request_id: str, session: str, instructions: str, content: str, schema_name: str,
+                     schema: dict[str, Any], model: Any, failure_event: str) -> tuple[Any, dict[str, Any]]:
+        """One router model call: AI_MODEL, reasoning low, strict JSON schema, no tools. Returns the parsed object
+        (None on any failure, including an empty reply) and the usage record."""
         state = RunState(request_id=request_id, started=self.clock(), input_items=[])
         payload: dict[str, Any] = {
-            "model": self.settings.ai_model, "session_id": f"{request_id}:turn-router",
-            "instructions": router.ROUTER_INSTRUCTIONS,
-            "input": [{"role": "user", "content": dumps({"conversation": context, "user_message": message[:4000]})}],
+            "model": self.settings.ai_model, "session_id": f"{request_id}:{session}",
+            "instructions": instructions,
+            "input": [{"role": "user", "content": content}],
             "reasoning": self.settings.reasoning("low"),
             "max_output_tokens": min(2000, self.settings.ai_max_output_tokens),
             "store": False, "provider": self._provider(),
-            "text": {"format": {"type": "json_schema", "name": "conversation_turn", "strict": True,
-                                "schema": router.ROUTER_SCHEMA}},
+            "text": {"format": {"type": "json_schema", "name": schema_name, "strict": True, "schema": schema}},
         }
         started = time.monotonic()
         record: dict[str, Any] = {"status": "FAILED", "input_tokens": 0, "output_tokens": 0, "cost": None,
                                   "latency_ms": 0}
-        kind, instruction = None, None
+        parsed = None
         try:
             response = self.client.create(payload)
             usage = self._add_usage(state, response)
             record.update(input_tokens=usage["input_tokens"], output_tokens=usage["output_tokens"], cost=usage["cost"])
-            parsed = router.TurnClassification.model_validate_json(self._output_text(response).strip() or "{}")
-            kind, instruction = parsed.turn_kind, parsed.revision_instruction
-            record.update(status="COMPLETED", referent=parsed.referent)  # M64: what the message is about
-        except Exception as exc:  # noqa: BLE001 - the backend's fallback class applies
-            log_event("conversation_router_failed", request_id=request_id, error=type(exc).__name__)
+            parsed = model.model_validate_json(self._output_text(response).strip() or "{}")
+            record["status"] = "COMPLETED"
+        except Exception as exc:  # noqa: BLE001 - the backend's fallback applies
+            log_event(failure_event, request_id=request_id, error=type(exc).__name__)
         record["latency_ms"] = int((time.monotonic() - started) * 1000)
-        log_event("conversation_turn_classified", request_id=request_id, turn_kind=kind, status=record["status"],
-                  referent=record.get("referent"),
-                  latency_ms=record["latency_ms"], input_tokens=record["input_tokens"],
-                  output_tokens=record["output_tokens"])
-        return kind, instruction, record
+        return parsed, record
 
     def classify_reply(self, request_id: str, message: str, plan: Any) -> tuple[str, str | None, dict[str, Any]]:
         """Mode 4: the reply classifier outside a run (APPROVE, REVISE, CANCEL or UNRELATED; any failure is

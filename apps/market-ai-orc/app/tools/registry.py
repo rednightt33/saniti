@@ -16,7 +16,7 @@ from pydantic import BaseModel, ValidationError
 from ..compaction import dumps
 
 
-ToolEffect = typing.Literal["READS", "OWN_ARTIFACT", "FETCHES_DATA", "COMPUTES"]
+ToolEffect = typing.Literal["READS", "OWN_ARTIFACT", "FETCHES_WEB", "FETCHES_DATA", "COMPUTES"]
 READ_EFFECTS: frozenset[str] = frozenset({"READS", "OWN_ARTIFACT"})
 TOOL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 DEFAULT_MAX_RESULT_BYTES = 32768
@@ -48,7 +48,8 @@ class ToolSpec:
     # then validated like any call; anything else is refused as before.
     envelope_key: str | None = None
     # O3 (PLAN_BE_OPTIMIZATION_2026-10-04.md): what calling the tool changes. READS changes nothing; OWN_ARTIFACT only
-    # writes the conversation's own record (an evidence row, an export file); FETCHES_DATA pulls warehouse or web data;
+    # writes the conversation's own record (an evidence row, an export file); FETCHES_WEB reads a public web fact (no
+    # warehouse data); FETCHES_DATA pulls warehouse data;
     # COMPUTES opens a session or runs code. A read-only step's tools are derived from it (READ_EFFECTS), so a new tool
     # is classed where it is defined. None (unclassed) is never read-only; every production tool is classed (contract
     # test).
