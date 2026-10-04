@@ -1,0 +1,36 @@
+//@version=5
+// Standard: golden cross EMA 20/50 with a volume Z-score filter, long only.
+strategy("EMA 20/50 + Volume Z", overlay=true, initial_capital=100000000,
+         default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+fastLen = input.int(20, "EMA cepat")
+slowLen = input.int(50, "EMA lambat")
+zLen    = input.int(20, "Jendela Z-score volume")
+zMin    = input.float(2.0, "Z-score volume minimum")
+slPct   = input.float(5.0, "Stop loss %") / 100
+tpPct   = input.float(10.0, "Take profit %") / 100
+
+emaFast = ta.ema(close, fastLen)
+emaSlow = ta.ema(close, slowLen)
+
+// Z-score of today's volume against the previous zLen bars (today excluded)
+volMean = ta.sma(volume[1], zLen)
+volStd  = ta.stdev(volume[1], zLen)
+zVol    = volStd > 0 ? (volume - volMean) / volStd : na
+
+goldenCross = ta.crossover(emaFast, emaSlow)
+deathCross  = ta.crossunder(emaFast, emaSlow)
+
+if goldenCross and zVol >= zMin and strategy.position_size == 0
+    strategy.entry("Long", strategy.long)
+
+if strategy.position_size > 0
+    entry = strategy.position_avg_price
+    strategy.exit("SL/TP", "Long", stop=entry * (1 - slPct), limit=entry * (1 + tpPct))
+
+if deathCross
+    strategy.close("Long")
+
+plot(emaFast, "EMA 20", color=color.teal)
+plot(emaSlow, "EMA 50", color=color.orange)
+plotshape(goldenCross and zVol >= zMin, "Sinyal", shape.triangleup, location.belowbar, color.green)

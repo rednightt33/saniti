@@ -1,0 +1,30 @@
+//@version=5
+study("EMA 20/50 + Volume Z", overlay=true)
+
+fastLen = input.int(20, "EMA cepat")
+slowLen = input.int(50, "EMA lambat")
+zLen    = input.int(20, "Jendela Z-score volume")
+zMin    = input.float(2.0, "Z-score volume minimum")
+slPct   = input.float(5.0, "Stop loss %") / 100
+tpPct   = input.float(10.0, "Take profit %") / 100
+
+emaFast = ta.ema(close, slowLen)
+emaSlow = ta.ema(close, fastLen)
+
+volMean = ta.sma(volume, 50)
+volStd  = ta.stdev(volume, zLen)
+zVol    = (volume - volMean) / volStd
+
+dailyClose = request.security(syminfo.tickerid, "D", close, lookahead=barmerge.lookahead_on)
+
+goldenCross = ta.crossover(emaSlow, emaFast)
+
+if goldenCross and zVol >= zMin
+    strategy.entry("Long", strategy.long)
+
+if strategy.position_size > 0
+    entry = strategy.position_avg_price
+    strategy.exit("SL/TP", "Long", stop=entry * (1 + slPct), limit=entry * (1 - tpPct))
+
+plot(emaFast, "EMA 20", color=color.teal)
+plot(emaSlow, "EMA 50", color=color.orange)
