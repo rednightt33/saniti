@@ -164,8 +164,13 @@ Dampak di putaran `ma-golden-20261004a`:
     G23) dan usulan (23 detik). Total 877 detik.
 - **Kelas masalah:** jalur yang dipilih per **mode**, bukan per **permintaan**.
 - **Solusi (orc, permanen), diputuskan per pesan, di pesan ke berapa pun:**
-  1. Router percakapan yang sudah ada (memberi `turn_kind` untuk setiap pesan) ditambah satu keluaran: **apakah pesan ini
-     meminta uji atau riset** (`asks_test`). Ini dibaca dari isi pesan oleh router; tidak ada daftar kata kunci.
+  1. Router percakapan yang sudah ada ditambah satu keluaran: **apakah pesan ini meminta uji atau riset** (`asks_test`).
+     - Router adalah satu panggilan model kecil tanpa alat yang membaca isi pesan; tidak ada daftar kata kunci.
+       Kategorinya (8 `turn_kind`) dan aturan tindakannya ada di kode.
+     - **Celah yang ditemukan:** router hanya menilai pesan *lanjutan* ("every later turn"). Pesan pertama selalu
+       menjalankan alur penuh mode 4. Karena itu `asks_test` juga dinilai untuk **pesan pertama**, dengan panggilan kecil
+       yang sama.
+     - Bila klasifikasi gagal, berlaku aturan yang sudah ada: arah yang lebih murah (jawab saja, riset ditawarkan).
   2. `asks_test` = salah: mode 4 hanya menjalankan langkah analisis (jawaban), lalu menambahkan **satu kalimat tawaran**
      ("Mau saya uji apakah pola ini bermakna?"). Tawaran disimpan di percakapan; "ya" di pesan berikutnya menjalankan
      rencana riset (jalur persetujuan yang sudah ada).
