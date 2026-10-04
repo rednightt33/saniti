@@ -1,0 +1,39 @@
+{
+ "prefix": "ma-golden-final-20261004b",
+ "workers": 5,
+ "audit_wait_seconds": 0,
+ "items": [
+  {
+   "id": "g1_foreign_net_banks",
+   "analysis_path": "ANALYSIS",
+   "message": "Berapa total net beli investor asing di pasar reguler per saham untuk 10 saham bank paling likuid selama 2025?",
+   "expect": "G22 load"
+  },
+  {
+   "id": "g2_bank_minmax",
+   "analysis_path": "ANALYSIS",
+   "message": "Berapa harga penutupan tertinggi dan terendah tiap saham bank selama 2025, dan berapa persen selisihnya?",
+   "expect": "G22 load"
+  },
+  {
+   "id": "g3_event_study",
+   "analysis_path": "ANALYSIS",
+   "message": "Bagaimana return 5 hari saham bank setelah hari turun 5% atau lebih (event per saham, tidak tumpang tindih), dibanding hari-hari lainnya?",
+   "expect": "G22 load"
+  },
+  {
+   "id": "g5_conversation_turn1",
+   "turns": [
+    "Siapa broker yang konsisten membeli saham bank saat market crash?"
+   ],
+   "expect": "G22 load"
+  },
+  {
+   "id": "g11_turn1",
+   "turns": [
+    "Apakah saham bank yang turun 3% atau lebih dalam sehari cenderung naik dalam 5 hari berikutnya? Buatkan rencana ujinya."
+   ],
+   "expect": "G22 load"
+  }
+ ]
+}

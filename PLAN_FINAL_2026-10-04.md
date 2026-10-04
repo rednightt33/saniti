@@ -28,6 +28,7 @@ Setiap solusi diuji dengan tiga pertanyaan; yang gagal tidak masuk rencana.
 | K8 | Pencari fakta web ringan, maks. 30 detik (S4b), masuk putaran ini |
 | K9 | Perbaikan G22 nomor 1–3 (satu timeout per pesanan, antrean query berat, simpan percakapan coba sekali lagi) |
 | K10 | Golden test setelah semua fase, mencakup perbaikan putaran ini **dan** daftar "menunggu golden test" |
+| K12 | Router: salah baca saat ada usulan riset menunggu (S7), benchmark dulu sebelum diperbaiki |
 | K11 | ~~S6~~ **ditarik.** Mode 4 menjalankan riset untuk setiap pertanyaan analisis baru **sesuai desain** (arahan user 2026-10-02, `MODE4_CONVERSATION_PLAN.md` tujuan 1). Pertanyaan lanjutan sudah tidak memicu riset (router). Kelambatan kasus tabel g9.1 ditangani G23 |
 
 **Masih menunggu keputusan user (tidak dikerjakan di putaran ini):**
@@ -41,7 +42,7 @@ Setiap solusi diuji dengan tiga pertanyaan; yang gagal tidak masuk rencana.
 | Fase | Isi | Layanan |
 |---|---|---|
 | 1 | Ganti model + uji tingkat reasoning + golden test kecil | orc (setelan) |
-| 2 | G23: alat di meja AI, gerbang bukti, jalan keluar | orc |
+| 2 | G23: alat di meja AI, gerbang bukti, jalan keluar; S7 router saat usulan menunggu | orc |
 | 3 | Kebenaran jawaban: S3 satuan, S5 nilai kosong, S4 "Pilihan AI", S4c catatan pikiran | sandbox, orc |
 | 4 | S4b pencari fakta web ringan | web-governor, orc |
 | 5 | G22 database | Governor, orc |
@@ -153,6 +154,33 @@ Dampak di putaran `ma-golden-20261004a`:
 - batas langkah habis: dengan draf, draf dengan angka tanpa sumber, dan tanpa draf.
 
 **Ukuran:** panggilan setelah gerbang di langkah tanpa alat = 0 (baseline 245); gagal total = 0 (baseline 1).
+
+### S7. Router salah baca saat ada usulan riset menunggu (K12)
+
+- **Masalah (terverifikasi di log):** 9 pesan lanjutan dinilai router; 8 benar. Yang salah adalah g7.3 "Bandingkan dengan
+  tahun 2024 memakai definisi yang sama".
+  - Saat itu ada usulan riset menunggu (dari g7.1), sehingga pesan dibaca sebagai **REVISE** usulan.
+  - User mendapat rencana riset revisi, bukan angka 2024.
+  - Pola yang sama pernah terjadi ("kalau hanya bank BUMN?").
+- **Akar:** `apply_rules` (aturan 5) mensyaratkan `referent = PENDING_SUGGESTION` untuk APPROVE/REVISE **hanya bila** ada
+  hasil baru setelah usulan. Di g7, pesan 2 hanya klarifikasi (tanpa hasil baru), jadi syarat itu tidak aktif.
+- **Kelas masalah:** setiap pesan yang menyebut perubahan (tahun, kelompok, ambang) saat ada usulan menunggu.
+- **Langkah:**
+  1. **Benchmark dulu:**
+     - Kumpulkan semua pesan yang dikirim saat ada usulan menunggu, dari semua suite dan log golden test.
+     - Beri label: revisi usulan / pertanyaan tentang hasil / permintaan baru.
+     - Ukur router sekarang (2 model × 3 ulangan).
+  2. **Perbaikan yang diuji (orc, permanen, satu aturan umum):** APPROVE/REVISE berlaku hanya bila `referent =
+     PENDING_SUGGESTION`, **selalu**, bukan hanya saat ada hasil baru. Bila ragu, pesan diperlakukan sebagai pertanyaan
+     atau permintaan (jalan termurah), dan usulan tetap menunggu (aturan 4 yang sudah ada).
+  3. Perbaikan diterapkan hanya bila benchmark menunjukkan perbaikan tanpa menurunkan pengenalan revisi yang
+     benar-benar dimaksud ("ubah ambang suksesnya jadi 5%", "sarannya pakai 5 tahun saja").
+- **Risiko:** revisi yang sah tidak dikenali. **Mitigasi:** benchmark mengukur dua arah; usulan tidak hilang, jadi user
+  bisa mengulang dengan menyebut usulannya.
+- **Tes:**
+  - g7.3 → pertanyaan, bukan revisi;
+  - g6_revise.3 "Ubah ambang suksesnya jadi naik minimal 5%" → tetap revisi;
+  - "kalau hanya bank BUMN?" saat usulan menunggu → pertanyaan.
 
 ### Catatan: S6 ditarik (2026-10-04)
 
@@ -381,39 +409,73 @@ tetap timeout; ambang 1 juta hanya menangkap 4/24).
 
 ## Fase 6 — Golden test akhir (K10)
 
-**Bagian A, 3 worker:**
+Dijalankan setelah fase 1–5 terdeploy di dev. File suite sudah disiapkan:
+- `apps/orc-test-runner/suites/final_20261004_A.json`
+- `apps/orc-test-runner/suites/final_20261004_B.json`
 
-| Pertanyaan | Membuktikan |
+Saat eksekusi, file disalin ke `suite.json` (runner membaca `suite.json`). Masa simpan sandbox 1 jam selama bagian A
+(untuk g9); variabel diubah dengan `--skip-deploys`, lalu `railway redeploy`.
+
+### Bagian A: 3 worker, 34 pesan, perkiraan USD 2–3, ± 2 jam (termasuk jeda 66 menit g9)
+
+| # | Item | Pesan | Membuktikan | Ukuran lulus |
+|---|---|---|---|---|
+| 1 | g1_foreign_net_banks | "Berapa total net beli investor asing di pasar reguler per saham untuk 10 saham bank paling likuid selama 2025?" | P22/P23, G16, M46/M48, model baru | Angka = hitung ulang independen (sudah diketahui: total −Rp 55,64 T) |
+| 2 | g1_foreign_net_banks_repeat | sama, percakapan baru | M66/M13: definisi "paling likuid" dan 10 ticker sama | Daftar sama dengan #1 |
+| 3 | g2_bank_minmax | "Berapa harga penutupan tertinggi dan terendah tiap saham bank selama 2025, dan berapa persen selisihnya?" | regresi | 48/48 cocok |
+| 4 | g3_event_study | "Bagaimana return 5 hari saham bank setelah hari turun 5% atau lebih (event per saham, tidak tumpang tindih), dibanding hari-hari lainnya?" | P24/M65, S19, S22, S24 | 2.258 event, rata-rata 0,19%, median −0,37% |
+| 5 | g4_hypothesis_bbca (2 pesan: tanya + setuju) | "Apakah hari dengan net beli asing positif di BBCA diikuti return 1 hari lebih tinggi daripada hari lainnya?" | P25/P20/P21, M62, S4 (pilihan AI) | ±1.026 event; selisih −0,05% |
+| 6 | g5_conversation (9 pesan) | sama dengan suite sebelumnya | M64, G13, M47–M55, **S3** (pesan 6), **S4/S4b** (BUMN), **S4c**, **S7** (pesan 3, 7), G23 (pesan 2, 9) | Pesan 6: satuan benar atau ditolak; BUMN = BBRI, BMRI, BBNI, BBTN (web) atau tampil sebagai pilihan AI; 0 loop |
+| 7 | g6_revise_threshold (4 pesan) | sama | **S5**, P26, **S7** (pesan 3 tetap revisi), S4 (ambang dari user tidak ditandai) | Pembanding 84.166 baris |
+| 8 | g7_followup_definitions (3 pesan) | sama | M63/M66, **S7** (pesan 3 = angka 2024, bukan revisi) | Pesan 3 memberi net asing Nego 2024 per saham |
+| 9 | g7_lineage_export (3 pesan) | sama | D3/D4 lineage + ekspor, G23 | Unduhan sha256 cocok, 0 loop |
+| 10 | g8_metric | "Berapa net beli asing BBCA 5 hari dan 20 hari bursa terakhir?" | D5 `query_metric`, **B** (angka backend tanpa gerbang) | Sama sampai rupiah |
+| 11 | g9_resume (3 pesan + jeda 66 menit) | sama | **G23** (pesan 2 menjawab), **D**, R-STORE resume | Pesan 2 BBRI −3,38%; 0 `MAX_ITERATIONS` |
+| 12 | g11_plan_expiry (3 pesan + jeda 66 menit) | sama | rencana kedaluwarsa, riset tanpa gerbang bukti | Minta setujui ulang, lalu jalan |
+| 13 | **g13_fact_bumn** (baru) | "Apakah BBCA dan BRIS termasuk bank BUMN? Sebutkan sumbernya." | **S4b** pencari fakta web | BBCA: bukan (swasta); BRIS: anak usaha BUMN; ≥ 2 sumber; `find_web_fact` ≤ 30 detik |
+
+### Bagian B: 5 worker (G22)
+
+g1, g2, g3, g5 pesan 1, g11 pesan 1, dijalankan bersamaan.
+
+| Ukuran | Target |
 |---|---|
-| g1 dan g1_repeat | P22/P23, G16, M66/M13 (definisi sama dua kali), M46/M48 |
-| g3 event study | P24/M65, S19, S22, S24 |
-| g4 hipotesis BBCA | P25/P20/P21, M62 |
-| g5 pesan 1–9 | M64, G13, M47–M55, **S3**, **S4** ("Pilihan AI" BUMN), **S4c** (daftar sesuai kesimpulan), **S4b** (BUMN lewat web) |
-| g6_revise | **S5** (84.166 baris), P26 |
-| g8, g9 (3 pesan) | **G23** (0 loop, g9.2 menjawab; g9.1 tanpa loop di riset), **D**, model baru |
-| g11 | Riset tanpa gerbang bukti |
+| Kegagalan simpan percakapan | 0 |
+| Timeout hitungan per pesanan data | ≤ 1 |
+| Pembatalan database | Jauh di bawah 45 |
 
-**Bagian B, 5 worker:** g1, g3, g5.1, g11 → **G22**.
+### Benchmark pencari fakta (S4b, sebelum alat dinyalakan untuk AI)
 
-**Setiap putaran:**
-- angka dicek ulang lewat job baca-saja independen (pola `verify-job`), lalu job dihapus;
-- biaya per pesan, per langkah dan per percakapan;
-- detik, rasio cache;
-- semua kegagalan dicatat dengan akar masalah lebih dulu.
+20 fakta dengan jawaban diketahui, langsung ke `/v1/fact`, tanpa model analis:
+- status BUMN 10 bank: BBRI, BMRI, BBNI, BBTN (BUMN); BRIS (anak usaha); BBCA, BNGA, NISP, PNBN, BDMN (bukan);
+- pemegang saham pengendali 5 emiten;
+- 5 fakta keanggotaan indeks.
 
-**Kriteria lulus:**
+Ukuran: akurasi, status `CONFLICTING` yang benar, waktu p95 ≤ 30 detik, biaya per fakta.
+
+### Benchmark router (S7, sebelum perbaikan)
+
+Semua pesan yang dikirim saat ada usulan menunggu, dari suite dan log, dengan label. Diuji 2 model × 3 ulangan.
+
+### Setiap putaran
+
+- Angka dicek ulang lewat job baca-saja independen, lalu job dihapus.
+- Biaya per pesan, per langkah dan per percakapan.
+- Detik, rasio cache.
+- Setiap kegagalan dicatat dengan akar masalah lebih dulu.
+
+**Kriteria lulus keseluruhan:**
 
 | Ukuran | Syarat |
 |---|---|
 | Panggilan terbuang setelah gerbang | 0 |
 | Gagal total | 0 |
-| g5.6 | Satuan salah ditolak, atau angka benar −0,41% vs −0,32% |
-| BUMN | Tampil di "Pilihan AI", atau terverifikasi web (CONFIRMED: BBRI, BMRI, BBNI, BBTN) |
-| g6 | Pembanding 84.166 baris |
-| Angka yang dulu benar | Tetap sama dengan hitung ulang independen |
-| 5 worker | 0 kegagalan simpan |
-
----
+| g5.6 | Satuan benar (−0,41% vs −0,32%) atau ditolak |
+| BUMN | Benar (web) atau tampil sebagai pilihan AI |
+| g6 | 84.166 baris |
+| g7.3 | Angka 2024, bukan revisi |
+| Angka yang dulu benar | Tetap sama |
+| Bagian B | 0 kegagalan simpan |
 
 ## Masalah "buntu" yang tidak selesai oleh putaran ini
 
