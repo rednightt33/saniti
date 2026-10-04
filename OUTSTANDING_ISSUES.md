@@ -39,6 +39,9 @@ g6 = usulan pertanyaan tambahan).
 
 ## 3. Tidak keluar jawaban (buntu)
 
+- G22: database bersama kewalahan saat 5 worker paralel; rencana dan riwayat percakapan gagal disimpan/dibaca, Governor 503. --> UNDERADDRESSED, menunggu keputusan perbaikan (GT `ma-golden-20261003e` g4.2, g5.1, g2)
+- R30: kredit akun OpenRouter habis (HTTP 402). --> KEPUTUSAN USER: tambah kredit (GT `ma-golden-20261003e`)
+- R31: ubah variabel tanpa `--skip-deploys` men-deploy ulang dari `main`. --> diatasi lewat proses; tuntas setelah cabang masuk `main` (luar GT)
 - P05/P08: jawaban benar dipaksa LIMITATION karena angka parameter. --> UNDERADDRESSED (g3, g6)
 - G10: FEASIBLE tetapi 7 dari 8 penarikan ditolak. --> MENUNGGU GOLDEN TEST (lewat G13) (g5.7–8)
 - D06: data broker berhenti 31 Agustus. --> UNDERADDRESSED (luar GT, refresh manual)

@@ -8,6 +8,12 @@
   `main` (`295219ea`, R31); redeployed the branch by CLI upload: **market-python-sandbox `22e6e641` `SUCCESS`**.
   `railway config pull --force` recorded both names (`preserve()`); `railway config plan`: up to date.
 - **orc-test-runner `b2c2a5be`** (CLI upload): suite `ma-golden-20261003e`, 12 items, 5 workers.
+- From 05:27 UTC every model call failed with OpenRouter HTTP 402 (account credit spent: total 25, used 25.007; R30);
+  runner stopped with `railway down` (`b2c2a5be` REMOVED). 17 turns recorded; results in `GOLDEN_TEST_ROUND_2026-10-03.md`.
+- Retention restored: both variables set to `24` (the default) with `--skip-deploys` (a delete would redeploy from `main`,
+  R31), then `railway redeploy` of the existing branch deployment: **market-python-sandbox `425edfbd` `SUCCESS`** (meta
+  without a branch). A CLI upload of identical files before it was `SKIPPED` (`c930b3a3`).
+- Database timeouts during the run recorded as G22 (no change made).
 
 ## 2026-10-04 — Golden test round 2026-10-03 (part 1) and the evidence fix on dev
 
