@@ -88,3 +88,45 @@ merilis ringkasan); itu celah rilis yang dicatat di benchmark visual.
 - tambah jawaban riset setelah M80 a;
 - ukur kegagalan dengan percobaan ulang (M78);
 - target: tabel wajib 20/20, tabel antara 0.
+
+## Benchmark dengan praktik eksternal
+
+| Sumber | Siapa memilih **data apa** yang ditampilkan | Siapa memilih **bentuk/grafik** | Nilai angka |
+|---|---|---|---|
+| [Tableau Pulse](https://help.tableau.com/current/online/en-us/pulse_insights_platform_insight_types.htm) | Metrik yang didefinisikan + **jenis insight tetap** (perubahan antar periode, outlier, kontributor, korelasi); hanya **insight teratas** per metrik yang ditonjolkan | Template per jenis insight | Mesin metrik |
+| [ThoughtSpot / Spotter](https://docs.thoughtspot.com/cloud/26.10.0.cl/charts) | Hasil query yang menjawab pertanyaan (satu hasil = satu visual) | **Otomatis dari data hasil** (tipe kolom); user bisa ganti ke 25 jenis grafik | Mesin query |
+| [Databricks Genie](https://answers.databricks.com/ai-analytics-platforms-best-data-visualization-recommendations) | Hasil SQL pertanyaan | Profil data (tipe kolom, kardinalitas, deret waktu) → aturan pencocokan grafik; metadata katalog | Mesin query |
+| [Tableau Show Me / Draco](https://idl.cs.washington.edu/files/2023-Draco2-VIS.pdf) | — | **Aturan dan constraint** dari tipe data: aturan keras (tidak boleh dilanggar) + preferensi berbobot hasil eksperimen persepsi | — |
+| [Generative UI, Vercel AI SDK / json-render](https://ai-sdk.dev/v4/docs/ai-sdk-ui/generative-user-interfaces) | Model memilih **dari katalog komponen tetap** (kartu KPI, grafik, tabel) | Spesifikasi JSON dibatasi skema; **setiap field divalidasi, jangan pernah meneruskan argumen model mentah ke komponen** | Data dari tool, bukan model |
+| [LIDA](https://github.com/microsoft/lida) | LLM membuat tujuan eksplorasi dari ringkasan data | LLM membuat kode grafik, lalu dievaluasi dan diperbaiki | Kode dieksekusi atas data |
+
+**Pola bersama:**
+1. **Nilai angka tidak pernah dari model.** Usulan kita sudah sesuai.
+2. **Bentuk/jenis grafik diputuskan aturan dari tipe data.** Contoh: Show Me, Draco, ThoughtSpot, Genie. Model paling
+   jauh mengusulkan, dan usulannya divalidasi aturan keras.
+3. **Pilihan dari katalog komponen tetap**, divalidasi skema.
+4. **Satu pesan utama ditonjolkan** (insight teratas / kartu KPI), detail di bawahnya.
+5. **User bisa mengganti bentuk** (ThoughtSpot): backend menawarkan semua bentuk yang sah, bukan hanya satu.
+
+**Selisih usulan awal kita dengan praktik:**
+
+| Aspek | Usulan awal | Praktik | Perbaikan usulan |
+|---|---|---|---|
+| Jenis grafik | Dipilih model | Dipilih aturan dari tipe data | **Aturan backend (gaya Draco: aturan keras + preferensi) menentukan jenis dan encoding**; model hanya mengusulkan, dan usulan dipakai bila lolos aturan |
+| Tipe kolom | Belum ada | Prasyarat semua sistem | Wajib dicatat saat rilis (sudah di usulan) |
+| Data apa yang tampil | Model + rujukan jawaban | Hasil yang menjawab pertanyaan + insight teratas | Sama: rujukan jawaban (lengkap) + model memilih urutan dan yang ditonjolkan |
+| Ganti bentuk oleh user | Tidak ada | Ada | Backend mengirim daftar bentuk yang sah per blok; front-end menampilkan pilihan |
+| Katalog komponen | kpi/table/chart/download | Katalog tetap + skema | Sama, ditambah validasi skema ketat |
+
+**Usulan yang direvisi:**
+- **Model** (satu panggilan, DeepSeek V4.1 Flash low) memutuskan **apa** yang ditampilkan dan **urutannya**: blok
+  utama, kartu KPI, detail.
+- **Aturan backend** memutuskan **bagaimana**: jenis grafik dan encoding dari tipe/satuan/kardinalitas kolom, plus
+  daftar alternatif yang sah.
+- **Backend** mengisi angka.
+
+Pembagian ini sesuai praktik semua sistem di atas, dan menutup kelemahan model di benchmark visual (teks di sumbu
+angka, satuan campur).
+
+**Benchmark lanjutan:** setelah tipe kolom tercatat, bandingkan jenis grafik dari aturan dan dari model pada 16 kasus
+yang sama.
