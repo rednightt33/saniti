@@ -149,11 +149,28 @@ Dijalankan setelah langkah 1 dan 3 (satu unggahan runner):
 | M80 | g5.11 "ekspor hasil uji ke Excel": LIMITED setelah 12 menit | Statistik hasil riset multi-sudut hanya ada sebagai temuan backend, bukan tabel output; `export_result` hanya mengekspor tabel. Turn dirouting CONTINUE (bukan baca), jadi O3 tidak teruji di sini | Rilis temuan riset sebagai tabel output standar (juga berguna untuk visual). Butuh desain |
 | P30 | q6.2: AI menolak membuat trade setup (entry/SL/target) | Instruksi produk: hasil "bukan sinyal perdagangan" | **Keputusan user:** apakah produk boleh memberi trade setup (dengan disclaimer dan dasar data)? |
 
+## 5b. Disetujui user (2026-10-04, sore)
+
+- **M80 (a), permanen, backend:** saat riset (multi-sudut atau hipotesis) selesai, backend merilis temuannya sebagai
+  satu tabel output standar.
+  - Satu baris per sudut/kandidat: sudut, status, estimasi, CI bawah, CI atas, p, p-adjusted, sampel efektif, flag,
+    satuan.
+  - Diturunkan dari temuan yang sudah dihitung backend: tanpa hitung ulang, tanpa AI.
+  - Bisa diekspor, digambar dan dirujuk `out.oN`.
+  - **Tes:** multi-sudut dan hipotesis (dua kasus berbeda), ekspor tabel itu, dan rujukan nilainya.
+- **M80 (b), router:** permintaan ekspor, unduh atau "tampilkan tabel/kode" atas hasil yang sudah ada digolongkan
+  sebagai aksi baca. Instruksi router sekarang dicek dan diukur dengan contoh kalimat dulu, dikerjakan bersama
+  langkah 3.
+- **Tes kedaluwarsa R-STORE disetujui:**
+  - `PY_SANDBOX_RESULT_RETENTION_HOURS=1` dan `PY_SANDBOX_BUNDLE_RETENTION_HOURS=1` selama putaran tes;
+  - setelah itu dikembalikan ke 24;
+  - `config pull`/`plan` dan `RAILWAY_CHANGELOG.md`.
+- **P30 (trade setup):** ditunda.
+
 ## 6. Keputusan yang dibutuhkan dari user
 
-1. **P30 (trade setup):** boleh diberikan (dengan dasar data dan disclaimer) atau tetap ditolak?
-2. **M80:** temuan riset dirilis sebagai tabel standar (bisa diekspor dan digambar)? Masuk rencana desain berikutnya?
-3. **Tes kedaluwarsa R-STORE:** butuh izin ubah sementara masa simpan sandbox ke 1 jam (ditolak sistem izin tadi).
+1. **P30 (trade setup):** ditunda oleh user.
+2. **Pemilihan data dan bentuk tampilan ke user:** benchmark dulu (`DISPLAY_BENCHMARK_2026-10-04.md`).
 
 ## Urutan dan biaya
 
