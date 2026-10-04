@@ -1,6 +1,6 @@
 # Rencana: daftar model di repo + router pesan pertama (2026-10-04)
 
-Status: **RENCANA, belum dieksekusi.** Keputusan user yang sudah ada:
+Status (2026-10-04 malam): langkah 0b, 1 (`AI_MODELS.md`), 2 (router + penahan + M78) **selesai dan live**. Uji live router lulus (lihat `RAILWAY_CHANGELOG.md`). Berikutnya: M80 (a)(b), lalu putaran `qa_20261004b` + tes R-STORE. Keputusan user yang sudah ada:
 - router pesan pertama memakai DeepSeek V4.1 Flash, reasoning low;
 - daftar model dimasukkan ke repo dan dijaga terbaru lewat AGENTS.md.
 

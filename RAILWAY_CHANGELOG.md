@@ -1,5 +1,26 @@
 # Railway changelog
 
+## 2026-10-04 — Services synced with `main`; first-message router on dev; AI_MODELS.md / AI_ROUTER.md
+
+- market-python-sandbox and market-web-governor were running CLI uploads from before the merge. Both were redeployed
+  from GitHub `main` with `railway redeploy --from-source`: sandbox `06733cb8` SUCCESS, web-governor `be31d18b`
+  SUCCESS (`main` `81bfbea`); startup clean, `/ready` 200.
+- market-ai-orc variable `AI_ENABLE_FIRST_TURN_ROUTER=true` (user decision: route every first message, DeepSeek V4.1
+  Flash reasoning low), set with `--skip-deploys` and picked up by the deploy below.
+- market-ai-orc `5e41129f` SUCCESS (`main` `e3db27b`): first-message router, mode 4 guard (M79), M78 empty-turn
+  retry, `FETCHES_WEB` effect. `railway config pull --force` / `config plan`: up to date.
+- Live check (runner `dbac49df`, suite `ma-router-20261004a`, 4 first messages without `analysis_path`):
+
+  | Message | Route | Time | Cost |
+  |---|---|---|---|
+  | Greeting | CHAT | 23 s | USD 0.0004 |
+  | g13 BUMN | FACT | 44 s (was 23 min) | USD 0.001 |
+  | Z-score | ANALYSIS (no research steps) | 505 s | USD 0.016 |
+  | "halo, hitung return BBCA 2024" | ANALYSIS | 89 s | USD 0.004 |
+
+- `AI_MODELS.md` (every model call, settings, dev values) and `AI_ROUTER.md` (router criteria, generated from code)
+  added. Web-governor classification stays on `xiaomi/mimo-v2.5` (slot 2), user decision "as is".
+
 ## 2026-10-04 — Branch merged to `main`; backend fixes O2, O3, O4, P28-D on dev; QA suite started
 
 - `claude/g2-g3-reactivation` fast-forwarded into `main` (`e7238f0` → `a6d7ded`, 125 commits). Auto-deploys from
