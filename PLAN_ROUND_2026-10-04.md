@@ -146,30 +146,90 @@ AI (daftar anggota kelompok, definisi istilah, ambang, persentil), dan pilihan i
 - Tidak perlu jalur baru. Kelompok atau filter yang dipakai tampil di "Pilihan AI" (di atas), sehingga user sadar.
 - AI tetap boleh memakai jawaban `CLARIFICATION` yang sudah ada bila ia mau bertanya, tetapi tidak diwajibkan.
 
-**S4b — membumikan fakta lewat web (opsional, keputusan user):** dengan cara yang sama seperti analisis ini mengetahui
-bahwa BBCA bukan BUMN (pencarian web, beberapa sumber dicocokkan).
-- **Sudah ada:**
-  - `market-web-governor` dengan kutipan sumber, syarat 2 sumber independen (`NEED_2_INDEPENDENT_SOURCES`) dan toko
-    hasil terpisah (`Postgres-E8GM`).
-  - Tetapi AI analis belum memegang alat web: `get_system_capabilities` melaporkan `web_search` false.
-- **Usulan:**
-  - Sambungkan Web Governor sebagai alat AI untuk fakta yang **tidak ada di data**, misalnya keanggotaan kelompok
-    (BUMN, grup usaha, indeks).
-  - Hasilnya masuk ke "Pilihan AI" dengan sumber `WEB`: kutipan, tanggal terbit, dan ≥ 2 sumber yang setuju.
-  - Satu pencarian per istilah dipakai ulang di percakapan.
-  - Daftar yang terverifikasi bisa diusulkan menjadi data referensi resmi (keputusan 6), dengan sumber dan tanggal.
-- **Risiko:**
-  - Sumber web bisa usang atau bertentangan. Contoh: ringkasan pencarian untuk analisis ini sempat menyebut BRIS dalam
-    daftar "bank BUMN", padahal sumber yang sama menjelaskan BRIS anak usaha BUMN.
-  - Biaya web pernah naik 5× (W22).
-  - Pencarian bisa lama (W13/W14, ± 3 menit).
-  - Tanggal terbit sering kosong (W07).
-- **Mitigasi:**
-  - Wajib ≥ 2 sumber yang setuju dan sumber resmi diutamakan (BP BUMN, laporan emiten).
-  - Ketidaksepakatan ditampilkan, bukan dipilih diam-diam.
-  - Hanya dipakai untuk fakta yang tidak ada di data.
-  - Hasil disimpan ulang dan batas biaya per percakapan diterapkan.
-- **Bergantung pada:** penyelesaian W06–W11 dan W22 yang masih terbuka.
+**S4c — AI melupakan kesimpulannya sendiri antar langkah (akar pergeseran BBCA, terverifikasi di kode):**
+- **Bukti:**
+  - `orchestrator._handle_call` hanya mengirim ulang panggilan alat dan hasilnya ke langkah berikutnya: "provider
+    reasoning items are never replayed".
+  - Di g5.5, kesimpulan "BBCA is private (Djarum)" ditulis di reasoning iterasi 1–2, lalu dibuang.
+  - Pada iterasi 5 model menyusun daftar tanpa kesimpulan itu. Konteksnya hanya memuat jawaban g5.4 ("empat bank besar:
+    BBCA, BBRI, BMRI, BBNI"), dan daftar akhirnya memuat BBCA.
+  - Bahwa daftar g5.4 yang "terbawa" adalah dugaan kuat. Dibuang-nya kesimpulan sudah pasti (kode).
+- **Kelas masalah:** setiap kesimpulan antara yang hanya ada di reasoning (definisi, keputusan desain, fakta yang sudah
+  dicek) bisa hilang di langkah berikutnya pada run yang sama. Ini menjelaskan juga ketidakkonsistenan lain, misalnya
+  P27 (niat ×100 di reasoning, tidak ada di kode).
+- **Praktik penyedia:** OpenRouter dan penyedia model menyarankan mengirim ulang blok reasoning (`reasoning_details`)
+  pada pemakaian alat, supaya model melanjutkan dari titik yang sama.
+- **Solusi (orc, permanen):** kirim ulang item reasoning dari panggilan sebelumnya di run yang sama, persis seperti yang
+  diterima.
+  - Antar pesan percakapan tetap tidak dikirim (tetap ringkas).
+  - Bila model atau provider tidak mendukung, jatuh ke mode sekarang, dan ini dicatat.
+- **Risiko:** token input bertambah (± 1,5–5 rb token reasoning per langkah); provider berbeda bisa menolak format;
+  awalan cache bisa berubah.
+- **Mitigasi:** uji dulu di model baru (fase 1) dengan satu skenario; ukur biaya dan rasio cache; setelan on/off
+  (`AI_REPLAY_REASONING`).
+- **Uji:** ulangi g5.4 → g5.5 tiga kali dengan dan tanpa replay. Ukur: daftar BUMN akhir sama dengan kesimpulan di
+  reasoning awal; biaya per pesan.
+
+**S4b — pencari fakta ringan lewat web (`find_web_fact`), maks. 30 detik:**
+
+*Kenapa tidak memakai jalur yang ada:*
+- `/v1/ask` adalah riset berita:
+  - rencana via model;
+  - 8 jendela waktu × Google News, hingga 8 putaran tinjauan;
+  - baca artikel, jawaban dengan reasoning, implikasi, pertanyaan lanjutan;
+  - batas 180 detik, anggaran ± USD 0,06.
+- `/v1/search` adalah satu kriteria web-need. Ia selalu meminta 2 domain (W06), provider bisa menjalankan 2–4 pencarian
+  (W08), dan kutipan tanpa tanggal (W07).
+
+*Desain endpoint baru `POST /v1/fact` di `market-web-governor`, memakai ulang komponen yang ada:*
+1. **Cache dulu:** tabel `web_fact` di Postgres-E8GM, kunci (subjek, atribut). Hasil yang masih berlaku (TTL, misalnya
+   30 hari) langsung kembali, kurang dari 1 detik.
+2. **Pencarian tanpa model perencana:** query disusun oleh kode dari subjek dan atribut. Dua pencarian **paralel**:
+   - umum;
+   - dibatasi domain resmi (kebijakan sumber yang sudah ada: `*.go.id`, `idx.co.id`, laporan emiten).
+   - Masing-masing ≤ 5 hasil, satu kali pencarian.
+3. **Satu panggilan model kecil**, tanpa reasoning, JSON ketat. Ia hanya membaca cuplikan hasil pencarian dan
+   mengembalikan nilai per sumber, beserta kutipan verbatim.
+4. **Kode memutuskan status** (bukan model):
+   - kutipan harus benar-benar ada di cuplikan (logika `VERIFIED_QUOTE` dari `/v1/fetch`);
+   - `CONFIRMED` bila ≥ 2 domain independen setuju, atau 1 sumber resmi;
+   - `CONFLICTING` bila sumber berbeda; kedua versi ditampilkan;
+   - `NOT_FOUND` bila tidak ada.
+5. **Batas waktu keras 30 detik:** lewat dari itu, yang sudah terkumpul dikembalikan dengan status `PARTIAL`/`NOT_FOUND`.
+   Tidak pernah menggantung.
+6. **Disimpan** dengan kutipan, URL, tanggal (bila ada) dan sumber.
+
+*Yang tidak dipakai dari `/v1/ask`:* jendela waktu, putaran tinjauan, baca artikel penuh, jawaban panjang, implikasi,
+pertanyaan lanjutan.
+
+*Sisi orc:*
+- Alat `find_web_fact(subject, attribute)`, hanya untuk fakta yang **tidak ada di data** (keanggotaan kelompok, pemegang
+  saham pengendali, status perusahaan).
+- Hasilnya masuk ke "Pilihan AI / Sumber" dengan label `WEB` + kutipan + status. `CONFLICTING` atau `NOT_FOUND`
+  ditampilkan apa adanya.
+
+*Perkiraan:* 1–2 pencarian (± USD 0,005–0,01) + 1 panggilan model kecil (± USD 0,001); waktu ± 10–20 detik; cache: < 1
+detik.
+
+*Uji (benchmark) sebelum dipakai:* set fakta dengan jawaban diketahui, misalnya:
+- status BUMN 10 bank, termasuk kasus jebakan BBCA (swasta) dan BRIS (anak usaha);
+- pemegang saham pengendali 5 emiten;
+- anggota indeks 5 saham.
+
+Diukur: akurasi, `CONFLICTING` yang benar, waktu p95 ≤ 30 detik, biaya per fakta.
+
+*Risiko dan mitigasi:*
+
+| Risiko | Mitigasi |
+|---|---|
+| Hanya cuplikan dibaca, sehingga fakta bisa terlewat | Status `NOT_FOUND`, bukan tebakan; tahap dua opsional: satu `/v1/fetch` ke sumber resmi bila waktu masih ada |
+| Sumber usang, tanggal sering kosong (W07) | Sumber resmi diutamakan; tanggal ditampilkan bila ada; TTL cache |
+| Provider menjalankan pencarian lebih dari diminta (W08) | Batas biaya per fakta dan per percakapan; dicatat |
+| Sumber saling bertentangan, misalnya BRIS disebut "bank BUMN" di ringkasan | `CONFLICTING` ditampilkan dengan kedua kutipan, tidak dipilih diam-diam |
+| Fakta berubah (privatisasi, merger) | `as_of` dan TTL; cache dibuang setelah kedaluwarsa |
+
+*Bergantung pada:* keputusan user (biaya web), dan W06–W08 (bagian yang relevan dihindari oleh desain ini: tanpa syarat
+2 domain di level permintaan, satu pencarian, tanggal ditampilkan bila ada).
 
 **Uji pada data nyata** (prototipe pada 59 eksekusi kode putaran `ma-golden-20261004a`):
 
