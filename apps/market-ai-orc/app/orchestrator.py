@@ -1713,6 +1713,7 @@ class AgentOrchestrator:
         auditor: Any | None = None,
         catalog_summary: Any | None = None,
         provider_logger: Any | None = None,
+        provider_policy: Any | None = None,
         session_closer: Callable[[str, list[str]], dict[str, str]] | None = None,
         session_releaser: Callable[[str], list[dict[str, Any]]] | None = None,
         result_store: Any = None,
@@ -1753,6 +1754,8 @@ class AgentOrchestrator:
         # CatalogSummary (AI_CATALOG_SUMMARY_IN_PROMPT) and ProviderLogger (AI_LOG_PROVIDER), when enabled
         self.catalog_summary = catalog_summary
         self.provider_logger = provider_logger
+        # CachePricePolicy (AI_PROVIDER_MAX_CACHE_PRICE_RATIO): providers skipped for a poor cache-read discount
+        self.provider_policy = provider_policy
         self.wall_clock = wall_clock
         self.clock = clock
         self.dataneed = settings.ai_enable_dataneed
@@ -1860,10 +1863,15 @@ class AgentOrchestrator:
 
     def _provider(self) -> dict[str, Any]:
         """OpenRouter provider preferences. provider.sort (AI_PROVIDER_SORT) turns load balancing off and tries the
-        endpoints in that order; without it OpenRouter balances load weighted to the lowest price."""
+        endpoints in that order; without it OpenRouter balances load weighted to the lowest price. provider.ignore
+        (AI_PROVIDER_MAX_CACHE_PRICE_RATIO) drops the providers whose cache reads are barely discounted."""
         provider: dict[str, Any] = {"require_parameters": True, "allow_fallbacks": True}
         if self.settings.ai_provider_sort:
             provider["sort"] = self.settings.ai_provider_sort
+        if self.provider_policy is not None:
+            ignored = self.provider_policy.ignored()
+            if ignored:
+                provider["ignore"] = ignored
         return provider
 
     def run(self, request: AgentRunRequest, conversation_key: str | None = None,

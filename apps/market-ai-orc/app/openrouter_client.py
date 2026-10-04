@@ -121,6 +121,21 @@ class OpenRouterClient:
             return None
         return data if isinstance(data, dict) else None
 
+    def model_endpoints(self, model: str) -> list[dict[str, Any]] | None:
+        """OpenRouter's endpoints of one model (provider tag, pricing, supported parameters, uptime), or None on any
+        failure. One attempt; CachePricePolicy keeps its last list when this fails."""
+        try:
+            response = self.client.get(f"/models/{model}/endpoints", timeout=15.0)
+        except httpx.HTTPError:
+            return None
+        if response.status_code != 200:
+            return None
+        try:
+            endpoints = (response.json().get("data") or {}).get("endpoints")
+        except (AttributeError, ValueError):
+            return None
+        return [e for e in endpoints if isinstance(e, dict)] if isinstance(endpoints, list) else None
+
     def create(self, payload: dict[str, Any]) -> dict[str, Any]:
         last_error: ProviderError | None = None
         for attempt in range(MAX_ATTEMPTS):

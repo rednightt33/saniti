@@ -27,6 +27,7 @@ from .mode4 import Mode4Orchestrator
 from .modes import MODES, effective_default, path_for, resolve_mode
 from .orchestrator import AgentOrchestrator, log_event
 from .provider_log import ProviderLogger
+from .provider_policy import CachePricePolicy
 from .research_plan_v2 import library_problem, negotiate
 from .schemas import AgentRunRequest, AgentRunResponse, ModeExecution
 from .tools import build_default_registry
@@ -337,6 +338,12 @@ def create_app(
             # built in the background at startup; a request arriving before it is ready runs without a summary
             threading.Thread(target=summary.text, name="catalog-summary", daemon=True).start()
         provider_logger = ProviderLogger(owned_client) if settings.ai_log_provider else None
+        provider_policy = None
+        if settings.ai_provider_max_cache_price_ratio is not None:
+            provider_policy = CachePricePolicy(owned_client, settings.ai_model,
+                                               settings.ai_provider_max_cache_price_ratio,
+                                               ttl_seconds=settings.ai_provider_policy_ttl_seconds, log=log_event)
+            provider_policy.start()
         # (request_id, session_ids): the sessions a run leaves open are closed when it ends (S05)
         closer = partial(close_sessions, sandbox) if sandbox is not None and settings.ai_enable_dataneed else None
         # S28: (request_id) -> the answer's end releases every session of the request; fail closed to the closer
@@ -385,6 +392,7 @@ def create_app(
             log_event("evidence_inactive", reason="evidence is kept with the conversation: the result store is inactive")
         orchestrator = AgentOrchestrator(settings, owned_client, registry, auditor=auditor,
                                          catalog_summary=summary, provider_logger=provider_logger,
+                                         provider_policy=provider_policy,
                                          session_closer=closer, session_releaser=releaser,
                                          result_store=result_store, output_fetcher=fetcher,
                                          carried_uploader=uploader,

@@ -193,7 +193,7 @@ its time and money. The backend was under 1% of wall time. The rest broke down l
   was asked again for JSON: 15% of model time and 20% of cost.
 - **Catalog discovery.** 73 calls, 28% of cost.
 
-Four flags address this. All default off, and with all of them off the requests are byte-identical to before.
+These flags address this. All default off, and with all of them off the requests are byte-identical to before.
 
 - **`AI_PROVIDER_SORT`** adds `provider.sort` to every model call, the Research Plan reply classifier included.
   - OpenRouter documents that `sort` turns load balancing off and tries the endpoints in sorted order, and that it
@@ -204,6 +204,16 @@ Four flags address this. All default off, and with all of them off the requests 
   - `throughput` costs more per token on this model: the fast providers price it about twice as high.
   - Decision (2026-09-27): not used. The model stays `deepseek/deepseek-v4.1-flash` on OpenRouter's default
     routing; do not set this flag without the user's approval.
+- **`AI_PROVIDER_MAX_CACHE_PRICE_RATIO`** (2026-10-04, user decision) skips providers that barely discount cache
+  reads. A run re-sends its instructions, tools and conversation on every call, so about 90% of input tokens are cache
+  reads; one provider charging 96% of the input price for them makes a run several times dearer.
+  - The list is derived from OpenRouter's endpoint pricing for the model in use (`app/provider_policy.py`), logged as
+    `ai_provider_policy`, and re-read every `AI_PROVIDER_POLICY_TTL_SECONDS` in the background. No provider is named
+    in code or configuration.
+  - On 2026-10-04 at `0.25` it skipped InferenceNet for `xiaomi/mimo-v2.6-flash`, and Relace, Wafer and InferenceNet
+    for `deepseek/deepseek-v4.1-flash`.
+  - It does not prove a provider actually caches: the cache ratio (`ai_model_usage_summary`) and the served provider
+    (`ai_model_call_provider`) remain the measure.
 - **`AI_LOG_PROVIDER`** logs, after the response is sent, one `ai_model_call_provider` event per model call, from
   OpenRouter's `GET /api/v1/generation?id=<provider_response_id>`. The Responses body carries no provider.
   - Fields: `provider`, `model_version`, `provider_attempts` and `failed_providers` (fallbacks), `first_token_ms`,
@@ -248,7 +258,8 @@ Gate and final-response log events (always on):
 | `OPENROUTER_API_KEY` | yes (secret) | — | OpenRouter API key |
 | `AI_MODEL` | no | `deepseek/deepseek-v4.1-flash` | OpenRouter model ID of model 1 |
 | `AI_MODEL_2` | no | `xiaomi/mimo-v2.6-pro` | OpenRouter model ID of model 2 |
-| `AI_MODEL_SWITCH` | no | `1` | Model switcher (user decision 2026-09-30): `1` runs `AI_MODEL`, `2` runs `AI_MODEL_2`; any other value stops startup. MiMo exposes no reasoning effort levels on OpenRouter, so switch `2` sends `reasoning.enabled` (true for the main calls, false for the plan-reply classifier) instead of `reasoning.effort`. The selected model is logged at startup (`ai_model_selected`) and recorded per run (usage, audit) |
+| `AI_MODEL_2_REASONING_FORM` | no | `enabled` | How switch `2` sends reasoning: `enabled` (`reasoning.enabled`, on/off) or `effort` (`reasoning.effort` with `AI_REASONING_EFFORT`). Any other value stops startup. Switch `1` always sends `effort` |
+| `AI_MODEL_SWITCH` | no | `1` | Model switcher (user decision 2026-09-30): `1` runs `AI_MODEL`, `2` runs `AI_MODEL_2`; any other value stops startup. By default switch `2` sends `reasoning.enabled` (true for the main calls, false for the plan-reply classifier) instead of `reasoning.effort` (see `AI_MODEL_2_REASONING_FORM`). The selected model is logged at startup (`ai_model_selected`) and recorded per run (usage, audit) |
 | `AI_ENABLE_MODE4` | no | `false` | Mode 4 (user decision 2026-09-30): a request without `analysis_path` is answered by an analysis, research of at least two angles that runs at once, and one suggested follow-up angle; see "Mode 4" below |
 | `AI_MODE_SWITCH` | no | `1` | Mode switcher (user decision 2026-09-30): the default mode of a request that sets no `analysis_path` and replies to no plan: `1` AUTO (the model chooses, the behaviour before mode 4), `2` ANALYSIS, `3` RESEARCH, `4` MODE4. Another value stops startup; `4` needs `AI_ENABLE_MODE4`, `2`/`3` need `AI_ENABLE_ANALYSIS_PATH`. See "Mode switcher" below |
 | `AI_MODE4_MAX_SECONDS` | no | `3600` | Wall-clock budget of one whole mode 4 request (its sub-runs share it) |
@@ -271,6 +282,8 @@ Gate and final-response log events (always on):
 | `AI_ENABLE_EVENT_STUDY` | no | `false` | DataNeed flow only: `run_python` and `complete_analysis` describe `saniti.event_study` and its backend recalculation (G2); see [Event study labels](#event-study-labels-g2) |
 | `AI_ENABLE_STANDARD_PERIOD_RETURN` | no | `false` | DataNeed flow only: teach the named-period return convention (NAMED-PERIOD RETURNS prompt rule and one `run_python` sentence about `saniti.period_return`); see [Named-period returns](#named-period-returns) |
 | `AI_PROVIDER_SORT` | no | unset | OpenRouter `provider.sort` for every model call: `price`, `throughput` or `latency`. Unset keeps OpenRouter's load balancing (weighted to the lowest price). Setting it turns load balancing off; see [Run-time and cost controls](#run-time-and-cost-controls). **Not used:** the user decided on 2026-09-27 to keep OpenRouter's default routing (`AGENTS.md`) |
+| `AI_PROVIDER_MAX_CACHE_PRICE_RATIO` | no | unset | Skip (`provider.ignore`) every provider whose cache-read price is above this share of its prompt price, read from OpenRouter's `/models/{model}/endpoints` for the model in use. A provider is skipped only when all its endpoints are; when every endpoint would be, nothing is skipped. Unset keeps OpenRouter's default routing. Dev: `0.25` (user decision 2026-10-04); see [Run-time and cost controls](#run-time-and-cost-controls) |
+| `AI_PROVIDER_POLICY_TTL_SECONDS` | no | `3600` | How old the derived provider list may get before it is re-read in the background (minimum 60) |
 | `AI_LOG_PROVIDER` | no | `false` | After each run, look up which provider served each model call (OpenRouter `/generation`, in a background thread) and log it as `ai_model_call_provider` |
 | `AI_FINAL_CONTRACT_IN_PROMPT` | no | `false` | Put the final-response JSON contract (and, with Research Plan confirmation, the plan's exact field form) in the system prompt, so a finished run answers in JSON at once |
 | `AI_CATALOG_SUMMARY_IN_PROMPT` | no | `false` | Append a compact summary of the AI catalog (tables, columns, relationships, coverage, tools) to the system prompt, so most runs skip the discovery round trips. Needs `CATALOG_DATABASE_URL` |

@@ -135,6 +135,11 @@ class Settings:
     # After a run, look up the provider that served each model call (OpenRouter /generation, in the background) and
     # log it as ai_model_call_provider; the Responses API does not return it.
     ai_log_provider: bool = False
+    # Providers whose cache-read price is above this share of their prompt price are skipped (provider.ignore), derived
+    # from OpenRouter's endpoint pricing and re-read every AI_PROVIDER_POLICY_TTL_SECONDS (user decision 2026-10-04).
+    # Unset keeps OpenRouter's default routing.
+    ai_provider_max_cache_price_ratio: float | None = None
+    ai_provider_policy_ttl_seconds: int = 3600
     # The final-response JSON contract (and, with Research Plan confirmation, the plan's field skeleton) is part of the
     # system prompt, so a finished run answers in JSON at once instead of a prose draft that is re-asked as JSON.
     ai_final_contract_in_prompt: bool = False
@@ -257,10 +262,13 @@ class Settings:
     ai_model_switch: int = 1
     ai_model_1: str = "deepseek/deepseek-v4.1-flash"
     ai_model_2: str = "xiaomi/mimo-v2.6-pro"
+    # How model 2 takes reasoning (K1, 2026-10-04): "enabled" (on/off, the default) or "effort" (the level itself), so
+    # a model 2 that honours levels needs no code change.
+    ai_model_2_reasoning_form: str = "enabled"
 
     def reasoning(self, effort: str) -> dict[str, Any]:
         """The OpenRouter reasoning setting for a call of the given effort, in the form the selected model accepts."""
-        if self.ai_model_switch == 2:
+        if self.ai_model_switch == 2 and self.ai_model_2_reasoning_form == "enabled":
             return {"enabled": effort not in ("none", "minimal", "low")}
         return {"effort": effort}
 
@@ -293,6 +301,7 @@ class Settings:
             ai_model_switch=_integer(env, "AI_MODEL_SWITCH", 1),
             ai_model_1=env.get("AI_MODEL", "").strip() or "deepseek/deepseek-v4.1-flash",
             ai_model_2=env.get("AI_MODEL_2", "").strip() or "xiaomi/mimo-v2.6-pro",
+            ai_model_2_reasoning_form=(env.get("AI_MODEL_2_REASONING_FORM") or "").strip().lower() or "enabled",
             ai_reasoning_effort=env.get("AI_REASONING_EFFORT", "").strip().lower() or "high",
             ai_request_timeout_seconds=_integer(env, "AI_REQUEST_TIMEOUT_SECONDS", 180),
             ai_max_output_tokens=_integer(env, "AI_MAX_OUTPUT_TOKENS", 8000),
@@ -331,6 +340,9 @@ class Settings:
             ai_enable_conversation_router=_boolean(env, "AI_ENABLE_CONVERSATION_ROUTER", False),
             ai_provider_sort=(env.get("AI_PROVIDER_SORT") or "").strip().lower() or None,
             ai_log_provider=_boolean(env, "AI_LOG_PROVIDER", False),
+            ai_provider_max_cache_price_ratio=_ratio(env, "AI_PROVIDER_MAX_CACHE_PRICE_RATIO", 0.0, 0.0, 1.0)
+            if (env.get("AI_PROVIDER_MAX_CACHE_PRICE_RATIO") or "").strip() else None,
+            ai_provider_policy_ttl_seconds=_integer(env, "AI_PROVIDER_POLICY_TTL_SECONDS", 3600, minimum=60),
             ai_final_contract_in_prompt=_boolean(env, "AI_FINAL_CONTRACT_IN_PROMPT", False),
             ai_catalog_summary_in_prompt=_boolean(env, "AI_CATALOG_SUMMARY_IN_PROMPT", False),
             ai_catalog_summary_ttl_seconds=_integer(env, "AI_CATALOG_SUMMARY_TTL_SECONDS", 900, minimum=60),
@@ -462,6 +474,8 @@ class Settings:
             raise ConfigError("AI_RESEARCH_MAX_PARALLEL_GROUPS must be 1 in this release (groups run one at a time)")
         if settings.ai_research_plan_ttl_seconds > MAX_TTL_SECONDS:
             raise ConfigError(f"AI_RESEARCH_PLAN_TTL_SECONDS must be at most {MAX_TTL_SECONDS}")
+        if settings.ai_model_2_reasoning_form not in ("enabled", "effort"):
+            raise ConfigError("AI_MODEL_2_REASONING_FORM must be enabled or effort")
         if settings.ai_provider_sort not in (None, "price", "throughput", "latency"):
             raise ConfigError("AI_PROVIDER_SORT must be price, throughput or latency")
         if settings.ai_catalog_summary_in_prompt and not settings.catalog_database_url:

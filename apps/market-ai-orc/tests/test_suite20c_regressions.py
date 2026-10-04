@@ -150,6 +150,15 @@ def test_switch_2_runs_mimo_with_reasoning_enabled() -> None:
     assert all(p["reasoning"] == {"enabled": True} for p in client.payloads)
 
 
+def test_switch_2_sends_the_effort_level_when_its_form_is_effort() -> None:
+    settings = make_settings(AI_MODEL_SWITCH="2", AI_MODEL_2="xiaomi/mimo-v2.6-flash", AI_MODEL_2_REASONING_FORM="effort")
+    assert settings.reasoning("high") == {"effort": "high"} and settings.reasoning("low") == {"effort": "low"}
+    # the form belongs to model 2: switch 1 is unaffected either way
+    assert make_settings(AI_MODEL_2_REASONING_FORM="enabled").reasoning("high") == {"effort": "high"}
+    with pytest.raises(ConfigError, match="AI_MODEL_2_REASONING_FORM"):
+        make_settings(AI_MODEL_2_REASONING_FORM="budget")
+
+
 @pytest.mark.parametrize("bad", ["0", "3", "x"])
 def test_an_unknown_switch_stops_startup(bad) -> None:
     with pytest.raises(ConfigError):
