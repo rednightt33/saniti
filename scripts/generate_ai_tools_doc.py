@@ -40,7 +40,7 @@ SWITCHES = {
     "AI_ENABLE_POINT_IN_TIME": "point_in_time", "AI_ENABLE_RESEARCH_FINDINGS": "research_findings",
     "AI_ENABLE_PREFLIGHT_PARTS": "preflight_parts", "AI_ENABLE_MULTI_ANGLE_RESEARCH": "multi_angle",
     "AI_ENABLE_LINEAGE_TOOL": "lineage_tool", "AI_ENABLE_EXPORT": "export", "AI_ENABLE_QUERY_METRIC": "metrics",
-    "AI_ENABLE_EVIDENCE": "evidence",
+    "AI_ENABLE_EVIDENCE": "evidence", "AI_ENABLE_WEB_FACT": "web_fact_client",
 }
 
 # One plain-language sentence per name (Indonesian, for non-developers).
@@ -61,6 +61,7 @@ PLAIN = {
     "inspect_session": "Melihat isi variabel di ruang kerja sebelum hasil dirilis, atau statistik semua kolom satu dataset (kosong, min/median/maks, celah) tanpa baris data.",
     "get_evidence": "Memeriksa klaim utama sebelum menjawab: backend menghitung ulang setiap angka dari gudang data atau dari tabel dasar hasil analisis, lalu memberi status TERCEK atau TIDAK COCOK; tabel buktinya untuk user.",
     "export_result": "Membuat file unduhan dari tabel hasil (CSV, XLSX dengan lembar definisi dan asal data, atau Parquet), maks. 20 MB; AI hanya melihat nama dan ukurannya.",
+    "find_web_fact": "Mencari satu fakta yang tidak ada di data pasar (misalnya status BUMN, pemegang saham pengendali) di web dalam ± 30 detik; status ditentukan sistem dari kutipan persis (TERKONFIRMASI, BERTENTANGAN, SEBAGIAN, TIDAK DITEMUKAN).",
     "query_metric": "Jalan pintas pertanyaan sederhana: metrik resmi (net beli asing, net beli per broker, volume, harga penutupan, tertinggi/terendah) dihitung langsung oleh database dalam satu panggilan per periode.",
     "get_lineage": "Menelusuri asal angka: tabel hasil, kode yang membuatnya, data yang dibaca, saringan baris, query Governor, dan tabel sumbernya; tanpa isi baris.",
     "get_session_output": "Membaca ulang tabel atau JSON hasil, termasuk dari giliran sebelumnya lewat ref (out.o3) setelah sandbox menghapusnya, dan kode yang dijalankan sebuah eksekusi.",
@@ -140,9 +141,13 @@ def _registry(off: tuple[str, ...] = ()) -> dict[str, dict]:
                           "measure_column": "c", "time_function": "SUM", "entity_column": "e",
                           "default_dimensions": ["e"], "allowed_dimensions": ["e"], "default_scope": {"type": "ALL"},
                           "misuse_warning": "x", "review_status": "INFERRED", "unit": None}]
+    from app.tools.web_fact import WebFactClient
+
+    kwargs["web_fact_client"] = WebFactClient("http://w", "w" * 40, transport=transport)
     for switch in off:
         argument = SWITCHES[switch]
-        kwargs[argument] = None if argument in ("method_guides", "multi_angle", "metrics") else False
+        kwargs[argument] = None if argument in ("method_guides", "multi_angle", "metrics", "web_fact_client") \
+            else False
     registry = build_default_registry(
         object(), cursor_secret=b"x" * 32,
         governor_client=GovernorClient("http://g", "k" * 40, 90, transport=transport),

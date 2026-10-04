@@ -1620,6 +1620,7 @@ class RunState:
     choice_numbers: list[float] = field(default_factory=list)
     seen_strings: set[str] = field(default_factory=set)
     seen_sets: set[frozenset[str]] = field(default_factory=set)
+    web_facts: list[dict[str, Any]] = field(default_factory=list)  # S4b: find_web_fact results
     user_history: str = ""
     # Research Plan feasibility and execution: the last FEASIBLE draft of this run, the checks made, whether a RESEARCH
     # data need was submitted (an attempt consumes an approval), the verified approval, and a plan left unexecuted
@@ -2770,11 +2771,16 @@ class AgentOrchestrator:
     @staticmethod
     def _with_ai_choices(state: RunState, final: FinalResponse) -> FinalResponse:
         """S4 (K6): the AI's own choices, written by the system as the first assumption (never by the model)."""
-        line = ai_choices.describe(state.ai_choices)
-        if line is None or final.response_type == "CLARIFICATION" or line in final.assumptions:
+        if final.response_type == "CLARIFICATION":
             return final
-        log_event("ai_choices", request_id=state.request_id, choices=state.ai_choices[:ai_choices.MAX_CHOICES])
-        return final.model_copy(update={"assumptions": [line, *final.assumptions]})
+        lines = [line for line in (ai_choices.describe(state.ai_choices), ai_choices.describe_web(state.web_facts))
+                 if line is not None and line not in final.assumptions]
+        if not lines:
+            return final
+        log_event("ai_choices", request_id=state.request_id, choices=state.ai_choices[:ai_choices.MAX_CHOICES],
+                  web_facts=[{k: f.get(k) for k in ("subject", "attribute", "status", "value")}
+                             for f in state.web_facts[:10]])
+        return final.model_copy(update={"assumptions": [*lines, *final.assumptions]})
 
     def _exhausted(self, state: RunState, code: str) -> FinalResponse:
         """G23 D (K3, PLAN_FINAL_2026-10-04.md): the step limit or the time ran out. The last draft that parsed goes
@@ -3376,6 +3382,9 @@ class AgentOrchestrator:
                 if choice not in state.ai_choices and len(state.ai_choices) < ai_choices.MAX_CHOICES:
                     state.ai_choices.append(choice)
             return  # a run's printed text and its own outputs are not values the data supplied
+        if name == "find_web_fact" and result.get("status"):
+            state.web_facts.append(result)
+            state.context_numbers.extend(numbers_in([v.get("value") for v in result.get("versions") or []]))
         ai_choices.string_leaves(result, state.seen_strings)
         ai_choices.string_sets(result, state.seen_sets)
 

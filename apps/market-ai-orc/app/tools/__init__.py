@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import os
 
 from .analysis import SandboxClient, analysis_specs, manifest_spec
@@ -53,6 +55,7 @@ def build_default_registry(
     export: bool = False,
     metrics: list[dict] | None = None,
     evidence: bool = False,
+    web_fact_client: Any | None = None,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
@@ -167,6 +170,11 @@ def build_default_registry(
                                  max_result_bytes=python_analysis_max_bytes):
             registry.register(spec)
         registry.metric_menu = menu(metrics)
+    if web_fact_client is not None:
+        # S4b (AI_ENABLE_WEB_FACT): one fact that is not in the data, from market-web-governor /v1/fact
+        from .web_fact import web_fact_spec
+
+        registry.register(web_fact_spec(web_fact_client))
     if method_guides and dataneed_enabled:
         # 4b: the manual of each offered method; a research library method_id opens its library entry
         from .method_guides import method_guide_spec

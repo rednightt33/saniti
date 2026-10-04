@@ -224,6 +224,10 @@ class Settings:
     # received, so a conclusion reached in reasoning is not lost a few steps later. Never across messages. A provider
     # that refuses them turns it off for the rest of the run.
     ai_replay_reasoning: bool = False
+    # S4b (K8): find_web_fact, one fact that is not in the data from market-web-governor POST /v1/fact
+    ai_enable_web_fact: bool = False
+    web_governor_url: str | None = None
+    web_governor_api_key: str | None = field(default=None, repr=False)
     # Multi-Angle Research (MULTI_ANGLE_RESEARCH.md): research_plan/v2 with 3-6 angles, rpc2, per-angle data contracts,
     # grouped execution behind start/run/complete_research_run and backend findings per angle. Needs DataNeed v2,
     # Research Plan confirmation and feasibility, and a sandbox reporting the matching multi_angle_research capability
@@ -376,6 +380,9 @@ class Settings:
             ai_enable_edit_repair=_boolean(env, "AI_ENABLE_EDIT_REPAIR", False),
             ai_capture_reasoning=_boolean(env, "AI_CAPTURE_REASONING", False),
             ai_replay_reasoning=_boolean(env, "AI_REPLAY_REASONING", False),
+            ai_enable_web_fact=_boolean(env, "AI_ENABLE_WEB_FACT", False),
+            web_governor_url=_optional(env, "WEB_GOVERNOR_URL"),
+            web_governor_api_key=_optional(env, "WEB_GOVERNOR_API_KEY"),
             ai_enable_multi_angle_research=_boolean(env, "AI_ENABLE_MULTI_ANGLE_RESEARCH", False),
             ai_research_min_angles=_integer(env, "AI_RESEARCH_MIN_ANGLES", 2),
             ai_research_max_angles=_integer(env, "AI_RESEARCH_MAX_ANGLES", 6),

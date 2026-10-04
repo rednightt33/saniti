@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 from .ask import AskRequest, AskService, AskStore, PostgresAskStore
 from .config import Settings
 from .event_store import EventStore
+from .fact import FactRequest, FactService, PostgresFactStore
 from .fetcher import DocumentFetcher
 from .governor import GovernorValidationError, WebGovernor
 from .models import CreateWebNeedRequest, ExecuteWebNeedRequest, FastSearchRequest, FetchRequest
@@ -39,6 +40,7 @@ def create_app(
     event_store: EventStore | None = None,
     ask_service: AskService | None = None,
     ask_store: AskStore | None = None,
+    fact_service: FactService | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
     store = store or SqliteStore(settings.store_path, settings.stale_running_seconds)
@@ -48,6 +50,8 @@ def create_app(
     if ask_store is None and settings.event_store_url:
         ask_store = PostgresAskStore(settings.event_store_url)
     ask_service = ask_service or AskService(settings, provider, ask_store)
+    fact_service = fact_service or FactService(
+        settings, provider, PostgresFactStore(settings.event_store_url) if settings.event_store_url else None)
     logger = _configure_logging()
     expected = f"Bearer {settings.api_key}"
 
@@ -57,7 +61,7 @@ def create_app(
         janitor.start()
         yield
         janitor.stop()
-        for resource in (provider, fetcher, ask_service):
+        for resource in (provider, fetcher, ask_service, fact_service):
             close = getattr(resource, "close", None)
             if callable(close):
                 close()
@@ -171,6 +175,18 @@ def create_app(
             "replayed": bool(result.get("replayed")), "stored": result.get("stored"),
             "warning_codes": sorted({warning.get("code") for warning in result.get("warnings") or []}),
             "timing": (result.get("plan") or {}).get("timing"),
+        }))
+        return result
+
+    @app.post("/v1/fact", dependencies=[Depends(authorize)])
+    def fact(body: FactRequest) -> dict[str, Any]:
+        result = fact_service.fact(body)
+        logger.info(json.dumps({
+            "event": "web_fact_answered", "request_id": body.request_id, "fact_id": result.get("fact_id"),
+            "status": result.get("status"), "cached": result.get("cached"), "seconds": result.get("seconds"),
+            "cost_usd": result.get("cost_usd"), "sources": len(result.get("sources") or []),
+            "versions": len(result.get("versions") or []),
+            "warning_codes": sorted({w.get("code") for w in result.get("warnings") or []}),
         }))
         return result
 

@@ -223,6 +223,22 @@ def classify(values: list[Typed], user_text: str, seen_strings: set[str], seen_s
     return out
 
 
+def describe_web(facts: list[dict[str, Any]]) -> str | None:
+    """S4b: the web facts the run used, each with its status and domains (written by the system)."""
+    parts = []
+    for fact in facts[:10]:
+        versions = fact.get("versions") or []
+        if fact.get("status") == "CONFLICTING":
+            shown = " vs ".join(f"{v.get('value')} ({', '.join(v.get('domains') or [])})" for v in versions[:3])
+        else:
+            domains = ", ".join((versions[0].get("domains") or []) if versions else [])
+            shown = f"{fact.get('value') or 'tidak ditemukan'}" + (f" ({domains})" if domains else "")
+        parts.append(f"{fact.get('subject')} — {fact.get('attribute')}: {shown} [{fact.get('status')}]")
+    if not parts:
+        return None
+    return "Fakta web (dicari sistem, bukan dari data pasar): " + "; ".join(parts) + "."
+
+
 def describe(choices: list[dict[str, Any]]) -> str | None:
     """The system-written line shown in the answer, or None."""
     if not choices:

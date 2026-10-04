@@ -28,6 +28,7 @@ from .modes import MODES, effective_default, path_for, resolve_mode
 from .orchestrator import AgentOrchestrator, log_event
 from .provider_log import ProviderLogger
 from .provider_policy import CachePricePolicy
+from .tools.web_fact import WebFactClient
 from .research_plan_v2 import library_problem, negotiate
 from .schemas import AgentRunRequest, AgentRunResponse, ModeExecution
 from .tools import build_default_registry
@@ -283,6 +284,13 @@ def create_app(
             if not lineage_tool:
                 log_event("lineage_tool_inactive", reason="needs AI_ENABLE_DATANEED and a sandbox reporting "
                                                           f"bundle_lineage version {BUNDLE_LINEAGE_VERSION}")
+        web_fact = None
+        if settings.ai_enable_web_fact:
+            # S4b: off unless the web governor's address and key are set (fail closed)
+            if settings.web_governor_url and settings.web_governor_api_key:
+                web_fact = WebFactClient(settings.web_governor_url, settings.web_governor_api_key)
+            else:
+                log_event("web_fact_inactive", reason="needs WEB_GOVERNOR_URL and WEB_GOVERNOR_API_KEY")
         registry = build_default_registry(
             catalog,
             catalog_timeout_seconds=(
@@ -324,6 +332,7 @@ def create_app(
             export=export,
             metrics=metrics or None,
             evidence=evidence,
+            web_fact_client=web_fact,
         )
         auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
             if sandbox is not None or settings.research_audit_database_url else None
