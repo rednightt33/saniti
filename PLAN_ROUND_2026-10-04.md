@@ -140,6 +140,35 @@ AI (daftar anggota kelompok, definisi istilah, ambang, persentil), dan pilihan i
   - Bila AI menulis daftar dari ingatannya, daftar itu tampil sebagai pilihan AI.
 - AI tetap bebas bertanya bila ia mau, tetapi tidak diwajibkan.
 
+**Bila ambigu, nyatakan (keputusan user 2026-10-04):**
+- Tidak perlu jalur baru. Kelompok atau filter yang dipakai tampil di "Pilihan AI" (di atas), sehingga user sadar.
+- AI tetap boleh memakai jawaban `CLARIFICATION` yang sudah ada bila ia mau bertanya, tetapi tidak diwajibkan.
+
+**S4b — membumikan fakta lewat web (opsional, keputusan user):** dengan cara yang sama seperti analisis ini mengetahui
+bahwa BBCA bukan BUMN (pencarian web, beberapa sumber dicocokkan).
+- **Sudah ada:**
+  - `market-web-governor` dengan kutipan sumber, syarat 2 sumber independen (`NEED_2_INDEPENDENT_SOURCES`) dan toko
+    hasil terpisah (`Postgres-E8GM`).
+  - Tetapi AI analis belum memegang alat web: `get_system_capabilities` melaporkan `web_search` false.
+- **Usulan:**
+  - Sambungkan Web Governor sebagai alat AI untuk fakta yang **tidak ada di data**, misalnya keanggotaan kelompok
+    (BUMN, grup usaha, indeks).
+  - Hasilnya masuk ke "Pilihan AI" dengan sumber `WEB`: kutipan, tanggal terbit, dan ≥ 2 sumber yang setuju.
+  - Satu pencarian per istilah dipakai ulang di percakapan.
+  - Daftar yang terverifikasi bisa diusulkan menjadi data referensi resmi (keputusan 6), dengan sumber dan tanggal.
+- **Risiko:**
+  - Sumber web bisa usang atau bertentangan. Contoh: ringkasan pencarian untuk analisis ini sempat menyebut BRIS dalam
+    daftar "bank BUMN", padahal sumber yang sama menjelaskan BRIS anak usaha BUMN.
+  - Biaya web pernah naik 5× (W22).
+  - Pencarian bisa lama (W13/W14, ± 3 menit).
+  - Tanggal terbit sering kosong (W07).
+- **Mitigasi:**
+  - Wajib ≥ 2 sumber yang setuju dan sumber resmi diutamakan (BP BUMN, laporan emiten).
+  - Ketidaksepakatan ditampilkan, bukan dipilih diam-diam.
+  - Hanya dipakai untuk fakta yang tidak ada di data.
+  - Hasil disimpan ulang dan batas biaya per percakapan diterapkan.
+- **Bergantung pada:** penyelesaian W06–W11 dan W22 yang masih terbuka.
+
 **Uji pada data nyata** (prototipe pada 59 eksekusi kode putaran `ma-golden-20261004a`):
 
 | Eksekusi | Ditandai sebagai pilihan AI | Benar? |
