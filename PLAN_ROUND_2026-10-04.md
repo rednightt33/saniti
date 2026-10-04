@@ -110,10 +110,20 @@ Lihat `PLAN_EVIDENCE_GATE_2026-10-04.md`:
 - **Solusi (orc + katalog, permanen):**
   - Kelompok yang disebut user (BUMN, grup usaha, indeks, nanti region makro) harus berasal dari kolom atau tabel
     referensi yang ada.
-  - Bila tidak ada, AI wajib bilang "data kelompok ini tidak ada" dan meminta daftar dari user.
-  - Daftar dari user dicatat di definisi hasil sebagai "dari user".
-  - Penegakan: kode yang menulis daftar ticker sebagai teks (`['BBCA', …]`) untuk membentuk kelompok, tanpa sumber, ditolak
-    sebelum dijalankan. Polanya sama dengan penolakan angka tertulis di kode (P25).
+  - **AI diberi jalan keluar resmi** untuk bilang "tidak tahu" atau bertanya:
+    - Ia menjawab dengan jenis jawaban `CLARIFICATION`, yang sudah ada di sistem dan dipakai di g7.2. Isinya: "Data
+      kelompok BUMN tidak ada di database. Mohon kirim daftar tickernya, atau saya pakai kelompok yang ada (mis.
+      Industry = Banks)."
+    - Jawaban ini **bukan kegagalan**: tidak ditolak gerbang, tidak dihitung "buntu", dan biayanya kecil (1–2 langkah).
+    - Buku metode dan perintah penolakan menyebut jalan keluar ini secara eksplisit (sama seperti C di
+      `PLAN_EVIDENCE_GATE_2026-10-04.md`).
+  - Daftar dari user dicatat di definisi hasil sebagai "dari user". Bila user menyebut ticker langsung di pertanyaannya,
+    daftar itu sah.
+  - Penegakan:
+    - Kode yang menulis daftar ticker sebagai teks (`['BBCA', …]`) untuk membentuk kelompok, tanpa sumber (kolom,
+      pertanyaan user, atau jawaban klarifikasi), ditolak sebelum dijalankan. Polanya sama dengan penolakan angka tertulis
+      di kode (P25).
+    - Pesan penolakannya menunjuk ke jalan keluar: "tanyakan ke user dengan CLARIFICATION".
 - **Data (keputusan 6, user):** tambah atribut kepemilikan negara, bersumber resmi (BP BUMN / laporan emiten), dengan
   tanggal berlaku. Fakta saat ini: BBRI, BMRI, BBNI, BBTN adalah BUMN; BRIS anak usaha BUMN; BBCA swasta.
 - **Hasil benchmark:**
@@ -137,16 +147,65 @@ Lihat `PLAN_EVIDENCE_GATE_2026-10-04.md`:
 Kesimpulan: kewalahan nyata pada 5 worker, tidak merusak pada 3 worker. Hitungan baris yang selalu habis waktu tetap kerja
 sia-sia (21 kali untuk satu pesanan data di putaran 2). Dugaan "disk penuh sesak" belum diverifikasi dengan metrik disk.
 
-**Usulan (perlu keputusan user):**
-1. Governor membatasi jumlah query berat yang jalan bersamaan; sisanya mengantre.
-2. Governor tidak menghitung baris bila rencana query sudah jelas akan melewati batas waktu, dan tidak menghitung ulang
-   per bagian dari pesanan yang sudah dipecah.
-3. Simpan percakapan mencoba sekali lagi sebelum menyerah.
-4. Opsional: database terpisah untuk percakapan/audit.
+**Ukuran dari log Governor putaran 3 (612 hitungan baris):**
+- 588 berhasil, median 26 ms. Hitungan ini berguna: perkiraan bawaan database meleset median 2×, p90 3×, dibanding
+  hasil hitungan.
+- 24 habis waktu (7 detik). Ini 4% dari hitungan, tetapi **57% waktu database untuk hitungan** (175 dari 305 detik),
+  tanpa hasil.
+- Di putaran 2, 30 hitungan habis waktu (230 detik), 21 di antaranya untuk bagian-bagian dari **satu pesanan data** g1.
+
+**Pilihan solusi, diuji terhadap data di atas:**
+
+| # | Solusi (lapisan) | Uji ulang | Putusan |
+|---|---|---|---|
+| G22-1 | Lewati hitungan bila perkiraan database besar | Perkiraan **tidak meramalkan** timeout: ada hitungan diperkirakan 48 baris yang habis waktu (hasil kecil, scan besar). Ambang 1 juta hanya menangkap 4/24 dan ikut melewatkan 5 hitungan yang sukses | **Ditolak** |
+| G22-2 | Simpan "hitungan ini pernah habis waktu" per query yang sama | Putaran 3: 6 dari 24 berulang (44 detik). Putaran 2: 0 dari 30 | Kecil, opsional |
+| G22-3 | **Satu timeout per pesanan data cukup** (Governor): setelah satu bagian dari pesanan yang dipecah habis waktu, bagian lain memakai perkiraan, karena pemecahan sudah membatasi ukuran tiap bagian | Putaran 2: memotong 20 dari 21 timeout g1 (±140 detik) | **Diusulkan** (permanen) |
+| G22-4 | **Batasi query berat yang jalan bersamaan** (Governor; antrean, misalnya maks. 2 query berat bersamaan, sisanya menunggu) | Pembanding alami: 5 worker menghasilkan 45 pembatalan dan 2 kegagalan simpan; 3 worker menghasilkan 29 pembatalan dan 0 kegagalan. Mengurangi beban bersamaan menghilangkan kegagalan yang terlihat user | **Diusulkan** (permanen) |
+| G22-5 | Simpan percakapan **mencoba sekali lagi** setelah jeda singkat (orc) | Tidak menghilangkan beban, tetapi menutup satu momen lambat; g4 dan g5 putaran 2 gagal pada satu percobaan | **Diusulkan** (permanen, mitigasi) |
+| G22-6 | Database terpisah (replika baca) untuk gudang data, terpisah dari percakapan/audit | Praktik standar (OLTP vs analitik); menghilangkan kelas masalahnya | Keputusan user (biaya infrastruktur) |
+
+**Pembanding luar:**
+- PostgreSQL wiki "Count estimate": `count(*)` harus memindai semua baris (MVCC), sedangkan perkiraan dari statistik
+  ribuan kali lebih cepat tetapi tidak tepat.
+- Praktik umum memisahkan beban transaksi kecil dari query analitik (replika baca), karena keduanya berebut I/O, cache
+  dan autovacuum.
+- Hitungan kita tetap berguna untuk 96% kasus, jadi yang dibuang hanya hitungan yang terbukti sia-sia (G22-3), bukan
+  semua hitungan.
+
+**Risiko dan mitigasi:**
+
+| Risiko | Mitigasi |
+|---|---|
+| G22-3: bagian pesanan memakai perkiraan yang meleset 2–3× | Pemecahan pesanan sudah membatasi tiap bagian; batas baris saat penarikan (FETCH) tetap berlaku |
+| G22-4: antrean membuat jawaban lebih lambat saat ramai | Batas tunggu antrean dan pesan "sedang antre"; angka maks. bersamaan bisa diatur lewat setelan |
+| G22-5: percobaan ulang menulis dua kali | Penyimpanan sudah dijaga nomor lease; percobaan ulang hanya bila percobaan pertama tidak tersimpan |
+| G22-6: biaya dan kerumitan infrastruktur | Hanya bila G22-3/4/5 tidak cukup pada golden test 5 worker |
+
+**Verifikasi:** golden test dengan 5 worker (sama dengan putaran 2). Target: 0 kegagalan simpan percakapan, timeout
+hitungan per pesanan ≤ 1, pembatalan database turun dibanding 45.
 
 Sebelum G22 diperbaiki, golden test memakai paling banyak 3 worker.
 
-## 5. Verifikasi bersama (setelah fase 2–3)
+## 5. Golden test akhir (keputusan user: setelah plan selesai)
+
+Satu putaran (2 bagian, 3 worker untuk bagian A, 5 worker untuk bagian B), dijalankan setelah fase 1–4 selesai dan
+terdeploy di dev. Mencakup perbaikan putaran ini **dan** daftar "menunggu golden test" di `OUTSTANDING_ISSUES.md`.
+
+| Pertanyaan | Membuktikan |
+|---|---|
+| g1 dan g1_repeat | P22/P23 (satuan ganda), G16 ("regular"), M66/M13 (definisi sama dua kali), M46/M48 |
+| g3 event study | P24/M65 (format p dan CI), S19, S22, S24 |
+| g4 hipotesis BBCA | P25/P20/P21 (pesan penolakan), M62 |
+| g5 pesan 1–9 | M64 (merujuk hasil terbaru), G13 (rencana tidak gagal karena ukuran data), M47–M55, **S4 (BUMN: AI bertanya, tidak menebak)**, **S3 (satuan uji)** |
+| g6_revise | **S5 (pembanding 84.166 baris)**, P26 |
+| g8, g9 (3 pesan) | **G23 (0 loop; g9.2 menjawab)**, D (tidak ada gagal total), model baru |
+| g11 | Riset tanpa gerbang bukti |
+| Bagian B: g1, g3, g5.1, g11 dengan 5 worker | **G22** |
+
+Setiap putaran: angka dicek ulang lewat job baca-saja, dan biaya per pesan dilaporkan.
+
+## 5b. Verifikasi bersama (setelah fase 2–3)
 
 Golden test kecil, 3 worker:
 - g1, g4, g5 (1–6), g6_revise (1), g8, g9 (3 pesan), g11;
@@ -162,6 +221,23 @@ Golden test kecil, 3 worker:
 | Angka lain | Tetap sama dengan hitung ulang independen |
 
 Biaya dan detik dibandingkan dengan `ma-golden-20261004a`.
+
+## 6. Kategori "buntu": apa yang selesai oleh jalan keluar (G23-D dan S4)
+
+Jalan keluar ("tidak ada gagal total" dan "boleh bilang tidak tahu / bertanya") mengubah **gejala**: user selalu
+menerima jawaban, catatan, atau pertanyaan, bukan kosong. **Akar** tiap masalah tetap perlu perbaikannya sendiri.
+
+| Masalah | Selesai oleh jalan keluar? | Yang tetap perlu |
+|---|---|---|
+| G23 loop gerbang bukti | **Ya** (A–D di `PLAN_EVIDENCE_GATE_2026-10-04.md`) | — |
+| G22 database kewalahan | Tidak: rencana/riwayat yang gagal disimpan tetap hilang | G22-3/4/5 |
+| M73 riset otomatis mode 4 | Tidak; ini masalah lama, bukan buntu | Keputusan user (S6) |
+| R30 kredit habis | Tidak relevan | Selesai (kredit sudah ditambah) |
+| R31 deploy dari `main` | Tidak relevan | Proses (`--skip-deploys` + CLI); tuntas saat cabang masuk `main` |
+| P05/P08 jawaban benar dipaksa LIMITATION | Tidak: masalahnya kebalikan (gerbang terlalu ketat) | Perbaikan gerbang angka parameter (terpisah) |
+| G10 penarikan data ditolak | Sebagian: user mendapat penjelasan, tetapi data tetap tidak ditarik | Pemecahan pesanan / G13 (menunggu golden test) |
+| D06 data broker berhenti 31 Agustus | Tidak: data memang belum dimuat | Muat ulang data broker (di luar AI) |
+| M42 "siapa broker" dijawab rencana riset | Tidak: salah jenis jawaban, bukan buntu | Router / S6 |
 
 ## Catatan yang diperbarui saat eksekusi
 
