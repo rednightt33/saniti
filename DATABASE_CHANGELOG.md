@@ -1,5 +1,12 @@
 # Database changelog
 
+## 2026-10-04 — Migration 20261004_001 (Tool_Catalog round E) on dev
+
+- **`20261004_001_evidence_days_tool_catalog.sql`** (generated, round `round_e`): `get_evidence` v2 with the DAYS
+  recipe (G21), inactive. Applied by the temporary job `e-mig-job` (APPLY `0ebeb758`; no separate DRYRUN this time, the
+  migration is one transaction with preflight and verify). Read back: `Tool_Catalog` 98 rows (was 97), active 25; a
+  second run was refused. `APPLIED.sha256` updated.
+
 ## 2026-10-03 — Round phase D6: migrations 20261003_009 (evidence), 010 (method guides v4), 011 (Tool_Catalog round D) on dev
 
 - **`20261003_009_conversation_evidence.sql`** (hand-written in the pattern of 20261003_006; applied in the scratch

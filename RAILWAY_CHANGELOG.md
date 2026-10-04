@@ -1,5 +1,16 @@
 # Railway changelog
 
+## 2026-10-04 — Golden test round 2026-10-03 (part 1) and the evidence fix on dev
+
+- **orc-test-runner `5e690200`** (CLI upload, branch `claude/g2-g3-reactivation`): suite `ma-golden-20261003d`, 4 items,
+  7 turns, 3 workers. Results: `GOLDEN_TEST_ROUND_2026-10-03.md`. From about 23:20 UTC every model call failed with
+  OpenRouter 403 "Key limit exceeded (total limit)" (R30); the rest of the suite (`ma-golden-20261003e`) waits.
+- **Temporary job `e-mig-job`** (dev, reference `${{Postgres.DATABASE_URL}}`): APPLY `0ebeb758` of migration
+  20261004_001, without a separate DRYRUN (one transaction with preflight and verify; read back); then deleted.
+- **market-ai-orc `4b764004` `SUCCESS`** (was `f2b1cfbc`): get_evidence reads the Governor's decimal text (G20), DAYS
+  recipe (G21). Startup: no `*_inactive` event.
+- Rollback: orc `f2b1cfbc`.
+
 ## 2026-10-03 — Round phase D6 on dev: get_evidence, method guides v4, Tool_Catalog round D
 
 Plan: `ROUND_PLAN_2026-10-03_FASE_D.md` D6. CLI uploads from branch `claude/g2-g3-reactivation` at `8a16081`; `main`
