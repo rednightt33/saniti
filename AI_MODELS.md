@@ -45,6 +45,8 @@ Nilai seperti `self.settings.ai_model` atau `slot.model` dibaca dari setelan di 
 | `ask.py:_review` | Menilai apakah bukti /v1/ask sudah cukup atau perlu putaran pencarian lagi. | `model` | `{'enabled': False}` | `1500` | - | `json_schema next_searches` | - |
 | `fact.py:_search` | Fakta ringan /v1/fact (alat find_web_fact AI): dua pencarian web paralel, satu terbatas ke domain resmi. | `model` | `{'enabled': False}` | `300` | `openrouter:web_search` | - | - |
 | `fact.py:_extract` | Fakta ringan /v1/fact: mengambil nilai dan kutipan verbatim per sumber dari hasil pencarian. | `model` | `{'enabled': False}` | `1500` | - | `json_schema fact_values` | - |
+| `orc_web.py:_search_call` | Route web orc /v1/orc/web (alat research_web AI): satu pencarian web (Exa); cepat dua paralel, riset tiga lagi (resmi, internasional, media), atau satu per subjek. | `self._model()` | `{'enabled': False}` | `300` | `openrouter:web_search` | - | - |
+| `orc_web.py:_extract_call` | Route web orc /v1/orc/web: membaca sumber menjadi butir berbentuk fakta, angka, peristiwa, deret atau daftar dengan kutipan verbatim, dan menamai konflik palsu atau nyata. | `self._model()` | `{'enabled': False}` | `EXTRACT_TOKENS` | - | `json_schema orc_web_items` | - |
 | `provider.py:research_criterion` | Riset web per kriteria bukti (WebNeedSpec): satu pencarian per kriteria lalu penilaian. | `slot.model` | `{'effort': slot.reasoning_effort}` | `slot.max_output_tokens` | `openrouter:web_search` | - | - |
 | `provider.py:read_document` | Membaca satu dokumen/URL untuk riset web. | `slot.model` | `{'effort': slot.reasoning_effort}` | `slot.max_output_tokens` | - | - | - |
 | `provider.py:classify` | Klasifikasi event/berita web dengan skema JSON ketat (slot klasifikasi, dicek silang slot lain). | `slot.model` | `{'effort': effort}` | `min(slot.max_output_tokens, self.settings.classifier_max_output_tokens)` | - | `json_schema event_classification` | - |
@@ -113,6 +115,9 @@ Nilai seperti `self.settings.ai_model` atau `slot.model` dibaca dari setelan di 
 | `WEB_OPENROUTER_MODEL` | `"deepseek/deepseek-v4.1-flash"` |
 | `WEB_OPENROUTER_TIMEOUT_SECONDS` | `40` |
 | `WEB_OPENROUTER_TOTAL_SECONDS` | `180` |
+| `WEB_ORC_QUICK_SECONDS` | `30` |
+| `WEB_ORC_RESEARCH_SECONDS` | `120` |
+| `WEB_ORC_SLOT` | `0` |
 | `WEB_PROVIDER` | `"openrouter"` |
 | `WEB_SLOT_<n>_ENABLED` | `(tidak ada)` |
 | `WEB_SLOT_<n>_ENGINE` | `(tidak ada)` |

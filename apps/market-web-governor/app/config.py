@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from .sources import BUILT_IN_PRIMARY, DEFAULT_TRUSTED_MEDIA
+
 
 MODEL_SLOT_COUNT = 7
+ORC_WEB_OFFICIAL = BUILT_IN_PRIMARY + ("kemendag.go.id",)
+ORC_WEB_INTERNATIONAL = ("imf.org", "worldbank.org", "wto.org", "oecd.org", "adb.org", "bis.org", "un.org")
 REASONING_EFFORTS = {"minimal", "low", "medium", "high"}
 ENGINES = {"auto", "native", "exa", "firecrawl", "parallel", "perplexity"}
 
@@ -42,6 +47,15 @@ def _decimal(env: Mapping[str, str], name: str, default: float, *, minimum: floa
 def _optional(env: Mapping[str, str], name: str) -> str | None:
     value = env.get(name, "").strip()
     return value or None
+
+
+def _domains(env: Mapping[str, str], name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    """A comma or pipe separated domain list; empty or unset keeps the default."""
+    raw = env.get(name, "")
+    domains = tuple(d.strip().lower() for d in re.split(r"[,|]", raw) if d.strip())
+    if any(not re.fullmatch(r"(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)+", d) for d in domains):
+        raise ConfigError(f"{name} must be a comma separated list of domains")
+    return domains or default
 
 
 def _effort(value: str) -> str | None:
@@ -168,6 +182,16 @@ class Settings:
     ask_answer_reasoning: bool = True
     ask_forward_template_list: tuple[str, ...] = ("{x} rencana {next_year}", "{x} akan berlaku", "{x} jadwal",
                                                   "{x} target {next_year}")
+    orc_web_slot: int = 0
+    orc_web_quick_seconds: int = 30
+    orc_web_research_seconds: int = 120
+    orc_web_workers: int = 6
+    orc_web_cache_days: int = 7
+    orc_web_max_calls_per_run: int = 12
+    orc_web_max_usd_per_run: float = 0.25
+    orc_web_official_domains: tuple[str, ...] = ORC_WEB_OFFICIAL
+    orc_web_international_domains: tuple[str, ...] = ORC_WEB_INTERNATIONAL
+    orc_web_media_domains: tuple[str, ...] = DEFAULT_TRUSTED_MEDIA
 
     def slot(self, number: int | None) -> ModelSlot:
         wanted = number or self.default_slot
@@ -263,6 +287,16 @@ class Settings:
             not in {"0", "off", "false", "no"},
             ask_forward_template_list=tuple(t.strip() for t in env.get("WEB_ASK_FORWARD_TEMPLATE_LIST", "").split("|")
                                             if "{x}" in t) or Settings.ask_forward_template_list,
+            orc_web_slot=_integer(env, "WEB_ORC_SLOT", 0, minimum=0, maximum=MODEL_SLOT_COUNT),
+            orc_web_quick_seconds=_integer(env, "WEB_ORC_QUICK_SECONDS", 30, minimum=10, maximum=120),
+            orc_web_research_seconds=_integer(env, "WEB_ORC_RESEARCH_SECONDS", 120, minimum=30, maximum=300),
+            orc_web_workers=_integer(env, "WEB_ORC_WORKERS", 6, maximum=16),
+            orc_web_cache_days=_integer(env, "WEB_ORC_CACHE_DAYS", 7, maximum=90),
+            orc_web_max_calls_per_run=_integer(env, "WEB_ORC_MAX_CALLS_PER_RUN", 12, maximum=60),
+            orc_web_max_usd_per_run=_decimal(env, "WEB_ORC_MAX_USD_PER_RUN", 0.25, minimum=0.01, maximum=5.0),
+            orc_web_official_domains=_domains(env, "WEB_ORC_OFFICIAL_DOMAINS", ORC_WEB_OFFICIAL),
+            orc_web_international_domains=_domains(env, "WEB_ORC_INTERNATIONAL_DOMAINS", ORC_WEB_INTERNATIONAL),
+            orc_web_media_domains=_domains(env, "WEB_ORC_MEDIA_DOMAINS", DEFAULT_TRUSTED_MEDIA),
         )
         if not settings.store_path:
             raise ConfigError("WEB_GOVERNOR_STORE_PATH must not be empty")
@@ -278,4 +312,8 @@ class Settings:
             raise ConfigError("WEB_CLASSIFIER_CHECK_SLOT must name an enabled slot or be 0")
         if settings.rubric_material_pct >= settings.rubric_critical_pct:
             raise ConfigError("WEB_RUBRIC_MATERIAL_PCT must be below WEB_RUBRIC_CRITICAL_PCT")
+        if settings.orc_web_slot and not settings.slot(settings.orc_web_slot).enabled:
+            raise ConfigError("WEB_ORC_SLOT must name an enabled slot or be 0 (the default slot)")
+        if settings.orc_web_research_seconds <= settings.orc_web_quick_seconds:
+            raise ConfigError("WEB_ORC_RESEARCH_SECONDS must be above WEB_ORC_QUICK_SECONDS")
         return settings

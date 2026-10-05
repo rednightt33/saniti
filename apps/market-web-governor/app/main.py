@@ -17,6 +17,7 @@ from .fact import FactRequest, FactService, PostgresFactStore
 from .fetcher import DocumentFetcher
 from .governor import GovernorValidationError, WebGovernor
 from .models import CreateWebNeedRequest, ExecuteWebNeedRequest, FastSearchRequest, FetchRequest
+from .orc_web import OrcWebRequest, OrcWebService, PostgresOrcStore
 from .provider import OpenRouterProvider
 from .store import EvidenceJanitor, IdempotencyConflict, SqliteStore, StoreUnavailable
 
@@ -41,6 +42,7 @@ def create_app(
     ask_service: AskService | None = None,
     ask_store: AskStore | None = None,
     fact_service: FactService | None = None,
+    orc_web_service: OrcWebService | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
     store = store or SqliteStore(settings.store_path, settings.stale_running_seconds)
@@ -52,6 +54,8 @@ def create_app(
     ask_service = ask_service or AskService(settings, provider, ask_store)
     fact_service = fact_service or FactService(
         settings, provider, PostgresFactStore(settings.event_store_url) if settings.event_store_url else None)
+    orc_web_service = orc_web_service or OrcWebService(
+        settings, provider, PostgresOrcStore(settings.event_store_url) if settings.event_store_url else None)
     logger = _configure_logging()
     expected = f"Bearer {settings.api_key}"
 
@@ -61,7 +65,7 @@ def create_app(
         janitor.start()
         yield
         janitor.stop()
-        for resource in (provider, fetcher, ask_service, fact_service):
+        for resource in (provider, fetcher, ask_service, fact_service, orc_web_service):
             close = getattr(resource, "close", None)
             if callable(close):
                 close()
@@ -186,6 +190,21 @@ def create_app(
             "status": result.get("status"), "cached": result.get("cached"), "seconds": result.get("seconds"),
             "cost_usd": result.get("cost_usd"), "sources": len(result.get("sources") or []),
             "versions": len(result.get("versions") or []),
+            "warning_codes": sorted({w.get("code") for w in result.get("warnings") or []}),
+        }))
+        return result
+
+    @app.post("/v1/orc/web", dependencies=[Depends(authorize)])
+    def orc_web(body: OrcWebRequest) -> dict[str, Any]:
+        result = orc_web_service.answer(body)
+        logger.info(json.dumps({
+            "event": "web_orc_answered", "request_id": body.request_id, "budget_key": body.budget_key,
+            "result_id": result.get("result_id"), "status": result.get("status"), "purpose": body.purpose,
+            "expected_shape": body.expected_shape, "subjects": len(body.subjects), "depth": result.get("depth"),
+            "escalated": result.get("escalated"), "cached": result.get("cached"), "seconds": result.get("seconds"),
+            "cost_usd": result.get("cost_usd"), "items": len(result.get("citable") or []),
+            "sources": len(result.get("sources") or []), "conflicts": len(result.get("conflicts") or []),
+            "calls_left": (result.get("budget") or {}).get("calls_left"),
             "warning_codes": sorted({w.get("code") for w in result.get("warnings") or []}),
         }))
         return result

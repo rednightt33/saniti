@@ -28,6 +28,48 @@ seconds (PLAN_FINAL_2026-10-04.md Fase 4, S4b). `{"request_id", "subject", "attr
   - NOT_FOUND: nothing usable.
 - **Measured 2026-10-04:** 5–14 s and about USD 0.015 per fact; cached repeats under 0.1 s.
 
+## Orchestrator web route (`POST /v1/orc/web`)
+
+The orchestrator's tool for information that is not in the market database, used for context or when the data is
+missing (PLAN_2026-10-05.md item 12). It answers one need in one of five shapes and returns every item in a citable
+envelope; `/v1/fact`, `/v1/ask`, `/v1/search`, `/v1/fetch` and `/v1/web-needs` are not changed. Code:
+`app/orc_web.py`; it imports the OpenRouter client, the source policy and the verbatim quote check without changing
+them.
+
+- **Request:** `{"request_id", "budget_key", "need" (3–500 characters), "purpose": "CITE"|"CONTEXT",
+  "expected_shape"?: "FACT"|"NUMBER"|"EVENT"|"SERIES"|"LIST", "subjects"?: [≤ 50], "as_of"?, "refresh"?}`.
+  `budget_key` is the user turn (a mode 4 run sends one key for all its steps).
+- **Quick:** two searches in parallel (open; official and international domains), five results each, then one reading
+  (default slot or `WEB_ORC_SLOT`, reasoning off, strict JSON).
+- **Research (escalation):** when the quick reading finds nothing, asks for more, finds a series with fewer than three
+  periods, or no list where a list was expected, three wider searches follow (official, international, media; eight
+  results each) and a second reading of at most 20 sources, official first. Only while time
+  (`WEB_ORC_RESEARCH_SECONDS`) and the run's budget last.
+- **Subjects:** each subject is one quick lookup (one open search and one reading), run in parallel
+  (`WEB_ORC_WORKERS`); the answer for a subject carries the subject asked.
+- **Reading:** the model returns items with a shape, a source number and a quote, plus conflicts: a different period,
+  definition, unit or release is a false conflict; for a real conflict it chooses by official > international > media
+  (latest revision to describe, first release for a market reaction) and gives its reason.
+- **Code's guard:** an item whose quote is not in its source's text is dropped (`QUOTE_NOT_VERBATIM`); source tiers come
+  from the route's domain lists, never from the model; a number's uniform value is its value times the written scale
+  (miliar, juta, billion…).
+- **Answer:** `status` (`OK`, `PARTIAL`, `NOT_FOUND`, `BUDGET_EXHAUSTED`), `result_id`, `depth`, `escalated`, `items`
+  (a short index), `citable` (id `<result_id>_<n>`, shape, subject, statement, value, label `WEB_FACT`, source with
+  url, domain, tier and `official`, quote, confidence, `conflict`, `chosen_by_ai`, and for a number the value as
+  written, unit, currency, scale, kind, period, release date and revision; an event's dates; a list's members),
+  `conflicts`, `sources`, `budget`, `cost_usd`, `seconds`, `warnings`.
+- **Budget per run:** calls (one per need, one per subject) and cost are summed per `budget_key` for a day; past
+  `WEB_ORC_MAX_CALLS_PER_RUN` or `WEB_ORC_MAX_USD_PER_RUN` the route answers `BUDGET_EXHAUSTED` without a provider
+  call, and subjects beyond the calls left are cut (`ORC_WEB_SUBJECTS_CUT`). Two concurrent requests of one run can
+  pass the check together (a soft limit).
+- **Cache:** complete results (no deadline, cut, budget or provider warning) are kept in `web_orc_result` on
+  Postgres-E8GM (`event_store/004_web_orc.sql`) for `WEB_ORC_CACHE_DAYS`, keyed by need, purpose, shape, subjects and
+  month; a hit costs nothing and keeps its ids. `refresh` reads again.
+- **Store missing:** without the tables or the event store the route keeps working from memory (one replica) with
+  `ORC_WEB_STORE_UNAVAILABLE`.
+- **Benchmark:** 20 labelled needs in `tests/fixtures/orc_web_cases.json`, run live through web-governor-test-runner
+  phase `orc_web` (`scripts/benchmark_orc_web.py`).
+
 ## Lean ask (`POST /v1/ask`), recommended path
 
 One question in, one cited answer out. It runs next to the older web-need flow (kept for comparison until the lean
@@ -139,6 +181,9 @@ All `/v1/*` endpoints require `Authorization: Bearer $WEB_GOVERNOR_API_KEY`.
 | `GET /v1/documents/{document_id}` | Read one document the governor fetched: metadata, hashes and extracted text. |
 | `POST /v1/search` | Fast path: create and execute a single-criterion web need. |
 | `POST /v1/fetch` | The governor downloads one exact public HTTPS URL, a model reads it, and only verified quotes become evidence. |
+| `POST /v1/fact` | One fact about one subject, status decided by code (see Light fact). |
+| `POST /v1/ask` | Lean ask: one question, one answer with cited sources (see Lean ask). |
+| `POST /v1/orc/web` | The orchestrator's route: facts, numbers, events, series and lists in a citable envelope (see Orchestrator web route). |
 
 `POST /v1/web-needs` (inside `web_need`), `POST /v1/search` and `POST /v1/fetch` accept an optional `model_slot`
 (1–7). Without it the default slot is used. The slot and its model are recorded in the plan when the need is created,
@@ -337,6 +382,9 @@ With `WEB_EVENT_STORE_URL` set, every completed search, web need or fetch writes
 
 - **Lean ask:** `/v1/ask` answers go to `web_ask` (`002_web_ask.sql`); on that table the writer also has SELECT
   (replay) and DELETE (30-day retention).
+- **Orchestrator route:** `/v1/orc/web` keeps results in `web_orc_result` (writer: SELECT, INSERT, DELETE) and its
+  budget per run in `web_orc_budget` (writer: SELECT, INSERT, UPDATE, DELETE; UPDATE only here, for the running
+  totals), both from `004_web_orc.sql`.
 - **Access:** the governor's role `web_event_writer` can only INSERT (`ON CONFLICT DO NOTHING` without a conflict
   target, so no SELECT is needed); `web_event_reader` can only SELECT. The market-data PostgreSQL is not reachable
   from this service.
@@ -394,6 +442,12 @@ Classification and event store: `WEB_CLASSIFIER_SLOT` (dev: 2, MiMo), `WEB_CLASS
 `WEB_CLASSIFIER_BATCH_SIZE=6` (distinct sources per call), `WEB_CLASSIFIER_REASONING_EFFORT=off` (reasoning disabled; `none` sends no parameter), `WEB_DATE_LOOKUP_MAX=15`
 (undated pages read for their own date in pre-event mode, W14), `WEB_RUBRIC_MATERIAL_PCT=20`, `WEB_RUBRIC_CRITICAL_PCT=50` (to be confirmed against the
 current OJK rules), `WEB_EVENT_STORE_URL` (secret; writer role only), `WEB_SOURCE_BLOCKLIST`, `WEB_TRUSTED_MEDIA_EXTRA`.
+
+Orchestrator route (defaults): `WEB_ORC_SLOT=0` (0 = the default slot), `WEB_ORC_QUICK_SECONDS=30`,
+`WEB_ORC_RESEARCH_SECONDS=120`, `WEB_ORC_WORKERS=6`, `WEB_ORC_CACHE_DAYS=7`, `WEB_ORC_MAX_CALLS_PER_RUN=12`,
+`WEB_ORC_MAX_USD_PER_RUN=0.25`, `WEB_ORC_OFFICIAL_DOMAINS` (built-in official domains and kemendag.go.id; any `.go.id`
+or `.gov` is official), `WEB_ORC_INTERNATIONAL_DOMAINS` (imf.org, worldbank.org, wto.org, oecd.org, adb.org, bis.org,
+un.org), `WEB_ORC_MEDIA_DOMAINS` (the trusted media list); domain lists are comma or pipe separated.
 
 Fetch limits (defaults): `WEB_FETCH_TIMEOUT_SECONDS=20`, `WEB_FETCH_MAX_BYTES=5000000`, `WEB_FETCH_MAX_REDIRECTS=3`,
 `WEB_FETCH_MAX_PDF_PAGES=60`, `WEB_FETCH_MAX_CHARACTERS=200000`, `WEB_FETCH_MODEL_CHARACTERS=60000`,

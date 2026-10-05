@@ -69,6 +69,12 @@ PURPOSE = {
         "Fakta ringan /v1/fact (alat find_web_fact AI): dua pencarian web paralel, satu terbatas ke domain resmi.",
     "market-web-governor:fact.py:_extract":
         "Fakta ringan /v1/fact: mengambil nilai dan kutipan verbatim per sumber dari hasil pencarian.",
+    "market-web-governor:orc_web.py:_search_call":
+        "Route web orc /v1/orc/web (alat research_web AI): satu pencarian web (Exa); cepat dua paralel, riset tiga "
+        "lagi (resmi, internasional, media), atau satu per subjek.",
+    "market-web-governor:orc_web.py:_extract_call":
+        "Route web orc /v1/orc/web: membaca sumber menjadi butir berbentuk fakta, angka, peristiwa, deret atau daftar "
+        "dengan kutipan verbatim, dan menamai konflik palsu atau nyata.",
     "market-web-governor:provider.py:research_criterion":
         "Riset web per kriteria bukti (WebNeedSpec): satu pencarian per kriteria lalu penilaian.",
     "market-web-governor:provider.py:read_document":

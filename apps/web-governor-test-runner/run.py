@@ -557,6 +557,64 @@ def fact(prefix: str, facts: list[dict], workers: int = 4, repeat_cached: bool =
             one((f"{index}c", item))
 
 
+def orc_web_checks(case: dict, body: dict) -> dict:
+    """The case's labels against the answer (tests/fixtures/orc_web_cases.json in market-web-governor)."""
+    labels = case.get("labels") or {}
+    citable = body.get("citable") or []
+    shapes = {entry.get("shape") for entry in citable}
+    checks = {"answered": body.get("status") in ("OK", "PARTIAL")}
+    if labels.get("depth") in ("QUICK", "RESEARCH"):
+        checks["depth"] = body.get("depth") == labels["depth"]
+    if labels.get("shapes"):
+        checks["shapes"] = set(labels["shapes"]) <= shapes
+    if labels.get("min_items"):
+        checks["min_items"] = len(citable) >= labels["min_items"]
+    if labels.get("min_periods"):
+        periods = {json.dumps(entry.get("period"), sort_keys=True) for entry in citable
+                   if entry.get("shape") == "SERIES"}
+        checks["min_periods"] = len(periods) >= labels["min_periods"]
+    if labels.get("conflicts") == "NONE_REAL":
+        checks["conflicts"] = not any(entry.get("conflict") == "CONFLICTING" for entry in citable)
+    if labels.get("official"):
+        checks["official"] = any((entry.get("source") or {}).get("official") for entry in citable)
+    if labels.get("subjects_answered"):
+        checks["subjects_answered"] = len({entry.get("subject") for entry in citable}) >= labels["subjects_answered"]
+    return checks
+
+
+def orc_web(prefix: str, cases: list[dict], workers: int = 4, repeat_cached: int = 2) -> None:
+    """Labelled benchmark of POST /v1/orc/web (PLAN_2026-10-05.md item 12): each case as the orchestrator would send
+    it, a few in parallel, each with its own budget key; then the first cases again, which must come from the cache.
+    The values are compared with `expected` by the reader of the dump."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def one(pair):
+        index, case = pair
+        request_id = f"{prefix}{case['id']}-{index}"
+        body = {"request_id": request_id, "budget_key": f"{prefix}{case['id']}", "need": case["need"],
+                "purpose": case["purpose"], "expected_shape": case.get("expected_shape"),
+                "subjects": case.get("subjects") or [], "refresh": bool(case.get("refresh", index != "c"))}
+        result = call("POST", "/v1/orc/web", body, timeout=200)
+        answer = result.get("body") or {}
+        checks = orc_web_checks(case, answer)
+        log("orc_web", id=request_id, http=result.get("http"), seconds=result.get("seconds"),
+            status=answer.get("status"), depth=answer.get("depth"), escalated=answer.get("escalated"),
+            cached=answer.get("cached"), items=len(answer.get("citable") or []),
+            shapes=sorted({e.get("shape") for e in answer.get("citable") or []}),
+            conflicts=[[c.get("kind"), len(c.get("items") or []), c.get("chosen")]
+                       for c in answer.get("conflicts") or []],
+            sources=len(answer.get("sources") or []), cost=answer.get("cost_usd"),
+            checks=checks, passed=all(checks.values()),
+            warnings=sorted({w.get("code") for w in answer.get("warnings") or []}))
+        RESULTS.append({"test": "orc_web", "request_id": request_id, "case": case, "checks": checks, **result})
+        return result
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        list(pool.map(one, [(str(i), case) for i, case in enumerate(cases, 1)]))
+    for case in cases[:repeat_cached]:
+        one(("c", case))
+
+
 def dump() -> None:
     blob = base64.b64encode(gzip.compress(json.dumps(RESULTS, ensure_ascii=False).encode())).decode()
     size = 800
@@ -595,6 +653,8 @@ def main() -> None:
         ask(plan["prefix"], plan["questions"])
     elif plan["phase"] == "fact":
         fact(plan["prefix"], plan["facts"], int(plan.get("workers", 4)), bool(plan.get("repeat_cached", True)))
+    elif plan["phase"] == "orc_web":
+        orc_web(plan["prefix"], plan["cases"], int(plan.get("workers", 4)), int(plan.get("repeat_cached", 2)))
     elif plan["phase"] == "smoke":
         smoke(plan["prefix"])
     elif plan["phase"] == "post":
