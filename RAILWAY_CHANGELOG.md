@@ -12,9 +12,12 @@
   `SQL_GOVERNOR_API_KEY`, never printed): migration 20261005_003 DRYRUN, APPLY (see `DATABASE_CHANGELOG.md`), then a
   Governor smoke run (BBCA → Financials / Banks; sector Financials → 100 rows, direct SQL count 100; "bakrie" in the
   company name → BNBR, ELTY; a dated table refused `REFERENCE_STATIC_ONLY`). Deleted with `railway service delete`.
-- Prompt audit (`PROMPT_AUDIT_2026-10-05.md`, A1–A8, B1–B6, Markdown; approved by the user): market-ai-orc deployment
-  recorded below once it reaches SUCCESS. The golden test `qa_20261006a` is postponed by the user, so the live
-  behaviour of both changes is not yet measured.
+- `main` `d9c4ebc` (prompt audit `PROMPT_AUDIT_2026-10-05.md`, A1–A8, B1–B6, Markdown; approved by the user):
+  market-ai-orc `d14dba5e` SUCCESS. The golden test `qa_20261006a` is postponed by the user, so the live behaviour of
+  both changes is not yet measured.
+- `railway config pull --force` added only `AI_ENABLE_REFERENCE_LOOKUP: preserve()` to `.railway/railway.ts` (no
+  value); `railway config plan`: "already up to date" (run without a `timeout` wrapper, see `ERRORS_AND_SOLUTIONS.md`
+  R32).
 
 ## 2026-10-05 — P31, M82, P32 layers 1–4, P33 on dev; DB-vs-web measurement
 
