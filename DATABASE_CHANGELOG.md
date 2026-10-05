@@ -1,5 +1,31 @@
 # Database changelog
 
+## 2026-10-05 — Plan items 10 and 12: event store 004_web_orc on Postgres-E8GM and Tool_Catalog round I on dev
+
+- **`apps/market-web-governor/event_store/004_web_orc.sql`** on Postgres-E8GM (idempotent), applied by
+  web-governor-test-runner phase `migrate_sql` (deployment `9ecf889d`) with a temporary `EVENT_STORE_ADMIN_URL`
+  (a Railway reference, never printed; deleted afterwards, read back absent). Tables `web_orc_result` (9 columns: cache
+  key, need, purpose, status, result, model, cost, created and expiry times) and `web_orc_budget` (5 columns: budget
+  key, calls, cost, updated and expiry times), each with an `expires_at` index. Grants read back: `web_event_writer`
+  SELECT, INSERT, DELETE on `web_orc_result` and SELECT, INSERT, UPDATE, DELETE on `web_orc_budget` (UPDATE only here,
+  for the running totals); `web_event_reader` SELECT on both. The other tables and grants (`web_ask`,
+  `web_event_item`, `web_fact`) were unchanged.
+- **Part A check:** these are a service's cache and ledger, not data tables the AI reads through the catalog
+  (`AI_table_catalog`, DataNeed), so A1 (grain, entity codes, subject metadata) does not apply. Values the route
+  returns carry what A2.7 asks of a macro observation when the source states it: the reference period (`period`), the
+  release date and first release or revision; a number keeps its value as written and its scale (A3.11, no display
+  scale in the uniform value).
+- **`20261005_004_round_i_tool_catalog.sql`** (generated, round `round_i`): inactive `Tool_Catalog` rows
+  `check_references` v1 (flag `AI_ENABLE_ADDRESS_MENU`), `research_web` v1 (flag `AI_ENABLE_WEB_RESEARCH`),
+  `lookup_reference` v2 and `get_system_capabilities` v3 (descriptions name the web without the one-fact tool).
+  Temporary service `imig-job` (`DATABASE_URL` as a reference to the catalog database; deleted afterwards): DRYRUN
+  `e34e96a6` passed and rolled back (106 rows before and after); APPLY `e20cda44` committed: 110 rows (was 106), active
+  25 (unchanged), the four new rows inactive; a second run was refused ("already registered"). `APPLIED.sha256`
+  updated.
+- **Data:** smoke runs `orcweb-smoke-20261005a` and `…b` (one need each, BI-Rate) stored two cached results in
+  `web_orc_result` (expire after 7 days) and two budget rows (expire after one day).
+- No change to the market-data schema; `DATABASE_SCHEMA.md` unchanged.
+
 ## 2026-10-05 — Migration 20261005_003 (Tool_Catalog round H, P34) on dev
 
 - **`20261005_003_round_h_tool_catalog.sql`** (generated, round `round_h`, `scripts/generate_tool_catalog_migration.py`):

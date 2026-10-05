@@ -1,5 +1,26 @@
 # Railway changelog
 
+## 2026-10-05 — Plan items 10 and 12 deployed to dev (switches still off); event store 004 and round I applied
+
+- Implementation plan approved by the user ("gas"; `PLAN_2026-10-05.md` items 10, 10.6 and 12).
+- `main` `0f70d0b` (item 10 address menu and `check_references`, 10.6 threshold from an earlier result, hypothesis
+  findings with `confidence_level`, item 12 `POST /v1/orc/web` and orc `research_web`): market-ai-orc `d7e7d900`
+  SUCCESS, market-python-sandbox `04fcd4c2` SUCCESS (no run in progress), market-web-governor `ed5bf6ea` SUCCESS. orc
+  started with `AI_MODEL` `deepseek/deepseek-v4.1-flash`, `AI_MODEL_SWITCH` 1, mode 4, no inactive-feature warning.
+- web-governor-test-runner: temporary variable `EVENT_STORE_ADMIN_URL` (a reference to Postgres-E8GM's URL, set with
+  `--skip-deploys`, never printed) for phase `migrate_sql` `004_web_orc.sql` (deployment `9ecf889d`, see
+  `DATABASE_CHANGELOG.md`); the variable was deleted afterwards and read back absent.
+- Temporary service `imig-job` (reference `DATABASE_URL=${{Postgres.DATABASE_URL}}`): migration 20261005_004 DRYRUN
+  `e34e96a6`, APPLY `e20cda44`; deleted with `railway service delete` (read back absent).
+- Smoke run `orcweb-smoke-20261005a` (runner `65dd9f1e`, one need): `/v1/orc/web` answered OK, the cache served the
+  repeat in 0.05 s, but a found number escalated to research (104 s, USD 0.042; `ERRORS_AND_SOLUTIONS.md` W25).
+  `main` `c449acd` (escalation calibrated): market-web-governor `e42ab332` SUCCESS (orc and sandbox SKIPPED). Rerun
+  `orcweb-smoke-20261005b` (runner `ea91cf6e`): QUICK, 18 s, USD 0.016, every label passed.
+- Not changed yet: `AI_ENABLE_ADDRESS_MENU`, `AI_ENABLE_WEB_RESEARCH` (unset) and `AI_ENABLE_WEB_FACT` (`true`) on
+  market-ai-orc; no `WEB_ORC_*` variable on market-web-governor (code defaults). OpenRouter credit left after the smoke
+  runs: about USD 1.86.
+- `railway config pull --force`: no change to `.railway/railway.ts`; `railway config plan`: already up to date.
+
 ## 2026-10-05 — Prompt pass 2 and M26 option B on dev (orc first, then sandbox)
 
 - User request 2026-10-05: "Langsung jalankan plan dan GT for pending items" (`PLAN_2026-10-05.md` items 7–9).
