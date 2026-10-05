@@ -1,5 +1,22 @@
 # Railway changelog
 
+## 2026-10-05 — M80, M81, M82 on dev; R-STORE expiry test (retention 1 h, then back to 24 h); router stress suite
+
+- `main` `ace0f82` (M80 a findings table, M80 b CLARIFY covers export): market-ai-orc `24f2939e` SUCCESS,
+  market-python-sandbox `807ca574` SUCCESS.
+- `main` `c8852a3` (M81 new topic re-routed): market-ai-orc `6b07aae9` SUCCESS. For the R-STORE expiry test (user
+  approval "tes kadaluarsa R-store OK") market-python-sandbox variables `PY_SANDBOX_RESULT_RETENTION_HOURS=1` and
+  `PY_SANDBOX_BUNDLE_RETENTION_HOURS=1` were set with `--skip-deploys` and picked up by sandbox `75866308` SUCCESS.
+  Side effect: other dev conversations in that window lost their sandbox copies after 1 h (R-STORE restores them).
+- orc-test-runner `9c627376` (CLI upload): suite `ma-qa-20261005a`, 30 turns, 4 workers, 32 min of turn time,
+  USD 0.22: 24 COMPLETED, 3 NEEDS_CLARIFICATION (s4, intended), 2 AWAITING_CONFIRMATION (s3 plan, intended),
+  1 LIMITED (q7, no export data; P31). Router: CHAT/FACT/ANALYSIS/RESEARCH/EXPLORE as labelled in all five
+  conversations; exports routed CLARIFY; R-STORE table restored after expiry with the same numbers, then exported.
+- `main` `57277d6` (M82 newest horizon wins): market-ai-orc `c33a49b5` SUCCESS. Sandbox retention variables set back
+  to 24 (`--skip-deploys`) and sandbox redeployed from source: `75fb8a6e` SUCCESS (`57277d6`); read back
+  `PY_SANDBOX_RESULT_RETENTION_HOURS=24`, `PY_SANDBOX_BUNDLE_RETENTION_HOURS=24`. `railway config pull --force` /
+  `config plan`: up to date.
+
 ## 2026-10-04 — Services synced with `main`; first-message router on dev; AI_MODELS.md / AI_ROUTER.md
 
 - market-python-sandbox and market-web-governor were running CLI uploads from before the merge. Both were redeployed

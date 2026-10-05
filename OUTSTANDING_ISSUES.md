@@ -1,4 +1,4 @@
-# Masalah yang belum selesai: status (2026-10-02, diperbarui 2026-10-04 malam)
+# Masalah yang belum selesai: status (2026-10-02, diperbarui 2026-10-05)
 
 Sumber: `ERRORS_AND_SOLUTIONS.md` (kode adalah rujukan ke sana). Satu masalah dimasukkan ke satu kategori saja, yaitu
 dampak terberatnya.
@@ -42,17 +42,25 @@ g6 = usulan pertanyaan tambahan).
 
 - M75: jawaban lambat 4–36 menit karena hampir semua panggilan jatuh ke penyedia lambat (Morph). --> KEPUTUSAN USER 2026-10-04: rute penyedia **as is** (O1 tidak dikerjakan); dikurangi lewat router (M79)
 - M76: pertanyaan lanjutan kehilangan riwayat setelah jawaban panjang. --> DIPERBAIKI (O2, `AI_MAX_HISTORY_TOKENS` 150.000, live); belum diuji live dengan pesan lanjutan khusus
-- M77: ekspor tidak tersedia di langkah baca. --> DIPERBAIKI (O3, sifat alat; live); belum teruji karena g5.11 dirouting CONTINUE (lihat M80 b)
+- M77: ekspor tidak tersedia di langkah baca. --> DIPERBAIKI (O3, sifat alat; live); TERBUKTI live 2026-10-05 (s1.4 dan s3.4: ekspor di langkah baca, 13 dan 55 detik)
 - P28: penolakan angka karena angka dari layar print / alarm palsu; putaran bukti tanpa temuan. --> D dan bukti DIPERBAIKI (P28-D, O4; live, terlihat di q4); A/B (angka dari print, hitung di kepala) gerbang tetap
 - P29: "data terbaru berakhir 31 Agustus" padahal harga sampai 2 Okt (g9.3). --> UNDERADDRESSED (dugaan, cek log reasoning dulu)
 - P30: AI menolak membuat trade setup. --> DITUNDA user
 
 ## 2b. Baru 2026-10-04 (suite `ma-qa-20261004a`, router)
 
-- M78: penyedia berhenti di tengah jawaban → giliran kosong → AI dipaksa menjawab tanpa alat → LIMITED (q2, q3). --> DIPERBAIKI, live (orc `5e41129f`); belum terpicu lagi
+- M78: penyedia berhenti di tengah jawaban → giliran kosong → AI dipaksa menjawab tanpa alat → LIMITED (q2, q3). --> DIPERBAIKI dan TERBUKTI live 2026-10-05 (percobaan ulang terpicu di r_store_expiry, giliran selesai)
 - M79: pertanyaan fakta/sapaan menjalani mode 4 penuh (g13 23 menit). --> DIPERBAIKI dan TERBUKTI live: router pesan pertama (g13 44 detik, sapaan 23 detik), penahan riset tanpa angka data
-- M80: hasil riset multi-sudut tidak bisa diekspor (bukan tabel); ekspor dirouting CONTINUE. --> DISETUJUI, sedang dikerjakan: (a) temuan riset jadi tabel standar, (b) ekspor = aksi baca (benchmark dulu)
-- Tes kedaluwarsa R-STORE (S29). --> DISETUJUI user, masuk putaran `qa_20261004b`
+- M80: hasil riset multi-sudut tidak bisa diekspor (bukan tabel); ekspor dirouting CONTINUE. --> DIPERBAIKI dan TERBUKTI live 2026-10-05: tabel `research_findings_table` diekspor ke Excel (s3.4); benchmark router lanjutan 30/30
+- Tes kedaluwarsa R-STORE (S29). --> TERBUKTI live 2026-10-05: masa simpan sandbox 1 jam, tabel dipulihkan setelah kedaluwarsa dengan angka sama, lalu diekspor; masa simpan kembali 24 jam
+
+## 2c. Baru 2026-10-05 (stress test router `ma-qa-20261005a`, 5 percakapan + suite b)
+
+- M81: topik baru di tengah percakapan menjalankan mode 4 penuh. --> DIPERBAIKI dan TERBUKTI live (pertanyaan data setelah sapaan: satu langkah analisis, 42–52 detik)
+- M82: horizon yang diubah user ("jadi 10 hari") dikembalikan gerbang ke 5 hari. --> DIPERBAIKI, live (orc `c33a49b5`); uji ulang live percakapan s3 belum
+- P31: AI menyebut "tidak ada kapasitas pencarian web" padahal alat fakta web ada (q7 ekspor/perang dagang). --> UNDERADDRESSED (dugaan; cek daftar alat di log dulu)
+- P32: jumlah bar uji (1.693) ikut menghitung bar pemanasan (70); metodologi jawaban yang sama menyebut 1.623. --> UNDERADDRESSED (akar terverifikasi; usulan: profil data memisahkan baris periode dan baris penyangga)
+- M14: pesan "BBRI" saja dijawab klarifikasi berbahasa Inggris (s4.1). --> terulang, tetap UNDERADDRESSED
 
 ## 3. Tidak keluar jawaban (buntu)
 
