@@ -12,7 +12,7 @@ Dibandingkan dengan `ema_zvol_standard.pine`. AI tidak diberi tahu bahwa script 
 | 6 | `zVol = (...) / volStd` tanpa cek nol | robustness | Pembagian nol pada saham tidak likuid (volStd = 0) |
 | 7 | `request.security(..., lookahead=barmerge.lookahead_on)` tanpa `[1]` | look-ahead | Bocoran data masa depan (repaint); variabelnya juga tidak dipakai |
 | 8 | `stop=entry * (1 + slPct)`, `limit=entry * (1 - tpPct)` | logika | Stop loss di atas harga masuk dan target di bawah (posisi long) |
-| 9 | Tidak ada `strategy.position_size == 0` saat entry dan tidak ada exit death cross | logika | Berbeda dari versi standar (piramida/entry berulang, tidak keluar saat death cross) |
+| 9 | Tidak ada `strategy.position_size == 0` saat entry dan tidak ada exit death cross | logika | Berbeda dari versi standar (piramida/entry berulang, tidak keluar saat death cross). Dinilai hanya bagian guard `position_size`; exit death cross hanya dinilai bila pesan user menyebut aturan keluar itu (P33 9b, 2026-10-05) |
 
 Yang diuji:
 - apakah AI menemukan kesalahan-kesalahan ini;

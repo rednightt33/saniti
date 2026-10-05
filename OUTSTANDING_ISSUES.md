@@ -59,7 +59,7 @@ g6 = usulan pertanyaan tambahan).
 - M81: topik baru di tengah percakapan menjalankan mode 4 penuh. --> DIPERBAIKI dan TERBUKTI live (pertanyaan data setelah sapaan: satu langkah analisis, 42–52 detik)
 - M82: horizon yang diubah user ("jadi 10 hari") dikembalikan gerbang ke 5 hari. --> DIPERBAIKI (router membaca perubahan horizon terstruktur, benchmark 14/14), live; uji golden test berikutnya
 - P31: AI menyebut "tidak ada kapasitas pencarian web" padahal alat fakta web ada. --> daftar kemampuan DIPERBAIKI (live); kalimat prompt menunggu review audit (`PROMPT_AUDIT_2026-10-05.md` A1)
-- P34: pertanyaan fakta yang datanya ada di database (sektor BBCA) dijawab dari web; daftar saham sektor energi LIMITED. --> KEPUTUSAN USER (rute FACT tidak punya alat baca data; pilihan a/b)
+- P34: pertanyaan fakta yang datanya ada di database (sektor BBCA) dijawab dari web; daftar saham sektor energi LIMITED. --> DIPUTUSKAN 2026-10-05: pilihan A (alat baca tabel referensi di rute FACT + cek katalog sebelum web), belum dibangun
 - P32: jumlah bar uji (1.693) ikut menghitung bar pemanasan (70). --> DIPERBAIKI lapis 1–4 (hitungan berlabel, in_period, backtest, buku metode v5), live; uji golden test berikutnya
 - P33: uji Pine rusak no. 5 dan 9b. --> no. 5 DIPERBAIKI (z-score aktivitas tanpa hari ini, dari katalog), live; no. 9b koreksi kunci jawaban tes
 - M14: pesan "BBRI" saja dijawab klarifikasi berbahasa Inggris (s4.1). --> terulang, tetap UNDERADDRESSED
