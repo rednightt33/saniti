@@ -101,3 +101,147 @@ registry (`build_system_prompt(tools=...)`), kelas masalah yang sama dengan P31.
 
 **Tes:** `tests/test_prompt_audit.py` (7 tes). Tes lama yang membandingkan blok mentah dengan prompt sekarang memakai
 `markdown_prompt(...)`. Orc: 1.113 lulus.
+
+## Putaran 2: merapikan bentuk (RENCANA, belum dijalankan)
+
+Status: **RENCANA.** Diminta user 2026-10-05 ("coba kita ganti promptnya dulu ya. masukan ke dalam plan jangan
+eksekusi"). Belum ada kode yang diubah. Item K1–K4 butuh persetujuan user karena mengubah atau menambah kata; item lain
+hanya memindah dan memecah kalimat yang sudah ada.
+
+### Dasar
+
+- **Bahan:** prompt yang benar-benar dirakit untuk dev (`build_system_prompt` dengan switch dev + `TOOL_ENVELOPE_RULE`):
+  34.509 karakter, ±11.654 token, 132 baris, 18 bagian (sama persis dengan angka "Sesudah" di atas).
+- **Acuan luar:**
+  - [OpenAI GPT-4.1 Prompting Guide](https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide): judul
+    Markdown untuk bagian dan subbagian, daftar bernomor atau berbutir; periksa instruksi yang bertentangan; bila
+    bertentangan, instruksi yang lebih dekat ke akhir cenderung diikuti.
+  - [Anthropic, Effective context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents):
+    bagian terpisah dengan judul jelas; informasi minimal tetapi cukup; hindari logika rapuh.
+- **Kesimpulan putaran 1:** isi sudah benar (alat aktif saja, tanpa nama alat usang, aturan dobel sudah disatukan).
+  Yang belum rapi adalah **bentuk**.
+
+### Temuan (nomor baris = prompt dev yang dirakit)
+
+| No | Temuan | Baris |
+|---|---|---|
+| T1 | 13 paragraf prosa lebih dari 600 karakter dalam satu baris, masing-masing 8–15 aturan: Final response 1.874; DATA DISCOVERY 1.754; DATA NEED butir 1 1.712 dan paragraf angka 1.241; MODES 1.046; NAMED-PERIOD RETURNS 898; VALUE REFERENCES 1.410; MULTI-ANGLE PLAN butir 2, 3, 6 (709, 704, 1.095); HYPOTHESIS PLAN butir 2 617; MULTI-ANGLE FINDINGS 1.908; RESEARCH FINDINGS 1.454. Penyebab: format putaran 1 menyambung baris menjadi satu paragraf per butir tanpa memecah aturannya | 27, 44, 48, 53, 56, 59, 96, 101, 102, 105, 112, 117, 120 |
+| T2 | Aturan sumber data luar (fakta web, `lookup_reference`) ada di bawah MODES | 56 |
+| T3 | Aturan menjalankan riset (jangan ubah modul sandbox, `session_recovery`) ada di awal MULTI-ANGLE FINDINGS, bukan di langkah 6 rencana multi-sudut | 117 |
+| T4 | RESEARCH FINDINGS sebagian besar berisi isi rencana hipotesis dan cara menjalankannya (`event_summary`), bukan cara membaca temuan | 120 |
+| T5 | Dua bagian alat terpisah jauh: "Tool use" (atas) dan TOOL RESULTS (paling akhir, ditempel `TOOL_ENVELOPE_RULE`) | 20, 131 |
+| T6 | Dua skema JSON rencana riset (±3.700 karakter) ada di Final response, jauh dari aturan riset; urutan "umum → data → jawaban → riset" jadi tidak berlaku untuk bagian ini | 29–41 |
+| T7 | Kata "angle" dipakai untuk dua hal: sudut rencana multi-sudut (`angle_id`) dan dua ukuran temuan hipotesis (`angle_a` = besar efek, `angle_b` = frekuensi sukses). "When the two angles point different ways" bisa dibaca sebagai dua sudut riset | 92, 120, 125 |
+| T8 | Bekas rakitan: dua "for example" dalam satu butir; butir terakhir daftar referensi berakhir ";" | 92, 94 |
+| T9 | Gaya judul campur ("General rules", "Tool use", "Final response" vs huruf kapital) dan nama yang tidak sejajar ("RESEARCH PLAN CONFIRMATION: HYPOTHESIS PLAN", "RESEARCH FINDINGS") | — |
+| T10 | Aturan memilih bentuk rencana ditulis dua kali dengan kata berbeda (pembuka MULTI-ANGLE PLAN dan pembuka HYPOTHESIS PLAN) | 99, 110 |
+| T11 | Aturan 15 ("bahasa pesan terakhir user") tanpa bawaan bila pesan tidak berbahasa. Kasus M14 s4.1: "BBRI" saja dijawab klarifikasi berbahasa Inggris | 18 |
+
+### Perubahan yang diusulkan
+
+**Bentuk saja (kata tidak berubah):**
+
+- **F1. Pecah paragraf panjang (T1).** Setiap aturan menjadi satu butir "-" di bawah judulnya. Butir memakai "-", bukan
+  nomor, supaya tidak ada angka baru di prompt (prompt adalah sumber angka bagi gerbang provenance). Daftar bernomor
+  yang sudah ada tetap.
+- **F2. Pindahkan blok ke tempatnya:**
+  1. Kalimat metrik resmi (`query_metric`, awal DATA NEED) dan kalimat data luar (MODES: fakta web dan
+     `lookup_reference`) → bagian baru **DATA SOURCES** tepat sebelum DATA NEED. Urutannya database dulu, web terakhir:
+     metrik resmi → tabel referensi → DataNeed → fakta web. Kalimat `lookup_reference` dipindah sebelum kalimat web;
+     katanya tetap.
+  2. "A data need in mode RESEARCH is accepted only for an approved hypothesis plan…" (akhir MULTI-ANGLE PLAN) →
+     MODES.
+  3. Dua kalimat pembuka MULTI-ANGLE FINDINGS (modul sandbox, `session_recovery`) → langkah 6 MULTI-ANGLE PLAN (T3).
+  4. RESEARCH FINDINGS dibagi (T4):
+     - kalimat isi rencana dan satuan → langkah 2 HYPOTHESIS PLAN;
+     - kalimat sampel minimum dan `event_summary` → langkah 4 HYPOTHESIS PLAN;
+     - sisanya (apa yang dikembalikan `complete_analysis`) tetap sebagai HYPOTHESIS FINDINGS.
+  5. TOOL RESULTS → tepat setelah TOOL USE, tetap hanya bila `AI_ENABLE_TOOL_ENVELOPE` aktif (T5).
+- **F3. Judul seragam (T9).** Semua kapital, tanpa akhiran "RULES":
+  - GENERAL RULES, TOOL USE, FINAL RESPONSE;
+  - DATA DISCOVERY, DATA NEED;
+  - MULTI-ANGLE PLAN, HYPOTHESIS PLAN, HYPOTHESIS FINDINGS.
+
+  Rujukan antar-bagian di dalam teks hanya "VALUE REFERENCES" dan "INTERPRETING RESEARCH"; keduanya tidak berganti
+  nama.
+- **F4. Bekas rakitan (T8).** Butir terakhir daftar referensi ditutup titik. Contoh temuan dipecah menjadi dua butir:
+  satu untuk temuan sudut, satu untuk temuan hipotesis.
+
+**Perlu persetujuan (kata berubah atau bertambah):**
+
+- **K1 (T7).** Satu kalimat baru di HYPOTHESIS FINDINGS: "`angle_a` (the effect against the baseline) and `angle_b`
+  (the success rate against the base rate) are the two measures of a hypothesis finding, not angles of a multi-angle
+  plan." Lalu "When the two angles point different ways" menjadi "When angle_a and angle_b point different ways".
+  Nama field tidak diubah, karena itu keluaran backend.
+- **K2 (T11).** Aturan 15 ditambah: "When the latest message has no language of its own (for example only a ticker),
+  use the language of the conversation, and Indonesian when there is none." Ini hanya menutup kasus s4.1. Akar utama
+  M14, yaitu kalimat batasan yang ditulis backend dalam bahasa Inggris, tidak tercakup (lihat "Tidak tercakup").
+- **K3 (T6).** Dua skema rencana riset beserta aturan field-nya pindah ke bagian baru RESEARCH PLAN FORMS setelah
+  HYPOTHESIS PLAN. Final response cukup menyebut "research_plan: one of the two forms under RESEARCH PLAN FORMS".
+  Alasannya, skema hanya dipakai untuk RESEARCH_PLAN_CONFIRMATION, dan model membacanya tepat setelah aturan rencana.
+  Kode: `final_contract_block` mengeluarkan skema sebagai blok terpisah.
+- **K4 (T10).** Aturan memilih bentuk rencana disatukan di bagian pendek RESEARCH PLANS sebelum kedua rencana. Isinya
+  gabungan kedua versi tanpa menghilangkan syarat apa pun: "with no angles the user did not ask for", "even when a
+  library method could also test them", "Never mix the two in one plan".
+
+### Urutan bagian sesudahnya
+
+1. Pembuka
+2. GENERAL RULES
+3. TOOL USE
+4. TOOL RESULTS (bila aktif)
+5. FINAL RESPONSE
+6. DATA DISCOVERY
+7. DATA SOURCES (baru, F2.1)
+8. DATA NEED
+9. MODES
+10. TIME BASIS
+11. NAMED-PERIOD RETURNS
+12. WEEKLY AND MONTHLY
+13. CONVERSATION REUSE
+14. VALUE REFERENCES
+15. METHODOLOGY
+16. RESEARCH PLANS (K4)
+17. MULTI-ANGLE PLAN
+18. HYPOTHESIS PLAN
+19. RESEARCH PLAN FORMS (K3)
+20. MULTI-ANGLE FINDINGS
+21. HYPOTHESIS FINDINGS
+22. INTERPRETING RESEARCH
+
+### Pagar pengaman (isi tidak boleh berubah diam-diam)
+
+- **Tes inventaris kalimat (baru):** kalimat prompt sebelum dan sesudah dibandingkan (dinormalisasi, urutan diabaikan).
+  Selisihnya harus persis daftar K1–K4 yang disetujui; kalimat lain tidak boleh hilang, bertambah atau berubah.
+- **Tidak ada angka baru** di luar yang disetujui. Tes yang sudah ada diperluas ke semua teks baru.
+- **Ukuran:** token naik paling banyak 2%. Paragraf prosa paling panjang 600 karakter, kecuali skema JSON.
+- **Kesesuaian dengan alat aktif tetap:** tes `tests/test_prompt_audit.py` tetap lulus. Tes yang mencari potongan
+  kalimat atau urutan judul disesuaikan dengan judul baru.
+- **Tes penuh orc.** `AI_TOOLS.md`, `AI_MODELS.md` dan `AI_ROUTER.md` tidak terpengaruh; tes drift-nya ikut
+  dijalankan.
+
+### Deploy dan verifikasi
+
+- **Deploy:** hanya market-ai-orc (push `main`, deploy otomatis). Klaim SUCCESS hanya untuk deployment commit itu.
+  Biaya cache naik sekali karena awalan prompt berubah.
+- **Golden test:** user memilih prompt diganti dulu, jadi `qa_20261006a` mengukur putaran 1 dan 2 sekaligus (± USD
+  0,4–0,6, hanya setelah user meminta). Konsekuensinya, kalau perilaku berubah, tidak bisa dipastikan putaran mana
+  penyebabnya. Untuk mengurangi itu, item yang menguji alat (P31 q7, P34 d1 dan bakrie_bank) dibaca terpisah dari item
+  yang menguji alur riset (s3, h_add, h_lookback).
+- **Item tambahan untuk suite** (usul): satu percakapan yang dibuka dengan "BBRI" saja (K2, M14 s4.1), dan satu rencana
+  hipotesis yang hasilnya `angle_a` dan `angle_b` berbeda arah (K1).
+
+### Dokumen yang diperbarui saat dijalankan
+
+- Dokumen ini, bagian "Hasil putaran 2".
+- `PLAN_2026-10-05.md` (item 7).
+- `ERRORS_AND_SOLUTIONS.md` M14 (bagian s4.1, bila K2 disetujui).
+- `RAILWAY_CHANGELOG.md` (deploy).
+- `OUTSTANDING_ISSUES.md`.
+
+### Tidak tercakup
+
+- Prompt lain: router pesan pertama dan lanjutan, pengklasifikasi balasan rencana, dan web-governor.
+- Kalimat batasan yang ditulis backend dalam bahasa Inggris, akar utama M14. Perbaikannya di kode backend, bukan di
+  prompt; diusulkan terpisah.
+- Nama field `angle_a` / `angle_b`.
