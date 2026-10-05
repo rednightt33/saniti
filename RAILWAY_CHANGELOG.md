@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-10-05 — Prompt pass 2 and M26 option B on dev (orc first, then sandbox)
+
+- User request 2026-10-05: "Langsung jalankan plan dan GT for pending items" (`PLAN_2026-10-05.md` items 7–9).
+- Push 1, `main` `c1f7119` (prompt pass 2 F1–F4, K1–K4, M26-P; M26 option B orchestrator side: the verdict
+  PARTIALLY_SUPPORTED accepted, reason shown in Indonesian, gate `PLAN_MIN_EFFECT`): market-ai-orc `a7363094` SUCCESS;
+  market-python-sandbox and market-sql-governor SKIPPED (no change under their watch paths). No variable changed.
+- Push 2 (sandbox verdict rule): see the next line once deployed.
+
 ## 2026-10-05 — M75: provider speed preference on market-ai-orc (dev)
 
 - User decision 2026-10-05 after the p1 analysis (Sail Research at a median 22 output tokens/s served 79% of the

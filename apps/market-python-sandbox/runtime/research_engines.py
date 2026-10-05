@@ -1007,6 +1007,32 @@ def _significant(candidate: dict[str, Any], expected: str, adjusted: bool) -> st
     return "EXPECTED" if (expected == "HIGHER") == (interval[0] > 0) else "OPPOSITE"
 
 
+# M26 option B (user decision 2026-10-05): an effect in the expected direction but smaller than the minimum effect the
+# user named is PARTIALLY_SUPPORTED. The user's minimum is in the outcome's unit, so it is compared only with an estimate
+# in that unit (a mean difference or a quantile spread of the outcome); a rate difference or a correlation keeps its
+# status.
+BELOW_USER_MINIMUM = "BELOW_USER_MINIMUM_EFFECT"
+OUTCOME_UNIT_ESTIMATES = ("MEAN_DIFFERENCE", "SPREAD")
+
+
+def directed_effect(estimate: float, expected_direction: str) -> float:
+    """The estimate measured in the expected direction (HIGHER: as is; LOWER: negated; DIFFERENT: its size)."""
+    if expected_direction == "LOWER":
+        return -estimate
+    return abs(estimate) if expected_direction == "DIFFERENT" else estimate
+
+
+def below_user_minimum(result: dict[str, Any], expected_direction: str) -> bool:
+    """Whether the primary estimate is smaller than the minimum effect the user named (smallest_effect_source PLAN)."""
+    sample = result.get("sample") or {}
+    delta = _finite(sample.get("smallest_effect_of_interest"))
+    estimate = _finite((result.get("primary") or {}).get("estimate"))
+    if sample.get("smallest_effect_source") != "PLAN" or result.get("estimate_kind") not in OUTCOME_UNIT_ESTIMATES \
+            or delta is None or estimate is None:
+        return False
+    return directed_effect(estimate, expected_direction) < delta
+
+
 def decide(result: dict[str, Any], *, expected_direction: str, validation_level: str,
            minimum_sample: dict[str, Any] | None = None) -> dict[str, str]:
     """{status, reason, evidence_direction} under the multi-angle status rules (MULTI_ANGLE_RESEARCH.md §4). An
@@ -1053,6 +1079,8 @@ def decide(result: dict[str, Any], *, expected_direction: str, validation_level:
             failed = sorted(k for k, v in (result.get("secondary") or {}).items() if v not in ("PASS",
                                                                                                "NOT_APPLICABLE"))
             return out("PARTIALLY_SUPPORTED", "SECONDARY_CHECK_FAILED:" + ",".join(failed))
+        if below_user_minimum(result, expected_direction):
+            return out("PARTIALLY_SUPPORTED", BELOW_USER_MINIMUM)
         return out("SUPPORTED", "EFFECT_IN_EXPECTED_DIRECTION")
     if any(v == "EXPECTED" for v in raw.values()) and not opposite:
         return out("PARTIALLY_SUPPORTED", "MULTIPLE_TESTING_NOT_PASSED")

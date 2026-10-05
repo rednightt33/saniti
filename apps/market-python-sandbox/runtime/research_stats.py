@@ -18,8 +18,10 @@ is not modelled). Proportions use Wilson intervals on the effective count and Ne
 
 Sample category (fixed): INSUFFICIENT (effective count below 2 in a group: no verdict), ANECDOTAL (below 10),
 UNDERPOWERED (the minimum detectable effect exceeds the smallest effect of interest), ADEQUATE.
-Verdict (fixed): ANECDOTAL -> INCONCLUSIVE; a CI excluding zero in the expected direction -> SUPPORTED, in the other
-direction -> NOT_SUPPORTED; a CI including zero -> NOT_SUPPORTED when ADEQUATE, INCONCLUSIVE when UNDERPOWERED.
+Verdict (fixed): ANECDOTAL -> INCONCLUSIVE; a CI excluding zero in the expected direction -> SUPPORTED, or
+PARTIALLY_SUPPORTED (BELOW_USER_MINIMUM_EFFECT) when the difference is smaller than the minimum effect the user named
+(M26 option B, 2026-10-05); in the other direction -> NOT_SUPPORTED; a CI including zero -> NOT_SUPPORTED when ADEQUATE,
+INCONCLUSIVE when UNDERPOWERED.
 """
 from __future__ import annotations
 
@@ -33,7 +35,10 @@ DIRECTIONS = ("HIGHER", "LOWER", "DIFFERENT")
 UNITS = ("PERCENT", "DECIMAL", "OTHER")
 POLICIES = ("NONE", "BONFERRONI", "HOLM", "BENJAMINI_HOCHBERG")
 FLAGS = ("INSUFFICIENT", "ANECDOTAL", "UNDERPOWERED", "ADEQUATE")
-VERDICTS = ("SUPPORTED", "NOT_SUPPORTED", "INCONCLUSIVE", "NOT_EVALUATED")
+# M26 option B (user decision 2026-10-05): PARTIALLY_SUPPORTED when the effect is in the expected direction but smaller
+# than the minimum effect the user named (min_effect, in the outcome's unit)
+VERDICTS = ("SUPPORTED", "PARTIALLY_SUPPORTED", "NOT_SUPPORTED", "INCONCLUSIVE", "NOT_EVALUATED")
+BELOW_USER_MINIMUM = "BELOW_USER_MINIMUM_EFFECT"
 MIN_EFFECTIVE = 2
 ANECDOTAL_BELOW = 10
 ALPHA = 0.05
@@ -259,6 +264,10 @@ def summarize(table, *, horizon_periods: int = 1, expected_direction: str = "HIG
         agrees = expected_direction == "DIFFERENT" or (expected_direction == "HIGHER") == (low > 0)
         verdict, reason = ("SUPPORTED", "EFFECT_IN_EXPECTED_DIRECTION") if agrees else \
             ("NOT_SUPPORTED", "EFFECT_OPPOSITE_TO_EXPECTED")
+        directed = -difference if expected_direction == "LOWER" else abs(difference) \
+            if expected_direction == "DIFFERENT" else difference
+        if verdict == "SUPPORTED" and delta_source == "PLAN" and delta is not None and directed < delta:
+            verdict, reason = "PARTIALLY_SUPPORTED", BELOW_USER_MINIMUM
     elif flag == "ADEQUATE":
         verdict, reason = "NOT_SUPPORTED", "NO_EFFECT_AS_LARGE_AS_THE_SMALLEST_EFFECT_OF_INTEREST"
     else:

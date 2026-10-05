@@ -72,7 +72,7 @@ diambil ulang dari database, tetapi rencana dan definisinya tetap sama karena ad
 - *Antrean membuat jawaban lebih lama.* Ada batas tunggu, posisi antrean diumumkan, dan ada pesan jelas bila habis
   waktu.
 
-### R-STORE — tabel hasil tahan lama, ruang kerja sementara (masuk round ini, 2026-10-03; belum dijalankan)
+### R-STORE — tabel hasil tahan lama, ruang kerja sementara (masuk round 2026-10-03; DEPLOYED dev 2026-10-03, belum diverifikasi live: `OUTSTANDING_ISSUES.md` S29 / R-STORE)
 
 **Benchmark:**
 - [OpenAI Code Interpreter](https://developers.openai.com/api/docs/guides/tools-code-interpreter): ruang kerja

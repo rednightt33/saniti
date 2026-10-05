@@ -1,4 +1,4 @@
-# Masalah yang belum selesai: status (2026-10-02, diperbarui 2026-10-05)
+# Masalah yang belum selesai: status (2026-10-02, diperbarui 2026-10-05 sore)
 
 Sumber: `ERRORS_AND_SOLUTIONS.md` (kode adalah rujukan ke sana). Satu masalah dimasukkan ke satu kategori saja, yaitu
 dampak terberatnya.
@@ -27,7 +27,7 @@ g6 = usulan pertanyaan tambahan).
 - **[HIGH ALERT]** M66: pertanyaan sama, definisi "hari crash" / "bank BUMN" berbeda. --> UNDERADDRESSED + KEPUTUSAN USER (kamus istilah); terulang di GT 2026-10-02c (g1 vs g1_repeat: definisi "paling likuid" berbeda)
 - **[HIGH ALERT]** M63: penjelasan menghitung ulang dengan cakupan berbeda dari tabelnya. --> TERBUKTI (GT `ma-golden-20261002c`): g7 tetap di papan Nego, g5.3 menjelaskan dari tabel asal; celah baru M68 (nilai filter hilang dari catatan) UNDERADDRESSED
 - **[HIGH ALERT]** M28: definisi sukses dari user diganti aturan bawaan. --> TERBUKTI untuk rencana hipotesis (GT `ma-golden-20261002c`); jalur riset multi-sudut (mode 4) belum mengikat ambang: M69 UNDERADDRESSED
-- **[HIGH ALERT]** M26: SUPPORTED walau efek di bawah batas yang disebut user. --> DIPUTUSKAN user 2026-10-05: pilihan B (SUPPORTED hanya bila efek mencapai batas user; di bawahnya PARTIALLY_SUPPORTED); rencana `PLAN_2026-10-05.md` item 8, belum dibangun; diuji item `m26_min_effect` golden test berikutnya
+- **[HIGH ALERT]** M26: SUPPORTED walau efek di bawah batas yang disebut user. --> DIPUTUSKAN user 2026-10-05: pilihan B (SUPPORTED hanya bila efek mencapai batas user; di bawahnya PARTIALLY_SUPPORTED); DIBANGUN 2026-10-05 (orc `c1f7119`: vonis diterima, alasan berbahasa Indonesia, "didukung" penuh ditolak, gerbang `PLAN_MIN_EFFECT`; sandbox: aturan vonis di kedua jalur, hanya untuk estimasi berskala satuan hasil); diuji item `m26_min_effect` golden test `ma-qa-20261005b`
 - **[HIGH ALERT]** M29: rencana menyebut 6 bank, eksekusi 48. --> TERBUKTI (GT `ma-golden-20261002c`): gerbang menolak angka rencana tanpa sumber
 - M25: temuan eksperimen pertama hilang dari metadata. --> TERBUKTI (GT `ma-golden-20261002c`)
 - S13: sudut riset INVALID karena rekaman ganda. --> TIDAK MUNCUL LAGI (GT `ma-golden-20261002c`) (0 dari 25 sudut; jalur penolakan host belum terpicu)
@@ -62,7 +62,7 @@ g6 = usulan pertanyaan tambahan).
 - P34: pertanyaan fakta yang datanya ada di database (sektor BBCA) dijawab dari web; daftar saham sektor energi LIMITED. --> DIPERBAIKI 2026-10-05 (pilihan A): alat `lookup_reference` di semua langkah baca termasuk FACT, alat web ditolak untuk atribut yang ada di tabel referensi sampai tabelnya dibaca, angka web tidak boleh masuk perhitungan; live di dev, uji smoke Governor lulus; perilaku AI menunggu golden test yang ditunda
 - P32: jumlah bar uji (1.693) ikut menghitung bar pemanasan (70). --> DIPERBAIKI lapis 1–4 (hitungan berlabel, in_period, backtest, buku metode v5), live; uji golden test berikutnya
 - P33: uji Pine rusak no. 5 dan 9b. --> no. 5 DIPERBAIKI (z-score aktivitas tanpa hari ini, dari katalog), live; no. 9b koreksi kunci jawaban tes
-- M14: pesan "BBRI" saja dijawab klarifikasi berbahasa Inggris (s4.1). --> terulang, tetap UNDERADDRESSED
+- M14 (bagian s4.1): pesan "BBRI" saja dijawab klarifikasi berbahasa Inggris. --> DIPERBAIKI 2026-10-05 lewat prompt putaran 2 K2 (orc `c1f7119`, live); uji `lang_ticker_only` di golden test `ma-qa-20261005b`. Bagian utama M14 (catatan backend berbahasa Inggris) ada di bagian 4
 
 ## 3. Tidak keluar jawaban (buntu)
 
@@ -70,8 +70,9 @@ g6 = usulan pertanyaan tambahan).
 - M74: router membaca pertanyaan lanjutan sebagai revisi usulan riset (g7.3 "bandingkan dengan 2024"). --> DIPERBAIKI sebagian (benchmark: salah baca 14/60 → 8/60 di MiMo; sisa "Coba event study" dibaca setuju), menunggu golden test akhir (g7, g5)
 - M73: mode 4 menjalankan riset untuk setiap pertanyaan baru. --> SESUAI DESAIN (tujuan 1 mode 4); ditutup 2026-10-04
 - G22: database bersama kewalahan saat 5 worker paralel; rencana dan riwayat percakapan gagal disimpan/dibaca, Governor 503. --> DIPERBAIKI di kode (Governor `a23aa316`: satu timeout per pesanan, antrean N=2; orc `fba3574e`: simpan coba ulang sekali), menunggu golden test akhir 5 worker; database terpisah (G22-6) menunggu keputusan user (GT `ma-golden-20261003e` g4.2, g5.1, g2)
-- R30: kredit akun OpenRouter habis (HTTP 402) / batas kunci tercapai (403). --> KEPUTUSAN USER: naikkan batas kunci (terulang 2026-10-04 ± 12:00 UTC: batas kunci USD 25 habis; memblokir sisa benchmark fakta dan golden test akhir)
-- R31: ubah variabel tanpa `--skip-deploys` men-deploy ulang dari `main`. --> diatasi lewat proses; tuntas setelah cabang masuk `main` (luar GT)
+- R30: kredit akun OpenRouter habis (HTTP 402) / batas kunci tercapai (403). --> batas kunci dinaikkan user ke USD 30; cek 2026-10-05: sisa kunci USD 2,99, sisa kredit akun USD 5,35 (cukup untuk satu golden test). Terulang setiap kali sisa menipis: KEPUTUSAN USER (tambah kredit/batas)
+- R31: ubah variabel tanpa `--skip-deploys` men-deploy ulang dari `main`. --> SELESAI 2026-10-05: cabang sudah masuk `main`, semua service deploy dari `main` (luar GT)
+- R33: GitHub Action harian "Track Railway and database state" gagal 29/29 karena secret `RAILWAY_TOKEN` kosong; `DATABASE_SCHEMA.md` tertinggal. --> KEPUTUSAN USER: isi secret repo `RAILWAY_TOKEN` (luar GT)
 - P05/P08: jawaban benar dipaksa LIMITATION karena angka parameter. --> DIPERBAIKI (orc `06d6be4a`: ambang/persentil ketikan AI tampil sebagai "Pilihan AI", tidak ditolak), menunggu golden test akhir (g3, g6)
 - G10: FEASIBLE tetapi 7 dari 8 penarikan ditolak. --> MENUNGGU GOLDEN TEST (lewat G13) (g5.7–8)
 - D06: data broker berhenti 31 Agustus. --> UNDERADDRESSED (luar GT, refresh manual)
@@ -115,7 +116,7 @@ g6 = usulan pertanyaan tambahan).
 - G19: dataset riset kosong tetap lolos cakupan, riset jalan di atas data kosong. --> DEPLOYED dev 2026-10-03 (penyebab terverifikasi: kunci penggabungan pesanan; lapis 1 kunci lengkap + lapis 3 gerbang kosong EMPTY_REQUEST/EMPTY_INPUT + argumen audit utuh); belum diverifikasi live; lapis 2 menunggu keputusan 6
 - P26: satuan efek minimal (desimal) dibandingkan dengan hasil (persen). --> DEPLOYED dev 2026-10-03 (ambang membawa satuan, alat bantu memakai satuan rencana, harness memeriksa satuan); belum diverifikasi live
 - Fase D (alat AI dan user): statistik kolom, buka hasil/kode lama, get_lineage, export_result, query_metric, get_evidence. --> DEPLOYED dev 2026-10-03 (D0–D6, termasuk get_evidence dan evidence[]); belum diverifikasi live. Enam metrik query_metric berstatus INFERRED sampai user meninjau definisinya; nilai transaksi ditunda (D-b)
-- M14: catatan berbahasa Inggris di jawaban berbahasa Indonesia. --> UNDERADDRESSED (semua)
+- M14 (bagian utama): catatan backend berbahasa Inggris di jawaban berbahasa Indonesia. --> UNDERADDRESSED (semua); bagian s4.1 lihat bagian 2
 - D08/D13: peringatan data historis; tanggal terbaru. --> UNDERADDRESSED, sebagian (g1)
 - W06–W11: masalah pencarian web. --> UNDERADDRESSED (luar GT, kecuali g7 web)
 

@@ -31,9 +31,9 @@ An AI working on this project must read these files in order before changing Rai
 23. [`apps/market-ai-orc/README.md`](apps/market-ai-orc/README.md) — stateless OpenRouter orchestrator: internal API, bounded agent loop, tool registry (catalog discovery, 20-row previews, `lookup_fact` for bounded source facts, dataset-only `request_data`, spec-first Python analysis tools), the backend answer gates (analysis validation, routing guard, number provenance, claim gate, `evidence_label`), research runs with the Research Governor and `execution.research`, and the verified OpenRouter compatibility rules. Its database access is a read-only catalog login plus INSERT-only writes to `AI_research_run_audit`.
 24. [`apps/market-sql-governor/README.md`](apps/market-sql-governor/README.md) — the only AI path to market-data SQL: structured request specs, EXPLAIN gates, immutable Parquet datasets (never inline rows), bounded fact lookups (`/v1/lookup`), manifests, short-lived dataset access, and expiry.
 25. [`apps/market-python-sandbox/README.md`](apps/market-python-sandbox/README.md) — isolated execution of model-written Python over Governor datasets: approved Analysis Specs checked against the user's words, process isolation, seccomp, limits, the independent validator (preflight, postflight, reference recalculation), structured outputs, and retention.
-26. [`apps/market-web-governor/README.md`](apps/market-web-governor/README.md) — separate provider-neutral web-evidence service: versioned `WebNeedSpec`, criterion-level coverage, OpenRouter search/fetch adapter, citation IDs, source-policy reporting, bounded evidence, and isolated SQLite storage. It is not connected to `market-ai-orc` yet.
+26. [`apps/market-web-governor/README.md`](apps/market-web-governor/README.md) — separate provider-neutral web-evidence service: versioned `WebNeedSpec`, criterion-level coverage, OpenRouter search/fetch adapter, citation IDs, source-policy reporting, bounded evidence, and isolated SQLite storage. `market-ai-orc` calls it through `find_web_fact` for one public fact about a company, after the reference tables (`lookup_reference`, P34).
     - [`WEB_GOVERNOR_PLAN.md`](WEB_GOVERNOR_PLAN.md) — planned, not yet implemented: answer cards in PostgreSQL, default source policy, and pre-event (precursor) indicator analysis.
-    - [`ANSWER_INTEGRITY_FIX_PLAN.md`](ANSWER_INTEGRITY_FIX_PLAN.md) — planned, not yet implemented: M44 (figures resolved against a page), P14 (values the renderer cannot show), P17 (mark doubtful claims instead of rejecting), G13 (count rows instead of estimating).
+    - [`ANSWER_INTEGRITY_FIX_PLAN.md`](ANSWER_INTEGRITY_FIX_PLAN.md) — implemented (2026-10-01/02): M44 (figures resolved against a page), P14 (values the renderer cannot show), P17 (mark doubtful claims instead of rejecting), G13 (count rows instead of estimating; live verification pending). Statuses in `ERRORS_AND_SOLUTIONS.md`.
     - [`NEW_TABLE_ONBOARDING_PLAN.md`](NEW_TABLE_ONBOARDING_PLAN.md) — planned, not executed: what the user defines for a new AI table (currency, FX, index, macro), the backend places that list tables by hand today, and the fixed tests.
 27. [`ERRORS_AND_SOLUTIONS.md`](ERRORS_AND_SOLUTIONS.md) — every error found so far with its root cause, solution and status, and the data-format standard (Part A) that a new data source must meet before loading, for example cross-asset or macro data.
 
@@ -67,6 +67,8 @@ Every successful change to Railway or its PostgreSQL database must be recorded a
 - Secret change: record only the variable name, scope, and action. Never record its value.
 - Process or navigation change: update this README, `PROJECT_CONTEXT.md`, or `AGENTS.md` as applicable.
 - AI tool, session helper, method guide or its switch change: regenerate [`AI_TOOLS.md`](AI_TOOLS.md) with `scripts/generate_ai_tools_doc.py` (see `AGENTS.md`).
+- AI model call or model setting change (model, reasoning, output tokens, tools, structured output, provider routing, or such a Railway variable): regenerate [`AI_MODELS.md`](AI_MODELS.md) with `scripts/generate_ai_models_doc.py` (see `AGENTS.md`).
+- Router criteria change: regenerate [`AI_ROUTER.md`](AI_ROUTER.md) with `scripts/generate_ai_router_doc.py` and re-run the router benchmark before deploying (see `AGENTS.md`).
 
 Required finish sequence:
 
@@ -95,7 +97,7 @@ Do not place `DATABASE_URL`, Railway tokens, Stockbit JWTs, GitHub PATs, passwor
 
 Before generating the schema, the Action reconciles `Column_Catalog` physical metadata and fails if a table, column, or active Feature definition is missing from its required catalog. It does not invent semantic definitions; unresolved meanings remain `NEEDS_REVIEW`.
 
-The repository must have an Actions secret named `RAILWAY_TOKEN`; the value is never written to Git. The automated snapshot complements the mandatory human/AI changelogs: Git captures exactly what changed, while the changelogs explain why.
+The repository must have an Actions secret named `RAILWAY_TOKEN`; the value is never written to Git. **Known gap (R33, 2026-10-05):** the secret is empty, so every scheduled run fails at its first Railway call and neither file is refreshed by the Action until the user sets it; `.railway/railway.ts` is kept current by `railway config pull --force` after each change, and `DATABASE_SCHEMA.md` lags the migrations applied since its last refresh. The automated snapshot complements the mandatory human/AI changelogs: Git captures exactly what changed, while the changelogs explain why.
 
 Local refresh:
 

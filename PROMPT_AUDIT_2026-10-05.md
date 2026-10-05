@@ -102,9 +102,10 @@ registry (`build_system_prompt(tools=...)`), kelas masalah yang sama dengan P31.
 **Tes:** `tests/test_prompt_audit.py` (7 tes). Tes lama yang membandingkan blok mentah dengan prompt sekarang memakai
 `markdown_prompt(...)`. Orc: 1.113 lulus.
 
-## Putaran 2: merapikan bentuk (RENCANA, belum dijalankan)
+## Putaran 2: merapikan bentuk (DIJALANKAN 2026-10-05, lihat "Hasil putaran 2")
 
-Status: **RENCANA FINAL, belum dijalankan.** Diminta user 2026-10-05 ("coba kita ganti promptnya dulu ya. masukan
+Status: **DIJALANKAN 2026-10-05** (orc `c1f7119`, deploy `a7363094` SUCCESS); rencana awal di bawah.
+Status sebelumnya: **RENCANA FINAL, belum dijalankan.** Diminta user 2026-10-05 ("coba kita ganti promptnya dulu ya. masukan
 ke dalam plan jangan eksekusi"); K1–K4 **disetujui user 2026-10-05** ("K1-K4 OK"). Belum ada kode yang diubah.
 Dijalankan bersama M26 pilihan B (`PLAN_2026-10-05.md` item 8), yang juga mengubah dua kalimat prompt (M26-P di
 bawah); keduanya diukur oleh satu golden test (`PLAN_2026-10-05.md` item 9). Item F1–F4 hanya memindah dan memecah
@@ -251,3 +252,21 @@ kalimat yang sudah ada.
 - Kalimat batasan yang ditulis backend dalam bahasa Inggris, akar utama M14. Perbaikannya di kode backend, bukan di
   prompt; diusulkan terpisah.
 - Nama field `angle_a` / `angle_b`.
+
+### Hasil putaran 2 (2026-10-05)
+
+- **Live:** commit `c1f7119`, market-ai-orc `a7363094` SUCCESS. Diperintah user 2026-10-05 ("Langsung jalankan plan").
+- **Isi:** F1–F4, K1–K4 dan M26-P sesuai rencana. Urutan 22 bagian persis seperti "Urutan bagian sesudahnya".
+- **Tes inventaris kalimat** (`tests/test_prompt_pass2.py`, acuan `tests/fixtures/prompt_dev_before_pass2.md` = prompt
+  dev `d9c4ebc`): selisih kalimat persis K1, K2, K3, K4, M26-P dan F4. Kalimat lain hanya pindah.
+- **Angka:** tidak ada digit baru (daftar digit sebelum dan sesudah sama).
+- **Ukuran:** 34.509 → 34.937 karakter (+1,2%). Token (tokenizer o200k) 7.409 → 7.530 = **+1,63%** (batas 2%).
+- **Satu penyesuaian dari rencana (F1):** paragraf panjang dipecah **satu baris per aturan tanpa tanda "-"**. Dengan
+  tanda "-" per aturan, token naik 3,12% (tanda saja +1,96%), melewati batas 2%. Aturan turunan di bawah butir bernomor
+  diberi indentasi. Baris prosa terpanjang sekarang 517 karakter (batas 600).
+- **Tambahan kecil yang diperlukan:** catatan persetujuan rencana (`APPROVED_NOTE`) kini menyebut bagian yang benar
+  ("HYPOTHESIS PLAN" saat dua bentuk rencana aktif), karena judul lama tidak ada lagi.
+- **Tes orc:** 1.126 lulus. Tes lama yang mencari potongan teks satu baris atau judul lama disesuaikan; isinya tidak
+  berubah.
+- **Pengukuran perilaku:** golden test `PLAN_2026-10-05.md` item 9 (jumlah jawaban akhir yang ditolak karena bukan
+  JSON, bahasa `lang_ticker_only`, `g6_success_rule`).

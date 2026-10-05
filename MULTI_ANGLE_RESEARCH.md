@@ -149,10 +149,17 @@ bundle, code, helper, validator), `released_output_ids`.
    DIFFERENT, either direction), and every secondary check passes (for example quantile monotonicity, no candidate
    significant in the other direction, the holdout agrees).
 6. `PARTIALLY_SUPPORTED`: significant in the expected direction without the adjustment only, or with a failed
-   secondary check, or only at a candidate other than the predeclared one.
+   secondary check, or only at a candidate other than the predeclared one, or (M26 option B, user decision
+   2026-10-05) `SUPPORTED` by rule 5 but with a primary estimate smaller than the minimum effect the user named
+   (reason `BELOW_USER_MINIMUM_EFFECT`).
 
-The minimum effect (M26) does not change a status in this release; it sets the sample category (UNDERPOWERED), as in
-findings v1.
+The minimum effect sets the sample category (UNDERPOWERED), as in findings v1. Since 2026-10-05 a minimum the user
+named (`smallest_effect_source` PLAN) also caps the status at `PARTIALLY_SUPPORTED` when the primary estimate, read in
+the expected direction (HIGHER: the estimate; LOWER: its negative; DIFFERENT: its size), is below it. The user's
+minimum is in the outcome's unit, so the rule applies to estimates in that unit only (`MEAN_DIFFERENCE`, `SPREAD`); a
+`RATE_DIFFERENCE` or a `CORRELATION` keeps its status. The same rule holds for the hypothesis plan
+(`runtime/research_stats.py`, verdict `PARTIALLY_SUPPORTED`). The orchestrator refuses a plan whose `min_effect` is not
+a number the user stated (gate `PLAN_MIN_EFFECT`) and lets the answer call such a finding supported only in part.
 
 ## 5. Flags and capability
 
