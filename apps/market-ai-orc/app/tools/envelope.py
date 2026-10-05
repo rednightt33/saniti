@@ -62,6 +62,9 @@ ERROR_ACTIONS: dict[str, tuple[str, bool]] = {
     "METRIC_DIMENSION_NOT_ALLOWED": (FIX_ARGUMENTS, True),
     # D6: get_evidence and the evidence gate
     "EVIDENCE_NOT_FOUND": (FIX_ARGUMENTS, True),
+    # P34 (plan 2026-10-05): the database before the web; web facts only describe
+    "DATABASE_HOLDS_THIS_ATTRIBUTE": ("CALL:lookup_reference", True),
+    "WEB_NUMBER_IN_CALCULATION": ("USE_DATABASE_VALUE_OR_RESEND_UNCHANGED", True),
 }
 REJECTED_STATUSES = frozenset({
     "REJECTED", "FAILED", "FAIL", "INVALID", "INVALID_SPEC", "NOT_FEASIBLE", "REVISION_REQUIRED", "NOT_FOUND",

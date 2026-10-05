@@ -255,3 +255,78 @@ def test_a_static_column_above_the_bound_is_marked_incomplete(monkeypatch) -> No
                "Daily": {"board": {"data_type": "text", "filter_allowed": True}}}
     domains = cc.value_domains(run, tables, columns)
     assert domains == {"Ref": {"code": {"values": [], "source": "STATIC_TABLE", "complete": False}}}
+
+
+# ---------------------------------------------------------------- P34: reference tables (database before the web)
+
+def test_reference_columns_are_static_readable_and_ai_allowed(governed_db) -> None:
+    result = governor(governed_db, storage=False).reference_columns("r")
+    tables = {t["table"]: t for t in result["tables"]}
+    assert result["status"] == "OK" and UNIVERSE in tables and "IDX_Broker_Profile" in tables
+    assert PRICE not in tables                     # dated: needs a data need
+    assert "Catalog_Only_Table" not in tables      # in the catalog, but this role has no grant
+    assert "Inactive_Table" not in tables
+    universe = tables[UNIVERSE]
+    assert universe["entity_column"] == "Ticker" and "Sector" in {c["column"] for c in universe["columns"]}
+    assert set(universe["columns"][0]) == {"column", "description", "semantic_type", "filter_allowed"}  # never rows
+
+
+def test_reference_rows_read_forward_and_reverse(governed_db) -> None:
+    gov = governor(governed_db, storage=False)
+    one = gov.reference_rows("r", UNIVERSE, ["Sector", "Industry"],
+                             [{"column": "Ticker", "operator": "EQ", "value": "BBCA"}], None)
+    assert one["status"] == "ROWS_READY" and one["columns"] == ["Ticker", "Sector", "Industry"]
+    assert [r["Ticker"] for r in one["rows"]] == ["BBCA"] and one["matched"] == 1
+    sector = one["rows"][0]["Sector"]
+    members = gov.reference_rows("r", UNIVERSE, ["Sector"], [{"column": "Sector", "operator": "EQ", "value": sector}],
+                                 None)
+    assert "BBCA" in {r["Ticker"] for r in members["rows"]} and {r["Sector"] for r in members["rows"]} == {sector}
+    several = gov.reference_rows("r", UNIVERSE, ["Sector"],
+                                 [{"column": "Ticker", "operator": "IN", "value": ["BBCA", "BBRI"]}], None)
+    assert [r["Ticker"] for r in several["rows"]] == ["BBCA", "BBRI"]
+    matched = gov.reference_rows("r", UNIVERSE, ["Sector"], [], {"column": "Industry", "text": "ustry-1"})
+    assert matched["columns"] == ["Ticker", "Sector", "Industry"]  # the matched column is returned
+    assert matched["rows"] and all("ustry-1" in r["Industry"].casefold() for r in matched["rows"])
+    assert matched["matched"] == len(matched["rows"]) < 30
+
+
+def test_reference_rows_cap_the_scan_and_the_return(governed_db, monkeypatch) -> None:
+    import app.governor as G
+
+    gov = governor(governed_db, storage=False)
+    monkeypatch.setattr(G, "REFERENCE_ROWS_RETURN_LIMIT", 3)
+    capped = gov.reference_rows("r", UNIVERSE, ["Sector"], [], None)
+    assert len(capped["rows"]) == 3 and capped["matched"] == 30 and capped["truncated"] is True
+    monkeypatch.setattr(G, "REFERENCE_ROWS_SCAN_LIMIT", 5)
+    wide = gov.reference_rows("r", UNIVERSE, ["Sector"], [], None)
+    assert wide["status"] == "NEEDS_NARROWING" and wide["reason_code"] == "TOO_MANY_ROWS"
+
+
+@pytest.mark.parametrize(("table", "columns", "where", "code"), [
+    (PRICE, ["close"], [], "REFERENCE_STATIC_ONLY"),
+    ("Unapproved_Market_Table", ["ticker"], [], "TABLE_NOT_APPROVED"),
+    ("Inactive_Table", ["ticker"], [], "TABLE_NOT_APPROVED"),
+    (UNIVERSE, ["made_up"], [], "UNKNOWN_COLUMN"),
+    (UNIVERSE, ["Sector"], [{"column": "made_up", "operator": "EQ", "value": "x"}], "UNKNOWN_COLUMN"),
+])
+def test_reference_rows_refuse_what_is_not_a_static_approved_column(governed_db, table, columns, where, code) -> None:
+    result = governor(governed_db, storage=False).reference_rows("r", table, columns, where, None)
+    assert result["status"] == "REJECTED" and result["reason_code"] == code
+
+
+def test_reference_endpoints_take_only_the_orchestrator_key(governed_db, tmp_path) -> None:
+    settings = Settings.from_env(base_env(GOVERNOR_DATABASE_URL=governed_db["login"], SQL_DATASET_LOCAL_DIR=str(tmp_path),
+                                          SQL_GOVERNOR_DATASET_ACCESS_KEY=ACCESS_KEY))
+    client = TestClient(create_app(settings))
+    good, wrong = {"Authorization": f"Bearer {API_KEY}"}, {"Authorization": f"Bearer {ACCESS_KEY}"}
+    assert client.post("/v1/catalog/reference-columns", json={"request_id": "r1"}, headers=wrong).status_code == 401
+    listed = client.post("/v1/catalog/reference-columns", json={"request_id": "r1"}, headers=good)
+    assert listed.json()["status"] == "OK"
+    body = {"request_id": "r1", "table": UNIVERSE, "columns": ["Sector"],
+            "where": [{"column": "Ticker", "operator": "EQ", "value": "BBCA"}], "match": None}
+    assert client.post("/v1/catalog/reference-rows", json=body, headers=wrong).status_code == 401
+    ok = client.post("/v1/catalog/reference-rows", json=body, headers=good)
+    assert ok.status_code == 200 and ok.json()["status"] == "ROWS_READY"
+    for bad in ({**body, "columns": []}, {**body, "match": {"column": "Sector", "text": "x"}},
+                {**body, "where": [{"column": "Ticker", "operator": "LIKE", "value": "B%"}]}, {**body, "extra": 1}):
+        assert client.post("/v1/catalog/reference-rows", json=bad, headers=good).status_code == 422

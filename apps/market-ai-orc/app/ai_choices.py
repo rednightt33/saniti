@@ -189,9 +189,33 @@ def string_sets(value: Any, out: set[frozenset[str]], depth: int = 0) -> None:
                     out.add(frozenset(v.strip().upper() for v in column))
 
 
+def user_numbers(text: str) -> set[float]:
+    """The numbers of the user's words, each also as percent <-> fraction."""
+    return _user_numbers(text)
+
+
+def web_numbers_in_code(values: list[Typed], user_text: str, web_numbers: Iterable[float],
+                        data_numbers: Iterable[float]) -> list[float]:
+    """P34 (user rule 2026-10-05: every calculation is sourced from the database; web facts only describe): the
+    numbers typed into code that only a web fact supplied (not the user's words, not a value the data returned)."""
+    web, data, user = list(web_numbers), list(data_numbers), _user_numbers(user_text)
+    out: list[float] = []
+    for typed in values:
+        if typed.kind != "NUMBER":
+            continue
+        value = float(typed.value)
+        if value in (0.0, 1.0, -1.0) or value in out or not _close(value, web) or _close(value, user) \
+                or _close(value, data):
+            continue
+        out.append(value)
+    return out
+
+
 def classify(values: list[Typed], user_text: str, seen_strings: set[str], seen_sets: set[frozenset[str]],
-             seen_numbers: Iterable[float]) -> list[dict[str, Any]]:
-    """The AI_CHOICE values, each once: {"kind", "value", "position"}. USER and DATA values are not returned."""
+             seen_numbers: Iterable[float], web_strings: set[str] | frozenset[str] = frozenset(),
+             web_sets: set[frozenset[str]] | frozenset[frozenset[str]] = frozenset()) -> list[dict[str, Any]]:
+    """The AI_CHOICE values, each once: {"kind", "value", "position"}. USER and DATA values are not returned. A text
+    or list only a web fact supplied (P34: web facts describe, they are not data) is returned with "origin": "WEB"."""
     words = {w.upper() for w in WORD_RE.findall(user_text or "")}
     user_numbers = _user_numbers(user_text)
     numbers = list(seen_numbers)
@@ -208,16 +232,18 @@ def classify(values: list[Typed], user_text: str, seen_strings: set[str], seen_s
             if not text or text in words or text in seen_strings or all(t in words for t in WORD_RE.findall(text)):
                 continue
             key = ("T", text)
+            web = text in web_strings
         else:
             items = frozenset(str(v).strip().upper() for v in typed.value)
             if items <= words or items in seen_sets:
                 continue
             key = ("L", items)
+            web = items in web_sets or bool(items) and items <= web_strings
         if key in shown:
             continue
         shown.add(key)
         out.append({"kind": typed.kind, "value": list(typed.value) if typed.kind == "LIST" else typed.value,
-                    "position": typed.position})
+                    "position": typed.position, **({"origin": "WEB"} if typed.kind != "NUMBER" and web else {})})
         if len(out) >= MAX_CHOICES:
             break
     return out
@@ -239,8 +265,19 @@ def describe_web(facts: list[dict[str, Any]]) -> str | None:
     return "Fakta web (dicari sistem, bukan dari data pasar): " + "; ".join(parts) + "."
 
 
+def describe_web_used(choices: list[dict[str, Any]]) -> str | None:
+    """P34: the web-fact values the code used to filter (system-written), or None."""
+    parts = [("daftar " + ", ".join(str(v) for v in c["value"][:20]) + (" …" if len(c["value"]) > 20 else ""))
+             if c["kind"] == "LIST" else f"nilai '{c['value']}'" for c in choices if c.get("origin") == "WEB"]
+    if not parts:
+        return None
+    return ("Fakta web dipakai di kode (penyaring dari web, bukan dari data pasar; perhitungannya tetap dari "
+            "database): " + "; ".join(parts) + ".")
+
+
 def describe(choices: list[dict[str, Any]]) -> str | None:
-    """The system-written line shown in the answer, or None."""
+    """The system-written line shown in the answer, or None (web-fact values have their own line)."""
+    choices = [c for c in choices if c.get("origin") != "WEB"]
     if not choices:
         return None
     parts = []

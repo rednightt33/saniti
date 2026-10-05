@@ -194,6 +194,49 @@ def create_app(settings: Settings | None = None, governor: Governor | None = Non
         except GovernorUnavailable:
             return JSONResponse(status_code=503, content={"detail": "Governed database unavailable"})
 
+    @app.post("/v1/catalog/reference-columns", dependencies=[Depends(authorize)])
+    def reference_columns(body: Any = Body(...)) -> Any:
+        """P34: the columns of the static reference tables with their descriptions (metadata, never rows)."""
+        if not isinstance(body, dict) or set(body) != {"request_id"} or not isinstance(body["request_id"], str) \
+                or not REQUEST_ID.fullmatch(body["request_id"]):
+            raise HTTPException(status_code=422, detail="Body must be {request_id}")
+        try:
+            return governor.reference_columns(body["request_id"])
+        except GovernorUnavailable:
+            return JSONResponse(status_code=503, content={"detail": "Governed database unavailable"})
+
+    @app.post("/v1/catalog/reference-rows", dependencies=[Depends(authorize)])
+    def reference_rows(body: Any = Body(...)) -> Any:
+        """P34: rows of one static reference table (a stock's classification or profile, or the stocks with one)."""
+        def valid_where(item: Any) -> bool:
+            if not isinstance(item, dict) or set(item) != {"column", "operator", "value"} \
+                    or not isinstance(item["column"], str) or not COLUMN.fullmatch(item["column"]):
+                return False
+            if item["operator"] == "EQ":
+                return isinstance(item["value"], str) and 1 <= len(item["value"]) <= 200
+            return item["operator"] == "IN" and isinstance(item["value"], list) and 1 <= len(item["value"]) <= 50 \
+                and all(isinstance(v, str) and 1 <= len(v) <= 200 for v in item["value"])
+
+        ok = isinstance(body, dict) and set(body) == {"request_id", "table", "columns", "where", "match"} \
+            and isinstance(body["request_id"], str) and REQUEST_ID.fullmatch(body["request_id"]) \
+            and isinstance(body["table"], str) and TABLE.fullmatch(body["table"]) \
+            and isinstance(body["columns"], list) and 1 <= len(body["columns"]) <= 8 \
+            and all(isinstance(c, str) and COLUMN.fullmatch(c) for c in body["columns"]) \
+            and isinstance(body["where"], list) and len(body["where"]) <= 4 \
+            and all(valid_where(w) for w in body["where"]) \
+            and (body["match"] is None or (isinstance(body["match"], dict) and set(body["match"]) == {"column", "text"}
+                 and isinstance(body["match"]["column"], str) and COLUMN.fullmatch(body["match"]["column"])
+                 and isinstance(body["match"]["text"], str) and 2 <= len(body["match"]["text"]) <= 60))
+        if not ok:
+            raise HTTPException(status_code=422, detail="Body must be {request_id, table, columns (1-8), where (0-4 "
+                                                        "{column, operator EQ|IN, value}), match ({column, text 2-60} "
+                                                        "or null)}")
+        try:
+            return governor.reference_rows(body["request_id"], body["table"], body["columns"], body["where"],
+                                           body["match"])
+        except GovernorUnavailable:
+            return JSONResponse(status_code=503, content={"detail": "Governed database unavailable"})
+
     @app.post("/v1/catalog/contract", dependencies=[Depends(authorize_manifest)])
     def catalog_contract(body: Any = Body(...)) -> Any:
         """Catalog metadata (never rows) that an Analysis Spec V2 is approved against."""

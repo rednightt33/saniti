@@ -41,6 +41,7 @@ SWITCHES = {
     "AI_ENABLE_PREFLIGHT_PARTS": "preflight_parts", "AI_ENABLE_MULTI_ANGLE_RESEARCH": "multi_angle",
     "AI_ENABLE_LINEAGE_TOOL": "lineage_tool", "AI_ENABLE_EXPORT": "export", "AI_ENABLE_QUERY_METRIC": "metrics",
     "AI_ENABLE_EVIDENCE": "evidence", "AI_ENABLE_WEB_FACT": "web_fact_client",
+    "AI_ENABLE_REFERENCE_LOOKUP": "reference_lookup",
 }
 
 # One plain-language sentence per name (Indonesian, for non-developers).
@@ -51,6 +52,7 @@ PLAIN = {
     "get_catalog_details": "Detail sampai 3 tabel: arti kolom, satuan, cara menyambung tabel, cakupan tanggal, rumus.",
     "read_catalog_rows": "Membaca isi lengkap satu tabel katalog, halaman per halaman.",
     "preview_table_rows": "Contoh maksimal 20 baris dari tabel pasar; hanya contoh, bukan untuk analisis.",
+    "lookup_reference": "Membaca tabel referensi database (sektor, industri, profil emiten, data broker): daftar kolomnya, atau baris satu emiten / semua emiten dengan satu kategori / nama yang mengandung kata tertentu, maksimal 100 baris. Dipakai sebelum web; alat web ditolak untuk atribut yang ada di tabel ini sampai tabelnya dibaca.",
     "get_dimension_values": "Nilai persis sebuah kategori (misalnya ejaan 'Banks' atau 'Regular'), supaya saringan tidak salah tulis.",
     "request_data": "Jalur lama: query data langsung lewat SQL Governor (diganti alur DataNeed).",
     "lookup_fact": "Jalur lama: mengambil satu fakta pendek dari data (diganti alur DataNeed).",

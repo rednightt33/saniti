@@ -18,7 +18,11 @@ DESCRIPTION = (
     "state-owned, its controlling shareholder, its listing status or index membership. The backend searches, keeps "
     "only values quoted verbatim from their sources and returns CONFIRMED (two independent sites or one official), "
     "CONFLICTING (every version), PARTIAL (one site) or NOT_FOUND. Ask one subject and one attribute per call; never "
-    "use it for prices, volumes or any figure the database holds.")
+    "use it for prices, volumes or any figure the database holds. A web fact describes: state it in the answer as a "
+    "web fact; a calculation's inputs come from the database.")
+# P34: added only when lookup_reference is offered (a description never names a tool that is not there; P31)
+REFERENCE_SENTENCE = (" An attribute the database's reference tables hold (sector, industry, company profile) is read "
+                      "with lookup_reference; this tool is refused for it until those tables have been read.")
 
 
 class WebFactArguments(BaseModel):
@@ -62,10 +66,11 @@ def model_view(result: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def web_fact_spec(client: WebFactClient) -> ToolSpec:
+def web_fact_spec(client: WebFactClient, *, reference_lookup: bool = False) -> ToolSpec:
     def handler(arguments: WebFactArguments) -> dict[str, Any]:
         result = client.fact(current_request_id.get() or "unknown", arguments.subject, arguments.attribute)
         return model_view(result)
 
-    return ToolSpec(name="find_web_fact", effect="FETCHES_WEB", description=DESCRIPTION, arguments_model=WebFactArguments,
+    description = DESCRIPTION + (REFERENCE_SENTENCE if reference_lookup else "")
+    return ToolSpec(name="find_web_fact", effect="FETCHES_WEB", description=description, arguments_model=WebFactArguments,
                     handler=handler, timeout_seconds=45.0)

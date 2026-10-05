@@ -57,6 +57,7 @@ def build_default_registry(
     metrics: list[dict] | None = None,
     evidence: bool = False,
     web_fact_client: Any | None = None,
+    reference_lookup: bool = False,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
@@ -90,6 +91,14 @@ def build_default_registry(
         if not dataneed_enabled:  # governed datasets of the Analysis Spec path
             registry.register(manifest_spec(governor_client, timeout_seconds=min(governor_timeout_seconds, 20.0)))
         registry.register(dimension_values_spec(governor_client, timeout_seconds=min(governor_timeout_seconds, 30.0)))
+        if reference_lookup:
+            # P34 (AI_ENABLE_REFERENCE_LOOKUP): the reference tables, read in every reading step, and checked by the
+            # orchestrator before find_web_fact
+            from .reference import ReferenceCatalog, lookup_reference_spec
+
+            registry.reference_catalog = ReferenceCatalog(governor_client)
+            registry.register(lookup_reference_spec(governor_client, registry.reference_catalog,
+                                                    timeout_seconds=min(governor_timeout_seconds, 30.0)))
     if sandbox_client is not None and not dataneed_enabled:
         # The Analysis Spec path (create_analysis_spec -> prepare_analysis_data -> run_python_analysis). The DataNeed
         # flow replaces it when AI_ENABLE_DATANEED is on; switching the flag off is the rollback.
@@ -175,7 +184,8 @@ def build_default_registry(
         # S4b (AI_ENABLE_WEB_FACT): one fact that is not in the data, from market-web-governor /v1/fact
         from .web_fact import web_fact_spec
 
-        registry.register(web_fact_spec(web_fact_client))
+        registry.register(web_fact_spec(web_fact_client,
+                                        reference_lookup=registry.get("lookup_reference") is not None))
     if method_guides and dataneed_enabled:
         # 4b: the manual of each offered method; a research library method_id opens its library entry
         from .method_guides import method_guide_spec

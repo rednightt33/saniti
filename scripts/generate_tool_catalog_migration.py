@@ -10,8 +10,9 @@ registering the new versions of the tools whose contract changed in that round.
 - round_e (20261004_001, applied): get_evidence v2 with DAYS (golden test ma-golden-20261003d).
 - round_f (20261004_002, applied): the first row of find_web_fact (S4b, PLAN_FINAL_2026-10-04.md Fase 4); no version
   change.
-- round_g (20261005_001): get_system_capabilities v2, capabilities derived from the offered tools' effects (P31);
+- round_g (20261005_001, applied): get_system_capabilities v2, capabilities derived from the offered tools' effects (P31);
   prepare_data_bundle v2, open_analysis_session v2, run_python v4, complete_analysis orc-v2 (P32 counts, backtest).
+- round_h (20261005_003): the first row of lookup_reference and find_web_fact v2 (P34: the database before the web).
 
 Registered from the code with every switch of the dev environment on (the registry of scripts/generate_ai_tools_doc.py,
 one source for both). An applied migration is frozen (database/migrations/APPLIED.sha256); market-ai-orc's
@@ -142,8 +143,33 @@ ROUNDS = {
         "limits": {"capabilities": "derived from ToolSpec.effect of the tools offered in the step (app/tools/system.py "
                                    "EFFECT_CAPABILITIES)"},
     },
+    "round_h": {
+        "target": ROOT / "database/migrations/20261005_003_round_h_tool_catalog.sql",
+        "versions": {"find_web_fact": ("v1", "v2")},
+        "contracts": {"find_web_fact": ("purpose", "lookup_reference")},
+        "new": {
+            "lookup_reference": {"family": "QUERY", "type": "RETRIEVAL", "flag": "AI_ENABLE_REFERENCE_LOOKUP",
+                                 "handler": "app/tools/reference.py",
+                                 "output": "without table: the static reference tables (no time column) with their "
+                                           "AI-allowed columns and catalog descriptions; with table: at most 100 rows "
+                                           "through SQL Governor /v1/catalog/reference-rows (catalog, compile and "
+                                           "EXPLAIN gates), matched count, truncated flag; current values, not as of "
+                                           "past dates."},
+        },
+        "title": "P34 database before the web",
+        "design": "ERRORS_AND_SOLUTIONS.md P34; PLAN_2026-10-05.md item 4 (option A)",
+        "summary": ["lookup_reference v1: the database's static reference tables (classifications, profiles), read in",
+                    "every reading step including FACT (P34: the FACT step had no database reader and took BBCA's",
+                    "sector from the web). find_web_fact v2: refused once while a reference column holds the asked",
+                    "attribute (one small matcher call over the catalog's reference columns; fail-open); a web fact",
+                    "describes and never enters a calculation."],
+        "limits": {"reference_rows": "at most 100 returned, 2000 scanned (else NEEDS_NARROWING), 8 columns, 4 where "
+                                     "conditions (EQ or IN of at most 50 values), one text match of 2-60 characters",
+                   "web_check": "AI_MODEL, reasoning low, strict schema {held, table, column}; the named column must "
+                                "be listed by the Governor, else the web call runs"},
+    },
 }
-NEWEST = "round_g"
+NEWEST = "round_h"
 
 
 def _tools_doc():

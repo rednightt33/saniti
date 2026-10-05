@@ -13,6 +13,7 @@ from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
 from . import ai_choices
+from .tools import reference
 from .audit_outbox import build_payload, final_event, model_event, tool_event, unrendered_event
 from . import data_record as records
 from . import definition_check
@@ -1630,6 +1631,16 @@ class RunState:
     seen_strings: set[str] = field(default_factory=set)
     seen_sets: set[frozenset[str]] = field(default_factory=set)
     web_facts: list[dict[str, Any]] = field(default_factory=list)  # S4b: find_web_fact results
+    # P34: web calls refused because a reference column holds the attribute ((subject, attribute) -> the database
+    # reads made before the refusal), and the lookup_reference reads of this run
+    reference_hints: dict[tuple[str, str], int] = field(default_factory=dict)
+    reference_reads: int = 0
+    # P34 (user rule: every calculation is sourced from the database; web facts only describe): the values web facts
+    # returned, kept apart from the data's (an answer may cite them; code typing a web number is refused once)
+    web_numbers: list[float] = field(default_factory=list)
+    web_strings: set[str] = field(default_factory=set)
+    web_sets: set[frozenset[str]] = field(default_factory=set)
+    web_number_refused: bool = False
     user_history: str = ""
     # Research Plan feasibility and execution: the last FEASIBLE draft of this run, the checks made, whether a RESEARCH
     # data need was submitted (an attempt consumes an approval), the verified approval, and a plan left unexecuted
@@ -2594,11 +2605,62 @@ class AgentOrchestrator:
                   output_tokens=record["output_tokens"])
         return (parsed.route if parsed else None), (parsed.reason if parsed else None), record
 
+    def _database_holds(self, state: RunState, call_id: str, name: str, arguments: Any) -> ToolOutcome | None:
+        """P34 (plan 2026-10-05 Fase D option A): before a web lookup, one small model call compares the asked
+        attribute with the reference columns of the catalog (derived from the Governor at run time). When a column
+        holds it, the call is refused with next_action CALL:lookup_reference naming that table and column, until
+        this run has read the reference tables; after a read the web call runs (the database may lack the row).
+        Any failure lets the web call run (fail-open, logged)."""
+        catalog = getattr(self.registry, "reference_catalog", None)
+        offered = state.tool_filter if state.tool_filter is not None else frozenset(self.registry.names())
+        if catalog is None or "lookup_reference" not in offered or not isinstance(arguments, dict):
+            return None
+        subject, attribute = str(arguments.get("subject") or ""), str(arguments.get("attribute") or "")
+        key = (subject.strip().casefold(), attribute.strip().casefold())
+        if key in state.reference_hints and state.reference_reads > state.reference_hints[key]:
+            log_event("web_fact_after_database_read", request_id=state.request_id, subject=subject[:100],
+                      attribute=attribute[:100])
+            return None
+        try:
+            tables = catalog.tables()
+        except Exception as exc:  # noqa: BLE001 - the web call runs
+            log_event("web_fact_catalog_check_failed", request_id=state.request_id, stage="columns",
+                      error=type(exc).__name__)
+            return None
+        if not tables:
+            return None
+        parsed, record = self._router_call(
+            state.request_id, "web-fact-check", reference.MATCH_INSTRUCTIONS,
+            dumps(reference.matcher_content(subject, attribute, tables)), "reference_match", reference.MATCH_SCHEMA,
+            reference.ReferenceMatch, "web_fact_catalog_check_failed", usage_state=state)
+        held = catalog.column(parsed.table, parsed.column) if parsed is not None and parsed.held else None
+        log_event("web_fact_catalog_checked", request_id=state.request_id, subject=subject[:100],
+                  attribute=attribute[:100], status=record["status"], held=held is not None,
+                  table=held["table"] if held else None, column=held["columns"][0]["column"] if held else None,
+                  input_tokens=record["input_tokens"], output_tokens=record["output_tokens"],
+                  latency_ms=record["latency_ms"])
+        if held is None:
+            return None
+        state.reference_hints[key] = state.reference_reads
+        column = held["columns"][0]
+        outcome = error_outcome(
+            call_id, name, "DATABASE_HOLDS_THIS_ATTRIBUTE",
+            f"The database holds this: {held['table']}.{column['column']} ({column.get('description') or ''}). "
+            "Read it with lookup_reference (where on the entity column for one subject, or match for a name) and "
+            "answer from it. find_web_fact runs after that read only if the table does not answer.")
+        outcome.output["error"].update(
+            next_action="CALL:lookup_reference",
+            suggested_call={"tool": "lookup_reference", "table": held["table"],
+                            "columns": [column["column"]], "entity_column": held.get("entity_column")})
+        return outcome
+
     def _router_call(self, request_id: str, session: str, instructions: str, content: str, schema_name: str,
-                     schema: dict[str, Any], model: Any, failure_event: str) -> tuple[Any, dict[str, Any]]:
+                     schema: dict[str, Any], model: Any, failure_event: str,
+                     usage_state: RunState | None = None) -> tuple[Any, dict[str, Any]]:
         """One router model call: AI_MODEL, reasoning low, strict JSON schema, no tools. Returns the parsed object
-        (None on any failure, including an empty reply) and the usage record."""
-        state = RunState(request_id=request_id, started=self.clock(), input_items=[])
+        (None on any failure, including an empty reply) and the usage record. usage_state: the run whose usage
+        counts this call (a check inside a run)."""
+        state = usage_state or RunState(request_id=request_id, started=self.clock(), input_items=[])
         payload: dict[str, Any] = {
             "model": self.settings.ai_model, "session_id": f"{request_id}:{session}",
             "instructions": instructions,
@@ -2819,7 +2881,9 @@ class AgentOrchestrator:
         """S4 (K6): the AI's own choices, written by the system as the first assumption (never by the model)."""
         if final.response_type == "CLARIFICATION":
             return final
-        lines = [line for line in (ai_choices.describe(state.ai_choices), ai_choices.describe_web(state.web_facts))
+        lines = [line for line in (ai_choices.describe(state.ai_choices),
+                                   ai_choices.describe_web_used(state.ai_choices),
+                                   ai_choices.describe_web(state.web_facts))
                  if line is not None and line not in final.assumptions]
         if not lines:
             return final
@@ -3039,7 +3103,28 @@ class AgentOrchestrator:
             refused = self._insight_source_unopened(state, call_id, name)
             if refused is not None:
                 return self._repair_budget(state, call_id, name, refused)
+        if name in ("run_python", "run_research_code") and state.web_numbers and not state.web_number_refused \
+                and isinstance(arguments, dict) and isinstance(arguments.get("code"), str):
+            found = ai_choices.web_numbers_in_code(ai_choices.typed_values(arguments["code"]), self._user_words(state)
+                                                   + "\n" + state.user_history, state.web_numbers,
+                                                   state.context_numbers)
+            if found:
+                state.web_number_refused = True  # once per run: a coincidence runs on the next call, as a choice
+                log_event("web_number_in_code_refused", request_id=state.request_id, numbers=found[:10])
+                return self._repair_budget(state, call_id, name, error_outcome(
+                    call_id, name, "WEB_NUMBER_IN_CALCULATION",
+                    f"This code uses {', '.join(f'{n:g}' for n in found[:10])}, which only a web fact supplied. A "
+                    "calculation's inputs come from the database; a web fact only describes. Take the value from "
+                    "the data (or from the user's words), or leave the web fact out of the code and state it in the "
+                    "answer as a web fact. If the number is a parameter of your own that only happens to be equal, "
+                    "send the code again unchanged."))
+        if name == "find_web_fact":
+            refused = self._database_holds(state, call_id, name, arguments)
+            if refused is not None:
+                return self._repair_budget(state, call_id, name, refused)
         outcome = self._repair_budget(state, call_id, name, self.registry.execute(call_id, name, raw_arguments))
+        if name == "lookup_reference" and outcome.ok:
+            state.reference_reads += 1
         normalized = self._normalized_arguments(raw_arguments)
         if outcome.ok and isinstance(normalized, dict):
             result = outcome.output.get("result") if isinstance(outcome.output.get("result"), dict) else {}
@@ -3424,13 +3509,19 @@ class AgentOrchestrator:
             state.choice_numbers.extend(float(t.value) for t in typed if t.kind == "NUMBER")
             words = self._user_words(state) + "\n" + state.user_history
             for choice in ai_choices.classify(typed, words, state.seen_strings, state.seen_sets,
-                                              state.context_numbers):
+                                              state.context_numbers, state.web_strings, state.web_sets):
                 if choice not in state.ai_choices and len(state.ai_choices) < ai_choices.MAX_CHOICES:
                     state.ai_choices.append(choice)
             return  # a run's printed text and its own outputs are not values the data supplied
         if name == "find_web_fact" and result.get("status"):
             state.web_facts.append(result)
-            state.context_numbers.extend(numbers_in([v.get("value") for v in result.get("versions") or []]))
+            values = [v.get("value") for v in result.get("versions") or []] + [result.get("value")]
+            # free text ("56.7% of the shares") is read like an answer's text, with its unit variants
+            state.web_numbers.extend(value for text in values if text is not None
+                                     for shown in parse_numbers(str(text)) for value, _ in shown.candidates)
+            ai_choices.string_leaves(values, state.web_strings)
+            ai_choices.string_sets(values, state.web_sets)
+            return  # a web fact describes; its values are not values the data returned (P34)
         ai_choices.string_leaves(result, state.seen_strings)
         ai_choices.string_sets(result, state.seen_sets)
 
@@ -3447,6 +3538,9 @@ class AgentOrchestrator:
                 kind = "DATABASE_AGGREGATE" if fact.get("kind") == "AGGREGATE" else "FACT"
                 state.facts.append({"kind": kind, "aggregation": fact.get("aggregation"),
                                     "values": numbers_in(fact.get("value"))})
+        elif name == "lookup_reference" and result.get("status") == "ROWS_READY":
+            # P34: values of a governed reference table, read by the Governor
+            state.facts.append({"kind": "FACT", "aggregation": None, "values": numbers_in(result.get("rows"))})
         elif name == "query_metric" and result.get("status") == "OK":
             # D5: computed by the database from governed rows in one summary, like a lookup aggregate
             for period in result.get("periods") or []:
@@ -3822,7 +3916,7 @@ class AgentOrchestrator:
         for resolved in state.ref_values:  # P11: a value the backend filled in counts under its source's label
             index.add(resolved.label if resolved.label in LABEL_ORDER else CONTEXT, [resolved.value])
         static = self.system_prompt + "\n" + "\n".join(str(d.get("description", "")) for d in self.registry.definitions())
-        index.add(CONTEXT, state.context_numbers + state.choice_numbers
+        index.add(CONTEXT, state.context_numbers + state.choice_numbers + state.web_numbers
                   + [value for shown in parse_numbers(static) for value, _ in shown.candidates])
         for fact in state.facts:
             index.add(fact["kind"], fact["values"])

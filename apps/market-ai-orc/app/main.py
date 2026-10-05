@@ -341,6 +341,7 @@ def create_app(
             metrics=metrics or None,
             evidence=evidence,
             web_fact_client=web_fact,
+            reference_lookup=settings.ai_enable_reference_lookup,
         )
         auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
             if sandbox is not None or settings.research_audit_database_url else None

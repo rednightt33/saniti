@@ -229,6 +229,9 @@ class Settings:
     ai_replay_reasoning: bool = False
     # S4b (K8): find_web_fact, one fact that is not in the data from market-web-governor POST /v1/fact
     ai_enable_web_fact: bool = False
+    # P34 (plan 2026-10-05 Fase D option A): lookup_reference reads the static reference tables, and find_web_fact is
+    # refused once when one of their columns holds the asked attribute (one small matcher call; fail-open)
+    ai_enable_reference_lookup: bool = False
     web_governor_url: str | None = None
     web_governor_api_key: str | None = field(default=None, repr=False)
     # Multi-Angle Research (MULTI_ANGLE_RESEARCH.md): research_plan/v2 with 3-6 angles, rpc2, per-angle data contracts,
@@ -385,6 +388,7 @@ class Settings:
             ai_capture_reasoning=_boolean(env, "AI_CAPTURE_REASONING", False),
             ai_replay_reasoning=_boolean(env, "AI_REPLAY_REASONING", False),
             ai_enable_web_fact=_boolean(env, "AI_ENABLE_WEB_FACT", False),
+            ai_enable_reference_lookup=_boolean(env, "AI_ENABLE_REFERENCE_LOOKUP", False),
             web_governor_url=_optional(env, "WEB_GOVERNOR_URL"),
             web_governor_api_key=_optional(env, "WEB_GOVERNOR_API_KEY"),
             ai_enable_multi_angle_research=_boolean(env, "AI_ENABLE_MULTI_ANGLE_RESEARCH", False),

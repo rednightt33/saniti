@@ -257,6 +257,34 @@ class GovernorClient:
             raise ToolError("The SQL Governor returned an invalid response.")
         return result
 
+    def _catalog_post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+        try:
+            response = self._client.post(path, json={"request_id": current_request_id.get()
+                                                     or f"orc-{uuid.uuid4().hex[:16]}", **body})
+        except httpx.TimeoutException as exc:
+            raise ToolError("The SQL Governor did not answer in time.") from exc
+        except httpx.HTTPError as exc:
+            raise ToolError("The SQL Governor is unreachable.") from exc
+        if response.status_code != 200:
+            raise ToolError(f"The SQL Governor is unavailable (HTTP {response.status_code}).")
+        try:
+            result = response.json()
+        except ValueError as exc:
+            raise ToolError("The SQL Governor returned an invalid response.") from exc
+        if not isinstance(result, dict) or "status" not in result:
+            raise ToolError("The SQL Governor returned an invalid response.")
+        return result
+
+    def reference_columns(self) -> dict[str, Any]:
+        """P34: the columns of the static reference tables with their catalog descriptions (metadata only)."""
+        return self._catalog_post("/v1/catalog/reference-columns", {})
+
+    def reference_rows(self, table: str, columns: list[str], where: list[dict[str, Any]],
+                       match: dict[str, str] | None) -> dict[str, Any]:
+        """P34: rows of one static reference table (at most 100; the Governor's catalog and EXPLAIN gates apply)."""
+        return self._catalog_post("/v1/catalog/reference-rows", {"table": table, "columns": columns, "where": where,
+                                                                 "match": match})
+
     def lookup(self, spec: "LookupFactSpec") -> dict[str, Any]:
         request_id = current_request_id.get() or f"orc-{uuid.uuid4().hex[:16]}"
         try:

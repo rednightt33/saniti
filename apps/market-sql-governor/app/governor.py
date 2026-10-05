@@ -42,6 +42,18 @@ SEQ_SCAN_NODES = {"Seq Scan", "Parallel Seq Scan", "Sample Scan"}
 TEXT_TYPES = {"text", "character varying", "character", "varchar"}
 DIMENSION_VALUES_SCAN_LIMIT = 2000
 DIMENSION_VALUES_RETURN_LIMIT = 200
+REFERENCE_ROWS_SCAN_LIMIT = 2000  # P34: a static reference table is small (one row per stock or broker)
+REFERENCE_ROWS_RETURN_LIMIT = 100
+REFERENCE_COLUMNS_SQL = '''
+SELECT t.table_name, t.description AS table_description, t.entity_column, c.column_name, c.description,
+       c.semantic_type, c.filter_allowed
+FROM public."AI_table_catalog" t JOIN public."AI_column_catalog" c ON c.table_name = t.table_name
+WHERE t.is_active AND t.ai_access_level = 'BOUNDED_READ' AND t.time_column IS NULL AND c.ai_allowed
+  AND NOT c.is_sensitive
+  AND CASE WHEN to_regclass(format('public.%I', t.table_name)) IS NULL THEN false
+           ELSE has_table_privilege(to_regclass(format('public.%I', t.table_name)), 'SELECT') END
+ORDER BY t.table_name, c.ordinal_position
+'''
 FETCH_BATCH_ROWS = 10_000
 RELTUPLES_SQL = '''
 SELECT c.reltuples::bigint AS reltuples FROM pg_catalog.pg_class AS c
@@ -230,6 +242,103 @@ class Governor:
         _log("sql_governor_dimension_values", request_id=request_id, query_id=query_id, table=table, column=column,
              status=outcome["status"], reason_code=outcome.get("reason_code"), returned=len(outcome.get("values") or []),
              values_sha256=hashlib.sha256(json.dumps(outcome.get("values") or []).encode()).hexdigest(),
+             runtime_ms=int((time.monotonic() - started) * 1000))
+        return outcome
+
+    def reference_columns(self, request_id: str) -> dict[str, Any]:
+        """P34 (2026-10-05): the columns of the static reference tables (classifications, profiles: no time column)
+        with their catalog descriptions, derived from the catalog and the live grants (a table this role cannot read
+        is never offered), so the orchestrator can tell whether an attribute a question asks about is held by the
+        database before it goes to the web. Metadata only, never rows."""
+        with self.database.session() as connection:
+            with connection.cursor(row_factory=dict_row) as cursor:
+                try:
+                    rows = cursor.execute(REFERENCE_COLUMNS_SQL).fetchall()
+                except psycopg.OperationalError as exc:
+                    raise GovernorUnavailable("The governed database is unavailable.") from exc
+        tables: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            table = tables.setdefault(row["table_name"], {"table": row["table_name"], "description":
+                                                          row["table_description"], "entity_column":
+                                                          row["entity_column"], "columns": []})
+            table["columns"].append({"column": row["column_name"], "description": row["description"],
+                                     "semantic_type": row["semantic_type"], "filter_allowed": row["filter_allowed"]})
+        _log("sql_governor_reference_columns", request_id=request_id, tables=sorted(tables),
+             columns=sum(len(t["columns"]) for t in tables.values()))
+        return {"status": "OK", "tables": list(tables.values())}
+
+    def reference_rows(self, request_id: str, table: str, columns: list[str], where: list[dict[str, Any]],
+                       match: dict[str, str] | None) -> dict[str, Any]:
+        """P34 (2026-10-05): rows of one static reference table (no time column), for a fact the database holds: a
+        stock's classification or profile (where on the entity column) or the stocks with a classification (where on
+        a category column), optionally narrowed by a case-insensitive text match on one column. Same catalog, compile
+        and EXPLAIN gates as any extraction; at most REFERENCE_ROWS_RETURN_LIMIT rows are returned."""
+        started = time.monotonic()
+        query_id = f"qry_{uuid.uuid4().hex[:24]}"
+        state: dict[str, Any] = {"source_tables": []}
+        outcome: dict[str, Any]
+        try:
+            with self.database.session() as connection:
+                with connection.cursor(row_factory=dict_row) as cursor:
+                    meta = cursor.execute(TABLES_SQL, ([table],)).fetchone()
+                    allowed = {r["column_name"]: r for r in cursor.execute(
+                        'SELECT column_name, ai_allowed, is_sensitive, filter_allowed FROM public."AI_column_catalog" '
+                        'WHERE table_name = %s', (table,)).fetchall()}
+                if meta is None or not meta["is_active"] or meta["ai_access_level"] != "BOUNDED_READ":
+                    raise rejected("TABLE_NOT_APPROVED", f"{table} is not an approved AI catalog table.")
+                if meta["time_column"]:
+                    raise rejected("REFERENCE_STATIC_ONLY", f"{table} is dated; reference rows come from static "
+                                   "tables (classifications, profiles). Dated data needs a data need.")
+                readable = {c for c, r in allowed.items() if r["ai_allowed"] and not r["is_sensitive"]}
+                entity = meta["entity_column"]
+                chosen = list(dict.fromkeys(([entity] if entity else []) + list(columns)
+                                            + ([match["column"]] if match else [])))
+                unknown = [c for c in chosen + [w["column"] for w in where] + ([match["column"]] if match else [])
+                           if c not in readable]
+                if unknown:
+                    raise rejected("UNKNOWN_COLUMN", f"{unknown} are not AI-allowed columns of {table}.",
+                                   allowed=sorted(readable))
+                unfilterable = [w["column"] for w in where if not allowed[w["column"]]["filter_allowed"]]
+                if unfilterable:
+                    raise rejected("FILTER_NOT_ALLOWED", f"{unfilterable} cannot be filtered.")
+                cap = REFERENCE_ROWS_SCAN_LIMIT + 1
+                spec = DataRequestSpec.model_validate({
+                    "purpose": "Reference rows", "from_table": table,
+                    "columns": [{"table": table, "column": c} for c in chosen], "joins": [],
+                    "filters": [{"table": table, "column": w["column"], "operator": w["operator"], "value": w["value"]}
+                                for w in where],
+                    "group_by": [], "aggregations": [],
+                    "order_by": [{"table": table, "column": chosen[0], "function": None, "direction": "ASC"}],
+                    "requested_limit": cap})
+                _, compiled, _, _ = self._prepare(connection, spec, state, cap)
+                with connection.cursor(row_factory=dict_row) as cursor:
+                    cursor.execute(compiled.statement, compiled.params)
+                    rows = cursor.fetchmany(cap)
+            if len(rows) > REFERENCE_ROWS_SCAN_LIMIT:
+                raise narrowing("TOO_MANY_ROWS", f"More than {REFERENCE_ROWS_SCAN_LIMIT} rows match; add a where "
+                                "condition.", limit=REFERENCE_ROWS_SCAN_LIMIT)
+            rows = [{k: _jsonable_cell(v) for k, v in row.items()} for row in rows]
+            if match:
+                needle = match["text"].casefold()
+                rows = [r for r in rows if needle in str(r.get(match["column"]) or "").casefold()]
+            outcome = {"status": "ROWS_READY", "table": table, "columns": chosen, "where": where, "match": match,
+                       "rows": rows[:REFERENCE_ROWS_RETURN_LIMIT], "matched": len(rows),
+                       "truncated": len(rows) > REFERENCE_ROWS_RETURN_LIMIT, "query_id": query_id,
+                       "note": "Rows of a governed reference table (current classifications and profiles, not "
+                               "as of past dates)."}
+        except GovernorStop as stop:
+            outcome = {"status": stop.decision, "reason_code": stop.reason_code, "message": stop.message,
+                       "table": table, "details": _details(stop.details)}
+        except ValidationError as exc:
+            outcome = {"status": "REJECTED", "reason_code": "INVALID_REFERENCE_REQUEST", "table": table,
+                       "message": "; ".join(e["msg"] for e in exc.errors(include_url=False)[:5])}
+        except psycopg.OperationalError as exc:
+            raise GovernorUnavailable("The governed database is unavailable.") from exc
+        except psycopg.Error:
+            outcome = {"status": "REJECTED", "reason_code": "QUERY_FAILED", "table": table,
+                       "message": "The database rejected the compiled query."}
+        _log("sql_governor_reference_rows", request_id=request_id, query_id=query_id, table=table,
+             status=outcome["status"], reason_code=outcome.get("reason_code"), returned=len(outcome.get("rows") or []),
              runtime_ms=int((time.monotonic() - started) * 1000))
         return outcome
 
@@ -847,6 +956,15 @@ def _for_partitioning(estimates: ex.Estimates) -> ex.Estimates:
     if estimates.row_basis != "AT_LEAST" or (estimates.planner_rows or 0) <= estimates.result_rows:
         return estimates
     return dataclasses.replace(estimates, result_rows=int(estimates.planner_rows))
+
+
+def _jsonable_cell(value: Any) -> Any:
+    """A reference cell as JSON: dates as ISO text, decimals as numbers."""
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return float(value)
+    return value
 
 
 def _details(details: dict[str, Any]) -> dict[str, Any]:
