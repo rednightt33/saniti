@@ -265,6 +265,18 @@ def describe_web(facts: list[dict[str, Any]]) -> str | None:
     return "Fakta web (dicari sistem, bukan dari data pasar): " + "; ".join(parts) + "."
 
 
+def describe_web_research(lookups: list[dict[str, Any]]) -> str | None:
+    """Item 12: the web lookups of research_web the run made, each with its status and the domains of its items
+    (written by the system); the values themselves are named where they are shown."""
+    parts = []
+    for lookup in lookups[:10]:
+        domains = ", ".join(lookup.get("domains") or [])
+        parts.append(f"{lookup.get('need') or '-'} [{lookup.get('status')}" + (f"; {domains}" if domains else "") + "]")
+    if not parts:
+        return None
+    return "Fakta web (dicari sistem, bukan dari data pasar): " + "; ".join(parts) + "."
+
+
 def describe_web_used(choices: list[dict[str, Any]]) -> str | None:
     """P34: the web-fact values the code used to filter (system-written), or None."""
     parts = [("daftar " + ", ".join(str(v) for v in c["value"][:20]) + (" …" if len(c["value"]) > 20 else ""))

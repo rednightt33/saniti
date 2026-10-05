@@ -18,7 +18,8 @@ DEV = dict(lookup_fact=False, dataneed=True, plan_confirmation=True, period_retu
            conversation_reuse=True, methodology=True, plan_feasibility=True, point_in_time=True,
            derived_frequency=True, research_findings=True, multi_angle=True, angle_limits=(2, 5, 0),
            value_references=True, hypothesis_plans=True)
-DEV_TOOLS = frozenset({"query_metric", "lookup_reference", "find_web_fact"})
+# item 12 (plan 2026-10-05): dev offers research_web instead of find_web_fact (AI_ENABLE_WEB_RESEARCH)
+DEV_TOOLS = frozenset({"query_metric", "lookup_reference", "research_web"})
 
 # The approved differences, as sentences (a sentence ends at . ? ! or ; outside brackets)
 REMOVED = {
@@ -52,6 +53,12 @@ REMOVED = {
     # K1
     "When the two angles point different ways, say what that combination means (for example: more often up, but the "
     "falls are deeper).",
+    # item 12 (user decision 2026-10-05): removed together with the new web tool
+    "Data the catalog does not contain (for example macro data, yields, fundamentals, or news) is not in the "
+    "database: say so and never substitute another dataset.",
+    "One public fact about a company (its status, ownership, group or index membership) can be looked up with "
+    "find_web_fact and is shown as a web fact;",
+    "a web fact describes and never becomes a series, a dataset or an input of a calculation.",
 }
 ADDED = {
     # K2
@@ -90,6 +97,12 @@ ADDED = {
     "measures of a hypothesis finding, not angles of a multi-angle plan.",
     "When angle_a and angle_b point different ways, say what that combination means (for example: more often up, but "
     "the falls are deeper).",
+    # item 12: research_web
+    "Information the catalog does not contain (for example macro data, events, news, ownership or group membership) "
+    "is looked up with research_web, for context or when the database lacks it, and is shown as a web fact;",
+    "for market data the database wins.",
+    "Cite web values by their references;",
+    "an event date may set an analysis period, but a web number is never an input of a calculation.",
 }
 SECTIONS = ["GENERAL RULES", "TOOL USE", "TOOL RESULTS", "FINAL RESPONSE", "DATA DISCOVERY", "DATA SOURCES",
             "DATA NEED", "MODES", "TIME BASIS", "NAMED-PERIOD RETURNS", "WEEKLY AND MONTHLY", "CONVERSATION REUSE",
@@ -140,8 +153,8 @@ def test_the_moved_blocks_sit_where_they_are_used() -> None:
 
     # F2.1: database first, the web last; F2.2: the research data-need rule under MODES
     sources = section("DATA SOURCES")
-    assert sources.index("query_metric") < sources.index("lookup_reference") < sources.index("find_web_fact")
-    assert "find_web_fact" not in section("MODES") and "approved hypothesis plan" in section("MODES")
+    assert sources.index("query_metric") < sources.index("lookup_reference") < sources.index("research_web")
+    assert "research_web" not in section("MODES") and "approved hypothesis plan" in section("MODES")
     # F2.3: the sandbox rules are a part of running the multi-angle plan
     assert "session_recovery" in section("MULTI-ANGLE PLAN") and "session_recovery" not in section("MULTI-ANGLE FINDINGS")
     # F2.4: what the plan states and how the session builds rows are steps of the hypothesis plan

@@ -41,7 +41,8 @@ SWITCHES = {
     "AI_ENABLE_PREFLIGHT_PARTS": "preflight_parts", "AI_ENABLE_MULTI_ANGLE_RESEARCH": "multi_angle",
     "AI_ENABLE_LINEAGE_TOOL": "lineage_tool", "AI_ENABLE_EXPORT": "export", "AI_ENABLE_QUERY_METRIC": "metrics",
     "AI_ENABLE_EVIDENCE": "evidence", "AI_ENABLE_WEB_FACT": "web_fact_client",
-    "AI_ENABLE_REFERENCE_LOOKUP": "reference_lookup",
+    "AI_ENABLE_REFERENCE_LOOKUP": "reference_lookup", "AI_ENABLE_ADDRESS_MENU": "reference_check",
+    "AI_ENABLE_WEB_RESEARCH": "web_research_client",
 }
 
 # One plain-language sentence per name (Indonesian, for non-developers).
@@ -64,6 +65,8 @@ PLAIN = {
     "get_evidence": "Memeriksa klaim utama sebelum menjawab: backend menghitung ulang setiap angka dari gudang data atau dari tabel dasar hasil analisis, lalu memberi status TERCEK atau TIDAK COCOK; tabel buktinya untuk user.",
     "export_result": "Membuat file unduhan dari tabel hasil (CSV, XLSX dengan lembar definisi dan asal data, atau Parquet), maks. 20 MB; AI hanya melihat nama dan ukurannya.",
     "find_web_fact": "Mencari satu fakta yang tidak ada di data pasar (misalnya status BUMN, pemegang saham pengendali) di web dalam ± 30 detik; status ditentukan sistem dari kutipan persis (TERKONFIRMASI, BERTENTANGAN, SEBAGIAN, TIDAK DITEMUKAN).",
+    "research_web": "Mencari informasi yang tidak ada di database (fakta, angka, peristiwa dengan tanggalnya, deret per periode, daftar) di web untuk konteks atau saat data tidak ada; banyak perusahaan dalam satu panggilan; hanya butir dengan kutipan persis, konflik palsu (beda periode/definisi) dibedakan dari konflik nyata, batas biaya per giliran; setiap butir bisa dikutip dan tampil sebagai fakta web dengan domainnya.",
+    "check_references": "Memeriksa alamat angka (value reference) sebelum jawaban ditulis: menampilkan nilai yang akan muncul, atau kenapa alamat salah dan alamat yang ada; tanpa memanggil model dan tanpa mengambil data.",
     "query_metric": "Jalan pintas pertanyaan sederhana: metrik resmi (net beli asing, net beli per broker, volume, harga penutupan, tertinggi/terendah) dihitung langsung oleh database dalam satu panggilan per periode.",
     "get_lineage": "Menelusuri asal angka: tabel hasil, kode yang membuatnya, data yang dibaca, saringan baris, query Governor, dan tabel sumbernya; tanpa isi baris.",
     "get_session_output": "Membaca ulang tabel atau JSON hasil, termasuk dari giliran sebelumnya lewat ref (out.o3) setelah sandbox menghapusnya, dan kode yang dijalankan sebuah eksekusi.",
@@ -149,12 +152,15 @@ def _build(off: tuple[str, ...] = ()):
                           "default_dimensions": ["e"], "allowed_dimensions": ["e"], "default_scope": {"type": "ALL"},
                           "misuse_warning": "x", "review_status": "INFERRED", "unit": None}]
     from app.tools.web_fact import WebFactClient
+    from app.tools.web_research import WebResearchClient
 
     kwargs["web_fact_client"] = WebFactClient("http://w", "w" * 40, transport=transport)
+    kwargs["web_research_client"] = WebResearchClient("http://w", "w" * 40, transport=transport)
+    kwargs["value_references"] = True  # AI_ENABLE_VALUE_REFERENCES: a description sentence, no tool of its own
     for switch in off:
         argument = SWITCHES[switch]
-        kwargs[argument] = None if argument in ("method_guides", "multi_angle", "metrics", "web_fact_client") \
-            else False
+        kwargs[argument] = None if argument in ("method_guides", "multi_angle", "metrics", "web_fact_client",
+                                                "web_research_client") else False
     registry = build_default_registry(
         object(), cursor_secret=b"x" * 32,
         governor_client=GovernorClient("http://g", "k" * 40, 90, transport=transport),

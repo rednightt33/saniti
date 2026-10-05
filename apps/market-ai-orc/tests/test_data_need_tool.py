@@ -359,6 +359,10 @@ def test_the_newest_tool_migration_matches_the_tool_definitions() -> None:
     for spec in generator.ROUNDS.values():  # rounds in order: the last one naming a tool registered it last
         for name in [*spec["versions"], *(spec.get("new") or {})]:
             latest[name] = spec["target"]
-    registry = generator._tools_doc()._registry()
+    doc = generator._tools_doc()
+    registry = doc._registry()
+    for switch in doc.SWITCHES:  # a tool another one replaced (find_web_fact by research_web) is on its older path
+        for name, definition in doc._registry((switch,)).items():
+            registry.setdefault(name, definition)
     for name, path in latest.items():
         assert generator.schema_text(registry[name]) in path.read_text(), f"{name} changed since {path.name}: new round"

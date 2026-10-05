@@ -297,7 +297,9 @@ Gate and final-response log events (always on):
 | `AI_PROVIDER_POLICY_TTL_SECONDS` | no | `3600` | How old the derived provider list may get before it is re-read in the background (minimum 60) |
 | `AI_PROVIDER_MIN_THROUGHPUT` | no | unset | OpenRouter `provider.preferred_min_throughput` `{p50: <n>}` in tokens/s for every model call (1–10000): slower endpoints are tried last, never excluded, and load balancing stays on. Unset keeps OpenRouter's default routing. Dev: `50` (user decision 2026-10-05); see [Run-time and cost controls](#run-time-and-cost-controls) |
 | `AI_ENABLE_WEB_FACT` | no | `false` | S4b (K8): the tool `find_web_fact`, one fact that is not in the market data (group membership, controlling shareholder, company status) from market-web-governor `POST /v1/fact` in about 30 s. Needs `WEB_GOVERNOR_URL` and `WEB_GOVERNOR_API_KEY` (off otherwise, `web_fact_inactive`). The orchestrator writes each fact as a "Fakta web" assumption with its status and domains |
-| `WEB_GOVERNOR_URL`, `WEB_GOVERNOR_API_KEY` | with `AI_ENABLE_WEB_FACT` | unset | market-web-governor's address and its API key (secret; on Railway a reference to the governor's own variable) |
+| `AI_ENABLE_WEB_RESEARCH` | no | `false` | Item 12 (PLAN_2026-10-05.md): the tool `research_web`, information outside the database (a fact, a figure, an event with its dates, a series over periods, a list; several subjects in one call) from market-web-governor `POST /v1/orc/web`, for context or when the database lacks it; see [Web research (item 12)](#web-research-item-12). Replaces `find_web_fact`: the start is refused when `AI_ENABLE_WEB_FACT` is also on. Needs `WEB_GOVERNOR_URL` and `WEB_GOVERNOR_API_KEY` (off otherwise, `web_research_inactive`) |
+| `AI_ENABLE_ADDRESS_MENU` | no | `false` | Item 10 (PLAN_2026-10-05.md): every tool result that holds values lists their full value references (`addresses`, at most 120), `check_references` renders addresses before the answer (with value references and DataNeed), a REFERENCE refusal suggests addresses with the same field, and a field a hypothesis finding lacks is read from its research summary (logged `ai_reference_redirected`); see [Value-reference addresses (item 10)](#value-reference-addresses-item-10) |
+| `WEB_GOVERNOR_URL`, `WEB_GOVERNOR_API_KEY` | with `AI_ENABLE_WEB_FACT` or `AI_ENABLE_WEB_RESEARCH` | unset | market-web-governor's address and its API key (secret; on Railway a reference to the governor's own variable) |
 | `AI_REPLAY_REASONING` | no | `false` | S4c (K7, 2026-10-04): send the reasoning items of a run's earlier tool turns back with their calls, exactly as received, so a conclusion reached in reasoning is not lost a few steps later (M71, P27). Never across messages. A provider that refuses them (`PROVIDER_REJECTED`) turns it off for the rest of the run (`ai_reasoning_replay_refused`). Input tokens grow by the replayed reasoning; watch the cache ratio. Dev: `true` |
 | `AI_LOG_PROVIDER` | no | `false` | After each run, look up which provider served each model call (OpenRouter `/generation`, in a background thread) and log it as `ai_model_call_provider` |
 | `AI_FINAL_CONTRACT_IN_PROMPT` | no | `false` | Put the final-response JSON contract (and, with Research Plan confirmation, the plan's exact field form) in the system prompt, so a finished run answers in JSON at once |
@@ -1124,6 +1126,46 @@ id; a refusal lists full references (`available: out.o1, out.o2`). The data reco
   response instead of refusing it, and kept with their content in the audit (`final.extra_keys`) and the log
   `ai_final_extra_keys`; nested objects stay strict.
 - Every re-ask names the validation issue.
+
+### Value-reference addresses (item 10)
+
+`AI_ENABLE_ADDRESS_MENU` (PLAN_2026-10-05.md item 10; golden test `ma-qa-20261005b`: 14 number refusals, two of them
+addresses composed from memory and twelve figures typed without an address).
+
+- **Menu (10.1):** `ReferenceSources.menu` lists the numeric leaves of each object a result registers as
+  `<address> = <value> [unit]` (a table: one example row by its identifying column), at most 40 per object.
+- **Check (10.2):** `check_references` renders up to 40 addresses with the same code as the answer, without a model
+  call.
+- **Cheap repair (10.3, with `AI_ENABLE_EDIT_REPAIR`):** an edit may replace every occurrence of a whole `{{...}}`
+  reference (`"all": true`) or of a text that occurs exactly `"count"` times.
+- **Redirect (10.4):** a field a hypothesis finding lacks is read from its `research_summary_<id>` output when exactly
+  one is registered.
+- **Addresses for valid numbers (10.5):** a hypothesis finding carries `confidence_level` (sandbox);
+  `lookup_reference` rows are citable as `reference.rN.matched`.
+- **Threshold from an earlier result (10.6):** when the conversation router reads the message as building on the
+  newest result, a plan's success threshold or minimum effect may be a value the plan cites by reference
+  (`plan_threshold_from_result`).
+
+### Web research (item 12)
+
+`AI_ENABLE_WEB_RESEARCH`, the tool `research_web` (`app/tools/web_research.py`), market-web-governor
+`POST /v1/orc/web`.
+
+- **Call:** one need, its purpose (CITE or CONTEXT), the expected shape when known and optional subjects. The budget key
+  is the user turn: a mode 4 run sends its own id for every step (`current_turn_id`), so the web governor bounds calls
+  and cost per message. The wait is the run's time left less 15 s, between 20 and 150 s.
+- **Envelope:** every item of `citable` (label `WEB_FACT`) is registered as a value reference `web.<id>` with its
+  domain; `{{web.<id>.value_as_written}}` shows the number as its source writes it, `{{web.<id>.value}}` the value.
+  Rendered, the first value of a source in each text is followed by `(fakta web, <domain>)` when no word follows it,
+  and the system adds a "Fakta web" assumption listing the lookups with their status and domains.
+- **Rules:** a web value is a context source for the provenance gate (`WEB_FACT` is not in `LABEL_ORDER`), so it never
+  lowers the answer's data label; its numbers (value and value as written, not the years of a text) are refused once
+  in code (`WEB_NUMBER_IN_CALCULATION`); the database-first check of P34 runs before the call (the need as the
+  attribute, the subjects as the subject).
+- **Prompt:** with `research_web` offered, DATA SOURCES carries `OUTSIDE_DATA_RESEARCH_RULE` (information outside the
+  database is looked up for context or when the database lacks it, shown as a web fact; the database wins for market
+  data; an event date may set an analysis period, a web number never enters a calculation) instead of the one-fact
+  sentences of `find_web_fact` (user decision 2026-10-05).
 
 ### Edit repair (M45, off unless `AI_ENABLE_EDIT_REPAIR=true`)
 

@@ -40,7 +40,7 @@ def test_known_tool_executes_with_phase_one_result() -> None:
         "result": {
             "capabilities": {"read_catalog_and_earlier_results": ["get_system_capabilities"]},
             "not_available": ["act_on_own_results", "fetch_market_data_from_database",
-                              "look_up_one_public_fact_on_the_web", "run_python_analysis"],
+                              "look_up_public_information_on_the_web", "run_python_analysis"],
             "available_tools": ["get_system_capabilities"],
         },
     }
@@ -260,5 +260,5 @@ def test_web_capability_follows_the_offered_web_tool() -> None:
     registry = build_default_registry()
     registry.register(spec("find_web_fact", lambda _a: {}, effect="FETCHES_WEB"))
     result = registry.execute("c", "get_system_capabilities", "{}").output["result"]
-    assert result["capabilities"]["look_up_one_public_fact_on_the_web"] == ["find_web_fact"]
-    assert "look_up_one_public_fact_on_the_web" not in result["not_available"]
+    assert result["capabilities"]["look_up_public_information_on_the_web"] == ["find_web_fact"]
+    assert "look_up_public_information_on_the_web" not in result["not_available"]

@@ -46,7 +46,8 @@ from .user_words import allowed_periods, current_design_changes, current_turn_re
     locked_horizons
 from .provenance import (CONTEXT, typed_figures, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
                          parse_numbers, released_numbers, requested_statistics, weakest)
-from .value_refs import REF_RE, UNITS, ReferenceSources, Resolved, TableRows, format_value, render
+from .value_refs import (OUTSIDE_LABELS, OUTSIDE_NAMESPACES, REF_RE, UNITS, ReferenceSources, Resolved, TableRows,
+                         format_value, render)
 from .tools import ToolOutcome, ToolRegistry, error_outcome
 from .tools.analysis import DataDate, current_conversation_key, current_data_date, current_run_context, run_context
 from .tools.envelope import envelope
@@ -55,7 +56,8 @@ from .result_store import restore_missing, store_released
 from .tools.artifacts import RunResults, current_results
 from .tools.session import current_carried_outputs, current_carried_restorer
 from .tools.system import current_step_tools
-from .tools.request_data import current_reference_sources, current_request_id
+from .tools.request_data import (current_reference_sources, current_request_id, current_run_deadline,
+                                 current_turn_id)
 
 
 logger = logging.getLogger("market_ai_orc")
@@ -780,6 +782,7 @@ ANGLE_NARRATIVE_CONTRACT = ("research_findings: for an ANSWER that rests on a co
                             "otherwise null. ")
 # 10.1 (plan 2026-10-05 item 10): the addresses a result lists, copied by the model instead of composed from memory
 ADDRESS_MENU_MAX = 120
+WEB_LOOKUP_TOOLS = frozenset({"find_web_fact", "research_web"})  # P34: checked against the database first
 ADDRESS_MENU_NOTE = ("Each line is a value reference this run can write: copy the address between {{ and }} as it is "
                      "and add a format; never compose an address from memory. check_references shows what an address "
                      "renders before you write the answer.")
@@ -935,8 +938,10 @@ def data_sources_block(tools: frozenset[str]) -> str:
     web last: the metric catalog, the reference tables, then data the catalog does not contain and the web fact. A
     sentence that names a tool is written only when that tool is offered."""
     items = [METRIC_PATH_RULE] if "query_metric" in tools else []
-    if "find_web_fact" in tools:
-        items += ([OUTSIDE_DATA_REFERENCE_RULE] if "lookup_reference" in tools else []) + [OUTSIDE_DATA_WEB_RULE]
+    web_rule = OUTSIDE_DATA_RESEARCH_RULE if "research_web" in tools else \
+        OUTSIDE_DATA_WEB_RULE if "find_web_fact" in tools else None
+    if web_rule is not None:
+        items += ([OUTSIDE_DATA_REFERENCE_RULE] if "lookup_reference" in tools else []) + [web_rule]
     else:
         items.append(OUTSIDE_DATA_RULE)
     return "DATA SOURCES\n" + "\n".join("- " + " ".join(item.split()) for item in items)
@@ -1014,10 +1019,11 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
     sources = ("a lookup_fact result, " if lookup_fact else "") \
         + ("a query_metric result, " if "query_metric" in tools else "") \
         + ("a lookup_reference row, " if "lookup_reference" in tools else "") \
-        + ("a web fact (stated as a web fact), " if "find_web_fact" in tools else "")
+        + ("a web fact (stated as a web fact), " if "find_web_fact" in tools or "research_web" in tools else "")
     outside = OUTSIDE_DATA_RULE  # the Analysis Spec path keeps it under RESEARCH RULES
-    if "find_web_fact" in tools:
-        outside = OUTSIDE_DATA_WEB_RULE + (OUTSIDE_DATA_REFERENCE_RULE if "lookup_reference" in tools else "")
+    if "research_web" in tools or "find_web_fact" in tools:
+        outside = (OUTSIDE_DATA_RESEARCH_RULE if "research_web" in tools else OUTSIDE_DATA_WEB_RULE) \
+            + (OUTSIDE_DATA_REFERENCE_RULE if "lookup_reference" in tools else "")
     text = (template.replace("{tool_results}", "TOOL RESULTS\n" + TOOL_ENVELOPE_BODY + "\n" if tool_envelope else "")
             .replace("{lookup_rule}", LOOKUP_RULE if lookup_fact else "")
             .replace("{number_sources}", sources)
@@ -1036,6 +1042,14 @@ OUTSIDE_DATA_WEB_RULE = (
     "database: say so and never substitute\nanother dataset. One public fact about a company (its status, "
     "ownership,\ngroup or index membership) can be looked up with find_web_fact and is\nshown as a web fact; a web "
     "fact describes and never becomes a series, a\ndataset or an input of a calculation.")
+# Item 12 (plan 2026-10-05, user decision): with research_web, information outside the database is looked up for
+# context or when the database lacks it; the sentences "one public fact about a company ... never becomes a series"
+# and "macro data ... is not in the database" are removed together with the new tool
+OUTSIDE_DATA_RESEARCH_RULE = (
+    "Information the catalog does not contain (for example macro data, events,\nnews, ownership or group membership) "
+    "is looked up with research_web, for\ncontext or when the database lacks it, and is shown as a web fact; for\n"
+    "market data the database wins. Cite web values by their references; an\nevent date may set an analysis "
+    "period, but a web number is never an input\nof a calculation.")
 OUTSIDE_DATA_REFERENCE_RULE = ("\nAn attribute the reference tables hold (a sector, an industry, a company\n"
                                "profile) is read with lookup_reference, never from the web.")
 METRIC_PATH_RULE = ("An official metric of the metric catalog over periods is answered by\nquery_metric in one "
@@ -1793,6 +1807,7 @@ class RunState:
     seen_strings: set[str] = field(default_factory=set)
     seen_sets: set[frozenset[str]] = field(default_factory=set)
     web_facts: list[dict[str, Any]] = field(default_factory=list)  # S4b: find_web_fact results
+    web_research: list[dict[str, Any]] = field(default_factory=list)  # item 12: research_web lookups, in brief
     # P34: web calls refused because a reference column holds the attribute ((subject, attribute) -> the database
     # reads made before the refusal), and the lookup_reference reads of this run
     reference_hints: dict[tuple[str, str], int] = field(default_factory=dict)
@@ -2123,6 +2138,13 @@ class AgentOrchestrator:
             state.context_numbers.extend(value for shown in parse_numbers(text) for value, _ in shown.candidates)
         token = current_request_id.set(request.request_id)
         references_token = current_reference_sources.set(state.ref_sources)
+        # item 12: a mode 4 step keeps its run's turn id (the web budget key); a web lookup waits at most until the
+        # run's deadline
+        turn_token = current_turn_id.set(current_turn_id.get() or request.request_id)
+        budget_left = current_time_budget.get()
+        deadline_token = current_run_deadline.set(time.monotonic() + (
+            self.settings.ai_max_analysis_seconds if budget_left is None
+            else min(budget_left, self.settings.ai_max_analysis_seconds)))
         context = current_run_context.set(run_context(
             moment, self.settings.analysis_timezone,
             [(turn.role, turn.content) for turn in request.history], request.message))
@@ -2209,6 +2231,8 @@ class AgentOrchestrator:
                 current_carried_outputs.reset(carried)
             current_request_id.reset(token)
             current_reference_sources.reset(references_token)
+            current_turn_id.reset(turn_token)
+            current_run_deadline.reset(deadline_token)
             current_run_context.reset(context)
             current_research_guard.reset(guard)
             current_research_context.reset(research)
@@ -2788,7 +2812,11 @@ class AgentOrchestrator:
         offered = state.tool_filter if state.tool_filter is not None else frozenset(self.registry.names())
         if catalog is None or "lookup_reference" not in offered or not isinstance(arguments, dict):
             return None
-        subject, attribute = str(arguments.get("subject") or ""), str(arguments.get("attribute") or "")
+        if name == "research_web":  # item 12: the need is the attribute, the subjects its subject
+            subject = ", ".join(str(x) for x in arguments.get("subjects") or [])[:200]
+            attribute = str(arguments.get("need") or "")
+        else:
+            subject, attribute = str(arguments.get("subject") or ""), str(arguments.get("attribute") or "")
         key = (subject.strip().casefold(), attribute.strip().casefold())
         if key in state.reference_hints and state.reference_reads > state.reference_hints[key]:
             log_event("web_fact_after_database_read", request_id=state.request_id, subject=subject[:100],
@@ -2820,7 +2848,7 @@ class AgentOrchestrator:
             call_id, name, "DATABASE_HOLDS_THIS_ATTRIBUTE",
             f"The database holds this: {held['table']}.{column['column']} ({column.get('description') or ''}). "
             "Read it with lookup_reference (where on the entity column for one subject, or match for a name) and "
-            "answer from it. find_web_fact runs after that read only if the table does not answer.")
+            f"answer from it. {name} runs after that read only if the table does not answer.")
         outcome.output["error"].update(
             next_action="CALL:lookup_reference",
             suggested_call={"tool": "lookup_reference", "table": held["table"],
@@ -3056,13 +3084,14 @@ class AgentOrchestrator:
             return final
         lines = [line for line in (ai_choices.describe(state.ai_choices),
                                    ai_choices.describe_web_used(state.ai_choices),
-                                   ai_choices.describe_web(state.web_facts))
+                                   ai_choices.describe_web(state.web_facts),
+                                   ai_choices.describe_web_research(state.web_research))
                  if line is not None and line not in final.assumptions]
         if not lines:
             return final
         log_event("ai_choices", request_id=state.request_id, choices=state.ai_choices[:ai_choices.MAX_CHOICES],
                   web_facts=[{k: f.get(k) for k in ("subject", "attribute", "status", "value")}
-                             for f in state.web_facts[:10]])
+                             for f in state.web_facts[:10]], web_research=state.web_research[:10])
         return final.model_copy(update={"assumptions": [*lines, *final.assumptions]})
 
     def _exhausted(self, state: RunState, code: str) -> FinalResponse:
@@ -3291,7 +3320,7 @@ class AgentOrchestrator:
                     "the data (or from the user's words), or leave the web fact out of the code and state it in the "
                     "answer as a web fact. If the number is a parameter of your own that only happens to be equal, "
                     "send the code again unchanged."))
-        if name == "find_web_fact":
+        if name in WEB_LOOKUP_TOOLS:
             refused = self._database_holds(state, call_id, name, arguments)
             if refused is not None:
                 return self._repair_budget(state, call_id, name, refused)
@@ -3695,6 +3724,10 @@ class AgentOrchestrator:
             ai_choices.string_leaves(values, state.web_strings)
             ai_choices.string_sets(values, state.web_sets)
             return  # a web fact describes; its values are not values the data returned (P34)
+        citable = [e for e in result.get("citable") or [] if isinstance(e, dict) and e.get("label") in OUTSIDE_LABELS]
+        if citable:
+            self._track_outside(state, arguments, result, citable)
+            return  # item 12: values from outside the database describe; they are not values the data returned
         ai_choices.string_leaves(result, state.seen_strings)
         ai_choices.string_sets(result, state.seen_sets)
 
@@ -3965,6 +3998,34 @@ class AgentOrchestrator:
             return body["rows"], body.get("row_count")
         return fetch
 
+    @staticmethod
+    def _track_outside(state: RunState, arguments: Any, result: dict[str, Any], citable: list[dict[str, Any]]) -> None:
+        """Item 12: the items of a citable envelope from outside the database. Their numbers (a figure's value and the
+        number written in its source; for a text, its numbers except years) may be shown as context and are refused
+        as inputs of a calculation (WEB_NUMBER_IN_CALCULATION); their texts and lists are recorded like a web fact's,
+        so a code filter that uses them is named as web-sourced."""
+        values: list[Any] = []
+        for entry in citable:
+            value = entry.get("value")
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                state.web_numbers.append(float(value))
+            texts = [entry.get("value_as_written")] if entry.get("value_as_written") else []
+            if isinstance(value, str):
+                texts.append(value)
+            for text in texts:
+                # as written ("US$264,70 miliar": 264.7e9) and without its scale and currency words (264.7)
+                for variant in (str(text), re.sub(r"[^\W\d_]+|[$€£¥]", " ", str(text))):
+                    state.web_numbers.extend(v for shown in parse_numbers(variant) for v, _ in shown.candidates
+                                             if not (float(v).is_integer() and 1900 <= v <= 2100))
+            values.append(entry.get("members") if isinstance(entry.get("members"), list) else value)
+        ai_choices.string_leaves(values, state.web_strings)
+        ai_choices.string_sets(values, state.web_sets)
+        state.web_research.append({
+            "need": str((arguments or {}).get("need") or "")[:200] if isinstance(arguments, dict) else "",
+            "status": result.get("status"), "items": len(citable),
+            "domains": sorted({str((e.get("source") or {}).get("domain")) for e in citable
+                               if (e.get("source") or {}).get("domain")})})
+
     def _track_references(self, state: RunState, name: str, outcome: ToolOutcome,
                           arguments: dict[str, Any] | None = None) -> None:
         """P11: register what the final response may reference, and show each referable object its "ref".
@@ -4088,6 +4149,14 @@ class AgentOrchestrator:
                 sources.add("analysis", str(result["analysis_id"]), result.get("outputs"), label)
                 result["ref"] = f"analysis.{result['analysis_id']}.<output path>"
                 refs.append(f"analysis.{result['analysis_id']}")
+        for entry in result.get("citable") or []:
+            # item 12: any result with a citable envelope; an item's label names its namespace (a web fact: web)
+            namespace = OUTSIDE_NAMESPACES.get(entry.get("label")) if isinstance(entry, dict) else None
+            if namespace is None or not entry.get("id"):
+                continue
+            source = entry.get("source") if isinstance(entry.get("source"), dict) else {}
+            sources.add(namespace, str(entry["id"]), entry, entry["label"], origin=source.get("domain"))
+            entry["ref"] = f"{namespace}.{entry['id']}"  # its own ref is its address: no menu line
         if getattr(self, "address_menu", False) and refs:
             menu = [line for ref in dict.fromkeys(refs) for line in sources.menu(ref)]
             if menu:

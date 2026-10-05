@@ -233,6 +233,9 @@ class Settings:
     ai_replay_reasoning: bool = False
     # S4b (K8): find_web_fact, one fact that is not in the data from market-web-governor POST /v1/fact
     ai_enable_web_fact: bool = False
+    # Item 12 (plan 2026-10-05): research_web, facts, numbers, events, series and lists from market-web-governor
+    # POST /v1/orc/web in a citable envelope; never together with find_web_fact (start refused)
+    ai_enable_web_research: bool = False
     # P34 (plan 2026-10-05 Fase D option A): lookup_reference reads the static reference tables, and find_web_fact is
     # refused once when one of their columns holds the asked attribute (one small matcher call; fail-open)
     ai_enable_reference_lookup: bool = False
@@ -398,6 +401,7 @@ class Settings:
             ai_capture_reasoning=_boolean(env, "AI_CAPTURE_REASONING", False),
             ai_replay_reasoning=_boolean(env, "AI_REPLAY_REASONING", False),
             ai_enable_web_fact=_boolean(env, "AI_ENABLE_WEB_FACT", False),
+            ai_enable_web_research=_boolean(env, "AI_ENABLE_WEB_RESEARCH", False),
             ai_enable_reference_lookup=_boolean(env, "AI_ENABLE_REFERENCE_LOOKUP", False),
             web_governor_url=_optional(env, "WEB_GOVERNOR_URL"),
             web_governor_api_key=_optional(env, "WEB_GOVERNOR_API_KEY"),
@@ -484,6 +488,8 @@ class Settings:
             raise ConfigError("AI_REQUEST_TIMEOUT_SECONDS must not exceed AI_MAX_ANALYSIS_SECONDS")
         if settings.ai_planner_parallel_parts > 4:
             raise ConfigError("AI_PLANNER_PARALLEL_PARTS must be from 1 to 4")
+        if settings.ai_enable_web_fact and settings.ai_enable_web_research:
+            raise ConfigError("AI_ENABLE_WEB_FACT and AI_ENABLE_WEB_RESEARCH are exclusive: turn one off")
         if not 2 <= settings.ai_research_min_angles <= settings.ai_research_max_angles <= 6:
             raise ConfigError("AI_RESEARCH_MIN_ANGLES and AI_RESEARCH_MAX_ANGLES must satisfy 2 <= min <= max <= 6")
         if not 0 <= settings.ai_research_min_families <= min(5, settings.ai_research_max_angles):

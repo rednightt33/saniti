@@ -34,6 +34,11 @@ current_request_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 # 10.2 (plan 2026-10-05 item 10): the run's value references, read by check_references
 current_reference_sources: contextvars.ContextVar[Any] = contextvars.ContextVar("current_reference_sources",
                                                                                  default=None)
+# Item 12 (plan 2026-10-05): the user turn a run belongs to (a mode 4 run's id for all its steps, else the run's own
+# id), the web governor's budget key; and the run's deadline (time.monotonic), which bounds a web lookup's wait
+current_turn_id: contextvars.ContextVar[str | None] = contextvars.ContextVar("current_turn_id", default=None)
+current_run_deadline: contextvars.ContextVar[float | None] = contextvars.ContextVar("current_run_deadline",
+                                                                                    default=None)
 
 
 class Strict(BaseModel):

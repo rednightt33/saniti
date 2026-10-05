@@ -7,7 +7,7 @@ sector). Two parts, both derived from the catalog at run time (no table, column 
 - lookup_reference (effect READS, so every step that reads is offered it): the columns of the static reference tables
   (no time column) with their catalog descriptions, or rows of one of them through the SQL Governor
   (/v1/catalog/reference-rows: catalog, compile and EXPLAIN gates; at most 100 rows).
-- the check before find_web_fact (orchestrator): one small model call compares the asked attribute with those
+- the check before a web lookup (orchestrator): one small model call compares the asked attribute with those
   columns; when one holds it, the web call is refused once with next_action CALL:lookup_reference naming the table
   and column. Any failure lets the web call run (logged).
 """
@@ -30,7 +30,7 @@ DESCRIPTION = (
     "company name or description; a broker's name or type). Without table: the tables and their columns with "
     "descriptions. With table: up to 100 rows, filtered by where (exact stored values; one value or several) and "
     "optionally by match (a case-insensitive part of one column's text, e.g. a group or company name). Use it "
-    "before find_web_fact for any attribute these tables hold; the web is only for what they do not hold. Rows are "
+    "before a web lookup for any attribute these tables hold; the web is only for what they do not hold. Rows are "
     "current values, not as of past dates; dated data (prices, volumes, flows) needs a data need.")
 
 MATCH_INSTRUCTIONS = (

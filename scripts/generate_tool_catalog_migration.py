@@ -12,7 +12,10 @@ registering the new versions of the tools whose contract changed in that round.
   change.
 - round_g (20261005_001, applied): get_system_capabilities v2, capabilities derived from the offered tools' effects (P31);
   prepare_data_bundle v2, open_analysis_session v2, run_python v4, complete_analysis orc-v2 (P32 counts, backtest).
-- round_h (20261005_003): the first row of lookup_reference and find_web_fact v2 (P34: the database before the web).
+- round_h (20261005_003, applied): the first row of lookup_reference and find_web_fact v2 (P34: the database before the
+  web).
+- round_i (20261005_004): the first rows of check_references (item 10.2) and research_web (item 12), lookup_reference
+  v2 and get_system_capabilities v3 (their descriptions name the web without the one-fact tool; PLAN_2026-10-05.md).
 
 Registered from the code with every switch of the dev environment on (the registry of scripts/generate_ai_tools_doc.py,
 one source for both). An applied migration is frozen (database/migrations/APPLIED.sha256); market-ai-orc's
@@ -168,8 +171,41 @@ ROUNDS = {
                    "web_check": "AI_MODEL, reasoning low, strict schema {held, table, column}; the named column must "
                                 "be listed by the Governor, else the web call runs"},
     },
+    "round_i": {
+        "target": ROOT / "database/migrations/20261005_004_round_i_tool_catalog.sql",
+        "versions": {"lookup_reference": ("v1", "v2"), "get_system_capabilities": ("v2", "v3")},
+        "contracts": {"lookup_reference": ("purpose", "before a web lookup"),
+                      "get_system_capabilities": ("purpose", "look up public information on the web")},
+        "new": {
+            "check_references": {"family": "QUERY", "type": "RETRIEVAL", "flag": "AI_ENABLE_ADDRESS_MENU",
+                                 "handler": "app/tools/references.py",
+                                 "output": "per value reference: what the answer would show, or why it does not "
+                                           "resolve with the addresses that exist (and the address it was read from "
+                                           "when redirected); no model call, no data read."},
+            "research_web": {"family": "QUERY", "type": "RETRIEVAL", "flag": "AI_ENABLE_WEB_RESEARCH",
+                             "handler": "app/tools/web_research.py",
+                             "output": "status (OK, PARTIAL, NOT_FOUND, BUDGET_EXHAUSTED) from market-web-governor "
+                                       "POST /v1/orc/web; citable items (fact, number, event, series, list) with "
+                                       "their value, value as written, period, source domain and tier, verbatim "
+                                       "quote, conflict kind and chosen_by_ai, each a value reference web.<id>; the "
+                                       "conflicts by item id, the sources' domains, the web budget left; no search "
+                                       "excerpts."},
+        },
+        "title": "plan 2026-10-05 items 10 and 12",
+        "design": "PLAN_2026-10-05.md items 10 and 12; ERRORS_AND_SOLUTIONS.md P35, P36, M83",
+        "summary": ["check_references v1: value references rendered before the answer is written (10.2; golden test",
+                    "ma-qa-20261005b h_add rewrote a 15,000-token answer for one address composed from memory).",
+                    "research_web v1: facts, numbers, events, series and lists from market-web-governor POST",
+                    "/v1/orc/web in a citable envelope (item 12; bakrie_bank ran 34 single facts, q7 read a series as",
+                    "a conflict). lookup_reference v2, get_system_capabilities v3: descriptions name the web without",
+                    "the one-fact tool."],
+        "limits": {"check_references": "at most 40 references per call; this run's references only",
+                   "web_research": "need 3-500 characters, at most 30 subjects; the web governor bounds calls and "
+                                   "cost per user turn (WEB_ORC_MAX_CALLS_PER_RUN, WEB_ORC_MAX_USD_PER_RUN); the "
+                                   "orchestrator waits at most 150 s and keeps 15 s of the run for the answer"},
+    },
 }
-NEWEST = "round_h"
+NEWEST = "round_i"
 
 
 def _tools_doc():

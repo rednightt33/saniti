@@ -39,6 +39,7 @@ from .orchestrator import AgentOrchestrator, current_time_budget, log_event
 from .provenance import LABEL_ORDER
 from .research_plan import ContinuationIn, ContinuationOut
 from .research_plan_v2 import ContinuationInV2, ContinuationOutV2, current_angle_bounds, plan_digest_v2
+from .tools.request_data import current_turn_id
 from .user_words import MESSAGE_SEPARATOR, current_design_changes, current_turn_referent, current_user_words
 from .schemas import (MAX_HISTORY_ITEMS, MAX_MESSAGE_CHARACTERS, AgentRunRequest, AgentRunResponse,
                       AnalysisPathExecution, HistoryMessage, ModeExecution, ReplyClassifierUsage)
@@ -221,6 +222,7 @@ class _Mode4Run:
         # M82: the router's structured reading of this message (None when no conversation router read it)
         changes = current_design_changes.set((self.router_usage or {}).get("design_value_changes"))
         referent = current_turn_referent.set((self.router_usage or {}).get("referent"))
+        turn = current_turn_id.set(self.base_id)  # item 12: one web budget for every step of this message
         try:
             result = self.inner.run(sub_request, self.key, data_record=self.record)
         finally:
@@ -230,6 +232,7 @@ class _Mode4Run:
             current_user_words.reset(words)
             current_design_changes.reset(changes)
             current_turn_referent.reset(referent)
+            current_turn_id.reset(turn)
         response, execution = result.response, result.execution
         plan_exec = execution.research_plan
         self.steps.append({

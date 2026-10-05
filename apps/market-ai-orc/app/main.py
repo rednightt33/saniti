@@ -29,6 +29,7 @@ from .orchestrator import AgentOrchestrator, log_event
 from .provider_log import ProviderLogger
 from .provider_policy import CachePricePolicy
 from .tools.web_fact import WebFactClient
+from .tools.web_research import WebResearchClient
 from .research_plan_v2 import library_problem, negotiate
 from .schemas import AgentRunRequest, AgentRunResponse, ModeExecution
 from .tools import build_default_registry
@@ -298,6 +299,13 @@ def create_app(
                 web_fact = WebFactClient(settings.web_governor_url, settings.web_governor_api_key)
             else:
                 log_event("web_fact_inactive", reason="needs WEB_GOVERNOR_URL and WEB_GOVERNOR_API_KEY")
+        web_research = None
+        if settings.ai_enable_web_research:
+            # Item 12: off unless the web governor's address and key are set (fail closed)
+            if settings.web_governor_url and settings.web_governor_api_key:
+                web_research = WebResearchClient(settings.web_governor_url, settings.web_governor_api_key)
+            else:
+                log_event("web_research_inactive", reason="needs WEB_GOVERNOR_URL and WEB_GOVERNOR_API_KEY")
         registry = build_default_registry(
             catalog,
             catalog_timeout_seconds=(
@@ -344,6 +352,8 @@ def create_app(
             reference_lookup=settings.ai_enable_reference_lookup,
             reference_check=settings.ai_enable_address_menu and settings.ai_enable_value_references
             and settings.ai_enable_dataneed,
+            web_research_client=web_research,
+            value_references=settings.ai_enable_value_references,
         )
         auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
             if sandbox is not None or settings.research_audit_database_url else None

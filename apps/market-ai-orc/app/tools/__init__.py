@@ -59,6 +59,8 @@ def build_default_registry(
     web_fact_client: Any | None = None,
     reference_lookup: bool = False,
     reference_check: bool = False,
+    web_research_client: Any | None = None,
+    value_references: bool = False,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
@@ -94,7 +96,7 @@ def build_default_registry(
         registry.register(dimension_values_spec(governor_client, timeout_seconds=min(governor_timeout_seconds, 30.0)))
         if reference_lookup:
             # P34 (AI_ENABLE_REFERENCE_LOOKUP): the reference tables, read in every reading step, and checked by the
-            # orchestrator before find_web_fact
+            # orchestrator before a web lookup
             from .reference import ReferenceCatalog, lookup_reference_spec
 
             registry.reference_catalog = ReferenceCatalog(governor_client)
@@ -181,12 +183,19 @@ def build_default_registry(
                                  max_result_bytes=python_analysis_max_bytes):
             registry.register(spec)
         registry.metric_menu = menu(metrics)
-    if web_fact_client is not None:
+    if web_fact_client is not None and web_research_client is None:
         # S4b (AI_ENABLE_WEB_FACT): one fact that is not in the data, from market-web-governor /v1/fact
         from .web_fact import web_fact_spec
 
         registry.register(web_fact_spec(web_fact_client,
                                         reference_lookup=registry.get("lookup_reference") is not None))
+    if web_research_client is not None:
+        # Item 12 (AI_ENABLE_WEB_RESEARCH): facts, numbers, events, series and lists from market-web-governor
+        # /v1/orc/web in a citable envelope; it replaces find_web_fact (the settings refuse both switches)
+        from .web_research import web_research_spec
+
+        registry.register(web_research_spec(web_research_client, value_references=value_references,
+                                            reference_lookup=registry.get("lookup_reference") is not None))
     if reference_check:
         # 10.2 (AI_ENABLE_ADDRESS_MENU): value references rendered before the answer is written
         from .references import check_references_spec

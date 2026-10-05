@@ -48,6 +48,12 @@ P_FLOOR = 0.001  # P24: a smaller p-value is shown as "p < 0,001"
 FUNCTION_ARITY = {"diff": 2, "abs": 1, "ratio": 2, "chg": 2}
 MINUS = "−"
 UNRESOLVED = "[nilai tidak tersedia]"
+# Item 12 (plan 2026-10-05): labels of values from outside the database, and how a rendered value names them; such a
+# value is a context source for the provenance gate (not in LABEL_ORDER), so it never lowers an answer's data label
+OUTSIDE_LABELS = {"WEB_FACT": "fakta web"}
+OUTSIDE_NAMESPACES = {"WEB_FACT": "web"}  # the namespace an item of a citable envelope is registered under
+OUTSIDE_FIELDS = frozenset({"value", "value_as_written", "members"})  # the fields of an outside item that are its value
+NEXT_IS_WORD_RE = re.compile(r"\s*[\w$€£¥%]")
 
 
 class ReferenceError_(ValueError):
@@ -162,9 +168,14 @@ class ReferenceSources:
     fallbacks: dict[tuple[str, str], tuple[str, str, tuple[str, ...]]] = field(default_factory=dict)
     # 10.4: reference -> the reference it was read from (logged as ai_reference_redirected)
     redirected: dict[str, str] = field(default_factory=dict)
+    # Item 12: (namespace, key) -> where an outside value comes from (a web fact's domain), named where it is shown
+    origins: dict[tuple[str, str], str] = field(default_factory=dict)
 
-    def add(self, namespace: str, key: str, value: Any, label: str, units: dict[str, Any] | None = None) -> None:
+    def add(self, namespace: str, key: str, value: Any, label: str, units: dict[str, Any] | None = None,
+            origin: str | None = None) -> None:
         self.objects.setdefault(namespace, {})[str(key)] = (value, label)
+        if origin:
+            self.origins[(namespace, str(key))] = origin
         declared = {str(k): v for k, v in (units or {}).items() if v in UNITS}
         if declared:  # a later registration without units keeps the ones learned before (the same output)
             self.units[(namespace, str(key))] = declared
@@ -227,6 +238,24 @@ class ReferenceSources:
                 namespace, key, rest = owners[0], parts[0], parts[1:]
         key, rest = self._key(namespace, key, rest)
         return namespace, key, rest
+
+    def outside(self, path: str, label: str) -> str | None:
+        """Item 12: how a value from outside the database is named where it is shown ("fakta web, bps.go.id"), for
+        an outside label and a path that ends at the item's value; None otherwise. A function of outside values is
+        named without its domain."""
+        name = OUTSIDE_LABELS.get(label)
+        if name is None:
+            return None
+        if FUNC_RE.match(path.strip()):
+            return name
+        try:
+            namespace, key, rest = self._locate(path)
+        except ReferenceError_:
+            return None
+        if not rest or _names([rest[-1]])[:1] != [rest[-1]] or rest[-1] not in OUTSIDE_FIELDS:
+            return None
+        origin = self.origins.get((namespace, key))
+        return f"{name}, {origin}" if origin else name
 
     def unit(self, path: str) -> str | None:
         """P23: the unit of the value at path, from the units declared beside its object or by an object on the way
@@ -623,6 +652,12 @@ class Rendering:
     # P23: references shown by their data's unit rather than as written: {reference, format, shown_as, unit}
     corrected_units: list[dict[str, Any]] = field(default_factory=list)
     unknown_units: list[str] = field(default_factory=list)  # percent formats on a value of undeclared unit
+    # Item 12: the outside sources shown, (expression, "fakta web, <domain>"); a source is named after the first value
+    # of it in each text when no word follows that value (otherwise the sentence keeps its flow and the system's
+    # line of web facts names it)
+    outside: list[tuple[str, str]] = field(default_factory=list)
+    named: set[str] = field(default_factory=set)
+    pending: str | None = None
 
 
 def _text(value: str) -> str:
@@ -687,14 +722,17 @@ def render(text: str | None, sources: ReferenceSources) -> Rendering:
         places = int(match.group("places")) if match.group("places") is not None else None
         fmt = match.group("fmt")
         expression = match.group("expr").strip().rstrip("\\").strip()
+        out.pending = None
         try:
             if not FUNC_RE.match(expression):
                 raw, label = sources.resolve(expression)
                 shown = _display(raw, label, fmt, places, expression, out,
                                  sources.unit(sources.redirected.get(expression, expression)))
                 if shown is not None:
+                    _note_outside(out, sources, expression, label)
                     return shown, None
             resolved = evaluate(expression, sources)
+            _note_outside(out, sources, expression, resolved.label)
             number = _Number(resolved, fmt, places, expression)
             shown = number.show(out)
         except MissingField as exc:
@@ -712,6 +750,15 @@ def render(text: str | None, sources: ReferenceSources) -> Rendering:
         out.failed.append("{{")
         out.problems.append(_invalid_form(out.text))
     return out
+
+
+def _note_outside(out: Rendering, sources: ReferenceSources, expression: str, label: str) -> None:
+    """Item 12: an outside value is recorded with its source name, to be written after it (_without_repeated_units)."""
+    name = sources.outside(expression, label)
+    if name is None:
+        return
+    out.outside.append((expression, name))
+    out.pending = name
 
 
 @dataclass
@@ -817,6 +864,12 @@ def _without_repeated_units(text: str, replace, out: Rendering) -> str:
                 position += repeat.end()
                 parts.append(emphasis)  # the emphasis closes after the shown unit
                 break
+        if out.pending is not None:
+            name, out.pending = out.pending, None
+            if name not in out.named and not NEXT_IS_WORD_RE.match(text, position):
+                out.named.add(name)
+                parts.append(f" ({name})")
+                out.values.extend(Resolved(v, "CONTEXT") for v in _text_numbers(name))
     parts.append(text[position:])
     return "".join(parts)
 

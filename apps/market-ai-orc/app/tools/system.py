@@ -21,7 +21,7 @@ EFFECT_CAPABILITIES: dict[str, str] = {
     "READS": "read_catalog_and_earlier_results",
     "OWN_ARTIFACT": "act_on_own_results",
     "FETCHES_DATA": "fetch_market_data_from_database",
-    "FETCHES_WEB": "look_up_one_public_fact_on_the_web",
+    "FETCHES_WEB": "look_up_public_information_on_the_web",
     "COMPUTES": "run_python_analysis",
 }
 
@@ -56,7 +56,7 @@ def capabilities_spec(registry: ToolRegistry) -> ToolSpec:
         description=(
             "Return what this agent can do in this step, derived from the tools it can call: each capability "
             "(read the catalog and earlier results, act on its own results, fetch market data from the database, "
-            "look up one public fact on the web, run Python analysis) with the tools that provide it, the "
+            "look up public information on the web, run Python analysis) with the tools that provide it, the "
             "capabilities with no tool in this step, and the available tools."
         ),
         arguments_model=NoArguments,
