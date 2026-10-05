@@ -27,7 +27,7 @@ g6 = usulan pertanyaan tambahan).
 - **[HIGH ALERT]** M66: pertanyaan sama, definisi "hari crash" / "bank BUMN" berbeda. --> UNDERADDRESSED + KEPUTUSAN USER (kamus istilah); terulang di GT 2026-10-02c (g1 vs g1_repeat: definisi "paling likuid" berbeda)
 - **[HIGH ALERT]** M63: penjelasan menghitung ulang dengan cakupan berbeda dari tabelnya. --> TERBUKTI (GT `ma-golden-20261002c`): g7 tetap di papan Nego, g5.3 menjelaskan dari tabel asal; celah baru M68 (nilai filter hilang dari catatan) UNDERADDRESSED
 - **[HIGH ALERT]** M28: definisi sukses dari user diganti aturan bawaan. --> TERBUKTI untuk rencana hipotesis (GT `ma-golden-20261002c`); jalur riset multi-sudut (mode 4) belum mengikat ambang: M69 UNDERADDRESSED
-- **[HIGH ALERT]** M26: SUPPORTED walau efek di bawah batas yang disebut user. --> KEPUTUSAN USER (g6)
+- **[HIGH ALERT]** M26: SUPPORTED walau efek di bawah batas yang disebut user. --> DIPUTUSKAN user 2026-10-05: pilihan B (SUPPORTED hanya bila efek mencapai batas user; di bawahnya PARTIALLY_SUPPORTED); rencana `PLAN_2026-10-05.md` item 8, belum dibangun; diuji item `m26_min_effect` golden test berikutnya
 - **[HIGH ALERT]** M29: rencana menyebut 6 bank, eksekusi 48. --> TERBUKTI (GT `ma-golden-20261002c`): gerbang menolak angka rencana tanpa sumber
 - M25: temuan eksperimen pertama hilang dari metadata. --> TERBUKTI (GT `ma-golden-20261002c`)
 - S13: sudut riset INVALID karena rekaman ganda. --> TIDAK MUNCUL LAGI (GT `ma-golden-20261002c`) (0 dari 25 sudut; jalur penolakan host belum terpicu)

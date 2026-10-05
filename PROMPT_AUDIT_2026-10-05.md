@@ -104,9 +104,11 @@ registry (`build_system_prompt(tools=...)`), kelas masalah yang sama dengan P31.
 
 ## Putaran 2: merapikan bentuk (RENCANA, belum dijalankan)
 
-Status: **RENCANA.** Diminta user 2026-10-05 ("coba kita ganti promptnya dulu ya. masukan ke dalam plan jangan
-eksekusi"). Belum ada kode yang diubah. Item K1–K4 butuh persetujuan user karena mengubah atau menambah kata; item lain
-hanya memindah dan memecah kalimat yang sudah ada.
+Status: **RENCANA FINAL, belum dijalankan.** Diminta user 2026-10-05 ("coba kita ganti promptnya dulu ya. masukan
+ke dalam plan jangan eksekusi"); K1–K4 **disetujui user 2026-10-05** ("K1-K4 OK"). Belum ada kode yang diubah.
+Dijalankan bersama M26 pilihan B (`PLAN_2026-10-05.md` item 8), yang juga mengubah dua kalimat prompt (M26-P di
+bawah); keduanya diukur oleh satu golden test (`PLAN_2026-10-05.md` item 9). Item F1–F4 hanya memindah dan memecah
+kalimat yang sudah ada.
 
 ### Dasar
 
@@ -167,7 +169,7 @@ hanya memindah dan memecah kalimat yang sudah ada.
 - **F4. Bekas rakitan (T8).** Butir terakhir daftar referensi ditutup titik. Contoh temuan dipecah menjadi dua butir:
   satu untuk temuan sudut, satu untuk temuan hipotesis.
 
-**Perlu persetujuan (kata berubah atau bertambah):**
+**Mengubah atau menambah kata (K1–K4 disetujui user 2026-10-05):**
 
 - **K1 (T7).** Satu kalimat baru di HYPOTHESIS FINDINGS: "`angle_a` (the effect against the baseline) and `angle_b`
   (the success rate against the base rate) are the two measures of a hypothesis finding, not angles of a multi-angle
@@ -183,6 +185,13 @@ hanya memindah dan memecah kalimat yang sudah ada.
 - **K4 (T10).** Aturan memilih bentuk rencana disatukan di bagian pendek RESEARCH PLANS sebelum kedua rencana. Isinya
   gabungan kedua versi tanpa menghilangkan syarat apa pun: "with no angles the user did not ask for", "even when a
   library method could also test them", "Never mix the two in one plan".
+- **M26-P (ikut keputusan M26 pilihan B).** Dua kalimat menyebut vonis baru PARTIALLY_SUPPORTED untuk rencana
+  hipotesis:
+  - daftar vonis di HYPOTHESIS FINDINGS menjadi "(SUPPORTED, PARTIALLY_SUPPORTED, NOT_SUPPORTED, INCONCLUSIVE,
+    NOT_EVALUATED)", ditambah: "PARTIALLY_SUPPORTED means the effect is in the expected direction but smaller than
+    the minimum effect the user named";
+  - INTERPRETING RESEARCH butir answer: "supported, partially supported, not supported, or inconclusive".
+  Untuk riset multi-sudut status itu sudah ada; hanya alasannya yang baru (`BELOW_USER_MINIMUM_EFFECT`).
 
 ### Urutan bagian sesudahnya
 
@@ -212,7 +221,8 @@ hanya memindah dan memecah kalimat yang sudah ada.
 ### Pagar pengaman (isi tidak boleh berubah diam-diam)
 
 - **Tes inventaris kalimat (baru):** kalimat prompt sebelum dan sesudah dibandingkan (dinormalisasi, urutan diabaikan).
-  Selisihnya harus persis daftar K1–K4 yang disetujui; kalimat lain tidak boleh hilang, bertambah atau berubah.
+  Selisihnya harus persis daftar K1–K4 dan M26-P yang disetujui; kalimat lain tidak boleh hilang, bertambah atau
+  berubah.
 - **Tidak ada angka baru** di luar yang disetujui. Tes yang sudah ada diperluas ke semua teks baru.
 - **Ukuran:** token naik paling banyak 2%. Paragraf prosa paling panjang 600 karakter, kecuali skema JSON.
 - **Kesesuaian dengan alat aktif tetap:** tes `tests/test_prompt_audit.py` tetap lulus. Tes yang mencari potongan
@@ -224,18 +234,14 @@ hanya memindah dan memecah kalimat yang sudah ada.
 
 - **Deploy:** hanya market-ai-orc (push `main`, deploy otomatis). Klaim SUCCESS hanya untuk deployment commit itu.
   Biaya cache naik sekali karena awalan prompt berubah.
-- **Golden test:** user memilih prompt diganti dulu, jadi `qa_20261006a` mengukur putaran 1 dan 2 sekaligus (± USD
-  0,4–0,6, hanya setelah user meminta). Konsekuensinya, kalau perilaku berubah, tidak bisa dipastikan putaran mana
-  penyebabnya. Untuk mengurangi itu, item yang menguji alat (P31 q7, P34 d1 dan bakrie_bank) dibaca terpisah dari item
-  yang menguji alur riset (s3, h_add, h_lookback).
-- **Item tambahan untuk suite** (usul): satu percakapan yang dibuka dengan "BBRI" saja (K2, M14 s4.1), dan satu rencana
-  hipotesis yang hasilnya `angle_a` dan `angle_b` berbeda arah (K1).
+- **Golden test:** satu golden test setelah putaran 2 dan M26 live, rinciannya di `PLAN_2026-10-05.md` item 9
+  (hanya setelah user meminta).
 
 ### Dokumen yang diperbarui saat dijalankan
 
 - Dokumen ini, bagian "Hasil putaran 2".
 - `PLAN_2026-10-05.md` (item 7).
-- `ERRORS_AND_SOLUTIONS.md` M14 (bagian s4.1, bila K2 disetujui).
+- `ERRORS_AND_SOLUTIONS.md` M14 (bagian s4.1, K2).
 - `RAILWAY_CHANGELOG.md` (deploy).
 - `OUTSTANDING_ISSUES.md`.
 
