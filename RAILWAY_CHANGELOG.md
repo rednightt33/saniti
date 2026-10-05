@@ -1,5 +1,17 @@
 # Railway changelog
 
+## 2026-10-05 — M75: provider speed preference on market-ai-orc (dev)
+
+- User decision 2026-10-05 after the p1 analysis (Sail Research at a median 22 output tokens/s served 79% of the
+  generation time of the partial golden test; see `ERRORS_AND_SOLUTIONS.md` M75).
+- Variable `AI_PROVIDER_MIN_THROUGHPUT` set to `50` on market-ai-orc (dev) through the Railway API with
+  `skipDeploys` before the push (name and value only; not a secret). Read back: `50`; `AI_PROVIDER_SORT` unset,
+  `AI_MODEL` `deepseek/deepseek-v4.1-flash`, `AI_MODEL_SWITCH` `1`, `AI_PROVIDER_MAX_CACHE_PRICE_RATIO` `0.25`
+  unchanged.
+- `railway config pull --force` added only `AI_PROVIDER_MIN_THROUGHPUT: preserve()` to `.railway/railway.ts`;
+  `railway config plan`: "already up to date".
+- Deployment: see the next entry for the commit and deployment id.
+
 ## 2026-10-05 — P34 option A (database before the web) and the approved prompt audit on dev
 
 - Variable `AI_ENABLE_REFERENCE_LOOKUP` set to `true` on market-ai-orc (dev) with `--skip-deploys` before the push

@@ -40,7 +40,7 @@ g6 = usulan pertanyaan tambahan).
 - **[HIGH ALERT]** S23: angka hasil kode AI tidak diperiksa ulang backend. --> UNDERADDRESSED (g1–g4 dibandingkan hitungan independen)
 - **[HIGH ALERT]** M13: "saham terbaik" memakai definisi pilihan AI. --> UNDERADDRESSED, sebagian (AI wajib menyebut definisinya) (g1)
 
-- M75: jawaban lambat 4–36 menit karena hampir semua panggilan jatuh ke penyedia lambat (Morph). --> KEPUTUSAN USER 2026-10-04: rute penyedia **as is** (O1 tidak dikerjakan); dikurangi lewat router (M79)
+- M75: jawaban lambat 4–36 menit karena hampir semua panggilan jatuh ke penyedia lambat (Morph). --> KEPUTUSAN USER 2026-10-04: rute penyedia **as is** (O1 tidak dikerjakan); dikurangi lewat router (M79). **Terulang 2026-10-05** (Sail Research, 22 token/detik; p1 904 detik). KEPUTUSAN USER 2026-10-05: preferensi kecepatan minimal 50 token/detik (`AI_PROVIDER_MIN_THROUGHPUT=50`, dev), menunggu pengukuran di golden test
 - M76: pertanyaan lanjutan kehilangan riwayat setelah jawaban panjang. --> DIPERBAIKI (O2, `AI_MAX_HISTORY_TOKENS` 150.000, live); belum diuji live dengan pesan lanjutan khusus
 - M77: ekspor tidak tersedia di langkah baca. --> DIPERBAIKI (O3, sifat alat; live); TERBUKTI live 2026-10-05 (s1.4 dan s3.4: ekspor di langkah baca, 13 dan 55 detik)
 - P28: penolakan angka karena angka dari layar print / alarm palsu; putaran bukti tanpa temuan. --> D dan bukti DIPERBAIKI (P28-D, O4; live, terlihat di q4); A/B (angka dari print, hitung di kepala) gerbang tetap

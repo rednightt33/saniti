@@ -143,6 +143,10 @@ class Settings:
     # Unset keeps OpenRouter's default routing.
     ai_provider_max_cache_price_ratio: float | None = None
     ai_provider_policy_ttl_seconds: int = 3600
+    # Preferred minimum median output speed in tokens/s (provider.preferred_min_throughput p50, user decision
+    # 2026-10-05): slower endpoints move to the end of OpenRouter's list instead of being excluded, and the price
+    # weighting still applies among the faster ones. Unset keeps OpenRouter's default routing.
+    ai_provider_min_throughput: float | None = None
     # The final-response JSON contract (and, with Research Plan confirmation, the plan's field skeleton) is part of the
     # system prompt, so a finished run answers in JSON at once instead of a prose draft that is re-asked as JSON.
     ai_final_contract_in_prompt: bool = False
@@ -358,6 +362,8 @@ class Settings:
             ai_provider_max_cache_price_ratio=_ratio(env, "AI_PROVIDER_MAX_CACHE_PRICE_RATIO", 0.0, 0.0, 1.0)
             if (env.get("AI_PROVIDER_MAX_CACHE_PRICE_RATIO") or "").strip() else None,
             ai_provider_policy_ttl_seconds=_integer(env, "AI_PROVIDER_POLICY_TTL_SECONDS", 3600, minimum=60),
+            ai_provider_min_throughput=_ratio(env, "AI_PROVIDER_MIN_THROUGHPUT", 0.0, 1.0, 10000.0)
+            if (env.get("AI_PROVIDER_MIN_THROUGHPUT") or "").strip() else None,
             ai_final_contract_in_prompt=_boolean(env, "AI_FINAL_CONTRACT_IN_PROMPT", False),
             ai_catalog_summary_in_prompt=_boolean(env, "AI_CATALOG_SUMMARY_IN_PROMPT", False),
             ai_catalog_summary_ttl_seconds=_integer(env, "AI_CATALOG_SUMMARY_TTL_SECONDS", 900, minimum=60),

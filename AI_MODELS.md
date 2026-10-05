@@ -81,6 +81,7 @@ Nilai seperti `self.settings.ai_model` atau `slot.model` dibaca dari setelan di 
 | `AI_MODEL_SWITCH` | `1` |
 | `AI_MODE_SWITCH` | `1` |
 | `AI_PROVIDER_MAX_CACHE_PRICE_RATIO` | `0.0` |
+| `AI_PROVIDER_MIN_THROUGHPUT` | `0.0` |
 | `AI_PROVIDER_POLICY_TTL_SECONDS` | `3600` |
 | `AI_PROVIDER_SORT` | `""` |
 | `AI_REASONING_EFFORT` | `"high"` |
@@ -129,7 +130,7 @@ Nilai seperti `self.settings.ai_model` atau `slot.model` dibaca dari setelan di 
 ## Nilai di Railway dev
 
 <!-- dev-values:start -->
-Diambil 2026-10-04 dari `railway variables --kv` (hanya nama di daftar setelan; nilai rahasia ditolak).
+Diambil 2026-10-05 dari `railway variables --kv` (hanya nama di daftar setelan; nilai rahasia ditolak).
 
 | Variabel | dev |
 |---|---|
@@ -148,6 +149,7 @@ Diambil 2026-10-04 dari `railway variables --kv` (hanya nama di daftar setelan; 
 | `AI_MODEL_SWITCH` | `1` |
 | `AI_MODE_SWITCH` | `4` |
 | `AI_PROVIDER_MAX_CACHE_PRICE_RATIO` | `0.25` |
+| `AI_PROVIDER_MIN_THROUGHPUT` | `50` |
 | `AI_REASONING_EFFORT` | `high` |
 | `AI_REPLAY_REASONING` | `true` |
 | `AI_REQUEST_TIMEOUT_SECONDS` | `600` |

@@ -72,6 +72,29 @@ def test_provider_sort_reaches_every_model_call_including_the_reply_classifier()
         assert payload["provider"] == {"require_parameters": True, "allow_fallbacks": True, "sort": "throughput"}
 
 
+def test_min_throughput_is_off_by_default_and_validated() -> None:
+    assert make_settings().ai_provider_min_throughput is None
+    assert make_settings(AI_PROVIDER_MIN_THROUGHPUT=" 50 ").ai_provider_min_throughput == 50.0
+    for bad in ("fast", "0", "-5"):
+        with pytest.raises(ConfigError, match="AI_PROVIDER_MIN_THROUGHPUT"):
+            make_settings(AI_PROVIDER_MIN_THROUGHPUT=bad)
+
+
+def test_min_throughput_is_a_median_preference_on_every_model_call_and_keeps_load_balancing() -> None:
+    sandbox = Sandbox()
+    issued = first_turn(sandbox)[0].continuation
+    agent, scripted = plan_orchestrator([classifier("CANCEL"), final_response(
+        {"response_type": "ANSWER", "answer": "Dibatalkan.", "clarification_question": None, "assumptions": [],
+         "limitations": [], "research_plan": None})], sandbox, AI_PROVIDER_MIN_THROUGHPUT="50")
+    agent.run(AgentRunRequest(request_id="run_002", conversation_id="conv_1", message="batal saja",
+                              continuation=continuation(issued)))
+    assert len(scripted.payloads) == 2  # the classifier, then the cancel turn
+    for payload in scripted.payloads:
+        # a preference, not a sort: no provider.sort, so the price-weighted balancing stays among the fast endpoints
+        assert payload["provider"] == {"require_parameters": True, "allow_fallbacks": True,
+                                       "preferred_min_throughput": {"p50": 50.0}}
+
+
 # ------------------------------------------------------------------------------------ provider logging (R1)
 
 def generation_record(**overrides: Any) -> dict[str, Any]:

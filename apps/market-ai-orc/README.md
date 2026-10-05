@@ -214,6 +214,16 @@ These flags address this. All default off, and with all of them off the requests
     for `deepseek/deepseek-v4.1-flash`.
   - It does not prove a provider actually caches: the cache ratio (`ai_model_usage_summary`) and the served provider
     (`ai_model_call_provider`) remain the measure.
+- **`AI_PROVIDER_MIN_THROUGHPUT`** (2026-10-05, user decision) adds `provider.preferred_min_throughput: {p50: <n>}`
+  (tokens/s) to every model call, the routers and the reply classifier included.
+  - OpenRouter documents it as a preference, not a filter: endpoints below the median speed over a rolling 5-minute
+    window move to the end of the list, the price weighting still applies among the faster ones, and a request is never
+    refused because none is fast enough.
+  - Why: sticky routing (`session_id` per run) keeps a whole run on the endpoint of its first call. In the golden test
+    of 2026-10-05, runs that landed on Sail Research (median 22 tokens/s) or Morph (8) took 4–5 times longer than runs
+    on DeepInfra (107); one final answer alone took 456 s (M75).
+  - Dev: `50`. Unset keeps OpenRouter's default routing. Measure the served provider and its speed
+    (`ai_model_call_provider`) after a change.
 - **`AI_LOG_PROVIDER`** logs, after the response is sent, one `ai_model_call_provider` event per model call, from
   OpenRouter's `GET /api/v1/generation?id=<provider_response_id>`. The Responses body carries no provider.
   - Fields: `provider`, `model_version`, `provider_attempts` and `failed_providers` (fallbacks), `first_token_ms`,
@@ -285,6 +295,7 @@ Gate and final-response log events (always on):
 | `AI_PROVIDER_SORT` | no | unset | OpenRouter `provider.sort` for every model call: `price`, `throughput` or `latency`. Unset keeps OpenRouter's load balancing (weighted to the lowest price). Setting it turns load balancing off; see [Run-time and cost controls](#run-time-and-cost-controls). **Not used:** the user decided on 2026-09-27 to keep OpenRouter's default routing (`AGENTS.md`) |
 | `AI_PROVIDER_MAX_CACHE_PRICE_RATIO` | no | unset | Skip (`provider.ignore`) every provider whose cache-read price is above this share of its prompt price, read from OpenRouter's `/models/{model}/endpoints` for the model in use. A provider is skipped only when all its endpoints are; when every endpoint would be, nothing is skipped. Unset keeps OpenRouter's default routing. Dev: `0.25` (user decision 2026-10-04); see [Run-time and cost controls](#run-time-and-cost-controls) |
 | `AI_PROVIDER_POLICY_TTL_SECONDS` | no | `3600` | How old the derived provider list may get before it is re-read in the background (minimum 60) |
+| `AI_PROVIDER_MIN_THROUGHPUT` | no | unset | OpenRouter `provider.preferred_min_throughput` `{p50: <n>}` in tokens/s for every model call (1–10000): slower endpoints are tried last, never excluded, and load balancing stays on. Unset keeps OpenRouter's default routing. Dev: `50` (user decision 2026-10-05); see [Run-time and cost controls](#run-time-and-cost-controls) |
 | `AI_ENABLE_WEB_FACT` | no | `false` | S4b (K8): the tool `find_web_fact`, one fact that is not in the market data (group membership, controlling shareholder, company status) from market-web-governor `POST /v1/fact` in about 30 s. Needs `WEB_GOVERNOR_URL` and `WEB_GOVERNOR_API_KEY` (off otherwise, `web_fact_inactive`). The orchestrator writes each fact as a "Fakta web" assumption with its status and domains |
 | `WEB_GOVERNOR_URL`, `WEB_GOVERNOR_API_KEY` | with `AI_ENABLE_WEB_FACT` | unset | market-web-governor's address and its API key (secret; on Railway a reference to the governor's own variable) |
 | `AI_REPLAY_REASONING` | no | `false` | S4c (K7, 2026-10-04): send the reasoning items of a run's earlier tool turns back with their calls, exactly as received, so a conclusion reached in reasoning is not lost a few steps later (M71, P27). Never across messages. A provider that refuses them (`PROVIDER_REJECTED`) turns it off for the rest of the run (`ai_reasoning_replay_refused`). Input tokens grow by the replayed reasoning; watch the cache ratio. Dev: `true` |

@@ -1983,10 +1983,14 @@ class AgentOrchestrator:
     def _provider(self) -> dict[str, Any]:
         """OpenRouter provider preferences. provider.sort (AI_PROVIDER_SORT) turns load balancing off and tries the
         endpoints in that order; without it OpenRouter balances load weighted to the lowest price. provider.ignore
-        (AI_PROVIDER_MAX_CACHE_PRICE_RATIO) drops the providers whose cache reads are barely discounted."""
+        (AI_PROVIDER_MAX_CACHE_PRICE_RATIO) drops the providers whose cache reads are barely discounted.
+        provider.preferred_min_throughput (AI_PROVIDER_MIN_THROUGHPUT) moves endpoints slower than that median speed to
+        the end of the list; it never excludes one, so a request still runs when none is fast enough."""
         provider: dict[str, Any] = {"require_parameters": True, "allow_fallbacks": True}
         if self.settings.ai_provider_sort:
             provider["sort"] = self.settings.ai_provider_sort
+        if self.settings.ai_provider_min_throughput is not None:
+            provider["preferred_min_throughput"] = {"p50": self.settings.ai_provider_min_throughput}
         if self.provider_policy is not None:
             ignored = self.provider_policy.ignored()
             if ignored:
