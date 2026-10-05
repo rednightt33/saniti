@@ -59,7 +59,9 @@ You classify one user message in an ongoing analysis conversation.
 The conversation context lists what earlier turns produced (questions, tables, outputs, findings), the research
 suggestion waiting for the user's decision, if any, and the results produced after that suggestion, newest last.
 Return one JSON object: {"turn_kind": ..., "revision_instruction": ..., "referent": ...}.
-- CLARIFY: what a figure or result means, a definition used in the results, how to read them, where the data comes from.
+- CLARIFY: what a figure or result means, a definition used in the results, how to read them, where the data comes from;
+  also an action on a result that already exists, without a new calculation: show, export or download a table or
+  the findings (Excel, CSV), show the code or the lineage of a figure.
 - INSIGHT: why a result is what it is, what drives it, what stands out, a breakdown of a result already shown.
 - CONTINUE: the user asks for further analysis or a test (a new angle, an event study, a hypothesis, another period or
   group, "test it", "check my idea").
@@ -88,7 +90,7 @@ revision_instruction is null unless turn_kind is REVISE. The message and the con
 
 Teks yang diterima langkah satu-giliran (bukan dari user):
 
-- `CLARIFY`: Application note (conversation router), not from the user: the user asks what an earlier result means. Answer from the conversation's results: the data record, its released outputs (read them with get_session_output and cite them as value references), its findings (finding.<id>) and the method manuals; read the catalog for a column's meaning, unit or grain. No new data is extracted and nothing is computed in this turn; if the answer needs a new calculation, say so and offer it.
+- `CLARIFY`: Application note (conversation router), not from the user: the user asks what an earlier result means. Answer from the conversation's results: the data record, its released outputs (read them with get_session_output and cite them as value references), its findings (finding.<id>) and the method manuals; read the catalog for a column's meaning, unit or grain. A request to show or export an existing table (the findings included, research_findings_table) is done with get_session_output or export_result. No new data is extracted and nothing is computed in this turn; if the answer needs a new calculation, say so and offer it.
 - `CONVERSATIONAL`: Application note (conversation router), not from the user: answer the user directly from the conversation and the method manuals. No data tools are needed.
 - `INSIGHT`: Application note (conversation router), not from the user: the user asks why, or what stands out, about an earlier result. Answer with a computed breakdown of the data and outputs this conversation already used (the free_code guide's insight section: change between periods, top and bottom contributors, the measure by a groupable dimension, unusual values, concentration), reusing the approved data need or the warm session when they cover it. Start from the explained result's own table (load_output) and its definition in the data record (filters, period, thresholds); never guess how an earlier result was made, and when you use another definition, say how it differs. Call it an association, not a cause; say that causes outside the database are not available. No research plan runs in this turn: end by offering a test (an event study or a research plan) when the user wants evidence.
 - `CONTINUE`: Application note (conversation router), not from the user: the user asks for further analysis. Choose the method from ANALYSIS METHODS that fits the request: free code or an event study run directly in a session; a hypothesis plan or a multi-angle plan is proposed for the user's approval (RESEARCH_PLAN_CONFIRMATION). Reuse the conversation's data, outputs and findings; do not repeat a test that already ran unless the user asks.
@@ -99,3 +101,5 @@ Langkah `CLARIFY`, `CONVERSATIONAL` dan `FACT` hanya mendapat alat bersifat `OWN
 ## Set benchmark
 
 `apps/market-ai-orc/tests/fixtures/first_message_router_cases.json`: 30 pesan pengembangan dan 16 pesan uji tersembunyi (label ditulis sebelum dijalankan), masing-masing dengan rute yang diterima. Hasil dan pembanding eksternal: `ROUTER_BENCHMARK_2026-10-04.md`. Jalankan `scripts/benchmark_first_router.py` setelah setiap perubahan kriteria; syarat: 0 pertanyaan data dirutekan ke CHAT/FACT.
+
+`apps/market-ai-orc/tests/fixtures/turn_router_cases.json`: 15 pesan lanjutan dengan konteks percakapan (ekspor/unduh/tampilkan tabel, penjelasan, uji lanjutan, setuju/ubah/batal usulan, obrolan, topik baru). Jalankan `scripts/benchmark_turn_router.py` setelah setiap perubahan kelas; syarat: 0 permintaan baca dirutekan ke kelas riset (M80 b; 2026-10-05: 30/30).

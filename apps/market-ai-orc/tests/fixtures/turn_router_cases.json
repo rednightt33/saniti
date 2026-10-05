@@ -1,0 +1,505 @@
+{
+ "note": "Later-message router cases (M80 b): export/show requests on existing results must be a read class (CLARIFY); the rest are controls.",
+ "cases": [
+  {
+   "message": "Ekspor tabel hasil uji tadi ke Excel.",
+   "context": {
+    "earlier_questions": [
+     "Siapa broker yang konsisten membeli saham bank saat market crash?",
+     "Cari 4 sudut lain.",
+     "Setuju, jalankan."
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "sq_episode_net_buying_v2",
+     "crash_buyer_ranking_all_brokers_v2",
+     "research_input_sustained_breadth",
+     "research_findings_table"
+    ],
+    "findings": [
+     "ANGLE:sustained_breadth",
+     "ANGLE:breadth_streak",
+     "ANGLE:concentration_quintile"
+    ],
+    "pending_suggestion": {
+     "plan_id": "rp_x",
+     "angles": [
+      "sustained_breadth: mayoritas broker net beli 2 hari berturut-turut -> return 5 hari",
+      "breadth_streak",
+      "concentration_quintile"
+     ],
+     "question": "Apakah net beli broker yang meluas diikuti return lebih tinggi?"
+    },
+    "results_after_pending_suggestion": []
+   },
+   "kinds": [
+    "CLARIFY"
+   ]
+  },
+  {
+   "message": "Ekspor tabel hasil uji tadi ke Excel.",
+   "context": {
+    "earlier_questions": [
+     "Siapa broker yang konsisten membeli saham bank saat market crash?",
+     "Cari 4 sudut lain.",
+     "Setuju, jalankan."
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "sq_episode_net_buying_v2",
+     "crash_buyer_ranking_all_brokers_v2",
+     "research_input_sustained_breadth",
+     "research_findings_table"
+    ],
+    "findings": [
+     "ANGLE:sustained_breadth",
+     "ANGLE:breadth_streak",
+     "ANGLE:concentration_quintile"
+    ],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "CLARIFY"
+   ]
+  },
+  {
+   "message": "download hasilnya dong dalam csv",
+   "context": {
+    "earlier_questions": [
+     "Siapa broker yang konsisten membeli saham bank saat market crash?",
+     "Cari 4 sudut lain.",
+     "Setuju, jalankan."
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "sq_episode_net_buying_v2",
+     "crash_buyer_ranking_all_brokers_v2",
+     "research_input_sustained_breadth",
+     "research_findings_table"
+    ],
+    "findings": [
+     "ANGLE:sustained_breadth",
+     "ANGLE:breadth_streak",
+     "ANGLE:concentration_quintile"
+    ],
+    "pending_suggestion": {
+     "plan_id": "rp_x",
+     "angles": [
+      "sustained_breadth: mayoritas broker net beli 2 hari berturut-turut -> return 5 hari",
+      "breadth_streak",
+      "concentration_quintile"
+     ],
+     "question": "Apakah net beli broker yang meluas diikuti return lebih tinggi?"
+    },
+    "results_after_pending_suggestion": []
+   },
+   "kinds": [
+    "CLARIFY"
+   ]
+  },
+  {
+   "message": "tampilkan tabel lengkapnya",
+   "context": {
+    "earlier_questions": [
+     "Siapa broker yang konsisten membeli saham bank saat market crash?",
+     "Cari 4 sudut lain.",
+     "Setuju, jalankan."
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "sq_episode_net_buying_v2",
+     "crash_buyer_ranking_all_brokers_v2",
+     "research_input_sustained_breadth",
+     "research_findings_table"
+    ],
+    "findings": [
+     "ANGLE:sustained_breadth",
+     "ANGLE:breadth_streak",
+     "ANGLE:concentration_quintile"
+    ],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "CLARIFY"
+   ]
+  },
+  {
+   "message": "kasih lihat kode yang dipakai untuk hitungannya",
+   "context": {
+    "earlier_questions": [
+     "Siapa broker yang konsisten membeli saham bank saat market crash?",
+     "Cari 4 sudut lain.",
+     "Setuju, jalankan."
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "sq_episode_net_buying_v2",
+     "crash_buyer_ranking_all_brokers_v2",
+     "research_input_sustained_breadth",
+     "research_findings_table"
+    ],
+    "findings": [
+     "ANGLE:sustained_breadth",
+     "ANGLE:breadth_streak",
+     "ANGLE:concentration_quintile"
+    ],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "CLARIFY"
+   ]
+  },
+  {
+   "message": "angka 0,61 itu p-value apa?",
+   "context": {
+    "earlier_questions": [
+     "Siapa broker yang konsisten membeli saham bank saat market crash?",
+     "Cari 4 sudut lain.",
+     "Setuju, jalankan."
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "sq_episode_net_buying_v2",
+     "crash_buyer_ranking_all_brokers_v2",
+     "research_input_sustained_breadth",
+     "research_findings_table"
+    ],
+    "findings": [
+     "ANGLE:sustained_breadth",
+     "ANGLE:breadth_streak",
+     "ANGLE:concentration_quintile"
+    ],
+    "pending_suggestion": {
+     "plan_id": "rp_x",
+     "angles": [
+      "sustained_breadth: mayoritas broker net beli 2 hari berturut-turut -> return 5 hari",
+      "breadth_streak",
+      "concentration_quintile"
+     ],
+     "question": "Apakah net beli broker yang meluas diikuti return lebih tinggi?"
+    },
+    "results_after_pending_suggestion": []
+   },
+   "kinds": [
+    "CLARIFY"
+   ]
+  },
+  {
+   "message": "bisa kirim file excel ranking brokernya?",
+   "context": {
+    "earlier_questions": [
+     "Siapa broker yang konsisten membeli saham bank saat market crash?",
+     "Cari 4 sudut lain.",
+     "Setuju, jalankan."
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "sq_episode_net_buying_v2",
+     "crash_buyer_ranking_all_brokers_v2",
+     "research_input_sustained_breadth",
+     "research_findings_table"
+    ],
+    "findings": [
+     "ANGLE:sustained_breadth",
+     "ANGLE:breadth_streak",
+     "ANGLE:concentration_quintile"
+    ],
+    "pending_suggestion": {
+     "plan_id": "rp_x",
+     "angles": [
+      "sustained_breadth: mayoritas broker net beli 2 hari berturut-turut -> return 5 hari",
+      "breadth_streak",
+      "concentration_quintile"
+     ],
+     "question": "Apakah net beli broker yang meluas diikuti return lebih tinggi?"
+    },
+    "results_after_pending_suggestion": []
+   },
+   "kinds": [
+    "CLARIFY"
+   ]
+  },
+  {
+   "message": "Export the findings table to xlsx please",
+   "context": {
+    "earlier_questions": [
+     "Siapa broker yang konsisten membeli saham bank saat market crash?",
+     "Cari 4 sudut lain.",
+     "Setuju, jalankan."
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "sq_episode_net_buying_v2",
+     "crash_buyer_ranking_all_brokers_v2",
+     "research_input_sustained_breadth",
+     "research_findings_table"
+    ],
+    "findings": [
+     "ANGLE:sustained_breadth",
+     "ANGLE:breadth_streak",
+     "ANGLE:concentration_quintile"
+    ],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "CLARIFY"
+   ]
+  },
+  {
+   "message": "kenapa sudut sustained_breadth hasilnya tidak signifikan?",
+   "context": {
+    "earlier_questions": [
+     "Siapa broker yang konsisten membeli saham bank saat market crash?",
+     "Cari 4 sudut lain.",
+     "Setuju, jalankan."
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "sq_episode_net_buying_v2",
+     "crash_buyer_ranking_all_brokers_v2",
+     "research_input_sustained_breadth",
+     "research_findings_table"
+    ],
+    "findings": [
+     "ANGLE:sustained_breadth",
+     "ANGLE:breadth_streak",
+     "ANGLE:concentration_quintile"
+    ],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "INSIGHT",
+    "CLARIFY"
+   ]
+  },
+  {
+   "message": "uji lagi dengan horizon 10 hari",
+   "context": {
+    "earlier_questions": [
+     "Siapa broker yang konsisten membeli saham bank saat market crash?",
+     "Cari 4 sudut lain.",
+     "Setuju, jalankan."
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "sq_episode_net_buying_v2",
+     "crash_buyer_ranking_all_brokers_v2",
+     "research_input_sustained_breadth",
+     "research_findings_table"
+    ],
+    "findings": [
+     "ANGLE:sustained_breadth",
+     "ANGLE:breadth_streak",
+     "ANGLE:concentration_quintile"
+    ],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "CONTINUE"
+   ]
+  },
+  {
+   "message": "Setuju, jalankan usulannya.",
+   "context": {
+    "earlier_questions": [
+     "Siapa broker yang konsisten membeli saham bank saat market crash?",
+     "Cari 4 sudut lain.",
+     "Setuju, jalankan."
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "sq_episode_net_buying_v2",
+     "crash_buyer_ranking_all_brokers_v2",
+     "research_input_sustained_breadth",
+     "research_findings_table"
+    ],
+    "findings": [
+     "ANGLE:sustained_breadth",
+     "ANGLE:breadth_streak",
+     "ANGLE:concentration_quintile"
+    ],
+    "pending_suggestion": {
+     "plan_id": "rp_x",
+     "angles": [
+      "sustained_breadth: mayoritas broker net beli 2 hari berturut-turut -> return 5 hari",
+      "breadth_streak",
+      "concentration_quintile"
+     ],
+     "question": "Apakah net beli broker yang meluas diikuti return lebih tinggi?"
+    },
+    "results_after_pending_suggestion": []
+   },
+   "kinds": [
+    "APPROVE"
+   ]
+  },
+  {
+   "message": "ganti horizon usulannya jadi 10 hari",
+   "context": {
+    "earlier_questions": [
+     "Siapa broker yang konsisten membeli saham bank saat market crash?",
+     "Cari 4 sudut lain.",
+     "Setuju, jalankan."
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "sq_episode_net_buying_v2",
+     "crash_buyer_ranking_all_brokers_v2",
+     "research_input_sustained_breadth",
+     "research_findings_table"
+    ],
+    "findings": [
+     "ANGLE:sustained_breadth",
+     "ANGLE:breadth_streak",
+     "ANGLE:concentration_quintile"
+    ],
+    "pending_suggestion": {
+     "plan_id": "rp_x",
+     "angles": [
+      "sustained_breadth: mayoritas broker net beli 2 hari berturut-turut -> return 5 hari",
+      "breadth_streak",
+      "concentration_quintile"
+     ],
+     "question": "Apakah net beli broker yang meluas diikuti return lebih tinggi?"
+    },
+    "results_after_pending_suggestion": []
+   },
+   "kinds": [
+    "REVISE"
+   ]
+  },
+  {
+   "message": "tidak usah, batalkan usulannya",
+   "context": {
+    "earlier_questions": [
+     "Siapa broker yang konsisten membeli saham bank saat market crash?",
+     "Cari 4 sudut lain.",
+     "Setuju, jalankan."
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "sq_episode_net_buying_v2",
+     "crash_buyer_ranking_all_brokers_v2",
+     "research_input_sustained_breadth",
+     "research_findings_table"
+    ],
+    "findings": [
+     "ANGLE:sustained_breadth",
+     "ANGLE:breadth_streak",
+     "ANGLE:concentration_quintile"
+    ],
+    "pending_suggestion": {
+     "plan_id": "rp_x",
+     "angles": [
+      "sustained_breadth: mayoritas broker net beli 2 hari berturut-turut -> return 5 hari",
+      "breadth_streak",
+      "concentration_quintile"
+     ],
+     "question": "Apakah net beli broker yang meluas diikuti return lebih tinggi?"
+    },
+    "results_after_pending_suggestion": []
+   },
+   "kinds": [
+    "CANCEL"
+   ]
+  },
+  {
+   "message": "makasih ya",
+   "context": {
+    "earlier_questions": [
+     "Siapa broker yang konsisten membeli saham bank saat market crash?",
+     "Cari 4 sudut lain.",
+     "Setuju, jalankan."
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "sq_episode_net_buying_v2",
+     "crash_buyer_ranking_all_brokers_v2",
+     "research_input_sustained_breadth",
+     "research_findings_table"
+    ],
+    "findings": [
+     "ANGLE:sustained_breadth",
+     "ANGLE:breadth_streak",
+     "ANGLE:concentration_quintile"
+    ],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "CONVERSATIONAL"
+   ]
+  },
+  {
+   "message": "Berapa harga penutupan BMRI kemarin?",
+   "context": {
+    "earlier_questions": [
+     "Siapa broker yang konsisten membeli saham bank saat market crash?",
+     "Cari 4 sudut lain.",
+     "Setuju, jalankan."
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "sq_episode_net_buying_v2",
+     "crash_buyer_ranking_all_brokers_v2",
+     "research_input_sustained_breadth",
+     "research_findings_table"
+    ],
+    "findings": [
+     "ANGLE:sustained_breadth",
+     "ANGLE:breadth_streak",
+     "ANGLE:concentration_quintile"
+    ],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "NEW_TOPIC",
+    "CONTINUE"
+   ]
+  }
+ ]
+}

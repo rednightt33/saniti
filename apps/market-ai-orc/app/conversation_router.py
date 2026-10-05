@@ -43,7 +43,9 @@ ROUTER_INSTRUCTIONS = """You classify one user message in an ongoing analysis co
 The conversation context lists what earlier turns produced (questions, tables, outputs, findings), the research
 suggestion waiting for the user's decision, if any, and the results produced after that suggestion, newest last.
 Return one JSON object: {"turn_kind": ..., "revision_instruction": ..., "referent": ...}.
-- CLARIFY: what a figure or result means, a definition used in the results, how to read them, where the data comes from.
+- CLARIFY: what a figure or result means, a definition used in the results, how to read them, where the data comes from;
+  also an action on a result that already exists, without a new calculation: show, export or download a table or
+  the findings (Excel, CSV), show the code or the lineage of a figure.
 - INSIGHT: why a result is what it is, what drives it, what stands out, a breakdown of a result already shown.
 - CONTINUE: the user asks for further analysis or a test (a new angle, an event study, a hypothesis, another period or
   group, "test it", "check my idea").
@@ -118,8 +120,10 @@ NOTES = {
     "CLARIFY": ("Application note (conversation router), not from the user: the user asks what an earlier result means. "
                 "Answer from the conversation's results: the data record, its released outputs (read them with "
                 "get_session_output and cite them as value references), its findings (finding.<id>) and the method "
-                "manuals; read the catalog for a column's meaning, unit or grain. No new data is extracted and nothing "
-                "is computed in this turn; if the answer needs a new calculation, say so and offer it."),
+                "manuals; read the catalog for a column's meaning, unit or grain. A request to show or export an existing "
+                "table (the findings included, research_findings_table) is done with get_session_output or "
+                "export_result. No new data is extracted and nothing is computed in this turn; if the answer needs a "
+                "new calculation, say so and offer it."),
     "CONVERSATIONAL": ("Application note (conversation router), not from the user: answer the user directly from the "
                        "conversation and the method manuals. No data tools are needed."),
     "INSIGHT": ("Application note (conversation router), not from the user: the user asks why, or what stands out, "

@@ -1348,6 +1348,42 @@ class SessionManager:
                   rows=rows, bytes=len(data))
         return {"output_id": output_id, "status": "RESTORED", "rows": rows}
 
+    def write_backend_table(self, session_id: str, execution_id: str, name: str, rows: list[dict[str, Any]],
+                            columns: tuple[str, ...], *, definition: dict[str, Any] | None = None,
+                            units: dict[str, str] | None = None) -> dict[str, Any]:
+        """M80 (a): a table the backend made (not the session's code), stored like any output of the session
+        (Parquet, checksum, retention) and released with the completion; returns the output record."""
+        import hashlib
+        import io
+
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        table = pa.Table.from_pylist(rows, schema=None) if rows else pa.table({c: pa.array([], pa.null())
+                                                                               for c in columns})
+        table = table.select(list(columns))
+        buffer = io.BytesIO()
+        pq.write_table(table, buffer)
+        data = buffer.getvalue()
+        output_id = f"out_{secrets.token_hex(12)}"
+        relative = f"{session_id}/{output_id}.parquet"
+        path = self.outputs_root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        os.chmod(path, 0o400)
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        record = {"output_id": output_id, "session_id": session_id, "execution_id": execution_id, "name": name,
+                  "type": "TABLE", "format": "PARQUET", "relative_path": relative, "byte_count": len(data),
+                  "row_count": table.num_rows, "columns": list(columns),
+                  "checksum_sha256": hashlib.sha256(data).hexdigest(),
+                  "meta": {"backend": True,
+                           **({"definition": d} if (d := _output_definition(definition)) is not None else {}),
+                           **({"units": u} if (u := _output_units(units, list(columns))) else {})},
+                  "released": 0, "created_at": now.isoformat(),
+                  "expires_at": (now + timedelta(hours=self.settings.result_retention_hours)).isoformat()}
+        self.store.insert_output(record)
+        return record
+
     def _epoch_of(self, output: dict[str, Any]) -> int:
         execution = self.store.get_execution(output["execution_id"]) or {}
         return int(execution.get("epoch") or 1)

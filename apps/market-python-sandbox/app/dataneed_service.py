@@ -23,6 +23,7 @@ from .datasets import DatasetFailure
 from .dataneed_store import DRAFT_RETENTION_DAYS, DataNeedStore
 from .records import utc_now
 from .research_governance import GOVERNANCE_V2, check_request, check_request_v2, review_v2
+from . import findings_table
 from .research_findings import evaluate as evaluate_findings
 from .research_methods import sha256_json as research_sha256
 from .sessions import SessionError, SessionManager
@@ -988,6 +989,15 @@ class DataNeedService:
                     "delivery_issues": [i for r in delivery.get("requests") or [] for i in r.get("issues") or []][:10]}
         released = []
         if passed:
+            # M80 (a): the backend's research findings also as a standard table (export, chart, value references)
+            found = ([grouped["findings"][a] for a in sorted(grouped["findings"])] if grouped is not None else []) \
+                + ([findings["finding"]] if findings is not None and findings["status"] == "OK" else [])
+            ok_runs = [e for e in executions if e["status"] == "OK"]
+            table_rows = findings_table.rows(found)
+            if table_rows and ok_runs:
+                outputs = [*outputs, self.sessions.write_backend_table(
+                    session_id, ok_runs[-1]["execution_id"], findings_table.NAME, table_rows, findings_table.COLUMNS,
+                    definition=findings_table.DEFINITION, units=findings_table.UNITS)]
             self.store.release_outputs([o["output_id"] for o in outputs])
             # an event study's declaration record is released for the audit but not listed for the answer
             code_of = {e["execution_id"]: e.get("code_sha256") for e in executions}

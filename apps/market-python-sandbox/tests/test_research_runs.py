@@ -178,6 +178,10 @@ def test_a_research_run_records_one_backend_finding_per_angle(env) -> None:
     view = env["api"].get(f"/v1/research-runs/{run['research_run_id']}", params={"request_id": RUN},
                           headers=HEADERS).json()
     assert view["groups"][0]["status"] == "COMPLETED" and len(view["findings"]) == 3
+    # M80 (a): the backend's findings are released as a standard table too (one row per angle)
+    table = [o for o in completion["released_outputs"] if o["name"] == "research_findings_table"]
+    assert len(table) == 1 and table[0]["row_count"] == 3 and table[0]["type"] == "TABLE"
+    assert table[0]["columns"][:3] == ["angle", "comparison", "status"] and table[0]["definition"]["notes"]
 
 
 def test_three_findings_of_the_same_family_complete(env) -> None:
