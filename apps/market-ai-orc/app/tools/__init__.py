@@ -58,6 +58,7 @@ def build_default_registry(
     evidence: bool = False,
     web_fact_client: Any | None = None,
     reference_lookup: bool = False,
+    reference_check: bool = False,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
@@ -186,6 +187,11 @@ def build_default_registry(
 
         registry.register(web_fact_spec(web_fact_client,
                                         reference_lookup=registry.get("lookup_reference") is not None))
+    if reference_check:
+        # 10.2 (AI_ENABLE_ADDRESS_MENU): value references rendered before the answer is written
+        from .references import check_references_spec
+
+        registry.register(check_references_spec())
     if method_guides and dataneed_enabled:
         # 4b: the manual of each offered method; a research library method_id opens its library entry
         from .method_guides import method_guide_spec

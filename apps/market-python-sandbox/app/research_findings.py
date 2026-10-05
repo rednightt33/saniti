@@ -135,9 +135,21 @@ def evaluate(constraints: dict[str, Any], outputs: list[dict[str, Any]], outputs
                "groups": {g: {k: v for k, v in d.items() if k != "sd_of_date_means"}
                           for g, d in summary["groups"].items()},
                "parameters": summary["parameters"],
+               # 10.5b (plan 2026-10-05 item 10): the level of both intervals, citable as finding.<id>.confidence_level
+               # like an angle's (research_validation.envelope); the intervals use the adjusted alpha
+               "confidence_level": _confidence_level(summary["parameters"]),
                "success_definition": (constraints.get("findings") or {}).get("success_definition"),
                # M28: the rule the engine applied (the approved one, checked above), shown instead of the text
                **({"success_rule": approved_rule} if isinstance(approved_rule, dict) else {}),
                # P23: each figure's unit from the approved outcome unit, so the answer cannot show it 100 times off
                "units": stats.summary_units(params["outcome_unit"])}
     return {"status": "OK", "finding": finding}
+
+
+def _confidence_level(parameters: dict[str, Any]) -> float | None:
+    """1 - the adjusted alpha both intervals were built at (None when the summary has no alpha)."""
+    alpha = parameters.get("alpha_adjusted", parameters.get("alpha"))
+    try:
+        return round(1 - float(alpha), 6)
+    except (TypeError, ValueError):
+        return None

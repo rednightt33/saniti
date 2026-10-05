@@ -20,6 +20,9 @@ MESSAGE_SEPARATOR = "\n\u241e\n"
 # M82 (user decision 2026-10-05): the conversation router's structured reading of the newest message
 # ([{name, value, unit, action}]; None when no router read it, then the pattern reading below decides alone)
 current_design_changes: ContextVar[list[dict] | None] = ContextVar("current_design_changes", default=None)
+# 10.6 (plan 2026-10-05, user decision): the conversation router's referent of the newest message (NEWEST_RESULT when it
+# builds on the latest result, "pakai angka hasil analisa kamu barusan"); None when no router read it
+current_turn_referent: ContextVar[str | None] = ContextVar("current_turn_referent", default=None)
 
 NUMBER = r"(\d{1,3})"
 UNITS = {"DAY": r"(?:hari(?:\s+(?:bursa|perdagangan|kerja))?|trading\s+days?|business\s+days?|days?|d)",

@@ -158,6 +158,10 @@ class ReferenceSources:
     aliases: dict[str, dict[str, str]] = field(default_factory=dict)
     # P23: (namespace, key) -> {field or column (or a dotted path of them): unit} declared beside the object
     units: dict[tuple[str, str], dict[str, str]] = field(default_factory=dict)
+    # 10.4 (plan 2026-10-05 item 10): (namespace, key) -> (namespace, key, path prefix) read when a field is missing
+    fallbacks: dict[tuple[str, str], tuple[str, str, tuple[str, ...]]] = field(default_factory=dict)
+    # 10.4: reference -> the reference it was read from (logged as ai_reference_redirected)
+    redirected: dict[str, str] = field(default_factory=dict)
 
     def add(self, namespace: str, key: str, value: Any, label: str, units: dict[str, Any] | None = None) -> None:
         self.objects.setdefault(namespace, {})[str(key)] = (value, label)
@@ -167,6 +171,12 @@ class ReferenceSources:
 
     def alias(self, namespace: str, alias: str, key: str) -> None:
         self.aliases.setdefault(namespace, {})[alias] = key
+
+    def fallback(self, namespace: str, key: str, target_namespace: str, target_key: str,
+                 prefix: tuple[str, ...] = ()) -> None:
+        """10.4: a field the object (namespace, key) lacks is read from the same path under prefix of another object
+        of this run (a hypothesis finding from its released research_summary). One fallback per object."""
+        self.fallbacks[(namespace, str(key))] = (target_namespace, str(target_key), tuple(prefix))
 
     def __bool__(self) -> bool:
         return any(self.objects.values())
@@ -191,7 +201,7 @@ class ReferenceSources:
 
     def lookup(self, path: str) -> Resolved:
         value, label = self.resolve(path)
-        unit = self.unit(path)
+        unit = self.unit(self.redirected.get(path, path))
         number = _number(value)
         if number is None and isinstance(value, str):
             raise ReferenceError_(f"'{path}' is text, not a number: reference it without a format to show it as "
@@ -260,7 +270,94 @@ class ReferenceSources:
         value, label = entry
         # a refusal names the object as the model can write it (out.o1), never by its long id
         shown = next((a for a, k in self.aliases.get(namespace, {}).items() if k == key), key)
-        return _walk(value, rest, f"{namespace}.{shown}", path), label
+        try:
+            return _walk(value, rest, f"{namespace}.{shown}", path), label
+        except MissingField:
+            target = self.fallbacks.get((namespace, key))
+            entry = self.objects.get(target[0], {}).get(target[1]) if target else None
+            if target is None or entry is None:
+                raise
+            target_shown = next((a for a, k in self.aliases.get(target[0], {}).items() if k == target[1]), target[1])
+            walked = ".".join([target[0], target_shown, *target[2]])
+            try:
+                found = _walk(entry[0], [*target[2], *rest], walked, path)
+            except ReferenceError_:
+                pass
+            else:
+                self.redirected[path] = ".".join([walked, *rest])
+                return found, entry[1]
+            raise
+
+    def menu(self, ref: str, limit: int = 40) -> list[str]:
+        """10.1 (plan 2026-10-05 item 10): the full addresses of the numeric values of the object at ref, each with its
+        value and unit ("<address> = <value> [unit]"), for the model to copy instead of composing an address from
+        memory. A table gives one example per numeric column of its first row read, by its identifying column when it
+        has one. Bounded to limit addresses; payloads, hashes and versions are left out."""
+        try:
+            value, _ = self.resolve(ref)
+        except ReferenceError_:
+            return []
+        paths: list[tuple[str, float]] = []
+        _menu_leaves(value, ref, paths, limit, 0)
+        out = []
+        for address, number in paths:
+            unit = self.unit(address)
+            out.append(f"{address} = {_menu_number(number)}" + (f" [{unit}]" if unit else ""))
+        return out
+
+
+MENU_SKIP = frozenset({"units", "hashes", "versions", "method_payload", "lineage", "definition", "warnings",
+                       "limitations", "released_output_ids", "addresses", "_row", "query_hash", "query_id"})
+MENU_DEPTH = 7
+MENU_LIST_ITEMS = 3  # a list of objects (candidates, periods) shows its first items
+
+
+def _menu_number(value: float) -> str:
+    if float(value).is_integer() and abs(value) < 1e15:
+        return str(int(value))
+    return f"{value:.6g}" if abs(value) < 1e6 else f"{value:.2f}"
+
+
+def _row_example(rows: list[Any]) -> tuple[int, str] | None:
+    """The first row and its selector: [column=value] by a text column unique across the rows, else its index."""
+    dicts = [r for r in rows if isinstance(r, dict)]
+    if not dicts:
+        return None
+    for column in dicts[0]:
+        values = [r.get(column) for r in dicts]
+        if column != "_row" and len(dicts) > 1 and all(isinstance(v, str) for v in values) \
+                and len(set(values)) == len(values):
+            return 0, f"[{column}={dicts[0][column]}]"
+    return 0, ".0"
+
+
+def _menu_leaves(value: Any, path: str, out: list[tuple[str, float]], limit: int, depth: int) -> None:
+    if len(out) >= limit or depth > MENU_DEPTH:
+        return
+    if isinstance(value, TableRows):
+        value = [value.rows[i] for i in sorted(value.rows)][:50]
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if str(key) in MENU_SKIP:
+                continue
+            _menu_leaves(child, f"{path}.{key}", out, limit, depth + 1)
+        return
+    if isinstance(value, list):
+        if value and all(_number(v) is not None and not isinstance(v, str) for v in value) and len(value) <= 4:
+            for i, item in enumerate(value):
+                if len(out) < limit:
+                    out.append((f"{path}.{i}", float(item)))
+            return
+        if value and all(isinstance(v, dict) for v in value):
+            example = _row_example(value)
+            if example is not None and example[1].startswith("["):
+                _menu_leaves(value[example[0]], f"{path}{example[1]}", out, limit, depth + 1)
+                return
+            for i, item in enumerate(value[:MENU_LIST_ITEMS]):
+                _menu_leaves(item, f"{path}.{i}", out, limit, depth + 1)
+        return
+    if not isinstance(value, (str, bool)) and _number(value) is not None:
+        out.append((path, float(value)))
 
 
 def _names(parts: list[str]) -> list[str]:
@@ -593,7 +690,8 @@ def render(text: str | None, sources: ReferenceSources) -> Rendering:
         try:
             if not FUNC_RE.match(expression):
                 raw, label = sources.resolve(expression)
-                shown = _display(raw, label, fmt, places, expression, out, sources.unit(expression))
+                shown = _display(raw, label, fmt, places, expression, out,
+                                 sources.unit(sources.redirected.get(expression, expression)))
                 if shown is not None:
                     return shown, None
             resolved = evaluate(expression, sources)

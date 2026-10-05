@@ -255,3 +255,12 @@ def test_a_summary_built_in_another_unit_is_invalid(tmp_path) -> None:
     summary_output = {"name": "research_summary_gap_down", "format": "JSON", "relative_path": "sess/summary.json"}
     result = evaluate(constraints(outcome_unit="DECIMAL"), [table, summary_output], tmp_path)
     assert result["status"] == "INVALID" and "built with outcome_unit PERCENT" in result["message"]
+
+
+def test_the_finding_carries_the_confidence_level_of_its_intervals(tmp_path) -> None:
+    """10.5b (plan 2026-10-05 item 10): finding.<id>.confidence_level is citable, so "IK 95%" is not typed."""
+    events, base = frames(20, effect=0.5)
+    table = rs.aggregate(events, base, "ret", "date")
+    finding = evaluate(constraints(), [write(tmp_path, "research_events_gap_down", table)], tmp_path)["finding"]
+    assert finding["confidence_level"] == round(1 - finding["parameters"]["alpha_adjusted"], 6)
+    assert finding["confidence_level"] == 0.95

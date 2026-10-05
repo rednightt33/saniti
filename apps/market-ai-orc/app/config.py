@@ -256,6 +256,10 @@ class Settings:
     # P11 (user decision 2026-09-30): the model writes data figures as value references ({{finding.x.path|fmt}}) that
     # the backend fills in and formats, and multi-angle findings are rendered from the backend (#15). DataNeed only.
     ai_enable_value_references: bool = False
+    # 10.1-10.4 (plan 2026-10-05 item 10, user decision): every tool result that holds values lists their full value
+    # references (an address menu the model copies), check_references renders addresses before the answer is written,
+    # and a field a hypothesis finding lacks is read from its research_summary output. Needs value references.
+    ai_enable_address_menu: bool = False
     # Round 2026-10-03 (ENV, ROUND_PLAN_2026-10-03.md A2): every tool result the model reads in one envelope
     # (status, data, warnings, errors with next_action, meta); the orchestrator's own reading of results is unchanged.
     ai_enable_tool_envelope: bool = False
@@ -405,6 +409,7 @@ class Settings:
             ai_research_max_parallel_groups=_integer(env, "AI_RESEARCH_MAX_PARALLEL_GROUPS", 1),
             ai_research_max_session_restarts=_integer(env, "AI_RESEARCH_MAX_SESSION_RESTARTS", 1, minimum=0),
             ai_enable_value_references=_boolean(env, "AI_ENABLE_VALUE_REFERENCES", False),
+            ai_enable_address_menu=_boolean(env, "AI_ENABLE_ADDRESS_MENU", False),
             ai_enable_tool_envelope=_boolean(env, "AI_ENABLE_TOOL_ENVELOPE", False),
             ai_enable_mode4=_boolean(env, "AI_ENABLE_MODE4", False),
             ai_mode4_max_seconds=_integer(env, "AI_MODE4_MAX_SECONDS", 3600, minimum=60),

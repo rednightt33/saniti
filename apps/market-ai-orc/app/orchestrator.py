@@ -42,7 +42,8 @@ from .schemas import (
 from . import conversation_router as router
 from . import in_sample as insample
 from . import method_guides
-from .user_words import allowed_periods, current_design_changes, current_user_words, locked_horizons
+from .user_words import allowed_periods, current_design_changes, current_turn_referent, current_user_words, \
+    locked_horizons
 from .provenance import (CONTEXT, typed_figures, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
                          parse_numbers, released_numbers, requested_statistics, weakest)
 from .value_refs import REF_RE, UNITS, ReferenceSources, Resolved, TableRows, format_value, render
@@ -54,7 +55,7 @@ from .result_store import restore_missing, store_released
 from .tools.artifacts import RunResults, current_results
 from .tools.session import current_carried_outputs, current_carried_restorer
 from .tools.system import current_step_tools
-from .tools.request_data import current_request_id
+from .tools.request_data import current_reference_sources, current_request_id
 
 
 logger = logging.getLogger("market_ai_orc")
@@ -777,6 +778,11 @@ ANGLE_NARRATIVE_CONTRACT = ("research_findings: for an ANSWER that rests on a co
                             "your reading of each approved angle (angle_id, interpretation with answer, usefulness and "
                             "follow_up); the backend adds every approved angle's status, evidence and statistics; "
                             "otherwise null. ")
+# 10.1 (plan 2026-10-05 item 10): the addresses a result lists, copied by the model instead of composed from memory
+ADDRESS_MENU_MAX = 120
+ADDRESS_MENU_NOTE = ("Each line is a value reference this run can write: copy the address between {{ and }} as it is "
+                     "and add a format; never compose an address from memory. check_references shows what an address "
+                     "renders before you write the answer.")
 REFERENCE_INSTRUCTION = (
     "Your response has value references that do not resolve: {problems}. Use only the refs and fields the tool "
     "results of this run show (each referable object carries its \"ref\"), with a known format, or remove the figure.")
@@ -1650,6 +1656,10 @@ PLAN_PROVENANCE_NOTICE = "Some figures below could not be traced to the Research
 PLAN_SUCCESS_RULE_INSTRUCTION = (
     "The success_rule value {values} is not a number the user stated. A success threshold is the user's: take it from "
     "their words, or set success_rule to null and ask them in the plan's confirmation question.")
+# 10.6 (plan 2026-10-05, user decision): the user built on an earlier result ("pakai angka hasil analisa kamu barusan")
+CITED_THRESHOLD_HINT = (" The user refers to an earlier result: to use one of its values, write that value in the "
+                        "plan's answer as a value reference to the result (read it with get_session_output first) "
+                        "and the same number in the plan.")
 # M26 option B (user decision 2026-10-05): min_effect decides between SUPPORTED and PARTIALLY_SUPPORTED, so it is the
 # user's number or null, like the success threshold
 PLAN_MIN_EFFECT_INSTRUCTION = (
@@ -1866,6 +1876,7 @@ class RunState:
     ref_values: list[Resolved] = field(default_factory=list)
     ref_facts: int = 0
     ref_metrics: int = 0  # D5: metric.mN references of query_metric results
+    ref_references: int = 0  # 10.5d: reference.rN references of lookup_reference results
     ref_tables: dict[str, TableRows] = field(default_factory=dict)  # M44: output_id -> rows by position
     ref_aliases: dict[str, str] = field(default_factory=dict)  # P18: output_id -> short alias (o1, o2, ...)
     # G2: released tables of an event study the sandbox recomputed and matched (CALCULATION_VERIFIED, not only
@@ -2029,6 +2040,8 @@ class AgentOrchestrator:
                                                        "AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION")
         # P11 (2026-09-30): data figures as value references the backend fills in (DataNeed flow only)
         self.value_references = settings.ai_enable_value_references and self.dataneed
+        # 10.1-10.4 (plan 2026-10-05 item 10): the address menu on tool results and the reference fallback
+        self.address_menu = bool(getattr(settings, "ai_enable_address_menu", False)) and self.value_references
         self.system_prompt = build_system_prompt(settings.ai_enable_lookup_fact, self.dataneed,
                                                  self.plan_confirmation, period_return,
                                                  settings.ai_final_contract_in_prompt, self.catalog_protocol,
@@ -2109,6 +2122,7 @@ class AgentOrchestrator:
         for text in [turn.content for turn in request.history if turn.role == "user"] + [request.message]:
             state.context_numbers.extend(value for shown in parse_numbers(text) for value, _ in shown.candidates)
         token = current_request_id.set(request.request_id)
+        references_token = current_reference_sources.set(state.ref_sources)
         context = current_run_context.set(run_context(
             moment, self.settings.analysis_timezone,
             [(turn.role, turn.content) for turn in request.history], request.message))
@@ -2194,6 +2208,7 @@ class AgentOrchestrator:
             if carried is not None:
                 current_carried_outputs.reset(carried)
             current_request_id.reset(token)
+            current_reference_sources.reset(references_token)
             current_run_context.reset(context)
             current_research_guard.reset(guard)
             current_research_context.reset(research)
@@ -3962,6 +3977,7 @@ class AgentOrchestrator:
             return
         sources = state.ref_sources
         session_id = result.get("session_id") or (arguments or {}).get("session_id")
+        refs: list[str] = []  # 10.1: the objects registered by this result, for its address menu
 
         def output(entry: Any, offset: int = 0) -> None:
             if not (isinstance(entry, dict) and entry.get("output_id")):
@@ -3992,6 +4008,7 @@ class AgentOrchestrator:
                 state.ref_next += 1
             sources.alias("out", alias, output_id)
             entry["ref"] = f"out.{alias}"
+            refs.append(f"out.{alias}")
             rows = entry.get("rows") if isinstance(entry.get("rows"), list) else []
             columns = entry.get("columns") if isinstance(entry.get("columns"), list) else \
                 [str(k) for k in (rows[0] if rows and isinstance(rows[0], dict) else {}) if k != "_row"]
@@ -4028,6 +4045,7 @@ class AgentOrchestrator:
                 if isinstance(finding, dict) and finding.get("angle_id"):
                     sources.add("finding", str(finding["angle_id"]), finding, "DATA_COVERAGE_VERIFIED")
                     finding["ref"] = f"finding.{finding['angle_id']}"
+                    refs.append(finding["ref"])
             released(result)
         elif name == "complete_analysis" and result.get("status") == "COMPLETED":
             state.verified_outputs |= {str(i) for i in (result.get("final_status") or {}).get("verified_output_ids")
@@ -4037,6 +4055,8 @@ class AgentOrchestrator:
                 if isinstance(finding, dict) and finding.get("hypothesis_id"):
                     sources.add("finding", str(finding["hypothesis_id"]), finding, "DATA_COVERAGE_VERIFIED")
                     finding["ref"] = f"finding.{finding['hypothesis_id']}"
+                    refs.insert(0, finding["ref"])
+                    self._summary_fallback(sources, str(finding["hypothesis_id"]))
         elif name == "get_session_output" and result.get("released"):
             output(result, int(result.get("offset") or 0))
         elif name == "lookup_fact" and result.get("decision") == "FACTS_READY":
@@ -4046,17 +4066,92 @@ class AgentOrchestrator:
                     kind = "DATABASE_AGGREGATE" if fact.get("kind") == "AGGREGATE" else "FACT"
                     sources.add("fact", str(state.ref_facts), fact.get("value"), kind)
                     fact["ref"] = f"fact.{state.ref_facts}"
+                    refs.append(fact["ref"])
         elif name == "query_metric" and result.get("status") == "OK":
             state.ref_metrics += 1
             key = f"m{state.ref_metrics}"
             sources.add("metric", key, {"periods": result.get("periods") or []}, "DATABASE_AGGREGATE")
             result["ref"] = f"metric.{key}.periods[<i>].rows[<dimension>=<value>].<column>"
+            refs.append(f"metric.{key}")
+        elif name == "lookup_reference" and result.get("status") == "ROWS_READY":
+            # 10.5d (plan 2026-10-05 item 10): the number of rows a reference read matched is a sourced count
+            state.ref_references += 1
+            key = f"r{state.ref_references}"
+            sources.add("reference", key, {"matched": result.get("matched"), "rows": result.get("rows") or []},
+                        "FACT")
+            result["ref"] = f"reference.{key}"
+            refs.append(f"reference.{key}.matched")
         elif name in ("run_python_analysis", "get_analysis_result") and result.get("analysis_id"):
             label = analysis_label(result.get("execution_status"), result.get("validation_status"),
                                    result.get("validation_level"))
             if label:
                 sources.add("analysis", str(result["analysis_id"]), result.get("outputs"), label)
                 result["ref"] = f"analysis.{result['analysis_id']}.<output path>"
+                refs.append(f"analysis.{result['analysis_id']}")
+        if getattr(self, "address_menu", False) and refs:
+            menu = [line for ref in dict.fromkeys(refs) for line in sources.menu(ref)]
+            if menu:
+                result["addresses"] = menu[:ADDRESS_MENU_MAX]
+                result["addresses_note"] = ADDRESS_MENU_NOTE
+
+    @staticmethod
+    def _cited_result_values(state: RunState) -> list[float]:
+        """10.6: the values of this conversation's results that the plan's text cites as value references, only when
+        the conversation router read the newest message as building on the latest result."""
+        if current_turn_referent.get() != "NEWEST_RESULT":
+            return []
+        return [r.value for r in state.ref_values if r.label in LABEL_ORDER]
+
+    @staticmethod
+    def _log_cited_thresholds(state: RunState, final: FinalResponse, stated: list[float], cited: list[float]) -> None:
+        """10.6: record a success threshold or minimum effect taken from a cited result rather than the user's words."""
+        if not cited:
+            return
+        items = getattr(final.research_plan, "experiments", None) or getattr(final.research_plan, "angles", None) or []
+        values = [getattr(getattr(i, "success_rule", None), "value", None) for i in items] \
+            + [getattr(i, "min_effect", None) for i in items]
+
+        def matches(value: float, pool: list[float]) -> bool:
+            return any(abs(n - value) < 1e-9 or abs(n * 100 - value) < 1e-9 or abs(n / 100 - value) < 1e-9
+                       for n in pool)
+
+        taken = [v for v in values if v is not None and not matches(v, stated) and matches(v, cited)]
+        if taken:
+            log_event("plan_threshold_from_result", request_id=state.request_id, values=taken[:10])
+
+    @staticmethod
+    def _reference_suggestions(state: RunState, failing: list[str]) -> str:
+        """10.3 (plan 2026-10-05 item 10): for each failing reference, the addresses of this run that end with the same
+        field name (finding.x.groups.CONDITION.median -> out.o2.content.groups.CONDITION.median), as a suggestion."""
+        sources = state.ref_sources
+        shown = {(namespace, key): alias for namespace, aliases in sources.aliases.items()
+                 for alias, key in aliases.items()}
+        menu = [line.split(" = ", 1)[0] for namespace, keys in sources.objects.items()
+                for key in keys for line in sources.menu(f"{namespace}.{shown.get((namespace, key), key)}",
+                                                         limit=200)]
+        lines = []
+        for expression in failing[:8]:
+            parts = expression.split("|", 1)[0].strip().split(".")
+            name = parts[-1]
+
+            def shared(address: str) -> int:  # how many trailing segments the address shares with the reference
+                tail = address.split(".")
+                return next((n for n in range(min(len(tail), len(parts)), 0, -1) if tail[-n:] == parts[-n:]), 0)
+
+            found = sorted((a for a in menu if a.endswith("." + name) and a != ".".join(parts)),
+                           key=lambda a: -shared(a))[:3]
+            if found and name:
+                lines.append(f"{expression} -> {' or '.join(found)}")
+        return (" Addresses of this run with the same field: " + "; ".join(lines) + ".") if lines else ""
+
+    @staticmethod
+    def _summary_fallback(sources: ReferenceSources, hypothesis_id: str) -> None:
+        """10.4 (plan 2026-10-05 item 10): a field the backend's hypothesis finding lacks (the median of each group)
+        is read from the research_summary_<id> output of this run, when exactly one such output is registered."""
+        summaries = [key for key, (value, _) in sources.objects.get("out", {}).items()
+                     if isinstance(value, dict) and value.get("name") == f"research_summary_{hypothesis_id}"]
+        if len(summaries) == 1:
+            sources.fallback("finding", hypothesis_id, "out", summaries[0], ("content",))
 
     @staticmethod
     def _code_literal_hint(state: RunState, text: str | None, unsupported: list[str]) -> str:
@@ -4135,6 +4230,10 @@ class AgentOrchestrator:
                                                   ("answer", "evidence", "usefulness", "follow_up")})
                 entries.append(entry.model_copy(update={"interpretation": filled}))
             update["research_findings"] = entries
+        if state.ref_sources.redirected:
+            log_event("ai_reference_redirected", request_id=state.request_id,
+                      references=dict(list(state.ref_sources.redirected.items())[:20]))
+            state.ref_sources.redirected.clear()
         if not count:
             return final, False
         state.references_used += count
@@ -4145,6 +4244,8 @@ class AgentOrchestrator:
             return rendered, False
         detail = "; ".join(dict.fromkeys(problems + [message for _, _, message in missing]))[:1500]
         failing = sorted(set(failed) | {expression for expression, _, _ in missing})
+        if getattr(self, "address_menu", False):
+            detail += self._reference_suggestions(state, failing)
         kind = "REFERENCE:" + stable_hash(failing)[:12]
         spent = sum(1 for k in state.gate_kinds_rejected if k.startswith("REFERENCE"))
         self._gate_once(state, kind, REFERENCE_INSTRUCTION.format(problems=detail),
@@ -4654,13 +4755,20 @@ class AgentOrchestrator:
         sources = [words] if current_user_words.get() is not None else [
             words, getattr(final.research_plan, "original_question", "")]
         stated = released_numbers(sources)
+        # 10.6 (plan 2026-10-05, user decision): when the router read the newest message as building on the latest
+        # result ("pakai angka hasil analisa kamu barusan"), a threshold may be a value of this conversation's results
+        # that the plan's own text cites as a value reference (the user sees where it comes from before approving)
+        cited = self._cited_result_values(state)
+        before = list(stated)
+        stated = stated + cited
         invented = [e.success_rule.value for e in getattr(final.research_plan, "experiments", None) or []
                     if getattr(e, "success_rule", None) is not None
                     and not any(abs(n - e.success_rule.value) < 1e-9 or abs(n * 100 - e.success_rule.value) < 1e-9
                                 or abs(n / 100 - e.success_rule.value) < 1e-9 for n in stated)]
         if invented:
             values = ", ".join(f"{v:g}" for v in invented)
-            self._gate_once(state, "PLAN_SUCCESS_RULE", PLAN_SUCCESS_RULE_INSTRUCTION.format(values=values))
+            self._gate_once(state, "PLAN_SUCCESS_RULE", PLAN_SUCCESS_RULE_INSTRUCTION.format(values=values)
+                            + (CITED_THRESHOLD_HINT if current_turn_referent.get() == "NEWEST_RESULT" else ""))
             return self._forced(state, final, PLAN_PROVENANCE_NOTICE.format(numbers=values),
                                 [f"Success thresholds the user did not state: {values}."])
         # M26 option B: a minimum effect decides the verdict, so it is the user's number too (experiments and angles)
@@ -4672,9 +4780,11 @@ class AgentOrchestrator:
                                or abs(n / 100 - i.min_effect) < 1e-9 for n in stated)]
         if invented:
             values = ", ".join(f"{v:g}" for v in invented)
-            self._gate_once(state, "PLAN_MIN_EFFECT", PLAN_MIN_EFFECT_INSTRUCTION.format(values=values))
+            self._gate_once(state, "PLAN_MIN_EFFECT", PLAN_MIN_EFFECT_INSTRUCTION.format(values=values)
+                            + (CITED_THRESHOLD_HINT if current_turn_referent.get() == "NEWEST_RESULT" else ""))
             return self._forced(state, final, PLAN_PROVENANCE_NOTICE.format(numbers=values),
                                 [f"Minimum effects the user did not state: {values}."])
+        self._log_cited_thresholds(state, final, before, cited)
         # M69 tahap 1: an outcome horizon the user stated binds every experiment and angle
         # the newest statement wins: a revision replaces the horizon of the first question (oldest text first)
         horizons, disagreement = locked_horizons(list(reversed(sources)), current_design_changes.get())

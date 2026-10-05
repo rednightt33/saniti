@@ -9,6 +9,7 @@ rewrite, so an edit never weakens a check: it only changes what the model has to
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 EDIT_KEYS = frozenset({"edits", "fields"})
@@ -18,9 +19,14 @@ EDIT_REPAIR_INSTRUCTION = (
     "You may fix the refused draft above with an edit instead of writing it again: answer with only "
     '{"edits": [{"find": "<exact text from one string value of the draft>", "replace": "<new text>"}], '
     '"fields": {"<top-level field>": <new value>}} (either key may be left out). Each find must occur exactly once '
-    "across the draft's string values, as the decoded text (not JSON-escaped); fields replaces whole top-level fields "
-    "of the response (for example response_type, assumptions or limitations). The backend applies the edit and checks "
-    "the whole answer again. For a large change send the complete final response instead.")
+    "across the draft's string values, as the decoded text (not JSON-escaped); a find that repeats is replaced "
+    'everywhere with "all": true when it is a whole value reference {{...}}, or with "count": <its number of '
+    "occurrences> for other text. fields replaces whole top-level fields of the response (for example response_type, "
+    "assumptions or limitations). The backend applies the edit and checks the whole answer again. For a large change "
+    "send the complete final response instead.")
+# 10.3 (plan 2026-10-05 item 10): a repeated wrong reference or typed figure ("IK 95%" eight times in h_add turn 3)
+# forced a full rewrite because a find had to occur once; "all" (a whole reference) or "count" now replaces each
+REFERENCE_FIND = re.compile(r"\{\{[^{}]+\}\}")
 
 
 class EditNotApplied(ValueError):
@@ -63,7 +69,18 @@ def apply(base: dict[str, Any], edit: dict[str, Any], fields: frozenset[str] | s
                 or not isinstance(item.get("replace"), str):
             raise EditNotApplied(f"edit {number} needs a non-empty find and a replace, both text")
         found = _count(draft, item["find"])
-        if found != 1:
+        expected, everywhere = item.get("count"), item.get("all") is True
+        if expected is not None:
+            if isinstance(expected, bool) or not isinstance(expected, int) or expected < 1 or found != expected:
+                raise EditNotApplied(f"edit {number}: find occurs {found} times in the draft's string values, not "
+                                     f"{expected}")
+        elif everywhere:
+            if not REFERENCE_FIND.fullmatch(item["find"].strip()):
+                raise EditNotApplied(f"edit {number}: all replaces every occurrence of a whole value reference "
+                                     "{{...}} only; for other text give count, the number of occurrences")
+            if found < 1:
+                raise EditNotApplied(f"edit {number}: find occurs 0 times in the draft's string values")
+        elif found != 1:
             raise EditNotApplied(f"edit {number}: find occurs {found} times in the draft's string values, not once")
         draft = _replace(draft, item["find"], item["replace"])
     draft.update(replaced)

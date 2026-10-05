@@ -31,6 +31,9 @@ LOOKUP_DECISIONS = {"FACTS_READY", "NEEDS_NARROWING", "REJECTED"}
 
 # Set by the orchestrator for each run so Governor logs can be joined to the agent run.
 current_request_id: contextvars.ContextVar[str | None] = contextvars.ContextVar("current_request_id", default=None)
+# 10.2 (plan 2026-10-05 item 10): the run's value references, read by check_references
+current_reference_sources: contextvars.ContextVar[Any] = contextvars.ContextVar("current_reference_sources",
+                                                                                 default=None)
 
 
 class Strict(BaseModel):
