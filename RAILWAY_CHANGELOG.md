@@ -1,5 +1,18 @@
 # Railway changelog
 
+## 2026-10-05 — P31, M82, P32 layers 1–4, P33 on dev; DB-vs-web measurement
+
+- `main` `b725b4f` (P31 capabilities from tool effects, M82 router horizon reading): market-ai-orc deployed from
+  `main` (superseded below). Router benchmark before deploy: classes 44/44, horizons 14/14, read requests to research 0.
+- Migrations 20261005_001 and 20261005_002 applied by the temporary service `gmig-job` (created, DRYRUN, APPLY, then
+  deleted; see `DATABASE_CHANGELOG.md`).
+- `main` `67cff64` (P32 row counts, `in_period`, `backtest` with backend re-run, activity z-scores, method guides v5):
+  market-python-sandbox `7d9ea755` SUCCESS; market-ai-orc `9fb264e6` SUCCESS finished before the sandbox, so orc was
+  redeployed (`016eb517` SUCCESS) to read the sandbox's new capabilities; its startup logged no `backtest_inactive`
+  or method-guide mismatch.
+- orc-test-runner `b26d0767` (CLI upload): suite `ma-webdb-20261005a` (6 questions: 4 answerable from the database,
+  2 only from the web). Result in `ERRORS_AND_SOLUTIONS.md` P34.
+
 ## 2026-10-05 — M80, M81, M82 on dev; R-STORE expiry test (retention 1 h, then back to 24 h); router stress suite
 
 - `main` `ace0f82` (M80 a findings table, M80 b CLARIFY covers export): market-ai-orc `24f2939e` SUCCESS,

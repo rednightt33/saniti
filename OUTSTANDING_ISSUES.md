@@ -57,10 +57,11 @@ g6 = usulan pertanyaan tambahan).
 ## 2c. Baru 2026-10-05 (stress test router `ma-qa-20261005a`, 5 percakapan + suite b)
 
 - M81: topik baru di tengah percakapan menjalankan mode 4 penuh. --> DIPERBAIKI dan TERBUKTI live (pertanyaan data setelah sapaan: satu langkah analisis, 42–52 detik)
-- M82: horizon yang diubah user ("jadi 10 hari") dikembalikan gerbang ke 5 hari. --> perbaikan live (orc `c33a49b5`); KEPUTUSAN USER 2026-10-05: jangan lanjutkan perbaikan, nilai risiko dulu (pertahankan atau kembalikan)
-- P31: AI menyebut "tidak ada kapasitas pencarian web" padahal alat fakta web ada (q7 ekspor/perang dagang). --> UNDERADDRESSED (akar terverifikasi: daftar kemampuan salah nama alat + kalimat prompt lama; usulan menunggu persetujuan)
-- P32: jumlah bar uji (1.693) ikut menghitung bar pemanasan (70); metodologi jawaban yang sama menyebut 1.623. --> UNDERADDRESSED (akar terverifikasi; usulan: profil data memberi nama rentang tiap hitungan baris)
-- P33: uji Pine rusak, kesalahan no. 5 (volume hari ini ikut di rata-rata) dan separuh no. 9 (tanpa exit death cross) tidak ditemukan. --> KEPUTUSAN USER (no. 5 mengikuti konvensi katalog CALC_054); no. 9b desain tes
+- M82: horizon yang diubah user ("jadi 10 hari") dikembalikan gerbang ke 5 hari. --> DIPERBAIKI (router membaca perubahan horizon terstruktur, benchmark 14/14), live; uji golden test berikutnya
+- P31: AI menyebut "tidak ada kapasitas pencarian web" padahal alat fakta web ada. --> daftar kemampuan DIPERBAIKI (live); kalimat prompt menunggu review audit (`PROMPT_AUDIT_2026-10-05.md` A1)
+- P34: pertanyaan fakta yang datanya ada di database (sektor BBCA) dijawab dari web; daftar saham sektor energi LIMITED. --> KEPUTUSAN USER (rute FACT tidak punya alat baca data; pilihan a/b)
+- P32: jumlah bar uji (1.693) ikut menghitung bar pemanasan (70). --> DIPERBAIKI lapis 1–4 (hitungan berlabel, in_period, backtest, buku metode v5), live; uji golden test berikutnya
+- P33: uji Pine rusak no. 5 dan 9b. --> no. 5 DIPERBAIKI (z-score aktivitas tanpa hari ini, dari katalog), live; no. 9b koreksi kunci jawaban tes
 - M14: pesan "BBRI" saja dijawab klarifikasi berbahasa Inggris (s4.1). --> terulang, tetap UNDERADDRESSED
 
 ## 3. Tidak keluar jawaban (buntu)

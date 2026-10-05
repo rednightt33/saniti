@@ -1,5 +1,18 @@
 # Database changelog
 
+## 2026-10-05 — Migrations 20261005_001 (Tool_Catalog round G) and 20261005_002 (method guides v5) on dev
+
+- **`20261005_001_round_g_tool_catalog.sql`** (generated, round `round_g`; plan `PLAN_2026-10-05.md`): inactive new
+  versions `get_system_capabilities` v2 (capabilities derived from tool effects, P31), `prepare_data_bundle` v2 and
+  `open_analysis_session` v2 (row counts name their span, P32), `run_python` v4 (`in_period`, `backtest`),
+  `complete_analysis` orc-v2 (backtests re-run by the backend). Each copies its previous version.
+- **`20261005_002_ai_method_guides_v5.sql`** (generated): `AI_method_guide` version 5, 9 rows (new guide `backtest`;
+  `reading_data` with `in_period` and labelled counts; `free_code` sample-size and activity z-score rules).
+- Temporary job `gmig-job` (dev; `DATABASE_URL` as the reference to the catalog database; deleted afterwards): DRYRUN
+  rolled back both; APPLY `1012a3fd`. Read back: the five new tool versions present and inactive; method guides
+  versions 1–5 with 8, 8, 8, 8 and 9 rows; a second run of each migration was refused. `APPLIED.sha256` updated.
+- No schema change (rows only); `DATABASE_SCHEMA.md` unchanged.
+
 ## 2026-10-04 — Final plan phase 4: Tool_Catalog round F (find_web_fact) on dev and web_fact on Postgres-E8GM dev
 
 - **`20261004_002_web_fact_tool_catalog.sql`** (generated, round `round_f`): the first row of `find_web_fact` (QUERY,
