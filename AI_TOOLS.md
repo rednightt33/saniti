@@ -50,6 +50,7 @@ Sifat: READS tidak mengubah apa pun; OWN_ARTIFACT hanya menulis catatan percakap
 | `quality` | Catatan kualitas satu permintaan data (celah tanggal, nilai kosong). |
 | `load` | Membaca satu permintaan data secara utuh. |
 | `load_range` | Membaca satu rentang tanggal yang disetujui. |
+| `in_period` | Penanda baris yang berada di dalam periode yang disetujui (tanpa baris pemanasan), untuk menghitung sampel. |
 | `sql` | Query DuckDB atas data sesi. |
 | `relation` | Data satu permintaan sebagai relasi DuckDB. |
 | `load_output` | Membuka tabel hasil yang dirilis di giliran sebelumnya. |
@@ -58,6 +59,7 @@ Sifat: READS tidak mengubah apa pun; OWN_ARTIFACT hanya menulis catatan percakap
 | `resample` | Mengubah data harian menjadi mingguan/bulanan dengan aturan katalog. |
 | `period_return` | Return untuk periode bernama (YTD, bulan, kuartal, tahun). |
 | `event_study` | Event study: hasil setelah kejadian dibanding pembanding; dihitung ulang sistem, termasuk tabel alur. |
+| `backtest` | Simulasi transaksi aturan beli/jual yang disebut user di harga database; dihitung ulang sistem. |
 | `insufficient_data` | Menyatakan data tidak cukup untuk suatu hitungan, dengan alasannya. |
 | `intermediate_path` | Lokasi file kerja sementara di sesi. |
 | `emit_table` | Merilis tabel hasil beserta definisinya. |
@@ -80,12 +82,13 @@ Sifat: READS tidak mengubah apa pun; OWN_ARTIFACT hanya menulis catatan percakap
 |---|---|---|---|---|
 | `free_code` | G1 | PATH | Free analysis code in the session | Panduan G1: analisis kode bebas. |
 | `event_study` | G2 | PATH | Event study: the outcome after an event against a baseline | Panduan G2: event study. |
+| `backtest` | - | HELPER | Backtest: trades of a stated entry and exit rule on the governed prices | Panduan backtest: aturan masuk/keluar, konvensi pengisian order, dan tabel hasilnya. |
 | `hypothesis_plan` | G3 | PATH | Hypothesis plan: hypotheses you formulate, tested with the backend's verdict | Panduan G3: rencana hipotesis dengan vonis backend. |
 | `multi_angle` | G4 | PATH | Multi-angle plan: one root hypothesis from several library methods | Panduan G4: riset multi-sudut. |
 | `period_return` | - | HELPER | Return over a named calendar period (YTD, month, quarter, year) | Panduan return per periode. |
 | `resample` | - | HELPER | Weekly or monthly rows from daily rows with the catalog's rules | Panduan resample harian ke mingguan/bulanan. |
 | `join_and_preaggregate` | - | HELPER | Joining two requests by an approved relationship | Panduan menyambung dua permintaan. |
-| `reading_data` | - | HELPER | Reading the bundle: load, load_range and sql | Panduan membaca data bundle. |
+| `reading_data` | - | HELPER | Reading the bundle: load, load_range, in_period and sql | Panduan membaca data bundle. |
 
 ## Snapshot saklar di dev
 

@@ -47,12 +47,12 @@ def guides_problem(rows: list[dict[str, Any]], capability: dict[str, Any] | None
 
 
 def active_guides(*, dataneed: bool, event_study: bool, hypothesis_plan: bool, multi_angle: bool,
-                  period_return: bool) -> list[str]:
+                  period_return: bool, backtest: bool = False) -> list[str]:
     """The guides whose method this deployment offers, in the guides' order."""
     offered = {"free_code": dataneed, "reading_data": dataneed, "resample": dataneed,
                "join_and_preaggregate": dataneed, "event_study": dataneed and event_study,
                "hypothesis_plan": dataneed and hypothesis_plan, "multi_angle": dataneed and multi_angle,
-               "period_return": dataneed and period_return}
+               "period_return": dataneed and period_return, "backtest": dataneed and backtest}
     return [g["name"] for g in G.GUIDES if offered.get(g["name"])]
 
 

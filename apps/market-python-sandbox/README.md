@@ -681,7 +681,7 @@ method.
 |---|---|---|---|
 | `SMA` | `window`, `window_unit` (`TRADING_OBSERVATIONS`) | TA-Lib SMA | reference recalculation |
 | `ROLLING_STD` | `window`, `ddof` (0) | TA-Lib STDDEV (population) | reference recalculation |
-| `ROLLING_ZSCORE` | `window`, `ddof` (1), `include_current` (true for a level series, false for a return) | CALC_054 / CALC_053 | reference recalculation |
+| `ROLLING_ZSCORE` | `window`, `ddof` (1), `include_current` (true for a level series, false for a return or an activity series the catalog sums, P33) | CALC_054 / CALC_053 | reference recalculation |
 | `RETURN` | `horizon` (1), `kind` (`SIMPLE`/`LOG`), `as_percent` (false) | TA-Lib ROCP | reference recalculation |
 | `FORWARD_RETURN` | `horizon`, `kind`, `as_percent`, `entry` (`NEXT_OPEN`: columns `[close, open]`; `SIGNAL_CLOSE`: `[close]`) — a look-ahead label | CALC_011 / CALC_010 | reference recalculation |
 | `RSI` | `period` (14), `smoothing` (`WILDER`) | TA-Lib RSI | reference recalculation (matches TA-Lib to ~1e-14) |

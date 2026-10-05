@@ -26,7 +26,7 @@ CARRIED_DIR = "carried"
 MANIFEST = "manifest.json"
 MAX_CARRIED = 40
 # records the backend recomputes from, never results (released for the audit only)
-RECORD_PREFIXES = ("research_call_", "event_study_call_")
+RECORD_PREFIXES = ("research_call_", "event_study_call_", "backtest_call_")
 PROFILE_COLUMNS = 40
 SAMPLE_ROWS = 5
 TOP_VALUES = 5

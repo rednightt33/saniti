@@ -20,7 +20,7 @@ from conftest import ScriptedClient, final_response, make_settings, tool_call_re
 from test_dataneed_orchestrator import Tools, answer
 
 CAPABILITY = {"enabled": True, "version": G.GUIDES_VERSION, "sha256": G.GUIDES_SHA256}
-ALL = dict(dataneed=True, event_study=True, hypothesis_plan=True, multi_angle=True, period_return=True)
+ALL = dict(dataneed=True, event_study=True, hypothesis_plan=True, multi_angle=True, period_return=True, backtest=True)
 
 
 def stored_rows() -> list[dict]:
@@ -40,7 +40,7 @@ def test_the_guides_are_served_only_when_table_sandbox_and_code_agree() -> None:
 def test_only_the_methods_this_deployment_offers_are_listed() -> None:
     assert active_guides(**ALL) == [g["name"] for g in G.GUIDES]
     plain = active_guides(**{**ALL, "event_study": False, "hypothesis_plan": False, "multi_angle": False,
-                             "period_return": False})
+                             "backtest": False, "period_return": False})
     assert plain == ["free_code", "resample", "join_and_preaggregate", "reading_data"]
     assert active_guides(**{**ALL, "dataneed": False}) == []
 

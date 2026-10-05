@@ -39,7 +39,7 @@ from .tools.method_guides import active_guides, guides_problem, menu as guide_me
 from .tools.registry import ToolError
 from .tools.request_data import GovernorClient
 from .result_store import ResultBucket, ResultStore
-from .tools.session import (EVENT_STUDY_VERSION, RESULT_STORE_VERSION, SESSION_RELEASE_VERSION, close_sessions,
+from .tools.session import (BACKTEST_VERSION, EVENT_STUDY_VERSION, RESULT_STORE_VERSION, SESSION_RELEASE_VERSION, close_sessions,
                             output_file, release_request, restore_carried)
 from .tools.artifacts import STORED_TABLES_VERSION, read_output_any
 from .tools.lineage import BUNDLE_LINEAGE_VERSION
@@ -86,7 +86,7 @@ def _with_research_library(multi_angle: dict, catalog: CatalogStore | None) -> t
 
 def _method_guides(sandbox: SandboxClient | None, catalog: CatalogStore | None, *, dataneed: bool,
                    event_study: bool, hypothesis_plan: bool, multi_angle: bool,
-                   period_return: bool) -> tuple[dict | None, str | None]:
+                   period_return: bool, backtest: bool = False) -> tuple[dict | None, str | None]:
     """4b: the guides of the methods this deployment offers, when AI_method_guide, the sandbox and this service carry
     the same guides (fail closed)."""
     if catalog is None or sandbox is None:
@@ -99,7 +99,7 @@ def _method_guides(sandbox: SandboxClient | None, catalog: CatalogStore | None, 
     if problem is not None:
         return None, problem
     names = active_guides(dataneed=dataneed, event_study=event_study, hypothesis_plan=hypothesis_plan,
-                          multi_angle=multi_angle, period_return=period_return)
+                          multi_angle=multi_angle, period_return=period_return, backtest=backtest)
     return ({"names": names, "menu": guide_menu(names)} if names else None), "no method is offered"
 
 
@@ -235,12 +235,19 @@ def create_app(
             if not event_study:
                 log_event("event_study_inactive", reason="needs AI_ENABLE_DATANEED and a sandbox reporting "
                                                          f"event_study version {EVENT_STUDY_VERSION}")
+        # P32 layer 3: the backtest helper is described only when the sandbox runs and re-checks it (fail closed)
+        backtest = False
+        if settings.ai_enable_dataneed and sandbox is not None:
+            capability = sandbox.runtime().get("backtest") or {}
+            backtest = capability.get("enabled") is True and capability.get("version") == BACKTEST_VERSION
+            if not backtest:
+                log_event("backtest_inactive", reason=f"needs a sandbox reporting backtest version {BACKTEST_VERSION}")
         multi_angle_active = multi_angle is not None and feasibility and composite
         hypothesis_plan = settings.ai_enable_hypothesis_plan and research_findings
         method_guides = None
         if settings.ai_enable_method_guides:
             method_guides, reason = _method_guides(
-                sandbox, catalog, dataneed=settings.ai_enable_dataneed, event_study=event_study,
+                sandbox, catalog, dataneed=settings.ai_enable_dataneed, event_study=event_study, backtest=backtest,
                 hypothesis_plan=(hypothesis_plan if multi_angle_active else research_findings),
                 multi_angle=multi_angle_active, period_return=settings.ai_enable_standard_period_return)
             if method_guides is None:
@@ -317,6 +324,7 @@ def create_app(
             session_timeout_seconds=settings.py_sandbox_session_timeout_seconds,
             standard_period_return=settings.ai_enable_standard_period_return,
             event_study=event_study,
+            backtest=backtest,
             hypothesis_plan=hypothesis_plan,
             method_guides=method_guides,
             catalog_discovery_v2=settings.ai_enable_catalog_discovery_v2,

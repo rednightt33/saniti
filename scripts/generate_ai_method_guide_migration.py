@@ -30,10 +30,13 @@ VERSION_CHANGES = {
        "success_rule.unit); event_study and event_summary use the approved experiment's outcome unit",
     4: "ROUND_PLAN_2026-10-03_FASE_D.md D6: a base table released for each main claim, checked with\n-- "
        "get_evidence (BASE_TABLE or WAREHOUSE)",
+    5: "PLAN_2026-10-05.md (P32, P33): counts over the approved ranges (in_period, labelled row\n-- counts), "
+       "activity z-scores without the current observation, and the backtest guide",
 }
 VERSION_TARGETS = {2: ROOT / "database/migrations/20261003_002_ai_method_guides_v2.sql",
                    3: ROOT / "database/migrations/20261003_004_ai_method_guides_v3.sql",
-                   4: ROOT / "database/migrations/20261003_010_ai_method_guides_v4.sql"}
+                   4: ROOT / "database/migrations/20261003_010_ai_method_guides_v4.sql",
+                   5: ROOT / "database/migrations/20261005_002_ai_method_guides_v5.sql"}
 COLUMNS = [
     ("name", "text", "Guide name (free_code, event_study, hypothesis_plan, multi_angle or a session helper's guide)."),
     ("guides_version", "integer", "Version of the method guides content."),

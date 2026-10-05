@@ -84,6 +84,8 @@ PLAIN = {
     "quality": "Catatan kualitas satu permintaan data (celah tanggal, nilai kosong).",
     "load": "Membaca satu permintaan data secara utuh.",
     "load_range": "Membaca satu rentang tanggal yang disetujui.",
+    "in_period": "Penanda baris yang berada di dalam periode yang disetujui (tanpa baris pemanasan), untuk menghitung sampel.",
+    "backtest": "Simulasi transaksi aturan beli/jual yang disebut user di harga database; dihitung ulang sistem.",
     "sql": "Query DuckDB atas data sesi.",
     "relation": "Data satu permintaan sebagai relasi DuckDB.",
     "load_output": "Membuka tabel hasil yang dirilis di giliran sebelumnya.",
@@ -110,6 +112,7 @@ PLAIN = {
     # method guides
     "free_code": "Panduan G1: analisis kode bebas.",
     "event_study_guide": "Panduan G2: event study.",
+    "backtest_guide": "Panduan backtest: aturan masuk/keluar, konvensi pengisian order, dan tabel hasilnya.",
     "hypothesis_plan": "Panduan G3: rencana hipotesis dengan vonis backend.",
     "multi_angle": "Panduan G4: riset multi-sudut.",
     "reading_data": "Panduan membaca data bundle.",
@@ -118,7 +121,8 @@ PLAIN = {
     "period_return_guide": "Panduan return per periode.",
 }
 # a guide that shares its name with a helper is listed under "<name>_guide" in PLAIN
-GUIDE_ALIAS = {"event_study": "event_study_guide", "resample": "resample_guide", "period_return": "period_return_guide"}
+GUIDE_ALIAS = {"event_study": "event_study_guide", "resample": "resample_guide", "period_return": "period_return_guide",
+               "backtest": "backtest_guide"}
 
 
 def _build(off: tuple[str, ...] = ()):
@@ -133,8 +137,9 @@ def _build(off: tuple[str, ...] = ()):
 
     transport = httpx.MockTransport(lambda request: httpx.Response(404))
     names = method_guides.active_guides(dataneed=True, event_study=True, hypothesis_plan=True, multi_angle=True,
-                                        period_return=True)
+                                        period_return=True, backtest=True)
     kwargs = {argument: True for argument in SWITCHES.values()}
+    kwargs["backtest"] = True  # P32: offered when the sandbox reports the backtest capability (no switch)
     kwargs["method_guides"] = {"names": names, "menu": method_guides.menu(names)}
     kwargs["multi_angle"] = {"max_groups": 2, "min_angles": 2, "max_angles": 5, "library": research_library.rows()}
     kwargs["metrics"] = [{"metric_id": "example", "label": "x", "description": "x", "source_table": "t",

@@ -111,6 +111,10 @@ class Profiler:
         if t:
             gap_entities: set[str] = set()
             result["requested_ranges"] = self._ranges(view, request, e, t, flags, gap_entities)
+            # P32: the rows inside any requested range, each row once (ranges may overlap)
+            inside_any = " OR ".join(f"{t} BETWEEN DATE {_literal(r['start'])} AND DATE {_literal(r['end'])}"
+                                     for r in request["ranges"]) or "FALSE"
+            result["rows_in_ranges"] = int(self.scalar(f"SELECT count(*) FROM {view} WHERE {inside_any}") or 0)
             if e:
                 result["entities_with_gaps"] = len(gap_entities)
             result["date_ordering"] = self._ordering(view, request, e, t, flags)
@@ -208,10 +212,17 @@ class Profiler:
             rows, entities, low, high = self.rows(
                 f"SELECT count(*), {f'count(DISTINCT {e})' if e else 'NULL'}, min({t}), max({t}) FROM {view} "
                 f"WHERE {inside}")[0]
+            # P32 (2026-10-05): the rows extracted around the range for warm-up (before) and forward outcomes (after),
+            # counted separately so a count names the span it covers (buffer rows are input, not sample)
+            before, after = self.rows(
+                f"SELECT count(*) FILTER (WHERE {t} >= DATE {_literal(item['extract_from'])} AND {t} < DATE "
+                f"{_literal(item['start'])}), count(*) FILTER (WHERE {t} > DATE {_literal(item['end'])} AND {t} <= "
+                f"DATE {_literal(item['extract_to'])}) FROM {view}")[0]
             entry: dict[str, Any] = {"range_id": item["range_id"], "requested_start": item["start"],
                                      "requested_end": item["end"], "extract_from": item["extract_from"],
                                      "extract_to": item["extract_to"], "actual_start": _iso(low),
                                      "actual_end": _iso(high), "rows": int(rows),
+                                     "buffer_rows_before": int(before or 0), "buffer_rows_after": int(after or 0),
                                      "entities": int(entities) if entities is not None else None}
             if item.get("end_requested"):
                 entry["end_requested"] = item["end_requested"]  # 1b: "LATEST", bound to the reference date

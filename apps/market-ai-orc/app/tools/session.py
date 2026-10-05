@@ -152,8 +152,8 @@ def _call(client: SandboxClient, method: str, path: str, timeout: float | None =
 
 OPEN_DESCRIPTION = (
     "Open a persistent Python analysis session on a READY governed bundle (input_bundle_id from "
-    "prepare_data_bundle). Returns session_id, the datasets (data_request_id, logical name, columns, rows, ranges, "
-    "quality flags), the relationships with their join semantics, the helper functions and the limits. Variables and "
+    "prepare_data_bundle). Returns session_id, the datasets (data_request_id, logical name, columns, rows_extracted "
+    "with the buffer rows, rows_in_ranges inside the approved ranges, ranges, quality flags), the relationships with their join semantics, the helper functions and the limits. Variables and "
     "functions persist across run_python calls until the session closes (idle timeout, limits, or a restart of the "
     "sandbox: then open a new session on the same bundle)."
 )
@@ -163,7 +163,8 @@ RUN_DESCRIPTION = (
     "(import talib), scipy, statsmodels, polars, duckdb and matplotlib are available. Read data only through the "
     "helpers: load(request) returns a whole dataset (every row of every range, including warm-up history), "
     "load_range(request, range_id, include_buffers=False) one approved range (also saniti.range; plain range() "
-    "is Python's built-in), sql(query) DuckDB over one view per logical "
+    "is Python's built-in), in_period(frame, request) the mask of the rows inside the approved ranges (count and "
+    "summarise only those; warm-up rows feed indicators), sql(query) DuckDB over one view per logical "
     "name, join(relationship_id) the approved relationship with its point-in-time semantics, quality(request) the "
     "Data Quality Manifest, requests() and manifest() the bundle, resample(frame, request) the catalog rules. "
     "Reads outside the helpers count as not processed. Each dataset of the session shows materialize: DIRECT "
@@ -230,6 +231,23 @@ EVENT_STUDY_SENTENCE = (
     "(rows_in_window, condition_unknown, condition_true = the qualifying events, censored, overlapping_dropped, used; "
     "condition_true = censored + overlapping_dropped + used): quote each count from <name>_flow, never derive it; "
     "never overwrite or re-emit them."
+)
+BACKTEST_VERSION = 1  # the sandbox's backtest capability version this service describes
+# Appended to RUN_DESCRIPTION and COMPLETE_DESCRIPTION when the sandbox reports backtest (P32 layer 3, 2026-10-05).
+BACKTEST_SENTENCE = (
+    " Backtest: backtest(request, frame, signal, exit_signal=None, stop=None, target=None, max_hold=None, fee=None, "
+    "unit=None, prices=None, range_id=None, name=None) simulates long trades of a stated rule on the bundle prices: "
+    "signal (and exit_signal) are boolean columns of your frame, True on the bar whose close triggers the order "
+    "(filled at the next open); stop and target are fractions of the entry price; only bars inside the approved "
+    "ranges trade (warm-up rows feed indicators). Use only the exit rules the user or the script states. It emits "
+    "<name>_trades and <name>_summary (signals, trades, win_rate, mean and median return, average win and loss, "
+    "realized_reward_risk, profit_factor, cumulative_return, max_drawdown, bars_in_period, bars_buffer): quote "
+    "them, never overwrite or re-emit them."
+)
+COMPLETE_BACKTEST_SENTENCE = (
+    " The tables of saniti.backtest are re-run by the backend on the bundle prices from their signal dates: "
+    "final_status.backtests lists each (PASS, FAIL with CALCULATION_MISMATCH, INVALID); the signals themselves are "
+    "the code's and are not recomputed."
 )
 COMPLETE_EVENT_STUDY_SENTENCE = (
     " Exception: the tables of saniti.event_study are recomputed by the backend from their declaration. "
@@ -389,7 +407,8 @@ def close_sessions(client: SandboxClient, request_id: str, session_ids: list[str
 
 
 def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_timeout_seconds: float,
-                  max_result_bytes: int, standard_period_return: bool = False, event_study: bool = False
+                  max_result_bytes: int, standard_period_return: bool = False, event_study: bool = False,
+                  backtest: bool = False
                   ) -> list[ToolSpec]:
     def request_id() -> str:
         return current_request_id.get() or ""
@@ -461,14 +480,15 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
 
     return [
         ToolSpec(name="complete_analysis", effect="COMPUTES",
-                 description=COMPLETE_DESCRIPTION + (COMPLETE_EVENT_STUDY_SENTENCE if event_study else ""),
+                 description=COMPLETE_DESCRIPTION + (COMPLETE_EVENT_STUDY_SENTENCE if event_study else "")
+                 + (COMPLETE_BACKTEST_SENTENCE if backtest else ""),
                  arguments_model=CompleteAnalysisArgs,
                  handler=complete, timeout_seconds=timeout_seconds * 4, max_result_bytes=max_result_bytes),
         ToolSpec(name="open_analysis_session", effect="COMPUTES", description=OPEN_DESCRIPTION, arguments_model=OpenAnalysisSessionArgs,
                  handler=open_session, timeout_seconds=timeout_seconds + 30, max_result_bytes=max_result_bytes),
         ToolSpec(name="run_python", effect="COMPUTES", description=RUN_DESCRIPTION + (PERIOD_RETURN_SENTENCE if standard_period_return
                                                                    else "")
-                 + (EVENT_STUDY_SENTENCE if event_study else ""),
+                 + (EVENT_STUDY_SENTENCE if event_study else "") + (BACKTEST_SENTENCE if backtest else ""),
                  arguments_model=RunPythonArgs, handler=run,
                  timeout_seconds=execution_timeout_seconds + 5, max_result_bytes=max_result_bytes),
         ToolSpec(name="inspect_session", effect="READS", description=INSPECT_DESCRIPTION, arguments_model=InspectSessionArgs,

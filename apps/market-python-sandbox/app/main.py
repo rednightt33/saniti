@@ -21,6 +21,7 @@ from pydantic import ValidationError
 from .config import Settings
 from .bundles import BUNDLE_ID
 from .dataneed_service import DataNeedError, DataNeedService
+from .backtest_validation import BACKTEST_VERSION
 from .event_study_validation import EVENT_STUDY_VERSION
 from .method_guides import GUIDES_SHA256, GUIDES_VERSION
 from .data_need import SPEC_VERSIONS
@@ -165,6 +166,8 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                 "multi_angle_research": multi_angle_capability(),
                 # G2: saniti.event_study, recomputed by the harness at complete_analysis
                 "event_study": {"enabled": dataneed is not None, "version": EVENT_STUDY_VERSION},
+                # P32 layer 3: saniti.backtest, re-run by the harness at complete_analysis
+                "backtest": {"enabled": dataneed is not None, "version": BACKTEST_VERSION},
                 # 4b: the method guides (menu and manual), hash-bound with market-ai-orc and AI_method_guide
                 "method_guides": {"enabled": dataneed is not None, "version": GUIDES_VERSION,
                                   "sha256": GUIDES_SHA256},

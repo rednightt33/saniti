@@ -40,6 +40,7 @@ def build_default_registry(
     session_timeout_seconds: float = 180.0,
     standard_period_return: bool = False,
     event_study: bool = False,
+    backtest: bool = False,
     hypothesis_plan: bool = False,
     method_guides: dict | None = None,
     catalog_discovery_v2: bool = False,
@@ -120,7 +121,7 @@ def build_default_registry(
                                           execution_timeout_seconds=session_timeout_seconds,
                                           max_result_bytes=python_analysis_max_bytes,
                                           standard_period_return=standard_period_return,
-                                          event_study=event_study):
+                                          event_study=event_study, backtest=backtest):
                     registry.register(spec)
                 if export:
                     # D4 (AI_ENABLE_EXPORT): a download file of an output, kept with the conversation

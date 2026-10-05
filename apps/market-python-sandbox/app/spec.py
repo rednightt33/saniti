@@ -92,7 +92,9 @@ APPROVED_DEFAULTS: dict[str, dict[str, Any]] = {
                             "in AI_formula_reference CALC_053 and CALC_054 (TA-Lib has no z-score)."},
     "DEFAULT_ZSCORE_INCLUDES_CURRENT": {"value": "BY_INPUT", "meaning": "A z-score of a level series (for example a "
                                         "price) includes the current observation in its window (CALC_054); a z-score "
-                                        "of a return series excludes it (CALC_053)."},
+                                        "of a return series, or of an activity series the catalog aggregates by SUM "
+                                        "(volume, traded value or lots, broker or foreign flows), excludes it "
+                                        "(CALC_053), so a spike is measured against the observations before it."},
     "DEFAULT_RETURN_KIND": {"value": "SIMPLE", "meaning": "Returns are simple returns x_t / x_(t-h) - 1 (TA-Lib "
                             "ROCP)."},
     "DEFAULT_RETURN_HORIZON": {"value": 1, "meaning": "Returns are one-observation returns unless stated."},
@@ -718,9 +720,12 @@ def normalize(spec: AnalysisSpec, ref: date) -> dict[str, Any]:
     return normalize_raw(raw, ref)
 
 
-def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = None) -> dict[str, Any]:
+def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = None,
+                  resample_rules: dict[tuple[str, str], str | None] | None = None) -> dict[str, Any]:
     """normalize() on a JSON-shaped spec. Analysis Spec V2 (app/spec_v2.py) builds this shape from its own fields
-    (analysis_period mode STATIC when there is no time scope) and reuses every calculation and output rule."""
+    (analysis_period mode STATIC when there is no time scope) and reuses every calculation and output rule.
+    resample_rules: (input name, column) -> the catalog's resample_aggregation, for defaults derived from the catalog
+    (P33: an activity column, aggregated by SUM, gets a z-score without the current observation)."""
     problems = problems if problems is not None else []
     inputs = {i["name"]: i for i in raw["inputs"]}
     if len(inputs) != len(raw["inputs"]):
@@ -962,7 +967,13 @@ def normalize_raw(raw: dict[str, Any], ref: date, problems: list[str] | None = N
                 upstream = calcs.get(calc["input_calculation"] or "")
                 is_return = upstream is not None and (upstream["method"] == "RETURN" or (
                     upstream["method"] == CUSTOM and "RETURN" in (upstream.get("covers") or [])))
-                dynamic["include_current"] = not is_return
+                # P33 (2026-10-05, user decision): a spike in an activity series (volume, traded value or lots, a
+                # broker or foreign flow: the catalog sums it over time) is measured against the observations
+                # before it, as in a standard volume z-score (volume[1]); a level series (a price) keeps the
+                # current observation (CALC_054)
+                is_activity = upstream is None and bool(calc["columns"]) and (resample_rules or {}).get(
+                    (calc["dataset"], calc["columns"][0])) == "SUM"
+                dynamic["include_current"] = not (is_return or is_activity)
             for name, pdef in definition.params.items():
                 if name in dynamic:
                     pdef = ParamDef(pdef.kind, pdef.required, dynamic[name], pdef.default_id, pdef.minimum,

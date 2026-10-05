@@ -11,6 +11,8 @@ needs; nothing here computes an indicator or checks a formula.
     load_range(request, range_id, columns=None, include_buffers=False)
                                     the rows of one approved range (with its history/future buffers if asked); also
                                     saniti.range (S21: not pre-bound as `range`, which stays Python's built-in)
+    in_period(frame, request, range_id=None, date_column=None)
+                                    mask of the rows inside the approved ranges, without the buffer rows (P32)
     sql(query, params=None)         DuckDB SQL over one view per logical name (read-only)
     relation(request)               a lazy DuckDB relation over one dataset
     join(relationship_id, left=None, right=None, how=None)
@@ -54,9 +56,10 @@ import re as _re
 from typing import Any
 
 __all__ = [
-    "REQUESTS", "REFERENCE_DATE", "SEED", "requests", "manifest", "quality", "load", "range", "load_range", "sql",
+    "REQUESTS", "REFERENCE_DATE", "SEED", "requests", "manifest", "quality", "load", "range", "load_range", "in_period",
+    "sql",
     "relation", "load_output", "carried",
-    "join", "join_report", "preaggregate", "resample", "period_return", "forward_return", "event_study",
+    "join", "join_report", "preaggregate", "resample", "period_return", "forward_return", "event_study", "backtest",
     "insufficient_data",
     "intermediate_path", "duckdb_connection", "emit_table",
     "emit_chart", "emit_json", "emit_text", "emit_file", "emit_artifact", "add_warning", "SanitiError",
@@ -86,7 +89,7 @@ _SEQ = [0]
 _RESEARCH: dict[str, Any] = {}
 _RESEARCH_DONE: set[str] = set()
 _RESEARCH_PENDING: set[str] = set()
-RESEARCH_RESERVED = ("research_input_", "research_call_", "event_study_call_")
+RESEARCH_RESERVED = ("research_input_", "research_call_", "event_study_call_", "backtest_call_")
 # M28: the approved hypothesis plan's findings values (success_rule, ...), from session.json research_v1
 _FINDINGS_V1: dict[str, Any] = {}
 RESEARCH_WRAPPER_VERSION = 1
@@ -272,6 +275,7 @@ def requests() -> list[dict[str, Any]]:
     return [{k: r.get(k) for k in ("data_request_id", "logical_name", "source_table", "columns", "key_columns",
                                    "entity_column", "time_column", "source_frequency", "analysis_frequency",
                                    "resample", "resample_rules", "aggregation_rules", "rows")}
+            | {"rows_extracted": r.get("rows"), "rows_in_ranges": (r.get("quality") or {}).get("rows_in_ranges")}
             | {"ranges": [{k: w[k] for k in ("range_id", "start", "end", "extract_from", "extract_to")}
                           for w in r.get("ranges") or []],
                "quality_flags": (r.get("quality") or {}).get("quality_flags") or []}
@@ -421,6 +425,28 @@ def load_range(request: str, range_id: str, columns: list[str] | None = None, in
     return range(request, range_id, columns, include_buffers)
 
 
+def in_period(frame, request: str, range_id: str | None = None, date_column: str | None = None):
+    """P32: a boolean mask (aligned to frame) of the rows inside the request's approved ranges (or one range), without
+    the warm-up and forward buffer rows that load() and include_buffers=True add. Compute indicators on the whole frame,
+    then count and summarise only frame[in_period(frame, request)]."""
+    import pandas as pd
+
+    r = _request(request)
+    column = date_column or r.get("time_column")
+    if not column or column not in frame.columns:
+        raise SanitiError(f"in_period needs the date column of {r['logical_name']} in the frame "
+                          f"({r.get('time_column')!r}); pass date_column=.")
+    windows = [w for w in r.get("ranges") or [] if range_id is None or w["range_id"] == range_id]
+    if not windows:
+        raise SanitiError(f"{range_id!r} is not a range of {r['logical_name']}. Ranges: "
+                          f"{[w['range_id'] for w in r.get('ranges') or []]}")
+    dates = pd.to_datetime(frame[column])
+    mask = pd.Series(False, index=frame.index)
+    for w in windows:
+        mask |= (dates >= pd.Timestamp(w["start"])) & (dates <= pd.Timestamp(w["end"]))
+    return mask
+
+
 def sql(query: str, params: list | None = None):
     """DuckDB SQL over the read-only views (one per logical name); returns a pandas DataFrame."""
     frame = _frame(query, params)
@@ -442,6 +468,101 @@ def relation(request: str):
 # ---------------------------------------------------------------- event study (G2)
 
 EVENT_STUDY_COUNT = [0]
+BACKTEST_COUNT = [0]
+
+
+def backtest(request: str, frame, signal: str, *, exit_signal: str | None = None, stop: float | None = None,
+             target: float | None = None, max_hold: int | None = None, fee: float | None = None,
+             unit: str | None = None, prices: dict[str, str] | None = None, range_id: str | None = None,
+             name: str | None = None) -> dict[str, Any]:
+    """Trade simulation on the governed prices (P32 layer 3): recomputed by the backend at complete_analysis.
+
+    request: the price request (a data request id or logical name). frame: your frame with the request's entity and
+    date columns and a boolean column `signal` (True on the bar whose close triggers an entry), optionally
+    `exit_signal` (True on the bar whose close triggers an exit). Compute indicators on the whole frame (warm-up rows
+    included); only bars inside the approved ranges trade. stop and target are fractions of the entry price (0.05 =
+    5%), max_hold a number of bars, fee a fraction per side, unit PERCENT (default) or DECIMAL; prices maps open,
+    high, low, close to the request's columns (default: the same names). Exit rules are only the ones the user or the
+    script states. Conventions: runtime/backtest.py CONVENTIONS (returned).
+
+    Emits <name>_trades (entity, range_id, signal_date, entry_date, entry_price, exit_date, exit_price, exit_reason,
+    bars_held, return) and <name>_summary (one row per entity, plus ALL for several: signals, signals_skipped,
+    trades, wins, win_rate, mean_return, median_return, average_win, average_loss, realized_reward_risk,
+    profit_factor, cumulative_return, max_drawdown, bars_in_period, bars_buffer, first_date, last_date). Quote counts
+    and returns from these tables."""
+    import pandas as pd
+    import backtest as BT
+
+    r = _request(request)
+    try:
+        params = BT.parameters(stop, target, max_hold, fee, unit)
+    except BT.BacktestError as exc:
+        raise SanitiError(f"{exc.code}: {exc}") from None
+    entity, time = r.get("entity_column"), r["time_column"]
+    columns = {k: (prices or {}).get(k, k) for k in ("open", "high", "low", "close")}
+    missing = [c for c in columns.values() if c not in r["columns"]]
+    if missing:
+        raise SanitiError(f"PRICE_COLUMN_MISSING: {missing} are not columns of {r['logical_name']}; pass prices={{"
+                          f"'open': ..., 'high': ..., 'low': ..., 'close': ...}} with its columns {r['columns']}.")
+    needed = [c for c in (entity, time, signal, exit_signal) if c]
+    absent = [c for c in needed if c not in frame.columns]
+    if absent:
+        raise SanitiError(f"The frame lacks {absent}: it needs the request's entity and date columns and the signal "
+                          "column(s).")
+    windows_all = r.get("ranges") or []
+    if range_id is not None and range_id not in {w["range_id"] for w in windows_all}:
+        raise SanitiError(f"{range_id!r} is not a range of {r['logical_name']}. Ranges: "
+                          f"{[w['range_id'] for w in windows_all]}")
+    chosen = [{k: w[k] for k in ("range_id", "start", "end")} for w in windows_all
+              if range_id is None or w["range_id"] == range_id]
+
+    def pairs(column: str | None) -> list[list[str]]:
+        if not column:
+            return []
+        marked = frame[frame[column].fillna(False).astype(bool)]
+        ents = marked[entity].astype(str) if entity else pd.Series("ALL", index=marked.index)
+        days = pd.to_datetime(marked[time]).dt.date.astype(str)
+        return sorted({(e, d) for e, d in zip(ents, days)})
+
+    signals, exits = pairs(signal), pairs(exit_signal)
+    rows = load(r["data_request_id"], columns=list(dict.fromkeys([c for c in (entity, time) if c]
+                                                                    + list(columns.values()))))
+    try:
+        trades, summary = BT.simulate(rows, entity_column=entity, time_column=time, columns=columns, ranges=chosen,
+                                      signals={tuple(p) for p in signals}, exits={tuple(p) for p in exits},
+                                      params=params)
+    except BT.BacktestError as exc:
+        raise SanitiError(f"{exc.code}: {exc}") from None
+    BACKTEST_COUNT[0] += 1
+    label = name or f"backtest_{BACKTEST_COUNT[0]}"
+    _name(f"{label}_trades")
+    _name(f"{label}_summary")
+    rules = {k: v for k, v in (("stop", params["stop"]), ("target", params["target"]),
+                               ("max_hold", params["max_hold"]), ("exit_signal", exit_signal)) if v is not None}
+    defined = {"filters": [], "thresholds": {"signal": signal, **rules, "fee": params["fee"],
+                                             "ranges": [w["range_id"] for w in chosen]},
+               "notes": f"backtest {label} of request {r['data_request_id']}: {BT.CONVENTIONS}"}
+    trades_table = emit_table(f"{label}_trades", pd.DataFrame(trades, columns=list(BT.TRADE_COLUMNS)),
+                              f"Trades of backtest {label} (entry and exit, reason, return)",
+                              units=BT.trades_units(params["unit"]), definition=defined)
+    summary_table = emit_table(f"{label}_summary", pd.DataFrame(summary, columns=list(BT.SUMMARY_COLUMNS)),
+                               f"Summary of backtest {label}: trades and returns over the approved ranges only; "
+                               "bars_buffer are warm-up or forward rows that did not trade",
+                               units=BT.summary_units(params["unit"]), definition=defined)
+    call = {"version": BT.VERSION, "name": label, "request": r["data_request_id"], "ranges": chosen,
+            "columns": columns, "parameters": params, "signals": signals, "exits": exits,
+            "trades_output": f"{label}_trades", "summary_output": f"{label}_summary"}
+    text = _json.dumps(_jsonable(call), ensure_ascii=False, separators=(",", ":"))
+    file_name = _file(_name(f"backtest_call_{label}", internal=True), "json")
+    with open(_os.path.join(_OUTPUT_DIR, file_name), "w", encoding="utf-8") as handle:
+        handle.write(text)
+    _record("JSON", "JSON", f"backtest_call_{label}", file_name, f"Declaration of backtest {label} (recomputed by "
+                                                                 "the backend).")
+    _log({"call": "backtest", "data_request_id": r["data_request_id"], "name": label, "trades": len(trades)})
+    return {"name": label, "summary": summary, "trades": pd.DataFrame(trades, columns=list(BT.TRADE_COLUMNS)),
+            "outputs": [trades_table, summary_table], "conventions": BT.CONVENTIONS,
+            "validation": "Recomputed by the backend from the bundle prices and these signal dates at "
+                          "complete_analysis; the signals themselves are your code's."}
 
 
 def _approved_unit(outcome_unit: str | None) -> str:
@@ -566,6 +687,9 @@ def event_study(request: str, event: str, outcome: dict[str, Any], horizon: int,
     _log({"call": "event_study", "data_request_id": r["data_request_id"], "name": label,
           "events": int(summary[0]["event_count"] or 0)})
     return {"name": label, "summary": summary, "parameters": params, "outputs": [table, kept, compared, flowed],
+            # P32: the rows the study used per approved range (buffer rows only fed lags and forward returns)
+            "rows_in_period": [{"range_id": w.get("range_id"), "rows": w.get("rows")}
+                               for w in info.get("ranges") or []],
             # G3: the same events and baseline as frames, e.g. for event_summary(events, baseline, ...)
             "events": events, "baseline": baseline_rows,
             "validation": "Recomputed independently by the backend at complete_analysis; a match is labelled "

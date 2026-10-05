@@ -665,3 +665,42 @@ def test_F_rows_without_the_full_grain_are_ambiguous(sandbox_root) -> None:
     job = Job(sandbox_root, spec, [("prices", [{"data": boards, "requested_from": "2026-04-01",
                                                 "source_table": "Feature_03_Stock_Broker_Daily"}])])
     assert [b["code"] for b in job.preflight()["blocking"]] == ["GRAIN_AMBIGUOUS"]
+
+
+def test_an_activity_zscore_excludes_the_current_observation_by_the_catalog_rule() -> None:
+    """P33 (user decision 2026-10-05): a z-score of a column the catalog sums over time (volume, traded value, broker
+    or foreign flows) is measured against the observations before it, like a standard volume z-score (volume[1]); a
+    price keeps the current observation (CALC_054). Derived from resample_aggregation, not from the column's name."""
+    from datetime import date as _date
+
+    from app.spec import normalize_raw
+
+    def include_current(column: str, rules: dict | None) -> bool:
+        raw = zscore_spec()
+        raw["inputs"][0]["columns"] = ["ticker", "date", "close", "volume"]
+        raw["calculations"][0]["columns"] = [column]
+        spec = normalize_raw(AnalysisSpec.model_validate(raw).model_dump(mode="json"), _date(2026, 10, 2),
+                             resample_rules=rules)
+        return {p["name"]: p["value"] for p in spec["calculations"][0]["params"]}["include_current"]
+
+    rules = {("prices", "volume"): "SUM", ("prices", "close"): "LAST"}
+    assert include_current("volume", rules) is False
+    assert include_current("close", rules) is True
+    assert include_current("volume", None) is True  # no catalog rule known: unchanged (CALC_054)
+    assert include_current("volume", {("prices", "volume"): "SUM", ("prices", "close"): "SUM"}) is False
+
+
+def test_the_excluding_reference_zscore_equals_a_shifted_window() -> None:
+    """The backend's reference z-score without the current observation equals (x - mean(x[t-w..t-1])) /
+    std(x[t-w..t-1]) (Pine: ta.sma(volume[1], w), ta.stdev(volume[1], w))."""
+    import numpy as np
+    import pandas as pd
+
+    rolling_zscore = reference.rolling_zscore
+
+    x = np.random.default_rng(7).integers(1000, 100000, 80).astype(float)
+    window = 20
+    got = rolling_zscore(x, window, 1, False)
+    prior = pd.Series(x).shift(1)
+    want = (pd.Series(x) - prior.rolling(window).mean()) / prior.rolling(window).std(ddof=1)
+    assert np.allclose(got[window:], want.to_numpy()[window:], equal_nan=True)

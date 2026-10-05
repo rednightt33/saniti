@@ -341,7 +341,11 @@ def normalize_v2(spec: AnalysisSpecV2, ref: date, catalog: dict[str, Any]) -> di
     for name in ("spec_version", "analysis_type", "subject", "relationships", "scope", "time_scope"):
         legacy.pop(name, None)
     try:
-        canonical = normalize_raw(legacy, ref, problems)
+        # P33: the catalog's resample rule of each input column (SUM marks an activity series)
+        rules = {(name, column): ((columns.get(item.get("source_table")) or {}).get(column) or {}).get(
+                     "resample_aggregation")
+                 for name, item in inputs.items() for column in item.get("columns") or []}
+        canonical = normalize_raw(legacy, ref, problems, resample_rules=rules)
     except SpecInvalid:
         canonical = None
     if canonical is not None:

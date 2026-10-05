@@ -21,7 +21,7 @@ import hashlib
 import json
 from typing import Any
 
-GUIDES_VERSION = 4  # 2 (2026-10-02, HIGH ALERT): output definitions, event flow, approved success rule; 3 (2026-10-03, P26): thresholds with units, the approved outcome unit; 4 (2026-10-03, D6): base tables for claims, get_evidence
+GUIDES_VERSION = 5  # 2 (2026-10-02, HIGH ALERT): output definitions, event flow, approved success rule; 3 (2026-10-03, P26): thresholds with units, the approved outcome unit; 4 (2026-10-03, D6): base tables for claims, get_evidence; 5 (2026-10-05, P32/P33): counts over the approved ranges (in_period), activity z-scores without the current observation, backtest
 
 # How the backend checks a result (ERRORS_AND_SOLUTIONS S23), from weakest to strongest.
 VERIFICATION_LEVELS = {
@@ -76,6 +76,14 @@ GUIDES: list[dict[str, Any]] = [
                    "complete_analysis does not release a result without one. Put row filters in the data request's "
                    "scope where you can, so the backend records them itself.",
                    "Only released outputs may be cited; print() is diagnostics only.",
+                   "A sample size or a period's observation count uses the rows inside the approved ranges "
+                   "(in_period(frame, request) or load_range): load() and include_buffers=True add warm-up and "
+                   "forward rows that feed indicators only. When warm-up rows were used, state both spans (the "
+                   "bundle's rows_in_ranges and rows_extracted).",
+                   "A z-score that finds a spike in an activity series (volume, traded value or lots, a broker or "
+                   "foreign flow: the catalog sums it over time) compares the observation with the ones before it: "
+                   "the rolling mean and deviation of x.shift(1), as Pine's ta.sma(volume[1], n); a price z-score "
+                   "keeps the current observation.",
                    "For each main claim also release its base table: the rows a count, sum or extreme is computed "
                    "from (for example one row per crash day for the broker), so get_evidence can recount the claim "
                    "from it (BASE_TABLE: conditions and a measure); a claim about a governed table itself is checked "
@@ -169,7 +177,8 @@ GUIDES: list[dict[str, Any]] = [
                    "meets_min_events), <name>_events (date, entity, outcome), <name>_baseline and <name>_flow "
                    "(rows_in_window, condition_unknown, condition_true = the qualifying events, censored, "
                    "overlapping_dropped, used; condition_true = censored + overlapping_dropped + used); the call also "
-                   "returns the events and baseline frames. Cite {{out.o1.rows[segment=ALL].delta_mean}}; quote every "
+                   "returns the events and baseline frames and rows_in_period (the rows each range used; buffer rows "
+                   "only fed lags and forward returns). Cite {{out.o1.rows[segment=ALL].delta_mean}}; quote every "
                    "count of the event flow from <name>_flow, never derive one. The interval and p-value treat events "
                    "on one date as one observation.",
         "common_errors": [
@@ -190,6 +199,69 @@ GUIDES: list[dict[str, Any]] = [
              "code": "study = event_study('prices', 'close > rolling_mean(close, 5)', {'forward_return': 'close'}, 1, "
                      "range_id='current_ytd', overlap_policy='ALL', baseline='NON_EVENT', name='above_mean')\n"
                      "load('prices')\nload('stock_classification')"}],
+    },
+    {
+        "name": "backtest", "g": None, "kind": "HELPER",
+        "title": "Backtest: trades of a stated entry and exit rule on the governed prices",
+        "use_when": ["Testing a trading rule the user states or scripts (for example a Pine strategy): the trades, "
+                     "win rate, average gain and loss, realized reward to risk, profit factor and drawdown over the "
+                     "approved period."],
+        "avoid_when": ["The average outcome after an event against a baseline (event_study).",
+                       "Adding exit rules the user did not state: use only the stop, target, exit signal or holding "
+                       "limit the user or the script gives, and name any you assume as a choice."],
+        "helpers": ["backtest"],
+        "inputs": [
+            _input("request", "The price request (data request id or logical name).", of="backtest"),
+            _input("frame", "Your frame with the request's entity and date columns and the signal columns; compute "
+                            "indicators on the whole frame, warm-up rows included.", of="backtest"),
+            _input("signal", "A boolean column: True on the bar whose close triggers an entry (filled at the next "
+                             "bar's open).", of="backtest"),
+            _input("exit_signal", "A boolean column: True on the bar whose close triggers an exit (filled at the next "
+                                  "bar's open).", of="backtest", default=None),
+            _input("stop", "Stop loss as a fraction of the entry price (0.05 for 5%).", of="backtest", default=None),
+            _input("target", "Take profit as a fraction of the entry price (0.10 for 10%).", of="backtest",
+                   default=None),
+            _input("max_hold", "Bars to hold at most (closed at the last bar's close).", of="backtest", default=None),
+            _input("fee", "Cost per side as a fraction (0.0015 for 0.15%).", of="backtest", default=None),
+            _input("unit", "PERCENT (default) or DECIMAL for the returns.", of="backtest", default=None),
+            _input("prices", "{'open', 'high', 'low', 'close'} -> the request's columns when named differently.",
+                   of="backtest", default=None),
+            _input("range_id", "One approved range (default: every range, each traded on its own).", of="backtest",
+                   default=None),
+            _input("name", "The output name (backtest_<n> when omitted).", of="backtest", default=None)],
+        "limits": ["Long only, one position per entity; a signal while a position is open is skipped and counted.",
+                   "Stop and target are checked from the entry bar; a bar that opens beyond a level fills at its "
+                   "open; when both levels are inside one bar the stop is taken first.",
+                   "Only bars inside the approved ranges trade; a position still open at a range's end closes at its "
+                   "last close (OPEN_AT_END).",
+                   "Prices are read from the bundle, not from your frame; the frame gives the signal dates only."],
+        "verification": {"level": "STATISTICS_VERIFIED",
+                         "checked": ["complete_analysis re-runs the simulation on the bundle prices from the recorded "
+                                     "signal dates and compares both tables; a match labels them CALCULATION_VERIFIED",
+                                     "a released table that differs fails completion (CALCULATION_MISMATCH)"],
+                         "not_checked": ["how your code computed the signals (the indicators and the crossing rule)"]},
+        "results": "<name>_trades (entity, range_id, signal_date, entry_date, entry_price, exit_date, exit_price, "
+                   "exit_reason STOP, TARGET, EXIT_SIGNAL, MAX_HOLD or OPEN_AT_END, bars_held, return) and "
+                   "<name>_summary (per entity and ALL: signals, signals_skipped, trades, wins, win_rate, "
+                   "mean_return, median_return, average_win, average_loss, realized_reward_risk, profit_factor, "
+                   "cumulative_return, max_drawdown, bars_in_period, bars_buffer, first_date, last_date). Quote the "
+                   "trade count and the period's bars from <name>_summary; bars_buffer are warm-up rows, not sample.",
+        "common_errors": [
+            {"code": "PRICE_COLUMN_MISSING", "seen_in": "backtest",
+             "fix": "pass prices={'open': ..., 'high': ..., 'low': ..., 'close': ...} with the request's columns."},
+            {"code": "CALCULATION_MISMATCH", "seen_in": "backtest",
+             "fix": "never overwrite or re-emit the backtest's tables; run backtest again under the same name."},
+            {"code": "warm-up bars counted as the test period", "seen_in": "P32",
+             "fix": "quote bars_in_period; the warm-up rows are bars_buffer."}],
+        "examples": [
+            {"title": "Moving-average cross with a stop, a target and an exit on the opposite cross", "runnable": True,
+             "code": "full = load('prices').sort_values(['ticker', 'date'])\n"
+                     "fast = full.groupby('ticker')['close'].transform(lambda s: s.ewm(span=5, adjust=False).mean())\n"
+                     "slow = full.groupby('ticker')['close'].transform(lambda s: s.ewm(span=20, adjust=False).mean())\n"
+                     "above = (fast > slow).astype(bool)\nbefore = above.groupby(full['ticker']).shift(1)\n"
+                     "full['up'] = above & (before == False)\nfull['down'] = ~above & (before == True)\n"
+                     "bt = backtest('prices', full, 'up', exit_signal='down', stop=0.05, target=0.10, name='cross')\n"
+                     "load('stock_classification')\nprint(bt['summary'][-1]['trades'])"}],
     },
     {
         "name": "hypothesis_plan", "g": "G3", "kind": "PATH",
@@ -372,10 +444,10 @@ GUIDES: list[dict[str, Any]] = [
     },
     {
         "name": "reading_data", "g": None, "kind": "HELPER",
-        "title": "Reading the bundle: load, load_range and sql",
+        "title": "Reading the bundle: load, load_range, in_period and sql",
         "use_when": ["Every read of the approved data; sql() first for large requests (summaries in DuckDB)."],
         "avoid_when": ["Reading the input files directly: it counts as not processed."],
-        "helpers": ["load", "load_range", "sql", "load_output", "carried"],
+        "helpers": ["load", "load_range", "in_period", "sql", "load_output", "carried"],
         "inputs": [
             _input("request", "The data request id or logical name.", of="load"),
             _input("columns", "Columns to read (default: all).", of="load", default=None),
@@ -384,6 +456,11 @@ GUIDES: list[dict[str, Any]] = [
             _input("columns", "Columns to read (default: all).", of="load_range", default=None),
             _input("include_buffers", "True widens the range to its warm-up and future buffers.", of="load_range",
                    default=False),
+            _input("frame", "A frame with the request's date column (for example from load or include_buffers=True).",
+                   of="in_period"),
+            _input("request", "The data request id or logical name.", of="in_period"),
+            _input("range_id", "One approved range (default: every range).", of="in_period", default=None),
+            _input("date_column", "The frame's date column (default: the request's).", of="in_period", default=None),
             _input("query", "DuckDB SQL over one view per logical name.", of="sql"),
             _input("params", "Query parameters.", of="sql", default=None),
             _input("output_id", "A released table of this conversation (an analysis table, an event study's tables, "
@@ -392,6 +469,10 @@ GUIDES: list[dict[str, Any]] = [
             _input("columns", "Columns to read (default: all).", of="load_output", default=None)],
         "limits": ["A request shown as AGGREGATE_FIRST is reduced in sql() before it becomes a pandas frame.",
                    "Every approved request and range must be read before complete_analysis.",
+                   "Row counts name their span: rows_extracted (everything delivered, buffers included), "
+                   "rows_in_ranges and ranges[].rows (inside the approved ranges), ranges[].buffer_rows_before and "
+                   "buffer_rows_after. A sample size uses the rows inside the ranges: "
+                   "frame[in_period(frame, request)].",
                    "A research plan's session loads only the carried tables its approved plan names; an analysis "
                    "session loads any released table of the conversation (24 hours)."],
         "verification": {"level": "DATA_COVERAGE_VERIFIED",
@@ -410,6 +491,12 @@ GUIDES: list[dict[str, Any]] = [
             {"title": "An earlier result as input, with its label", "runnable": False,
              "code": "for table in carried():\n    print(table['output_id'], table['name'], table['kind'], "
                      "table['label'])\nearlier = load_output('<output_id>')\nprint(earlier.attrs['label'])"},
+            {"title": "Indicators on the whole history, counts over the approved ranges only", "runnable": True,
+             "code": "full = load('prices').sort_values(['ticker', 'date'])\n"
+                     "full['ma5'] = full.groupby('ticker')['close'].transform(lambda s: s.rolling(5).mean())\n"
+                     "inside = full[in_period(full, 'prices')]\nload('stock_classification')\n"
+                     "emit_table('above_ma5', inside.assign(above=inside['close'] > inside['ma5'])"
+                     ".groupby('ticker', as_index=False)['above'].sum(), definition={})"},
             {"title": "A summary in DuckDB, then one range in pandas", "runnable": True,
              "code": "daily = sql('SELECT date, avg(close) AS mean_close FROM prices GROUP BY date ORDER BY date')\n"
                      "previous = load_range('prices', 'previous_comparable')\nload('prices')\n"

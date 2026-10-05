@@ -110,6 +110,23 @@ def test_plain_range_is_the_builtin_and_the_range_helper_keeps_its_names(session
     assert "load_range(request, range_id, columns=None, include_buffers=False)" in " ".join(session["opened"]["helpers"])
 
 
+def test_in_period_masks_the_rows_inside_the_approved_ranges_without_buffers(session) -> None:
+    """P32: in_period(frame, request) keeps exactly the rows load_range returns without buffers, from a frame that
+    load() or include_buffers=True widened; it names the ranges when range_id is unknown."""
+    body = ok(session, "full = load('prices')\n"
+                       "inside = full[in_period(full, 'prices')]\n"
+                       "one = full[in_period(full, 'prices', 'current_ytd')]\n"
+                       "wide = load_range('prices', 'current_ytd', include_buffers=True)\n"
+                       "plain = load_range('prices', 'current_ytd')\n"
+                       "both = sum(len(load_range('prices', r['range_id'])) for r in requests()[0]['ranges'])\n"
+                       "print(len(one) == len(plain), len(wide[in_period(wide, 'prices', 'current_ytd')]) == len(plain),"
+                       " len(inside) == both, len(full) >= len(inside))\n"
+                       "try:\n    in_period(full, 'prices', 'nope')\nexcept Exception as exc:\n"
+                       "    print('current_ytd' in str(exc))")
+    assert body["stdout"].split() == ["True", "True", "True", "True", "True"]
+    assert any(h.startswith("in_period(frame, request") for h in session["opened"]["helpers"])
+
+
 def test_outputs_are_stored_with_checksums_and_readable_back_unreleased(session) -> None:
     body = ok(session, """
 import matplotlib.pyplot as plt

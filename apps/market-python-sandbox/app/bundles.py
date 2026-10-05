@@ -406,9 +406,8 @@ def lineage_view(manifest: dict[str, Any]) -> dict[str, Any]:
         datasets.append({
             "data_request_id": d.get("data_request_id"), "logical_name": d.get("logical_name"),
             "source_table": d.get("source_table"), "scope_sha256": d.get("scope_sha256"),
-            "restricted_by": d.get("restricted_by") or [], "rows": d.get("rows"),
-            "ranges": [{k: r.get(k) for k in ("range_id", "requested_start", "requested_end", "actual_start",
-                                               "actual_end", "rows", "status")}
+            "restricted_by": d.get("restricted_by") or [], **row_counts(d),
+            "ranges": [{k: r.get(k) for k in RANGE_COUNT_KEYS}
                        for r in quality.get("requested_ranges") or []],
             "governor": governor if len(governor) == len(parts) and parts else "NOT_RECORDED"})
     relationships = [{k: r.get(k) for k in ("relationship_id", "left_request_id", "left_column", "right_request_id",
@@ -437,6 +436,23 @@ def column_stats(quality: dict[str, Any], limit: int | None = VIEW_COLUMNS) -> d
     return out
 
 
+# P32 (2026-10-05): every row count names the span it covers. rows_extracted is everything the dataset holds, warm-up
+# and forward buffers included; rows_in_ranges the rows inside the requested ranges (each row once); per range, rows
+# inside it and the buffer rows extracted before and after it. rows stays one version as rows_extracted.
+RANGE_COUNT_KEYS = ("range_id", "requested_start", "requested_end", "extract_from", "extract_to", "actual_start",
+                    "actual_end", "rows", "buffer_rows_before", "buffer_rows_after", "entities", "status")
+ROW_COUNTS_NOTE = ("rows and rows_extracted include the buffer rows extracted before and after the requested ranges "
+                   "(warm-up history, forward outcomes); rows_in_ranges and ranges[].rows are the rows inside the "
+                   "requested ranges. A sample size or a period's observation count uses the rows inside the ranges.")
+
+
+def row_counts(dataset: dict[str, Any]) -> dict[str, Any]:
+    """The dataset's row counts with the span each covers (P32)."""
+    quality = dataset.get("quality") or {}
+    return {"rows": dataset.get("rows"), "rows_extracted": dataset.get("rows"),
+            "rows_in_ranges": quality.get("rows_in_ranges")}
+
+
 def model_view(manifest: dict[str, Any]) -> dict[str, Any]:
     """The bundle as market-ai-orc returns it to the model: no file paths, no dataset internals."""
     datasets = []
@@ -445,11 +461,10 @@ def model_view(manifest: dict[str, Any]) -> dict[str, Any]:
         stats = column_stats(q) if q.get("columns") else {}
         datasets.append({
             "data_request_id": d["data_request_id"], "logical_name": d["logical_name"],
-            "source_table": d["source_table"], "rows": d["rows"], "entities": q.get("entities"),
+            "source_table": d["source_table"], **row_counts(d), "entities": q.get("entities"),
             "min_date": q.get("min_date"), "max_date": q.get("max_date"),
             "columns": [c["name"] for c in d.get("columns") or []], "partitions": len(d.get("partitions") or []),
-            "ranges": [{k: r.get(k) for k in ("range_id", "requested_start", "requested_end", "actual_start",
-                                               "actual_end", "rows", "entities", "status")}
+            "ranges": [{k: r.get(k) for k in RANGE_COUNT_KEYS}
                        | ({"end_requested": r["end_requested"]} if r.get("end_requested") else {})
                        for r in q.get("requested_ranges") or []],
             "quality_manifest_id": d["quality_manifest_id"], "quality_flags": q.get("quality_flags") or [],
@@ -458,7 +473,7 @@ def model_view(manifest: dict[str, Any]) -> dict[str, Any]:
     coverage = manifest.get("coverage") or {}
     return {"status": manifest["status"], "input_bundle_id": manifest["input_bundle_id"],
             "need_id": manifest["need_id"], "request_group_id": manifest["request_group_id"],
-            "revision": manifest["revision"], "datasets": datasets,
+            "revision": manifest["revision"], "datasets": datasets, "row_counts": ROW_COUNTS_NOTE,
             "relationship_warnings": manifest.get("relationship_warnings") or [],
             "coverage_status": coverage.get("coverage_status"),
             "coverage_issues": [i for r in coverage.get("requests") or [] for i in r.get("issues") or []][:10]

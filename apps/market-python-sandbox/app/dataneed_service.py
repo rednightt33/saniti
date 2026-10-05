@@ -14,7 +14,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from .bundles import BundleBuilder, BundleError
+from .bundles import BundleBuilder, BundleError, row_counts
 from .bundles import model_view as bundle_view
 from .coverage import execution_manifest, processing_coverage
 from .data_need import (COMPLETENESS_RULE, DEFAULT_TIME_BASIS, NULL_POLICY, PERIOD_POLICY, Limits, contract_tables,
@@ -28,11 +28,11 @@ from .research_findings import evaluate as evaluate_findings
 from .research_methods import sha256_json as research_sha256
 from .sessions import SessionError, SessionManager
 from .research_governance import review as governance_review
-from . import event_study_validation, research_validation
+from . import backtest_validation, event_study_validation, research_validation
 
 # outputs only the saniti helpers write (runtime/saniti_session.py RESEARCH_RESERVED): records the backend recomputes
 # from, released for the audit but never offered as results
-BACKEND_RECORDS = ("research_input_", "research_call_", event_study_validation.PREFIX)
+BACKEND_RECORDS = ("research_input_", "research_call_", event_study_validation.PREFIX, backtest_validation.PREFIX)
 
 logger = logging.getLogger("market_python_sandbox")
 
@@ -731,7 +731,7 @@ class DataNeedService:
                 "expires_at": manifest["expires_at"], "mode": bundle["mode"],
                 "reference_date": manifest.get("reference_date"),
                 "datasets": [{"data_request_id": d["data_request_id"], "logical_name": d["logical_name"],
-                              "source_table": d["source_table"], "rows": d["rows"],
+                              "source_table": d["source_table"], **row_counts(d),
                               "columns": [c["name"] for c in d.get("columns") or []]}
                              for d in manifest["datasets"]],
                 "data_need_spec": spec or None,
@@ -891,8 +891,24 @@ class DataNeedService:
                     studies = None
             if studies is not None and studies["status"] == "FAIL":
                 passed = False
+        # P32 layer 3: every saniti.backtest is re-run on the bundle prices from its recorded signal dates
+        backtests = None
+        if passed:
+            try:
+                backtests = backtest_validation.validate(bundle=bundle, path_of=self.bundles.path_of,
+                                                         outputs=outputs, outputs_root=self.sessions.outputs_root)
+            except Exception as exc:  # noqa: BLE001 - a validator defect never fails a completion that did not use it
+                self._log("backtest_validation_failed", request_id=request_id, session_id=session_id,
+                          error=type(exc).__name__)
+                ids = [o["output_id"] for o in outputs
+                       if str(o.get("name") or "").startswith(backtest_validation.PREFIX)]
+                backtests = {"status": "INVALID", "verified_output_ids": [], "record_output_ids": ids,
+                             "backtests": [{"name": None, "status": "INVALID",
+                                            "reason": f"VALIDATOR_ERROR: {type(exc).__name__}"}]} if ids else None
+            if backtests is not None and backtests["status"] == "FAIL":
+                passed = False
         records = {o["output_id"] for o in outputs
-                   if str(o.get("name") or "").startswith(event_study_validation.PREFIX)}
+                   if str(o.get("name") or "").startswith((event_study_validation.PREFIX, backtest_validation.PREFIX))}
         # H1 (M63): every released table or JSON states how it was made, so a later turn reads it instead of guessing
         undefined = undefined_outputs(outputs) if passed else []
         if undefined:
@@ -962,6 +978,19 @@ class DataNeedService:
                 final["claims_allowed"] = [*final["claims_allowed"],
                                            f"the event studies {verified} were recomputed independently by the "
                                            "backend from their declaration (FORMULA_AND_STATISTICS_VERIFIED)"]
+        if backtests is not None and backtests["status"] != "NOT_PERFORMED":
+            final["backtests"] = [{k: b.get(k) for k in ("name", "status", "reason", "trades_output_id",
+                                                         "summary_output_id", "checked", "mismatched", "examples")}
+                                  for b in backtests["backtests"]]
+            verified_bt = [b["name"] for b in backtests["backtests"] if b["status"] == "PASS"]
+            if passed and verified_bt:
+                final["verified_output_ids"] = [*(final.get("verified_output_ids") or []),
+                                                *backtests["verified_output_ids"]]
+                final["claims_allowed"] = [*final["claims_allowed"],
+                                           f"the backtests {verified_bt} were re-run by the backend on the governed "
+                                           "prices from their signal dates (the signals are the analysis code's)"]
+                if final["calculation_validation"] == "NOT_PERFORMED":
+                    final["calculation_validation"] = "PARTIAL"
         if grouped is not None:
             final["calculation_validation"] = grouped["calculation_validation"] if passed else "NOT_PERFORMED"
             final["research_group"] = {"research_run_id": constraints.get("research_run_id"),

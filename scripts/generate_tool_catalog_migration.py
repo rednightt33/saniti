@@ -10,7 +10,8 @@ registering the new versions of the tools whose contract changed in that round.
 - round_e (20261004_001, applied): get_evidence v2 with DAYS (golden test ma-golden-20261003d).
 - round_f (20261004_002, applied): the first row of find_web_fact (S4b, PLAN_FINAL_2026-10-04.md Fase 4); no version
   change.
-- round_g (20261005_001): get_system_capabilities v2, capabilities derived from the offered tools' effects (P31).
+- round_g (20261005_001): get_system_capabilities v2, capabilities derived from the offered tools' effects (P31);
+  prepare_data_bundle v2, open_analysis_session v2, run_python v4, complete_analysis orc-v2 (P32 counts, backtest).
 
 Registered from the code with every switch of the dev environment on (the registry of scripts/generate_ai_tools_doc.py,
 one source for both). An applied migration is frozen (database/migrations/APPLIED.sha256); market-ai-orc's
@@ -121,14 +122,23 @@ ROUNDS = {
                                "deadline, Postgres-E8GM web_fact cache (30 days)"},
     },
     "round_g": {
-        "target": ROOT / "database/migrations/20261005_001_capabilities_tool_catalog.sql",
-        "versions": {"get_system_capabilities": ("v1", "v2")},
-        "contracts": {"get_system_capabilities": ("purpose", "derived from the tools it can call")},
+        "target": ROOT / "database/migrations/20261005_001_round_g_tool_catalog.sql",
+        "versions": {"get_system_capabilities": ("v1", "v2"), "prepare_data_bundle": ("v1", "v2"),
+                     "open_analysis_session": ("v1", "v2"), "run_python": ("v3", "v4"),
+                     "complete_analysis": ("orc-v1", "orc-v2")},
+        "contracts": {"get_system_capabilities": ("purpose", "derived from the tools it can call"),
+                      "prepare_data_bundle": ("purpose", "rows_in_ranges"),
+                      "open_analysis_session": ("purpose", "rows_in_ranges"),
+                      "run_python": ("purpose", "in_period"),
+                      "complete_analysis": ("purpose", "saniti.backtest")},
         "title": "stress test fix P31",
         "design": "ERRORS_AND_SOLUTIONS.md P31 (router stress test 2026-10-05)",
         "summary": ["get_system_capabilities v2: each capability is derived from the effect of the tools offered in the",
                     "step (no list of tool names); v1 named tools that did not exist and reported no web capability",
-                    "while find_web_fact was offered (stress test ma-qa-20261005a q7, P31)."],
+                    "while find_web_fact was offered (stress test ma-qa-20261005a q7, P31).",
+                    "prepare_data_bundle v2, open_analysis_session v2: row counts name their span (rows_extracted,",
+                    "rows_in_ranges, buffer rows per range; P32). run_python v4: in_period and backtest (P32 layers 2-3).",
+                    "complete_analysis orc-v2: the backtests are re-run by the backend (final_status.backtests)."],
         "limits": {"capabilities": "derived from ToolSpec.effect of the tools offered in the step (app/tools/system.py "
                                    "EFFECT_CAPABILITIES)"},
     },

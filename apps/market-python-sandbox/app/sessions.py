@@ -226,7 +226,8 @@ def research_view(research: dict[str, Any]) -> dict[str, Any]:
 
 HELPERS = ["requests()", "manifest()", "quality(request)", "load(request, columns=None)",
            "load_range(request, range_id, columns=None, include_buffers=False) (also saniti.range; plain range is "
-           "Python's built-in)", "sql(query, params=None)",
+           "Python's built-in)", "in_period(frame, request, range_id=None, date_column=None) (mask of the rows inside "
+           "the approved ranges, without buffer rows: count and summarise only these)", "sql(query, params=None)",
            "relation(request)", "load_output(output_id, columns=None) (a released table of this conversation; see "
            "carried())", "carried()", "join(relationship_id, left=None, right=None, how=None)",
            "resample(frame, request, frequency=None)",
@@ -235,6 +236,9 @@ HELPERS = ["requests()", "manifest()", "quality(request)", "load(request, column
            "baseline='ALL_ELIGIBLE', min_events=None, holdout_start=None, outcome_unit=None, name=None) "
            "(recomputed by the backend at complete_analysis; outcome_unit is the approved experiment's in a research "
            "session, else PERCENT)",
+           "backtest(request, frame, signal, *, exit_signal=None, stop=None, target=None, max_hold=None, fee=None, "
+           "unit=None, prices=None, range_id=None, name=None) (trades of a stated rule on the bundle prices; re-run "
+           "by the backend at complete_analysis)",
            "insufficient_data(request, range_id=None, value=None, unit='TRADING_OBSERVATIONS', "
            "requirement_type='ADDITIONAL_HISTORY', reason='')", "intermediate_path(name)",
            "emit_table(name, frame, description='', units=None, definition=None) (definition required to release: "
@@ -684,11 +688,13 @@ class SessionManager:
 
     def _view(self, session_id: str, bundle_id: str, need_id: str, manifest: dict[str, Any], budget: Any,
               expires_at: str) -> dict[str, Any]:
+        from .bundles import row_counts
+
         s = self.settings
         return {"session_id": session_id, "status": "ACTIVE", "bundle_id": bundle_id, "need_id": need_id,
                 "datasets": [{"data_request_id": d["data_request_id"], "logical_name": d["logical_name"],
                               "columns": [c["name"] for c in d.get("columns") or []],
-                              "time_column": d.get("time_column"), "rows": d["rows"],
+                              "time_column": d.get("time_column"), **row_counts(d),
                               **frame_estimate(int(d["rows"] or 0), [c.get("type") for c in d.get("columns") or []],
                                                s.frame_budget_mb),
                               "ranges": [w["range_id"] for w in d.get("ranges") or []],
@@ -1086,14 +1092,16 @@ class SessionManager:
         if found is None:
             raise SessionError("DATASET_NOT_FOUND", f"The session's bundle has no dataset '{dataset}'.", 404,
                                "FIX_ARGUMENTS", datasets=[d.get("logical_name") for d in datasets])
-        from .bundles import column_stats
+        from .bundles import RANGE_COUNT_KEYS, ROW_COUNTS_NOTE, column_stats
 
         quality = found.get("quality") or {}
-        ranges = [{k: r.get(k) for k in ("range_id", "actual_start", "actual_end", "rows", "entities", "status",
-                                         "frequency_gaps")} for r in quality.get("requested_ranges") or []]
+        ranges = [{k: r.get(k) for k in (*RANGE_COUNT_KEYS, "frequency_gaps")}
+                  for r in quality.get("requested_ranges") or []]
         return {"session_id": session_id, "dataset": found.get("logical_name"),
                 "data_request_id": found.get("data_request_id"), "source_table": found.get("source_table"),
-                "rows": quality.get("rows"), "entities": quality.get("entities"),
+                "rows": quality.get("rows"), "rows_extracted": quality.get("rows"),
+                "rows_in_ranges": quality.get("rows_in_ranges"), "row_counts": ROW_COUNTS_NOTE,
+                "entities": quality.get("entities"),
                 **column_stats(quality, None), "ranges": ranges,
                 "duplicate_keys": {k: v for k, v in (quality.get("duplicate_keys") or {}).items() if k != "examples"},
                 "empty_entities": quality.get("empty_entities") or [],

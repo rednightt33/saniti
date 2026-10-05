@@ -291,3 +291,20 @@ def part(window, partition=None):
 ])
 def test_partition_tiling(parts, required, codes) -> None:
     assert {i["code"] for i in tiling(parts, required)} == codes
+
+
+def test_row_counts_name_the_span_they_cover(env) -> None:
+    """P32 (stress test 2026-10-05: 1,693 rows cited as the test period's 1,623): the view gives the extracted total
+    and the rows inside the requested ranges apart, and per range the buffer rows extracted before and after it."""
+    need = approve(env)
+    view = build(env, need, ytd_parts(env, need)).json()
+    assert view["status"] == "READY", view
+    prices_view = next(d for d in view["datasets"] if d["logical_name"] == "prices")
+    ranges = prices_view["ranges"]
+    assert prices_view["rows_extracted"] == prices_view["rows"]
+    inside = prices_view["rows_in_ranges"]
+    assert inside == sum(r["rows"] for r in ranges)  # the two ranges do not overlap
+    buffers = sum(r["buffer_rows_before"] + r["buffer_rows_after"] for r in ranges)
+    assert buffers > 0 and prices_view["rows_extracted"] >= inside
+    assert all({"extract_from", "extract_to", "buffer_rows_before", "buffer_rows_after"} <= set(r) for r in ranges)
+    assert "rows_in_ranges" in view["row_counts"]
