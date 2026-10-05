@@ -121,13 +121,14 @@ EXTRACT_INSTRUCTIONS = (
     "sources state, never knowledge of your own. Each item has one shape: FACT (one statement about a subject, in "
     "text_value), NUMBER (one figure, in number), EVENT (something that happened or is planned, in event), SERIES (one "
     "figure of a series over periods: give every period you find as its own SERIES item with the same series_name) "
-    "or LIST (the members of a group, in members). Every item names its source number and a quote copied exactly, "
+    "or LIST (the members of a group, in members). Return the items that answer the need: for the latest or current "
+    "value, that value with its date, not its history. Every item names its source number and a quote copied exactly, "
     "character for character, from that source's text (one sentence or phrase, at most three hundred characters) "
     "that states it. For a number give value_as_written exactly as the source writes it, value as a plain number "
     "without the scale word, scale as the source writes it (miliar, juta, billion, million, or null), the currency, "
     "the unit, whether it is a level, a change (with what it is compared with), a share or a rate, its period (start "
-    "and end dates as ISO dates when the source gives them; a cumulative period such as January to June is "
-    "CUMULATIVE), "
+    "and end dates as ISO dates when the source gives them; a value at one date, such as a rate decided on a day, "
+    "has that date as start and end; a cumulative period such as January to June is CUMULATIVE), "
     "the release date and whether it is a first release or a revision when the source says so, and its coverage or "
     "definition. For an event give the announcement date, the effective date, dated stages, and whether it is "
     "planned, ongoing or completed; leave the end date null unless a source gives it. Conflicts: before calling "
@@ -355,7 +356,8 @@ class OrcWebService:
             warnings.append({"code": "ORC_WEB_BUDGET_EXHAUSTED",
                              "message": "this run's web budget is spent; answer with what you have"})
             return {"status": "BUDGET_EXHAUSTED", "result_id": None, "need": request.need,
-                    "purpose": request.purpose, "depth": None, "escalated": False, "items": [], "citable": [],
+                    "purpose": request.purpose, "depth": None, "escalated": False, "escalation": None, "items": [],
+                    "citable": [],
                     "conflicts": [], "sources": [], "model": self._model(), "cost_usd": 0.0, "warnings": warnings,
                     "cached": False, "budget": budget(calls_used, usd_used),
                     "seconds": round(self.clock() - started, 2)}
@@ -375,11 +377,11 @@ class OrcWebService:
         retrieved_at = datetime.now(UTC).isoformat(timespec="seconds")
         envelope = self._envelope(result_id, reading["items"], reading["sources"], retrieved_at)
         incomplete = any(w["code"] in INCOMPLETE for w in warnings)
-        status = "NOT_FOUND" if not reading["items"] else \
-            ("PARTIAL" if incomplete or reading["needs_research"] else "OK")
+        status = "NOT_FOUND" if not reading["items"] else ("PARTIAL" if incomplete or reading["short"] else "OK")
         result = mark_conflicts({
             "status": status, "result_id": result_id, "need": request.need, "purpose": request.purpose,
-            "depth": reading["depth"], "escalated": reading["escalated"], "items": envelope["items"],
+            "depth": reading["depth"], "escalated": reading["escalated"], "escalation": reading["escalation"],
+            "items": envelope["items"],
             "citable": envelope["citable"], "conflicts": reading["conflicts"],
             "sources": [{k: s[k] for k in ("n", "url", "domain", "title", "date", "tier")}
                         for s in reading["sources"]],
@@ -403,8 +405,11 @@ class OrcWebService:
                                                   (trusted, QUICK_RESULTS, QUICK_EXCERPT)],
                                    quick_deadline, usage, warnings)
         reading = self._extract(request, sources, research_deadline, usage, warnings) if sources else None
-        quick = {"depth": "QUICK", "escalated": False, "sources": sources, **(reading or _empty_reading())}
-        if not self._short(request, reading):
+        reading = reading or _empty_reading()
+        reason = self._short(request, reading)
+        quick = {"depth": "QUICK", "escalated": False, "escalation": reason, "short": reason is not None,
+                 "sources": sources, **reading}
+        if reason is None:
             return quick
         if self._usd_left(request, usage, warnings) <= 0:
             warnings.append({"code": "ORC_WEB_BUDGET_EXHAUSTED", "message": "no budget left for wider research"})
@@ -423,20 +428,28 @@ class OrcWebService:
         wider = self._extract(request, combined, research_deadline, usage, warnings)
         if wider is None or (not wider["items"] and quick["items"]):
             return quick
-        return {"depth": "RESEARCH", "escalated": True, "sources": combined, **wider}
+        return {"depth": "RESEARCH", "escalated": True, "escalation": reason,
+                "short": self._short(request, wider) is not None, "sources": combined, **wider}
 
     @staticmethod
-    def _short(request: OrcWebRequest, reading: dict[str, Any] | None) -> bool:
-        """The quick reading falls short: nothing, the model asks for more, a series with few periods, or no list
-        where a list was expected."""
-        if not reading or not reading["items"] or reading["needs_research"]:
-            return True
+    def _short(request: OrcWebRequest, reading: dict[str, Any]) -> str | None:
+        """Why the reading falls short, or None: nothing found; a series with fewer than three periods; no list where a
+        list was expected; or the model asking for more where coverage is the point (a series, a list, an unknown
+        shape). A fact, a number or an event that was found is not researched further on the model's word alone
+        (smoke run orcweb-smoke-20261005a: the latest BI-Rate, found in the quick reading, escalated to 24 items of
+        history in 104 s)."""
         items = reading["items"]
+        if not items:
+            return "NOTHING_FOUND"
         series = [i for i in items if i["shape"] == "SERIES"]
         if (request.expected_shape == "SERIES" or series) \
                 and len({i["period_key"] for i in series}) < MIN_SERIES_PERIODS:
-            return True
-        return request.expected_shape == "LIST" and not any(i["shape"] == "LIST" for i in items)
+            return "FEW_PERIODS"
+        if request.expected_shape == "LIST" and not any(i["shape"] == "LIST" for i in items):
+            return "NO_LIST"
+        if reading["needs_research"] and request.expected_shape in ("SERIES", "LIST", None):
+            return "MODEL_ASKED"
+        return None
 
     @staticmethod
     def _ranked(sources: list[dict], limit: int) -> list[dict]:
@@ -489,8 +502,8 @@ class OrcWebService:
                               "chosen": None if c["chosen"] is None else c["chosen"] + item_offset}
                              for c in reading["conflicts"])
             needs_research = needs_research or (reading["needs_research"] and not reading["items"])
-        return {"depth": "QUICK", "escalated": False, "sources": sources, "items": items, "conflicts": conflicts,
-                "needs_research": needs_research}
+        return {"depth": "QUICK", "escalated": False, "escalation": None, "short": needs_research,
+                "sources": sources, "items": items, "conflicts": conflicts, "needs_research": needs_research}
 
     # -- calls
 

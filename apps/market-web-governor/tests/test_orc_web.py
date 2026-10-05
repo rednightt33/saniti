@@ -290,7 +290,23 @@ def test_research_reading_uses_the_ranked_numbering(tmp_path) -> None:
     result = OrcWebService(settings_with(tmp_path), provider).answer(request())
     assert result["depth"] == "RESEARCH"
     assert [s["domain"] for s in result["sources"]] == ["bps.go.id", "reuters.com"]
-    assert result["citable"][0]["source"]["domain"] == "bps.go.id" and result["status"] == "OK"
+    assert result["citable"][0]["source"]["domain"] == "bps.go.id" and result["escalation"] == "NOTHING_FOUND"
+    assert result["status"] == "PARTIAL"  # a series of one period is still short after research
+
+
+def test_a_found_number_is_not_researched_on_the_model_word_alone(tmp_path) -> None:
+    """Smoke run orcweb-smoke-20261005a: the latest BI-Rate, found in the quick reading, escalated to 24 items of
+    history in 104 s because the model asked for more."""
+    found = reading([item("NUMBER", 2, "Januari-Desember 2024 mencapai US$264,70 miliar",
+                          number=number(264.70, "US$264,70 miliar"))], needs_research=True)
+    provider = Provider(readings=[found])
+    result = OrcWebService(settings_with(tmp_path), provider).answer(request(expected_shape="NUMBER"))
+    assert result["depth"] == "QUICK" and result["escalation"] is None and result["status"] == "OK"
+    assert len(provider.search_payloads()) == 2 and len(provider.reading_payloads()) == 1
+    # where coverage is the point (a series, a list, an unknown shape) the model's word still widens the search
+    provider = Provider(readings=[{**SERIES_3, "needs_research": True}])
+    result = OrcWebService(settings_with(tmp_path), provider).answer(request("ekspor", expected_shape="SERIES"))
+    assert result["escalation"] == "MODEL_ASKED" and len(provider.search_payloads()) > 2
 
 
 def test_a_good_quick_reading_does_not_escalate(tmp_path) -> None:

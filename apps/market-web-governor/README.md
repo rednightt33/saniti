@@ -41,8 +41,10 @@ them.
   `budget_key` is the user turn (a mode 4 run sends one key for all its steps).
 - **Quick:** two searches in parallel (open; official and international domains), five results each, then one reading
   (default slot or `WEB_ORC_SLOT`, reasoning off, strict JSON).
-- **Research (escalation):** when the quick reading finds nothing, asks for more, finds a series with fewer than three
-  periods, or no list where a list was expected, three wider searches follow (official, international, media; eight
+- **Research (escalation):** when the quick reading finds nothing (`NOTHING_FOUND`), finds a series with fewer than
+  three periods (`FEW_PERIODS`), no list where a list was expected (`NO_LIST`), or the model asks for more where
+  coverage is the point: a series, a list or an unknown shape (`MODEL_ASKED`; a fact, number or event already found is
+  not researched further on its word alone), three wider searches follow (official, international, media; eight
   results each) and a second reading of at most 20 sources, official first. Only while time
   (`WEB_ORC_RESEARCH_SECONDS`) and the run's budget last.
 - **Subjects:** each subject is one quick lookup (one open search and one reading), run in parallel
@@ -53,7 +55,8 @@ them.
 - **Code's guard:** an item whose quote is not in its source's text is dropped (`QUOTE_NOT_VERBATIM`); source tiers come
   from the route's domain lists, never from the model; a number's uniform value is its value times the written scale
   (miliar, juta, billion…).
-- **Answer:** `status` (`OK`, `PARTIAL`, `NOT_FOUND`, `BUDGET_EXHAUSTED`), `result_id`, `depth`, `escalated`, `items`
+- **Answer:** `status` (`OK`, `PARTIAL`, `NOT_FOUND`, `BUDGET_EXHAUSTED`), `result_id`, `depth`, `escalated`,
+  `escalation` (the reason, or null), `items`
   (a short index), `citable` (id `<result_id>_<n>`, shape, subject, statement, value, label `WEB_FACT`, source with
   url, domain, tier and `official`, quote, confidence, `conflict`, `chosen_by_ai`, and for a number the value as
   written, unit, currency, scale, kind, period, release date and revision; an event's dates; a list's members),
