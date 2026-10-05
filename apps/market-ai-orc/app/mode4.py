@@ -39,7 +39,7 @@ from .orchestrator import AgentOrchestrator, current_time_budget, log_event
 from .provenance import LABEL_ORDER
 from .research_plan import ContinuationIn, ContinuationOut
 from .research_plan_v2 import ContinuationInV2, ContinuationOutV2, current_angle_bounds, plan_digest_v2
-from .user_words import current_user_words
+from .user_words import MESSAGE_SEPARATOR, current_user_words
 from .schemas import (MAX_HISTORY_ITEMS, MAX_MESSAGE_CHARACTERS, AgentRunRequest, AgentRunResponse,
                       AnalysisPathExecution, HistoryMessage, ModeExecution, ReplyClassifierUsage)
 
@@ -216,7 +216,7 @@ class _Mode4Run:
         kind = router.current_turn_kind.set(turn_kind)
         # M69 tahap 1 / H2: the plan gates bind thresholds and horizons to the user's messages, not to this step's
         # application context (the model's own analysis and research text)
-        words = current_user_words.set("\n".join(
+        words = current_user_words.set(MESSAGE_SEPARATOR.join(
             [m.content for m in self.request.history if m.role == "user"] + [self.request.message]))
         try:
             result = self.inner.run(sub_request, self.key, data_record=self.record)

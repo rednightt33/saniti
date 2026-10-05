@@ -15,13 +15,19 @@ import re
 from contextvars import ContextVar
 
 current_user_words: ContextVar[str | None] = ContextVar("current_user_words", default=None)
+# between the user's messages in current_user_words (oldest first), so the newest statement can be found
+MESSAGE_SEPARATOR = "\n\u241e\n"
 
 NUMBER = r"(\d{1,3})"
 UNITS = {"DAY": r"(?:hari(?:\s+(?:bursa|perdagangan|kerja))?|trading\s+days?|business\s+days?|days?|d)",
          "WEEK": r"(?:minggu|pekan|weeks?|w)", "MONTH": r"(?:bulan|months?)"}
 # a span counts as an outcome horizon only with a forward cue before or after it (a lookback such as "MA 20 hari"
 # or "RSI 14 hari" has none)
-BEFORE = r"(?:dalam|within|in\s+the\s+next|next|selama|horizon|horison|holding|hold|setelah|after|over\s+the\s+next)"
+# 2026-10-05 (stress test s3): a change of horizon ("ubah horizonnya jadi 10 hari", "horizon to 10 days") is a stated
+# horizon too
+BEFORE = (r"(?:dalam|within|in\s+the\s+next|next|selama|holding|hold|setelah|after|over\s+the\s+next"
+          r"|(?:horizon|horison|periode\s+hasil|jangka(?:\s+waktu)?)\w*(?:\s+(?:uji|hasil))?"
+          r"(?:\s+(?:jadi|menjadi|ke|to|of|=|:|diubah\s+(?:jadi|ke)))?)")
 AFTER = (r"(?:ke\s*depan|berikutnya|selanjutnya|setelahnya|setelah|kemudian|mendatang|later|ahead|after|forward"
          r"|holding|horizon)")
 PATTERNS = [(unit, re.compile(rf"\b{BEFORE}\s+{NUMBER}\s*-?\s*{word}\b", re.IGNORECASE)) for unit, word in UNITS.items()]
@@ -37,6 +43,18 @@ def stated_horizons(*texts: str | None) -> set[tuple[int, str]]:
         for unit, pattern in PATTERNS:
             found.update((int(m.group(1)), unit) for m in pattern.finditer(text or "") if int(m.group(1)) > 0)
     return found
+
+
+def latest_horizons(*texts: str | None) -> set[tuple[int, str]]:
+    """The horizons of the newest statement (texts oldest first; a text may hold several messages joined with
+    MESSAGE_SEPARATOR): a horizon the user changes replaces the earlier one (stress test s3, 2026-10-05: "ubah horizonnya
+    jadi 10 hari" was locked back to the first question's 5 days)."""
+    for text in reversed(texts):
+        for message in reversed((text or "").split(MESSAGE_SEPARATOR)):
+            found = stated_horizons(message)
+            if found:
+                return found
+    return set()
 
 
 def frequency_of(analysis_frequency: str | None) -> str:

@@ -41,7 +41,7 @@ from .schemas import (
 from . import conversation_router as router
 from . import in_sample as insample
 from . import method_guides
-from .user_words import allowed_periods, current_user_words, stated_horizons
+from .user_words import allowed_periods, current_user_words, latest_horizons, stated_horizons
 from .provenance import (CONTEXT, typed_figures, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
                          parse_numbers, released_numbers, requested_statistics, weakest)
 from .value_refs import REF_RE, UNITS, ReferenceSources, Resolved, TableRows, format_value, render
@@ -4391,7 +4391,8 @@ class AgentOrchestrator:
             return self._forced(state, final, PLAN_PROVENANCE_NOTICE.format(numbers=values),
                                 [f"Success thresholds the user did not state: {values}."])
         # M69 tahap 1: an outcome horizon the user stated binds every experiment and angle
-        horizons = stated_horizons(*sources)
+        # the newest statement wins: a revision replaces the horizon of the first question (oldest text first)
+        horizons = latest_horizons(*reversed(sources))
         allowed = allowed_periods(horizons, getattr(final.research_plan, "analysis_frequency", None))
         items = [(getattr(i, "angle_id", None) or getattr(i, "experiment_id", "?"), i.outcome_horizon_periods)
                  for i in (getattr(final.research_plan, "angles", None) or getattr(final.research_plan, "experiments",

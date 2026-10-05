@@ -58,6 +58,35 @@ def test_a_plan_keeps_the_users_horizon() -> None:
     assert orchestrator._plan_gate(s, _plan(5)).research_plan.experiments[0].outcome_horizon_periods == 5
 
 
+def test_a_revised_horizon_replaces_the_first_one() -> None:
+    """Stress test s3 (2026-10-05): "ubah horizonnya jadi 10 hari" on a plan for 5 days was locked back to 5 by this
+    gate; the newest statement wins, in a plan reply (original question + this message) and in mode 4's user words."""
+    from app.user_words import MESSAGE_SEPARATOR
+
+    orchestrator = agent()
+    orchestrator.audit_outbox = None
+    five = G6.replace("10 hari berikutnya", "5 hari berikutnya")
+
+    def plan(horizon: int) -> FinalResponse:
+        final = _plan(horizon)
+        final.research_plan.original_question = five
+        return final
+    s = state(orchestrator)
+    s.user_text = "ubah horizonnya jadi 10 hari"
+    assert orchestrator._plan_gate(s, plan(10)).research_plan.experiments[0].outcome_horizon_periods == 10
+    s = state(orchestrator)
+    s.user_text = "ubah horizonnya jadi 10 hari"
+    with pytest.raises(GateRejection, match="outcome horizon"):
+        orchestrator._plan_gate(s, plan(5))
+    token = current_user_words.set(MESSAGE_SEPARATOR.join([G6, "setuju", "pakai 5 hari ke depan saja"]))
+    try:
+        s = state(orchestrator)
+        s.user_text = "x"
+        assert orchestrator._plan_gate(s, _plan(5)).research_plan.experiments[0].outcome_horizon_periods == 5
+    finally:
+        current_user_words.reset(token)
+
+
 def test_application_context_is_not_the_users_words() -> None:
     """A mode-4 step's message carries the model's own research text ("e.g. a shorter 5-day horizon"); with the
     pipeline's user words set, neither the horizon nor the success threshold may come from it."""
