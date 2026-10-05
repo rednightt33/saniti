@@ -3,6 +3,8 @@ the conversation key travels as a header set by the application, the planner ask
 extracting, the resources note, released outputs of earlier messages as sources, and the fail-closed wiring."""
 from __future__ import annotations
 
+from app.orchestrator import markdown_prompt  # noqa: E402 - prompt audit C (2026-10-05)
+
 import json
 import re
 from typing import Any
@@ -137,14 +139,14 @@ def reuse_run(script: list, resources: dict | None = RESOURCES, key: str | None 
 
 
 def test_the_prompt_teaches_reuse_only_when_it_is_active() -> None:
-    assert CONVERSATION_REUSE_RULES not in build_system_prompt(False, True)
-    assert build_system_prompt(False, True, conversation_reuse=True).endswith(CONVERSATION_REUSE_RULES)
+    assert markdown_prompt(CONVERSATION_REUSE_RULES) not in build_system_prompt(False, True)
+    assert build_system_prompt(False, True, conversation_reuse=True).endswith(markdown_prompt(CONVERSATION_REUSE_RULES))
     # the system prompt is a number source: no digits besides the list markers the provenance check skips
     assert not any(ch.isdigit() for ch in re.sub(r"(?m)^\d+\. ", "", CONVERSATION_REUSE_RULES))
     _, _, agent = reuse_run([final_response(answer("x", "LIMITATION"))])
-    assert agent.conversation_reuse and agent.system_prompt.endswith(CONVERSATION_REUSE_RULES)
+    assert agent.conversation_reuse and agent.system_prompt.endswith(markdown_prompt(CONVERSATION_REUSE_RULES))
     off = AgentOrchestrator(make_settings(**ON), ScriptedClient([]), Tools([]).registry())
-    assert off.conversation_reuse is False and CONVERSATION_REUSE_RULES not in off.system_prompt
+    assert off.conversation_reuse is False and markdown_prompt(CONVERSATION_REUSE_RULES) not in off.system_prompt
 
 
 def test_a_redisplay_answers_from_a_released_output_of_an_earlier_message() -> None:

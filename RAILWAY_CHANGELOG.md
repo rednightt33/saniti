@@ -1,5 +1,21 @@
 # Railway changelog
 
+## 2026-10-05 — P34 option A (database before the web) and the approved prompt audit on dev
+
+- Variable `AI_ENABLE_REFERENCE_LOOKUP` set to `true` on market-ai-orc (dev) with `--skip-deploys` before the push
+  (name and value only; not a secret). Verified with `railway variables --kv`.
+- `main` `26d507e` (P34: SQL Governor reference endpoints, orc `lookup_reference`, database check before
+  `find_web_fact`, web values kept apart from data values): market-sql-governor `175e13cc` SUCCESS and market-ai-orc
+  `6d031a2a` SUCCESS, both from commit `26d507e`.
+- Temporary service `hmig-job` (reference variables only: `DATABASE_URL=${{Postgres.DATABASE_URL}}`, and for the smoke
+  run `GOVERNOR_URL` and `GOVERNOR_KEY` as references to market-ai-orc's `SQL_GOVERNOR_URL` and
+  `SQL_GOVERNOR_API_KEY`, never printed): migration 20261005_003 DRYRUN, APPLY (see `DATABASE_CHANGELOG.md`), then a
+  Governor smoke run (BBCA → Financials / Banks; sector Financials → 100 rows, direct SQL count 100; "bakrie" in the
+  company name → BNBR, ELTY; a dated table refused `REFERENCE_STATIC_ONLY`). Deleted with `railway service delete`.
+- Prompt audit (`PROMPT_AUDIT_2026-10-05.md`, A1–A8, B1–B6, Markdown; approved by the user): market-ai-orc deployment
+  recorded below once it reaches SUCCESS. The golden test `qa_20261006a` is postponed by the user, so the live
+  behaviour of both changes is not yet measured.
+
 ## 2026-10-05 — P31, M82, P32 layers 1–4, P33 on dev; DB-vs-web measurement
 
 - `main` `b725b4f` (P31 capabilities from tool effects, M82 router horizon reading): market-ai-orc deployed from

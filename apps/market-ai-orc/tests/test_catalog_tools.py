@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.orchestrator import markdown_prompt  # noqa: E402 - prompt audit C (2026-10-05)
+
 import json
 from contextlib import contextmanager
 from typing import Any
@@ -148,10 +150,7 @@ Do not claim that SQL queries or Python calculations
 have been executed merely because their required
 inputs were identified in the catalog.
 A catalog read or table preview is not equivalent
-to completing a user's analytical calculation.
-When the required execution capability is unavailable,
-return a LIMITATION response explaining what has
-been identified and what remains unexecuted."""
+to completing a user's analytical calculation."""
     query_block = SYSTEM_PROMPT[SYSTEM_PROMPT.index("DATA QUERY RULES"):SYSTEM_PROMPT.index("PYTHON ANALYSIS RULES")]
     python_block = SYSTEM_PROMPT[SYSTEM_PROMPT.index("PYTHON ANALYSIS RULES"):SYSTEM_PROMPT.index(
         "ANALYSIS VALIDATION RULES")]
@@ -163,14 +162,16 @@ been identified and what remains unexecuted."""
         assert rule in query_block, rule
     assert "INLINE" not in SYSTEM_PROMPT and "inline" not in SYSTEM_PROMPT
     for rule in ("Use run_python_analysis when the answer needs a number derived", "TA-Lib",
-                 "keep entity histories separated", "preserve that\nlimitation"):
+                 "keep entity histories separated", "preserve that limitation"):
         assert rule in python_block, rule
     validation_block = SYSTEM_PROMPT[SYSTEM_PROMPT.index("ANALYSIS VALIDATION RULES"):]
-    assert SYSTEM_PROMPT.endswith("strict output schema.\n\n" + block + "\n\n" + query_block
+    # prompt audit 2026-10-05: Markdown headings, wrapped lines joined; B6 moved the LIMITATION sentence to rule 11
+    assert SYSTEM_PROMPT.endswith("strict output schema.\n\n" + markdown_prompt(block) + "\n\n## " + query_block
                                   + python_block + validation_block)
+    assert "a LIMITATION response states what was identified and what remains unexecuted" in SYSTEM_PROMPT
     for rule in ("analysis_type is ANALYSIS", "provenance", "CATALOG_RESOLVED", "Never change the user's requested period",
-                 "execution_status and validation_status are independent", "never describe a path you\ndid not attempt",
-                 "Only\nvalidation PASS supports presenting a result", "not\nstatistically validated"):
+                 "execution_status and validation_status are independent", "never describe a path you did not attempt",
+                 "Only validation PASS supports presenting a result", "not statistically validated"):
         assert rule in validation_block, rule
     for secret_limit in ("SQL_MAX", "INLINE_ROWS", "password", "200 rows", "PY_SANDBOX", "railway.internal",
                          "bucket", "seccomp", "2 GB", "120 s", "http"):

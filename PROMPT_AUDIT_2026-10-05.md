@@ -1,7 +1,7 @@
 # Audit system prompt market-ai-orc (2026-10-05)
 
-Status: **AUDIT BACA-SAJA, belum ada perubahan prompt** (rencana `PLAN_2026-10-05.md` fase E). Sesuai permintaan
-user, hasil audit ini dilaporkan dulu sebelum finalisasi.
+Status: **DISETUJUI dan DIJALANKAN 2026-10-05** (A1–A8, B1–B6, format Markdown). Golden test ditunda atas permintaan
+user, jadi perilaku live belum diukur. Hasilnya ada di bagian "Hasil" di akhir dokumen.
 
 **Yang diaudit:** prompt yang benar-benar dirakit untuk dev (`build_system_prompt` dengan switch dev 2026-10-05
 dibaca dari Railway, nama dan true/false saja) ditambah `TOOL_ENVELOPE_RULE`.
@@ -61,3 +61,43 @@ yang disetujui user.
 2. Bandingkan token sebelum dan sesudah.
 3. Golden test kecil, termasuk kasus P31 (q7) dan kasus yang menyentuh A2–A8. Biaya cache naik sekali.
 4. Deploy, lalu catat di `ERRORS_AND_SOLUTIONS.md` (P31 bagian prompt) dan `RAILWAY_CHANGELOG.md`.
+
+## Hasil (2026-10-05)
+
+**Ukuran prompt dev** (dirakit dengan switch dev dan alat dev):
+
+| | Sebelum | Sesudah |
+|---|---|---|
+| Karakter | 33.899 | 34.509 |
+| Token (perkiraan `estimate_tokens`) | ±11.557 | ±11.654 (+0,8%) |
+| Baris | 452 | 132 |
+
+Prompt bertambah sedikit karena kalimat baru tentang alat yang aktif (web, `lookup_reference`, `query_metric`, sumber
+angka, hitung ulang backend). Penyatuan B1–B6 menghapus kalimat dobel.
+
+**Yang berubah** (`app/orchestrator.py`):
+
+| No | Perubahan |
+|---|---|
+| A1 | Kalimat "data di luar katalog" ditulis dari alat aktif. Bila ada `find_web_fact`: satu fakta publik boleh dari web, dan fakta web tidak pernah menjadi input perhitungan. Bila ada `lookup_reference`: atribut tabel referensi dibaca dari database, bukan web |
+| A2 | Bila ada `query_metric`: metrik resmi dijawab `query_metric`, lainnya lewat jalur DataNeed |
+| A3 | Daftar sumber angka mengikuti alat aktif (`query_metric`, baris `lookup_reference`, fakta web sebagai fakta web) |
+| A4 | "Jangan bilang terverifikasi" kecuali `complete_analysis` menyebutnya dihitung ulang backend (event study, backtest, temuan riset) |
+| A5, A6 | Referensi nilai mengikuti alat aktif: `{{metric…}}` bila ada `query_metric`; `{{fact…}}` hanya bila `lookup_fact` aktif; `{{analysis…}}` dihapus dari jalur DataNeed |
+| A7 | Helper: `load, load_range, in_period, sql, join, quality` |
+| A8 | `get_session_output` lewat `ref` (`out.oN`); tabel lama dipulihkan otomatis |
+| B1 | "Pola bukan sebab/prediksi/sinyal" cukup di MODES |
+| B2, B3 | Rencana hipotesis merujuk langkah 4–5 rencana multi-sudut |
+| B4 | Temuan eksperimen dikutip seperti temuan sudut |
+| B5 | Bagian interpretasi sudut merujuk INTERPRETING RESEARCH |
+| B6 | Aturan LIMITATION disatukan di aturan umum no. 11 |
+| C | Judul blok `## `, satu baris per paragraf atau butir, urutan umum → data → jawaban → riset |
+
+Skema rencana **tidak** dibungkus code fence, karena aturan balasan melarang code fence; skema hanya ditaruh di baris
+sendiri.
+
+**Prinsip yang dipakai:** kalimat yang menyebut alat hanya ditulis bila alatnya ditawarkan. Nama alat diambil dari
+registry (`build_system_prompt(tools=...)`), kelas masalah yang sama dengan P31.
+
+**Tes:** `tests/test_prompt_audit.py` (7 tes). Tes lama yang membandingkan blok mentah dengan prompt sekarang memakai
+`markdown_prompt(...)`. Orc: 1.113 lulus.

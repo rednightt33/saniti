@@ -2,6 +2,8 @@
 released-output provenance (DATA_COVERAGE_VERIFIED), claims that are never allowed, and the final status."""
 from __future__ import annotations
 
+from app.orchestrator import markdown_prompt  # noqa: E402 - prompt audit C (2026-10-05)
+
 import json
 from typing import Any
 
@@ -332,7 +334,7 @@ def test_the_period_return_convention_is_taught_only_behind_its_flag() -> None:
 
     assert "period_return" not in run_python(False) and run_python(True).endswith(PERIOD_RETURN_SENTENCE)
     off, on = build_system_prompt(False, True), build_system_prompt(False, True, period_return=True)
-    assert "NAMED-PERIOD RETURNS" not in off and on == off + PERIOD_RETURN_RULES
+    assert "NAMED-PERIOD RETURNS" not in off and on == off + markdown_prompt(PERIOD_RETURN_RULES)
     # the convention: base strictly before the start, end on or before the end, a declared history buffer
     assert "last valid value strictly before the period start" in on.replace("\n", " ")
     assert "history_buffer 1 TRADING_OBSERVATIONS" in on.replace("\n", " ")

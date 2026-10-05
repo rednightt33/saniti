@@ -3,6 +3,8 @@ when the answer rests on a completed analysis, and checked for number provenance
 the parameters of the code that ran. A bad note never forces a LIMITATION on a sound answer."""
 from __future__ import annotations
 
+from app.orchestrator import markdown_prompt  # noqa: E402 - prompt audit C (2026-10-05)
+
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
@@ -66,8 +68,8 @@ def test_the_note_is_part_of_the_contract_only_when_on() -> None:
                                                         "assumptions", "limitations"]
     assert "methodology" in final_response_schema(False, methodology=True)["required"]
     assert "methodology:" in response_contract(False, True) and "methodology" not in response_contract(False)
-    assert build_system_prompt(False, True, methodology=True).endswith(METHODOLOGY_RULES)
-    assert METHODOLOGY_RULES not in build_system_prompt(False, True)
+    assert build_system_prompt(False, True, methodology=True).endswith(markdown_prompt(METHODOLOGY_RULES))
+    assert markdown_prompt(METHODOLOGY_RULES) not in build_system_prompt(False, True)
     # the rules add no source numbers to the system prompt (list markers are skipped)
     import re
     assert not any(ch.isdigit() for ch in re.sub(r"(?m)^\d+\. ", "", METHODOLOGY_RULES))

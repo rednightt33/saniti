@@ -2,6 +2,8 @@
 rules exist only with it, and an answer that rests on descriptive data after a point-in-time refusal says so."""
 from __future__ import annotations
 
+from app.orchestrator import markdown_prompt  # noqa: E402 - prompt audit C (2026-10-05)
+
 import re
 from typing import Any
 
@@ -43,8 +45,8 @@ def test_time_basis_is_a_required_v2_field_only_behind_the_flag() -> None:
 
 
 def test_the_time_basis_rules_are_in_the_prompt_only_when_on() -> None:
-    assert build_system_prompt(False, True, point_in_time=True).endswith(POINT_IN_TIME_RULES)
-    assert POINT_IN_TIME_RULES not in build_system_prompt(False, True)
+    assert build_system_prompt(False, True, point_in_time=True).endswith(markdown_prompt(POINT_IN_TIME_RULES))
+    assert markdown_prompt(POINT_IN_TIME_RULES) not in build_system_prompt(False, True)
     # the rules add no source numbers to the system prompt (list markers are skipped)
     assert not any(ch.isdigit() for ch in re.sub(r"(?m)^\d+\. ", "", POINT_IN_TIME_RULES))
 
@@ -78,7 +80,7 @@ def pit_flow(basis: str) -> list:
 def run(script: list, completion: dict[str, Any]):
     agent = AgentOrchestrator(make_settings(AI_ENABLE_DATANEED="true"), ScriptedClient(script),
                               PitTools([completion]).registry())
-    assert agent.point_in_time and agent.system_prompt.endswith(POINT_IN_TIME_RULES)
+    assert agent.point_in_time and agent.system_prompt.endswith(markdown_prompt(POINT_IN_TIME_RULES))
     return agent.run(AgentRunRequest(request_id="pit", message="Backtest tanpa look-ahead sektor tambang"))
 
 
@@ -108,4 +110,4 @@ def test_the_current_state_column_warning_is_disclosed() -> None:
 
 def test_without_the_time_basis_field_the_orchestrator_is_unchanged() -> None:
     agent = AgentOrchestrator(make_settings(AI_ENABLE_DATANEED="true"), ScriptedClient([]), Tools([]).registry())
-    assert agent.point_in_time is False and POINT_IN_TIME_RULES not in agent.system_prompt
+    assert agent.point_in_time is False and markdown_prompt(POINT_IN_TIME_RULES) not in agent.system_prompt

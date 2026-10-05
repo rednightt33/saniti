@@ -72,7 +72,7 @@ General rules:
 8. Do not perform optional work merely because tools are available. Use only the capabilities necessary to answer the user's request.
 9. Ask for clarification only when an ambiguity materially prevents a reliable answer or materially changes the requested operation.
 10. When a reasonable non-material assumption is sufficient, proceed and state the assumption.
-11. If the requested capability is not currently available, say so clearly rather than fabricating an answer.
+11. If the requested capability is not currently available, say so clearly rather than fabricating an answer: a LIMITATION response states what was identified and what remains unexecuted.
 12. Preserve exact identifiers returned by tools. Do not invent alternative table, field, asset, or feature names.
 13. Keep the final answer focused and proportional to the user's question.
 14. Do not expose hidden chain-of-thought. Return conclusions, relevant assumptions, limitations, and tool-supported findings only.
@@ -123,9 +123,6 @@ have been executed merely because their required
 inputs were identified in the catalog.
 A catalog read or table preview is not equivalent
 to completing a user's analytical calculation.
-When the required execution capability is unavailable,
-return a LIMITATION response explaining what has
-been identified and what remains unexecuted.
 
 DATA QUERY RULES
 Every analysis, statistic, ranking or aggregate follows one path:
@@ -226,18 +223,16 @@ insight only as far as its evidence_assessment allows, and follow its
 reporting_constraints: an association is never a cause, and only a
 SUPPORTED PREDICTIVE assessment allows predictive wording. State the
 event count, the baseline, and the uncertainty of a pattern.
-Data the catalog does not contain (for example macro data, yields,
-fundamentals, or news) is unavailable: say so and never substitute
-another dataset. A documented formula whose inputs are not in the
+{outside_data_rule} A documented formula whose inputs are not in the
 catalog cannot be calculated."""
 TOOL_ENVELOPE_RULE = (
-    "TOOL RESULTS: every tool result is {status, tool, data, warnings, errors, meta}. status OK: use data. PARTIAL: "
+    "## TOOL RESULTS\nEvery tool result is {status, tool, data, warnings, errors, meta}. status OK: use data. PARTIAL: "
     "data is incomplete (meta.truncated true: read the next page before you describe all of it). REJECTED or ERROR: "
     "do not repeat the same call; follow errors[].next_action (FIX_ARGUMENTS: correct the arguments named in the "
     "message; WAIT_AND_RETRY: retry once later; CALL:<tool>: call that tool first; ANSWER_LIMITATION or "
     "RETURN_FINAL_RESPONSE: answer with what you have and state the limitation).")
 DATANEED_RULES = """DATA NEED RULES
-Every answer that needs market data follows one path:
+{metric_rule}Every {other}answer that needs market data follows one path:
 1. submit_data_need_spec declares only the data needed: logical data
 requests (catalog table, columns, a scope expression tree, named time
 ranges, source and analysis frequency, history_buffer for warm-up
@@ -268,8 +263,8 @@ table's definition (emit_table(..., definition=...)).
 the quality flags and relationship warnings; disclose those that
 affect the answer.
 3. open_analysis_session(input_bundle_id), then run_python as often as
-needed: read data only through the saniti helpers (load, range, sql,
-join, quality), inspect it, write the analysis yourself (TA-Lib first
+needed: read data only through the saniti helpers (load, load_range,
+in_period, sql, join, quality), inspect it, write the analysis yourself (TA-Lib first
 for standard indicators), fix errors and rerun, and emit results with
 emit_table, emit_json or emit_text. Read every approved request and
 range. If the data cannot support the analysis, call
@@ -277,6 +272,7 @@ saniti.insufficient_data and revise the DataNeedSpec (for example more
 history).
 4. complete_analysis(session_id). Only a COMPLETED analysis releases
 outputs; on INCOMPLETE follow next_action.
+
 {lookup_rule}Numbers derived from data (statistics, comparisons, percentage changes,
 returns, rankings, counts per group, indicators, correlations) come
 only from released outputs of a completed analysis; never calculate
@@ -288,8 +284,9 @@ reader needs: a source value shown with fewer decimals, rounded (not
 truncated) to the decimals shown, or a decimal shown as a percentage,
 still matches its source. The backend verifies data
 coverage, not your formulas: never say a calculation was independently
-verified; state the method and parameters you used, and the approved
-ranges.
+verified unless complete_analysis lists it as recomputed by the backend
+(an event study, a backtest, research findings); state the method and
+parameters you used, and the approved ranges.
 Take table names, columns, subject values, relationships, join
 semantics and frequencies only from the catalog tools. Do not write
 or submit raw SQL. Do not claim data was retrieved unless a tool
@@ -304,9 +301,7 @@ condition historically precedes an outcome or for a bounded
 exploration. Report research results only as historical patterns
 (pola historis) with event counts, the baseline and the uncertainty:
 never as a cause, a prediction, a forecast or a trading signal.
-Data the catalog does not contain (for example macro data, yields,
-fundamentals, or news) is unavailable: say so and never substitute
-another dataset."""
+{outside_data_rule}"""
 RESEARCH_PLAN_RULES = """
 
 RESEARCH PLAN CONFIRMATION
@@ -407,6 +402,7 @@ windows, thresholds and parameters the code used;
 3. the statistics: tests, baselines, sample sizes and how uncertainty
 was measured;
 4. what was left out and why.
+
 Describe only what actually ran, never a method that did not run. Its
 numbers come from the same sources as the answer, the approved plan,
 the DataNeedSpec or the code that ran. No code, SQL or helper calls.
@@ -468,8 +464,8 @@ fixed minimum sample: the backend judges the sample after the run, so
 an unusual condition with few occurrences may still be studied.
 In the session, build one row per occurrence of the condition (events)
 and the comparison rows (baseline), each with its outcome and date, and
-call event_summary(events, baseline, hypothesis_id=..., outcome_column=
-..., date_column=...) once per hypothesis before complete_analysis; a
+call event_summary(events, baseline, hypothesis_id=...,
+outcome_column=..., date_column=...) once per hypothesis before complete_analysis; a
 research analysis without it is not completed. complete_analysis then
 returns research_findings: the effect against the baseline (angle_a),
 how often the outcome was a success against the baseline rate
@@ -502,13 +498,13 @@ inconclusive result (a longer period, a wider universe), how to test a
 supported one for robustness (other periods, subsets, a holdout), or
 which related hypothesis is worth testing after a rejected one. Never a
 buy or sell recommendation.
+
 An insight is something the user did not know before, sized against a
 baseline, with its uncertainty and a consequence. A number without a
 comparison is not an insight, and restating the question is not an
 answer. Never state a stronger verdict than the backend's; say "no
 effect" only for NOT_SUPPORTED; describe the occurrences of an ANECDOTAL
-or INSUFFICIENT sample as possible anomalies, not as a pattern; a
-pattern is never a cause, a prediction or a trading signal. The answer
+or INSUFFICIENT sample as possible anomalies, not as a pattern. The answer
 field tells the user the findings in their language, with the sample
 category and what it means."""
 # G3: beside the multi-angle findings, a hypothesis plan's answer carries the experiment form
@@ -592,6 +588,7 @@ call complete_research_run with finalize false; it lists any angle not
 yet recorded: record it and call it again. Finalize only an angle that
 truly cannot be recorded: it becomes NOT_RUN and the other angles still
 report.
+
 A data need in mode RESEARCH is refused: research runs only through an
 approved multi-angle plan. Mode ANALYSIS needs no plan and proceeds
 directly."""
@@ -631,8 +628,7 @@ INVALID or NOT_RUN angle as such and never fill it in. Never write that
 there is no effect or no difference: an INSUFFICIENT_EVIDENCE angle means
 the data could not distinguish an effect. Use supported wording only for
 a SUPPORTED or PARTIALLY_SUPPORTED angle. Cite only figures that
-complete_research_run returned, the confidence level included. A pattern
-is never a cause, a prediction or a trading signal."""
+complete_research_run returned, the confidence level included."""
 # G3 (AI_ENABLE_HYPOTHESIS_PLAN, user decision 2026-10-02): the hypothesis plan (research plan v1 with findings v1)
 # beside the multi-angle plan, as a separate path the model chooses per question. It replaces the last sentence of the
 # multi-angle rules, which refuses every RESEARCH data need.
@@ -660,9 +656,10 @@ words, the analysis frequency, and the experiments, each with its
 hypothesis_id, hypothesis, objective, condition, outcome, baseline,
 candidate_count, pairwise_comparisons, multiple_testing_policy, whether
 a holdout is required and the minimum sample; then assumptions,
-limitations and a confirmation_question. No table names, SQL or Python
-in the plan. answer presents the plan and asks to approve, revise or
-cancel it. Only the application tells you that a plan was approved.
+limitations and a confirmation_question. answer presents the plan and
+asks to approve, revise or cancel it; steps 4 and 5 of the multi-angle
+plan (no table names, SQL or Python; only the application approves)
+apply.
 3. After approval, each RESEARCH data need copies research_governance
 from its approved experiment: hypothesis_id, hypothesis, objective,
 condition, outcome, baseline and multiple_testing_policy exactly;
@@ -687,8 +684,8 @@ DUAL_OPENING = ("A research question starts with a Research Plan, not with data.
                 "my idea\") take the hypothesis plan (below), with no angles the user did not ask for; one root "
                 "hypothesis to examine from several sides with the research library, or a bounded exploration, takes "
                 "the multi-angle plan. The multi-angle plan:")
-DUAL_FINDING_REFERENCE = ("{{finding.<angle_id>.<path>}} a backend finding of complete_research_run,",
-                          "{{finding.<angle_id>.<path>}} a backend finding of complete_research_run (a hypothesis "
+DUAL_FINDING_REFERENCE = ("- {{finding.<angle_id>.<path>}} a backend finding of complete_research_run,",
+                          "- {{finding.<angle_id>.<path>}} a backend finding of complete_research_run (a hypothesis "
                           "plan's finding of complete_analysis is {{finding.<hypothesis_id>.<path>}}, for example "
                           "angle_a.difference, angle_a.ci_low, sample.effective),")
 
@@ -721,14 +718,13 @@ VALUE_REFERENCE_RULES = """
 VALUE REFERENCES
 Never type a figure that comes from data. Write a value reference and
 the backend fills in the value, formatted:
-{{finding.<angle_id>.<path>}} a backend finding of complete_research_run,
+- {{finding.<angle_id>.<path>}} a backend finding of complete_research_run,
 for example estimates.primary.estimate, estimates.primary.ci.0,
 estimates.primary.p_adjusted, sample.effective;
-{{out.<ref>.<path>}} a released output, by the "ref" its tool result shows
+- {{out.<ref>.<path>}} a released output, by the "ref" its tool result shows
 (out.o1, out.o2, ...): rows[<column>=<value>].<column>, content.<field>, or
 rows.<index>.<column> for a table without an identifying column;
-{{fact.<n>}} a lookup_fact value;
-{{analysis.<analysis_id>.<path>}} an analysis output.
+{other_references}
 Every referable object in a tool result carries its "ref".
 After | add a format: dec:N (N decimals), int, pct:N (a fraction shown
 as a percent), pctv:N (already a percent), pp:N (percentage points), rp
@@ -739,8 +735,7 @@ study's columns, a column released with units= in emit_table) is shown
 by that unit whichever of pct, pctv and pp you write; declare units= for
 every share, percent or p-value column you release. A derived figure
 uses diff(a, b), abs(a), ratio(a, b) or chg(a, b) of references, for
-example
-{{diff(finding.a.estimates.primary.ci.1, finding.a.estimates.primary.ci.0)|pp:2}}.
+example `{{diff(finding.a.estimates.primary.ci.1, finding.a.estimates.primary.ci.0)|pp:2}}`.
 Compute anything else in the analysis and release it. A figure the user
 wrote, a date and a year may be typed as they are. A text value (a ticker,
 a broker, a label) may be referenced without a format and is shown as
@@ -793,8 +788,8 @@ CONVERSATION REUSE
 A message of a kept conversation may begin with CONVERSATION RESOURCES:
 what earlier messages of the same conversation left in the sandbox.
 1. To show again, filter, sort or explain a result already computed,
-read its released output with get_session_output(session_id,
-output_id). A released output of an earlier message is a source for
+read its released output with get_session_output by its ref (out.oN;
+session_id null for an output of an earlier answer). A released output of an earlier message is a source for
 this answer, with its original evidence label and warnings; say when it
 was computed. Do not compute it again.
 2. For a new computation on the same data, submit the listed
@@ -805,8 +800,10 @@ session when it is still alive (reused_session true, listing the
 variables of the earlier message). Run the new code, emit new outputs
 and call complete_analysis as usual; it releases only this message's
 outputs.
-3. A warm session may be gone (idle timeout, eviction, restart): then
-run the code that is needed again on the reused bundle.
+3. A warm session may be gone (idle timeout, eviction, restart): the
+tables of earlier answers are put back from the conversation's store
+automatically (restored_outputs) and load with load_output; run again
+only the code whose variables you need.
 4. Newer data, another period, other columns, entities or filters need
 a different DataNeedSpec, and the backend extracts again. Never present
 an earlier result as the latest data without its computation date."""
@@ -879,10 +876,10 @@ def final_contract_block(contract: str, plan_confirmation: bool, research_findin
     block = FINAL_CONTRACT_PREFIX + contract
     if plan_confirmation and multi_angle and dual:
         # G3: the two plan forms, each with its own field rules
-        block += ("\nresearch_plan has exactly one of two forms. The multi-angle plan: "
-                  + schema_skeleton(strict_parameters_schema(ResearchPlanV2)) + "\n" + MULTI_ANGLE_FIELD_RULES
-                  + "\nThe hypothesis plan: " + schema_skeleton(strict_parameters_schema(ResearchPlanFindings))
-                  + "\n" + PLAN_FIELD_RULES)
+        block += ("\n\nresearch_plan has exactly one of two forms.\n\nThe multi-angle plan:\n\n"
+                  + schema_skeleton(strict_parameters_schema(ResearchPlanV2)) + "\n\n" + MULTI_ANGLE_FIELD_RULES
+                  + "\n\nThe hypothesis plan:\n\n"
+                  + schema_skeleton(strict_parameters_schema(ResearchPlanFindings)) + "\n\n" + PLAN_FIELD_RULES)
     elif plan_confirmation and multi_angle:
         block += ("\nresearch_plan has exactly this form: " + schema_skeleton(strict_parameters_schema(ResearchPlanV2))
                   + "\n" + MULTI_ANGLE_FIELD_RULES)
@@ -903,12 +900,14 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
                         point_in_time: bool = False, derived_frequency: bool = False,
                         research_findings: bool = False, multi_angle: bool = False,
                         angle_limits: tuple[int, int, int] = (2, 6, 0), value_references: bool = False,
-                        hypothesis_plans: bool = False) -> str:
+                        hypothesis_plans: bool = False, tools: frozenset[str] = frozenset()) -> str:
     """The system prompt for the registered tools. It is fixed for a deployment (AI_ENABLE_LOOKUP_FACT,
     AI_ENABLE_DATANEED, AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION, AI_ENABLE_STANDARD_PERIOD_RETURN,
     AI_FINAL_CONTRACT_IN_PROMPT), so every call of every run shares one byte-identical cacheable prefix. With the
     DataNeed flow its rules replace those of the Analysis Spec path; the Research Plan and named-period-return rules
-    exist only in the DataNeed flow."""
+    exist only in the DataNeed flow. tools: the names of the offered tools; a sentence that names a tool is written
+    only when that tool is offered (P31, prompt audit 2026-10-05 A1, A2, A5). The result is formatted as Markdown
+    (prompt audit C): block titles as headings, one paragraph per item."""
     template = SYSTEM_PROMPT_TEMPLATE
     # Multi-Angle Research replaces the Research Plan, plan feasibility and findings rules (it needs all three flows)
     multi_angle = multi_angle and dataneed and plan_confirmation and plan_feasibility
@@ -921,14 +920,22 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
             plan_rules = _without_sentence(_without_sentence(plan_rules, MULTI_ANGLE_ONLY_SENTENCE,
                                                              DUAL_RESEARCH_SENTENCE),
                                            MULTI_ANGLE_OPENING, DUAL_OPENING) + HYPOTHESIS_PLAN_RULES
-        template = common + DATANEED_RULES + plan_rules \
+        findings = MULTI_ANGLE_FINDINGS_RULES_REFS if value_references else MULTI_ANGLE_FINDINGS_RULES
+        research = RESEARCH_FINDINGS_RULES
+        if dual:
+            # B4, B5 (prompt audit 2026-10-05): the hypothesis findings cite the backend like the angle findings, and
+            # the angles' interpretation parts are those of INTERPRETING RESEARCH
+            research = _without_sentence(research, B4_SENTENCE, B4_REFERENCE)
+            if value_references:
+                findings = _without_sentence(findings, B5_ANGLE_PARTS, B5_REFERENCE)
+        # prompt audit C: general -> data -> answer -> research
+        template = common + DATANEED_RULES \
             + (PERIOD_RETURN_RULES if period_return else "") + (CATALOG_PROTOCOL_RULES if catalog_protocol else "") \
             + (CONVERSATION_REUSE_RULES if conversation_reuse else "") + (METHODOLOGY_RULES if methodology else "") \
             + (POINT_IN_TIME_RULES if point_in_time else "") + (DERIVED_FREQUENCY_RULES if derived_frequency else "") \
-            + (MULTI_ANGLE_FINDINGS_RULES_REFS if value_references else MULTI_ANGLE_FINDINGS_RULES) \
-            + (RESEARCH_FINDINGS_RULES if dual else "") \
             + (_dual_references(VALUE_REFERENCE_RULES) if dual and value_references
-               else VALUE_REFERENCE_RULES if value_references else "")
+               else VALUE_REFERENCE_RULES if value_references else "") \
+            + plan_rules + findings + (research if dual else "")
     elif dataneed:
         common, _ = SYSTEM_PROMPT_TEMPLATE.split("DATA QUERY RULES\n", 1)
         template = common + DATANEED_RULES + (RESEARCH_PLAN_RULES if plan_confirmation else "") \
@@ -948,10 +955,69 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
     low, high, families = angle_limits
     families_rule = (f" The angles use at least {NUMBER_WORDS[families]} of the five method families."
                      if families else "")
-    return (template.replace("{lookup_rule}", LOOKUP_RULE if lookup_fact else "")
-            .replace("{number_sources}", "a lookup_fact result, " if lookup_fact else "")
+    sources = ("a lookup_fact result, " if lookup_fact else "") \
+        + ("a query_metric result, " if "query_metric" in tools else "") \
+        + ("a lookup_reference row, " if "lookup_reference" in tools else "") \
+        + ("a web fact (stated as a web fact), " if "find_web_fact" in tools else "")
+    others = ("- {{fact.<n>}} a lookup_fact value;\n" if lookup_fact else "") \
+        + ("- {{metric.<key>.<path>}} a query_metric value, by the \"ref\" its tool result shows;\n"
+           if "query_metric" in tools else "")
+    outside = OUTSIDE_DATA_RULE
+    if "find_web_fact" in tools:
+        outside = OUTSIDE_DATA_WEB_RULE + (OUTSIDE_DATA_REFERENCE_RULE if "lookup_reference" in tools else "")
+    text = (template.replace("{lookup_rule}", LOOKUP_RULE if lookup_fact else "")
+            .replace("{number_sources}", sources)
+            .replace("{metric_rule}", METRIC_PATH_RULE if "query_metric" in tools else "")
+            .replace("{other}", "other " if "query_metric" in tools else "")
+            .replace("{other_references}", others)
+            .replace("{outside_data_rule}", outside)
             .replace("{min_angles}", NUMBER_WORDS[low]).replace("{max_angles}", NUMBER_WORDS[high])
             .replace("{families_rule}", families_rule))
+    return markdown_prompt(text)
+
+
+# Prompt audit 2026-10-05 (PROMPT_AUDIT_2026-10-05.md, approved by the user): sentences derived from the offered tools
+OUTSIDE_DATA_RULE = ("Data the catalog does not contain (for example macro data, yields,\nfundamentals, or news) is "
+                     "unavailable: say so and never substitute\nanother dataset.")
+OUTSIDE_DATA_WEB_RULE = (
+    "Data the catalog does not contain (for example macro data, yields,\nfundamentals, or news) is not in the "
+    "database: say so and never substitute\nanother dataset. One public fact about a company (its status, "
+    "ownership,\ngroup or index membership) can be looked up with find_web_fact and is\nshown as a web fact; a web "
+    "fact describes and never becomes a series, a\ndataset or an input of a calculation.")
+OUTSIDE_DATA_REFERENCE_RULE = ("\nAn attribute the reference tables hold (a sector, an industry, a company\n"
+                               "profile) is read with lookup_reference, never from the web.")
+METRIC_PATH_RULE = ("An official metric of the metric catalog over periods is answered by\nquery_metric in one "
+                    "call, without a data need or a session.\n")
+B4_SENTENCE = "They are the backend's numbers: cite them; never recompute them or state another verdict."
+B4_REFERENCE = "They are the backend's numbers and are cited like the angle findings above."
+B5_ANGLE_PARTS = ("1. answer: the direct answer to the angle's question in its status's terms; 2. usefulness: why it "
+                  "matters in practical terms (for example against trading costs or a typical move); 3. follow_up: "
+                  "the most informative next step, never a buy or sell recommendation.")
+B5_REFERENCE = ("answer (in the angle status's terms), usefulness and follow_up, each as\ndefined under "
+                "INTERPRETING RESEARCH below.")
+HEADING = re.compile(r"[A-Z][A-Z0-9 :/()-]{2,68}")
+LABEL_HEADING = re.compile(r"(General rules|Tool use|Final response):")
+ITEM = re.compile(r"(\d+\. |- )")
+
+
+def markdown_prompt(text: str) -> str:
+    """Prompt audit C (2026-10-05): the prompt as Markdown for the model. A block title (a line in capitals, or
+    "General rules:") becomes a "## " heading; lines wrapped inside a sentence are joined, so each paragraph and each
+    numbered or bulleted item is one line. Words are not changed."""
+    out: list[str] = []
+    for line in text.split("\n"):
+        stripped = line.strip()
+        if not stripped:
+            out.append("")
+        elif HEADING.fullmatch(stripped) or LABEL_HEADING.fullmatch(stripped):
+            if out and out[-1] != "":
+                out.append("")
+            out.append("## " + stripped.rstrip(":"))
+        elif ITEM.match(stripped) or not out or out[-1] == "" or out[-1].startswith("## "):
+            out.append(stripped)
+        else:
+            out[-1] = out[-1] + " " + stripped
+    return "\n".join(out)
 
 
 SYSTEM_PROMPT = build_system_prompt(True)
@@ -1886,7 +1952,8 @@ class AgentOrchestrator:
                                                  (int(self.research_limits.get("min_angles", 2)),
                                                   int(self.research_limits.get("max_angles", 6)),
                                                   int(self.research_limits.get("min_families") or 0)),
-                                                 self.value_references, self.hypothesis_plans)
+                                                 self.value_references, self.hypothesis_plans,
+                                                 frozenset(registry.names()))
         if getattr(settings, "ai_enable_tool_envelope", False):
             self.system_prompt += "\n\n" + TOOL_ENVELOPE_RULE
         self.final_schema = final_response_schema(self.plan_confirmation, self.methodology, self.research_findings,

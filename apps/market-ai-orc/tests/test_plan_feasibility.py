@@ -6,6 +6,8 @@ LIMITATION), the draft id is bound into the signed token, and the approved turn 
 approved turn that submits no RESEARCH data need is reminded once, and the approval stays pending."""
 from __future__ import annotations
 
+from app.orchestrator import markdown_prompt  # noqa: E402 - prompt audit C (2026-10-05)
+
 import base64
 import json
 from typing import Any
@@ -170,8 +172,8 @@ QUESTION = "Apakah RSI di bawah 30 dan hammer menghasilkan return lebih tinggi?"
 
 
 def test_the_prompt_and_tools_carry_the_rule_only_when_on() -> None:
-    assert PLAN_FEASIBILITY_RULES in build_system_prompt(False, True, True, plan_feasibility=True)
-    assert PLAN_FEASIBILITY_RULES not in build_system_prompt(False, True, True)
+    assert markdown_prompt(PLAN_FEASIBILITY_RULES) in build_system_prompt(False, True, True, plan_feasibility=True)
+    assert markdown_prompt(PLAN_FEASIBILITY_RULES) not in build_system_prompt(False, True, True)
     on, _ = agent([], Sandbox())
     assert on.plan_feasibility and "check_data_feasibility" in on.plan_tools
     off = AgentOrchestrator(make_settings(**FEAS), ScriptedClient([]), registry(Sandbox()), wall_clock=Clock())

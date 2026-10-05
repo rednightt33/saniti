@@ -4,6 +4,8 @@ offer both plan forms; a hypothesis plan is issued after check_data_feasibility,
 needs, and mode 4 still proposes multi-angle plans only. Without the switch nothing changes."""
 from __future__ import annotations
 
+from app.orchestrator import markdown_prompt  # noqa: E402 - prompt audit C (2026-10-05)
+
 import copy
 import json
 from typing import Any
@@ -78,7 +80,9 @@ def test_the_prompt_and_schema_offer_both_forms_only_with_the_switch() -> None:
     base = build_system_prompt(False, True, True, **args)
     dual = build_system_prompt(False, True, True, **args, hypothesis_plans=True)
     assert build_system_prompt(False, True, True, **args, hypothesis_plans=False) == base
-    assert HYPOTHESIS_PLAN_RULES not in base and HYPOTHESIS_PLAN_RULES in dual and RESEARCH_FINDINGS_RULES in dual
+    assert markdown_prompt(HYPOTHESIS_PLAN_RULES) not in base and markdown_prompt(HYPOTHESIS_PLAN_RULES) in dual
+    # B4 (prompt audit 2026-10-05): beside the angle findings, the experiment findings cite the backend like them
+    assert "They are the backend's numbers and are cited like the angle findings above." in dual
     assert DUAL_RESEARCH_SENTENCE in dual and MULTI_ANGLE_ONLY_SENTENCE.split(":")[0] not in dual
     # M62 (golden test 2026-10-02, question 4): one decision rule names both forms; no rule claims every research
     # question for the multi-angle plan while the hypothesis plan is offered
@@ -88,7 +92,7 @@ def test_the_prompt_and_schema_offer_both_forms_only_with_the_switch() -> None:
     assert flat.index(DUAL_OPENING) < flat.index("RESEARCH PLAN CONFIRMATION: HYPOTHESIS PLAN")
     assert "even when a library method could also test them" in flat
     assert not __import__("re").search(r"\d", DUAL_OPENING)  # the prompt is a number source: no digits
-    assert "The hypothesis plan: " in dual and '"experiments": [' in dual and '"angles": [' in dual
+    assert "The hypothesis plan:\n\n" in dual and '"experiments": [' in dual and '"angles": [' in dual
     refs = build_system_prompt(False, True, True, **args, value_references=True, hypothesis_plans=True)
     assert "{{finding.<hypothesis_id>.<path>}}" in refs
     schema = final_response_schema(True, False, True, multi_angle=True, hypothesis_plans=True)

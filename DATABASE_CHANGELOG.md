@@ -1,5 +1,19 @@
 # Database changelog
 
+## 2026-10-05 — Migration 20261005_003 (Tool_Catalog round H, P34) on dev
+
+- **`20261005_003_round_h_tool_catalog.sql`** (generated, round `round_h`, `scripts/generate_tool_catalog_migration.py`):
+  inactive `Tool_Catalog` rows `lookup_reference` v1 (new; flag `AI_ENABLE_REFERENCE_LOOKUP`, handler
+  `app/tools/reference.py`, limits 100 rows returned / 2000 scanned / 8 columns / 4 where conditions) and
+  `find_web_fact` v2 (purpose names `lookup_reference`; refused once while a reference column holds the attribute).
+- Applied by the temporary service `hmig-job`: DRYRUN passed and rolled back; APPLY committed; a second run was refused
+  by the preflight ("already registered"). Read back: `find_web_fact` v1 (unchanged), `find_web_fact` v2 (purpose
+  names `lookup_reference`), `lookup_reference` v1; all inactive like every market-ai-orc row. Checksum appended to
+  `database/migrations/APPLIED.sha256`.
+- No schema change. The SQL Governor's new endpoints read `AI_table_catalog` and `AI_column_catalog` (catalog metadata)
+  and rows of active BOUNDED_READ tables without a time column that the Governor role can read (`has_table_privilege`);
+  no new routine, so `Table_Catalog.related_functions` is unchanged.
+
 ## 2026-10-05 — Migrations 20261005_001 (Tool_Catalog round G) and 20261005_002 (method guides v5) on dev
 
 - **`20261005_001_round_g_tool_catalog.sql`** (generated, round `round_g`; plan `PLAN_2026-10-05.md`): inactive new

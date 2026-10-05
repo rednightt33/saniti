@@ -4,6 +4,8 @@ declaration, and an answer's research_findings must repeat the backend verdict w
 interpretation that does not overstate it."""
 from __future__ import annotations
 
+from app.orchestrator import markdown_prompt  # noqa: E402 - prompt audit C (2026-10-05)
+
 import copy
 import re
 
@@ -59,9 +61,9 @@ def test_the_governance_fields_exist_only_behind_the_flag() -> None:
 
 
 def test_the_rules_and_the_schema_change_only_when_on() -> None:
-    assert RESEARCH_FINDINGS_RULES not in build_system_prompt(False, True, plan_confirmation=True)
+    assert markdown_prompt(RESEARCH_FINDINGS_RULES) not in build_system_prompt(False, True, plan_confirmation=True)
     assert build_system_prompt(False, True, plan_confirmation=True, research_findings=True).endswith(
-        RESEARCH_FINDINGS_RULES)
+        markdown_prompt(RESEARCH_FINDINGS_RULES))
     # no figure enters the system prompt (list markers are skipped): every threshold comes from the backend
     assert not any(ch.isdigit() for ch in re.sub(r"(?m)^\d+\. ", "", RESEARCH_FINDINGS_RULES))
     assert final_response_schema(True, True) == final_response_schema(True, True, research_findings=False)

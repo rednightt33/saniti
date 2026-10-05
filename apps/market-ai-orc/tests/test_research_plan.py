@@ -704,7 +704,7 @@ def test_the_flag_has_no_effect_without_the_dataneed_flow() -> None:
 def test_the_approved_note_names_the_rules() -> None:
     assert "{plan}" in APPROVED_NOTE and "RESEARCH PLAN CONFIRMATION" in APPROVED_NOTE
     prompt = build_system_prompt(False, True, plan_confirmation=True)
-    assert "Only the application tells you that a\nplan was approved" in prompt
+    assert "Only the application tells you that a plan was approved" in prompt
     assert copy.deepcopy(prompt) == build_system_prompt(False, True, True)
 
 

@@ -7,6 +7,8 @@ data need is refused, the approved turn runs through the executor, and the answe
 the backend status unchanged. With the flag off every prompt, schema and tool definition is unchanged."""
 from __future__ import annotations
 
+from app.orchestrator import markdown_prompt  # noqa: E402 - prompt audit C (2026-10-05)
+
 import copy
 import json
 import re
@@ -478,7 +480,7 @@ def test_the_flag_off_keeps_every_prompt_schema_and_tool_unchanged() -> None:
     for args in ((False, True, True), (True, True, True)):
         base = build_system_prompt(*args, plan_feasibility=True, final_contract=True)
         assert build_system_prompt(*args, plan_feasibility=True, final_contract=True, multi_angle=False) == base
-        assert MULTI_ANGLE_PLAN_RULES not in base and RESEARCH_PLAN_RULES in base
+        assert markdown_prompt(MULTI_ANGLE_PLAN_RULES) not in base and markdown_prompt(RESEARCH_PLAN_RULES) in base
     assert final_response_schema(True, True, True) == final_response_schema(True, True, True, multi_angle=False)
     assert final_response_schema(False, multi_angle=True) == final_response_schema(False)
     t = httpx.MockTransport(lambda r: httpx.Response(404))
@@ -503,14 +505,15 @@ def test_the_multi_angle_prompt_replaces_the_plan_rules_and_names_no_figures() -
                                  multi_angle=True)
     rules = MULTI_ANGLE_PLAN_RULES.replace("{min_angles}", "two").replace("{max_angles}", "six") \
         .replace("{families_rule}", "")
-    assert rules in prompt and MULTI_ANGLE_FINDINGS_RULES in prompt and "{min_angles}" not in prompt
+    assert markdown_prompt(rules) in prompt and markdown_prompt(MULTI_ANGLE_FINDINGS_RULES) in prompt
+    assert "{min_angles}" not in prompt
     # C07: the methods come from the research library, not from the prompt
     assert "get_research_library" in rules and "quantile_ranking" not in rules and "regime_comparison" not in rules
     three = build_system_prompt(False, True, True, plan_feasibility=True, final_contract=True, research_findings=True,
                                 multi_angle=True, angle_limits=(3, 5, 2))
-    assert "at least three and at\nmost five angles. The angles use at least two of the five method families." \
+    assert "at least three and at most five angles. The angles use at least two of the five method families." \
         in three and "at least three and at most five angles" in three
-    assert RESEARCH_PLAN_RULES not in prompt and "check_data_feasibility" not in prompt
+    assert markdown_prompt(RESEARCH_PLAN_RULES) not in prompt and "check_data_feasibility" not in prompt
     # no digits except the list numbering (the system prompt is a number source for the provenance check)
     assert not re.search(r"\d", re.sub(r"(?m)^\d\. ", "", MULTI_ANGLE_PLAN_RULES + MULTI_ANGLE_FINDINGS_RULES))
     assert '"plan_version": "research_plan/v2"' in prompt and '"angles": [' in prompt

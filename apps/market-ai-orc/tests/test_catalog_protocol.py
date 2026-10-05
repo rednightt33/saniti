@@ -2,6 +2,8 @@
 rule, reuse of successful catalog results within a run, and the metadata guard before submit_data_need_spec."""
 from __future__ import annotations
 
+from app.orchestrator import markdown_prompt  # noqa: E402 - prompt audit C (2026-10-05)
+
 import json
 import logging
 from typing import Any
@@ -155,7 +157,7 @@ def test_the_prompt_rule_is_fixed_size_lists_no_tables_and_adds_no_numbers() -> 
 
     without = build_system_prompt(False, True, True, True, True)
     with_rule = build_system_prompt(False, True, True, True, True, catalog_protocol=True)
-    assert with_rule == without + CATALOG_PROTOCOL_RULES or CATALOG_PROTOCOL_RULES in with_rule
+    assert markdown_prompt(CATALOG_PROTOCOL_RULES) in with_rule
     assert numbers(with_rule) == numbers(without)
     assert "Price_Stock" not in CATALOG_PROTOCOL_RULES and "IDX_" not in CATALOG_PROTOCOL_RULES
     assert build_system_prompt(False, True) == build_system_prompt(False, True, catalog_protocol=False)

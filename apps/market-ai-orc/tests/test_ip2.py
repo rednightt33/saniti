@@ -2,6 +2,8 @@
 (AI_AUDIT_STORE_ENABLED / AI_AUDIT_STORE_REQUIRED). With both off the orchestrator is unchanged."""
 from __future__ import annotations
 
+from app.orchestrator import markdown_prompt  # noqa: E402 - prompt audit C (2026-10-05)
+
 import json
 import os
 import re
@@ -25,8 +27,8 @@ MIGRATION = os.path.join(os.path.dirname(__file__), "..", "..", "..", "database"
 # ---------------------------------------------------------------------------------------- derived frequency
 
 def test_the_weekly_monthly_rules_are_in_the_prompt_only_when_on() -> None:
-    assert build_system_prompt(False, True, derived_frequency=True).endswith(DERIVED_FREQUENCY_RULES)
-    assert DERIVED_FREQUENCY_RULES not in build_system_prompt(False, True)
+    assert build_system_prompt(False, True, derived_frequency=True).endswith(markdown_prompt(DERIVED_FREQUENCY_RULES))
+    assert markdown_prompt(DERIVED_FREQUENCY_RULES) not in build_system_prompt(False, True)
     # the only digits are the DataNeedSpec frequency codes (list markers skipped), never a figure
     body = re.sub(r"(?m)^\d+\. ", "", DERIVED_FREQUENCY_RULES)
     assert set(re.findall(r"\S*\d\S*", body)) == {"1D,", "1W,", "1M,"}
@@ -37,12 +39,12 @@ def test_the_weekly_monthly_rules_are_in_the_prompt_only_when_on() -> None:
 
 def test_derived_frequency_needs_the_dataneed_flow_and_discloses_the_derivation() -> None:
     off = AgentOrchestrator(make_settings(), ScriptedClient([]), Tools([]).registry(), derived_frequency=True)
-    assert off.derived_frequency is False and DERIVED_FREQUENCY_RULES not in off.system_prompt
+    assert off.derived_frequency is False and markdown_prompt(DERIVED_FREQUENCY_RULES) not in off.system_prompt
     scripted = ScriptedClient([*flow(), final_response(answer("Return YTD BBCA 12,35%."))])
     derived = {"requests": [{"data_request_id": "data_request_1_A", "analysis_frequency": "1W"}]}
     agent = AgentOrchestrator(make_settings(AI_ENABLE_DATANEED="true"), scripted,
                               Tools([completed(derived_frequency=derived)]).registry(), derived_frequency=True)
-    assert DERIVED_FREQUENCY_RULES in agent.system_prompt
+    assert markdown_prompt(DERIVED_FREQUENCY_RULES) in agent.system_prompt
     result = agent.run(AgentRunRequest(request_id="dn", message="Return mingguan BBCA?"))
     assert DERIVED_FREQUENCY_LINE in result.response.limitations
     assert result.execution.analysis_final_status["derived_frequency"] == derived  # provenance in the record
@@ -141,7 +143,7 @@ def test_audit_settings_are_required_only_while_on() -> None:
 def test_without_the_flags_the_orchestrator_is_unchanged() -> None:
     agent = AgentOrchestrator(make_settings(AI_ENABLE_DATANEED="true"), ScriptedClient([]), Tools([]).registry())
     assert agent.audit_outbox is None and agent.derived_frequency is False
-    assert DERIVED_FREQUENCY_RULES not in agent.system_prompt
+    assert markdown_prompt(DERIVED_FREQUENCY_RULES) not in agent.system_prompt
 
 
 # ---------------------------------------------------------------------------------------- outbox privileges (PG)
