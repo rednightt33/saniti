@@ -1,5 +1,5 @@
 {
- "note": "Later-message router cases (M80 b): export/show requests on existing results must be a read class (CLARIFY); the rest are controls.",
+ "note": "Later-message router cases (M80 b): export/show requests on existing results must be a read class (CLARIFY); the rest are controls. M82 (2026-10-05): cases with \"horizons\" also check design_value_changes (values, accepted actions; empty values: no horizon).",
  "cases": [
   {
    "message": "Ekspor tabel hasil uji tadi ke Excel.",
@@ -500,6 +500,231 @@
     "NEW_TOPIC",
     "CONTINUE"
    ]
+  },
+  {
+   "message": "ubah horizonnya jadi 10 hari",
+   "context": {
+    "earlier_questions": [
+     "Apakah saham bank yang turun 3% atau lebih dalam sehari cenderung naik dalam 5 hari berikutnya? Buatkan rencana ujinya."
+    ],
+    "tables": [
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [],
+    "findings": [],
+    "pending_suggestion": {
+     "plan_id": "rp_h",
+     "angles": [
+      "fall3_up5: saham bank turun >=3% sehari -> naik dalam 5 hari berikutnya"
+     ],
+     "question": "Apakah saham bank yang turun 3% atau lebih dalam sehari cenderung naik dalam 5 hari berikutnya?"
+    },
+    "results_after_pending_suggestion": []
+   },
+   "kinds": [
+    "REVISE"
+   ],
+   "horizons": {
+    "values": [
+     [
+      10,
+      "DAY"
+     ]
+    ],
+    "actions": [
+     "REPLACE"
+    ]
+   }
+  },
+  {
+   "message": "tambahkan juga horizon 20 hari, tetap uji yang 5 hari",
+   "context": {
+    "earlier_questions": [
+     "Apakah saham bank yang turun 3% atau lebih dalam sehari cenderung naik dalam 5 hari berikutnya? Buatkan rencana ujinya."
+    ],
+    "tables": [
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [],
+    "findings": [],
+    "pending_suggestion": {
+     "plan_id": "rp_h",
+     "angles": [
+      "fall3_up5: saham bank turun >=3% sehari -> naik dalam 5 hari berikutnya"
+     ],
+     "question": "Apakah saham bank yang turun 3% atau lebih dalam sehari cenderung naik dalam 5 hari berikutnya?"
+    },
+    "results_after_pending_suggestion": []
+   },
+   "kinds": [
+    "REVISE"
+   ],
+   "horizons": {
+    "values": [
+     [
+      20,
+      "DAY"
+     ]
+    ],
+    "actions": [
+     "ADD"
+    ]
+   }
+  },
+  {
+   "message": "ganti jadi 2 minggu ke depan",
+   "context": {
+    "earlier_questions": [
+     "Apakah saham bank yang turun 3% atau lebih dalam sehari cenderung naik dalam 5 hari berikutnya? Buatkan rencana ujinya."
+    ],
+    "tables": [
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [],
+    "findings": [],
+    "pending_suggestion": {
+     "plan_id": "rp_h",
+     "angles": [
+      "fall3_up5: saham bank turun >=3% sehari -> naik dalam 5 hari berikutnya"
+     ],
+     "question": "Apakah saham bank yang turun 3% atau lebih dalam sehari cenderung naik dalam 5 hari berikutnya?"
+    },
+    "results_after_pending_suggestion": []
+   },
+   "kinds": [
+    "REVISE"
+   ],
+   "horizons": {
+    "values": [
+     [
+      2,
+      "WEEK"
+     ]
+    ],
+    "actions": [
+     "REPLACE"
+    ]
+   }
+  },
+  {
+   "message": "pakai saham yang turun 3 hari berturut-turut saja",
+   "context": {
+    "earlier_questions": [
+     "Apakah saham bank yang turun 3% atau lebih dalam sehari cenderung naik dalam 5 hari berikutnya? Buatkan rencana ujinya."
+    ],
+    "tables": [
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [],
+    "findings": [],
+    "pending_suggestion": {
+     "plan_id": "rp_h",
+     "angles": [
+      "fall3_up5: saham bank turun >=3% sehari -> naik dalam 5 hari berikutnya"
+     ],
+     "question": "Apakah saham bank yang turun 3% atau lebih dalam sehari cenderung naik dalam 5 hari berikutnya?"
+    },
+    "results_after_pending_suggestion": []
+   },
+   "kinds": [
+    "REVISE"
+   ],
+   "horizons": {
+    "values": [],
+    "actions": []
+   }
+  },
+  {
+   "message": "pakai data 3 tahun terakhir saja",
+   "context": {
+    "earlier_questions": [
+     "Apakah saham bank yang turun 3% atau lebih dalam sehari cenderung naik dalam 5 hari berikutnya? Buatkan rencana ujinya."
+    ],
+    "tables": [
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [],
+    "findings": [],
+    "pending_suggestion": {
+     "plan_id": "rp_h",
+     "angles": [
+      "fall3_up5: saham bank turun >=3% sehari -> naik dalam 5 hari berikutnya"
+     ],
+     "question": "Apakah saham bank yang turun 3% atau lebih dalam sehari cenderung naik dalam 5 hari berikutnya?"
+    },
+    "results_after_pending_suggestion": []
+   },
+   "kinds": [
+    "REVISE"
+   ],
+   "horizons": {
+    "values": [],
+    "actions": []
+   }
+  },
+  {
+   "message": "ok setuju, jalankan",
+   "context": {
+    "earlier_questions": [
+     "Apakah saham bank yang turun 3% atau lebih dalam sehari cenderung naik dalam 5 hari berikutnya? Buatkan rencana ujinya."
+    ],
+    "tables": [
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [],
+    "findings": [],
+    "pending_suggestion": {
+     "plan_id": "rp_h",
+     "angles": [
+      "fall3_up5: saham bank turun >=3% sehari -> naik dalam 5 hari berikutnya"
+     ],
+     "question": "Apakah saham bank yang turun 3% atau lebih dalam sehari cenderung naik dalam 5 hari berikutnya?"
+    },
+    "results_after_pending_suggestion": []
+   },
+   "kinds": [
+    "APPROVE"
+   ],
+   "horizons": {
+    "values": [],
+    "actions": []
+   }
+  },
+  {
+   "message": "Kalau RSI 14 hari di bawah 30, apakah sahamnya naik dalam 10 hari berikutnya? Uji juga.",
+   "context": {
+    "earlier_questions": [
+     "Apakah saham bank yang turun 3% atau lebih dalam sehari cenderung naik dalam 5 hari berikutnya? Buatkan rencana ujinya."
+    ],
+    "tables": [
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "fall3_events",
+     "fall3_summary"
+    ],
+    "findings": [
+     "HYPOTHESIS:fall3_up5"
+    ],
+    "pending_suggestion": null,
+    "results_after_pending_suggestion": []
+   },
+   "kinds": [
+    "CONTINUE",
+    "NEW_TOPIC"
+   ],
+   "horizons": {
+    "values": [
+     [
+      10,
+      "DAY"
+     ]
+    ],
+    "actions": [
+     "REPLACE",
+     "ADD"
+    ]
+   }
   }
  ]
 }

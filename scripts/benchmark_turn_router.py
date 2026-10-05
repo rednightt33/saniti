@@ -1,7 +1,8 @@
 """Benchmark the later-message (conversation) router with the instructions and schema in the code, on
 apps/market-ai-orc/tests/fixtures/turn_router_cases.json (each message with a conversation context and the acceptable
 classes), twice per case. Prints correct classes, read requests (expected CLARIFY) sent to a research class, unstable
-answers and cost. Needs OPENROUTER_API_KEY (e.g. `railway run --service market-ai-orc --environment dev --
+answers and cost; for cases with "horizons" (M82), the outcome horizons read into design_value_changes (values and an
+accepted action; empty values: the message states no horizon). Needs OPENROUTER_API_KEY (e.g. `railway run --service market-ai-orc --environment dev --
 <venv python> scripts/benchmark_turn_router.py`); prints no secret."""
 from __future__ import annotations
 
@@ -20,7 +21,7 @@ from app.compaction import dumps  # noqa: E402
 MODEL = os.environ.get("AI_MODEL", "deepseek/deepseek-v4.1-flash")
 
 
-def classify(case: dict) -> tuple[str | None, float]:
+def classify(case: dict) -> tuple[str | None, float, list[dict] | None]:
     body = {"model": MODEL, "instructions": router.ROUTER_INSTRUCTIONS,
             "input": [{"role": "user", "content": dumps({"conversation": case["context"],
                                                           "user_message": case["message"][:4000]})}],
@@ -38,9 +39,20 @@ def classify(case: dict) -> tuple[str | None, float]:
         pending = case["context"].get("pending_suggestion") is not None
         kind = router.apply_rules(parsed.turn_kind, pending, case["context"].get("results_after_pending_suggestion"),
                                   parsed.referent)
-        return kind, float((data.get("usage") or {}).get("cost") or 0)
+        changes = [c.model_dump() for c in parsed.design_value_changes]
+        return kind, float((data.get("usage") or {}).get("cost") or 0), changes
     except Exception:  # noqa: BLE001 - a failed call (the backend's fallback class)
-        return None, 0.0
+        return None, 0.0, None
+
+
+def horizon_ok(expected: dict, changes: list[dict] | None) -> bool:
+    """The horizons read match the expected values, each with an accepted action."""
+    if changes is None:
+        return False
+    read = [c for c in changes if c["name"] == "OUTCOME_HORIZON"]
+    values = sorted((c["value"], c["unit"]) for c in read)
+    return values == sorted(tuple(v) for v in expected["values"]) and all(
+        c["action"] in expected["actions"] for c in read)
 
 
 def main() -> None:
@@ -48,13 +60,18 @@ def main() -> None:
     with cf.ThreadPoolExecutor(8) as pool:
         results = list(pool.map(classify, [c for c in cases for _ in range(2)]))
     rows = [(cases[i // 2], results[i]) for i in range(len(results))]
-    correct = sum(1 for case, (kind, _) in rows if kind in case["kinds"])
-    research = [case["message"][:50] for case, (kind, _) in rows
+    correct = sum(1 for case, (kind, _, _) in rows if kind in case["kinds"])
+    research = [case["message"][:50] for case, (kind, _, _) in rows
                 if case["kinds"] == ["CLARIFY"] and kind in router.RESEARCH_KINDS]
     unstable = sum(1 for i in range(0, len(results), 2) if results[i][0] != results[i + 1][0])
+    horizon_rows = [(case, changes) for case, (_, _, changes) in rows if "horizons" in case]
+    horizons = sum(1 for case, changes in horizon_rows if horizon_ok(case["horizons"], changes))
     print(f"correct {correct}/{len(rows)}, read->research {len(research)}, unstable {unstable}/{len(cases)}, "
-          f"cost {sum(c for _, (_, c) in rows):.5f}")
-    for case, (kind, _) in rows:
+          f"horizons {horizons}/{len(horizon_rows)}, cost {sum(c for _, (_, c, _) in rows):.5f}")
+    for case, changes in horizon_rows:
+        if not horizon_ok(case["horizons"], changes):
+            print(f"   horizon wrong: {case['message'][:60]!r} -> {changes} (expected {case['horizons']})")
+    for case, (kind, _, _) in rows:
         if kind not in case["kinds"]:
             print(f"   wrong: {case['message'][:60]!r} pending={case['context'].get('pending_suggestion') is not None}"
                   f" -> {kind} (expected {'/'.join(case['kinds'])})")

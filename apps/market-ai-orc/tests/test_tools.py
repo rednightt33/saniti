@@ -38,15 +38,9 @@ def test_known_tool_executes_with_phase_one_result() -> None:
         "ok": True,
         "tool": "get_system_capabilities",
         "result": {
-            "catalog_discovery": False,
-            "full_catalog_read": False,
-            "market_data_preview": False,
-            "database_query": False,
-            "analysis_data_preparation": False,
-            "fact_lookup": False,
-            "python_analysis": False,
-            "web_search": False,
-            "external_data": False,
+            "capabilities": {"read_catalog_and_earlier_results": ["get_system_capabilities"]},
+            "not_available": ["act_on_own_results", "fetch_market_data_from_database",
+                              "look_up_one_public_fact_on_the_web", "run_python_analysis"],
             "available_tools": ["get_system_capabilities"],
         },
     }
@@ -181,10 +175,10 @@ def test_duplicate_registration_is_rejected() -> None:
 
 def test_capabilities_reflect_future_registered_tools() -> None:
     registry = build_default_registry()
-    registry.register(spec("request_data", lambda _a: {}))
+    registry.register(spec("request_data", lambda _a: {}, effect="FETCHES_DATA"))
     result = registry.execute("c", "get_system_capabilities", "{}").output["result"]
-    assert result["database_query"] is True
-    assert result["python_analysis"] is False
+    assert result["capabilities"]["fetch_market_data_from_database"] == ["request_data"]
+    assert "run_python_analysis" in result["not_available"]
     assert result["available_tools"] == ["get_system_capabilities", "request_data"]
 
 
@@ -250,3 +244,21 @@ def test_rejected_arguments_are_logged_by_field_path_without_values() -> None:
     assert events and events[0]["tool"] == "make"
     assert {"loc": "version", "type": "literal_error"} in events[0]["errors"]
     assert not any("secret-value-V2" in r for r in records)
+
+
+def test_every_tool_effect_has_a_capability_name() -> None:
+    """P31: capabilities are derived from tool effects, so every effect class needs its plain name."""
+    import typing
+
+    from app.tools.registry import ToolEffect
+    from app.tools.system import EFFECT_CAPABILITIES
+    assert set(typing.get_args(ToolEffect)) == set(EFFECT_CAPABILITIES)
+
+
+def test_web_capability_follows_the_offered_web_tool() -> None:
+    """P31 (stress test q7): an offered FETCHES_WEB tool is reported as the web capability, whatever its name."""
+    registry = build_default_registry()
+    registry.register(spec("find_web_fact", lambda _a: {}, effect="FETCHES_WEB"))
+    result = registry.execute("c", "get_system_capabilities", "{}").output["result"]
+    assert result["capabilities"]["look_up_one_public_fact_on_the_web"] == ["find_web_fact"]
+    assert "look_up_one_public_fact_on_the_web" not in result["not_available"]

@@ -8,7 +8,9 @@ registering the new versions of the tools whose contract changed in that round.
 - round_d (20261003_011, applied): inspect_session v2, get_session_output v2, and the first rows of the new tools get_lineage,
   export_result, query_metric and get_evidence (phase D; "new" entries, no previous version to copy).
 - round_e (20261004_001, applied): get_evidence v2 with DAYS (golden test ma-golden-20261003d).
-- round_f (20261004_002): the first row of find_web_fact (S4b, PLAN_FINAL_2026-10-04.md Fase 4); no version change.
+- round_f (20261004_002, applied): the first row of find_web_fact (S4b, PLAN_FINAL_2026-10-04.md Fase 4); no version
+  change.
+- round_g (20261005_001): get_system_capabilities v2, capabilities derived from the offered tools' effects (P31).
 
 Registered from the code with every switch of the dev environment on (the registry of scripts/generate_ai_tools_doc.py,
 one source for both). An applied migration is frozen (database/migrations/APPLIED.sha256); market-ai-orc's
@@ -118,8 +120,20 @@ ROUNDS = {
         "limits": {"web_fact": "one subject and one attribute per call; market-web-governor /v1/fact, 30-second "
                                "deadline, Postgres-E8GM web_fact cache (30 days)"},
     },
+    "round_g": {
+        "target": ROOT / "database/migrations/20261005_001_capabilities_tool_catalog.sql",
+        "versions": {"get_system_capabilities": ("v1", "v2")},
+        "contracts": {"get_system_capabilities": ("purpose", "derived from the tools it can call")},
+        "title": "stress test fix P31",
+        "design": "ERRORS_AND_SOLUTIONS.md P31 (router stress test 2026-10-05)",
+        "summary": ["get_system_capabilities v2: each capability is derived from the effect of the tools offered in the",
+                    "step (no list of tool names); v1 named tools that did not exist and reported no web capability",
+                    "while find_web_fact was offered (stress test ma-qa-20261005a q7, P31)."],
+        "limits": {"capabilities": "derived from ToolSpec.effect of the tools offered in the step (app/tools/system.py "
+                                   "EFFECT_CAPABILITIES)"},
+    },
 }
-NEWEST = "round_f"
+NEWEST = "round_g"
 
 
 def _tools_doc():

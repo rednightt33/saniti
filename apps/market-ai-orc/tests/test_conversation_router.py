@@ -184,7 +184,7 @@ def test_rule_5_a_stale_suggestion_is_revised_or_approved_only_when_the_message_
     assert router.apply_rules("CANCEL", True, newer, "NEWEST_RESULT") == "CANCEL"
     assert router.apply_rules("REVISE", True, [], "NEWEST_RESULT") == "REVISE"  # nothing newer: the suggestion
     assert router.apply_rules("REVISE", True, None, None) == "REVISE"  # unknown order: unchanged
-    assert router.ROUTER_SCHEMA["required"] == ["turn_kind", "revision_instruction", "referent"]
+    assert router.ROUTER_SCHEMA["required"] == ["turn_kind", "revision_instruction", "referent", "design_value_changes"]
 
 
 def test_m64_a_follow_up_on_the_newest_result_is_not_a_revision_of_an_old_suggestion() -> None:

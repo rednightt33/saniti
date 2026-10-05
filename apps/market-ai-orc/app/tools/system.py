@@ -13,18 +13,16 @@ from .registry import ToolRegistry, ToolSpec
 current_step_tools: contextvars.ContextVar[frozenset[str] | None] = contextvars.ContextVar(
     "current_step_tools", default=None)
 
-# A capability is reported true only when the tool that provides it can be called in this step.
-CAPABILITY_TOOLS = {
-    "catalog_discovery": "discover_catalog",
-    "full_catalog_read": "read_catalog_rows",
-    "market_data_preview": "preview_table_rows",
-    "database_query": "request_data",
-    "analysis_data_preparation": ("prepare_analysis_data", "prepare_data_bundle"),
-    "fact_lookup": "lookup_fact",
-    "python_analysis": ("run_python_analysis", "run_python"),
-    "web_search": "search_web",
-    # No external data provider is connected (see market-sql-governor app/external.py): always false.
-    "external_data": "request_external_data",
+# P31 (stress test 2026-10-05): what the agent can do is derived from the effect of each tool it can call in this step
+# (ToolSpec.effect), never from a list of tool names: the old list named tools that did not exist ("search_web",
+# "lookup_fact") and reported no web capability while find_web_fact was offered. One plain name per effect class; a
+# class with no callable tool is listed under not_available. tests/test_tools.py checks every ToolEffect has a name.
+EFFECT_CAPABILITIES: dict[str, str] = {
+    "READS": "read_catalog_and_earlier_results",
+    "OWN_ARTIFACT": "act_on_own_results",
+    "FETCHES_DATA": "fetch_market_data_from_database",
+    "FETCHES_WEB": "look_up_one_public_fact_on_the_web",
+    "COMPUTES": "run_python_analysis",
 }
 
 
@@ -37,9 +35,13 @@ def capabilities_spec(registry: ToolRegistry) -> ToolSpec:
         registered = registry.names()
         step = current_step_tools.get()
         available = registered if step is None else [name for name in registered if name in step]
+        offered = {name: registry.get(name) for name in available}
+        capabilities = {label: sorted(name for name, spec in offered.items()
+                                      if spec is not None and spec.effect == effect)
+                        for effect, label in EFFECT_CAPABILITIES.items()}
         return {
-            **{capability: any(t in available for t in ((tool,) if isinstance(tool, str) else tool))
-               for capability, tool in CAPABILITY_TOOLS.items()},
+            "capabilities": {label: tools for label, tools in capabilities.items() if tools},
+            "not_available": [label for label, tools in capabilities.items() if not tools],
             "available_tools": available,
             # G23 A: registered tools this step cannot call (absent outside a run and when every tool is offered)
             **({"other_tools_not_in_this_step": [name for name in registered if name not in available]}
@@ -52,9 +54,10 @@ def capabilities_spec(registry: ToolRegistry) -> ToolSpec:
     return ToolSpec(
         name="get_system_capabilities", effect="READS",
         description=(
-            "Return which backend capabilities (catalog discovery, full catalog read, market-data "
-            "preview, database query, fact lookup, Python analysis, web search, external data) and tools are currently "
-            "available to this agent."
+            "Return what this agent can do in this step, derived from the tools it can call: each capability "
+            "(read the catalog and earlier results, act on its own results, fetch market data from the database, "
+            "look up one public fact on the web, run Python analysis) with the tools that provide it, the "
+            "capabilities with no tool in this step, and the available tools."
         ),
         arguments_model=NoArguments,
         handler=handler,

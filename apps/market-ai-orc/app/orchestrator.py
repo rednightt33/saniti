@@ -41,7 +41,7 @@ from .schemas import (
 from . import conversation_router as router
 from . import in_sample as insample
 from . import method_guides
-from .user_words import allowed_periods, current_user_words, latest_horizons, stated_horizons
+from .user_words import allowed_periods, current_design_changes, current_user_words, locked_horizons
 from .provenance import (CONTEXT, typed_figures, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
                          parse_numbers, released_numbers, requested_statistics, weakest)
 from .value_refs import REF_RE, UNITS, ReferenceSources, Resolved, TableRows, format_value, render
@@ -2573,8 +2573,11 @@ class AgentOrchestrator:
             router.ROUTER_SCHEMA, router.TurnClassification, "conversation_router_failed")
         if parsed is not None:
             record["referent"] = parsed.referent  # M64: what the message is about
+            # M82: the outcome horizon the message states, as structured changes for the plan gate
+            record["design_value_changes"] = [c.model_dump() for c in parsed.design_value_changes]
         log_event("conversation_turn_classified", request_id=request_id, turn_kind=parsed.turn_kind if parsed else None,
                   status=record["status"], referent=record.get("referent"),
+                  design_value_changes=record.get("design_value_changes"),
                   latency_ms=record["latency_ms"], input_tokens=record["input_tokens"],
                   output_tokens=record["output_tokens"])
         return (parsed.turn_kind if parsed else None), (parsed.revision_instruction if parsed else None), record
@@ -4392,7 +4395,9 @@ class AgentOrchestrator:
                                 [f"Success thresholds the user did not state: {values}."])
         # M69 tahap 1: an outcome horizon the user stated binds every experiment and angle
         # the newest statement wins: a revision replaces the horizon of the first question (oldest text first)
-        horizons = latest_horizons(*reversed(sources))
+        horizons, disagreement = locked_horizons(list(reversed(sources)), current_design_changes.get())
+        if disagreement:
+            log_event("plan_horizon_readings_disagree", request_id=state.request_id, detail=disagreement)
         allowed = allowed_periods(horizons, getattr(final.research_plan, "analysis_frequency", None))
         items = [(getattr(i, "angle_id", None) or getattr(i, "experiment_id", "?"), i.outcome_horizon_periods)
                  for i in (getattr(final.research_plan, "angles", None) or getattr(final.research_plan, "experiments",

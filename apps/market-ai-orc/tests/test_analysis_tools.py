@@ -375,9 +375,9 @@ def capabilities(reg) -> dict[str, Any]:
 
 
 def test_python_analysis_capability_follows_the_registry() -> None:
-    assert capabilities(registry())["python_analysis"] is False
+    assert "run_python_analysis" in capabilities(registry())["not_available"]
     full = capabilities(registry(mock_sandbox({}), mock_governor(200, {})))
-    assert full["python_analysis"] is True
+    assert "run_python_analysis" in full["capabilities"]
     assert {"create_analysis_spec", "run_python_analysis", "get_analysis_result", "get_dataset_manifest"} <= set(
         full["available_tools"])
 
@@ -391,7 +391,7 @@ def test_startup_registers_analysis_tools_only_when_the_sandbox_is_ready(monkeyp
         monkeypatch.setattr(SandboxClient, "ready", lambda self, value=ready: value)
         app = main.create_app(make_settings(**env))
         caps = app.state.orchestrator.registry.execute("c1", "get_system_capabilities", "{}").output["result"]
-        assert caps["python_analysis"] is expected
+        assert ("run_python_analysis" in caps["capabilities"]) is expected
 
 
 @pytest.mark.parametrize(("overrides", "message"), [

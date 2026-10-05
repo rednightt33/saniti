@@ -211,10 +211,10 @@ def test_governor_http_errors_are_tool_errors_without_details(status) -> None:
 
 def test_capability_flag_follows_the_registered_tool() -> None:
     caps = registry_with(mock_governor({})).execute("c", "get_system_capabilities", "{}").output["result"]
-    assert caps["database_query"] is True and caps["fact_lookup"] is True and caps["python_analysis"] is False
+    assert {"request_data", "lookup_fact"} <= set(caps["capabilities"]["fetch_market_data_from_database"]) and "run_python_analysis" in caps["not_available"]
     assert "request_data" in caps["available_tools"] and "run_python_analysis" not in caps["available_tools"]
     caps = build_default_registry(None).execute("c", "get_system_capabilities", "{}").output["result"]
-    assert caps["database_query"] is False
+    assert "fetch_market_data_from_database" in caps["not_available"]
 
 
 def test_agent_run_request_id_reaches_the_governor() -> None:

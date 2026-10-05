@@ -17,6 +17,9 @@ from contextvars import ContextVar
 current_user_words: ContextVar[str | None] = ContextVar("current_user_words", default=None)
 # between the user's messages in current_user_words (oldest first), so the newest statement can be found
 MESSAGE_SEPARATOR = "\n\u241e\n"
+# M82 (user decision 2026-10-05): the conversation router's structured reading of the newest message
+# ([{name, value, unit, action}]; None when no router read it, then the pattern reading below decides alone)
+current_design_changes: ContextVar[list[dict] | None] = ContextVar("current_design_changes", default=None)
 
 NUMBER = r"(\d{1,3})"
 UNITS = {"DAY": r"(?:hari(?:\s+(?:bursa|perdagangan|kerja))?|trading\s+days?|business\s+days?|days?|d)",
@@ -55,6 +58,30 @@ def latest_horizons(*texts: str | None) -> set[tuple[int, str]]:
             if found:
                 return found
     return set()
+
+
+def locked_horizons(texts: list[str | None], changes: list[dict] | None) -> tuple[set[tuple[int, str]], str | None]:
+    """The outcome horizons a plan must use (texts oldest first; the last message of the last text is the newest) and
+    a disagreement note. M82: the conversation router's structured change of the newest message decides (REPLACE: its
+    values; ADD: the earlier horizons and its values); the pattern reading cross-checks it. When the two disagree, both
+    readings are allowed (a wrong lock would force the wrong horizon) and the note names the disagreement. Without a
+    router reading (changes None: a first message, an explicit API action, a failed router call) the newest statement
+    found by the patterns wins."""
+    messages = [m for text in texts for m in (text or "").split(MESSAGE_SEPARATOR)]
+    newest = stated_horizons(messages[-1]) if messages else set()
+    earlier = latest_horizons(*messages[:-1])
+    if changes is None:
+        return (newest or earlier), None
+    routed = [c for c in changes if c.get("name") == "OUTCOME_HORIZON" and int(c.get("value") or 0) > 0]
+    values = {(int(c["value"]), str(c["unit"])) for c in routed}
+    if routed:
+        locked = values if all(c.get("action") == "REPLACE" for c in routed) else earlier | values
+    else:
+        locked = set(earlier)
+    if newest and newest != values:
+        return locked | newest, (f"router read {sorted(values) or 'no horizon'}, the message's words "
+                                 f"{sorted(newest)}")
+    return locked, None
 
 
 def frequency_of(analysis_frequency: str | None) -> str:

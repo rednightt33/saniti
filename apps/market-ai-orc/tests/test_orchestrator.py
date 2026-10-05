@@ -84,7 +84,7 @@ def test_full_tool_loop_returns_structured_answer() -> None:
     }]
     [output] = outputs(second)
     assert output["call_id"] == "call_caps"
-    assert json.loads(output["output"])["result"]["database_query"] is False
+    assert "fetch_market_data_from_database" in json.loads(output["output"])["result"]["not_available"]
     assert not any(item.get("type") == "reasoning" for item in second["input"])
 
 

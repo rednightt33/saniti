@@ -100,13 +100,14 @@ def test_catalog_tools_absent_without_configured_catalog() -> None:
     registry = build_default_registry()
     assert registry.names() == ["get_system_capabilities"]
     caps = execute(registry, "get_system_capabilities", "{}").output["result"]
-    assert caps["catalog_discovery"] is False and caps["database_query"] is False
+    assert caps["capabilities"] == {"read_catalog_and_earlier_results": ["get_system_capabilities"]}
+    assert "fetch_market_data_from_database" in caps["not_available"]
 
 
 def test_capabilities_report_catalog_discovery_only() -> None:
     caps = execute(build_default_registry(FakeReader()), "get_system_capabilities", "{}").output["result"]
-    assert caps["catalog_discovery"] is True
-    assert caps["database_query"] is False and caps["python_analysis"] is False
+    assert "discover_catalog" in caps["capabilities"]["read_catalog_and_earlier_results"]
+    assert "run_python_analysis" in caps["not_available"]
 
 
 def test_system_prompt_keeps_discovery_and_query_blocks_then_appends_python_analysis_block() -> None:
