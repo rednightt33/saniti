@@ -34,6 +34,7 @@ from typing import Any
 
 from . import conversation_router as router
 from . import data_record as records
+from . import modes
 from .orchestrator import AgentOrchestrator, current_time_budget, log_event
 from .provenance import LABEL_ORDER
 from .research_plan import ContinuationIn, ContinuationOut
@@ -144,7 +145,8 @@ class Mode4Orchestrator:
         return _Mode4Run(self, request, conversation_key, data_record).execute()
 
     def _first_message(self, request: AgentRunRequest, conversation_key: str | None,
-                       data_record: dict[str, Any] | None) -> AgentRunResponse:
+                       data_record: dict[str, Any] | None, cancelled_plan_id: str | None = None,
+                       notes: list[str] | None = None) -> AgentRunResponse:
         """The first-message router (conversation_router.FIRST_ROUTE_RULES): CHAT and FACT run one step without
         warehouse data whatever the caller's analysis_path; a data route runs at the caller's depth, else at the
         route's; a failed router call runs one analysis step. The mode record names the route."""
@@ -164,7 +166,8 @@ class Mode4Orchestrator:
             if path == "MODE4":
                 run = _Mode4Run(self, routed, conversation_key, data_record)
                 run.router_usage = {**usage, "route": route}
-                result = run.execute()
+                run.notes.extend(notes or [])
+                result = run.first_round(cancelled_plan_id=cancelled_plan_id)
             else:
                 result = self.inner.run(routed, conversation_key, data_record=data_record)
             mode = ModeExecution(mode=number, name=name, source="ROUTER", route=route or "ROUTER_FAILED")
@@ -278,6 +281,15 @@ class _Mode4Run:
             return self.follow_up(continuation.model_copy(update={
                 "action": kind, "revision_instruction": instruction if kind == "REVISE" else None}))
         if kind == "NEW_TOPIC":
+            if self.owner.first_router:
+                # a new topic is routed like a first message (AI_ROUTER.md): no default mode inside a conversation
+                # either; a pending suggestion stays pending unless the new topic runs mode 4's first round
+                return self.owner._first_message(
+                    self.request.model_copy(update={"continuation": None,
+                                                    "analysis_path": modes.current_caller_path.get()}),
+                    self.key, self.record,
+                    cancelled_plan_id=continuation.plan_id if pending else None,
+                    notes=["Usulan riset sebelumnya dibatalkan karena ada pertanyaan baru."] if pending else None)
             if pending:
                 self.notes.append("Usulan riset sebelumnya dibatalkan karena ada pertanyaan baru.")
             return self.first_round(cancelled_plan_id=continuation.plan_id if pending else None)

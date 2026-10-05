@@ -11,7 +11,7 @@ Saklar: `AI_ENABLE_FIRST_TURN_ROUTER` (router pesan pertama), `AI_ENABLE_CONVERS
 3. A data route (ANALYSIS, RESEARCH, EXPLORE) runs at the depth of the caller's analysis_path when it is ANALYSIS, RESEARCH or MODE4; otherwise at the router's route (ANALYSIS: one step, RESEARCH: a plan, EXPLORE: mode 4).
 4. A failed or empty router call runs one analysis step (the caller's analysis_path when set).
 5. In mode 4 the research steps (plan, research, suggestion) run only when the analysis step's answer has figures from data (its evidence label is set); otherwise the analysis answer is returned alone.
-6. Later messages are read by the conversation router (its classes are listed below); a reply to a waiting plan continues it.
+6. Later messages are read by the conversation router (its classes are listed below); a reply to a waiting plan continues it. A later message the conversation router classes NEW_TOPIC is routed again like a first message (rules 2 to 5), so no default mode runs inside a conversation either.
 
 ## Rute pesan pertama
 

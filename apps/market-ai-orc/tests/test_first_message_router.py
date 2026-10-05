@@ -142,3 +142,36 @@ def test_through_the_api_a_greeting_is_one_step_and_a_data_question_takes_the_ro
     body = post(app, {"request_id": "f2", "message": "Berapa harga penutupan BBRI kemarin?"})
     assert body["execution"]["mode"] == {"mode": 2, "name": "ANALYSIS", "source": "ROUTER", "route": "ANALYSIS"}
     assert "mode4" not in body
+
+
+def test_a_new_topic_inside_a_conversation_is_routed_like_a_first_message() -> None:
+    """2026-10-05: "halo" then "hitung return BBRI" ran mode 4's four steps (NEW_TOPIC -> first round); now the new
+    topic is routed, here to ANALYSIS (one step), and a routed EXPLORE still runs the first round."""
+    from app.research_plan_v2 import ContinuationInV2  # noqa: F401 - the plain later turn has no continuation
+
+    history = [HistoryMessage(role="user", content="halo"), HistoryMessage(role="assistant", content="Halo!")]
+    wrapper, inner = routed_stub({"q": run_result("q", response("ANSWER", "Return BBRI."))}, "ANALYSIS")
+    inner.classify_turn = lambda rid, message, context: ("NEW_TOPIC", None, {"status": "COMPLETED"})
+    result = wrapper.run(AgentRunRequest(request_id="q", message="hitung return BBRI September", history=history,
+                                         analysis_path="MODE4"))  # the switch's MODE4, not the caller's
+    assert [(r.request_id, r.analysis_path) for r in inner.requests] == [("q", "ANALYSIS")]
+    assert result.execution.mode.route == "ANALYSIS"
+    wrapper, inner = routed_stub(first_round_script(), "EXPLORE")
+    inner.classify_turn = lambda rid, message, context: ("NEW_TOPIC", None, {"status": "COMPLETED"})
+    wrapper.run(AgentRunRequest(request_id="q", message="analisa lengkap sektor bank", history=history,
+                                analysis_path="MODE4"))
+    assert [r.request_id for r in inner.requests] == ["q-m4a", "q-m4b", "q-m4c", "q-m4d"]
+
+
+def test_a_new_topic_keeps_the_depth_the_caller_itself_chose() -> None:
+    from app import modes
+
+    history = [HistoryMessage(role="user", content="halo"), HistoryMessage(role="assistant", content="Halo!")]
+    wrapper, inner = routed_stub({"q": run_result("q", response("ANSWER", "x"))}, "EXPLORE")
+    inner.classify_turn = lambda rid, message, context: ("NEW_TOPIC", None, {"status": "COMPLETED"})
+    token = modes.current_caller_path.set("RESEARCH")
+    try:
+        wrapper.run(AgentRunRequest(request_id="q", message="uji ide saya", history=history, analysis_path="MODE4"))
+    finally:
+        modes.current_caller_path.reset(token)
+    assert [(r.request_id, r.analysis_path) for r in inner.requests] == [("q", "RESEARCH")]

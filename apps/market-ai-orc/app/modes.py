@@ -7,9 +7,13 @@ other plan in AUTO, which reads approvals); otherwise AI_MODE_SWITCH decides. A 
 (mode 4 or the paths inactive at startup) falls back to AUTO, logged at startup."""
 from __future__ import annotations
 
+import contextvars
 from typing import Any
 
 MODES = {1: "AUTO", 2: "ANALYSIS", 3: "RESEARCH", 4: "MODE4"}
+# the analysis_path the caller itself sent (None when the mode came from AI_MODE_SWITCH or a plan): a later turn reaches
+# mode 4 with the switch's MODE4, which is not the caller's depth for a re-routed new topic (AI_ROUTER.md)
+current_caller_path: contextvars.ContextVar[str | None] = contextvars.ContextVar("caller_path", default=None)
 NUMBERS = {name: number for number, name in MODES.items()}
 MODE4_SUGGESTION_SUFFIX = "-m4d"  # app/mode4.py: the request_id suffix of step D, the origin of a mode 4 suggestion
 

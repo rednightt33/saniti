@@ -24,7 +24,7 @@ from .openrouter_client import OpenRouterClient
 from .audit import RunAuditor
 from .audit_outbox import AuditOutbox
 from .mode4 import Mode4Orchestrator
-from .modes import MODES, effective_default, path_for, resolve_mode
+from .modes import MODES, current_caller_path, effective_default, path_for, resolve_mode
 from .orchestrator import AgentOrchestrator, log_event
 from .provider_log import ProviderLogger
 from .provider_policy import CachePricePolicy
@@ -507,7 +507,11 @@ def create_app(
                 return refuse(ConversationError("PLAN_REPLY_NEEDS_SERVER_MODE", "plan_reply is for history_mode "
                                                 "SERVER; with CLIENT send the continuation of the plan.", 400))
             request, mode = routed(payload, payload.continuation)
-            return with_mode(orchestrator.run(request), mode)
+            caller = current_caller_path.set(payload.analysis_path if mode.source == "CALLER" else None)
+            try:
+                return with_mode(orchestrator.run(request), mode)
+            finally:
+                current_caller_path.reset(caller)
         try:
             if conversations is None:
                 raise ConversationError("HISTORY_MODE_UNAVAILABLE", "history_mode SERVER needs "
@@ -534,10 +538,15 @@ def create_app(
             # M47: the conversation's data record from earlier turns (AI_conversation.state)
             record = (start.state or {}).get(DATA_RECORD_KEY)
             extra = {"data_record": record} if record else {}
-            if getattr(orchestrator, "conversation_reuse", False):
-                result = orchestrator.run(request, conversation_key=reuse_key(owner, start.conversation_id), **extra)
-            else:
-                result = orchestrator.run(request, **extra)
+            caller = current_caller_path.set(payload.analysis_path if mode.source == "CALLER" else None)
+            try:
+                if getattr(orchestrator, "conversation_reuse", False):
+                    result = orchestrator.run(request, conversation_key=reuse_key(owner, start.conversation_id),
+                                              **extra)
+                else:
+                    result = orchestrator.run(request, **extra)
+            finally:
+                current_caller_path.reset(caller)
         except Exception:
             conversations.abandon(start, payload.request_id, "INTERNAL_ERROR")
             raise

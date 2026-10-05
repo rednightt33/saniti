@@ -189,7 +189,8 @@ FIRST_ROUTE_RULES = (
     "In mode 4 the research steps (plan, research, suggestion) run only when the analysis step's answer has figures "
     "from data (its evidence label is set); otherwise the analysis answer is returned alone.",
     "Later messages are read by the conversation router (its classes are listed below); a reply to a waiting plan "
-    "continues it.",
+    "continues it. A later message the conversation router classes NEW_TOPIC is routed again like a first message "
+    "(rules 2 to 5), so no default mode runs inside a conversation either.",
 )
 
 FIRST_INSTRUCTIONS = (
