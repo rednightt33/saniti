@@ -6,7 +6,13 @@
 - Push 1, `main` `c1f7119` (prompt pass 2 F1–F4, K1–K4, M26-P; M26 option B orchestrator side: the verdict
   PARTIALLY_SUPPORTED accepted, reason shown in Indonesian, gate `PLAN_MIN_EFFECT`): market-ai-orc `a7363094` SUCCESS;
   market-python-sandbox and market-sql-governor SKIPPED (no change under their watch paths). No variable changed.
-- Push 2 (sandbox verdict rule): see the next line once deployed.
+- Push 2, `main` `e5c37c3` (M26 option B sandbox rule in `research_stats` and `research_engines.decide`; docs; runner
+  suite `qa_20261005b`): market-python-sandbox `3334990e` SUCCESS, deployed with no run in progress (one replica with a
+  volume). market-ai-orc and market-sql-governor SKIPPED; orc stays on `a7363094` (the method registry and the
+  research library are unchanged, so the capability handshake is unchanged).
+- `railway config plan`: already up to date.
+- Golden test `ma-qa-20261005b` (12 items, 22 turns, 4 workers): orc-test-runner `1530b8d2` by CLI upload. Results in
+  `GT_QA_2026-10-05.md`.
 
 ## 2026-10-05 — M75: provider speed preference on market-ai-orc (dev)
 
