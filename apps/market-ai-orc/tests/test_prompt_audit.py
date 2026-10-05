@@ -72,13 +72,17 @@ def test_approved_duplicates_appear_once() -> None:
 def test_the_prompt_is_markdown_with_one_line_per_paragraph_and_adds_no_digits() -> None:
     text = prompt("find_web_fact", "lookup_reference", "query_metric")
     headings = [line for line in text.splitlines() if line.startswith("## ")]
-    assert "## General rules" in headings and "## DATA NEED RULES" in headings and "## VALUE REFERENCES" in headings
-    order = [text.index(h) for h in ("## DATA NEED RULES", "## VALUE REFERENCES", "## MULTI-ANGLE RESEARCH PLAN",
+    # prompt audit pass 2 (F3): uniform headings in capitals
+    assert "## GENERAL RULES" in headings and "## DATA NEED" in headings and "## VALUE REFERENCES" in headings
+    order = [text.index(h) for h in ("## DATA NEED", "## VALUE REFERENCES", "## MULTI-ANGLE PLAN",
                                       "## INTERPRETING RESEARCH")]
     assert order == sorted(order)  # general -> data -> answer -> research
-    # a wrapped line inside a sentence never starts with a lower-case word
-    assert not [line for line in text.splitlines() if re.match(r"[a-z]+ [a-z]", line)
-                and not re.match(r"(answer|research_plan|angle_id|experiment_id|methodology)", line)]
+    # a wrapped line inside a sentence never starts with a lower-case word (pass 2, F1: a rule of a long sentence split
+    # at its semicolons follows a line ending with ";")
+    lines = text.splitlines()
+    assert not [line for previous, line in zip([""] + lines, lines) if re.match(r"[a-z]+ [a-z]", line)
+                and not re.match(r"(answer|research_plan|angle_id|experiment_id|methodology)", line)
+                and not previous.endswith(";")]
     for added in (OUTSIDE_DATA_WEB_RULE, OUTSIDE_DATA_REFERENCE_RULE, METRIC_PATH_RULE, B4_REFERENCE, B5_REFERENCE):
         assert not re.search(r"\d", added)  # the system prompt is a number source for the provenance check
     assert markdown_prompt(text) == text  # formatting is stable

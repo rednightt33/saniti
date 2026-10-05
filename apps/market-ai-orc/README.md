@@ -282,7 +282,7 @@ Gate and final-response log events (always on):
 | `AI_MAX_REPAIR_ATTEMPTS` | no | `3` | Repairs allowed per run for the same tool rejection (tool + reason code) before `REPAIR_BUDGET_EXHAUSTED` |
 | `AI_ENABLE_LOOKUP_FACT` | no | `true` | Register the model-facing `lookup_fact` tool and its prompt rule |
 | `AI_ENABLE_REQUEST_DATA` | no | `false` | Register the model-written `request_data` tool (rollback path; analysis data is prepared by `prepare_analysis_data`) |
-| `AI_ENABLE_DATANEED` | no | `false` | Switch to the DataNeed flow: register its tools (`submit_data_need_spec`; with the Governor also `prepare_data_bundle` and the session tools), drop the Analysis Spec tools, and use the DATA NEED RULES prompt and answer gate (see [DataNeed flow](#dataneed-flow-in-progress)). The sandbox must run with `PY_SANDBOX_DATANEED_ENABLED=true`, otherwise the tools report the sandbox unavailable. A DataNeed run needs more tool calls than the Analysis Spec path (spec, bundle, session, several `run_python`, completion): size `AI_MAX_TOOL_ITERATIONS` and `AI_MAX_TOOL_CALLS` for it |
+| `AI_ENABLE_DATANEED` | no | `false` | Switch to the DataNeed flow: register its tools (`submit_data_need_spec`; with the Governor also `prepare_data_bundle` and the session tools), drop the Analysis Spec tools, and use the DATA NEED prompt section and answer gate (see [DataNeed flow](#dataneed-flow-in-progress)). The sandbox must run with `PY_SANDBOX_DATANEED_ENABLED=true`, otherwise the tools report the sandbox unavailable. A DataNeed run needs more tool calls than the Analysis Spec path (spec, bundle, session, several `run_python`, completion): size `AI_MAX_TOOL_ITERATIONS` and `AI_MAX_TOOL_CALLS` for it |
 | `AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION` | no | `false` | DataNeed flow only: a research question first returns a Research Plan (`RESEARCH_PLAN_CONFIRMATION`, status `AWAITING_CONFIRMATION`) with a backend-signed continuation, and `submit_data_need_spec(mode="RESEARCH")` is refused unless the user approved that plan (see [Research Plan confirmation](#research-plan-confirmation)). Without `AI_ENABLE_DATANEED` it has no effect (logged at startup) |
 | `AI_RESEARCH_PLAN_SIGNING_KEY` | with confirmation (secret) | — | HMAC-SHA256 key of the plan continuation tokens: at least 32 characters, at least 10 distinct, no surrounding whitespace (use a random 64-hex value). The service refuses to start with confirmation on and no usable key. Rotating it invalidates every open plan |
 | `AI_RESEARCH_PLAN_TTL_SECONDS` | no | `3600` | Lifetime of a plan continuation (60–86400) |
@@ -704,7 +704,7 @@ catalog tools are registered only when `CATALOG_DATABASE_URL` is set;
 ready at startup. Otherwise `python_analysis` is `false`.
 
 The logical catalog tool surface maps onto the existing tools. It keeps the names used by the
-DATA DISCOVERY RULES prompt block:
+DATA DISCOVERY prompt section:
 
 | Logical tool | Implemented by |
 |---|---|
@@ -822,10 +822,19 @@ the DataNeed flow is exclusive:
 - The registry drops `get_dataset_manifest`, `create_analysis_spec`, `prepare_analysis_data`, `run_python_analysis`
   and `get_analysis_result`. The capability flags `analysis_data_preparation` and `python_analysis` map to
   `prepare_data_bundle` and `run_python`.
-- The system prompt keeps its common part and replaces DATA QUERY RULES with DATA NEED RULES:
+- The system prompt keeps its common part and replaces DATA QUERY RULES with DATA SOURCES and DATA NEED:
   `submit_data_need_spec` → `prepare_data_bundle` → `open_analysis_session` → `run_python` → `complete_analysis`,
   analysis and research modes, and "pola historis" only for research. The prompt is still fixed per deployment,
   so the cached prefix is byte-identical across runs.
+- Prompt layout (prompt audit pass 2, 2026-10-05, `PROMPT_AUDIT_2026-10-05.md`): headings in capitals; general rules,
+  tool use and the tool-result envelope, the final response, then data (DATA DISCOVERY, DATA SOURCES with the metric,
+  reference and web sentences of the offered tools, DATA NEED, MODES, TIME BASIS, NAMED-PERIOD RETURNS, WEEKLY AND
+  MONTHLY, CONVERSATION REUSE), answers (VALUE REFERENCES, METHODOLOGY) and research (RESEARCH PLANS, MULTI-ANGLE
+  PLAN, HYPOTHESIS PLAN, RESEARCH PLAN FORMS, MULTI-ANGLE FINDINGS, HYPOTHESIS FINDINGS, INTERPRETING RESEARCH).
+  `markdown_prompt` writes a paragraph longer than `MAX_PARAGRAPH_CHARS` (600) one line per rule, without a list
+  marker (a marker per rule cost about two percent more tokens). `tests/test_prompt_pass2.py` compares the dev
+  prompt's sentences with the previous layout (`tests/fixtures/prompt_dev_before_pass2.md`): only the approved
+  changes differ.
 - The answer gate (`_dataneed_gate`) checks, in order, rejecting each problem once while tools are available and
   forcing a LIMITATION after that:
   1. an ANSWER may not rest on a session that ran code but was not completed, or whose completion is INCOMPLETE;

@@ -94,7 +94,9 @@ class AgentRunRequest(BaseModel):
         return value
 
 
-Verdict = Literal["SUPPORTED", "NOT_SUPPORTED", "INCONCLUSIVE", "NOT_EVALUATED"]
+# M26 option B (user decision 2026-10-05): PARTIALLY_SUPPORTED when the effect is in the expected direction but below
+# the minimum effect the user named (reason BELOW_USER_MINIMUM_EFFECT)
+Verdict = Literal["SUPPORTED", "PARTIALLY_SUPPORTED", "NOT_SUPPORTED", "INCONCLUSIVE", "NOT_EVALUATED"]
 
 
 class FindingInterpretation(BaseModel):

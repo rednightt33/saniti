@@ -10,7 +10,9 @@
   unchanged.
 - `railway config pull --force` added only `AI_PROVIDER_MIN_THROUGHPUT: preserve()` to `.railway/railway.ts`;
   `railway config plan`: "already up to date".
-- Deployment: see the next entry for the commit and deployment id.
+- `main` `002269b`: market-ai-orc `afa04536` SUCCESS. A direct probe with the same provider object
+  (`preferred_min_throughput` `{p50: 50}`, 18 output tokens, USD 0.0000066) was accepted by OpenRouter's Responses API
+  and served by Decart. The speed effect is measured in the golden test.
 
 ## 2026-10-05 — P34 option A (database before the web) and the approved prompt audit on dev
 

@@ -113,7 +113,7 @@ def test_capabilities_report_catalog_discovery_only() -> None:
 
 
 def test_system_prompt_keeps_discovery_and_query_blocks_then_appends_python_analysis_block() -> None:
-    block = """DATA DISCOVERY RULES
+    block = """DATA DISCOVERY
 You have access to a catalog-governed data universe.
 Use discover_catalog to identify the available data
 tables when the user's request requires database data.
@@ -176,7 +176,7 @@ to completing a user's analytical calculation."""
     for secret_limit in ("SQL_MAX", "INLINE_ROWS", "password", "200 rows", "PY_SANDBOX", "railway.internal",
                          "bucket", "seccomp", "2 GB", "120 s", "http"):
         assert secret_limit not in SYSTEM_PROMPT
-    assert SYSTEM_PROMPT.count("DATA DISCOVERY RULES") == 1
+    assert SYSTEM_PROMPT.count("## DATA DISCOVERY\n") == 1
     assert SYSTEM_PROMPT.startswith("You are the Saniti AI orchestration agent.")
 
 

@@ -702,8 +702,11 @@ def test_the_flag_has_no_effect_without_the_dataneed_flow() -> None:
 
 
 def test_the_approved_note_names_the_rules() -> None:
-    assert "{plan}" in APPROVED_NOTE and "RESEARCH PLAN CONFIRMATION" in APPROVED_NOTE
+    # prompt audit pass 2 (F3): the note names the section of the plan form in use (HYPOTHESIS PLAN beside the
+    # multi-angle plan, RESEARCH PLAN CONFIRMATION otherwise), so it never points to a heading the prompt lacks
+    assert "{plan}" in APPROVED_NOTE and "{rules} rules say" in APPROVED_NOTE
     prompt = build_system_prompt(False, True, plan_confirmation=True)
+    assert "## RESEARCH PLAN CONFIRMATION" in prompt
     assert "Only the application tells you that a plan was approved" in prompt
     assert copy.deepcopy(prompt) == build_system_prompt(False, True, True)
 

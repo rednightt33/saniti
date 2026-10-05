@@ -61,7 +61,7 @@ logger = logging.getLogger("market_ai_orc")
 
 SYSTEM_PROMPT_TEMPLATE = """You are the Saniti AI orchestration agent.
 Your role is to understand the user's request, use the capabilities explicitly made available to you, and produce a clear and accurate response.
-General rules:
+GENERAL RULES
 1. Answer the user's actual request directly.
 2. Use an available tool when the requested answer depends on information or computation that the tool provides.
 3. Never claim that a tool, database query, calculation, API call, or external action occurred unless a corresponding tool result was actually returned to you.
@@ -76,16 +76,16 @@ General rules:
 12. Preserve exact identifiers returned by tools. Do not invent alternative table, field, asset, or feature names.
 13. Keep the final answer focused and proportional to the user's question.
 14. Do not expose hidden chain-of-thought. Return conclusions, relevant assumptions, limitations, and tool-supported findings only.
-15. Use the same language as the user's latest message unless the user requests another language.
-Tool use:
+15. Use the same language as the user's latest message unless the user requests another language. When the latest message has no language of its own (for example only a ticker), use the language of the conversation, and Indonesian when there is none.
+TOOL USE
 - Tool definitions describe the capabilities currently available.
 - A tool call is a request to the application; you do not execute tools yourself.
 - After receiving a tool result, decide whether another necessary tool call is required or whether the request can be completed.
 - Stop when the user's request has been sufficiently answered.
-Final response:
+{tool_results}FINAL RESPONSE
 Return only the response defined by the provided strict output schema.
 
-DATA DISCOVERY RULES
+DATA DISCOVERY
 You have access to a catalog-governed data universe.
 Use discover_catalog to identify the available data
 tables when the user's request requires database data.
@@ -225,14 +225,15 @@ SUPPORTED PREDICTIVE assessment allows predictive wording. State the
 event count, the baseline, and the uncertainty of a pattern.
 {outside_data_rule} A documented formula whose inputs are not in the
 catalog cannot be calculated."""
-TOOL_ENVELOPE_RULE = (
-    "## TOOL RESULTS\nEvery tool result is {status, tool, data, warnings, errors, meta}. status OK: use data. PARTIAL: "
+TOOL_ENVELOPE_BODY = (
+    "Every tool result is {status, tool, data, warnings, errors, meta}. status OK: use data. PARTIAL: "
     "data is incomplete (meta.truncated true: read the next page before you describe all of it). REJECTED or ERROR: "
     "do not repeat the same call; follow errors[].next_action (FIX_ARGUMENTS: correct the arguments named in the "
     "message; WAIT_AND_RETRY: retry once later; CALL:<tool>: call that tool first; ANSWER_LIMITATION or "
     "RETURN_FINAL_RESPONSE: answer with what you have and state the limitation).")
-DATANEED_RULES = """DATA NEED RULES
-{metric_rule}Every {other}answer that needs market data follows one path:
+TOOL_ENVELOPE_RULE = "## TOOL RESULTS\n" + TOOL_ENVELOPE_BODY
+DATANEED_RULES = """DATA NEED
+Every {other}answer that needs market data follows one path:
 1. submit_data_need_spec declares only the data needed: logical data
 requests (catalog table, columns, a scope expression tree, named time
 ranges, source and analysis frequency, history_buffer for warm-up
@@ -300,8 +301,7 @@ optional holdout range and minimum sample), only for whether a
 condition historically precedes an outcome or for a bounded
 exploration. Report research results only as historical patterns
 (pola historis) with event counts, the baseline and the uncertainty:
-never as a cause, a prediction, a forecast or a trading signal.
-{outside_data_rule}"""
+never as a cause, a prediction, a forecast or a trading signal.{modes_research}"""
 RESEARCH_PLAN_RULES = """
 
 RESEARCH PLAN CONFIRMATION
@@ -449,45 +449,54 @@ DERIVED_FREQUENCY_LINE = ("Weekly or monthly figures were derived from daily dat
                           "calendar month end); a period still open or only partly covered is marked incomplete.")
 # Research findings v1 (AI_ENABLE_RESEARCH_FINDINGS). No digits except list numbering: the system prompt is a
 # number source for the provenance check, and every threshold comes from the backend.
-RESEARCH_FINDINGS_RULES = """
-
-RESEARCH FINDINGS
-Each experiment of a Research Plan also states expected_direction,
+FINDINGS_PLAN_FIELDS = """Each experiment of a Research Plan also states expected_direction,
 outcome_horizon_periods, outcome_unit, success_definition and
 min_effect (null unless the user named the smallest effect that
 matters); its research_governance copies them exactly. Write a
 threshold as the user wrote it and name its unit (min_effect_unit,
 success_rule.unit: PERCENT, DECIMAL or BASIS_POINT); the backend
 converts it to the outcome_unit, and the helpers compute the outcome
-in the approved outcome_unit. There is no
+in the approved outcome_unit."""
+FINDINGS_SAMPLE = """There is no
 fixed minimum sample: the backend judges the sample after the run, so
-an unusual condition with few occurrences may still be studied.
-In the session, build one row per occurrence of the condition (events)
+an unusual condition with few occurrences may still be studied."""
+FINDINGS_SESSION = """In the session, build one row per occurrence of the condition (events)
 and the comparison rows (baseline), each with its outcome and date, and
 call event_summary(events, baseline, hypothesis_id=...,
 outcome_column=..., date_column=...) once per hypothesis before complete_analysis; a
-research analysis without it is not completed. complete_analysis then
+research analysis without it is not completed."""
+# M26-P (user decision 2026-10-05, option B): the verdict for an effect in the expected direction but below the
+# minimum effect the user named
+FINDINGS_RETURNED = """complete_analysis then
 returns research_findings: the effect against the baseline (angle_a),
 how often the outcome was a success against the baseline rate
 (angle_b), the effective sample (distinct dates, overlapping outcomes
 counted once), the sample category (INSUFFICIENT, ANECDOTAL,
 UNDERPOWERED, ADEQUATE), the smallest detectable effect and the verdict
-(SUPPORTED, NOT_SUPPORTED, INCONCLUSIVE, NOT_EVALUATED). They are the
-backend's numbers: cite them; never recompute them or state another
-verdict.
+(SUPPORTED, PARTIALLY_SUPPORTED, NOT_SUPPORTED, INCONCLUSIVE,
+NOT_EVALUATED). PARTIALLY_SUPPORTED means the effect is in the expected
+direction but smaller than the minimum effect the user named. They are
+the backend's numbers: cite them; never recompute them or state another
+verdict."""
+# K1 (prompt audit pass 2, user decision 2026-10-05): angle_a and angle_b are not the angles of a multi-angle plan
+FINDINGS_MEASURES = """`angle_a` (the effect against the baseline) and `angle_b` (the success
+rate against the base rate) are the two measures of a hypothesis
+finding, not angles of a multi-angle plan."""
+INTERPRETING_RULES = """
 
 INTERPRETING RESEARCH
 A research answer exists to change what the user knows or will do next.
 For each completed experiment, research_findings carries the verdict
 unchanged and an interpretation in four parts:
 1. answer: the direct answer to the user's question, first, in the
-verdict's terms: supported, not supported, or inconclusive.
+verdict's terms: supported, partially supported, not supported, or
+inconclusive.
 2. evidence: what the numbers say: how large the effect is against the
 baseline, how often the outcome happened against its base rate, and how
 certain this is: the sample category, the effective sample, the
-uncertainty and the smallest effect this sample could detect. When the
-two angles point different ways, say what that combination means (for
-example: more often up, but the falls are deeper).
+uncertainty and the smallest effect this sample could detect. When
+angle_a and angle_b point different ways, say what that combination
+means (for example: more often up, but the falls are deeper).
 3. usefulness: why it matters for the user's decision or understanding,
 sized in practical terms: compare the effect with what would matter in
 practice, such as trading costs or a typical move of the outcome. A real
@@ -507,6 +516,12 @@ effect" only for NOT_SUPPORTED; describe the occurrences of an ANECDOTAL
 or INSUFFICIENT sample as possible anomalies, not as a pattern. The answer
 field tells the user the findings in their language, with the sample
 category and what it means."""
+# The only plan form of the plain DataNeed flow: its findings rules in one block
+RESEARCH_FINDINGS_RULES = ("\n\nRESEARCH FINDINGS\n" + FINDINGS_PLAN_FIELDS + " " + FINDINGS_SAMPLE + "\n"
+                           + FINDINGS_SESSION + " " + FINDINGS_RETURNED + INTERPRETING_RULES)
+# G3 with the hypothesis plan beside the multi-angle plan (prompt audit pass 2, F2.4 and K1): the findings section holds
+# only what complete_analysis returns; the plan and session sentences are steps of HYPOTHESIS PLAN
+HYPOTHESIS_FINDINGS_RULES = "\n\nHYPOTHESIS FINDINGS\n" + FINDINGS_RETURNED + "\n" + FINDINGS_MEASURES
 # G3: beside the multi-angle findings, a hypothesis plan's answer carries the experiment form
 HYPOTHESIS_FINDINGS_CONTRACT = ("For an ANSWER that rests on a completed hypothesis plan, research_findings has one "
                                 "entry per experiment instead (hypothesis_id, the backend verdict unchanged, "
@@ -527,6 +542,12 @@ FINDINGS_NOTICE = ("The interpretation of the research result below did not matc
                    "figures as unconfirmed. ")
 SUPPORTED_WORDING = (r"\b(?:terbukti|didukung|mendukung hipotesis|terkonfirmasi|dikonfirmasi|confirmed|proven|"
                      r"supports? the hypothesis|is supported)\b")
+# M26 option B (user decision 2026-10-05): an effect in the expected direction but below the minimum effect the user
+# named is PARTIALLY_SUPPORTED; its answer may say "supported in part", never plainly "supported"
+BELOW_USER_MINIMUM = "BELOW_USER_MINIMUM_EFFECT"
+PARTIAL_WORDING = (r"\b(?:didukung sebagian|sebagian didukung|mendukung sebagian|sebagian mendukung|"
+                   r"partially supported|partly supported|supported in part|partially supports?)\b")
+REASON_LABELS = {BELOW_USER_MINIMUM: "searah, tetapi lebih kecil dari batas minimal yang Anda sebut"}
 NO_EFFECT_WORDING = (r"\b(?:tidak ada (?:efek|pengaruh|perbedaan)|tidak berpengaruh|no (?:effect|difference)|"
                      r"has no effect)\b")
 # Multi-Angle Research (AI_ENABLE_MULTI_ANGLE_RESEARCH; MULTI_ANGLE_RESEARCH.md). They replace the Research Plan,
@@ -534,7 +555,7 @@ NO_EFFECT_WORDING = (r"\b(?:tidak ada (?:efek|pengaruh|perbedaan)|tidak berpenga
 # source for the provenance check (the plan's version constant appears only in the schema skeleton).
 MULTI_ANGLE_PLAN_RULES = """
 
-MULTI-ANGLE RESEARCH PLAN
+MULTI-ANGLE PLAN
 A research question (whether a condition historically precedes an
 outcome, or a bounded exploration) starts with a multi-angle Research
 Plan, not with data:
@@ -588,18 +609,14 @@ call complete_research_run with finalize false; it lists any angle not
 yet recorded: record it and call it again. Finalize only an angle that
 truly cannot be recorded: it becomes NOT_RUN and the other angles still
 report.
-
-A data need in mode RESEARCH is refused: research runs only through an
-approved multi-angle plan. Mode ANALYSIS needs no plan and proceeds
-directly."""
-MULTI_ANGLE_FINDINGS_RULES = """
-
-MULTI-ANGLE FINDINGS
 Never import or modify the sandbox's internal modules (saniti_session,
 research_*): an angle is recorded once, and a session whose own state
 was changed ends. When run_research_code returns session_recovery,
 follow it: record every angle it lists again in the new session, or go
-on to complete_research_run when the group is closed.
+on to complete_research_run when the group is closed."""
+MULTI_ANGLE_FINDINGS_RULES = """
+
+MULTI-ANGLE FINDINGS
 complete_research_run returns one backend finding per approved angle:
 its status (SUPPORTED, PARTIALLY_SUPPORTED, INSUFFICIENT_EVIDENCE,
 INVALID or NOT_RUN), evidence_direction (EXPECTED, OPPOSITE or NONE: a
@@ -634,16 +651,13 @@ complete_research_run returned, the confidence level included."""
 # multi-angle rules, which refuses every RESEARCH data need.
 MULTI_ANGLE_ONLY_SENTENCE = ("A data need in mode RESEARCH is refused: research runs only through an approved "
                              "multi-angle plan.")
-HYPOTHESIS_PLAN_RULES = """
+HYPOTHESIS_PLAN_RULES = ("""
 
-RESEARCH PLAN CONFIRMATION: HYPOTHESIS PLAN
-The second kind of Research Plan tests hypotheses you formulate
-yourself from the question and the data, not limited to the research
-library: one to four experiments, each one hypothesis (a condition, an
-outcome and a baseline you define). Choose it for one or a few explicit
-condition -> outcome hypotheses, even when a library method could also
-test them; choose the multi-angle plan to examine one root hypothesis
-from several sides with library methods. Never mix the two in one plan.
+HYPOTHESIS PLAN
+The hypothesis plan tests hypotheses you formulate yourself from the
+question and the data, not limited to the research library: one to four
+experiments, each one hypothesis (a condition, an outcome and a baseline
+you define).
 1. Before the user approved it, do not call submit_data_need_spec,
 prepare_data_bundle or any session tool for it. You may read the
 catalog. Call check_data_feasibility with the DataNeedSpec the plan
@@ -660,6 +674,7 @@ limitations and a confirmation_question. answer presents the plan and
 asks to approve, revise or cancel it; steps 4 and 5 of the multi-angle
 plan (no table names, SQL or Python; only the application approves)
 apply.
+""" + FINDINGS_PLAN_FIELDS + """
 3. After approval, each RESEARCH data need copies research_governance
 from its approved experiment: hypothesis_id, hypothesis, objective,
 condition, outcome, baseline and multiple_testing_policy exactly;
@@ -667,27 +682,42 @@ candidate_count and pairwise_comparisons at most the approved values;
 minimum_sample at least the approved value in the same unit; a holdout
 when the plan requires one. Any other change needs a revised plan and a
 new approval.
-4. The events and the baseline rows may come from your own code, from
+4. """ + FINDINGS_SESSION + """
+The events and the baseline rows may come from your own code, from
 an event study (its events and baseline frames) or from a released
 table of an earlier result named in carried_inputs (load_output). The
 backend recomputes the statistics from the rows you pass to event_summary
 (STATISTICS_VERIFIED); it does not check how you built those rows, so
-the answer says the condition was built by the analysis code."""
+the answer says the condition was built by the analysis code.
+""" + FINDINGS_SAMPLE)
 DUAL_RESEARCH_SENTENCE = ("A data need in mode RESEARCH is accepted only for an approved hypothesis plan (below); a "
                           "multi-angle plan runs only through start_research_run.")
+ANALYSIS_NEEDS_NO_PLAN = "Mode ANALYSIS needs no plan and proceeds directly."
 # M62 (golden test 2026-10-02, question 4): with both plans on, the multi-angle opening still claimed every research
-# question, and the model followed it for one explicit hypothesis. One decision rule names both forms.
+# question, and the model followed it for one explicit hypothesis. One decision rule names both forms: K4 (prompt audit
+# pass 2, user decision 2026-10-05) merges the two choice sentences into RESEARCH PLANS, before both plans.
 MULTI_ANGLE_OPENING = ("A research question (whether a condition historically precedes an outcome, or a bounded "
                        "exploration) starts with a multi-angle Research Plan, not with data:")
-DUAL_OPENING = ("A research question starts with a Research Plan, not with data. Choose its form by the question: one "
-                "or a few explicit condition -> outcome hypotheses (the user's own idea, \"does X precede Y\", \"test "
-                "my idea\") take the hypothesis plan (below), with no angles the user did not ask for; one root "
-                "hypothesis to examine from several sides with the research library, or a bounded exploration, takes "
-                "the multi-angle plan. The multi-angle plan:")
-DUAL_FINDING_REFERENCE = ("- {{finding.<angle_id>.<path>}} a backend finding of complete_research_run,",
-                          "- {{finding.<angle_id>.<path>}} a backend finding of complete_research_run (a hypothesis "
-                          "plan's finding of complete_analysis is {{finding.<hypothesis_id>.<path>}}, for example "
-                          "angle_a.difference, angle_a.ci_low, sample.effective),")
+RESEARCH_PLANS_RULES = """
+
+RESEARCH PLANS
+A research question starts with a Research Plan, not with data. Choose its form by the question:
+- one or a few explicit condition -> outcome hypotheses (the user's own idea, "does X precede Y", "test my idea") take the hypothesis plan, even when a library method could also test them, with no angles the user did not ask for;
+- one root hypothesis to examine from several sides with the research library, or a bounded exploration, takes the multi-angle plan.
+
+Never mix the two in one plan."""
+# The kinds of value reference, one list item each (prompt audit pass 2, F4: the hypothesis plan's finding is its own
+# item, and the last item ends with a full stop)
+ANGLE_FINDING_REFERENCE = ("{{finding.<angle_id>.<path>}} a backend finding of complete_research_run, for example "
+                           "estimates.primary.estimate, estimates.primary.ci.0, estimates.primary.p_adjusted, "
+                           "sample.effective")
+HYPOTHESIS_FINDING_REFERENCE = ("{{finding.<hypothesis_id>.<path>}} a hypothesis plan's finding of complete_analysis, "
+                                "for example angle_a.difference, angle_a.ci_low, sample.effective")
+OUTPUT_REFERENCE = ("{{out.<ref>.<path>}} a released output, by the \"ref\" its tool result shows (out.o1, out.o2, ...): "
+                    "rows[<column>=<value>].<column>, content.<field>, or rows.<index>.<column> for a table without an "
+                    "identifying column")
+FACT_REFERENCE = "{{fact.<n>}} a lookup_fact value"
+METRIC_REFERENCE = "{{metric.<key>.<path>}} a query_metric value, by the \"ref\" its tool result shows"
 
 
 def _utc_now() -> str:
@@ -705,12 +735,13 @@ def _without_sentence(text: str, sentence: str, replacement: str) -> str:
     return new
 
 
-def _dual_references(rules: str) -> str:
-    """VALUE REFERENCES with the hypothesis plan's findings named beside the angles'."""
-    old, new = DUAL_FINDING_REFERENCE
-    if old not in rules:
-        raise ValueError("the finding reference line changed")
-    return rules.replace(old, new)
+def _drop_sentence(text: str, sentence: str) -> str:
+    """text without one sentence and the line break after it, matched across the prompt's line breaks."""
+    pattern = r"\s+".join(re.escape(word) for word in sentence.split()) + r"\s*"
+    new, count = re.subn(pattern, "", text)
+    if count != 1:
+        raise ValueError(f"expected the sentence once in the rules, found it {count} times")
+    return new
 # AI_ENABLE_VALUE_REFERENCES (P11, user decision 2026-09-30): data figures are written as references the backend fills
 # in, and each angle's status, evidence and statistics are rendered from the backend's finding (#15)
 VALUE_REFERENCE_RULES = """
@@ -718,13 +749,8 @@ VALUE_REFERENCE_RULES = """
 VALUE REFERENCES
 Never type a figure that comes from data. Write a value reference and
 the backend fills in the value, formatted:
-- {{finding.<angle_id>.<path>}} a backend finding of complete_research_run,
-for example estimates.primary.estimate, estimates.primary.ci.0,
-estimates.primary.p_adjusted, sample.effective;
-- {{out.<ref>.<path>}} a released output, by the "ref" its tool result shows
-(out.o1, out.o2, ...): rows[<column>=<value>].<column>, content.<field>, or
-rows.<index>.<column> for a table without an identifying column;
-{other_references}
+{reference_items}
+
 Every referable object in a tool result carries its "ref".
 After | add a format: dec:N (N decimals), int, pct:N (a fraction shown
 as a percent), pctv:N (already a percent), pp:N (percentage points), rp
@@ -875,11 +901,8 @@ def final_contract_block(contract: str, plan_confirmation: bool, research_findin
     in the system prompt count as sources for the provenance check."""
     block = FINAL_CONTRACT_PREFIX + contract
     if plan_confirmation and multi_angle and dual:
-        # G3: the two plan forms, each with its own field rules
-        block += ("\n\nresearch_plan has exactly one of two forms.\n\nThe multi-angle plan:\n\n"
-                  + schema_skeleton(strict_parameters_schema(ResearchPlanV2)) + "\n\n" + MULTI_ANGLE_FIELD_RULES
-                  + "\n\nThe hypothesis plan:\n\n"
-                  + schema_skeleton(strict_parameters_schema(ResearchPlanFindings)) + "\n\n" + PLAN_FIELD_RULES)
+        # G3: the two plan forms, each with its own field rules, are a section of their own after the plans (K3)
+        block += "\n\nresearch_plan has exactly one of the two forms under RESEARCH PLAN FORMS."
     elif plan_confirmation and multi_angle:
         block += ("\nresearch_plan has exactly this form: " + schema_skeleton(strict_parameters_schema(ResearchPlanV2))
                   + "\n" + MULTI_ANGLE_FIELD_RULES)
@@ -890,7 +913,27 @@ def final_contract_block(contract: str, plan_confirmation: bool, research_findin
     return block
 
 
+def plan_forms_block() -> str:
+    """RESEARCH PLAN FORMS (prompt audit pass 2, K3, user decision 2026-10-05): the exact field form of both plans,
+    generated from their models, right after the plan rules that use them instead of inside FINAL RESPONSE."""
+    return ("RESEARCH PLAN FORMS\nThe multi-angle plan:\n\n" + schema_skeleton(strict_parameters_schema(ResearchPlanV2))
+            + "\n\n" + MULTI_ANGLE_FIELD_RULES + "\n\nThe hypothesis plan:\n\n"
+            + schema_skeleton(strict_parameters_schema(ResearchPlanFindings)) + "\n\n" + PLAN_FIELD_RULES)
+
+
 NUMBER_WORDS = {0: "zero", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
+
+
+def data_sources_block(tools: frozenset[str]) -> str:
+    """DATA SOURCES (prompt audit pass 2, F2.1): where data comes from other than a data need, database first and the
+    web last: the metric catalog, the reference tables, then data the catalog does not contain and the web fact. A
+    sentence that names a tool is written only when that tool is offered."""
+    items = [METRIC_PATH_RULE] if "query_metric" in tools else []
+    if "find_web_fact" in tools:
+        items += ([OUTSIDE_DATA_REFERENCE_RULE] if "lookup_reference" in tools else []) + [OUTSIDE_DATA_WEB_RULE]
+    else:
+        items.append(OUTSIDE_DATA_RULE)
+    return "DATA SOURCES\n" + "\n".join("- " + " ".join(item.split()) for item in items)
 
 
 def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirmation: bool = False,
@@ -900,51 +943,58 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
                         point_in_time: bool = False, derived_frequency: bool = False,
                         research_findings: bool = False, multi_angle: bool = False,
                         angle_limits: tuple[int, int, int] = (2, 6, 0), value_references: bool = False,
-                        hypothesis_plans: bool = False, tools: frozenset[str] = frozenset()) -> str:
+                        hypothesis_plans: bool = False, tools: frozenset[str] = frozenset(),
+                        tool_envelope: bool = False) -> str:
     """The system prompt for the registered tools. It is fixed for a deployment (AI_ENABLE_LOOKUP_FACT,
     AI_ENABLE_DATANEED, AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION, AI_ENABLE_STANDARD_PERIOD_RETURN,
-    AI_FINAL_CONTRACT_IN_PROMPT), so every call of every run shares one byte-identical cacheable prefix. With the
-    DataNeed flow its rules replace those of the Analysis Spec path; the Research Plan and named-period-return rules
-    exist only in the DataNeed flow. tools: the names of the offered tools; a sentence that names a tool is written
-    only when that tool is offered (P31, prompt audit 2026-10-05 A1, A2, A5). The result is formatted as Markdown
-    (prompt audit C): block titles as headings, one paragraph per item."""
+    AI_FINAL_CONTRACT_IN_PROMPT, AI_ENABLE_TOOL_ENVELOPE), so every call of every run shares one byte-identical
+    cacheable prefix. With the DataNeed flow its rules replace those of the Analysis Spec path; the Research Plan and
+    named-period-return rules exist only in the DataNeed flow. tools: the names of the offered tools; a sentence that
+    names a tool is written only when that tool is offered (P31, prompt audit 2026-10-05 A1, A2, A5). The result is
+    formatted as Markdown (prompt audit C and pass 2): block titles as headings, one line per paragraph or item, and a
+    paragraph longer than MAX_PARAGRAPH_CHARS one line per rule."""
     template = SYSTEM_PROMPT_TEMPLATE
     # Multi-Angle Research replaces the Research Plan, plan feasibility and findings rules (it needs all three flows)
     multi_angle = multi_angle and dataneed and plan_confirmation and plan_feasibility
     # G3: the hypothesis plan beside the multi-angle plan (needs research findings v1 for its verdicts)
     dual = hypothesis_plans and multi_angle and research_findings
+    references = [ANGLE_FINDING_REFERENCE, *([HYPOTHESIS_FINDING_REFERENCE] if dual else []), OUTPUT_REFERENCE,
+                  *([FACT_REFERENCE] if lookup_fact else []), *([METRIC_REFERENCE] if "query_metric" in tools else [])]
+    value_rules = VALUE_REFERENCE_RULES.replace("{reference_items}", "- " + ";\n- ".join(references) + ".") \
+        if value_references else ""
     if multi_angle:
         common, _ = SYSTEM_PROMPT_TEMPLATE.split("DATA QUERY RULES\n", 1)
         plan_rules = MULTI_ANGLE_PLAN_RULES
-        if dual:
-            plan_rules = _without_sentence(_without_sentence(plan_rules, MULTI_ANGLE_ONLY_SENTENCE,
-                                                             DUAL_RESEARCH_SENTENCE),
-                                           MULTI_ANGLE_OPENING, DUAL_OPENING) + HYPOTHESIS_PLAN_RULES
+        mode_sentence = MULTI_ANGLE_ONLY_SENTENCE
         findings = MULTI_ANGLE_FINDINGS_RULES_REFS if value_references else MULTI_ANGLE_FINDINGS_RULES
-        research = RESEARCH_FINDINGS_RULES
+        research = ""
         if dual:
+            # K4: one choice rule (RESEARCH PLANS) before both plans; K3: their field forms right after them
+            plan_rules = RESEARCH_PLANS_RULES + _drop_sentence(plan_rules, MULTI_ANGLE_OPENING) + HYPOTHESIS_PLAN_RULES \
+                + ("\n\n" + plan_forms_block() if final_contract else "")
+            mode_sentence = DUAL_RESEARCH_SENTENCE
             # B4, B5 (prompt audit 2026-10-05): the hypothesis findings cite the backend like the angle findings, and
             # the angles' interpretation parts are those of INTERPRETING RESEARCH
-            research = _without_sentence(research, B4_SENTENCE, B4_REFERENCE)
+            research = _without_sentence(HYPOTHESIS_FINDINGS_RULES, B4_SENTENCE, B4_REFERENCE) + INTERPRETING_RULES
             if value_references:
                 findings = _without_sentence(findings, B5_ANGLE_PARTS, B5_REFERENCE)
-        # prompt audit C: general -> data -> answer -> research
-        template = common + DATANEED_RULES \
-            + (PERIOD_RETURN_RULES if period_return else "") + (CATALOG_PROTOCOL_RULES if catalog_protocol else "") \
-            + (CONVERSATION_REUSE_RULES if conversation_reuse else "") + (METHODOLOGY_RULES if methodology else "") \
-            + (POINT_IN_TIME_RULES if point_in_time else "") + (DERIVED_FREQUENCY_RULES if derived_frequency else "") \
-            + (_dual_references(VALUE_REFERENCE_RULES) if dual and value_references
-               else VALUE_REFERENCE_RULES if value_references else "") \
-            + plan_rules + findings + (research if dual else "")
+        # prompt audit C and pass 2: general -> data -> answer -> research
+        sections = [common, CATALOG_PROTOCOL_RULES if catalog_protocol else "", data_sources_block(tools),
+                    DATANEED_RULES.replace("{modes_research}", "\n" + mode_sentence + " " + ANALYSIS_NEEDS_NO_PLAN),
+                    POINT_IN_TIME_RULES if point_in_time else "", PERIOD_RETURN_RULES if period_return else "",
+                    DERIVED_FREQUENCY_RULES if derived_frequency else "",
+                    CONVERSATION_REUSE_RULES if conversation_reuse else "", value_rules,
+                    METHODOLOGY_RULES if methodology else "", plan_rules, findings, research]
+        template = "\n\n".join(section.strip("\n") for section in sections if section.strip())
     elif dataneed:
         common, _ = SYSTEM_PROMPT_TEMPLATE.split("DATA QUERY RULES\n", 1)
-        template = common + DATANEED_RULES + (RESEARCH_PLAN_RULES if plan_confirmation else "") \
+        template = common + data_sources_block(tools) + "\n\n" + DATANEED_RULES.replace("{modes_research}", "") \
+            + (RESEARCH_PLAN_RULES if plan_confirmation else "") \
             + (PLAN_FEASIBILITY_RULES if plan_confirmation and plan_feasibility else "") \
             + (PERIOD_RETURN_RULES if period_return else "") + (CATALOG_PROTOCOL_RULES if catalog_protocol else "") \
             + (CONVERSATION_REUSE_RULES if conversation_reuse else "") + (METHODOLOGY_RULES if methodology else "") \
             + (POINT_IN_TIME_RULES if point_in_time else "") + (DERIVED_FREQUENCY_RULES if derived_frequency else "") \
-            + (RESEARCH_FINDINGS_RULES if research_findings else "") \
-            + (VALUE_REFERENCE_RULES if value_references else "")
+            + (RESEARCH_FINDINGS_RULES if research_findings else "") + value_rules
     if final_contract:
         # plan_confirmation and methodology reach here only together with dataneed (see AgentOrchestrator.__init__)
         contract = response_contract(plan_confirmation, methodology, research_findings, multi_angle,
@@ -959,17 +1009,13 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
         + ("a query_metric result, " if "query_metric" in tools else "") \
         + ("a lookup_reference row, " if "lookup_reference" in tools else "") \
         + ("a web fact (stated as a web fact), " if "find_web_fact" in tools else "")
-    others = ("- {{fact.<n>}} a lookup_fact value;\n" if lookup_fact else "") \
-        + ("- {{metric.<key>.<path>}} a query_metric value, by the \"ref\" its tool result shows;\n"
-           if "query_metric" in tools else "")
-    outside = OUTSIDE_DATA_RULE
+    outside = OUTSIDE_DATA_RULE  # the Analysis Spec path keeps it under RESEARCH RULES
     if "find_web_fact" in tools:
         outside = OUTSIDE_DATA_WEB_RULE + (OUTSIDE_DATA_REFERENCE_RULE if "lookup_reference" in tools else "")
-    text = (template.replace("{lookup_rule}", LOOKUP_RULE if lookup_fact else "")
+    text = (template.replace("{tool_results}", "TOOL RESULTS\n" + TOOL_ENVELOPE_BODY + "\n" if tool_envelope else "")
+            .replace("{lookup_rule}", LOOKUP_RULE if lookup_fact else "")
             .replace("{number_sources}", sources)
-            .replace("{metric_rule}", METRIC_PATH_RULE if "query_metric" in tools else "")
             .replace("{other}", "other " if "query_metric" in tools else "")
-            .replace("{other_references}", others)
             .replace("{outside_data_rule}", outside)
             .replace("{min_angles}", NUMBER_WORDS[low]).replace("{max_angles}", NUMBER_WORDS[high])
             .replace("{families_rule}", families_rule))
@@ -996,20 +1042,54 @@ B5_ANGLE_PARTS = ("1. answer: the direct answer to the angle's question in its s
 B5_REFERENCE = ("answer (in the angle status's terms), usefulness and follow_up, each as\ndefined under "
                 "INTERPRETING RESEARCH below.")
 HEADING = re.compile(r"[A-Z][A-Z0-9 :/()-]{2,68}")
-LABEL_HEADING = re.compile(r"(General rules|Tool use|Final response):")
 ITEM = re.compile(r"(\d+\. |- )")
+# Prompt audit pass 2 (F1, user decision 2026-10-05): a paragraph or item longer than this is written one rule per line
+MAX_PARAGRAPH_CHARS = 600
+
+
+def _split_top_level(text: str, marks: str) -> list[str]:
+    """text cut after each mark that is followed by a space and stands outside brackets, so a parenthesis, a value
+    reference or a list in brackets is never cut. The pieces keep their own punctuation."""
+    pieces, depth, start = [], 0, 0
+    for index, char in enumerate(text):
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth = max(0, depth - 1)
+        elif char in marks and depth == 0 and text[index + 1:index + 2] == " ":
+            pieces.append(text[start:index + 1].strip())
+            start = index + 1
+    pieces.append(text[start:].strip())
+    return [piece for piece in pieces if piece]
+
+
+def _rule_lines(line: str) -> list[str]:
+    """One long paragraph or item as one line per rule: its sentences, and a sentence still too long split at its
+    semicolons. An item keeps its marker on the first rule and indents the others under it. No list marker is added:
+    a "- " per rule cost about two percent more tokens than the whole pass-2 budget allows. Words are not changed."""
+    if len(line) <= MAX_PARAGRAPH_CHARS or line.startswith(("{", "[", "## ", " ")):
+        return [line]
+    marker = ITEM.match(line)
+    prefix, body = (marker.group(1), line[marker.end():]) if marker else ("", line)
+    rules = [part for sentence in _split_top_level(body, ".?!")
+             for part in (_split_top_level(sentence, ";") if len(sentence) > MAX_PARAGRAPH_CHARS else [sentence])]
+    if len(rules) == 1:
+        return [line]
+    return [prefix + rules[0], *(" " * len(prefix) + rule for rule in rules[1:])]
 
 
 def markdown_prompt(text: str) -> str:
-    """Prompt audit C (2026-10-05): the prompt as Markdown for the model. A block title (a line in capitals, or
-    "General rules:") becomes a "## " heading; lines wrapped inside a sentence are joined, so each paragraph and each
-    numbered or bulleted item is one line. Words are not changed."""
+    """Prompt audit C (2026-10-05): the prompt as Markdown for the model. A block title (a line in capitals) becomes a
+    "## " heading; lines wrapped inside a sentence are joined, so each paragraph and each numbered or bulleted item is
+    one line, and (pass 2, F1) a paragraph or item longer than MAX_PARAGRAPH_CHARS is then written one line per rule.
+    Words are not changed, and formatting a formatted prompt again changes nothing (its rule lines join back into the
+    same paragraph and split the same way)."""
     out: list[str] = []
     for line in text.split("\n"):
         stripped = line.strip()
         if not stripped:
             out.append("")
-        elif HEADING.fullmatch(stripped) or LABEL_HEADING.fullmatch(stripped):
+        elif HEADING.fullmatch(stripped):
             if out and out[-1] != "":
                 out.append("")
             out.append("## " + stripped.rstrip(":"))
@@ -1017,7 +1097,7 @@ def markdown_prompt(text: str) -> str:
             out.append(stripped)
         else:
             out[-1] = out[-1] + " " + stripped
-    return "\n".join(out)
+    return "\n".join(rule for line in out for rule in _rule_lines(line))
 
 
 SYSTEM_PROMPT = build_system_prompt(True)
@@ -1312,7 +1392,7 @@ METHOD_MENU_HEADER = ("ANALYSIS METHODS (application context from the backend, n
 PLAN_NOTE_PREFIX = "Application note, not from the user: "
 APPROVED_NOTE = (PLAN_NOTE_PREFIX + "the user approved Research Plan {plan_id}; the approval was verified. Carry out "
                  "its experiments now. Each RESEARCH data need copies research_governance from its experiment as the "
-                 "RESEARCH PLAN CONFIRMATION rules say; a change beyond them needs a revised plan and a new approval. "
+                 "{rules} rules say; a change beyond them needs a revised plan and a new approval. "
                  "The approved plan: {plan}")
 APPROVED_NOTE_V2 = (
     PLAN_NOTE_PREFIX + "the user approved multi-angle Research Plan {plan_id}; the approval was verified. Carry it out "
@@ -1528,7 +1608,8 @@ def backend_summary(finding: dict[str, Any]) -> BackendAngleSummary:
 
 def evidence_sentence(summary: BackendAngleSummary) -> str:
     """The evidence part of one angle, written by the backend (Indonesian, figures formatted by value_refs)."""
-    parts = [f"Status backend {summary.status}" + (f" ({summary.status_reason})" if summary.status_reason else "")]
+    reason = REASON_LABELS.get(summary.status_reason or "", summary.status_reason)
+    parts = [f"Status backend {summary.status}" + (f" ({reason})" if reason else "")]
     if summary.validation_level:
         parts.append(f"level validasi {summary.validation_level}")
     if summary.effective_sample is not None:
@@ -1569,6 +1650,11 @@ PLAN_PROVENANCE_NOTICE = "Some figures below could not be traced to the Research
 PLAN_SUCCESS_RULE_INSTRUCTION = (
     "The success_rule value {values} is not a number the user stated. A success threshold is the user's: take it from "
     "their words, or set success_rule to null and ask them in the plan's confirmation question.")
+# M26 option B (user decision 2026-10-05): min_effect decides between SUPPORTED and PARTIALLY_SUPPORTED, so it is the
+# user's number or null, like the success threshold
+PLAN_MIN_EFFECT_INSTRUCTION = (
+    "The min_effect value {values} is not a number the user stated. The smallest effect that matters is the user's: "
+    "take it from their words, or set min_effect and min_effect_unit to null.")
 def previous_weekday(day: Any) -> str:
     """The weekday before day (ISO): the newest trading date a daily load can have delivered by then (holidays are
     not known here, so the day after one reads as one day older)."""
@@ -1953,9 +2039,8 @@ class AgentOrchestrator:
                                                   int(self.research_limits.get("max_angles", 6)),
                                                   int(self.research_limits.get("min_families") or 0)),
                                                  self.value_references, self.hypothesis_plans,
-                                                 frozenset(registry.names()))
-        if getattr(settings, "ai_enable_tool_envelope", False):
-            self.system_prompt += "\n\n" + TOOL_ENVELOPE_RULE
+                                                 frozenset(registry.names()),
+                                                 bool(getattr(settings, "ai_enable_tool_envelope", False)))
         self.final_schema = final_response_schema(self.plan_confirmation, self.methodology, self.research_findings,
                                                   self.multi_angle, self.value_references, self.hypothesis_plans)
         contract = response_contract(self.plan_confirmation, self.methodology, self.research_findings,
@@ -2563,7 +2648,9 @@ class AgentOrchestrator:
             self._set_turn(state, "EXECUTE_APPROVED", ALL_TYPES, None,
                            ResearchGuard(required=True, plan=verified.plan, plan_id=verified.plan_id,
                                          verification=verification),
-                           note=APPROVED_NOTE.format(plan_id=verified.plan_id, plan=plan_json)
+                           note=APPROVED_NOTE.format(
+                               plan_id=verified.plan_id, plan=plan_json,
+                               rules="HYPOTHESIS PLAN" if self.hypothesis_plans else "RESEARCH PLAN CONFIRMATION")
                            + self._draft_note(state, verified.draft_id))
             state.user_text = verified.plan.original_question + "\n" + state.user_text
             state.context_numbers.extend(numbers)
@@ -4440,7 +4527,7 @@ class AgentOrchestrator:
             parts = item.interpretation
             text = " ".join(t for t in [parts.answer, None if rendered else parts.evidence, parts.usefulness,
                                         parts.follow_up] if t)
-            allowed = {"SUPPORTED"} if status in ("SUPPORTED", "PARTIALLY_SUPPORTED") else set()
+            allowed = self._supported_claims(finding)
             problems += [f"{angle_id}: {p}" for p in self._verdict_wording(text, allowed)]
             effective = (finding.get("sample") or {}).get("effective")
             if not rendered and status not in ("INVALID", "NOT_RUN") and isinstance(effective, (int, float)):
@@ -4450,9 +4537,8 @@ class AgentOrchestrator:
             unsupported = check_answer(text, index).unsupported
             if unsupported:
                 problems.append(f"{angle_id}: figures without a governed source: {', '.join(unsupported[:10])}")
-        supported = any(f.get("status") in ("SUPPORTED", "PARTIALLY_SUPPORTED") for f in backend.values())
-        problems += [f"answer: {p}" for p in self._verdict_wording(final.answer, {"SUPPORTED"} if supported
-                                                                    else set())]
+        claims = set().union(*(self._supported_claims(f) for f in backend.values()))
+        problems += [f"answer: {p}" for p in self._verdict_wording(final.answer, claims)]
         agreement = ((run.get("research_synthesis_map") or {}).get("agreement") or {}).get("allowed") is True
         if not agreement:
             for match in re.finditer(AGREEMENT_WORDING, final.answer or "", re.IGNORECASE):
@@ -4463,17 +4549,36 @@ class AgentOrchestrator:
         return final, problems
 
     @staticmethod
+    def _supported_claims(finding: dict[str, Any]) -> set[str]:
+        """The supported wording an angle's status allows: SUPPORTED, and PARTIALLY_SUPPORTED for a reason other than
+        the user's minimum effect, allow "supported"; below the user's minimum effect only "supported in part"."""
+        status = finding.get("status")
+        if status == "PARTIALLY_SUPPORTED" and finding.get("status_reason") == BELOW_USER_MINIMUM:
+            return {"PARTIALLY_SUPPORTED"}
+        return {"SUPPORTED"} if status in ("SUPPORTED", "PARTIALLY_SUPPORTED") else set()
+
+    @staticmethod
     def _verdict_wording(text: str, verdicts: set[Any]) -> list[str]:
         problems = []
+        text = text or ""
+        # M26 option B: a qualified claim ("didukung sebagian") is allowed for a partly supported verdict; a plain
+        # "didukung" only for a supported one
+        partial = [m.span() for m in re.finditer(PARTIAL_WORDING, text, re.IGNORECASE)]
         for pattern, allowed, label in ((SUPPORTED_WORDING, "SUPPORTED", "supported"),
                                         (NO_EFFECT_WORDING, "NOT_SUPPORTED", "no effect")):
             if allowed in verdicts:
                 continue
-            for match in re.finditer(pattern, text or "", re.IGNORECASE):
+            for match in re.finditer(pattern, text, re.IGNORECASE):
+                qualified = pattern is SUPPORTED_WORDING and any(start <= match.start() < end for start, end in partial)
+                if qualified and "PARTIALLY_SUPPORTED" in verdicts:
+                    continue
                 # P10 (suite20b r08, 2026-09-29): "0 keluarga metode didukung" was read as a supported verdict; a
                 # negation or a zero count anywhere in the phrase's clause (P09's clause rule) makes it no claim
-                if not negated_or_zero(text or "", match.start(), match.end()):
-                    problems.append(f"\"{match.group(0)}\" states a {label} verdict the backend did not give")
+                if not negated_or_zero(text, match.start(), match.end()):
+                    hint = (" (the backend's verdict is partly supported: the effect is below the minimum effect the "
+                            "user named; write it as supported in part, for example \"didukung sebagian\")"
+                            if label == "supported" and "PARTIALLY_SUPPORTED" in verdicts else "")
+                    problems.append(f"\"{match.group(0)}\" states a {label} verdict the backend did not give{hint}")
                     break
         return problems
 
@@ -4558,6 +4663,18 @@ class AgentOrchestrator:
             self._gate_once(state, "PLAN_SUCCESS_RULE", PLAN_SUCCESS_RULE_INSTRUCTION.format(values=values))
             return self._forced(state, final, PLAN_PROVENANCE_NOTICE.format(numbers=values),
                                 [f"Success thresholds the user did not state: {values}."])
+        # M26 option B: a minimum effect decides the verdict, so it is the user's number too (experiments and angles)
+        items_with_effect = [i for i in (getattr(final.research_plan, "experiments", None)
+                                         or getattr(final.research_plan, "angles", None) or [])
+                             if getattr(i, "min_effect", None) is not None]
+        invented = [i.min_effect for i in items_with_effect
+                    if not any(abs(n - i.min_effect) < 1e-9 or abs(n * 100 - i.min_effect) < 1e-9
+                               or abs(n / 100 - i.min_effect) < 1e-9 for n in stated)]
+        if invented:
+            values = ", ".join(f"{v:g}" for v in invented)
+            self._gate_once(state, "PLAN_MIN_EFFECT", PLAN_MIN_EFFECT_INSTRUCTION.format(values=values))
+            return self._forced(state, final, PLAN_PROVENANCE_NOTICE.format(numbers=values),
+                                [f"Minimum effects the user did not state: {values}."])
         # M69 tahap 1: an outcome horizon the user stated binds every experiment and angle
         # the newest statement wins: a revision replaces the horizon of the first question (oldest text first)
         horizons, disagreement = locked_horizons(list(reversed(sources)), current_design_changes.get())

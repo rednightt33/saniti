@@ -12,8 +12,9 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from app.orchestrator import (DUAL_OPENING, DUAL_RESEARCH_SENTENCE, HYPOTHESIS_PLAN_RULES, MULTI_ANGLE_ONLY_SENTENCE,
-                              MULTI_ANGLE_OPENING, RESEARCH_FINDINGS_RULES, AgentOrchestrator, build_system_prompt)
+from app.orchestrator import (DUAL_RESEARCH_SENTENCE, HYPOTHESIS_PLAN_RULES, MULTI_ANGLE_ONLY_SENTENCE,
+                              MULTI_ANGLE_OPENING, RESEARCH_FINDINGS_RULES, RESEARCH_PLANS_RULES, AgentOrchestrator,
+                              build_system_prompt)
 from app.research_plan import ResearchPlanFindings
 from app.research_plan_v2 import current_angle_bounds
 from app.schemas import AgentRunRequest, final_response_schema
@@ -85,13 +86,15 @@ def test_the_prompt_and_schema_offer_both_forms_only_with_the_switch() -> None:
     assert "They are the backend's numbers and are cited like the angle findings above." in dual
     assert DUAL_RESEARCH_SENTENCE in dual and MULTI_ANGLE_ONLY_SENTENCE.split(":")[0] not in dual
     # M62 (golden test 2026-10-02, question 4): one decision rule names both forms; no rule claims every research
-    # question for the multi-angle plan while the hypothesis plan is offered
-    flat = " ".join(dual.split())
-    assert DUAL_OPENING in flat and " ".join(MULTI_ANGLE_OPENING.split()) not in flat
-    assert " ".join(MULTI_ANGLE_OPENING.split()) in " ".join(base.split()) and DUAL_OPENING not in base
-    assert flat.index(DUAL_OPENING) < flat.index("RESEARCH PLAN CONFIRMATION: HYPOTHESIS PLAN")
-    assert "even when a library method could also test them" in flat
-    assert not __import__("re").search(r"\d", DUAL_OPENING)  # the prompt is a number source: no digits
+    # question for the multi-angle plan while the hypothesis plan is offered. K4 (prompt audit pass 2): that rule is
+    # RESEARCH PLANS, before both plans; K3: the two field forms follow the plans
+    flat, choice = " ".join(dual.split()), markdown_prompt(RESEARCH_PLANS_RULES)
+    assert choice in dual and " ".join(MULTI_ANGLE_OPENING.split()) not in flat
+    assert " ".join(MULTI_ANGLE_OPENING.split()) in " ".join(base.split()) and "## RESEARCH PLANS" not in base
+    assert dual.index("## RESEARCH PLANS") < dual.index("## MULTI-ANGLE PLAN") < dual.index("## HYPOTHESIS PLAN") \
+        < dual.index("## RESEARCH PLAN FORMS")
+    assert "even when a library method could also test them" in flat and "Never mix the two in one plan." in flat
+    assert not __import__("re").search(r"\d", RESEARCH_PLANS_RULES)  # the prompt is a number source: no digits
     assert "The hypothesis plan:\n\n" in dual and '"experiments": [' in dual and '"angles": [' in dual
     refs = build_system_prompt(False, True, True, **args, value_references=True, hypothesis_plans=True)
     assert "{{finding.<hypothesis_id>.<path>}}" in refs

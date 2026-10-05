@@ -512,7 +512,7 @@ def test_the_multi_angle_prompt_replaces_the_plan_rules_and_names_no_figures() -
     three = build_system_prompt(False, True, True, plan_feasibility=True, final_contract=True, research_findings=True,
                                 multi_angle=True, angle_limits=(3, 5, 2))
     assert "at least three and at most five angles. The angles use at least two of the five method families." \
-        in three and "at least three and at most five angles" in three
+        in " ".join(three.split()) and "at least three and at most five angles" in three
     assert markdown_prompt(RESEARCH_PLAN_RULES) not in prompt and "check_data_feasibility" not in prompt
     # no digits except the list numbering (the system prompt is a number source for the provenance check)
     assert not re.search(r"\d", re.sub(r"(?m)^\d\. ", "", MULTI_ANGLE_PLAN_RULES + MULTI_ANGLE_FINDINGS_RULES))

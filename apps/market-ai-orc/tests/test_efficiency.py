@@ -222,7 +222,9 @@ def test_the_final_contract_replaces_the_schema_line_and_adds_no_numbers() -> No
         assert STRICT_SCHEMA_LINE not in after and "one JSON object and nothing else" in after
         assert numbers(before) == numbers(after)  # numbers in the prompt count as provenance sources
         assert ("research_plan has exactly this form" in after) is plan
-    assert RESPONSE_CONTRACT in build_system_prompt(False, True, False, False, final_contract=True)
+    # prompt audit pass 2 (F1): the long contract paragraph is one line per rule; its words are unchanged
+    assert " ".join(RESPONSE_CONTRACT.split()) in " ".join(
+        build_system_prompt(False, True, False, False, final_contract=True).split())
 
 
 def test_the_plan_form_names_every_field_and_enum_of_the_research_plan_model() -> None:
@@ -235,7 +237,7 @@ def test_the_plan_form_names_every_field_and_enum_of_the_research_plan_model() -
         assert f'"{value}"' in form
     assert '"analysis_frequency": string | null' in form and '"holdout_required": boolean' in form
     prompt = build_system_prompt(False, True, True, True, final_contract=True)
-    assert form in prompt and PLAN_FIELD_RULES in prompt
+    assert form in prompt and " ".join(PLAN_FIELD_RULES.split()) in " ".join(prompt.split())
 
 
 def test_with_the_contract_a_json_final_on_a_tool_turn_needs_one_call() -> None:

@@ -54,7 +54,7 @@ Test baseline: market-ai-orc 409, market-sql-governor 159, market-python-sandbox
 
 ```mermaid
 flowchart TD
-    U[User question] --> ORC[market-ai-orc orchestrator<br/>DATA NEED RULES prompt]
+    U[User question] --> ORC[market-ai-orc orchestrator<br/>DATA NEED prompt]
     ORC -->|discover_catalog / get_catalog_details / get_dimension_values| CAT[(AI catalogs<br/>join semantics, resample rules)]
     ORC -->|submit_data_need_spec| DNV[sandbox DataNeedValidator<br/>schema · catalog binding · cross-request · feasibility]
     DNV -->|RESEARCH| RG[Research Governor<br/>budgets, holdout, multiple testing]
@@ -163,7 +163,7 @@ No destructive change, backfill, market-data write, grant or role change was nee
 
 ## 8. Orchestration behavior
 
-- The prompt keeps the common catalog and discovery rules and replaces DATA QUERY RULES with DATA NEED RULES. The prefix stays byte-identical per deployment, so the prompt cache is kept.
+- The prompt keeps the common catalog and discovery rules and replaces DATA QUERY RULES with DATA SOURCES and DATA NEED (headings renamed in prompt audit pass 2, 2026-10-05). The prefix stays byte-identical per deployment, so the prompt cache is kept.
 - The gate rejects each problem once while tools are available, then forces a LIMITATION:
   1. an answer resting on a session that ran code without a completion, or with an INCOMPLETE one;
   2. a statistic without a COMPLETED analysis;

@@ -164,14 +164,14 @@ def test_the_dataneed_registry_replaces_the_analysis_spec_path() -> None:
 
 def test_the_dataneed_prompt_replaces_the_analysis_spec_rules() -> None:
     prompt = build_system_prompt(lookup_fact=False, dataneed=True)
-    assert "DATA NEED RULES" in prompt and "DATA QUERY RULES" not in prompt
+    assert "## DATA NEED\n" in prompt and "DATA QUERY RULES" not in prompt
     assert "create_analysis_spec" not in prompt and "lookup_fact" not in prompt and "{" not in prompt
     assert prompt.startswith(build_system_prompt(lookup_fact=False).split("DATA QUERY RULES\n")[0])
     with_lookup = build_system_prompt(lookup_fact=True, dataneed=True)
     assert "Use lookup_fact only for a specific source fact" in with_lookup and "a lookup_fact result, " in with_lookup
     assert "never calculate\nthem yourself" in DATANEED_RULES
     _, scripted = run([final_response(answer("Halo."))], Tools([]), message="Halo")
-    assert "DATA NEED RULES" in json.dumps(scripted.payloads[0])
+    assert "## DATA NEED\\n" in json.dumps(scripted.payloads[0])
 
 
 # --- the gate ----------------------------------------------------------------------------------------------------
