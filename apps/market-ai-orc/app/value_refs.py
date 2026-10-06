@@ -47,6 +47,8 @@ UNITS = ("FRACTION", "PERCENT", "P_VALUE")
 P_FLOOR = 0.001  # P24: a smaller p-value is shown as "p < 0,001"
 FUNCTION_ARITY = {"diff": 2, "abs": 1, "ratio": 2, "chg": 2}
 MINUS = "−"
+MENU_TABLE_ROWS = 30  # 1b: rows of a table (or items of a list of objects) listed one by one
+MENU_OBJECT_LIMIT = 200  # address menu lines for one object
 UNRESOLVED = "[nilai tidak tersedia]"
 # Item 12 (plan 2026-10-05): labels of values from outside the database, and how a rendered value names them; such a
 # value is a context source for the provenance gate (not in LABEL_ORDER), so it never lowers an answer's data label
@@ -317,59 +319,80 @@ class ReferenceSources:
                 return found, entry[1]
             raise
 
-    def menu(self, ref: str, limit: int = 40) -> list[str]:
-        """10.1 (plan 2026-10-05 item 10): the full addresses of the numeric values of the object at ref, each with its
-        value and unit ("<address> = <value> [unit]"), for the model to copy instead of composing an address from
-        memory. A table gives one example per numeric column of its first row read, by its identifying column when it
-        has one. Bounded to limit addresses; payloads, hashes and versions are left out."""
+    def menu(self, ref: str, limit: int = MENU_OBJECT_LIMIT) -> list[str]:
+        """10.1 and 1b (user decision 2026-10-05: "every result with figures lists the full address next to each figure,
+        e.g. median: −2,40 → {{out.o2.content.groups.CONDITION.median}}"): one line per numeric value of the object at
+        ref, "<name>: <value as shown> [unit] → {{<address>}}", for the model to copy instead of composing an address.
+        A table lists every row it has read up to MENU_TABLE_ROWS, by its identifying column when it has one, after a
+        pattern line naming the row selector and the numeric columns; a longer table states how many rows the pattern
+        covers. Bounded to limit lines; payloads, hashes and versions are left out."""
         try:
             value, _ = self.resolve(ref)
         except ReferenceError_:
             return []
         paths: list[tuple[str, float]] = []
-        _menu_leaves(value, ref, paths, limit, 0)
-        out = []
+        patterns: list[str] = []
+        _menu_leaves(value, ref, paths, limit, 0, patterns)
+        out = list(patterns)
         for address, number in paths:
+            if len(out) >= limit:
+                break
             unit = self.unit(address)
-            out.append(f"{address} = {_menu_number(number)}" + (f" [{unit}]" if unit else ""))
+            out.append(f"{_menu_name(address)}: {format_value(number)}" + (f" [{unit}]" if unit else "")
+                       + f" → {{{{{address}}}}}")
         return out
 
 
 MENU_SKIP = frozenset({"units", "hashes", "versions", "method_payload", "lineage", "definition", "warnings",
                        "limitations", "released_output_ids", "addresses", "_row", "query_hash", "query_id"})
 MENU_DEPTH = 7
-MENU_LIST_ITEMS = 3  # a list of objects (candidates, periods) shows its first items
+MENU_ADDRESS_RE = re.compile(r"\{\{([^{}]+)\}\}")
 
 
-def _menu_number(value: float) -> str:
-    if float(value).is_integer() and abs(value) < 1e15:
-        return str(int(value))
-    return f"{value:.6g}" if abs(value) < 1e6 else f"{value:.2f}"
+def menu_address(line: str) -> str | None:
+    """The address a menu line writes (None for a pattern or note line)."""
+    match = MENU_ADDRESS_RE.search(line)
+    return match.group(1) if match and "<" not in match.group(1) else None
 
 
-def _row_example(rows: list[Any]) -> tuple[int, str] | None:
-    """The first row and its selector: [column=value] by a text column unique across the rows, else its index."""
-    dicts = [r for r in rows if isinstance(r, dict)]
-    if not dicts:
+def _menu_name(address: str) -> str:
+    """The short name of a menu line: the field, after the row it belongs to (BBCA mean_return, CONDITION median)."""
+    parts = _split(address)
+    field_name = parts[-1]
+    row = re.search(r"\[[^=\]]+=([^\]]+)\]", address)
+    if row and not field_name.startswith(row.group(0)):
+        return f"{row.group(1)} {field_name.split('[', 1)[0]}"
+    if len(parts) >= 4 and parts[-2].isdigit():
+        return f"row {parts[-2]} {field_name}"
+    if len(parts) >= 4 and parts[-2] not in ("content", "rows"):
+        return f"{parts[-2].split('[', 1)[0]} {field_name}"
+    return field_name
+
+
+def _identity(rows: list[dict]) -> str | None:
+    """A text column whose values are unique across the rows (ticker, broker, date), else None."""
+    if len(rows) < 2:
         return None
-    for column in dicts[0]:
-        values = [r.get(column) for r in dicts]
-        if column != "_row" and len(dicts) > 1 and all(isinstance(v, str) for v in values) \
-                and len(set(values)) == len(values):
-            return 0, f"[{column}={dicts[0][column]}]"
-    return 0, ".0"
+    for column in rows[0]:
+        values = [r.get(column) for r in rows]
+        if column != "_row" and all(isinstance(v, str) for v in values) and len(set(values)) == len(values):
+            return column
+    return None
 
 
-def _menu_leaves(value: Any, path: str, out: list[tuple[str, float]], limit: int, depth: int) -> None:
+def _menu_leaves(value: Any, path: str, out: list[tuple[str, float]], limit: int, depth: int,
+                 patterns: list[str] | None = None) -> None:
     if len(out) >= limit or depth > MENU_DEPTH:
         return
+    total = None
     if isinstance(value, TableRows):
-        value = [value.rows[i] for i in sorted(value.rows)][:50]
+        total = value.row_count
+        value = [value.rows[i] for i in sorted(value.rows)]
     if isinstance(value, dict):
         for key, child in value.items():
             if str(key) in MENU_SKIP:
                 continue
-            _menu_leaves(child, f"{path}.{key}", out, limit, depth + 1)
+            _menu_leaves(child, f"{path}.{key}", out, limit, depth + 1, patterns)
         return
     if isinstance(value, list):
         if value and all(_number(v) is not None and not isinstance(v, str) for v in value) and len(value) <= 4:
@@ -378,12 +401,27 @@ def _menu_leaves(value: Any, path: str, out: list[tuple[str, float]], limit: int
                     out.append((f"{path}.{i}", float(item)))
             return
         if value and all(isinstance(v, dict) for v in value):
-            example = _row_example(value)
-            if example is not None and example[1].startswith("["):
-                _menu_leaves(value[example[0]], f"{path}{example[1]}", out, limit, depth + 1)
-                return
-            for i, item in enumerate(value[:MENU_LIST_ITEMS]):
-                _menu_leaves(item, f"{path}.{i}", out, limit, depth + 1)
+            rows = [v for v in value if isinstance(v, dict)]
+            column = _identity(rows)
+            shown = rows[:MENU_TABLE_ROWS]
+            total = total if total is not None else len(rows)
+            if patterns is not None:
+                numeric = [k for k, v in rows[0].items()
+                           if k not in MENU_SKIP and not isinstance(v, (str, bool)) and _number(v) is not None]
+                selector = f"[{column}=<{column}>]" if column else ".<baris>"
+                note = f" ({len(shown)} of {total} rows listed below; the others use the same pattern)" \
+                    if total > len(shown) else ""
+                if numeric:
+                    patterns.append(f"pattern: {{{{{path}{selector}.<column>}}}}, numeric columns: "
+                                    f"{', '.join(numeric[:20])}{note}")
+                if column and total > len(shown):
+                    names = [str(r.get(column)) for r in rows[len(shown):len(shown) + 50]]
+                    if names:
+                        patterns.append(f"other {column} values: {', '.join(names)}"
+                                        + (" …" if total > len(shown) + len(names) else ""))
+            for i, row in enumerate(shown):
+                step = f"[{column}={row[column]}]" if column else f".{i}"
+                _menu_leaves(row, f"{path}{step}", out, limit, depth + 1, patterns)
         return
     if not isinstance(value, (str, bool)) and _number(value) is not None:
         out.append((path, float(value)))

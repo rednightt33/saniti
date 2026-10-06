@@ -13,7 +13,7 @@ from app import edit_repair
 from app.orchestrator import AgentOrchestrator, RunState
 from app.tools import ToolOutcome, build_default_registry
 from app.tools.references import check
-from app.value_refs import ReferenceSources, TableRows, render
+from app.value_refs import ReferenceSources, TableRows, menu_address, render
 
 UNITS = {"angle_a.difference": "PERCENT", "mean": "PERCENT", "median": "PERCENT", "angle_b.difference": "FRACTION"}
 
@@ -65,26 +65,55 @@ def test_menu_lists_full_addresses_with_values_and_units() -> None:
     sources = ReferenceSources()
     sources.add("finding", "bank_up5", hypothesis_finding(), "DATA_COVERAGE_VERIFIED")
     menu = sources.menu("finding.bank_up5")
-    assert "finding.bank_up5.angle_a.difference = 2.23 [PERCENT]" in menu
-    assert "finding.bank_up5.groups.CONDITION.mean = 2.73 [PERCENT]" in menu
-    assert "finding.bank_up5.confidence_level = 0.95" in menu
+    assert "angle_a difference: 2,23 [PERCENT] → {{finding.bank_up5.angle_a.difference}}" in menu
+    assert "CONDITION mean: 2,73 [PERCENT] → {{finding.bank_up5.groups.CONDITION.mean}}" in menu
+    assert "confidence_level: 0,95 → {{finding.bank_up5.confidence_level}}" in menu
     assert not any(".hashes" in line or ".units" in line for line in menu)
 
 
 def test_menu_shows_nested_json_content_of_an_output() -> None:
     orc, run = orchestrator(), state()
     result = completed_hypothesis(run, orc)
-    assert "out.o1.content.groups.CONDITION.median = -2.4 [PERCENT]" in result["addresses"]
-    assert any(line.startswith("finding.bank_up5.angle_a.ci_low") for line in result["addresses"])
-    assert result["addresses_note"].startswith("Each line is a value reference")
+    # the user's example (2026-10-05): "median: −2,40 → {{out.o2.content.groups.CONDITION.median}}"
+    assert "CONDITION median: −2,40 [PERCENT] → {{out.o1.content.groups.CONDITION.median}}" in result["addresses"]
+    assert any("{{finding.bank_up5.angle_a.ci_low}}" in line for line in result["addresses"])
+    assert result["addresses_note"].startswith("Each line is \"name: value as shown")
 
 
-def test_menu_gives_a_keyed_table_one_example_row_by_its_identity_column() -> None:
+def test_menu_lists_every_row_of_a_keyed_table_after_its_pattern() -> None:
     sources = ReferenceSources()
     table = TableRows(2)
     table.add(0, [{"broker": "XL", "net_bn": 6.75}, {"broker": "SQ", "net_bn": 1.2}])
     sources.add("out", "out_rank", {"name": "ranking", "rows": table}, "DATA_COVERAGE_VERIFIED")
-    assert sources.menu("out.out_rank") == ["out.out_rank.rows[broker=XL].net_bn = 6.75"]
+    assert sources.menu("out.out_rank") == [
+        "pattern: {{out.out_rank.rows[broker=<broker>].<column>}}, numeric columns: net_bn",
+        "XL net_bn: 6,75 → {{out.out_rank.rows[broker=XL].net_bn}}",
+        "SQ net_bn: 1,20 → {{out.out_rank.rows[broker=SQ].net_bn}}"]
+    assert render("{{out.out_rank.rows[broker=SQ].net_bn|dec}}", sources).text == "1,20"
+
+
+def test_a_long_table_lists_its_first_rows_and_names_the_others_for_the_pattern() -> None:
+    sources = ReferenceSources()
+    table = TableRows(100)
+    table.add(0, [{"ticker": f"T{i:03d}", "ret": i / 10} for i in range(40)])
+    sources.add("out", "big_table", {"rows": table}, "DATA_COVERAGE_VERIFIED")
+    menu = sources.menu("out.big_table")
+    assert menu[0] == ("pattern: {{out.big_table.rows[ticker=<ticker>].<column>}}, numeric columns: ret "
+                       "(30 of 100 rows listed below; the others use the same pattern)")
+    assert menu[1].startswith("other ticker values: T030, T031") and menu[1].endswith("…")
+    assert len([line for line in menu if menu_address(line)]) == 30
+    assert "T029 ret: 2,90 → {{out.big_table.rows[ticker=T029].ret}}" in menu
+
+
+def test_a_table_without_an_identifying_column_is_listed_by_position() -> None:
+    sources = ReferenceSources()
+    table = TableRows(2)
+    table.add(0, [{"x": 1.5}, {"x": 2.5}])
+    sources.add("out", "plain", {"rows": table}, "DATA_COVERAGE_VERIFIED")
+    menu = sources.menu("out.plain")
+    assert menu[0] == "pattern: {{out.plain.rows.<baris>.<column>}}, numeric columns: x"
+    assert "row 1 x: 2,50 → {{out.plain.rows.1.x}}" in menu
+    assert render("{{out.plain.rows.1.x|dec}}", sources).text == "2,50"
 
 
 def test_menu_is_bounded() -> None:
@@ -157,7 +186,7 @@ def test_a_reference_read_has_a_citable_matched_count() -> None:
         "status": "ROWS_READY", "table": "IDX_Stock_Universe", "matched": 48, "truncated": False,
         "rows": [{"Ticker": "BBRI", "Sector": "Banks"}]})
     assert result["ref"] == "reference.r1"
-    assert result["addresses"] == ["reference.r1.matched = 48"]
+    assert result["addresses"] == ["matched: 48 → {{reference.r1.matched}}"]
     assert render("{{reference.r1.matched|int}} bank", run.ref_sources).text == "48 bank"
 
 

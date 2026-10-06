@@ -47,7 +47,7 @@ from .user_words import allowed_periods, current_design_changes, current_turn_re
 from .provenance import (CONTEXT, typed_figures, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
                          parse_numbers, released_numbers, requested_statistics, weakest)
 from .value_refs import (OUTSIDE_LABELS, OUTSIDE_NAMESPACES, REF_RE, UNITS, ReferenceSources, Resolved, TableRows,
-                         format_value, render)
+                         format_value, menu_address, render)
 from .tools import ToolOutcome, ToolRegistry, error_outcome
 from .tools.analysis import DataDate, current_conversation_key, current_data_date, current_run_context, run_context
 from .tools.envelope import envelope
@@ -56,8 +56,8 @@ from .result_store import restore_missing, store_released
 from .tools.artifacts import RunResults, current_results
 from .tools.session import current_carried_outputs, current_carried_restorer
 from .tools.system import current_step_tools
-from .tools.request_data import (current_reference_sources, current_request_id, current_run_deadline,
-                                 current_turn_id)
+from .tools.request_data import (current_conversation_id, current_reference_sources, current_request_id,
+                                 current_run_deadline, current_turn_id, session_key)
 
 
 logger = logging.getLogger("market_ai_orc")
@@ -781,10 +781,11 @@ ANGLE_NARRATIVE_CONTRACT = ("research_findings: for an ANSWER that rests on a co
                             "follow_up); the backend adds every approved angle's status, evidence and statistics; "
                             "otherwise null. ")
 # 10.1 (plan 2026-10-05 item 10): the addresses a result lists, copied by the model instead of composed from memory
-ADDRESS_MENU_MAX = 120
+ADDRESS_MENU_MAX = 200  # 1b: lines per tool result (measured 2026-10-06: about 890 tokens per table output on average)
 WEB_LOOKUP_TOOLS = frozenset({"find_web_fact", "research_web"})  # P34: checked against the database first
-ADDRESS_MENU_NOTE = ("Each line is a value reference this run can write: copy the address between {{ and }} as it is "
-                     "and add a format; never compose an address from memory. check_references shows what an address "
+ADDRESS_MENU_NOTE = ("Each line is \"name: value as shown [unit] → {{address}}\": write the figure by copying its "
+                     "{{address}} as it is and adding a format; never compose an address from memory. A table row not "
+                     "listed uses the pattern line with that row's value. check_references shows what an address "
                      "renders before you write the answer.")
 REFERENCE_INSTRUCTION = (
     "Your response has value references that do not resolve: {problems}. Use only the refs and fields the tool "
@@ -1742,10 +1743,10 @@ def log_event(event: str, **fields: Any) -> None:
 
 
 def static_prefix_hash(payload: dict[str, Any]) -> str:
-    """Fingerprint of everything a model call sends except the conversation (input): instructions, tools,
-    output format, and settings, serialized in the order sent. Equal fingerprints across a run's calls mean
-    the reusable prefix did not change; tools withdrawn or a final JSON format change it legitimately."""
-    static = {key: value for key, value in payload.items() if key != "input"}
+    """Fingerprint of everything a model call sends except the conversation (input) and the session id (EXEC-S):
+    instructions, tools, output format, and settings, serialized in the order sent. Equal fingerprints across a run's
+    calls mean the reusable prefix did not change; tools withdrawn or a final JSON format change it legitimately."""
+    static = {key: value for key, value in payload.items() if key not in ("input", "session_id")}
     return hashlib.sha256(json.dumps(static, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()[:16]
 
 
@@ -2137,6 +2138,7 @@ class AgentOrchestrator:
         for text in [turn.content for turn in request.history if turn.role == "user"] + [request.message]:
             state.context_numbers.extend(value for shown in parse_numbers(text) for value, _ in shown.candidates)
         token = current_request_id.set(request.request_id)
+        conversation_token = current_conversation_id.set(current_conversation_id.get() or request.conversation_id)
         references_token = current_reference_sources.set(state.ref_sources)
         # item 12: a mode 4 step keeps its run's turn id (the web budget key); a web lookup waits at most until the
         # run's deadline
@@ -2230,6 +2232,7 @@ class AgentOrchestrator:
             if carried is not None:
                 current_carried_outputs.reset(carried)
             current_request_id.reset(token)
+            current_conversation_id.reset(conversation_token)
             current_reference_sources.reset(references_token)
             current_turn_id.reset(turn_token)
             current_run_deadline.reset(deadline_token)
@@ -2863,7 +2866,7 @@ class AgentOrchestrator:
         counts this call (a check inside a run)."""
         state = usage_state or RunState(request_id=request_id, started=self.clock(), input_items=[])
         payload: dict[str, Any] = {
-            "model": self.settings.ai_model, "session_id": f"{request_id}:{session}",
+            "model": self.settings.ai_model, "session_id": session_key(f"{request_id}:{session}"),
             "instructions": instructions,
             "input": [{"role": "user", "content": content}],
             "reasoning": self.settings.reasoning("low"),
@@ -2897,7 +2900,7 @@ class AgentOrchestrator:
         """A free-text reply to a plan, read by one small tool-free model call constrained to APPROVE, REVISE, CANCEL
         or UNRELATED. Any failure is UNRELATED, which never approves anything."""
         payload: dict[str, Any] = {
-            "model": self.settings.ai_model, "session_id": f"{state.request_id}:plan-reply",
+            "model": self.settings.ai_model, "session_id": session_key(f"{state.request_id}:plan-reply"),
             "instructions": CLASSIFIER_INSTRUCTIONS,
             "input": [{"role": "user", "content": dumps({"research_plan": plan_digest_v2(plan)
                                                          if isinstance(plan, ResearchPlanV2) else plan_digest(plan),
@@ -3140,9 +3143,9 @@ class AgentOrchestrator:
     def _payload(self, state: RunState, tools: list[dict[str, Any]]) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "model": self.settings.ai_model,
-            # One session per run: OpenRouter uses it as the sticky-routing key, so every call of the run
-            # goes to the same provider endpoint and can reuse its implicit prompt cache.
-            "session_id": state.request_id,
+            # EXEC-S: one session per conversation (per run without one). OpenRouter uses it as the sticky-routing
+            # key, so every call of the conversation goes to the same provider endpoint and reuses its prompt cache.
+            "session_id": session_key(state.request_id),
             "instructions": state.instructions or self.system_prompt,
             "input": state.input_items,
             "reasoning": self.settings.reasoning(self.settings.ai_reasoning_effort),
@@ -4161,8 +4164,11 @@ class AgentOrchestrator:
             entry["ref"] = f"{namespace}.{entry['id']}"  # its own ref is its address: no menu line
         if getattr(self, "address_menu", False) and refs:
             menu = [line for ref in dict.fromkeys(refs) for line in sources.menu(ref)]
+            if len(menu) > ADDRESS_MENU_MAX:  # never cut silently: the pattern lines cover the rows not listed
+                menu = menu[:ADDRESS_MENU_MAX - 1] + [
+                    f"… {len(menu) - ADDRESS_MENU_MAX + 1} more addresses not listed; write them with the pattern lines"]
             if menu:
-                result["addresses"] = menu[:ADDRESS_MENU_MAX]
+                result["addresses"] = menu
                 result["addresses_note"] = ADDRESS_MENU_NOTE
 
     @staticmethod
@@ -4197,9 +4203,9 @@ class AgentOrchestrator:
         sources = state.ref_sources
         shown = {(namespace, key): alias for namespace, aliases in sources.aliases.items()
                  for alias, key in aliases.items()}
-        menu = [line.split(" = ", 1)[0] for namespace, keys in sources.objects.items()
-                for key in keys for line in sources.menu(f"{namespace}.{shown.get((namespace, key), key)}",
-                                                         limit=200)]
+        menu = [address for namespace, keys in sources.objects.items()
+                for key in keys for line in sources.menu(f"{namespace}.{shown.get((namespace, key), key)}")
+                if (address := menu_address(line)) is not None]
         lines = []
         for expression in failing[:8]:
             parts = expression.split("|", 1)[0].strip().split(".")
@@ -5327,7 +5333,7 @@ class AgentOrchestrator:
         """Run-level model usage: logical prompt tokens versus what the provider served from its cache."""
         return {
             "request_id": state.request_id,
-            "session_id": state.request_id,
+            "session_id": session_key(state.request_id),
             "model": self.settings.ai_model,
             "model_calls": state.iterations,
             "prompt_tokens": state.input_tokens,
