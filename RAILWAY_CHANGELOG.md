@@ -19,6 +19,9 @@ in `EXEC.md` ("Naikkan batas token"; "kenapa gak serahkan ke model saja?").
 - **Config:** `railway config pull --force` added `AI_ENABLE_ASK_BACK: preserve()` to `.railway/railway.ts`;
   `railway config plan`: up to date.
 - **AI_TOOLS.md:** switch snapshot regenerated from the live flags (names and true/false only).
+- **Re-test and fixes:** re-test `ma-qa-20261006f` passed (`GT_QA_2026-10-06.md` §8). The M99/M100 fixes went with
+  the records: `main` `0ce0dca`, `market-ai-orc` deployment `ca6177de` reached `SUCCESS` (start log clean);
+  web-governor and sandbox `SKIPPED`. No variable changed.
 
 ## 2026-10-06 — EXEC wave 2 (EXEC-E, EXEC-R, EXEC-P2) on dev
 
