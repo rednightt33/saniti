@@ -25,12 +25,14 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 | 1 | Sisa item 10 dan 12: deploy dua perbaikan, ulang uji item ambang, laporan golden test `ma-qa-20261006b` | "gas" 2026-10-05; format web "Ok tambahkan" 2026-10-06; **EXEC 2026-10-06** | **EXEC** (lihat bagian EXEC) | 1 |
 | 1b | Menu alamat lengkap (celah item 10.1): setiap angka tabel punya alamat, pola alamat ditulis, nilai terformat | 2026-10-05 15:49 dan 17:55 ("Menu alamat siap salin … alamat lengkap di samping angkanya"); ditegaskan 2026-10-06 ("padahal sudah saya suruh") | Sebagian: menu live sejak golden test 06b, tetapi tabel hanya satu baris contoh dan baris pola yang direncanakan tidak dibuat; **EXEC 2026-10-06** ("Ok masukan", bagian dari EXEC-1) | **EXEC** (EXEC-1 langkah 1b) | 1 |
 | 1c | EXEC-R: penolakan tanpa tulis ulang (R1–R5: edit field bersarang, `keep`, angka ketik jadi alamat, galat format yang benar + edit kedua, validasi per butir + jatah per penyebab + tanggal terbuka) | 2026-10-06 ("Masukan exec untuk masalah AI rejection tapi harus ulang dari awal") | **EXEC** (menunggu konfirmasi mulai) | Sesudah EXEC-1 |
+| 1d | EXEC-C: konteks dibawa ke run berikutnya setelah LIMITED / giliran baru (memo run + P4) | 2026-10-06 ("masukan exec") | **EXEC** (menunggu konfirmasi mulai) | Sesudah EXEC-R |
+| 1e | EXEC-A: penyelarasan jalur (satu pembaca maksud, gerbang hanya meminta alat yang ada, 10.6 dan edit sama di semua jalur) | 2026-10-06 ("masukan exec") | **EXEC** (menunggu konfirmasi mulai) | Bersama EXEC-3 |
 | 2 | P3: gerbang yang salah tolak | 2026-10-06 "OK masukan plan jangan execute dulu" | Belum (P3a ikut EXEC butir 1, P3b ikut EXEC butir 3) | 3 |
 | 3 | Item 11: penyortir "free will", jalur TANYA BALIK, cadangan berupa pertanyaan | 2026-10-05 (16:47, 17:40, 17:51, 17:55), ditegaskan 2026-10-06; **EXEC 2026-10-06** | **EXEC** (lihat bagian EXEC) | 2 |
 | 4 | P2: jawaban ditulis sekali | 2026-10-06 | Belum | 4 |
 | 5 | P1: mode 4 berhenti setelah analisis + rencana | 2026-10-06 | Belum | 5 |
 | 6 | P5: gabung langkah mekanis | 2026-10-06 | Belum | 6 |
-| 7 | P4: hasil jelajah dibawa antar-putaran | 2026-10-06 | Belum | 7 |
+| 7 | P4: hasil jelajah dibawa antar-putaran | 2026-10-06 | Masuk EXEC-C (butir 1d) | — |
 | 8 | Round 2026-10-03 Fase E: E1 hit rate (M69 tahap 2), E2 ambil sekali beri label (G19 lapis 2) | 2026-10-03 (round disetujui) | Belum; E2 menunggu keputusan 6 | 8 |
 | 9 | C06 1a-permanen dan D06 peringatan Telegram | 2026-10-02 | Belum (sisanya sudah live) | 9 |
 | 10 | G2-B, S20, minimal 4 hipotesis, analisis faktor | 2026-10-02 (`G2_G3_REACTIVATION_PLAN.md` langkah 8, FINAL) | Belum; 4 keputusan rinci masih terbuka | 10 |
@@ -122,8 +124,8 @@ Bagian yang sudah ada di EXEC lain tidak diulang:
 | R4 | Galat format dan edit gagal (79 dtk); jawaban riset q7 jatuh menjadi LIMITATION | (a) Bila parser longgar juga gagal, model diberi galat parser longgar beserta posisi dan potongan teksnya. Galat "control character" dari parser ketat menyesatkan (P3d). (b) Edit yang gagal mendapat satu kesempatan edit lagi dengan penyebab persisnya, bukan langsung tulis ulang penuh. (c) `"all": true` pada teks biasa diperlakukan sebagai `count` = jumlah kemunculan (P2d) | `orchestrator.py` (`_parse_final_output`, `_apply_edit`), `edit_repair.py` |
 | R5 | Validasi semua-atau-tidak dan jatah perbaikan yang langsung habis (`query_metric` ×4, `get_evidence` `claims.2`) | (a) `get_evidence` memvalidasi klaim satu per satu; klaim cacat menjadi TIDAK_BISA_DICEK dengan alasannya, klaim lain tetap dicek (E2). (b) Jatah perbaikan dihitung per penyebab **per giliran model**: 4 penolakan sama dalam satu giliran dihitung 1. (c) `query_metric` menerima `start_date` tanpa `end_date` (sampai data terakhir / `as_of`) | `tools/evidence.py`, `orchestrator.py` (`_repair_budget`), `tools/metric.py` (`Period`) |
 
-**Tambahan dari saya, butuh OK terpisah** (daftar perbedaan dari usulan Anda, sesuai R35):
-- **P3c:** gerbang hanya meminta alat yang ada di langkah itu. `get_evidence` dan `check_references` ditambahkan ke
+**Tambahan dari saya** (daftar perbedaan dari usulan Anda, sesuai R35):
+- **P3c (kini disetujui lewat EXEC-A):** gerbang hanya meminta alat yang ada di langkah itu. `get_evidence` dan `check_references` ditambahkan ke
   langkah riset yang disetujui (`_approve_v2`). Tanpa P3c, jawaban riset q7 tetap bisa langsung jatuh menjadi
   LIMITATION (`tool_not_in_step`) walau R4 sudah ada.
 - **Tidak termasuk:**
@@ -149,6 +151,68 @@ Bagian yang sudah ada di EXEC lain tidak diulang:
 - Tes merah yang tidak bisa diperbaiki di dalam cakupan R1–R5.
 - Uji ulang menunjukkan gerbang menjadi longgar (angka tanpa sumber lolos). Bila ini terjadi, R3 dimatikan dan
   dilaporkan.
+
+### EXEC-C: konteks dibawa ke run berikutnya (butir 1d, mencakup P4)
+
+**Masalah:** setelah sebuah run berakhir (LIMITED atau selesai), giliran berikutnya adalah run baru. Yang terbawa hanya
+teks percakapan dan output yang dirilis. Pikiran, bacaan katalog, panduan yang dibuka, dan alasan penolakan hilang,
+sehingga model menjelajah ulang. Contoh: threshold t3 langkah 1 berpikir 5.253 token selama 64 dtk; q7-m4b membaca
+ulang katalog dan 5 panduan (±170 dtk).
+
+**Perubahan:**
+- **Memo run** disimpan di data record percakapan (`data_record.py`) di akhir setiap run dan sub-run mode 4. Isinya
+  terstruktur:
+  - tabel, kolom dan relasi yang sudah dibaca, beserta cakupannya;
+  - panduan metode yang sudah dibuka;
+  - spesifikasi data yang diajukan dan statusnya;
+  - keputusan desain yang dipakai (horizon, ambang, efek minimal, cakupan);
+  - asumsi jawaban;
+  - bila berakhir LIMITED/LIMITATION: gerbang yang menolak, alasannya, dan bagian draf yang ditolak.
+- Run berikutnya menerima memo itu sebagai catatan aplikasi setelah prefix statis, supaya cache prompt tetap. Model
+  dipandu memakai memo dulu sebelum menjelajah katalog lagi.
+- **Pikiran mentah tidak dibawa** (panjang, milik penyedia). Yang dibawa adalah kesimpulannya dalam bentuk terstruktur.
+- **Berkas:** `data_record.py`, `orchestrator.py` (akhir run, awal run), `mode4.py` (`sub`), `tools/catalog.py`,
+  `tools/method_guides.py`.
+- **Tes:**
+  - memo tersimpan dan dibaca;
+  - batas panjang memo (usul ≤ 4.000 karakter);
+  - memo tidak memuat angka yang bisa dikutip, karena angka tetap lewat alamat.
+- **Lulus bila** di ulang uji threshold dan q7: panggilan jelajah katalog di run lanjutan turun ≥ 50%, dan token
+  berpikir langkah pertama run lanjutan turun.
+
+### EXEC-A: penyelarasan jalur (butir 1e)
+
+**Masalah:** aturan yang sama berbeda antar-jalur. Contohnya:
+- bacaan "tambah/ganti" hanya di mode 4 (h_add t2 LIMITED);
+- gerbang EVIDENCE meminta `get_evidence` di langkah riset yang tidak punya alat itu (q7-m4c LIMITATION setelah
+  580 dtk);
+- catatan menu alamat menyebut `check_references` di langkah tanpa alat itu;
+- 10.6 dan edit tidak berlaku sama di semua jalur.
+
+**Perubahan:**
+1. **Satu pembaca maksud untuk semua jalur.** Penyortir pesan pertama, penyortir mode 4 dan pembaca balasan rencana
+   menghasilkan keluaran yang sama: `design_value_changes` (tambah/ganti/hapus), `referent` (merujuk hasil
+   sebelumnya), dan `understood_intent`. Gerbang membaca keluaran itu di jalur mana pun. Mencakup P3b dan dibangun
+   bersama EXEC-3.
+2. **Gerbang hanya meminta jalan keluar yang alatnya ada** (mencakup P3c, kini disetujui):
+   - setiap gerbang yang punya `needs` hanya muncul sebagai permintaan bila alatnya ada di meja langkah itu; bila
+     tidak ada, alat itu ditambahkan ke meja langkah tersebut;
+   - langkah riset disetujui ditambah `get_evidence` dan `check_references`;
+   - langkah rencana ditambah `check_references` dan `get_session_output`, karena rencana harus bisa mengutip hasil
+     sebelumnya.
+   - **Tes permanen:** gagal bila `needs` sebuah gerbang tidak ada di meja proses tempat gerbang itu bisa muncul, atau
+     bila kalimat prompt atau catatan hasil alat menyebut alat yang tidak ada di meja (prinsip P31).
+3. **10.6 dan edit berlaku sama di semua jalur.** Alamat dirender di jawaban rencana di semua jalur rencana (PROPOSE,
+   REVISE, REPLAN, m4b, m4d). Edit, termasuk field bersarang (R1) dan `keep` (R2), ditawarkan di semua langkah yang
+   punya alat. Tes per jalur.
+
+- **Berkas:** `conversation_router.py`, `orchestrator.py` (`_classify_reply`, `_desk`, `_gate_once`, `_approve_v2`,
+  `plan_tools`, `ADDRESS_MENU_NOTE`), `mode4.py`, tes baru `tests/test_tool_desks.py`.
+- **Lulus bila:**
+  - tes meja alat hijau;
+  - ulang uji h_add t2 dan q7 tanpa `tool_not_in_step` dan tanpa LIMITED karena "tambah horizon".
+- **Catatan:** analisis lengkap "alat per proses" (HARUS / BOLEH / TIDAK BOLEH) yang diminta user belum dijalankan.
+  Hasilnya bisa mengubah daftar alat di langkah 2.
 
 ---
 
