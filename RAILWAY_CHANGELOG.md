@@ -1,5 +1,25 @@
 # Railway changelog
 
+## 2026-10-06 — EXEC wave 3 (EXEC-3, EXEC-A, EXEC-T, variants and correction) on dev
+
+Started under the user's go for every EXEC ("mulai") and "Lanjut gelombang 3 (Recommended)"; decisions during the wave
+in `EXEC.md` ("Naikkan batas token"; "kenapa gak serahkan ke model saja?").
+
+- **Router benchmark before deploy** (local, real model, ±USD 0.07 in two runs):
+  - first run: 4 failed calls (JSON cut off at 2,000 tokens, M98);
+  - second run with the 4,000 cap: 0 failed calls, must-ask 6/6, 0 data questions to CHAT/FACT, turn router 50/50.
+- **Deploy:** `main` fast-forwarded to `becb9da` (branch `claude/upbeat-dijkstra-iybq2f`).
+  - `market-ai-orc` deployment `9b47bccc` reached `SUCCESS`; start log clean (no inactive feature, no traceback).
+  - `market-web-governor` and `market-python-sandbox` `SKIPPED` (unchanged).
+- **Variable:** `AI_ENABLE_ASK_BACK=true` on `market-ai-orc` (dev, service variable, set and read back).
+  - Its redeploy `f5bb4e23` reached `SUCCESS`.
+  - Prerequisite `AI_ENABLE_FIRST_TURN_ROUTER=true` checked first.
+  - Way back: `AI_ENABLE_ASK_BACK=false` (ask back, variants, correction off).
+  - The tool desks are code; their way back is a redeploy of `8740079c`.
+- **Config:** `railway config pull --force` added `AI_ENABLE_ASK_BACK: preserve()` to `.railway/railway.ts`;
+  `railway config plan`: up to date.
+- **AI_TOOLS.md:** switch snapshot regenerated from the live flags (names and true/false only).
+
 ## 2026-10-06 — EXEC wave 2 (EXEC-E, EXEC-R, EXEC-P2) on dev
 
 - **Variable:** market-ai-orc `AI_ENABLE_EVIDENCE` true → false (EXEC-E step 1; names and true/false only), deployment

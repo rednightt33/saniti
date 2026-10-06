@@ -130,7 +130,7 @@ Dibuat dari `apps/market-ai-orc/app/tool_desks.py` (`DESKS`), saklar semua menya
 ## Snapshot saklar di dev
 
 <!-- dev-snapshot:start -->
-Diambil 2026-10-06 dari Railway (nama dan nilai true/false saja).
+Diambil  dari Railway (nama dan nilai true/false saja).
 
 | Saklar | dev |
 |---|---|
