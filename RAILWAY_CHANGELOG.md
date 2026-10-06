@@ -1,5 +1,25 @@
 # Railway changelog
 
+## 2026-10-06 — EXEC wave 2 (EXEC-E, EXEC-R, EXEC-P2) on dev
+
+- **Variable:** market-ai-orc `AI_ENABLE_EVIDENCE` true → false (EXEC-E step 1; names and true/false only), deployment
+  `3fc0de78` SUCCESS. The new code no longer reads it; it stays as the way back to an older deployment.
+  `railway config pull --force`: no change to `.railway/railway.ts`; `railway config plan`: already up to date.
+- **`main` fast-forwarded to `5c75894`** (code `6c6ce58`: get_evidence removed, typed-figures gate, edit `set`/`keep`,
+  lenient JSON error, second edit, repair budget per turn, `query_metric` open end date, answer-length target; method
+  guides v6 in orc and sandbox): market-ai-orc `339bab1b` SUCCESS, market-python-sandbox `d56eea1a` SUCCESS (no run in
+  progress; `isolation_enforced=true`), market-web-governor SKIPPED. orc started before the sandbox was on v6 and logged
+  `method_guides_inactive` (5 vs 6), as designed.
+- **Migrations** 20261006_001 and 002 by the temporary service `jmig-job` (DRYRUN `8554a2e7`, APPLY `6a9851cc`;
+  deleted, read back absent); see `DATABASE_CHANGELOG.md`. Then market-ai-orc redeployed: `8740079c` SUCCESS, no
+  `method_guides_inactive` (orc, sandbox and database on guides v6).
+- **Re-test** `ma-qa-20261006e` (`orc-test-runner` `b9e67af3`, 3 items, 7 turns, 2 workers): every turn completed,
+  none LIMITED; no `get_evidence` call or EVIDENCE gate; USD 0.215. Time after refusals 117 of 570 model seconds
+  (20.5%; the same items in 06b: 488 of 1,823, 26.8%); the 5% target is not met (M90 and the 10.6 citation path).
+  Results in `GT_QA_2026-10-06.md` §7.
+- Rollback: orc `e530e063` (wave 1) with `AI_ENABLE_EVIDENCE=true`; sandbox `04fcd4c2`. The migrations only add rows
+  and notes.
+
 ## 2026-10-06 — EXEC wave 1 (EXEC-1, EXEC-S) on dev
 
 Started on the user's go ("mulai", 2026-10-06; `EXEC.md`). No variable changed; `railway config plan` not needed.
