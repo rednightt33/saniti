@@ -155,8 +155,10 @@ def test_capabilities_report_the_tools_of_the_step() -> None:
     finally:
         current_step_tools.reset(token)
     assert set(step["available_tools"]) <= DESKS["read_only"]
-    assert "run_python" in step["other_tools_not_in_this_step"]
-    assert set(step["available_tools"]) | set(step["other_tools_not_in_this_step"]) == set(everything["available_tools"])
+    # EXEC-T (2026-10-06): a tool the step cannot call is not named anywhere in the report, only its capability
+    named = set(step["available_tools"]) | {t for tools in step["capabilities"].values() for t in tools}
+    assert "other_tools_not_in_this_step" not in step and "run_python" not in named
+    assert "run_python_analysis" in step["not_available"]
 
 
 def test_capabilities_called_in_a_run_see_the_runs_desk() -> None:

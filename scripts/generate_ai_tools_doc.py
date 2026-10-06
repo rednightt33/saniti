@@ -226,6 +226,25 @@ def method_guides() -> list[dict]:
             for g in guides.GUIDES]
 
 
+def desk_matrix() -> list[str]:
+    """EXEC-T (2026-10-06): the tools of each process, from app/tool_desks.py over the registry with every switch on."""
+    sys.path.insert(0, str(ROOT / "apps/market-ai-orc"))
+    from app import tool_desks as desks
+
+    effects = _effects()
+    table = desks.matrix(frozenset(effects), effects.get)
+    processes = list(desks.DESKS)
+    lines = ["", "## Meja alat per proses (EXEC-T)", "",
+             "Dibuat dari `apps/market-ai-orc/app/tool_desks.py` (`DESKS`), saklar semua menyala. H = wajib ada dan "
+             "ditawarkan; B = boleh dan ditawarkan; X = tidak boleh: tidak ditawarkan, ditolak bila dipanggil, dan tidak "
+             "disebut di laporan kemampuan atau buku panduan langkah itu; kosong = boleh tetapi tidak ditawarkan. Alat "
+             "jalur lama dan `find_web_fact` (selama `research_web` aktif) X di semua proses.", "",
+             "| Alat | " + " | ".join(desks.DESK_LABELS[p] for p in processes) + " |",
+             "|---|" + "---|" * len(processes)]
+    lines += [f"| `{name}` | " + " | ".join(row[p] for p in processes) + " |" for name, row in table.items()]
+    return lines
+
+
 def _plain(name: str) -> str:
     if name not in PLAIN:
         raise SystemExit(f"PLAIN has no sentence for {name!r}: add one in scripts/generate_ai_tools_doc.py")
@@ -252,6 +271,7 @@ def render(snapshot: str) -> str:
         path = "sekarang" if tool["path"] == "current" else "lama (muncul bila saklar ini mati)"
         switches = ", ".join(f"`{s}`" for s in tool["switches"]) or "selalu"
         lines.append(f"| `{tool['name']}` | {_plain(tool['name'])} | {tool['effect']} | {path} | {switches} |")
+    lines += desk_matrix()
     lines += ["", "## Alat bantu di ruang kerja Python (market-python-sandbox)", "",
               "| Alat bantu | Fungsi |", "|---|---|"]
     lines += [f"| `{h}` | {_plain(h)} |" for h in helpers]

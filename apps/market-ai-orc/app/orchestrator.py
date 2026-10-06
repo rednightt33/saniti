@@ -42,6 +42,7 @@ from .schemas import (
 from . import conversation_router as router
 from . import in_sample as insample
 from . import method_guides
+from . import tool_desks as desks
 from . import variant_correction
 from .user_words import design_values, variants
 from .user_words import allowed_periods, current_design_changes, current_turn_referent, current_user_words, \
@@ -1409,11 +1410,10 @@ BASE_TYPES = frozenset({"ANSWER", "CLARIFICATION", "LIMITATION"})
 SESSION_ID_RE = re.compile(r"^sess_[0-9a-f]{24}$")
 ALL_TYPES = BASE_TYPES | {"RESEARCH_PLAN_CONFIRMATION"}
 PLAN_TYPES = frozenset({"RESEARCH_PLAN_CONFIRMATION", "CLARIFICATION", "LIMITATION"})
-RESEARCH_RUN_TOOLS = frozenset({"start_research_run", "run_research_code", "complete_research_run"})
+RESEARCH_RUN_TOOLS = desks.RESEARCH_RUN
 # G23 A: the tools an analysis repair calls (the gates that ask for one declare them)
 LEGACY_ANALYSIS_TOOLS = frozenset({"create_analysis_spec", "prepare_analysis_data", "run_python_analysis"})
-DATANEED_ANALYSIS_TOOLS = frozenset({"submit_data_need_spec", "prepare_data_bundle", "open_analysis_session",
-                                     "run_python", "complete_analysis"})
+DATANEED_ANALYSIS_TOOLS = desks.DATA_FLOW
 # get_research_library (C07) is registered only while multi-angle research serves the research library
 DISCOVERY_TOOLS = frozenset({"get_system_capabilities", "discover_catalog", "get_catalog_details",
                              "read_catalog_rows", "get_dimension_values", "get_research_library",
@@ -2124,6 +2124,12 @@ class AgentOrchestrator:
         # EXEC-3: the routers may ask back, return the understood intent and every design value (variants); the
         # plan-reply reader returns the same reading (P3b); a failed router call is retried once
         self.ask_back = bool(getattr(settings, "ai_enable_ask_back", False))
+        # EXEC-T (2026-10-06): with the DataNeed flow every process has its desk (app/tool_desks.py); the plan desk
+        # keeps only the plan check this deployment runs
+        if self.dataneed:
+            active = ({plan_check} if self.plan_feasibility else set()) \
+                | ({"check_data_feasibility"} if self.hypothesis_plans else set())
+            self.plan_tools = self._process_tools("PLAN") - (desks.PLAN_CHECKS - active)
         self.system_prompt = build_system_prompt(settings.ai_enable_lookup_fact, self.dataneed,
                                                  self.plan_confirmation, period_return,
                                                  settings.ai_final_contract_in_prompt, self.catalog_protocol,
@@ -2147,6 +2153,11 @@ class AgentOrchestrator:
     def close(self) -> None:
         if self.provider_logger is not None:
             self.provider_logger.close()
+
+    def _process_tools(self, process: str) -> frozenset[str]:
+        """EXEC-T: the tools one process offers on this deployment (tool_desks.DESKS)."""
+        return desks.tools(process, frozenset(self.registry.names()),
+                           lambda name: getattr(self.registry.get(name), "effect", None))
 
     def _instructions(self) -> str:
         """The system prompt, followed by the catalog summary when one is available. The summary is documentation for
@@ -2713,8 +2724,8 @@ class AgentOrchestrator:
             if request.continuation is not None:
                 log_event("analysis_path_continuation_ignored", request_id=request.request_id,
                           plan_id=request.continuation.plan_id)
-            names = frozenset(self.registry.names()) - {"check_data_feasibility", "check_research_feasibility"} \
-                - RESEARCH_RUN_TOOLS
+            names = self._process_tools("ANALYSIS") if self.dataneed else frozenset(self.registry.names()) \
+                - {"check_data_feasibility", "check_research_feasibility"} - RESEARCH_RUN_TOOLS
             state.allowed_types, state.tool_filter = BASE_TYPES, names
             state.guard = ResearchGuard(required=True)
             state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": ANALYSIS_PATH_NOTE})
@@ -2723,14 +2734,17 @@ class AgentOrchestrator:
             self._set_turn(state, "PROPOSE", PLAN_TYPES, self.plan_tools, ResearchGuard(required=True),
                            note=RESEARCH_PATH_NOTE + self._angle_count_note(), verification="NOT_PRESENTED")
             return
+        open_desk = self._process_tools("CONTINUE") if self.dataneed else None  # EXEC-T: no longer every tool
         if not self.plan_confirmation:
             if request.continuation is not None:
                 log_event("research_plan_continuation_ignored", request_id=request.request_id,
                           reason="AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION is off")
+            state.tool_filter = open_desk
             return
         continuation = request.continuation
         if continuation is None:
-            self._set_turn(state, "PROPOSE", ALL_TYPES, None, ResearchGuard(required=True), verification="NOT_PRESENTED")
+            self._set_turn(state, "PROPOSE", ALL_TYPES, open_desk, ResearchGuard(required=True),
+                           verification="NOT_PRESENTED")
             return
         assert self.signer is not None
         verified, verification = None, "VERIFIED"
@@ -2761,7 +2775,7 @@ class AgentOrchestrator:
             state.user_text = request.message  # the reply itself, not the research question it answers
         if action == "UNRELATED" and verification == "RESEARCH_PLAN_TOKEN_EXPIRED":
             # R-STORE C2e: a new question after a plan expired is answered as one; the expired plan is not presented
-            self._set_turn(state, "PROPOSE", ALL_TYPES, None, ResearchGuard(required=True),
+            self._set_turn(state, "PROPOSE", ALL_TYPES, open_desk, ResearchGuard(required=True),
                            verification="NOT_PRESENTED")
             log_event("research_plan_turn", request_id=request.request_id, turn=state.plan_turn, action=action,
                       action_source=source, verification=verification, plan_id=continuation.plan_id)
@@ -2778,7 +2792,8 @@ class AgentOrchestrator:
             # The approved plan becomes the guard's reference for this request only.
             state.verified_plan = verified
             state.carried_outputs = self._carried_ids(state, verified.plan)
-            self._set_turn(state, "EXECUTE_APPROVED", ALL_TYPES, None,
+            self._set_turn(state, "EXECUTE_APPROVED", ALL_TYPES,
+                           self._process_tools("RESEARCH_V1") if self.dataneed else None,
                            ResearchGuard(required=True, plan=verified.plan, plan_id=verified.plan_id,
                                          verification=verification),
                            note=APPROVED_NOTE.format(
@@ -2816,8 +2831,7 @@ class AgentOrchestrator:
         state.research.executor = self.research_limits["factory"](verified, request.request_id)
         data_plan = verified.research_data_plan
         groups = {g.get("bundle_group_id"): g.get("angle_ids") for g in data_plan.get("bundle_groups") or []}
-        tools = (DISCOVERY_TOOLS | RESEARCH_RUN_TOOLS | {"inspect_session", "get_session_output", "get_lineage"}) \
-            & frozenset(self.registry.names())
+        tools = self._process_tools("RESEARCH_V2")  # EXEC-T/EXEC-A: check_references added
         self._set_turn(state, "EXECUTE_APPROVED", ALL_TYPES, frozenset(tools),
                        ResearchGuard(required=True, verification=verification),
                        note=APPROVED_NOTE_V2.format(plan_id=verified.plan_id, groups=dumps(groups), plan=plan_json))
@@ -3376,7 +3390,7 @@ class AgentOrchestrator:
         if state.tool_filter is not None and name not in state.tool_filter:
             # a registered tool that this turn does not offer (for example a data tool while a plan is revised)
             return error_outcome(call_id, name, "TOOL_NOT_AVAILABLE_IN_THIS_TURN",
-                                 f"{name} is not available while the Research Plan awaits the user's decision; only "
+                                 f"{name} is not available in this step; only "
                                  f"{', '.join(sorted(state.tool_filter)) or 'no tools'} can be used now.")
         if state.forced_path and name == "submit_data_need_spec":
             refused = self._path_mismatch(state, call_id, name, raw_arguments)
@@ -3485,6 +3499,9 @@ class AgentOrchestrator:
             self._track_research_feasibility(state, outcome, normalized)
         if name == "get_method_guide" and outcome.ok:
             opened = outcome.output.get("result")
+            if isinstance(opened, dict) and isinstance(opened.get("guide"), dict) and self.dataneed:
+                # EXEC-T: a registered tool this step does not have is not named in the manual it reads
+                opened["guide"] = desks.scrub(opened["guide"], frozenset(self.registry.names()) - self._desk(state))
             if isinstance(opened, dict) and isinstance(opened.get("guide"), dict):
                 # 4b: an opened manual stays in the conversation (data record), so it is not opened twice
                 records.add_manual(state.data_record, state.request_id, name=str(opened["name"]),

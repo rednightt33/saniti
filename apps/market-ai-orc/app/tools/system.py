@@ -43,9 +43,8 @@ def capabilities_spec(registry: ToolRegistry) -> ToolSpec:
             "capabilities": {label: tools for label, tools in capabilities.items() if tools},
             "not_available": [label for label, tools in capabilities.items() if not tools],
             "available_tools": available,
-            # G23 A: registered tools this step cannot call (absent outside a run and when every tool is offered)
-            **({"other_tools_not_in_this_step": [name for name in registered if name not in available]}
-               if len(available) < len(registered) else {}),
+            # EXEC-T (2026-10-06): a tool this step cannot call is not named (it cannot be found); the capabilities it
+            # would give are listed under not_available
             # 4b: the menu of analysis methods (G1-G4 and the main helpers), when the method guides are served
             **({"analysis_methods": registry.method_guides["menu"]}
                if getattr(registry, "method_guides", None) else {}),
