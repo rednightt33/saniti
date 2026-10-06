@@ -8,14 +8,17 @@ Before touching Railway or PostgreSQL, read `README.md`, `PROJECT_CONTEXT.md`, `
 
 ## Plans
 
-- `PLAN.md` is the only active plan: work the user approved that is not yet executed. `FUTURE_PLAN.md` holds proposals,
-  future work and open user decisions. Do not create dated plan files (`PLAN_YYYY-MM-DD.md`, `ROUND_PLAN_*`); the old
-  ones are discussion history (user decision 2026-10-06).
-- Record an approval in `PLAN.md` in the same task, with its date and the user's words, even when the user approves
-  "in general"; keep only the open details as questions on that item (R34). Approval to plan is not a command to
-  execute.
-- When an item is done, record it in `ERRORS_AND_SOLUTIONS.md` and the changelogs and remove it from `PLAN.md`.
-- Before a golden test, compare `PLAN.md` with the deployed behaviour and report any approved item not yet built.
+- `EXEC.md` holds every execution the user approved, one complete section per execution (user decision 2026-10-06).
+  `PLAN.md` holds approved work that has no execution plan yet. `FUTURE_PLAN.md` holds proposals, future work and open
+  user decisions. Do not create dated plan files (`PLAN_YYYY-MM-DD.md`, `ROUND_PLAN_*`); the old ones are discussion
+  history (user decision 2026-10-06).
+- Record an approval in `PLAN.md` or `EXEC.md` in the same task, with its date and the user's words, even when the user
+  approves "in general"; keep only the open details as questions on that item (R34). Approval to plan is not a command to
+  execute: an execution starts only after the user's go confirmation.
+- When an item is done, record it in `ERRORS_AND_SOLUTIONS.md` and the changelogs and remove it from `PLAN.md` or
+  `EXEC.md`.
+- Before a golden test, compare `PLAN.md` and `EXEC.md` with the deployed behaviour and report any approved item not yet
+  built.
 
 ## Mandatory workflow
 

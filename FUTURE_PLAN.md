@@ -1,12 +1,13 @@
 # Rencana ke depan: usulan dan keputusan yang masih terbuka
 
-Sejak 2026-10-06 (keputusan user), pekerjaan yang **sudah disetujui** tetapi belum dieksekusi ada di `PLAN.md`.
+Sejak 2026-10-06 (keputusan user), pekerjaan yang **sudah disetujui** tetapi belum dieksekusi ada di `PLAN.md`, dan
+eksekusi yang sudah disetujui ada di `EXEC.md`.
 Dokumen ini berisi sisanya:
 - usulan yang belum disetujui;
 - rencana masa depan;
 - keputusan user yang masih terbuka.
 
-Butir yang disetujui user dipindah ke `PLAN.md` pada tugas yang sama. Kode masalah merujuk ke
+Butir yang disetujui user dipindah ke `PLAN.md` atau `EXEC.md` pada tugas yang sama. Kode masalah merujuk ke
 `ERRORS_AND_SOLUTIONS.md`.
 
 ## 1. Antrean perbaikan dekat
@@ -173,17 +174,19 @@ Untuk 100 pengguna bersamaan tetap perlu bagian 2.
 
 | Usulan | Asal | Catatan |
 |---|---|---|
-| Pengecekan ulang otomatis oleh backend untuk metrik baku (pengganti `get_evidence`, yang dihapus 2026-10-06, `PLAN.md` EXEC-E) | Keputusan 2026-10-06 | Menutup sebagian S23 tanpa beban ke AI |
+| Pengecekan ulang otomatis oleh backend untuk metrik baku (pengganti `get_evidence`, yang dihapus 2026-10-06, `EXEC.md` EXEC-E) | Keputusan 2026-10-06 | Menutup sebagian S23 tanpa beban ke AI |
 | Cek angka di dalam kutipan web (angka yang ditulis AI wajib ada di kutipan) | Analisis route web orc (2026-10-06) | Celah: kutipan asli, angka atau periode salah |
-| Paket 1 sisanya: eksekusi alat paralel umum, kunci relasi otomatis, perubahan mode 4 lain. (Tanggal terbuka `query_metric` dan jatah perbaikan per penyebab disetujui 2026-10-06 → `PLAN.md` EXEC-R R5) | `PLAN_2026-10-05.md` (di luar cakupan item 10/12) | — |
+| Paket 1 sisanya: eksekusi alat paralel umum, kunci relasi otomatis, perubahan mode 4 lain. (Tanggal terbuka `query_metric` dan jatah perbaikan per penyebab disetujui 2026-10-06 → `EXEC.md` EXEC-R R5) | `PLAN_2026-10-05.md` (di luar cakupan item 10/12) | — |
 | Tingkat berpikir model (`AI_REASONING_EFFORT=high` di dev) | Analisis waktu (2026-10-06) | Setelan model, perlu izin user; sesudah P1–P3 |
 | S23 bertahap: hitungan umum ke helper teruji, cek rekonsiliasi, hitung ulang independen | `UNDERADDRESSED_PLAN_CAT23.md` §8 | Paling mahal |
 | A1, A3, A4, D (perkiraan per bagian, pesan tolak lengkap, EXPLAIN broker, tabel jawaban lebih pendek) | `EXTRACTION_AND_AUDIT_PLAN.md` "Proposed, not approved yet" | — |
 | Mode EXPLORATION yang dirancang ulang | `MULTI_ANGLE_FIX_PLAN.md` "To be designed" | Sebagian tertutup mode 4 |
 | Golden set dan antrean tinjauan manusia untuk klasifikasi kepentingan peristiwa | `WEB_GOVERNOR_PLAN.md` P4 | — |
-| Koreksi uji berganda lintas giliran di backend | `G2_G3_REACTIVATION_PLAN.md` langkah 5 | Dicatat sebagai lanjutan |
 | Roadmap antarmuka pengguna (tugas asinkron, progres, notifikasi) | `ROADMAP_FRONTEND_2026-10-04.md` | Usulan |
 | Banyak pengguna bersamaan | §2 di atas | Biaya server |
+| Multi-tugas dalam satu pesan: penyortir memecah pesan menjadi daftar tugas (jalur, nilai, perlu persetujuan atau tidak); tugas murah dijawab bersama, tugas riset digabung jadi satu rencana; hasil sebagian per tugas bila satu gagal | Diskusi "free will" 2026-10-06 (butir 1+4) | Tidak dipilih user 2026-10-06; varian + koreksi uji berganda masuk EXEC-3/EXEC-A (`EXEC.md`) |
+| Cek cakupan oleh kode: setiap tugas dan varian yang diminta dijawab atau dinyatakan tidak bisa | Diskusi 2026-10-06 (butir 3) | Tidak dipilih 2026-10-06 |
+| Batas ukuran multi-tugas + tanya balik "mana yang didahulukan"; memo mencatat tugas selesai/belum | Diskusi 2026-10-06 (butir 7+8) | Tidak dipilih 2026-10-06 |
 
 ### 3b. Keputusan user yang masih terbuka
 
