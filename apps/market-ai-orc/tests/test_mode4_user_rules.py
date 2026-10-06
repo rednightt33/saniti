@@ -48,8 +48,9 @@ def test_a_plan_keeps_the_users_horizon() -> None:
     orchestrator.audit_outbox = None
     s = state(orchestrator)
     s.user_text = G6
-    with pytest.raises(GateRejection, match="outcome horizon"):
+    with pytest.raises(GateRejection, match="outcome horizon") as raised:
         orchestrator._plan_gate(s, _plan(5))
+    assert "Fields: research_plan.experiments[0].outcome_horizon_periods." in str(raised.value)  # EXEC-R R1
     s = state(orchestrator)
     s.user_text = G6
     assert orchestrator._plan_gate(s, _plan(10)).research_plan.experiments[0].outcome_horizon_periods == 10

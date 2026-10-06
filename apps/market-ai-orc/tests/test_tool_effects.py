@@ -1,6 +1,6 @@
 """O3 (PLAN_BE_OPTIMIZATION_2026-10-04.md, M77): a read-only step's tools are derived from each tool's effect class, not
-from a hand-written list, so an action on an existing result (export, evidence, lineage) is offered where reading is,
-and a tool that fetches data or runs code never is."""
+from a hand-written list, so an action on an existing result (export, lineage) is offered where reading is, and a tool
+that fetches data or runs code never is."""
 from __future__ import annotations
 
 import importlib.util
@@ -38,8 +38,8 @@ def test_every_production_tool_has_an_effect_class() -> None:
 def test_the_read_only_set_keeps_actions_on_existing_results_and_nothing_that_fetches_or_runs() -> None:
     read_only = production_read_only()
     # M77: export of an existing result; plus the reads the hand-written list had
-    assert {"export_result", "get_evidence", "get_session_output", "get_lineage", "discover_catalog",
-            "get_method_guide"} <= read_only
+    assert {"export_result", "get_session_output", "get_lineage", "discover_catalog", "get_method_guide"} <= read_only
+    assert "get_evidence" not in production_effects()  # EXEC-E (2026-10-06): the tool is removed
     assert not read_only & {"run_python", "prepare_data_bundle", "submit_data_need_spec", "query_metric",
                             "find_web_fact", "open_analysis_session", "request_data", "start_research_run"}
 

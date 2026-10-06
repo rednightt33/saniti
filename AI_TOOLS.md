@@ -25,7 +25,6 @@ Sifat: READS tidak mengubah apa pun; OWN_ARTIFACT hanya menulis catatan percakap
 | `inspect_session` | Melihat isi variabel di ruang kerja sebelum hasil dirilis, atau statistik semua kolom satu dataset (kosong, min/median/maks, celah) tanpa baris data. | READS | sekarang | `AI_ENABLE_DATANEED` |
 | `get_session_output` | Membaca ulang tabel atau JSON hasil, termasuk dari giliran sebelumnya lewat ref (out.o3) setelah sandbox menghapusnya, dan kode yang dijalankan sebuah eksekusi. | READS | sekarang | `AI_ENABLE_DATANEED` |
 | `export_result` | Membuat file unduhan dari tabel hasil (CSV, XLSX dengan lembar definisi dan asal data, atau Parquet), maks. 20 MB; AI hanya melihat nama dan ukurannya. | OWN_ARTIFACT | sekarang | `AI_ENABLE_DATANEED`, `AI_ENABLE_EXPORT` |
-| `get_evidence` | Memeriksa klaim utama sebelum menjawab: backend menghitung ulang setiap angka dari gudang data atau dari tabel dasar hasil analisis, lalu memberi status TERCEK atau TIDAK COCOK; tabel buktinya untuk user. | OWN_ARTIFACT | sekarang | `AI_ENABLE_DATANEED`, `AI_ENABLE_EVIDENCE` |
 | `get_lineage` | Menelusuri asal angka: tabel hasil, kode yang membuatnya, data yang dibaca, saringan baris, query Governor, dan tabel sumbernya; tanpa isi baris. | READS | sekarang | `AI_ENABLE_DATANEED`, `AI_ENABLE_LINEAGE_TOOL` |
 | `check_data_feasibility` | Sebelum mengajukan rencana riset, mengecek data ada dan ukurannya muat (tanpa membaca data). | FETCHES_DATA | sekarang | `AI_ENABLE_DATANEED`, `AI_ENABLE_HYPOTHESIS_PLAN`, `AI_ENABLE_PLAN_FEASIBILITY` |
 | `get_research_library` | Daftar metode riset beserta aturan dan cara membaca hasilnya. | READS | sekarang | `AI_ENABLE_COMPOSITE_KEYS`, `AI_ENABLE_DATANEED`, `AI_ENABLE_MULTI_ANGLE_RESEARCH`, `AI_ENABLE_PLAN_FEASIBILITY` |
@@ -96,7 +95,7 @@ Sifat: READS tidak mengubah apa pun; OWN_ARTIFACT hanya menulis catatan percakap
 ## Snapshot saklar di dev
 
 <!-- dev-snapshot:start -->
-Diambil  dari Railway (nama dan nilai true/false saja).
+Diambil 2026-10-06 dari Railway (nama dan nilai true/false saja).
 
 | Saklar | dev |
 |---|---|
@@ -105,7 +104,6 @@ Diambil  dari Railway (nama dan nilai true/false saja).
 | `AI_ENABLE_COMPOSITE_KEYS` | on |
 | `AI_ENABLE_DATANEED` | on |
 | `AI_ENABLE_EVENT_STUDY` | on |
-| `AI_ENABLE_EVIDENCE` | on |
 | `AI_ENABLE_EXPORT` | on |
 | `AI_ENABLE_HYPOTHESIS_PLAN` | on |
 | `AI_ENABLE_LINEAGE_TOOL` | on |

@@ -639,7 +639,7 @@ def test_a_changed_status_or_an_agreement_claim_the_map_does_not_allow_is_reject
     result, scripted, _, _ = approved_run([*RUN_SCRIPT, final_response(wrong), final_response(wrong),
                                            final_response(wrong)])
     assert "a_rank: status SUPPORTED differs from the backend's INSUFFICIENT_EVIDENCE" in \
-        str(scripted.payloads[4]["input"][-1])
+        scripted.payloads[4]["input"][-1]["content"]
     assert "a_rank: status SUPPORTED" in str(scripted.payloads[5]["input"][-1])
     assert result.response.response_type == "LIMITATION" and result.execution.validation_gate == "FORCED_LIMITATION"
     agree = findings_answer(text="Semua sudut mendukung hipotesis: return 1.25 persen lebih tinggi (sampel efektif "

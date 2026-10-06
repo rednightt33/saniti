@@ -211,8 +211,9 @@ def test_the_success_threshold_is_the_users_number() -> None:
 
     s = state(orchestrator)
     s.user_text = "Naik minimal 3%?"
-    with pytest.raises(GateRejection, match="success_rule value 7"):
+    with pytest.raises(GateRejection, match="success_rule value 7") as raised:
         orchestrator._plan_gate(s, plan_with(7.0, "Naik minimal 3%?"))
+    assert "Fields: research_plan.experiments[0].success_rule." in str(raised.value)  # EXEC-R R1
     s = state(orchestrator)
     s.user_text = "ubah jadi 5%"
     passed = orchestrator._plan_gate(s, plan_with(5.0, "Naik minimal 3%?"))

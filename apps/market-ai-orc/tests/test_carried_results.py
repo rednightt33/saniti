@@ -181,7 +181,9 @@ def approved_v2(record: dict[str, Any], sandbox: RunSandbox, carried: list[dict[
                 **settings: str):
     plan = {**plan_v2(), **({"carried_inputs": carried} if carried else {})}
     issued = signer().issue(ResearchPlanV2.model_validate(plan), data_plan(), "run_001", "conv_1")
-    scripted = ScriptedClient([*RUN_SCRIPT, final_response(findings_answer())])
+    # with value references on, the typed figures of findings_answer are asked for once (EXEC-E TYPED_FIGURES); the
+    # answer is then sent again unchanged and delivered with the backend's note
+    scripted = ScriptedClient([*RUN_SCRIPT, final_response(findings_answer()), final_response(findings_answer())])
     runner = AgentOrchestrator(make_settings(**MA, **settings), scripted, ma_registry(sandbox), wall_clock=Clock(),
                                draft_reader=lambda draft_id: None)
     result = runner.run(AgentRunRequest(request_id="run_002", conversation_id="conv_1", message="Setuju.",

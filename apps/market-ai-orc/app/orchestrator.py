@@ -77,7 +77,7 @@ GENERAL RULES
 10. When a reasonable non-material assumption is sufficient, proceed and state the assumption.
 11. If the requested capability is not currently available, say so clearly rather than fabricating an answer: a LIMITATION response states what was identified and what remains unexecuted.
 12. Preserve exact identifiers returned by tools. Do not invent alternative table, field, asset, or feature names.
-13. Keep the final answer focused and proportional to the user's question.
+13. Keep the final answer focused and proportional to the user's question: the answer within about two and a half thousand characters and a table in it within ten rows unless the user asks for more (the full table stays in its released output).
 14. Do not expose hidden chain-of-thought. Return conclusions, relevant assumptions, limitations, and tool-supported findings only.
 15. Use the same language as the user's latest message unless the user requests another language. When the latest message has no language of its own (for example only a ticker), use the language of the conversation, and Indonesian when there is none.
 TOOL USE
@@ -723,6 +723,19 @@ FACT_REFERENCE = "{{fact.<n>}} a lookup_fact value"
 METRIC_REFERENCE = "{{metric.<key>.<path>}} a query_metric value, by the \"ref\" its tool result shows"
 
 
+def answer_table_rows(text: str) -> int:
+    """EXEC-P2 P2e: the data rows of the longest Markdown table in an answer (header and separator lines not counted)."""
+    longest = current = 0
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("|"):
+            current += 0 if re.fullmatch(r"\|[\s:|-]+\|?", stripped) else 1
+        else:
+            current = 0
+        longest = max(longest, current - 1)  # the first row of a table is its header
+    return max(longest, 0)
+
+
 def _utc_now() -> str:
     from datetime import datetime, timezone
 
@@ -783,10 +796,11 @@ ANGLE_NARRATIVE_CONTRACT = ("research_findings: for an ANSWER that rests on a co
 # 10.1 (plan 2026-10-05 item 10): the addresses a result lists, copied by the model instead of composed from memory
 ADDRESS_MENU_MAX = 200  # 1b: lines per tool result (measured 2026-10-06: about 890 tokens per table output on average)
 WEB_LOOKUP_TOOLS = frozenset({"find_web_fact", "research_web"})  # P34: checked against the database first
+# EXEC-P2 P2a (2026-10-06): no push to check_references before writing; the REFERENCE gate lists every wrong address
+# with its nearest replacement at once (10.3), and the tool stays available
 ADDRESS_MENU_NOTE = ("Each line is \"name: value as shown [unit] → {{address}}\": write the figure by copying its "
                      "{{address}} as it is and adding a format; never compose an address from memory. A table row not "
-                     "listed uses the pattern line with that row's value. check_references shows what an address "
-                     "renders before you write the answer.")
+                     "listed uses the pattern line with that row's value.")
 REFERENCE_INSTRUCTION = (
     "Your response has value references that do not resolve: {problems}. Use only the refs and fields the tool "
     "results of this run show (each referable object carries its \"ref\"), with a known format, or remove the figure.")
@@ -1257,19 +1271,19 @@ METHODOLOGY_PROVENANCE_INSTRUCTION = (
     "as the answer, the approved plan, the DataNeedSpec or the code that ran. Remove or correct them.")
 METHODOLOGY_MISSING_LINE = "No methodology note was provided for this response."
 METHODOLOGY_WITHHELD_LINE = "The methodology note was withheld because it cited figures without a source: {numbers}."
-# D6 (round 2026-10-03, HIGH_ALERT_PLAN.md Prioritas 2): the evidence gate
-EVIDENCE_INSTRUCTION = (
-    "Your answer types these figures from your own code without a value reference, and none was checked: {numbers}. "
-    "Either write each as a value reference to the released table that holds it, or call get_evidence for the main "
-    "ones (at most 10): for each, the claim, the number exactly as you write it, and a recipe the backend recomputes "
-    "apart from your code (warehouse: a governed table, filters, measure, period; base_table: a released base table, "
-    "conditions and a measure). Figures you already wrote as value references need nothing.")
-EVIDENCE_MISMATCH_INSTRUCTION = (
-    "get_evidence found numbers in your answer that do not match the backend's recomputation: {items}. Correct them "
-    "(or recheck with a corrected recipe) before answering; if a difference stays, say so in the answer.")
+# EXEC-E (user decision 2026-10-06: get_evidence and its gate removed): a figure the model typed from its own code is
+# written by its address instead (asked once; an edit is enough)
+TYPED_FIGURES_INSTRUCTION = (
+    "Your answer types these figures from this run's results without a value reference: {numbers}. Write each as its "
+    "{{{{address}}}} from the addresses list of the result that released it, or remove the figure; an edit is enough.")
+TYPED_FIGURES_LINE = ("Angka berikut diketik dari hasil analisis tanpa alamat, jadi tidak dibaca ulang dari tabel hasil: "
+                      "{numbers}.")
 # G23 C (K2, PLAN_FINAL_2026-10-04.md): every one-time gate request says it is asked once and the way out
-GATE_ONCE_NOTE = (" This check asks only once. If you cannot make the change with the tools you have in this step, send "
-                  "your answer again unchanged: it is then delivered with the backend's note.")
+# EXEC-R R2 (2026-10-06): with an edit offered, {"keep": true} keeps the stored draft (h_add turn 2 resent 8,660 tokens
+# unchanged in 109 s to take this way out)
+GATE_ONCE_NOTE = (" This check asks only once. If you cannot make the change with the tools you have in this step, keep "
+                  'the answer: reply {"keep": true} when an edit is offered below, otherwise send it again unchanged; '
+                  "it is then delivered with the backend's note.")
 # G23 B: figures the backend computed or recomputed itself (lookup facts, Governor aggregates, recomputed analyses)
 BACKEND_RECOMPUTED_KINDS = frozenset({"FACT", "DATABASE_AGGREGATE", "CALCULATION_VERIFIED"})
 EVIDENCE_BACKEND_LINE = ("Angka jawaban ini dihitung atau dihitung ulang oleh backend (fakta, agregat Governor, metrik "
@@ -1281,10 +1295,6 @@ EXHAUSTED_REASONS = {"MAX_ITERATIONS": "batas langkah tercapai", "ANALYSIS_TIMEO
 # O4: every figure from the model's code is a value reference; the backend read each from its released table
 EVIDENCE_REFERENCED_LINE = ("Angka hasil analisis di jawaban ini dibaca backend langsung dari tabel hasil yang dirujuk "
                             "(bukti DIRUJUK), tanpa hitung ulang terpisah dari kode AI.")
-EVIDENCE_NOT_COMPUTED_LINE = ("Bukti klaim tidak dihitung: jawaban ini tidak memeriksa angka utamanya dengan hitung "
-                              "ulang backend.")
-EVIDENCE_MISMATCH_LINE = "Klaim \"{claim}\" ({value}): TIDAK COCOK, backend menghitung {backend}."
-EVIDENCE_LIMIT_LINE = "{count} klaim tidak dicek karena batas per jawaban (bukti tidak dihitung)."
 DATANEED_PROVENANCE_NOTICE = ("Some figures below could not be traced to a released analysis output or another "
                               "governed source in this run: {numbers}. ")
 WARNING_LINES = {
@@ -1311,6 +1321,7 @@ RESPONSE_FORMAT_NAME = "saniti_agent_response"
 # first version on, with no recorded reason, and the mode 4 answers reached 19,000); the draft is bounded by
 # AI_MAX_OUTPUT_TOKENS and the context by the per-turn CONTEXT_LIMIT check
 REJECTED_OUTPUT_ECHO_CHARS = 200_000
+JSON_ERROR_CONTEXT = 80  # EXEC-R R4a: characters shown on each side of where the final JSON breaks
 RESPONSE_CONTRACT = (
     "Return one JSON object with exactly these fields: "
     "response_type: \"ANSWER\" when the request can be answered, \"CLARIFICATION\" only when an "
@@ -1470,6 +1481,13 @@ RESEARCH_PATH_NOTE = (PLAN_NOTE_PREFIX + "the caller fixed this request to the R
 # Mode 4 (app/mode4.py): the seconds left of the whole mode 4 request, so its sub-runs together stay within
 # AI_MAX_ANALYSIS_SECONDS (None: a run has AI_MAX_ANALYSIS_SECONDS of its own)
 current_time_budget: contextvars.ContextVar[float | None] = contextvars.ContextVar("current_time_budget", default=None)
+# EXEC-P2 P2e (2026-10-06): answer-length targets, measured and logged (ai_answer_long), never a refusal. The longest
+# drafts of golden test 06b were 10-17 thousand characters; writing and checking the answer took 41% of model time
+ANSWER_TARGET_CHARS = 2500
+MODE4_PART_TARGET_CHARS = 1500  # each part of a mode 4 reply (app/mode4.py sets it for its steps)
+ANSWER_TABLE_ROWS = 10
+current_answer_target: contextvars.ContextVar[int] = contextvars.ContextVar("current_answer_target",
+                                                                            default=ANSWER_TARGET_CHARS)
 ANGLE_COUNT_NOTE = (PLAN_NOTE_PREFIX + "for this request the Research Plan has {count} (check_research_feasibility and "
                     "the plan check use this count; it replaces the angle count stated in the instructions).")
 ANALYSIS_PATH_LINE = ("Analysis path (fixed by the caller): descriptive historical statistics without a significance "
@@ -1680,6 +1698,8 @@ CITED_THRESHOLD_HINT = (" The user refers to an earlier result: to use one of it
 PLAN_MIN_EFFECT_INSTRUCTION = (
     "The min_effect value {values} is not a number the user stated. The smallest effect that matters is the user's: "
     "take it from their words, or set min_effect and min_effect_unit to null.")
+# EXEC-R R1 (2026-10-06): a plan gate names the fields to change, so an edit's "set" can fix them without a rewrite
+PLAN_FIELD_PATHS = " Fields: {paths}."
 def previous_weekday(day: Any) -> str:
     """The weekday before day (ISO): the newest trading date a daily load can have delivered by then (holidays are
     not known here, so the day after one reads as one day older)."""
@@ -1850,7 +1870,6 @@ class RunState:
     store_outputs: list[dict[str, Any]] = field(default_factory=list)
     store_executions: list[dict[str, Any]] = field(default_factory=list)
     artifacts: list[dict[str, Any]] = field(default_factory=list)  # D4: this run's export files (API artifacts)
-    evidence_items: list[dict[str, Any]] = field(default_factory=list)  # D6: claims checked by get_evidence (rows)
     referenced: list[str] = field(default_factory=list)  # D6: value references of the final answer (DIRUJUK)
     typed_answer: str | None = None  # O4: the final answer with its value references removed (the typed figures)
     empty_turn_retries: int = 0  # M78: turns with neither text nor a tool call, retried with the same tools
@@ -1863,8 +1882,10 @@ class RunState:
     verified_plan: Any = None
     plan_unexecuted: bool = False
     methodology_provenance: dict[str, Any] | None = None
-    # Repair ledger: "tool:reason_code" -> rejections seen this run (bounded retries, see _repair_budget)
+    # Repair ledger: "tool:reason_code" -> rejections seen this run (bounded retries, see _repair_budget), counted once
+    # per model turn (EXEC-R R5b: repair_turns holds the turn a key was last counted in)
     repairs: dict[str, int] = field(default_factory=dict)
+    repair_turns: dict[str, int] = field(default_factory=dict)
     # the kejedot index (app/friction.py), counted as the run goes; gate_repairs is filled from gate_rejections
     friction: dict[str, int] = field(default_factory=kejedot.empty)
     evidence_label: str | None = None
@@ -1938,6 +1959,13 @@ class RunState:
     # M45 (AI_ENABLE_EDIT_REPAIR): the refused draft an edit object of the next reply applies to; set only when the
     # refusal offered the edit
     repair_base: dict[str, Any] | None = None
+    # EXEC-R R4b: a failed edit gets one more edit against the same draft (edit_retry_base), once per draft
+    edit_retry_base: dict[str, Any] | None = None
+    edit_retry_used: bool = False
+
+
+class FinalJsonError(ValueError):
+    """EXEC-R R4a: the final response is not JSON even for the lenient decoder; the message names where."""
 
 
 class TurnRuleError(ValueError):
@@ -2178,7 +2206,7 @@ class AgentOrchestrator:
             conversation_id=request.conversation_id if self.result_store is not None else None,
             request_id=request.request_id, store=self.result_store, record=state.data_record,
             fetch=(lambda sid, oid: fetch(sid, oid, request.request_id)) if fetch is not None else None,
-            pending=state.store_executions, evidence=state.evidence_items))
+            pending=state.store_executions))
         carried = None
         try:
             if self.conversation_reuse and conversation_key and request.history:
@@ -3050,6 +3078,11 @@ class AgentOrchestrator:
             if state.repair_base is not None:
                 raw, unapplied = self._apply_edit(state, raw)
             state.current_raw = raw
+            if unapplied is not None and state.edit_retry_base is not None:
+                # EXEC-R R4b: one more edit against the same draft, with the exact cause (was a full rewrite)
+                self._echo_draft(state, raw)
+                state.input_items.append({"role": "user", "content": str(unapplied) + self._offer_edit(state, raw)})
+                continue
             try:
                 if unapplied is not None:
                     raise unapplied
@@ -3584,12 +3617,16 @@ class AgentOrchestrator:
 
     def _repair_budget(self, state: RunState, call_id: str, name: str, outcome: ToolOutcome) -> ToolOutcome:
         """Bounded repair: the same rejection may be repaired a limited number of times per run, then the model
-        must report it. Counters live in the run state and are logged with the run (auditable)."""
+        must report it. Counters live in the run state and are logged with the run (auditable). EXEC-R R5b: one model
+        turn counts once per cause (06b: four parallel query_metric calls refused for one reason spent the budget at
+        once)."""
         code = self._rejection_code(name, outcome)
         if code is None:
             return outcome
         key = f"{name}:{code}"
-        state.repairs[key] = state.repairs.get(key, 0) + 1
+        if state.repair_turns.get(key) != state.iterations:  # EXEC-R R5b: parallel calls of one turn count once
+            state.repair_turns[key] = state.iterations
+            state.repairs[key] = state.repairs.get(key, 0) + 1
         if state.repairs[key] <= self.settings.ai_max_repair_attempts:
             return outcome
         return error_outcome(call_id, name, "REPAIR_BUDGET_EXHAUSTED",
@@ -4357,6 +4394,7 @@ class AgentOrchestrator:
     def _finalize_findings(self, state: RunState, final: FinalResponse) -> FinalResponse:
         """Multi-Angle Research after a completed run: every LIMITATION carries the backend's per-angle findings (M39),
         and with value references every response carries all approved angles rendered from the backend (#15)."""
+        self._log_answer_length(state, final)
         run = self._research_result(state)
         if run is None or not run.get("research_findings") or final.response_type not in ("ANSWER", "LIMITATION"):
             return final
@@ -4365,6 +4403,16 @@ class AgentOrchestrator:
         if final.response_type == "LIMITATION" and final.research_findings is None:
             return final.model_copy(update={"research_findings": backend_findings(run)})
         return final
+
+    @staticmethod
+    def _log_answer_length(state: RunState, final: FinalResponse) -> None:
+        """EXEC-P2 P2e: an answer longer than its target, or with a table longer than ANSWER_TABLE_ROWS rows, is logged
+        (ai_answer_long); it is delivered as it is."""
+        target, rows = current_answer_target.get(), answer_table_rows(final.answer or "")
+        if len(final.answer or "") > target or rows > ANSWER_TABLE_ROWS:
+            log_event("ai_answer_long", request_id=state.request_id, iteration=state.iterations,
+                      response_type=final.response_type, chars=len(final.answer or ""), target_chars=target,
+                      table_rows=rows, target_rows=ANSWER_TABLE_ROWS)
 
     def _rendered_findings(self, state: RunState, run: dict[str, Any],
                            final: FinalResponse) -> list[AngleFindingReport] | None:
@@ -4580,52 +4628,62 @@ class AgentOrchestrator:
         return final.model_copy(update={"limitations": [*final.limitations, *missing_lines]})
 
     def _evidence_gate(self, state: RunState, final: FinalResponse, data_kinds: list[str]) -> FinalResponse:
-        """D6 (HIGH_ALERT_PLAN.md Prioritas 2): an answer that cites data figures checks its main claims with
-        get_evidence (asked once while tools are available; after that a limitation says the evidence was not
-        computed), and a claim the backend found not matching is sent back once with the difference, then stated in
-        the answer's limitations, never hidden."""
-        if final.response_type != "ANSWER" or "get_evidence" not in self.registry.names():
+        """EXEC-E (user decision 2026-10-06, replaces the D6 get_evidence gate): a figure the model typed from its own
+        code is written by its address instead, asked once; a typed figure equal to exactly one released value counts
+        as that value's reference (EXEC-R R3). Figures written as value references are read by the backend from their
+        released tables (DIRUJUK); the backend's own figures are labelled."""
+        if final.response_type != "ANSWER" or not self.value_references:
             return final
         extra: list[str] = []
-        # G23 B: only figures from the model's own code need a separate check; the backend's own figures are labelled.
-        # O4 (PLAN_BE_OPTIMIZATION_2026-10-04.md): a figure written as a value reference is read by the backend from
-        # its released table (DIRUJUK), so only the figures the model typed itself are asked for; 54 of 65 table
-        # checks in the final golden test only read back the one cell the answer already referenced.
         own_figures = [kind for kind in data_kinds if kind not in BACKEND_RECOMPUTED_KINDS]
         typed_text = state.typed_answer if state.typed_answer is not None else (final.answer or "")
         typed = [shown for shown, kind in typed_figures(typed_text, self._source_index(state))
                  if kind not in BACKEND_RECOMPUTED_KINDS]
-        if typed and not state.evidence_items:
-            self._gate_once(state, "EVIDENCE", EVIDENCE_INSTRUCTION.format(
-                numbers=", ".join(list(dict.fromkeys(typed))[:12])), needs=frozenset({"get_evidence"}))
-            extra.append(EVIDENCE_NOT_COMPUTED_LINE)
-        elif own_figures and state.referenced and not state.evidence_items:
+        typed = self._auto_references(state, list(dict.fromkeys(typed)))
+        if typed:
+            numbers = ", ".join(typed[:12])
+            self._gate_once(state, "TYPED_FIGURES", TYPED_FIGURES_INSTRUCTION.format(numbers=numbers))
+            extra.append(TYPED_FIGURES_LINE.format(numbers=numbers))
+        elif own_figures and state.referenced:
             extra.append(EVIDENCE_REFERENCED_LINE)
-        elif data_kinds and not state.evidence_items:
+        elif data_kinds and not own_figures:
             extra.append(EVIDENCE_BACKEND_LINE)
-        mismatched = [e for e in state.evidence_items if e.get("status") == "TIDAK_COCOK"
-                      and e.get("value_text") and e["value_text"] in (final.answer or "")]
-        if mismatched:
-            items = "; ".join(f"{e['claim']} ({e['value_text']}): backend {e.get('backend_value')}"
-                              for e in mismatched[:5])
-            self._gate_once(state, "EVIDENCE_MISMATCH", EVIDENCE_MISMATCH_INSTRUCTION.format(items=items))
-            extra += [EVIDENCE_MISMATCH_LINE.format(claim=e["claim"], value=e["value_text"],
-                                                    backend=e.get("backend_value")) for e in mismatched]
-        skipped = sum(1 for e in state.evidence_items if e.get("status") == "TIDAK_DICEK_BATAS")
-        if skipped:
-            extra.append(EVIDENCE_LIMIT_LINE.format(count=skipped))
         extra = [line for line in extra if line not in final.limitations]
         if extra:
             state.reference_annotated = True
             return final.model_copy(update={"limitations": [*final.limitations, *extra]})
         return final
 
+    def _auto_references(self, state: RunState, typed: list[str]) -> list[str]:
+        """EXEC-R R3: a typed figure equal, as written (rounded to its own decimals), to exactly one value this run can
+        reference is that value's reference: it joins the answer's DIRUJUK list (`ai_reference_auto`). Two or more
+        equal values, or none, leave it typed."""
+        if not typed:
+            return typed
+        sources = state.ref_sources
+        shown = {(namespace, key): alias for namespace, aliases in sources.aliases.items()
+                 for alias, key in aliases.items()}
+        leaves = [leaf for namespace, keys in sources.objects.items() for key in keys
+                  for leaf in sources.leaves(f"{namespace}.{shown.get((namespace, key), key)}")]
+        left: list[str] = []
+        for text in typed:
+            matches: set[str] = set()
+            for number in parse_numbers(text):
+                for value, _ in number.candidates:
+                    matches |= {address for address, leaf in leaves if cited_match(value, [leaf], magnitude=False)}
+            if len(matches) == 1:
+                address = matches.pop()
+                if address not in state.referenced:
+                    state.referenced.append(address)
+                log_event("ai_reference_auto", request_id=state.request_id, figure=text, address=address)
+            else:
+                left.append(text)
+        return left
+
     def _evidence(self, state: RunState) -> list[dict[str, Any]] | None:
-        """D6: the API's evidence[]: every checked claim with its rows, then the answer's value references (DIRUJUK:
-        where each cited figure comes from, without a recomputation)."""
-        items = [{k: e.get(k) for k in ("evidence_id", "claim", "value_text", "kind", "status", "backend_value",
-                                        "difference", "reason", "recipe", "source", "rows", "rows_matched")
-                  if e.get(k) is not None} for e in state.evidence_items]
+        """D6: the API's evidence[]: the answer's value references (DIRUJUK: where each cited figure comes from, read
+        from its released table without a recomputation). The recomputed claims of get_evidence ended with EXEC-E."""
+        items: list[dict[str, Any]] = []
         outputs = {o.get("ref"): o for o in (state.data_record or {}).get("outputs") or [] if isinstance(o, dict)}
         for expr in state.referenced[:20]:
             head = ".".join(expr.split(".")[:2])
@@ -4856,28 +4914,35 @@ class AgentOrchestrator:
         cited = self._cited_result_values(state)
         before = list(stated)
         stated = stated + cited
-        invented = [e.success_rule.value for e in getattr(final.research_plan, "experiments", None) or []
-                    if getattr(e, "success_rule", None) is not None
-                    and not any(abs(n - e.success_rule.value) < 1e-9 or abs(n * 100 - e.success_rule.value) < 1e-9
-                                or abs(n / 100 - e.success_rule.value) < 1e-9 for n in stated)
-                    and not cited_match(e.success_rule.value, cited, magnitude=False)]
+        invented_at = [(index, e.success_rule.value)
+                       for index, e in enumerate(getattr(final.research_plan, "experiments", None) or [])
+                       if getattr(e, "success_rule", None) is not None
+                       and not any(abs(n - e.success_rule.value) < 1e-9 or abs(n * 100 - e.success_rule.value) < 1e-9
+                                   or abs(n / 100 - e.success_rule.value) < 1e-9 for n in stated)
+                       and not cited_match(e.success_rule.value, cited, magnitude=False)]
+        invented = [value for _, value in invented_at]
         if invented:
             values = ", ".join(f"{v:g}" for v in invented)
+            paths = ", ".join(f"research_plan.experiments[{index}].success_rule" for index, _ in invented_at)
             self._gate_once(state, "PLAN_SUCCESS_RULE", PLAN_SUCCESS_RULE_INSTRUCTION.format(values=values)
+                            + PLAN_FIELD_PATHS.format(paths=paths)
                             + (CITED_THRESHOLD_HINT if current_turn_referent.get() == "NEWEST_RESULT" else ""))
             return self._forced(state, final, PLAN_PROVENANCE_NOTICE.format(numbers=values),
                                 [f"Success thresholds the user did not state: {values}."])
         # M26 option B: a minimum effect decides the verdict, so it is the user's number too (experiments and angles)
-        items_with_effect = [i for i in (getattr(final.research_plan, "experiments", None)
-                                         or getattr(final.research_plan, "angles", None) or [])
+        plan_items = "experiments" if getattr(final.research_plan, "experiments", None) else "angles"
+        items_with_effect = [(index, i) for index, i in enumerate(getattr(final.research_plan, plan_items, None) or [])
                              if getattr(i, "min_effect", None) is not None]
-        invented = [i.min_effect for i in items_with_effect
-                    if not any(abs(n - i.min_effect) < 1e-9 or abs(n * 100 - i.min_effect) < 1e-9
-                               or abs(n / 100 - i.min_effect) < 1e-9 for n in stated)
-                    and not cited_match(i.min_effect, cited, magnitude=True)]
+        invented_at = [(index, i.min_effect) for index, i in items_with_effect
+                       if not any(abs(n - i.min_effect) < 1e-9 or abs(n * 100 - i.min_effect) < 1e-9
+                                  or abs(n / 100 - i.min_effect) < 1e-9 for n in stated)
+                       and not cited_match(i.min_effect, cited, magnitude=True)]
+        invented = [value for _, value in invented_at]
         if invented:
             values = ", ".join(f"{v:g}" for v in invented)
+            paths = ", ".join(f"research_plan.{plan_items}[{index}].min_effect" for index, _ in invented_at)
             self._gate_once(state, "PLAN_MIN_EFFECT", PLAN_MIN_EFFECT_INSTRUCTION.format(values=values)
+                            + PLAN_FIELD_PATHS.format(paths=paths)
                             + (CITED_THRESHOLD_HINT if current_turn_referent.get() == "NEWEST_RESULT" else ""))
             return self._forced(state, final, PLAN_PROVENANCE_NOTICE.format(numbers=values),
                                 [f"Minimum effects the user did not state: {values}."])
@@ -4888,17 +4953,19 @@ class AgentOrchestrator:
         if disagreement:
             log_event("plan_horizon_readings_disagree", request_id=state.request_id, detail=disagreement)
         allowed = allowed_periods(horizons, getattr(final.research_plan, "analysis_frequency", None))
-        items = [(getattr(i, "angle_id", None) or getattr(i, "experiment_id", "?"), i.outcome_horizon_periods)
-                 for i in (getattr(final.research_plan, "angles", None) or getattr(final.research_plan, "experiments",
-                                                                                   None) or [])
+        horizon_key = "angles" if getattr(final.research_plan, "angles", None) else "experiments"
+        items = [(getattr(i, "angle_id", None) or getattr(i, "experiment_id", "?"), i.outcome_horizon_periods,
+                  f"research_plan.{horizon_key}[{index}].outcome_horizon_periods")
+                 for index, i in enumerate(getattr(final.research_plan, horizon_key, None) or [])
                  if getattr(i, "outcome_horizon_periods", None) is not None]
-        drifted = [(name, used) for name, used in items if allowed and used not in allowed]
+        drifted = [(name, used, path) for name, used, path in items if allowed and used not in allowed]
         if drifted:
             stated_text = ", ".join(f"{n} {u.lower()}{'s' if n > 1 else ''}" for n, u in sorted(horizons))
             self._gate_once(state, "PLAN_HORIZON", PLAN_HORIZON_INSTRUCTION.format(
-                stated=stated_text, plan_items=", ".join(n for n, _ in drifted),
-                used=", ".join(sorted({str(u) for _, u in drifted})),
-                allowed=" or ".join(str(a) for a in sorted(allowed))))
+                stated=stated_text, plan_items=", ".join(n for n, _, _ in drifted),
+                used=", ".join(sorted({str(u) for _, u, _ in drifted})),
+                allowed=" or ".join(str(a) for a in sorted(allowed)))
+                + PLAN_FIELD_PATHS.format(paths=", ".join(path for _, _, path in drifted)))
             return self._forced(state, final, PLAN_VERSION_NOTICE, [
                 f"The Research Plan changes the outcome horizon the user stated ({stated_text})."])
         # M29 (d02 2026-09-29: "about 6 banks" planned, 48 run): a number written in the plan's own text (universe,
@@ -5301,27 +5368,41 @@ class AgentOrchestrator:
         """M45 (AI_ENABLE_EDIT_REPAIR): the edit instruction when the refused draft is a JSON object and the next turn
         is free-form (an edit object cannot pass the strict schema); otherwise nothing: the full rewrite as before."""
         state.repair_base = None
+        retry_base, state.edit_retry_base = state.edit_retry_base, None
         if not self.settings.ai_enable_edit_repair or state.tools_locked or state.structured_only \
                 or not self._turn_tools(state):
             return ""
-        state.repair_base = edit_repair.draft_object(raw)
+        state.repair_base = retry_base if retry_base is not None else edit_repair.draft_object(raw)
         return " " + edit_repair.EDIT_REPAIR_INSTRUCTION if state.repair_base is not None else ""
 
     def _apply_edit(self, state: RunState, raw: str) -> tuple[str, ValueError | None]:
         """M45: a reply that is an edit object becomes the edited draft, which then passes every check as a full
-        response would; a reply that is not an edit is taken as it is. An edit that does not apply exactly returns the
-        refusal that asks for the full response (the draft is not offered for editing again)."""
+        response would; a reply that is not an edit is taken as it is. EXEC-R R4b: the first edit that does not apply
+        exactly is refused with its cause and the same draft is offered for one more edit; a second failure returns the
+        refusal that asks for the full response. {"keep": true} (R2) returns the draft unchanged."""
         base, state.repair_base = state.repair_base, None
         reply = edit_repair.draft_object(raw, edits=True)
         if not edit_repair.is_edit(reply):
+            state.edit_retry_used = False
             return raw, None
         try:
             merged, counts = edit_repair.apply(base, reply, set(FinalResponse.model_fields))
         except edit_repair.EditNotApplied as exc:
+            retry = not state.edit_retry_used
+            state.edit_retry_used = True
             log_event("ai_final_edit_failed", request_id=state.request_id, iteration=state.iterations,
-                      issue=str(exc)[:300])
+                      issue=str(exc)[:300], retry_offered=retry)
+            if self.audit_outbox is not None:
+                state.audit_trace.append(final_event("final.rejected", iteration=state.iterations, stage="EDIT",
+                                                     detail=str(exc), draft=raw, occurred_at=self.wall_clock()))
+            if retry:
+                state.edit_retry_base = base
+                return raw, edit_repair.EditNotApplied(
+                    f"The edit could not be applied ({exc}). The draft before your edit is unchanged; correct the "
+                    "edit, or send the complete corrected final response.")
             return raw, edit_repair.EditNotApplied(
                 f"The edit could not be applied ({exc}). Send the complete corrected final response.")
+        state.edit_retry_used = False
         log_event("ai_final_edit_applied", request_id=state.request_id, iteration=state.iterations,
                   edit_chars=len(raw), draft_chars=len(merged), **counts)
         if self.audit_outbox is not None:
@@ -5411,14 +5492,18 @@ class AgentOrchestrator:
                 return FinalResponse.model_validate_json(candidate)
             except ValueError as strict_error:
                 # M40 (2026-09-30): a raw control character (a line break) inside a JSON string is valid for a
-                # lenient decoder; anything else (suite20c r11: an unescaped quote) keeps the strict parser's error
+                # lenient decoder. EXEC-R R4a (2026-10-06): when the lenient decoder fails too, its error is the one
+                # the model sees, with where and the text around it; the strict parser's "control character" pointed
+                # at a line break the backend accepts (q7, P3d)
                 try:
                     data = json.loads(candidate, strict=False)
-                except ValueError:
-                    raise strict_error from None
+                except json.JSONDecodeError as lenient_error:
+                    raise FinalJsonError(AgentOrchestrator._json_error(candidate, lenient_error)) from None
                 if not isinstance(data, dict):
                     raise strict_error from None
                 return FinalResponse.model_validate(data)
+        except FinalJsonError:
+            raise
         except Exception as exc:
             details = []
             if hasattr(exc, "errors"):
@@ -5433,6 +5518,14 @@ class AgentOrchestrator:
                         break
             issue = "; ".join(details) if details else type(exc).__name__
             raise ValueError(f"Final response failed schema validation: {issue}") from exc
+
+    @staticmethod
+    def _json_error(candidate: str, error: json.JSONDecodeError) -> str:
+        """EXEC-R R4a: the lenient decoder's error, its line and column, and the text around it (the error marked)."""
+        start, end = max(error.pos - JSON_ERROR_CONTEXT, 0), min(error.pos + JSON_ERROR_CONTEXT, len(candidate))
+        around = candidate[start:error.pos] + "<<HERE>>" + candidate[error.pos:end]
+        return (f"Final response is not valid JSON: {error.msg} at line {error.lineno} column {error.colno} "
+                f"(character {error.pos}). Text around it: {json.dumps(around, ensure_ascii=False)}")
 
     @staticmethod
     def _feasibility_fields(data: dict[str, Any]) -> dict[str, Any]:

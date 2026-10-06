@@ -125,7 +125,8 @@ def test_a_raw_line_break_in_a_string_and_a_single_limitation_string_are_read() 
 
 
 def test_broken_json_and_a_string_interpretation_are_still_refused() -> None:
-    with pytest.raises(ValueError, match="schema validation"):
+    # EXEC-R R4a: JSON the lenient decoder cannot read either is refused with its position and the text around it
+    with pytest.raises(ValueError, match=r"not valid JSON: Expecting ',' delimiter at line 1 column 42"):
         AgentOrchestrator._parse_final_output('{"response_type": "ANSWER", "answer": "x"')
     with pytest.raises(ValueError, match="schema validation"):
         AgentOrchestrator._parse_final_output(json.dumps({**BASE, "answer": 5}))

@@ -1,21 +1,28 @@
 """G23 (PLAN_FINAL_2026-10-04.md Fase 2): one source for the tools a step can call (the desk), read by the tools sent
-to the model, every gate that asks for a repair and get_system_capabilities; evidence asked only for the model's own
-figures; every one-time gate request says so (K2); no total failure when the step limit or the time runs out (K3)."""
+to the model, every gate that asks for a repair and get_system_capabilities; the model's own typed figures asked for by
+address (EXEC-E, 2026-10-06: the get_evidence gate removed), a figure equal to exactly one released value taken as its
+reference (EXEC-R R3); every one-time gate request says so (K2); no total failure when the step limit or the time runs
+out (K3)."""
 from __future__ import annotations
 
 import json
 import logging
 
+import httpx
 import pytest
 
 from app import conversation_router as router
 from app.orchestrator import (DATANEED_ANALYSIS_TOOLS, DISCOVERY_TOOLS, EVIDENCE_BACKEND_LINE,
-                              EVIDENCE_REFERENCED_LINE, GATE_ONCE_NOTE,
+                              EVIDENCE_REFERENCED_LINE, GATE_ONCE_NOTE, TYPED_FIGURES_LINE,
                               LEGACY_ANALYSIS_TOOLS, RESEARCH_RUN_TOOLS, AgentOrchestrator, GateRejection, RunState)
 from app.schemas import FinalResponse
+from app.tools import build_default_registry
+from app.tools.analysis import SandboxClient
+from app.tools.request_data import GovernorClient
 from app.tools.system import current_step_tools
+from app.value_refs import ReferenceSources, TableRows
 from conftest import ANSWER, ScriptedClient, final_response, make_settings, tool_call_response
-from test_evidence import Governor, registry as evidence_registry
+from test_analysis_tools import SANDBOX_KEY
 from test_artifacts import FakeSandbox
 from test_orchestrator import ListHandler, counting_registry, orchestrator, request
 from test_tool_effects import production_read_only
@@ -25,19 +32,27 @@ FIGURES = FinalResponse(response_type="ANSWER", answer="RB beli bersih 116 dari 
 
 # every desk a step can have: the router's read-only set, an approved research run, the analysis path, none
 DESKS = {
-    "read_only": production_read_only() - {"get_evidence"},
-    "read_only_with_evidence": production_read_only(),
+    "read_only": production_read_only(),
     "research_run": DISCOVERY_TOOLS | RESEARCH_RUN_TOOLS | {"inspect_session", "get_session_output", "get_lineage"},
-    "analysis": DATANEED_ANALYSIS_TOOLS | DISCOVERY_TOOLS | {"get_evidence"},
+    "analysis": DATANEED_ANALYSIS_TOOLS | DISCOVERY_TOOLS,
     "none": frozenset(),
 }
-NEEDS = {"EVIDENCE": frozenset({"get_evidence"}), "ANALYSIS": DATANEED_ANALYSIS_TOOLS,
-         "LEGACY_ANALYSIS": LEGACY_ANALYSIS_TOOLS, "RESEARCH_RUN_INCOMPLETE": frozenset({"complete_research_run"}),
+NEEDS = {"ANALYSIS": DATANEED_ANALYSIS_TOOLS, "LEGACY_ANALYSIS": LEGACY_ANALYSIS_TOOLS,
+         "RESEARCH_RUN_INCOMPLETE": frozenset({"complete_research_run"}),
          "PLAN_FEASIBILITY": frozenset({"check_data_feasibility"})}
 
 
+def governor_handler(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(200, json={"status": "OK", "rows": [], "row_count": 0})
+
+
 def evidence_orchestrator() -> AgentOrchestrator:
-    return AgentOrchestrator(make_settings(), ScriptedClient([]), evidence_registry(FakeSandbox(), Governor()))
+    sandbox = FakeSandbox()
+    client = SandboxClient("http://sandbox.test", SANDBOX_KEY, 10, 0, transport=httpx.MockTransport(sandbox.handler))
+    governor = GovernorClient("http://governor.test", "g" * 40, 10, transport=httpx.MockTransport(governor_handler))
+    registry = build_default_registry(sandbox_client=client, governor_client=governor, dataneed_enabled=True)
+    return AgentOrchestrator(make_settings(AI_ENABLE_DATANEED="true", AI_ENABLE_VALUE_REFERENCES="true"),
+                             ScriptedClient([]), registry)
 
 
 def state_with(desk: frozenset[str] | None, label: str = "DATA_COVERAGE_VERIFIED") -> RunState:
@@ -63,23 +78,23 @@ def test_a_gate_never_asks_for_a_tool_the_step_does_not_have(desk_name: str, kin
         assert kind not in state.gate_kinds_rejected
 
 
-def test_the_evidence_gate_on_a_re_read_without_the_tool_labels_instead_of_asking() -> None:
-    """g9.2 (ma-golden-20261004a): the gate asked for get_evidence on a step without it, 57 times."""
+def test_typed_figures_are_asked_for_once_on_any_desk_with_tools_then_labelled() -> None:
+    """EXEC-E: the repair is an edit (write the address or remove the figure), so a read-only step is asked too; the
+    second time the answer is delivered with the line naming the typed figures."""
     orc = evidence_orchestrator()
     state = state_with(frozenset(DESKS["read_only"]))
-    out = orc._evidence_gate(state, FIGURES, ["DATA_COVERAGE_VERIFIED"])
-    assert any("Bukti klaim tidak dihitung" in line for line in out.limitations)
-    assert "EVIDENCE" not in state.gate_kinds_rejected
-
-
-def test_the_analysis_step_is_still_asked_once() -> None:
-    """The case this change leaves as it was: the model's own figures, get_evidence on the desk."""
-    orc = evidence_orchestrator()
-    state = state_with(None)
-    with pytest.raises(GateRejection):
+    with pytest.raises(GateRejection) as raised:
         orc._evidence_gate(state, FIGURES, ["DATA_COVERAGE_VERIFIED"])
+    assert "116, 132" in str(raised.value) and str(raised.value).endswith(GATE_ONCE_NOTE)
     second = orc._evidence_gate(state, FIGURES, ["DATA_COVERAGE_VERIFIED"])
-    assert any("Bukti klaim tidak dihitung" in line for line in second.limitations)
+    assert TYPED_FIGURES_LINE.format(numbers="116, 132") in second.limitations
+
+
+def test_a_step_without_tools_labels_typed_figures_at_once() -> None:
+    orc = evidence_orchestrator()
+    out = orc._evidence_gate(state_with(frozenset()), FIGURES, ["DATA_COVERAGE_VERIFIED"])
+    assert TYPED_FIGURES_LINE.format(numbers="116, 132") in out.limitations
+    assert "TYPED_FIGURES" not in out.limitations
 
 
 @pytest.mark.parametrize("kinds", [["CALCULATION_VERIFIED"], ["DATABASE_AGGREGATE", "FACT"]])
@@ -140,7 +155,7 @@ def test_capabilities_report_the_tools_of_the_step() -> None:
     finally:
         current_step_tools.reset(token)
     assert set(step["available_tools"]) <= DESKS["read_only"]
-    assert "get_evidence" in step["other_tools_not_in_this_step"]
+    assert "run_python" in step["other_tools_not_in_this_step"]
     assert set(step["available_tools"]) | set(step["other_tools_not_in_this_step"]) == set(everything["available_tools"])
 
 
@@ -220,3 +235,32 @@ def test_a_clean_draft_after_the_time_ran_out_keeps_its_answer() -> None:
     assert result.status == "LIMITED" and result.error.code == "ANALYSIS_TIMEOUT"
     assert result.response.answer == "Belum ada data."
     assert any("batas waktu" in line and "req-1" in line for line in result.response.limitations)
+
+
+# ---------------------------------------------------------------- EXEC-R R3: a unique match is taken as the reference
+
+def released_state(rows: list[dict], typed_answer: str) -> RunState:
+    """A released table as a run holds it (TableRows, rows identified by their broker column)."""
+    state = state_with(None)
+    table = TableRows(len(rows))
+    table.add(0, [dict(row) for row in rows])
+    state.ref_sources = ReferenceSources()
+    state.ref_sources.add("out", "o3", {"rows": table}, "DATA_COVERAGE_VERIFIED")
+    state.typed_answer = typed_answer
+    return state
+
+
+def test_a_typed_figure_equal_to_exactly_one_released_value_counts_as_its_reference() -> None:
+    rows = [{"broker": "RB", "net_days": 116.0, "days": 132.0}, {"broker": "YP", "net_days": 50.0, "days": 60.0}]
+    state = released_state(rows, "RB beli bersih 116 dari 132 hari.")
+    out = evidence_orchestrator()._evidence_gate(state, FIGURES, ["DATA_COVERAGE_VERIFIED"])
+    assert not state.gate_kinds_rejected and EVIDENCE_REFERENCED_LINE in out.limitations
+    assert sorted(state.referenced) == ["out.o3.rows[broker=RB].days", "out.o3.rows[broker=RB].net_days"]
+
+
+def test_a_typed_figure_equal_to_two_released_values_is_still_asked_for() -> None:
+    rows = [{"broker": "RB", "net_days": 116.0, "days": 132.0}, {"broker": "YP", "net_days": 116.0, "days": 140.0}]
+    state = released_state(rows, "RB beli bersih 116 dari 132 hari.")
+    with pytest.raises(GateRejection) as raised:
+        evidence_orchestrator()._evidence_gate(state, FIGURES, ["DATA_COVERAGE_VERIFIED"])
+    assert "116" in str(raised.value) and "132" not in str(raised.value)

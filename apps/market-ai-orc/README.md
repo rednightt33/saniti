@@ -298,7 +298,7 @@ Gate and final-response log events (always on):
 | `AI_PROVIDER_MIN_THROUGHPUT` | no | unset | OpenRouter `provider.preferred_min_throughput` `{p50: <n>}` in tokens/s for every model call (1–10000): slower endpoints are tried last, never excluded, and load balancing stays on. Unset keeps OpenRouter's default routing. Dev: `50` (user decision 2026-10-05); see [Run-time and cost controls](#run-time-and-cost-controls) |
 | `AI_ENABLE_WEB_FACT` | no | `false` | S4b (K8): the tool `find_web_fact`, one fact that is not in the market data (group membership, controlling shareholder, company status) from market-web-governor `POST /v1/fact` in about 30 s. Needs `WEB_GOVERNOR_URL` and `WEB_GOVERNOR_API_KEY` (off otherwise, `web_fact_inactive`). The orchestrator writes each fact as a "Fakta web" assumption with its status and domains |
 | `AI_ENABLE_WEB_RESEARCH` | no | `false` | Item 12 (PLAN_2026-10-05.md): the tool `research_web`, information outside the database (a fact, a figure, an event with its dates, a series over periods, a list; several subjects in one call) from market-web-governor `POST /v1/orc/web`, for context or when the database lacks it; see [Web research (item 12)](#web-research-item-12). Replaces `find_web_fact`: the start is refused when `AI_ENABLE_WEB_FACT` is also on. Needs `WEB_GOVERNOR_URL` and `WEB_GOVERNOR_API_KEY` (off otherwise, `web_research_inactive`) |
-| `AI_ENABLE_ADDRESS_MENU` | no | `false` | Item 10 (PLAN_2026-10-05.md): every tool result that holds values lists their full value references (`addresses`, at most 120), `check_references` renders addresses before the answer (with value references and DataNeed), a REFERENCE refusal suggests addresses with the same field, and a field a hypothesis finding lacks is read from its research summary (logged `ai_reference_redirected`); see [Value-reference addresses (item 10)](#value-reference-addresses-item-10) |
+| `AI_ENABLE_ADDRESS_MENU` | no | `false` | Item 10 (PLAN_2026-10-05.md): every tool result that holds values lists their full value references (`addresses`, at most 200), `check_references` renders addresses on request (with value references and DataNeed), a REFERENCE refusal suggests addresses with the same field, and a field a hypothesis finding lacks is read from its research summary (logged `ai_reference_redirected`); see [Value-reference addresses (item 10)](#value-reference-addresses-item-10) |
 | `WEB_GOVERNOR_URL`, `WEB_GOVERNOR_API_KEY` | with `AI_ENABLE_WEB_FACT` or `AI_ENABLE_WEB_RESEARCH` | unset | market-web-governor's address and its API key (secret; on Railway a reference to the governor's own variable) |
 | `AI_REPLAY_REASONING` | no | `false` | S4c (K7, 2026-10-04): send the reasoning items of a run's earlier tool turns back with their calls, exactly as received, so a conclusion reached in reasoning is not lost a few steps later (M71, P27). Never across messages. A provider that refuses them (`PROVIDER_REJECTED`) turns it off for the rest of the run (`ai_reasoning_replay_refused`). Input tokens grow by the replayed reasoning; watch the cache ratio. Dev: `true` |
 | `AI_LOG_PROVIDER` | no | `false` | After each run, look up which provider served each model call (OpenRouter `/generation`, in a background thread) and log it as `ai_model_call_provider` |
@@ -1135,9 +1135,10 @@ addresses composed from memory and twelve figures typed without an address).
 - **Menu (10.1):** `ReferenceSources.menu` lists the numeric leaves of each object a result registers as
   `<address> = <value> [unit]` (a table: one example row by its identifying column), at most 40 per object.
 - **Check (10.2):** `check_references` renders up to 40 addresses with the same code as the answer, without a model
-  call.
-- **Cheap repair (10.3, with `AI_ENABLE_EDIT_REPAIR`):** an edit may replace every occurrence of a whole `{{...}}`
-  reference (`"all": true`) or of a text that occurs exactly `"count"` times.
+  call. Since EXEC-P2 P2a (2026-10-06) the address note no longer pushes it before writing: the REFERENCE refusal
+  already lists every wrong address with its nearest replacement.
+- **Cheap repair (10.3, with `AI_ENABLE_EDIT_REPAIR`):** an edit may replace every occurrence of a text (`"all": true`;
+  a whole `{{...}}` reference only until EXEC-R R4c) or of a text that occurs exactly `"count"` times.
 - **Redirect (10.4):** a field a hypothesis finding lacks is read from its `research_summary_<id>` output when exactly
   one is registered.
 - **Addresses for valid numbers (10.5):** a hypothesis finding carries `confidence_level` (sandbox);
@@ -1178,6 +1179,32 @@ audit `final.edit_applied`). An edit that does not apply (`ai_final_edit_failed`
 response, and no edit is offered for prose, cut-off drafts or strict-schema turns. A reply that is not an edit object
 is taken as a full response. The repair budget is unchanged. Off: no edit is offered and refusals are as before. Live
 case: m4a of `ma-integrity-20261001a` spent 510 s on six full rewrites of an 18,952-character report.
+
+EXEC-R (`EXEC.md`, user approval 2026-10-06; golden test `ma-qa-20261006b` spent about 730 s, 18% of model time, after
+refusals):
+
+- **R1 `set`:** `{"set": {"research_plan.angles[0].min_effect": null}}` replaces a value at a dotted path with list
+  indexes. Every step before the last must exist in the draft; the last may be an optional field the draft left out,
+  which the full schema check then accepts or refuses; a top-level field must be a response field.
+- **R2 `keep`:** `{"keep": true}` keeps the stored draft unchanged. `GATE_ONCE_NOTE` asks for it when an edit is
+  offered, so the one-time gate's way out no longer costs a full resend (h_add turn 2 resent 8,660 tokens in 109 s).
+- **R4a:** a final response even the lenient decoder cannot read is refused with the decoder's error, line, column
+  and 80 characters on each side of the break (`<<HERE>>`), instead of the strict parser's misleading "control
+  character" (P3d).
+- **R4b:** the first edit that does not apply is refused with its cause and the same draft is offered for one more
+  edit (`ai_final_edit_failed` `retry_offered`); a second failure asks for the complete response.
+- **R4c:** `"all": true` replaces every occurrence of any text.
+- **R5b:** the repair budget (`AI_MAX_REPAIR_ATTEMPTS`) counts one model turn once per tool and reason, so parallel
+  refusals of one turn spend one repair (M88).
+- **R5c:** a `query_metric` period may give `start_date` without `end_date`; it then runs to `as_of`.
+
+### Answer length (EXEC-P2 P2e)
+
+Rule 13 of the system prompt asks for an answer within about two and a half thousand characters and a table within ten
+rows unless the user asks for more (in words: the prompt is a number source). The orchestrator logs `ai_answer_long`
+(characters, target, longest table's rows) when an accepted answer is longer than `ANSWER_TARGET_CHARS` (2,500) or
+has a table over `ANSWER_TABLE_ROWS` (10); a mode 4 step is measured against `MODE4_PART_TARGET_CHARS` (1,500). It never
+refuses: the target is measured in the golden test (06b's longest drafts were 10-17 thousand characters).
 
 ### Repeated units next to a reference (P22)
 
@@ -2236,14 +2263,15 @@ frontend, and Telegram.
   offered in a METRICS note each run; one SQL Governor `POST /v1/summary` per period (trading days of the table's own
   calendar up to the conversation's data date, or a date range). Values count as `DATABASE_AGGREGATE` for number
   provenance and are cited as `metric.mN…`. Outside the catalog: `METRIC_NOT_IN_CATALOG`, next action a data need.
-- **get_evidence (D6, `AI_ENABLE_EVIDENCE`, needs the result store, the Governor and sandbox `stored_tables` v1):**
-  each main claim recomputed apart from the model's code, tier 1 by a Governor summary (WAREHOUSE), tier 2 by the
-  sandbox from the released base table (BASE_TABLE), compared with the number as written by the provenance rounding
-  rule: TERCEK, TIDAK_COCOK (with the difference), TIDAK_BISA_DICEK, TIDAK_DICEK_BATAS (10 claims, 120 s, 30 s per
-  query). The model sees status and difference; the response's `evidence[]` carries the rows (at most 200) and the
-  answer's value references (DIRUJUK); rows are kept in `AI_conversation_evidence` and exportable by `evidence_id`.
-  The final gate asks once for evidence when an answer cites data figures without any, and states a remaining
-  mismatch as a limitation, never hides it.
+- **get_evidence (D6): removed 2026-10-06** (`EXEC.md` EXEC-E, user decision; three golden tests never caught a wrong
+  number with it, and its gate cost refusals and a forced LIMITATION). `AI_ENABLE_EVIDENCE` is no longer read. The
+  response's `evidence[]` keeps the answer's value references (DIRUJUK: where each cited figure comes from, read from
+  its released table). Rows already in `AI_conversation_evidence` stay (history) and stay exportable by `evidence_id`.
+  Accepted risk (S23): a figure the model's code computed is not recomputed apart from that code.
+- **Typed figures (EXEC-E, replaces the evidence gate; with value references):** a figure of this run's results typed
+  without a value reference is refused once (`TYPED_FIGURES`; an edit is enough), then delivered with a limitation
+  naming it. A typed figure equal, at its own decimals, to exactly one referable value of the run is taken as that
+  value's reference (EXEC-R R3, `ai_reference_auto`); two or more equal values leave it typed.
 - **Kejedot index (D0):** `execution.friction` (`rejected_tool_calls`, `gate_repairs`, `repeated_data_orders`,
   `capacity_refusals`) in the response and the `ai_run_completed` log.
 

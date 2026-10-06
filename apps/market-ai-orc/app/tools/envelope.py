@@ -61,7 +61,7 @@ ERROR_ACTIONS: dict[str, tuple[str, bool]] = {
     # D5: query_metric
     "METRIC_NOT_IN_CATALOG": ("CALL:submit_data_need_spec", False),
     "METRIC_DIMENSION_NOT_ALLOWED": (FIX_ARGUMENTS, True),
-    # D6: get_evidence and the evidence gate
+    # D6: an export of evidence rows stored before get_evidence was removed (EXEC-E)
     "EVIDENCE_NOT_FOUND": (FIX_ARGUMENTS, True),
     # P34 (plan 2026-10-05): the database before the web; web facts only describe
     "DATABASE_HOLDS_THIS_ATTRIBUTE": ("CALL:lookup_reference", True),

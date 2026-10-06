@@ -35,7 +35,8 @@ from typing import Any
 from . import conversation_router as router
 from . import data_record as records
 from . import modes
-from .orchestrator import AgentOrchestrator, current_time_budget, log_event
+from .orchestrator import MODE4_PART_TARGET_CHARS, AgentOrchestrator, current_answer_target, current_time_budget, \
+    log_event
 from .provenance import LABEL_ORDER
 from .research_plan import ContinuationIn, ContinuationOut
 from .research_plan_v2 import ContinuationInV2, ContinuationOutV2, current_angle_bounds, plan_digest_v2
@@ -228,9 +229,11 @@ class _Mode4Run:
         changes = current_design_changes.set((self.router_usage or {}).get("design_value_changes"))
         referent = current_turn_referent.set((self.router_usage or {}).get("referent"))
         turn = current_turn_id.set(self.base_id)  # item 12: one web budget for every step of this message
+        target = current_answer_target.set(MODE4_PART_TARGET_CHARS)  # EXEC-P2 P2e: each part of the reply
         try:
             result = self.inner.run(sub_request, self.key, data_record=self.record)
         finally:
+            current_answer_target.reset(target)
             current_time_budget.reset(budget)
             current_angle_bounds.reset(angle_bounds)
             router.current_turn_kind.reset(kind)

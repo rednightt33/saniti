@@ -14,8 +14,12 @@ registering the new versions of the tools whose contract changed in that round.
   prepare_data_bundle v2, open_analysis_session v2, run_python v4, complete_analysis orc-v2 (P32 counts, backtest).
 - round_h (20261005_003, applied): the first row of lookup_reference and find_web_fact v2 (P34: the database before the
   web).
-- round_i (20261005_004): the first rows of check_references (item 10.2) and research_web (item 12), lookup_reference
-  v2 and get_system_capabilities v3 (their descriptions name the web without the one-fact tool; PLAN_2026-10-05.md).
+- round_i (20261005_004, applied): the first rows of check_references (item 10.2) and research_web (item 12),
+  lookup_reference v2 and get_system_capabilities v3 (their descriptions name the web without the one-fact tool;
+  PLAN_2026-10-05.md).
+- round_j (20261006_001): query_metric v2 (a period may start without an end, EXEC-R R5c); get_evidence marked removed
+  from the code (EXEC-E, user decision 2026-10-06; its rows stay as history, "retired") and Table_Catalog's
+  AI_conversation_evidence noted as no longer written ("table_notes").
 
 Registered from the code with every switch of the dev environment on (the registry of scripts/generate_ai_tools_doc.py,
 one source for both). An applied migration is frozen (database/migrations/APPLIED.sha256); market-ai-orc's
@@ -204,8 +208,28 @@ ROUNDS = {
                                    "cost per user turn (WEB_ORC_MAX_CALLS_PER_RUN, WEB_ORC_MAX_USD_PER_RUN); the "
                                    "orchestrator waits at most 150 s and keeps 15 s of the run for the answer"},
     },
+    "round_j": {
+        "target": ROOT / "database/migrations/20261006_001_round_j_tool_catalog.sql",
+        "versions": {"query_metric": ("v1", "v2")},
+        "contracts": {"query_metric": ("input_schema", "null: up to as_of")},
+        # tools removed from the code: every row stays (history) and is marked with the removal
+        "retired": {"get_evidence": "2026-10-06: removed from market-ai-orc with its switch AI_ENABLE_EVIDENCE and its "
+                                    "gate (EXEC.md EXEC-E, user decision); cited figures are written by their address "
+                                    "(DIRUJUK) instead"},
+        # Table_Catalog.update_rule notes of tables the round's changes stop writing
+        "table_notes": {"AI_conversation_evidence": " Not written since 2026-10-06: get_evidence was removed from "
+                                                    "market-ai-orc (EXEC-E); the rows stay with their conversation."},
+        "title": "EXEC-E and EXEC-R",
+        "header": "EXEC.md EXEC-E and EXEC-R (user approval 2026-10-06)",
+        "limits_design": "EXEC.md EXEC-E and EXEC-R (user approval 2026-10-06)",
+        "summary": ["query_metric v2: a period may start without an end and then runs to as_of (EXEC-R R5c; golden test",
+                    "ma-qa-20261006b refused four parallel calls for it, M88). get_evidence: removed from the code",
+                    "(EXEC-E, user decision 2026-10-06); its rows stay and carry the removal. Table_Catalog:",
+                    "AI_conversation_evidence is no longer written."],
+        "limits": {"period": "trading_days, or start_date with end_date optional (null: up to as_of)"},
+    },
 }
-NEWEST = "round_i"
+NEWEST = "round_j"
 
 
 def _tools_doc():
@@ -255,6 +279,31 @@ INSERT INTO public."Tool_Catalog" (
         f"AND NOT is_active) <> {len(new)}"
 
 
+def _retired(spec: dict) -> tuple[str, str, str]:
+    """(UPDATE statements, preflight condition, verify condition) marking removed tools and the tables they wrote."""
+    retired, notes = spec.get("retired") or {}, spec.get("table_notes") or {}
+    if not retired and not notes:
+        return "", "", ""
+    updates, missing, unmarked = [], [], []
+    for name, reason in retired.items():
+        mark = sql_json({"removed": reason}, sort_keys=True, separators=(",", ":"))
+        updates.append(f"UPDATE public.\"Tool_Catalog\" SET tool_specific_limits = tool_specific_limits || '{mark}'::jsonb,\n"
+                       f"    is_active = false\nWHERE tool_name = '{name}';")
+        missing.append(f"NOT EXISTS (SELECT 1 FROM public.\"Tool_Catalog\" WHERE tool_name = '{name}')")
+        missing.append(f"EXISTS (SELECT 1 FROM public.\"Tool_Catalog\" WHERE tool_name = '{name}' "
+                       f"AND tool_specific_limits ? 'removed')")
+        unmarked.append(f"EXISTS (SELECT 1 FROM public.\"Tool_Catalog\" WHERE tool_name = '{name}' "
+                        f"AND (is_active OR NOT tool_specific_limits ? 'removed'))")
+    for table, note in notes.items():
+        updates.append(f"UPDATE public.\"Table_Catalog\" SET update_rule = update_rule || '{sql_literal(note)}'\n"
+                       f"WHERE table_schema = 'public' AND table_name = '{table}';")
+        missing.append(f"(SELECT count(*) FROM public.\"Table_Catalog\" WHERE table_schema = 'public' "
+                       f"AND table_name = '{table}' AND update_rule NOT LIKE '%Not written since%') <> 1")
+        unmarked.append(f"NOT EXISTS (SELECT 1 FROM public.\"Table_Catalog\" WHERE table_schema = 'public' "
+                        f"AND table_name = '{table}' AND update_rule LIKE '%Not written since 2026-10-06%')")
+    return "\n" + "\n".join(updates) + "\n", "\n       OR ".join(missing), "\n       OR ".join(unmarked)
+
+
 def schema_text(definition: dict) -> str:
     return sql_json(definition["parameters"], sort_keys=True, separators=(",", ":"))
 
@@ -265,9 +314,15 @@ def render(round_name: str = NEWEST) -> str:
     found = definitions(round_name)
     assert set(found) == set(VERSIONS) | set(spec.get("new") or {}), found.keys()
     new_insert, new_exists, new_count = _new_tools(spec, found)
+    retired_sql, retired_missing, retired_unmarked = _retired(spec)
     extra_exists = f" OR {new_exists}" if new_exists else ""
     extra_count = f"\n       OR {new_count}" if new_count else ""
-    limits = {"design": f"ROUND_PLAN_2026-10-03.md ({spec['title']})",
+    retired_preflight = (f"\n    IF {retired_missing} THEN\n        RAISE EXCEPTION 'The removed tools or their "
+                         f"tables are missing or already marked';\n    END IF;") if retired_missing else ""
+    retired_verify = (f"\n    IF {retired_unmarked} THEN\n        RAISE EXCEPTION 'The removed tools or their tables "
+                      f"were not marked';\n    END IF;") if retired_unmarked else ""
+    # a later round names its own design document ("limits_design", "header"); older rounds keep their text
+    limits = {"design": spec.get("limits_design") or f"ROUND_PLAN_2026-10-03.md ({spec['title']})",
               "registry_state": "registered from code (market-ai-orc) under the dev flags, inactive here",
               **spec["limits"]}
     if not VERSIONS:
@@ -283,7 +338,8 @@ def render(round_name: str = NEWEST) -> str:
         f" AND {column}::text LIKE '%{sql_literal(text)}%')" for n, (column, text) in CONTRACTS.items())
     summary = "\n".join(f"-- {line}" for line in spec["summary"])
     title = spec["title"]
-    return f"""-- Round 2026-10-03 {title} (ROUND_PLAN_2026-10-03.md): the tool contracts the code now offers.
+    header = spec.get("header") or f"Round 2026-10-03 {title} (ROUND_PLAN_2026-10-03.md)"
+    return f"""-- {header}: the tool contracts the code now offers.
 {summary}
 -- Inactive like every market-ai-orc row; input schema and purpose from the code, every other column copied from the
 -- previous version.
@@ -300,7 +356,7 @@ BEGIN
     END IF;
     IF EXISTS (SELECT 1 FROM public."Tool_Catalog" WHERE {registered}){extra_exists} THEN
         RAISE EXCEPTION 'The {title} tool versions are already registered';
-    END IF;
+    END IF;{retired_preflight}
 END
 $preflight$;
 
@@ -325,7 +381,7 @@ JOIN (VALUES
 {rows}
 ) AS next(name, from_version, version, input_schema, purpose)
   ON previous.tool_name = next.name AND previous.version = next.from_version;
-{new_insert}
+{new_insert}{retired_sql}
 DO $verify$
 BEGIN
     IF (SELECT count(*) FROM public."Tool_Catalog" WHERE NOT is_active AND ({registered})) <> {len(VERSIONS)}{extra_count} THEN
@@ -333,7 +389,7 @@ BEGIN
     END IF;
     IF {carried} THEN
         RAISE EXCEPTION 'The {title} contracts are not in the registered rows';
-    END IF;
+    END IF;{retired_verify}
 END
 $verify$;
 

@@ -1423,7 +1423,9 @@ Boundaries:
   verified; the size limit is `PY_SANDBOX_RESTORE_MAX_BYTES`. `page` reads rows like a session output; `export` writes
   CSV, Parquet or XLSX (`openpyxl`, sheets `data`, `definisi`, `lineage`), at most 20 MB (`EXPORT_TOO_LARGE`, 413);
   `recount` recomputes COUNT, COUNT_DISTINCT, SUM, MIN, MAX or MEAN under `where` conditions and returns at most 200
-  matching rows (evidence tier 2). Capability `stored_tables` v1.
+  matching rows (evidence tier 2). Capability `stored_tables` v1. Since 2026-10-06 nothing calls `recount`: its only
+  caller, market-ai-orc `get_evidence`, was removed (`EXEC.md` EXEC-E); the operation stays until its removal is
+  approved separately.
 - **Lineage (D3):** new bundle manifests keep each partition's Governor `query_id`, `query_hash`, dataset id and rows
   (`governor`); `GET /v1/bundles/{id}/lineage?request_id=` returns source tables, row filter hashes, restricting
   relationships, rows, actual ranges and those ids (older bundles: `NOT_RECORDED`), for the bundle's request or its

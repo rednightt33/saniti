@@ -274,15 +274,6 @@ def create_app(
             if not export:
                 log_event("export_inactive", reason="needs AI_ENABLE_DATANEED and a sandbox reporting stored_tables "
                                                     f"version {STORED_TABLES_VERSION}")
-        evidence = False
-        if settings.ai_enable_evidence:
-            # D6: tier 2 recounts a released table in the sandbox (stored_tables v1); the result store is checked below
-            capability = (sandbox.runtime().get("stored_tables") or {}) if sandbox is not None else {}
-            evidence = settings.ai_enable_dataneed and governor is not None and capability.get("enabled") is True \
-                and capability.get("version") == STORED_TABLES_VERSION
-            if not evidence:
-                log_event("evidence_inactive", reason="needs AI_ENABLE_DATANEED, the Governor and a sandbox reporting "
-                                                      f"stored_tables version {STORED_TABLES_VERSION}")
         lineage_tool = False
         if settings.ai_enable_lineage_tool:
             # D3: the sandbox must serve GET /v1/bundles/{id}/lineage (bundle_lineage v1); otherwise off (fail closed)
@@ -347,7 +338,6 @@ def create_app(
             lineage_tool=lineage_tool,
             export=export,
             metrics=metrics or None,
-            evidence=evidence,
             web_fact_client=web_fact,
             reference_lookup=settings.ai_enable_reference_lookup,
             reference_check=settings.ai_enable_address_menu and settings.ai_enable_value_references
@@ -418,8 +408,6 @@ def create_app(
             log_event("result_store_inactive", reason="needs conversation reuse, the conversation store and the sandbox")
         if result_store is None and registry.disable("export_result"):
             log_event("export_inactive", reason="exports are kept with the conversation: the result store is inactive")
-        if result_store is None and registry.disable("get_evidence"):
-            log_event("evidence_inactive", reason="evidence is kept with the conversation: the result store is inactive")
         orchestrator = AgentOrchestrator(settings, owned_client, registry, auditor=auditor,
                                          catalog_summary=summary, provider_logger=provider_logger,
                                          provider_policy=provider_policy,

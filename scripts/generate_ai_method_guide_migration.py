@@ -32,11 +32,14 @@ VERSION_CHANGES = {
        "get_evidence (BASE_TABLE or WAREHOUSE)",
     5: "PLAN_2026-10-05.md (P32, P33): counts over the approved ranges (in_period, labelled row\n-- counts), "
        "activity z-scores without the current observation, and the backtest guide",
+    6: "EXEC.md EXEC-E, user decision 2026-10-06: get_evidence removed; every cited figure is\n-- released and "
+       "written by its address (DIRUJUK)",
 }
 VERSION_TARGETS = {2: ROOT / "database/migrations/20261003_002_ai_method_guides_v2.sql",
                    3: ROOT / "database/migrations/20261003_004_ai_method_guides_v3.sql",
                    4: ROOT / "database/migrations/20261003_010_ai_method_guides_v4.sql",
-                   5: ROOT / "database/migrations/20261005_002_ai_method_guides_v5.sql"}
+                   5: ROOT / "database/migrations/20261005_002_ai_method_guides_v5.sql",
+                   6: ROOT / "database/migrations/20261006_002_ai_method_guides_v6.sql"}
 COLUMNS = [
     ("name", "text", "Guide name (free_code, event_study, hypothesis_plan, multi_angle or a session helper's guide)."),
     ("guides_version", "integer", "Version of the method guides content."),

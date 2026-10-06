@@ -70,14 +70,15 @@ class Period(BaseModel):
 
     trading_days: int | None = Field(ge=1, le=260, description="The last N trading days up to as_of.")
     start_date: str | None = Field(pattern=r"^\d{4}-\d{2}-\d{2}$", description="A date range start.")
-    end_date: str | None = Field(pattern=r"^\d{4}-\d{2}-\d{2}$", description="A date range end.")
+    end_date: str | None = Field(pattern=r"^\d{4}-\d{2}-\d{2}$", description=(
+        "A date range end; null: up to as_of (the latest data)."))
 
     @model_validator(mode="after")
     def _one_form(self) -> "Period":
-        ranged = self.start_date is not None and self.end_date is not None
-        if (self.trading_days is not None) == ranged or (
-                not ranged and (self.start_date is not None or self.end_date is not None)):
-            raise ValueError("give trading_days, or start_date and end_date")
+        # EXEC-R R5c (M88, 2026-10-06): a start date without an end runs to as_of (it was refused, four times in 06b)
+        ranged = self.start_date is not None
+        if (self.trading_days is not None) == ranged or (not ranged and self.end_date is not None):
+            raise ValueError("give trading_days, or start_date (end_date optional: null runs to as_of)")
         return self
 
 
@@ -143,7 +144,7 @@ def metric_specs(governor: GovernorClient, metrics: list[dict[str, Any]], *, tim
         periods = []
         for period in arguments.periods:
             window = {"trading_days": period.trading_days, "as_of": as_of} if period.trading_days is not None \
-                else {"from": period.start_date, "to": period.end_date}
+                else {"from": period.start_date, "to": period.end_date or as_of}
             spec = {"summary_version": "summary_spec/v1", "source_table": metric["source_table"], "scope": scope,
                     "restrictions": [], "group_by": dimensions,
                     "measures": [{"column": metric["measure_column"], "function": metric["time_function"],

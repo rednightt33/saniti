@@ -3,7 +3,7 @@ re-formatted without changing what it says. Its sentences before (tests/fixtures
 prompt of main d9c4ebc) and after are compared ignoring order and line layout: the only differences are the approved
 ones (K1-K4, M26-P, F4). The guards of the plan: no new digit, tokens at most two percent more (measured with
 characters here, the tokenizer is not a dependency), no prose line longer than MAX_PARAGRAPH_CHARS, the 22 sections in
-the planned order."""
+the planned order. Later approved changes are added to REMOVED and ADDED (EXEC-P2 P2e, 2026-10-06)."""
 from __future__ import annotations
 
 import re
@@ -59,6 +59,8 @@ REMOVED = {
     "One public fact about a company (its status, ownership, group or index membership) can be looked up with "
     "find_web_fact and is shown as a web fact;",
     "a web fact describes and never becomes a series, a dataset or an input of a calculation.",
+    # EXEC-P2 P2e (user approval 2026-10-06): answer-length targets
+    "Keep the final answer focused and proportional to the user's question.",
 }
 ADDED = {
     # K2
@@ -103,6 +105,10 @@ ADDED = {
     "for market data the database wins.",
     "Cite web values by their references;",
     "an event date may set an analysis period, but a web number is never an input of a calculation.",
+    # EXEC-P2 P2e: in words, so the prompt gains no digit (it is a number source)
+    "Keep the final answer focused and proportional to the user's question: the answer within about two and a half "
+    "thousand characters and a table in it within ten rows unless the user asks for more (the full table stays in its "
+    "released output).",
 }
 SECTIONS = ["GENERAL RULES", "TOOL USE", "TOOL RESULTS", "FINAL RESPONSE", "DATA DISCOVERY", "DATA SOURCES",
             "DATA NEED", "MODES", "TIME BASIS", "NAMED-PERIOD RETURNS", "WEEKLY AND MONTHLY", "CONVERSATION REUSE",

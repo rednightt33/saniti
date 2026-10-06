@@ -210,9 +210,11 @@ def test_count_replaces_repeated_text_when_it_matches() -> None:
     assert "95%" not in json.loads(merged)["answer"]
 
 
-def test_all_is_refused_for_text_that_is_not_a_reference() -> None:
-    with pytest.raises(edit_repair.EditNotApplied, match="give count"):
-        edit_repair.apply(draft(), {"edits": [{"find": "IK 95% ", "replace": "IK ", "all": True}]}, {"answer"})
+def test_all_replaces_every_occurrence_of_plain_text_too() -> None:
+    """EXEC-R R4c (2026-10-06): "all" on text that is not a reference was refused and the answer rewritten in full."""
+    merged, _ = edit_repair.apply(draft(), {"edits": [{"find": "IK 95% ", "replace": "IK ", "all": True}]},
+                                  {"answer"})
+    assert "IK 95% " not in json.loads(merged)["answer"]
 
 
 def test_a_wrong_count_is_refused() -> None:

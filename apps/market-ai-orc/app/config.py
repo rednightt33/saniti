@@ -185,9 +185,6 @@ class Settings:
     # D5 (round 2026-10-03): query_metric, the official metrics of AI_metric_catalog in one SQL Governor summary per
     # period (needs the catalog and the Governor; off when the catalog has no active metric)
     ai_enable_query_metric: bool = False
-    # D6 (round 2026-10-03, HIGH_ALERT_PLAN.md Prioritas 2): get_evidence, the evidence gate and evidence[] in the
-    # response (needs DataNeed, the result store and a sandbox reporting stored_tables version 1)
-    ai_enable_evidence: bool = False
     # A model-written methodology note beside a DataNeed answer: data, steps, methods and parameters in plain words,
     # its numbers checked like the answer's (plus the parameters of the code that ran). Only in the DataNeed flow.
     ai_enable_methodology: bool = False
@@ -386,7 +383,6 @@ class Settings:
             ai_enable_lineage_tool=_boolean(env, "AI_ENABLE_LINEAGE_TOOL", False),
             ai_enable_export=_boolean(env, "AI_ENABLE_EXPORT", False),
             ai_enable_query_metric=_boolean(env, "AI_ENABLE_QUERY_METRIC", False),
-            ai_enable_evidence=_boolean(env, "AI_ENABLE_EVIDENCE", False),
             result_bucket=_result_bucket(env),
             ai_enable_methodology=_boolean(env, "AI_ENABLE_METHODOLOGY", False),
             ai_enable_plan_feasibility=_boolean(env, "AI_ENABLE_PLAN_FEASIBILITY", False),
@@ -519,8 +515,6 @@ class Settings:
             raise ConfigError("AI_PROVIDER_SORT must be price, throughput or latency")
         if settings.ai_catalog_summary_in_prompt and not settings.catalog_database_url:
             raise ConfigError("AI_CATALOG_SUMMARY_IN_PROMPT needs CATALOG_DATABASE_URL")
-        if settings.ai_enable_evidence and not settings.ai_enable_result_store:
-            raise ConfigError("AI_ENABLE_EVIDENCE requires AI_ENABLE_RESULT_STORE (evidence is kept with the conversation)")
         if settings.ai_enable_export and not settings.ai_enable_result_store:
             raise ConfigError("AI_ENABLE_EXPORT requires AI_ENABLE_RESULT_STORE (exports are kept with the conversation)")
         if settings.ai_enable_result_store and not settings.ai_enable_conversation_reuse:

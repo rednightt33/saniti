@@ -89,5 +89,7 @@ def test_the_minimum_effect_is_the_users_number_or_null() -> None:
     assert orchestrator._plan_gate(s, plan_with(None, question)).research_plan.experiments[0].min_effect is None
     s = state(orchestrator)
     s.user_text = "Apakah saham yang turun pulih?"
-    with pytest.raises(GateRejection, match="min_effect value 0.5"):
+    with pytest.raises(GateRejection, match="min_effect value 0.5") as raised:
         orchestrator._plan_gate(s, plan_with(0.5, "Apakah saham yang turun pulih?"))
+    # EXEC-R R1: the refusal names the field an edit's "set" changes
+    assert "Fields: research_plan.experiments[0].min_effect." in str(raised.value)

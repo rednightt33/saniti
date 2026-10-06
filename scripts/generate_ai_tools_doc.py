@@ -40,7 +40,7 @@ SWITCHES = {
     "AI_ENABLE_POINT_IN_TIME": "point_in_time", "AI_ENABLE_RESEARCH_FINDINGS": "research_findings",
     "AI_ENABLE_PREFLIGHT_PARTS": "preflight_parts", "AI_ENABLE_MULTI_ANGLE_RESEARCH": "multi_angle",
     "AI_ENABLE_LINEAGE_TOOL": "lineage_tool", "AI_ENABLE_EXPORT": "export", "AI_ENABLE_QUERY_METRIC": "metrics",
-    "AI_ENABLE_EVIDENCE": "evidence", "AI_ENABLE_WEB_FACT": "web_fact_client",
+    "AI_ENABLE_WEB_FACT": "web_fact_client",
     "AI_ENABLE_REFERENCE_LOOKUP": "reference_lookup", "AI_ENABLE_ADDRESS_MENU": "reference_check",
     "AI_ENABLE_WEB_RESEARCH": "web_research_client",
 }
@@ -62,7 +62,6 @@ PLAIN = {
     "open_analysis_session": "Membuka ruang kerja Python di atas data yang sudah disiapkan.",
     "run_python": "Menjalankan hitungan di ruang kerja dengan alat bantu bawaan; setiap tabel hasil wajib membawa definisinya.",
     "inspect_session": "Melihat isi variabel di ruang kerja sebelum hasil dirilis, atau statistik semua kolom satu dataset (kosong, min/median/maks, celah) tanpa baris data.",
-    "get_evidence": "Memeriksa klaim utama sebelum menjawab: backend menghitung ulang setiap angka dari gudang data atau dari tabel dasar hasil analisis, lalu memberi status TERCEK atau TIDAK COCOK; tabel buktinya untuk user.",
     "export_result": "Membuat file unduhan dari tabel hasil (CSV, XLSX dengan lembar definisi dan asal data, atau Parquet), maks. 20 MB; AI hanya melihat nama dan ukurannya.",
     "find_web_fact": "Mencari satu fakta yang tidak ada di data pasar (misalnya status BUMN, pemegang saham pengendali) di web dalam ± 30 detik; status ditentukan sistem dari kutipan persis (TERKONFIRMASI, BERTENTANGAN, SEBAGIAN, TIDAK DITEMUKAN).",
     "research_web": "Mencari informasi yang tidak ada di database (fakta, angka, peristiwa dengan tanggalnya, deret per periode, daftar) di web untuk konteks atau saat data tidak ada; banyak perusahaan dalam satu panggilan; hanya butir dengan kutipan persis, konflik palsu (beda periode/definisi) dibedakan dari konflik nyata, batas biaya per giliran; setiap butir bisa dikutip dan tampil sebagai fakta web dengan domainnya.",

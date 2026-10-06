@@ -258,7 +258,9 @@ def test_a_prose_draft_is_logged_when_it_is_re_asked_then_forced_to_the_strict_t
         (1, "SAME_PREFIX", False), (2, "STRICT_SCHEMA", False)]
     # M46: the re-ask names what was wrong, then gives the unchanged instruction
     reask = client.payloads[1]["input"][-1]["content"]
-    assert reask.endswith(FINALIZE_INSTRUCTION) and reask.startswith("Final response failed schema validation")
+    # EXEC-R R4a: the lenient decoder's error, with where it broke
+    assert reask.endswith(FINALIZE_INSTRUCTION) and reask.startswith("Final response is not valid JSON")
+    assert "line 1 column 1" in reask and "<<HERE>>Here is my answer" in reask
     assert client.payloads[1]["input"][-2] == {"role": "assistant", "content": "Here is my answer in prose."}
     assert "tools" not in client.payloads[2] and "text" in client.payloads[2]
 

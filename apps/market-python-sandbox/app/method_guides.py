@@ -21,7 +21,7 @@ import hashlib
 import json
 from typing import Any
 
-GUIDES_VERSION = 5  # 2 (2026-10-02, HIGH ALERT): output definitions, event flow, approved success rule; 3 (2026-10-03, P26): thresholds with units, the approved outcome unit; 4 (2026-10-03, D6): base tables for claims, get_evidence; 5 (2026-10-05, P32/P33): counts over the approved ranges (in_period), activity z-scores without the current observation, backtest
+GUIDES_VERSION = 6  # 2 (2026-10-02, HIGH ALERT): output definitions, event flow, approved success rule; 3 (2026-10-03, P26): thresholds with units, the approved outcome unit; 4 (2026-10-03, D6): base tables for claims, get_evidence; 5 (2026-10-05, P32/P33): counts over the approved ranges (in_period), activity z-scores without the current observation, backtest; 6 (2026-10-06, EXEC-E): get_evidence removed, cited figures by address
 
 # How the backend checks a result (ERRORS_AND_SOLUTIONS S23), from weakest to strongest.
 VERIFICATION_LEVELS = {
@@ -84,15 +84,13 @@ GUIDES: list[dict[str, Any]] = [
                    "foreign flow: the catalog sums it over time) compares the observation with the ones before it: "
                    "the rolling mean and deviation of x.shift(1), as Pine's ta.sma(volume[1], n); a price z-score "
                    "keeps the current observation.",
-                   "For each main claim also release its base table: the rows a count, sum or extreme is computed "
-                   "from (for example one row per crash day for the broker), so get_evidence can recount the claim "
-                   "from it (BASE_TABLE: conditions and a measure); a claim about a governed table itself is checked "
-                   "from that table (WAREHOUSE: filters, measure, period)."],
+                   "Release every figure the answer cites (its table or JSON output), so the answer writes it by its "
+                   "address: a figure typed from your code without an address is refused once."],
         "verification": {"level": "DATA_COVERAGE_VERIFIED",
                          "checked": ["every approved request and range was delivered and read",
                                      "every figure of the answer comes from a released output (value references)",
-                                     "the main claims you check with get_evidence: TERCEK or TIDAK COCOK, recomputed "
-                                     "apart from your code; the user sees the evidence rows"],
+                                     "every cited figure is read by the backend from its released output (DIRUJUK); "
+                                     "it is not recomputed apart from your code"],
                          "not_checked": ["the formula of your code: say that the calculation was not independently "
                                          "recalculated"]},
         "results": "Released outputs of complete_analysis, cited as value references such as "

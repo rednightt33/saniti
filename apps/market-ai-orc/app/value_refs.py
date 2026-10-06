@@ -319,6 +319,16 @@ class ReferenceSources:
                 return found, entry[1]
             raise
 
+    def leaves(self, ref: str, limit: int = MENU_OBJECT_LIMIT) -> list[tuple[str, float]]:
+        """The (address, value) of each numeric value of the object at ref, as the menu lists them (EXEC-R R3)."""
+        try:
+            value, _ = self.resolve(ref)
+        except ReferenceError_:
+            return []
+        paths: list[tuple[str, float]] = []
+        _menu_leaves(value, ref, paths, limit, 0)
+        return paths
+
     def menu(self, ref: str, limit: int = MENU_OBJECT_LIMIT) -> list[str]:
         """10.1 and 1b (user decision 2026-10-05: "every result with figures lists the full address next to each figure,
         e.g. median: −2,40 → {{out.o2.content.groups.CONDITION.median}}"): one line per numeric value of the object at

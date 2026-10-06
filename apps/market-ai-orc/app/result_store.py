@@ -291,7 +291,7 @@ class ResultStore:
 def output_bytes(store: ResultStore | None, fetch: Callable[[str, str], bytes] | None, conversation_id: str | None,
                  output_id: str, session_id: str | None) -> tuple[bytes, StoredOutput | None]:
     """D0 (round 2026-10-03): the file of an output, from the sandbox while it still holds it, else from R-STORE
-    (Postgres or bucket). Used by get_session_output, export_result and get_evidence. Raises LookupError when neither
+    (Postgres or bucket). Used by get_session_output and export_result. Raises LookupError when neither
     has it."""
     if fetch is not None and session_id:
         try:

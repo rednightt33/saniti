@@ -172,8 +172,8 @@ NOTES = {
                  "test that already ran unless the user asks."),
 }
 # CLARIFY and CONVERSATIONAL read; they never extract data or run code (rule 1, enforced by the tool filter). The tools
-# they keep are derived from each tool's effect (O3, M77): READS, or OWN_ARTIFACT (get_evidence records the
-# conversation's own evidence row; export_result writes the conversation's own file from an existing result).
+# they keep are derived from each tool's effect (O3, M77): READS, or OWN_ARTIFACT (export_result writes the
+# conversation's own file from an existing result).
 READ_EFFECTS = registry_effects.READ_EFFECTS
 
 # set by mode 4 around one sub-run: the orchestrator adds the class's note and, for CLARIFY and CONVERSATIONAL, keeps
