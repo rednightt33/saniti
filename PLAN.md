@@ -23,6 +23,7 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 | No | Butir | Disetujui | Status | Urutan usulan |
 |---|---|---|---|---|
 | 1 | Sisa item 10 dan 12: deploy dua perbaikan, ulang uji item ambang, laporan golden test `ma-qa-20261006b` | "gas" 2026-10-05; format web "Ok tambahkan" 2026-10-06; **EXEC 2026-10-06** | **EXEC** (lihat bagian EXEC) | 1 |
+| 1b | Menu alamat lengkap (celah item 10.1): setiap angka tabel punya alamat, pola alamat ditulis, nilai terformat | 2026-10-05 15:49 dan 17:55 ("Menu alamat siap salin … alamat lengkap di samping angkanya"); ditegaskan 2026-10-06 ("padahal sudah saya suruh") | Sebagian: menu live sejak golden test 06b, tetapi tabel hanya satu baris contoh dan baris pola yang direncanakan tidak dibuat | Bersama EXEC-1 bila user setuju |
 | 2 | P3: gerbang yang salah tolak | 2026-10-06 "OK masukan plan jangan execute dulu" | Belum (P3a ikut EXEC butir 1, P3b ikut EXEC butir 3) | 3 |
 | 3 | Item 11: penyortir "free will", jalur TANYA BALIK, cadangan berupa pertanyaan | 2026-10-05 (16:47, 17:40, 17:51, 17:55), ditegaskan 2026-10-06; **EXEC 2026-10-06** | **EXEC** (lihat bagian EXEC) | 2 |
 | 4 | P2: jawaban ditulis sekali | 2026-10-06 | Belum | 4 |
@@ -146,6 +147,43 @@ Urutan: EXEC-1, lalu EXEC-3. EXEC-3 dibangun di atas `main` yang sudah memuat EX
    - `RAILWAY_CHANGELOG.md` dan `DATABASE_CHANGELOG.md`.
 
 ---
+
+## 1b. Menu alamat lengkap (celah item 10.1)
+
+**Yang disetujui user** (2026-10-05): "Setiap hasil yang berisi angka langsung mencantumkan alamat lengkap di samping
+angkanya, misalnya median: −2,40 → {{out.o2.content.groups.CONDITION.median}}. Asisten cukup menyalin, tidak menyusun
+sendiri."
+
+**Yang dibangun** (`apps/market-ai-orc/app/value_refs.py` `menu`; orchestrator `addresses`, live di dev sejak golden
+test 06b):
+- daftar terpisah `addresses` di hasil alat, berbentuk `alamat = nilai [satuan]` dengan nilai mentah;
+- tabel hanya diberi **satu baris contoh** (`rows[ticker=BBRI]`);
+- batas 40 alamat per objek dan 120 per hasil.
+
+**Celah terhadap yang disetujui:**
+1. **Tabel hanya satu baris contoh.** Untuk mengutip baris lain (BBCA), AI masih menyusun alamat sendiri.
+   Penyempitan ini saya tulis di rencana implementasi ("tidak semua baris didaftar") tanpa saya tandai sebagai
+   perbedaan dari kata-kata user.
+2. **Baris pola yang dijanjikan rencana implementasi** ("ditambah polanya") tidak dibuat.
+3. **Nilai tidak diformat**, dan `{{ }}` tidak ditulis seperti contoh user.
+
+**Perubahan:**
+- Setiap tabel yang dirilis dibuatkan:
+  - satu baris pola, misalnya `out.o3.rows[ticker=<ticker>].<kolom>` beserta daftar kolom angka dan satuannya;
+  - alamat untuk **setiap baris** sampai batas (usul 30 baris × kolom angka). Tabel yang lebih besar mendapat pola,
+    daftar nilai kolom pengenal, dan catatan bahwa baris lain memakai pola yang sama.
+- Setiap baris menu ditulis seperti contoh user: `nama: nilai terformat → {{alamat}}`, dengan satuan.
+- Batas per hasil dinaikkan sesuai ukuran token yang diukur. Kenaikan token masukan dilaporkan; ditinjau ulang bila
+  lebih dari 10%.
+
+**Berkas dan tes:**
+- `value_refs.py` (`menu`, `_menu_leaves`, `_row_example`), `orchestrator.py` (`ADDRESS_MENU_MAX`,
+  `ADDRESS_MENU_NOTE`);
+- tes `tests/test_address_menu.py`: semua baris tabel kecil, pola tabel besar, format seperti contoh;
+- `tests/test_prompt_pass2.py` bila catatan berubah.
+
+**Verifikasi:** golden test berikutnya. Kutipan baris selain baris contoh harus lolos tanpa REFERENCE; jumlah alamat
+yang disusun sendiri dicek dari log pikiran.
 
 ## 2. P3: gerbang yang salah tolak
 
