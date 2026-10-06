@@ -1,7 +1,7 @@
 {
  "phase": "orc_web",
- "prefix": "orcweb-bench-20261006a-",
- "workers": 4,
+ "prefix": "orcweb-bench-20261006b-",
+ "workers": 2,
  "repeat_cached": 1,
  "cases": [
   {
@@ -22,38 +22,6 @@
    "expected": "BPS: 2018 US$180,0 miliar ... 2024 US$264,7 miliar"
   },
   {
-   "id": "bakrie_banks",
-   "need": "bank yang dimiliki atau dikendalikan Grup Bakrie",
-   "purpose": "CITE",
-   "expected_shape": "LIST",
-   "labels": {
-    "depth": "ANY",
-    "shapes": [
-     "LIST"
-    ],
-    "min_items": 1,
-    "conflicts": "ANY",
-    "official": false
-   },
-   "expected": "riwayat: Bank Nusa Nasional; saat ini tidak ada bank tercatat milik Grup Bakrie (cek sumber)"
-  },
-  {
-   "id": "bi_rate",
-   "need": "BI-Rate terbaru dan tanggal pengumumannya",
-   "purpose": "CITE",
-   "expected_shape": "NUMBER",
-   "labels": {
-    "depth": "QUICK",
-    "shapes": [
-     "NUMBER"
-    ],
-    "min_items": 1,
-    "conflicts": "NONE_REAL",
-    "official": true
-   },
-   "expected": "bi.go.id, keputusan RDG terakhir"
-  },
-  {
    "id": "inflation_monthly",
    "need": "inflasi tahunan (year on year) Indonesia per bulan tahun 2025",
    "purpose": "CONTEXT",
@@ -69,84 +37,6 @@
     "official": true
    },
    "expected": "BPS, inflasi y-on-y bulanan 2025"
-  },
-  {
-   "id": "controllers",
-   "need": "pemegang saham pengendali",
-   "purpose": "CITE",
-   "expected_shape": "FACT",
-   "subjects": [
-    "BBCA (Bank Central Asia)",
-    "ASII (Astra International)",
-    "BNGA (Bank CIMB Niaga)"
-   ],
-   "labels": {
-    "depth": "QUICK",
-    "shapes": [
-     "FACT"
-    ],
-    "min_items": 3,
-    "conflicts": "ANY",
-    "official": false,
-    "subjects_answered": 3
-   },
-   "expected": "PT Dwimuria Investama Andalan; Jardine Cycle & Carriage; CIMB Group Holdings"
-  },
-  {
-   "id": "bank_status",
-   "need": "status bank BUMN atau swasta",
-   "purpose": "CITE",
-   "expected_shape": "FACT",
-   "subjects": [
-    "BBRI",
-    "BMRI",
-    "BBNI",
-    "BBCA",
-    "BRIS"
-   ],
-   "labels": {
-    "depth": "QUICK",
-    "shapes": [
-     "FACT"
-    ],
-    "min_items": 5,
-    "conflicts": "ANY",
-    "official": false,
-    "subjects_answered": 5
-   },
-   "expected": "BUMN, BUMN, BUMN, swasta, BUMN"
-  },
-  {
-   "id": "nickel_ban",
-   "need": "kebijakan larangan ekspor bijih nikel Indonesia: kapan diumumkan dan kapan berlaku",
-   "purpose": "CONTEXT",
-   "expected_shape": "EVENT",
-   "labels": {
-    "depth": "ANY",
-    "shapes": [
-     "EVENT"
-    ],
-    "min_items": 1,
-    "conflicts": "ANY",
-    "official": false
-   },
-   "expected": "diumumkan Agustus/September 2019, berlaku 1 Januari 2020"
-  },
-  {
-   "id": "lq45_members",
-   "need": "daftar saham anggota indeks LQ45 periode Agustus 2025 sampai Januari 2026",
-   "purpose": "CITE",
-   "expected_shape": "LIST",
-   "labels": {
-    "depth": "ANY",
-    "shapes": [
-     "LIST"
-    ],
-    "min_items": 1,
-    "conflicts": "ANY",
-    "official": false
-   },
-   "expected": "45 kode saham, idx.co.id"
   }
  ]
 }

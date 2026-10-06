@@ -1,5 +1,22 @@
 # Railway changelog
 
+## 2026-10-06 — Orc web route calibrated by the labelled benchmark; dev switches on (items 10 and 12)
+
+- User decision 2026-10-06 ("Hemat: benchmark 8 kasus"; OpenRouter credit USD 1.86 before this step).
+- Benchmark `orcweb-bench-20261006a` (web-governor-test-runner `ee26c59f`, 8 labelled needs, USD 0.29): 6 of 8 passed
+  every label, every case under 60 s; the export and inflation series failed (`ERRORS_AND_SOLUTIONS.md` W26).
+  `main` `3fbf735`: market-web-governor `07739c17` SUCCESS; rerun of the two (`orcweb-bench-20261006b`, runner
+  `595e75ba`, USD 0.08): both passed every label, the repeat came from the cache in 0.06 s. A value misread from a
+  decimal comma was found in the result and fixed in `56e20a4`: market-web-governor `7ca3067e` SUCCESS.
+- market-ai-orc variables (one change, names and values only, not secrets): `AI_ENABLE_ADDRESS_MENU=true`,
+  `AI_ENABLE_WEB_RESEARCH=true`, `AI_ENABLE_WEB_FACT=false`. Redeploy `96726ca5` SUCCESS (commit `56e20a4`); startup
+  logged no `web_research_inactive`; read back `AI_MODEL` `deepseek/deepseek-v4.1-flash`, `AI_MODEL_SWITCH` 1,
+  `AI_MODE_SWITCH` 4, `AI_PROVIDER_SORT` unset (unchanged).
+- `railway config pull --force` added `AI_ENABLE_ADDRESS_MENU: preserve()` and `AI_ENABLE_WEB_RESEARCH: preserve()` to
+  `.railway/railway.ts` (names only); `railway config plan`: already up to date. `AI_TOOLS.md` regenerated with the
+  dev switch snapshot (`--flags` from `railway variables --kv`, names and booleans only).
+- Rollback: `AI_ENABLE_WEB_RESEARCH=false`, `AI_ENABLE_WEB_FACT=true`, `AI_ENABLE_ADDRESS_MENU=false` in one change.
+
 ## 2026-10-05 — Plan items 10 and 12 deployed to dev (switches still off); event store 004 and round I applied
 
 - Implementation plan approved by the user ("gas"; `PLAN_2026-10-05.md` items 10, 10.6 and 12).
