@@ -57,7 +57,7 @@ def main() -> None:
     ASK_BACK = parser.parse_args().ask_back
     cases = json.loads((ROOT / "apps/market-ai-orc/tests/fixtures/first_message_router_cases.json").read_text())
     data_routes = set(router.DATA_ROUTES)
-    must = never = asked_must = asked_never = 0
+    must = never = asked_must = asked_never = costly_total = failed_total = 0
     for name in ("development", "heldout", *(("ask_back",) if ASK_BACK else ())):
         items = cases[name]
         with cf.ThreadPoolExecutor(8) as pool:
@@ -71,6 +71,7 @@ def main() -> None:
                  if set(item["routes"]) <= {"CHAT", "FACT"} and got in data_routes]
         unstable = sum(1 for i in range(0, len(results), REPEATS) if len({r[0] for r in results[i:i + REPEATS]}) > 1)
         failed = sum(1 for _, (got, _, _) in rows if got is None)
+        costly_total, failed_total = costly_total + len(costly), failed_total + failed
         seconds = sorted(s for _, (_, _, s) in rows)
         print(f"{name}: correct {correct}/{len(rows)}, data->CHAT/FACT {len(costly)}, non-data->data {len(waste)}, "
               f"unstable {unstable}/{len(items)}, failed calls {failed}, cost {sum(c for _, (_, c, _) in rows):.5f}, "
@@ -85,6 +86,12 @@ def main() -> None:
     if ASK_BACK:
         print(f"ask back: must-ask asked {asked_must}/{must} ({100 * asked_must / max(must, 1):.0f}%), "
               f"no-ask asked {asked_never}/{never}")
+    # user decision 2026-10-06: the hard criteria are the costly errors; route accuracy is reported, not a gate
+    hard = costly_total == 0 and failed_total == 0 and (not ASK_BACK or (asked_never == 0
+                                                                          and asked_must >= 0.9 * max(must, 1)))
+    print(f"hard criteria: data->CHAT/FACT {costly_total}, failed calls {failed_total}"
+          + (f", must-ask {asked_must}/{must}, no-ask asked {asked_never}" if ASK_BACK else "")
+          + (" -> PASS" if hard else " -> FAIL"))
 
 
 if __name__ == "__main__":

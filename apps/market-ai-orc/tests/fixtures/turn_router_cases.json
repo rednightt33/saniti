@@ -1,5 +1,5 @@
 {
- "note": "Later-message router cases (M80 b): export/show requests on existing results must be a read class (CLARIFY); the rest are controls. M82 (2026-10-05): cases with \"horizons\" also check design_value_changes (values, accepted actions; empty values: no horizon). variant_cases (variants, 2026-10-06; run with --ask-back): expect_changes lists the design value changes the reading must contain (name, value, action).",
+ "note": "Later-message router cases (M80 b): export/show requests on existing results must be a read class (CLARIFY); the rest are controls. M82 (2026-10-05): cases with \"horizons\" also check design_value_changes (values, accepted actions; empty values: no horizon). variant_cases (variants, 2026-10-06; run with --ask-back): expect_changes lists the design value changes the reading must contain (name, value, action). optional_values: a value the message repeats (\"tetap uji yang 5 hari\") may also be read as ADD; the lock is the same.",
  "cases": [
   {
    "message": "Ekspor tabel hasil uji tadi ke Excel.",
@@ -568,6 +568,12 @@
     ],
     "actions": [
      "ADD"
+    ],
+    "optional_values": [
+     [
+      5,
+      "DAY"
+     ]
     ]
    }
   },

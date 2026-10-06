@@ -359,5 +359,14 @@ def test_with_the_switch_the_routers_may_think_up_to_4000_tokens() -> None:
     assert off.client.payloads[0]["max_output_tokens"] == min(2000, off.settings.ai_max_output_tokens)
 
 
-def test_an_acknowledgement_is_not_a_one_word_request() -> None:
-    assert "not a greeting, a thanks or an acknowledgement" in router.first_instructions(True)
+def test_no_benchmark_message_is_written_into_the_instructions() -> None:
+    """User decision 2026-10-06 ("kenapa gak serahkan ke model saja?"): the model judges; the instructions carry no
+    benchmark case to make it come out a certain way."""
+    fixtures = Path(__file__).parent / "fixtures"
+    first = json.loads((fixtures / "first_message_router_cases.json").read_text())
+    texts = router.first_instructions(True) + router.router_instructions(True)
+    for item in first["development"] + first["heldout"] + first["ask_back"]:
+        message = item["message"].strip()
+        if len(message) > 3:
+            assert f'"{message}"' not in texts, message
+    assert '"ok"' not in texts

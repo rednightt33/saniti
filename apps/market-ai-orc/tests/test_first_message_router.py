@@ -116,7 +116,7 @@ def test_every_benchmark_route_is_a_route_the_backend_knows() -> None:
 
     cases = json.loads((Path(__file__).parent / "fixtures/first_message_router_cases.json").read_text())
     for item in cases["development"] + cases["heldout"]:
-        assert set(item["routes"]) <= set(router.FIRST_ROUTES), item
+        assert set(item["routes"]) <= {*router.FIRST_ROUTES, router.ASK_BACK}, item
 
 
 def test_through_the_api_a_greeting_is_one_step_and_a_data_question_takes_the_routes_depth() -> None:

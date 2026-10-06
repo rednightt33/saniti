@@ -53,6 +53,11 @@ def ask_back_section(r) -> list[str]:
               + "; pesan lanjutan " + ", ".join(f"{label} (`{route}`)" for label, route in r.TURN_FALLBACK_OPTIONS)
               + ". Sesudah dua pertanyaan di awal percakapan, balasan yang masih tidak jelas menjalankan satu langkah "
               "analisis.", "",
+              "### Model menilai, kode menjamin (keputusan user 2026-10-06)", "",
+              "Yang diputuskan model:", "", *[f"- {line}" for line in r.MODEL_DECIDES], "",
+              "Yang dijamin kode:", "", *[f"- {line}" for line in r.CODE_GUARANTEES], "",
+              "Tidak ada pesan benchmark yang ditulis ke instruksi; pesan dengan dua jawaban wajar menerima keduanya di set "
+              "benchmark, dan syarat lulus benchmark hanya kesalahan mahal.", "",
               "### Instruksi router pesan pertama dengan `AI_ENABLE_ASK_BACK`", "", "```text",
               r.FIRST_INSTRUCTIONS_ASK_BACK, "```", ""]
     return lines

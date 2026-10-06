@@ -135,14 +135,28 @@ ROUTER_SCHEMA: dict[str, Any] = {
 # that cannot be acted on without a costly guess gets one question with quick choices, and a failed router call gets a
 # fixed question instead of a guessed route. Each choice names the route it runs; a free-text reply is routed again.
 ASK_BACK_CRITERIA = (
-    "the message has no request that can be recognised (a ticker alone, a company name alone, one word that is not a "
-    "greeting, a thanks or an acknowledgement such as \"ok\")",
+    "the message has no request that can be recognised (a ticker alone, a name alone, one word)",
     "it has two or more readings that lead to very different work",
     "it would need a costly route (RESEARCH or EXPLORE) while its key information (what to test, the event, the "
     "outcome) is missing and cannot be assumed",
 )
 ASK_BACK_ACTION = ("one question with three or four quick choices, each mapped to a route; nothing runs until the user "
                    "answers (status NEEDS_CLARIFICATION)")
+# User decision 2026-10-06 ("apakah memang semua harus di hardcode seperti ini? kenapa gak serahkan ke model saja?"):
+# judgement belongs to the model, code keeps the guarantees. The criteria above guide the model; nothing is added to
+# the instructions to make one benchmark message come out a certain way, and a message with two reasonable answers
+# accepts both in the benchmark sets. AI_ROUTER.md lists both sides from these constants.
+MODEL_DECIDES = (
+    "what the user wants (understood_intent) and which route fits",
+    "whether to ask back, the question and the labels of its choices",
+    "the design values a message states (thresholds, horizons, variants, added or removed)",
+)
+CODE_GUARANTEES = (
+    "a tool outside the step's desk cannot be called (app/tool_desks.py)",
+    "no data is fetched before the user approves a research plan",
+    "every figure in an answer has a source; thresholds and horizons stay the user's words",
+    "each quick choice runs its route; a failed router call gets the fixed question; at most two questions in a row",
+)
 # user decision 2026-10-06 ("Naikkan batas token"): with AI_ENABLE_ASK_BACK the routers and the plan-reply reader read
 # more (intent, every design value), and their low reasoning reached 1,400-1,700 tokens on messages with many numbers,
 # so the 2,000-token output cap cut the JSON off (benchmark 2026-10-06); the cap is raised to 4,000 with the switch

@@ -54,9 +54,10 @@ def horizon_ok(expected: dict, changes: list[dict] | None) -> bool:
     if changes is None:
         return False
     read = [c for c in changes if c["name"] == "OUTCOME_HORIZON"]
-    values = sorted((c["value"], c["unit"]) for c in read)
+    optional = {tuple(v) for v in expected.get("optional_values") or []}
+    values = sorted((c["value"], c["unit"]) for c in read if (c["value"], c["unit"]) not in optional)
     return values == sorted(tuple(v) for v in expected["values"]) and all(
-        c["action"] in expected["actions"] for c in read)
+        c["action"] in expected["actions"] or (c["value"], c["unit"]) in optional for c in read)
 
 
 def changes_ok(expected: list[dict], changes: list[dict] | None) -> bool:

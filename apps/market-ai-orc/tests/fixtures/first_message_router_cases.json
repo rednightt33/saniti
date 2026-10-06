@@ -1,5 +1,5 @@
 {
- "note": "First-message router benchmark set (ROUTER_BENCHMARK_2026-10-04.md). Labels were written by one reviewer; 'heldout' was labelled before its first run. Each case: message and the acceptable routes. ask_back (EXEC-3, 2026-10-06; run with --ask-back): MUST cases have to be asked back (ASK_BACK), the NEVER cases are the clear first messages of golden test ma-qa-20261006b and must not be asked back.",
+ "note": "First-message router benchmark set (ROUTER_BENCHMARK_2026-10-04.md). Labels were written by one reviewer; 'heldout' was labelled before its first run. Each case: message and the acceptable routes. ask_back (EXEC-3, 2026-10-06; run with --ask-back): MUST cases have to be asked back (ASK_BACK), the NEVER cases are the clear first messages of golden test ma-qa-20261006b and must not be asked back. 2026-10-06 (user: \"kenapa gak serahkan ke model saja?\"): a message with two reasonable answers lists both (ASK_BACK is accepted for \"ok\" and for the open pattern question); the hard criteria are the costly errors only.",
  "development": [
   {
    "message": "bagaimana kabarmu",
@@ -171,7 +171,8 @@
    "message": "Cari pola apa saja yang mendahului kenaikan besar saham bank.",
    "routes": [
     "EXPLORE",
-    "RESEARCH"
+    "RESEARCH",
+    "ASK_BACK"
    ]
   },
   {
@@ -209,7 +210,8 @@
   {
    "message": "ok",
    "routes": [
-    "CHAT"
+    "CHAT",
+    "ASK_BACK"
    ]
   },
   {
