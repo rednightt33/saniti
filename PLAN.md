@@ -31,6 +31,7 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 | 1g | EXEC-P2: P2a (berhenti mendorong `check_references`) + P2e (jawaban ringkas) | 2026-10-06 ("p2a p2e … masukan exec") | **EXEC** (menunggu konfirmasi mulai) | Bersama EXEC-R |
 | 1h | EXEC-P1: mode 4 berhenti setelah analisis + rencana | 2026-10-06 ("p1 … masukan exec") | **EXEC** (menunggu konfirmasi mulai) | Sesudah EXEC-3 |
 | 1i | EXEC-P5: gabung langkah mekanis | 2026-10-06 ("p5 masukan exec") | **EXEC** (menunggu konfirmasi mulai) | Sesudah EXEC-R |
+| 1j | EXEC-T: perangkat alat per proses (matriks HARUS/BOLEH/TIDAK BOLEH final, alat terlarang dikunci kode dan tidak bisa ditemukan) | 2026-10-06 ("finalize dan masukan ke EXEC"; catatan user: alat TIDAK BOLEH dikunci kode, tidak boleh ditemukan lewat pencarian) | **EXEC** (menunggu konfirmasi mulai) | Bersama EXEC-A |
 | 2 | P3: gerbang yang salah tolak | 2026-10-06 "OK masukan plan jangan execute dulu" | Belum (P3a ikut EXEC butir 1, P3b ikut EXEC butir 3) | 3 |
 | 3 | Item 11: penyortir "free will", jalur TANYA BALIK, cadangan berupa pertanyaan | 2026-10-05 (16:47, 17:40, 17:51, 17:55), ditegaskan 2026-10-06; **EXEC 2026-10-06** | **EXEC** (lihat bagian EXEC) | 2 |
 | 4 | P2: jawaban ditulis sekali | 2026-10-06 | P2b–d di EXEC-R, P2a dan P2e di EXEC-P2 | — |
@@ -198,7 +199,8 @@ ulang katalog dan 5 panduan (±170 dtk).
    menghasilkan keluaran yang sama: `design_value_changes` (tambah/ganti/hapus), `referent` (merujuk hasil
    sebelumnya), dan `understood_intent`. Gerbang membaca keluaran itu di jalur mana pun. Mencakup P3b dan dibangun
    bersama EXEC-3.
-2. **Gerbang hanya meminta jalan keluar yang alatnya ada** (mencakup P3c, kini disetujui):
+2. **Gerbang hanya meminta jalan keluar yang alatnya ada** (mencakup P3c, kini disetujui). Isi perangkat alat per
+   proses mengikuti matriks final di EXEC-T:
    - setiap gerbang yang punya `needs` hanya muncul sebagai permintaan bila alatnya ada di meja langkah itu; bila
      tidak ada, alat itu ditambahkan ke meja langkah tersebut;
    - langkah riset disetujui ditambah `check_references` (`get_evidence` dihapus di EXEC-E);
@@ -320,6 +322,94 @@ WAJIB" (2026-10-03).
   6. deploy orc;
   7. ulang uji p2 dan threshold t1 (±USD 0,05).
 - **Lulus bila:** panggilan model per analisis turun ≥ 3 tanpa kenaikan penolakan.
+
+### EXEC-T: perangkat alat per proses (butir 1j)
+
+**Aturan user (2026-10-06):** alat yang TIDAK BOLEH ada di sebuah proses dikunci oleh kode, dan tidak boleh bisa
+ditemukan lewat pencarian. Contohnya alat ambil data sebelum rencana disetujui.
+
+**Hasil cek ulang di kode (2026-10-06):**
+
+| Lapisan kunci | Keadaan sekarang |
+|---|---|
+| 1. Tidak ditawarkan | Perangkat A, B, D, baca-saja, dan fakta disaring kode (`_desk`, `_turn_tools`). Perangkat C (CONTINUE, AUTO tanpa rencana, riset v1 disetujui) tidak disaring sama sekali (`tool_filter=None`): semua 27 alat ditawarkan |
+| 2. Ditolak saat dipanggil | `_execute` menolak alat di luar perangkat (`TOOL_NOT_AVAILABLE_IN_THIS_TURN`), tetapi hanya untuk perangkat yang disaring. Perangkat C tidak punya kunci ini. Pesan tolaknya juga selalu menyebut "rencana menunggu keputusan user", walau prosesnya bukan rencana |
+| 3. Penjaga khusus | `ResearchGuard`: data mode RESEARCH ditolak sebelum rencana disetujui (terbukti di log: `RESEARCH_PLAN_REQUIRED` 2× di CONTINUE). Alat riset v2 menolak bila tidak ada rencana disetujui (`refused()` di `research_run_executor.py`). Dua alat web saling eksklusif (`config.py`). Alat lama mati bersama DataNeed |
+| 4. Tidak bisa ditemukan | **Belum.** Nama alat di luar perangkat terlihat di tiga tempat: (a) `get_system_capabilities` mengembalikan `other_tools_not_in_this_step`; (b) system prompt dibuat sekali per deployment dari semua alat terdaftar, jadi menyebut alat yang tidak ada di langkah itu; (c) buku panduan metode menyebut alat (misalnya `get_evidence`) di langkah mana pun |
+
+**Matriks final** (H = harus ada, B = boleh, X = tidak boleh karena melanggar kontrak; ⚠ = beda dari sekarang):
+
+| Alat | CHAT | FACT | CLARIFY / CONVERSATIONAL | Analisis (pesan pertama, m4a, INSIGHT) | Rencana (PROPOSE, REVISE, REPLAN, m4b, m4d) | CONTINUE | Riset v1 disetujui | Riset v2 disetujui |
+|---|---|---|---|---|---|---|---|---|
+| `get_system_capabilities` | B | B | B | B | B | B | B | B |
+| Jelajah katalog (discover, details, rows, dimension) | B | H | B | H | H | H | B | B |
+| `lookup_reference` | B | H | B | H | B | H | B | B |
+| `get_method_guide` | B | B | B | H | H | H | H | H |
+| `preview_table_rows` | X | X | X | B | X | B | B | X |
+| `query_metric` | X | X | X | H | X | B | B | X |
+| Alur data (submit, bundle, sesi, `run_python`, complete) | X | X | X | H | X | B (mode RESEARCH dikunci `ResearchGuard`) | H | X |
+| `inspect_session` | B | B | B | H | B | H | H | H |
+| `get_session_output` | B | B | H | H | **H ⚠** | H | H | H |
+| `export_result` | B | B | H | B | B | B | B | B |
+| `get_lineage` | B | B | H | B | B | B | B | B |
+| `check_references` | B | B | H | B | **H ⚠** | B | B | **H ⚠** |
+| Cek kelayakan rencana | X | X | X | X | H | H | B | B |
+| `get_research_library` | B | B | B | B | H | H | B | H |
+| Alat riset v2 (start, run, complete) | X | X | X | X | X | **X ⚠** | **X ⚠** | H |
+| `research_web` | B | H | B | B | B | B | B | B |
+| `find_web_fact` (selama `research_web` aktif) | X | X | X | X | X | X | X | X |
+| `get_evidence` (EXEC-E) | **X ⚠** | **X ⚠** | **X ⚠** | **X ⚠** | X | **X ⚠** | **X ⚠** | X |
+| Alat jalur lama (sebelum DataNeed) | X | X | X | X | X | X | X | X |
+
+Alasan X:
+- **Rencana:** ambil atau hitung data sebelum disetujui.
+- **Giliran baca saja dan FACT:** menghitung ulang dengan cakupan lain (M63) dan mengambil data gudang.
+- **Analisis:** pemanggil menetapkan tanpa rencana.
+- **Riset v2:** AI tidak boleh menyusun ulang pesanan data atau menjalankan kode bebas di luar executor.
+- **Alat riset v2 tanpa rencana v2 yang disetujui.**
+- **Dua alat web sekaligus.**
+- **`get_evidence`:** dihapus atas keputusan user.
+
+B tidak berarti wajib ditawarkan. Perangkat tiap proses = semua H ditambah B yang dipilih di tabel `DESKS`, dengan
+biaya token dicatat.
+
+**Perubahan:**
+1. **Satu sumber kebenaran:** tabel `DESKS` di kode. Isinya per proses: daftar H, daftar B yang ditawarkan, dan daftar
+   X. `_desk`, `_turn_tools`, `plan_tools`, `_approve_v2`, `_apply_turn_kind` dan saringan `forced_path` membaca tabel
+   itu. Perangkat C tidak lagi `None`:
+   - CONTINUE memakai perangkat sesuai maksud dari penyortir (analisis, rencana, atau baca), dibangun bersama EXEC-3;
+   - riset v1 mendapat perangkatnya sendiri.
+2. **Kunci kode berlapis untuk setiap X:**
+   - (a) tidak ditawarkan;
+   - (b) ditolak saat dipanggil di semua proses, termasuk yang dulu tanpa saringan, dengan pesan yang benar ("tidak
+     tersedia di langkah ini", tanpa daftar alat terlarang);
+   - (c) penjaga khusus tetap ada sebagai lapis kedua (`ResearchGuard`, executor riset, saklar eksklusif web).
+3. **Tidak bisa ditemukan:**
+   - `get_system_capabilities` hanya menyebut alat di perangkat langkah itu. `other_tools_not_in_this_step` dihapus;
+     yang tersisa hanya label kemampuan yang tidak tersedia.
+   - Kalimat system prompt yang menyebut alat tertentu dipindah ke deskripsi alat itu atau ke catatan per langkah,
+     sehingga prefix statis tidak menyebut alat yang tidak ada (P31 per langkah). Kenaikan token diukur; `test_prompt_pass2.py` diperbarui.
+   - `get_method_guide` mengembalikan teks panduan dengan nama alat di luar perangkat disaring.
+   - Bila nanti memakai pencarian alat (`defer_loading` / tool search): indeks dibangun hanya dari perangkat langkah
+     itu, sehingga alat X tidak pernah terindeks. Aturan ini dicatat di AGENTS.md.
+4. **Tes permanen** (`tests/test_tool_desks.py`):
+   - setiap gerbang dengan `needs` hanya bisa muncul di proses yang perangkatnya memuat alat itu;
+   - tidak ada alat X di perangkat yang ditawarkan;
+   - memanggil alat X ditolak di setiap proses;
+   - jawaban `get_system_capabilities`, system prompt, catatan hasil alat dan buku panduan tidak menyebut alat di luar
+     perangkat;
+   - `AI_TOOLS.md` memuat matriks yang dibuat dari `DESKS` (generator), dan tes drift gagal bila berbeda.
+
+- **Berkas:**
+  - `orchestrator.py`, `conversation_router.py`, `mode4.py`;
+  - `tools/system.py`, `tools/registry.py`, `tools/method_guides.py`;
+  - `scripts/generate_ai_tools_doc.py`;
+  - AGENTS.md (aturan perangkat dan pencarian alat).
+- **Lulus bila:**
+  - tes hijau;
+  - ulang uji q7 dan h_add tanpa `tool_not_in_step`;
+  - tidak ada panggilan alat X di log;
+  - log pikiran tidak menyebut alat di luar perangkat.
 
 ---
 
