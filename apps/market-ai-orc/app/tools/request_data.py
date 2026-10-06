@@ -39,6 +39,15 @@ current_reference_sources: contextvars.ContextVar[Any] = contextvars.ContextVar(
 current_turn_id: contextvars.ContextVar[str | None] = contextvars.ContextVar("current_turn_id", default=None)
 current_run_deadline: contextvars.ContextVar[float | None] = contextvars.ContextVar("current_run_deadline",
                                                                                     default=None)
+# EXEC-S (user decision 2026-10-06: "1 conversation ID = 1 session ID … RUN ID ya bisa berbeda"): the conversation a
+# run belongs to, OpenRouter's sticky-routing key for every model call of the conversation (turns and mode 4 steps)
+current_conversation_id: contextvars.ContextVar[str | None] = contextvars.ContextVar("current_conversation_id",
+                                                                                     default=None)
+
+
+def session_key(fallback: str) -> str:
+    """The model calls' session id: the conversation id when the run has one, else the run's own key."""
+    return current_conversation_id.get() or fallback
 
 
 class Strict(BaseModel):

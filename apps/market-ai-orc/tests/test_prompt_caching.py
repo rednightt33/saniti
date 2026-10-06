@@ -143,3 +143,17 @@ def test_the_final_reask_keeps_the_tool_turn_prefix_so_it_stays_on_the_cached_pr
     assert "text" not in client.payloads[2] and client.payloads[2]["tool_choice"] == "auto"
     summary = [e for e in events if e["event"] == "ai_model_usage_summary"][0]
     assert summary["distinct_static_prefixes"] == 1
+
+
+def test_every_run_of_a_conversation_carries_the_conversation_id_as_its_session_id() -> None:
+    # EXEC-S (user decision 2026-10-06): "1 conversation ID = 1 session ID … RUN ID ya bisa berbeda"
+    for request_id in ("conv-turn-1", "conv-turn-2-m4a"):
+        agent, client = orchestrator(three_turns())
+        agent.run(request("What capabilities do you currently have?").model_copy(
+            update={"request_id": request_id, "conversation_id": "conv-42"}))
+        assert {p["session_id"] for p in client.payloads} == {"conv-42"}
+
+
+def test_the_prefix_fingerprint_ignores_the_session_id() -> None:
+    payload = {"model": "m", "instructions": "x", "tools": [], "input": []}
+    assert static_prefix_hash({**payload, "session_id": "a"}) == static_prefix_hash({**payload, "session_id": "b"})

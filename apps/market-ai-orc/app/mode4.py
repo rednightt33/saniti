@@ -39,7 +39,7 @@ from .orchestrator import AgentOrchestrator, current_time_budget, log_event
 from .provenance import LABEL_ORDER
 from .research_plan import ContinuationIn, ContinuationOut
 from .research_plan_v2 import ContinuationInV2, ContinuationOutV2, current_angle_bounds, plan_digest_v2
-from .tools.request_data import current_turn_id
+from .tools.request_data import current_conversation_id, current_turn_id
 from .user_words import MESSAGE_SEPARATOR, current_design_changes, current_turn_referent, current_user_words
 from .schemas import (MAX_HISTORY_ITEMS, MAX_MESSAGE_CHARACTERS, AgentRunRequest, AgentRunResponse,
                       AnalysisPathExecution, HistoryMessage, ModeExecution, ReplyClassifierUsage)
@@ -138,12 +138,17 @@ class Mode4Orchestrator:
     def run(self, request: AgentRunRequest, conversation_key: str | None = None,
             data_record: dict[str, Any] | None = None) -> AgentRunResponse:
         """analysis_path MODE4 runs the pipeline; any other request (the mode switcher, app/modes.py, has set its path:
-        none for AUTO) goes to the orchestrator unchanged."""
-        if self.first_router and request.continuation is None and not request.history:
-            return self._first_message(request, conversation_key, data_record)
-        if request.analysis_path != "MODE4":
-            return self.inner.run(request, conversation_key, data_record=data_record)
-        return _Mode4Run(self, request, conversation_key, data_record).execute()
+        none for AUTO) goes to the orchestrator unchanged. EXEC-S: every model call of the conversation, the routers
+        included, carries the conversation id as its session id."""
+        conversation = current_conversation_id.set(current_conversation_id.get() or request.conversation_id)
+        try:
+            if self.first_router and request.continuation is None and not request.history:
+                return self._first_message(request, conversation_key, data_record)
+            if request.analysis_path != "MODE4":
+                return self.inner.run(request, conversation_key, data_record=data_record)
+            return _Mode4Run(self, request, conversation_key, data_record).execute()
+        finally:
+            current_conversation_id.reset(conversation)
 
     def _first_message(self, request: AgentRunRequest, conversation_key: str | None,
                        data_record: dict[str, Any] | None, cancelled_plan_id: str | None = None,

@@ -53,6 +53,11 @@ On 2026-10-04 the user approved (plan `PLAN_FINAL_2026-10-04.md`, decision K1) `
 
 On 2026-10-05 the user approved a speed preference after the p1 analysis (M75 recurrence on Sail Research): `AI_PROVIDER_MIN_THROUGHPUT=50` on dev, sent as OpenRouter `provider.preferred_min_throughput` `{p50: 50}`. It is a preference, not a filter or a sort: slower endpoints are tried last and the price weighting stays on. `AI_PROVIDER_SORT` stays unset; changing the threshold or any other provider setting still needs approval.
 
+On 2026-10-06 the user decided "1 conversation ID = 1 session ID … RUN ID ya bisa berbeda" (EXEC-S): every model call
+of a conversation (each turn, each mode 4 step, the routers) sends the conversation id as OpenRouter's `session_id`,
+its sticky-routing key, so the calls stay with one provider endpoint and reuse its prompt cache; a request without a
+conversation id keeps the run id. This changes no variable; `AI_PROVIDER_SORT` stays unset.
+
 On 2026-09-30 the user approved mode 4 (`AI_ENABLE_MODE4`, `app/mode4.py`) and a mode switcher: `AI_MODE_SWITCH` sets the default mode (1 AUTO, 2 ANALYSIS, 3 RESEARCH, 4 MODE4) and `analysis_path` chooses per request. The user chose default 4 on dev; do not change `AI_MODE_SWITCH` without approval.
 
 ## Security
