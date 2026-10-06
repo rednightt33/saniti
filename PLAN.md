@@ -39,8 +39,10 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 Biaya model: butir 1 (ulang uji ±USD 0,07) dan setiap golden test sesudah butir 2–7. Sisa kredit OpenRouter terakhir
 ±USD 0,7, jadi kredit dicek sebelum uji apa pun.
 
-Status **EXEC** = user sudah menyetujui eksekusi; dijalankan hari ini atau saat kuota siap, tanpa meminta izin lagi
-untuk langkah di dalamnya. Berhenti dan lapor bila menemui kondisi berhenti, atau bila perlu tindakan di luar langkah ini.
+Status **EXEC** = rencana eksekusi sudah disetujui isinya, tetapi **baru dijalankan setelah user memberi konfirmasi
+mulai** (keputusan user 2026-10-06: "EXEC dijalankan setelah konfirmasi saya"). Tidak ada push (cabang maupun `main`)
+sebelum konfirmasi itu. Setelah dimulai, berhenti dan lapor bila menemui kondisi berhenti, atau bila perlu tindakan di
+luar langkah ini.
 
 ## EXEC (disetujui 2026-10-06: "1 dan 3 … EXEC")
 
