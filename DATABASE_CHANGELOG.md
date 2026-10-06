@@ -1,5 +1,24 @@
 # Database changelog
 
+## 2026-10-06 — Wave 2 (EXEC-E, EXEC-R): Tool_Catalog round J and method guides v6 on dev
+
+- **`20261006_001_round_j_tool_catalog.sql`** (generated, round `round_j`): inactive `Tool_Catalog` row `query_metric`
+  v2 (a period may give `start_date` without `end_date`, then runs to `as_of`; EXEC-R R5c, M88); every `get_evidence`
+  row (v1, v2) carries `tool_specific_limits.removed` (removed from market-ai-orc with `AI_ENABLE_EVIDENCE`, user
+  decision 2026-10-06, `EXEC.md` EXEC-E) and stays inactive; `Table_Catalog.update_rule` of `AI_conversation_evidence`
+  ends with "Not written since 2026-10-06 …" (the table and its rows stay as history, nothing dropped).
+- **`20261006_002_ai_method_guides_v6.sql`** (generated): `AI_method_guide` version 6, 9 rows, `guides_sha256`
+  `e71b844f…` (no `get_evidence`; every cited figure is released and written by its address). Versions 1–5 stay.
+- Applied by the temporary service `jmig-job` (`DATABASE_URL` as a reference to the catalog database, never printed;
+  deleted afterwards, read back absent): DRYRUN `8554a2e7` passed and rolled back (110 Tool_Catalog rows, 25 active,
+  before and after); APPLY `6a9851cc` committed both in order. Read back: 111 rows, 25 active; `query_metric` v2
+  inactive; `get_evidence` v1 and v2 inactive and marked removed; the `AI_conversation_evidence` note present; method
+  guides version 6 with 9 active rows and the hash above. A second run of each was refused by its preflight ("already
+  registered"). Checksums appended to `database/migrations/APPLIED.sha256`.
+- No schema change; `DATABASE_SCHEMA.md` unchanged. market-ai-orc restarted afterwards (`8740079c`) so the guides hash
+  of orc, sandbox and database match (the first start, `339bab1b`, logged `method_guides_inactive` while the sandbox
+  was still on version 5).
+
 ## 2026-10-05 — Plan items 10 and 12: event store 004_web_orc on Postgres-E8GM and Tool_Catalog round I on dev
 
 - **`apps/market-web-governor/event_store/004_web_orc.sql`** on Postgres-E8GM (idempotent), applied by
