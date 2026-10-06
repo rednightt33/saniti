@@ -255,3 +255,26 @@ def test_a_threshold_the_plan_does_not_cite_is_refused_with_the_hint() -> None:
             orchestrator._plan_gate(_gate_state(orchestrator, None), _threshold_plan(2.4))
     finally:
         current_turn_referent.reset(token)
+
+
+def test_a_plan_citing_an_earlier_result_by_reference_passes_end_to_end() -> None:
+    """Golden test ma-qa-20261006b threshold_from_result turn 2: the plan cited the earlier result, but references
+    were rendered only for answers, so the value never reached the plan gate."""
+    from app.user_words import current_turn_referent
+    from test_research_findings import agent
+    orchestrator = agent()
+    orchestrator.audit_outbox = None
+    orchestrator.value_references = True
+    run = _gate_state(orchestrator, None)
+    run.ref_sources.add("out", "out_mean", {"name": "mean_return", "content": {"mean": 2.4}}, "DATA_COVERAGE_VERIFIED",
+                        units={"content.mean": "PERCENT"})
+    run.ref_sources.alias("out", "o1", "out_mean")
+    plan = _threshold_plan(2.4)
+    plan = plan.model_copy(update={"answer": "Ambang dari hasil sebelumnya: {{out.o1.content.mean|pctv}}."})
+    token = current_turn_referent.set("NEWEST_RESULT")
+    try:
+        rendered, _ = orchestrator._resolve_references(run, plan)
+        final = orchestrator._plan_gate(run, rendered)
+    finally:
+        current_turn_referent.reset(token)
+    assert "2,40%" in rendered.answer and final.research_plan.experiments[0].success_rule.value == 2.4

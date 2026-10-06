@@ -4258,7 +4258,11 @@ class AgentOrchestrator:
         unresolved reference is shown as [nilai tidak tersedia] with a limitation line, and the response also keeps
         its type (P14, user decision 2026-10-01)."""
         state.reference_annotated = False  # it describes this final only, not an earlier refused draft
-        if not self.value_references or final.response_type not in ("ANSWER", "LIMITATION"):
+        # 10.6: a plan's answer may cite an earlier result's value as its threshold; it is rendered (and its values
+        # become sources) before the plan gate reads them (golden test ma-qa-20261006b threshold_from_result turn 2:
+        # the cited value never reached the gate, and the plan was forced to a LIMITATION)
+        if not self.value_references or final.response_type not in ("ANSWER", "LIMITATION",
+                                                                     "RESEARCH_PLAN_CONFIRMATION"):
             return final, False
         # D6: the references the answer cites, listed as evidence (DIRUJUK) next to the checked claims
         state.referenced = list(dict.fromkeys(m.group("expr").strip() for m in REF_RE.finditer(final.answer or "")))
