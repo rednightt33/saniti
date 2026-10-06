@@ -29,7 +29,7 @@ def classify(case: dict) -> tuple[str | None, float, list[dict] | None]:
     body = {"model": MODEL, "instructions": router.router_instructions(ASK_BACK),
             "input": [{"role": "user", "content": dumps({"conversation": case["context"],
                                                           "user_message": case["message"][:4000]})}],
-            "reasoning": {"effort": "low"}, "max_output_tokens": 2000, "store": False,
+            "reasoning": {"effort": "low"}, "max_output_tokens": router.router_max_output_tokens(ASK_BACK), "store": False,
             "text": {"format": {"type": "json_schema", "name": "conversation_turn", "strict": True,
                                 "schema": router.router_schema(ASK_BACK)}}}
     request = urllib.request.Request("https://openrouter.ai/api/v1/responses", data=json.dumps(body).encode(),

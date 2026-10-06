@@ -341,3 +341,23 @@ def test_through_the_api_a_bare_ticker_is_asked_back_and_a_choice_answers_it() -
     assert body["execution"]["mode"] == {"mode": 2, "name": "ANALYSIS", "source": "CHOICE", "route": "QUICK_SUMMARY"}
     assert len(scripted.payloads) == 2  # one router call (the first message), one analysis step
     assert router.NOTES["QUICK_SUMMARY"] in json.dumps(scripted.payloads[1]["input"], ensure_ascii=False)
+
+
+def test_with_the_switch_the_routers_may_think_up_to_4000_tokens() -> None:
+    """User decision 2026-10-06 ("Naikkan batas token"): the benchmark cut the JSON off at 2,000 output tokens (reasoning
+    included) on messages with many numbers; the cap is 4,000 with AI_ENABLE_ASK_BACK, 2,000 without."""
+    from test_mode4 import PLAN1
+
+    client = ScriptedClient([final_response(ROUTE_JSON), final_response(REPLY_JSON)])
+    orchestrator = AgentOrchestrator(make_settings(**ASK_ON), client, ToolRegistry())
+    orchestrator.classify_first("q", "x")
+    orchestrator.classify_reply("q", "x", PLAN1)
+    cap = min(4000, orchestrator.settings.ai_max_output_tokens)
+    assert [p["max_output_tokens"] for p in client.payloads] == [cap, cap]
+    off = AgentOrchestrator(make_settings(**ROUTER_ON), ScriptedClient([final_response(ROUTE_JSON)]), ToolRegistry())
+    off.classify_first("q", "x")
+    assert off.client.payloads[0]["max_output_tokens"] == min(2000, off.settings.ai_max_output_tokens)
+
+
+def test_an_acknowledgement_is_not_a_one_word_request() -> None:
+    assert "not a greeting, a thanks or an acknowledgement" in router.first_instructions(True)

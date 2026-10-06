@@ -2895,7 +2895,7 @@ class AgentOrchestrator:
             request_id, "turn-router", router.router_instructions(self.ask_back),
             dumps({"conversation": context, "user_message": message[:4000]}), "conversation_turn",
             router.router_schema(self.ask_back), router.TurnClassification, "conversation_router_failed",
-            attempts=2 if self.ask_back else 1)
+            attempts=2 if self.ask_back else 1, max_tokens=router.router_max_output_tokens(self.ask_back))
         if parsed is not None:
             record["referent"] = parsed.referent  # M64: what the message is about
             # M82: the design values the message states, as structured changes for the plan gates
@@ -2916,7 +2916,8 @@ class AgentOrchestrator:
         parsed, record = self._router_call(
             request_id, "first-router", router.first_instructions(self.ask_back), message[:4000],
             "first_message_route", router.first_schema(self.ask_back), router.FirstRoute,
-            "first_message_router_failed", attempts=2 if self.ask_back else 1)
+            "first_message_router_failed", attempts=2 if self.ask_back else 1,
+            max_tokens=router.router_max_output_tokens(self.ask_back))
         if parsed is not None and self.ask_back:  # EXEC-3: the reading every later step uses
             record.update(understood_intent=parsed.understood_intent, assumptions=parsed.assumptions,
                           question=parsed.question, options=[o.model_dump() for o in parsed.options],
@@ -2985,18 +2986,20 @@ class AgentOrchestrator:
 
     def _router_call(self, request_id: str, session: str, instructions: str, content: str, schema_name: str,
                      schema: dict[str, Any], model: Any, failure_event: str,
-                     usage_state: RunState | None = None, attempts: int = 1) -> tuple[Any, dict[str, Any]]:
+                     usage_state: RunState | None = None, attempts: int = 1,
+                     max_tokens: int = router.ROUTER_MAX_OUTPUT_TOKENS) -> tuple[Any, dict[str, Any]]:
         """One router model call: AI_MODEL, reasoning low, strict JSON schema, no tools. Returns the parsed object
         (None on any failure, including an empty reply) and the usage record. usage_state: the run whose usage
         counts this call (a check inside a run). attempts: EXEC-3 retries a failed call once before the backend's
-        fallback (the record sums every attempt)."""
+        fallback (the record sums every attempt). max_tokens: the output cap, reasoning included (4,000 for the
+        routers with AI_ENABLE_ASK_BACK, user decision 2026-10-06)."""
         state = usage_state or RunState(request_id=request_id, started=self.clock(), input_items=[])
         payload: dict[str, Any] = {
             "model": self.settings.ai_model, "session_id": session_key(f"{request_id}:{session}"),
             "instructions": instructions,
             "input": [{"role": "user", "content": content}],
             "reasoning": self.settings.reasoning("low"),
-            "max_output_tokens": min(2000, self.settings.ai_max_output_tokens),
+            "max_output_tokens": min(max_tokens, self.settings.ai_max_output_tokens),
             "store": False, "provider": self._provider(),
             "text": {"format": {"type": "json_schema", "name": schema_name, "strict": True, "schema": schema}},
         }
@@ -3042,7 +3045,8 @@ class AgentOrchestrator:
             "input": [{"role": "user", "content": dumps({"research_plan": plan_digest_v2(plan)
                                                          if isinstance(plan, ResearchPlanV2) else plan_digest(plan),
                                                          "user_reply": message[:4000]})}],
-            "reasoning": self.settings.reasoning("low"), "max_output_tokens": min(2000, self.settings.ai_max_output_tokens),
+            "reasoning": self.settings.reasoning("low"),
+            "max_output_tokens": min(router.router_max_output_tokens(self.ask_back), self.settings.ai_max_output_tokens),
             "store": False, "provider": self._provider(),
             "text": {"format": {"type": "json_schema", "name": "research_plan_reply", "strict": True,
                                 "schema": router.reply_schema(CLASSIFIER_SCHEMA) if self.ask_back

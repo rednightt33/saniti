@@ -33,7 +33,7 @@ ASK_BACK = False  # --ask-back
 def route(message: str) -> tuple[str | None, float, float]:
     body = {"model": MODEL, "instructions": router.first_instructions(ASK_BACK),
             "input": [{"role": "user", "content": message[:4000]}], "reasoning": {"effort": "low"},
-            "max_output_tokens": 2000, "store": False,
+            "max_output_tokens": router.router_max_output_tokens(ASK_BACK), "store": False,
             "text": {"format": {"type": "json_schema", "name": "first_message_route", "strict": True,
                                 "schema": router.first_schema(ASK_BACK)}}}
     request = urllib.request.Request("https://openrouter.ai/api/v1/responses", data=json.dumps(body).encode(),

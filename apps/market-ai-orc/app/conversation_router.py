@@ -135,13 +135,25 @@ ROUTER_SCHEMA: dict[str, Any] = {
 # that cannot be acted on without a costly guess gets one question with quick choices, and a failed router call gets a
 # fixed question instead of a guessed route. Each choice names the route it runs; a free-text reply is routed again.
 ASK_BACK_CRITERIA = (
-    "the message has no request that can be recognised (a ticker alone, a name alone, one word)",
+    "the message has no request that can be recognised (a ticker alone, a company name alone, one word that is not a "
+    "greeting, a thanks or an acknowledgement such as \"ok\")",
     "it has two or more readings that lead to very different work",
     "it would need a costly route (RESEARCH or EXPLORE) while its key information (what to test, the event, the "
     "outcome) is missing and cannot be assumed",
 )
 ASK_BACK_ACTION = ("one question with three or four quick choices, each mapped to a route; nothing runs until the user "
                    "answers (status NEEDS_CLARIFICATION)")
+# user decision 2026-10-06 ("Naikkan batas token"): with AI_ENABLE_ASK_BACK the routers and the plan-reply reader read
+# more (intent, every design value), and their low reasoning reached 1,400-1,700 tokens on messages with many numbers,
+# so the 2,000-token output cap cut the JSON off (benchmark 2026-10-06); the cap is raised to 4,000 with the switch
+ROUTER_MAX_OUTPUT_TOKENS = 2000
+ROUTER_MAX_OUTPUT_TOKENS_ASK_BACK = 4000
+
+
+def router_max_output_tokens(ask_back: bool) -> int:
+    return ROUTER_MAX_OUTPUT_TOKENS_ASK_BACK if ask_back else ROUTER_MAX_OUTPUT_TOKENS
+
+
 FIRST_OPTION_ROUTES = ("QUICK_SUMMARY", "ANALYSIS", "RESEARCH", "EXPLORE", "FACT")
 TURN_OPTION_ROUTES = ("CLARIFY", "INSIGHT", "CONTINUE", "APPROVE", "NEW_TOPIC")
 OPTION_ROUTES = (*FIRST_OPTION_ROUTES, *TURN_OPTION_ROUTES)
