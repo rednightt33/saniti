@@ -25,7 +25,8 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 | 1 | Sisa item 10 dan 12: deploy dua perbaikan, ulang uji item ambang, laporan golden test `ma-qa-20261006b` | "gas" 2026-10-05; format web "Ok tambahkan" 2026-10-06; **EXEC 2026-10-06** | **EXEC** (lihat bagian EXEC) | 1 |
 | 1b | Menu alamat lengkap (celah item 10.1): setiap angka tabel punya alamat, pola alamat ditulis, nilai terformat | 2026-10-05 15:49 dan 17:55 ("Menu alamat siap salin … alamat lengkap di samping angkanya"); ditegaskan 2026-10-06 ("padahal sudah saya suruh") | Sebagian: menu live sejak golden test 06b, tetapi tabel hanya satu baris contoh dan baris pola yang direncanakan tidak dibuat; **EXEC 2026-10-06** ("Ok masukan", bagian dari EXEC-1) | **EXEC** (EXEC-1 langkah 1b) | 1 |
 | 1c | EXEC-R: penolakan tanpa tulis ulang (R1–R5: edit field bersarang, `keep`, angka ketik jadi alamat, galat format yang benar + edit kedua, validasi per butir + jatah per penyebab + tanggal terbuka) | 2026-10-06 ("Masukan exec untuk masalah AI rejection tapi harus ulang dari awal") | **EXEC** (menunggu konfirmasi mulai) | Sesudah EXEC-1 |
-| 1d | EXEC-C: konteks dibawa ke run berikutnya setelah LIMITED / giliran baru (memo run + P4) | 2026-10-06 ("masukan exec") | **EXEC** (menunggu konfirmasi mulai) | Sesudah EXEC-R |
+| 1d | EXEC-C: AI membawa semuanya ke run ID berikutnya dalam satu percakapan, tanpa terkecuali (13 butir, termasuk P4) | 2026-10-06 ("masukan exec"; "Seharusnya AI membawa semuanya tanpa terkecuali. Masukan EXEC") | **EXEC** (menunggu konfirmasi mulai); Q1 bentuk pikiran AI di prompt masih terbuka | Sesudah EXEC-R |
+| 1k | EXEC-S: satu conversation ID = satu `session_id` (rute penyedia dan cache prompt antar run) | 2026-10-06 ("seharusnya 1 conversation ID = 1 session ID … RUN ID ya bisa berbeda tidak apa. -> masukan exec") | **EXEC** (menunggu konfirmasi mulai) | Bersama EXEC-1 atau sebelum EXEC-C |
 | 1e | EXEC-A: penyelarasan jalur (satu pembaca maksud, gerbang hanya meminta alat yang ada, 10.6 dan edit sama di semua jalur) | 2026-10-06 ("masukan exec") | **EXEC** (menunggu konfirmasi mulai) | Bersama EXEC-3 |
 | 1f | EXEC-E: hapus `get_evidence` dan gerbang EVIDENCE, perbarui dokumen terkait | 2026-10-06 ("hapus get evidence, update related docs terkait itu, masukan exec"); membatalkan keputusan 2026-10-03 "Prioritas 2, WAJIB" | **EXEC** (menunggu konfirmasi mulai) | Sebelum EXEC-R |
 | 1g | EXEC-P2: P2a (berhenti mendorong `check_references`) + P2e (jawaban ringkas) | 2026-10-06 ("p2a p2e … masukan exec") | **EXEC** (menunggu konfirmasi mulai) | Bersama EXEC-R |
@@ -157,33 +158,136 @@ Bagian yang sudah ada di EXEC lain tidak diulang:
 - Uji ulang menunjukkan gerbang menjadi longgar (angka tanpa sumber lolos). Bila ini terjadi, R3 dimatikan dan
   dilaporkan.
 
-### EXEC-C: konteks dibawa ke run berikutnya (butir 1d, mencakup P4)
+### EXEC-C: AI membawa semuanya ke run berikutnya, tanpa terkecuali (butir 1d, mencakup P4)
 
-**Masalah:** setelah sebuah run berakhir (LIMITED atau selesai), giliran berikutnya adalah run baru. Yang terbawa hanya
-teks percakapan dan output yang dirilis. Pikiran, bacaan katalog, panduan yang dibuka, dan alasan penolakan hilang,
-sehingga model menjelajah ulang. Contoh: threshold t3 langkah 1 berpikir 5.253 token selama 64 dtk; q7-m4b membaca
-ulang katalog dan 5 panduan (±170 dtk).
+**Keputusan user (2026-10-06):**
+- "masukan exec" (memo run setelah LIMITED / giliran baru);
+- "Okay ini salah... Seharusnya AI membawa semuanya tanpa terkecuali. Masukan EXEC" (tentang pikiran AI, alasan
+  penolakan, keputusan desain di luar rencana dan fakta web yang tidak terbawa);
+- lalu "what else?", dijawab dengan 9 celah tambahan di bawah.
+
+Keputusan ini menggantikan kalimat lama di butir ini, "pikiran mentah tidak dibawa".
+
+**Lingkup:** setiap run ID baru dalam satu conversation ID menerima semua yang dihasilkan run sebelumnya. Ini berlaku
+untuk giliran user berikutnya, sub-run mode 4 (m4a → m4b → m4c → m4d), dan run lanjutan setelah LIMITED.
+
+**Yang dibawa** (13 butir; nomor 1–4 dari daftar awal, 5–13 dari cek ulang kode dan log 2026-10-06):
+
+| # | Hal | Keadaan sekarang (bukti) | Perubahan |
+|---|---|---|---|
+| 1 | Pikiran AI | Hanya diputar ulang di dalam satu run. Di dev hanya ditulis ke log (`AI_CAPTURE_REASONING`), tidak disimpan per percakapan. Ukurannya 1.800–43.000 token per run; rantai q7 giliran 1 ±98.000 token | Disimpan utuh per run, terikat ke conversation ID. **Bentuk masuk prompt: pertanyaan terbuka Q1** |
+| 2 | Alasan penolakan | Hanya baris batasan umum bila berakhir LIMITED | Setiap penolakan disimpan: gerbang atau alat, kode, pesan lengkap, bagian draf yang ditolak, dan perbaikan yang dicoba. Galat alat ikut, misalnya `query_metric` butuh tanggal awal+akhir, atau LAST butuh `group_by` |
+| 3 | Keputusan desain di luar rencana | Hilang bila tidak masuk rencana | Horizon, ambang, efek minimal, cakupan, definisi dan pilihan AI disimpan beserta asalnya: kata user, hasil sebelumnya (alamat), atau pilihan AI |
+| 4 | Fakta web | `web.<id>` tidak masuk data record; hanya kalimat asumsi | Amplop `citable` disimpan dan didaftarkan ulang sebagai sumber `web.<id>` di awal run berikutnya, beserta kutipan dan URL |
+| 5 | Catatan data record | Dipotong di 8.000 karakter. Di 05b terjadi pada 11 dari 23 run. Dari q7 giliran 1 ke 2, 13 dari 14 output, 5 sudut riset dan semua temuan tidak terlihat. Di 06b mentok 8.000 di q7 m4c, m4d dan giliran 2 | Tidak ada potongan diam-diam. Output, temuan, jawaban sebelumnya dan keputusan selalu masuk. Bagian referensi panjang (relasi, nilai kategori) diringkas dengan penunjuk ke isi lengkap |
+| 6 | Riwayat per pesan | Dipotong 16.000 karakter. Asumsi/Batasan/Metodologi ada di akhir, jadi terbuang lebih dulu. q7 giliran 1 menyimpan 20.450 karakter; 4.450 karakter bagian itu hilang (perbaikan M63 batal untuk mode 4) | Asumsi/Batasan/Metodologi tidak pernah terpotong. Bila perlu memotong, yang dipotong badan jawaban, dengan penunjuk ke teks penuh |
+| 7 | Jawaban gabungan mode 4 | Metodologi hanya dari satu bagian; teks rencana m4b tidak ikut; Asumsi dan Batasan dibatasi 20 butir (`_merge`) | Metodologi semua bagian, teks rencana m4b, dan semua asumsi/batasan ikut |
+| 8 | Di dalam rantai mode 4 | m4b dan m4d hanya menerima 5.000 karakter pertama analisis, m4d 6.000 karakter pertama riset; asumsi/batasan/metodologi analisis tidak diteruskan | Langkah berikutnya menerima semuanya lewat mekanisme yang sama dengan giliran baru (butir ini), bukan potongan teks |
+| 9 | Kode Python run sebelumnya | Tersimpan di `AI_conversation_execution` (sampai 65.536 karakter), tetapi AI hanya melihat hash lewat `get_lineage` | Teks kode bisa dibaca AI dan masuk daftar isi memo |
+| 10 | Isi katalog | Hanya nama kolom yang dibawa, tanpa arti, satuan dan peringatan, padahal catatannya berkata "jangan baca katalog lagi" | Arti, satuan dan peringatan kolom yang sudah dibaca ikut dibawa; kalimat catatan diselaraskan |
+| 11 | Sumber angka run sebelumnya | Hanya `finding.*` yang otomatis terdaftar. `out.oN` baru bisa dikutip setelah `get_session_output`. `fact`, `metric`, `reference`, `web` dan `analysis` giliran lalu tidak bisa dikutip | Semua sumber run sebelumnya didaftarkan ulang di awal run dengan alamat yang sama, langsung bisa dikutip. Angka tetap dikutip lewat alamat; angka yang diketik ulang dari teks jawaban lama tetap tidak dianggap sumber (aturan gerbang tidak berubah) |
+| 12 | Giliran gagal atau terputus | Tidak masuk riwayat sama sekali (riwayat hanya mengambil giliran dengan `assistant_text`) | Masuk riwayat: pesan user, kode galat, dan apa yang sempat dikerjakan |
+| 13 | Bacaan penyortir per giliran | Jenis giliran, rujukan, perubahan nilai desain dan maksud (EXEC-3) tidak disimpan | Disimpan di state percakapan dan diberikan ke giliran berikutnya |
+
+**Cara membawa:**
+- **Penyimpanan:** satu catatan per run (memori run) di penyimpanan percakapan, berisi butir 1–13 dalam bentuk
+  terstruktur, beserta isi lengkapnya (pikiran utuh, pesan penolakan, kode, draf). Masa simpannya sama dengan
+  percakapan (30 hari). Tabel atau kolom baru mengikuti workflow AGENTS.md: migration, `DATABASE_SCHEMA.md`, changelog.
+- **Masuk prompt:** memo terstruktur per run, ditempatkan setelah prefix statis. Susunannya terlama dulu dan hanya
+  bertambah di belakang (append-only), supaya cache prompt antar run bisa terpakai (lihat EXEC-S).
+- **Isi lengkap:** bisa dibaca AI kapan saja lewat satu alat baca memori percakapan (READS, tanpa model). Alat itu
+  **H di semua perangkat** EXEC-T.
+- Hanya penunjuk ke isi lengkap yang boleh menggantikan isi. Tidak ada potongan tanpa penunjuk (aturan P5 diperluas).
+
+**Pertanyaan terbuka:**
+- **Q1 (bentuk pikiran AI di prompt):**
+  - (a) pikiran utuh dimasukkan ke prompt run berikutnya; atau
+  - (b) yang masuk prompt adalah memo, sedangkan pikiran utuh tersimpan dan bisa dibaca lewat alat baca memori.
+
+  Rekomendasi asisten: (b). Alasannya:
+  - pikiran lama ikut membawa percobaan yang ditolak dan tebakan yang salah;
+  - penyedia model sendiri tidak membawa pikiran antar giliran;
+  - biaya bukan penghalang: cache dalam satu run 89%, jadi membawa 98 ribu token ke run 20 panggilan ±USD 0,022.
+
+  Keputusan menunggu user.
+- **Q2 (siapa menulis ringkasan pikiran, bila Q1 = b):**
+  - fakta (butir 2–13) disusun backend dari kejadian yang tercatat, tanpa panggilan model;
+  - ringkasan pikiran ditulis model sebagai satu field catatan di jawaban akhirnya (±200–500 token, tanpa panggilan
+    tambahan).
+
+  Usulan asisten, belum disetujui.
+
+**Berkas:**
+- `data_record.py`, `conversations.py` (`assistant_text`, riwayat), `conversation_plans.py` (state), `mode4.py`
+  (`sub`, `first_round`, `suggest`, `_combined_response`, `_merge`), `orchestrator.py` (`_build_input`,
+  `_seed_data_record`, `_seed_findings` jadi semua sumber, akhir run), `tools/lineage.py`, `tools/catalog.py`,
+  `tools/method_guides.py`;
+- alat baca memori baru (+ `AI_TOOLS.md`, Tool_Catalog);
+- migration penyimpanan memori.
+
+**Tes:**
+- percakapan uji 3 giliran + rantai mode 4: setiap butir 1–13 dari run sebelumnya terlihat atau bisa dibaca di run
+  berikutnya;
+- tidak ada potongan tanpa penunjuk (catatan data record, riwayat, jawaban gabungan mode 4);
+- alamat `out`, `fact`, `metric`, `reference`, `web`, `analysis`, `finding` dari giliran lalu langsung lolos gerbang
+  REFERENCE tanpa `get_session_output`;
+- giliran gagal muncul di riwayat giliran berikutnya;
+- alat baca memori ada di setiap perangkat (`tests/test_tool_desks.py`);
+- susunan memo append-only: awalan prompt run N+1 sama persis dengan run N sampai akhir memo run N.
+
+**Lulus bila** di ulang uji threshold (3 giliran) dan q7 (2 giliran):
+- panggilan jelajah katalog di run lanjutan turun ≥ 50%;
+- token berpikir langkah pertama run lanjutan turun;
+- nol penolakan PROVENANCE/REFERENCE untuk angka yang berasal dari giliran sebelumnya;
+- giliran 2 q7 menerima Asumsi/Batasan/Metodologi giliran 1 utuh.
+
+### EXEC-S: satu conversation ID = satu session ID (butir 1k)
+
+**Keputusan user (2026-10-06):** "seharusnya 1 conversation ID = 1 session ID … RUN ID ya bisa berbeda tidak apa. ->
+masukan exec."
+
+`session_id` adalah kunci yang dipakai OpenRouter untuk mengarahkan permintaan ke penyedia yang sama (sticky routing),
+supaya cache prompt penyedia itu terpakai. Karena ini menyentuh cara rute ke penyedia, persetujuan ini dicatat juga di
+AGENTS.md (bagian Model and provider) saat dieksekusi.
+
+**Masalah:**
+- `_payload` mengirim `session_id` = ID run ("One session per run"). Router dan pembaca balasan rencana mengirim
+  `<ID run>:<nama>`.
+- Akibatnya setiap run baru, termasuk tiap langkah m4a–m4d, mendapat kunci rute baru dan bisa jatuh ke penyedia lain
+  yang belum punya cache.
+- Bukti golden test 06b: panggilan pertama tiap run hanya 28% kena cache; 7 dari 14 run 0%. Bandingkan dengan 89% di
+  dalam satu run.
 
 **Perubahan:**
-- **Memo run** disimpan di data record percakapan (`data_record.py`) di akhir setiap run dan sub-run mode 4. Isinya
-  terstruktur:
-  - tabel, kolom dan relasi yang sudah dibaca, beserta cakupannya;
-  - panduan metode yang sudah dibuka;
-  - spesifikasi data yang diajukan dan statusnya;
-  - keputusan desain yang dipakai (horizon, ambang, efek minimal, cakupan);
-  - asumsi jawaban;
-  - bila berakhir LIMITED/LIMITATION: gerbang yang menolak, alasannya, dan bagian draf yang ditolak.
-- Run berikutnya menerima memo itu sebagai catatan aplikasi setelah prefix statis, supaya cache prompt tetap. Model
-  dipandu memakai memo dulu sebelum menjelajah katalog lagi.
-- **Pikiran mentah tidak dibawa** (panjang, milik penyedia). Yang dibawa adalah kesimpulannya dalam bentuk terstruktur.
-- **Berkas:** `data_record.py`, `orchestrator.py` (akhir run, awal run), `mode4.py` (`sub`), `tools/catalog.py`,
-  `tools/method_guides.py`.
-- **Tes:**
-  - memo tersimpan dan dibaca;
-  - batas panjang memo (usul ≤ 4.000 karakter);
-  - memo tidak memuat angka yang bisa dikutip, karena angka tetap lewat alamat.
-- **Lulus bila** di ulang uji threshold dan q7: panggilan jelajah katalog di run lanjutan turun ≥ 50%, dan token
-  berpikir langkah pertama run lanjutan turun.
+- Semua panggilan model dalam satu percakapan memakai `session_id` = conversation ID, di semua giliran dan sub-run
+  mode 4: loop utama (`_payload`), router (`_router_call`), dan pembaca balasan rencana. Run ID tetap berbeda per run
+  dan tetap dicatat di log sebagai `request_id`.
+- Permintaan tanpa conversation ID memakai run ID seperti sekarang.
+- `static_prefix_hash` tidak lagi memasukkan `session_id`, supaya sidik jari prefix benar-benar mengukur isi prompt.
+- Log `ai_model_call` dan `ai_model_usage_summary` memuat `session_id` dan `request_id` terpisah.
+
+**Dokumen:**
+- AGENTS.md (keputusan provider 2026-10-06);
+- `AI_MODELS.md` (diregenerasi: perubahan rute penyedia);
+- `ERRORS_AND_SOLUTIONS.md` (entri baru: cache tidak terpakai di awal run, dengan bukti di atas);
+- `RAILWAY_CHANGELOG.md` saat deploy.
+
+Tidak ada variabel Railway yang berubah. `AI_PROVIDER_SORT`, ambang throughput dan rasio harga cache tetap.
+
+**Tes:**
+- `session_id` sama untuk semua panggilan dalam satu percakapan, lintas giliran dan sub-run mode 4;
+- cadangan run ID bila tanpa conversation ID;
+- hash prefix tidak berubah hanya karena `session_id`.
+
+**Lulus bila** di golden test berikutnya:
+- panggilan pertama run kedua dan seterusnya dalam satu percakapan kena cache ≥ 50% (sekarang 28%);
+- penyedia yang melayani tetap dalam daftar yang diizinkan kebijakan penyedia;
+- tidak ada kenaikan galat penyedia.
+
+**Catatan EXEC-T:** daftar alat berbeda antar langkah, jadi awalan yang sama antar langkah hanya sampai sebelum
+daftar alat. Dampaknya hanya pada panggilan pertama tiap run.
+
+**Urutan:** kecil dan berdiri sendiri, bisa dijalankan bersama EXEC-1 atau sebelum EXEC-C.
 
 ### EXEC-A: penyelarasan jalur (butir 1e)
 
@@ -357,6 +461,7 @@ ditemukan lewat pencarian. Contohnya alat ambil data sebelum rencana disetujui.
 | `get_research_library` | B | B | B | B | H | H | B | H |
 | Alat riset v2 (start, run, complete) | X | X | X | X | X | **X ⚠** | **X ⚠** | H |
 | `research_web` | B | H | B | B | B | B | B | B |
+| Alat baca memori percakapan (baru, EXEC-C) | **H ⚠** | **H ⚠** | **H ⚠** | **H ⚠** | **H ⚠** | **H ⚠** | **H ⚠** | **H ⚠** |
 | `find_web_fact` (selama `research_web` aktif) | X | X | X | X | X | X | X | X |
 | `get_evidence` (EXEC-E) | **X ⚠** | **X ⚠** | **X ⚠** | **X ⚠** | X | **X ⚠** | **X ⚠** | X |
 | Alat jalur lama (sebelum DataNeed) | X | X | X | X | X | X | X | X |
@@ -369,6 +474,8 @@ Alasan X:
 - **Alat riset v2 tanpa rencana v2 yang disetujui.**
 - **Dua alat web sekaligus.**
 - **`get_evidence`:** dihapus atas keputusan user.
+
+Tambahan dari EXEC-C (2026-10-06): karena semua sumber run sebelumnya didaftarkan ulang di awal run, mengutip output giliran lalu tidak lagi bergantung pada `get_session_output`. Catatan data record dan memo hanya menyebut alat yang ada di perangkat langkah itu.
 
 B tidak berarti wajib ditawarkan. Perangkat tiap proses = semua H ditambah B yang dipilih di tabel `DESKS`, dengan
 biaya token dicatat.
