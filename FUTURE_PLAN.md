@@ -208,3 +208,5 @@ Untuk 100 pengguna bersamaan tetap perlu bagian 2.
 | O1 rute penyedia berdasarkan kecepatan (keputusan "as is dulu") | `PLAN_BE_OPTIMIZATION_2026-10-04.md` | — |
 | Biaya server dan arsitektur banyak mesin sandbox | §2 di atas | — |
 | Bagian user: secret `RAILWAY_TOKEN` di GitHub (R33), rotasi kunci (R21), kredit OpenRouter | `ERRORS_AND_SOLUTIONS.md` | Uji live |
+| EXEC-T butir 3: kalimat system prompt yang menyebut alat dipindah ke deskripsi alat atau catatan per langkah, sehingga prompt tidak menyebut alat di luar meja. Kode kunci dan "tidak bisa ditemukan" sudah jalan (P41). Biaya: prompt per meja memecah cache antar langkah mode 4; manfaat terukur 0 (tidak ada panggilan alat di luar meja di 06b, 06e, 06f). Usul: ukur token dan cache dulu bila mau dikerjakan | `EXEC.md` EXEC-T (gelombang 3, 2026-10-06) | — |
+| P42: ambang sukses 0 yang tersirat dari "naik"/"turun" diterima gerbang PLAN_SUCCESS_RULE (sekarang ditolak sekali, diperbaiki edit dalam 6 dtk) | `ERRORS_AND_SOLUTIONS.md` P42 | — |

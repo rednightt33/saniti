@@ -26,6 +26,7 @@ FINDING_KEYS = ("angle_id", "hypothesis_id", "method_id", "status", "status_reas
                 "evidence_direction", "validation_level", "sample", "sample_flag", "estimates", "comparator",
                 "holdout", "multiple_testing", "angle_a", "angle_b", "confidence_level", "parameters", "units",
                 "success_rule", "success_definition")
+EVENT_STUDY_PREFIX = "event_study:"  # M99: the id space of recomputed event studies in the findings
 MAX_ANSWERS = 30  # R-STORE (C2e): one line per earlier answer, so a turn no longer in the history is not guessed
 MAX_MANUALS = 12  # 4b: method guides opened in the conversation, newest kept
 MAX_MANUAL_NOTE_CHARS = 16000
@@ -350,6 +351,11 @@ def add_finding(record: dict[str, Any], request_id: str, *, kind: str, finding_i
         if kind == "EVENT_STUDY" and key not in kept:
             kept[key] = copy.deepcopy(value)
     findings = record.get("findings") or []
+    if kind == "EVENT_STUDY" and not finding_id.startswith(EVENT_STUDY_PREFIX):
+        # M99 (re-test ma-qa-20261006f): an event study the model named like its hypothesis ("vol2x_up3d") took the
+        # hypothesis's id, which was archived as vol2x_up3d@1, so finding.vol2x_up3d no longer was the test; an event
+        # study is cited from its tables, so its id has its own prefix and never displaces a finding's
+        finding_id = EVENT_STUDY_PREFIX + finding_id
     earlier = next((f for f in findings if f.get("id") == finding_id), None)
     if earlier is not None and any((earlier.get("finding") or {}).get(k) != kept.get(k)
                                    for k in ("success_rule", "parameters")):
@@ -383,8 +389,8 @@ def results_after_suggestion(record: dict[str, Any] | None, plan_id: str | None)
     issued = int(suggestion.get("seq") or 0)
     later = [(o["seq"], f"{o.get('ref')} {o.get('name')}") for o in (record or {}).get("outputs") or []
              if isinstance(o.get("seq"), int) and o["seq"] > issued]
-    later += [(f["seq"], f"finding.{f.get('id')} ({f.get('kind')})") for f in (record or {}).get("findings") or []
-              if isinstance(f.get("seq"), int) and f["seq"] > issued]
+    later += [(f["seq"], f"finding.{str(f.get('id')).removeprefix(EVENT_STUDY_PREFIX)} ({f.get('kind')})")
+              for f in (record or {}).get("findings") or [] if isinstance(f.get("seq"), int) and f["seq"] > issued]
     return [name for _, name in sorted(later)]
 
 

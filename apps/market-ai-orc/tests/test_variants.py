@@ -207,3 +207,30 @@ def test_the_answer_lists_the_correction_only_when_this_run_tested() -> None:
     orchestrator.ask_back = False
     s.request_id = "t2"
     assert orchestrator._conversation_correction(s, answer) == answer
+
+
+def test_an_event_study_named_like_its_hypothesis_never_displaces_it() -> None:
+    """M99 (re-test ma-qa-20261006f): the event study "vol2x_up3d" archived the hypothesis vol2x_up3d as @1."""
+    from app import data_record as records
+
+    record: dict = {}
+    hypothesis = {"hypothesis_id": "vol2x_up3d", "angle_a": {"p_value": 0.14}, "parameters": {"horizon_periods": 3}}
+    records.add_finding(record, "t2", kind="HYPOTHESIS", finding_id="vol2x_up3d", finding=hypothesis)
+    records.add_finding(record, "t2", kind="EVENT_STUDY", finding_id="vol2x_up3d", finding={"status": "PASS"})
+    assert [(f["id"], f["kind"]) for f in record["findings"]] == [("vol2x_up3d", "HYPOTHESIS"),
+                                                                  ("event_study:vol2x_up3d", "EVENT_STUDY")]
+    records.add_finding(record, "t3", kind="EVENT_STUDY", finding_id="vol2x_up3d", finding={"status": "PASS"})
+    assert len(record["findings"]) == 2 and vc.correct(record) is None  # one test only: no correction yet
+
+
+def test_an_approved_run_is_told_that_the_backend_adds_the_correction() -> None:
+    """Re-test ma-qa-20261006f: the answer said "tanpa koreksi lintas varian" next to the backend's correction."""
+    from app.orchestrator import CORRECTION_NOTE
+
+    orchestrator = agent()
+    orchestrator.ask_back = True
+    for turn, expected in (("EXECUTE_APPROVED", True), ("PROPOSE", False)):
+        s = RunState(request_id="q", started=0.0, input_items=[{"role": "user", "content": "m"}])
+        s.plan_turn = turn
+        orchestrator._apply_turn_kind(s)
+        assert (CORRECTION_NOTE in [i["content"] for i in s.input_items]) is expected, turn

@@ -49,284 +49,48 @@ gabungkan ya", pilihan "File baru EXEC.md"). Pekerjaan yang disetujui tetapi bel
   - R4b: kesempatan edit kedua diberikan sekali per draf dan tidak dihitung sebagai penolakan.
   - Commit: satu commit kode gelombang 2 (`6c6ce58`), bukan satu per EXEC.
   - EXEC-E langkah 5 menyebut uji ulang 2 item; dijalankan 3 item (lang, threshold, h_add) bersama EXEC-R.
-- Laporan `GT_QA_2026-10-06.md` §6–7, deploy di `RAILWAY_CHANGELOG.md`.
+- Gelombang 3: EXEC-3 (TANYA BALIK, pilihan cepat, pertanyaan baku, maksud user), EXEC-A (satu pembaca maksud di
+  semua jalur termasuk P3b, varian dan koreksi uji berganda) dan EXEC-T (meja alat per proses). Live di dev: orc
+  `f5bb4e23`, `AI_ENABLE_ASK_BACK=true`.
+  - Uji `ma-qa-20261006f`:
+    - "BBRI" ditanya balik dalam 3,1 dtk;
+    - h_add menambah horizon 10 hari tanpa LIMITED (M90 selesai);
+    - 4 varian BBCA dijalankan dengan koreksi Holm;
+    - waktu sesudah penolakan 0,8% (target ≤ 5% tercapai);
+    - 0 alat di luar meja dipanggil.
+  - Status di `ERRORS_AND_SOLUTIONS.md` (M90, M97–M100, P40–P42).
+- Perbedaan dari kata-kata rencana gelombang 3 (R35):
+  - EXEC-T butir 3 (kalimat system prompt yang menyebut alat dipindah ke deskripsi alat atau catatan per langkah)
+    **tidak dikerjakan**. Model tidak pernah memanggil alat di luar meja (06b, 06e, 06f), sedangkan prompt per meja
+    memecah cache antar langkah. Kini keputusan terbuka di `FUTURE_PLAN.md` 3b.
+  - Varian dan koreksi ikut saklar `AI_ENABLE_ASK_BACK`, supaya satu saklar cukup untuk mundur.
+  - Keluarga koreksi = semua uji di percakapan (konservatif); hanya tampilan, putusan tiap uji tidak berubah.
+  - Syarat benchmark router diubah atas keputusan user (hanya kesalahan mahal); batas token router 4.000 (M98).
+  - Dua cacat dari uji live (M99 ID event study, M100 kalimat "tanpa koreksi") diperbaiki di kode tanpa uji ulang
+    berbayar; dibuktikan tes unit dan diperiksa di golden test akhir.
+- Laporan `GT_QA_2026-10-06.md` §6–8, deploy di `RAILWAY_CHANGELOG.md`.
 
 | No | Butir | Disetujui | Status | Urutan usulan |
 |---|---|---|---|---|
 | 1d | EXEC-C: AI membawa semuanya ke run ID berikutnya dalam satu percakapan, tanpa terkecuali (13 butir, termasuk P4) | 2026-10-06 ("masukan exec"; "Seharusnya AI membawa semuanya tanpa terkecuali. Masukan EXEC") | **EXEC**, berjalan ("mulai" 2026-10-06); Q1 memo, Q2 backend + AI (diputuskan 2026-10-06) | Sesudah EXEC-R |
-| 1e | EXEC-A: penyelarasan jalur (satu pembaca maksud, gerbang hanya meminta alat yang ada, 10.6 dan edit sama di semua jalur) | 2026-10-06 ("masukan exec") | **EXEC**, berjalan ("mulai" 2026-10-06) | Bersama EXEC-3 |
+| 1e | EXEC-A: penyelarasan jalur (satu pembaca maksud, gerbang hanya meminta alat yang ada, 10.6 dan edit sama di semua jalur) | 2026-10-06 ("masukan exec") | Selesai 2026-10-06 (gelombang 3; P40) | — |
 | 1h | EXEC-P1: mode 4 berhenti setelah analisis + rencana | 2026-10-06 ("p1 … masukan exec") | **EXEC**, berjalan ("mulai" 2026-10-06) | Sesudah EXEC-3 |
 | 1i | EXEC-P5: gabung langkah mekanis | 2026-10-06 ("p5 masukan exec") | **EXEC**, berjalan ("mulai" 2026-10-06) | Sesudah EXEC-R |
-| 1j | EXEC-T: perangkat alat per proses (matriks HARUS/BOLEH/TIDAK BOLEH final, alat terlarang dikunci kode dan tidak bisa ditemukan) | 2026-10-06 ("finalize dan masukan ke EXEC"; catatan user: alat TIDAK BOLEH dikunci kode, tidak boleh ditemukan lewat pencarian) | **EXEC**, berjalan ("mulai" 2026-10-06) | Bersama EXEC-A |
-| 2 | P3: gerbang yang salah tolak | 2026-10-06 "OK masukan plan jangan execute dulu" | Belum (P3a ikut EXEC butir 1, P3b ikut EXEC butir 3) | 3 |
-| 3 | Item 11: penyortir "free will", jalur TANYA BALIK, cadangan berupa pertanyaan | 2026-10-05 (16:47, 17:40, 17:51, 17:55), ditegaskan 2026-10-06; **EXEC 2026-10-06** | **EXEC** (lihat bagian EXEC) | 2 |
+| 1j | EXEC-T: perangkat alat per proses (matriks HARUS/BOLEH/TIDAK BOLEH final, alat terlarang dikunci kode dan tidak bisa ditemukan) | 2026-10-06 ("finalize dan masukan ke EXEC"; catatan user: alat TIDAK BOLEH dikunci kode, tidak boleh ditemukan lewat pencarian) | Selesai 2026-10-06 kecuali butir 3 (keputusan terbuka, `FUTURE_PLAN.md` 3b; P41) | — |
+| 2 | P3: gerbang yang salah tolak | 2026-10-06 "OK masukan plan jangan execute dulu" | Selesai 2026-10-06 (P3a EXEC-1, P3b dan P3c gelombang 3, P3d EXEC-R) | — |
+| 3 | Item 11: penyortir "free will", jalur TANYA BALIK, cadangan berupa pertanyaan | 2026-10-05 (16:47, 17:40, 17:51, 17:55), ditegaskan 2026-10-06; **EXEC 2026-10-06** | Selesai 2026-10-06 (EXEC-3, gelombang 3; M97) | — |
 | 4 | P2: jawaban ditulis sekali | 2026-10-06 | Selesai 2026-10-06 (EXEC-R dan EXEC-P2, gelombang 2) | — |
 | 5 | P1: mode 4 berhenti setelah analisis + rencana | 2026-10-06 | EXEC-P1 | — |
 | 6 | P5: gabung langkah mekanis | 2026-10-06 | EXEC-P5 | — |
 | 7 | P4: hasil jelajah dibawa antar-putaran | 2026-10-06 | Masuk EXEC-C (butir 1d) | — |
 
-Biaya model: butir 1 (ulang uji ±USD 0,07) dan setiap golden test sesudah butir 2–7. Sisa batas kunci OpenRouter setelah gelombang 2:
-±USD 1,16 (2026-10-06; 1,373 sebelum ulang uji `ma-qa-20261006e`, yang memakai ±0,215), jadi kredit dicek sebelum uji
-apa pun.
+Biaya model: setiap uji dan golden test. Sisa batas kunci OpenRouter setelah gelombang 3: USD 0,857 (2026-10-06;
+benchmark router ±0,07 dan uji `ma-qa-20261006f` ±0,197), jadi kredit dicek sebelum uji apa pun.
 Status **EXEC** = rencana eksekusi sudah disetujui isinya, tetapi **baru dijalankan setelah user memberi konfirmasi
 mulai** (keputusan user 2026-10-06: "EXEC dijalankan setelah konfirmasi saya"). Konfirmasi mulai diberikan 2026-10-06 ("mulai"). Setelah dimulai, berhenti dan lapor bila menemui kondisi berhenti, atau bila perlu tindakan di
 luar langkah ini.
 
-Urutan: EXEC-1, lalu EXEC-3. EXEC-3 dibangun di atas `main` yang sudah memuat EXEC-1.
-
----
-
-### EXEC-3: item 11 penyortir "free will" + TANYA BALIK (butir 3, termasuk P3b)
-
-| Langkah | Isi | Biaya | Lulus bila |
-|---|---|---|---|
-| 0 | Patokan: `scripts/benchmark_first_router.py` dan `benchmark_turn_router.py` dengan kode sekarang | ±USD 0,03 | Angka patokan tercatat |
-| 2 | Kode orc di balik saklar baru `AI_ENABLE_ASK_BACK` (default mati). Rincian di bawah tabel | 0 | — |
-| 3 | Tes unit + suite orc; `AI_ROUTER.md` dan `AI_MODELS.md` diregenerasi (skema keluaran berubah) | 0 | Hijau; tes drift lulus |
-| 4 | Benchmark ulang dengan saklar menyala (lokal, model asli) | ±USD 0,03 | 0 pertanyaan data dirutekan ke CHAT/FACT; harus-tanya ≥ 90% ditanya; tidak-boleh-tanya 0 ditanya; akurasi rute lain tidak di bawah patokan |
-| 5 | Push `main` → orc deploy SUCCESS; `AI_ENABLE_ASK_BACK=true` di dev (satu perubahan variabel); `railway config pull --force` + `config plan`; `RAILWAY_CHANGELOG.md` | 0 | SUCCESS; log start bersih |
-| 6 | Uji live kecil: "BBRI" dan pilihan ① ringkasan cepat; satu kasus cadangan gagal disimulasikan di tes, tidak live | ±USD 0,05 | "BBRI" mendapat pertanyaan ≤ 15 dtk; pilihan ① menghasilkan ringkasan dengan cakupan sesuai maksud |
-| 7 | Catatan: entri ERRORS untuk perubahan penyortir, R34 tetap; README orc; butir 3 dan P3b dihapus dari `PLAN.md`. Commit, push `main` dan cabang | 0 | Push sukses |
-
-**Rincian kode langkah 2** (`apps/market-ai-orc/app/conversation_router.py`, `orchestrator.py`, `mode4.py`,
-`schemas.py`, `main.py`):
-- **Penyortir pesan pertama:**
-  - jalur ASK_BACK dengan kriteria (a)–(c);
-  - daftar kemampuan dibuat dari tabel jalur di kode;
-  - aturan "ambigu + data → ANALYSIS" dicabut;
-  - keluaran `understood_intent`, `assumptions`, `question`, `options`;
-  - ASK_BACK menjawab langsung CLARIFICATION tanpa run analisis;
-  - `understood_intent` dikirim ke langkah analisis sebagai catatan aplikasi.
-- **Penyortir pesan lanjutan:** kelas ASK_BACK.
-- **Cadangan gagal teknis** (pesan pertama dan lanjutan): coba ulang sekali, lalu pertanyaan baku tanpa model.
-- **Pilihan:** setiap pilihan memetakan ke jalur.
-  - ① ringkasan cepat = ANALYSIS dengan maksud "ringkasan singkat" dan cakupan terbatas;
-  - ② analisis data = ANALYSIS;
-  - ③ uji/riset = RESEARCH.
-
-  Balasan teks bebas tetap lewat penyortir.
-- **P3b:** pembaca balasan rencana non-mode-4 mengembalikan `design_value_changes` dan `referent`, lalu mengisi
-  `current_design_changes` / `current_turn_referent`.
-
-**Kondisi berhenti dan jalan balik:**
-- Benchmark langkah 4 tidak lulus: berhenti, lapor, tidak deploy.
-- Masalah setelah live: `AI_ENABLE_ASK_BACK=false` (satu perubahan variabel, kode tetap).
-
-#### Rincian dari butir 3 (dipindah dari `PLAN.md` 2026-10-06)
-
-**Persetujuan user:**
-- 2026-10-05 16:47: "harusnya ada [jalur tanya balik] kan?" dan "gagal → should fall back to question?"
-- 17:40: "BBRI" tanya balik maupun ringkasan + pilihan "both alright"; cadangan "coba ulang, lalu pertanyaan baku"
-  "ok".
-- 17:51: instruksi penyortir untuk memahami maksud user, bukan profil per user.
-- 17:55: "Saya setuju in general".
-- 2026-10-06: "kalau ambigu maka pilih clarify".
-
-Ini menggantikan keputusan 2026-10-04 "bila ambigu cukup dinyatakan, tidak perlu jalur baru" untuk penyortir.
-
-**Bukti (golden test 06b, orc `96726ca5`):**
-- "BBRI" dirutekan ANALYSIS dengan alasan "ambiguous but market-data related, so prefer ANALYSIS".
-- Asisten menulis "extremely ambiguous" tetapi lanjut, karena aturan umum no. 9–10.
-- 4 penolakan `query_metric` menutup alat itu.
-- Cakupan melebar: 48 bank, nama broker.
-- Hasilnya 28 panggilan, 569 dtk.
-
-**Perubahan:**
-- **Penyortir pesan pertama** (`apps/market-ai-orc/app/conversation_router.py`: `FIRST_ROUTES`,
-  `FIRST_INSTRUCTIONS`, `FIRST_SCHEMA`, `FirstRoute`, `first_route_path`, `FIRST_FALLBACK`):
-  - Daftar kemampuan tiap jalur dibuat dari kode: apa yang bisa, perkiraan waktu dan biaya, kapan cocok, contoh.
-  - Instruksi utama: pahami dulu apa yang sebenarnya user mau.
-  - Jalur baru **ASK_BACK**, dipakai bila:
-    - (a) tidak ada permintaan yang bisa dikenali (ticker saja, nama saja, satu kata);
-    - (b) ada dua tafsiran atau lebih yang menghasilkan pekerjaan sangat berbeda;
-    - (c) pesan akan masuk jalur mahal (RESEARCH/EXPLORE) padahal informasi kuncinya tidak ada dan tidak bisa
-      diasumsikan.
-
-    Hasilnya satu pertanyaan dengan 3–4 pilihan cepat, tanpa run analisis.
-  - Aturan "ambigu + data → ANALYSIS" dicabut. Ambigu dan tebakan salah mahal → ASK_BACK. Ambigu tapi murah → pilih
-    jalur dengan asumsi yang dinyatakan.
-  - Keluaran ditambah `understood_intent`, `assumptions`, `question` dan `options`. `understood_intent` diteruskan
-    ke langkah analisis supaya cakupan tidak melebar.
-- **Penyortir pesan lanjutan** (`ROUTER_INSTRUCTIONS`, `TURN_KINDS`): kelas ASK_BACK dengan aturan yang sama.
-- **Cadangan gagal teknis**, menggantikan `FIRST_FALLBACK = "ANALYSIS"` dan `FALLBACK = "INSIGHT"`:
-  - coba ulang sekali;
-  - bila masih gagal, pertanyaan baku tanpa model. Pesan pertama: "① ringkasan cepat ② analisis data ③ uji/riset".
-    Pesan lanjutan: "① jelaskan hasil tadi ② analisis lanjutan ③ setujui usulan" (③ hanya bila ada usulan menunggu).
-- **Respons API:** CLARIFICATION dengan `options` yang masing-masing memetakan ke jalur. Pilihan yang dikirim sebagai
-  jalur langsung menentukan jalan; teks bebas tetap lewat penyortir. Berkas: `schemas.py`, `main.py`, `mode4.py`.
-- **Satu pembaca maksud untuk semua jalur:** sama dengan P3b.
-
-**Tes dan dokumen:**
-- `tests/test_first_message_router.py`, `tests/test_conversation_router.py`, `tests/test_ai_router_doc.py`.
-- Set berlabel (`tests/fixtures/first_message_router_cases.json`, `turn_router_cases.json`) ditambah kasus:
-  - perlu tanya: "BBRI", "analisis BBRI", "strategi ini bagus nggak?" tanpa strategi;
-  - tidak perlu tanya: bakrie, q7, h_add, threshold, p2 (bertanya berlebihan juga dihitung salah).
-- Benchmark router live dijalankan ulang sebelum deploy.
-- `AI_ROUTER.md` diregenerasi; `AI_MODELS.md` bila keluaran atau token penyortir berubah.
-
-**Target:**
-- "BBRI" mendapat pertanyaan ≤ 15 dtk.
-- Pertanyaan jelas tidak pernah ditanya balik.
-- Gagal teknis menghasilkan pertanyaan baku.
-
----
-
-### EXEC-A: penyelarasan jalur (butir 1e)
-
-**Masalah:** aturan yang sama berbeda antar-jalur. Contohnya:
-- bacaan "tambah/ganti" hanya di mode 4 (h_add t2 LIMITED);
-- gerbang EVIDENCE meminta `get_evidence` di langkah riset yang tidak punya alat itu (q7-m4c LIMITATION setelah
-  580 dtk);
-- catatan menu alamat menyebut `check_references` di langkah tanpa alat itu;
-- 10.6 dan edit tidak berlaku sama di semua jalur.
-
-**Perubahan:**
-1. **Satu pembaca maksud untuk semua jalur.** Penyortir pesan pertama, penyortir mode 4 dan pembaca balasan rencana
-   menghasilkan keluaran yang sama: `design_value_changes` (tambah/ganti/hapus), `referent` (merujuk hasil
-   sebelumnya), dan `understood_intent`. Gerbang membaca keluaran itu di jalur mana pun. Mencakup P3b dan dibangun
-   bersama EXEC-3.
-2. **Gerbang hanya meminta jalan keluar yang alatnya ada** (mencakup P3c, kini disetujui). Isi perangkat alat per
-   proses mengikuti matriks final di EXEC-T:
-   - setiap gerbang yang punya `needs` hanya muncul sebagai permintaan bila alatnya ada di meja langkah itu; bila
-     tidak ada, alat itu ditambahkan ke meja langkah tersebut;
-   - langkah riset disetujui ditambah `check_references` (`get_evidence` dihapus di EXEC-E);
-   - langkah rencana ditambah `check_references` dan `get_session_output`, karena rencana harus bisa mengutip hasil
-     sebelumnya.
-   - **Tes permanen:** gagal bila `needs` sebuah gerbang tidak ada di meja proses tempat gerbang itu bisa muncul, atau
-     bila kalimat prompt atau catatan hasil alat menyebut alat yang tidak ada di meja (prinsip P31).
-3. **10.6 dan edit berlaku sama di semua jalur.** Alamat dirender di jawaban rencana di semua jalur rencana (PROPOSE,
-   REVISE, REPLAN, m4b, m4d). Edit, termasuk field bersarang (R1) dan `keep` (R2), ditawarkan di semua langkah yang
-   punya alat. Tes per jalur.
-
-- **Berkas:** `conversation_router.py`, `orchestrator.py` (`_classify_reply`, `_desk`, `_gate_once`, `_approve_v2`,
-  `plan_tools`, `ADDRESS_MENU_NOTE`), `mode4.py`, tes baru `tests/test_tool_desks.py`.
-- **Lulus bila:**
-  - tes meja alat hijau;
-  - ulang uji h_add t2 dan q7 tanpa `tool_not_in_step` dan tanpa LIMITED karena "tambah horizon".
-- **Catatan:** analisis lengkap "alat per proses" (HARUS / BOLEH / TIDAK BOLEH) yang diminta user belum dijalankan.
-  Hasilnya bisa mengubah daftar alat di langkah 2.
-
-#### Rincian dari butir 2 (dipindah dari `PLAN.md` 2026-10-06)
-
-P3a ada di EXEC-1, P3b di EXEC-3, P3c di EXEC-A, P3d di EXEC-R (R4).
-
-**Asal:** analisis waktu golden test 06b. Disetujui masuk rencana 2026-10-06.
-
-- **a. Deploy 10.6 dan format web:** butir 1 langkah 1.
-- **b. PLAN_HORIZON di jalur non-mode-4:**
-  - Pembaca balasan rencana (`_classify_reply` di `apps/market-ai-orc/app/orchestrator.py`, `CLASSIFIER_SCHEMA`)
-    mengembalikan juga `design_value_changes` (skema M82 di `conversation_router.py`) dan mengisi
-    `current_design_changes`.
-  - Ia juga mengisi `current_turn_referent`, supaya `CITED_THRESHOLD_HINT` muncul di jalur ini.
-  - Tetap satu panggilan, tanpa tambahan waktu.
-  - Bukti: h_add giliran 2 LIMITED, karena "tambahkan horizon 10 hari, tetap uji 3 hari" dibaca sebagai mengganti.
-- **c. Gerbang hanya meminta alat yang ada di langkah itu:**
-  - `_approve_v2` (langkah riset disetujui, 13 alat) ditambah `get_evidence` dan `check_references`.
-  - `plan_tools` (langkah rencana, 9 alat) ditambah `check_references`.
-  - Catatan menu alamat hanya menyebut `check_references` bila alat itu tersedia.
-  - Bukti: q7-m4c dipaksa LIMITATION setelah 580 dtk.
-- **d. JSON jawaban akhir:**
-  - Karakter kontrol mentah sudah diterima sejak M40.
-  - Bila parser longgar juga gagal, model diberi galat parser longgar (penyebab sebenarnya), bukan galat "control
-    character" dari parser ketat.
-  - Draf q7-m4c dicek dulu di audit store.
-- **Tes:**
-  - `tests/test_plan_*`, `tests/test_address_menu.py`, tes jawaban akhir;
-  - suite orc hijau;
-  - AI_TOOLS.md diregenerasi bila deskripsi alat berubah.
-
----
-
-### EXEC-T: perangkat alat per proses (butir 1j)
-
-**Aturan user (2026-10-06):** alat yang TIDAK BOLEH ada di sebuah proses dikunci oleh kode, dan tidak boleh bisa
-ditemukan lewat pencarian. Contohnya alat ambil data sebelum rencana disetujui.
-
-**Hasil cek ulang di kode (2026-10-06):**
-
-| Lapisan kunci | Keadaan sekarang |
-|---|---|
-| 1. Tidak ditawarkan | Perangkat A, B, D, baca-saja, dan fakta disaring kode (`_desk`, `_turn_tools`). Perangkat C (CONTINUE, AUTO tanpa rencana, riset v1 disetujui) tidak disaring sama sekali (`tool_filter=None`): semua 27 alat ditawarkan |
-| 2. Ditolak saat dipanggil | `_execute` menolak alat di luar perangkat (`TOOL_NOT_AVAILABLE_IN_THIS_TURN`), tetapi hanya untuk perangkat yang disaring. Perangkat C tidak punya kunci ini. Pesan tolaknya juga selalu menyebut "rencana menunggu keputusan user", walau prosesnya bukan rencana |
-| 3. Penjaga khusus | `ResearchGuard`: data mode RESEARCH ditolak sebelum rencana disetujui (terbukti di log: `RESEARCH_PLAN_REQUIRED` 2× di CONTINUE). Alat riset v2 menolak bila tidak ada rencana disetujui (`refused()` di `research_run_executor.py`). Dua alat web saling eksklusif (`config.py`). Alat lama mati bersama DataNeed |
-| 4. Tidak bisa ditemukan | **Belum.** Nama alat di luar perangkat terlihat di tiga tempat: (a) `get_system_capabilities` mengembalikan `other_tools_not_in_this_step`; (b) system prompt dibuat sekali per deployment dari semua alat terdaftar, jadi menyebut alat yang tidak ada di langkah itu; (c) buku panduan metode menyebut alat (misalnya `get_evidence`) di langkah mana pun |
-
-**Matriks final** (H = harus ada, B = boleh, X = tidak boleh karena melanggar kontrak; ⚠ = beda dari sekarang):
-
-| Alat | CHAT | FACT | CLARIFY / CONVERSATIONAL | Analisis (pesan pertama, m4a, INSIGHT) | Rencana (PROPOSE, REVISE, REPLAN, m4b, m4d) | CONTINUE | Riset v1 disetujui | Riset v2 disetujui |
-|---|---|---|---|---|---|---|---|---|
-| `get_system_capabilities` | B | B | B | B | B | B | B | B |
-| Jelajah katalog (discover, details, rows, dimension) | B | H | B | H | H | H | B | B |
-| `lookup_reference` | B | H | B | H | B | H | B | B |
-| `get_method_guide` | B | B | B | H | H | H | H | H |
-| `preview_table_rows` | X | X | X | B | X | B | B | X |
-| `query_metric` | X | X | X | H | X | B | B | X |
-| Alur data (submit, bundle, sesi, `run_python`, complete) | X | X | X | H | X | B (mode RESEARCH dikunci `ResearchGuard`) | H | X |
-| `inspect_session` | B | B | B | H | B | H | H | H |
-| `get_session_output` | B | B | H | H | **H ⚠** | H | H | H |
-| `export_result` | B | B | H | B | B | B | B | B |
-| `get_lineage` | B | B | H | B | B | B | B | B |
-| `check_references` | B | B | H | B | **H ⚠** | B | B | **H ⚠** |
-| Cek kelayakan rencana | X | X | X | X | H | H | B | B |
-| `get_research_library` | B | B | B | B | H | H | B | H |
-| Alat riset v2 (start, run, complete) | X | X | X | X | X | **X ⚠** | **X ⚠** | H |
-| `research_web` | B | H | B | B | B | B | B | B |
-| Alat baca memori percakapan (baru, EXEC-C) | **H ⚠** | **H ⚠** | **H ⚠** | **H ⚠** | **H ⚠** | **H ⚠** | **H ⚠** | **H ⚠** |
-| `find_web_fact` (selama `research_web` aktif) | X | X | X | X | X | X | X | X |
-| `get_evidence` (EXEC-E) | **X ⚠** | **X ⚠** | **X ⚠** | **X ⚠** | X | **X ⚠** | **X ⚠** | X |
-| Alat jalur lama (sebelum DataNeed) | X | X | X | X | X | X | X | X |
-
-Alasan X:
-- **Rencana:** ambil atau hitung data sebelum disetujui.
-- **Giliran baca saja dan FACT:** menghitung ulang dengan cakupan lain (M63) dan mengambil data gudang.
-- **Analisis:** pemanggil menetapkan tanpa rencana.
-- **Riset v2:** AI tidak boleh menyusun ulang pesanan data atau menjalankan kode bebas di luar executor.
-- **Alat riset v2 tanpa rencana v2 yang disetujui.**
-- **Dua alat web sekaligus.**
-- **`get_evidence`:** dihapus atas keputusan user.
-
-Tambahan dari EXEC-C (2026-10-06): karena semua sumber run sebelumnya didaftarkan ulang di awal run, mengutip output giliran lalu tidak lagi bergantung pada `get_session_output`. Catatan data record dan memo hanya menyebut alat yang ada di perangkat langkah itu.
-
-B tidak berarti wajib ditawarkan. Perangkat tiap proses = semua H ditambah B yang dipilih di tabel `DESKS`, dengan
-biaya token dicatat.
-
-**Perubahan:**
-1. **Satu sumber kebenaran:** tabel `DESKS` di kode. Isinya per proses: daftar H, daftar B yang ditawarkan, dan daftar
-   X. `_desk`, `_turn_tools`, `plan_tools`, `_approve_v2`, `_apply_turn_kind` dan saringan `forced_path` membaca tabel
-   itu. Perangkat C tidak lagi `None`:
-   - CONTINUE memakai perangkat sesuai maksud dari penyortir (analisis, rencana, atau baca), dibangun bersama EXEC-3;
-   - riset v1 mendapat perangkatnya sendiri.
-2. **Kunci kode berlapis untuk setiap X:**
-   - (a) tidak ditawarkan;
-   - (b) ditolak saat dipanggil di semua proses, termasuk yang dulu tanpa saringan, dengan pesan yang benar ("tidak
-     tersedia di langkah ini", tanpa daftar alat terlarang);
-   - (c) penjaga khusus tetap ada sebagai lapis kedua (`ResearchGuard`, executor riset, saklar eksklusif web).
-3. **Tidak bisa ditemukan:**
-   - `get_system_capabilities` hanya menyebut alat di perangkat langkah itu. `other_tools_not_in_this_step` dihapus;
-     yang tersisa hanya label kemampuan yang tidak tersedia.
-   - Kalimat system prompt yang menyebut alat tertentu dipindah ke deskripsi alat itu atau ke catatan per langkah,
-     sehingga prefix statis tidak menyebut alat yang tidak ada (P31 per langkah). Kenaikan token diukur; `test_prompt_pass2.py` diperbarui.
-   - `get_method_guide` mengembalikan teks panduan dengan nama alat di luar perangkat disaring.
-   - Bila nanti memakai pencarian alat (`defer_loading` / tool search): indeks dibangun hanya dari perangkat langkah
-     itu, sehingga alat X tidak pernah terindeks. Aturan ini dicatat di AGENTS.md.
-4. **Tes permanen** (`tests/test_tool_desks.py`):
-   - setiap gerbang dengan `needs` hanya bisa muncul di proses yang perangkatnya memuat alat itu;
-   - tidak ada alat X di perangkat yang ditawarkan;
-   - memanggil alat X ditolak di setiap proses;
-   - jawaban `get_system_capabilities`, system prompt, catatan hasil alat dan buku panduan tidak menyebut alat di luar
-     perangkat;
-   - `AI_TOOLS.md` memuat matriks yang dibuat dari `DESKS` (generator), dan tes drift gagal bila berbeda.
-
-- **Berkas:**
-  - `orchestrator.py`, `conversation_router.py`, `mode4.py`;
-  - `tools/system.py`, `tools/registry.py`, `tools/method_guides.py`;
-  - `scripts/generate_ai_tools_doc.py`;
-  - AGENTS.md (aturan perangkat dan pencarian alat).
-- **Lulus bila:**
-  - tes hijau;
-  - ulang uji q7 dan h_add tanpa `tool_not_in_step`;
-  - tidak ada panggilan alat X di log;
-  - log pikiran tidak menyebut alat di luar perangkat.
+Urutan sisa: gelombang 4 (EXEC-C, EXEC-P5, EXEC-P1), lalu golden test akhir.
 
 ---
 

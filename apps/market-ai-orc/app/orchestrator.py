@@ -1740,6 +1740,13 @@ VARIANT_NOTE = (
     "every variant with the same method: in an analysis, release one table with a variant column (one row per variant "
     "and measure, so each figure has its address rows[variant=...]); in a plan, one experiment or angle per variant or "
     "combination. Show every variant, also those that do not pass.")
+# re-test ma-qa-20261006f: the answer said the variants were "tested without a correction across variants" while the
+# backend added that correction to the same answer's limitations
+CORRECTION_NOTE = (
+    "Application note, not from the user: after this run the backend corrects the p-values of every test of this "
+    "conversation together (Holm, or Benjamini-Hochberg when a test's policy asks for it) and adds them to the "
+    "answer's limitations. Do not write that the tests or variants were not corrected; a test's own multiple-testing "
+    "policy may be described as it is.")
 PLAN_TEXT_PROVENANCE_INSTRUCTION = (
     "These numbers in the Research Plan's own text have no source: {numbers}. A count, size or level written in the "
     "plan (how many stocks, rows or days, a threshold) must come from the user's message or this run's feasibility "
@@ -2867,6 +2874,7 @@ class AgentOrchestrator:
         named = variants(current_design_changes.get()) if self.ask_back else {}
         for note in (router.intent_note(intent),
                      router.NOTES["QUICK_SUMMARY"] if (intent or {}).get("choice") == "QUICK_SUMMARY" else None,
+                     CORRECTION_NOTE if self.ask_back and state.plan_turn == "EXECUTE_APPROVED" else None,
                      VARIANT_NOTE.format(variants="; ".join(f"{name}: {', '.join(values)}"
                                                             for name, values in named.items())) if named else None):
             if note:  # EXEC-3: the router's reading of the request, and a quick summary the user chose

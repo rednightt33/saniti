@@ -133,7 +133,7 @@ def test_findings_of_an_earlier_turn_are_cited_again_without_running_the_researc
     first = AgentOrchestrator(make_settings(AI_ENABLE_DATANEED="true"), scripted,
                               Tools([first_completion]).registry()).run(AgentRunRequest(request_id="q1", message="x"))
     kinds = {f["id"]: f["kind"] for f in first.data_record["findings"]}
-    assert kinds == {"gap_down": "HYPOTHESIS", "drops": "EVENT_STUDY"}
+    assert kinds == {"gap_down": "HYPOTHESIS", "event_study:drops": "EVENT_STUDY"}  # M99: its own id space
     assert "finding.gap_down (HYPOTHESIS" in records.note(first.data_record)
     # a later turn: no tool call, the figure comes from the recorded finding
     text = "Selisihnya {{finding.gap_down.angle_a.difference|dec:2}} poin persen, sampel efektif 37 tanggal."
