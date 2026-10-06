@@ -1911,6 +1911,8 @@ class RunState:
     guard: ResearchGuard = field(default_factory=lambda: ResearchGuard(required=False))
     plan_meta: dict[str, Any] = field(default_factory=dict)
     classifier: dict[str, Any] | None = None
+    # P3b (AI_ENABLE_ASK_BACK): the plan-reply reader's referent and design value changes (one reading for every path)
+    reply_reading: dict[str, Any] | None = None
     guard_rejections: int = 0
     continuation: ContinuationOut | None = None
     # conversation reuse: what the resources note offered, and released outputs of earlier messages read in this run
@@ -2100,6 +2102,9 @@ class AgentOrchestrator:
         self.value_references = settings.ai_enable_value_references and self.dataneed
         # 10.1-10.4 (plan 2026-10-05 item 10): the address menu on tool results and the reference fallback
         self.address_menu = bool(getattr(settings, "ai_enable_address_menu", False)) and self.value_references
+        # EXEC-3: the routers may ask back, return the understood intent and every design value (variants); the
+        # plan-reply reader returns the same reading (P3b); a failed router call is retried once
+        self.ask_back = bool(getattr(settings, "ai_enable_ask_back", False))
         self.system_prompt = build_system_prompt(settings.ai_enable_lookup_fact, self.dataneed,
                                                  self.plan_confirmation, period_return,
                                                  settings.ai_final_contract_in_prompt, self.catalog_protocol,
@@ -2207,11 +2212,15 @@ class AgentOrchestrator:
             request_id=request.request_id, store=self.result_store, record=state.data_record,
             fetch=(lambda sid, oid: fetch(sid, oid, request.request_id)) if fetch is not None else None,
             pending=state.store_executions))
-        carried = None
+        carried, reading = None, None
         try:
             if self.conversation_reuse and conversation_key and request.history:
                 self._add_conversation_resources(state, conversation_key)
             self._prepare_plan_turn(request, state)
+            if state.reply_reading is not None and current_design_changes.get() is None:
+                # P3b: outside a pipeline the plan-reply reader's reading binds this run's plan gates (M90)
+                reading = (current_design_changes.set(state.reply_reading["design_value_changes"]),
+                           current_turn_referent.set(state.reply_reading["referent"]))
             self._apply_turn_kind(state)
             carried = current_carried_outputs.set(state.carried_outputs)
             current_research_guard.set(state.guard)
@@ -2273,6 +2282,9 @@ class AgentOrchestrator:
         finally:
             if carried is not None:
                 current_carried_outputs.reset(carried)
+            if reading is not None:
+                current_design_changes.reset(reading[0])
+                current_turn_referent.reset(reading[1])
             current_request_id.reset(token)
             current_conversation_id.reset(conversation_token)
             current_reference_sources.reset(references_token)
@@ -2800,6 +2812,11 @@ class AgentOrchestrator:
     def _apply_turn_kind(self, state: RunState) -> None:
         """The conversation router's class for this sub-run (mode 4): its note, and for CLARIFY and CONVERSATIONAL only
         the read-only tools and the answer types, so a question about a result never extracts data or runs code."""
+        intent = router.current_intent.get()
+        for note in (router.intent_note(intent),
+                     router.NOTES["QUICK_SUMMARY"] if (intent or {}).get("choice") == "QUICK_SUMMARY" else None):
+            if note:  # EXEC-3: the router's reading of the request, and a quick summary the user chose
+                state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": note})
         kind = router.current_turn_kind.get()
         if kind is None:
             return
@@ -2821,30 +2838,42 @@ class AgentOrchestrator:
         """The conversation router's model call (one small tool-free call, reasoning low): the turn kind and a
         revision instruction, with its usage record. A failure returns None (the backend's rules pick the class)."""
         parsed, record = self._router_call(
-            request_id, "turn-router", router.ROUTER_INSTRUCTIONS,
+            request_id, "turn-router", router.router_instructions(self.ask_back),
             dumps({"conversation": context, "user_message": message[:4000]}), "conversation_turn",
-            router.ROUTER_SCHEMA, router.TurnClassification, "conversation_router_failed")
+            router.router_schema(self.ask_back), router.TurnClassification, "conversation_router_failed",
+            attempts=2 if self.ask_back else 1)
         if parsed is not None:
             record["referent"] = parsed.referent  # M64: what the message is about
-            # M82: the outcome horizon the message states, as structured changes for the plan gate
-            record["design_value_changes"] = [c.model_dump() for c in parsed.design_value_changes]
+            # M82: the design values the message states, as structured changes for the plan gates
+            record["design_value_changes"] = [c.model_dump(exclude_none=True) for c in parsed.design_value_changes]
+            if self.ask_back:  # EXEC-3
+                record.update(understood_intent=parsed.understood_intent, question=parsed.question,
+                              options=[o.model_dump() for o in parsed.options])
         log_event("conversation_turn_classified", request_id=request_id, turn_kind=parsed.turn_kind if parsed else None,
                   status=record["status"], referent=record.get("referent"),
                   design_value_changes=record.get("design_value_changes"),
                   latency_ms=record["latency_ms"], input_tokens=record["input_tokens"],
-                  output_tokens=record["output_tokens"])
+                  output_tokens=record["output_tokens"], **({"attempts": record["attempts"]} if self.ask_back else {}))
         return (parsed.turn_kind if parsed else None), (parsed.revision_instruction if parsed else None), record
 
     def classify_first(self, request_id: str, message: str) -> tuple[str | None, str | None, dict[str, Any]]:
         """The first-message router (ROUTER_BENCHMARK_2026-10-04.md; one small tool-free call, reasoning low): the
         route and its reason, with its usage record. A failure returns None (the backend's fallback applies)."""
         parsed, record = self._router_call(
-            request_id, "first-router", router.FIRST_INSTRUCTIONS, message[:4000], "first_message_route",
-            router.FIRST_SCHEMA, router.FirstRoute, "first_message_router_failed")
+            request_id, "first-router", router.first_instructions(self.ask_back), message[:4000],
+            "first_message_route", router.first_schema(self.ask_back), router.FirstRoute,
+            "first_message_router_failed", attempts=2 if self.ask_back else 1)
+        if parsed is not None and self.ask_back:  # EXEC-3: the reading every later step uses
+            record.update(understood_intent=parsed.understood_intent, assumptions=parsed.assumptions,
+                          question=parsed.question, options=[o.model_dump() for o in parsed.options],
+                          design_value_changes=[c.model_dump(exclude_none=True) for c in parsed.design_value_changes],
+                          referent="NONE")
         log_event("first_message_routed", request_id=request_id, route=parsed.route if parsed else None,
                   reason=(parsed.reason[:300] if parsed else None), status=record["status"],
                   latency_ms=record["latency_ms"], input_tokens=record["input_tokens"],
-                  output_tokens=record["output_tokens"])
+                  output_tokens=record["output_tokens"],
+                  **({"attempts": record["attempts"], "understood_intent": record.get("understood_intent"),
+                      "design_value_changes": record.get("design_value_changes")} if self.ask_back else {}))
         return (parsed.route if parsed else None), (parsed.reason if parsed else None), record
 
     def _database_holds(self, state: RunState, call_id: str, name: str, arguments: Any) -> ToolOutcome | None:
@@ -2902,10 +2931,11 @@ class AgentOrchestrator:
 
     def _router_call(self, request_id: str, session: str, instructions: str, content: str, schema_name: str,
                      schema: dict[str, Any], model: Any, failure_event: str,
-                     usage_state: RunState | None = None) -> tuple[Any, dict[str, Any]]:
+                     usage_state: RunState | None = None, attempts: int = 1) -> tuple[Any, dict[str, Any]]:
         """One router model call: AI_MODEL, reasoning low, strict JSON schema, no tools. Returns the parsed object
         (None on any failure, including an empty reply) and the usage record. usage_state: the run whose usage
-        counts this call (a check inside a run)."""
+        counts this call (a check inside a run). attempts: EXEC-3 retries a failed call once before the backend's
+        fallback (the record sums every attempt)."""
         state = usage_state or RunState(request_id=request_id, started=self.clock(), input_items=[])
         payload: dict[str, Any] = {
             "model": self.settings.ai_model, "session_id": session_key(f"{request_id}:{session}"),
@@ -2918,17 +2948,25 @@ class AgentOrchestrator:
         }
         started = time.monotonic()
         record: dict[str, Any] = {"status": "FAILED", "input_tokens": 0, "output_tokens": 0, "cost": None,
-                                  "latency_ms": 0}
+                                  "latency_ms": 0, "attempts": 0}
         parsed = None
-        try:
-            response = self.client.create(payload)
-            usage = self._add_usage(state, response)
-            record.update(input_tokens=usage["input_tokens"], output_tokens=usage["output_tokens"], cost=usage["cost"])
-            parsed = model.model_validate_json(self._output_text(response).strip() or "{}")
-            record["status"] = "COMPLETED"
-        except Exception as exc:  # noqa: BLE001 - the backend's fallback applies
-            log_event(failure_event, request_id=request_id, error=type(exc).__name__)
+        while parsed is None and record["attempts"] < max(1, attempts):
+            record["attempts"] += 1
+            try:
+                response = self.client.create(payload)
+                usage = self._add_usage(state, response)
+                record.update(input_tokens=record["input_tokens"] + usage["input_tokens"],
+                              output_tokens=record["output_tokens"] + usage["output_tokens"],
+                              cost=usage["cost"] if record["cost"] is None or usage["cost"] is None
+                              else record["cost"] + usage["cost"])
+                parsed = model.model_validate_json(self._output_text(response).strip() or "{}")
+                record["status"] = "COMPLETED"
+            except Exception as exc:  # noqa: BLE001 - the backend's fallback applies
+                log_event(failure_event, request_id=request_id, error=type(exc).__name__,
+                          **({"attempt": record["attempts"]} if attempts > 1 else {}))
         record["latency_ms"] = int((time.monotonic() - started) * 1000)
+        if attempts <= 1:
+            record.pop("attempts")
         return parsed, record
 
     def classify_reply(self, request_id: str, message: str, plan: Any) -> tuple[str, str | None, dict[str, Any]]:
@@ -2936,21 +2974,25 @@ class AgentOrchestrator:
         UNRELATED), with its usage record (status, tokens, cost, latency)."""
         state = RunState(request_id=request_id, started=self.clock(), input_items=[])
         action, instruction = self._classify_reply(state, message, plan)
-        return action, instruction, dict(state.classifier or {})
+        record = dict(state.classifier or {})
+        if state.reply_reading is not None:
+            record["reading"] = state.reply_reading  # P3b: mode 4 hands it to the step that runs (popped there)
+        return action, instruction, record
 
     def _classify_reply(self, state: RunState, message: str, plan: Any) -> tuple[str, str | None]:
         """A free-text reply to a plan, read by one small tool-free model call constrained to APPROVE, REVISE, CANCEL
         or UNRELATED. Any failure is UNRELATED, which never approves anything."""
         payload: dict[str, Any] = {
             "model": self.settings.ai_model, "session_id": session_key(f"{state.request_id}:plan-reply"),
-            "instructions": CLASSIFIER_INSTRUCTIONS,
+            "instructions": CLASSIFIER_INSTRUCTIONS + (router.REPLY_READING_RULE if self.ask_back else ""),
             "input": [{"role": "user", "content": dumps({"research_plan": plan_digest_v2(plan)
                                                          if isinstance(plan, ResearchPlanV2) else plan_digest(plan),
                                                          "user_reply": message[:4000]})}],
             "reasoning": self.settings.reasoning("low"), "max_output_tokens": min(2000, self.settings.ai_max_output_tokens),
             "store": False, "provider": self._provider(),
             "text": {"format": {"type": "json_schema", "name": "research_plan_reply", "strict": True,
-                                "schema": CLASSIFIER_SCHEMA}},
+                                "schema": router.reply_schema(CLASSIFIER_SCHEMA) if self.ask_back
+                                else CLASSIFIER_SCHEMA}},
         }
         started = time.monotonic()
         record: dict[str, Any] = {"status": "FAILED", "input_tokens": 0, "output_tokens": 0, "cost": None,
@@ -2962,9 +3004,19 @@ class AgentOrchestrator:
             state.model_calls.append({"iteration": 0, "call": "plan_reply_classifier",
                                       "provider_response_id": response.get("id")})
             record.update(input_tokens=usage["input_tokens"], output_tokens=usage["output_tokens"], cost=usage["cost"])
-            parsed = ReplyClassification.model_validate_json(self._output_text(response).strip() or "{}")
+            raw = json.loads(self._output_text(response).strip() or "{}")
+            parsed = ReplyClassification.model_validate(
+                {k: raw.get(k) for k in ("action", "revision_instruction")} if self.ask_back and isinstance(raw, dict)
+                else raw)
             action, instruction = parsed.action, parsed.revision_instruction
             record["status"] = "COMPLETED"
+            if self.ask_back and isinstance(raw, dict):
+                try:  # P3b: a reading that does not validate is dropped; the action stands
+                    reading = router.ReplyReading.model_validate(raw)
+                    state.reply_reading = {"referent": reading.referent, "design_value_changes": [
+                        c.model_dump(exclude_none=True) for c in reading.design_value_changes]}
+                except Exception:  # noqa: BLE001
+                    log_event("research_plan_reading_dropped", request_id=state.request_id)
         except Exception as exc:  # noqa: BLE001 - a failed classification approves nothing
             log_event("research_plan_classifier_failed", request_id=state.request_id, error=type(exc).__name__)
         record["latency_ms"] = int((time.monotonic() - started) * 1000)
@@ -2972,7 +3024,8 @@ class AgentOrchestrator:
         state.classifier = record
         log_event("research_plan_reply_classified", request_id=state.request_id, action=action,
                   status=record["status"], latency_ms=record["latency_ms"], input_tokens=record["input_tokens"],
-                  output_tokens=record["output_tokens"])
+                  output_tokens=record["output_tokens"],
+                  **({"reading": state.reply_reading} if self.ask_back else {}))
         return action, instruction
 
     def _loop(self, state: RunState) -> FinalResponse:

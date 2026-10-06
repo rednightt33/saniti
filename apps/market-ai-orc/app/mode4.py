@@ -30,6 +30,8 @@ the mode4 block lists the steps.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
 from . import conversation_router as router
@@ -43,7 +45,8 @@ from .research_plan_v2 import ContinuationInV2, ContinuationOutV2, current_angle
 from .tools.request_data import current_conversation_id, current_turn_id
 from .user_words import MESSAGE_SEPARATOR, current_design_changes, current_turn_referent, current_user_words
 from .schemas import (MAX_HISTORY_ITEMS, MAX_MESSAGE_CHARACTERS, AgentRunRequest, AgentRunResponse,
-                      AnalysisPathExecution, HistoryMessage, ModeExecution, ReplyClassifierUsage)
+                      AnalysisPathExecution, ExecutionMetadata, FinalResponse, HistoryMessage, ModeExecution,
+                      ReplyClassifierUsage)
 
 MODE4_VERSION = 1
 MIN_STEP_SECONDS = 120  # a step is not started with less time left than this
@@ -52,6 +55,12 @@ NO_DATA_LINE = "Riset tidak dijalankan: jawaban analisis tidak memakai angka dar
 PATH_MODES = {"ANALYSIS": (2, "ANALYSIS"), "RESEARCH": (3, "RESEARCH"), "MODE4": (4, "MODE4")}
 PENDING_LINE = "Usulan riset sebelumnya masih menunggu keputusan Anda; balas \"jalankan\" kapan saja untuk menjalankannya."
 STEP_SUFFIX = {"CLARIFY": "m4q", "CONVERSATIONAL": "m4q", "INSIGHT": "m4i", "CONTINUE": "m4n"}
+# EXEC-3: the route each quick choice of a first-message ask-back runs, and the steps that get the router's reading of
+# the request as a note (not the research steps, whose context is the earlier steps' results)
+CHOICE_ROUTES = {"QUICK_SUMMARY": "ANALYSIS", "ANALYSIS": "ANALYSIS", "RESEARCH": "RESEARCH", "EXPLORE": "EXPLORE",
+                 "FACT": "FACT"}
+INTENT_STEPS = ("analysis", "chat", "fact", "clarify", "conversational", "insight", "continue")
+MAX_ASK_BACKS = 2  # a third unclear reply runs the fallback step instead of asking again
 ANALYSIS_CHARS, RESEARCH_CHARS = 5000, 6000
 NUMBER_WORDS = {"satu": 1, "dua": 2, "tiga": 3, "empat": 4, "lima": 5, "enam": 6,
                 "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6}
@@ -123,6 +132,7 @@ class Mode4Orchestrator:
     mode4 = True
     router = False  # AI_ENABLE_CONVERSATION_ROUTER, set in __init__
     first_router = False  # AI_ENABLE_FIRST_TURN_ROUTER, set in __init__
+    ask_back = False  # AI_ENABLE_ASK_BACK (EXEC-3), set in __init__
 
     def __init__(self, inner: AgentOrchestrator) -> None:
         self.inner = inner
@@ -132,6 +142,7 @@ class Mode4Orchestrator:
         self.sandbox_min = int(limits.get("sandbox_min_angles") or 2)
         self.router = bool(getattr(inner.settings, "ai_enable_conversation_router", False))
         self.first_router = bool(getattr(inner.settings, "ai_enable_first_turn_router", False))
+        self.ask_back = self.first_router and bool(getattr(inner.settings, "ai_enable_ask_back", False))
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self.inner, name)
@@ -143,7 +154,9 @@ class Mode4Orchestrator:
         included, carries the conversation id as its session id."""
         conversation = current_conversation_id.set(current_conversation_id.get() or request.conversation_id)
         try:
-            if self.first_router and request.continuation is None and not request.history:
+            if self.first_router and request.continuation is None and (
+                    not request.history or (self.ask_back and router.first_stage(request.history))):
+                # EXEC-3: a reply to a first-message ask-back is still the first message's routing
                 return self._first_message(request, conversation_key, data_record)
             if request.analysis_path != "MODE4":
                 return self.inner.run(request, conversation_key, data_record=data_record)
@@ -156,31 +169,102 @@ class Mode4Orchestrator:
                        notes: list[str] | None = None) -> AgentRunResponse:
         """The first-message router (conversation_router.FIRST_ROUTE_RULES): CHAT and FACT run one step without
         warehouse data whatever the caller's analysis_path; a data route runs at the caller's depth, else at the
-        route's; a failed router call runs one analysis step. The mode record names the route."""
-        route, _, usage = self.inner.classify_first(f"{request.request_id[:190]}-m4f", request.message)
-        step, path = router.first_route_path(route, request.analysis_path)
+        route's; a failed router call runs one analysis step. The mode record names the route. EXEC-3
+        (AI_ENABLE_ASK_BACK): the router may ask back (a failed call is retried once, then asked back with a fixed
+        question); a quick choice runs its route without a router call; the router's reading of the request goes to
+        the step that does the work."""
+        chosen = request.chosen_option if self.ask_back and request.chosen_option in CHOICE_ROUTES else None
+        source, intent = "ROUTER", None
+        if chosen is not None:
+            route, usage, source = CHOICE_ROUTES[chosen], {"status": "CHOICE", "choice": chosen}, "CHOICE"
+        else:
+            reply = self.ask_back and bool(request.history) and router.first_stage(request.history)
+            route, _, usage = self.inner.classify_first(
+                f"{request.request_id[:190]}-m4f",
+                router.exchange_text(request.history, request.message) if reply else request.message)
+        if self.ask_back and route in (router.ASK_BACK, None):
+            asked = sum(router.asked_back(m.content) for m in request.history if m.role == "assistant")
+            if asked < MAX_ASK_BACKS:
+                return ask_back_response(self.inner, request, usage, first=True, pending=False, failed=route is None,
+                                         data_record=data_record)
+            route = None  # asked enough: the fallback step, with the reading the router gave
+        if self.ask_back:
+            intent = {"understood_intent": usage.get("understood_intent"), "assumptions": usage.get("assumptions"),
+                      "choice": chosen}
+        if chosen is not None:  # the user's choice is the depth (FIRST_ROUTE_RULES 3 is for the router's route)
+            step, path = ("FACT", None) if route == "FACT" else ("PATH", router.ROUTE_PATHS[route])
+        else:
+            step, path = router.first_route_path(route, request.analysis_path)
         if step in ("CHAT", "FACT"):
             run = _Mode4Run(self, request, conversation_key, data_record)
-            run.router_usage = {**usage, "route": route}
+            run.router_usage, run.intent = {**usage, "route": route}, intent
             kind = "CONVERSATIONAL" if step == "CHAT" else "FACT"
             run.turn_kind = kind
             result = run.finish(run.sub(step.lower(), "m4q", request.message, None, turn_kind=kind),
                                 round_=step, passthrough=True)
-            mode = ModeExecution(mode=4, name="MODE4", source="ROUTER", route=route)
+            mode = ModeExecution(mode=4, name="MODE4", source=source, route=chosen or route)
         else:
             number, name = PATH_MODES[path or "ANALYSIS"]
             routed = request.model_copy(update={"analysis_path": path})
             if path == "MODE4":
                 run = _Mode4Run(self, routed, conversation_key, data_record)
-                run.router_usage = {**usage, "route": route}
+                run.router_usage, run.intent = {**usage, "route": route}, intent
                 run.notes.extend(notes or [])
                 result = run.first_round(cancelled_plan_id=cancelled_plan_id)
             else:
-                result = self.inner.run(routed, conversation_key, data_record=data_record)
-            mode = ModeExecution(mode=number, name=name, source="ROUTER", route=route or "ROUTER_FAILED")
+                with _reading(intent, usage):
+                    result = self.inner.run(routed, conversation_key, data_record=data_record)
+            mode = ModeExecution(mode=number, name=name, source=source, route=chosen or route or "ROUTER_FAILED")
         log_event("first_message_handled", request_id=request.request_id, route=route or "ROUTER_FAILED",
-                  caller_path=request.analysis_path, step=step, analysis_path=path, status=result.status)
+                  caller_path=request.analysis_path, step=step, analysis_path=path, status=result.status,
+                  **({"choice": chosen} if chosen else {}))
         return result.model_copy(update={"execution": result.execution.model_copy(update={"mode": mode})})
+
+
+@contextmanager
+def _reading(intent: dict[str, Any] | None, usage: dict[str, Any] | None) -> Iterator[None]:
+    """EXEC-3: the router's reading around one run outside the pipeline (the note and the plan gates' design values)."""
+    tokens: list[tuple[Any, Any]] = [(router.current_intent, router.current_intent.set(intent))]
+    if usage is not None and "design_value_changes" in usage:
+        tokens += [(current_design_changes, current_design_changes.set(usage["design_value_changes"])),
+                   (current_turn_referent, current_turn_referent.set(usage.get("referent")))]
+    try:
+        yield
+    finally:
+        for variable, token in reversed(tokens):
+            variable.reset(token)
+
+
+def ask_back_response(inner: AgentOrchestrator, request: AgentRunRequest, usage: dict[str, Any], *, first: bool,
+                      pending: bool, failed: bool, data_record: dict[str, Any] | None,
+                      notes: list[str] | None = None) -> AgentRunResponse:
+    """EXEC-3: one question with quick choices, nothing run (status NEEDS_CLARIFICATION). The router's question and
+    choices when it asked back with at least two usable ones; after a failed router call (retried once) or without
+    usable choices, the fixed question (conversation_router.FALLBACK_QUESTION) with the fixed choices."""
+    allowed = router.FIRST_OPTION_ROUTES if first else router.TURN_OPTION_ROUTES
+    options = [] if failed else router.usable_options(usage.get("options") or [], allowed, pending)
+    question = usage.get("question") if len(options) >= 2 else None
+    if len(options) < 2:
+        options = router.fallback_options(first, pending)
+    text = router.question_text(question, options)
+    response = FinalResponse(response_type="CLARIFICATION", answer=text, clarification_question=text,
+                             assumptions=[str(a) for a in usage.get("assumptions") or []][:5],
+                             limitations=list(notes or []))
+    tokens_in, tokens_out = int(usage.get("input_tokens") or 0), int(usage.get("output_tokens") or 0)
+    execution = ExecutionMetadata(
+        model=inner.settings.ai_model, input_tokens=tokens_in, output_tokens=tokens_out,
+        total_tokens=tokens_in + tokens_out, cost=usage.get("cost"), duration_ms=int(usage.get("latency_ms") or 0),
+        mode=ModeExecution(mode=4, name="MODE4", source="ROUTER", route="ROUTER_FAILED" if failed else "ASK_BACK")
+        if first else None)
+    log_event("ask_back", request_id=request.request_id, first=first, failed=failed, pending=pending,
+              router_question=question is not None, options=[o["route"] for o in options],
+              router_status=usage.get("status"), latency_ms=usage.get("latency_ms"))
+    return AgentRunResponse(
+        request_id=request.request_id, status="NEEDS_CLARIFICATION", response=response, execution=execution,
+        options=options, data_record=data_record or None,
+        mode4={"version": MODE4_VERSION, "round": "ASK_BACK", "steps": [], "notes": list(notes or []),
+               "turn_kind": None if first else "ASK_BACK", "router": usage, "analysis": None, "research": None,
+               "suggestion": None, "cancelled_plan_id": None})
 
 
 class _Mode4Run:
@@ -197,6 +281,10 @@ class _Mode4Run:
         self.classifier: dict[str, Any] | None = None
         self.turn_kind: str | None = None
         self.router_usage: dict[str, Any] | None = None
+        # EXEC-3: the router's reading of the request (note for the working step), and the plan-reply reader's
+        # reading when no router read the message (P3b)
+        self.intent: dict[str, Any] | None = None
+        self.reading: dict[str, Any] | None = None
         self.base_id = request.request_id[:190]
 
     # ------------------------------------------------------------------------------------------------ plumbing
@@ -225,9 +313,12 @@ class _Mode4Run:
         # application context (the model's own analysis and research text)
         words = current_user_words.set(MESSAGE_SEPARATOR.join(
             [m.content for m in self.request.history if m.role == "user"] + [self.request.message]))
-        # M82: the router's structured reading of this message (None when no conversation router read it)
-        changes = current_design_changes.set((self.router_usage or {}).get("design_value_changes"))
-        referent = current_turn_referent.set((self.router_usage or {}).get("referent"))
+        # M82: the router's structured reading of this message (None when no conversation router read it); P3b: else
+        # the plan-reply reader's
+        reading = self.router_usage if self.router_usage is not None else (self.reading or {})
+        changes = current_design_changes.set(reading.get("design_value_changes"))
+        referent = current_turn_referent.set(reading.get("referent"))
+        intent = router.current_intent.set(self.intent if step in INTENT_STEPS else None)
         turn = current_turn_id.set(self.base_id)  # item 12: one web budget for every step of this message
         target = current_answer_target.set(MODE4_PART_TARGET_CHARS)  # EXEC-P2 P2e: each part of the reply
         try:
@@ -240,6 +331,7 @@ class _Mode4Run:
             current_user_words.reset(words)
             current_design_changes.reset(changes)
             current_turn_referent.reset(referent)
+            router.current_intent.reset(intent)
             current_turn_id.reset(turn)
         response, execution = result.response, result.execution
         plan_exec = execution.research_plan
@@ -276,15 +368,31 @@ class _Mode4Run:
         """4d: a later turn, classified by the conversation router and handled by the backend's rules."""
         pending = continuation is not None
         explicit = continuation.action if pending else None
+        chosen = self.request.chosen_option if self.owner.ask_back \
+            and self.request.chosen_option in router.TURN_OPTION_ROUTES else None
         if explicit is not None:
             kind, instruction = explicit, continuation.revision_instruction
+        elif chosen is not None:
+            # EXEC-3: a quick choice of the latest ask-back question runs its class without a router call
+            kind, instruction = router.apply_rules(chosen, pending), None
+            self.router_usage = {"status": "CHOICE", "choice": chosen}
         else:
             # M64: the results produced after the pending suggestion, from the data record's own order
             newer = records.results_after_suggestion(self.record, continuation.plan_id) if pending else None
-            context = router.context(self.record, list(self.request.history),
-                                     plan_digest_v2(continuation.plan) if pending else None, newer)
+            history = list(self.request.history)
+            asked = history[-1].content if self.owner.ask_back and history and history[-1].role == "assistant" \
+                and router.asked_back(history[-1].content) else None
+            context = router.context(self.record, history, plan_digest_v2(continuation.plan) if pending else None,
+                                     newer, asked)
             raw, instruction, self.router_usage = self.inner.classify_turn(f"{self.base_id}-m4r",
                                                                            self.request.message, context)
+            if self.owner.ask_back and raw in (router.ASK_BACK, None):
+                # EXEC-3: asked back, or the router failed twice: a question (fixed after a failure), nothing runs
+                return ask_back_response(self.inner, self.request, self.router_usage or {}, first=False,
+                                         pending=pending, failed=raw is None, data_record=self.record,
+                                         notes=[PENDING_LINE] if pending else None)
+            if self.owner.ask_back:
+                self.intent = {"understood_intent": (self.router_usage or {}).get("understood_intent")}
             kind = router.apply_rules(raw, pending, newer, (self.router_usage or {}).get("referent"))
             if kind != raw and raw in ("APPROVE", "REVISE") and newer:
                 log_event("mode4_stale_suggestion", request_id=self.request.request_id, router_kind=raw,
@@ -376,6 +484,7 @@ class _Mode4Run:
         if continuation.action is None:
             action, instruction, self.classifier = self.inner.classify_reply(
                 f"{self.base_id}-m4r", self.request.message, continuation.plan)
+            self.reading = (self.classifier or {}).pop("reading", None)  # P3b
             if action == "UNRELATED":
                 # decision C: a new question instead of a reply cancels the pending suggestion
                 log_event("mode4_suggestion_cancelled", request_id=self.request.request_id,

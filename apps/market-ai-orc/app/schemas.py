@@ -74,6 +74,11 @@ class AgentRunRequest(BaseModel):
     # AI_ENABLE_ANALYSIS_PATH: ANALYSIS or RESEARCH fixes this request's data-need mode (a data need in the other mode
     # is refused); null keeps the model's choice. ANALYSIS cannot be combined with a Research Plan reply.
     analysis_path: AnalysisPath | None = None
+    # EXEC-3 (AI_ENABLE_ASK_BACK): the route of the quick choice the user picked from the latest ask-back question
+    # (the options of a NEEDS_CLARIFICATION response); it runs that route without a router call. A free-text reply
+    # leaves it null and is routed again.
+    chosen_option: Literal["QUICK_SUMMARY", "ANALYSIS", "RESEARCH", "EXPLORE", "FACT", "CLARIFY", "INSIGHT",
+                           "CONTINUE", "APPROVE", "NEW_TOPIC"] | None = None
 
     @field_validator("message")
     @classmethod
@@ -519,9 +524,11 @@ class ModeExecution(BaseModel):
 
     mode: Literal[1, 2, 3, 4]
     name: Literal["AUTO", "ANALYSIS", "RESEARCH", "MODE4"]
-    source: Literal["CALLER", "CONTINUATION", "SWITCH", "FALLBACK", "ROUTER"]
-    # first-message router (AI_ENABLE_FIRST_TURN_ROUTER): its route, or ROUTER_FAILED when it answered nothing usable
-    route: Literal["CHAT", "FACT", "ANALYSIS", "RESEARCH", "EXPLORE", "ROUTER_FAILED"] | None = None
+    source: Literal["CALLER", "CONTINUATION", "SWITCH", "FALLBACK", "ROUTER", "CHOICE"]
+    # first-message router (AI_ENABLE_FIRST_TURN_ROUTER): its route, or ROUTER_FAILED when it answered nothing usable;
+    # EXEC-3: ASK_BACK when it asked back, the chosen option's route (source CHOICE) when the user picked one
+    route: Literal["CHAT", "FACT", "ANALYSIS", "RESEARCH", "EXPLORE", "ROUTER_FAILED", "ASK_BACK",
+                   "QUICK_SUMMARY"] | None = None
 
     @model_serializer(mode="wrap")
     def _without_route(self, handler: Any) -> Any:
@@ -694,12 +701,15 @@ class AgentRunResponse(BaseModel):
     # D6 (round 2026-10-03, HIGH_ALERT_PLAN.md Prioritas 2): checked claims (TERCEK, TIDAK_COCOK, ...) with at most 200
     # evidence rows each, then the answer's value references (DIRUJUK); absent when there is none
     evidence: list[dict[str, Any]] | None = None
+    # EXEC-3 (AI_ENABLE_ASK_BACK): the quick choices of an ask-back question ([{label, route}], numbered as in the
+    # question); send the picked one's route back as chosen_option. Absent otherwise
+    options: list[dict[str, str]] | None = None
 
     @model_serializer(mode="wrap")
     def _without_mode4(self, handler: Any) -> Any:
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("mode4", "annotations", "data_record", "artifacts", "evidence"):
+            for key in ("mode4", "annotations", "data_record", "artifacts", "evidence", "options"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data

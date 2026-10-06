@@ -124,6 +124,7 @@ def test_a_mode4_step_measures_each_part_against_its_own_target(monkeypatch: pyt
     pipeline.settings = make_settings()
     pipeline.request = AgentRunRequest(request_id="m4", conversation_id="c", message="BBCA")
     pipeline.key, pipeline.record, pipeline.router_usage = None, None, None
+    pipeline.intent, pipeline.reading = None, None
     with pytest.raises(RuntimeError):
         pipeline.sub("analysis", "m4a", "BBCA", "ANALYSIS")
     assert seen == [MODE4_PART_TARGET_CHARS] and current_answer_target.get() == ANSWER_TARGET_CHARS

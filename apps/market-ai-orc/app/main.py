@@ -17,6 +17,7 @@ from .catalog_store import CatalogStore
 from .catalog_summary import CatalogSummary
 from .config import Settings
 from .conversation_plans import DATA_RECORD_KEY
+from .conversation_router import first_stage
 from .conversation_plans import summary as plan_summary
 from .conversations import (ConversationError, ConversationStore, UpkeepThread, fingerprint, owner_from_header,
                             reuse_key)
@@ -479,7 +480,9 @@ def create_app(
     def routed(request: AgentRunRequest, continuation: object) -> tuple[AgentRunRequest, ModeExecution]:
         """The request with the analysis_path of its mode (AUTO: none) and the mode record for execution.mode."""
         number, source = resolve_mode(request.analysis_path, continuation, default_mode)
-        if source == "SWITCH" and getattr(orchestrator, "first_router", False) and not request.history:
+        if source == "SWITCH" and getattr(orchestrator, "first_router", False) and (
+                not request.history or (getattr(orchestrator, "ask_back", False) and request.continuation is None
+                                        and first_stage(request.history))):
             # first-message router (AI_ROUTER.md): no default mode; the router chooses, the caller set no depth
             return (request.model_copy(update={"analysis_path": None}),
                     ModeExecution(mode=number, name=MODES[number], source="ROUTER"))
@@ -491,7 +494,7 @@ def create_app(
                 ModeExecution(mode=number, name=MODES[number], source=source))
 
     def with_mode(result: AgentRunResponse, mode: ModeExecution) -> AgentRunResponse:
-        if result.execution.mode is not None and result.execution.mode.source == "ROUTER":
+        if result.execution.mode is not None and result.execution.mode.source in ("ROUTER", "CHOICE"):
             return result  # the first-message router recorded the mode it chose
         return result.model_copy(update={"execution": result.execution.model_copy(update={"mode": mode})})
 
