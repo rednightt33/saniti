@@ -41,6 +41,7 @@ from .tools.method_guides import active_guides, guides_problem, menu as guide_me
 from .tools.registry import ToolError
 from .tools.request_data import GovernorClient
 from .result_store import ResultBucket, ResultStore
+from .run_memory import MemoryStore
 from .tools.session import (BACKTEST_VERSION, EVENT_STUDY_VERSION, RESULT_STORE_VERSION, SESSION_RELEASE_VERSION, close_sessions,
                             output_file, release_request, restore_carried)
 from .tools.artifacts import STORED_TABLES_VERSION, read_output_any
@@ -298,6 +299,18 @@ def create_app(
                 web_research = WebResearchClient(settings.web_governor_url, settings.web_governor_api_key)
             else:
                 log_event("web_research_inactive", reason="needs WEB_GOVERNOR_URL and WEB_GOVERNOR_API_KEY")
+        # EXEC-C: the run memory needs the conversation store and its table (migration 20261006_003; fail closed)
+        run_memory = None
+        if settings.ai_enable_run_memory:
+            store = MemoryStore(settings.conversation_database_url) \
+                if conversations is not None and settings.conversation_database_url else None
+            if store is not None and store.available():
+                run_memory = store
+                conversations.memory_tool = True  # failed turns in the history, pointers to the full answers
+                log_event("run_memory_active")
+            else:
+                log_event("run_memory_inactive", reason="needs the conversation store and a readable "
+                                                        "AI_conversation_run_memory (migration 20261006_003)")
         registry = build_default_registry(
             catalog,
             catalog_timeout_seconds=(
@@ -345,6 +358,8 @@ def create_app(
             and settings.ai_enable_dataneed,
             web_research_client=web_research,
             value_references=settings.ai_enable_value_references,
+            run_memory=run_memory,
+            merged_steps=settings.ai_enable_merged_steps,
         )
         auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
             if sandbox is not None or settings.research_audit_database_url else None
@@ -418,7 +433,7 @@ def create_app(
                                          conversation_resources=resources,
                                          draft_reader=sandbox.get_draft if feasibility else None,
                                          derived_frequency=derived_frequency, audit_outbox=audit_outbox,
-                                         row_reader=row_reader)
+                                         row_reader=row_reader, run_memory=run_memory)
     if settings.ai_enable_mode4 and isinstance(orchestrator, AgentOrchestrator):
         # mode 4 builds on the caller-chosen paths and on Multi-Angle Research (its plans are research_plan/v2)
         if orchestrator.analysis_path and orchestrator.multi_angle:

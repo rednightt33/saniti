@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app import conversation_router as router
 from app import data_record as records
+from app import run_memory
 from app import orchestrator as orc
 from app import tool_desks as desks
 from app.orchestrator import AgentOrchestrator, RunState
@@ -27,7 +28,8 @@ DEV = {"get_system_capabilities": "READS", "discover_catalog": "READS", "get_cat
        "get_lineage": "READS", "check_data_feasibility": "FETCHES_DATA", "get_research_library": "READS",
        "check_research_feasibility": "FETCHES_DATA", "start_research_run": "COMPUTES",
        "run_research_code": "COMPUTES", "complete_research_run": "COMPUTES", "query_metric": "FETCHES_DATA",
-       "research_web": "FETCHES_WEB", "check_references": "READS", "get_method_guide": "READS"}
+       "research_web": "FETCHES_WEB", "check_references": "READS", "get_method_guide": "READS",
+       "read_conversation_memory": "READS"}
 WITH_OLD = {**DEV, "find_web_fact": "FETCHES_WEB", "request_data": "FETCHES_DATA"}
 REGISTERED = frozenset(WITH_OLD)
 
@@ -81,6 +83,12 @@ def test_a_gate_only_asks_for_a_tool_the_process_has(gate: str) -> None:
         assert needs & offered(process), (gate, process)
 
 
+def test_the_conversation_memory_is_required_on_every_desk() -> None:
+    """EXEC-C: read_conversation_memory is H on every desk (EXEC.md EXEC-C, "Isi lengkap")."""
+    for process, desk in desks.DESKS.items():
+        assert "read_conversation_memory" in desk.must and "read_conversation_memory" in offered(process), process
+
+
 def test_the_orchestrators_repair_tools_are_the_desks_groups() -> None:
     assert orc.RESEARCH_RUN_TOOLS == desks.RESEARCH_RUN and orc.DATANEED_ANALYSIS_TOOLS == desks.DATA_FLOW
 
@@ -108,6 +116,10 @@ def named(text: str) -> set[str]:
     (orc.FEASIBLE_DRAFT_NOTE, ["RESEARCH_V1"]),
     (orc.CONTENTS_NOT_SHOWN_NOTE, ["ANALYSIS", "CONTINUE", "RESEARCH_V1", "RESEARCH_V2"]),
     (orc.VARIANT_NOTE, ["ANALYSIS", "PLAN", "CONTINUE"]),
+    (records.FULL_NOTE_HEADER, list(desks.DESKS)),
+    (records.FULL_POINTER, list(desks.DESKS)),
+    (run_memory.MEMORY_HEADER, list(desks.DESKS)),
+    (orc.MERGED_STEPS_NOTE, ["ANALYSIS", "CONTINUE", "RESEARCH_V1"]),
 ])
 def test_an_application_note_names_only_tools_of_the_steps_it_is_given_to(note: str, processes: list[str]) -> None:
     for process in processes:

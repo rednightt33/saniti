@@ -7,11 +7,15 @@ all of its gates (provenance, value references, findings, claims, audit) and has
 First round (no pending plan):
   A  analysis     forced_path ANALYSIS: the direct answer to the question.
   B  research plan forced_path RESEARCH, at least two angles, built on A's answer (the angles test or deepen it).
+  EXEC-P1 (user approval 2026-10-06): the round ends here; B's plan waits for the user's approval (status
+  AWAITING_CONFIRMATION), so nothing is computed before the user agrees. With AI_MODE4_AUTO_RESEARCH (the earlier
+  behaviour, decisions 2026-09-30 / 2026-10-02) the round goes on:
   C  execution    B's plan, approved by the backend at once (its rpc2 token is signed and verified as usual).
   D  suggestion   forced_path RESEARCH, exactly one angle (or the count the user asked for), following up on A and C;
                   its plan is returned for the user's confirmation (status AWAITING_CONFIRMATION).
-Follow-up round (the reply to D's suggestion, read by the existing reply classifier):
-  APPROVE    the suggestion runs, then a new D.
+Follow-up round (the reply to the waiting plan, read by the existing reply classifier):
+  APPROVE    the plan runs; a next suggestion (D) follows only when the user asks for one ("kasih satu usulan lagi")
+             or with AI_MODE4_AUTO_RESEARCH.
   REVISE     the suggestion is revised and returned for confirmation (the user's angle count applies).
   CANCEL     acknowledged; nothing runs.
   UNRELATED  a new question (decision C): the suggestion is cancelled and the message starts a new first round.
@@ -37,6 +41,7 @@ from typing import Any
 from . import conversation_router as router
 from . import data_record as records
 from . import modes
+from .conversations import assistant_text
 from .orchestrator import MODE4_PART_TARGET_CHARS, AgentOrchestrator, current_answer_target, current_time_budget, \
     log_event
 from .provenance import LABEL_ORDER
@@ -61,7 +66,8 @@ CHOICE_ROUTES = {"QUICK_SUMMARY": "ANALYSIS", "ANALYSIS": "ANALYSIS", "RESEARCH"
                  "FACT": "FACT"}
 INTENT_STEPS = ("analysis", "chat", "fact", "clarify", "conversational", "insight", "continue")
 MAX_ASK_BACKS = 2  # a third unclear reply runs the fallback step instead of asking again
-ANALYSIS_CHARS, RESEARCH_CHARS = 5000, 6000
+ANALYSIS_CHARS, RESEARCH_CHARS = 5000, 6000  # the earlier cut (without the run memory)
+METHODOLOGY_MAX = 6000  # FinalResponse.methodology
 NUMBER_WORDS = {"satu": 1, "dua": 2, "tiga": 3, "empat": 4, "lima": 5, "enam": 6,
                 "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6}
 SUGGESTION_WORDS = ("opsi", "pilihan", "usulan", "saran", "option", "suggestion", "alternatif")
@@ -69,6 +75,10 @@ COUNT_RE = re.compile(r"\b(\d{1,2}|" + "|".join(NUMBER_WORDS) + r")\s+(?:buah\s+
                       r"(angles?|sudut|hipotesis|hypothes[ie]s|opsi|pilihan|usulan|saran|options?|suggestions?"
                       r"|alternatif)\b", re.IGNORECASE)
 
+# EXEC-P1: the suggestion section when no next plan was asked for
+NO_SUGGESTION_LINE = ("Usulan riset lanjutan dibuat bila Anda memintanya, misalnya \"beri satu usulan riset "
+                      "lanjutan\".")
+PLAN_TITLE = "**Rencana riset untuk menguji jawaban ini** (menunggu persetujuan Anda)"
 B_CONTEXT = ("Application context (mode 4), not from the user: the question above was already answered by the "
              "descriptive analysis below, which the user has received.\n<analysis>\n{analysis}\n</analysis>\n"
              "Propose a Research Plan whose angles test or deepen what this analysis found: for example whether the "
@@ -102,13 +112,14 @@ def _weakest(labels: list[str | None]) -> str | None:
     return max(known, key=LABEL_ORDER.index) if known else None
 
 
-def _merge(*lists: list[str], limit: int = 20) -> list[str]:
+def _merge(*lists: list[str], limit: int | None = 20) -> list[str]:
+    """The items of the lists once each; EXEC-C item 7: limit None keeps every item (with the run memory)."""
     merged: list[str] = []
     for items in lists:
         for item in items or []:
             if item and item not in merged:
                 merged.append(item)
-    return merged[:limit]
+    return merged if limit is None else merged[:limit]
 
 
 def _ok(result: AgentRunResponse | None, *types: str) -> bool:
@@ -133,6 +144,8 @@ class Mode4Orchestrator:
     router = False  # AI_ENABLE_CONVERSATION_ROUTER, set in __init__
     first_router = False  # AI_ENABLE_FIRST_TURN_ROUTER, set in __init__
     ask_back = False  # AI_ENABLE_ASK_BACK (EXEC-3), set in __init__
+    auto_research = False  # AI_MODE4_AUTO_RESEARCH (EXEC-P1), set in __init__
+    memory = False  # AI_ENABLE_RUN_MEMORY (EXEC-C), set in __init__
 
     def __init__(self, inner: AgentOrchestrator) -> None:
         self.inner = inner
@@ -143,6 +156,10 @@ class Mode4Orchestrator:
         self.router = bool(getattr(inner.settings, "ai_enable_conversation_router", False))
         self.first_router = bool(getattr(inner.settings, "ai_enable_first_turn_router", False))
         self.ask_back = self.first_router and bool(getattr(inner.settings, "ai_enable_ask_back", False))
+        # EXEC-P1: the first round's plan runs at once (the earlier behaviour) only with AI_MODE4_AUTO_RESEARCH
+        self.auto_research = bool(getattr(inner.settings, "ai_mode4_auto_research", False))
+        # EXEC-C (AI_ENABLE_RUN_MEMORY): steps hand each other whole texts, and the router's reading is kept
+        self.memory = getattr(inner, "run_memory", None) is not None
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self.inner, name)
@@ -214,11 +231,20 @@ class Mode4Orchestrator:
             else:
                 with _reading(intent, usage):
                     result = self.inner.run(routed, conversation_key, data_record=data_record)
+                if self.memory:
+                    result = _with_reading(result, request.request_id, {**usage, "route": route or "ROUTER_FAILED"})
             mode = ModeExecution(mode=number, name=name, source=source, route=chosen or route or "ROUTER_FAILED")
         log_event("first_message_handled", request_id=request.request_id, route=route or "ROUTER_FAILED",
                   caller_path=request.analysis_path, step=step, analysis_path=path, status=result.status,
                   **({"choice": chosen} if chosen else {}))
         return result.model_copy(update={"execution": result.execution.model_copy(update={"mode": mode})})
+
+
+def _with_reading(result: AgentRunResponse, request_id: str, usage: dict[str, Any] | None) -> AgentRunResponse:
+    """EXEC-C item 13: the router's reading of the message, kept in the data record for the turns after it."""
+    record = records.normalize(result.data_record)
+    records.add_reading(record, request_id, usage)
+    return result.model_copy(update={"data_record": records.public(record)})
 
 
 @contextmanager
@@ -259,6 +285,11 @@ def ask_back_response(inner: AgentOrchestrator, request: AgentRunRequest, usage:
     log_event("ask_back", request_id=request.request_id, first=first, failed=failed, pending=pending,
               router_question=question is not None, options=[o["route"] for o in options],
               router_status=usage.get("status"), latency_ms=usage.get("latency_ms"))
+    if getattr(inner, "run_memory", None) is not None:
+        # EXEC-C item 13: an ask-back runs no step, so its reading goes straight to the data record
+        record = records.normalize(data_record)
+        records.add_reading(record, request.request_id, {**usage, "route": "ROUTER_FAILED" if failed else "ASK_BACK"})
+        data_record = records.public(record)
     return AgentRunResponse(
         request_id=request.request_id, status="NEEDS_CLARIFICATION", response=response, execution=execution,
         options=options, data_record=data_record or None,
@@ -286,6 +317,12 @@ class _Mode4Run:
         self.intent: dict[str, Any] | None = None
         self.reading: dict[str, Any] | None = None
         self.base_id = request.request_id[:190]
+        # EXEC-P1: B's plan is the waiting suggestion of the first round; no next plan was asked for after a run
+        self.plan_waiting = False
+        self.suggestion_skipped = False
+        # EXEC-C items 7 and 8: the analysis and plan steps of the round, for the next steps and the combined answer
+        self.analysis_result: AgentRunResponse | None = None
+        self.plan_result: AgentRunResponse | None = None
 
     # ------------------------------------------------------------------------------------------------ plumbing
 
@@ -432,6 +469,7 @@ class _Mode4Run:
         question = self.request.message
         count = requested_count(question)
         analysis = self.sub("analysis", "m4a", question, "ANALYSIS")
+        self.analysis_result = analysis
         if not _ok(analysis, "ANSWER", "LIMITATION"):
             # M43 (user decision 2026-09-30): a LIMITATION still carries the analysis and its limits, so the research
             # runs on it; a clarification (the user must answer first) or a failure ends the round
@@ -453,7 +491,16 @@ class _Mode4Run:
         else:
             bounds = (low, self.owner.max_angles)
         plan = self.sub("research_plan", "m4b", question + "\n\n" + B_CONTEXT.format(
-            analysis=answer[:ANALYSIS_CHARS]), "RESEARCH", bounds=bounds)
+            analysis=self._step_text(analysis, MAX_MESSAGE_CHARACTERS - len(question) - len(B_CONTEXT) - 200)
+            if self.owner.memory else answer[:ANALYSIS_CHARS]), "RESEARCH", bounds=bounds)
+        if not self.owner.auto_research:
+            # EXEC-P1 (user approval 2026-10-06): the plan waits for the user's approval; nothing runs before it
+            if _ok(plan, "RESEARCH_PLAN_CONFIRMATION") and plan is not None and plan.continuation is not None:
+                self.plan_waiting = True
+                return self.finish(analysis, suggestion=plan, round_="FIRST", cancelled_plan_id=cancelled_plan_id)
+            self.notes.append("Rencana riset tidak dapat dibuat: " + self._reason(plan))
+            return self.finish(analysis, round_="FIRST", cancelled_plan_id=cancelled_plan_id)
+        self.plan_result = plan
         research = None
         if _ok(plan, "RESEARCH_PLAN_CONFIRMATION") and isinstance(plan.continuation, (ContinuationOutV2,
                                                                                          ContinuationOut)):
@@ -503,6 +550,10 @@ class _Mode4Run:
             return self.finish(research, round_="FOLLOW_UP", passthrough=True)
         if not _ok(research, "ANSWER", "LIMITATION"):
             self.notes.append("Riset tidak dapat diselesaikan: " + self._reason(research))
+        if not self.owner.auto_research and not (count and count[0] == "SUGGESTION"):
+            # EXEC-P1: no next plan unless the user asks for one
+            self.suggestion_skipped = True
+            return self.finish(None, research=research, round_="FOLLOW_UP")
         suggestion = self.suggest(continuation.plan.original_question, None, research,
                                   self._angles(continuation.plan), count[1] if count else 1)
         return self.finish(None, research=research, suggestion=suggestion, round_="FOLLOW_UP")
@@ -512,14 +563,20 @@ class _Mode4Run:
         count = min(max(wanted, self.owner.sandbox_min), self.owner.max_angles)
         if count != wanted:
             self.notes.append(f"Usulan memakai {count} angle (batas minimum sandbox).")
+        room = MAX_MESSAGE_CHARACTERS - len(question) - len(D_CONTEXT) - len("; ".join(ran)) - 300
         if _ok(research, "ANSWER", "LIMITATION"):
             assert research is not None and research.response is not None
-            text = research.response.answer
+            text = self._step_text(research, room - min(len(analysis or ""), room // 2)) if self.owner.memory \
+                else research.response.answer[:RESEARCH_CHARS]
         else:
             text = "(the research could not be completed: " + self._reason(research) + ")"
+        if analysis and self.owner.memory:
+            analysis = self._step_text(self.analysis_result, room - len(text)) if self.analysis_result is not None \
+                else analysis[:max(room - len(text), 0)]
         context = D_CONTEXT.format(
-            analysis=f"<analysis>\n{analysis[:ANALYSIS_CHARS]}\n</analysis>\n" if analysis else "",
-            research=text[:RESEARCH_CHARS], ran="; ".join(ran) or "none", count=count,
+            analysis=(f"<analysis>\n{analysis if self.owner.memory else analysis[:ANALYSIS_CHARS]}\n</analysis>\n"
+                      if analysis else ""),
+            research=text, ran="; ".join(ran) or "none", count=count,
             plural="s" if count > 1 else "", verb="" if count > 1 else "s")
         suggestion = self.sub("suggestion", "m4d", question + "\n\n" + context, "RESEARCH", bounds=(count, count))
         if not (_ok(suggestion, "RESEARCH_PLAN_CONFIRMATION") and suggestion is not None
@@ -529,6 +586,14 @@ class _Mode4Run:
         return suggestion
 
     # ------------------------------------------------------------------------------------------------ response
+
+    @staticmethod
+    def _step_text(result: AgentRunResponse | None, limit: int) -> str:
+        """EXEC-C item 8: a step's whole answer for the next step (with its assumptions, limitations and methodology),
+        within limit; a longer one is shortened in its body with a pointer to the full text in the run memory."""
+        if result is None or result.response is None:
+            return ""
+        return assistant_text(result, max(limit, 2000), memory_tool=True) or ""
 
     @staticmethod
     def _angles(plan: Any) -> list[str]:
@@ -556,6 +621,11 @@ class _Mode4Run:
         pending, run totals over every sub-run, and the mode4 block. A step that left nothing to combine (the analysis
         did not answer, a follow-up that revised or cancelled) is returned as it came, with the block."""
         analysis = main if round_ == "FIRST" else None
+        if self.owner.memory and self.router_usage:
+            # EXEC-C item 13: how the router read this message, for the turns after it
+            self.record = records.normalize(self.record)
+            records.add_reading(self.record, self.request.request_id,
+                                {**self.router_usage, "turn_kind": self.turn_kind})
         block: dict[str, Any] = {
             "version": MODE4_VERSION, "round": round_, "steps": self.steps, "notes": self.notes,
             "turn_kind": self.turn_kind, "router": self.router_usage,
@@ -603,17 +673,48 @@ class _Mode4Run:
         sections = []
         if analysis is not None and analysis.response is not None:
             sections.append("**Jawaban**\n\n" + analysis.response.answer)
-        sections.append("**Hasil riset**\n\n" + (
-            research.response.answer if research is not None and research.response is not None
-            else "\n".join(n for n in self.notes if n.startswith("Riset")) or "Riset tidak dijalankan."))
-        sections.append("**Usulan riset berikutnya**\n\n" + (
-            suggestion.response.answer if suggestion is not None and suggestion.response is not None
-            else "\n".join(n for n in self.notes if n.startswith("Tidak ada usulan")) or "Tidak ada usulan."))
+        if self.plan_waiting and research is None and suggestion is not None and suggestion.response is not None:
+            # EXEC-P1: the answer and the plan that waits for the user's approval
+            sections.append(PLAN_TITLE + "\n\n" + suggestion.response.answer)
+        else:
+            sections.append("**Hasil riset**\n\n" + (
+                research.response.answer if research is not None and research.response is not None
+                else "\n".join(n for n in self.notes if n.startswith("Riset")) or "Riset tidak dijalankan."))
+            sections.append("**Usulan riset berikutnya**\n\n" + (
+                suggestion.response.answer if suggestion is not None and suggestion.response is not None
+                else NO_SUGGESTION_LINE if self.suggestion_skipped
+                else "\n".join(n for n in self.notes if n.startswith("Tidak ada usulan")) or "Tidak ada usulan."))
         parts = [r.response for r in (analysis, research, suggestion) if r is not None and r.response is not None]
         assert base.response is not None
-        return base.response.model_copy(update={
-            "answer": "\n\n".join(sections), "assumptions": _merge(*[p.assumptions for p in parts]),
-            "limitations": _merge(*[p.limitations for p in parts], self.notes)})
+        limit = None if self.owner.memory else 20  # EXEC-C item 7: every assumption and limitation
+        update: dict[str, Any] = {
+            "answer": "\n\n".join(sections), "assumptions": _merge(*[p.assumptions for p in parts], limit=limit),
+            "limitations": _merge(*[p.limitations for p in parts], self.notes, limit=limit)}
+        if self.owner.memory and base.response.response_type != "RESEARCH_PLAN_CONFIRMATION":
+            update["methodology"] = self._methodology(analysis, research)
+        return base.response.model_copy(update=update)
+
+    def _methodology(self, analysis: AgentRunResponse | None, research: AgentRunResponse | None) -> str | None:
+        """EXEC-C item 7: the methodology of every step of the turn (it used to be one step's), with the plan that ran
+        (step B, when the round ran it at once); within the response's limit, a longer one names where the rest is."""
+        parts = []
+        for title, result in (("Analisis", analysis), ("Riset", research)):
+            if result is not None and result.response is not None and result.response.methodology:
+                parts.append((f"{title}: {result.response.methodology}", result.request_id))
+        if self.plan_result is not None and self.plan_result.response is not None and research is not None:
+            plan = self.plan_result.response.research_plan
+            ran = "; ".join(self._angles(plan)) if plan is not None else ""
+            objective = getattr(plan, "objective", None) or ""
+            parts.append((f"Rencana yang dijalankan (langkah B): {objective}" + (f" Sudut: {ran}." if ran else ""),
+                          self.plan_result.request_id))
+        if not parts:
+            return None
+        text = "\n\n".join(t for t, _ in parts)
+        if len(text) <= METHODOLOGY_MAX:
+            return text
+        room = (METHODOLOGY_MAX - 200 * len(parts)) // len(parts)
+        return "\n\n".join(t if len(t) <= room else t[:room].rstrip() + f" [… lengkapnya: read_conversation_memory("
+                           f"run_id=\"{rid}\", section=\"answer\")]" for t, rid in parts)[:METHODOLOGY_MAX]
 
     @staticmethod
     def _annotations(response: Any, parts: tuple[AgentRunResponse | None, ...]) -> list[Any]:

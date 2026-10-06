@@ -228,8 +228,37 @@ ROUNDS = {
                     "AI_conversation_evidence is no longer written."],
         "limits": {"period": "trading_days, or start_date with end_date optional (null: up to as_of)"},
     },
+    "round_k": {
+        "target": ROOT / "database/migrations/20261006_004_round_k_tool_catalog.sql",
+        "versions": {"submit_data_need_spec": ("v8", "v9"), "run_python": ("v4", "v5")},
+        "contracts": {"submit_data_need_spec": ("purpose", "merged_steps"),
+                      "run_python": ("input_schema", "complete_analysis at once")},
+        "new": {
+            "read_conversation_memory": {
+                "family": "AUDIT", "type": "RETRIEVAL", "flag": "AI_ENABLE_RUN_MEMORY",
+                "handler": "app/tools/memory.py",
+                "output": "without run_id: the conversation's runs (run_id, turn, status, response type, error code, "
+                          "time, reasoning length), or with section catalog or data_record the conversation's data "
+                          "record; with run_id: one section of that run's memory (memo, message, answer, note, plan, "
+                          "refusals, decisions, web, code, catalog, sources, reasoning) in pages of 20,000 "
+                          "characters with next_offset; for a turn's own request id its message and whole answer. "
+                          "No model call, no new data."},
+        },
+        "title": "EXEC-C and EXEC-P5",
+        "header": "EXEC.md EXEC-C and EXEC-P5 (user approval 2026-10-06)",
+        "design": "EXEC.md EXEC-C and EXEC-P5 (user approval 2026-10-06)",
+        "limits_design": "EXEC.md EXEC-C and EXEC-P5 (user approval 2026-10-06)",
+        "summary": ["read_conversation_memory v1: what each earlier run of the conversation kept (EXEC-C, Q1 memo, Q2",
+                    "backend + AI); on every desk. submit_data_need_spec v9, run_python v5 (AI_ENABLE_MERGED_STEPS,",
+                    "EXEC-P5): an APPROVED data need is followed at once by prepare_data_bundle and",
+                    "open_analysis_session, and run_python with complete true by complete_analysis."],
+        "limits": {"merged_steps": "the backend runs each step through the same gates and budgets as a call of the "
+                                   "model and returns it as merged_steps; the tools stay offered to retry a step",
+                   "run_memory": "one row per run in AI_conversation_run_memory (migration 20261006_003), deleted "
+                                 "with the conversation; pages of 20,000 characters"},
+    },
 }
-NEWEST = "round_j"
+NEWEST = "round_k"
 
 
 def _tools_doc():

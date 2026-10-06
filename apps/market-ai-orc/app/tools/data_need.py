@@ -458,9 +458,14 @@ SUBMIT_DESCRIPTION = (
 )
 
 
+# EXEC-P5 (AI_ENABLE_MERGED_STEPS): what follows an approval when the backend runs the next steps itself
+MERGED_APPROVAL = ("APPROVED (need_id; the backend then prepares the data bundle and opens the analysis session at once "
+                   "and returns them as merged_steps)")
+
+
 def data_need_specs(client: SandboxClient, *, timeout_seconds: float, max_result_bytes: int,
                     composite_keys: bool = False, point_in_time: bool = False,
-                    research_findings: bool = False) -> list[ToolSpec]:
+                    research_findings: bool = False, merged_steps: bool = False) -> list[ToolSpec]:
     if research_findings:
         model = (SubmitDataNeedSpecArgsPITFindings if point_in_time else SubmitDataNeedSpecArgsV2Findings) \
             if composite_keys else SubmitDataNeedSpecArgsFindings
@@ -474,7 +479,9 @@ def data_need_specs(client: SandboxClient, *, timeout_seconds: float, max_result
                                       SubmitDataNeedSpecArgsPITFindings))
         return submit_data_need(client, arguments)
 
-    return [ToolSpec(name="submit_data_need_spec", effect="FETCHES_DATA", description=SUBMIT_DESCRIPTION,
+    description = SUBMIT_DESCRIPTION.replace("APPROVED (need_id; next: prepare the data bundle)", MERGED_APPROVAL) \
+        if merged_steps else SUBMIT_DESCRIPTION
+    return [ToolSpec(name="submit_data_need_spec", effect="FETCHES_DATA", description=description,
                      arguments_model=model, handler=submit, timeout_seconds=timeout_seconds,
                      max_result_bytes=max_result_bytes, argument_errors=argument_issues,
                      envelope_key="data_need_spec")]

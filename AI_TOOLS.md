@@ -36,6 +36,7 @@ Sifat: READS tidak mengubah apa pun; OWN_ARTIFACT hanya menulis catatan percakap
 | `research_web` | Mencari informasi yang tidak ada di database (fakta, angka, peristiwa dengan tanggalnya, deret per periode, daftar) di web untuk konteks atau saat data tidak ada; banyak perusahaan dalam satu panggilan; hanya butir dengan kutipan persis, konflik palsu (beda periode/definisi) dibedakan dari konflik nyata, batas biaya per giliran; setiap butir bisa dikutip dan tampil sebagai fakta web dengan domainnya. | FETCHES_WEB | sekarang | `AI_ENABLE_WEB_RESEARCH` |
 | `check_references` | Memeriksa alamat angka (value reference) sebelum jawaban ditulis: menampilkan nilai yang akan muncul, atau kenapa alamat salah dan alamat yang ada; tanpa memanggil model dan tanpa mengambil data. | READS | sekarang | `AI_ENABLE_ADDRESS_MENU` |
 | `get_method_guide` | Membuka buku panduan satu metode atau alat bantu. | READS | sekarang | `AI_ENABLE_DATANEED`, `AI_ENABLE_METHOD_GUIDES` |
+| `read_conversation_memory` | Membaca memori run sebelumnya di percakapan yang sama (EXEC-C): memo, pesan, jawaban lengkap, catatan AI, rencana, setiap penolakan beserta drafnya, nilai desain dan asalnya, fakta web, kode, detail katalog, sumber angka, dan pikiran AI; per halaman, tanpa model dan tanpa data baru. | READS | sekarang | `AI_ENABLE_RUN_MEMORY` |
 | `create_analysis_spec` | Jalur lama (tanpa DataNeed): menulis spesifikasi analisis. | COMPUTES | lama (muncul bila saklar ini mati) | `AI_ENABLE_DATANEED` |
 | `find_web_fact` | Mencari satu fakta yang tidak ada di data pasar (misalnya status BUMN, pemegang saham pengendali) di web dalam ± 30 detik; status ditentukan sistem dari kutipan persis (TERKONFIRMASI, BERTENTANGAN, SEBAGIAN, TIDAK DITEMUKAN). | FETCHES_WEB | lama (muncul bila saklar ini mati) | `AI_ENABLE_WEB_RESEARCH` |
 | `get_analysis_result` | Jalur lama (tanpa DataNeed): membaca hasil analisis. | READS | lama (muncul bila saklar ini mati) | `AI_ENABLE_DATANEED` |
@@ -71,6 +72,7 @@ Dibuat dari `apps/market-ai-orc/app/tool_desks.py` (`DESKS`), saklar semua menya
 | `preview_table_rows` | X | X | X | B | X | B | B | X |
 | `query_metric` | X | X | X | H | X | B | B | X |
 | `read_catalog_rows` | B | H | B | H | H | H | B | B |
+| `read_conversation_memory` | H | H | H | H | H | H | H | H |
 | `request_data` | X | X | X | X | X | X | X | X |
 | `research_web` |  | H |  | B |  | B | B |  |
 | `run_python` | X | X | X | H | X | B | H | X |
@@ -143,6 +145,7 @@ Diambil  dari Railway (nama dan nilai true/false saja).
 | `AI_ENABLE_HYPOTHESIS_PLAN` | on |
 | `AI_ENABLE_LINEAGE_TOOL` | on |
 | `AI_ENABLE_LOOKUP_FACT` | off |
+| `AI_ENABLE_MERGED_STEPS` | off |
 | `AI_ENABLE_METHOD_GUIDES` | on |
 | `AI_ENABLE_MULTI_ANGLE_RESEARCH` | on |
 | `AI_ENABLE_PLAN_FEASIBILITY` | on |
@@ -152,6 +155,7 @@ Diambil  dari Railway (nama dan nilai true/false saja).
 | `AI_ENABLE_REFERENCE_LOOKUP` | on |
 | `AI_ENABLE_REQUEST_DATA` | off |
 | `AI_ENABLE_RESEARCH_FINDINGS` | on |
+| `AI_ENABLE_RUN_MEMORY` | off |
 | `AI_ENABLE_STANDARD_PERIOD_RETURN` | on |
 | `AI_ENABLE_WEB_FACT` | off |
 | `AI_ENABLE_WEB_RESEARCH` | on |

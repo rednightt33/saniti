@@ -7,7 +7,7 @@ import logging
 import re
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo
@@ -23,7 +23,8 @@ from .catalog_protocol import CACHE_NOTE, CACHEABLE_TOOLS, CatalogLedger, cache_
 from .compaction import dumps, estimate_tokens, stable_hash, trim_history
 from .config import Settings
 from .openrouter_client import ProviderError, response_usage
-from .reasoning_capture import log_reasoning
+from .reasoning_capture import log_reasoning, reasoning_text
+from . import run_memory as memory
 from .research_plan import (CLASSIFIER_INSTRUCTIONS, CLASSIFIER_SCHEMA, ContinuationOut, PlanSigner,
                             PlanVerificationError, ReplyClassification, ResearchGuard, ResearchPlan,
                             ResearchPlanFindings,
@@ -49,8 +50,8 @@ from .user_words import allowed_periods, current_design_changes, current_turn_re
     locked_horizons
 from .provenance import (CONTEXT, typed_figures, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
                          parse_numbers, released_numbers, requested_statistics, weakest)
-from .value_refs import (OUTSIDE_LABELS, OUTSIDE_NAMESPACES, REF_RE, UNITS, ReferenceSources, Resolved, TableRows,
-                         format_value, menu_address, render)
+from .value_refs import (FUNC_RE, OUTSIDE_LABELS, OUTSIDE_NAMESPACES, REF_RE, UNITS, ReferenceSources, Resolved,
+                         TableRows, format_value, menu_address, render)
 from .tools import ToolOutcome, ToolRegistry, error_outcome
 from .tools.analysis import DataDate, current_conversation_key, current_data_date, current_run_context, run_context
 from .tools.envelope import envelope
@@ -973,7 +974,7 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
                         research_findings: bool = False, multi_angle: bool = False,
                         angle_limits: tuple[int, int, int] = (2, 6, 0), value_references: bool = False,
                         hypothesis_plans: bool = False, tools: frozenset[str] = frozenset(),
-                        tool_envelope: bool = False) -> str:
+                        tool_envelope: bool = False, memo_note: bool = False, merged_steps: bool = False) -> str:
     """The system prompt for the registered tools. It is fixed for a deployment (AI_ENABLE_LOOKUP_FACT,
     AI_ENABLE_DATANEED, AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION, AI_ENABLE_STANDARD_PERIOD_RETURN,
     AI_FINAL_CONTRACT_IN_PROMPT, AI_ENABLE_TOOL_ENVELOPE), so every call of every run shares one byte-identical
@@ -1024,10 +1025,13 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
             + (CONVERSATION_REUSE_RULES if conversation_reuse else "") + (METHODOLOGY_RULES if methodology else "") \
             + (POINT_IN_TIME_RULES if point_in_time else "") + (DERIVED_FREQUENCY_RULES if derived_frequency else "") \
             + (RESEARCH_FINDINGS_RULES if research_findings else "") + value_rules
+    if merged_steps and dataneed:
+        for old, new in MERGED_STEP_RULES:
+            template = template.replace(old, new)
     if final_contract:
         # plan_confirmation and methodology reach here only together with dataneed (see AgentOrchestrator.__init__)
         contract = response_contract(plan_confirmation, methodology, research_findings, multi_angle,
-                                     value_references, dual)
+                                     value_references, dual, memo_note)
         template = template.replace(STRICT_SCHEMA_LINE, final_contract_block(contract, plan_confirmation,
                                                                              research_findings, multi_angle, dual))
     # Multi-Angle Research: the negotiated angle limits (AI_RESEARCH_MIN_ANGLES / MAX_ANGLES / MIN_FAMILIES), in words
@@ -1349,10 +1353,14 @@ METHODOLOGY_CONTRACT = ("methodology: for an ANSWER or LIMITATION that rests on 
 
 
 def response_contract(plan_confirmation: bool, methodology: bool = False, research_findings: bool = False,
-                      multi_angle: bool = False, value_references: bool = False, dual: bool = False) -> str:
+                      multi_angle: bool = False, value_references: bool = False, dual: bool = False,
+                      memo_note: bool = False) -> str:
     """The final-response contract text: RESPONSE_CONTRACT, with the Research Plan, methodology and research findings
-    fields when on (Multi-Angle Research: the per-angle findings)."""
+    fields when on (Multi-Angle Research: the per-angle findings), and EXEC-C's memo_note with the run memory."""
     contract = PLAN_RESPONSE_CONTRACT if plan_confirmation else RESPONSE_CONTRACT
+    if memo_note:
+        contract = contract.replace("The output format is already defined", memory.MEMO_NOTE_CONTRACT
+                                    + "The output format is already defined")
     if methodology:
         contract = contract.replace("The output format is already defined", METHODOLOGY_CONTRACT
                                     + "The output format is already defined")
@@ -1371,6 +1379,32 @@ def response_contract(plan_confirmation: bool, methodology: bool = False, resear
 
 
 STRICT_SCHEMA_LINE = "Return only the response defined by the provided strict output schema."
+# EXEC-P5 (AI_ENABLE_MERGED_STEPS): the DataNeed steps the backend runs itself, in the rules and next to the results
+MERGED_STEP_RULES = (
+    ("2. prepare_data_bundle(need_id) extracts and verifies the data. Read\n"
+     "the quality flags and relationship warnings; disclose those that\n"
+     "affect the answer.\n"
+     "3. open_analysis_session(input_bundle_id), then run_python as often as\n"
+     "needed:",
+     "2. When the data need is APPROVED the backend runs\n"
+     "prepare_data_bundle (it extracts and verifies the data) and\n"
+     "open_analysis_session itself and returns their results with it\n"
+     "(merged_steps). Read the quality flags and relationship warnings;\n"
+     "disclose those that affect the answer. Call either tool yourself only\n"
+     "to retry a step that failed.\n"
+     "3. In the session it opened, run_python as often as\n"
+     "needed:"),
+    ("4. complete_analysis(session_id). Only a COMPLETED analysis releases\n"
+     "outputs; on INCOMPLETE follow next_action.",
+     "4. complete_analysis(session_id), or complete true on the last\n"
+     "run_python call: the backend then completes the analysis as soon as\n"
+     "that code runs OK. Only a COMPLETED analysis releases outputs; on\n"
+     "INCOMPLETE follow next_action."),
+)
+# EXEC-P5: what the model reads next to the steps the backend ran for it
+MERGED_STEPS_NOTE = ("merged_steps: the backend ran these steps for you right after this call, each with its own "
+                     "result as if you had called it. Continue from the last one (for an opened session: run_python "
+                     "in its session_id). Call a step yourself only to retry one that failed.")
 FINAL_CONTRACT_PREFIX = (
     "When no further tool call is needed, your reply is the final response itself: one JSON object and nothing "
     "else, with no text before or after it and no code fence. The application parses it as JSON, so a prose draft "
@@ -1990,6 +2024,19 @@ class RunState:
     # EXEC-R R4b: a failed edit gets one more edit against the same draft (edit_retry_base), once per draft
     edit_retry_base: dict[str, Any] | None = None
     edit_retry_used: bool = False
+    # EXEC-C (AI_ENABLE_RUN_MEMORY): what this run leaves for the runs after it: every refusal of a gate, the format or
+    # a tool (with its full message and the refused draft), the reasoning text of each model call, the model's own
+    # memo_note, the web entries and JSON outputs it made citable, the design values a plan took from an earlier
+    # result (10.6); and the sources it received from earlier runs (not kept again)
+    refusals: list[dict[str, Any]] = field(default_factory=list)
+    reasoning: list[str] = field(default_factory=list)
+    reasoning_chars: int = 0
+    memo_note: str | None = None
+    web_entries: list[dict[str, Any]] = field(default_factory=list)
+    json_outputs: dict[str, Any] = field(default_factory=dict)
+    design_from_results: list[float] = field(default_factory=list)
+    carried_sources: set[tuple[str, str]] = field(default_factory=set)
+    memory_runs: int = 0
 
 
 class FinalJsonError(ValueError):
@@ -2002,6 +2049,9 @@ class TurnRuleError(ValueError):
 
 class AgentOrchestrator:
     """Stateless bounded agent loop: model -> optional registered tools -> strict final answer."""
+
+    run_memory: Any = None  # EXEC-C: set in __init__ (a bare instance, as some tests build, has none)
+    merged_steps = False  # EXEC-P5: set in __init__
 
     def __init__(
         self,
@@ -2025,8 +2075,11 @@ class AgentOrchestrator:
         derived_frequency: bool = False,
         audit_outbox: Any | None = None,
         row_reader: Callable[..., dict[str, Any]] | None = None,
+        run_memory: Any | None = None,
     ) -> None:
         self.settings = settings
+        # EXEC-C (AI_ENABLE_RUN_MEMORY): the conversation's run memory (app/run_memory.py), when its table is readable
+        self.run_memory = run_memory
         # M44: reads rows of a released output the run has not read, when an answer references them
         # (session_id, output_id, request_id, offset, limit) -> the sandbox's output body
         self.row_reader = row_reader
@@ -2131,6 +2184,8 @@ class AgentOrchestrator:
         # EXEC-3: the routers may ask back, return the understood intent and every design value (variants); the
         # plan-reply reader returns the same reading (P3b); a failed router call is retried once
         self.ask_back = bool(getattr(settings, "ai_enable_ask_back", False))
+        # EXEC-P5: the DataNeed flow's mechanical steps run in the same turn (AI_ENABLE_MERGED_STEPS)
+        self.merged_steps = bool(getattr(settings, "ai_enable_merged_steps", False)) and self.dataneed
         # EXEC-T (2026-10-06): with the DataNeed flow every process has its desk (app/tool_desks.py); the plan desk
         # keeps only the plan check this deployment runs
         if self.dataneed:
@@ -2148,11 +2203,15 @@ class AgentOrchestrator:
                                                   int(self.research_limits.get("min_families") or 0)),
                                                  self.value_references, self.hypothesis_plans,
                                                  frozenset(registry.names()),
-                                                 bool(getattr(settings, "ai_enable_tool_envelope", False)))
+                                                 bool(getattr(settings, "ai_enable_tool_envelope", False)),
+                                                 memo_note=run_memory is not None,
+                                                 merged_steps=self.merged_steps)
         self.final_schema = final_response_schema(self.plan_confirmation, self.methodology, self.research_findings,
-                                                  self.multi_angle, self.value_references, self.hypothesis_plans)
+                                                  self.multi_angle, self.value_references, self.hypothesis_plans,
+                                                  memo_note=run_memory is not None)
         contract = response_contract(self.plan_confirmation, self.methodology, self.research_findings,
-                                     self.multi_angle, self.value_references, self.hypothesis_plans)
+                                     self.multi_angle, self.value_references, self.hypothesis_plans,
+                                     memo_note=run_memory is not None)
         self.response_contract = contract
         self.finalize_instruction = FINALIZE_PREFIX + contract
         self.context_budget_instruction = CONTEXT_BUDGET_PREFIX + contract
@@ -2212,7 +2271,10 @@ class AgentOrchestrator:
             user_history="\n".join(turn.content for turn in request.history if turn.role == "user"),
         )
         state.audit_started_at = moment
+        turn_id = current_turn_id.get() or request.request_id
+        remembered = self._seed_memory(state, request)  # EXEC-C: after the history, before every other note
         self._seed_data_record(state, data_record)
+        self._seed_sources(state, remembered)
         # AUTO and MODE4 are routed before this (app/modes.py, app/mode4.py); only ANALYSIS and RESEARCH fix a path
         state.forced_path = request.analysis_path if self.analysis_path \
             and request.analysis_path in ("ANALYSIS", "RESEARCH") else None
@@ -2264,6 +2326,7 @@ class AgentOrchestrator:
             final = self._loop(state)
             final = self._with_ai_choices(state, final)
             final = self._conversation_correction(state, final)
+            state.plan_meta["memory_decisions"] = self._memory_decisions(state, final)
             state.experiments = self._research_summary(state, final.answer)
             if state.forced_path == "ANALYSIS" and final.response_type == "ANSWER" and state.final_status \
                     and ANALYSIS_PATH_LINE not in final.limitations:
@@ -2337,6 +2400,7 @@ class AgentOrchestrator:
         self._store_results(state, request.conversation_id)
         result = self._data_date_lines(state, request, result)
         result = result.model_copy(update={"data_record": records.public(state.data_record)})
+        self._save_memory(state, request, result, turn_id)
         # the closes still carry the conversation key, so an attached session that ran nothing is detached, not lost
         self._end_sessions(state)
         current_conversation_key.reset(key)
@@ -2419,7 +2483,8 @@ class AgentOrchestrator:
         if not records.has_data(state.data_record):
             return
         records.seed_ledger(state.data_record, state.catalog)
-        note = records.note(state.data_record)
+        # EXEC-C items 5 and 10: with the run memory the note is never cut and carries the column details read
+        note = records.full_note(state.data_record) if self.run_memory is not None else records.note(state.data_record)
         state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": note})
         log_event("data_record_offered", request_id=state.request_id, tables=len(state.data_record["tables"]),
                   needs=len(state.data_record["needs"]), outputs=len(state.data_record["outputs"]),
@@ -2439,6 +2504,302 @@ class AgentOrchestrator:
                                                                         "values": values}
             if self.value_references:
                 state.ref_sources.add("finding", str(entry["id"]), finding, "DATA_COVERAGE_VERIFIED")
+
+    # ------------------------------------------------------------------------------------------ EXEC-C run memory
+
+    def _seed_memory(self, state: RunState, request: AgentRunRequest) -> list[dict[str, Any]]:
+        """EXEC-C: the memos of the conversation's earlier runs (its earlier turns and the steps of this turn) as one
+        application note right after the history, oldest first and only growing at its end, so the cached prefix of
+        the next run reaches the end of this run's memos. Returns the rows; their sources are registered once the data
+        record is seeded."""
+        if self.run_memory is None or not request.conversation_id:
+            return []
+        try:
+            rows = self.run_memory.load(request.conversation_id)
+        except Exception as exc:  # noqa: BLE001 - without its memory the run works as before
+            log_event("run_memory_failed", request_id=state.request_id, stage="LOAD", error=type(exc).__name__)
+            return []
+        note = memory.memory_note(rows)
+        if note:
+            state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": note})
+        state.memory_runs = len(rows)
+        log_event("run_memory_offered", request_id=state.request_id, runs=len(rows), note_chars=len(note or ""))
+        return rows
+
+    def _seed_sources(self, state: RunState, rows: list[dict[str, Any]]) -> None:
+        """EXEC-C item 11: what earlier runs made citable (fact, metric, reference, web, a JSON output's content) is
+        registered again under the same address, and every table an earlier run released is registered by its alias
+        with its rows read when the answer is rendered: an answer cites them without reading them again. The
+        numbering of this run continues after the earlier runs', so an address never names two values."""
+        if self.run_memory is None:
+            return
+        sources = state.ref_sources
+        highest = {"fact": 0, "metric": 0, "reference": 0}
+        for row in rows:
+            kept = row.get("sources") if isinstance(row.get("sources"), dict) else {}
+            for namespace in memory.SOURCE_NAMESPACES:
+                for key, entry in (kept.get(namespace) or {}).items():
+                    if not isinstance(entry, dict) or not entry.get("label"):
+                        continue
+                    sources.add(namespace, str(key), entry.get("value"), str(entry["label"]),
+                                units=entry.get("units") if isinstance(entry.get("units"), dict) else None,
+                                origin=entry.get("origin"))
+                    state.carried_sources.add((namespace, str(key)))
+                    if namespace == "web" and isinstance(entry.get("value"), dict):
+                        self._carry_outside(state, entry["value"])
+                    number = re.fullmatch(r"[mr]?(\d+)", str(key))
+                    if namespace in highest and number:
+                        highest[namespace] = max(highest[namespace], int(number.group(1)))
+            for output_id, entry in (kept.get("out") or {}).items():
+                if isinstance(entry, dict) and output_id not in sources.objects.get("out", {}):
+                    sources.add("out", str(output_id), entry, str(entry.get("label") or "DATA_COVERAGE_VERIFIED"),
+                                units=entry.get("units") if isinstance(entry.get("units"), dict) else None)
+                    state.carried_sources.add(("out", str(output_id)))
+        state.ref_facts = max(state.ref_facts, highest["fact"])
+        state.ref_metrics = max(state.ref_metrics, highest["metric"])
+        state.ref_references = max(state.ref_references, highest["reference"])
+        for output in state.data_record.get("outputs") or []:
+            output_id = str(output.get("output_id") or "")
+            alias = str(output.get("ref") or "")[4:]
+            if not output_id or not alias or output.get("type") not in (None, *TABULAR_OUTPUTS) \
+                    or output_id in sources.objects.get("out", {}):
+                if output_id and alias and output_id in sources.objects.get("out", {}):
+                    sources.alias("out", alias, output_id)
+                continue
+            fetch = self._row_fetcher(state, output.get("session_id"), output_id)
+            if fetch is None:
+                continue
+            table = state.ref_tables[output_id] = TableRows(output.get("row_count"), fetch=fetch)
+            sources.add("out", output_id, {"output_id": output_id, "name": output.get("name"),
+                                           "columns": output.get("columns"), "row_count": output.get("row_count"),
+                                           "rows": table}, str(output.get("label") or "DATA_COVERAGE_VERIFIED"))
+            sources.alias("out", alias, output_id)
+            state.carried_sources.add(("out", output_id))
+        if state.carried_sources:
+            log_event("run_memory_sources", request_id=state.request_id,
+                      carried=sorted({namespace for namespace, _ in state.carried_sources}),
+                      count=len(state.carried_sources))
+
+    @staticmethod
+    def _carry_outside(state: RunState, entry: dict[str, Any]) -> None:
+        """A web item of an earlier run keeps its rule here: its numbers may be shown as context and are refused as
+        inputs of a calculation (P34)."""
+        value = entry.get("value")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            state.web_numbers.append(float(value))
+        for text in [entry.get("value_as_written"), value if isinstance(value, str) else None]:
+            if text:
+                state.web_numbers.extend(v for shown in parse_numbers(str(text)) for v, _ in shown.candidates
+                                         if not (float(v).is_integer() and 1900 <= v <= 2100))
+        values = [entry.get("members") if isinstance(entry.get("members"), list) else value]
+        ai_choices.string_leaves(values, state.web_strings)
+        ai_choices.string_sets(values, state.web_sets)
+
+    @staticmethod
+    def _cites_carried(state: RunState) -> bool:
+        """EXEC-C: the answer cites a table an earlier run released (registered from the data record)."""
+        for expression in state.referenced:
+            if FUNC_RE.match(expression):
+                continue
+            try:
+                namespace, key, _ = state.ref_sources._locate(expression)
+            except ValueError:
+                continue
+            if (namespace, key) in state.carried_sources:
+                return True
+        return False
+
+    def _remember_refusal(self, state: RunState, stage: str, name: str, code: str | None, outcome: str,
+                          message: str, draft: str | None = None, arguments: Any = None) -> None:
+        """EXEC-C item 2: every refusal of the run, whole, for the runs after it."""
+        if self.run_memory is None:
+            return
+        entry: dict[str, Any] = {"stage": stage, "name": name, "code": code, "outcome": outcome,
+                                 "iteration": state.iterations, "message": str(message or "")}
+        if draft:
+            entry["draft"] = draft[:memory.MAX_DRAFT_CHARS]
+            if len(draft) > memory.MAX_DRAFT_CHARS:
+                entry["draft_chars"] = len(draft)
+        if arguments is not None:
+            text = arguments if isinstance(arguments, str) else dumps(arguments)
+            entry["arguments"] = text[:memory.MAX_ARGUMENT_CHARS]
+        state.refusals.append(entry)
+
+    def _remember_tool_refusal(self, state: RunState, name: str, raw_arguments: Any, outcome: ToolOutcome) -> None:
+        """A tool call refused or failed (an argument error, a rejection, a failed execution), with its message and
+        the arguments it was given."""
+        if self.run_memory is None:
+            return
+        code, message = None, None
+        if not outcome.ok:
+            error = outcome.output.get("error") if isinstance(outcome.output.get("error"), dict) else {}
+            code, message = outcome.error_code or error.get("code"), error.get("message")
+        else:
+            result = outcome.output.get("result")
+            if not isinstance(result, dict):
+                return
+            status = str(result.get("status") or result.get("decision") or result.get("execution_status") or "")
+            error = result.get("error") if isinstance(result.get("error"), dict) else {}
+            if status not in ("REJECTED", "FAILED", "ERROR", "INVALID", "SCRIPT_ERROR", "TIMEOUT", "NOT_FEASIBLE",
+                              "INCOMPLETE", "INVALID_SPEC") and not error:
+                return
+            code = error.get("code") or result.get("code") or status
+            message = error.get("message") or result.get("message") or result.get("reason") \
+                or dumps({k: result[k] for k in ("issues", "problems", "stderr_tail") if k in result})[:4000]
+        self._remember_refusal(state, "TOOL", name, str(code) if code else None, "REFUSED", str(message or ""),
+                               arguments=raw_arguments)
+
+    def _keep_reasoning(self, state: RunState, response: dict[str, Any]) -> None:
+        """EXEC-C Q1 (b): the reasoning of each model call, kept with the run's memory (never sent back)."""
+        text, _ = reasoning_text(response)
+        if not text:
+            return
+        state.reasoning_chars += len(text)
+        room = memory.MAX_REASONING_CHARS - sum(len(t) for t in state.reasoning)
+        if room > 0:
+            state.reasoning.append(f"[call {state.iterations}]\n" + text[:room])
+
+    def _memory_decisions(self, state: RunState, final: FinalResponse | None) -> list[dict[str, Any]]:
+        """EXEC-C item 3: the design values of this run and where each came from: the user's words as the router read
+        them, a value a plan took from an earlier result (10.6), the data needs it submitted, the plan it proposed,
+        and the values the model typed in its own code (AI choice)."""
+        decisions: list[dict[str, Any]] = []
+        for change in current_design_changes.get() or []:
+            if isinstance(change, dict):
+                value = change.get("value")
+                shown = f"{value:g} {change.get('unit') or ''}".strip() if isinstance(value, (int, float)) \
+                    else str(change.get("text") or value or "")
+                decisions.append({"name": str(change.get("name")), "value": shown,
+                                  "origin": f"user's words ({change.get('action')})"})
+        for value in state.design_from_results:
+            decisions.append({"name": "plan threshold or minimum effect", "value": f"{value:g}",
+                              "origin": "an earlier result the plan cited"})
+        for need in state.data_record.get("needs") or []:
+            if need.get("request_id") != state.request_id:
+                continue
+            for request in need.get("requests") or []:
+                decisions.append({"name": f"data {request.get('logical_name')}",
+                                  "value": f"{request.get('source_table')}({', '.join(request.get('columns') or [])})"
+                                           + (f" where {request['scope']}" if request.get("scope") else ""),
+                                  "origin": f"data need {need.get('need_id')} ({need.get('mode') or 'ANALYSIS'})"})
+        plan = getattr(final, "research_plan", None) if final is not None else None
+        if plan is not None:
+            frequency = getattr(plan, "analysis_frequency", None)
+            for item in list(getattr(plan, "angles", None) or []) + list(getattr(plan, "experiments", None) or []):
+                identifier = getattr(item, "angle_id", None) or getattr(item, "experiment_id", None)
+                parts = [f"horizon {getattr(item, 'outcome_horizon_periods', None)} {frequency or ''}".strip(),
+                         f"condition {getattr(item, 'condition', None)}"]
+                rule = getattr(item, "success_rule", None)
+                if rule is not None:
+                    parts.append(f"success {rule.operator} {rule.value} {rule.unit or ''}".strip())
+                if getattr(item, "min_effect", None) is not None:
+                    parts.append(f"min effect {item.min_effect} {getattr(item, 'min_effect_unit', '') or ''}".strip())
+                thresholds = getattr(getattr(item, "parameters", None), "thresholds", None)
+                if thresholds:
+                    parts.append(f"thresholds {thresholds}")
+                decisions.append({"name": f"plan {identifier}", "value": "; ".join(parts),
+                                  "origin": "plan proposed in this run (the user's thresholds and horizons are "
+                                            "locked by the plan gates)"})
+        for choice in state.ai_choices:
+            if choice.get("origin") == "WEB":
+                continue
+            decisions.append({"name": f"value typed in code ({choice.get('position')})", "value": str(choice["value"]),
+                              "origin": "AI choice"})
+        return decisions
+
+    def _memory_facts(self, state: RunState, request: AgentRunRequest, result: AgentRunResponse,
+                      sources: dict[str, Any]) -> dict[str, Any]:
+        """What the memo block lists (app/run_memory.memo_block)."""
+        response = result.response
+        tools: dict[str, int] = {}
+        for name in state.tools_requested:
+            tools[name] = tools.get(name, 0) + 1
+        refused: dict[str, int] = {}
+        for refusal in state.refusals:
+            if refusal["stage"] == "TOOL":
+                refused[refusal["name"]] = refused.get(refusal["name"], 0) + 1
+        record = state.data_record
+        released = [f"{o.get('ref')} \"{memory.clip(o.get('name'), 60)}\"" + (f" ({o['row_count']} rows)"
+                                                                         if o.get("row_count") is not None else "")
+                    for o in record.get("outputs") or [] if o.get("request_id") == state.request_id]
+        findings = []
+        for entry in record.get("findings") or []:
+            if entry.get("request_id") != state.request_id:
+                continue
+            finding = entry.get("finding") or {}
+            status = finding.get("verdict") or finding.get("status")
+            findings.append(f"finding.{str(entry.get('id')).removeprefix(records.EVENT_STUDY_PREFIX)} "
+                            f"({entry.get('kind')}" + (f", {status}" if status else "") + ")")
+        aliases = {output_id: alias for output_id, alias in state.ref_aliases.items()}
+        citable = memory.citable_addresses(sources, aliases)
+        citable += [f"{o.get('ref')}" for o in record.get("outputs") or []
+                    if o.get("request_id") == state.request_id and o.get("ref") and o.get("ref") not in citable]
+        executions = [{"execution_id": e.get("execution_id"), "status": e.get("status")}
+                      for e in state.store_executions] or [{"execution_id": e, "status": None}
+                                                           for e in state.execution_ids]
+        tables = [f"{name} ({len(table.get('read') or [])} columns)"
+                  for name, table in (record.get("tables") or {}).items()
+                  if state.request_id in (table.get("requests") or []) and table.get("read")]
+        return {"run_id": state.request_id, "step": self._memory_step(state), "status": result.status,
+                "response_type": response.response_type if response else None,
+                "error_code": result.error.code if result.error else None,
+                "at": (state.audit_started_at or self.wall_clock()).strftime("%Y-%m-%d %H:%M UTC"),
+                "message": request.message, "tools": tools, "tools_refused": refused, "released": released,
+                "findings": findings, "decisions": state.plan_meta.get("memory_decisions") or [],
+                "refusals": state.refusals,
+                "web": [{"id": w.get("id"), "subject": w.get("subject"), "statement": w.get("statement"),
+                         "value": w.get("value"), "value_as_written": w.get("value_as_written"),
+                         "domain": (w.get("source") or {}).get("domain"), "url": (w.get("source") or {}).get("url")}
+                        for w in state.web_entries],
+                "citable": citable, "code": executions, "catalog": tables,
+                "answer": (response.clarification_question or response.answer) if response else None,
+                "note": state.memo_note, "reasoning_chars": state.reasoning_chars}
+
+    @staticmethod
+    def _memory_step(state: RunState) -> str:
+        return str(state.plan_meta.get("turn_kind") or state.plan_turn
+                   or (f"PATH_{state.forced_path}" if state.forced_path else "AUTO"))
+
+    def _save_memory(self, state: RunState, request: AgentRunRequest, result: AgentRunResponse,
+                     turn_id: str) -> None:
+        """EXEC-C: the run's memory, written when the run ends (whatever its outcome). Never fails the answer."""
+        if self.run_memory is None or not request.conversation_id:
+            return
+        try:
+            if "memory_decisions" not in state.plan_meta:  # a run that failed before its answer
+                state.plan_meta["memory_decisions"] = self._memory_decisions(state, None)
+            sources = memory.serialize_sources(state.ref_sources, state.carried_sources, state.json_outputs)
+            facts = self._memory_facts(state, request, result, sources)
+            response = result.response
+            record = state.data_record
+            content = {
+                "version": memory.VERSION, "step": facts["step"], "message": request.message,
+                "answer": {k: getattr(response, k) for k in ("response_type", "answer", "clarification_question",
+                                                             "assumptions", "limitations", "methodology")}
+                if response is not None else None,
+                "plan": response.research_plan.model_dump(mode="json")
+                if response is not None and response.research_plan is not None else None,
+                "refusals": state.refusals, "decisions": facts["decisions"], "web": state.web_entries,
+                "code": [{"execution_id": e.get("execution_id"), "status": e.get("status"),
+                          **({"code": e.get("code")} if self.result_store is None else {})}
+                         for e in state.store_executions],
+                "catalog": {name: (record.get("columns") or {}).get(name) or {"columns": table.get("read")}
+                            for name, table in (record.get("tables") or {}).items()
+                            if state.request_id in (table.get("requests") or []) and table.get("read")},
+                "reasoning": {"chars": state.reasoning_chars, "kept": sum(len(t) for t in state.reasoning),
+                              "calls": len(state.reasoning)},
+                "error": {"code": result.error.code, "message": result.error.message} if result.error else None}
+            saved = self.run_memory.save(
+                request.conversation_id, turn_id, state.request_id, status=result.status,
+                response_type=facts["response_type"], error_code=facts["error_code"],
+                memo=memory.memo_block(facts), content=json.loads(dumps(content)), sources=sources,
+                note=state.memo_note, reasoning="\n\n".join(state.reasoning) or None)
+            log_event("run_memory_saved", request_id=state.request_id, saved=saved, refusals=len(state.refusals),
+                      decisions=len(facts["decisions"]), sources=sum(len(v) for k, v in sources.items()
+                                                                     if isinstance(v, dict)),
+                      note=state.memo_note is not None, reasoning_chars=state.reasoning_chars)
+        except Exception as exc:  # noqa: BLE001 - storing never fails the answer
+            log_event("run_memory_failed", request_id=state.request_id, stage="SAVE", error=type(exc).__name__)
 
     def _offer_metrics(self, state: RunState) -> None:
         """D5: the official metrics query_metric answers (from AI_metric_catalog at startup), as an application note,
@@ -3163,6 +3524,8 @@ class AgentOrchestrator:
                 log_reasoning(log_event, response, request_id=state.request_id, iteration=state.iterations,
                               tools_requested=[str(call.get("name")) for call in calls],
                               reasoning_tokens=usage["reasoning_tokens"])
+            if self.run_memory is not None:
+                self._keep_reasoning(state, response)
             if usage["input_tokens"] > self.settings.ai_max_context_tokens:
                 raise RunFailure("CONTEXT_LIMIT", "Provider-reported input exceeded AI_MAX_CONTEXT_TOKENS")
 
@@ -3208,6 +3571,9 @@ class AgentOrchestrator:
                 dropped: dict[str, Any] = {}
                 parsed = self._parse_final_output(raw, dropped)
                 state.last_draft = parsed
+                note = dropped.pop("memo_note", None)
+                if isinstance(note, str) and note.strip():
+                    state.memo_note = note.strip()[:memory.NOTE_CHARS]  # EXEC-C Q2: the model's note, kept apart
                 if dropped:
                     self._note_extra_keys(state, dropped)
                 final = self._check_budget_limitations(state, self._turn_type(state, parsed))
@@ -3378,6 +3744,7 @@ class AgentOrchestrator:
         if not truncated:
             started = time.monotonic()
             outcome = self._execute(state, call_id, name, raw_arguments)
+            outcome = self._merged_steps(state, call_id, name, raw_arguments, outcome)
             duration_ms = int((time.monotonic() - started) * 1000)
             if self.audit_outbox is not None:
                 state.audit_trace.append(tool_event(
@@ -3385,6 +3752,7 @@ class AgentOrchestrator:
                     output=outcome.output, ok=outcome.ok, error_code=self._rejection_code(name, outcome),
                     duration_ms=duration_ms, occurred_at=self.wall_clock()))
         kejedot.count_tool(state.friction, name, outcome, state.data_record)
+        self._remember_tool_refusal(state, name, raw_arguments, outcome)
         text = dumps(outcome.output)
         if getattr(self.settings, "ai_enable_tool_envelope", False):
             # ENV (round 2026-10-03): the model's view only; outcome.output stays what the gates read
@@ -3394,6 +3762,52 @@ class AgentOrchestrator:
             "call_id": outcome.call_id,
             "output": text,
         })
+
+    def _merged_steps(self, state: RunState, call_id: str, name: str, raw_arguments: Any,
+                      outcome: ToolOutcome) -> ToolOutcome:
+        """EXEC-P5 (user approval 2026-10-06): the mechanical steps the model always took next run in the same turn.
+        An APPROVED data need is followed at once by prepare_data_bundle and, when the bundle is READY, by
+        open_analysis_session; run_python with complete=true is followed by complete_analysis when its code ran OK.
+        Each step runs through _execute (the same gates, budgets, tracking and audit as a call of the model) and its
+        result is returned with the call that caused it (merged_steps). The tools stay offered to retry a step that
+        failed."""
+        if not outcome.ok or not self.merged_steps:
+            return outcome
+        result = outcome.output.get("result") if isinstance(outcome.output.get("result"), dict) else {}
+        desk = self._desk(state)
+        steps: list[tuple[str, dict[str, Any]]] = []
+        if name == "submit_data_need_spec" and result.get("status") == "APPROVED" and result.get("need_id") \
+                and {"prepare_data_bundle", "open_analysis_session"} <= desk:
+            steps.append(("prepare_data_bundle", {"need_id": result["need_id"]}))
+        elif name == "run_python" and result.get("status") == "OK" and "complete_analysis" in desk:
+            arguments = self._normalized_arguments(raw_arguments)
+            if isinstance(arguments, dict) and arguments.get("complete") is True and arguments.get("session_id"):
+                steps.append(("complete_analysis", {"session_id": arguments["session_id"]}))
+        if not steps:
+            return outcome
+        merged: list[dict[str, Any]] = []
+        while steps:
+            step, arguments = steps.pop(0)
+            step_id = f"{call_id}_m{len(merged) + 1}"
+            started = time.monotonic()
+            done = self._execute(state, step_id, step, dumps(arguments))
+            state.tools_requested.append(step)
+            kejedot.count_tool(state.friction, step, done, state.data_record)
+            self._remember_tool_refusal(state, step, arguments, done)
+            if self.audit_outbox is not None:
+                state.audit_trace.append(tool_event(
+                    tool=step, call_id=step_id, iteration=state.iterations, arguments=dumps(arguments),
+                    output=done.output, ok=done.ok, error_code=self._rejection_code(step, done),
+                    duration_ms=int((time.monotonic() - started) * 1000), occurred_at=self.wall_clock()))
+            merged.append({"tool": step, "arguments": arguments, **done.output})
+            ready = done.output.get("result") if done.ok and isinstance(done.output.get("result"), dict) else {}
+            if step == "prepare_data_bundle" and ready.get("status") == "READY" and ready.get("input_bundle_id"):
+                steps.append(("open_analysis_session", {"input_bundle_id": ready["input_bundle_id"]}))
+        log_event("mechanical_steps_merged", request_id=state.request_id, after=name,
+                  steps=[{"tool": m["tool"], "status": (m.get("result") or {}).get("status")
+                          if isinstance(m.get("result"), dict) else (m.get("error") or {}).get("code")}
+                         for m in merged])
+        return replace(outcome, output={**outcome.output, "merged_steps": merged, "merged_note": MERGED_STEPS_NOTE})
 
     def _execute(self, state: RunState, call_id: str, name: str, raw_arguments: Any) -> ToolOutcome:
         if not state.tools_offered:
@@ -4236,8 +4650,13 @@ class AgentOrchestrator:
                 registered = {**{k: v for k, v in entry.items() if k != "rows"}, "rows": table}
             if listed_only:
                 entry["content_shown"] = False
-            sources.add("out", output_id, registered, "CALCULATION_VERIFIED" if output_id in state.verified_outputs
-                        else "DATA_COVERAGE_VERIFIED")
+            label = "CALCULATION_VERIFIED" if output_id in state.verified_outputs else "DATA_COVERAGE_VERIFIED"
+            sources.add("out", output_id, registered, label)
+            if "content" in entry and "rows" not in entry:
+                # EXEC-C item 11: a JSON or text output's content is kept, so a later run cites it by the same ref
+                state.json_outputs[output_id] = {**{k: entry[k] for k in ("output_id", "name", "type", "content",
+                                                                          "units", "definition") if k in entry},
+                                                 "label": label}
             # P18 (2026-10-01): the model writes a short alias, not out_ + 24 hex characters after the out. namespace
             alias = state.ref_aliases.get(output_id)
             if alias is None:
@@ -4335,6 +4754,8 @@ class AgentOrchestrator:
             units = {"value": "PERCENT"} if entry.get("unit_code") == "PERCENT" else None
             sources.add(namespace, str(entry["id"]), entry, entry["label"], units=units, origin=source.get("domain"))
             entry["ref"] = f"{namespace}.{entry['id']}"  # its own ref is its address: no menu line
+            if namespace == "web" and all(w.get("id") != entry["id"] for w in state.web_entries):
+                state.web_entries.append(entry)  # EXEC-C item 4: kept with its quote and link for later runs
         if getattr(self, "address_menu", False) and refs:
             menu = [line for ref in dict.fromkeys(refs) for line in sources.menu(ref)]
             if len(menu) > ADDRESS_MENU_MAX:  # never cut silently: the pattern lines cover the rows not listed
@@ -4366,6 +4787,7 @@ class AgentOrchestrator:
                        for n in pool)
 
         taken = [v for v in values if v is not None and not matches(v, stated) and cited_match(v, cited, magnitude=True)]
+        state.design_from_results.extend(v for v in taken if v not in state.design_from_results)
         if taken:
             log_event("plan_threshold_from_result", request_id=state.request_id, values=taken[:10])
 
@@ -4579,6 +5001,8 @@ class AgentOrchestrator:
                                                   else "no_tools" if no_tools_this_turn
                                                   else "tool_not_in_step"),
                   detail=message[:300])
+        self._remember_refusal(state, "GATE", kind, None, "REJECTED_FOR_REPAIR" if repairable else outcome, message,
+                               state.current_raw)
         if self.audit_outbox is not None and (repairable or outcome == "FORCED_LIMITATION"):
             state.audit_trace.append(final_event("final.rejected" if repairable else "final.forced",
                                                  iteration=state.iterations, stage=kind, detail=message,
@@ -4686,7 +5110,8 @@ class AgentOrchestrator:
         run = self._research_result(state)
         usable = any(c["status"] == "COMPLETED" for c in state.completions.values()) or bool(state.inherited) \
             or (run is not None and run.get("status") == "COMPLETED") \
-            or any(k.startswith("recorded_finding:") for k in state.analysis_values)  # E1: an earlier turn's finding
+            or any(k.startswith("recorded_finding:") for k in state.analysis_values) \
+            or self._cites_carried(state)  # E1: an earlier turn's finding; EXEC-C: a cited table of an earlier run
         average_fact = any(f["kind"] == "DATABASE_AGGREGATE" and f["aggregation"] == "AVG" for f in state.facts)
         missing = sorted(families) if not usable else []
         if not missing and plain_average and not usable and not average_fact:
@@ -5477,6 +5902,8 @@ class AgentOrchestrator:
             state.audit_trace.append(final_event("final.rejected", iteration=state.iterations, stage="FORMAT",
                                                  detail=issue or "not a final response", draft=raw,
                                                  occurred_at=self.wall_clock()))
+        self._remember_refusal(state, "FORMAT", "FINAL_REASK", None, "ASKED_AGAIN", issue or "not a final response",
+                               raw)
         self._echo_draft(state, raw)
         if state.final_reask_sent:
             state.structured_only = True
@@ -5507,6 +5934,7 @@ class AgentOrchestrator:
         limit = self.settings.ai_final_response_max_retries
         log_event("ai_final_rejected", request_id=state.request_id, iteration=state.iterations,
                   rejections=state.final_rejections, issue=issue[:300])
+        self._remember_refusal(state, "FORMAT", "FINAL_REJECTED", None, "REJECTED_FOR_REPAIR", issue, raw)
         if self.audit_outbox is not None:
             state.audit_trace.append(final_event("final.rejected", iteration=state.iterations, stage="FORMAT",
                                                  detail=issue, draft=raw, occurred_at=self.wall_clock()))

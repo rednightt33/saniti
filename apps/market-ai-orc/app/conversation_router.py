@@ -350,7 +350,8 @@ FIRST_ROUTES: dict[str, tuple[str, str]] = {
                  "a research plan for the user's approval (analysis_path RESEARCH)"),
     "EXPLORE": ("an open question that needs several angles or sources (for example macro context plus stock "
                 "candidates, or 'from various sides'): analysis first, then research angles",
-                "mode 4: analysis, research plan, research, one suggestion (analysis_path MODE4)"),
+                "mode 4: analysis, then a research plan that waits for the user's approval (analysis_path MODE4; "
+                "with AI_MODE4_AUTO_RESEARCH the plan runs at once and one suggestion follows)"),
 }
 FIRST_FALLBACK = "ANALYSIS"  # the router failed or answered nothing usable
 DATA_ROUTES = ("ANALYSIS", "RESEARCH", "EXPLORE")
@@ -363,8 +364,9 @@ FIRST_ROUTE_RULES = (
     "A data route (ANALYSIS, RESEARCH, EXPLORE) runs at the depth of the caller's analysis_path when it is ANALYSIS, "
     "RESEARCH or MODE4; otherwise at the router's route (ANALYSIS: one step, RESEARCH: a plan, EXPLORE: mode 4).",
     "A failed or empty router call runs one analysis step (the caller's analysis_path when set).",
-    "In mode 4 the research steps (plan, research, suggestion) run only when the analysis step's answer has figures "
-    "from data (its evidence label is set); otherwise the analysis answer is returned alone.",
+    "In mode 4 the research plan is made only when the analysis step's answer has figures from data (its evidence "
+    "label is set); otherwise the analysis answer is returned alone. The plan waits for the user's approval (EXEC-P1, "
+    "2026-10-06); with AI_MODE4_AUTO_RESEARCH it runs at once and one suggestion follows.",
     "Later messages are read by the conversation router (its classes are listed below); a reply to a waiting plan "
     "continues it. A later message the conversation router classes NEW_TOPIC is routed again like a first message "
     "(rules 2 to 5), so no default mode runs inside a conversation either.",

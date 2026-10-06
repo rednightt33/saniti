@@ -34,6 +34,8 @@ WAREHOUSE_READS = frozenset({"preview_table_rows", "query_metric"})
 LEGACY = frozenset({"request_data", "lookup_fact", "create_analysis_spec", "prepare_analysis_data",
                     "run_python_analysis", "get_analysis_result", "get_dataset_manifest"})
 RESULT_READS = frozenset({"inspect_session", "get_session_output", "get_lineage", "check_references"})
+# EXEC-C (2026-10-06): what earlier runs of the conversation kept; required on every desk (H)
+MEMORY = frozenset({"read_conversation_memory"})
 READ_EFFECTS = frozenset({"READS", "OWN_ARTIFACT"})
 
 
@@ -50,28 +52,28 @@ class Desk:
 
 
 DESKS: dict[str, Desk] = {
-    "CHAT": Desk("CHAT", "EFFECTS", effects=READ_EFFECTS,
+    "CHAT": Desk("CHAT", "EFFECTS", must=MEMORY, effects=READ_EFFECTS,
                  never=WAREHOUSE_READS | DATA_FLOW | PLAN_CHECKS | RESEARCH_RUN),
-    "FACT": Desk("FACT", "EFFECTS", must=CATALOG | {"lookup_reference", "research_web"},
+    "FACT": Desk("FACT", "EFFECTS", must=CATALOG | MEMORY | {"lookup_reference", "research_web"},
                  effects=READ_EFFECTS | {"FETCHES_WEB"}, never=WAREHOUSE_READS | DATA_FLOW | PLAN_CHECKS | RESEARCH_RUN),
-    "READ": Desk("READ", "EFFECTS", must=frozenset({"get_session_output", "export_result", "get_lineage",
-                                                    "check_references"}),
+    "READ": Desk("READ", "EFFECTS", must=MEMORY | {"get_session_output", "export_result", "get_lineage",
+                                                    "check_references"},
                  effects=READ_EFFECTS, never=WAREHOUSE_READS | DATA_FLOW | PLAN_CHECKS | RESEARCH_RUN),
-    "ANALYSIS": Desk("ANALYSIS", "ALL", must=CATALOG | DATA_FLOW | {"lookup_reference", "get_method_guide",
+    "ANALYSIS": Desk("ANALYSIS", "ALL", must=CATALOG | DATA_FLOW | MEMORY | {"lookup_reference", "get_method_guide",
                                                                   "query_metric", "inspect_session",
                                                                   "get_session_output"},
                      never=PLAN_CHECKS | RESEARCH_RUN),
-    "PLAN": Desk("PLAN", "LISTED", must=CATALOG | PLAN_CHECKS | {"get_method_guide", "get_session_output",
+    "PLAN": Desk("PLAN", "LISTED", must=CATALOG | PLAN_CHECKS | MEMORY | {"get_method_guide", "get_session_output",
                                                                  "check_references", "get_research_library"},
                  may=frozenset({"get_system_capabilities"}), never=WAREHOUSE_READS | DATA_FLOW | RESEARCH_RUN),
-    "CONTINUE": Desk("CONTINUE", "ALL", must=CATALOG | PLAN_CHECKS | {"lookup_reference", "get_method_guide",
+    "CONTINUE": Desk("CONTINUE", "ALL", must=CATALOG | PLAN_CHECKS | MEMORY | {"lookup_reference", "get_method_guide",
                                                                       "inspect_session", "get_session_output",
                                                                       "get_research_library"},
                      never=RESEARCH_RUN),
-    "RESEARCH_V1": Desk("RESEARCH_V1", "ALL", must=DATA_FLOW | {"get_method_guide", "inspect_session",
+    "RESEARCH_V1": Desk("RESEARCH_V1", "ALL", must=DATA_FLOW | MEMORY | {"get_method_guide", "inspect_session",
                                                                  "get_session_output"},
                         never=RESEARCH_RUN),
-    "RESEARCH_V2": Desk("RESEARCH_V2", "LISTED", must=RESEARCH_RUN | RESULT_READS | {"get_method_guide",
+    "RESEARCH_V2": Desk("RESEARCH_V2", "LISTED", must=RESEARCH_RUN | RESULT_READS | MEMORY | {"get_method_guide",
                                                                                      "get_research_library"},
                         may=CATALOG | {"get_system_capabilities"},
                         never=WAREHOUSE_READS | DATA_FLOW),

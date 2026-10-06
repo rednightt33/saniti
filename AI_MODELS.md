@@ -76,6 +76,7 @@ Nilai seperti `self.settings.ai_model` atau `slot.model` dibaca dari setelan di 
 | `AI_MAX_CONTEXT_TOKENS` | `64000` |
 | `AI_MAX_HISTORY_TOKENS` | `4000` |
 | `AI_MAX_OUTPUT_TOKENS` | `8000` |
+| `AI_MODE4_AUTO_RESEARCH` | `False` |
 | `AI_MODE4_MAX_SECONDS` | `3600` |
 | `AI_MODEL` | `"deepseek/deepseek-v4.1-flash"` |
 | `AI_MODEL_2` | `"xiaomi/mimo-v2.6-pro"` |

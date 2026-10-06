@@ -10,7 +10,7 @@ Saklar: `AI_ENABLE_FIRST_TURN_ROUTER` (router pesan pertama), `AI_ENABLE_CONVERS
 2. CHAT and FACT are answered as such whatever analysis_path the caller set.
 3. A data route (ANALYSIS, RESEARCH, EXPLORE) runs at the depth of the caller's analysis_path when it is ANALYSIS, RESEARCH or MODE4; otherwise at the router's route (ANALYSIS: one step, RESEARCH: a plan, EXPLORE: mode 4).
 4. A failed or empty router call runs one analysis step (the caller's analysis_path when set).
-5. In mode 4 the research steps (plan, research, suggestion) run only when the analysis step's answer has figures from data (its evidence label is set); otherwise the analysis answer is returned alone.
+5. In mode 4 the research plan is made only when the analysis step's answer has figures from data (its evidence label is set); otherwise the analysis answer is returned alone. The plan waits for the user's approval (EXEC-P1, 2026-10-06); with AI_MODE4_AUTO_RESEARCH it runs at once and one suggestion follows.
 6. Later messages are read by the conversation router (its classes are listed below); a reply to a waiting plan continues it. A later message the conversation router classes NEW_TOPIC is routed again like a first message (rules 2 to 5), so no default mode runs inside a conversation either.
 
 ## Rute pesan pertama
@@ -21,7 +21,7 @@ Saklar: `AI_ENABLE_FIRST_TURN_ROUTER` (router pesan pertama), `AI_ENABLE_CONVERS
 | `FACT` | a definition, a concept, a fact about a company or about the available data that a web fact or the data catalog answers; no calculation over market data | one step with the read-only tools and the web fact tool (FACT step), no warehouse data |
 | `ANALYSIS` | a descriptive calculation over market data (values, rankings, distributions, patterns, a backtest of given rules, a trade setup) answered in one analysis step | one analysis step (analysis_path ANALYSIS), no research plan |
 | `RESEARCH` | the user asks whether something is followed by or causes something else, wants it tested or asks for a test plan (a hypothesis with a verdict) | a research plan for the user's approval (analysis_path RESEARCH) |
-| `EXPLORE` | an open question that needs several angles or sources (for example macro context plus stock candidates, or 'from various sides'): analysis first, then research angles | mode 4: analysis, research plan, research, one suggestion (analysis_path MODE4) |
+| `EXPLORE` | an open question that needs several angles or sources (for example macro context plus stock candidates, or 'from various sides'): analysis first, then research angles | mode 4: analysis, then a research plan that waits for the user's approval (analysis_path MODE4; with AI_MODE4_AUTO_RESEARCH the plan runs at once and one suggestion follows) |
 
 Router gagal atau kosong: `ANALYSIS` (lihat aturan 4).
 

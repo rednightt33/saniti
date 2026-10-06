@@ -43,6 +43,7 @@ SWITCHES = {
     "AI_ENABLE_WEB_FACT": "web_fact_client",
     "AI_ENABLE_REFERENCE_LOOKUP": "reference_lookup", "AI_ENABLE_ADDRESS_MENU": "reference_check",
     "AI_ENABLE_WEB_RESEARCH": "web_research_client",
+    "AI_ENABLE_RUN_MEMORY": "run_memory", "AI_ENABLE_MERGED_STEPS": "merged_steps",
 }
 
 # One plain-language sentence per name (Indonesian, for non-developers).
@@ -67,6 +68,7 @@ PLAIN = {
     "research_web": "Mencari informasi yang tidak ada di database (fakta, angka, peristiwa dengan tanggalnya, deret per periode, daftar) di web untuk konteks atau saat data tidak ada; banyak perusahaan dalam satu panggilan; hanya butir dengan kutipan persis, konflik palsu (beda periode/definisi) dibedakan dari konflik nyata, batas biaya per giliran; setiap butir bisa dikutip dan tampil sebagai fakta web dengan domainnya.",
     "check_references": "Memeriksa alamat angka (value reference) sebelum jawaban ditulis: menampilkan nilai yang akan muncul, atau kenapa alamat salah dan alamat yang ada; tanpa memanggil model dan tanpa mengambil data.",
     "query_metric": "Jalan pintas pertanyaan sederhana: metrik resmi (net beli asing, net beli per broker, volume, harga penutupan, tertinggi/terendah) dihitung langsung oleh database dalam satu panggilan per periode.",
+    "read_conversation_memory": "Membaca memori run sebelumnya di percakapan yang sama (EXEC-C): memo, pesan, jawaban lengkap, catatan AI, rencana, setiap penolakan beserta drafnya, nilai desain dan asalnya, fakta web, kode, detail katalog, sumber angka, dan pikiran AI; per halaman, tanpa model dan tanpa data baru.",
     "get_lineage": "Menelusuri asal angka: tabel hasil, kode yang membuatnya, data yang dibaca, saringan baris, query Governor, dan tabel sumbernya; tanpa isi baris.",
     "get_session_output": "Membaca ulang tabel atau JSON hasil, termasuk dari giliran sebelumnya lewat ref (out.o3) setelah sandbox menghapusnya, dan kode yang dijalankan sebuah eksekusi.",
     "complete_analysis": "Menutup analisis: sistem memeriksa kelengkapan data dan definisi, lalu merilis hasil yang boleh dikutip.",
@@ -156,10 +158,13 @@ def _build(off: tuple[str, ...] = ()):
     kwargs["web_fact_client"] = WebFactClient("http://w", "w" * 40, transport=transport)
     kwargs["web_research_client"] = WebResearchClient("http://w", "w" * 40, transport=transport)
     kwargs["value_references"] = True  # AI_ENABLE_VALUE_REFERENCES: a description sentence, no tool of its own
+    from app.run_memory import MemoryStore
+
+    kwargs["run_memory"] = MemoryStore("postgresql://unused")  # EXEC-C: never connected while the registry is built
     for switch in off:
         argument = SWITCHES[switch]
         kwargs[argument] = None if argument in ("method_guides", "multi_angle", "metrics", "web_fact_client",
-                                                "web_research_client") else False
+                                                "web_research_client", "run_memory") else False
     registry = build_default_registry(
         object(), cursor_secret=b"x" * 32,
         governor_client=GovernorClient("http://g", "k" * 40, 90, transport=transport),

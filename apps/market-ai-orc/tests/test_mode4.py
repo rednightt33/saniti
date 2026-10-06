@@ -19,7 +19,9 @@ from conftest import ScriptedClient, final_response, make_settings
 from test_multi_angle import (MA, QUESTION, RUN_SCRIPT, Clock, RunSandbox, angles, call, feasibility_args,
                               findings_answer, ma_registry, plan_response, plan_v2, request, requirement)
 
-MODE4 = {**MA, "AI_ENABLE_ANALYSIS_PATH": "true", "AI_ENABLE_MODE4": "true"}
+# the earlier first round (research at once, then a suggestion) is the path these tests describe; EXEC-P1's default
+# (the round stops at the plan) is tested in tests/test_mode4_plan_first.py
+MODE4 = {**MA, "AI_ENABLE_ANALYSIS_PATH": "true", "AI_ENABLE_MODE4": "true", "AI_MODE4_AUTO_RESEARCH": "true"}
 ANALYSIS = {"response_type": "ANSWER", "answer": "Broker yang paling sering membeli saham bank saat pasar turun "
             "tajam adalah broker asing besar.", "clarification_question": None, "assumptions": ["Hari crash."],
             "limitations": ["Deskriptif."], "research_plan": None, "research_findings": None}
@@ -208,11 +210,12 @@ def plan_final(plan: ResearchPlanV2, answer: str = "Usulan: satu sudut. Setujui?
     return response("RESEARCH_PLAN_CONFIRMATION", answer, research_plan=plan.model_dump(mode="json"))
 
 
-def stub(script: dict[str, Any], **kwargs: Any) -> tuple[Mode4Orchestrator, FakeInner]:
+def stub(script: dict[str, Any], auto_research: bool = True, **kwargs: Any) -> tuple[Mode4Orchestrator, FakeInner]:
     inner = FakeInner(script, **kwargs)
     wrapper = Mode4Orchestrator.__new__(Mode4Orchestrator)
     wrapper.inner, wrapper.min_angles, wrapper.max_angles, wrapper.sandbox_min = inner, 2, 6, \
         inner.research_limits["sandbox_min_angles"]
+    wrapper.auto_research = auto_research  # EXEC-P1: these tests describe the earlier first round unless told not to
     return wrapper, inner
 
 

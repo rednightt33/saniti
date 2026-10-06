@@ -30,6 +30,15 @@ EVENT_STUDY_PREFIX = "event_study:"  # M99: the id space of recomputed event stu
 MAX_ANSWERS = 30  # R-STORE (C2e): one line per earlier answer, so a turn no longer in the history is not guessed
 MAX_MANUALS = 12  # 4b: method guides opened in the conversation, newest kept
 MAX_MANUAL_NOTE_CHARS = 16000
+# EXEC-C items 5 and 10 (AI_ENABLE_RUN_MEMORY): the note is never cut; the reference sections (column details,
+# category values, relationships, coverage) beyond these budgets are named with a pointer to their full text
+COLUMN_KEYS = ("description", "unit", "data_type", "semantic_type", "resample_aggregation", "cross_entity_aggregation",
+               "value_time_basis", "is_primary_key")
+MAX_COLUMN_TABLES = 20
+MAX_COLUMNS_PER_TABLE = 150
+COLUMNS_NOTE_CHARS = 14000
+REFERENCE_NOTE_CHARS = 8000
+MAX_READINGS = 30
 MANUALS_HEADER = ("METHOD GUIDES OPENED EARLIER IN THIS CONVERSATION (application context from the backend, not from "
                   "the user): the manuals of these methods are already here, current version; do not open them "
                   "again.")
@@ -44,7 +53,7 @@ NOTE_HEADER = ("DATA RECORD (application context: the data this conversation has
 def empty() -> dict[str, Any]:
     return {"version": VERSION, "tables": {}, "needs": [], "outputs": [], "research": [], "next_alias": 1,
             "values": {}, "relationships": {}, "coverage": {}, "manuals": [], "findings": [], "seq": 0,
-            "suggestion": None, "answers": []}
+            "suggestion": None, "answers": [], "columns": {}, "readings": []}
 
 
 def normalize(record: Any) -> dict[str, Any]:
@@ -66,6 +75,9 @@ def normalize(record: Any) -> dict[str, Any]:
     clean["manuals"] = [dict(m) for m in record.get("manuals") or [] if isinstance(m, dict) and m.get("name")]
     clean["findings"] = [dict(f) for f in record.get("findings") or [] if isinstance(f, dict) and f.get("id")]
     clean["answers"] = [dict(a) for a in record.get("answers") or [] if isinstance(a, dict) and a.get("request_id")]
+    clean["columns"] = {str(t): {str(c): dict(v) for c, v in cols.items() if isinstance(v, dict)}
+                        for t, cols in (record.get("columns") or {}).items() if isinstance(cols, dict)}
+    clean["readings"] = [dict(r) for r in record.get("readings") or [] if isinstance(r, dict) and r.get("request_id")]
     # M64: the order results and research suggestions were produced in (a record written before it has none)
     seq = record.get("seq")
     clean["seq"] = seq if isinstance(seq, int) and seq > 0 else 0
@@ -308,6 +320,21 @@ def add_catalog_facts(record: dict[str, Any], tool: str, arguments: dict[str, An
     if tool != "get_catalog_details":
         return
     sections = result.get("sections") if isinstance(result.get("sections"), dict) else {}
+    columns = sections.get("COLUMNS") if isinstance(sections.get("COLUMNS"), dict) else {}
+    by_table = columns.get("by_table") if isinstance(columns.get("by_table"), dict) else {}
+    if not by_table:
+        for entry in columns.get("entries") or []:
+            if isinstance(entry, dict) and entry.get("table_name"):
+                by_table.setdefault(str(entry["table_name"]), []).append(entry)
+    for table, entries in by_table.items():
+        # EXEC-C item 10: the meaning, unit and aggregation rules of each column read, not only its name
+        kept = record["columns"].pop(str(table), {})
+        for entry in entries or []:
+            if isinstance(entry, dict) and entry.get("column_name"):
+                kept[str(entry["column_name"])] = {k: entry[k] for k in COLUMN_KEYS if entry.get(k) is not None}
+        record["columns"][str(table)] = dict(list(kept.items())[-MAX_COLUMNS_PER_TABLE:])
+    if len(record["columns"]) > MAX_COLUMN_TABLES:
+        record["columns"] = dict(list(record["columns"].items())[-MAX_COLUMN_TABLES:])
     for rel in ((sections.get("RELATIONSHIPS") or {}).get("entries") or []):
         if isinstance(rel, dict) and rel.get("relationship_id") is not None:
             record["relationships"][str(rel["relationship_id"])] = {
@@ -371,6 +398,20 @@ def add_finding(record: dict[str, Any], request_id: str, *, kind: str, finding_i
     del record["findings"][:-MAX_FINDINGS]
 
 
+def add_reading(record: dict[str, Any], request_id: str, reading: dict[str, Any] | None) -> None:
+    """EXEC-C item 13: how the router read a message of the conversation (its class or route, what it refers to, the
+    design values it named and the understood intent), kept for the turns after it."""
+    if not isinstance(reading, dict):
+        return
+    kept = {k: reading[k] for k in ("route", "turn_kind", "choice", "referent", "design_value_changes",
+                                     "understood_intent", "status") if reading.get(k) not in (None, "", [], {})}
+    if not kept:
+        return
+    readings = [r for r in record.get("readings") or [] if r.get("request_id") != request_id]
+    readings.append({"request_id": request_id, **copy.deepcopy(kept)})
+    record["readings"] = readings[-MAX_READINGS:]
+
+
 def mark_suggestion(record: dict[str, Any], plan_id: str, request_id: str) -> None:
     """M64: a research suggestion (a plan waiting for the user's decision) was issued now; results produced later are
     newer than it. Issuing the same plan again keeps its place."""
@@ -395,7 +436,8 @@ def results_after_suggestion(record: dict[str, Any] | None, plan_id: str | None)
 
 
 def is_empty(record: dict[str, Any] | None) -> bool:
-    return not has_data(record) and not (record or {}).get("manuals") and not (record or {}).get("suggestion")
+    return not has_data(record) and not (record or {}).get("manuals") and not (record or {}).get("suggestion") \
+        and not (record or {}).get("readings")
 
 
 def finding_line(entry: dict[str, Any]) -> str:
@@ -477,6 +519,126 @@ def manuals_note(record: dict[str, Any], current: dict[str, dict[str, Any]]) -> 
         text += (f"\n- … {len(omitted)} more opened earlier, not shown here: {', '.join(omitted)}; open again with "
                  "get_method_guide when needed")
     return text, refreshed
+
+
+# EXEC-C (AI_ENABLE_RUN_MEMORY): the header of the full note (item 10: the column details read are in it; item 11:
+# an earlier output is cited by its ref, its rows read when the answer is rendered)
+FULL_NOTE_HEADER = ("DATA RECORD (application context: the data this conversation has already used and read, kept by "
+                    "the backend; not from the user). Tables and columns listed here were read from the catalog in "
+                    "this conversation, with each column's meaning, unit and aggregation rules: reuse them without "
+                    "reading their catalog details again, and read the catalog only for data that is not listed. "
+                    "Released outputs keep their ref: cite an output of an earlier message by that ref directly (its "
+                    "rows are read when the answer is rendered); open it with get_session_output only to see rows you "
+                    "need to choose from. A section summarized here names where its full text is.")
+FULL_POINTER = "read_conversation_memory(section=\"catalog\", item=\"<table>\") or section=\"data_record\""
+
+
+def _column_line(name: str, info: dict[str, Any]) -> str:
+    rules = ", ".join(f"{k}={info[k]}" for k in ("resample_aggregation", "cross_entity_aggregation", "value_time_basis")
+                      if info.get(k))
+    return (f"  - {name}" + (f" [{info['unit']}]" if info.get("unit") else "")
+            + (f" ({info['data_type']})" if info.get("data_type") else "")
+            + (f": {_clip(info['description'], 160)}" if info.get("description") else "")
+            + (f"; {rules}" if rules else ""))
+
+
+def _clip(text: Any, limit: int) -> str:
+    flat = " ".join(str(text or "").split())
+    return flat if len(flat) <= limit else flat[:limit - 1].rstrip() + "…"
+
+
+def full_note(record: dict[str, Any]) -> str:
+    """EXEC-C items 5 and 10: the record as one prompt note that is never cut. Tables, column details, needs,
+    outputs, research angles, earlier answers, findings and the routing of earlier messages always appear in full;
+    the reference sections (column details beyond COLUMNS_NOTE_CHARS, category values, relationships, coverage beyond
+    REFERENCE_NOTE_CHARS) are summarized with a pointer to their full text."""
+    lines = [FULL_NOTE_HEADER, "Tables (columns used; columns read from the catalog):"]
+    for name, table in sorted(record["tables"].items()):
+        extra = sorted(set(table["read"]) - set(table["used"]))
+        keys = ", ".join(f"{k}={table[k]}" for k in ("entity_column", "time_column") if table.get(k))
+        lines.append(f"- {name}" + (f" [{keys}]" if keys else "") + f": used {', '.join(table['used']) or 'none'}"
+                     + (f"; also read {', '.join(extra)}" if extra else ""))
+    columns = record.get("columns") or {}
+    if columns:
+        block, used, folded = ["Column details read (meaning, unit, type, aggregation rules):"], 0, []
+        for table, entries in sorted(columns.items()):
+            rows = [_column_line(name, info) for name, info in entries.items()]
+            size = sum(len(r) + 1 for r in rows) + len(table) + 4
+            if used + size > COLUMNS_NOTE_CHARS:
+                folded.append(f"{table} ({', '.join(entries)})")
+                continue
+            used += size
+            block += [f"- {table}:"] + rows
+        if folded:
+            block.append("- details not shown here (read them with " + FULL_POINTER + "): " + "; ".join(folded))
+        lines += block
+
+    def shown(values: list[str]) -> str:
+        more = len(values) - MAX_VALUES_SHOWN
+        return ", ".join(values[:MAX_VALUES_SHOWN]) + (f" … and {more} more (all in section data_record)"
+                                                       if more > 0 else "")
+
+    reference = [("Category values read (exact stored values; complete = every value of the column):", [
+        f"- {key}: {shown(v.get('values') or [])}" + (" [complete]" if v.get("complete") else " [only those read]")
+        + f" (read {v.get('checked_at')})" for key, v in sorted(record.get("values", {}).items())]),
+        ("Relationships read:", [
+            f"- {rid}: {r.get('left_table')}({', '.join(r.get('left_columns') or [])}) -> {r.get('right_table')}("
+            f"{', '.join(r.get('right_columns') or [])}) {r.get('temporal_rule') or ''}".rstrip()
+            for rid, r in sorted(record.get("relationships", {}).items())]),
+        ("Data coverage read (dates may have moved since; check again when it matters):", [
+            f"- {name}: " + " ".join(f"{k}={v}" for k, v in c.items()) for name, c in sorted(record.get("coverage",
+                                                                                                    {}).items())])]
+    used = 0
+    for title, items in reference:
+        if not items:
+            continue
+        block = [title]
+        for count, item in enumerate(items):
+            if used + len(item) + 1 > REFERENCE_NOTE_CHARS:
+                block.append(f"- … {len(items) - count} more, not shown here (read them with "
+                             "read_conversation_memory(section=\"data_record\"))")
+                break
+            used += len(item) + 1
+            block.append(item)
+        lines += block
+    always = [
+        ("Approved data needs (newest first; the filter each request applied):", [
+            f"- {n.get('need_id')} ({n.get('mode') or 'ANALYSIS'}, {n.get('request_id')}): " + "; ".join(
+                f"{r.get('logical_name')}={r.get('source_table')}({', '.join(r.get('columns') or [])})"
+                + (f" where {r['scope']}" if r.get("scope") else "")
+                + (f" restricted to {'; '.join(r['restrictions'])}" if r.get("restrictions") else "")
+                for r in n.get("requests") or []) for n in reversed(record["needs"])]),
+        ("Released outputs (newest first):", [
+            f"- {o.get('ref')} = {o.get('output_id')} \"{o.get('name')}\" "
+            + (f"{o['type']} " if o.get("type") not in (None, "TABLE") else "")
+            + f"({o.get('row_count')} rows; "
+            f"{', '.join(o.get('columns') or [])}) session {o.get('session_id')}, {o.get('request_id')}"
+            + (f", label {o['label']}" if o.get("label") else "")
+            + (f", data to {o['data_as_of']}" if o.get("data_as_of") else "")
+            + f"; definition: {definition_text(o.get('definition'))}"
+            for o in reversed(record["outputs"])]),
+        ("Research angles (newest first):", [
+            f"- {r.get('angle_id')} ({r.get('request_id')}): " + "; ".join(
+                f"{d['source_table']}({', '.join(d['columns'])})" for d in r.get("datasets") or [])
+            for r in reversed(record["research"])]),
+        ("Earlier answers of this conversation (newest first; the full texts are in the history and the conversation "
+         "memory):", [
+            f"- {a.get('request_id')} [{a.get('response_type')}] Q: {a.get('question')} | A: {a.get('summary')}"
+            + (f" | outputs {', '.join(a['outputs'])}" if a.get("outputs") else "")
+            + (f" | data to {a['data_as_of']}" if a.get("data_as_of") else "")
+            for a in reversed(record.get("answers") or [])]),
+        ("Findings of this conversation (newest first; cite as finding.<id>, they are not run again unless the user "
+         "asks):", [finding_line(f) for f in reversed(record.get("findings") or [])]),
+        ("How the router read earlier messages (newest first):", [
+            f"- {r.get('request_id')}: " + "; ".join(
+                f"{k}={r[k]}" for k in ("route", "turn_kind", "choice", "referent", "understood_intent", "status")
+                if r.get(k))
+            + (f"; design values {r['design_value_changes']}" if r.get("design_value_changes") else "")
+            for r in reversed(record.get("readings") or [])])]
+    for title, items in always:
+        if items:
+            lines += [title] + items
+    return "\n".join(lines)
 
 
 def note(record: dict[str, Any]) -> str:

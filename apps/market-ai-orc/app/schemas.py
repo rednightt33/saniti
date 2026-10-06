@@ -362,7 +362,8 @@ METHODOLOGY_PROPERTY: dict[str, Any] = {
 
 def final_response_schema(research_plan_confirmation: bool, methodology: bool = False,
                           research_findings: bool = False, multi_angle: bool = False,
-                          value_references: bool = False, hypothesis_plans: bool = False) -> dict[str, Any]:
+                          value_references: bool = False, hypothesis_plans: bool = False,
+                          memo_note: bool = False) -> dict[str, Any]:
     """FINAL_RESPONSE_SCHEMA, or with Research Plan confirmation the same schema plus RESEARCH_PLAN_CONFIRMATION and a
     required nullable research_plan, and with AI_ENABLE_METHODOLOGY a required nullable methodology; with research
     findings (only together with plan confirmation) the plan's experiments carry the findings values and a required
@@ -391,6 +392,13 @@ def final_response_schema(research_plan_confirmation: bool, methodology: bool = 
     elif research_findings and research_plan_confirmation:
         schema = {**schema, "properties": {**schema["properties"], "research_findings": research_findings_property()},
                   "required": [*schema["required"], "research_findings"]}
+    if memo_note:
+        # EXEC-C (Q2 "BACKEND + AI"): the model's note for later runs; taken out of the response before it is parsed,
+        # kept in the run memory, never shown to the user
+        from .run_memory import MEMO_NOTE_PROPERTY
+
+        schema = {**schema, "properties": {**schema["properties"], "memo_note": MEMO_NOTE_PROPERTY},
+                  "required": [*schema["required"], "memo_note"]}
     return schema
 
 

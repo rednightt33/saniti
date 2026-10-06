@@ -137,6 +137,18 @@ class Settings:
     # understood intent and every design value with ADD, REPLACE or REMOVE (variants), and the plan-reply reader
     # returns them too (P3b); needs AI_ENABLE_FIRST_TURN_ROUTER
     ai_enable_ask_back: bool = False
+    # EXEC-C (user decisions 2026-10-06: "Seharusnya AI membawa semuanya tanpa terkecuali", Q1 "pakai MEMO", Q2
+    # "BACKEND + AI"): every run of a server-side conversation leaves a memory (AI_conversation_run_memory): a memo
+    # written by the backend from the run's events plus the model's own note, given to every later run of the
+    # conversation (append-only, after the history), its sources registered again under the same address, and its
+    # full texts readable with read_conversation_memory; needs AI_ENABLE_CONVERSATION_STORE
+    ai_enable_run_memory: bool = False
+    # EXEC-P1 (user approval 2026-10-06): mode 4's first round stops after the analysis and its Research Plan, which
+    # waits for the user's approval; true restores the earlier behaviour (the plan runs at once, then a suggestion)
+    ai_mode4_auto_research: bool = False
+    # EXEC-P5 (user approval 2026-10-06): an APPROVED data need is followed at once by prepare_data_bundle and
+    # open_analysis_session, and run_python(complete=true) by complete_analysis, in the same turn
+    ai_enable_merged_steps: bool = False
     # OpenRouter provider routing for the agent's model calls: provider.sort "price", "throughput" or "latency". Unset
     # keeps OpenRouter's default load balancing, which is weighted to the lowest price.
     ai_provider_sort: str | None = None
@@ -367,6 +379,9 @@ class Settings:
             ai_enable_conversation_router=_boolean(env, "AI_ENABLE_CONVERSATION_ROUTER", False),
             ai_enable_first_turn_router=_boolean(env, "AI_ENABLE_FIRST_TURN_ROUTER", False),
             ai_enable_ask_back=_boolean(env, "AI_ENABLE_ASK_BACK", False),
+            ai_enable_run_memory=_boolean(env, "AI_ENABLE_RUN_MEMORY", False),
+            ai_mode4_auto_research=_boolean(env, "AI_MODE4_AUTO_RESEARCH", False),
+            ai_enable_merged_steps=_boolean(env, "AI_ENABLE_MERGED_STEPS", False),
             ai_provider_sort=(env.get("AI_PROVIDER_SORT") or "").strip().lower() or None,
             ai_log_provider=_boolean(env, "AI_LOG_PROVIDER", False),
             ai_provider_max_cache_price_ratio=_ratio(env, "AI_PROVIDER_MAX_CACHE_PRICE_RATIO", 0.0, 0.0, 1.0)
@@ -502,6 +517,8 @@ class Settings:
             raise ConfigError("AI_ENABLE_FIRST_TURN_ROUTER needs AI_ENABLE_MODE4=true")
         if settings.ai_enable_ask_back and not settings.ai_enable_first_turn_router:
             raise ConfigError("AI_ENABLE_ASK_BACK needs AI_ENABLE_FIRST_TURN_ROUTER=true")
+        if settings.ai_enable_run_memory and not settings.ai_enable_conversation_store:
+            raise ConfigError("AI_ENABLE_RUN_MEMORY needs AI_ENABLE_CONVERSATION_STORE=true")
         if settings.ai_mode_switch == 4 and not settings.ai_enable_mode4:
             raise ConfigError("AI_MODE_SWITCH=4 needs AI_ENABLE_MODE4=true")
         if settings.ai_mode_switch in (2, 3) and not settings.ai_enable_analysis_path:

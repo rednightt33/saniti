@@ -100,6 +100,14 @@ class RunPythonArgs(Strict):
     code: str = Field(min_length=1, max_length=20000, description="Python to run in the session's namespace.")
 
 
+class RunPythonCompleteArgs(RunPythonArgs):
+    """EXEC-P5 (user approval 2026-10-06, AI_ENABLE_MERGED_STEPS): the last call completes the analysis without
+    another turn."""
+    complete: bool | None = Field(description=(
+        "true on the last call: when this code runs OK the backend calls complete_analysis at once and returns its "
+        "result with this one; null or false keeps the session open."))
+
+
 class InspectSessionArgs(Strict):
     session_id: str = Field(pattern=SESSION_PATTERN)
     names: list[str] | None = Field(max_length=20, description="Variables to describe with a preview; null lists "
@@ -408,7 +416,7 @@ def close_sessions(client: SandboxClient, request_id: str, session_ids: list[str
 
 def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_timeout_seconds: float,
                   max_result_bytes: int, standard_period_return: bool = False, event_study: bool = False,
-                  backtest: bool = False
+                  backtest: bool = False, merged_steps: bool = False
                   ) -> list[ToolSpec]:
     def request_id() -> str:
         return current_request_id.get() or ""
@@ -489,7 +497,7 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
         ToolSpec(name="run_python", effect="COMPUTES", description=RUN_DESCRIPTION + (PERIOD_RETURN_SENTENCE if standard_period_return
                                                                    else "")
                  + (EVENT_STUDY_SENTENCE if event_study else "") + (BACKTEST_SENTENCE if backtest else ""),
-                 arguments_model=RunPythonArgs, handler=run,
+                 arguments_model=RunPythonCompleteArgs if merged_steps else RunPythonArgs, handler=run,
                  timeout_seconds=execution_timeout_seconds + 5, max_result_bytes=max_result_bytes),
         ToolSpec(name="inspect_session", effect="READS", description=INSPECT_DESCRIPTION, arguments_model=InspectSessionArgs,
                  handler=inspect, timeout_seconds=timeout_seconds + 5, max_result_bytes=max_result_bytes),

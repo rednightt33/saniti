@@ -29,7 +29,8 @@ pytestmark = pytest.mark.skipif(not ADMIN_URL, reason="ORC_TEST_POSTGRES_URL not
 REPO = Path(__file__).resolve().parents[3]
 MIGRATIONS = [REPO / "database/migrations/20260927_002_create_ai_conversation_store.sql",
               REPO / "database/migrations/20261003_006_conversation_results.sql",
-              REPO / "database/migrations/20261003_009_conversation_evidence.sql"]
+              REPO / "database/migrations/20261003_009_conversation_evidence.sql",
+              REPO / "database/migrations/20261006_003_conversation_run_memory.sql"]
 AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}"}
 
 # The columns of the legacy documentation tables the migration writes to (DATABASE_SCHEMA.md).
@@ -272,7 +273,7 @@ def test_the_login_reaches_the_conversation_tables_only(databases) -> None:
                 connection.execute(f'SELECT 1 FROM public."{table}"')
             connection.rollback()
         for table in ("AI_conversation", "AI_conversation_turn", "AI_conversation_output", "AI_conversation_execution",
-                      "AI_conversation_export", "AI_conversation_evidence"):
+                      "AI_conversation_export", "AI_conversation_evidence", "AI_conversation_run_memory"):
             assert connection.execute(f'SELECT count(*) FROM public."{table}"').fetchone()[0] >= 0
 
 

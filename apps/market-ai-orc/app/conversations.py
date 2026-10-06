@@ -88,24 +88,87 @@ def fingerprint(request: AgentRunRequest) -> str:
     return hashlib.sha256(json.dumps(body, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
-def assistant_text(result: AgentRunResponse) -> str | None:
-    """What later turns see as the assistant message: the clarification question for a CLARIFICATION, else the
-    answer followed by its assumptions, limitations and methodology. M63 (golden test 2026-10-02): a later turn saw
-    only the answer, not the limitation that said the market boards were combined, and guessed another definition.
-    None without a response (a failed run), so it never becomes history."""
-    response = result.response
-    if response is None:
-        return None
+# EXEC-C item 6 (user decision 2026-10-06): when a text is longer than its room, the answer's body is shortened and
+# says where the rest is; its assumptions, limitations and methodology stay whole (they came last and were cut first)
+CUT_POINTER = "[… {omitted} characters of this answer are not shown here; the conversation keeps the full answer]"
+CUT_POINTER_TOOL = ("[… {omitted} characters of this answer are not shown here; read the full answer with "
+                    "read_conversation_memory(run_id=\"{request_id}\", section=\"answer\")]")
+
+
+def _sections(response: Any) -> tuple[str, str]:
+    """The answer's body and its tail (assumptions, limitations, methodology), as later turns read them."""
     if response.response_type == "CLARIFICATION" and response.clarification_question:
-        return response.clarification_question[:MAX_ASSISTANT_TEXT] or None
-    parts = [response.answer or ""]
+        return response.clarification_question, ""
+    parts = []
     for title, items in (("Asumsi", response.assumptions), ("Batasan", response.limitations)):
         if items:
             parts.append(f"{title}:\n" + "\n".join(f"- {item}" for item in items))
     if getattr(response, "methodology", None):
         parts.append(f"Metodologi:\n{response.methodology}")
-    text = "\n\n".join(p for p in parts if p)
-    return text[:MAX_ASSISTANT_TEXT] or None
+    return response.answer or "", "\n\n".join(parts)
+
+
+def fit_text(body: str, tail: str, limit: int, pointer: str) -> str:
+    """body and tail joined within limit: the tail is kept whole and the body shortened, ending with the pointer
+    (pointer has {omitted}, the characters left out); only a tail longer than the limit itself is shortened too."""
+    joined = "\n\n".join(p for p in (body, tail) if p)
+    if len(joined) <= limit:
+        return joined
+    longest = len(pointer.format(omitted=len(joined)))
+    room = limit - len(tail) - longest - 4
+    if room >= 0:
+        kept = body[:room].rstrip()
+        return "\n\n".join(p for p in (kept + " " + pointer.format(omitted=len(body) - len(kept)), tail) if p)
+    kept = joined[:max(limit - longest - 1, 0)].rstrip()
+    return kept + " " + pointer.format(omitted=len(joined) - len(kept))
+
+
+def assistant_text(result: AgentRunResponse, limit: int = MAX_ASSISTANT_TEXT, memory_tool: bool = False) -> str | None:
+    """What later turns see as the assistant message: the clarification question for a CLARIFICATION, else the
+    answer followed by its assumptions, limitations and methodology. M63 (golden test 2026-10-02): a later turn saw
+    only the answer, not the limitation that said the market boards were combined, and guessed another definition.
+    None without a response (a failed run), so it never becomes history. EXEC-C item 6: a text longer than limit
+    keeps its tail and shortens the body with a pointer to the full answer."""
+    response = result.response
+    if response is None:
+        return None
+    body, tail = _sections(response)
+    pointer = (CUT_POINTER_TOOL if memory_tool else CUT_POINTER).replace(
+        "{request_id}", str(getattr(result, "request_id", "") or ""))
+    return fit_text(body, tail, limit, pointer) or None
+
+
+def history_text(row: dict[str, Any], memory_tool: bool = False) -> str:
+    """EXEC-C items 6 and 12: one earlier turn as the assistant message of the history: its answer within
+    MAX_MESSAGE_CHARACTERS with the tail whole, or for a turn without an answer (a failed or interrupted run) what
+    happened to it."""
+    stored = row.get("response") if isinstance(row.get("response"), dict) else {}
+    response = stored.get("response")
+    if isinstance(response, dict) and response.get("response_type"):
+        from types import SimpleNamespace
+
+        methodology = response.get("methodology")
+        if not methodology and isinstance(stored.get("mode4"), dict) \
+                and response.get("response_type") != "CLARIFICATION":
+            # EXEC-C item 7: a mode 4 turn that ends with a plan carries no methodology of its own (a plan has none);
+            # the steps' methodologies are in its mode4 block
+            parts = [(title, (stored["mode4"].get(key) or {}).get("methodology"))
+                     for title, key in (("Analisis", "analysis"), ("Riset", "research"))]
+            methodology = "\n\n".join(f"{title}: {text}" for title, text in parts if text) or None
+        view = SimpleNamespace(**{k: response.get(k) for k in ("response_type", "answer", "clarification_question")},
+                               methodology=methodology, assumptions=response.get("assumptions") or [],
+                               limitations=response.get("limitations") or [])
+        text = assistant_text(SimpleNamespace(response=view, request_id=row.get("request_id")),
+                              MAX_MESSAGE_CHARACTERS, memory_tool)
+        if text:
+            return text
+    if row.get("assistant_text"):
+        return str(row["assistant_text"])[:MAX_MESSAGE_CHARACTERS]
+    ended = row.get("run_status") or row.get("status")
+    code = row.get("error_code")
+    where = (f" What it did is in the conversation memory (the runs of {row.get('request_id')}, "
+             "read_conversation_memory)." if memory_tool else "")
+    return f"[No answer: this message ended {ended}" + (f" ({code})" if code else "") + "." + where + "]"
 
 
 @dataclass
@@ -124,7 +187,8 @@ class ConversationStore:
     """PostgreSQL access through the market_ai_conversation login (CONVERSATION_DATABASE_URL)."""
 
     def __init__(self, url: str, *, retention_days: int, lease_seconds: int, connect_timeout_seconds: int = 5,
-                 max_history_turns: int = MAX_HISTORY_ITEMS // 2, save_retry_seconds: float = 2.0) -> None:
+                 max_history_turns: int = MAX_HISTORY_ITEMS // 2, save_retry_seconds: float = 2.0,
+                 memory_tool: bool = False) -> None:
         self.url = url
         self.retention_days = retention_days
         self.lease_seconds = lease_seconds
@@ -134,6 +198,8 @@ class ConversationStore:
         self.save_retry_seconds = save_retry_seconds
         # R-STORE: (conversation_ids) -> None, run by cleanup before those conversations are deleted
         self.before_delete: Any = None
+        # EXEC-C (AI_ENABLE_RUN_MEMORY): failed turns become history and shortened answers name the memory tool
+        self.memory_tool = memory_tool
 
     def _connect(self) -> psycopg.Connection:
         try:
@@ -238,15 +304,25 @@ class ConversationStore:
                    request_fingerprint, user_message, status, lease_generation)
                VALUES (%s, %s, %s, %s, %s, 'RUNNING', %s)''',
             (request.request_id, conversation_id, turn_index, request_fingerprint, request.message, generation))
-        rows = connection.execute(
-            '''SELECT user_message, assistant_text FROM public."AI_conversation_turn"
-               WHERE conversation_id = %s AND status = 'COMPLETED' AND assistant_text IS NOT NULL
-               ORDER BY turn_index DESC LIMIT %s''', (conversation_id, self.max_history_turns)).fetchall()
+        if self.memory_tool:
+            # EXEC-C item 12: a failed or interrupted turn is history too (the message, how it ended, a pointer to
+            # what it did); item 6: an answer is shortened in its body, never in its tail
+            rows = connection.execute(
+                '''SELECT request_id, user_message, assistant_text, status, run_status, error_code, response
+                   FROM public."AI_conversation_turn"
+                   WHERE conversation_id = %s AND request_id <> %s AND status <> 'RUNNING'
+                   ORDER BY turn_index DESC LIMIT %s''',
+                (conversation_id, request.request_id, self.max_history_turns)).fetchall()
+        else:
+            rows = connection.execute(
+                '''SELECT user_message, assistant_text FROM public."AI_conversation_turn"
+                   WHERE conversation_id = %s AND status = 'COMPLETED' AND assistant_text IS NOT NULL
+                   ORDER BY turn_index DESC LIMIT %s''', (conversation_id, self.max_history_turns)).fetchall()
         history: list[HistoryMessage] = []
         for item in reversed(rows):
             history.append(HistoryMessage(role="user", content=item["user_message"][:MAX_MESSAGE_CHARACTERS]))
-            history.append(HistoryMessage(role="assistant",
-                                          content=item["assistant_text"][:MAX_MESSAGE_CHARACTERS]))
+            history.append(HistoryMessage(role="assistant", content=history_text(item, True) if self.memory_tool
+                                          else item["assistant_text"][:MAX_MESSAGE_CHARACTERS]))
         return TurnStart(conversation_id, turn_index, generation, created, history=history, state=state,
                          continuation=continuation)
 
@@ -294,7 +370,8 @@ class ConversationStore:
                    WHERE t.request_id = %s AND t.status = 'RUNNING' AND t.lease_generation = %s
                      AND c.conversation_id = t.conversation_id AND c.conversation_id = %s
                      AND c.active_request_id = %s AND c.lease_generation = %s''',
-                (result.status, response.response_type if response else None, assistant_text(result),
+                (result.status, response.response_type if response else None,
+                 assistant_text(result, memory_tool=self.memory_tool),
                  Jsonb(body), result.error.code if result.error else None, request_id, start.generation,
                  start.conversation_id, request_id, start.generation)).rowcount
             if stored != 1:

@@ -20,7 +20,7 @@ LOGIN = "market_ai_conversation"
 GROUP = "market_ai_conversation_store"
 # 20260927_002: the conversation and its turns; 20261003_006 (R-STORE): its outputs, executions and exports
 TABLES = {"AI_conversation", "AI_conversation_turn", "AI_conversation_output", "AI_conversation_execution",
-          "AI_conversation_export", "AI_conversation_evidence"}
+          "AI_conversation_export", "AI_conversation_evidence", "AI_conversation_run_memory"}  # run memory: 20261006_003
 
 
 def main() -> None:

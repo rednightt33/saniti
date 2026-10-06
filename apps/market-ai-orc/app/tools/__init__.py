@@ -60,6 +60,8 @@ def build_default_registry(
     reference_check: bool = False,
     web_research_client: Any | None = None,
     value_references: bool = False,
+    run_memory: Any | None = None,
+    merged_steps: bool = False,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
@@ -119,7 +121,8 @@ def build_default_registry(
         if dataneed_enabled:
             for spec in data_need_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
                                         max_result_bytes=python_analysis_max_bytes, composite_keys=composite_keys,
-                                        point_in_time=point_in_time, research_findings=research_findings):
+                                        point_in_time=point_in_time, research_findings=research_findings,
+                                        merged_steps=merged_steps):
                 registry.register(spec)
             if governor_client is not None:
                 # many Governor extractions plus the sandbox's verification and profiling
@@ -132,7 +135,7 @@ def build_default_registry(
                                           execution_timeout_seconds=session_timeout_seconds,
                                           max_result_bytes=python_analysis_max_bytes,
                                           standard_period_return=standard_period_return,
-                                          event_study=event_study, backtest=backtest):
+                                          event_study=event_study, backtest=backtest, merged_steps=merged_steps):
                     registry.register(spec)
                 if export:
                     # D4 (AI_ENABLE_EXPORT): a download file of an output, kept with the conversation
@@ -200,6 +203,11 @@ def build_default_registry(
         library = (multi_angle or {}).get("library") if multi_angle else None
         registry.register(method_guide_spec(method_guides["names"], library_rows=library))
         registry.method_guides = method_guides
+    if run_memory is not None:
+        # EXEC-C (AI_ENABLE_RUN_MEMORY): what earlier runs of the conversation kept, on every desk
+        from .memory import memory_spec
+
+        registry.register(memory_spec(run_memory))
     return registry
 
 
