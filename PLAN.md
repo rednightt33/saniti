@@ -22,9 +22,9 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 
 | No | Butir | Disetujui | Status | Urutan usulan |
 |---|---|---|---|---|
-| 1 | Sisa item 10 dan 12: deploy dua perbaikan, ulang uji item ambang, laporan golden test `ma-qa-20261006b` | "gas" 2026-10-05; format web "Ok tambahkan" 2026-10-06 | Kode jadi (`7eda0b7`, `d675404`, di cabang kerja, belum di `main`); laporan belum | 1 |
-| 2 | P3: gerbang yang salah tolak | 2026-10-06 "OK masukan plan jangan execute dulu" | Belum | 2 |
-| 3 | Item 11: penyortir "free will", jalur TANYA BALIK, cadangan berupa pertanyaan | 2026-10-05 (16:47, 17:40, 17:51, 17:55), ditegaskan 2026-10-06 | Belum | 3 |
+| 1 | Sisa item 10 dan 12: deploy dua perbaikan, ulang uji item ambang, laporan golden test `ma-qa-20261006b` | "gas" 2026-10-05; format web "Ok tambahkan" 2026-10-06; **EXEC 2026-10-06** | **EXEC** (lihat bagian EXEC) | 1 |
+| 2 | P3: gerbang yang salah tolak | 2026-10-06 "OK masukan plan jangan execute dulu" | Belum (P3a ikut EXEC butir 1, P3b ikut EXEC butir 3) | 3 |
+| 3 | Item 11: penyortir "free will", jalur TANYA BALIK, cadangan berupa pertanyaan | 2026-10-05 (16:47, 17:40, 17:51, 17:55), ditegaskan 2026-10-06; **EXEC 2026-10-06** | **EXEC** (lihat bagian EXEC) | 2 |
 | 4 | P2: jawaban ditulis sekali | 2026-10-06 | Belum | 4 |
 | 5 | P1: mode 4 berhenti setelah analisis + rencana | 2026-10-06 | Belum | 5 |
 | 6 | P5: gabung langkah mekanis | 2026-10-06 | Belum | 6 |
@@ -37,6 +37,67 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 
 Biaya model: butir 1 (ulang uji ±USD 0,07) dan setiap golden test sesudah butir 2–7. Sisa kredit OpenRouter terakhir
 ±USD 0,7, jadi kredit dicek sebelum uji apa pun.
+
+Status **EXEC** = user sudah menyetujui eksekusi; dijalankan hari ini atau saat kuota siap, tanpa meminta izin lagi
+untuk langkah di dalamnya. Berhenti dan lapor bila menemui kondisi berhenti, atau bila perlu tindakan di luar langkah ini.
+
+## EXEC (disetujui 2026-10-06: "1 dan 3 … EXEC")
+
+Urutan: EXEC-1, lalu EXEC-3. EXEC-3 dibangun di atas `main` yang sudah memuat EXEC-1.
+
+### EXEC-1: sisa item 10 dan 12 (butir 1)
+
+| Langkah | Isi | Biaya | Lulus bila |
+|---|---|---|---|
+| 0 | Pra-cek: kredit OpenRouter (dibaca di proses, kunci tidak dicetak); Railway dev (tidak ada golden test atau job berjalan); cabang = `origin`; `main` bisa fast-forward | 0 | Kredit ≥ USD 0,30; tidak ada run berjalan |
+| 1 | Tes lokal: suite orc dan web-governor; `git diff --check` | 0 | Hijau |
+| 2 | Push `main` (fast-forward ke cabang kerja: `7eda0b7`, `d675404`, dokumen). Orc dan web-governor auto-deploy | 0 | Kedua deployment SUCCESS; log start bersih (`ai_provider_policy` OK, tanpa `web_research_inactive`); `railway config plan` up to date |
+| 3 | Uji asap route web: 1 kasus (`bi_rate`) lewat `web-governor-test-runner` fase `orc_web` | ±USD 0,02 | `currency` berupa kode ISO, `unit_code`, tanggal ISO, tanpa `DATE_NOT_ISO` |
+| 4 | Ulang uji `threshold_from_result` (3 giliran), suite `qa_20261006c`, prefix `ma-qa-20261006c` | ±USD 0,07 | Giliran 2 = rencana dengan efek minimal dari hasil sebelumnya (tidak LIMITED); giliran 3 menjalankan riset |
+| 5 | Laporan `GT_QA_2026-10-06.md` (non-dev): kriteria lulus rencana item 10/12, analisis waktu, ulang uji langkah 4; prosedur 5 langkah per temuan, termasuk praktik terbaik online dan perbandingannya | 0 | Setiap temuan punya akar masalah dari log, usulan, risiko, pembanding online dan solusi final |
+| 6 | Catatan: status P35, P36, P37, M83, W24, W26; 11 entri temuan baru (lihat butir 1 langkah 5); `RAILWAY_CHANGELOG.md`, `DATABASE_CHANGELOG.md`, `OUTSTANDING_ISSUES.md`; butir 1 dihapus dari `PLAN.md`. Commit, push `main` dan cabang, cek sama dengan `origin` | 0 | Push sukses |
+
+**Kondisi berhenti:**
+- **Deploy tidak SUCCESS:** redeploy deployment sebelumnya (orc `96726ca5`, web-governor `7ca3067e`), lalu lapor.
+- **Kredit kurang:** berhenti sebelum langkah 3.
+- **Ulang uji gagal:** dicatat dan dilaporkan. Perbaikan kode di luar langkah ini menunggu izin.
+
+### EXEC-3: item 11 penyortir "free will" + TANYA BALIK (butir 3, termasuk P3b)
+
+| Langkah | Isi | Biaya | Lulus bila |
+|---|---|---|---|
+| 0 | Patokan: `scripts/benchmark_first_router.py` dan `benchmark_turn_router.py` dengan kode sekarang | ±USD 0,03 | Angka patokan tercatat |
+| 1 | Set berlabel, ditulis **sebelum** kode dijalankan. Pesan pertama: ≥ 8 harus-tanya ("BBRI", "BBCA", "analisis BBRI", "strategi ini bagus nggak?" tanpa strategi, …) dan ≥ 8 tidak-boleh-tanya (bakrie, q7, h_add, threshold, p2, …), dibagi pengembangan dan uji tersembunyi. Pesan lanjutan: ≥ 4 harus-tanya | 0 | — |
+| 2 | Kode orc di balik saklar baru `AI_ENABLE_ASK_BACK` (default mati). Rincian di bawah tabel | 0 | — |
+| 3 | Tes unit + suite orc; `AI_ROUTER.md` dan `AI_MODELS.md` diregenerasi (skema keluaran berubah) | 0 | Hijau; tes drift lulus |
+| 4 | Benchmark ulang dengan saklar menyala (lokal, model asli) | ±USD 0,03 | 0 pertanyaan data dirutekan ke CHAT/FACT; harus-tanya ≥ 90% ditanya; tidak-boleh-tanya 0 ditanya; akurasi rute lain tidak di bawah patokan |
+| 5 | Push `main` → orc deploy SUCCESS; `AI_ENABLE_ASK_BACK=true` di dev (satu perubahan variabel); `railway config pull --force` + `config plan`; `RAILWAY_CHANGELOG.md` | 0 | SUCCESS; log start bersih |
+| 6 | Uji live kecil: "BBRI" dan pilihan ① ringkasan cepat; satu kasus cadangan gagal disimulasikan di tes, tidak live | ±USD 0,05 | "BBRI" mendapat pertanyaan ≤ 15 dtk; pilihan ① menghasilkan ringkasan dengan cakupan sesuai maksud |
+| 7 | Catatan: entri ERRORS untuk perubahan penyortir, R34 tetap; README orc; butir 3 dan P3b dihapus dari `PLAN.md`. Commit, push `main` dan cabang | 0 | Push sukses |
+
+**Rincian kode langkah 2** (`apps/market-ai-orc/app/conversation_router.py`, `orchestrator.py`, `mode4.py`,
+`schemas.py`, `main.py`):
+- **Penyortir pesan pertama:**
+  - jalur ASK_BACK dengan kriteria (a)–(c);
+  - daftar kemampuan dibuat dari tabel jalur di kode;
+  - aturan "ambigu + data → ANALYSIS" dicabut;
+  - keluaran `understood_intent`, `assumptions`, `question`, `options`;
+  - ASK_BACK menjawab langsung CLARIFICATION tanpa run analisis;
+  - `understood_intent` dikirim ke langkah analisis sebagai catatan aplikasi.
+- **Penyortir pesan lanjutan:** kelas ASK_BACK.
+- **Cadangan gagal teknis** (pesan pertama dan lanjutan): coba ulang sekali, lalu pertanyaan baku tanpa model.
+- **Pilihan:** setiap pilihan memetakan ke jalur.
+  - ① ringkasan cepat = ANALYSIS dengan maksud "ringkasan singkat" dan cakupan terbatas;
+  - ② analisis data = ANALYSIS;
+  - ③ uji/riset = RESEARCH.
+
+  Balasan teks bebas tetap lewat penyortir.
+- **P3b:** pembaca balasan rencana non-mode-4 mengembalikan `design_value_changes` dan `referent`, lalu mengisi
+  `current_design_changes` / `current_turn_referent`.
+
+**Kondisi berhenti dan jalan balik:**
+- Benchmark langkah 4 tidak lulus: berhenti, lapor, tidak deploy.
+- Masalah setelah live: `AI_ENABLE_ASK_BACK=false` (satu perubahan variabel, kode tetap).
 
 ---
 
