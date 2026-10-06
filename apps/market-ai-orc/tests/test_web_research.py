@@ -243,3 +243,17 @@ def test_the_one_fact_sentences_leave_only_with_research_web() -> None:
     assert " ".join(OUTSIDE_DATA_WEB_RULE.split()) in one_fact and "research_web" not in one_fact
     spec_path = build_system_prompt(lookup_fact=False, tools=frozenset({"research_web"}))
     assert "research_web" in spec_path and "find_web_fact" not in spec_path
+
+
+def test_a_percent_web_value_declares_its_unit() -> None:
+    from app.orchestrator import AgentOrchestrator as Orc  # noqa: F401 - the same orchestrator as tracked()
+
+    percent = {**ENTRY, "id": "wab12cd34_9", "value": 2.92, "value_as_written": "2,92%", "unit": "persen",
+               "unit_code": "PERCENT", "scale": None}
+    orc = AgentOrchestrator(make_settings(), ScriptedClient([]), build_default_registry())
+    state = RunState(request_id="r1", started=0.0, input_items=[])
+    result = model_view({**ANSWER, "citable": [percent]})
+    orc._track_references(state, "research_web", ToolOutcome(call_id="c1", name="research_web", ok=True,
+                                                             output={"result": result}), {})
+    assert result["citable"][0]["unit_code"] == "PERCENT"
+    assert render("{{web.wab12cd34_9.value|pct}}", state.ref_sources).text.startswith("2,92%")

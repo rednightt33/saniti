@@ -4155,7 +4155,9 @@ class AgentOrchestrator:
             if namespace is None or not entry.get("id"):
                 continue
             source = entry.get("source") if isinstance(entry.get("source"), dict) else {}
-            sources.add(namespace, str(entry["id"]), entry, entry["label"], origin=source.get("domain"))
+            # a percent figure declares its unit, so a percent format shows 2,92 as 2,92% (not 292%)
+            units = {"value": "PERCENT"} if entry.get("unit_code") == "PERCENT" else None
+            sources.add(namespace, str(entry["id"]), entry, entry["label"], units=units, origin=source.get("domain"))
             entry["ref"] = f"{namespace}.{entry['id']}"  # its own ref is its address: no menu line
         if getattr(self, "address_menu", False) and refs:
             menu = [line for ref in dict.fromkeys(refs) for line in sources.menu(ref)]

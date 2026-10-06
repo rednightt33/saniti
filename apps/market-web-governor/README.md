@@ -54,7 +54,10 @@ them.
   (latest revision to describe, first release for a market reaction) and gives its reason.
 - **Code's guard:** an item whose quote is not in its source's text is dropped (`QUOTE_NOT_VERBATIM`); source tiers come
   from the route's domain lists, never from the model; a number's uniform value is its value times the written scale
-  (miliar, juta, billion…).
+  (miliar, juta, billion…); a value the reading misread (a decimal comma read as thousands) is read again from the
+  figure as written (`VALUE_FROM_WRITTEN`); currency becomes an ISO 4217 code (`currency_as_written` keeps the
+  original), percent and basis points get `unit_code` (PERCENT, BPS), and dates become ISO dates (a year or a month is
+  its first day, or its last day at the end of a period; anything else is left empty with `DATE_NOT_ISO`).
 - **Answer:** `status` (`OK`, `PARTIAL`, `NOT_FOUND`, `BUDGET_EXHAUSTED`), `result_id`, `depth`, `escalated`,
   `escalation` (the reason, or null), `items`
   (a short index), `citable` (id `<result_id>_<n>`, shape, subject, statement, value, label `WEB_FACT`, source with

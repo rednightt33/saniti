@@ -337,6 +337,87 @@ def uniform(number: dict[str, Any] | None) -> float | None:
     return float(number["value"]) * SCALES.get(scale, 1.0)
 
 
+
+# ----------------------------------------------------------------------------------------------- code's formats
+# The reading writes currency, unit and dates as it reads them ("US$", "juta dolar AS", "2024"); code makes them uniform
+# (user decision 2026-10-06): ISO 4217 currency, ISO 8601 dates, a unit code for percent and basis points.
+CURRENCIES = (("IDR", ("idr", "rp", "rupiah")), ("USD", ("usd", "us$", "dolar as", "dollar as", "us dollar",
+              "dolar amerika", "u.s. dollar", "$")), ("EUR", ("eur", "€", "euro")), ("JPY", ("jpy", "¥", "yen")),
+              ("CNY", ("cny", "rmb", "yuan", "renminbi")), ("SGD", ("sgd", "s$", "dolar singapura")),
+              ("GBP", ("gbp", "£", "pound sterling", "poundsterling")))
+DATE_RE = re.compile(r"^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$")
+
+
+def currency_code(*texts: Any) -> str | None:
+    """The ISO 4217 code named by the first text that names one (the currency field, then the unit and the figure as
+    written), or None."""
+    for text in texts:
+        low = f" {str(text or '').lower()} "
+        for code, names in CURRENCIES:
+            if any((name in low) if not name.isalpha() else re.search(rf"(?<![a-z]){re.escape(name)}(?![a-z])", low)
+                   for name in names):
+                return code
+    return None
+
+
+def unit_code(*texts: Any) -> str | None:
+    """PERCENT, BPS or None, from the unit and the figure as written."""
+    low = " ".join(str(t or "").lower() for t in texts)
+    if re.search(r"\bbps\b|basis poin|basis point", low):
+        return "BPS"
+    if "%" in low or re.search(r"\bpersen\b|\bpercent\b|\bper cent\b", low):
+        return "PERCENT"
+    return None
+
+
+def iso_date(text: Any, end: bool = False) -> tuple[str | None, bool]:
+    """(ISO date or None, whether the text was not a date). A year or a month becomes its first day, or its last
+    day for the end of a period."""
+    if text in (None, ""):
+        return None, False
+    match = DATE_RE.match(str(text).strip())
+    if not match:
+        return None, True
+    year, month, day = int(match.group(1)), match.group(2), match.group(3)
+    try:
+        if day:
+            return date(year, int(month), int(day)).isoformat(), False
+        if month:
+            first = date(year, int(month), 1)
+            if not end:
+                return first.isoformat(), False
+            following = date(year + (int(month) == 12), int(month) % 12 + 1, 1)
+            return date.fromordinal(following.toordinal() - 1).isoformat(), False
+        return (date(year, 12, 31) if end else date(year, 1, 1)).isoformat(), False
+    except ValueError:
+        return None, True
+
+
+def uniform_formats(entry: dict[str, Any]) -> int:
+    """Currency, unit code and dates of one citable entry made uniform in place; returns the dates that were not
+    dates (set to null)."""
+    bad = 0
+    if "value_as_written" in entry:
+        entry["currency_as_written"] = entry.get("currency")
+        entry["currency"] = currency_code(entry.get("currency"), entry.get("unit"), entry.get("value_as_written"))
+        entry["unit_code"] = unit_code(entry.get("unit"), entry.get("value_as_written"))
+        period = entry.get("period") or {}
+        for key, end in (("start", False), ("end", True)):
+            period[key], wrong = iso_date(period.get(key), end)
+            bad += wrong
+        entry["release_date"], wrong = iso_date(entry.get("release_date"))
+        bad += wrong
+    event = entry.get("event")
+    if isinstance(event, dict):
+        for key in ("announced", "effective", "ended"):
+            event[key], wrong = iso_date(event.get(key))
+            bad += wrong
+        for stage in event.get("stages") or []:
+            if isinstance(stage, dict):
+                stage["date"], wrong = iso_date(stage.get("date"))
+                bad += wrong
+    return bad
+
 # ----------------------------------------------------------------------------------------------- service
 
 
@@ -431,6 +512,9 @@ class OrcWebService:
         self._store_call("spend", warnings, request.budget_key, calls, usage["cost_usd"])
         retrieved_at = datetime.now(UTC).isoformat(timespec="seconds")
         envelope = self._envelope(result_id, reading["items"], reading["sources"], retrieved_at)
+        if envelope["bad_dates"]:
+            warnings.append({"code": "DATE_NOT_ISO",
+                             "message": f"{envelope['bad_dates']} dates were not dates and were left empty"})
         incomplete = any(w["code"] in INCOMPLETE for w in warnings)
         status = "NOT_FOUND" if not reading["items"] else ("PARTIAL" if incomplete or reading["short"] else "OK")
         result = mark_conflicts({
@@ -727,7 +811,7 @@ class OrcWebService:
                   ) -> dict[str, list[dict]]:
         """Each item gets an id made here (<result_id>_<n>); every item is citable: a number by its uniform value, a
         fact, an event or a list by its text."""
-        citable, shown = [], []
+        citable, shown, bad_dates = [], [], 0
         for n, item in enumerate(items, 1):
             item_id = f"{result_id}_{n}"
             source = sources[item["source"] - 1] if 1 <= item["source"] <= len(sources) else {}
@@ -753,13 +837,14 @@ class OrcWebService:
                               "frequency": number.get("frequency"), "release_date": number.get("release_date"),
                               "revision": number.get("revision"), "coverage": number.get("coverage")})
             if item.get("event"):
-                entry["event"] = item["event"]
+                entry["event"] = dict(item["event"])
             if item.get("members"):
                 entry["members"] = item["members"]
+            bad_dates += uniform_formats(entry)
             citable.append(entry)
             shown.append({"id": item_id, "shape": item["shape"], "subject": item.get("subject"),
                           "statement": item.get("statement"), "source": item["source"]})
-        return {"items": shown, "citable": citable}
+        return {"items": shown, "citable": citable, "bad_dates": bad_dates}
 
 
 def mark_conflicts(result: dict[str, Any]) -> dict[str, Any]:

@@ -46,9 +46,9 @@ MAX_SUBJECTS = 30
 MAX_SECONDS = 150.0
 MIN_SECONDS = 20.0
 RESERVE_SECONDS = 15.0  # the run's time kept for the answer after a lookup
-ENTRY_KEYS = ("id", "shape", "subject", "statement", "series_name", "value", "value_as_written", "unit", "currency",
-              "scale", "kind", "compared_with", "period", "frequency", "release_date", "revision", "coverage", "event",
-              "members", "quote", "confidence", "conflict", "chosen_by_ai", "label")
+ENTRY_KEYS = ("id", "shape", "subject", "statement", "series_name", "value", "value_as_written", "unit", "unit_code",
+              "currency", "scale", "kind", "compared_with", "period", "frequency", "release_date", "revision", "coverage",
+              "event", "members", "quote", "confidence", "conflict", "chosen_by_ai", "label")
 
 
 class ResearchWebArguments(BaseModel):

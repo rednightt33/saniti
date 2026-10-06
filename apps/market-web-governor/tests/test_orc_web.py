@@ -537,3 +537,35 @@ def test_only_a_misreading_overrides_the_reading() -> None:
     assert not _misread({"value": 282.9, "value_as_written": "282,9", "scale": "miliar"})
     # a written figure in full with a scale given by the reading: a different difference, left to the reading
     assert not _misread({"value": 264.7, "value_as_written": "264,700,000,000", "scale": "miliar"})
+
+
+def test_currency_unit_and_dates_are_made_uniform() -> None:
+    from app.orc_web import currency_code, iso_date, uniform_formats, unit_code
+
+    assert currency_code("US$") == "USD" and currency_code(None, "juta dolar AS") == "USD"
+    assert currency_code("Rp") == "IDR" and currency_code(None, None, "Rp1,5 triliun") == "IDR"
+    assert currency_code("rupiah") == "IDR" and currency_code("persen") is None
+    assert unit_code("persen") == "PERCENT" and unit_code(None, "2,92%") == "PERCENT" and unit_code("bps") == "BPS"
+    assert unit_code("juta dolar AS") is None
+    assert iso_date("2024") == ("2024-01-01", False) and iso_date("2024", end=True) == ("2024-12-31", False)
+    assert iso_date("2025-02", end=True) == ("2025-02-28", False) and iso_date("2025-12", end=True)[0] == "2025-12-31"
+    assert iso_date("2026-09-23") == ("2026-09-23", False) and iso_date("23 September 2026") == (None, True)
+    assert iso_date(None) == (None, False) and iso_date("2026-02-30") == (None, True)
+    entry = {"value_as_written": "US$264,70 miliar", "currency": "US$", "unit": "miliar",
+             "period": {"start": "2024", "end": "2024", "basis": "ANNUAL"}, "release_date": "Jan 2025",
+             "event": {"announced": "2025-04-02", "effective": "soon", "ended": None,
+                       "stages": [{"date": "2025-07", "text": "deal"}]}}
+    assert uniform_formats(entry) == 2  # "Jan 2025" and "soon"
+    assert entry["currency"] == "USD" and entry["currency_as_written"] == "US$"
+    assert entry["period"] == {"start": "2024-01-01", "end": "2024-12-31", "basis": "ANNUAL"}
+    assert entry["release_date"] is None and entry["event"]["effective"] is None
+    assert entry["event"]["stages"][0]["date"] == "2025-07-01"
+
+
+def test_a_date_that_is_not_a_date_is_left_empty_with_a_warning(tmp_path) -> None:
+    undated = reading([item("NUMBER", 2, "Januari-Desember 2024 mencapai US$264,70 miliar",
+                            number=number(264.70, "US$264,70 miliar", start="awal 2024", end="2024-12-31"))])
+    result = OrcWebService(settings_with(tmp_path), Provider(readings=[undated])).answer(request())
+    entry = result["citable"][0]
+    assert entry["period"]["start"] is None and entry["currency"] == "USD"
+    assert any(w["code"] == "DATE_NOT_ISO" for w in result["warnings"])
