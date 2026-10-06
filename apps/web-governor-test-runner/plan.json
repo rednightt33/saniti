@@ -1,42 +1,24 @@
 {
  "phase": "orc_web",
- "prefix": "orcweb-bench-20261006b-",
- "workers": 2,
- "repeat_cached": 1,
+ "prefix": "orcweb-smoke-20261006c-",
+ "workers": 1,
+ "repeat_cached": 0,
  "cases": [
   {
-   "id": "q7_exports",
-   "need": "nilai ekspor Indonesia per tahun sejak 2018",
-   "purpose": "CONTEXT",
-   "expected_shape": "SERIES",
+   "id": "bi_rate",
+   "need": "BI-Rate terbaru dan tanggal pengumumannya",
+   "purpose": "CITE",
+   "expected_shape": "NUMBER",
    "labels": {
-    "depth": "ANY",
+    "depth": "QUICK",
     "shapes": [
-     "SERIES"
+     "NUMBER"
     ],
-    "min_items": 3,
-    "min_periods": 3,
+    "min_items": 1,
     "conflicts": "NONE_REAL",
     "official": true
    },
-   "expected": "BPS: 2018 US$180,0 miliar ... 2024 US$264,7 miliar"
-  },
-  {
-   "id": "inflation_monthly",
-   "need": "inflasi tahunan (year on year) Indonesia per bulan tahun 2025",
-   "purpose": "CONTEXT",
-   "expected_shape": "SERIES",
-   "labels": {
-    "depth": "ANY",
-    "shapes": [
-     "SERIES"
-    ],
-    "min_items": 3,
-    "min_periods": 3,
-    "conflicts": "NONE_REAL",
-    "official": true
-   },
-   "expected": "BPS, inflasi y-on-y bulanan 2025"
+   "expected": "bi.go.id, keputusan RDG terakhir"
   }
  ]
 }

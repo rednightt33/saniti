@@ -1742,6 +1742,20 @@ def log_event(event: str, **fields: Any) -> None:
     logger.info(dumps({"event": event, **fields}))
 
 
+def cited_match(value: float, cited: list[float], *, magnitude: bool) -> bool:
+    """10.6 (re-test 2026-10-06): a plan value equals a cited result value as the plan writes it: rounded to the plan
+    value's own decimals, in the same or the percent scale, and for a minimum effect by its size (a cited difference
+    of −0,705 pp is a minimum effect of 0,705)."""
+    text = f"{value:.10f}".rstrip("0")
+    places = max(len(text.split(".", 1)[1]) if "." in text else 0, 1)
+    for number in cited:
+        for scaled in (number, number * 100, number / 100):
+            candidate = abs(scaled) if magnitude else scaled
+            if abs(round(candidate, places) - value) < 1e-9:
+                return True
+    return False
+
+
 def static_prefix_hash(payload: dict[str, Any]) -> str:
     """Fingerprint of everything a model call sends except the conversation (input) and the session id (EXEC-S):
     instructions, tools, output format, and settings, serialized in the order sent. Equal fingerprints across a run's
@@ -4192,7 +4206,7 @@ class AgentOrchestrator:
             return any(abs(n - value) < 1e-9 or abs(n * 100 - value) < 1e-9 or abs(n / 100 - value) < 1e-9
                        for n in pool)
 
-        taken = [v for v in values if v is not None and not matches(v, stated) and matches(v, cited)]
+        taken = [v for v in values if v is not None and not matches(v, stated) and cited_match(v, cited, magnitude=True)]
         if taken:
             log_event("plan_threshold_from_result", request_id=state.request_id, values=taken[:10])
 
@@ -4845,7 +4859,8 @@ class AgentOrchestrator:
         invented = [e.success_rule.value for e in getattr(final.research_plan, "experiments", None) or []
                     if getattr(e, "success_rule", None) is not None
                     and not any(abs(n - e.success_rule.value) < 1e-9 or abs(n * 100 - e.success_rule.value) < 1e-9
-                                or abs(n / 100 - e.success_rule.value) < 1e-9 for n in stated)]
+                                or abs(n / 100 - e.success_rule.value) < 1e-9 for n in stated)
+                    and not cited_match(e.success_rule.value, cited, magnitude=False)]
         if invented:
             values = ", ".join(f"{v:g}" for v in invented)
             self._gate_once(state, "PLAN_SUCCESS_RULE", PLAN_SUCCESS_RULE_INSTRUCTION.format(values=values)
@@ -4858,7 +4873,8 @@ class AgentOrchestrator:
                              if getattr(i, "min_effect", None) is not None]
         invented = [i.min_effect for i in items_with_effect
                     if not any(abs(n - i.min_effect) < 1e-9 or abs(n * 100 - i.min_effect) < 1e-9
-                               or abs(n / 100 - i.min_effect) < 1e-9 for n in stated)]
+                               or abs(n / 100 - i.min_effect) < 1e-9 for n in stated)
+                    and not cited_match(i.min_effect, cited, magnitude=True)]
         if invented:
             values = ", ".join(f"{v:g}" for v in invented)
             self._gate_once(state, "PLAN_MIN_EFFECT", PLAN_MIN_EFFECT_INSTRUCTION.format(values=values)

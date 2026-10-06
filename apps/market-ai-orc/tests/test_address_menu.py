@@ -307,3 +307,29 @@ def test_a_plan_citing_an_earlier_result_by_reference_passes_end_to_end() -> Non
     finally:
         current_turn_referent.reset(token)
     assert "2,40%" in rendered.answer and final.research_plan.experiments[0].success_rule.value == 2.4
+
+
+def test_a_cited_value_matches_as_the_plan_writes_it() -> None:
+    from app.orchestrator import cited_match
+    # re-test ma-qa-20261006c turn 2: the cited difference was −0,705… pp and the plan's minimum effect 0.705
+    assert cited_match(0.705, [-0.70524], magnitude=True)
+    assert cited_match(0.71, [-0.70524], magnitude=True)
+    assert not cited_match(0.705, [-0.70524], magnitude=False)  # a success threshold keeps its sign
+    assert cited_match(-0.71, [-0.70524], magnitude=False)
+    assert cited_match(70.5, [-0.70524], magnitude=True)  # the percent scale, as for the user's own numbers
+    assert not cited_match(0.8, [-0.70524], magnitude=True)
+
+
+def test_a_minimum_effect_cited_from_a_negative_difference_passes_the_gate() -> None:
+    from app.user_words import current_turn_referent
+    from test_mode4_user_rules import _plan
+    from test_research_findings import agent
+    orchestrator = agent()
+    orchestrator.audit_outbox = None
+    token = current_turn_referent.set("NEWEST_RESULT")
+    try:
+        final = orchestrator._plan_gate(_gate_state(orchestrator, -0.70524),
+                                        _plan(10, min_effect=0.705, min_effect_unit="PERCENT"))
+    finally:
+        current_turn_referent.reset(token)
+    assert final.research_plan.experiments[0].min_effect == 0.705
