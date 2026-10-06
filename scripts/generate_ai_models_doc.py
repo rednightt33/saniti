@@ -48,9 +48,12 @@ PURPOSE = {
         "Panggilan kecil tanpa alat: dua router (kriteria di AI_ROUTER.md): router pesan pertama (classify_first: "
         "CHAT, FACT, ANALYSIS, RESEARCH, EXPLORE) dan router pesan lanjutan (classify_turn: CLARIFY, INSIGHT, CONTINUE, "
         "APPROVE, ...); serta cek katalog sebelum web (P34: apakah atribut yang mau dicari di web sudah ada di kolom "
-        "tabel referensi database).",
+        "tabel referensi database). Dengan AI_ENABLE_ASK_BACK (EXEC-3) kedua router juga boleh menjawab ASK_BACK "
+        "(pertanyaan + pilihan cepat), mengembalikan maksud user dan semua nilai desain (varian), dan panggilan yang "
+        "gagal diulang sekali.",
     "market-ai-orc:orchestrator.py:_classify_reply":
-        "Membaca balasan user atas rencana riset yang menunggu (setuju, ubah, batal, topik lain).",
+        "Membaca balasan user atas rencana riset yang menunggu (setuju, ubah, batal, topik lain); dengan "
+        "AI_ENABLE_ASK_BACK juga rujukan dan nilai desain yang ditambah, diganti atau dihapus (P3b).",
     "market-web-governor:ask.py:ask":
         "Jawaban akhir riset web /v1/ask dari artikel yang sudah dibaca.",
     "market-web-governor:ask.py:_implications":

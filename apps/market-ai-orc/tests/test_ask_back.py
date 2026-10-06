@@ -88,8 +88,9 @@ def test_the_route_guide_examples_are_not_benchmark_messages() -> None:
     fixtures = Path(__file__).parent / "fixtures"
     first = json.loads((fixtures / "first_message_router_cases.json").read_text())
     turn = json.loads((fixtures / "turn_router_cases.json").read_text())["cases"]
-    messages = {i["message"].casefold() for key in ("development", "heldout") for i in first[key]} | \
-        {c["message"].casefold() for c in turn}
+    variant = json.loads((fixtures / "turn_router_cases.json").read_text())["variant_cases"]
+    messages = {i["message"].casefold() for key in ("development", "heldout", "ask_back") for i in first[key]} | \
+        {c["message"].casefold() for c in turn + variant}
     assert not any(example.casefold() in messages for _, example in router.FIRST_ROUTE_GUIDE.values())
 
 

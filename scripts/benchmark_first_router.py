@@ -4,11 +4,15 @@ after any change to the routing criteria, before deploying).
 Reads apps/market-ai-orc/tests/fixtures/first_message_router_cases.json, sends each message twice with the same call the
 orchestrator makes (AI_MODEL, reasoning low, strict JSON schema, no tools) and prints, per set: correct routes, data
 questions routed to CHAT or FACT (the costliest error), non-data messages routed to a data route, unstable answers,
-cost and median seconds. Needs OPENROUTER_API_KEY (for example `railway run --service market-ai-orc --environment dev
+cost and median seconds. With --ask-back (EXEC-3, AI_ENABLE_ASK_BACK) it sends the instructions and schema the router
+uses when that switch is on, also runs the "ask_back" set and prints how many must-ask messages were asked back and
+how many no-ask messages (the ask_back NEVER cases and every development and heldout message) were. Needs
+OPENROUTER_API_KEY (for example `railway run --service market-ai-orc --environment dev
 -- python3 scripts/benchmark_first_router.py`); prints no key or other secret.
 """
 from __future__ import annotations
 
+import argparse
 import concurrent.futures as cf
 import json
 import os
@@ -23,14 +27,15 @@ from app import conversation_router as router  # noqa: E402
 
 MODEL = os.environ.get("AI_MODEL", "deepseek/deepseek-v4.1-flash")
 REPEATS = 2
+ASK_BACK = False  # --ask-back
 
 
 def route(message: str) -> tuple[str | None, float, float]:
-    body = {"model": MODEL, "instructions": router.FIRST_INSTRUCTIONS,
+    body = {"model": MODEL, "instructions": router.first_instructions(ASK_BACK),
             "input": [{"role": "user", "content": message[:4000]}], "reasoning": {"effort": "low"},
             "max_output_tokens": 2000, "store": False,
             "text": {"format": {"type": "json_schema", "name": "first_message_route", "strict": True,
-                                "schema": router.FIRST_SCHEMA}}}
+                                "schema": router.first_schema(ASK_BACK)}}}
     request = urllib.request.Request("https://openrouter.ai/api/v1/responses", data=json.dumps(body).encode(),
                                      headers={"Authorization": "Bearer " + os.environ["OPENROUTER_API_KEY"],
                                               "Content-Type": "application/json"})
@@ -46,9 +51,14 @@ def route(message: str) -> tuple[str | None, float, float]:
 
 
 def main() -> None:
+    global ASK_BACK
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--ask-back", action="store_true", help="the instructions and schema of AI_ENABLE_ASK_BACK")
+    ASK_BACK = parser.parse_args().ask_back
     cases = json.loads((ROOT / "apps/market-ai-orc/tests/fixtures/first_message_router_cases.json").read_text())
     data_routes = set(router.DATA_ROUTES)
-    for name in ("development", "heldout"):
+    must = never = asked_must = asked_never = 0
+    for name in ("development", "heldout", *(("ask_back",) if ASK_BACK else ())):
         items = cases[name]
         with cf.ThreadPoolExecutor(8) as pool:
             results = list(pool.map(lambda job: route(job[0]["message"]),
@@ -68,6 +78,13 @@ def main() -> None:
         for item, (got, _, _) in rows:
             if got not in item["routes"]:
                 print(f"   wrong: {item['message'][:70]!r} -> {got} (expected {'/'.join(item['routes'])})")
+            if item.get("ask") == "MUST":
+                must, asked_must = must + 1, asked_must + (got == router.ASK_BACK)
+            elif "ASK_BACK" not in item["routes"]:
+                never, asked_never = never + 1, asked_never + (got == router.ASK_BACK)
+    if ASK_BACK:
+        print(f"ask back: must-ask asked {asked_must}/{must} ({100 * asked_must / max(must, 1):.0f}%), "
+              f"no-ask asked {asked_never}/{never}")
 
 
 if __name__ == "__main__":

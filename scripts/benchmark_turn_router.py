@@ -2,10 +2,13 @@
 apps/market-ai-orc/tests/fixtures/turn_router_cases.json (each message with a conversation context and the acceptable
 classes), twice per case. Prints correct classes, read requests (expected CLARIFY) sent to a research class, unstable
 answers and cost; for cases with "horizons" (M82), the outcome horizons read into design_value_changes (values and an
-accepted action; empty values: the message states no horizon). Needs OPENROUTER_API_KEY (e.g. `railway run --service market-ai-orc --environment dev --
+accepted action; empty values: the message states no horizon). With --ask-back (EXEC-3, AI_ENABLE_ASK_BACK): the
+instructions and schema of that switch, the "variant_cases" (expect_changes: changes the reading must contain), and how
+many messages were asked back (none should be). Needs OPENROUTER_API_KEY (e.g. `railway run --service market-ai-orc --environment dev --
 <venv python> scripts/benchmark_turn_router.py`); prints no secret."""
 from __future__ import annotations
 
+import argparse
 import concurrent.futures as cf
 import json
 import os
@@ -19,15 +22,16 @@ from app import conversation_router as router  # noqa: E402
 from app.compaction import dumps  # noqa: E402
 
 MODEL = os.environ.get("AI_MODEL", "deepseek/deepseek-v4.1-flash")
+ASK_BACK = False  # --ask-back
 
 
 def classify(case: dict) -> tuple[str | None, float, list[dict] | None]:
-    body = {"model": MODEL, "instructions": router.ROUTER_INSTRUCTIONS,
+    body = {"model": MODEL, "instructions": router.router_instructions(ASK_BACK),
             "input": [{"role": "user", "content": dumps({"conversation": case["context"],
                                                           "user_message": case["message"][:4000]})}],
             "reasoning": {"effort": "low"}, "max_output_tokens": 2000, "store": False,
             "text": {"format": {"type": "json_schema", "name": "conversation_turn", "strict": True,
-                                "schema": router.ROUTER_SCHEMA}}}
+                                "schema": router.router_schema(ASK_BACK)}}}
     request = urllib.request.Request("https://openrouter.ai/api/v1/responses", data=json.dumps(body).encode(),
                                      headers={"Authorization": "Bearer " + os.environ["OPENROUTER_API_KEY"],
                                               "Content-Type": "application/json"})
@@ -55,8 +59,20 @@ def horizon_ok(expected: dict, changes: list[dict] | None) -> bool:
         c["action"] in expected["actions"] for c in read)
 
 
+def changes_ok(expected: list[dict], changes: list[dict] | None) -> bool:
+    """Every expected change (name, value, action) is in the reading."""
+    return changes is not None and all(any(c["name"] == e["name"] and c["action"] == e["action"]
+                                           and c.get("value") is not None and abs(c["value"] - e["value"]) < 1e-9
+                                           for c in changes) for e in expected)
+
+
 def main() -> None:
-    cases = json.loads((ROOT / "apps/market-ai-orc/tests/fixtures/turn_router_cases.json").read_text())["cases"]
+    global ASK_BACK
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--ask-back", action="store_true", help="the instructions and schema of AI_ENABLE_ASK_BACK")
+    ASK_BACK = parser.parse_args().ask_back
+    fixture = json.loads((ROOT / "apps/market-ai-orc/tests/fixtures/turn_router_cases.json").read_text())
+    cases = fixture["cases"] + (fixture.get("variant_cases") or [] if ASK_BACK else [])
     with cf.ThreadPoolExecutor(8) as pool:
         results = list(pool.map(classify, [c for c in cases for _ in range(2)]))
     rows = [(cases[i // 2], results[i]) for i in range(len(results))]
@@ -71,6 +87,13 @@ def main() -> None:
     for case, changes in horizon_rows:
         if not horizon_ok(case["horizons"], changes):
             print(f"   horizon wrong: {case['message'][:60]!r} -> {changes} (expected {case['horizons']})")
+    if ASK_BACK:
+        variant_rows = [(case, changes) for case, (_, _, changes) in rows if "expect_changes" in case]
+        print(f"asked back {sum(1 for _, (kind, _, _) in rows if kind == router.ASK_BACK)}/{len(rows)}, variant "
+              f"readings {sum(1 for c, ch in variant_rows if changes_ok(c['expect_changes'], ch))}/{len(variant_rows)}")
+        for case, changes in variant_rows:
+            if not changes_ok(case["expect_changes"], changes):
+                print(f"   variant wrong: {case['message'][:60]!r} -> {changes}")
     for case, (kind, _, _) in rows:
         if kind not in case["kinds"]:
             print(f"   wrong: {case['message'][:60]!r} pending={case['context'].get('pending_suggestion') is not None}"

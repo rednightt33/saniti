@@ -34,6 +34,30 @@ def _run(step: str, path: str | None) -> str:
     return {"ANALYSIS": "analisis 1 langkah", "RESEARCH": "rencana riset", "MODE4": "mode 4"}[path]
 
 
+def ask_back_section(r) -> list[str]:
+    """EXEC-3: when the routers ask back, the route guide, the quick choices and the fixed question."""
+    lines = ["### TANYA BALIK (`AI_ENABLE_ASK_BACK`)", "",
+             f"Rute `{r.ASK_BACK}` dipilih bila: " + "; atau ".join(r.ASK_BACK_CRITERIA) + ". Yang dijalankan: "
+             + r.ASK_BACK_ACTION + ".", "",
+             "Daftar kemampuan yang dikirim ke router pesan pertama (waktu dan biaya; contoh, bukan dari set benchmark):",
+             "", "| Rute | Waktu dan biaya | Contoh |", "|---|---|---|"]
+    lines += [f"| `{route}` | {time_cost} | {example} |" for route, (time_cost, example) in r.FIRST_ROUTE_GUIDE.items()]
+    lines += ["", "Pilihan pesan pertama memetakan ke jalur: " + ", ".join(f"`{x}`" for x in r.FIRST_OPTION_ROUTES)
+              + " (`QUICK_SUMMARY` = satu langkah analisis dengan catatan ringkasan cepat). Pilihan pesan lanjutan: "
+              + ", ".join(f"`{x}`" for x in r.TURN_OPTION_ROUTES) + " (`APPROVE` hanya bila ada usulan menunggu). "
+              "Pilihan yang dikirim sebagai `chosen_option` langsung menjalankan jalurnya tanpa panggilan router; balasan "
+              "teks bebas dirutekan lagi (balasan atas pertanyaan pesan pertama tetap dibaca sebagai pesan pertama, "
+              "bersama pertanyaannya).", "",
+              "Router gagal dua kali (coba ulang sekali): pertanyaan baku tanpa model: \"" + r.FALLBACK_QUESTION + "\" "
+              "dengan pilihan pesan pertama " + ", ".join(f"{label} (`{route}`)" for label, route in r.FIRST_FALLBACK_OPTIONS)
+              + "; pesan lanjutan " + ", ".join(f"{label} (`{route}`)" for label, route in r.TURN_FALLBACK_OPTIONS)
+              + ". Sesudah dua pertanyaan di awal percakapan, balasan yang masih tidak jelas menjalankan satu langkah "
+              "analisis.", "",
+              "### Instruksi router pesan pertama dengan `AI_ENABLE_ASK_BACK`", "", "```text",
+              r.FIRST_INSTRUCTIONS_ASK_BACK, "```", ""]
+    return lines
+
+
 def render() -> str:
     r = _router()
     cases = json.loads(CASES.read_text(encoding="utf-8"))
@@ -45,7 +69,9 @@ def render() -> str:
              "(AGENTS.md, Mandatory workflow, AI router). Model dan setelan panggilan ada di `AI_MODELS.md` "
              "(`_router_call`: `AI_MODEL`, reasoning low, skema JSON ketat, tanpa alat).", "",
              "Saklar: `AI_ENABLE_FIRST_TURN_ROUTER` (router pesan pertama), `AI_ENABLE_CONVERSATION_ROUTER` (router "
-             "pesan lanjutan); keduanya butuh `AI_ENABLE_MODE4`.", "",
+             "pesan lanjutan); keduanya butuh `AI_ENABLE_MODE4`. `AI_ENABLE_ASK_BACK` (EXEC-3, butuh router pesan "
+             "pertama) menyalakan TANYA BALIK, pembacaan semua nilai desain (varian) dan koreksi uji berganda; "
+             "instruksi saat saklar mati ada di bawah apa adanya.", "",
              "## Aturan backend (urutan berlaku)", ""]
     lines += [f"{i}. {rule}" for i, rule in enumerate(r.FIRST_ROUTE_RULES, start=1)]
     lines += ["", "## Rute pesan pertama", "",
@@ -59,12 +85,17 @@ def render() -> str:
         cells = [_run(*r.first_route_path(route, p)) for p in CALLER_PATHS]
         lines.append(f"| {('`' + route + '`') if route else 'gagal/kosong'} | " + " | ".join(cells) + " |")
     lines += ["", "### Instruksi yang dikirim router pesan pertama", "", "```text", r.FIRST_INSTRUCTIONS, "```", "",
+              *ask_back_section(r),
               "## Kelas pesan lanjutan (router percakapan)", "",
               f"Kelas: {', '.join(f'`{k}`' for k in r.TURN_KINDS)}. Butuh usulan yang menunggu: "
               f"{', '.join(f'`{k}`' for k in r.NEEDS_PENDING)} (tanpa usulan: CANCEL → CONVERSATIONAL, lainnya → "
               f"CONTINUE). Bisa memulai riset: {', '.join(f'`{k}`' for k in r.RESEARCH_KINDS)}. Router gagal: "
               f"`{r.FALLBACK}`.", "", "### Instruksi yang dikirim router pesan lanjutan", "", "```text",
-              r.ROUTER_INSTRUCTIONS, "```", "", "## Catatan aplikasi per langkah", "",
+              r.ROUTER_INSTRUCTIONS, "```", "",
+              "### Instruksi router pesan lanjutan dengan `AI_ENABLE_ASK_BACK`", "", "```text",
+              r.ROUTER_INSTRUCTIONS_ASK_BACK, "```", "",
+              "### Tambahan untuk pembaca balasan rencana dengan `AI_ENABLE_ASK_BACK` (P3b)", "", "```text",
+              r.REPLY_READING_RULE.strip(), "```", "", "## Catatan aplikasi per langkah", "",
               "Teks yang diterima langkah satu-giliran (bukan dari user):", ""]
     for kind, note in r.NOTES.items():
         lines += [f"- `{kind}`: {note}"]
@@ -76,11 +107,16 @@ def render() -> str:
               f"pengembangan dan {len(cases['heldout'])} pesan uji tersembunyi (label ditulis sebelum dijalankan), "
               "masing-masing dengan rute yang diterima. Hasil dan pembanding eksternal: `ROUTER_BENCHMARK_2026-10-04.md`. "
               "Jalankan `scripts/benchmark_first_router.py` setelah setiap perubahan kriteria; syarat: 0 pertanyaan "
-              "data dirutekan ke CHAT/FACT.", "",
+              f"data dirutekan ke CHAT/FACT. Set `ask_back` ({len(cases.get('ask_back') or [])} pesan, dijalankan "
+              "dengan `--ask-back`): pesan yang harus ditanya balik (MUST, ≥ 90% ditanya) dan pesan jelas dari golden "
+              "test 06b yang tidak boleh ditanya (NEVER, 0 ditanya; pesan pengembangan dan uji tersembunyi juga tidak "
+              "boleh ditanya).", "",
               f"`apps/market-ai-orc/tests/fixtures/turn_router_cases.json`: {len(turn_cases)} pesan lanjutan dengan "
               "konteks percakapan (ekspor/unduh/tampilkan tabel, penjelasan, uji lanjutan, setuju/ubah/batal usulan, "
               "obrolan, topik baru). Jalankan `scripts/benchmark_turn_router.py` setelah setiap perubahan kelas; "
-              "syarat: 0 permintaan baca dirutekan ke kelas riset (M80 b; 2026-10-05: 30/30).", ""]
+              "syarat: 0 permintaan baca dirutekan ke kelas riset (M80 b; 2026-10-05: 30/30). Dengan `--ask-back`: "
+              f"{len(json.loads(TURN_CASES.read_text(encoding='utf-8')).get('variant_cases') or [])} kasus varian "
+              "(tambah, hapus, ambang kedua) juga dijalankan dan tidak ada pesan yang ditanya balik.", ""]
     return "\n".join(lines)
 
 

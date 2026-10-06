@@ -1,5 +1,5 @@
 {
- "note": "Later-message router cases (M80 b): export/show requests on existing results must be a read class (CLARIFY); the rest are controls. M82 (2026-10-05): cases with \"horizons\" also check design_value_changes (values, accepted actions; empty values: no horizon).",
+ "note": "Later-message router cases (M80 b): export/show requests on existing results must be a read class (CLARIFY); the rest are controls. M82 (2026-10-05): cases with \"horizons\" also check design_value_changes (values, accepted actions; empty values: no horizon). variant_cases (variants, 2026-10-06; run with --ask-back): expect_changes lists the design value changes the reading must contain (name, value, action).",
  "cases": [
   {
    "message": "Ekspor tabel hasil uji tadi ke Excel.",
@@ -725,6 +725,98 @@
      "ADD"
     ]
    }
+  }
+ ],
+ "variant_cases": [
+  {
+   "message": "hapus yang horizon 5 hari, sisakan yang 10 hari saja",
+   "context": {
+    "earlier_questions": [
+     "Apakah saham bank yang turun 3% atau lebih dalam sehari cenderung naik dalam 5 hari berikutnya? Buatkan rencana ujinya."
+    ],
+    "tables": [
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [],
+    "findings": [],
+    "pending_suggestion": {
+     "plan_id": "rp_h",
+     "angles": [
+      "fall3_up5: saham bank turun >=3% sehari -> naik dalam 5 hari berikutnya",
+      "fall3_up10: saham bank turun >=3% sehari -> naik dalam 10 hari berikutnya"
+     ],
+     "question": "Apakah saham bank yang turun 3% atau lebih dalam sehari cenderung naik dalam 5 hari berikutnya?"
+    },
+    "results_after_pending_suggestion": []
+   },
+   "kinds": [
+    "REVISE"
+   ],
+   "expect_changes": [
+    {
+     "name": "OUTCOME_HORIZON",
+     "value": 5,
+     "action": "REMOVE"
+    }
+   ]
+  },
+  {
+   "message": "uji juga dengan ambang volume 3 kali, selain yang 2 kali tadi",
+   "context": {
+    "earlier_questions": [
+     "Berapa rata-rata return harian BBCA pada hari ketika volumenya minimal 2 kali rata-rata volume 20 hari sebelumnya, sejak 2023?"
+    ],
+    "tables": [
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "bbca_volume_days"
+    ],
+    "findings": [],
+    "pending_suggestion": null,
+    "results_after_pending_suggestion": []
+   },
+   "kinds": [
+    "CONTINUE"
+   ],
+   "expect_changes": [
+    {
+     "name": "CONDITION_THRESHOLD",
+     "value": 3,
+     "action": "ADD"
+    }
+   ]
+  },
+  {
+   "message": "tambahkan juga horizon 10 hari, tetap uji yang 5 hari",
+   "context": {
+    "earlier_questions": [
+     "Apakah saham bank yang turun 3% atau lebih dalam sehari cenderung naik dalam 5 hari berikutnya? Buatkan rencana ujinya."
+    ],
+    "tables": [
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [],
+    "findings": [],
+    "pending_suggestion": {
+     "plan_id": "rp_h",
+     "angles": [
+      "fall3_up5: saham bank turun >=3% sehari -> naik dalam 5 hari berikutnya"
+     ],
+     "question": "Apakah saham bank yang turun 3% atau lebih dalam sehari cenderung naik dalam 5 hari berikutnya?"
+    },
+    "results_after_pending_suggestion": []
+   },
+   "kinds": [
+    "REVISE"
+   ],
+   "expect_changes": [
+    {
+     "name": "OUTCOME_HORIZON",
+     "value": 10,
+     "action": "ADD"
+    }
+   ]
   }
  ]
 }
