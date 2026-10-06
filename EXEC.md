@@ -19,13 +19,14 @@ gabungkan ya", pilihan "File baru EXEC.md"). Pekerjaan yang disetujui tetapi bel
 
 ## Ringkasan
 
+**Selesai 2026-10-06:** EXEC-1 (sisa item 10 dan 12, menu alamat lengkap 1b) dan EXEC-S (satu `session_id` per
+percakapan), terverifikasi live; status di `ERRORS_AND_SOLUTIONS.md` (P35–P38, M96, R35, W26), laporan
+`GT_QA_2026-10-06.md`, deploy di `RAILWAY_CHANGELOG.md`.
+
 | No | Butir | Disetujui | Status | Urutan usulan |
 |---|---|---|---|---|
-| 1 | Sisa item 10 dan 12: deploy dua perbaikan, ulang uji item ambang, laporan golden test `ma-qa-20261006b` | "gas" 2026-10-05; format web "Ok tambahkan" 2026-10-06; **EXEC 2026-10-06** | **EXEC** (lihat bagian EXEC) | 1 |
-| 1b | Menu alamat lengkap (celah item 10.1): setiap angka tabel punya alamat, pola alamat ditulis, nilai terformat | 2026-10-05 15:49 dan 17:55 ("Menu alamat siap salin … alamat lengkap di samping angkanya"); ditegaskan 2026-10-06 ("padahal sudah saya suruh") | Sebagian: menu live sejak golden test 06b, tetapi tabel hanya satu baris contoh dan baris pola yang direncanakan tidak dibuat; **EXEC 2026-10-06** ("Ok masukan", bagian dari EXEC-1) | **EXEC** (EXEC-1 langkah 1b) | 1 |
 | 1c | EXEC-R: penolakan tanpa tulis ulang (R1–R5: edit field bersarang, `keep`, angka ketik jadi alamat, galat format yang benar + edit kedua, validasi per butir + jatah per penyebab + tanggal terbuka) | 2026-10-06 ("Masukan exec untuk masalah AI rejection tapi harus ulang dari awal") | **EXEC**, berjalan ("mulai" 2026-10-06) | Sesudah EXEC-1 |
 | 1d | EXEC-C: AI membawa semuanya ke run ID berikutnya dalam satu percakapan, tanpa terkecuali (13 butir, termasuk P4) | 2026-10-06 ("masukan exec"; "Seharusnya AI membawa semuanya tanpa terkecuali. Masukan EXEC") | **EXEC**, berjalan ("mulai" 2026-10-06); Q1 memo, Q2 backend + AI (diputuskan 2026-10-06) | Sesudah EXEC-R |
-| 1k | EXEC-S: satu conversation ID = satu `session_id` (rute penyedia dan cache prompt antar run) | 2026-10-06 ("seharusnya 1 conversation ID = 1 session ID … RUN ID ya bisa berbeda tidak apa. -> masukan exec") | **EXEC**, berjalan ("mulai" 2026-10-06) | Bersama EXEC-1 atau sebelum EXEC-C |
 | 1e | EXEC-A: penyelarasan jalur (satu pembaca maksud, gerbang hanya meminta alat yang ada, 10.6 dan edit sama di semua jalur) | 2026-10-06 ("masukan exec") | **EXEC**, berjalan ("mulai" 2026-10-06) | Bersama EXEC-3 |
 | 1f | EXEC-E: hapus `get_evidence` dan gerbang EVIDENCE, perbarui dokumen terkait | 2026-10-06 ("hapus get evidence, update related docs terkait itu, masukan exec"); membatalkan keputusan 2026-10-03 "Prioritas 2, WAJIB" | **EXEC**, berjalan ("mulai" 2026-10-06) | Sebelum EXEC-R |
 | 1g | EXEC-P2: P2a (berhenti mendorong `check_references`) + P2e (jawaban ringkas) | 2026-10-06 ("p2a p2e … masukan exec") | **EXEC**, berjalan ("mulai" 2026-10-06) | Bersama EXEC-R |
@@ -39,165 +40,13 @@ gabungkan ya", pilihan "File baru EXEC.md"). Pekerjaan yang disetujui tetapi bel
 | 6 | P5: gabung langkah mekanis | 2026-10-06 | EXEC-P5 | — |
 | 7 | P4: hasil jelajah dibawa antar-putaran | 2026-10-06 | Masuk EXEC-C (butir 1d) | — |
 
-Biaya model: butir 1 (ulang uji ±USD 0,07) dan setiap golden test sesudah butir 2–7. Sisa batas kunci OpenRouter 2026-10-06:
-USD 1,59, jadi kredit dicek sebelum uji apa pun.
+Biaya model: butir 1 (ulang uji ±USD 0,07) dan setiap golden test sesudah butir 2–7. Sisa batas kunci OpenRouter setelah gelombang 1:
+USD 1,37 (2026-10-06), jadi kredit dicek sebelum uji apa pun.
 Status **EXEC** = rencana eksekusi sudah disetujui isinya, tetapi **baru dijalankan setelah user memberi konfirmasi
 mulai** (keputusan user 2026-10-06: "EXEC dijalankan setelah konfirmasi saya"). Konfirmasi mulai diberikan 2026-10-06 ("mulai"). Setelah dimulai, berhenti dan lapor bila menemui kondisi berhenti, atau bila perlu tindakan di
 luar langkah ini.
 
 Urutan: EXEC-1, lalu EXEC-3. EXEC-3 dibangun di atas `main` yang sudah memuat EXEC-1.
-
----
-
-### EXEC-1: sisa item 10 dan 12 (butir 1)
-
-| Langkah | Isi | Biaya | Lulus bila |
-|---|---|---|---|
-| 0 | Pra-cek: kredit OpenRouter (dibaca di proses, kunci tidak dicetak); Railway dev (tidak ada golden test atau job berjalan); cabang = `origin`; `main` bisa fast-forward | 0 | Kredit ≥ USD 0,30; tidak ada run berjalan |
-| 1 | Tes lokal: suite orc dan web-governor; `git diff --check` | 0 | Hijau |
-| 1b | Butir 1b (menu alamat lengkap): kode `value_refs.py` dan `orchestrator.py` + tes `test_address_menu.py`; ukur tambahan token menu pada hasil tabel nyata dari golden test 06b (lokal, tanpa model); commit sebelum push langkah 2 | 0 | Tes hijau; setiap baris tabel kecil punya alamat; tabel besar punya pola; format `nama: nilai → {{alamat}}`; tambahan token dilaporkan |
-| 2 | Push `main` (fast-forward ke cabang kerja: `7eda0b7`, `d675404`, dokumen). Orc dan web-governor auto-deploy | 0 | Kedua deployment SUCCESS; log start bersih (`ai_provider_policy` OK, tanpa `web_research_inactive`); `railway config plan` up to date |
-| 3 | Uji asap route web: 1 kasus (`bi_rate`) lewat `web-governor-test-runner` fase `orc_web` | ±USD 0,02 | `currency` berupa kode ISO, `unit_code`, tanggal ISO, tanpa `DATE_NOT_ISO` |
-| 4 | Ulang uji `threshold_from_result` (3 giliran), suite `qa_20261006c`, prefix `ma-qa-20261006c` | ±USD 0,07 | Giliran 2 = rencana dengan efek minimal dari hasil sebelumnya (tidak LIMITED); giliran 3 menjalankan riset; tanpa penolakan REFERENCE; tidak ada alamat yang disusun sendiri di log pikiran (butir 1b) |
-| 5 | Laporan `GT_QA_2026-10-06.md` (non-dev): kriteria lulus rencana item 10/12, analisis waktu, ulang uji langkah 4; prosedur 5 langkah per temuan, termasuk praktik terbaik online dan perbandingannya | 0 | Setiap temuan punya akar masalah dari log, usulan, risiko, pembanding online dan solusi final |
-| 6 | Catatan: status P35, P36, P37, M83, W24, W26; 11 entri temuan baru (lihat butir 1 langkah 5); `RAILWAY_CHANGELOG.md`, `DATABASE_CHANGELOG.md`, `OUTSTANDING_ISSUES.md`; butir 1 dihapus dari `PLAN.md`. Commit, push `main` dan cabang, cek sama dengan `origin` | 0 | Push sukses |
-
-**Kondisi berhenti:**
-- **Deploy tidak SUCCESS:** redeploy deployment sebelumnya (orc `96726ca5`, web-governor `7ca3067e`), lalu lapor.
-- **Kredit kurang:** berhenti sebelum langkah 3.
-- **Ulang uji gagal:** dicatat dan dilaporkan. Perbaikan kode di luar langkah ini menunggu izin.
-- **Tambahan token menu (butir 1b) > 10%** pada tabel nyata: batas baris diturunkan sampai ≤ 10%, lalu dilaporkan.
-
-#### Rincian dari butir 1 (dipindah dari `PLAN.md` 2026-10-06)
-
-**Asal:** rencana implementasi item 10 dan 12 (disetujui "gas" 2026-10-05), langkah 5–6, dan penyeragaman format web
-("Ok tambahkan" 2026-10-06). Prosedur masalah 5 langkah (user 2026-10-05).
-
-**Yang belum:**
-1. **Push dan deploy:**
-   - Push `main` dengan `7eda0b7` (10.6: alamat di jawaban rencana dirender sebelum gerbang rencana) dan `d675404`
-     (mata uang ISO, kode satuan, tanggal ISO di route web orc).
-   - Push itu me-redeploy orc dan web-governor di dev; keduanya ditunggu sampai SUCCESS.
-2. **Ulang uji item `threshold_from_result`** (±USD 0,07). Target: giliran 2 tidak LIMITED, dan "setuju, jalankan"
-   menjalankan riset.
-3. **Laporan `GT_QA_2026-10-06.md` (bahasa non-dev).** Hasil dicocokkan dengan kriteria lulus rencana:
-   - penolakan REFERENCE/PROVENANCE/EVIDENCE dibanding 14 di `ma-qa-20261005b`;
-   - h_add mengutip median dan tingkat keyakinan lewat alamat;
-   - bakrie ≤ 3 panggilan web;
-   - deret q7 berlabel "fakta web";
-   - item ambang lolos;
-   - kenaikan token masukan;
-   - analisis waktu (golden test 06b: 4.096 dtk waktu model, 177 panggilan).
-4. **Prosedur 5 langkah untuk setiap temuan golden test 06b:**
-   1. log pikiran AI;
-   2. usulan;
-   3. risiko dan mitigasi;
-   4. praktik terbaik online;
-   5. perbandingan dan solusi final.
-
-   Langkah 3–4 belum dijalankan untuk temuan mana pun.
-5. **Catatan wajib:**
-   - status P35, P36, P37, M83, W24 dan W26 diperbarui dengan bukti live;
-   - entri baru untuk temuan 2026-10-06:
-     - EVIDENCE langsung LIMITATION di langkah riset (`tool_not_in_step`);
-     - kirim ulang jawaban utuh demi catatan;
-     - edit tidak bisa mengubah field rencana bersarang;
-     - pesan galat JSON yang menyesatkan;
-     - 4 penolakan `query_metric` menutup alat;
-     - `get_evidence` semua-atau-tidak;
-     - aturan LAST di Governor dengan filter satu nilai;
-     - PLAN_HORIZON di luar mode 4 (Temuan B);
-     - catatan menu alamat menyebut alat yang tidak ada;
-     - rantai mode 4 selama 34 menit;
-     - angka web tidak dicek di dalam kutipan;
-   - `RAILWAY_CHANGELOG.md` dan `DATABASE_CHANGELOG.md`.
-
-#### Rincian dari butir 1b (dipindah dari `PLAN.md` 2026-10-06)
-
-**Yang disetujui user** (2026-10-05): "Setiap hasil yang berisi angka langsung mencantumkan alamat lengkap di samping
-angkanya, misalnya median: −2,40 → {{out.o2.content.groups.CONDITION.median}}. Asisten cukup menyalin, tidak menyusun
-sendiri."
-
-**Yang dibangun** (`apps/market-ai-orc/app/value_refs.py` `menu`; orchestrator `addresses`, live di dev sejak golden
-test 06b):
-- daftar terpisah `addresses` di hasil alat, berbentuk `alamat = nilai [satuan]` dengan nilai mentah;
-- tabel hanya diberi **satu baris contoh** (`rows[ticker=BBRI]`);
-- batas 40 alamat per objek dan 120 per hasil.
-
-**Celah terhadap yang disetujui:**
-1. **Tabel hanya satu baris contoh.** Untuk mengutip baris lain (BBCA), AI masih menyusun alamat sendiri.
-   Penyempitan ini saya tulis di rencana implementasi ("tidak semua baris didaftar") tanpa saya tandai sebagai
-   perbedaan dari kata-kata user.
-2. **Baris pola yang dijanjikan rencana implementasi** ("ditambah polanya") tidak dibuat.
-3. **Nilai tidak diformat**, dan `{{ }}` tidak ditulis seperti contoh user.
-
-**Perubahan:**
-- Setiap tabel yang dirilis dibuatkan:
-  - satu baris pola, misalnya `out.o3.rows[ticker=<ticker>].<kolom>` beserta daftar kolom angka dan satuannya;
-  - alamat untuk **setiap baris** sampai batas (usul 30 baris × kolom angka). Tabel yang lebih besar mendapat pola,
-    daftar nilai kolom pengenal, dan catatan bahwa baris lain memakai pola yang sama.
-- Setiap baris menu ditulis seperti contoh user: `nama: nilai terformat → {{alamat}}`, dengan satuan.
-- Batas per hasil dinaikkan sesuai ukuran token yang diukur. Kenaikan token masukan dilaporkan; ditinjau ulang bila
-  lebih dari 10%.
-
-**Berkas dan tes:**
-- `value_refs.py` (`menu`, `_menu_leaves`, `_row_example`), `orchestrator.py` (`ADDRESS_MENU_MAX`,
-  `ADDRESS_MENU_NOTE`);
-- tes `tests/test_address_menu.py`: semua baris tabel kecil, pola tabel besar, format seperti contoh;
-- `tests/test_prompt_pass2.py` bila catatan berubah.
-
-**Verifikasi:** golden test berikutnya. Kutipan baris selain baris contoh harus lolos tanpa REFERENCE; jumlah alamat
-yang disusun sendiri dicek dari log pikiran.
-
----
-
-### EXEC-S: satu conversation ID = satu session ID (butir 1k)
-
-**Keputusan user (2026-10-06):** "seharusnya 1 conversation ID = 1 session ID … RUN ID ya bisa berbeda tidak apa. ->
-masukan exec."
-
-`session_id` adalah kunci yang dipakai OpenRouter untuk mengarahkan permintaan ke penyedia yang sama (sticky routing),
-supaya cache prompt penyedia itu terpakai. Karena ini menyentuh cara rute ke penyedia, persetujuan ini dicatat juga di
-AGENTS.md (bagian Model and provider) saat dieksekusi.
-
-**Masalah:**
-- `_payload` mengirim `session_id` = ID run ("One session per run"). Router dan pembaca balasan rencana mengirim
-  `<ID run>:<nama>`.
-- Akibatnya setiap run baru, termasuk tiap langkah m4a–m4d, mendapat kunci rute baru dan bisa jatuh ke penyedia lain
-  yang belum punya cache.
-- Bukti golden test 06b: panggilan pertama tiap run hanya 28% kena cache; 7 dari 14 run 0%. Bandingkan dengan 89% di
-  dalam satu run.
-
-**Perubahan:**
-- Semua panggilan model dalam satu percakapan memakai `session_id` = conversation ID, di semua giliran dan sub-run
-  mode 4: loop utama (`_payload`), router (`_router_call`), dan pembaca balasan rencana. Run ID tetap berbeda per run
-  dan tetap dicatat di log sebagai `request_id`.
-- Permintaan tanpa conversation ID memakai run ID seperti sekarang.
-- `static_prefix_hash` tidak lagi memasukkan `session_id`, supaya sidik jari prefix benar-benar mengukur isi prompt.
-- Log `ai_model_call` dan `ai_model_usage_summary` memuat `session_id` dan `request_id` terpisah.
-
-**Dokumen:**
-- AGENTS.md (keputusan provider 2026-10-06);
-- `AI_MODELS.md` (diregenerasi: perubahan rute penyedia);
-- `ERRORS_AND_SOLUTIONS.md` (entri baru: cache tidak terpakai di awal run, dengan bukti di atas);
-- `RAILWAY_CHANGELOG.md` saat deploy.
-
-Tidak ada variabel Railway yang berubah. `AI_PROVIDER_SORT`, ambang throughput dan rasio harga cache tetap.
-
-**Tes:**
-- `session_id` sama untuk semua panggilan dalam satu percakapan, lintas giliran dan sub-run mode 4;
-- cadangan run ID bila tanpa conversation ID;
-- hash prefix tidak berubah hanya karena `session_id`.
-
-**Lulus bila** di golden test berikutnya:
-- panggilan pertama run kedua dan seterusnya dalam satu percakapan kena cache ≥ 50% (sekarang 28%);
-- penyedia yang melayani tetap dalam daftar yang diizinkan kebijakan penyedia;
-- tidak ada kenaikan galat penyedia.
-
-**Catatan EXEC-T:** daftar alat berbeda antar langkah, jadi awalan yang sama antar langkah hanya sampai sebelum
-daftar alat. Dampaknya hanya pada panggilan pertama tiap run.
-
-**Urutan:** kecil dan berdiri sendiri, bisa dijalankan bersama EXEC-1 atau sebelum EXEC-C.
 
 ---
 
@@ -297,7 +146,6 @@ Bagian yang sudah ada di EXEC lain tidak diulang:
 | Langkah | Isi | Biaya | Lulus bila |
 |---|---|---|---|
 | 0 | Patokan: hitung ulang dari log 06b dan 05b waktu dan token sesudah penolakan per jenis (skrip analisis yang sudah ada) | 0 | Angka patokan tercatat |
-| 1 | Kode R1–R5 (+ P3c bila di-OK), satu commit per R | 0 | — |
 | 2 | Tes: R1 jalur bersarang dan jalur tidak dikenal ditolak; R2 `keep` menghasilkan jalan keluar gerbang tanpa tulis ulang; R3 satu kecocokan diterima, dua kecocokan tetap diminta; R4 pesan parser longgar dan edit kedua; R5 klaim campuran sah+cacat, 4 penolakan paralel = 1, `query_metric` tanggal terbuka. Suite orc lengkap, `test_prompt_pass2.py`, `AI_TOOLS.md` diregenerasi (argumen `query_metric` berubah), migration Tool_Catalog round berikutnya bila skema alat berubah | 0 | Hijau; tes drift lulus |
 | 3 | Push dan deploy orc (hanya setelah konfirmasi push dari user), SUCCESS | 0 | SUCCESS; log start bersih |
 | 4 | Ulang uji 2 item yang memicu penolakan rencana dan format: h_add (3 giliran) dan threshold (3 giliran) | ±USD 0,15 | Tidak ada tulis ulang penuh setelah penolakan PLAN_*; `keep` dipakai bila model memilih tetap; waktu sesudah penolakan ≤ 5% waktu model |
@@ -357,7 +205,6 @@ P2b–d ada di EXEC-R (R1, R2, R4), P2a dan P2e di EXEC-P2.
 | Langkah | Isi | Biaya | Lulus bila |
 |---|---|---|---|
 | 0 | Patokan: `scripts/benchmark_first_router.py` dan `benchmark_turn_router.py` dengan kode sekarang | ±USD 0,03 | Angka patokan tercatat |
-| 1 | Set berlabel, ditulis **sebelum** kode dijalankan. Pesan pertama: ≥ 8 harus-tanya ("BBRI", "BBCA", "analisis BBRI", "strategi ini bagus nggak?" tanpa strategi, …) dan ≥ 8 tidak-boleh-tanya (bakrie, q7, h_add, threshold, p2, …), dibagi pengembangan dan uji tersembunyi. Pesan lanjutan: ≥ 4 harus-tanya | 0 | — |
 | 2 | Kode orc di balik saklar baru `AI_ENABLE_ASK_BACK` (default mati). Rincian di bawah tabel | 0 | — |
 | 3 | Tes unit + suite orc; `AI_ROUTER.md` dan `AI_MODELS.md` diregenerasi (skema keluaran berubah) | 0 | Hijau; tes drift lulus |
 | 4 | Benchmark ulang dengan saklar menyala (lokal, model asli) | ±USD 0,03 | 0 pertanyaan data dirutekan ke CHAT/FACT; harus-tanya ≥ 90% ditanya; tidak-boleh-tanya 0 ditanya; akurasi rute lain tidak di bawah patokan |
@@ -624,7 +471,6 @@ untuk giliran user berikutnya, sub-run mode 4 (m4a → m4b → m4c → m4d), dan
 
 | # | Hal | Keadaan sekarang (bukti) | Perubahan |
 |---|---|---|---|
-| 1 | Pikiran AI | Hanya diputar ulang di dalam satu run. Di dev hanya ditulis ke log (`AI_CAPTURE_REASONING`), tidak disimpan per percakapan. Ukurannya 1.800–43.000 token per run; rantai q7 giliran 1 ±98.000 token | Disimpan utuh per run, terikat ke conversation ID. **Bentuk masuk prompt: pertanyaan terbuka Q1** |
 | 2 | Alasan penolakan | Hanya baris batasan umum bila berakhir LIMITED | Setiap penolakan disimpan: gerbang atau alat, kode, pesan lengkap, bagian draf yang ditolak, dan perbaikan yang dicoba. Galat alat ikut, misalnya `query_metric` butuh tanggal awal+akhir, atau LAST butuh `group_by` |
 | 3 | Keputusan desain di luar rencana | Hilang bila tidak masuk rencana | Horizon, ambang, efek minimal, cakupan, definisi dan pilihan AI disimpan beserta asalnya: kata user, hasil sebelumnya (alamat), atau pilihan AI |
 | 4 | Fakta web | `web.<id>` tidak masuk data record; hanya kalimat asumsi | Amplop `citable` disimpan dan didaftarkan ulang sebagai sumber `web.<id>` di awal run berikutnya, beserta kutipan dan URL |

@@ -1,5 +1,21 @@
 # Railway changelog
 
+## 2026-10-06 — EXEC wave 1 (EXEC-1, EXEC-S) on dev
+
+Started on the user's go ("mulai", 2026-10-06; `EXEC.md`). No variable changed; `railway config plan` not needed.
+
+- **`main` fast-forwarded to `2c093df`** (10.6 `7eda0b7`, web format `d675404`, 1b full address menu `e698d07`,
+  EXEC-S `2c093df`, plan documents): market-ai-orc `f7df7401` SUCCESS, market-web-governor `656b3fd2` SUCCESS;
+  sandbox and SQL Governor SKIPPED (no change). Orc start log: `ai_provider_policy` OK, mode 4 active, no error.
+- **Smoke** `orcweb-smoke-20261006c-bi_rate` through `web-governor-test-runner` (`7a352b25`): passed in 14.9 s,
+  USD 0.015; currency IDR, unit_code PERCENT, ISO dates (W26 d).
+- **Re-test** `ma-qa-20261006c` (threshold_from_result, `orc-test-runner` `e8417426`): turn 2 LIMITED (P38, a cited
+  negative difference as a minimum effect), ±USD 0.10.
+- **Fix P38** `09ee172` → `main`: market-ai-orc `e530e063` SUCCESS (web-governor SKIPPED).
+- **Re-test** `ma-qa-20261006d` (`82cb8db3`): passed (turn 2 plan with the threshold from the earlier result, turn 3
+  research COMPLETED), ±USD 0.10. EXEC-S: the first call of later runs 67% cached (was 28%), 92% within runs.
+- **Credit:** OpenRouter key limit remaining USD 1.47 before the second re-test (from 1.59).
+
 ## 2026-10-06 — Orc web route calibrated by the labelled benchmark; dev switches on (items 10 and 12)
 
 - User decision 2026-10-06 ("Hemat: benchmark 8 kasus"; OpenRouter credit USD 1.86 before this step).
