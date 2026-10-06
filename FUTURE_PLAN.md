@@ -173,7 +173,7 @@ Untuk 100 pengguna bersamaan tetap perlu bagian 2.
 
 | Usulan | Asal | Catatan |
 |---|---|---|
-| E1 dan E3 `get_evidence`: filter satu nilai dihitung tetap (Governor), deskripsi alat hanya untuk angka tanpa alamat. (E2 klaim per butir disetujui 2026-10-06 → `PLAN.md` EXEC-R R5) | Analisis log golden test `ma-qa-20261006b` (2026-10-06) | ±25 dtk per kejadian |
+| Pengecekan ulang otomatis oleh backend untuk metrik baku (pengganti `get_evidence`, yang dihapus 2026-10-06, `PLAN.md` EXEC-E) | Keputusan 2026-10-06 | Menutup sebagian S23 tanpa beban ke AI |
 | Cek angka di dalam kutipan web (angka yang ditulis AI wajib ada di kutipan) | Analisis route web orc (2026-10-06) | Celah: kutipan asli, angka atau periode salah |
 | Paket 1 sisanya: eksekusi alat paralel umum, kunci relasi otomatis, perubahan mode 4 lain. (Tanggal terbuka `query_metric` dan jatah perbaikan per penyebab disetujui 2026-10-06 → `PLAN.md` EXEC-R R5) | `PLAN_2026-10-05.md` (di luar cakupan item 10/12) | — |
 | Tingkat berpikir model (`AI_REASONING_EFFORT=high` di dev) | Analisis waktu (2026-10-06) | Setelan model, perlu izin user; sesudah P1–P3 |

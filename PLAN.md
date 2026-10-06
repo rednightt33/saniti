@@ -27,11 +27,15 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 | 1c | EXEC-R: penolakan tanpa tulis ulang (R1–R5: edit field bersarang, `keep`, angka ketik jadi alamat, galat format yang benar + edit kedua, validasi per butir + jatah per penyebab + tanggal terbuka) | 2026-10-06 ("Masukan exec untuk masalah AI rejection tapi harus ulang dari awal") | **EXEC** (menunggu konfirmasi mulai) | Sesudah EXEC-1 |
 | 1d | EXEC-C: konteks dibawa ke run berikutnya setelah LIMITED / giliran baru (memo run + P4) | 2026-10-06 ("masukan exec") | **EXEC** (menunggu konfirmasi mulai) | Sesudah EXEC-R |
 | 1e | EXEC-A: penyelarasan jalur (satu pembaca maksud, gerbang hanya meminta alat yang ada, 10.6 dan edit sama di semua jalur) | 2026-10-06 ("masukan exec") | **EXEC** (menunggu konfirmasi mulai) | Bersama EXEC-3 |
+| 1f | EXEC-E: hapus `get_evidence` dan gerbang EVIDENCE, perbarui dokumen terkait | 2026-10-06 ("hapus get evidence, update related docs terkait itu, masukan exec"); membatalkan keputusan 2026-10-03 "Prioritas 2, WAJIB" | **EXEC** (menunggu konfirmasi mulai) | Sebelum EXEC-R |
+| 1g | EXEC-P2: P2a (berhenti mendorong `check_references`) + P2e (jawaban ringkas) | 2026-10-06 ("p2a p2e … masukan exec") | **EXEC** (menunggu konfirmasi mulai) | Bersama EXEC-R |
+| 1h | EXEC-P1: mode 4 berhenti setelah analisis + rencana | 2026-10-06 ("p1 … masukan exec") | **EXEC** (menunggu konfirmasi mulai) | Sesudah EXEC-3 |
+| 1i | EXEC-P5: gabung langkah mekanis | 2026-10-06 ("p5 masukan exec") | **EXEC** (menunggu konfirmasi mulai) | Sesudah EXEC-R |
 | 2 | P3: gerbang yang salah tolak | 2026-10-06 "OK masukan plan jangan execute dulu" | Belum (P3a ikut EXEC butir 1, P3b ikut EXEC butir 3) | 3 |
 | 3 | Item 11: penyortir "free will", jalur TANYA BALIK, cadangan berupa pertanyaan | 2026-10-05 (16:47, 17:40, 17:51, 17:55), ditegaskan 2026-10-06; **EXEC 2026-10-06** | **EXEC** (lihat bagian EXEC) | 2 |
-| 4 | P2: jawaban ditulis sekali | 2026-10-06 | Belum | 4 |
-| 5 | P1: mode 4 berhenti setelah analisis + rencana | 2026-10-06 | Belum | 5 |
-| 6 | P5: gabung langkah mekanis | 2026-10-06 | Belum | 6 |
+| 4 | P2: jawaban ditulis sekali | 2026-10-06 | P2b–d di EXEC-R, P2a dan P2e di EXEC-P2 | — |
+| 5 | P1: mode 4 berhenti setelah analisis + rencana | 2026-10-06 | EXEC-P1 | — |
+| 6 | P5: gabung langkah mekanis | 2026-10-06 | EXEC-P5 | — |
 | 7 | P4: hasil jelajah dibawa antar-putaran | 2026-10-06 | Masuk EXEC-C (butir 1d) | — |
 | 8 | Round 2026-10-03 Fase E: E1 hit rate (M69 tahap 2), E2 ambil sekali beri label (G19 lapis 2) | 2026-10-03 (round disetujui) | Belum; E2 menunggu keputusan 6 | 8 |
 | 9 | C06 1a-permanen dan D06 peringatan Telegram | 2026-10-02 | Belum (sisanya sudah live) | 9 |
@@ -120,13 +124,13 @@ Bagian yang sudah ada di EXEC lain tidak diulang:
 |---|---|---|---|
 | R1 | Gerbang rencana (PLAN_*) selalu memaksa tulis ulang penuh: ±400 dtk dan 3 giliran terbuang. Edit hanya bisa mengganti teks atau field paling atas | Edit menerima `"set": {"research_plan.angles[0].min_effect": null}` untuk field bersarang (jalur bertitik + `[i]`, hanya field yang ada di skema), lalu jawaban dicek ulang penuh. Pesan gerbang PLAN_* menyebut jalur field yang harus diubah. `EDIT_REPAIR_INSTRUCTION` diperbarui | `edit_repair.py` (`apply`, instruksi), `orchestrator.py` (pesan PLAN_*) |
 | R2 | "Kirim ulang tanpa perubahan" agar catatan backend ikut: h_add t2 mengirim ulang 8.660 token (109 dtk) | Bila edit ditawarkan, `GATE_ONCE_NOTE` meminta balasan `{"keep": true}`; backend memakai draf tersimpan dan menjalankan jalan keluar gerbang. Bila edit tidak ditawarkan, perilaku lama tetap | `orchestrator.py` (`GATE_ONCE_NOTE`, `_offer_edit`, `_apply_edit`), `edit_repair.py` (`is_edit`) |
-| R3 | Angka diketik tanpa alamat. EVIDENCE meminta alamat atau `get_evidence` | Angka ketik yang cocok dengan **tepat satu** nilai rilis (pembulatan dan satuan sama) diperlakukan sebagai alamat: masuk bukti sebagai DIRUJUK, gerbang EVIDENCE tidak memintanya lagi, dicatat `ai_reference_auto`. Dua kecocokan atau lebih: tetap diminta. Angka tanpa sumber sama sekali (PROVENANCE, misalnya "82,18%") tidak tertolong; pesan gerbangnya menyarankan merilis nilai itu lalu mengutip alamatnya | `orchestrator.py` (`_evidence_gate`, `typed_figures`, pesan PROVENANCE), `value_refs.py` (cari kecocokan unik) |
+| R3 | Angka diketik tanpa alamat. EVIDENCE meminta alamat atau `get_evidence` (gerbang ini dihapus di EXEC-E; R3 berlaku untuk aturan pengganti "angka dari kode wajib beralamat") | Angka ketik yang cocok dengan **tepat satu** nilai rilis (pembulatan dan satuan sama) diperlakukan sebagai alamat: masuk bukti sebagai DIRUJUK, gerbang EVIDENCE tidak memintanya lagi, dicatat `ai_reference_auto`. Dua kecocokan atau lebih: tetap diminta. Angka tanpa sumber sama sekali (PROVENANCE, misalnya "82,18%") tidak tertolong; pesan gerbangnya menyarankan merilis nilai itu lalu mengutip alamatnya | `orchestrator.py` (`_evidence_gate`, `typed_figures`, pesan PROVENANCE), `value_refs.py` (cari kecocokan unik) |
 | R4 | Galat format dan edit gagal (79 dtk); jawaban riset q7 jatuh menjadi LIMITATION | (a) Bila parser longgar juga gagal, model diberi galat parser longgar beserta posisi dan potongan teksnya. Galat "control character" dari parser ketat menyesatkan (P3d). (b) Edit yang gagal mendapat satu kesempatan edit lagi dengan penyebab persisnya, bukan langsung tulis ulang penuh. (c) `"all": true` pada teks biasa diperlakukan sebagai `count` = jumlah kemunculan (P2d) | `orchestrator.py` (`_parse_final_output`, `_apply_edit`), `edit_repair.py` |
-| R5 | Validasi semua-atau-tidak dan jatah perbaikan yang langsung habis (`query_metric` ×4, `get_evidence` `claims.2`) | (a) `get_evidence` memvalidasi klaim satu per satu; klaim cacat menjadi TIDAK_BISA_DICEK dengan alasannya, klaim lain tetap dicek (E2). (b) Jatah perbaikan dihitung per penyebab **per giliran model**: 4 penolakan sama dalam satu giliran dihitung 1. (c) `query_metric` menerima `start_date` tanpa `end_date` (sampai data terakhir / `as_of`) | `tools/evidence.py`, `orchestrator.py` (`_repair_budget`), `tools/metric.py` (`Period`) |
+| R5 | Validasi semua-atau-tidak dan jatah perbaikan yang langsung habis (`query_metric` ×4, `get_evidence` `claims.2`) | (a) ~~`get_evidence` per klaim (E2)~~: gugur karena alat dihapus (EXEC-E). (b) Jatah perbaikan dihitung per penyebab **per giliran model**: 4 penolakan sama dalam satu giliran dihitung 1. (c) `query_metric` menerima `start_date` tanpa `end_date` (sampai data terakhir / `as_of`) | `tools/evidence.py`, `orchestrator.py` (`_repair_budget`), `tools/metric.py` (`Period`) |
 
 **Tambahan dari saya** (daftar perbedaan dari usulan Anda, sesuai R35):
-- **P3c (kini disetujui lewat EXEC-A):** gerbang hanya meminta alat yang ada di langkah itu. `get_evidence` dan `check_references` ditambahkan ke
-  langkah riset yang disetujui (`_approve_v2`). Tanpa P3c, jawaban riset q7 tetap bisa langsung jatuh menjadi
+- **P3c (kini disetujui lewat EXEC-A):** gerbang hanya meminta alat yang ada di langkah itu. `check_references` ditambahkan ke
+  langkah riset yang disetujui (`_approve_v2`); `get_evidence` tidak lagi, karena dihapus (EXEC-E). Tanpa P3c, jawaban riset q7 tetap bisa langsung jatuh menjadi
   LIMITATION (`tool_not_in_step`) walau R4 sudah ada.
 - **Tidak termasuk:**
   - E1 (aturan LAST di Governor dengan filter satu nilai);
@@ -197,7 +201,7 @@ ulang katalog dan 5 panduan (±170 dtk).
 2. **Gerbang hanya meminta jalan keluar yang alatnya ada** (mencakup P3c, kini disetujui):
    - setiap gerbang yang punya `needs` hanya muncul sebagai permintaan bila alatnya ada di meja langkah itu; bila
      tidak ada, alat itu ditambahkan ke meja langkah tersebut;
-   - langkah riset disetujui ditambah `get_evidence` dan `check_references`;
+   - langkah riset disetujui ditambah `check_references` (`get_evidence` dihapus di EXEC-E);
    - langkah rencana ditambah `check_references` dan `get_session_output`, karena rencana harus bisa mengutip hasil
      sebelumnya.
    - **Tes permanen:** gagal bila `needs` sebuah gerbang tidak ada di meja proses tempat gerbang itu bisa muncul, atau
@@ -213,6 +217,109 @@ ulang katalog dan 5 panduan (±170 dtk).
   - ulang uji h_add t2 dan q7 tanpa `tool_not_in_step` dan tanpa LIMITED karena "tambah horizon".
 - **Catatan:** analisis lengkap "alat per proses" (HARUS / BOLEH / TIDAK BOLEH) yang diminta user belum dijalankan.
   Hasilnya bisa mengubah daftar alat di langkah 2.
+
+### EXEC-E: hapus `get_evidence` (butir 1f)
+
+**Alasan** (data 3 golden test):
+- round 2026-10-03: 23 TERCEK, 1 TIDAK COCOK yang ternyata alarm palsu (G21);
+- 05b: gerbang EVIDENCE menolak 5 kali (±192 dtk);
+- 06b: 5 panggilan, 2 penolakan, dan q7-m4c dipaksa LIMITATION (`tool_not_in_step`).
+
+Alat ini belum pernah menangkap angka yang benar-benar salah. Keputusan user 2026-10-06 membatalkan "Prioritas 2,
+WAJIB" (2026-10-03).
+
+**Yang dihapus / diubah:**
+1. **Saklar dulu:** `AI_ENABLE_EVIDENCE=false` di dev, satu perubahan variabel yang bisa dikembalikan. Ini langsung
+   menghapus alat dan gerbangnya dari run.
+2. **Kode orc:**
+   - `tools/evidence.py`;
+   - registrasi di `tools/__init__.py` dan `main.py`;
+   - `config.py` (`ai_enable_evidence` dan cek `AI_ENABLE_RESULT_STORE`);
+   - gerbang `EVIDENCE` dan `EVIDENCE_MISMATCH` beserta kalimatnya (`EVIDENCE_INSTRUCTION`, `EVIDENCE_*_LINE`);
+   - kalimat prompt dan catatan yang menyebut `get_evidence` (`orchestrator.py`, `conversation_router.py`,
+     `method_guides.py`, `tools/envelope.py`);
+   - tes terkait (`test_evidence.py`, `test_tool_effects.py`, `test_g23_desk.py`).
+3. **Pengganti gerbang EVIDENCE:** angka dari kode AI sendiri yang diketik tanpa alamat ditolak sekali dengan pesan
+   "tulis lewat alamat dari daftar `addresses`, atau hapus angkanya". Edit kecil tersedia. Angka yang cocok dengan
+   tepat satu nilai rilis diterima otomatis (EXEC-R R3).
+4. **Tetap dipertahankan:**
+   - daftar angka beralamat untuk user (`evidence[]` dengan status DIRUJUK): dibuat backend tanpa alat ini;
+   - Governor `/v1/summary` (dipakai `query_metric`);
+   - operasi sandbox `recount` (tidak dipakai lagi; dicatat, dihapus terpisah bila disetujui);
+   - tabel `AI_conversation_evidence` (riwayat, tidak di-drop).
+5. **Database:**
+   - migration baru Tool_Catalog: `get_evidence` dinonaktifkan (migration lama tidak diedit);
+   - buku metode versi baru lewat generator tanpa kalimat `get_evidence`;
+   - Table_Catalog `AI_conversation_evidence`: catatan "tidak diisi lagi sejak <tanggal>".
+6. **Dokumen:**
+   - `AI_TOOLS.md` (regenerasi, `--flags` dari `railway variables --kv`);
+   - `scripts/generate_ai_tools_doc.py` (`PLAIN`, `SWITCHES`);
+   - `scripts/generate_tool_catalog_migration.py`, `scripts/generate_ai_method_guide_migration.py`;
+   - README orc dan sandbox;
+   - ERRORS: S23 status menjadi "tidak ada cek independen untuk angka hitungan AI" (risiko diterima user), D6 dan
+     G20/G21 dicatat ditutup karena alat dihapus, entri baru untuk keputusan ini;
+   - `OUTSTANDING_ISSUES.md`;
+   - `FUTURE_PLAN.md`: E1/E3 dihapus, ditambah usulan B "backend mengecek ulang metrik baku secara otomatis";
+   - `RAILWAY_CHANGELOG.md`, `DATABASE_CHANGELOG.md` dan `DATABASE_SCHEMA.md`;
+   - `.railway/railway.ts` (config pull/plan).
+
+**Risiko yang diterima:**
+- Angka hitungan kode AI tidak pernah dihitung ulang secara independen. Alamat hanya menjamin angka sama dengan tabel
+  AI, bukan bahwa tabelnya benar (S23).
+- Baris bukti hitung ulang per klaim untuk user hilang; daftar DIRUJUK tetap ada.
+
+**Langkah:**
+1. Saklar mati di dev.
+2. Kode, tes dan dokumen.
+3. Push dan deploy orc dan sandbox (setelah konfirmasi push).
+4. Migration Tool_Catalog dan buku metode lewat job sementara (dry run, apply, baca ulang).
+5. Ulang uji 2 item (lang, threshold): tidak ada panggilan atau gerbang EVIDENCE, dan tidak ada angka tanpa sumber
+   yang lolos.
+
+**Biaya:** ±USD 0,10.
+
+### EXEC-P2: P2a + P2e (butir 1g)
+
+- **P2a:** `ADDRESS_MENU_NOTE` dan aturan prompt tidak lagi mendorong `check_references` sebelum menulis. Alatnya
+  tetap ada. Gerbang REFERENCE sudah mendaftar semua alamat salah dan penggantinya.
+- **P2e:** target panjang jawaban akhir di aturan jawaban.
+  - Usul: jawaban utama ≤ 2.500 karakter untuk ANALYSIS dan ≤ 1.500 karakter per bagian mode 4.
+  - Tabel di jawaban paling banyak 10 baris; tabel lengkap tetap tersedia lewat output yang dirilis atau ekspor.
+  - Kode hanya memperingatkan (log `ai_answer_long`), tidak menolak.
+- **Tes:** `test_prompt_pass2.py` (ADDED/REMOVED, batas +2%).
+- **Ukur di ulang uji:** panjang draf dan waktu tulis jawaban akhir dibanding 06b.
+  - Patokan: draf terpanjang 10–17 ribu karakter.
+  - Penulisan dan pengecekan jawaban = 41% waktu model.
+
+### EXEC-P1: mode 4 berhenti setelah analisis + rencana (butir 1h)
+
+- Rincian di bagian 5 di bawah.
+- **Langkah:**
+  1. kode `mode4.py` (`first_round`, `follow_up`);
+  2. teks EXPLORE di `conversation_router.py`;
+  3. `AI_ROUTER.md` diregenerasi dan benchmark router diulang;
+  4. tes `test_mode4*`;
+  5. deploy orc;
+  6. ulang uji q7 giliran 1–2 (±USD 0,15).
+- **Lulus bila:**
+  - q7 giliran 1 ≤ 15 menit dan berakhir dengan analisis + rencana yang menunggu;
+  - "setuju" menjalankan riset;
+  - tidak ada rencana lanjutan tanpa diminta.
+- **Jalan balik:** revert commit (tanpa saklar), atau saklar `AI_MODE4_AUTO_RESEARCH` (default mati = perilaku baru).
+  Usul memakai saklar.
+
+### EXEC-P5: gabung langkah mekanis (butir 1i)
+
+- Rincian di bagian 6 di bawah.
+- **Langkah:**
+  1. kode `tools/data_need.py`, `data_planner.py`, `session.py`, `orchestrator._handle_call`;
+  2. argumen `complete` di `run_python`;
+  3. tes;
+  4. `AI_TOOLS.md`;
+  5. migration Tool_Catalog;
+  6. deploy orc;
+  7. ulang uji p2 dan threshold t1 (±USD 0,05).
+- **Lulus bila:** panggilan model per analisis turun ≥ 3 tanpa kenaikan penolakan.
 
 ---
 
