@@ -66,25 +66,71 @@ def latest_horizons(*texts: str | None) -> set[tuple[int, str]]:
 def locked_horizons(texts: list[str | None], changes: list[dict] | None) -> tuple[set[tuple[int, str]], str | None]:
     """The outcome horizons a plan must use (texts oldest first; the last message of the last text is the newest) and
     a disagreement note. M82: the conversation router's structured change of the newest message decides (REPLACE: its
-    values; ADD: the earlier horizons and its values); the pattern reading cross-checks it. When the two disagree, both
-    readings are allowed (a wrong lock would force the wrong horizon) and the note names the disagreement. Without a
-    router reading (changes None: a first message, an explicit API action, a failed router call) the newest statement
-    found by the patterns wins."""
+    values; ADD: the earlier horizons and its values; variants, 2026-10-06: REMOVE takes a horizon out); the pattern
+    reading cross-checks it. When the two disagree, both readings are allowed (a wrong lock would force the wrong
+    horizon) and the note names the disagreement. Without a router reading (changes None: an explicit API action, a
+    failed router call, AI_ENABLE_ASK_BACK off for a first message) the newest statement found by the patterns wins."""
     messages = [m for text in texts for m in (text or "").split(MESSAGE_SEPARATOR)]
     newest = stated_horizons(messages[-1]) if messages else set()
     earlier = latest_horizons(*messages[:-1])
     if changes is None:
         return (newest or earlier), None
-    routed = [c for c in changes if c.get("name") == "OUTCOME_HORIZON" and int(c.get("value") or 0) > 0]
-    values = {(int(c["value"]), str(c["unit"])) for c in routed}
-    if routed:
-        locked = values if all(c.get("action") == "REPLACE" for c in routed) else earlier | values
+    added, replaced, removed = (horizon_changes(changes, action) for action in ("ADD", "REPLACE", "REMOVE"))
+    values = added | replaced
+    if values or removed:
+        locked = ((set() if replaced else set(earlier)) | values) - removed
     else:
         locked = set(earlier)
-    if newest and newest != values:
-        return locked | newest, (f"router read {sorted(values) or 'no horizon'}, the message's words "
-                                 f"{sorted(newest)}")
+    if newest and newest != values and not newest <= values | removed:
+        return locked | (newest - removed), (f"router read {sorted(values) or 'no horizon'}, the message's words "
+                                             f"{sorted(newest)}")
     return locked, None
+
+
+def horizon_changes(changes: list[dict] | None, action: str) -> set[tuple[int, str]]:
+    """{(number, unit)} of the router's OUTCOME_HORIZON changes with this action (a non-positive value or a unit that
+    is not a time unit is ignored)."""
+    found = set()
+    for change in changes or []:
+        if change.get("name") != "OUTCOME_HORIZON" or change.get("action") != action \
+                or change.get("unit") not in UNITS:
+            continue
+        try:
+            value = int(round(float(change.get("value") or 0)))
+        except (TypeError, ValueError):
+            continue
+        if value > 0:
+            found.add((value, str(change["unit"])))
+    return found
+
+
+def design_values(changes: list[dict] | None, name: str, *actions: str) -> list[float]:
+    """The numeric values of the router's changes of one design value name (CONDITION_THRESHOLD, SUCCESS_THRESHOLD,
+    MIN_EFFECT) with these actions."""
+    found = []
+    for change in changes or []:
+        if change.get("name") != name or change.get("action") not in actions:
+            continue
+        try:
+            found.append(float(change.get("value")))
+        except (TypeError, ValueError):
+            continue
+    return found
+
+
+def variants(changes: list[dict] | None) -> dict[str, list[str]]:
+    """Variants (2026-10-06): the design values the newest message names more than once (ADD or REPLACE), as text per
+    name ({"OUTCOME_HORIZON": ["3 DAY", "10 DAY"], ...}); empty when every value is named once."""
+    named: dict[str, list[str]] = {}
+    for change in changes or []:
+        if change.get("action") not in ("ADD", "REPLACE"):
+            continue
+        value = change.get("value")
+        text = f"{value:g} {change.get('unit')}".replace(" NONE", "") if isinstance(value, (int, float)) \
+            else str(change.get("text") or "").strip()
+        if text and text not in named.setdefault(str(change.get("name")), []):
+            named[str(change.get("name"))].append(text)
+    return {name: texts for name, texts in named.items() if len(texts) > 1}
 
 
 def frequency_of(analysis_frequency: str | None) -> str:

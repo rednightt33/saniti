@@ -42,6 +42,8 @@ from .schemas import (
 from . import conversation_router as router
 from . import in_sample as insample
 from . import method_guides
+from . import variant_correction
+from .user_words import design_values, variants
 from .user_words import allowed_periods, current_design_changes, current_turn_referent, current_user_words, \
     locked_horizons
 from .provenance import (CONTEXT, typed_figures, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
@@ -1700,6 +1702,12 @@ PLAN_MIN_EFFECT_INSTRUCTION = (
     "take it from their words, or set min_effect and min_effect_unit to null.")
 # EXEC-R R1 (2026-10-06): a plan gate names the fields to change, so an edit's "set" can fix them without a rewrite
 PLAN_FIELD_PATHS = " Fields: {paths}."
+def _without(numbers: list[float], removed: list[float]) -> list[float]:
+    """numbers without the ones equal to a removed value (also as a fraction or a percent of it)."""
+    return [n for n in numbers if not any(abs(n - r) < 1e-9 or abs(n * 100 - r) < 1e-9 or abs(n / 100 - r) < 1e-9
+                                          for r in removed)]
+
+
 def previous_weekday(day: Any) -> str:
     """The weekday before day (ISO): the newest trading date a daily load can have delivered by then (holidays are
     not known here, so the day after one reads as one day older)."""
@@ -1721,6 +1729,17 @@ PLAN_HORIZON_INSTRUCTION = (
     "The user stated the outcome horizon ({stated}); {plan_items} use {used} periods instead. The horizon is the "
     "user's: use {allowed} periods in every experiment and angle. A different horizon is the user's decision: you may "
     "mention it as an option in the answer and use it only after the user asks for it.")
+# Variants (user decision 2026-10-06, "2+5 Varian + koreksi", AI_ENABLE_ASK_BACK): every value the user named is tested
+PLAN_VARIANT_COVERAGE_INSTRUCTION = (
+    "The user asked for each of these values: {asked}. The plan has no experiment or angle for {missing}. Add one per "
+    "missing value (the same test with that value: a variant) and keep the others, or say in the plan's answer why it "
+    "cannot run.")
+VARIANT_COVERAGE_LINE = "Varian yang diminta user tetapi tidak ada di rencana ini: {missing}."
+VARIANT_NOTE = (
+    "Application note (router), not from the user: the user asks for variants of a design value ({variants}). Answer "
+    "every variant with the same method: in an analysis, release one table with a variant column (one row per variant "
+    "and measure, so each figure has its address rows[variant=...]); in a plan, one experiment or angle per variant or "
+    "combination. Show every variant, also those that do not pass.")
 PLAN_TEXT_PROVENANCE_INSTRUCTION = (
     "These numbers in the Research Plan's own text have no source: {numbers}. A count, size or level written in the "
     "plan (how many stocks, rows or days, a threshold) must come from the user's message or this run's feasibility "
@@ -2226,6 +2245,7 @@ class AgentOrchestrator:
             current_research_guard.set(state.guard)
             final = self._loop(state)
             final = self._with_ai_choices(state, final)
+            final = self._conversation_correction(state, final)
             state.experiments = self._research_summary(state, final.answer)
             if state.forced_path == "ANALYSIS" and final.response_type == "ANSWER" and state.final_status \
                     and ANALYSIS_PATH_LINE not in final.limitations:
@@ -2351,6 +2371,23 @@ class AgentOrchestrator:
             except Exception:  # noqa: BLE001 - logging never changes the response
                 logger.warning(dumps({"event": "ai_model_call_provider_failed", "request_id": state.request_id}))
         return result
+
+    def _conversation_correction(self, state: RunState, final: FinalResponse) -> FinalResponse:
+        """Variants and turns (2026-10-06, AI_ENABLE_ASK_BACK): when this run recorded a test, every test of the
+        conversation's ledger is corrected together (variant_correction) and the answer lists all of them."""
+        if not self.ask_back or not any(entry.get("request_id") == state.request_id
+                                        and entry.get("kind") in ("HYPOTHESIS", "ANGLE")
+                                        for entry in state.data_record.get("findings") or []):
+            return final
+        correction = variant_correction.correct(state.data_record)
+        if correction is None:
+            return final
+        log_event("conversation_correction", request_id=state.request_id, policy=correction["policy"],
+                  family_size=correction["family_size"],
+                  below_alpha=sum(1 for t in correction["tests"] if t["below_alpha"]))
+        line = variant_correction.line(correction)
+        return final.model_copy(update={"limitations": [*[x for x in final.limitations
+                                                          if not x.startswith("Koreksi uji berganda")], line]})
 
     def _seed_data_record(self, state: RunState, data_record: dict[str, Any] | None) -> None:
         """M47: start from the conversation's data record; its tables and columns count as read in this run, and the
@@ -2813,8 +2850,11 @@ class AgentOrchestrator:
         """The conversation router's class for this sub-run (mode 4): its note, and for CLARIFY and CONVERSATIONAL only
         the read-only tools and the answer types, so a question about a result never extracts data or runs code."""
         intent = router.current_intent.get()
+        named = variants(current_design_changes.get()) if self.ask_back else {}
         for note in (router.intent_note(intent),
-                     router.NOTES["QUICK_SUMMARY"] if (intent or {}).get("choice") == "QUICK_SUMMARY" else None):
+                     router.NOTES["QUICK_SUMMARY"] if (intent or {}).get("choice") == "QUICK_SUMMARY" else None,
+                     VARIANT_NOTE.format(variants="; ".join(f"{name}: {', '.join(values)}"
+                                                            for name, values in named.items())) if named else None):
             if note:  # EXEC-3: the router's reading of the request, and a quick summary the user chose
                 state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": note})
         kind = router.current_turn_kind.get()
@@ -4967,11 +5007,14 @@ class AgentOrchestrator:
         cited = self._cited_result_values(state)
         before = list(stated)
         stated = stated + cited
+        # variants (2026-10-06): a threshold the user took out (REMOVE) is no longer theirs
+        changes = current_design_changes.get() if self.ask_back else None
+        stated_success = _without(stated, design_values(changes, "SUCCESS_THRESHOLD", "REMOVE"))
         invented_at = [(index, e.success_rule.value)
                        for index, e in enumerate(getattr(final.research_plan, "experiments", None) or [])
                        if getattr(e, "success_rule", None) is not None
                        and not any(abs(n - e.success_rule.value) < 1e-9 or abs(n * 100 - e.success_rule.value) < 1e-9
-                                   or abs(n / 100 - e.success_rule.value) < 1e-9 for n in stated)
+                                   or abs(n / 100 - e.success_rule.value) < 1e-9 for n in stated_success)
                        and not cited_match(e.success_rule.value, cited, magnitude=False)]
         invented = [value for _, value in invented_at]
         if invented:
@@ -4986,9 +5029,10 @@ class AgentOrchestrator:
         plan_items = "experiments" if getattr(final.research_plan, "experiments", None) else "angles"
         items_with_effect = [(index, i) for index, i in enumerate(getattr(final.research_plan, plan_items, None) or [])
                              if getattr(i, "min_effect", None) is not None]
+        stated_effect = _without(stated, design_values(changes, "MIN_EFFECT", "REMOVE"))
         invented_at = [(index, i.min_effect) for index, i in items_with_effect
                        if not any(abs(n - i.min_effect) < 1e-9 or abs(n * 100 - i.min_effect) < 1e-9
-                                  or abs(n / 100 - i.min_effect) < 1e-9 for n in stated)
+                                  or abs(n / 100 - i.min_effect) < 1e-9 for n in stated_effect)
                        and not cited_match(i.min_effect, cited, magnitude=True)]
         invented = [value for _, value in invented_at]
         if invented:
@@ -5021,6 +5065,8 @@ class AgentOrchestrator:
                 + PLAN_FIELD_PATHS.format(paths=", ".join(path for _, _, path in drifted)))
             return self._forced(state, final, PLAN_VERSION_NOTICE, [
                 f"The Research Plan changes the outcome horizon the user stated ({stated_text})."])
+        if changes is not None and not disagreement:
+            final = self._variant_coverage(state, final, horizons, allowed, {used for _, used, _ in items}, changes)
         # M29 (d02 2026-09-29: "about 6 banks" planned, 48 run): a number written in the plan's own text (universe,
         # scope, hypotheses, assumptions) needs a source too; the plan's structured fields are design values
         plan_json = final.research_plan.model_dump(mode="json")
@@ -5043,6 +5089,42 @@ class AgentOrchestrator:
                                 [f"Figures without a source in this Research Plan: {numbers}."])
         state.evidence_label = None
         return final
+
+    def _variant_coverage(self, state: RunState, final: FinalResponse, horizons: set[tuple[int, str]],
+                          allowed: set[int], used: set[int], changes: list[dict]) -> FinalResponse:
+        """Variants (2026-10-06): every outcome horizon and every threshold the user named more than once is in the plan
+        (or was already tested in this conversation). Rejected once with the missing values; then the plan goes out
+        with a limitation that names them (a plan without one variant is still the user's to approve)."""
+        tested = {int(v) for entry in state.data_record.get("findings") or []
+                  for key in ("horizon_periods", "outcome_horizon_periods")
+                  for v in [((entry.get("finding") or {}).get("parameters") or {}).get(key)]
+                  if isinstance(v, (int, float))}
+        asked, missing = [], []
+        if len(horizons) > 1 and allowed:
+            asked.append("outcome horizons " + ", ".join(str(a) for a in sorted(allowed)) + " periods")
+            missing += [f"outcome horizon {a} periods" for a in sorted(allowed - used - tested)]
+        plan = final.research_plan.model_dump(mode="json")
+        items = [i for i in (plan.get("experiments") or []) + (plan.get("angles") or []) if isinstance(i, dict)]
+        # where each kind of value sits in a plan: the event's definition, the success rule, the minimum effect
+        where = {"CONDITION_THRESHOLD": [n for i in items for n in numbers_in(i.get("parameters"))] + [
+                     value for i in items for key in ("condition", "hypothesis", "angle_question")
+                     for shown in parse_numbers(str(i.get(key) or "")) for value, _ in shown.candidates],
+                 "SUCCESS_THRESHOLD": [float((i.get("success_rule") or {}).get("value")) for i in items
+                                       if isinstance((i.get("success_rule") or {}).get("value"), (int, float))],
+                 "MIN_EFFECT": [float(i["min_effect"]) for i in items if isinstance(i.get("min_effect"), (int, float))]}
+        for name, found in where.items():
+            values = design_values(changes, name, "ADD", "REPLACE")
+            if len(values) < 2:
+                continue
+            asked.append(name.lower().replace("_", " ") + " " + ", ".join(f"{v:g}" for v in values))
+            missing += [f"{name.lower().replace('_', ' ')} {v:g}" for v in values if _without([v], found)]
+        if not missing:
+            return final
+        self._gate_once(state, "PLAN_VARIANT_COVERAGE", PLAN_VARIANT_COVERAGE_INSTRUCTION.format(
+            asked="; ".join(asked), missing=", ".join(missing)), outcome="ANNOTATED")
+        line = VARIANT_COVERAGE_LINE.format(missing=", ".join(missing))
+        return final if line in final.limitations else final.model_copy(
+            update={"limitations": [*final.limitations, line]})
 
     @staticmethod
     def _carried_id(state: RunState, ref: str) -> str | None:
