@@ -6,6 +6,17 @@ Before touching Railway or PostgreSQL, read `README.md`, `PROJECT_CONTEXT.md`, `
 
 `ERRORS_AND_SOLUTIONS.md` lists every error found so far, with its root cause, solution and status. Check it before diagnosing a failure: the error may already be known. Its Part A is the data-format standard. Before adding a new data source or table (for example cross-asset or macro data), confirm that it meets every item of Part A, and settle any gap with the user before loading.
 
+## Plans
+
+- `PLAN.md` is the only active plan: work the user approved that is not yet executed. `FUTURE_PLAN.md` holds proposals,
+  future work and open user decisions. Do not create dated plan files (`PLAN_YYYY-MM-DD.md`, `ROUND_PLAN_*`); the old
+  ones are discussion history (user decision 2026-10-06).
+- Record an approval in `PLAN.md` in the same task, with its date and the user's words, even when the user approves
+  "in general"; keep only the open details as questions on that item (R34). Approval to plan is not a command to
+  execute.
+- When an item is done, record it in `ERRORS_AND_SOLUTIONS.md` and the changelogs and remove it from `PLAN.md`.
+- Before a golden test, compare `PLAN.md` with the deployed behaviour and report any approved item not yet built.
+
 ## Mandatory workflow
 
 1. Confirm the requested scope and exact target names with the user when ambiguous.

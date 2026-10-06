@@ -1,11 +1,17 @@
-# Rencana ke depan (belum dijalankan)
+# Rencana ke depan: usulan dan keputusan yang masih terbuka
 
-Isi dokumen ini sudah disetujui untuk dimasukkan ke rencana, tetapi **belum boleh dijalankan sampai user menyuruh**.
-Kode masalah merujuk ke `ERRORS_AND_SOLUTIONS.md`; hasil uji ada di `GOLDEN_TEST_HIGH_ALERT_2026-10-02.md`.
+Sejak 2026-10-06 (keputusan user), pekerjaan yang **sudah disetujui** tetapi belum dieksekusi ada di `PLAN.md`.
+Dokumen ini berisi sisanya:
+- usulan yang belum disetujui;
+- rencana masa depan;
+- keputusan user yang masih terbuka.
+
+Butir yang disetujui user dipindah ke `PLAN.md` pada tugas yang sama. Kode masalah merujuk ke
+`ERRORS_AND_SOLUTIONS.md`.
 
 ## 1. Antrean perbaikan dekat
 
-M68, S28 dan R-STORE sudah ditarik ke round 2026-10-03; urutan dan rinciannya di `ROUND_PLAN_2026-10-03.md`.
+**Riwayat, sudah dieksekusi.** M68, S28 dan R-STORE dikerjakan di round 2026-10-03 (`ROUND_PLAN_2026-10-03.md` Fase A dan C, live di dev). Teks di bawah disimpan sebagai riwayat desain.
 
 ### M68 — catatan untuk AI kehilangan nilai saringan (HIGH ALERT, disetujui masuk rencana 2026-10-03)
 
@@ -160,3 +166,43 @@ Untuk 100 pengguna bersamaan tetap perlu bagian 2.
 - **Benchmark:** JupyterHub (satu kernel per user di kumpulan mesin yang bisa ditambah, plus pembersih kernel
   menganggur) dan pool koneksi database (dipinjam, lalu dikembalikan di akhir permintaan).
 - **Keputusan user yang masih terbuka:** tambahan biaya server dan perubahan arsitektur untuk no. 3–4.
+
+## 3. Usulan dan keputusan yang masih terbuka (dikumpulkan dari dokumen rencana lama, audit 2026-10-06)
+
+### 3a. Usulan yang belum disetujui
+
+| Usulan | Asal | Catatan |
+|---|---|---|
+| E1–E3 `get_evidence`: filter satu nilai dihitung tetap (Governor), klaim divalidasi satu per satu, deskripsi alat hanya untuk angka tanpa alamat | Analisis log golden test `ma-qa-20261006b` (2026-10-06) | ±25 dtk per kejadian |
+| Cek angka di dalam kutipan web (angka yang ditulis AI wajib ada di kutipan) | Analisis route web orc (2026-10-06) | Celah: kutipan asli, angka atau periode salah |
+| Angka ketik dikonversi otomatis menjadi alamat bila tepat satu nilai rilis cocok | Analisis penolakan (2026-10-06) | Hemat 100–300 dtk per golden test |
+| Paket 1: tanggal terbuka di `query_metric`, jatah perbaikan per penyebab (bukan per panggilan), eksekusi alat paralel umum, kunci relasi otomatis, perubahan mode 4 lain | `PLAN_2026-10-05.md` (di luar cakupan item 10/12) | `query_metric` ×4 ditolak di "BBRI" |
+| Tingkat berpikir model (`AI_REASONING_EFFORT=high` di dev) | Analisis waktu (2026-10-06) | Setelan model, perlu izin user; sesudah P1–P3 |
+| S23 bertahap: hitungan umum ke helper teruji, cek rekonsiliasi, hitung ulang independen | `UNDERADDRESSED_PLAN_CAT23.md` §8 | Paling mahal |
+| A1, A3, A4, D (perkiraan per bagian, pesan tolak lengkap, EXPLAIN broker, tabel jawaban lebih pendek) | `EXTRACTION_AND_AUDIT_PLAN.md` "Proposed, not approved yet" | — |
+| Mode EXPLORATION yang dirancang ulang | `MULTI_ANGLE_FIX_PLAN.md` "To be designed" | Sebagian tertutup mode 4 |
+| Golden set dan antrean tinjauan manusia untuk klasifikasi kepentingan peristiwa | `WEB_GOVERNOR_PLAN.md` P4 | — |
+| Koreksi uji berganda lintas giliran di backend | `G2_G3_REACTIVATION_PLAN.md` langkah 5 | Dicatat sebagai lanjutan |
+| Roadmap antarmuka pengguna (tugas asinkron, progres, notifikasi) | `ROADMAP_FRONTEND_2026-10-04.md` | Usulan |
+| Banyak pengguna bersamaan | §2 di atas | Biaya server |
+
+### 3b. Keputusan user yang masih terbuka
+
+| Keputusan | Asal | Menghambat |
+|---|---|---|
+| Keputusan 6: sumber dan nama kolom ciri kelompok (contoh BUMN) | `ROUND_PLAN_2026-10-03.md` §8 | `PLAN.md` butir 8 (E2) |
+| Empat keputusan rinci G2-B (urutan, min 4 angle, data < 4 angle, min families) | `FACTOR_EVENT_RESEARCH_PLAN.md` §12 | `PLAN.md` butir 10 |
+| H3 kamus istilah: daftar istilah dari user | `HIGH_ALERT_PLAN.md`, `UNDERADDRESSED_PLAN_CAT23.md` kelompok 1 (M66, M13) | — |
+| Toleransi pemanasan indikator (usul 0,1%) | `UNDERADDRESSED_PLAN_CAT23.md` kelompok 6 (G11, D12, G08, D14, P05) | — |
+| Label "ambang diubah setelah melihat hasil" | `HIGH_ALERT_IMPLEMENTATION_PLAN.md` Langkah 5 | — |
+| D02 `Undefined` vs Part A A1.4 (NULL + alasan): ubah Part A atau catat pengecualian | `UNDERADDRESSED_PLAN_CAT23.md` §7 | — |
+| Otomatisasi refresh broker (D06; token Stockbit manual) | `UNDERADDRESSED_PLAN_CAT23.md` §7 | — |
+| Daftar entitas dari web dipakai menyaring perhitungan (sekarang hanya label) | `HANDOFF_2026-10-05.md` (M71) | — |
+| Proyek data pemegang saham | `HANDOFF_2026-10-05.md` | Jawaban "saham grup Bakrie" dari database |
+| Saran aturan keluar (exit) di buku metode backtest | `HANDOFF_2026-10-05.md` | — |
+| `pg_trgm` untuk salah ketik (ditunda: "No need for now") | `HANDOFF_2026-10-05.md` | `PLAN.md` butir 11 sebagian |
+| Tabel makro di database (Part A) | `PLAN_2026-10-05.md` item 12 keputusan 9 | — |
+| P30 trade setup (ditunda user) | `PLAN_ROUTER_MODELS_2026-10-04.md` | — |
+| O1 rute penyedia berdasarkan kecepatan (keputusan "as is dulu") | `PLAN_BE_OPTIMIZATION_2026-10-04.md` | — |
+| Biaya server dan arsitektur banyak mesin sandbox | §2 di atas | — |
+| Bagian user: secret `RAILWAY_TOKEN` di GitHub (R33), rotasi kunci (R21), kredit OpenRouter | `ERRORS_AND_SOLUTIONS.md` | Uji live |
