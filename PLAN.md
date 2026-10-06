@@ -23,7 +23,7 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 | No | Butir | Disetujui | Status | Urutan usulan |
 |---|---|---|---|---|
 | 1 | Sisa item 10 dan 12: deploy dua perbaikan, ulang uji item ambang, laporan golden test `ma-qa-20261006b` | "gas" 2026-10-05; format web "Ok tambahkan" 2026-10-06; **EXEC 2026-10-06** | **EXEC** (lihat bagian EXEC) | 1 |
-| 1b | Menu alamat lengkap (celah item 10.1): setiap angka tabel punya alamat, pola alamat ditulis, nilai terformat | 2026-10-05 15:49 dan 17:55 ("Menu alamat siap salin … alamat lengkap di samping angkanya"); ditegaskan 2026-10-06 ("padahal sudah saya suruh") | Sebagian: menu live sejak golden test 06b, tetapi tabel hanya satu baris contoh dan baris pola yang direncanakan tidak dibuat | Bersama EXEC-1 bila user setuju |
+| 1b | Menu alamat lengkap (celah item 10.1): setiap angka tabel punya alamat, pola alamat ditulis, nilai terformat | 2026-10-05 15:49 dan 17:55 ("Menu alamat siap salin … alamat lengkap di samping angkanya"); ditegaskan 2026-10-06 ("padahal sudah saya suruh") | Sebagian: menu live sejak golden test 06b, tetapi tabel hanya satu baris contoh dan baris pola yang direncanakan tidak dibuat; **EXEC 2026-10-06** ("Ok masukan", bagian dari EXEC-1) | **EXEC** (EXEC-1 langkah 1b) | 1 |
 | 2 | P3: gerbang yang salah tolak | 2026-10-06 "OK masukan plan jangan execute dulu" | Belum (P3a ikut EXEC butir 1, P3b ikut EXEC butir 3) | 3 |
 | 3 | Item 11: penyortir "free will", jalur TANYA BALIK, cadangan berupa pertanyaan | 2026-10-05 (16:47, 17:40, 17:51, 17:55), ditegaskan 2026-10-06; **EXEC 2026-10-06** | **EXEC** (lihat bagian EXEC) | 2 |
 | 4 | P2: jawaban ditulis sekali | 2026-10-06 | Belum | 4 |
@@ -52,9 +52,10 @@ Urutan: EXEC-1, lalu EXEC-3. EXEC-3 dibangun di atas `main` yang sudah memuat EX
 |---|---|---|---|
 | 0 | Pra-cek: kredit OpenRouter (dibaca di proses, kunci tidak dicetak); Railway dev (tidak ada golden test atau job berjalan); cabang = `origin`; `main` bisa fast-forward | 0 | Kredit ≥ USD 0,30; tidak ada run berjalan |
 | 1 | Tes lokal: suite orc dan web-governor; `git diff --check` | 0 | Hijau |
+| 1b | Butir 1b (menu alamat lengkap): kode `value_refs.py` dan `orchestrator.py` + tes `test_address_menu.py`; ukur tambahan token menu pada hasil tabel nyata dari golden test 06b (lokal, tanpa model); commit sebelum push langkah 2 | 0 | Tes hijau; setiap baris tabel kecil punya alamat; tabel besar punya pola; format `nama: nilai → {{alamat}}`; tambahan token dilaporkan |
 | 2 | Push `main` (fast-forward ke cabang kerja: `7eda0b7`, `d675404`, dokumen). Orc dan web-governor auto-deploy | 0 | Kedua deployment SUCCESS; log start bersih (`ai_provider_policy` OK, tanpa `web_research_inactive`); `railway config plan` up to date |
 | 3 | Uji asap route web: 1 kasus (`bi_rate`) lewat `web-governor-test-runner` fase `orc_web` | ±USD 0,02 | `currency` berupa kode ISO, `unit_code`, tanggal ISO, tanpa `DATE_NOT_ISO` |
-| 4 | Ulang uji `threshold_from_result` (3 giliran), suite `qa_20261006c`, prefix `ma-qa-20261006c` | ±USD 0,07 | Giliran 2 = rencana dengan efek minimal dari hasil sebelumnya (tidak LIMITED); giliran 3 menjalankan riset |
+| 4 | Ulang uji `threshold_from_result` (3 giliran), suite `qa_20261006c`, prefix `ma-qa-20261006c` | ±USD 0,07 | Giliran 2 = rencana dengan efek minimal dari hasil sebelumnya (tidak LIMITED); giliran 3 menjalankan riset; tanpa penolakan REFERENCE; tidak ada alamat yang disusun sendiri di log pikiran (butir 1b) |
 | 5 | Laporan `GT_QA_2026-10-06.md` (non-dev): kriteria lulus rencana item 10/12, analisis waktu, ulang uji langkah 4; prosedur 5 langkah per temuan, termasuk praktik terbaik online dan perbandingannya | 0 | Setiap temuan punya akar masalah dari log, usulan, risiko, pembanding online dan solusi final |
 | 6 | Catatan: status P35, P36, P37, M83, W24, W26; 11 entri temuan baru (lihat butir 1 langkah 5); `RAILWAY_CHANGELOG.md`, `DATABASE_CHANGELOG.md`, `OUTSTANDING_ISSUES.md`; butir 1 dihapus dari `PLAN.md`. Commit, push `main` dan cabang, cek sama dengan `origin` | 0 | Push sukses |
 
@@ -62,6 +63,7 @@ Urutan: EXEC-1, lalu EXEC-3. EXEC-3 dibangun di atas `main` yang sudah memuat EX
 - **Deploy tidak SUCCESS:** redeploy deployment sebelumnya (orc `96726ca5`, web-governor `7ca3067e`), lalu lapor.
 - **Kredit kurang:** berhenti sebelum langkah 3.
 - **Ulang uji gagal:** dicatat dan dilaporkan. Perbaikan kode di luar langkah ini menunggu izin.
+- **Tambahan token menu (butir 1b) > 10%** pada tabel nyata: batas baris diturunkan sampai ≤ 10%, lalu dilaporkan.
 
 ### EXEC-3: item 11 penyortir "free will" + TANYA BALIK (butir 3, termasuk P3b)
 
