@@ -507,3 +507,33 @@ def test_undated_series_items_are_counted_by_their_text(tmp_path) -> None:
     provider = Provider(readings=[months])
     result = OrcWebService(settings_with(tmp_path), provider).answer(request(expected_shape="SERIES"))
     assert result["depth"] == "QUICK" and result["escalation"] is None and len(provider.reading_payloads()) == 1
+
+
+def test_the_written_figure_decides_its_value_when_unambiguous() -> None:
+    from app.orc_web import written_number
+
+    assert written_number("282,9") == 282.9 and written_number("US$258.774,4 juta") == 258774.4
+    assert written_number("291,979,090,608") == 291979090608 and written_number("2.92%") == 2.92
+    assert written_number("−1,5 persen") == -1.5 and written_number("12") == 12
+    assert written_number("264.700") is None and written_number("Januari 2025 0,76 persen") is None
+    assert written_number("") is None and written_number(None) is None
+
+
+def test_a_misread_decimal_comma_is_corrected(tmp_path) -> None:
+    """Benchmark orcweb-bench-20261006b (q7): "282,9" miliar read as 282900, a thousand times too large."""
+    misread = reading([item("NUMBER", 2, "Ekspor 2023 sebesar US$258,82 miliar",
+                            number=number(258820, "US$258,82 miliar", start="2023-01-01", end="2023-12-31"))])
+    result = OrcWebService(settings_with(tmp_path), Provider(readings=[misread])).answer(request())
+    assert result["citable"][0]["value"] == pytest.approx(258.82e9)
+    assert any(w["code"] == "VALUE_FROM_WRITTEN" for w in result["warnings"])
+
+
+def test_only_a_misreading_overrides_the_reading() -> None:
+    from app.orc_web import _misread
+
+    assert _misread({"value": 282900, "value_as_written": "282,9", "scale": "miliar"})  # decimal comma misread
+    assert _misread({"value": 282.9e9, "value_as_written": "282,9", "scale": "miliar"})  # scale applied twice
+    assert _misread({"value": None, "value_as_written": "282,9", "scale": "miliar"})
+    assert not _misread({"value": 282.9, "value_as_written": "282,9", "scale": "miliar"})
+    # a written figure in full with a scale given by the reading: a different difference, left to the reading
+    assert not _misread({"value": 264.7, "value_as_written": "264,700,000,000", "scale": "miliar"})

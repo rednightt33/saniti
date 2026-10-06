@@ -278,6 +278,57 @@ def tier(domain: str, settings: Settings) -> str:
     return "OTHER"
 
 
+NUMBER_TEXT_RE = re.compile(r"[-\u2212]?\d[\d.,]*")
+
+
+def written_number(text: str | None) -> float | None:
+    """The one number written in text, read by its separators, or None when there is not exactly one number or its
+    separators are ambiguous. "282,9" and "258.774,4" use a decimal comma, "291,979,090,608" groups thousands; a single
+    separator followed by exactly three digits ("264.700") can be either and is left to the reading."""
+    found = [m.group(0).rstrip(".,") for m in NUMBER_TEXT_RE.finditer(text or "")]
+    if len(found) != 1:
+        return None
+    raw = found[0].replace("\u2212", "-")
+    negative, raw = raw.startswith("-"), raw.lstrip("-")
+    if "." in raw and "," in raw:
+        decimal = "." if raw.rfind(".") > raw.rfind(",") else ","
+        digits = raw.replace("," if decimal == "." else ".", "").replace(decimal, ".")
+    elif "." in raw or "," in raw:
+        parts = raw.split("." if "." in raw else ",")
+        if len(parts) > 2:
+            if any(len(part) != 3 for part in parts[1:]):
+                return None
+            digits = "".join(parts)
+        elif len(parts[1]) == 3:
+            return None
+        else:
+            digits = parts[0] + "." + parts[1]
+    else:
+        digits = raw
+    try:
+        value = float(digits)
+    except ValueError:
+        return None
+    return -value if negative else value
+
+
+def _misread(number: dict[str, Any]) -> bool:
+    """The reading's value disagrees with the figure as written in a way only a misreading explains: no value, a
+    decimal comma or thousands separator read the other way (a factor of 1000), or the scale applied twice. Any other
+    difference is left to the reading (the written figure may carry a scale the value does not)."""
+    written = written_number(number.get("value_as_written"))
+    value = number.get("value")
+    if written is None:
+        return False
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return True
+    close = lambda a, b: abs(a - b) <= 1e-9 * max(abs(a), abs(b), 1.0)  # noqa: E731
+    scale = SCALES.get(str(number.get("scale") or "").strip().lower().rstrip("."), 1.0)
+    if close(written, value):
+        return False
+    return close(written * 1000, value) or close(written, value * 1000) or (scale > 1 and close(written * scale, value))
+
+
 def uniform(number: dict[str, Any] | None) -> float | None:
     """The value times its written scale (167.03 miliar -> 167030000000.0); None without a value."""
     if not number or not isinstance(number.get("value"), (int, float)) or isinstance(number.get("value"), bool):
@@ -620,7 +671,7 @@ class OrcWebService:
     def _checked(data: dict[str, Any], sources: list[dict], warnings: list, subject: str | None) -> dict[str, Any]:
         """Code's minimum guard: an item whose quote is not in its source's text is dropped; conflicts keep only the
         items that survived (renumbered from 0)."""
-        kept, index, dropped = [], {}, 0
+        kept, index, dropped, corrected = [], {}, 0, 0
         for number, item in enumerate(data.get("items") or [], 1):
             source = item.get("source") if isinstance(item, dict) else None
             if not isinstance(source, int) or isinstance(source, bool) or not 1 <= source <= len(sources) \
@@ -633,6 +684,12 @@ class OrcWebService:
             if subject:  # a subject lookup answers for the subject asked, whatever name the source uses
                 entry["subject"] = subject
             number_part = entry.get("number") if isinstance(entry.get("number"), dict) else {}
+            # the figure as written decides its value when it can be read without doubt (benchmark
+            # orcweb-bench-20261006b: "282,9" miliar was read as 282900, a thousand times too large)
+            if _misread(number_part):
+                entry["number"] = number_part = {**number_part,
+                                                 "value": written_number(number_part.get("value_as_written"))}
+                corrected += 1
             # the period of a figure; without dates, its own text (twelve undated months are twelve periods, not one)
             entry["period_key"] = (number_part.get("period_start"), number_part.get("period_end")) \
                 if number_part.get("period_start") or number_part.get("period_end") \
@@ -640,6 +697,9 @@ class OrcWebService:
                                        .split()))
             index[number] = len(kept)
             kept.append(entry)
+        if corrected:
+            warnings.append({"code": "VALUE_FROM_WRITTEN",
+                             "message": f"{corrected} values read again from the figure as written"})
         if dropped:
             warnings.append({"code": "QUOTE_NOT_VERBATIM",
                              "message": f"{dropped} items dropped: their quote is not in the source's text"})
