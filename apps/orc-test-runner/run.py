@@ -2,7 +2,8 @@
 
 MARKET_AI_ORC_API_KEY is read from the environment and never printed. Every item is a new SERVER-mode conversation;
 a RESEARCH_PLAN_CONFIRMATION is approved once with plan_reply APPROVE. An item with "turns" is one conversation of
-free-text messages instead (mode 4: no analysis_path, no plan_reply; the reply classifier reads each reply). Output: a short `OTR {json}` line per turn, then
+free-text messages instead (mode 4: no analysis_path, no plan_reply; the reply classifier reads each reply); a turn
+may also be {"message", "chosen_option"} to pick a quick choice of an ask-back question (EXEC-3). Output: a short `OTR {json}` line per turn, then
 that turn's full response as gzip+base64 chunks (`OTRDUMP <item>:<turn> i/n data`), because Railway drops long log
 lines."""
 import base64, gzip, json, os, re, threading, time, urllib.error, urllib.request
@@ -62,6 +63,7 @@ def summary(item_id, turn, code, body, seconds):
             "cost": execution.get("cost"), "unsupported": (execution.get("number_provenance") or {}).get("unsupported"),
             "limitations": (response.get("limitations") or [])[:6],
             "mode": execution.get("mode"),
+            "options": [o.get("route") for o in body.get("options") or []] or None,
             # round 2026-10-03: the kejedot index, checked claims, exports and their download check
             "friction": execution.get("friction"),
             "evidence": [(e.get("status"), e.get("kind")) for e in body.get("evidence") or []] or None,
@@ -118,8 +120,12 @@ def run_turns(item, prefix, results):
             time.sleep(int(message["wait_seconds"]))
             continue
         turn += 1
+        # EXEC-3 (2026-10-06): a turn may pick a quick choice of the latest ask-back question
+        text = message["message"] if isinstance(message, dict) else message
         body = {"request_id": f"{prefix}-{item['id']}-{turn}", "conversation_id": conversation,
-                "history_mode": "SERVER", "message": message}
+                "history_mode": "SERVER", "message": text}
+        if isinstance(message, dict) and message.get("chosen_option"):
+            body["chosen_option"] = message["chosen_option"]
         if item.get("analysis_path"):
             body["analysis_path"] = item["analysis_path"]
         code, body, seconds = post(body)
