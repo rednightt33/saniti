@@ -25,7 +25,7 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 | 1 | Sisa item 10 dan 12: deploy dua perbaikan, ulang uji item ambang, laporan golden test `ma-qa-20261006b` | "gas" 2026-10-05; format web "Ok tambahkan" 2026-10-06; **EXEC 2026-10-06** | **EXEC** (lihat bagian EXEC) | 1 |
 | 1b | Menu alamat lengkap (celah item 10.1): setiap angka tabel punya alamat, pola alamat ditulis, nilai terformat | 2026-10-05 15:49 dan 17:55 ("Menu alamat siap salin … alamat lengkap di samping angkanya"); ditegaskan 2026-10-06 ("padahal sudah saya suruh") | Sebagian: menu live sejak golden test 06b, tetapi tabel hanya satu baris contoh dan baris pola yang direncanakan tidak dibuat; **EXEC 2026-10-06** ("Ok masukan", bagian dari EXEC-1) | **EXEC** (EXEC-1 langkah 1b) | 1 |
 | 1c | EXEC-R: penolakan tanpa tulis ulang (R1–R5: edit field bersarang, `keep`, angka ketik jadi alamat, galat format yang benar + edit kedua, validasi per butir + jatah per penyebab + tanggal terbuka) | 2026-10-06 ("Masukan exec untuk masalah AI rejection tapi harus ulang dari awal") | **EXEC** (menunggu konfirmasi mulai) | Sesudah EXEC-1 |
-| 1d | EXEC-C: AI membawa semuanya ke run ID berikutnya dalam satu percakapan, tanpa terkecuali (13 butir, termasuk P4) | 2026-10-06 ("masukan exec"; "Seharusnya AI membawa semuanya tanpa terkecuali. Masukan EXEC") | **EXEC** (menunggu konfirmasi mulai); Q1 bentuk pikiran AI di prompt masih terbuka | Sesudah EXEC-R |
+| 1d | EXEC-C: AI membawa semuanya ke run ID berikutnya dalam satu percakapan, tanpa terkecuali (13 butir, termasuk P4) | 2026-10-06 ("masukan exec"; "Seharusnya AI membawa semuanya tanpa terkecuali. Masukan EXEC") | **EXEC** (menunggu konfirmasi mulai); Q1 memo, Q2 backend + AI (diputuskan 2026-10-06) | Sesudah EXEC-R |
 | 1k | EXEC-S: satu conversation ID = satu `session_id` (rute penyedia dan cache prompt antar run) | 2026-10-06 ("seharusnya 1 conversation ID = 1 session ID … RUN ID ya bisa berbeda tidak apa. -> masukan exec") | **EXEC** (menunggu konfirmasi mulai) | Bersama EXEC-1 atau sebelum EXEC-C |
 | 1e | EXEC-A: penyelarasan jalur (satu pembaca maksud, gerbang hanya meminta alat yang ada, 10.6 dan edit sama di semua jalur) | 2026-10-06 ("masukan exec") | **EXEC** (menunggu konfirmasi mulai) | Bersama EXEC-3 |
 | 1f | EXEC-E: hapus `get_evidence` dan gerbang EVIDENCE, perbarui dokumen terkait | 2026-10-06 ("hapus get evidence, update related docs terkait itu, masukan exec"); membatalkan keputusan 2026-10-03 "Prioritas 2, WAJIB" | **EXEC** (menunggu konfirmasi mulai) | Sebelum EXEC-R |
@@ -209,13 +209,14 @@ untuk giliran user berikutnya, sub-run mode 4 (m4a → m4b → m4c → m4d), dan
   - penyedia model sendiri tidak membawa pikiran antar giliran;
   - biaya bukan penghalang: cache dalam satu run 89%, jadi membawa 98 ribu token ke run 20 panggilan ±USD 0,022.
 
-  Keputusan menunggu user.
+  **Diputuskan user 2026-10-06: "pakai MEMO" (b).**
 - **Q2 (siapa menulis ringkasan pikiran, bila Q1 = b):**
   - fakta (butir 2–13) disusun backend dari kejadian yang tercatat, tanpa panggilan model;
   - ringkasan pikiran ditulis model sebagai satu field catatan di jawaban akhirnya (±200–500 token, tanpa panggilan
     tambahan).
 
-  Usulan asisten, belum disetujui.
+  **Diputuskan user 2026-10-06: "BACKEND + AI".** Bila run berhenti tanpa jawaban akhir, bagian backend tetap
+  tertulis.
 
 **Berkas:**
 - `data_record.py`, `conversations.py` (`assistant_text`, riwayat), `conversation_plans.py` (state), `mode4.py`
