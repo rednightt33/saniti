@@ -46,7 +46,7 @@ QUICK_RESULTS = 5
 RESEARCH_RESULTS = 8
 QUICK_EXCERPT = 1500
 RESEARCH_EXCERPT = 3000
-EXTRACT_TOKENS = 8000
+EXTRACT_TOKENS = 12000  # a series of forty items fits (benchmark orcweb-bench-20261006a: one reading cut)
 BUDGET_DAYS = 1
 SCALES = {"ribu": 1e3, "thousand": 1e3, "rb": 1e3, "k": 1e3, "juta": 1e6, "million": 1e6, "mn": 1e6, "m": 1e6,
           "miliar": 1e9, "milyar": 1e9, "billion": 1e9, "bn": 1e9, "b": 1e9, "triliun": 1e12, "trillion": 1e12,
@@ -120,11 +120,15 @@ EXTRACT_INSTRUCTIONS = (
     "You read numbered web sources to answer one information need of a stock-market analyst. Return only what the "
     "sources state, never knowledge of your own. Each item has one shape: FACT (one statement about a subject, in "
     "text_value), NUMBER (one figure, in number), EVENT (something that happened or is planned, in event), SERIES (one "
-    "figure of a series over periods: give every period you find as its own SERIES item with the same series_name) "
+    "figure of a series over periods: every period is its own SERIES item with the same series_name, so a table row "
+    "with several periods gives one item per period; each SERIES item gives period_start and period_end, a month as "
+    "its first and last day, a quarter or a year likewise) "
     "or LIST (the members of a group, in members). Return the items that answer the need: for the latest or current "
-    "value, that value with its date, not its history. Every item names its source number and a quote copied exactly, "
+    "value, that value with its date, not its history; at most forty items; when an official source and another give "
+    "the same figures, cite the official one. Every item names its source number and a quote copied exactly, "
     "character for character, from that source's text (one sentence or phrase, at most three hundred characters) "
-    "that states it. For a number give value_as_written exactly as the source writes it, value as a plain number "
+    "that states it. For a number give value_as_written exactly as the source writes the figure (without its period "
+    "or label), value as a plain number "
     "without the scale word, scale as the source writes it (miliar, juta, billion, million, or null), the currency, "
     "the unit, whether it is a level, a change (with what it is compared with), a share or a rate, its period (start "
     "and end dates as ISO dates when the source gives them; a value at one date, such as a rate decided on a day, "
@@ -629,7 +633,11 @@ class OrcWebService:
             if subject:  # a subject lookup answers for the subject asked, whatever name the source uses
                 entry["subject"] = subject
             number_part = entry.get("number") if isinstance(entry.get("number"), dict) else {}
-            entry["period_key"] = (number_part.get("period_start"), number_part.get("period_end"))
+            # the period of a figure; without dates, its own text (twelve undated months are twelve periods, not one)
+            entry["period_key"] = (number_part.get("period_start"), number_part.get("period_end")) \
+                if number_part.get("period_start") or number_part.get("period_end") \
+                else ("TEXT", " ".join(str(number_part.get("value_as_written") or entry.get("statement") or "")
+                                       .split()))
             index[number] = len(kept)
             kept.append(entry)
         if dropped:
@@ -643,9 +651,13 @@ class OrcWebService:
             if len(members) < 2:
                 continue
             chosen = conflict.get("chosen")
-            conflicts.append({"about": conflict.get("about"), "kind": conflict.get("kind"), "items": members,
-                              "chosen": index.get(chosen) if isinstance(chosen, int) else None,
-                              "reason": conflict.get("reason")})
+            kind, reason = conflict.get("kind"), conflict.get("reason")
+            dated = [kept[m]["period_key"] for m in members if kept[m]["period_key"][0] != "TEXT"]
+            if kind == "REAL" and len(dated) == len(members) and len(set(dated)) == len(dated):
+                # code's guard: values of different dated periods are a series, never a real conflict
+                kind, chosen, reason = "DIFFERENT_PERIOD", None, f"different periods (checked by code); {reason or ''}"
+            conflicts.append({"about": conflict.get("about"), "kind": kind, "items": members,
+                              "chosen": index.get(chosen) if isinstance(chosen, int) else None, "reason": reason})
         return {"items": kept, "conflicts": conflicts, "needs_research": bool(data.get("needs_research"))}
 
     # -- the envelope

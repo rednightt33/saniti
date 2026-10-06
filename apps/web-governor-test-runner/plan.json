@@ -1,32 +1,152 @@
 {
- "phase": "fact",
- "prefix": "fact-bench-20261004c-",
+ "phase": "orc_web",
+ "prefix": "orcweb-bench-20261006a-",
  "workers": 4,
- "repeat_cached": false,
- "facts": [
+ "repeat_cached": 1,
+ "cases": [
   {
-   "subject": "BBCA (Bank Central Asia)",
-   "attribute": "pemegang saham pengendali",
-   "expected": "PT Dwimuria Investama Andalan (Hartono)",
-   "refresh": true
+   "id": "q7_exports",
+   "need": "nilai ekspor Indonesia per tahun sejak 2018",
+   "purpose": "CONTEXT",
+   "expected_shape": "SERIES",
+   "labels": {
+    "depth": "ANY",
+    "shapes": [
+     "SERIES"
+    ],
+    "min_items": 3,
+    "min_periods": 3,
+    "conflicts": "NONE_REAL",
+    "official": true
+   },
+   "expected": "BPS: 2018 US$180,0 miliar ... 2024 US$264,7 miliar"
   },
   {
-   "subject": "ASII (Astra International)",
-   "attribute": "pemegang saham pengendali",
-   "expected": "Jardine Cycle & Carriage",
-   "refresh": true
+   "id": "bakrie_banks",
+   "need": "bank yang dimiliki atau dikendalikan Grup Bakrie",
+   "purpose": "CITE",
+   "expected_shape": "LIST",
+   "labels": {
+    "depth": "ANY",
+    "shapes": [
+     "LIST"
+    ],
+    "min_items": 1,
+    "conflicts": "ANY",
+    "official": false
+   },
+   "expected": "riwayat: Bank Nusa Nasional; saat ini tidak ada bank tercatat milik Grup Bakrie (cek sumber)"
   },
   {
-   "subject": "BNGA (Bank CIMB Niaga)",
-   "attribute": "pemegang saham pengendali",
-   "expected": "CIMB Group Holdings",
-   "refresh": true
+   "id": "bi_rate",
+   "need": "BI-Rate terbaru dan tanggal pengumumannya",
+   "purpose": "CITE",
+   "expected_shape": "NUMBER",
+   "labels": {
+    "depth": "QUICK",
+    "shapes": [
+     "NUMBER"
+    ],
+    "min_items": 1,
+    "conflicts": "NONE_REAL",
+    "official": true
+   },
+   "expected": "bi.go.id, keputusan RDG terakhir"
   },
   {
-   "subject": "BBRI (Bank Rakyat Indonesia)",
-   "attribute": "tahun pencatatan saham perdana (IPO) di bursa",
-   "expected": "2003",
-   "refresh": true
+   "id": "inflation_monthly",
+   "need": "inflasi tahunan (year on year) Indonesia per bulan tahun 2025",
+   "purpose": "CONTEXT",
+   "expected_shape": "SERIES",
+   "labels": {
+    "depth": "ANY",
+    "shapes": [
+     "SERIES"
+    ],
+    "min_items": 3,
+    "min_periods": 3,
+    "conflicts": "NONE_REAL",
+    "official": true
+   },
+   "expected": "BPS, inflasi y-on-y bulanan 2025"
+  },
+  {
+   "id": "controllers",
+   "need": "pemegang saham pengendali",
+   "purpose": "CITE",
+   "expected_shape": "FACT",
+   "subjects": [
+    "BBCA (Bank Central Asia)",
+    "ASII (Astra International)",
+    "BNGA (Bank CIMB Niaga)"
+   ],
+   "labels": {
+    "depth": "QUICK",
+    "shapes": [
+     "FACT"
+    ],
+    "min_items": 3,
+    "conflicts": "ANY",
+    "official": false,
+    "subjects_answered": 3
+   },
+   "expected": "PT Dwimuria Investama Andalan; Jardine Cycle & Carriage; CIMB Group Holdings"
+  },
+  {
+   "id": "bank_status",
+   "need": "status bank BUMN atau swasta",
+   "purpose": "CITE",
+   "expected_shape": "FACT",
+   "subjects": [
+    "BBRI",
+    "BMRI",
+    "BBNI",
+    "BBCA",
+    "BRIS"
+   ],
+   "labels": {
+    "depth": "QUICK",
+    "shapes": [
+     "FACT"
+    ],
+    "min_items": 5,
+    "conflicts": "ANY",
+    "official": false,
+    "subjects_answered": 5
+   },
+   "expected": "BUMN, BUMN, BUMN, swasta, BUMN"
+  },
+  {
+   "id": "nickel_ban",
+   "need": "kebijakan larangan ekspor bijih nikel Indonesia: kapan diumumkan dan kapan berlaku",
+   "purpose": "CONTEXT",
+   "expected_shape": "EVENT",
+   "labels": {
+    "depth": "ANY",
+    "shapes": [
+     "EVENT"
+    ],
+    "min_items": 1,
+    "conflicts": "ANY",
+    "official": false
+   },
+   "expected": "diumumkan Agustus/September 2019, berlaku 1 Januari 2020"
+  },
+  {
+   "id": "lq45_members",
+   "need": "daftar saham anggota indeks LQ45 periode Agustus 2025 sampai Januari 2026",
+   "purpose": "CITE",
+   "expected_shape": "LIST",
+   "labels": {
+    "depth": "ANY",
+    "shapes": [
+     "LIST"
+    ],
+    "min_items": 1,
+    "conflicts": "ANY",
+    "official": false
+   },
+   "expected": "45 kode saham, idx.co.id"
   }
  ]
 }

@@ -485,3 +485,25 @@ def test_the_benchmark_cases_are_valid_requests() -> None:
                       expected_shape=case.get("expected_shape"), subjects=case.get("subjects") or [])
         assert set(case["labels"]) <= known and case["labels"]["depth"] in ("QUICK", "RESEARCH", "ANY")
         assert case["expected"]
+
+
+def test_a_real_conflict_between_dated_periods_is_a_series(tmp_path) -> None:
+    """Benchmark orcweb-bench-20261006a (q7 repeat): six yearly export values were called one REAL conflict."""
+    conflicting = {**SERIES_3, "conflicts": [{"about": "ekspor", "kind": "REAL", "items": [1, 2, 3], "chosen": None,
+                                              "reason": "sources differ"}]}
+    result = OrcWebService(settings_with(tmp_path), Provider(readings=[conflicting])).answer(
+        request(expected_shape="SERIES"))
+    assert result["conflicts"][0]["kind"] == "DIFFERENT_PERIOD" and result["conflicts"][0]["chosen"] is None
+    assert {e["conflict"] for e in result["citable"]} == {"DIFFERENT_PERIOD"} and result["status"] == "OK"
+
+
+def test_undated_series_items_are_counted_by_their_text(tmp_path) -> None:
+    """Benchmark orcweb-bench-20261006a (inflation): twelve months without period dates counted as one period."""
+    months = reading([item("SERIES", 2, quote, series_name="ekspor", number=number(value, written, start=None,
+                                                                                   end=None))
+                      for quote, value, written in (("Januari-Desember 2024 mencapai US$264,70 miliar", 264.7, "a"),
+                                                    ("Ekspor 2023 sebesar US$258,82 miliar", 258.82, "b"),
+                                                    ("Ekspor 2019 sebesar US$167,53 miliar", 167.53, "c"))])
+    provider = Provider(readings=[months])
+    result = OrcWebService(settings_with(tmp_path), provider).answer(request(expected_shape="SERIES"))
+    assert result["depth"] == "QUICK" and result["escalation"] is None and len(provider.reading_payloads()) == 1
