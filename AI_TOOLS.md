@@ -100,6 +100,7 @@ Diambil  dari Railway (nama dan nilai true/false saja).
 
 | Saklar | dev |
 |---|---|
+| `AI_ENABLE_ADDRESS_MENU` | on |
 | `AI_ENABLE_CATALOG_DISCOVERY_V2` | on |
 | `AI_ENABLE_COMPOSITE_KEYS` | on |
 | `AI_ENABLE_DATANEED` | on |
@@ -119,5 +120,6 @@ Diambil  dari Railway (nama dan nilai true/false saja).
 | `AI_ENABLE_REQUEST_DATA` | off |
 | `AI_ENABLE_RESEARCH_FINDINGS` | on |
 | `AI_ENABLE_STANDARD_PERIOD_RETURN` | on |
-| `AI_ENABLE_WEB_FACT` | on |
+| `AI_ENABLE_WEB_FACT` | off |
+| `AI_ENABLE_WEB_RESEARCH` | on |
 <!-- dev-snapshot:end -->
