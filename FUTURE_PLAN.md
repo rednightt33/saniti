@@ -173,10 +173,9 @@ Untuk 100 pengguna bersamaan tetap perlu bagian 2.
 
 | Usulan | Asal | Catatan |
 |---|---|---|
-| E1–E3 `get_evidence`: filter satu nilai dihitung tetap (Governor), klaim divalidasi satu per satu, deskripsi alat hanya untuk angka tanpa alamat | Analisis log golden test `ma-qa-20261006b` (2026-10-06) | ±25 dtk per kejadian |
+| E1 dan E3 `get_evidence`: filter satu nilai dihitung tetap (Governor), deskripsi alat hanya untuk angka tanpa alamat. (E2 klaim per butir disetujui 2026-10-06 → `PLAN.md` EXEC-R R5) | Analisis log golden test `ma-qa-20261006b` (2026-10-06) | ±25 dtk per kejadian |
 | Cek angka di dalam kutipan web (angka yang ditulis AI wajib ada di kutipan) | Analisis route web orc (2026-10-06) | Celah: kutipan asli, angka atau periode salah |
-| Angka ketik dikonversi otomatis menjadi alamat bila tepat satu nilai rilis cocok | Analisis penolakan (2026-10-06) | Hemat 100–300 dtk per golden test |
-| Paket 1: tanggal terbuka di `query_metric`, jatah perbaikan per penyebab (bukan per panggilan), eksekusi alat paralel umum, kunci relasi otomatis, perubahan mode 4 lain | `PLAN_2026-10-05.md` (di luar cakupan item 10/12) | `query_metric` ×4 ditolak di "BBRI" |
+| Paket 1 sisanya: eksekusi alat paralel umum, kunci relasi otomatis, perubahan mode 4 lain. (Tanggal terbuka `query_metric` dan jatah perbaikan per penyebab disetujui 2026-10-06 → `PLAN.md` EXEC-R R5) | `PLAN_2026-10-05.md` (di luar cakupan item 10/12) | — |
 | Tingkat berpikir model (`AI_REASONING_EFFORT=high` di dev) | Analisis waktu (2026-10-06) | Setelan model, perlu izin user; sesudah P1–P3 |
 | S23 bertahap: hitungan umum ke helper teruji, cek rekonsiliasi, hitung ulang independen | `UNDERADDRESSED_PLAN_CAT23.md` §8 | Paling mahal |
 | A1, A3, A4, D (perkiraan per bagian, pesan tolak lengkap, EXPLAIN broker, tabel jawaban lebih pendek) | `EXTRACTION_AND_AUDIT_PLAN.md` "Proposed, not approved yet" | — |

@@ -24,6 +24,7 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 |---|---|---|---|---|
 | 1 | Sisa item 10 dan 12: deploy dua perbaikan, ulang uji item ambang, laporan golden test `ma-qa-20261006b` | "gas" 2026-10-05; format web "Ok tambahkan" 2026-10-06; **EXEC 2026-10-06** | **EXEC** (lihat bagian EXEC) | 1 |
 | 1b | Menu alamat lengkap (celah item 10.1): setiap angka tabel punya alamat, pola alamat ditulis, nilai terformat | 2026-10-05 15:49 dan 17:55 ("Menu alamat siap salin … alamat lengkap di samping angkanya"); ditegaskan 2026-10-06 ("padahal sudah saya suruh") | Sebagian: menu live sejak golden test 06b, tetapi tabel hanya satu baris contoh dan baris pola yang direncanakan tidak dibuat; **EXEC 2026-10-06** ("Ok masukan", bagian dari EXEC-1) | **EXEC** (EXEC-1 langkah 1b) | 1 |
+| 1c | EXEC-R: penolakan tanpa tulis ulang (R1–R5: edit field bersarang, `keep`, angka ketik jadi alamat, galat format yang benar + edit kedua, validasi per butir + jatah per penyebab + tanggal terbuka) | 2026-10-06 ("Masukan exec untuk masalah AI rejection tapi harus ulang dari awal") | **EXEC** (menunggu konfirmasi mulai) | Sesudah EXEC-1 |
 | 2 | P3: gerbang yang salah tolak | 2026-10-06 "OK masukan plan jangan execute dulu" | Belum (P3a ikut EXEC butir 1, P3b ikut EXEC butir 3) | 3 |
 | 3 | Item 11: penyortir "free will", jalur TANYA BALIK, cadangan berupa pertanyaan | 2026-10-05 (16:47, 17:40, 17:51, 17:55), ditegaskan 2026-10-06; **EXEC 2026-10-06** | **EXEC** (lihat bagian EXEC) | 2 |
 | 4 | P2: jawaban ditulis sekali | 2026-10-06 | Belum | 4 |
@@ -103,6 +104,51 @@ Urutan: EXEC-1, lalu EXEC-3. EXEC-3 dibangun di atas `main` yang sudah memuat EX
 **Kondisi berhenti dan jalan balik:**
 - Benchmark langkah 4 tidak lulus: berhenti, lapor, tidak deploy.
 - Masalah setelah live: `AI_ENABLE_ASK_BACK=false` (satu perubahan variabel, kode tetap).
+
+### EXEC-R: penolakan tanpa tulis ulang dari awal (butir 1c)
+
+**Asal:** analisis penolakan golden test 06b (2026-10-06). ±730 dtk (18% waktu model) habis untuk langkah sesudah
+penolakan; di 05b ±1.018 dtk (14%). Disetujui user 2026-10-06 untuk lima masalah di bawah.
+
+Bagian yang sudah ada di EXEC lain tidak diulang:
+- deploy 10.6 (P3a) ada di EXEC-1;
+- bacaan "tambah/ganti" (P3b) ada di EXEC-3.
+
+| No | Masalah (bukti) | Perubahan | Berkas |
+|---|---|---|---|
+| R1 | Gerbang rencana (PLAN_*) selalu memaksa tulis ulang penuh: ±400 dtk dan 3 giliran terbuang. Edit hanya bisa mengganti teks atau field paling atas | Edit menerima `"set": {"research_plan.angles[0].min_effect": null}` untuk field bersarang (jalur bertitik + `[i]`, hanya field yang ada di skema), lalu jawaban dicek ulang penuh. Pesan gerbang PLAN_* menyebut jalur field yang harus diubah. `EDIT_REPAIR_INSTRUCTION` diperbarui | `edit_repair.py` (`apply`, instruksi), `orchestrator.py` (pesan PLAN_*) |
+| R2 | "Kirim ulang tanpa perubahan" agar catatan backend ikut: h_add t2 mengirim ulang 8.660 token (109 dtk) | Bila edit ditawarkan, `GATE_ONCE_NOTE` meminta balasan `{"keep": true}`; backend memakai draf tersimpan dan menjalankan jalan keluar gerbang. Bila edit tidak ditawarkan, perilaku lama tetap | `orchestrator.py` (`GATE_ONCE_NOTE`, `_offer_edit`, `_apply_edit`), `edit_repair.py` (`is_edit`) |
+| R3 | Angka diketik tanpa alamat. EVIDENCE meminta alamat atau `get_evidence` | Angka ketik yang cocok dengan **tepat satu** nilai rilis (pembulatan dan satuan sama) diperlakukan sebagai alamat: masuk bukti sebagai DIRUJUK, gerbang EVIDENCE tidak memintanya lagi, dicatat `ai_reference_auto`. Dua kecocokan atau lebih: tetap diminta. Angka tanpa sumber sama sekali (PROVENANCE, misalnya "82,18%") tidak tertolong; pesan gerbangnya menyarankan merilis nilai itu lalu mengutip alamatnya | `orchestrator.py` (`_evidence_gate`, `typed_figures`, pesan PROVENANCE), `value_refs.py` (cari kecocokan unik) |
+| R4 | Galat format dan edit gagal (79 dtk); jawaban riset q7 jatuh menjadi LIMITATION | (a) Bila parser longgar juga gagal, model diberi galat parser longgar beserta posisi dan potongan teksnya. Galat "control character" dari parser ketat menyesatkan (P3d). (b) Edit yang gagal mendapat satu kesempatan edit lagi dengan penyebab persisnya, bukan langsung tulis ulang penuh. (c) `"all": true` pada teks biasa diperlakukan sebagai `count` = jumlah kemunculan (P2d) | `orchestrator.py` (`_parse_final_output`, `_apply_edit`), `edit_repair.py` |
+| R5 | Validasi semua-atau-tidak dan jatah perbaikan yang langsung habis (`query_metric` ×4, `get_evidence` `claims.2`) | (a) `get_evidence` memvalidasi klaim satu per satu; klaim cacat menjadi TIDAK_BISA_DICEK dengan alasannya, klaim lain tetap dicek (E2). (b) Jatah perbaikan dihitung per penyebab **per giliran model**: 4 penolakan sama dalam satu giliran dihitung 1. (c) `query_metric` menerima `start_date` tanpa `end_date` (sampai data terakhir / `as_of`) | `tools/evidence.py`, `orchestrator.py` (`_repair_budget`), `tools/metric.py` (`Period`) |
+
+**Tambahan dari saya, butuh OK terpisah** (daftar perbedaan dari usulan Anda, sesuai R35):
+- **P3c:** gerbang hanya meminta alat yang ada di langkah itu. `get_evidence` dan `check_references` ditambahkan ke
+  langkah riset yang disetujui (`_approve_v2`). Tanpa P3c, jawaban riset q7 tetap bisa langsung jatuh menjadi
+  LIMITATION (`tool_not_in_step`) walau R4 sudah ada.
+- **Tidak termasuk:**
+  - E1 (aturan LAST di Governor dengan filter satu nilai);
+  - E3 (deskripsi `get_evidence`);
+  - P2a (dorongan `check_references`);
+  - P2e (jawaban ringkas).
+
+  Semuanya tetap di P2 dan `FUTURE_PLAN.md`.
+
+**Langkah eksekusi (setelah konfirmasi mulai):**
+
+| Langkah | Isi | Biaya | Lulus bila |
+|---|---|---|---|
+| 0 | Patokan: hitung ulang dari log 06b dan 05b waktu dan token sesudah penolakan per jenis (skrip analisis yang sudah ada) | 0 | Angka patokan tercatat |
+| 1 | Kode R1–R5 (+ P3c bila di-OK), satu commit per R | 0 | — |
+| 2 | Tes: R1 jalur bersarang dan jalur tidak dikenal ditolak; R2 `keep` menghasilkan jalan keluar gerbang tanpa tulis ulang; R3 satu kecocokan diterima, dua kecocokan tetap diminta; R4 pesan parser longgar dan edit kedua; R5 klaim campuran sah+cacat, 4 penolakan paralel = 1, `query_metric` tanggal terbuka. Suite orc lengkap, `test_prompt_pass2.py`, `AI_TOOLS.md` diregenerasi (argumen `query_metric` berubah), migration Tool_Catalog round berikutnya bila skema alat berubah | 0 | Hijau; tes drift lulus |
+| 3 | Push dan deploy orc (hanya setelah konfirmasi push dari user), SUCCESS | 0 | SUCCESS; log start bersih |
+| 4 | Ulang uji 2 item yang memicu penolakan rencana dan format: h_add (3 giliran) dan threshold (3 giliran) | ±USD 0,15 | Tidak ada tulis ulang penuh setelah penolakan PLAN_*; `keep` dipakai bila model memilih tetap; waktu sesudah penolakan ≤ 5% waktu model |
+| 5 | Catatan: entri ERRORS (status), `RAILWAY_CHANGELOG.md`, `AI_TOOLS.md`; butir 1c dihapus dari `PLAN.md` | 0 | — |
+
+**Kondisi berhenti:**
+- Tes merah yang tidak bisa diperbaiki di dalam cakupan R1–R5.
+- Uji ulang menunjukkan gerbang menjadi longgar (angka tanpa sumber lolos). Bila ini terjadi, R3 dimatikan dan
+  dilaporkan.
 
 ---
 
