@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from app import mode4
 from app.conversation_plans import advance
+from app.research_plan import ContinuationIn
 from app.schemas import FinalResponse
 from test_mode4 import (PLAN1, PLAN3, fake_continuation, first_round_script, m4, plan_final, response, run_result,
                         stub)
@@ -116,3 +117,17 @@ def test_a_turn_that_ends_with_a_plan_still_hands_its_methodology_to_the_next_tu
     text = history_text({"request_id": "q", "response": result.model_dump(mode="json")}, True)
     assert "Asumsi:\n- Hari bursa saja." in text and "Batasan:\n- Board digabung." in text
     assert "Metodologi:\nAnalisis: Net value per broker per hari." in text
+
+
+def test_a_reply_to_a_hypothesis_plan_of_step_b_keeps_the_conversations_data_record() -> None:
+    """M105: a reply to any mode 4 step's plan now stays in mode 4; a research_plan/v1 (hypothesis) plan still goes to the
+    plan-reply reader of the orchestrator, and it gets the conversation's data record (that path used to drop it)."""
+    script = {"q2": run_result("q2", response("ANSWER", "Riset jalan."), turn="EXECUTE_APPROVED", approved="rp_v1")}
+    wrapper, inner = stub(script, auto_research=False)
+    continuation = ContinuationIn.model_construct(kind="RESEARCH_PLAN", plan_id="rp_v1", origin_request_id="q-m4b",
+                                                  plan=None, token="t", action=None, revision_instruction=None)
+    record = {"needs": [{"need_id": "dn_1"}]}
+    result = wrapper.run(m4(request_id="q2", conversation_id="conv_1", message="setuju", continuation=continuation),
+                         data_record=record)
+    assert [r.request_id for r in inner.requests] == ["q2"] and inner.records == [record]
+    assert result.status == "COMPLETED"

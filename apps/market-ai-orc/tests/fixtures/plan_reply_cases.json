@@ -1,0 +1,177 @@
+{
+ "note": "Plan-reply reader benchmark (EXEC-D P-c, user decision 2026-10-07: CANCEL only for a clear refusal, an unclear reply is asked about). actions: the accepted answers. Costly errors: APPROVE for a reply whose actions do not include it; CANCEL for an unclear reply or a question.",
+ "plans": {
+  "v2": {
+   "objective": "Menguji apakah saham emiten berorientasi ekspor mengungguli pasar sejak perang dagang terakhir.",
+   "universe": "Saham IDX dengan pendapatan ekspor",
+   "time_scope": "Sejak 2025-04-01",
+   "hypotheses": [
+    "Emiten berorientasi ekspor mengungguli IHSG sejak perang dagang terakhir.",
+    "Apakah return emiten ekspor lebih tinggi dari IHSG?",
+    "Apakah volume emiten ekspor naik sesudah pengumuman tarif?"
+   ],
+   "confirmation_question": "Apakah rencana riset ini disetujui untuk dijalankan?"
+  },
+  "v1": {
+   "objective": "Menguji apakah volume BBCA minimal 2 kali rata-rata 20 hari diikuti kenaikan harga.",
+   "universe": "BBCA",
+   "time_scope": "Sejak 2023-01-01",
+   "hypotheses": [
+    "Hari dengan volume minimal 2 kali rata-rata 20 hari diikuti return 3 hari lebih tinggi.",
+    "Hari dengan volume minimal 3 kali rata-rata 20 hari diikuti return 10 hari lebih tinggi."
+   ],
+   "confirmation_question": "Setujui rencana uji ini?"
+  }
+ },
+ "cases": [
+  {
+   "plan": "v2",
+   "message": "setuju, jalankan rencananya",
+   "actions": [
+    "APPROVE"
+   ],
+   "kind": "approve"
+  },
+  {
+   "plan": "v1",
+   "message": "ok jalankan",
+   "actions": [
+    "APPROVE"
+   ],
+   "kind": "approve"
+  },
+  {
+   "plan": "v1",
+   "message": "ya",
+   "actions": [
+    "APPROVE",
+    "UNRELATED"
+   ],
+   "kind": "approve"
+  },
+  {
+   "plan": "v1",
+   "message": "uji itu",
+   "actions": [
+    "APPROVE",
+    "UNRELATED"
+   ],
+   "kind": "approve"
+  },
+  {
+   "plan": "v2",
+   "message": "ok, tapi pakai periode 5 tahun",
+   "actions": [
+    "REVISE"
+   ],
+   "kind": "revise"
+  },
+  {
+   "plan": "v1",
+   "message": "tambahkan juga horizon 10 hari",
+   "actions": [
+    "REVISE"
+   ],
+   "kind": "revise"
+  },
+  {
+   "plan": "v1",
+   "message": "ganti BBCA jadi BBRI saja",
+   "actions": [
+    "REVISE"
+   ],
+   "kind": "revise"
+  },
+  {
+   "plan": "v2",
+   "message": "batal",
+   "actions": [
+    "CANCEL"
+   ],
+   "kind": "cancel"
+  },
+  {
+   "plan": "v1",
+   "message": "tidak usah, batalkan rencana uji 5 hari itu",
+   "actions": [
+    "CANCEL"
+   ],
+   "kind": "cancel"
+  },
+  {
+   "plan": "v2",
+   "message": "jangan dijalankan, saya tidak jadi",
+   "actions": [
+    "CANCEL"
+   ],
+   "kind": "cancel"
+  },
+  {
+   "plan": "v2",
+   "message": "stop, tidak perlu riset",
+   "actions": [
+    "CANCEL"
+   ],
+   "kind": "cancel"
+  },
+  {
+   "plan": "v2",
+   "message": "lanjutkan saran riset berikutnya",
+   "actions": [
+    "APPROVE",
+    "UNRELATED"
+   ],
+   "kind": "unclear"
+  },
+  {
+   "plan": "v2",
+   "message": "saran lain dong",
+   "actions": [
+    "UNRELATED",
+    "REVISE"
+   ],
+   "kind": "unclear"
+  },
+  {
+   "plan": "v1",
+   "message": "terserah kamu",
+   "actions": [
+    "APPROVE",
+    "UNRELATED"
+   ],
+   "kind": "unclear"
+  },
+  {
+   "plan": "v1",
+   "message": "hmm",
+   "actions": [
+    "UNRELATED"
+   ],
+   "kind": "unclear"
+  },
+  {
+   "plan": "v2",
+   "message": "apa maksud sudut kedua?",
+   "actions": [
+    "UNRELATED"
+   ],
+   "kind": "question"
+  },
+  {
+   "plan": "v2",
+   "message": "berapa lama riset ini berjalan?",
+   "actions": [
+    "UNRELATED"
+   ],
+   "kind": "question"
+  },
+  {
+   "plan": "v1",
+   "message": "sebelum itu, berapa harga penutupan BBCA kemarin?",
+   "actions": [
+    "UNRELATED"
+   ],
+   "kind": "question"
+  }
+ ]
+}

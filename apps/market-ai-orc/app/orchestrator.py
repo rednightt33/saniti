@@ -1291,6 +1291,13 @@ TYPED_FIGURES_LINE = ("Angka berikut diketik dari hasil analisis tanpa alamat, j
 GATE_ONCE_NOTE = (" This check asks only once. If you cannot make the change with the tools you have in this step, keep "
                   'the answer: reply {"keep": true} when an edit is offered below, otherwise send it again unchanged; '
                   "it is then delivered with the backend's note.")
+# EXEC-D P-e (user decision 2026-10-07: the model may always ask back when the intent is unclear): added only in a step
+# whose response types include CLARIFICATION
+GATE_ASK_NOTE = (" If what the user wants is itself unclear and only the user can settle it, you may instead return "
+                 "response_type CLARIFICATION with one short question.")
+# EXEC-D P-f (M107): gates whose repair is an edit of the text (remove or source a figure, fix a definition or the
+# methodology), so a step without tools is asked once too; a spent repair budget (tools_locked) still ends it
+EDIT_REPAIR_KINDS = frozenset({"PROVENANCE", "TYPED_FIGURES", "DEFINITION", "METHODOLOGY", "METHODOLOGY_PROVENANCE"})
 # G23 B: figures the backend computed or recomputed itself (lookup facts, Governor aggregates, recomputed analyses)
 BACKEND_RECOMPUTED_KINDS = frozenset({"FACT", "DATABASE_AGGREGATE", "CALCULATION_VERIFIED"})
 EVIDENCE_BACKEND_LINE = ("Angka jawaban ini dihitung atau dihitung ulang oleh backend (fakta, agregat Governor, metrik "
@@ -1532,6 +1539,11 @@ ANALYSIS_PATH_LINE = ("Analysis path (fixed by the caller): descriptive historic
                       "trading signal.")
 CANCEL_NOTE = (PLAN_NOTE_PREFIX + "the user cancelled the Research Plan. Nothing was run. Acknowledge it briefly in "
                "the user's language with response_type ANSWER and do not start any analysis.")
+# EXEC-D P-a (user decision 2026-10-07): the reply was read as a cancel, but the model may ask back when it does not
+# clearly cancel; offered while fewer than two questions came in a row (conversation_router.MAX_QUESTIONS_IN_A_ROW)
+CANCEL_ASK_NOTE = (" If the message does not clearly cancel the plan, or asks for something else, return response_type "
+                   "CLARIFICATION with one short question about what the user wants instead; the plan then keeps "
+                   "waiting. Either way, do not start any analysis.")
 UNRELATED_NOTE = (PLAN_NOTE_PREFIX + "Research Plan {plan_id} is waiting for the user's decision, and this message "
                   "neither approves, revises nor cancels it. Return response_type CLARIFICATION that asks whether to "
                   "approve, revise or cancel the plan. Do not run anything.")
@@ -1823,6 +1835,13 @@ def log_event(event: str, **fields: Any) -> None:
     logger.info(dumps({"event": event, **fields}))
 
 
+def _with_line(text: str | None, line: str) -> str | None:
+    """text ending with line (once); None stays None, an empty text becomes the line."""
+    if text is None or text.rstrip().endswith(line):
+        return text
+    return (text.rstrip() + "\n\n" + line) if text.strip() else line
+
+
 def cited_match(value: float, cited: list[float], *, magnitude: bool) -> bool:
     """10.6 (re-test 2026-10-06): a plan value equals a cited result value as the plan writes it: rounded to the plan
     value's own decimals, in the same or the percent scale, and for a minimum effect by its size (a cited difference
@@ -1942,6 +1961,8 @@ class RunState:
     path_refusals: int = 0
     verified_plan: Any = None
     plan_unexecuted: bool = False
+    # EXEC-D P-a: the verified plan of a cancel turn, returned unchanged when the turn asks a question instead
+    kept_plan: Any = None
     methodology_provenance: dict[str, Any] | None = None
     # Repair ledger: "tool:reason_code" -> rejections seen this run (bounded retries, see _repair_budget), counted once
     # per model turn (EXEC-R R5b: repair_turns holds the turn a key was last counted in)
@@ -2357,6 +2378,14 @@ class AgentOrchestrator:
             elif state.plan_unexecuted and state.verified_plan is not None:
                 # M19: an approval is consumed by an attempt, not by a turn; the same continuation goes back unchanged
                 state.continuation = self._same_continuation(state.verified_plan)
+            elif state.plan_turn == "CANCEL" and final.response_type == "CLARIFICATION":
+                # EXEC-D P-a: the cancel turn asked instead; the plan keeps waiting (same token and expiry) and the
+                # question ends with the line that names the way out and counts it as a question
+                final = final.model_copy(update={
+                    "answer": _with_line(final.answer, router.PLAN_WAITING_LINE),
+                    "clarification_question": _with_line(final.clarification_question, router.PLAN_WAITING_LINE)})
+                if state.kept_plan is not None:
+                    state.continuation = self._same_continuation(state.kept_plan)
             if final.response_type == "RESEARCH_PLAN_CONFIRMATION" and state.continuation is not None:
                 # M64: when the suggestion was issued, so a later turn knows which results are newer than it
                 records.mark_suggestion(state.data_record, state.continuation.plan_id, request.request_id)
@@ -3155,8 +3184,11 @@ class AgentOrchestrator:
                       action_source=source, verification=verification, plan_id=continuation.plan_id)
             return
         if action == "CANCEL":
-            self._set_turn(state, "CANCEL", frozenset({"ANSWER", "LIMITATION"}), frozenset(), guard,
-                           note=CANCEL_NOTE)
+            # EXEC-D P-a: no tools (nothing runs), and one question allowed while fewer than two came in a row
+            ask = router.questions_in_a_row(request.history) < router.MAX_QUESTIONS_IN_A_ROW
+            self._set_turn(state, "CANCEL", frozenset({"ANSWER", "LIMITATION"} | ({"CLARIFICATION"} if ask else set())),
+                           frozenset(), guard, note=CANCEL_NOTE + (CANCEL_ASK_NOTE if ask else ""))
+            state.kept_plan = verified
             if verified is not None:
                 # M103: the answer may name the cancelled plan's own values (its horizon, thresholds), which the user
                 # saw in the plan; they are design values of the conversation like those of a revised plan
@@ -4411,8 +4443,10 @@ class AgentOrchestrator:
         if name == "submit_data_need_spec":
             AgentOrchestrator._track_pit_refusals(state, result)
         if name == "submit_data_need_spec" and result.get("need_id"):
-            records.add_need(state.data_record, state.request_id, result,
-                             (arguments or {}).get("mode") if isinstance(arguments, dict) else None)
+            given = arguments if isinstance(arguments, dict) else {}
+            # EXEC-D P-h: the subject and relationships the need declared (the approved view has neither)
+            records.add_need(state.data_record, state.request_id, result, given.get("mode"),
+                             subject=given.get("subject"), relationships=given.get("relationships"))
             state.needs[result["need_id"]] = {
                 "mode": (arguments or {}).get("mode") if isinstance(arguments, dict) else None,
                 "governance": result.get("research_governance"),
@@ -5014,7 +5048,9 @@ class AgentOrchestrator:
         the tools the repair calls (any one is enough). G23 A: a repair whose tools are not on this step's desk is
         never asked for; the gate's own outcome applies at once."""
         desk = self._desk(state)
-        no_tools_this_turn = not desk
+        # EXEC-D P-f: an edit needs no tool, so an empty desk does not end an edit repair
+        edit = needs is None and (kind in EDIT_REPAIR_KINDS or kind.startswith("REFERENCE"))
+        no_tools_this_turn = not desk and not edit
         missing_tool = bool(needs) and not (needs & desk)
         repairable = allowed and kind not in state.gate_kinds_rejected and not state.tools_locked \
             and not no_tools_this_turn and not missing_tool
@@ -5035,7 +5071,8 @@ class AgentOrchestrator:
         if repairable:
             state.gate_kinds_rejected.add(kind)
             state.gate_rejections += 1
-            raise GateRejection(message + GATE_ONCE_NOTE)
+            raise GateRejection(message + GATE_ONCE_NOTE
+                                + (GATE_ASK_NOTE if "CLARIFICATION" in state.allowed_types else ""))
 
     def _desk(self, state: RunState) -> frozenset[str]:
         """G23 A: the tools this step can call — one source for the tools sent to the model, the gates and

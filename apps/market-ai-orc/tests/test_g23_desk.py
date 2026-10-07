@@ -72,7 +72,7 @@ def test_a_gate_never_asks_for_a_tool_the_step_does_not_have(desk_name: str, kin
     if repairable:
         with pytest.raises(GateRejection) as raised:
             orc._gate_once(state, kind, "fix it.", needs=NEEDS[kind])
-        assert str(raised.value).endswith(GATE_ONCE_NOTE)  # K2: asked once, and the way out
+        assert GATE_ONCE_NOTE in str(raised.value)  # K2: asked once, and the way out
     else:
         orc._gate_once(state, kind, "fix it.", needs=NEEDS[kind])  # the gate's own outcome applies at once
         assert kind not in state.gate_kinds_rejected
@@ -85,16 +85,44 @@ def test_typed_figures_are_asked_for_once_on_any_desk_with_tools_then_labelled()
     state = state_with(frozenset(DESKS["read_only"]))
     with pytest.raises(GateRejection) as raised:
         orc._evidence_gate(state, FIGURES, ["DATA_COVERAGE_VERIFIED"])
-    assert "116, 132" in str(raised.value) and str(raised.value).endswith(GATE_ONCE_NOTE)
+    assert "116, 132" in str(raised.value) and GATE_ONCE_NOTE in str(raised.value)
     second = orc._evidence_gate(state, FIGURES, ["DATA_COVERAGE_VERIFIED"])
     assert TYPED_FIGURES_LINE.format(numbers="116, 132") in second.limitations
 
 
-def test_a_step_without_tools_labels_typed_figures_at_once() -> None:
+def test_a_step_without_tools_is_asked_once_to_edit_typed_figures_then_labels_them() -> None:
+    """EXEC-D P-f (M107): the repair is an edit, which needs no tool, so an empty desk is asked once too."""
     orc = evidence_orchestrator()
-    out = orc._evidence_gate(state_with(frozenset()), FIGURES, ["DATA_COVERAGE_VERIFIED"])
+    state = state_with(frozenset())
+    with pytest.raises(GateRejection):
+        orc._evidence_gate(state, FIGURES, ["DATA_COVERAGE_VERIFIED"])
+    out = orc._evidence_gate(state, FIGURES, ["DATA_COVERAGE_VERIFIED"])
     assert TYPED_FIGURES_LINE.format(numbers="116, 132") in out.limitations
     assert "TYPED_FIGURES" not in out.limitations
+
+
+def test_a_spent_repair_budget_still_labels_at_once() -> None:
+    orc = evidence_orchestrator()
+    state = state_with(frozenset())
+    state.tools_locked = True
+    out = orc._evidence_gate(state, FIGURES, ["DATA_COVERAGE_VERIFIED"])
+    assert TYPED_FIGURES_LINE.format(numbers="116, 132") in out.limitations
+
+
+def test_the_gate_names_asking_back_only_where_a_question_is_allowed() -> None:
+    """EXEC-D P-e (user decision 2026-10-07): the model may ask back when the user's intent is unclear."""
+    from app.orchestrator import GATE_ASK_NOTE
+
+    orc = evidence_orchestrator()
+    state = state_with(frozenset(DESKS["read_only"]))
+    with pytest.raises(GateRejection) as asked:
+        orc._gate_once(state, "PROVENANCE", "fix it.")
+    assert str(asked.value).endswith(GATE_ONCE_NOTE + GATE_ASK_NOTE)
+    state = state_with(frozenset(DESKS["read_only"]))
+    state.allowed_types = frozenset({"ANSWER", "LIMITATION"})
+    with pytest.raises(GateRejection) as plain:
+        orc._gate_once(state, "PROVENANCE", "fix it.")
+    assert str(plain.value).endswith(GATE_ONCE_NOTE)
 
 
 @pytest.mark.parametrize("kinds", [["CALCULATION_VERIFIED"], ["DATABASE_AGGREGATE", "FACT"]])

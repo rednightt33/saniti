@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "AI_ROUTER.md"
 CASES = ROOT / "apps/market-ai-orc/tests/fixtures/first_message_router_cases.json"
 TURN_CASES = ROOT / "apps/market-ai-orc/tests/fixtures/turn_router_cases.json"
+REPLY_CASES = ROOT / "apps/market-ai-orc/tests/fixtures/plan_reply_cases.json"
 CALLER_PATHS = (None, "ANALYSIS", "RESEARCH", "MODE4")
 
 
@@ -24,6 +25,15 @@ def _router():
     from app import conversation_router
 
     return conversation_router
+
+
+def _plan_reply():
+    """The plan-reply reader's instructions and the mode 4 steps whose plans go to the turn router instead."""
+    sys.path.insert(0, str(ROOT / "apps/market-ai-orc"))
+    from app.modes import MODE4_PLAN_SUFFIXES
+    from app.research_plan import CLASSIFIER_INSTRUCTIONS
+
+    return CLASSIFIER_INSTRUCTIONS, MODE4_PLAN_SUFFIXES
 
 
 def _run(step: str, path: str | None) -> str:
@@ -65,6 +75,8 @@ def ask_back_section(r) -> list[str]:
 
 def render() -> str:
     r = _router()
+    classifier, suffixes = _plan_reply()
+    reply_cases = json.loads(REPLY_CASES.read_text(encoding="utf-8"))["cases"]
     cases = json.loads(CASES.read_text(encoding="utf-8"))
     turn_cases = json.loads(TURN_CASES.read_text(encoding="utf-8"))["cases"]
     lines = ["# Router AI (dibuat dari kode)", "",
@@ -99,6 +111,15 @@ def render() -> str:
               r.ROUTER_INSTRUCTIONS, "```", "",
               "### Instruksi router pesan lanjutan dengan `AI_ENABLE_ASK_BACK`", "", "```text",
               r.ROUTER_INSTRUCTIONS_ASK_BACK, "```", "",
+              "### Pembaca balasan rencana", "",
+              "Balasan untuk rencana yang diterbitkan langkah mode 4 (request id berakhiran "
+              + ", ".join(f"`{s}`" for s in suffixes) + "; `app/modes.py`, M105) tetap di mode 4: rencana v2 dibaca "
+              "router pesan lanjutan di atas, rencana v1 (rencana hipotesis) oleh pembaca balasan rencana. Balasan "
+              "untuk rencana jalur lain (AUTO, RESEARCH) dibaca pembaca balasan rencana, satu panggilan tanpa alat "
+              "dengan kelas `APPROVE`, `REVISE`, `CANCEL` atau `UNRELATED` (gagal: `UNRELATED`). `UNRELATED` "
+              "menanyakan setuju, ubah atau batal; giliran `CANCEL` tanpa alat dan boleh bertanya satu kali bila "
+              "pesan tidak jelas membatalkan, selama belum dua pertanyaan berturut-turut (EXEC-D P-a, keputusan user "
+              "2026-10-07).", "", "```text", classifier, "```", "",
               "### Tambahan untuk pembaca balasan rencana dengan `AI_ENABLE_ASK_BACK` (P3b)", "", "```text",
               r.REPLY_READING_RULE.strip(), "```", "", "## Catatan aplikasi per langkah", "",
               "Teks yang diterima langkah satu-giliran (bukan dari user):", ""]
@@ -121,7 +142,12 @@ def render() -> str:
               "obrolan, topik baru). Jalankan `scripts/benchmark_turn_router.py` setelah setiap perubahan kelas; "
               "syarat: 0 permintaan baca dirutekan ke kelas riset (M80 b; 2026-10-05: 30/30). Dengan `--ask-back`: "
               f"{len(json.loads(TURN_CASES.read_text(encoding='utf-8')).get('variant_cases') or [])} kasus varian "
-              "(tambah, hapus, ambang kedua) juga dijalankan dan tidak ada pesan yang ditanya balik.", ""]
+              "(tambah, hapus, ambang kedua) juga dijalankan dan tidak ada pesan yang ditanya balik.", "",
+              f"`apps/market-ai-orc/tests/fixtures/plan_reply_cases.json`: {len(reply_cases)} balasan untuk rencana "
+              "yang menunggu (setuju, ubah, batal jelas, tidak jelas, pertanyaan), masing-masing dengan jawaban yang "
+              "diterima. Jalankan `scripts/benchmark_plan_reply.py --ask-back` setelah setiap perubahan instruksi "
+              "pembaca balasan rencana; syarat (kesalahan mahal saja): 0 `APPROVE` untuk balasan yang tidak menyetujui, "
+              "0 `CANCEL` untuk balasan tidak jelas atau pertanyaan, batal jelas ≥ 90% `CANCEL`, 0 panggilan gagal.", ""]
     return "\n".join(lines)
 
 

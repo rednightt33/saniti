@@ -1772,8 +1772,9 @@ RESEARCH, as before mode 4), **2 ANALYSIS**, **3 RESEARCH**, **4 MODE4**. The mo
 
 1. its `analysis_path` (`"AUTO"`, `"ANALYSIS"`, `"RESEARCH"`, `"MODE4"`); the caller always wins;
 2. for a reply to a pending plan (SERVER: the stored plan; CLIENT: `continuation`), the mode the plan was issued in: a
-   mode 4 suggestion (its signed origin request id ends in `-m4d`) continues in MODE4, any other plan in AUTO, which
-   reads the approval. So "Setuju" is never lost to an ANALYSIS default, and mode 4 suggestions chain with default 1;
+   plan of a mode 4 step (its signed origin request id ends in `-m4b`, `-m4c`, `-m4d` or `-m4n`; M105, EXEC-D)
+   continues in MODE4, any other plan in AUTO, which reads the approval. So "Setuju" is never lost to an ANALYSIS
+   default, and mode 4 plans chain with default 1;
 3. `AI_MODE_SWITCH`. A default the deployment cannot run (mode 4 or the paths inactive at startup) falls back to AUTO
    (`mode_switch_fallback` at startup); startup logs `ai_mode_selected switch=<n> effective=<n>`.
 

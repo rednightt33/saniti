@@ -20,6 +20,20 @@ Before touching Railway or PostgreSQL, read `README.md`, `PROJECT_CONTEXT.md`, `
 - Before a golden test, compare `PLAN.md` and `EXEC.md` with the deployed behaviour and report any approved item not yet
   built.
 
+## Judgement principle
+
+User decision 2026-10-06, extended 2026-10-07 (verbatim text in `EXEC.md`, EXEC-D): the AI is dynamic but bounded.
+Judgement (what the user means, the route, when to ask back, the question, design values) belongs to the model. Code
+keeps only the guarantees: tools locked per step; data only after approval; every figure sourced; thresholds and
+horizons locked to the user's words; each quick choice runs its route; a fixed question when the model fails; at most
+two questions in a row. The model may always ask back when the user's intent is ambiguous, on any path; a rule that
+forbids asking back is a defect unless a guarantee requires it. For every rule in code ask:
+
+1. Does it protect data, cost or the correctness of figures? Then it is a guarantee and stays in code.
+2. Does it guess the user's intent or force one kind of answer? Then it is judgement and moves to the model.
+3. If the model judges wrongly, is there a way out by asking back? If not, add one.
+4. Which test locks the rule, and must that test change?
+
 ## Mandatory workflow
 
 1. Confirm the requested scope and exact target names with the user when ambiguous.

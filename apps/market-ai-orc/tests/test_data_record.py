@@ -63,6 +63,34 @@ def test_the_record_keeps_tables_columns_needs_outputs_and_research() -> None:
     assert records.normalize(record) == record and records.normalize({"version": 99}) == records.empty()
 
 
+def test_a_need_keeps_its_subject_and_relationships_for_the_next_run() -> None:
+    """EXEC-D P-h (M106, golden test 2026-10-07): the approved view of a need has no subject and no relationships, so a
+    later step read the catalog again for them (q7 turn 1 step B: 3 calls); the record keeps them from the arguments."""
+    state = RunState(request_id="q-m4a", started=0.0, input_items=[])
+    arguments = {"mode": "ANALYSIS",
+                 "subject": {"data_domain": "broker_flow", "entity_type": "broker", "asset_type": "STOCK"},
+                 "relationships": [{"relationship_id": 3, "left_request_id": "flows_c", "left_columns": ["ticker"],
+                                    "right_request_id": "banks_b", "right_columns": ["Ticker"], "join_type": "INNER",
+                                    "join_semantics": "CURRENT_STATE"},
+                                   {"relationship_id": 7, "left_request_id": "flows_c", "left_column": "date",
+                                    "right_request_id": "banks_b", "right_column": "date", "join_type": "LEFT",
+                                    "join_semantics": "EXACT_DATE"}]}
+    AgentOrchestrator._track_dataneed(state, "submit_data_need_spec", arguments,
+                                      ToolOutcome("c1", "submit_data_need_spec", True, {"result": APPROVED}))
+    need = state.data_record["needs"][0]
+    assert need["subject"] == "broker_flow/broker/STOCK"
+    assert need["relationships"] == [
+        "flows_c.ticker = banks_b.Ticker (INNER, CURRENT_STATE, relationship 3)",
+        "flows_c.date = banks_b.date (LEFT, EXACT_DATE, relationship 7)"]
+    for text in (records.note(state.data_record), records.full_note(state.data_record)):
+        assert "subject broker_flow/broker/STOCK" in text
+        assert "relationships flows_c.ticker = banks_b.Ticker (INNER, CURRENT_STATE, relationship 3)" in text
+    assert records.normalize(state.data_record) == state.data_record
+    plain = records.empty()
+    records.add_need(plain, "q", APPROVED, "ANALYSIS")
+    assert "subject" not in plain["needs"][0] and "relationships" not in plain["needs"][0]
+
+
 def test_the_note_is_bounded_and_never_drops_tables() -> None:
     record = built()
     for n in range(200):

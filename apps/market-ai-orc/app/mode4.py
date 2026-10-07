@@ -394,7 +394,9 @@ class _Mode4Run:
     def execute(self) -> AgentRunResponse:
         continuation = self.request.continuation
         if continuation is not None and not isinstance(continuation, ContinuationInV2):
-            return self.inner.run(self.request, self.key)  # a research_plan/v1 plan: the path it was issued on
+            # a research_plan/v1 plan (a hypothesis plan): the plan-reply reader, as on the path it was issued on, with the
+            # conversation's data record (M105: until mode 4's plans all stayed in mode 4, this path never had one)
+            return self.inner.run(self.request, self.key, data_record=self.record)
         if self.owner.router and (continuation is not None or self.request.history):
             return self.routed(continuation)
         if continuation is None:

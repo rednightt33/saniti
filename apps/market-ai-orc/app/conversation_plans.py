@@ -160,7 +160,8 @@ def advance(state: dict[str, Any] | None, result: AgentRunResponse, request_id: 
             and execution.research_submitted is not False:  # M19: an approval without any attempt stays pending
         state[STATE_KEY] = {**plan, "status": EXECUTED, "executed_request_id": request_id,
                             "executed_turn_index": turn_index, "run_status": result.status}
-    elif execution.turn == "CANCEL":
+    elif execution.turn == "CANCEL" and not (response is not None and response.response_type == "CLARIFICATION"):
+        # EXEC-D P-a: a cancel turn that asked a question instead leaves the plan waiting
         state[STATE_KEY] = {**plan, "status": CANCELLED, "closed_request_id": request_id}
     return state
 

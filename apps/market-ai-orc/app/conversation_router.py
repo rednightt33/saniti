@@ -179,6 +179,11 @@ TURN_FALLBACK_OPTIONS = (("Jelaskan hasil tadi", "CLARIFY"), ("Analisis lanjutan
                          ("Setujui usulan yang menunggu", "APPROVE"))  # the last only while a suggestion waits
 OPTION_MARKS = "\u2460\u2461\u2462\u2463"  # 1-4 in circles
 ANSWER_HINT = "Balas dengan nomor pilihan, atau tulis maksud Anda."
+# EXEC-D P-a (user decision 2026-10-07: the model may always ask back when the intent is unclear): a cancel turn may ask
+# one question while the Research Plan keeps waiting; the backend ends that question with this line, which tells the user
+# the way out and marks the message as a question in the history
+PLAN_WAITING_LINE = "Rencana riset masih menunggu: balas setuju, ubah, atau batal."
+MAX_QUESTIONS_IN_A_ROW = 2  # CODE_GUARANTEES: at most two questions in a row
 INTENT_RULE = ("understood_intent: one sentence in the user's language of what the user wants and its scope (the "
                "stocks, the period, the measure), never wider than the message. assumptions: the readings you assumed "
                "to choose the route (empty when none).")
@@ -544,6 +549,20 @@ class ReplyReading(BaseModel):
 def asked_back(text: str | None) -> bool:
     """An assistant message that is an ask-back question (it ends with the answer hint)."""
     return (text or "").rstrip().endswith(ANSWER_HINT)
+
+
+def questions_in_a_row(history: list[Any]) -> int:
+    """How many of the latest assistant messages, one after another, are questions the backend marked (an ask-back, or a
+    cancel turn's question about the waiting plan); the first assistant message of another kind ends the count."""
+    count = 0
+    for message in reversed(history):
+        if getattr(message, "role", None) != "assistant":
+            continue
+        text = str(getattr(message, "content", "") or "").rstrip()
+        if not (text.endswith(ANSWER_HINT) or text.endswith(PLAN_WAITING_LINE)):
+            break
+        count += 1
+    return count
 
 
 def first_stage(history: list[Any]) -> bool:

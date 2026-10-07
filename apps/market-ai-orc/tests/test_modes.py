@@ -19,6 +19,8 @@ from test_multi_angle import MA, RunSandbox, ma_registry
 
 MODE4_PLAN = SimpleNamespace(origin_request_id="q1-m4d")
 OLD_PLAN = SimpleNamespace(origin_request_id="q1")
+# M105 (golden test 2026-10-07): since EXEC-P1 the waiting plan comes from step B; C revises, a CONTINUE step proposes
+STEP_PLANS = [SimpleNamespace(origin_request_id=f"q1-{suffix}") for suffix in ("m4b", "m4c", "m4n")]
 
 
 @pytest.mark.parametrize("requested,continuation,default,expected", [
@@ -30,6 +32,13 @@ OLD_PLAN = SimpleNamespace(origin_request_id="q1")
     (None, None, 4, (4, "SWITCH"))])
 def test_the_mode_of_a_request(requested, continuation, default, expected) -> None:
     assert resolve_mode(requested, continuation, default) == expected
+
+
+@pytest.mark.parametrize("plan", STEP_PLANS)
+def test_a_reply_to_a_plan_of_any_mode4_step_stays_in_mode4(plan) -> None:
+    assert is_mode4_plan(plan) and resolve_mode(None, plan, 1) == (4, "CONTINUATION")
+    assert not is_mode4_plan(SimpleNamespace(origin_request_id="q1-m4a")) \
+        and not is_mode4_plan(SimpleNamespace(origin_request_id="q1-m4q"))  # steps that never issue a plan
 
 
 def test_paths_plans_and_fallback() -> None:

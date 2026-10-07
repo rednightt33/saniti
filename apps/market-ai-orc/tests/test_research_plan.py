@@ -268,13 +268,33 @@ def test_the_flags_default_off_and_the_key_never_appears_in_reprs() -> None:
 APPROVED = ResearchPlan.model_validate(plan())
 
 
-@pytest.mark.parametrize("field", ["hypothesis", "objective", "condition", "outcome", "baseline"])
+@pytest.mark.parametrize("field", ["condition", "outcome", "baseline"])
 def test_a_changed_declaration_is_a_mismatch(field: str) -> None:
     refused = match_governance(governance(**{field: "Something else entirely."}), APPROVED, "rp_x")
     assert refused["status"] == "REJECTED" and refused["error"]["code"] == "RESEARCH_PLAN_MISMATCH"
     [issue] = refused["error"]["issues"]
     assert issue["field_path"] == f"research_governance.{field}" and issue["experiment_id"] == "experiment_1"
     assert issue["rule"] == "EXACT_MATCH" and refused["extraction_allowed"] is False
+
+
+@pytest.mark.parametrize("field", ["hypothesis", "objective"])
+def test_a_reworded_description_is_aligned_to_the_approved_text_not_refused(field: str, monkeypatch) -> None:
+    """EXEC-D P-g (M108, golden test 2026-10-07 variant_bbca turn 2): the hypothesis and objective texts change no
+    computation; another wording is replaced by the approved text (and logged), so the sandbox gets the approved one."""
+    from app import research_plan as module
+
+    logged: list[str] = []
+    monkeypatch.setattr(module.logger, "info", logged.append)
+    submitted = governance(**{field: "Something else entirely."})
+    assert match_governance(submitted, APPROVED, "rp_x") is None
+    assert submitted[field] == getattr(APPROVED.experiments[0], field)
+    assert [json.loads(line) for line in logged] == [{"event": "research_governance_aligned", "plan_id": "rp_x",
+                                                      "hypothesis_id": "rsi_hammer", "fields": [field]}]
+
+
+def test_a_reworded_description_with_another_difference_is_still_refused_for_that_difference() -> None:
+    refused = match_governance(governance(objective="Lain.", outcome="The 20-day return instead."), APPROVED, "rp_x")
+    assert [i["field_path"] for i in refused["error"]["issues"]] == ["research_governance.outcome"]
 
 
 def test_a_missing_declaration_is_a_mismatch_but_case_and_spacing_are_not() -> None:
@@ -587,6 +607,68 @@ def test_a_cancel_answer_may_name_the_cancelled_plans_own_values() -> None:
     text = "Baik, rencana dibatalkan: uji RSI(14) dengan minimal 30 event tidak dijalankan."
     result, _ = reply(sandbox, issued, [final_response(answer(text))], message="Batal.", action="CANCEL")
     assert result.status == "COMPLETED" and result.response.answer == text
+
+
+def test_a_cancel_turn_may_ask_back_and_the_plan_keeps_waiting() -> None:
+    """EXEC-D P-a (M104, golden test 2026-10-07 q7 turn 2): a reply read as a cancel that does not clearly cancel may be
+    answered with one question; nothing runs, the same continuation goes back, and the conversation keeps the plan."""
+    from app.conversation_plans import advance
+    from app.conversation_router import PLAN_WAITING_LINE
+    from app.orchestrator import CANCEL_ASK_NOTE
+
+    sandbox = Sandbox()
+    issued = first_turn(sandbox)[0].continuation
+    question = "Maksud Anda rencana ini dibatalkan, atau ingin usulan riset yang lain?"
+    result, scripted = reply(sandbox, issued, [final_response(clarification(question))],
+                             message="lanjutkan saran riset berikutnya", action="CANCEL")
+    assert "tools" not in scripted.payloads[0] and sandbox.calls == []
+    assert CANCEL_ASK_NOTE.strip() in json.dumps(scripted.payloads[0]["input"], ensure_ascii=False)
+    assert result.status == "NEEDS_CLARIFICATION"
+    assert result.response.clarification_question == question + "\n\n" + PLAN_WAITING_LINE
+    kept = result.continuation
+    assert (kept.plan_id, kept.token, kept.expires_at) == (issued.plan_id, issued.token, issued.expires_at)
+    pending = {"research_plan": {"plan_id": issued.plan_id, "status": "PENDING"}}
+    assert advance(pending, result, "run_002", 1)["research_plan"]["status"] == "PENDING"
+    cancelled, _ = reply(sandbox, issued, [final_response(answer("Baik, rencana dibatalkan."))], message="Batal.",
+                         action="CANCEL", request_id="run_003")
+    assert advance(pending, cancelled, "run_003", 1)["research_plan"]["status"] == "CANCELLED"
+
+
+def test_a_cancel_turn_without_tools_may_still_edit_an_unsourced_figure_once() -> None:
+    """EXEC-D P-f (M107, golden test 2026-10-07 q7 turn 2): an unsourced figure in a step without tools was forced to
+    LIMITATION at once (reason no_tools); removing it is an edit, so the step is asked once."""
+    sandbox = Sandbox()
+    issued = first_turn(sandbox)[0].continuation
+    result, scripted = reply(sandbox, issued, [final_response(answer("Baik, rencana dibatalkan; 777 uji batal.")),
+                                               final_response(answer("Baik, rencana dibatalkan."))],
+                             message="Batal.", action="CANCEL")
+    assert "777" in json.dumps(scripted.payloads[1]["input"]) and "tools" not in scripted.payloads[1]
+    assert result.status == "COMPLETED" and result.response.answer == "Baik, rencana dibatalkan."
+
+
+def test_after_two_questions_in_a_row_a_cancel_turn_no_longer_asks() -> None:
+    """EXEC-D P-a: at most two questions in a row (CODE_GUARANTEES); the backend's own lines mark them."""
+    from app.conversation_router import ANSWER_HINT, PLAN_WAITING_LINE, questions_in_a_row
+    from app.orchestrator import CANCEL_ASK_NOTE
+
+    history = [{"role": "user", "content": "Apakah RSI di bawah 30?"},
+               {"role": "assistant", "content": "Rencana riset: ... Setujui?"},
+               {"role": "user", "content": "hmm"},
+               {"role": "assistant", "content": "Mau yang mana? ① A ② B\n" + ANSWER_HINT},
+               {"role": "user", "content": "yang tadi"},
+               {"role": "assistant", "content": "Maksudnya dibatalkan?\n\n" + PLAN_WAITING_LINE}]
+    request = AgentRunRequest.model_validate({"request_id": "x", "message": "x", "history": history})
+    assert questions_in_a_row(request.history) == 2 and questions_in_a_row(request.history[:2]) == 0
+    sandbox = Sandbox()
+    issued = first_turn(sandbox)[0].continuation
+    agent, scripted = orchestrator([final_response(clarification("Jadi dibatalkan?")),
+                                    final_response(answer("Baik, rencana dibatalkan."))], sandbox)
+    result = agent.run(AgentRunRequest.model_validate({
+        "request_id": "run_004", "conversation_id": "conv_1", "message": "terserah", "history": history,
+        "continuation": continuation(issued, action="CANCEL")}))
+    assert CANCEL_ASK_NOTE.strip() not in json.dumps(scripted.payloads[0]["input"], ensure_ascii=False)
+    assert "not allowed here" in json.dumps(scripted.payloads[1]["input"])  # a third question is refused
+    assert result.status == "COMPLETED" and result.continuation is None
 
 
 @pytest.mark.parametrize("action, instruction, expected_turn", [

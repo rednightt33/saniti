@@ -188,8 +188,31 @@ def definition_text(definition: Any) -> str:
     return "; ".join(parts)
 
 
-def add_need(record: dict[str, Any], request_id: str, result: dict[str, Any], mode: str | None = None) -> None:
-    """An approved data need (submit_data_need_spec): its tables and extracted columns, and the need itself."""
+MAX_NEED_RELATIONSHIPS = 8
+
+
+def _subject_text(subject: Any) -> str | None:
+    """EXEC-D P-h: the need's subject as data_domain/entity_type/asset_type."""
+    if not isinstance(subject, dict):
+        return None
+    parts = [str(subject[k]) for k in ("data_domain", "entity_type", "asset_type") if subject.get(k)]
+    return "/".join(parts) or None
+
+
+def _relationship_text(relation: dict[str, Any]) -> str:
+    """EXEC-D P-h: one relationship the need declared, compact (data_need_spec v1 or v2)."""
+    left = relation.get("left_columns") or ([relation["left_column"]] if relation.get("left_column") else [])
+    right = relation.get("right_columns") or ([relation["right_column"]] if relation.get("right_column") else [])
+    return (f"{relation.get('left_request_id')}.{'+'.join(map(str, left))} = "
+            f"{relation.get('right_request_id')}.{'+'.join(map(str, right))} ({relation.get('join_type')}, "
+            f"{relation.get('join_semantics')}, relationship {relation.get('relationship_id')})")
+
+
+def add_need(record: dict[str, Any], request_id: str, result: dict[str, Any], mode: str | None = None,
+             subject: Any = None, relationships: Any = None) -> None:
+    """An approved data need (submit_data_need_spec): its tables and extracted columns, and the need itself. EXEC-D P-h
+    (M106): with the subject and the relationships it declared (from its arguments; the approved view has neither), so a
+    later run does not look them up in the catalog again."""
     approved = result.get("approved")
     if not isinstance(approved, dict) or not result.get("need_id"):
         return
@@ -211,9 +234,15 @@ def add_need(record: dict[str, Any], request_id: str, result: dict[str, Any], mo
                                               for x in entry["restrictions"] if isinstance(x, dict)]}
                             if entry.get("restrictions") else {})})
     needs = [n for n in record["needs"] if n.get("need_id") != result["need_id"]]
-    needs.append({"need_id": result["need_id"], "request_id": request_id, "mode": mode,
-                  "spec_sha256": approved.get("spec_sha256"), "catalog_sha256": approved.get("catalog_sha256"),
-                  "requests": requests})
+    entry: dict[str, Any] = {"need_id": result["need_id"], "request_id": request_id, "mode": mode,
+                             "spec_sha256": approved.get("spec_sha256"),
+                             "catalog_sha256": approved.get("catalog_sha256"), "requests": requests}
+    if _subject_text(subject):
+        entry["subject"] = _subject_text(subject)
+    joins = [_relationship_text(r) for r in relationships or [] if isinstance(r, dict)][:MAX_NEED_RELATIONSHIPS]
+    if joins:
+        entry["relationships"] = joins
+    needs.append(entry)
     record["needs"] = needs[-MAX_NEEDS:]
 
 
@@ -547,6 +576,21 @@ def _clip(text: Any, limit: int) -> str:
     return flat if len(flat) <= limit else flat[:limit - 1].rstrip() + "…"
 
 
+def _need_line(need: dict[str, Any]) -> str:
+    """One approved data need as the notes show it: its requests with their filters, then (EXEC-D P-h) its subject and
+    the relationships it declared."""
+    line = f"- {need.get('need_id')} ({need.get('mode') or 'ANALYSIS'}, {need.get('request_id')}): " + "; ".join(
+        f"{r.get('logical_name')}={r.get('source_table')}({', '.join(r.get('columns') or [])})"
+        + (f" where {r['scope']}" if r.get("scope") else "")
+        + (f" restricted to {'; '.join(r['restrictions'])}" if r.get("restrictions") else "")
+        for r in need.get("requests") or [])
+    if need.get("subject"):
+        line += f"; subject {need['subject']}"
+    if need.get("relationships"):
+        line += "; relationships " + "; ".join(need["relationships"])
+    return line
+
+
 def full_note(record: dict[str, Any]) -> str:
     """EXEC-C items 5 and 10: the record as one prompt note that is never cut. Tables, column details, needs,
     outputs, research angles, earlier answers, findings and the routing of earlier messages always appear in full;
@@ -603,11 +647,7 @@ def full_note(record: dict[str, Any]) -> str:
         lines += block
     always = [
         ("Approved data needs (newest first; the filter each request applied):", [
-            f"- {n.get('need_id')} ({n.get('mode') or 'ANALYSIS'}, {n.get('request_id')}): " + "; ".join(
-                f"{r.get('logical_name')}={r.get('source_table')}({', '.join(r.get('columns') or [])})"
-                + (f" where {r['scope']}" if r.get("scope") else "")
-                + (f" restricted to {'; '.join(r['restrictions'])}" if r.get("restrictions") else "")
-                for r in n.get("requests") or []) for n in reversed(record["needs"])]),
+            _need_line(n) for n in reversed(record["needs"])]),
         ("Released outputs (newest first):", [
             f"- {o.get('ref')} = {o.get('output_id')} \"{o.get('name')}\" "
             + (f"{o['type']} " if o.get("type") not in (None, "TABLE") else "")
@@ -662,11 +702,7 @@ def note(record: dict[str, Any]) -> str:
             f"{', '.join(r.get('right_columns') or [])}) {r.get('temporal_rule') or ''}".rstrip()
             for rid, r in sorted(record.get("relationships", {}).items())]),
         ("Approved data needs (newest first; the filter each request applied):", [
-        f"- {n.get('need_id')} ({n.get('mode') or 'ANALYSIS'}, {n.get('request_id')}): " + "; ".join(
-            f"{r.get('logical_name')}={r.get('source_table')}({', '.join(r.get('columns') or [])})"
-            + (f" where {r['scope']}" if r.get("scope") else "")
-            + (f" restricted to {'; '.join(r['restrictions'])}" if r.get("restrictions") else "")
-            for r in n.get("requests") or []) for n in reversed(record["needs"])]),
+            _need_line(n) for n in reversed(record["needs"])]),
         ("Released outputs (newest first):", [
             f"- {o.get('ref')} = {o.get('output_id')} \"{o.get('name')}\" "
             + (f"{o['type']} " if o.get("type") not in (None, "TABLE") else "")
