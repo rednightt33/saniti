@@ -1,5 +1,17 @@
 # Railway changelog
 
+## 2026-10-07 — EXEC-V stage 2 (same data under other labels) on dev
+
+Under the approved implementation plan for EXEC-V (stage 2; `EXEC.md` EXEC-V).
+
+- **market-python-sandbox:** `main` `9805b63`; deployment `0598a616` reached `SUCCESS` (start log clean:
+  `sandbox_started` isolation enforced, `sessions_started`). The SQLite store upgrades to schema version 5 at startup
+  (adds the nullable `bundle_bindings.aliases`); not read back from the container (Railway SSH has no key in this
+  session), startup completed without error. Way back: redeploy `d56eea1a` (it reads version 5).
+- **market-ai-orc:** `main` `6d28f26` (prompt text of CONVERSATION REUSE rule 2); deployment `f43f627d` reached
+  `SUCCESS`, start log unchanged. Way back: redeploy `e6ab80c3`.
+- No variable, switch or PostgreSQL change.
+
 ## 2026-10-07 — EXEC-V stage 1 (option B) and EXEC-M109 on dev
 
 Under the user's approval of the implementation plan "Rencana implementasi EXEC-V (M110) dan EXEC-M109, 2026-10-07"
