@@ -1,5 +1,31 @@
 # Database changelog
 
+## 2026-10-07 — Wave 4 (EXEC-C, EXEC-P5): AI_conversation_run_memory and Tool_Catalog round K on dev
+
+- **`20261006_003_conversation_run_memory.sql`**: new table `AI_conversation_run_memory` (EXEC-C; user decisions
+  2026-10-06 Q1 "pakai MEMO", Q2 "BACKEND + AI"): one row per run of a server-side conversation (13 columns: `run_id`
+  primary key, `conversation_id` with ON DELETE CASCADE to `AI_conversation`, `turn_request_id`, `seq` identity,
+  `status`, `response_type`, `error_code`, `memo`, `content` jsonb, `sources` jsonb, `note`, `reasoning`,
+  `created_at`), five check constraints (id patterns, status, sizes, JSON objects), unique index
+  `(conversation_id, seq)`. `market_ai_conversation_store` may SELECT, INSERT, UPDATE and DELETE it (and still only the
+  seven conversation tables); PUBLIC revoked; the Governor, catalog reader and `market_ai_orc` logins have no access.
+  `Table_Catalog` row and 13 `Column_Catalog` definitions added. No existing table, row or grant changed.
+- **`20261006_004_round_k_tool_catalog.sql`** (generated, round `round_k`): inactive `Tool_Catalog` rows
+  `read_conversation_memory` v1 (flag `AI_ENABLE_RUN_MEMORY`), `submit_data_need_spec` v9 and `run_python` v5 (the
+  merged steps and the `complete` argument, flag `AI_ENABLE_MERGED_STEPS`).
+- **Part A check:** operational conversation state (memo, texts, sources, note, reasoning of a model run), not market
+  data the AI reads through the catalog, so A1 (grain, entity codes, subject metadata) does not apply; the citable
+  values it keeps carry their address, evidence label, units and origin as released (A3).
+- Applied by the temporary service `kmig-job` (`DATABASE_URL` as a reference to the catalog database, never printed;
+  deleted afterwards, read back absent): DRYRUN `6c1c460a` passed and rolled back (111 Tool_Catalog rows, 25 active,
+  table absent, 334 conversations, before and after); APPLY `b46787cd` committed both in order. Read back: table with
+  13 columns and 9 NOT NULL columns, primary key, foreign key, the five checks, both indexes; `Table_Catalog` 1 row,
+  `Column_Catalog` 13 rows with definitions; `market_ai_conversation_store` privileges DELETE, INSERT, SELECT, UPDATE;
+  Tool_Catalog 114 rows (was 111), 25 active (unchanged), the three new rows inactive; 334 conversations unchanged. A
+  second run of each was refused by its preflight ("already exists" / "already registered"). Checksums appended to
+  `database/migrations/APPLIED.sha256`.
+- `DATABASE_SCHEMA.md`: summary row and `## AI_conversation_run_memory` section (commit `3e38660`).
+
 ## 2026-10-06 — Wave 2 (EXEC-E, EXEC-R): Tool_Catalog round J and method guides v6 on dev
 
 - **`20261006_001_round_j_tool_catalog.sql`** (generated, round `round_j`): inactive `Tool_Catalog` row `query_metric`
