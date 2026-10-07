@@ -69,13 +69,39 @@ gabungkan ya", pilihan "File baru EXEC.md"). Pekerjaan yang disetujui tetapi bel
   - Dua cacat dari uji live (M99 ID event study, M100 kalimat "tanpa koreksi") diperbaiki di kode tanpa uji ulang
     berbayar; dibuktikan tes unit dan diperiksa di golden test akhir.
 - Laporan `GT_QA_2026-10-06.md` §6–8, deploy di `RAILWAY_CHANGELOG.md`.
+- Gelombang 4 (2026-10-07): EXEC-C, EXEC-P5, EXEC-P1 live di dev.
+  - Migration `20261006_003` (tabel memori) dan `20261006_004` (Tool_Catalog round K) diterapkan dan dibaca ulang.
+  - orc `2eb9f9f1`, lalu `AI_ENABLE_RUN_MEMORY=true` dan `AI_ENABLE_MERGED_STEPS=true` (`48e41023`).
+  - Golden test akhir batch A `ma-qa-20261007a` (4 item, 10 giliran, ±USD 0,63). Hasil di `GT_QA_2026-10-06.md` §9:
+    - q7 giliran 1 11,6 menit (06b 34 menit), berakhir dengan rencana menunggu;
+    - h_add dan threshold lolos semua giliran, jauh lebih cepat dari 06b;
+    - 4 varian terjawab dengan koreksi;
+    - 11 run, 11 baris memori;
+    - waktu sesudah penolakan 10,3% (target ≤ 5% tidak tercapai).
+  - Cacat dari uji: M101 dan M102 (EXEC-P5 tidak terlihat oleh AI lewat amplop; sesi saling menutup) dan M103
+    (angka rencana yang dibatalkan). Ketiganya diperbaiki di kode dan di-deploy (`3d217256`), belum diukur live.
+    M104 (kalimat uji 06b dibaca BATAL di alur baru) tetap terbuka.
+  - **Berhenti:** sisa kredit USD 0,225 < USD 0,30 sebelum batch B. Batch B dan uji ulang q7 menunggu kredit
+    (perkiraan ±USD 0,40 seluruhnya).
+- Perbedaan dari kata-kata rencana gelombang 4 (R35):
+  - EXEC-C dan EXEC-P5 di balik saklar baru (`AI_ENABLE_RUN_MEMORY`, `AI_ENABLE_MERGED_STEPS`), supaya ada jalan balik
+    tanpa redeploy.
+  - EXEC-P1: benchmark router tidak diulang; instruksi dan skema penyortir terbukti byte-identik, yang berubah hanya
+    teks dokumentasi EXPLORE.
+  - Uji ulang per-EXEC dilebur ke golden test akhir (seperti rencana gelombang 4).
+  - Butir 7: respons rencana tidak boleh membawa metodologi (skema), jadi riwayat giliran berikutnya mengambil
+    metodologi tiap langkah dari blok mode 4 yang tersimpan.
+  - Pikiran AI disimpan di tabel percakapan (30 hari, ikut terhapus bersama percakapan), bukan di audit store.
+  - Golden test dibagi dua batch supaya aturan kredit tetap berlaku; kalimat item disalin persis dari 06b/06f.
+  - Tiga perbaikan kecil sesudah uji (M101–M103) di-deploy tanpa uji ulang berbayar, karena kredit habis; dibuktikan
+    dengan tes unit yang gagal tanpa perbaikan.
 
 | No | Butir | Disetujui | Status | Urutan usulan |
 |---|---|---|---|---|
-| 1d | EXEC-C: AI membawa semuanya ke run ID berikutnya dalam satu percakapan, tanpa terkecuali (13 butir, termasuk P4) | 2026-10-06 ("masukan exec"; "Seharusnya AI membawa semuanya tanpa terkecuali. Masukan EXEC") | **EXEC**, berjalan ("mulai" 2026-10-06); Q1 memo, Q2 backend + AI (diputuskan 2026-10-06) | Sesudah EXEC-R |
+| 1d | EXEC-C: AI membawa semuanya ke run ID berikutnya dalam satu percakapan, tanpa terkecuali (13 butir, termasuk P4) | 2026-10-06 ("masukan exec"; "Seharusnya AI membawa semuanya tanpa terkecuali. Masukan EXEC") | Live di dev 2026-10-07; batch A sebagian lulus (§9), sisa uji menunggu kredit | — |
 | 1e | EXEC-A: penyelarasan jalur (satu pembaca maksud, gerbang hanya meminta alat yang ada, 10.6 dan edit sama di semua jalur) | 2026-10-06 ("masukan exec") | Selesai 2026-10-06 (gelombang 3; P40) | — |
-| 1h | EXEC-P1: mode 4 berhenti setelah analisis + rencana | 2026-10-06 ("p1 … masukan exec") | **EXEC**, berjalan ("mulai" 2026-10-06) | Sesudah EXEC-3 |
-| 1i | EXEC-P5: gabung langkah mekanis | 2026-10-06 ("p5 masukan exec") | **EXEC**, berjalan ("mulai" 2026-10-06) | Sesudah EXEC-R |
+| 1h | EXEC-P1: mode 4 berhenti setelah analisis + rencana | 2026-10-06 ("p1 … masukan exec") | Live di dev 2026-10-07; giliran 1 lulus, persetujuan belum teruji live (M104) | — |
+| 1i | EXEC-P5: gabung langkah mekanis | 2026-10-06 ("p5 masukan exec") | Live di dev 2026-10-07; tidak lulus di batch A (M101, M102), diperbaiki `3d217256`, ukur ulang di batch B | — |
 | 1j | EXEC-T: perangkat alat per proses (matriks HARUS/BOLEH/TIDAK BOLEH final, alat terlarang dikunci kode dan tidak bisa ditemukan) | 2026-10-06 ("finalize dan masukan ke EXEC"; catatan user: alat TIDAK BOLEH dikunci kode, tidak boleh ditemukan lewat pencarian) | Selesai 2026-10-06 kecuali butir 3 (keputusan terbuka, `FUTURE_PLAN.md` 3b; P41) | — |
 | 2 | P3: gerbang yang salah tolak | 2026-10-06 "OK masukan plan jangan execute dulu" | Selesai 2026-10-06 (P3a EXEC-1, P3b dan P3c gelombang 3, P3d EXEC-R) | — |
 | 3 | Item 11: penyortir "free will", jalur TANYA BALIK, cadangan berupa pertanyaan | 2026-10-05 (16:47, 17:40, 17:51, 17:55), ditegaskan 2026-10-06; **EXEC 2026-10-06** | Selesai 2026-10-06 (EXEC-3, gelombang 3; M97) | — |
@@ -85,12 +111,15 @@ gabungkan ya", pilihan "File baru EXEC.md"). Pekerjaan yang disetujui tetapi bel
 | 7 | P4: hasil jelajah dibawa antar-putaran | 2026-10-06 | Masuk EXEC-C (butir 1d) | — |
 
 Biaya model: setiap uji dan golden test. Sisa batas kunci OpenRouter setelah gelombang 3: USD 0,857 (2026-10-06;
-benchmark router ±0,07 dan uji `ma-qa-20261006f` ±0,197), jadi kredit dicek sebelum uji apa pun.
+benchmark router ±0,07 dan uji `ma-qa-20261006f` ±0,197), jadi kredit dicek sebelum uji apa pun. Sesudah batch A gelombang 4 (2026-10-07): USD 0,225.
 Status **EXEC** = rencana eksekusi sudah disetujui isinya, tetapi **baru dijalankan setelah user memberi konfirmasi
 mulai** (keputusan user 2026-10-06: "EXEC dijalankan setelah konfirmasi saya"). Konfirmasi mulai diberikan 2026-10-06 ("mulai"). Setelah dimulai, berhenti dan lapor bila menemui kondisi berhenti, atau bila perlu tindakan di
 luar langkah ini.
 
-Urutan sisa: gelombang 4 (EXEC-C, EXEC-P5, EXEC-P1), lalu golden test akhir.
+Urutan sisa (menunggu kredit dan konfirmasi user):
+- batch B (bakrie_bank, p2_pine_standard, "BBRI");
+- ulang q7 dua giliran dengan "setuju, jalankan rencananya";
+- bila lulus, EXEC-C, EXEC-P5 dan EXEC-P1 dihapus dari dokumen ini.
 
 ---
 

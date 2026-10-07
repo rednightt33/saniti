@@ -21,6 +21,16 @@ Under the user's go for every EXEC ("mulai") and "Lanjut otomatis bila lulus".
 - **Config:** `railway config pull --force` added `AI_ENABLE_MERGED_STEPS: preserve()` and
   `AI_ENABLE_RUN_MEMORY: preserve()` to `.railway/railway.ts`; `railway config plan`: up to date.
 - **AI_TOOLS.md:** switch snapshot regenerated from the live flags (names and true/false only).
+- **Golden test batch A** `ma-qa-20261007a` on `orc-test-runner` (deployment `4dc5691f`, suite
+  `apps/orc-test-runner/suites/qa_20261007a.json`): 10 turns, about USD 0.63. Results in `GT_QA_2026-10-06.md` §9.
+  Batch B was not run (credit USD 0.225, below the agreed USD 0.30).
+- **Fixes M101–M103:** `main` fast-forwarded to `3667c24`.
+  - `market-ai-orc` deployment `3d217256` reached `SUCCESS`; start log clean, `run_memory_active`.
+  - Sandbox and web-governor `SKIPPED`.
+  - No variable changed.
+- **Read-back job:** temporary service `kread-job` (`DATABASE_URL` as a reference, never printed; read-only session).
+  - The first build failed on a PyPI download timeout before the job ran; the second deployment `c65c3b95` ran.
+  - The service was deleted afterwards and read back absent (18 services).
 
 ## 2026-10-06 — EXEC wave 3 (EXEC-3, EXEC-A, EXEC-T, variants and correction) on dev
 

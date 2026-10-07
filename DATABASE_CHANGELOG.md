@@ -25,6 +25,12 @@
   second run of each was refused by its preflight ("already exists" / "already registered"). Checksums appended to
   `database/migrations/APPLIED.sha256`.
 - `DATABASE_SCHEMA.md`: summary row and `## AI_conversation_run_memory` section (commit `3e38660`).
+- **Data (2026-10-07):** golden test batch A `ma-qa-20261007a` wrote the first rows. They were read back by the
+  temporary read-only service `kread-job` (deleted afterwards):
+  - 11 rows for the 11 runs of 4 conversations; q7 has 3 rows for its 2 turns (steps m4a and m4b, then turn 2);
+  - per conversation: 3, 3, 3 and 2 rows, matching the runs; the table holds no other rows;
+  - the 9 rows printed in full have memos of 1,855–12,051 characters, and status and response type match the runs;
+  - the orc log shows `run_memory_saved` with the model's note for all 11 runs.
 
 ## 2026-10-06 — Wave 2 (EXEC-E, EXEC-R): Tool_Catalog round J and method guides v6 on dev
 
