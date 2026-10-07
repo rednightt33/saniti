@@ -50,8 +50,9 @@ gabungkan ya", pilihan "File baru EXEC.md"). Pekerjaan yang disetujui tetapi bel
 
 ## Ringkasan
 
-**Disetujui, belum dijalankan (2026-10-07):** EXEC-V (M110 + opsi B) dan EXEC-M109. Rencana implementasi menunggu
-review EXEC dan inspeksi arsitektur; golden test `apps/orc-test-runner/suites/qa_variant_20261007.json` (belum dijalankan).
+**Berjalan (2026-10-07):** EXEC-V (M110 + opsi B) dan EXEC-M109, rencana implementasi 4 tahap disetujui. Tahap 1
+(V-a opsi B + EXEC-M109) ter-deploy (orc `e6ab80c3`); tahap 2–3 berjalan; golden test
+`apps/orc-test-runner/suites/qa_variant_20261007.json` (tahap 4) hanya atas perintah user.
 
 **Selesai 2026-10-06:**
 - EXEC-1 (sisa item 10 dan 12, menu alamat lengkap 1b) dan EXEC-S (satu `session_id` per percakapan), terverifikasi
@@ -283,6 +284,21 @@ karena `is_mode4_plan` hanya mengenali `-m4d`.
 | 3 | V-b: `research_experiments` (1–4 eksperimen satu kebutuhan data), temuan per eksperimen, dikunci kapabilitas sandbox `research_multi_experiment`, Tool_Catalog round baru | orc + sandbox + migrasi |
 | 4 | golden test `qa_variant_20261007.json`, hanya atas perintah user | runner |
 
+**Hasil tahap 1 (2026-10-07, V-a opsi B):**
+- **Kode** (`d25e108`, `apps/market-ai-orc/app/orchestrator.py`):
+  - `_one_open_session` menolak pembukaan paket lain dengan `ANALYSIS_SESSION_ALREADY_OPEN` selama sesi run ini belum
+    selesai dan belum punya eksekusi OK. Pesannya menyebut sesi dan paketnya (`open_session_id`, `open_bundle_id`); log
+    `analysis_session_open_refused`.
+  - Pembukaan ulang paket yang sama tetap boleh. Sesi yang tertutup karenanya disebut di hasil alat
+    (`superseded_sessions`, `superseded_note`), tidak lagi diam-diam.
+  - `_merged_steps`: paket yang siap saat ada sesi tertunda mendapat `next_action` `COMPLETE_OPEN_SESSION_FIRST` dengan
+    id sesi itu.
+- **Tes:** orc 1.296 lulus, 223 dilewati (baseline 1.293). Tes baru: paket lain ditolak tanpa sesi tertutup; paket sama
+  boleh dan penutupannya disebut; prepare saat sesi tertunda menunjuk sesi itu.
+- **Deploy:** orc `e6ab80c3` SUCCESS (kode `d25e108`); log startup sama seperti sebelumnya (`run_memory_active`,
+  `mode4_active`, `ai_mode_selected` 4, model 1, `/ready` 200). Sandbox tidak berubah. Jalan balik: orc `63e29b62`.
+- **Uji live:** ikut golden test tahap 4.
+
 **Bukti (golden test `ma-qa-20261007c` variant_bbca giliran 2, orc `63e29b62`, log dan penalaran AI):**
 - Pertanyaan user punya 4 variasi (volume ≥ 2× dan ≥ 3×, horizon 3 dan 10 hari).
 - 22 panggilan, 294 detik; ±45 detik untuk buka-tutup ruang kerja, ±1 menit untuk pengulangan data yang sama.
@@ -365,7 +381,7 @@ analisis (BBRI).
 ### EXEC-M109: pertanyaan tanya-balik router tetap dipakai
 
 **Keputusan user 2026-10-07:** "M109 OK untuk perbaikan plan. Masukan ke EXEC." Pilihan "Ya, masukkan juga
-(Recommended)". Belum dijalankan.
+(Recommended)". Dibangun dan ter-deploy 2026-10-07; uji live menunggu golden test.
 
 **Bukti (`ma-qa-20261007c` q7 giliran 3):**
 - Router bertanya balik dengan benar: "Rencana riset mana yang harus dijalankan? …", dengan 4 pilihan sudut riset.
@@ -411,6 +427,26 @@ pertama dan giliran lanjutan. Kode menimpa penilaian model, padahal pertanyaan b
 - jawaban "rencana sudah dijalankan, ini hasilnya".
 
 **Jalan balik:** redeploy orc `63e29b62`, atau revert commit EXEC-M109.
+
+**Hasil (2026-10-07):**
+- **Kode** (`d25e108`):
+  - `mode4.ask_back_response` memakai pertanyaan router kecuali router gagal atau pertanyaannya kosong.
+  - `conversation_router.offered_choices` (pengganti `usable_options`): tombol hanya bila ≥ 2 pilihan sah dengan jalur
+    berbeda (maksimal 4); selain itu label router ditulis sebagai baris bernomor, tanpa tombol. APPROVE hanya bila ada
+    usulan menunggu. `ANSWER_HINT` tetap, jadi batas dua pertanyaan berturut-turut tidak berubah.
+  - `AI_ROUTER.md` dibuat ulang dengan kalimat aturan ini; tes drift hijau.
+- **Tes:** replay keluaran router q7 giliran 3 (4 pilihan CONTINUE) → pertanyaan router dan 4 baris bernomor tanpa
+  tombol; pilihan tak sah dibuang; pilihan sejalur jadi teks; router gagal atau pertanyaan kosong → pertanyaan baku.
+  Orc 1.296 lulus.
+- **Deploy:** orc `e6ab80c3` SUCCESS (bersama tahap 1 EXEC-V).
+- **Perbedaan dari kata-kata rencana (R35):**
+  - Benchmark router `--ask-back` (±USD 0,07) tidak dijalankan. Alasannya: instruksi dan skema router yang dikirim ke
+    model identik byte demi byte sebelum dan sesudah perubahan (SHA-256 keduanya
+    `34161c9a924277c5f63f416b7390bd31b2feb91435f95a97e78effce2d07212e`), jadi keluaran router tidak berubah; yang berubah
+    hanya cara backend menampilkan keluaran itu, dan itu dikunci tes offline.
+  - Langkah 0 (benchmark eksternal) memakai sumber yang sudah dicatat di M109 (pilihan cepat memisahkan label dan
+    payload).
+- **Uji live:** ikut golden test berikutnya.
 
 ---
 

@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-10-07 — EXEC-V stage 1 (option B) and EXEC-M109 on dev
+
+Under the user's approval of the implementation plan "Rencana implementasi EXEC-V (M110) dan EXEC-M109, 2026-10-07"
+(approval = start stages 1–3 on dev in order; `EXEC.md` EXEC-V and EXEC-M109).
+
+- **Deploy:** `main` `d25e108`; `market-ai-orc` deployment `e6ab80c3` reached `SUCCESS`. Start log unchanged
+  (`run_memory_active`, `mode4_active`, `ai_mode_selected` switch 4, model switch 1 `deepseek/deepseek-v4.1-flash`,
+  `/ready` 200). Other services unchanged. No variable, switch or database change.
+- **What changed:** option B (an open for another bundle while this run's session is unused is refused and names the
+  session; no silent close) and M109 (the router's ask-back question is kept; same-route choices become numbered text).
+- **Benchmark:** the turn-router benchmark was not run (no model cost): the router instructions and schema are
+  byte-identical before and after (hash in `EXEC.md` EXEC-M109).
+- **Way back:** redeploy `63e29b62`.
+
 ## 2026-10-07 — EXEC-D (judgement principle: the AI may ask back on any path) on dev
 
 Under the user's decision "masukan exec untuk point no 2. jalanakn exec untuk point no 2, kemudian ujibulang yg ada di
