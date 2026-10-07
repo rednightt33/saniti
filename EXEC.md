@@ -36,8 +36,22 @@ gabungkan ya", pilihan "File baru EXEC.md"). Pekerjaan yang disetujui tetapi bel
   "EXEC.md + AGENTS.md (Recommended)". Rencana implementasi disetujui (2026-10-07) → EXEC-D.
 - Gelombang: 1 = EXEC-1 + EXEC-S; 2 = EXEC-E + EXEC-R + EXEC-P2; 3 = EXEC-3 + EXEC-A + EXEC-T; 4 = EXEC-C +
   EXEC-P5 + EXEC-P1, lalu golden test akhir.
+- 2026-10-07, sesudah review `HANDOFF_M109_M110.md` dan pemeriksaan log M110 (read-only):
+  - M109: "M109 OK untuk perbaikan plan. Masukan ke EXEC." → EXEC-M109.
+  - M110: "Ini bukan hanya kalau dia research ya, kalau analisis juga.. Idealnya kalau untuk menjawab pertanyaan user
+    bisa menggunakan 1 data, dan data tinggal di tweak parameter sesuai request variasi user, maka tidak perlu lagi
+    request data. Dan kalau bisa dilakukan disandbox yang sama. Masukan ini ke EXEC. Masukan plan B ke EXEC juga." dan
+    "Berlaku untuk semuanya yang applicable." → EXEC-V.
+  - Pilihan user: variasi di pesan berikutnya "Ya, ikut (Recommended)"; M109 "Ya, masukkan juga (Recommended)"; golden
+    test "Tulis suite saja (Recommended)".
+  - Sesudahnya: "review EXEC yang sudah saya setujui dan inspect current architecture, ensuring implementation plan tidak
+    mengganggu hal yang lain. Siapkan 2 golden test untuk ini (1 research, 1 analysis)". Rencana implementasi EXEC-V dan
+    EXEC-M109 diajukan setelah review itu; belum ada perubahan kode.
 
 ## Ringkasan
+
+**Disetujui, belum dijalankan (2026-10-07):** EXEC-V (M110 + opsi B) dan EXEC-M109. Rencana implementasi menunggu
+review EXEC dan inspeksi arsitektur; golden test `apps/orc-test-runner/suites/qa_variant_20261007.json` (belum dijalankan).
 
 **Selesai 2026-10-06:**
 - EXEC-1 (sisa item 10 dan 12, menu alamat lengkap 1b) dan EXEC-S (satu `session_id` per percakapan), terverifikasi
@@ -230,6 +244,146 @@ karena `is_mode4_plan` hanya mengenali `-m4d`.
   - Sebelum menulis syarat EXEC-D, data 07a dicek ulang. Bacaan katalog threshold giliran 2/3 sudah 0 di 07a, jadi
     syaratnya diganti menjadi total bacaan katalog di run lanjutan (07a 4).
   - Uji pembanding instruksi lama di benchmark (±USD 0,008) ditambahkan untuk bukti sebelum/sesudah.
+
+### EXEC-V: satu data untuk semua variasi, di ruang kerja yang sama (M110 + opsi B)
+
+**Keputusan user 2026-10-07 (kata-kata user):**
+- "Ini bukan hanya kalau dia research ya, kalau analisis juga.. Idealnya kalau untuk menjawab pertanyaan user bisa
+  menggunakan 1 data, dan data tinggal di tweak parameter sesuai request variasi user, maka tidak perlu lagi request
+  data. Dan kalau bisa dilakukan disandbox yang sama. Masukan ini ke EXEC. Masukan plan B ke EXEC juga."
+- "Berlaku untuk semuanya yang applicable."
+- Variasi di pesan berikutnya ikut aturan yang sama: "Ya, ikut (Recommended)".
+- Belum dijalankan. Langkah berikutnya: review EXEC yang disetujui dan inspeksi arsitektur, lalu rencana implementasi
+  untuk disetujui.
+
+**Bukti (golden test `ma-qa-20261007c` variant_bbca giliran 2, orc `63e29b62`, log dan penalaran AI):**
+- Pertanyaan user punya 4 variasi (volume ≥ 2× dan ≥ 3×, horizon 3 dan 10 hari).
+- 22 panggilan, 294 detik; ±45 detik untuk buka-tutup ruang kerja, ±1 menit untuk pengulangan data yang sama.
+- Penalaran AI giliran 1: "The router says: one experiment or angle per variant or combination … So 4 experiments".
+- Penalaran AI giliran 2: "The governance allows only one hypothesis per spec. So no [cannot combine]". Lalu, setelah 3
+  pembukaan: "Session 1 got closed when I opened sessions 2-4? … sessions are exclusive".
+
+**Akar masalah (terverifikasi dari log dan kode):**
+1. **Satu eksperimen = satu kebutuhan data = satu ruang kerja.**
+   - `VARIANT_NOTE` (`apps/market-ai-orc/app/orchestrator.py`) meminta satu eksperimen per varian.
+   - Kontrak riset hanya membawa satu `hypothesis_id` per kebutuhan data:
+     - `ResearchGovernance`, `app/tools/data_need.py`;
+     - `match_governance`, `app/research_plan.py`;
+     - sandbox `app/dataneed_service.py`: satu temuan per penyelesaian.
+   - Akibatnya, data BBCA yang identik diajukan, diekstrak, dibuka dan diselesaikan 4 kali (4 paket data berbeda di
+     log).
+2. **Penutupan diam-diam dan petunjuk yang tidak lengkap.**
+   - `_one_open_session` menutup ruang kerja lama yang belum dipakai tanpa memberi tahu AI.
+   - Setelah paket data berikutnya disiapkan, petunjuknya hanya "buka ruang kerja", tanpa "selesaikan yang terbuka
+     dulu".
+
+**Kelas masalah:** setiap jawaban yang membutuhkan variasi nilai desain atas data yang sama:
+- ambang, horizon, jendela, kuantil, periode, parameter event study atau backtest;
+- di analisis, riset hipotesis, riset multi-sudut, event study dan backtest;
+- di dalam satu pesan maupun pesan lanjutan;
+- nanti juga data makro dan lintas-aset.
+
+**Prinsip:** bila satu data bisa menjawab, data diminta sekali. Variasi dihitung dengan mengubah parameter di ruang
+kerja yang sama.
+
+**Jaminan yang tetap (prinsip penilaian EXEC-D):**
+- data hanya setelah persetujuan, dan di riset hanya eksperimen yang disetujui;
+- setiap variasi punya hasil, verdict dan hitung ulang backend sendiri;
+- koreksi uji berganda tingkat percakapan (Holm/BH);
+- satu ruang kerja per pertanyaan (S08) dan slot sandbox bersama;
+- variasi riset di luar rencana tetap butuh rencana revisi dan persetujuan user.
+
+**Butir** (desain teknis rinci di rencana implementasi setelah inspeksi):
+- **V-a, opsi B:**
+  - Selama ruang kerja run ini masih terbuka dan belum dipakai, pembukaan baru ditolak dengan
+    `ANALYSIS_SESSION_ALREADY_OPEN`. Pesannya menyebut ruang kerja yang dipakai dan urutannya: jalankan → selesaikan →
+    berikutnya.
+  - Penutupan ruang kerja tidak lagi diam-diam; hasil alat memberi tahu AI.
+  - Petunjuk setelah paket data berikutnya disiapkan menyebut "selesaikan ruang kerja X dulu".
+  - Jalan keluar: penggantian tetap boleh untuk paket yang sama, atau bila ruang kerja itu memang tidak bisa dipakai.
+- **V-b, riset hipotesis:** eksperimen satu rencana yang datanya sama berbagi satu kebutuhan data, satu paket dan satu
+  ruang kerja. Penyelesaian merilis satu temuan per eksperimen. Yang berubah:
+  - kontrak `research_governance`;
+  - pencocokan rencana di orc (setiap eksperimen tetap dicocokkan);
+  - temuan di sandbox;
+  - teks prompt;
+  - Tool_Catalog lewat migrasi, dan `AI_TOOLS.md`.
+- **V-c, analisis:**
+  - Variasi dijawab dalam satu ruang kerja dengan satu tabel berkolom varian (`VARIANT_NOTE`).
+  - Backend mengenali kebutuhan data yang identik dengan paket data yang sudah ada di run atau percakapan ini, lalu
+    memakai ulang paket dan ruang kerjanya, bukan mengekstrak ulang. Identitasnya diturunkan dari sidik kontrak data,
+    bukan daftar nama.
+- **V-d, lintas pesan:**
+  - Variasi di pesan lanjutan memakai paket data dan ruang kerja percakapan yang masih hidup (CONVERSATION REUSE,
+    R-STORE).
+  - Di riset, setelah rencana revisi disetujui, perhitungannya berjalan di data yang sama.
+- **V-e, cek cakupan ("semuanya yang applicable"):**
+  - riset multi-sudut: kelompok paket sudah menggabungkan data bersama; dicek, bukan diasumsikan;
+  - event study, backtest dan return per periode: dipastikan memakai pola yang sama.
+
+**Uji (`apps/orc-test-runner/suites/qa_variant_20261007.json`, belum dijalankan):** satu item riset (BBCA) dan satu item
+analisis (BBRI).
+
+**Lulus bila:**
+- data diambil sekali per data yang sama;
+- `analysis_sessions_superseded` = 0;
+- panggilan model lebih sedikit dari baseline variant_bbca giliran 2 (22 panggilan, 294 detik);
+- semua variasi terjawab dengan verdict, koreksi dan hitung ulang yang sama benarnya;
+- variasi di pesan lanjutan tanpa ekstraksi ulang.
+
+**Tidak termasuk:** ruang kerja paralel untuk satu pertanyaan (S08 tetap; `AI_RESEARCH_MAX_PARALLEL_GROUPS` tetap 1).
+
+**Jalan balik:** redeploy orc `63e29b62` dan deployment sandbox sebelumnya, atau revert commit EXEC-V.
+
+### EXEC-M109: pertanyaan tanya-balik router tetap dipakai
+
+**Keputusan user 2026-10-07:** "M109 OK untuk perbaikan plan. Masukan ke EXEC." Pilihan "Ya, masukkan juga
+(Recommended)". Belum dijalankan.
+
+**Bukti (`ma-qa-20261007c` q7 giliran 3):**
+- Router bertanya balik dengan benar: "Rencana riset mana yang harus dijalankan? …", dengan 4 pilihan sudut riset.
+- User melihat pertanyaan baku "Maaf, maksud pesan ini belum terbaca dengan pasti …" dengan 2 pilihan baku.
+
+**Akar masalah (terverifikasi dari kode `e551939`):**
+- Keempat pilihan berjalur CONTINUE. `conversation_router.usable_options` menyimpan satu pilihan per jalur, jadi tinggal 1.
+- `mode4.ask_back_response` lalu membuang pertanyaan router bila pilihan < 2, dan memakai `FALLBACK_QUESTION`.
+- Pilihan cepat hanya membawa jalurnya (`chosen_option`), itu sebabnya jalur dijaga unik.
+
+**Kelas masalah:** setiap tanya-balik yang pilihannya berjalur sama (pilih sudut, saham, periode, varian), di jalur pesan
+pertama dan giliran lanjutan. Kode menimpa penilaian model, padahal pertanyaan baku hanya jaminan untuk "model gagal".
+
+**Butir (orc; tanpa saklar baru, migrasi, variabel Railway, atau perubahan API):**
+- **Langkah 0:** benchmark eksternal (pilihan cepat dengan payload vs label; pertanyaan klarifikasi LLM). Sumber dicatat
+  di `ERRORS_AND_SOLUTIONS.md` M109. Bila temuan mengubah desain, lapor dulu.
+- **M109-a:** pertanyaan router dipakai selama router tidak gagal dan pertanyaannya tidak kosong. Pertanyaan baku dan
+  pilihan baku hanya untuk router gagal atau pertanyaan kosong.
+- **M109-b:**
+  - **≥ 2 pilihan berbeda jalur:** tombol seperti sekarang.
+  - **Pilihan berjalur sama, atau pilihan sah < 2:** tanpa tombol. Label router ditulis sebagai baris bernomor di teks
+    pertanyaan. User membalas dengan nomor atau kata-kata, dan router membacanya dari riwayat.
+  - `ANSWER_HINT` tetap ada, jadi penghitung "maksimal dua pertanyaan berturut-turut" tetap jalan. `chosen_option` tetap
+    berisi jalur.
+- **Tes offline (tanpa biaya model):**
+  - replay keluaran router q7 giliran 3;
+  - router gagal → pertanyaan baku;
+  - 2 pilihan beda jalur → tombol;
+  - penghitung dua pertanyaan;
+  - jalur pesan pertama dan giliran.
+- **Dokumen:** teks `ASK_BACK_ACTION` / `ASK_BACK_TURN_RULE` bila perilaku berubah, lalu regenerate `AI_ROUTER.md`.
+  `scripts/benchmark_turn_router.py --ask-back` sebelum deploy (kredit ≥ USD 0,30).
+
+**Lulus bila:**
+- tes orc dan tes drift hijau;
+- benchmark router tanpa kesalahan mahal baru;
+- replay q7 giliran 3 menampilkan pertanyaan router dan 4 label.
+
+**Uji live:** ikut golden test berikutnya.
+
+**Tidak termasuk** (`FUTURE_PLAN.md` §3a):
+- tombol yang membawa label (perubahan API);
+- jawaban "rencana sudah dijalankan, ini hasilnya".
+
+**Jalan balik:** redeploy orc `63e29b62`, atau revert commit EXEC-M109.
 
 ---
 

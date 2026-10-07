@@ -190,6 +190,8 @@ Untuk 100 pengguna bersamaan tetap perlu bagian 2.
 | P-d: giliran UNRELATED (balasan untuk rencana yang menunggu yang ternyata pertanyaan baru) boleh langsung menjawab pertanyaan itu sambil rencana tetap menunggu, bukan hanya bertanya setuju/ubah/batal | Pemeriksaan aturan read-only 2026-10-07; `EXEC.md` EXEC-D (tidak masuk cakupan, pilihan "Rekomendasi + P-g") | Di mode 4 rencana v2 sudah ditangani router giliran (CLARIFY/INSIGHT/NEW_TOPIC); yang tersisa jalur mode 1/3 dan rencana v1 |
 | Batas "maksimal dua pertanyaan berturut-turut" untuk CLARIFICATION model di giliran biasa dan di giliran UNRELATED. EXEC-D membatasi pertanyaan router dan pertanyaan giliran CANCEL; CLARIFICATION model di giliran lain belum dibatasi (sudah begitu sejak dulu, tidak ada penanda di riwayat) | `EXEC.md` EXEC-D (2026-10-07) | Perlu penanda tetap di setiap pertanyaan model |
 | Router giliran mode 4 juga membaca balasan untuk rencana v1 (rencana hipotesis): perlu ringkasan rencana v1 di konteks router | `EXEC.md` EXEC-D P-b (2026-10-07) | Sekarang rencana v1 dibaca penyortir balasan rencana (bisa bertanya balik lewat UNRELATED dan giliran CANCEL) |
+| Pilihan cepat yang membawa labelnya sendiri (misalnya `chosen_option` + `chosen_label`), supaya pilihan berjalur sama tetap bisa diklik dengan maknanya | `EXEC.md` EXEC-M109 (2026-10-07, tidak termasuk) | Mengubah API antara aplikasi depan dan backend |
+| "Setuju, jalankan" saat rencana sudah dijalankan: jawab "rencana sudah dijalankan, ini hasilnya" alih-alih bertanya balik | `EXEC.md` EXEC-M109 (2026-10-07, tidak termasuk) | Router perlu tahu rencana yang sudah selesai |
 
 ### 3b. Keputusan user yang masih terbuka
 

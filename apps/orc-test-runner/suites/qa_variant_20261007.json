@@ -1,0 +1,25 @@
+{
+  "prefix": "ma-qa-variant",
+  "workers": 2,
+  "audit_wait_seconds": 0,
+  "items": [
+    {
+      "id": "variant_research_bbca",
+      "expect": "EXEC-V research (M110): the four experiments (2 volume thresholds x 2 horizons) share one data need, one bundle and one analysis session; analysis_sessions_superseded = 0; turn 2 uses fewer model calls than ma-qa-20261007c variant_bbca turn 2 (22 calls, 294 s); four verdicts, each recomputed by the backend, with the conversation-level correction; turn 3 (a value outside the plan) leads to a revised plan for approval, not to a run; turn 4 runs the approved revision on the same data without a new extraction (bundle and session reused); EXEC-M109 not triggered unless the router asks back",
+      "turns": [
+        "Uji ini: kalau volume BBCA minimal 2 kali dan minimal 3 kali rata-rata volume 20 hari sebelumnya, apakah harganya naik dalam 3 hari dan 10 hari berikutnya? Buatkan rencana ujinya.",
+        "uji itu",
+        "coba juga ambang 2,5 kali",
+        "setuju"
+      ]
+    },
+    {
+      "id": "variant_analysis_bbri",
+      "expect": "EXEC-V analysis (M110): turn 1 answers the three thresholds from one data need and one analysis session, released as one table with a variant column; analysis_sessions_superseded = 0; turn 2 adds the 10-day horizon on the same data without a new extraction (bundle reused, warm session reattached or reopened on the same bundle), every figure sourced",
+      "turns": [
+        "Berapa rata-rata return 5 hari BBRI setelah hari dengan volume minimal 1,5 kali, 2 kali dan 3 kali rata-rata volume 20 hari sebelumnya, sejak 2022?",
+        "tambahkan juga horizon 10 hari"
+      ]
+    }
+  ]
+}
