@@ -31,6 +31,9 @@ Under the user's go for every EXEC ("mulai") and "Lanjut otomatis bila lulus".
 - **Read-back job:** temporary service `kread-job` (`DATABASE_URL` as a reference, never printed; read-only session).
   - The first build failed on a PyPI download timeout before the job ran; the second deployment `c65c3b95` ran.
   - The service was deleted afterwards and read back absent (18 services).
+- **Golden test batch B** `ma-qa-20261007b` on `orc-test-runner` (deployment `02e1921f`), after the user raised the
+  key limit and decided "No, q7 nanti saja. Lanjut batch B": 4 turns on orc `3d217256`, about USD 0.15. Results in
+  `GT_QA_2026-10-06.md` §9. No service or variable changed.
 
 ## 2026-10-06 — EXEC wave 3 (EXEC-3, EXEC-A, EXEC-T, variants and correction) on dev
 

@@ -81,8 +81,16 @@ gabungkan ya", pilihan "File baru EXEC.md"). Pekerjaan yang disetujui tetapi bel
   - Cacat dari uji: M101 dan M102 (EXEC-P5 tidak terlihat oleh AI lewat amplop; sesi saling menutup) dan M103
     (angka rencana yang dibatalkan). Ketiganya diperbaiki di kode dan di-deploy (`3d217256`), belum diukur live.
     M104 (kalimat uji 06b dibaca BATAL di alur baru) tetap terbuka.
-  - **Berhenti:** sisa kredit USD 0,225 < USD 0,30 sebelum batch B. Batch B dan uji ulang q7 menunggu kredit
-    (perkiraan ±USD 0,40 seluruhnya).
+  - Sesudah batch A, sisa kredit USD 0,225 < USD 0,30, jadi uji berhenti dan dilaporkan. User menaikkan kredit dan
+    memutuskan "No, q7 nanti saja. Lanjut batch B" (2026-10-07).
+  - Batch B `ma-qa-20261007b` (orc `3d217256`, ±USD 0,15):
+    - "BBRI" ditanya balik dalam 5,3 dtk;
+    - bakrie 140 dtk dengan 2 panggilan web;
+    - p2 12 panggilan (06b 20), tanpa langkah mekanis dipanggil AI dan tanpa penolakan tambahan.
+    EXEC-P5 lulus dan dihapus dari dokumen ini; rinciannya tetap di `GT_QA_2026-10-06.md` §9 dan M101.
+  - Belum lulus dan menunggu keputusan user:
+    - EXEC-C: jelajah katalog di run lanjutan tidak turun ≥ 50%; waktu sesudah penolakan 10,0% (target ≤ 5%);
+    - EXEC-P1: persetujuan "lanjutkan" belum teruji live (ulang q7 ditunda user; M103, M104).
 - Perbedaan dari kata-kata rencana gelombang 4 (R35):
   - EXEC-C dan EXEC-P5 di balik saklar baru (`AI_ENABLE_RUN_MEMORY`, `AI_ENABLE_MERGED_STEPS`), supaya ada jalan balik
     tanpa redeploy.
@@ -101,13 +109,13 @@ gabungkan ya", pilihan "File baru EXEC.md"). Pekerjaan yang disetujui tetapi bel
 | 1d | EXEC-C: AI membawa semuanya ke run ID berikutnya dalam satu percakapan, tanpa terkecuali (13 butir, termasuk P4) | 2026-10-06 ("masukan exec"; "Seharusnya AI membawa semuanya tanpa terkecuali. Masukan EXEC") | Live di dev 2026-10-07; batch A sebagian lulus (§9), sisa uji menunggu kredit | — |
 | 1e | EXEC-A: penyelarasan jalur (satu pembaca maksud, gerbang hanya meminta alat yang ada, 10.6 dan edit sama di semua jalur) | 2026-10-06 ("masukan exec") | Selesai 2026-10-06 (gelombang 3; P40) | — |
 | 1h | EXEC-P1: mode 4 berhenti setelah analisis + rencana | 2026-10-06 ("p1 … masukan exec") | Live di dev 2026-10-07; giliran 1 lulus, persetujuan belum teruji live (M104) | — |
-| 1i | EXEC-P5: gabung langkah mekanis | 2026-10-06 ("p5 masukan exec") | Live di dev 2026-10-07; tidak lulus di batch A (M101, M102), diperbaiki `3d217256`, ukur ulang di batch B | — |
+| 1i | EXEC-P5: gabung langkah mekanis | 2026-10-06 ("p5 masukan exec") | Selesai 2026-10-07: lulus di batch B (p2 20 → 12 panggilan, tanpa penolakan tambahan; M101) | — |
 | 1j | EXEC-T: perangkat alat per proses (matriks HARUS/BOLEH/TIDAK BOLEH final, alat terlarang dikunci kode dan tidak bisa ditemukan) | 2026-10-06 ("finalize dan masukan ke EXEC"; catatan user: alat TIDAK BOLEH dikunci kode, tidak boleh ditemukan lewat pencarian) | Selesai 2026-10-06 kecuali butir 3 (keputusan terbuka, `FUTURE_PLAN.md` 3b; P41) | — |
 | 2 | P3: gerbang yang salah tolak | 2026-10-06 "OK masukan plan jangan execute dulu" | Selesai 2026-10-06 (P3a EXEC-1, P3b dan P3c gelombang 3, P3d EXEC-R) | — |
 | 3 | Item 11: penyortir "free will", jalur TANYA BALIK, cadangan berupa pertanyaan | 2026-10-05 (16:47, 17:40, 17:51, 17:55), ditegaskan 2026-10-06; **EXEC 2026-10-06** | Selesai 2026-10-06 (EXEC-3, gelombang 3; M97) | — |
 | 4 | P2: jawaban ditulis sekali | 2026-10-06 | Selesai 2026-10-06 (EXEC-R dan EXEC-P2, gelombang 2) | — |
 | 5 | P1: mode 4 berhenti setelah analisis + rencana | 2026-10-06 | EXEC-P1 | — |
-| 6 | P5: gabung langkah mekanis | 2026-10-06 | EXEC-P5 | — |
+| 6 | P5: gabung langkah mekanis | 2026-10-06 | Selesai 2026-10-07 (EXEC-P5) | — |
 | 7 | P4: hasil jelajah dibawa antar-putaran | 2026-10-06 | Masuk EXEC-C (butir 1d) | — |
 
 Biaya model: setiap uji dan golden test. Sisa batas kunci OpenRouter setelah gelombang 3: USD 0,857 (2026-10-06;
@@ -117,10 +125,10 @@ mulai** (keputusan user 2026-10-06: "EXEC dijalankan setelah konfirmasi saya"). 
 luar langkah ini.
 
 Urutan sisa:
-- batch B (bakrie_bank, p2_pine_standard, "BBRI"): keputusan user 2026-10-07 "No, q7 nanti saja. Lanjut batch B"
-  (kredit dinaikkan; sisa USD 2,225 sebelum batch B);
+- batch B: selesai 2026-10-07 (keputusan user "No, q7 nanti saja. Lanjut batch B"); EXEC-P5 lulus;
 - ulang q7 dua giliran dengan "setuju, jalankan rencananya": **ditunda** atas keputusan yang sama ("q7 nanti saja");
-- bila lulus, EXEC-C, EXEC-P5 dan EXEC-P1 dihapus dari dokumen ini.
+- keputusan user tentang dua syarat EXEC-C yang tidak tercapai (jelajah katalog, waktu sesudah penolakan);
+- bila lulus atau diterima user, EXEC-C dan EXEC-P1 dihapus dari dokumen ini.
 
 ---
 
@@ -218,35 +226,6 @@ P4 sebagian sudah ada (koreksi 2026-10-06 di EXEC-C).
 - **Berkas:** `mode4.py` (`sub`), `orchestrator.py`, `data_record.py`, `tools/catalog.py`, `tools/method_guides.py`.
 - **Bukti:** q7-m4b membaca ulang katalog dan 5 panduan (±170 dtk). Fakta yang sama ("Feature_01 punya sektor")
   ditemukan ulang di tiga item.
-
----
-
-### EXEC-P5: gabung langkah mekanis (butir 1i)
-
-- Rincian di bagian 6 di bawah.
-- **Langkah:**
-  1. kode `tools/data_need.py`, `data_planner.py`, `session.py`, `orchestrator._handle_call`;
-  2. argumen `complete` di `run_python`;
-  3. tes;
-  4. `AI_TOOLS.md`;
-  5. migration Tool_Catalog;
-  6. deploy orc;
-  7. ulang uji p2 dan threshold t1 (±USD 0,05).
-- **Lulus bila:** panggilan model per analisis turun ≥ 3 tanpa kenaikan penolakan.
-
-#### Rincian dari butir 6 (dipindah dari `PLAN.md` 2026-10-06)
-
-- Setelah `submit_data_need_spec` diterima, backend langsung menjalankan `prepare_data_bundle` dan
-  `open_analysis_session`, lalu mengembalikan hasil gabungan. Alat lama tetap ada untuk mengulang.
-- `run_python` mendapat argumen `complete` (boolean): setelah kode sukses, backend menjalankan `complete_analysis`.
-- **Berkas:**
-  - `apps/market-ai-orc/app/tools/data_need.py`, `data_planner.py`, `session.py`;
-  - `orchestrator._handle_call`;
-  - `AI_TOOLS.md`;
-  - migration Tool_Catalog round berikutnya;
-  - tes.
-- **Perkiraan:** 3–5 panggilan model lebih sedikit per analisis. Ongkos tetap ±3,6 dtk per panggilan, dan golden
-  test 06b punya 52 panggilan kecil rata-rata 6 dtk.
 
 ---
 
