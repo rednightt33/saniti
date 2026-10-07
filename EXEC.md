@@ -350,7 +350,7 @@ karena `is_mode4_plan` hanya mengenali `-m4d`.
     semua lengkap, pesan menyebut eksperimen yang belum. `final_status.research_findings` berisi satu temuan per
     eksperimen.
   - `/v1/runtime` melaporkan `research_multi_experiment: {enabled, version: 1, max_experiments: 4}`.
-- **Kode orc** (`ORC_COMMIT`):
+- **Kode orc** (`370d4a9`):
   - `submit_data_need_spec` mendapat `research_experiments` hanya bila sandbox melaporkan kapabilitas itu (tanpa itu
     field tidak ada: satu eksperimen per kebutuhan data, perilaku lama).
   - Setiap eksperimen dicocokkan dengan rencana yang disetujui (`match_governance`, P-g tetap); galat menyebut
@@ -367,7 +367,7 @@ karena `is_mode4_plan` hanya mengenali `-m4d`.
   dua eksperimen → INCOMPLETE menyebut yang kurang lalu COMPLETED dengan dua temuan, hipotesis di luar daftar ditolak,
   syarat 2–4 dan temuan v1). Orc 1.301 lulus (baru `tests/test_research_experiments.py`: daftar sampai ke sandbox,
   pencocokan per eksperimen, tanpa kapabilitas tidak ada field, prompt hanya dengan kapabilitas).
-- **Deploy:** sandbox `SBX_DEPLOY` SUCCESS, lalu orc `ORC_DEPLOY` SUCCESS (orc membaca kapabilitas saat startup). Jalan
+- **Deploy:** sandbox `6e396414` SUCCESS, lalu orc `9c6f5abf` SUCCESS (orc membaca kapabilitas saat startup; log tanpa `research_multi_experiment_inactive`). Jalan
   balik: sandbox `0598a616`, orc `f43f627d`; baris Tool_Catalog v10 tetap tidak aktif dan tidak dihapus.
 - **Perbedaan dari kata-kata rencana (R35):**
   - Tool_Catalog hanya `submit_data_need_spec` v10: deskripsi `run_python` dan `complete_analysis` di orc tidak berubah,

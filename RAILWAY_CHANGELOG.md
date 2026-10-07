@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-10-07 — EXEC-V stage 3 (several experiments in one data need) on dev
+
+Under the approved implementation plan for EXEC-V (stage 3; `EXEC.md` EXEC-V).
+
+- **Migration** 20261007_001 (Tool_Catalog round L) by the temporary service `lmig-job` (reference
+  `DATABASE_URL=${{Postgres.DATABASE_URL}}`, never printed): DRYRUN `e6b58ee0`, APPLY `d69ef6b2`; deleted with
+  `railway service delete`, read back absent (17 services). Details in `DATABASE_CHANGELOG.md`.
+- **market-python-sandbox:** `main` `c131e48`; deployment `6e396414` reached `SUCCESS` (start log clean). It reports
+  `research_multi_experiment` version 1 in `GET /v1/runtime`. Way back: redeploy `0598a616`.
+- **market-ai-orc:** `main` `370d4a9`, deployed after the sandbox so it reads the capability at startup; deployment
+  `9c6f5abf` reached `SUCCESS`, start log without `research_multi_experiment_inactive`. Way back: redeploy `f43f627d`.
+- The first push of `c131e48` was refused by GitHub with HTTP 500 (16:54–16:57 UTC) and went through on a retry.
+- No variable or switch change.
+
 ## 2026-10-07 — EXEC-V stage 2 (same data under other labels) on dev
 
 Under the approved implementation plan for EXEC-V (stage 2; `EXEC.md` EXEC-V).
