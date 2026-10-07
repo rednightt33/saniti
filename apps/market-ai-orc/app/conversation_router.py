@@ -497,17 +497,24 @@ def intent_note(reading: dict[str, Any] | None) -> str | None:
                               assumptions=(" Assumed: " + "; ".join(assumed) + ".") if assumed else "")
 
 
-def usable_options(options: list[Any], allowed: tuple[str, ...], pending: bool = True) -> list[dict[str, str]]:
-    """The choices the backend offers: known routes only, APPROVE only while a suggestion waits, each route once."""
-    seen, kept = set(), []
+def offered_choices(options: list[Any], allowed: tuple[str, ...], pending: bool = True
+                    ) -> tuple[list[dict[str, str]], list[str]]:
+    """EXEC-M109 (M109, ma-qa-20261007c q7 turn 3): (buttons, labels). A quick choice carries only its route, so two
+    choices on one route cannot both be buttons. Every usable choice has a distinct route and there are at least two:
+    they are buttons. Otherwise (two choices share a route, or fewer than two are usable) none is a button and the
+    usable labels are shown as numbered lines of the question; the reply is read by the router like any message."""
+    labels, routes = [], []
     for option in options or []:
         label = str(getattr(option, "label", None) or (option.get("label") if isinstance(option, dict) else "")).strip()
         route = str(getattr(option, "route", None) or (option.get("route") if isinstance(option, dict) else ""))
-        if not label or route not in allowed or route in seen or (route == "APPROVE" and not pending):
+        if not label or route not in allowed or (route == "APPROVE" and not pending):
             continue
-        seen.add(route)
-        kept.append({"label": label[:120], "route": route})
-    return kept[:4]
+        labels.append(label[:120])
+        routes.append(route)
+    labels, routes = labels[:4], routes[:4]
+    if len(labels) >= 2 and len(set(routes)) == len(routes):
+        return [{"label": label, "route": route} for label, route in zip(labels, routes)], []
+    return [], labels
 
 
 def fallback_options(first: bool, pending: bool = False) -> list[dict[str, str]]:

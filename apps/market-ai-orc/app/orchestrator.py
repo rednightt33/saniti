@@ -1413,6 +1413,11 @@ MERGED_STEPS_NOTE = ("merged_steps: the backend ran these steps for you right af
                      "result as if you had called it. Continue from the last one (for an opened session: run_python "
                      "in its session_id). Call a step yourself only to retry one that failed.")
 MERGED_DONE = "DONE_BY_BACKEND (see merged_steps)"
+# EXEC-V V-a (M110): a bundle prepared while this request's session is still open waits for that session
+OPEN_SESSION_FIRST = ("COMPLETE_OPEN_SESSION_FIRST: run_python in {session} (complete=true on its last run); open this "
+                      "bundle after that. One session of a request is open at a time.")
+SUPERSEDED_NOTE = ("superseded_sessions: this open closed these earlier sessions of the request (one session is open at "
+                   "a time); their variables are gone and their unreleased results were not kept.")
 FINAL_CONTRACT_PREFIX = (
     "When no further tool call is needed, your reply is the final response itself: one JSON object and nothing "
     "else, with no text before or after it and no code fence. The application parses it as JSON, so a prose draft "
@@ -1927,6 +1932,8 @@ class RunState:
     # reads made before the refusal), and the lookup_reference reads of this run
     reference_hints: dict[tuple[str, str], int] = field(default_factory=dict)
     reference_reads: int = 0
+    # EXEC-V V-a: the sessions the current open_analysis_session closed (named in its result, never silently)
+    superseded_now: dict[str, str] = field(default_factory=dict)
     # P34 (user rule: every calculation is sourced from the database; web facts only describe): the values web facts
     # returned, kept apart from the data's (an answer may cite them; code typing a web number is refused once)
     web_numbers: list[float] = field(default_factory=list)
@@ -2919,12 +2926,19 @@ class AgentOrchestrator:
                 if SESSION_ID_RE.fullmatch(session_id) and not session.get("superseded")
                 and (state.completions.get(session_id) or {}).get("status") != "COMPLETED"]
 
-    def _one_open_session(self, state: RunState, call_id: str, name: str) -> ToolOutcome | None:
+    def _one_open_session(self, state: RunState, call_id: str, name: str, arguments: Any = None
+                          ) -> ToolOutcome | None:
         """One open analysis session per run (S08): the sandbox has few session slots for every run together, and a run
         that opened a second session before completing its first held two of them. Before another open, an earlier
         session of this run that has not completed is closed when no execution in it succeeded or its complete_analysis
         answered INCOMPLETE (it released nothing); one with successful executions and no complete_analysis refuses the
-        new open until complete_analysis has been called on it."""
+        new open until complete_analysis has been called on it.
+        EXEC-V V-a (M110, ma-qa-20261007c variant_bbca: the model opened a session for each prepared bundle before
+        running any code, and each open closed the one before unused): an open for ANOTHER bundle while a session of
+        this run has no successful execution and no completion is refused too, naming the session to use first; the
+        same bundle may replace it (a way out when the session cannot be used). A session that is closed is named in
+        the open's result (superseded_sessions), never closed silently."""
+        state.superseded_now = {}
         pending = self._pending_sessions(state)
         # a session whose complete_analysis already answered INCOMPLETE released nothing and may be replaced
         working = [session_id for session_id in pending if session_id not in state.completions
@@ -2937,6 +2951,22 @@ class AgentOrchestrator:
                 "run_python calls on its bundle.")
             outcome.output["error"]["open_session_id"] = working[0]
             return outcome
+        wanted = str((arguments or {}).get("input_bundle_id") or "") if isinstance(arguments, dict) else ""
+        unused = [session_id for session_id in pending if session_id not in state.completions
+                  and "OK" not in state.sessions[session_id].get("executions", [])
+                  and state.sessions[session_id].get("bundle_id") not in (None, "", wanted)]
+        if unused:
+            bundle = state.sessions[unused[0]].get("bundle_id")
+            log_event("analysis_session_open_refused", request_id=state.request_id, open_session_id=unused[0],
+                      open_bundle_id=bundle, requested_bundle_id=wanted or None)
+            outcome = error_outcome(
+                call_id, name, "ANALYSIS_SESSION_ALREADY_OPEN",
+                f"Analysis session {unused[0]} (bundle {bundle}) of this request is open and has not run code yet. "
+                "Only one session of a request is open at a time, so opening another bundle now would close it "
+                f"unused. Work in it first: run_python in {unused[0]} (complete=true on its last run), then open the "
+                "next bundle. If it cannot be used, call complete_analysis on it first.")
+            outcome.output["error"].update(open_session_id=unused[0], open_bundle_id=bundle)
+            return outcome
         if pending:
             closed: dict[str, str] = {}
             if self.session_closer is not None:
@@ -2946,6 +2976,7 @@ class AgentOrchestrator:
                     closed = {session_id: "CLOSE_FAILED" for session_id in pending}
             for session_id in pending:
                 state.sessions[session_id]["superseded"] = closed.get(session_id, "NOT_CLOSED")
+            state.superseded_now = {session_id: closed.get(session_id, "NOT_CLOSED") for session_id in pending}
             log_event("analysis_sessions_superseded", request_id=state.request_id, sessions=closed or pending)
         return None
 
@@ -3843,8 +3874,13 @@ class AgentOrchestrator:
                     duration_ms=int((time.monotonic() - started) * 1000), occurred_at=self.wall_clock()))
             merged.append({"tool": step, "arguments": arguments, **done.output})
             ready = done.output.get("result") if done.ok and isinstance(done.output.get("result"), dict) else {}
+            pending = self._pending_sessions(state) if step == "prepare_data_bundle" else []
+            if pending and ready.get("status") == "READY" and isinstance(merged[-1].get("result"), dict):
+                # EXEC-V V-a: the next step is the open session, not another open (S08 would close it unused)
+                merged[-1]["result"] = {**merged[-1]["result"], "next_action": OPEN_SESSION_FIRST.format(
+                    session=pending[0]), "open_session_id": pending[0]}
             if step == "prepare_data_bundle" and ready.get("status") == "READY" and ready.get("input_bundle_id") \
-                    and not self._pending_sessions(state):
+                    and not pending:
                 # M102: a run that submits several needs in a row (one per experiment) would close the session of the
                 # one before at each open (S08); with a session still open the model opens the next one when it is
                 # ready for it (the prepare result's next_action says so)
@@ -3938,7 +3974,7 @@ class AgentOrchestrator:
                 return self._repair_budget(state, call_id, name, outcome)
 
         if name == "open_analysis_session":
-            refused = self._one_open_session(state, call_id, name)
+            refused = self._one_open_session(state, call_id, name, arguments)
             if refused is not None:
                 return self._repair_budget(state, call_id, name, refused)
         if name == "complete_analysis":
@@ -3965,6 +4001,12 @@ class AgentOrchestrator:
             if refused is not None:
                 return self._repair_budget(state, call_id, name, refused)
         outcome = self._repair_budget(state, call_id, name, self.registry.execute(call_id, name, raw_arguments))
+        if name == "open_analysis_session" and state.superseded_now and outcome.ok \
+                and isinstance(outcome.output.get("result"), dict):
+            # EXEC-V V-a: the model is told which earlier session this open closed
+            outcome.output["result"] = {**outcome.output["result"], "superseded_sessions": state.superseded_now,
+                                        "superseded_note": SUPERSEDED_NOTE}
+            state.superseded_now = {}
         if name == "lookup_reference" and outcome.ok:
             state.reference_reads += 1
         normalized = self._normalized_arguments(raw_arguments)

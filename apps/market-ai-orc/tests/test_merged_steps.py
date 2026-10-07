@@ -117,6 +117,11 @@ def test_a_second_need_while_a_session_is_open_is_prepared_but_not_opened() -> N
     assert tools.calls == ["submit_data_need_spec", "prepare_data_bundle", "open_analysis_session",
                            "submit_data_need_spec", "prepare_data_bundle"]
     assert [m["tool"] for m in outputs(scripted)[1]["merged_steps"]] == ["prepare_data_bundle"]
+    # EXEC-V V-a (M110): the prepared bundle points at the open session first, not at another open
+    second = outputs(scripted)[1]
+    assert second["merged_steps"][0]["result"]["next_action"].startswith("COMPLETE_OPEN_SESSION_FIRST")
+    prepared = second["merged_steps"][0]["result"]
+    assert prepared["open_session_id"] and "run_python" in prepared["next_action"]
 
 
 def test_the_switch_off_keeps_every_step_a_turn_of_its_own() -> None:

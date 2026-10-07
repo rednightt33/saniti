@@ -264,15 +264,17 @@ def _reading(intent: dict[str, Any] | None, usage: dict[str, Any] | None) -> Ite
 def ask_back_response(inner: AgentOrchestrator, request: AgentRunRequest, usage: dict[str, Any], *, first: bool,
                       pending: bool, failed: bool, data_record: dict[str, Any] | None,
                       notes: list[str] | None = None) -> AgentRunResponse:
-    """EXEC-3: one question with quick choices, nothing run (status NEEDS_CLARIFICATION). The router's question and
-    choices when it asked back with at least two usable ones; after a failed router call (retried once) or without
-    usable choices, the fixed question (conversation_router.FALLBACK_QUESTION) with the fixed choices."""
+    """EXEC-3: one question with quick choices, nothing run (status NEEDS_CLARIFICATION). The router's question
+    whenever the router asked one (EXEC-M109: never replaced because its choices do not fit the buttons); its choices
+    as buttons when at least two usable ones have distinct routes, else as numbered lines of the question
+    (conversation_router.offered_choices). Only after a failed router call (retried once) or without a question: the
+    fixed question (conversation_router.FALLBACK_QUESTION) with the fixed choices."""
     allowed = router.FIRST_OPTION_ROUTES if first else router.TURN_OPTION_ROUTES
-    options = [] if failed else router.usable_options(usage.get("options") or [], allowed, pending)
-    question = usage.get("question") if len(options) >= 2 else None
-    if len(options) < 2:
+    question = None if failed else (str(usage.get("question") or "").strip() or None)
+    options, labels = router.offered_choices(usage.get("options") or [], allowed, pending) if question else ([], [])
+    if question is None:
         options = router.fallback_options(first, pending)
-    text = router.question_text(question, options)
+    text = router.question_text(question, options or [{"label": label, "route": ""} for label in labels])
     response = FinalResponse(response_type="CLARIFICATION", answer=text, clarification_question=text,
                              assumptions=[str(a) for a in usage.get("assumptions") or []][:5],
                              limitations=list(notes or []))
@@ -283,7 +285,7 @@ def ask_back_response(inner: AgentOrchestrator, request: AgentRunRequest, usage:
         mode=ModeExecution(mode=4, name="MODE4", source="ROUTER", route="ROUTER_FAILED" if failed else "ASK_BACK")
         if first else None)
     log_event("ask_back", request_id=request.request_id, first=first, failed=failed, pending=pending,
-              router_question=question is not None, options=[o["route"] for o in options],
+              router_question=question is not None, options=[o["route"] for o in options], text_choices=len(labels),
               router_status=usage.get("status"), latency_ms=usage.get("latency_ms"))
     if getattr(inner, "run_memory", None) is not None:
         # EXEC-C item 13: an ask-back runs no step, so its reading goes straight to the data record

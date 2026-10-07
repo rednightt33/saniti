@@ -57,7 +57,10 @@ def ask_back_section(r) -> list[str]:
               + ", ".join(f"`{x}`" for x in r.TURN_OPTION_ROUTES) + " (`APPROVE` hanya bila ada usulan menunggu). "
               "Pilihan yang dikirim sebagai `chosen_option` langsung menjalankan jalurnya tanpa panggilan router; balasan "
               "teks bebas dirutekan lagi (balasan atas pertanyaan pesan pertama tetap dibaca sebagai pesan pertama, "
-              "bersama pertanyaannya).", "",
+              "bersama pertanyaannya). Pertanyaan router selalu dipakai bila router tidak gagal (EXEC-M109): pilihan "
+              "menjadi tombol hanya bila minimal dua pilihan sah dengan jalur berbeda; bila dua pilihan berbagi jalur "
+              "atau pilihan sah kurang dari dua, semua label ditulis sebagai baris bernomor tanpa tombol dan balasannya "
+              "dibaca router.", "",
               "Router gagal dua kali (coba ulang sekali): pertanyaan baku tanpa model: \"" + r.FALLBACK_QUESTION + "\" "
               "dengan pilihan pesan pertama " + ", ".join(f"{label} (`{route}`)" for label, route in r.FIRST_FALLBACK_OPTIONS)
               + "; pesan lanjutan " + ", ".join(f"{label} (`{route}`)" for label, route in r.TURN_FALLBACK_OPTIONS)

@@ -522,6 +522,49 @@ def test_a_session_without_a_successful_execution_is_closed_before_another_opens
     assert result.response.response_type == "ANSWER" and result.evidence_label == "DATA_COVERAGE_VERIFIED"
 
 
+BUNDLE_2 = "bundle_" + "9" * 24
+
+
+class BundleSessions(TwoSessions):
+    """open_analysis_session answers with the bundle it was asked for (EXEC-V V-a)."""
+
+    def registry(self) -> ToolRegistry:
+        registry = super().registry()
+        spec = registry._tools["open_analysis_session"]
+        registry._tools["open_analysis_session"] = ToolSpec(
+            name=spec.name, description=spec.description, arguments_model=spec.arguments_model,
+            handler=lambda a: {"session_id": self.opened.pop(0), "status": "ACTIVE", "bundle_id": a.input_bundle_id,
+                               "need_id": NEED})
+        return registry
+
+
+def test_an_open_for_another_bundle_waits_for_the_unused_session() -> None:
+    """EXEC-V V-a (M110, ma-qa-20261007c variant_bbca): opening the next bundle before any code ran closed the open
+    session unused; now it is refused, names the session to use first, and nothing is closed."""
+    closer = Closer()
+    script = [*flow(run=False, complete=False), call("open_analysis_session", {"input_bundle_id": BUNDLE_2}, "o2"),
+              call("run_python", {"session_id": SESSION}, "c4"), call("complete_analysis", {"session_id": SESSION}, "c5"),
+              final_response(answer("Return YTD BBCA 12,35%."))]
+    result = closing_run(script, BundleSessions([completed()], ["OK"]), closer)
+    refused = outputs_of(closing_run.scripted)["o2"]
+    assert refused["ok"] is False and refused["error"]["code"] == "ANALYSIS_SESSION_ALREADY_OPEN"
+    assert refused["error"]["open_session_id"] == SESSION and refused["error"]["open_bundle_id"] == BUNDLE
+    assert SESSION in refused["error"]["message"] and "run_python" in refused["error"]["message"]
+    assert closer.calls == [] and result.evidence_label == "DATA_COVERAGE_VERIFIED"
+
+
+def test_the_same_bundle_may_replace_an_unused_session_and_the_close_is_named() -> None:
+    closer = Closer()
+    script = [*flow(run=False, complete=False), call("open_analysis_session", {"input_bundle_id": BUNDLE}, "o2"),
+              call("run_python", {"session_id": SESSION_2}, "r2"),
+              call("complete_analysis", {"session_id": SESSION_2}, "c6"),
+              final_response(answer("Return YTD BBCA 12,35%."))]
+    closing_run(script, BundleSessions([{**completed(), "session_id": SESSION_2}], ["OK"]), closer)
+    opened = outputs_of(closing_run.scripted)["o2"]["result"]
+    assert opened["session_id"] == SESSION_2 and opened["superseded_sessions"] == {SESSION: "CLOSED_BY_CALLER"}
+    assert "superseded_sessions" in opened["superseded_note"] and closer.calls == [("dn", [SESSION])]
+
+
 def test_both_number_rules_allow_display_rounding_without_adding_number_sources() -> None:
     # P03: the model showed full precision, believing rounding fails the provenance gate; it does not
     sentence = ("Round figures for display as a reader needs: a source value shown with fewer decimals, rounded "

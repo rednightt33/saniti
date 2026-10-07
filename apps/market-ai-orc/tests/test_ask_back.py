@@ -103,12 +103,17 @@ def test_the_question_numbers_each_choice_and_says_how_to_answer() -> None:
     assert [o["route"] for o in router.fallback_options(False, pending=True)] == ["CLARIFY", "CONTINUE", "APPROVE"]
 
 
-def test_unusable_choices_are_dropped() -> None:
+def test_unusable_choices_are_dropped_and_choices_sharing_a_route_become_text() -> None:
+    """EXEC-M109: a quick choice carries only its route, so choices that share one are shown as numbered lines (all
+    of them, none lost) and no button is offered; distinct routes stay buttons."""
     options = [{"label": "a", "route": "ANALYSIS"}, {"label": "b", "route": "ANALYSIS"}, {"label": "", "route": "FACT"},
                {"label": "c", "route": "CONTINUE"}, {"label": "d", "route": "RESEARCH"}]
-    assert router.usable_options(options, router.FIRST_OPTION_ROUTES) == [{"label": "a", "route": "ANALYSIS"},
-                                                                          {"label": "d", "route": "RESEARCH"}]
-    assert router.usable_options([{"label": "x", "route": "APPROVE"}], router.TURN_OPTION_ROUTES, pending=False) == []
+    assert router.offered_choices(options, router.FIRST_OPTION_ROUTES) == ([], ["a", "b", "d"])
+    distinct = [options[0], options[4]]
+    assert router.offered_choices(distinct, router.FIRST_OPTION_ROUTES) == (distinct, [])
+    assert router.offered_choices([{"label": "x", "route": "APPROVE"}], router.TURN_OPTION_ROUTES,
+                                  pending=False) == ([], [])
+    assert router.offered_choices([options[0]], router.FIRST_OPTION_ROUTES) == ([], ["a"])
 
 
 # ---------------------------------------------------------------- first message
@@ -133,10 +138,43 @@ def test_a_failed_router_is_asked_back_with_the_fixed_question() -> None:
     assert [o["route"] for o in result.options] == ["QUICK_SUMMARY", "ANALYSIS", "RESEARCH"]
 
 
-def test_an_ask_back_with_too_few_usable_choices_gets_the_fixed_ones() -> None:
+def test_an_ask_back_with_too_few_usable_choices_keeps_the_routers_question() -> None:
+    """EXEC-M109: the fixed question replaces the router's only when the router failed."""
     wrapper, _ = asking({}, "ASK_BACK", {"question": QUESTION, "options": OPTIONS[:1]})
     result = wrapper.run(AgentRunRequest(request_id="q", message="BBRI"))
-    assert result.response.answer.startswith(router.FALLBACK_QUESTION) and len(result.options) == 3
+    assert result.response.answer.splitlines() == [QUESTION, "① Ringkasan harga terbaru", router.ANSWER_HINT]
+    assert not result.options and router.asked_back(result.response.answer)
+    empty = asking({}, "ASK_BACK", {"question": "  ", "options": OPTIONS})[0].run(
+        AgentRunRequest(request_id="q2", message="BBRI"))
+    assert empty.response.answer.startswith(router.FALLBACK_QUESTION) and len(empty.options) == 3
+
+
+def test_the_q7_turn_question_with_four_choices_on_one_route_is_kept() -> None:
+    """EXEC-M109 replay of ma-qa-20261007c q7 turn 3: the turn router asked which plan to run, one CONTINUE choice per
+    research angle; the user saw the fixed question instead."""
+    from app import mode4
+
+    usage = {"status": "COMPLETED", "question": "Rencana riset mana yang harus dijalankan? Tidak ada saran yang sedang "
+                                                "menunggu persetujuan, jadi saya perlu tahu angle mana yang Anda maksud.",
+             "options": [{"label": label, "route": "CONTINUE"}
+                         for label in ("momentum_rank", "dip_rebound", "momentum_size", "industry_gap")],
+             "understood_intent": "Pengguna menyetujui sebuah rencana, tetapi tidak ada yang menunggu.",
+             "referent": "UNCLEAR"}
+
+    class Inner:
+        settings = make_settings(**ASK_ON)
+        run_memory = None
+
+    result = mode4.ask_back_response(Inner(), AgentRunRequest(request_id="q7-3", message="setuju, jalankan rencananya"),
+                                     usage, first=False, pending=False, failed=False, data_record=None)
+    lines = result.response.answer.splitlines()
+    assert lines[0] == usage["question"] and lines[-1] == router.ANSWER_HINT
+    assert lines[1:5] == ["① momentum_rank", "② dip_rebound", "③ momentum_size", "④ industry_gap"]
+    assert not result.options and result.status == "NEEDS_CLARIFICATION"
+    failed = mode4.ask_back_response(Inner(), AgentRunRequest(request_id="q7-3b", message="x"), usage, first=False,
+                                     pending=False, failed=True, data_record=None)
+    assert failed.response.answer.startswith(router.FALLBACK_QUESTION)
+    assert [o["route"] for o in failed.options] == ["CLARIFY", "CONTINUE"]
 
 
 def test_a_quick_choice_runs_its_route_without_a_router_call() -> None:

@@ -253,8 +253,35 @@ karena `is_mode4_plan` hanya mengenali `-m4d`.
   data. Dan kalau bisa dilakukan disandbox yang sama. Masukan ini ke EXEC. Masukan plan B ke EXEC juga."
 - "Berlaku untuk semuanya yang applicable."
 - Variasi di pesan berikutnya ikut aturan yang sama: "Ya, ikut (Recommended)".
-- Belum dijalankan. Langkah berikutnya: review EXEC yang disetujui dan inspeksi arsitektur, lalu rencana implementasi
-  untuk disetujui.
+- Sesudah review EXEC dan inspeksi arsitektur (2026-10-07): riset di pesan lanjutan "Data dipakai ulang, ruang kerja
+  baru (Recommended)"; urutan "Setuju, susun rencana implementasi (Recommended)"; rencana implementasi 4 tahap disetujui
+  (persetujuan rencana = mulai tahap 1–3 di dev; golden test tahap 4 hanya atas perintah user).
+
+**Temuan inspeksi (read-only, `main` `08d6c94`):**
+1. **Penggunaan ulang paket data gagal karena nama.**
+   - Alur penggunaan ulang sudah ada (`data_planner.prepare` → sandbox `reuse_bundle`).
+   - Identitas data (`data_contract_sha256`, `contract_covers` di `apps/market-python-sandbox/app/data_need.py`)
+     memasukkan `data_request_id`, dan id wajib diawali `request_group_id`.
+   - Data identik dari grup berbeda selalu dianggap berbeda. Di BBCA ada 4 ekstraksi.
+2. **Riset multi-sudut sudah menggabungkan data yang sama** ke satu spec dan satu ruang kerja
+   (`research_planner._merge`). Itu pola acuan.
+3. **Temuan riset v1 sudah per hipotesis** (`research_events_<hypothesis_id>`; orc mengulang temuan per penyelesaian),
+   tetapi satu ruang kerja hanya membawa satu set nilai rencana (`_FINDINGS_V1`, `research_governance._constraints`).
+4. **Kebutuhan data riset selalu mendapat ruang kerja baru.** Jaminan isolasi ini tetap (keputusan user).
+5. **Opsi B melengkapi M102 dan EXEC-P5.** `_one_open_session` menutup sesi yang belum dipakai tanpa memberi tahu AI.
+
+**Benchmark eksternal:**
+- pesan galat menyebut langkah berikutnya ([Anthropic, Writing effective tools for agents](https://www.anthropic.com/engineering/writing-tools-for-agents));
+- muat data sekali, jalankan semua variasi ([BacktestVariationRunner](https://kaxanuk-backtest-engine.readthedocs-hosted.com/en/latest/api_reference/backtest/orchestrators.html), [vectorbt](https://vectorbt.pro/getting-started)).
+
+**Rencana implementasi (disetujui 2026-10-07):**
+
+| Tahap | Isi | Layanan |
+|---|---|---|
+| 1 | V-a opsi B + EXEC-M109 | orc |
+| 2 | V-c / V-d: identitas data tanpa nama permintaan; paket dipakai ulang lewat alias nama, di pesan yang sama dan pesan lanjutan (riset: data dipakai ulang, ruang kerja baru) | sandbox + orc |
+| 3 | V-b: `research_experiments` (1–4 eksperimen satu kebutuhan data), temuan per eksperimen, dikunci kapabilitas sandbox `research_multi_experiment`, Tool_Catalog round baru | orc + sandbox + migrasi |
+| 4 | golden test `qa_variant_20261007.json`, hanya atas perintah user | runner |
 
 **Bukti (golden test `ma-qa-20261007c` variant_bbca giliran 2, orc `63e29b62`, log dan penalaran AI):**
 - Pertanyaan user punya 4 variasi (volume ≥ 2× dan ≥ 3×, horizon 3 dan 10 hari).
