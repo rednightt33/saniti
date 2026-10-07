@@ -1,5 +1,19 @@
 # Database changelog
 
+## 2026-10-07 — EXEC-V stage 3: Tool_Catalog round L on dev
+
+- **`20261007_001_round_l_tool_catalog.sql`** (generated, round `round_l`, `scripts/generate_tool_catalog_migration.py`):
+  inactive `Tool_Catalog` row `submit_data_need_spec` v10, copied from v9 with the input schema and purpose of the code:
+  `research_experiments`, two to four experiments of one approved hypothesis plan that read the same data, in one data
+  need (offered when market-python-sandbox reports `research_multi_experiment`; EXEC-V stage 3, M110). No table,
+  column, grant or other row changed.
+- **Part A check:** tool metadata, not market data; Part A does not apply.
+- Applied by the temporary service `lmig-job` (`DATABASE_URL` as a reference to the catalog database, never printed;
+  deleted afterwards, read back absent, 17 services): DRYRUN `e6b58ee0` passed and rolled back (114 Tool_Catalog rows,
+  25 active, before and after); APPLY `d69ef6b2` committed. Read back: 115 rows, 25 active (unchanged);
+  `submit_data_need_spec` v10 inactive with `research_experiments` in its input schema, v9 unchanged; a second run was
+  refused by its preflight ("already registered"). Checksum appended to `database/migrations/APPLIED.sha256`.
+
 ## 2026-10-07 — Wave 4 (EXEC-C, EXEC-P5): AI_conversation_run_memory and Tool_Catalog round K on dev
 
 - **`20261006_003_conversation_run_memory.sql`**: new table `AI_conversation_run_memory` (EXEC-C; user decisions

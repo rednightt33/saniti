@@ -17,9 +17,13 @@ registering the new versions of the tools whose contract changed in that round.
 - round_i (20261005_004, applied): the first rows of check_references (item 10.2) and research_web (item 12),
   lookup_reference v2 and get_system_capabilities v3 (their descriptions name the web without the one-fact tool;
   PLAN_2026-10-05.md).
-- round_j (20261006_001): query_metric v2 (a period may start without an end, EXEC-R R5c); get_evidence marked removed
+- round_j (20261006_001, applied): query_metric v2 (a period may start without an end, EXEC-R R5c); get_evidence marked removed
   from the code (EXEC-E, user decision 2026-10-06; its rows stay as history, "retired") and Table_Catalog's
   AI_conversation_evidence noted as no longer written ("table_notes").
+- round_k (20261006_004, applied): read_conversation_memory v1, submit_data_need_spec v9 and run_python v5 (EXEC-C,
+  EXEC-P5).
+- round_l (20261007_001): submit_data_need_spec v10, research_experiments (EXEC-V stage 3: the experiments of one
+  hypothesis plan on the same data share one data need).
 
 Registered from the code with every switch of the dev environment on (the registry of scripts/generate_ai_tools_doc.py,
 one source for both). An applied migration is frozen (database/migrations/APPLIED.sha256); market-ai-orc's
@@ -257,8 +261,23 @@ ROUNDS = {
                    "run_memory": "one row per run in AI_conversation_run_memory (migration 20261006_003), deleted "
                                  "with the conversation; pages of 20,000 characters"},
     },
+    "round_l": {
+        "target": ROOT / "database/migrations/20261007_001_round_l_tool_catalog.sql",
+        "versions": {"submit_data_need_spec": ("v9", "v10")},
+        "contracts": {"submit_data_need_spec": ("input_schema", "research_experiments")},
+        "title": "EXEC-V stage 3",
+        "header": "EXEC.md EXEC-V stage 3 (user approval 2026-10-07)",
+        "design": "EXEC.md EXEC-V stage 3 (user approval 2026-10-07)",
+        "limits_design": "EXEC.md EXEC-V stage 3 (user approval 2026-10-07)",
+        "summary": ["submit_data_need_spec v10: research_experiments, two to four experiments of one approved hypothesis",
+                    "plan that read the same data, in one data need, one bundle and one session (offered when the",
+                    "sandbox reports research_multi_experiment); complete_analysis returns one finding per experiment."],
+        "limits": {"research_experiments": "two to four experiments per data need, each matched against the approved "
+                                           "plan and counted as one experiment by the Research Governor; one finding "
+                                           "per experiment, the completion passes only when each has one"},
+    },
 }
-NEWEST = "round_k"
+NEWEST = "round_l"
 
 
 def _tools_doc():
