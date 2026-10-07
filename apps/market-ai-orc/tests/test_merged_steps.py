@@ -106,6 +106,19 @@ def test_a_bundle_that_is_not_ready_stops_the_chain_and_the_tool_stays_to_retry(
     assert result.status == "LIMITED"
 
 
+def test_a_second_need_while_a_session_is_open_is_prepared_but_not_opened() -> None:
+    """M102 (golden test 2026-10-07, variant_bbca turn 2): four needs submitted one after another each opened a session,
+    and each open closed the session of the need before (one open session per run, S08)."""
+    tools = MergedTools([completed()])
+    script = [call("submit_data_need_spec", {"mode": "ANALYSIS", "research_governance": None}, "c1"),
+              call("submit_data_need_spec", {"mode": "ANALYSIS", "research_governance": None}, "c2"),
+              final_response(answer("BBCA naik lebih tinggi dari BBRI.", "LIMITATION", ["belum selesai"]))]
+    _, scripted = run(script, tools)
+    assert tools.calls == ["submit_data_need_spec", "prepare_data_bundle", "open_analysis_session",
+                           "submit_data_need_spec", "prepare_data_bundle"]
+    assert [m["tool"] for m in outputs(scripted)[1]["merged_steps"]] == ["prepare_data_bundle"]
+
+
 def test_the_switch_off_keeps_every_step_a_turn_of_its_own() -> None:
     tools = MergedTools([completed()])
     script = [call("submit_data_need_spec", {"mode": "ANALYSIS", "research_governance": None}, "c1"),

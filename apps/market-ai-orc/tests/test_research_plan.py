@@ -579,6 +579,16 @@ def test_cancel_stops_without_tools_and_without_a_plan() -> None:
     assert "not allowed here" in json.dumps(scripted.payloads[1]["input"])  # a plan in a cancel turn is refused
 
 
+def test_a_cancel_answer_may_name_the_cancelled_plans_own_values() -> None:
+    """M103 (golden test 2026-10-07, q7 turn 2): an answer to a cancel named the plan's horizon and was forced to
+    LIMITATION because the cancelled plan's values were not sources of that turn."""
+    sandbox = Sandbox()
+    issued = first_turn(sandbox)[0].continuation
+    text = "Baik, rencana dibatalkan: uji RSI(14) dengan minimal 30 event tidak dijalankan."
+    result, _ = reply(sandbox, issued, [final_response(answer(text))], message="Batal.", action="CANCEL")
+    assert result.status == "COMPLETED" and result.response.answer == text
+
+
 @pytest.mark.parametrize("action, instruction, expected_turn", [
     ("APPROVE", None, "EXECUTE_APPROVED"), ("REVISE", "Pakai lima tahun.", "REVISE"), ("CANCEL", None, "CANCEL"),
     ("UNRELATED", None, "UNRELATED")])

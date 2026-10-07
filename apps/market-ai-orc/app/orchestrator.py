@@ -2883,15 +2883,20 @@ class AgentOrchestrator:
             "data record; do not rebuild it with a guessed definition. When you need other data, state how its "
             f"definition differs. Earlier results: {'; '.join(listed)}.")
 
+    @staticmethod
+    def _pending_sessions(state: RunState) -> list[str]:
+        """This run's analysis sessions that are open and not COMPLETED (S08)."""
+        return [session_id for session_id, session in state.sessions.items()
+                if SESSION_ID_RE.fullmatch(session_id) and not session.get("superseded")
+                and (state.completions.get(session_id) or {}).get("status") != "COMPLETED"]
+
     def _one_open_session(self, state: RunState, call_id: str, name: str) -> ToolOutcome | None:
         """One open analysis session per run (S08): the sandbox has few session slots for every run together, and a run
         that opened a second session before completing its first held two of them. Before another open, an earlier
         session of this run that has not completed is closed when no execution in it succeeded or its complete_analysis
         answered INCOMPLETE (it released nothing); one with successful executions and no complete_analysis refuses the
         new open until complete_analysis has been called on it."""
-        pending = [session_id for session_id, session in state.sessions.items()
-                   if SESSION_ID_RE.fullmatch(session_id) and not session.get("superseded")
-                   and (state.completions.get(session_id) or {}).get("status") != "COMPLETED"]
+        pending = self._pending_sessions(state)
         # a session whose complete_analysis already answered INCOMPLETE released nothing and may be replaced
         working = [session_id for session_id in pending if session_id not in state.completions
                    and "OK" in state.sessions[session_id].get("executions", [])]
@@ -3152,6 +3157,10 @@ class AgentOrchestrator:
         if action == "CANCEL":
             self._set_turn(state, "CANCEL", frozenset({"ANSWER", "LIMITATION"}), frozenset(), guard,
                            note=CANCEL_NOTE)
+            if verified is not None:
+                # M103: the answer may name the cancelled plan's own values (its horizon, thresholds), which the user
+                # saw in the plan; they are design values of the conversation like those of a revised plan
+                state.context_numbers.extend(numbers)
         elif action == "APPROVE" and verified is not None and is_v2:
             state.verified_plan = verified
             state.carried_outputs = self._carried_ids(state, verified.plan)
@@ -3802,7 +3811,11 @@ class AgentOrchestrator:
                     duration_ms=int((time.monotonic() - started) * 1000), occurred_at=self.wall_clock()))
             merged.append({"tool": step, "arguments": arguments, **done.output})
             ready = done.output.get("result") if done.ok and isinstance(done.output.get("result"), dict) else {}
-            if step == "prepare_data_bundle" and ready.get("status") == "READY" and ready.get("input_bundle_id"):
+            if step == "prepare_data_bundle" and ready.get("status") == "READY" and ready.get("input_bundle_id") \
+                    and not self._pending_sessions(state):
+                # M102: a run that submits several needs in a row (one per experiment) would close the session of the
+                # one before at each open (S08); with a session still open the model opens the next one when it is
+                # ready for it (the prepare result's next_action says so)
                 steps.append(("open_analysis_session", {"input_bundle_id": ready["input_bundle_id"]}))
         log_event("mechanical_steps_merged", request_id=state.request_id, after=name,
                   steps=[{"tool": m["tool"], "status": (m.get("result") or {}).get("status")
