@@ -60,7 +60,12 @@ REMOVED = {
     "find_web_fact and is shown as a web fact;",
     "a web fact describes and never becomes a series, a dataset or an input of a calculation.",
     # EXEC-P2 P2e (user approval 2026-10-06): answer-length targets
-    "Keep the final answer focused and proportional to the user's question.",
+    "Keep the final answer focused and proportional to the user's question.",    # EXEC-V stage 2 (user approval 2026-10-07): the same data is recognised whatever its labels
+    "For a new computation on the same data, submit the listed data_need_spec unchanged (any request_group_id, "
+    "revision one).",
+    "prepare_data_bundle then reuses the earlier bundle without a new extraction (reused true), and "
+    "open_analysis_session reattaches the warm session when it is still alive (reused_session true, listing the "
+    "variables of the earlier message).",
 }
 ADDED = {
     # K2
@@ -109,6 +114,13 @@ ADDED = {
     "Keep the final answer focused and proportional to the user's question: the answer within about two and a half "
     "thousand characters and a table in it within ten rows unless the user asks for more (the full table stays in its "
     "released output).",
+    # EXEC-V stage 2 (M110): the backend pairs requests by content, not by their ids or names
+    "For a new computation on the same data, submit the listed data_need_spec (any request_group_id, revision one).",
+    "The same data is recognised by content, whatever its labels: prepare_data_bundle reuses the earlier bundle "
+    "(reused true) under this spec's labels.",
+    "With the labels unchanged, open_analysis_session reattaches the warm session (reused_session true, listing the "
+    "earlier variables);",
+    "otherwise it opens a new session on the same data.",
 }
 SECTIONS = ["GENERAL RULES", "TOOL USE", "TOOL RESULTS", "FINAL RESPONSE", "DATA DISCOVERY", "DATA SOURCES",
             "DATA NEED", "MODES", "TIME BASIS", "NAMED-PERIOD RETURNS", "WEEKLY AND MONTHLY", "CONVERSATION REUSE",

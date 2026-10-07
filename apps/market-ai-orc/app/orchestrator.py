@@ -847,12 +847,13 @@ session_id null for an output of an earlier answer). A released output of an ear
 this answer, with its original evidence label and warnings; say when it
 was computed. Do not compute it again.
 2. For a new computation on the same data, submit the listed
-data_need_spec unchanged (any request_group_id, revision one).
-prepare_data_bundle then reuses the earlier bundle without a new
-extraction (reused true), and open_analysis_session reattaches the warm
-session when it is still alive (reused_session true, listing the
-variables of the earlier message). Run the new code, emit new outputs
-and call complete_analysis as usual; it releases only this message's
+data_need_spec (any request_group_id, revision one). The same data is
+recognised by content, whatever its labels: prepare_data_bundle reuses
+the earlier bundle (reused true) under this spec's labels. With the
+labels unchanged, open_analysis_session reattaches the warm session
+(reused_session true, listing the earlier variables); otherwise it opens
+a new session on the same data. Run the new code, emit new outputs and
+call complete_analysis as usual; it releases only this message's
 outputs.
 3. A warm session may be gone (idle timeout, eviction, restart): the
 tables of earlier answers are put back from the conversation's store
