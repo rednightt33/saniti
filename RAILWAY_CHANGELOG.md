@@ -1,5 +1,25 @@
 # Railway changelog
 
+## 2026-10-07 — EXEC-D (judgement principle: the AI may ask back on any path) on dev
+
+Under the user's decision "masukan exec untuk point no 2. jalanakn exec untuk point no 2, kemudian ujibulang yg ada di
+exec existing" (scope "Rekomendasi + P-g (Recommended)"; plan approved 2026-10-07; `EXEC.md` EXEC-D).
+
+- **Benchmarks before deploy** (real model `deepseek/deepseek-v4.1-flash`, key read in-process and never printed; credit
+  USD 2.071 before):
+  - new plan-reply reader set `scripts/benchmark_plan_reply.py --ask-back`: 36/36 correct, 0 APPROVE for a
+    non-approval, 0 CANCEL for an unclear reply or a question, clear cancels 100% CANCEL, 0 failed, 0 unstable,
+    USD 0.008. Same set with the old wording: "lanjutkan saran riset berikutnya" read as CANCEL 2/2 (M104 reproduced),
+    with the new wording UNRELATED 2/2;
+  - turn router `scripts/benchmark_turn_router.py --ask-back` (instructions unchanged; regression for P-b): 49/50,
+    0 read requests to a research class, 0 asked back, variants 6/6, USD 0.017. The one difference: "Berapa harga
+    penutupan BMRI kemarin?" without a pending plan read as CLARIFY (accepted: NEW_TOPIC/CONTINUE); not a costly error.
+- **Deploy:** `main` fast-forwarded to `c07f9b0` (branch `claude/upbeat-dijkstra-iybq2f`).
+  - `market-ai-orc` deployment `63e29b62` reached `SUCCESS`; start log clean (`run_memory_active`, `mode4_active`,
+    `/ready` 200).
+  - `market-python-sandbox` (`b7c30efb`) and `market-web-governor` (`92a5daa9`) `SKIPPED` (unchanged).
+  - No variable, switch or database change. Way back: redeploy `3d217256`.
+
 ## 2026-10-07 — EXEC wave 4 (EXEC-C, EXEC-P5, EXEC-P1) on dev
 
 Under the user's go for every EXEC ("mulai") and "Lanjut otomatis bila lulus".
