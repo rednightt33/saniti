@@ -1,41 +1,25 @@
 {
- "prefix": "ma-qa-20261007c",
- "workers": 3,
- "audit_wait_seconds": 0,
- "items": [
-  {
-   "id": "q7_export_trade_war",
-   "expect": "EXEC-D re-test (M104, M105, P-a/b/c) with EXEC-P1 and EXEC-C: turn 1 <= 15 min, analysis + plan waiting; turn 2 (the 06b wording) runs in mode 4 (turn router) and is not forced to LIMITATION: asked back with the plan still waiting, CONTINUE with a new plan, or APPROVE; turn 3 runs the waiting plan without an unrequested next plan; memory row per run",
-   "turns": [
-    "Bagaimana perkembangan ekspor Indonesia sejak perang dagang terakhir? Cari saham yang diuntungkan.",
-    "lanjutkan saran riset berikutnya",
-    "setuju, jalankan rencananya"
-   ]
-  },
-  {
-   "id": "variant_bbca",
-   "expect": "M102: no automatic open closes another session; P-g: no RESEARCH_PLAN_MISMATCH on hypothesis/objective; every variant answered with the conversation-level correction",
-   "turns": [
-    "Uji ini: kalau volume BBCA minimal 2 kali dan minimal 3 kali rata-rata volume 20 hari sebelumnya, apakah harganya naik dalam 3 hari dan 10 hari berikutnya? Buatkan rencana ujinya.",
-    "uji itu"
-   ]
-  },
-  {
-   "id": "threshold_from_result",
-   "expect": "EXEC-C + P-h: turn 2 cites turn 1's result as min_effect without a PROVENANCE/REFERENCE refusal; fewer catalog reads in later runs; EXEC-P5 merged steps",
-   "turns": [
-    "Berapa rata-rata return harian BBCA pada hari ketika volumenya minimal 2 kali rata-rata volume 20 hari sebelumnya, sejak 2023?",
-    "Uji apakah pola ini berlanjut: apakah return 3 hari berikutnya setelah hari seperti itu lebih tinggi daripada hari biasa? Pakai angka hasil analisa kamu barusan sebagai efek minimal.",
-    "setuju, jalankan"
-   ]
-  },
-  {
-   "id": "cancel_plan",
-   "expect": "M103 + P-a/P-c: a clear cancel is read as CANCEL and answered (ANSWER) without a forced LIMITATION, even when the answer names the plan's own horizon; the plan is CANCELLED",
-   "turns": [
-    "Uji apakah saham BBRI cenderung naik dalam 5 hari berikutnya setelah hari dengan volume minimal 2 kali rata-rata volume 20 hari sebelumnya, sejak 2023. Buatkan rencana ujinya.",
-    "tidak usah, batalkan rencana uji 5 hari itu"
-   ]
-  }
- ]
+  "prefix": "ma-qa-variant-20261007a",
+  "workers": 2,
+  "audit_wait_seconds": 0,
+  "items": [
+    {
+      "id": "variant_research_bbca",
+      "expect": "EXEC-V research (M110): the four experiments (2 volume thresholds x 2 horizons) share one data need, one bundle and one analysis session; analysis_sessions_superseded = 0; turn 2 uses fewer model calls than ma-qa-20261007c variant_bbca turn 2 (22 calls, 294 s); four verdicts, each recomputed by the backend, with the conversation-level correction; turn 3 (a value outside the plan) leads to a revised plan for approval, not to a run; turn 4 runs the approved revision on the same data without a new extraction (bundle reused, research in a new session: user decision 2026-10-07 'Data dipakai ulang, ruang kerja baru'); EXEC-M109 not triggered unless the router asks back",
+      "turns": [
+        "Uji ini: kalau volume BBCA minimal 2 kali dan minimal 3 kali rata-rata volume 20 hari sebelumnya, apakah harganya naik dalam 3 hari dan 10 hari berikutnya? Buatkan rencana ujinya.",
+        "uji itu",
+        "coba juga ambang 2,5 kali",
+        "setuju"
+      ]
+    },
+    {
+      "id": "variant_analysis_bbri",
+      "expect": "EXEC-V analysis (M110): turn 1 answers the three thresholds from one data need and one analysis session, released as one table with a variant column; analysis_sessions_superseded = 0; turn 2 adds the 10-day horizon on the same data without a new extraction (bundle reused, warm session reattached or reopened on the same bundle), every figure sourced",
+      "turns": [
+        "Berapa rata-rata return 5 hari BBRI setelah hari dengan volume minimal 1,5 kali, 2 kali dan 3 kali rata-rata volume 20 hari sebelumnya, sejak 2022?",
+        "tambahkan juga horizon 10 hari"
+      ]
+    }
+  ]
 }

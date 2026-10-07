@@ -1,11 +1,11 @@
 {
-  "prefix": "ma-qa-variant",
+  "prefix": "ma-qa-variant-20261007a",
   "workers": 2,
   "audit_wait_seconds": 0,
   "items": [
     {
       "id": "variant_research_bbca",
-      "expect": "EXEC-V research (M110): the four experiments (2 volume thresholds x 2 horizons) share one data need, one bundle and one analysis session; analysis_sessions_superseded = 0; turn 2 uses fewer model calls than ma-qa-20261007c variant_bbca turn 2 (22 calls, 294 s); four verdicts, each recomputed by the backend, with the conversation-level correction; turn 3 (a value outside the plan) leads to a revised plan for approval, not to a run; turn 4 runs the approved revision on the same data without a new extraction (bundle and session reused); EXEC-M109 not triggered unless the router asks back",
+      "expect": "EXEC-V research (M110): the four experiments (2 volume thresholds x 2 horizons) share one data need, one bundle and one analysis session; analysis_sessions_superseded = 0; turn 2 uses fewer model calls than ma-qa-20261007c variant_bbca turn 2 (22 calls, 294 s); four verdicts, each recomputed by the backend, with the conversation-level correction; turn 3 (a value outside the plan) leads to a revised plan for approval, not to a run; turn 4 runs the approved revision on the same data without a new extraction (bundle reused, research in a new session: user decision 2026-10-07 'Data dipakai ulang, ruang kerja baru'); EXEC-M109 not triggered unless the router asks back",
       "turns": [
         "Uji ini: kalau volume BBCA minimal 2 kali dan minimal 3 kali rata-rata volume 20 hari sebelumnya, apakah harganya naik dalam 3 hari dan 10 hari berikutnya? Buatkan rencana ujinya.",
         "uji itu",
