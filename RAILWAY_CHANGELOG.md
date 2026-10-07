@@ -19,6 +19,10 @@ exec existing" (scope "Rekomendasi + P-g (Recommended)"; plan approved 2026-10-0
     `/ready` 200).
   - `market-python-sandbox` (`b7c30efb`) and `market-web-governor` (`92a5daa9`) `SKIPPED` (unchanged).
   - No variable, switch or database change. Way back: redeploy `3d217256`.
+- **Re-test** `ma-qa-20261007c` on `orc-test-runner` (deployment `7d582b3f`, suite
+  `apps/orc-test-runner/suites/qa_20261007c.json`, also copied to `suite.json`): 4 items, 10 turns on orc `63e29b62`,
+  07:34–07:45 UTC, about USD 0.50 (key remaining USD 2.032 → 1.529). Results in `GT_QA_2026-10-06.md` §10. No service
+  or variable changed.
 
 ## 2026-10-07 — EXEC wave 4 (EXEC-C, EXEC-P5, EXEC-P1) on dev
 
