@@ -132,7 +132,7 @@ Dibuat dari `apps/market-ai-orc/app/tool_desks.py` (`DESKS`), saklar semua menya
 ## Snapshot saklar di dev
 
 <!-- dev-snapshot:start -->
-Diambil  dari Railway (nama dan nilai true/false saja).
+Diambil 2026-10-07 dari Railway (nama dan nilai true/false saja).
 
 | Saklar | dev |
 |---|---|
@@ -145,7 +145,7 @@ Diambil  dari Railway (nama dan nilai true/false saja).
 | `AI_ENABLE_HYPOTHESIS_PLAN` | on |
 | `AI_ENABLE_LINEAGE_TOOL` | on |
 | `AI_ENABLE_LOOKUP_FACT` | off |
-| `AI_ENABLE_MERGED_STEPS` | off |
+| `AI_ENABLE_MERGED_STEPS` | on |
 | `AI_ENABLE_METHOD_GUIDES` | on |
 | `AI_ENABLE_MULTI_ANGLE_RESEARCH` | on |
 | `AI_ENABLE_PLAN_FEASIBILITY` | on |
@@ -155,7 +155,7 @@ Diambil  dari Railway (nama dan nilai true/false saja).
 | `AI_ENABLE_REFERENCE_LOOKUP` | on |
 | `AI_ENABLE_REQUEST_DATA` | off |
 | `AI_ENABLE_RESEARCH_FINDINGS` | on |
-| `AI_ENABLE_RUN_MEMORY` | off |
+| `AI_ENABLE_RUN_MEMORY` | on |
 | `AI_ENABLE_STANDARD_PERIOD_RETURN` | on |
 | `AI_ENABLE_WEB_FACT` | off |
 | `AI_ENABLE_WEB_RESEARCH` | on |

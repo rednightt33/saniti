@@ -1,0 +1,41 @@
+{
+ "prefix": "ma-qa-20261007a",
+ "workers": 3,
+ "audit_wait_seconds": 0,
+ "items": [
+  {
+   "id": "q7_export_trade_war",
+   "turns": [
+    "Bagaimana perkembangan ekspor Indonesia sejak perang dagang terakhir? Cari saham yang diuntungkan.",
+    "lanjutkan saran riset berikutnya"
+   ],
+   "expect": "EXEC-P1: turn 1 <= 15 min, ends with the analysis and its plan waiting (steps analysis + research_plan only); turn 2 runs the plan, no next plan unless asked. EXEC-C: turn 2 gets turn 1's assumptions, limitations and methodology whole; fewer catalog reads; no PROVENANCE/REFERENCE refusal for turn-1 numbers; a memory row per run"
+  },
+  {
+   "id": "h_add",
+   "turns": [
+    "Apakah saham bank yang naik 5% atau lebih dalam sehari cenderung turun dalam 3 hari berikutnya? Buatkan rencana ujinya.",
+    "tambahkan juga horizon 10 hari, tetap uji yang 3 hari",
+    "ok setuju, jalankan"
+   ],
+   "expect": "M90/P3b unchanged: turn 2 keeps 3 days and adds 10; turn 3 runs both with the correction. EXEC-C: memory rows, earlier sources cited without get_session_output"
+  },
+  {
+   "id": "threshold_from_result",
+   "turns": [
+    "Berapa rata-rata return harian BBCA pada hari ketika volumenya minimal 2 kali rata-rata volume 20 hari sebelumnya, sejak 2023?",
+    "Uji apakah pola ini berlanjut: apakah return 3 hari berikutnya setelah hari seperti itu lebih tinggi daripada hari biasa? Pakai angka hasil analisa kamu barusan sebagai efek minimal.",
+    "setuju, jalankan"
+   ],
+   "expect": "EXEC-C: turn 2 cites turn 1's result as min_effect from the carried sources (no PROVENANCE/REFERENCE refusal); EXEC-P5: turn 1 and 3 use merged steps (mechanical_steps_merged), fewer model calls"
+  },
+  {
+   "id": "variant_bbca",
+   "turns": [
+    "Uji ini: kalau volume BBCA minimal 2 kali dan minimal 3 kali rata-rata volume 20 hari sebelumnya, apakah harganya naik dalam 3 hari dan 10 hari berikutnya? Buatkan rencana ujinya.",
+    "uji itu"
+   ],
+   "expect": "variants: every threshold and horizon answered with the conversation-level correction; no tool outside the desk"
+  }
+ ]
+}

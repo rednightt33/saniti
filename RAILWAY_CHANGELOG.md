@@ -1,5 +1,27 @@
 # Railway changelog
 
+## 2026-10-07 — EXEC wave 4 (EXEC-C, EXEC-P5, EXEC-P1) on dev
+
+Under the user's go for every EXEC ("mulai") and "Lanjut otomatis bila lulus".
+
+- **Migrations** 20261006_003 (`AI_conversation_run_memory`) and 20261006_004 (Tool_Catalog round K) by the temporary
+  service `kmig-job`: DRYRUN `6c1c460a`, APPLY `b46787cd`. The service was deleted afterwards and read back absent
+  (18 services). Details in `DATABASE_CHANGELOG.md`.
+- **Deploy:** `main` fast-forwarded to `299c1d5` (branch `claude/upbeat-dijkstra-iybq2f`; code `caaa2fa`).
+  - `market-ai-orc` deployment `2eb9f9f1` reached `SUCCESS`; start log clean.
+  - `market-python-sandbox` and `market-web-governor` `SKIPPED` (unchanged).
+  - From this deployment, mode 4 stops after the analysis and its plan (EXEC-P1). `AI_MODE4_AUTO_RESEARCH` stays
+    unset (default false = the new behaviour); `true` is the way back.
+- **Variables** on `market-ai-orc` (dev, service variables, one change, read back):
+  - `AI_ENABLE_RUN_MEMORY=true` (EXEC-C);
+  - `AI_ENABLE_MERGED_STEPS=true` (EXEC-P5);
+  - redeploy `48e41023` reached `SUCCESS`, logging `run_memory_active`;
+  - unchanged: `AI_MODEL_SWITCH=1`, `AI_MODE_SWITCH=4`, every provider setting;
+  - way back: either switch `false`; the code way back is a redeploy of `ca6177de`.
+- **Config:** `railway config pull --force` added `AI_ENABLE_MERGED_STEPS: preserve()` and
+  `AI_ENABLE_RUN_MEMORY: preserve()` to `.railway/railway.ts`; `railway config plan`: up to date.
+- **AI_TOOLS.md:** switch snapshot regenerated from the live flags (names and true/false only).
+
 ## 2026-10-06 — EXEC wave 3 (EXEC-3, EXEC-A, EXEC-T, variants and correction) on dev
 
 Started under the user's go for every EXEC ("mulai") and "Lanjut gelombang 3 (Recommended)"; decisions during the wave
