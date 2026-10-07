@@ -1,41 +1,32 @@
 {
- "prefix": "ma-qa-20261007a",
+ "prefix": "ma-qa-20261007b",
  "workers": 3,
  "audit_wait_seconds": 0,
  "items": [
   {
-   "id": "q7_export_trade_war",
+   "id": "bakrie_bank",
    "turns": [
-    "Bagaimana perkembangan ekspor Indonesia sejak perang dagang terakhir? Cari saham yang diuntungkan.",
-    "lanjutkan saran riset berikutnya"
+    "Cari saham perbankan yang pemegang sahamnya grup Bakrie."
    ],
-   "expect": "EXEC-P1: turn 1 <= 15 min, ends with the analysis and its plan waiting (steps analysis + research_plan only); turn 2 runs the plan, no next plan unless asked. EXEC-C: turn 2 gets turn 1's assumptions, limitations and methodology whole; fewer catalog reads; no PROVENANCE/REFERENCE refusal for turn-1 numbers; a memory row per run"
+   "expect": "item 12 unchanged: at most three web calls, coverage stated, counts by reference or analysis"
   },
   {
-   "id": "h_add",
+   "id": "p2_pine_standard",
    "turns": [
-    "Apakah saham bank yang naik 5% atau lebih dalam sehari cenderung turun dalam 3 hari berikutnya? Buatkan rencana ujinya.",
-    "tambahkan juga horizon 10 hari, tetap uji yang 3 hari",
-    "ok setuju, jalankan"
+    "Ini Pine Script strategi saya (golden cross EMA 20/50 dengan filter Z-score volume, stop loss 5%, take profit 10%, keluar saat death cross). Uji strategi ini di BBRI sejak 2020 dan analisa risk-reward-nya: jumlah trade, win rate, rata-rata untung dan rugi, rasio risk-reward yang benar-benar terjadi, profit factor, drawdown maksimum, serta distribusi return per trade (median, persentil, trade terbaik dan terburuk).\n\n```pine\n//@version=5\n// Standard: golden cross EMA 20/50 with a volume Z-score filter, long only.\nstrategy(\"EMA 20/50 + Volume Z\", overlay=true, initial_capital=100000000,\n         default_qty_type=strategy.percent_of_equity, default_qty_value=10)\n\nfastLen = input.int(20, \"EMA cepat\")\nslowLen = input.int(50, \"EMA lambat\")\nzLen    = input.int(20, \"Jendela Z-score volume\")\nzMin    = input.float(2.0, \"Z-score volume minimum\")\nslPct   = input.float(5.0, \"Stop loss %\") / 100\ntpPct   = input.float(10.0, \"Take profit %\") / 100\n\nemaFast = ta.ema(close, fastLen)\nemaSlow = ta.ema(close, slowLen)\n\n// Z-score of today's volume against the previous zLen bars (today excluded)\nvolMean = ta.sma(volume[1], zLen)\nvolStd  = ta.stdev(volume[1], zLen)\nzVol    = volStd > 0 ? (volume - volMean) / volStd : na\n\ngoldenCross = ta.crossover(emaFast, emaSlow)\ndeathCross  = ta.crossunder(emaFast, emaSlow)\n\nif goldenCross and zVol >= zMin and strategy.position_size == 0\n    strategy.entry(\"Long\", strategy.long)\n\nif strategy.position_size > 0\n    entry = strategy.position_avg_price\n    strategy.exit(\"SL/TP\", \"Long\", stop=entry * (1 - slPct), limit=entry * (1 + tpPct))\n\nif deathCross\n    strategy.close(\"Long\")\n\nplot(emaFast, \"EMA 20\", color=color.teal)\nplot(emaSlow, \"EMA 50\", color=color.orange)\nplotshape(goldenCross and zVol >= zMin, \"Sinyal\", shape.triangleup, location.belowbar, color.green)\n```"
    ],
-   "expect": "M90/P3b unchanged: turn 2 keeps 3 days and adds 10; turn 3 runs both with the correction. EXEC-C: memory rows, earlier sources cited without get_session_output"
+   "expect": "EXEC-P5: merged steps (bundle + session after the approved need, complete=true), model calls per analysis down >= 3 without more refusals"
   },
   {
-   "id": "threshold_from_result",
+   "id": "ask_back_bbri",
    "turns": [
-    "Berapa rata-rata return harian BBCA pada hari ketika volumenya minimal 2 kali rata-rata volume 20 hari sebelumnya, sejak 2023?",
-    "Uji apakah pola ini berlanjut: apakah return 3 hari berikutnya setelah hari seperti itu lebih tinggi daripada hari biasa? Pakai angka hasil analisa kamu barusan sebagai efek minimal.",
-    "setuju, jalankan"
+    "BBRI",
+    {
+     "message": "Ringkasan cepat",
+     "chosen_option": "QUICK_SUMMARY"
+    }
    ],
-   "expect": "EXEC-C: turn 2 cites turn 1's result as min_effect from the carried sources (no PROVENANCE/REFERENCE refusal); EXEC-P5: turn 1 and 3 use merged steps (mechanical_steps_merged), fewer model calls"
-  },
-  {
-   "id": "variant_bbca",
-   "turns": [
-    "Uji ini: kalau volume BBCA minimal 2 kali dan minimal 3 kali rata-rata volume 20 hari sebelumnya, apakah harganya naik dalam 3 hari dan 10 hari berikutnya? Buatkan rencana ujinya.",
-    "uji itu"
-   ],
-   "expect": "variants: every threshold and horizon answered with the conversation-level correction; no tool outside the desk"
+   "expect": "EXEC-3 unchanged: turn 1 asked back with options, nothing run; turn 2 one quick analysis"
   }
  ]
 }

@@ -116,9 +116,10 @@ Status **EXEC** = rencana eksekusi sudah disetujui isinya, tetapi **baru dijalan
 mulai** (keputusan user 2026-10-06: "EXEC dijalankan setelah konfirmasi saya"). Konfirmasi mulai diberikan 2026-10-06 ("mulai"). Setelah dimulai, berhenti dan lapor bila menemui kondisi berhenti, atau bila perlu tindakan di
 luar langkah ini.
 
-Urutan sisa (menunggu kredit dan konfirmasi user):
-- batch B (bakrie_bank, p2_pine_standard, "BBRI");
-- ulang q7 dua giliran dengan "setuju, jalankan rencananya";
+Urutan sisa:
+- batch B (bakrie_bank, p2_pine_standard, "BBRI"): keputusan user 2026-10-07 "No, q7 nanti saja. Lanjut batch B"
+  (kredit dinaikkan; sisa USD 2,225 sebelum batch B);
+- ulang q7 dua giliran dengan "setuju, jalankan rencananya": **ditunda** atas keputusan yang sama ("q7 nanti saja");
 - bila lulus, EXEC-C, EXEC-P5 dan EXEC-P1 dihapus dari dokumen ini.
 
 ---
