@@ -140,5 +140,14 @@ def envelope(outcome: ToolOutcome, *, duration_ms: int | None = None, result_byt
     truncated = _truncated(result)
     if truncated and status == "OK":
         status = "PARTIAL"
-    return {"status": status, "tool": outcome.name, "data": result, "warnings": warnings, "errors": errors,
+    view = {"status": status, "tool": outcome.name, "data": result, "warnings": warnings, "errors": errors,
             "meta": meta | {"truncated": truncated}}
+    if output.get("merged_steps"):
+        # EXEC-P5: the steps the backend ran after this call sit beside its result, so the model's view carries them
+        # (golden test 2026-10-07: without them the model called each step again, M101)
+        view["merged_steps"] = [
+            {k: v for k, v in envelope(ToolOutcome(call_id=f"{outcome.call_id}_m{i}", name=str(step.get("tool")),
+                                                   ok=step.get("ok") is not False, output=step)).items() if k != "meta"}
+            for i, step in enumerate(output["merged_steps"], start=1)]
+        view["merged_note"] = output.get("merged_note")
+    return view

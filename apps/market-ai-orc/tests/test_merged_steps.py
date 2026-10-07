@@ -9,7 +9,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from app.orchestrator import MERGED_STEPS_NOTE, AgentOrchestrator, build_system_prompt
+from app.orchestrator import MERGED_DONE, MERGED_STEPS_NOTE, AgentOrchestrator, build_system_prompt
 from app.schemas import AgentRunRequest
 from app.tools import ToolRegistry
 from app.tools.registry import ToolSpec
@@ -112,6 +112,45 @@ def test_the_switch_off_keeps_every_step_a_turn_of_its_own() -> None:
               final_response(answer("BBCA naik.", "LIMITATION", ["belum selesai"]))]
     run(script, tools, AI_ENABLE_MERGED_STEPS="false")
     assert tools.calls == ["submit_data_need_spec"]
+
+
+class SandboxNextActions(MergedTools):
+    """The fake results with the next_action the sandbox writes into each of them."""
+    NEXT = {"submit_data_need_spec": "PREPARE_DATA_BUNDLE", "prepare_data_bundle": "OPEN_ANALYSIS_SESSION",
+            "open_analysis_session": "RUN_PYTHON", "run_python": "RUN_PYTHON_OR_COMPLETE_ANALYSIS"}
+
+    def registry(self) -> ToolRegistry:
+        base = super().registry()
+        registry = ToolRegistry()
+        for name in base.names():
+            spec = base.get(name)
+
+            def handler(arguments: BaseModel, name: str = name, inner: Any = spec.handler) -> dict[str, Any]:
+                result = inner(arguments)
+                return {**result, "next_action": self.NEXT[name]} if name in self.NEXT else result
+            registry.register(ToolSpec(name=name, description=spec.description, arguments_model=spec.arguments_model,
+                                       handler=handler, effect=spec.effect))
+        return registry
+
+
+def test_with_the_envelope_the_model_sees_the_merged_steps_and_no_step_points_back_at_itself() -> None:
+    """M101 (golden test 2026-10-07): the envelope showed only the caller's result, whose next_action still named the
+    step the backend had just run, and the model called every merged step again."""
+    tools = SandboxNextActions([completed()])
+    script = [call("submit_data_need_spec", {"mode": "ANALYSIS", "research_governance": None}, "c1"),
+              call("run_python", {"session_id": SESSION, "complete": True}, "c2"),
+              final_response(answer("BBCA naik lebih tinggi dari BBRI."))]
+    result, scripted = run(script, tools, AI_ENABLE_TOOL_ENVELOPE="true")
+    assert result.status == "COMPLETED"
+    submitted, ran = outputs(scripted)
+    assert submitted["data"]["next_action"] == "RUN_PYTHON"  # the open session's, not PREPARE_DATA_BUNDLE
+    assert [m["tool"] for m in submitted["merged_steps"]] == ["prepare_data_bundle", "open_analysis_session"]
+    assert submitted["merged_steps"][0]["data"]["next_action"] == MERGED_DONE
+    assert submitted["merged_steps"][1]["data"]["session_id"] == SESSION
+    assert submitted["merged_note"] == MERGED_STEPS_NOTE
+    assert ran["data"]["next_action"] == "ANSWER_FROM_RELEASED_OUTPUTS"  # complete_analysis's own
+    assert [m["tool"] for m in ran["merged_steps"]] == ["complete_analysis"]
+    assert all(m["status"] == "OK" and "meta" not in m for m in submitted["merged_steps"] + ran["merged_steps"])
 
 
 def test_the_prompt_and_the_tools_describe_the_merged_steps_only_with_the_switch() -> None:

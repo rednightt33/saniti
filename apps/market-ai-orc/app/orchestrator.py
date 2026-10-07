@@ -1405,6 +1405,7 @@ MERGED_STEP_RULES = (
 MERGED_STEPS_NOTE = ("merged_steps: the backend ran these steps for you right after this call, each with its own "
                      "result as if you had called it. Continue from the last one (for an opened session: run_python "
                      "in its session_id). Call a step yourself only to retry one that failed.")
+MERGED_DONE = "DONE_BY_BACKEND (see merged_steps)"
 FINAL_CONTRACT_PREFIX = (
     "When no further tool call is needed, your reply is the final response itself: one JSON object and nothing "
     "else, with no text before or after it and no code fence. The application parses it as JSON, so a prose draft "
@@ -3807,7 +3808,18 @@ class AgentOrchestrator:
                   steps=[{"tool": m["tool"], "status": (m.get("result") or {}).get("status")
                           if isinstance(m.get("result"), dict) else (m.get("error") or {}).get("code")}
                          for m in merged])
-        return replace(outcome, output={**outcome.output, "merged_steps": merged, "merged_note": MERGED_STEPS_NOTE})
+        # M101: each result keeps the sandbox's own next_action (PREPARE_DATA_BUNDLE, OPEN_ANALYSIS_SESSION,
+        # RUN_PYTHON_OR_COMPLETE_ANALYSIS), and the model followed it and called the steps again; a step the backend
+        # ran now points past itself, so the only next action left is the last step's (copies: trackers keep theirs)
+        last = merged[-1].get("result") if isinstance(merged[-1].get("result"), dict) else {}
+        following = last.get("next_action") or f"SEE_MERGED_STEPS ({merged[-1]['tool']} did not succeed)"
+        merged = [{**m, "result": {**m["result"], "next_action": MERGED_DONE}}
+                  if i < len(merged) - 1 and isinstance(m.get("result"), dict) and "next_action" in m["result"] else m
+                  for i, m in enumerate(merged)]
+        output = {**outcome.output, "merged_steps": merged, "merged_note": MERGED_STEPS_NOTE}
+        if isinstance(output.get("result"), dict) and "next_action" in output["result"]:
+            output["result"] = {**output["result"], "next_action": following}
+        return replace(outcome, output=output)
 
     def _execute(self, state: RunState, call_id: str, name: str, raw_arguments: Any) -> ToolOutcome:
         if not state.tools_offered:

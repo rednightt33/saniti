@@ -1,18 +1,15 @@
 {
- "prefix": "ma-qa-20261006f",
+ "prefix": "ma-qa-20261007a",
  "workers": 3,
  "audit_wait_seconds": 0,
  "items": [
   {
-   "id": "ask_back_bbri",
+   "id": "q7_export_trade_war",
    "turns": [
-    "BBRI",
-    {
-     "message": "Ringkasan cepat",
-     "chosen_option": "QUICK_SUMMARY"
-    }
+    "Bagaimana perkembangan ekspor Indonesia sejak perang dagang terakhir? Cari saham yang diuntungkan.",
+    "lanjutkan saran riset berikutnya"
    ],
-   "expect": "EXEC-3: turn 1 NEEDS_CLARIFICATION with options in about 15 s or less, nothing run; turn 2 one analysis step (mode source CHOICE, route QUICK_SUMMARY) with a limited scope"
+   "expect": "EXEC-P1: turn 1 <= 15 min, ends with the analysis and its plan waiting (steps analysis + research_plan only); turn 2 runs the plan, no next plan unless asked. EXEC-C: turn 2 gets turn 1's assumptions, limitations and methodology whole; fewer catalog reads; no PROVENANCE/REFERENCE refusal for turn-1 numbers; a memory row per run"
   },
   {
    "id": "h_add",
@@ -21,7 +18,16 @@
     "tambahkan juga horizon 10 hari, tetap uji yang 3 hari",
     "ok setuju, jalankan"
    ],
-   "expect": "M90/P3b: turn 2 plan keeps 3 days and adds 10 days (no PLAN_HORIZON forcing 10 everywhere, no LIMITED); turn 3 runs both; correction line lists every test"
+   "expect": "M90/P3b unchanged: turn 2 keeps 3 days and adds 10; turn 3 runs both with the correction. EXEC-C: memory rows, earlier sources cited without get_session_output"
+  },
+  {
+   "id": "threshold_from_result",
+   "turns": [
+    "Berapa rata-rata return harian BBCA pada hari ketika volumenya minimal 2 kali rata-rata volume 20 hari sebelumnya, sejak 2023?",
+    "Uji apakah pola ini berlanjut: apakah return 3 hari berikutnya setelah hari seperti itu lebih tinggi daripada hari biasa? Pakai angka hasil analisa kamu barusan sebagai efek minimal.",
+    "setuju, jalankan"
+   ],
+   "expect": "EXEC-C: turn 2 cites turn 1's result as min_effect from the carried sources (no PROVENANCE/REFERENCE refusal); EXEC-P5: turn 1 and 3 use merged steps (mechanical_steps_merged), fewer model calls"
   },
   {
    "id": "variant_bbca",
@@ -29,7 +35,7 @@
     "Uji ini: kalau volume BBCA minimal 2 kali dan minimal 3 kali rata-rata volume 20 hari sebelumnya, apakah harganya naik dalam 3 hari dan 10 hari berikutnya? Buatkan rencana ujinya.",
     "uji itu"
    ],
-   "expect": "variants: the plan has every threshold and horizon (coverage gate), the run answers every variant with addresses and lists the conversation-level correction; no tool outside the desk"
+   "expect": "variants: every threshold and horizon answered with the conversation-level correction; no tool outside the desk"
   }
  ]
 }
