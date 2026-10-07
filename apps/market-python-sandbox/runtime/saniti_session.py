@@ -92,6 +92,9 @@ _RESEARCH_PENDING: set[str] = set()
 RESEARCH_RESERVED = ("research_input_", "research_call_", "event_study_call_", "backtest_call_")
 # M28: the approved hypothesis plan's findings values (success_rule, ...), from session.json research_v1
 _FINDINGS_V1: dict[str, Any] = {}
+# EXEC-V stage 3: a data need with several experiments carries each one's values by hypothesis_id; _FINDINGS_V1 then
+# holds only the values they all share (what a helper without a hypothesis_id may rely on)
+_FINDINGS_BY_HYPOTHESIS: dict[str, dict[str, Any]] = {}
 RESEARCH_WRAPPER_VERSION = 1
 NAME = _re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\-. ]{0,79}$")
 INTERMEDIATE_NAME = _re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -170,7 +173,15 @@ def _configure(session: dict[str, Any], session_dir: str) -> None:
     _RESEARCH.clear()
     _RESEARCH.update(session.get("research_v2") or {})
     _FINDINGS_V1.clear()
-    _FINDINGS_V1.update((session.get("research_v1") or {}).get("findings") or {})
+    _FINDINGS_BY_HYPOTHESIS.clear()
+    found = (session.get("research_v1") or {}).get("findings") or {}
+    experiments = found.get("experiments") if isinstance(found.get("experiments"), dict) else None
+    if experiments:
+        _FINDINGS_BY_HYPOTHESIS.update(experiments)
+        first = next(iter(experiments.values()))
+        _FINDINGS_V1.update({k: v for k, v in first.items() if all(e.get(k) == v for e in experiments.values())})
+    else:
+        _FINDINGS_V1.update(found)
     _RESEARCH_DONE.clear()
     _RESEARCH_PENDING.clear()
 
@@ -565,11 +576,22 @@ def backtest(request: str, frame, signal: str, *, exit_signal: str | None = None
                           "complete_analysis; the signals themselves are your code's."}
 
 
-def _approved_unit(outcome_unit: str | None) -> str:
+def _findings_for(hypothesis_id: str) -> dict[str, Any]:
+    """The approved values of one experiment: its own in a data need with several experiments (an id outside them is
+    refused), else the need's."""
+    if not _FINDINGS_BY_HYPOTHESIS:
+        return _FINDINGS_V1
+    if hypothesis_id not in _FINDINGS_BY_HYPOTHESIS:
+        raise SanitiError(f"{hypothesis_id!r} is not an approved experiment of this data need: "
+                          f"{sorted(_FINDINGS_BY_HYPOTHESIS)}.")
+    return _FINDINGS_BY_HYPOTHESIS[hypothesis_id]
+
+
+def _approved_unit(outcome_unit: str | None, findings: dict[str, Any] | None = None) -> str:
     """P26 (golden g6 2026-10-02): the outcome's unit is the approved experiment's, not a default. The plan said
     DECIMAL, event_study computed percent by default, and the backend compared a percent minimum detectable effect
     with a decimal smallest effect. Without an approved research experiment the default stays PERCENT."""
-    approved = _FINDINGS_V1.get("outcome_unit")
+    approved = (_FINDINGS_V1 if findings is None else findings).get("outcome_unit")
     if approved in ("PERCENT", "DECIMAL"):
         if outcome_unit is not None and outcome_unit != approved:
             raise SanitiError(f"The approved outcome unit is {approved}; leave outcome_unit unset (the helpers use the "
@@ -1301,8 +1323,9 @@ def event_summary(events, baseline, *, hypothesis_id: str, outcome_column: str, 
 
     if not isinstance(hypothesis_id, str) or not _re.fullmatch(r"[a-z][a-z0-9_]{0,39}", hypothesis_id):
         raise SanitiError("hypothesis_id is the approved experiment's hypothesis_id (lower-case letters, digits, _).")
-    outcome_unit = _approved_unit(outcome_unit)
-    rule = _FINDINGS_V1.get("success_rule") if isinstance(_FINDINGS_V1.get("success_rule"), dict) else None
+    findings = _findings_for(hypothesis_id)
+    outcome_unit = _approved_unit(outcome_unit, findings)
+    rule = findings.get("success_rule") if isinstance(findings.get("success_rule"), dict) else None
     if rule is not None:
         shown = f"outcome {rule['operator']} {rule['value']}"
         if success_column is not None:
@@ -1321,7 +1344,7 @@ def event_summary(events, baseline, *, hypothesis_id: str, outcome_column: str, 
     events, baseline, undefined = _undefined_condition(events, baseline, outcome_column, date_column, None,
                                                        {outcome_column, date_column, success_column})
     # S3 (P27): the outcome's unit is recomputed from the loaded prices where it can be
-    approved_horizon = _FINDINGS_V1.get("outcome_horizon_periods")
+    approved_horizon = findings.get("outcome_horizon_periods")
     unit_check = outcome_unit_check(pd.concat([events, baseline], ignore_index=True), outcome_column, date_column,
                                     [int(horizon_periods)] + ([int(approved_horizon)] if approved_horizon else []),
                                     outcome_unit)

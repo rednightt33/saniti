@@ -1301,6 +1301,18 @@ A condition -> outcome research experiment is judged by the backend, not by the 
   NOT_EVALUATED (rules in `runtime/research_stats.py`).
 - Limits: date clustering and horizon thinning approximate cluster-robust errors; correlation across dates beyond the
   horizon is not modelled. `/v1/runtime` reports `research_findings: {enabled, version: 1}`.
+- **Several experiments in one data need (EXEC-V stage 3, M110, 2026-10-07).** `POST /v1/data-needs` may carry
+  `research_experiments` (two to four `research_governance` objects of one plan, `research_governance` absent) when
+  the data is the same. Each needs the findings fields, every `hypothesis_id` once (`DUPLICATE_HYPOTHESIS`); without
+  research findings v1 the list is refused (`MULTI_EXPERIMENT_UNAVAILABLE`). The Research Governor
+  (`review_experiments`) reviews each as one experiment, counted per (request group, hypothesis) for every budget,
+  revision and follow-up rule; the first refusal is the decision, named by its hypothesis. The approved constraints
+  keep the first experiment's fields and add `experiments[]` with each one's, and a compute budget per experiment.
+  The session gets each experiment's approved values (`research_v1.findings.experiments`); `event_summary` reads the
+  values of its `hypothesis_id` and refuses an id outside them. `complete_analysis` evaluates every experiment from its
+  own `research_events_<hypothesis_id>` and is COMPLETED only when all are; the message names each one still missing.
+  `final_status.research_findings` has one finding per experiment. `/v1/runtime` reports
+  `research_multi_experiment: {enabled, version: 1, max_experiments: 4}`.
 
 ### Multi-Angle Research (off unless `PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED=true`)
 

@@ -31,6 +31,7 @@ from .dataneed_store import DataNeedStore
 from .models import ANALYSIS_ID, REQUEST_ID, AnalysisRequest, RunReport
 from .outputs import CONTENT_TYPES
 from .service import AnalysisService, ServiceUnavailable
+from .research_governance import MAX_EXPERIMENTS_PER_NEED
 from .spec import SPEC_ID
 from .spec_v2 import SpecRequestAny
 
@@ -59,7 +60,8 @@ def as_of_date(body: dict) -> Any:
         return False
 
 
-DATA_NEED_KEYS = {"request_id", "reference_time", "timezone", "spec", "research_governance", "as_of_date"}
+DATA_NEED_KEYS = {"request_id", "reference_time", "timezone", "spec", "research_governance", "research_experiments",
+                  "as_of_date"}
 # Conversation reuse (S1/S2): market-ai-orc derives the key from the conversation and its owner and sends it as a
 # header, never from the model. Ignored while PY_SANDBOX_ENABLE_CONVERSATION_REUSE is off.
 CONVERSATION_HEADER = "X-Saniti-Conversation-Key"
@@ -162,6 +164,10 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                 # research findings: saniti.event_summary, backend sample category and verdict
                 "research_findings": {"enabled": dataneed is not None and settings.research_findings_enabled,
                                       "version": RESEARCH_FINDINGS_VERSION},
+                # EXEC-V stage 3: a RESEARCH data need may carry research_experiments (2-4 experiments of one plan on
+                # the same data), one finding per experiment at complete_analysis
+                "research_multi_experiment": {"enabled": dataneed is not None and settings.research_findings_enabled,
+                                              "version": 1, "max_experiments": MAX_EXPERIMENTS_PER_NEED},
                 # Multi-Angle Research: 3-6 angles, promoted drafts per bundle group, backend findings per angle
                 "multi_angle_research": multi_angle_capability(),
                 # G2: saniti.event_study, recomputed by the harness at complete_analysis
@@ -257,9 +263,16 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
         if as_of is False:
             return JSONResponse(status_code=422, content={"status": "REJECTED", "error": {
                 "code": "INVALID_REQUEST", "message": "as_of_date must be YYYY-MM-DD or null."}})
+        experiments = body.get("research_experiments")
+        if experiments is not None and (not isinstance(experiments, list) or body.get("research_governance") is not None):
+            return JSONResponse(status_code=422, content={"status": "REJECTED", "error": {
+                "code": "INVALID_REQUEST", "message": "research_experiments is a list and replaces research_governance "
+                                                      "(send one of them)."}})
         try:
+            # EXEC-V stage 3: several experiments of one plan on the same data arrive as research_experiments
             return dataneed.submit(body["request_id"], reference_time, timezone[:64], body["spec"],
-                                   body.get("research_governance"), conversation_key=key, as_of=as_of)
+                                   experiments if experiments is not None else body.get("research_governance"),
+                                   conversation_key=key, as_of=as_of)
         except DataNeedError as exc:
             return dataneed_error(exc)
 

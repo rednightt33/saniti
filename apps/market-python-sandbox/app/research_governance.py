@@ -148,22 +148,47 @@ def _decision(decision: str, code: str | None, message: str | None, budget: dict
             "constraints": constraints or {}}
 
 
+# EXEC-V stage 3 (M110, user decision 2026-10-07: "1 data ... di sandbox yang sama"): the experiments of one approved
+# hypothesis plan that read the same data share one data need. Each is still one experiment for every budget, rule
+# and finding; the request group and the data are shared.
+MAX_EXPERIMENTS_PER_NEED = 4
+
+
+def experiments_of(governance: Any) -> list[dict[str, Any]]:
+    """The experiments a stored or submitted governance declares: a list (several experiments) or one object."""
+    if isinstance(governance, list):
+        return [g for g in governance if isinstance(g, dict)]
+    return [governance] if isinstance(governance, dict) else []
+
+
 def review(governance: dict[str, Any], spec: dict[str, Any], history: list[dict[str, Any]],
-           revisions_in_group: int, policy: GovernancePolicy) -> dict[str, Any]:
+           revisions_in_group: int, policy: GovernancePolicy,
+           siblings: tuple[dict[str, Any], ...] | list[dict[str, Any]] = ()) -> dict[str, Any]:
     """history: the run's earlier APPROVED research data needs, each {request_group_id, revision, governance}.
-    revisions_in_group: how many revisions of this request group were submitted before this one."""
+    revisions_in_group: how many revisions of this request group were submitted before this one. siblings: the
+    experiments of the same data need reviewed before this one (they count for every budget; only history decides
+    whether this is a revision). One experiment is one (request group, hypothesis) pair."""
     group = spec["request_group_id"]
     hypothesis = governance["hypothesis_id"]
-    groups: dict[str, str] = {}
+    groups: dict[str, set[str]] = {}
+    pairs: set[tuple[str, str]] = set()
     followups: dict[str, int] = {}
+
+    def count(group_id: str, experiment: dict[str, Any]) -> None:
+        pair = (group_id, experiment["hypothesis_id"])
+        if pair not in pairs:
+            pairs.add(pair)
+            if experiment.get("followup_of"):
+                followups[pair[1]] = followups.get(pair[1], 0) + 1
+
     for item in history:
-        if item["request_group_id"] not in groups:
-            groups[item["request_group_id"]] = item["governance"]["hypothesis_id"]
-            if item["governance"].get("followup_of"):
-                h = item["governance"]["hypothesis_id"]
-                followups[h] = followups.get(h, 0) + 1
-    hypotheses = set(groups.values())
-    budget = {"experiments_used": len(groups), "experiments_limit": policy.max_experiments,
+        for experiment in experiments_of(item["governance"]):
+            groups.setdefault(item["request_group_id"], set()).add(experiment["hypothesis_id"])
+            count(item["request_group_id"], experiment)
+    for experiment in siblings:
+        count(group, experiment)
+    hypotheses = {h for _, h in pairs}
+    budget = {"experiments_used": len(pairs), "experiments_limit": policy.max_experiments,
               "hypotheses_used": len(hypotheses), "hypotheses_limit": policy.max_hypotheses,
               "revisions_used_in_group": revisions_in_group, "revisions_limit": policy.max_revisions_per_group}
 
@@ -200,12 +225,12 @@ def review(governance: dict[str, Any], spec: dict[str, Any], history: list[dict[
                          f"{policy.minimum(sample['unit'])}.", budget)
 
     if group in groups:  # a later revision of an approved experiment keeps its reservation
-        if groups[group] != hypothesis:
+        if hypothesis not in groups[group]:
             return _decision("REPLAN_REQUIRED", "HYPOTHESIS_CHANGED_IN_REVISION",
                              "A revision keeps the hypothesis of its request group; a new hypothesis is a new "
                              "request group.", budget)
         return _decision("APPROVED", None, None, budget, _constraints(governance, policy, reused=True))
-    if len(groups) >= policy.max_experiments:
+    if len(pairs) >= policy.max_experiments:
         return _decision("REJECTED", "EXPERIMENT_BUDGET_EXCEEDED",
                          f"This run has used all {policy.max_experiments} research experiments.", budget)
     followup = governance.get("followup_of")
@@ -213,7 +238,7 @@ def review(governance: dict[str, Any], spec: dict[str, Any], history: list[dict[
         if followup not in groups:
             return _decision("REPLAN_REQUIRED", "FOLLOWUP_PARENT_NOT_FOUND",
                              "followup_of names an approved research request group of this run.", budget)
-        if groups[followup] != hypothesis:
+        if hypothesis not in groups[followup]:
             return _decision("REPLAN_REQUIRED", "FOLLOWUP_HYPOTHESIS_MISMATCH",
                              "A follow-up tests the same hypothesis as its parent.", budget)
         if followups.get(hypothesis, 0) >= policy.max_followups_per_hypothesis:
@@ -227,9 +252,28 @@ def review(governance: dict[str, Any], spec: dict[str, Any], history: list[dict[
     elif len(hypotheses) >= policy.max_hypotheses:
         return _decision("REJECTED", "HYPOTHESIS_LIMIT_EXCEEDED",
                          f"This run has tested {policy.max_hypotheses} hypotheses, the configured maximum.", budget)
-    after = {**budget, "experiments_used": len(groups) + 1,
+    after = {**budget, "experiments_used": len(pairs) + 1,
              "hypotheses_used": len(hypotheses | {hypothesis})}
     return _decision("APPROVED", None, None, after, _constraints(governance, policy, reused=False))
+
+
+def review_experiments(experiments: list[dict[str, Any]], spec: dict[str, Any], history: list[dict[str, Any]],
+                       revisions_in_group: int, policy: GovernancePolicy) -> dict[str, Any]:
+    """review() for every experiment of one data need, in order; the first refusal is the decision (named by its
+    hypothesis_id). Approved: the first experiment's constraints (what a one-experiment need carried) plus
+    experiments[] with each experiment's own, and the compute budget of all of them."""
+    if len(experiments) == 1:
+        return review(experiments[0], spec, history, revisions_in_group, policy)
+    decisions = []
+    for index, experiment in enumerate(experiments):
+        decision = review(experiment, spec, history, revisions_in_group, policy, siblings=experiments[:index])
+        if decision["decision"] != "APPROVED":
+            return {**decision, "hypothesis_id": experiment["hypothesis_id"],
+                    "message": f"Experiment {experiment['hypothesis_id']}: {decision['message']}"}
+        decisions.append(decision)
+    constraints = {**decisions[0]["constraints"], "experiments": [d["constraints"] for d in decisions],
+                   "compute_seconds": policy.compute_seconds_per_experiment * len(decisions)}
+    return _decision("APPROVED", None, None, decisions[-1]["budget"], constraints)
 
 
 def _constraints(governance: dict[str, Any], policy: GovernancePolicy, *, reused: bool) -> dict[str, Any]:
