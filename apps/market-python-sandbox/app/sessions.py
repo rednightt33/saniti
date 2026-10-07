@@ -505,7 +505,7 @@ class SessionManager:
         if record is None or (record["request_id"] != request_id and not bound) or record["status"] != "READY":
             raise SessionError("BUNDLE_NOT_READY", "No READY bundle with this id exists for this request.", 404,
                                "PREPARE_DATA_BUNDLE")
-        manifest = record["manifest"]
+        manifest = self.manifest_for(bundle_id, need_id) if need_id else record["manifest"]
         if datetime.fromisoformat(manifest["expires_at"]) <= datetime.now(timezone.utc):
             raise SessionError("BUNDLE_EXPIRED", "The bundle has expired; prepare it again.", 410,
                                "PREPARE_DATA_BUNDLE")
@@ -540,6 +540,18 @@ class SessionManager:
             view["research"] = research_view(research)
         self._offer_carried(session_id, view)
         return view
+
+    def manifest_for(self, bundle_id: str, need_id: str | None) -> dict[str, Any]:
+        """The bundle manifest under the labels of the need a session serves (EXEC-V stage 2): a need bound to a bundle
+        whose requests carry other ids, logical names or range ids sees them renamed to its own; otherwise the
+        manifest as stored."""
+        from .data_need import aliased_manifest
+
+        manifest = self.store.get_bundle(bundle_id)["manifest"]
+        binding = self.store.get_binding(need_id) if need_id else None
+        if binding is None or binding["bundle_id"] != bundle_id or not binding.get("aliases"):
+            return manifest
+        return aliased_manifest(manifest, binding["aliases"])
 
     def _allowed(self, need_id: str | None, carried_outputs: list[str] | None) -> set[str] | None:
         """A RESEARCH need's session loads only the carried tables its approved plan names (none when it names none);
@@ -704,6 +716,8 @@ class SessionManager:
                 "relationships": [{k: r.get(k) for k in ("relationship_id", "left_request_id", "right_request_id",
                                                          "join_type", "join_semantics")}
                                   for r in manifest.get("relationships") or []],
+                # EXEC-V stage 2: the bundle was prepared for an earlier need under other labels
+                **({"aliases": manifest["aliases"]} if manifest.get("aliases") else {}),
                 "helpers": HELPERS, "data_types": DATA_TYPES,
                 "preloaded": ["saniti", "pd", "np", "every saniti helper by name"],
                 "limits": {"execution_seconds": s.session_execution_seconds, "cpu_seconds": budget,
@@ -738,7 +752,7 @@ class SessionManager:
             raise SessionError("SESSION_NOT_REUSABLE", "The earlier session is no longer alive; open a new session on "
                                                        "the bundle.", 409, "OPEN_ANALYSIS_SESSION")
         epoch = self._new_epoch(record, request_id, need_id)
-        bundle = self.store.get_bundle(record["bundle_id"])["manifest"]
+        bundle = self.manifest_for(record["bundle_id"], need_id)
         usage = record.get("usage") or {}
         view = self._view(session_id, record["bundle_id"], need_id, bundle, usage.get("cpu_budget"),
                           record["expires_at"])
@@ -1035,7 +1049,7 @@ class SessionManager:
         try:
             from .data_need import data_contract_sha256
 
-            bundle = self.store.get_bundle(record["bundle_id"])["manifest"]
+            bundle = self.manifest_for(record["bundle_id"], record.get("need_id"))
             inputs, position = [], 0
             for dataset in bundle["datasets"]:
                 ordering = [o["column"] for o in self._order(dataset)]
@@ -1086,7 +1100,8 @@ class SessionManager:
         if record is None or record["request_id"] != request_id:
             raise SessionError("SESSION_NOT_FOUND", "No session with this id exists for this request.", 404,
                                "OPEN_ANALYSIS_SESSION")
-        manifest = (self.store.get_bundle(record["bundle_id"]) or {}).get("manifest") or {}
+        manifest = self.manifest_for(record["bundle_id"], record.get("need_id")) \
+            if self.store.get_bundle(record["bundle_id"]) else {}
         datasets = manifest.get("datasets") or []
         found = next((d for d in datasets if dataset in (d.get("logical_name"), d.get("data_request_id"))), None)
         if found is None:

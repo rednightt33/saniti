@@ -23,7 +23,8 @@ Analysis processes never reach this database. Hidden model reasoning is never st
 Schema versions (PRAGMA user_version): 0 is the original layout (CREATE TABLE IF NOT EXISTS); 1 adds the conversation
 reuse columns and tables of the implementation plan 2026-09-27 (S1/S2); 2 adds data_need_drafts; 3 adds executions.modules
 (the modules each execution's code imports, EXTRACTION_AND_AUDIT_PLAN.md item C); 4 adds research_runs, research_groups and
-research_findings (MULTI_ANGLE_RESEARCH.md). Upgrades only add nullable or defaulted columns
+research_findings (MULTI_ANGLE_RESEARCH.md); 5 adds bundle_bindings.aliases (EXEC-V stage 2: the later need's labels for
+the earlier bundle's requests). Upgrades only add nullable or defaulted columns
 and new tables, so code without them still reads and writes the database.
 """
 from __future__ import annotations
@@ -36,7 +37,7 @@ from typing import Any
 
 JSON_FIELDS = {"submitted", "result", "approved", "governance", "research", "manifest", "error", "access", "outputs",
                "meta", "execution_manifest", "coverage", "final_status", "usage", "columns", "modules", "decision",
-               "data_plan", "angle_ids", "finding"}
+               "data_plan", "angle_ids", "finding", "aliases"}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS data_needs (
@@ -136,7 +137,7 @@ CREATE INDEX IF NOT EXISTS completions_request ON completions (request_id);
 """
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 DRAFT_RETENTION_DAYS = 7
 # version -> (table, column, declaration) additions and statements; applied in order, each column only when missing
 UPGRADES: dict[int, tuple[list[tuple[str, str, str]], list[str]]] = {
@@ -179,6 +180,7 @@ UPGRADES: dict[int, tuple[list[tuple[str, str, str]], list[str]]] = {
                    research_run_id TEXT NOT NULL, angle_id TEXT NOT NULL, bundle_group_id TEXT NOT NULL,
                    session_id TEXT, completion_id TEXT, status TEXT NOT NULL, validation_level TEXT,
                    finding TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (research_run_id, angle_id))"""]),
+    5: ([("bundle_bindings", "aliases", "TEXT")], []),
 }
 
 
@@ -335,9 +337,10 @@ class DataNeedStore:
     def get_binding(self, need_id: str) -> dict[str, Any] | None:
         return self._one("SELECT * FROM bundle_bindings WHERE need_id = ?", (need_id,))
 
-    def binding_for(self, request_id: str, bundle_id: str) -> dict[str, Any] | None:
-        return self._one("SELECT * FROM bundle_bindings WHERE request_id = ? AND bundle_id = ? ORDER BY created_at "
-                         "DESC LIMIT 1", (request_id, bundle_id))
+    def bindings_to(self, request_id: str, bundle_id: str) -> list[dict[str, Any]]:
+        """The bindings of one request to one bundle, in the order they were made."""
+        return self._all("SELECT * FROM bundle_bindings WHERE request_id = ? AND bundle_id = ? ORDER BY created_at, "
+                         "rowid", (request_id, bundle_id))
 
     def conversation_bundles(self, conversation_key: str) -> list[dict[str, Any]]:
         """READY bundles of one conversation with their need's data contract hash, newest first."""

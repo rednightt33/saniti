@@ -18,7 +18,8 @@ from .bundles import BundleBuilder, BundleError, row_counts
 from .bundles import model_view as bundle_view
 from .coverage import execution_manifest, processing_coverage
 from .data_need import (COMPLETENESS_RULE, DEFAULT_TIME_BASIS, NULL_POLICY, PERIOD_POLICY, Limits, contract_tables,
-                        contract_covers, data_contract_sha256, sha256_json, summary_options, validate)
+                        aliased_manifest, contract_alias, data_contract_sha256, sha256_json, summary_options,
+                        validate)
 from .datasets import DatasetFailure
 from .dataneed_store import DRAFT_RETENTION_DAYS, DataNeedStore
 from .records import utc_now
@@ -576,9 +577,7 @@ class DataNeedService:
         attached with a new epoch instead of starting a new worker."""
         key = conversation_key if self.settings.conversation_reuse else None
         record = self.store.get_bundle(bundle_id)
-        binding = self.store.binding_for(request_id, bundle_id) if key and record is not None else None
-        if binding is not None and binding["conversation_key"] != key:
-            binding = None
+        binding = self._binding_to_serve(request_id, record, key) if key and record is not None else None
         need_id = binding["need_id"] if binding else (record or {}).get("need_id")
         cpu, research_v2, mode, findings = None, None, None, None
         if need_id:
@@ -594,7 +593,9 @@ class DataNeedService:
         # the mode decides the attach: a RESEARCH need always starts a fresh worker (it reads only its bundle and the
         # tables its approved plan names, with its own compute budget), and an ANALYSIS need never takes over a
         # research worker.
-        if key and record is not None and mode != "RESEARCH" \
+        # EXEC-V stage 2: a warm worker's namespace knows the labels it was opened with, so a need that reads the
+        # bundle under other labels gets a new worker on the same files
+        if key and record is not None and mode != "RESEARCH" and not (binding or {}).get("aliases") \
                 and (binding is not None or record["request_id"] == request_id):
             for warm in self.store.warm_sessions(key):
                 if warm.get("need_id") and (self.store.get_need(warm["need_id"]) or {}).get("mode") == "RESEARCH":
@@ -608,6 +609,24 @@ class DataNeedService:
                                   bound=binding is not None, research=research_v2, carried_outputs=carried_outputs,
                                   findings=findings)
 
+    def _binding_to_serve(self, request_id: str, record: dict[str, Any], key: str) -> dict[str, Any] | None:
+        """The binding whose need an open of this bundle serves, or None for the bundle's own need.
+
+        Several needs of one request may share one bundle (EXEC-V stage 2: the same data asked again under other
+        labels). They are served in the order they were prepared: the first that has no COMPLETED result yet; when
+        all have one, the newest (the behaviour before several needs could share a bundle)."""
+        bindings = [b for b in self.store.bindings_to(request_id, record["bundle_id"]) if b["conversation_key"] == key]
+        if not bindings:
+            return None
+        waiting: list[dict[str, Any] | None] = [None] if record["request_id"] == request_id else []
+        waiting += bindings
+        done = {c["need_id"] for c in self.store.completions_for(request_id)
+                if (c.get("final_status") or {}).get("status") == "COMPLETED"}
+        for candidate in waiting:
+            if (candidate["need_id"] if candidate else record["need_id"]) not in done:
+                return candidate
+        return bindings[-1]
+
     def _session_research(self, research: dict[str, Any]) -> dict[str, Any] | None:
         """The research_v2 section of session.json for a need promoted by a multi-angle research run (flag on only)."""
         constraints = research.get("constraints") or {}
@@ -620,7 +639,7 @@ class DataNeedService:
     def reuse_bundle(self, request_id: str, need_id: str, conversation_key: str | None) -> dict[str, Any]:
         """Conversation reuse (S1, 2c): bind this request's approved need to an earlier READY bundle of the same
         conversation whose need has the same data contract (data_contract_sha256) or one that covers it
-        (contract_covers: any mode, same or wider columns), so no extraction runs.
+        (contract_alias: any mode, same or wider columns, any request labels), so no extraction runs.
         The earlier bundle's manifest and checksum are unchanged; the binding records the lineage. NO_MATCH (with a
         reason) sends the caller to the normal planner."""
         if not self.settings.conversation_reuse or not conversation_key:
@@ -634,15 +653,20 @@ class DataNeedService:
         existing = self.store.get_binding(need_id)
         if existing is not None:
             bundle = self.store.get_bundle(existing["bundle_id"])
-            return self._reused_view(bundle, need_id, 1, replayed=True)
+            return self._reused_view({**bundle, "alias": existing.get("aliases")}, need_id, 1, replayed=True)
         now = datetime.now(ZoneInfo("UTC"))
         candidates, expired, own = [], 0, None
         later = record["approved"]
         for bundle in self.store.conversation_bundles(conversation_key):
+            alias: dict[str, Any] = {}
             if bundle["contract_sha256"] != record["contract_sha256"]:
-                # 2c: an earlier bundle that holds all of this need's data (any mode, same or wider columns)
+                # 2c: an earlier bundle that holds all of this need's data (any mode, same or wider columns); EXEC-V
+                # stage 2: under any request labels (the alias renames them for this need)
                 earlier = self.store.get_need(bundle["need_id"]) if bundle.get("need_id") else None
-                if earlier is None or contract_covers(earlier.get("approved") or {}, later) is not None:
+                if earlier is None:
+                    continue
+                alias, difference = contract_alias(earlier.get("approved") or {}, later)
+                if difference is not None:
                     continue
             manifest = bundle["manifest"]
             if datetime.fromisoformat(manifest["expires_at"]) <= now or not self._files_present(manifest):
@@ -651,7 +675,7 @@ class DataNeedService:
             if bundle["need_id"] == need_id:
                 own = own or bundle
                 continue
-            candidates.append(bundle)
+            candidates.append({**bundle, "alias": alias})
         if own is not None:
             # G14: the same need prepared again in its request (e.g. after a refused frame) gets its own READY bundle
             # back instead of a second extraction
@@ -663,9 +687,11 @@ class DataNeedService:
         chosen = candidates[0]  # the newest snapshot that holds this need's data
         self.store.insert_binding({"need_id": need_id, "request_id": request_id, "bundle_id": chosen["bundle_id"],
                                    "source_need_id": chosen["need_id"], "source_request_id": chosen["request_id"],
-                                   "conversation_key": conversation_key, "created_at": utc_now()})
+                                   "conversation_key": conversation_key, "created_at": utc_now(),
+                                   "aliases": chosen["alias"] or None})
         self._log("bundle_reused", request_id=request_id, need_id=need_id, bundle_id=chosen["bundle_id"],
-                  source_request_id=chosen["request_id"], candidates=len(candidates))
+                  source_request_id=chosen["request_id"], candidates=len(candidates),
+                  renamed=len((chosen["alias"] or {}).get("requests") or {}))
         return self._reused_view(chosen, need_id, len(candidates))
 
     def _files_present(self, manifest: dict[str, Any]) -> bool:
@@ -679,7 +705,10 @@ class DataNeedService:
     def _reused_view(bundle: dict[str, Any], need_id: str, candidates: int, replayed: bool = False
                      ) -> dict[str, Any]:
         manifest = bundle["manifest"]
-        view = bundle_view(manifest)
+        renamed = aliased_manifest(manifest, bundle.get("alias"))
+        view = bundle_view(renamed)
+        if renamed.get("aliases"):
+            view["aliases"] = renamed["aliases"]
         view.update({"need_id": need_id, "reused": True, "replayed": replayed, "next_action": "OPEN_ANALYSIS_SESSION",
                      "reused_from": {"bundle_id": manifest["input_bundle_id"], "need_id": manifest["need_id"],
                                      "request_id": bundle["request_id"], "extracted_at": bundle["created_at"],
@@ -688,7 +717,10 @@ class DataNeedService:
                              "returned." if manifest["need_id"] == need_id else
                              "No new extraction: the data of an earlier message that holds all of this approved "
                              "data contract (any mode; it may carry more columns) is reused. Disclose its extraction "
-                             "time as the as-of of the data."})
+                             "time as the as-of of the data."
+                             + (" The same data was asked under other request labels: the datasets carry this need's "
+                                "data_request_id, logical_name and range ids (aliases lists the earlier ones)."
+                                if renamed.get("aliases") else "")})
         return view
 
     def close_session(self, session_id: str, request_id: str, conversation_key: str | None = None
@@ -784,8 +816,10 @@ class DataNeedService:
         # evaluated again, so the analysis can finish after the fix (S06)
         if earlier is not None and (earlier["final_status"] or {}).get("status") == "COMPLETED":
             return {**earlier["final_status"], "replayed": True}
-        bundle = self.store.get_bundle(record["bundle_id"])["manifest"]
-        need_id = record.get("need_id") or bundle["need_id"]
+        stored = self.store.get_bundle(record["bundle_id"])["manifest"]
+        need_id = record.get("need_id") or stored["need_id"]
+        # EXEC-V stage 2: coverage, lineage and validation read the bundle under this need's labels
+        bundle = self.sessions.manifest_for(record["bundle_id"], need_id)
         need = self.get_need(need_id)
         start = int(record.get("epoch_start_seq") or 0)
         executions = [e for e in self.store.executions_for(session_id) if e["seq"] > start]

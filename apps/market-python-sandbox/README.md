@@ -350,6 +350,25 @@ completion, completion responses keep their shape).
   `reused_from` (`bundle_id`, source `need_id` and `request_id`, `extracted_at`, `expires_at`, `equal_candidates`).
   Otherwise the answer is `NO_MATCH` with a reason (`NO_COVERING_CONTRACT`, `EXPIRED`, `NEED_NOT_IN_CONVERSATION`). A
   changed catalog changes `catalog_sha256`, so it never reuses.
+- **Same data under other labels (EXEC-V stage 2, M110, 2026-10-07).** Request ids, logical names and range ids are
+  labels the model chose (an id starts with its request group id), so they no longer decide reuse.
+  `data_need.contract_alias(earlier, later)` pairs each later request with one earlier request whose content covers it
+  (every covering rule above; windows paired by content, not by range id) and checks that the relationships between
+  the paired requests are the same. It returns the alias: earlier request id → later request id, logical name and
+  range ids (`{}` when every label is equal). `contract_covers` is `contract_alias`'s difference. The stored
+  `contract_sha256` keeps its labels (audit and earlier bundles are unchanged); it is only a fast path for equal
+  labels.
+  - The binding stores the alias (`bundle_bindings.aliases`, store schema version 5). `data_need.aliased_manifest`
+    renames every request id, logical name and range id of the stored manifest (datasets, ranges, quality, coverage,
+    relationships) for the need a session serves; files, rows, checksums and the bundle id stay as they are, and
+    `aliases` lists the earlier labels. The reuse answer, the session (`session.json`, so `load`, `load_range`, SQL
+    views, event study and backtest helpers), `inspect_dataset`, the audit inputs and the completion's coverage all
+    read this view.
+  - A warm worker knows the labels it was opened with, so a need with other labels opens a new worker on the same
+    files (no extraction); with equal labels the warm session is attached as before.
+  - Several needs of one request may share one bundle (the same data asked twice in one message). An open of that
+    bundle serves them in the order they were prepared: the first without a COMPLETED result (the bundle's own need
+    first); when all have one, the newest binding.
 - **Warm sessions (S2).** A passed completion of a session with a conversation key leaves the worker `WARM_IDLE`
   instead of closing it, unless an execution of that epoch timed out, which leaves the namespace uncertain.
   - `POST /v1/sessions` on a bound bundle (or the request's own) first looks for a `WARM_IDLE` session on it in the
@@ -1324,6 +1343,8 @@ side on only when they match.
   (`final_status.research_findings_v2`, `calculation_validation` = the weakest level relied on). Missing angles keep
   the completion open (`next_action` RUN_PYTHON) unless `finalize` records them as `NOT_RUN`.
 - Store schema version 4 adds `research_runs`, `research_groups` and `research_findings`.
+- Store schema version 5 adds `bundle_bindings.aliases` (EXEC-V stage 2: the later need's labels for an earlier
+  bundle's requests).
 
 ### Imported modules (item C)
 
