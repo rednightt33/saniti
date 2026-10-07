@@ -16,6 +16,7 @@ Generated from PostgreSQL schema `public` at `2026-09-27T08:23:59+00:00`.
 | `AI_conversation_execution` | System | Event-driven / each sandbox execution (R-STORE) | — | `2026-10-03` | Added by hand (20261003_006) | The code of each sandbox execution of a market-ai-orc conversation, so a result can be traced and reproduced after the sandbox copy expired. |
 | `AI_conversation_export` | System | Event-driven / each export (phase D) | — | `2026-10-03` | Added by hand (20261003_006) | Files exported from a market-ai-orc conversation for the user to download (CSV, XLSX or Parquet, at most 20 MB). |
 | `AI_conversation_output` | System | Event-driven / each released output (R-STORE) | — | `2026-10-03` | Added by hand (20261003_006) | Released outputs of market-ai-orc conversations (tables, JSON, text, charts) with their definition, units, lineage and the last date of the data they were computed from; the content up to 20 MB is here, a larger one in the bucket market-ai-conversation-outputs. |
+| `AI_conversation_run_memory` | System | Event-driven / each run of a conversation (EXEC-C) | — | `2026-10-06` | Added by hand (20261006_003) | What each run of a market-ai-orc conversation leaves for the runs after it: the memo later runs read, the full texts it names, the values it made citable, the model's note and its reasoning. |
 | `AI_conversation_turn` | Unclassified | Unknown | — | `2026-09-27 08:23:59+00:00` | Baseline only | One message of a market-ai-orc conversation: the user message, the run status and the response returned to the caller. |
 | `AI_data_coverage` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | Automated actual raw-source coverage plus explicitly inferred expectations for derived Feature tables. |
 | `AI_formula_reference` | Unclassified | Unknown | — | `2026-09-24 09:22:02+00:00` | Baseline only | Global reference catalog of calculation formulas for the orchestrator; entries document a formula, not a verified or executable implementation. |
@@ -446,6 +447,47 @@ Released outputs of market-ai-orc conversations (tables, JSON, text, charts) wit
 |---|---|
 | `AI_conversation_output_pkey` | `CREATE UNIQUE INDEX "AI_conversation_output_pkey" ON public."AI_conversation_output" USING btree (output_id)` |
 | `ai_conversation_output_conversation_idx` | `CREATE INDEX ai_conversation_output_conversation_idx ON public."AI_conversation_output" USING btree (conversation_id, created_at)` |
+
+## AI_conversation_run_memory
+
+What each run of a market-ai-orc conversation (a turn or a step of a mode 4 turn) leaves for the runs after it (EXEC.md EXEC-C; AI_ENABLE_RUN_MEMORY). Created by `database/migrations/20261006_003_conversation_run_memory.sql`; read and written by `market_ai_conversation_store` only; deleted with its conversation. Later runs read `memo` and `sources` in `seq` order; the full texts are read with the tool `read_conversation_memory`.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `run_id` | `text` | No | — | The run's request id: a turn's request_id, or <request_id>-m4a ... for a step of a mode 4 turn. |
+| `conversation_id` | `text` | No | — | The conversation the run belongs to. |
+| `turn_request_id` | `text` | No | — | The request id of the turn the run belongs to (the run's own id for a turn that is one run). |
+| `seq` | `bigint` | No | generated always as identity | The order runs ended in; later runs read the memos in this order (oldest first). |
+| `status` | `text` | No | — | The run's status: COMPLETED, NEEDS_CLARIFICATION, AWAITING_CONFIRMATION, LIMITED or FAILED. |
+| `response_type` | `text` | Yes | — | ANSWER, CLARIFICATION, RESEARCH_PLAN_CONFIRMATION or LIMITATION; NULL when the run failed without a response. |
+| `error_code` | `text` | Yes | — | The run's error code (for example ANALYSIS_TIMEOUT); NULL without one. |
+| `memo` | `text` | No | — | The run's memo as later runs of the conversation read it in their prompt (written by the backend from the run's events plus the model's note); never changed. |
+| `content` | `jsonb` | No | — | The full texts the memo names: message, answer (with assumptions, limitations and methodology), plan, refusals with the drafts they refused, design values with their origin, web entries, catalog details, code executions, error. |
+| `sources` | `jsonb` | No | `'{}'::jsonb` | The values the run made citable (fact, metric, reference, web, the content of a JSON output) with their evidence label, units and origin; later runs register them again under the same address. |
+| `note` | `text` | Yes | — | The note the model wrote for later runs in its final response (memo_note); NULL when it wrote none. |
+| `reasoning` | `text` | Yes | — | The run's reasoning text (each model call in order), read only with read_conversation_memory; NULL when the provider returned none. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | When the run ended and its memory was stored. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `ai_conversation_run_memory_json_check` | Check | `CHECK (jsonb_typeof(content) = 'object' AND jsonb_typeof(sources) = 'object')` |
+| `ai_conversation_run_memory_run_check` | Check | `CHECK (run_id ~ '^[A-Za-z0-9._:-]{1,200}$')` |
+| `ai_conversation_run_memory_size_check` | Check | `CHECK (length(memo) BETWEEN 1 AND 200000 AND (note IS NULL OR length(note) <= 20000) AND (reasoning IS NULL OR length(reasoning) <= 800000))` |
+| `ai_conversation_run_memory_status_check` | Check | `CHECK (status IN ('COMPLETED', 'NEEDS_CLARIFICATION', 'AWAITING_CONFIRMATION', 'LIMITED', 'FAILED'))` |
+| `ai_conversation_run_memory_turn_check` | Check | `CHECK (turn_request_id ~ '^[A-Za-z0-9._:-]{1,200}$')` |
+| `AI_conversation_run_memory_conversation_id_fkey` | Foreign key | `FOREIGN KEY (conversation_id) REFERENCES "AI_conversation"(conversation_id) ON DELETE CASCADE` |
+| `AI_conversation_run_memory_pkey` | Primary key | `PRIMARY KEY (run_id)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `AI_conversation_run_memory_pkey` | `CREATE UNIQUE INDEX "AI_conversation_run_memory_pkey" ON public."AI_conversation_run_memory" USING btree (run_id)` |
+| `ai_conversation_run_memory_conversation_idx` | `CREATE UNIQUE INDEX ai_conversation_run_memory_conversation_idx ON public."AI_conversation_run_memory" USING btree (conversation_id, seq)` |
 
 ## AI_conversation_turn
 
