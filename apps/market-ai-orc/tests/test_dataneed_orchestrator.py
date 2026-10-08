@@ -465,13 +465,15 @@ def test_a_run_without_sandbox_work_releases_nothing() -> None:
     assert releaser.calls == []
 
 
-# --- S08: one open analysis session per run ------------------------------------------------------------------------
+# --- EXEC-V 2026-10-08: several sessions per answer, opening one never closes another --------------------------------
 
 SESSION_2 = "sess_" + "4" * 24
+BUNDLE_2 = "bundle_" + "9" * 24
 
 
 class TwoSessions(Tools):
-    """open_analysis_session hands out SESSION, then SESSION_2; run_python answers with the given statuses in order."""
+    """open_analysis_session hands out SESSION, then SESSION_2 for the bundle it was asked for; run_python answers with
+    the given statuses in order."""
 
     def __init__(self, completions: list[dict[str, Any]], statuses: list[str]) -> None:
         super().__init__(completions)
@@ -482,7 +484,7 @@ class TwoSessions(Tools):
         registry = super().registry()
         for name, handler in (
                 ("open_analysis_session", lambda a: {"session_id": self.opened.pop(0), "status": "ACTIVE",
-                                                     "bundle_id": BUNDLE, "need_id": NEED}),
+                                                     "bundle_id": a.input_bundle_id, "need_id": NEED}),
                 ("run_python", lambda a: {"execution_id": "exe_" + str(len(self.statuses)), "session_id": a.session_id,
                                           "status": self.statuses.pop(0), "stdout": "", "outputs": []})):
             spec = registry._tools[name]
@@ -496,73 +498,22 @@ def outputs_of(scripted: ScriptedClient) -> dict[str, dict[str, Any]]:
             if item.get("type") == "function_call_output"}
 
 
-def test_a_second_open_waits_until_a_session_with_results_is_completed() -> None:
-    closer = Closer()
-    script = [*flow(complete=False), call("open_analysis_session", {"input_bundle_id": BUNDLE}, "o2"),
-              call("complete_analysis", {"session_id": SESSION}, "c5"),
-              final_response(answer("Return YTD BBCA 12,35%."))]
-    result = closing_run(script, TwoSessions([completed()], ["OK"]), closer)
-    refused = outputs_of(closing_run.scripted)["o2"]
-    assert refused["ok"] is False and refused["error"]["code"] == "ANALYSIS_SESSION_ALREADY_OPEN"
-    assert refused["error"]["open_session_id"] == SESSION and "complete_analysis" in refused["error"]["message"]
-    # the sandbox was not asked for a second slot, nothing was closed, and the completed analysis answers
-    assert closer.calls == [] and result.evidence_label == "DATA_COVERAGE_VERIFIED"
-
-
-def test_a_session_without_a_successful_execution_is_closed_before_another_opens() -> None:
-    closer = Closer()
-    script = [*flow(complete=False), call("open_analysis_session", {"input_bundle_id": BUNDLE}, "o2"),
-              call("run_python", {"session_id": SESSION_2}, "r2"),
-              call("complete_analysis", {"session_id": SESSION_2}, "c6"),
-              final_response(answer("Return YTD BBCA 12,35%."))]
-    result = closing_run(script, TwoSessions([{**completed(), "session_id": SESSION_2}], ["FAILED", "OK"]), closer)
-    assert outputs_of(closing_run.scripted)["o2"]["result"]["session_id"] == SESSION_2
-    # closed once, before the second open; not again at the end of the run; it does not block the answer
-    assert closer.calls == [("dn", [SESSION])]
-    assert result.response.response_type == "ANSWER" and result.evidence_label == "DATA_COVERAGE_VERIFIED"
-
-
-BUNDLE_2 = "bundle_" + "9" * 24
-
-
-class BundleSessions(TwoSessions):
-    """open_analysis_session answers with the bundle it was asked for (EXEC-V V-a)."""
-
-    def registry(self) -> ToolRegistry:
-        registry = super().registry()
-        spec = registry._tools["open_analysis_session"]
-        registry._tools["open_analysis_session"] = ToolSpec(
-            name=spec.name, description=spec.description, arguments_model=spec.arguments_model,
-            handler=lambda a: {"session_id": self.opened.pop(0), "status": "ACTIVE", "bundle_id": a.input_bundle_id,
-                               "need_id": NEED})
-        return registry
-
-
-def test_an_open_for_another_bundle_waits_for_the_unused_session() -> None:
-    """EXEC-V V-a (M110, ma-qa-20261007c variant_bbca): opening the next bundle before any code ran closed the open
-    session unused; now it is refused, names the session to use first, and nothing is closed."""
+def test_a_second_open_closes_nothing_and_both_sessions_stay_usable() -> None:
+    """M110/M111 (golden tests 2026-10-07): one open session per answer closed or refused the model's other work.
+    Now another bundle opens beside the first; nothing is closed or refused by the orchestrator."""
     closer = Closer()
     script = [*flow(run=False, complete=False), call("open_analysis_session", {"input_bundle_id": BUNDLE_2}, "o2"),
-              call("run_python", {"session_id": SESSION}, "c4"), call("complete_analysis", {"session_id": SESSION}, "c5"),
+              call("run_python", {"session_id": SESSION_2}, "r2"), call("run_python", {"session_id": SESSION}, "r1"),
+              call("complete_analysis", {"session_id": SESSION}, "c5"),
               final_response(answer("Return YTD BBCA 12,35%."))]
-    result = closing_run(script, BundleSessions([completed()], ["OK"]), closer)
-    refused = outputs_of(closing_run.scripted)["o2"]
-    assert refused["ok"] is False and refused["error"]["code"] == "ANALYSIS_SESSION_ALREADY_OPEN"
-    assert refused["error"]["open_session_id"] == SESSION and refused["error"]["open_bundle_id"] == BUNDLE
-    assert SESSION in refused["error"]["message"] and "run_python" in refused["error"]["message"]
-    assert closer.calls == [] and result.evidence_label == "DATA_COVERAGE_VERIFIED"
-
-
-def test_the_same_bundle_may_replace_an_unused_session_and_the_close_is_named() -> None:
-    closer = Closer()
-    script = [*flow(run=False, complete=False), call("open_analysis_session", {"input_bundle_id": BUNDLE}, "o2"),
-              call("run_python", {"session_id": SESSION_2}, "r2"),
-              call("complete_analysis", {"session_id": SESSION_2}, "c6"),
-              final_response(answer("Return YTD BBCA 12,35%."))]
-    closing_run(script, BundleSessions([{**completed(), "session_id": SESSION_2}], ["OK"]), closer)
-    opened = outputs_of(closing_run.scripted)["o2"]["result"]
-    assert opened["session_id"] == SESSION_2 and opened["superseded_sessions"] == {SESSION: "CLOSED_BY_CALLER"}
-    assert "superseded_sessions" in opened["superseded_note"] and closer.calls == [("dn", [SESSION])]
+    result = closing_run(script, TwoSessions([completed()], ["OK", "OK"]), closer)
+    opened = outputs_of(closing_run.scripted)["o2"]
+    assert opened["ok"] is True and opened["result"]["session_id"] == SESSION_2
+    assert "superseded_sessions" not in opened["result"]
+    # the session of the second bundle ran code but was not completed: closed at the end of the run, named as such
+    assert closer.calls == [("dn", [SESSION_2])]
+    assert result.status == "LIMITED" and any(SESSION_2 in line and "not completed" in line
+                                              for line in result.response.limitations)
 
 
 def test_both_number_rules_allow_display_rounding_without_adding_number_sources() -> None:

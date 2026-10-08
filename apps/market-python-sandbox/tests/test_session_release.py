@@ -1,6 +1,9 @@
 """S28 (golden test ma-golden-20261002c, round 2026-10-03 C1): a request's sessions are released when its answer ends
-(WARM_IDLE when completed, else closed), a request keeps one active session, and opening a session waits for a slot
-in arrival order before SESSION_CAPACITY_EXCEEDED."""
+(WARM_IDLE when completed, else closed), and opening a session waits for a slot in arrival order before
+SESSION_CAPACITY_EXCEEDED. EXEC-V 2026-10-08 ("membuka 1 tidak menutup yang lain"): a request holds up to
+max_sessions_per_request open sessions, opening one never closes another, the open beyond the limit is refused with
+the open sessions listed, activity in one keeps all of them alive, and code run after a passed completion in the same
+answer stays in its epoch (M114)."""
 from __future__ import annotations
 
 import threading
@@ -65,22 +68,91 @@ def test_an_uncompleted_session_is_closed_at_release_and_release_is_idempotent(r
     assert release(reuse, "req_turn_1")["sessions"] == []
 
 
-def test_a_request_keeps_one_active_session(reuse) -> None:
-    """A second open in the same request moves a completed session to WARM_IDLE (reusable or evictable)."""
-    one = first_turn(reuse)
-    execute(reuse, one["session_id"], "req_turn_1", "print(1)")  # back to ACTIVE
-    open_in(reuse, "req_turn_1", one["bundle_id"])
-    assert status(reuse, one["session_id"])[0] == "WARM_IDLE"
+def test_opening_another_session_closes_none_and_the_one_beyond_the_limit_is_refused_with_the_list(reuse) -> None:
+    sessions = reuse["dataneed"].sessions
+    assert sessions.settings.max_sessions_per_request == sessions.settings.max_sessions == 2
+    one = first_turn(reuse)  # turn 1 ended: WARM_IDLE, an earlier answer's
+    bundle = bundle_for(reuse, "req_turn_2")
+    first = open_in(reuse, "req_turn_2", bundle).json()["session_id"]
+    assert execute(reuse, first, "req_turn_2", YTD)["status"] == "OK"
+    assert complete(reuse, first, "req_turn_2")["session_status"] == "ACTIVE"  # open until the answer ends
+    second = open_in(reuse, "req_turn_2", bundle)
+    assert second.status_code == 200, second.text  # the WARM_IDLE session of turn 1 gave its slot
+    assert status(reuse, one["session_id"]) == ("CLOSED", "EVICTED")
+    assert status(reuse, first)[0] == "ACTIVE"  # completed, still open: opening another closed nothing
+    third = open_in(reuse, "req_turn_2", bundle)
+    assert third.status_code == 409, third.text
+    body = third.json()
+    assert body["error"]["code"] == "SESSION_LIMIT_PER_REQUEST" and body["next_action"] == "USE_OPEN_SESSION"
+    assert body["error"]["max_sessions_per_request"] == 2
+    listed = {s["session_id"]: s for s in body["error"]["open_sessions"]}
+    assert set(listed) == {first, second.json()["session_id"]}
+    assert listed[first]["completed"] is True and listed[second.json()["session_id"]]["completed"] is False
+    assert "never closes another" in body["error"]["message"]
+    assert status(reuse, first)[0] == "ACTIVE" and status(reuse, second.json()["session_id"])[0] == "ACTIVE"
+    # the caller closes one it no longer needs, then the open succeeds
+    post(reuse, f"/v1/sessions/{first}/close", {"request_id": "req_turn_2"})
+    assert open_in(reuse, "req_turn_2", bundle).status_code == 200
 
 
-def test_with_no_slot_an_uncompleted_session_of_the_same_request_is_replaced(reuse) -> None:
-    """g7: the model opened a new session in the same answer instead of finishing the first one."""
+def test_with_no_slot_a_session_of_the_same_request_is_never_replaced(reuse) -> None:
+    """g7 (2026-10-02) closed the request's own session; EXEC-V 2026-10-08 keeps it and refuses the open clearly."""
     one_slot(reuse)
+    reuse["dataneed"].sessions.settings.__dict__["max_sessions_per_request"] = 1
     bundle = bundle_for(reuse, "req_turn_1")
     first = open_in(reuse, "req_turn_1", bundle).json()["session_id"]
     second = open_in(reuse, "req_turn_1", bundle)
-    assert second.status_code == 200, second.text
-    assert status(reuse, first) == ("CLOSED", "REPLACED_IN_REQUEST")
+    assert second.status_code == 409 and second.json()["error"]["code"] == "SESSION_LIMIT_PER_REQUEST"
+    assert status(reuse, first) == ("ACTIVE", None)
+
+
+def test_capacity_refusal_names_the_answers_own_open_sessions(reuse) -> None:
+    one_slot(reuse, wait=0)
+    reuse["dataneed"].sessions.settings.__dict__["max_sessions_per_request"] = 1
+    held = open_in(reuse, "req_turn_1", bundle_for(reuse, "req_turn_1")).json()["session_id"]
+    other = bundle_for(reuse, "req_other", key=OTHER)
+    refused = open_in(reuse, "req_other", other, key=OTHER)
+    assert refused.status_code == 429 and refused.json()["error"]["open_sessions"] == []
+    assert refused.json()["next_action"] == "RETRY_LATER"
+    assert status(reuse, held)[0] == "ACTIVE"
+
+
+def test_activity_in_one_session_keeps_every_session_of_the_answer_alive(reuse) -> None:
+    bundle = bundle_for(reuse, "req_turn_1")
+    first = open_in(reuse, "req_turn_1", bundle).json()["session_id"]
+    second = open_in(reuse, "req_turn_1", bundle).json()["session_id"]
+    store, idle = reuse["dataneed"].store, reuse["service"].settings.session_idle_seconds
+    old = (datetime.now(timezone.utc) - timedelta(seconds=idle - 2)).isoformat()
+    store.update_session(first, last_active_at=old)
+    store.update_session(second, last_active_at=old)
+    assert execute(reuse, second, "req_turn_1", "x = 1")["status"] == "OK"
+    later = datetime.now(timezone.utc) + timedelta(seconds=10)
+    reuse["dataneed"].sessions.sweep(now=later)
+    assert status(reuse, first)[0] == "ACTIVE"  # untouched itself, kept alive by the answer's activity
+
+
+def test_code_after_a_passed_completion_stays_in_its_epoch_and_completing_again_releases_it(reuse) -> None:
+    """M114 (golden test ma-qa-variant-20261007a): an execution after complete_analysis passed opened epoch 2 in the
+    same answer, so the completed findings were MISSING from every later completion."""
+    bundle = bundle_for(reuse, "req_turn_1")
+    session_id = open_in(reuse, "req_turn_1", bundle).json()["session_id"]
+    assert execute(reuse, session_id, "req_turn_1", YTD)["status"] == "OK"
+    first = complete(reuse, session_id, "req_turn_1")
+    assert first["status"] == "COMPLETED" and first["epoch"] == 1
+    assert complete(reuse, session_id, "req_turn_1")["replayed"] is True  # nothing new: replayed
+    more = execute(reuse, session_id, "req_turn_1",
+                   "emit_json('count', {'n': int(len(last))}, definition={})")
+    assert more["status"] == "OK"
+    record = reuse["dataneed"].store.get_session(session_id)
+    assert record["epoch"] == 1 and record["status"] == "ACTIVE"
+    again = complete(reuse, session_id, "req_turn_1")
+    assert again["status"] == "COMPLETED" and again["epoch"] == 1 and not again.get("replayed")
+    assert again["previous_completion_id"] == first["completion_id"]
+    assert {o["name"] for o in again["released_outputs"]} == {"last_close", "count"}
+    # a session put back to WARM_IDLE by the caller in the same request also stays in its epoch
+    reuse["dataneed"].store.update_session(session_id, status="WARM_IDLE")
+    assert execute(reuse, session_id, "req_turn_1", "y = 2")["status"] == "OK"
+    assert reuse["dataneed"].store.get_session(session_id)["epoch"] == 1
 
 
 def test_open_waits_for_a_slot_freed_by_another_request(reuse) -> None:
@@ -128,4 +200,5 @@ def test_the_idle_sweep_stays_the_safety_net(reuse) -> None:
 
 def test_the_runtime_reports_the_release_capability(reuse) -> None:
     runtime = reuse["api"].get("/v1/runtime", headers=HEADERS).json()
-    assert runtime["session_release"] == {"enabled": True, "version": 1, "open_wait_seconds": 0}
+    assert runtime["session_release"] == {"enabled": True, "version": 2, "open_wait_seconds": 0, "max_sessions": 2,
+                                          "max_sessions_per_request": 2}

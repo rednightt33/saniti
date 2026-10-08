@@ -810,12 +810,21 @@ class DataNeedService:
             raise SessionError("SESSION_NOT_FOUND", "No session with this id exists for this request.", 404,
                                "OPEN_ANALYSIS_SESSION")
         epoch = int(record.get("epoch") or 1)
+        self.sessions.touch_request(request_id)
         # completion is per epoch: a PASS of an earlier message never completes a later one (S2)
         earlier = self.store.completion_for_epoch(session_id, epoch)
         # only a COMPLETED result is final; an INCOMPLETE one with coverage PASS (for example no output yet) is
         # evaluated again, so the analysis can finish after the fix (S06)
+        recompleted = None
         if earlier is not None and (earlier["final_status"] or {}).get("status") == "COMPLETED":
-            return {**earlier["final_status"], "replayed": True}
+            # M114 (EXEC-V 2026-10-08): code run in the same epoch after the completion is not lost; completing again
+            # evaluates the whole epoch and releases the new outputs too. Without a new successful execution the
+            # earlier result is replayed
+            covered = max([int(e.get("seq") or 0) for e in (earlier.get("execution_manifest") or {})
+                           .get("executions") or []] or [0])
+            if not any(e["seq"] > covered and e["status"] == "OK" for e in self.store.executions_for(session_id)):
+                return {**earlier["final_status"], "replayed": True}
+            recompleted = earlier
         stored = self.store.get_bundle(record["bundle_id"])["manifest"]
         need_id = record.get("need_id") or stored["need_id"]
         # EXEC-V stage 2: coverage, lineage and validation read the bundle under this need's labels
@@ -823,8 +832,10 @@ class DataNeedService:
         need = self.get_need(need_id)
         start = int(record.get("epoch_start_seq") or 0)
         executions = [e for e in self.store.executions_for(session_id) if e["seq"] > start]
+        # tables the backend wrote at an earlier completion of this epoch are written again below (M114)
         outputs = [o for o in self.store.outputs_for(session_id)
-                   if any(e["execution_id"] == o["execution_id"] and e["status"] == "OK" for e in executions)]
+                   if any(e["execution_id"] == o["execution_id"] and e["status"] == "OK" for e in executions)
+                   and not (isinstance(o.get("meta"), dict) and o["meta"].get("backend"))]
         manifest = execution_manifest(record, bundle, executions, outputs)
         if self.settings.conversation_reuse:
             manifest.update(epoch=epoch, need_id=need_id)
@@ -1079,6 +1090,8 @@ class DataNeedService:
                   "need_id": need_id, "status": "COMPLETED" if passed else "INCOMPLETE",
                   "final_status": final, "coverage": coverage, "released_outputs": released,
                   "execution_manifest_sha256": sha256_json(manifest)}
+        if recompleted is not None:
+            result["previous_completion_id"] = recompleted["completion_id"]
         if passed:
             result["next_action"] = "ANSWER_FROM_RELEASED_OUTPUTS"
         elif undefined:
@@ -1136,7 +1149,9 @@ class DataNeedService:
         if self.settings.conversation_reuse:
             result["epoch"] = epoch
             if passed:
-                result["session_status"] = "WARM_IDLE" if warm else "CLOSED"
+                # EXEC-V 2026-10-08: open until the answer ends (code run after it stays in this epoch, M114), then
+                # WARM_IDLE at the release
+                result["session_status"] = "ACTIVE" if warm else "CLOSED"
         self.store.insert_completion({"completion_id": completion_id, "session_id": session_id,
                                       "request_id": request_id, "bundle_id": record["bundle_id"],
                                       "need_id": need_id, "coverage_status": coverage_status,
@@ -1163,10 +1178,9 @@ class DataNeedService:
             self.store.update_research_group(constraints.get("research_run_id"), constraints.get("bundle_group_id"),
                                              status="COMPLETED", session_id=session_id, completion_id=completion_id,
                                              updated_at=utc_now())
-        if warm:
-            self.store.update_session(session_id, status="WARM_IDLE", last_active_at=utc_now())
-            self.sessions._slot_freed()  # S28: a waiting open may evict it
-        elif passed:
+        # EXEC-V 2026-10-08: a warm session stays ACTIVE for the rest of the answer, so another open (this answer's
+        # or another conversation's) never evicts it; the release at the end of the answer makes it WARM_IDLE
+        if passed and not warm:
             self.sessions.close(session_id, "COMPLETED")
         self._log("analysis_completed", request_id=request_id, session_id=session_id, completion_id=completion_id,
                   coverage=coverage_status, execution=execution, released=len(released),

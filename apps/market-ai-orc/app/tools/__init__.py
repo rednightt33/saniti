@@ -62,6 +62,7 @@ def build_default_registry(
     value_references: bool = False,
     run_memory: Any | None = None,
     merged_steps: bool = False,
+    session_limit: int | None = None,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
@@ -135,7 +136,8 @@ def build_default_registry(
                                           execution_timeout_seconds=session_timeout_seconds,
                                           max_result_bytes=python_analysis_max_bytes,
                                           standard_period_return=standard_period_return,
-                                          event_study=event_study, backtest=backtest, merged_steps=merged_steps):
+                                          event_study=event_study, backtest=backtest, merged_steps=merged_steps,
+                                          session_limit=session_limit):
                     registry.register(spec)
                 if export:
                     # D4 (AI_ENABLE_EXPORT): a download file of an output, kept with the conversation

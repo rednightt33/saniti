@@ -62,14 +62,17 @@ def complete(env, session_id: str, request_id: str) -> dict:
 
 
 def first_turn(env) -> dict:
-    """Turn 1 of a conversation: approve, extract, open, compute, complete. The session stays WARM_IDLE."""
+    """Turn 1 of a conversation: approve, extract, open, compute, complete, then the answer ends (release). The
+    session stays ACTIVE until the release (EXEC-V 2026-10-08), then WARM_IDLE."""
     need = approve(env, "req_turn_1")
     bundle = build(env, need, ytd_parts(env, need), request_id="req_turn_1").json()
     assert bundle["status"] == "READY", bundle
     opened = post(env, "/v1/sessions", {"request_id": "req_turn_1", "bundle_id": bundle["input_bundle_id"]}).json()
     table = execute(env, opened["session_id"], "req_turn_1", YTD)["outputs"][0]
     done = complete(env, opened["session_id"], "req_turn_1")
-    assert done["status"] == "COMPLETED" and done["session_status"] == "WARM_IDLE", done
+    assert done["status"] == "COMPLETED" and done["session_status"] == "ACTIVE", done
+    released = env["api"].post("/v1/requests/req_turn_1/release", headers=HEADERS).json()
+    assert released["sessions"] == [{"session_id": opened["session_id"], "status": "WARM_IDLE"}], released
     return {"need": need, "bundle_id": bundle["input_bundle_id"], "session_id": opened["session_id"],
             "output_id": table["output_id"], "completion_id": done["completion_id"]}
 
@@ -271,6 +274,7 @@ def test_coverage_is_inherited_from_every_earlier_passed_epoch(reuse) -> None:
     attach(reuse, "req_turn_2")
     execute(reuse, one["session_id"], "req_turn_2", "emit_json('count', {'n': int(len(last))}, definition={})")
     assert complete(reuse, one["session_id"], "req_turn_2")["status"] == "COMPLETED"
+    reuse["api"].post("/v1/requests/req_turn_2/release", headers=HEADERS)  # the answer of turn 2 ends
     attach(reuse, "req_turn_3")
     execute(reuse, one["session_id"], "req_turn_3", "emit_json('top', {'close': float(last['close'].max())}, definition={})")
     done = complete(reuse, one["session_id"], "req_turn_3")

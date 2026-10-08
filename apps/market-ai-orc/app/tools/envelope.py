@@ -44,7 +44,6 @@ ERROR_ACTIONS: dict[str, tuple[str, bool]] = {
     "CURSOR_INVALID": ("RESTART_PAGING", True),
     "CATALOG_CHANGED_RESTART_DISCOVERY": ("CALL:discover_catalog", True),
     "CATALOG_DETAILS_REQUIRED": ("CALL:get_catalog_details", True),
-    "ANALYSIS_SESSION_ALREADY_OPEN": ("USE_OPEN_SESSION", True),
     "INSIGHT_SOURCE_NOT_OPENED": ("CALL:run_python with load_output", True),
     "MULTI_ANGLE_PLAN_REQUIRED": ("PRESENT_MULTI_ANGLE_PLAN", True),
     "PATH_MISMATCH": ("FOLLOW_FIXED_PATH", True),

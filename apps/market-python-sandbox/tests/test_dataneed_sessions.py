@@ -239,17 +239,27 @@ def test_budgets_capacity_and_closing(session) -> None:
     ok(session, "b = 2")
     assert run(session, "c = 3").json()["error"]["code"] == "SESSION_EXECUTION_LIMIT"
     settings.__dict__["max_sessions"] = 1
+    settings.__dict__["max_sessions_per_request"] = 1
     session["dataneed"].sessions.slots = session["dataneed"].sessions.slots[:1]
-    # S28 (round 2026-10-03): with no free slot, a second open in the same request replaces the request's session
-    # that never completed (refusals for other requests: tests/test_session_release.py)
+    # EXEC-V 2026-10-08: a second open in the same request beyond its limit is refused with the open session listed;
+    # the open session is never closed by it (refusals for other requests: tests/test_session_release.py)
+    second = session["api"].post("/v1/sessions", json={"request_id": "req_bundle_1",
+                                                       "bundle_id": session["bundle_id"]}, headers=HEADERS)
+    assert second.status_code == 409, second.text
+    error = second.json()["error"]
+    assert error["code"] == "SESSION_LIMIT_PER_REQUEST" and second.json()["next_action"] == "USE_OPEN_SESSION"
+    assert [s["session_id"] for s in error["open_sessions"]] == [session["session_id"]]
+    assert error["open_sessions"][0]["executions"] == 2 and error["open_sessions"][0]["completed"] is False
+    assert run(session, "print(1)").json()["error"]["code"] == "SESSION_EXECUTION_LIMIT"  # still open
+    state = session["api"].get(f"/v1/sessions/{session['session_id']}", params={"request_id": "req_bundle_1"},
+                               headers=HEADERS).json()
+    assert state["status"] == "ACTIVE" and len(state["execution_log"]) == 2
+    closed = session["api"].post(f"/v1/sessions/{session['session_id']}/close",
+                                 json={"request_id": "req_bundle_1"}, headers=HEADERS).json()
+    assert closed["status"] == "CLOSED" and closed["close_reason"] == "CLOSED_BY_CALLER"
     second = session["api"].post("/v1/sessions", json={"request_id": "req_bundle_1",
                                                        "bundle_id": session["bundle_id"]}, headers=HEADERS)
     assert second.status_code == 200, second.text
-    assert run(session, "print(1)").json()["error"]["code"] == "SESSION_CLOSED"
-    state = session["api"].get(f"/v1/sessions/{session['session_id']}", params={"request_id": "req_bundle_1"},
-                               headers=HEADERS).json()
-    assert state["status"] == "CLOSED" and state["close_reason"] == "REPLACED_IN_REQUEST"
-    assert len(state["execution_log"]) == 2
     closed = session["api"].post(f"/v1/sessions/{second.json()['session_id']}/close",
                                  json={"request_id": "req_bundle_1"}, headers=HEADERS).json()
     assert closed["status"] == "CLOSED" and closed["close_reason"] == "CLOSED_BY_CALLER"

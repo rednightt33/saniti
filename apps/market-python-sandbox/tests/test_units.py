@@ -53,6 +53,7 @@ def test_there_are_no_database_or_bucket_settings() -> None:
     ({"PY_SANDBOX_FAILED_WORKSPACE_TTL_HOURS": "200"}, "between 0 and 72"),
     ({"PY_SANDBOX_RESEARCH_MIN_ANGLES": "0"}, "between 1 and 6"),
     ({"PY_SANDBOX_RESEARCH_MIN_ANGLES": "7"}, "between 1 and 6"),
+    ({"PY_SANDBOX_MAX_SESSIONS": "2", "PY_SANDBOX_MAX_SESSIONS_PER_REQUEST": "3"}, "must not exceed"),
 ])
 def test_invalid_configuration_is_rejected(sandbox_root, overrides: dict, message: str) -> None:
     with pytest.raises(ConfigError, match=message):

@@ -149,8 +149,12 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                                   "export_formats": list(stored_tables.EXPORT_FORMATS),
                                   "export_max_bytes": stored_tables.EXPORT_MAX_BYTES},
                 # S28: POST /v1/requests/{request_id}/release, and how long opening a session waits for a slot
+                # EXEC-V 2026-10-08 (version 2): a request holds up to max_sessions_per_request open sessions and
+                # opening one never closes another (SESSION_LIMIT_PER_REQUEST beyond that)
                 "session_release": {"enabled": dataneed is not None, "version": SESSION_RELEASE_VERSION,
-                                    "open_wait_seconds": settings.open_wait_seconds},
+                                    "open_wait_seconds": settings.open_wait_seconds,
+                                    "max_sessions": settings.max_sessions,
+                                    "max_sessions_per_request": settings.max_sessions_per_request},
                 # POST /v1/data-needs/check and GET /v1/data-need-drafts/{draft_id} (Research Plan feasibility)
                 "plan_feasibility": {"enabled": dataneed is not None, "version": FEASIBILITY_VERSION},
                 # IP1 Stage B: data_need_spec/v2 names every key pair of a composite relationship

@@ -119,7 +119,8 @@ WORKER_LOG_TAIL = 600
 # the workspace is removed; it never goes to the model
 OUTPUT_ID_RE = re.compile(r"^out_[0-9a-f]{24}$")
 RESTORE_VERSION = 1  # R-STORE: POST /v1/sessions/{id}/carried and GET .../outputs/{id}/file
-SESSION_RELEASE_VERSION = 1  # S28: POST /v1/requests/{request_id}/release and the open queue
+SESSION_RELEASE_VERSION = 2  # S28: POST /v1/requests/{request_id}/release and the open queue; 2 (EXEC-V 2026-10-08):
+# several open sessions per request, none closed by opening another
 ABNORMAL_REASONS = frozenset({"WORKER_CRASHED", "WORKER_UNRESPONSIVE", "SESSION_STATE_CORRUPTED", "PROTOCOL_ERROR",
                               "FORBIDDEN_OPERATION", "CPU_BUDGET_EXCEEDED", "MEMORY_LIMIT_EXCEEDED",
                               "DISK_LIMIT_EXCEEDED", "EXECUTION_TIMEOUT_UNINTERRUPTIBLE", "WORKER_START_FAILED"})
@@ -498,8 +499,11 @@ class SessionManager:
              research: dict[str, Any] | None = None, carried_outputs: list[str] | None = None,
              findings: dict[str, Any] | None = None) -> dict[str, Any]:
         """A new session on a READY bundle of this request, or (bound) on an earlier bundle of the same conversation
-        that the service bound to this request's approved need. With no free slot, the least recently used WARM_IDLE
-        session is evicted; an ACTIVE or BUSY session never is."""
+        that the service bound to this request's approved need. EXEC-V 2026-10-08 ("membuka 1 tidak menutup yang
+        lain"): a request holds up to PY_SANDBOX_MAX_SESSIONS_PER_REQUEST open sessions and opening one never closes
+        another of them; beyond that the open is refused (SESSION_LIMIT_PER_REQUEST) with the open sessions listed.
+        With no free slot, the least recently used WARM_IDLE session (one whose answer ended) is evicted; an ACTIVE or
+        BUSY session never is."""
         s = self.settings
         record = self.store.get_bundle(bundle_id)
         if record is None or (record["request_id"] != request_id and not bound) or record["status"] != "READY":
@@ -509,8 +513,9 @@ class SessionManager:
         if datetime.fromisoformat(manifest["expires_at"]) <= datetime.now(timezone.utc):
             raise SessionError("BUNDLE_EXPIRED", "The bundle has expired; prepare it again.", 410,
                                "PREPARE_DATA_BUNDLE")
-        self._settle_request(request_id)
+        self._check_request_limit(request_id)
         with self._slot(request_id) as (uid, cpus):
+            self._check_request_limit(request_id)  # a parallel open of the same request may have taken the place
             session_id = f"{SESSION_ID_PREFIX}{secrets.token_hex(12)}"
             directory = Path(s.jobs_dir) / session_id
             budget = max(10, min(int(cpu_seconds or s.session_cpu_seconds), s.session_cpu_seconds))
@@ -597,34 +602,47 @@ class SessionManager:
 
     # ------------------------------------------------------------------ S28: slots, release and the open queue
 
-    def _settle_request(self, request_id: str) -> None:
-        """S28 (golden g7 2026-10-02: three sessions opened in one answer): one active session per request. Opening
-        another session moves this request's ACTIVE sessions that already completed to WARM_IDLE, so they can be
-        reused or evicted; a session without a completion keeps its work until a slot is needed."""
-        if not self.settings.conversation_reuse:
-            return
+    def open_in_request(self, request_id: str) -> list[dict[str, Any]]:
+        """The request's open sessions (ACTIVE or BUSY with a live worker), oldest first, as the refusals list them:
+        id, bundle, need, executions and whether a completion of the current epoch passed."""
+        listed = []
         for record in self.store.sessions_for(request_id):
             worker = self.workers.get(record["session_id"])
-            if record["status"] == "ACTIVE" and worker is not None and worker.alive \
-                    and self.store.passed_completions(record["session_id"]):
-                self.store.update_session(record["session_id"], status="WARM_IDLE", last_active_at=utc_now())
-                self._log("session_settled", request_id=request_id, session_id=record["session_id"])
+            if record["status"] not in ("ACTIVE", "BUSY") or worker is None or not worker.alive:
+                continue
+            epoch = int(record.get("epoch") or 1)
+            completed = any(int(c.get("epoch") or 1) == epoch
+                            and (c.get("final_status") or {}).get("status") == "COMPLETED"
+                            for c in self.store.passed_completions(record["session_id"]))
+            listed.append({"session_id": record["session_id"], "bundle_id": record["bundle_id"],
+                           "need_id": record.get("need_id"), "status": record["status"],
+                           "executions": int(record["executions"]) - int(record.get("epoch_start_seq") or 0),
+                           "completed": completed})
+        return listed
+
+    def _check_request_limit(self, request_id: str) -> None:
+        limit = self.settings.max_sessions_per_request
+        listed = self.open_in_request(request_id)
+        if len(listed) < limit:
+            return
+        self._log("session_open_refused", request_id=request_id, reason="SESSION_LIMIT_PER_REQUEST",
+                  open_sessions=len(listed), limit=limit)
+        raise SessionError(
+            "SESSION_LIMIT_PER_REQUEST",
+            f"This answer already has {len(listed)} of its {limit} analysis sessions open, and opening a session never "
+            "closes another. Continue in one of the open sessions (run_python with its session_id; each keeps its "
+            "own bundle and variables), or close one that is completed or no longer needed (close_session_id) and "
+            "open again.", 409, "USE_OPEN_SESSION", open_sessions=listed, max_sessions_per_request=limit)
 
     def _take_slot(self, request_id: str) -> tuple[int, list[int]] | None:
-        """A free slot, after evicting the least recently used WARM_IDLE session, then this request's own ACTIVE
-        sessions that never completed (the caller opened another one instead); ACTIVE sessions of other requests and
-        BUSY sessions are never taken. Called with self._lock held."""
+        """A free slot, after evicting the least recently used WARM_IDLE session (its answer ended); ACTIVE and BUSY
+        sessions are never taken, this request's own included (EXEC-V 2026-10-08: opening one session never closes
+        another). Called with self._lock held."""
         free = self._free_slots()
         if not free:
             for warm in self.store.warm_sessions():
                 if warm["session_id"] in self.workers:
                     self._close_locked(warm["session_id"], "EVICTED")
-                    break
-            free = self._free_slots()
-        if not free:
-            for record in self.store.sessions_for(request_id):
-                if record["status"] == "ACTIVE" and record["session_id"] in self.workers:
-                    self._close_locked(record["session_id"], "REPLACED_IN_REQUEST")
                     break
             free = self._free_slots()
         return free[0] if free else None
@@ -656,11 +674,14 @@ class SessionManager:
                             return
                 left = s.open_wait_seconds - (time.monotonic() - started)
                 if left <= 0:
+                    own = self.open_in_request(request_id)
                     raise SessionError(
                         "SESSION_CAPACITY_EXCEEDED",
-                        f"Every analysis session slot is in use (waited {int(time.monotonic() - started)} s).", 429,
-                        "RETRY_LATER", retry_after_seconds=s.retry_after_seconds,
-                        waited_seconds=int(time.monotonic() - started))
+                        f"Every analysis session slot of the sandbox is in use by running answers (waited "
+                        f"{int(time.monotonic() - started)} s). This answer holds {len(own)} open session(s)"
+                        + (": continue in one of them, or retry later." if own else "; retry later."), 429,
+                        "USE_OPEN_SESSION" if own else "RETRY_LATER", retry_after_seconds=s.retry_after_seconds,
+                        waited_seconds=int(time.monotonic() - started), open_sessions=own)
                 with self._freed:
                     self._freed.wait(min(1.0, left))
         finally:
@@ -911,8 +932,9 @@ class SessionManager:
             raise SessionError("SESSION_NOT_FOUND", "No session with this id exists for this request.", 404,
                                "OPEN_ANALYSIS_SESSION")
         if record["status"] == "WARM_IDLE" and reopen and session_id in self.workers:
-            # an execution after complete_analysis passed: a new epoch, not released until it completes again
-            self._new_epoch(record, request_id, record.get("need_id"))
+            # M114 (EXEC-V 2026-10-08): the same request runs code again in a session it put back to WARM_IDLE; the
+            # work stays in its epoch (a new epoch is only for a later message, attach), completing again releases it
+            self.store.update_session(session_id, status="ACTIVE", last_active_at=utc_now())
             record = self.store.get_session(session_id)
         worker = self.workers.get(session_id)
         if record["status"] == "CLOSED" or worker is None:
@@ -924,7 +946,17 @@ class SessionManager:
             self.close(session_id, reason)
             raise SessionError("SESSION_CLOSED", f"The session worker ended ({reason}).", 409,
                                "OPEN_ANALYSIS_SESSION", close_reason=reason)
+        self.touch_request(request_id)
         return record, worker
+
+    def touch_request(self, request_id: str) -> None:
+        """Idle per answer (EXEC-V 2026-10-08, "Aktivitas satu jawaban"): activity in one session of a request keeps
+        every open session of that request alive, so a session waiting while the answer works in another is not
+        closed as idle."""
+        now = utc_now()
+        for record in self.store.sessions_for(request_id):
+            if record["status"] in ("ACTIVE", "BUSY"):
+                self.store.update_session(record["session_id"], last_active_at=now)
 
     def execute(self, session_id: str, request_id: str, code: str) -> dict[str, Any]:
         s = self.settings
@@ -1097,6 +1129,7 @@ class SessionManager:
         gaps, empty entities, duplicate keys); no row values. Read from the bundle manifest, so it works after the
         session closed and after the bundle's files expired."""
         record = self.store.get_session(session_id)
+        self.touch_request(request_id)
         if record is None or record["request_id"] != request_id:
             raise SessionError("SESSION_NOT_FOUND", "No session with this id exists for this request.", 404,
                                "OPEN_ANALYSIS_SESSION")
@@ -1250,6 +1283,7 @@ class SessionManager:
         """An output of this request's session; with conversation reuse also a RELEASED output of an earlier
         request of the same conversation (READ_RELEASED), with the evidence of the completion that released it."""
         output, path, origin = self._readable_output(session_id, request_id, output_id, conversation_key)
+        self.touch_request(request_id)
         base = {k: output[k] for k in ("output_id", "name", "type", "format", "row_count", "columns", "byte_count",
                                        "checksum_sha256")} | {"released": bool(output["released"]),
                                                               "meta": output.get("meta") or {}}

@@ -95,6 +95,15 @@ class OpenAnalysisSessionArgs(Strict):
     input_bundle_id: str = Field(pattern=BUNDLE_PATTERN, description="input_bundle_id of a READY bundle.")
 
 
+class OpenAnalysisSessionLimitArgs(OpenAnalysisSessionArgs):
+    """EXEC-V 2026-10-08: with several sessions per answer, the model may close one of this answer's sessions it no
+    longer needs before opening another (the way out of SESSION_LIMIT_PER_REQUEST); never closed by the backend."""
+    close_session_id: str | None = Field(pattern=SESSION_PATTERN, description=(
+        "Optional: a session of this answer to close before opening, only when the open was refused with "
+        "SESSION_LIMIT_PER_REQUEST; pick one that is completed or no longer needed (its released outputs stay "
+        "readable, its variables are gone). Null otherwise."))
+
+
 class RunPythonArgs(Strict):
     session_id: str = Field(pattern=SESSION_PATTERN)
     code: str = Field(min_length=1, max_length=20000, description="Python to run in the session's namespace.")
@@ -154,7 +163,8 @@ def _call(client: SandboxClient, method: str, path: str, timeout: float | None =
         return {"status": "REJECTED", "code": error.get("code"), "message": str(error.get("message") or "")[:600],
                 "next_action": body.get("next_action") or "REPORT_LIMITATION",
                 **{k: v for k, v in error.items() if k in ("close_reason", "retry_after_seconds", "execution_id",
-                                                           "waited_seconds")}}
+                                                           "waited_seconds", "open_sessions",
+                                                           "max_sessions_per_request")}}
     raise ToolError(f"The Python sandbox is unavailable (HTTP {response.status_code}).")
 
 
@@ -275,7 +285,17 @@ COMPLETE_DESCRIPTION = (
     "does not recalculate your formulas: never say a calculation was independently verified."
 )
 RESULT_STORE_VERSION = 1  # R-STORE: the sandbox's output file and carried restore routes
-SESSION_RELEASE_VERSION = 1  # S28: the sandbox's POST /v1/requests/{request_id}/release
+SESSION_RELEASE_VERSION = 2  # S28: the sandbox's POST /v1/requests/{request_id}/release; 2 (EXEC-V 2026-10-08):
+# several open sessions per request (max_sessions_per_request), none closed by opening another
+NUMBER_WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight"}
+SESSION_LIMIT_SENTENCE = (
+    " Each READY bundle gets its own session. One answer may keep up to {limit} sessions open at once, and opening "
+    "one never closes another; activity in any of them keeps all of them open while the answer runs. An open beyond "
+    "the limit is refused (SESSION_LIMIT_PER_REQUEST) with this answer's open sessions listed: continue in one of "
+    "them, or open again with close_session_id naming a completed or unneeded one of them.")
+CAPACITY_OWN_MESSAGE = (
+    "Every analysis session slot of the sandbox is in use{waited}. This answer's own sessions stay open: continue in "
+    "one of them (open_sessions), or return response_type \"LIMITATION\" for the part that needs another session.")
 CAPACITY_MESSAGE = (
     "Every analysis session slot of the sandbox is in use by other requests{waited}. Do not retry open_analysis_session or "
     "prepare_data_bundle in this run: return response_type \"LIMITATION\" saying that the analysis could not start "
@@ -416,13 +436,21 @@ def close_sessions(client: SandboxClient, request_id: str, session_ids: list[str
 
 def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_timeout_seconds: float,
                   max_result_bytes: int, standard_period_return: bool = False, event_study: bool = False,
-                  backtest: bool = False, merged_steps: bool = False
+                  backtest: bool = False, merged_steps: bool = False, session_limit: int | None = None
                   ) -> list[ToolSpec]:
     def request_id() -> str:
         return current_request_id.get() or ""
 
     def open_session(arguments: BaseModel) -> dict[str, Any]:
         assert isinstance(arguments, OpenAnalysisSessionArgs)
+        closed = None
+        close_id = getattr(arguments, "close_session_id", None)
+        if close_id:
+            # the model's own choice after SESSION_LIMIT_PER_REQUEST; the sandbox closes only a session of this request
+            closed = _call(client, "POST", f"/v1/sessions/{close_id}/close", timeout=timeout_seconds,
+                           json={"request_id": request_id()})
+            if closed.get("status") == "REJECTED":
+                return {**closed, "message": f"close_session_id {close_id} was not closed: {closed.get('message')}"}
         body: dict[str, Any] = {"request_id": request_id(), "bundle_id": arguments.input_bundle_id}
         carried = current_carried_outputs.get()
         if carried is not None:
@@ -435,9 +463,13 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
             # meets the same slots.
             result.pop("retry_after_seconds", None)
             waited = result.get("waited_seconds")
-            result.update(message=CAPACITY_MESSAGE.format(
-                waited=f" (the sandbox waited {waited} seconds for a slot)" if waited else ""),
-                next_action="REPORT_LIMITATION")
+            waited = f" (the sandbox waited {waited} seconds for a slot)" if waited else ""
+            if result.get("open_sessions"):
+                result.update(message=CAPACITY_OWN_MESSAGE.format(waited=waited), next_action="USE_OPEN_SESSION")
+            else:
+                result.update(message=CAPACITY_MESSAGE.format(waited=waited), next_action="REPORT_LIMITATION")
+        if closed is not None:
+            result["closed_session"] = {k: closed.get(k) for k in ("session_id", "status", "close_reason")}
         return result
 
     def run(arguments: BaseModel) -> dict[str, Any]:
@@ -492,7 +524,10 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
                  + (COMPLETE_BACKTEST_SENTENCE if backtest else ""),
                  arguments_model=CompleteAnalysisArgs,
                  handler=complete, timeout_seconds=timeout_seconds * 4, max_result_bytes=max_result_bytes),
-        ToolSpec(name="open_analysis_session", effect="COMPUTES", description=OPEN_DESCRIPTION, arguments_model=OpenAnalysisSessionArgs,
+        ToolSpec(name="open_analysis_session", effect="COMPUTES",
+                 description=OPEN_DESCRIPTION + (SESSION_LIMIT_SENTENCE.format(
+                     limit=NUMBER_WORDS.get(session_limit, str(session_limit))) if session_limit else ""),
+                 arguments_model=OpenAnalysisSessionLimitArgs if session_limit else OpenAnalysisSessionArgs,
                  handler=open_session, timeout_seconds=timeout_seconds + 30, max_result_bytes=max_result_bytes),
         ToolSpec(name="run_python", effect="COMPUTES", description=RUN_DESCRIPTION + (PERIOD_RETURN_SENTENCE if standard_period_return
                                                                    else "")

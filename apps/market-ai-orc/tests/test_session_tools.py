@@ -289,3 +289,67 @@ def test_r_store_file_copy_restore_upload_and_the_open_hook() -> None:
     rejected = {"status": "REJECTED"}
     restore_into(rejected, None)  # no session, no restorer: unchanged
     assert rejected == {"status": "REJECTED"}
+
+
+# --- EXEC-V 2026-10-08: several sessions per answer, the limit known to the model, clear refusals -----------------
+
+def limited_registry(fake: FakeSandbox, limit: int | None):
+    sandbox = SandboxClient("http://sandbox.test", SANDBOX_KEY, 10, 0, transport=httpx.MockTransport(fake.handler))
+    governor = GovernorClient("http://governor.test", "g" * 40, 10, transport=httpx.MockTransport(
+        lambda r: httpx.Response(404)))
+    return build_default_registry(sandbox_client=sandbox, governor_client=governor, dataneed_enabled=True,
+                                  session_timeout_seconds=200, session_limit=limit)
+
+
+def test_the_model_reads_the_answers_session_limit_in_words_and_the_close_argument_only_with_it() -> None:
+    described = {d["name"]: d for d in limited_registry(FakeSandbox(), 4).definitions()}["open_analysis_session"]
+    assert "up to four sessions open at once" in described["description"]
+    assert "opening one never closes another" in described["description"]
+    assert "SESSION_LIMIT_PER_REQUEST" in described["description"]
+    assert "close_session_id" in described["parameters"]["properties"]
+    plain = {d["name"]: d for d in limited_registry(FakeSandbox(), None).definitions()}["open_analysis_session"]
+    assert "close_session_id" not in plain["parameters"]["properties"] and "four" not in plain["description"]
+
+
+def test_the_refusal_beyond_the_limit_reaches_the_model_with_the_open_sessions() -> None:
+    listed = [{"session_id": SESSION, "bundle_id": BUNDLE, "need_id": "need_1", "status": "ACTIVE", "executions": 3,
+               "completed": True}]
+    fake = FakeSandbox({"/v1/sessions": (409, {
+        "status": "REJECTED", "next_action": "USE_OPEN_SESSION",
+        "error": {"code": "SESSION_LIMIT_PER_REQUEST", "message": "This answer already has 4 of its 4 analysis "
+                  "sessions open, and opening a session never closes another.", "open_sessions": listed,
+                  "max_sessions_per_request": 4}})})
+    result = call(limited_registry(fake, 4), "open_analysis_session", {"input_bundle_id": BUNDLE}).output["result"]
+    assert result["code"] == "SESSION_LIMIT_PER_REQUEST" and result["next_action"] == "USE_OPEN_SESSION"
+    assert result["open_sessions"] == listed and result["max_sessions_per_request"] == 4
+    assert "never closes another" in result["message"]
+
+
+def test_close_session_id_closes_the_models_choice_then_opens() -> None:
+    other = "sess_" + "e" * 24
+    fake = FakeSandbox({
+        f"/v1/sessions/{SESSION}/close": (200, {"session_id": SESSION, "status": "CLOSED",
+                                               "close_reason": "CLOSED_BY_CALLER"}),
+        "/v1/sessions": (200, {"session_id": other, "status": "ACTIVE", "bundle_id": BUNDLE})})
+    result = call(limited_registry(fake, 4), "open_analysis_session",
+                  {"input_bundle_id": BUNDLE, "close_session_id": SESSION}).output["result"]
+    assert [c["path"] for c in fake.calls] == [f"/v1/sessions/{SESSION}/close", "/v1/sessions"]
+    assert result["session_id"] == other and result["closed_session"]["close_reason"] == "CLOSED_BY_CALLER"
+    refused = FakeSandbox({f"/v1/sessions/{SESSION}/close": (404, {
+        "status": "REJECTED", "error": {"code": "SESSION_NOT_FOUND", "message": "No session with this id."}})})
+    result = call(limited_registry(refused, 4), "open_analysis_session",
+                  {"input_bundle_id": BUNDLE, "close_session_id": SESSION}).output["result"]
+    assert result["code"] == "SESSION_NOT_FOUND" and [c["path"] for c in refused.calls] == [
+        f"/v1/sessions/{SESSION}/close"]  # nothing opened when the close was refused
+
+
+def test_a_capacity_refusal_with_the_answers_own_sessions_points_at_them() -> None:
+    listed = [{"session_id": SESSION, "bundle_id": BUNDLE, "need_id": "need_1", "status": "ACTIVE", "executions": 1,
+               "completed": False}]
+    fake = FakeSandbox({"/v1/sessions": (429, {
+        "status": "REJECTED", "next_action": "USE_OPEN_SESSION",
+        "error": {"code": "SESSION_CAPACITY_EXCEEDED", "message": "busy", "open_sessions": listed,
+                  "retry_after_seconds": 15}})})
+    result = call(limited_registry(fake, 4), "open_analysis_session", {"input_bundle_id": BUNDLE}).output["result"]
+    assert result["next_action"] == "USE_OPEN_SESSION" and result["open_sessions"] == listed
+    assert "own sessions stay open" in result["message"] and not any(ch.isdigit() for ch in result["message"])

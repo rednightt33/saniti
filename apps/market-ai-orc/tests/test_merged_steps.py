@@ -106,22 +106,19 @@ def test_a_bundle_that_is_not_ready_stops_the_chain_and_the_tool_stays_to_retry(
     assert result.status == "LIMITED"
 
 
-def test_a_second_need_while_a_session_is_open_is_prepared_but_not_opened() -> None:
-    """M102 (golden test 2026-10-07, variant_bbca turn 2): four needs submitted one after another each opened a session,
-    and each open closed the session of the need before (one open session per run, S08)."""
+def test_a_second_need_while_a_session_is_open_gets_its_own_session() -> None:
+    """M102 (golden test 2026-10-07, variant_bbca turn 2) and EXEC-V 2026-10-08: each prepared bundle opens its own
+    session; the open of the second need closes nothing (the sandbox refuses an open beyond the answer's limit)."""
     tools = MergedTools([completed()])
     script = [call("submit_data_need_spec", {"mode": "ANALYSIS", "research_governance": None}, "c1"),
               call("submit_data_need_spec", {"mode": "ANALYSIS", "research_governance": None}, "c2"),
               final_response(answer("BBCA naik lebih tinggi dari BBRI.", "LIMITATION", ["belum selesai"]))]
     _, scripted = run(script, tools)
     assert tools.calls == ["submit_data_need_spec", "prepare_data_bundle", "open_analysis_session",
-                           "submit_data_need_spec", "prepare_data_bundle"]
-    assert [m["tool"] for m in outputs(scripted)[1]["merged_steps"]] == ["prepare_data_bundle"]
-    # EXEC-V V-a (M110): the prepared bundle points at the open session first, not at another open
+                           "submit_data_need_spec", "prepare_data_bundle", "open_analysis_session"]
     second = outputs(scripted)[1]
-    assert second["merged_steps"][0]["result"]["next_action"].startswith("COMPLETE_OPEN_SESSION_FIRST")
-    prepared = second["merged_steps"][0]["result"]
-    assert prepared["open_session_id"] and "run_python" in prepared["next_action"]
+    assert [m["tool"] for m in second["merged_steps"]] == ["prepare_data_bundle", "open_analysis_session"]
+    assert "COMPLETE_OPEN_SESSION_FIRST" not in json.dumps(second)
 
 
 def test_the_switch_off_keeps_every_step_a_turn_of_its_own() -> None:

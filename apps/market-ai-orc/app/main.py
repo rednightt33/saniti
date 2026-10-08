@@ -245,6 +245,13 @@ def create_app(
             backtest = capability.get("enabled") is True and capability.get("version") == BACKTEST_VERSION
             if not backtest:
                 log_event("backtest_inactive", reason=f"needs a sandbox reporting backtest version {BACKTEST_VERSION}")
+        # EXEC-V 2026-10-08: how many sessions one answer may keep open, as the sandbox reports it (session_release
+        # version 2); the sandbox enforces it, the model reads it in open_analysis_session's description
+        session_limit = None
+        if settings.ai_enable_dataneed and sandbox is not None:
+            capability = sandbox.runtime().get("session_release") or {}
+            if capability.get("enabled") is True and capability.get("version") == SESSION_RELEASE_VERSION:
+                session_limit = int(capability.get("max_sessions_per_request") or 0) or None
         multi_angle_active = multi_angle is not None and feasibility and composite
         hypothesis_plan = settings.ai_enable_hypothesis_plan and research_findings
         method_guides = None
@@ -360,6 +367,7 @@ def create_app(
             value_references=settings.ai_enable_value_references,
             run_memory=run_memory,
             merged_steps=settings.ai_enable_merged_steps,
+            session_limit=session_limit,
         )
         auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
             if sandbox is not None or settings.research_audit_database_url else None

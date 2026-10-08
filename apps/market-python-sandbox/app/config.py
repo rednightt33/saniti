@@ -97,6 +97,8 @@ class Settings:
     bundle_store_bytes: int
     session_uid_base: int
     max_sessions: int
+    # EXEC-V 2026-10-08: the open sessions one request (one answer) may hold; opening one never closes another
+    max_sessions_per_request: int
     session_execution_seconds: int
     session_cpu_seconds: int
     session_idle_seconds: int
@@ -264,6 +266,8 @@ class Settings:
                                         maximum=1 << 40),
             session_uid_base=_integer(env, "PY_SANDBOX_SESSION_UID_BASE", 20201, minimum=1000, maximum=60000),
             max_sessions=_integer(env, "PY_SANDBOX_MAX_SESSIONS", 2, maximum=4),
+            max_sessions_per_request=_integer(env, "PY_SANDBOX_MAX_SESSIONS_PER_REQUEST",
+                                              _integer(env, "PY_SANDBOX_MAX_SESSIONS", 2, maximum=4), maximum=4),
             session_execution_seconds=_integer(env, "PY_SANDBOX_SESSION_EXECUTION_SECONDS",
                                                _integer(env, "PY_SANDBOX_MAX_RUNTIME_SECONDS", 120, maximum=3600),
                                                minimum=5, maximum=900),
@@ -334,6 +338,8 @@ class Settings:
             raise ConfigError("PY_SANDBOX_MAX_THREADS must be at least 8x PY_SANDBOX_THREADS_PER_JOB")
         if settings.slot_uid_base <= settings.validator_uid < settings.slot_uid_base + settings.concurrency:
             raise ConfigError("PY_SANDBOX_VALIDATOR_UID must differ from every analysis slot user")
+        if settings.max_sessions_per_request > settings.max_sessions:
+            raise ConfigError("PY_SANDBOX_MAX_SESSIONS_PER_REQUEST must not exceed PY_SANDBOX_MAX_SESSIONS")
         sessions = range(settings.session_uid_base, settings.session_uid_base + settings.max_sessions)
         slots = range(settings.slot_uid_base, settings.slot_uid_base + settings.concurrency)
         if settings.validator_uid in sessions or set(sessions) & set(slots):
