@@ -349,38 +349,6 @@ class SubmitDataNeedSpecArgsPITFindings(DataNeedSpecBodyPIT):
                                                                                "ANALYSIS.")
 
 
-# EXEC-V stage 3 (M110, user decision 2026-10-07: "1 data ... di sandbox yang sama"): the experiments of one approved
-# hypothesis plan that read the same data share one data need. Offered only when the sandbox reports
-# research_multi_experiment (GET /v1/runtime); without it the field is absent, one experiment per data need.
-MAX_EXPERIMENTS_PER_NEED = 4
-
-
-class ResearchExperimentsField(Strict):
-    research_experiments: list[ResearchGovernanceFindings] | None = Field(
-        min_length=2, max_length=MAX_EXPERIMENTS_PER_NEED,
-        description="RESEARCH only: two to four experiments of the approved plan that read this same data, each "
-                    "copied from its experiment like research_governance (which is then null); null otherwise.")
-
-    @model_validator(mode="before")
-    @classmethod
-    def _experiments_absent_is_null(cls, data: Any) -> Any:
-        if isinstance(data, dict) and "research_experiments" not in data:
-            return {**data, "research_experiments": None}
-        return data
-
-
-class SubmitDataNeedSpecArgsMultiFindings(SubmitDataNeedSpecArgsFindings, ResearchExperimentsField):
-    pass
-
-
-class SubmitDataNeedSpecArgsV2MultiFindings(SubmitDataNeedSpecArgsV2Findings, ResearchExperimentsField):
-    pass
-
-
-class SubmitDataNeedSpecArgsPITMultiFindings(SubmitDataNeedSpecArgsPITFindings, ResearchExperimentsField):
-    pass
-
-
 # ---------------------------------------------------------------- argument errors in the validator's issue shape
 
 def _walk(data: Any, loc: tuple[Any, ...], missing: bool) -> tuple[str, Any, Any]:
@@ -444,36 +412,21 @@ def submit_data_need(client: SandboxClient,
     payload = arguments.model_dump(mode="json")
     take_data_date_policy(payload)
     governance = payload.pop("research_governance")
-    experiments = payload.pop("research_experiments", None)
-    if experiments is not None:
-        if governance is not None:
-            return {"status": "REVISION_REQUIRED", "next_action": "REVISE_DATA_NEED_SPEC", "issues": [{
-                "data_request_id": None, "code": "INVALID_FIELD_VALUE", "field_path": "research_governance",
-                "rejected_value": "research_governance is null when research_experiments lists the experiments"}]}
-        governance = None
-    declared = experiments if experiments is not None else ([governance] if governance is not None else [])
     if arguments.mode == "RESEARCH":
         # The research execution guard: arguments are validated, nothing has reached the sandbox yet. Without a
         # verified approved Research Plan (when confirmation is on), or with a declaration that differs from its
-        # approved experiment, the call ends here. EXEC-V stage 3: every experiment of the need is matched.
-        for index, experiment in enumerate(declared or [None]):
-            refused = guard_research_submission(experiment)
-            if refused is not None:
-                if experiments is not None:
-                    for issue in (refused.get("error") or {}).get("issues") or []:
-                        issue["field_path"] = str(issue.get("field_path") or "").replace(
-                            "research_governance", f"research_experiments[{index}]", 1)
-                return refused
-    for item in declared:
+        # approved experiment, the call ends here.
+        refused = guard_research_submission(governance)
+        if refused is not None:
+            return refused
+    if governance is not None:
         # The declaration fields are sent only when set, so a sandbox without them still accepts the request.
         for key in DECLARATION_FIELDS:
-            if item.get(key) is None:
-                item.pop(key, None)
+            if governance.get(key) is None:
+                governance.pop(key, None)
     body: dict[str, Any] = {"request_id": client._request_id(), "reference_time": context.reference_time.isoformat(),
                             "timezone": context.timezone, "spec": payload}
-    if experiments is not None:
-        body["research_experiments"] = experiments
-    elif governance is not None:
+    if governance is not None:
         body["research_governance"] = governance
     response = client._call("POST", "/v1/data-needs", json=pinned_body(body))
     result = client._json(response)
@@ -512,12 +465,8 @@ MERGED_APPROVAL = ("APPROVED (need_id; the backend then prepares the data bundle
 
 def data_need_specs(client: SandboxClient, *, timeout_seconds: float, max_result_bytes: int,
                     composite_keys: bool = False, point_in_time: bool = False,
-                    research_findings: bool = False, merged_steps: bool = False,
-                    multi_experiment: bool = False) -> list[ToolSpec]:
-    if research_findings and multi_experiment:
-        model = (SubmitDataNeedSpecArgsPITMultiFindings if point_in_time else SubmitDataNeedSpecArgsV2MultiFindings) \
-            if composite_keys else SubmitDataNeedSpecArgsMultiFindings
-    elif research_findings:
+                    research_findings: bool = False, merged_steps: bool = False) -> list[ToolSpec]:
+    if research_findings:
         model = (SubmitDataNeedSpecArgsPITFindings if point_in_time else SubmitDataNeedSpecArgsV2Findings) \
             if composite_keys else SubmitDataNeedSpecArgsFindings
     else:

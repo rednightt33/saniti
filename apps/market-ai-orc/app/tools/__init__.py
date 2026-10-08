@@ -48,7 +48,6 @@ def build_default_registry(
     composite_keys: bool = False,
     point_in_time: bool = False,
     research_findings: bool = False,
-    research_multi_experiment: bool = False,
     preflight_parts: bool = False,
     multi_angle: dict | None = None,
     bundle_limits: dict | None = None,
@@ -123,7 +122,7 @@ def build_default_registry(
             for spec in data_need_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
                                         max_result_bytes=python_analysis_max_bytes, composite_keys=composite_keys,
                                         point_in_time=point_in_time, research_findings=research_findings,
-                                        merged_steps=merged_steps, multi_experiment=research_multi_experiment):
+                                        merged_steps=merged_steps):
                 registry.register(spec)
             if governor_client is not None:
                 # many Governor extractions plus the sandbox's verification and profiling

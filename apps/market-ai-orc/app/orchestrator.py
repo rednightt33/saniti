@@ -697,15 +697,6 @@ backend recomputes the statistics from the rows you pass to event_summary
 (STATISTICS_VERIFIED); it does not check how you built those rows, so
 the answer says the condition was built by the analysis code.
 """ + FINDINGS_SAMPLE)
-# EXEC-V stage 3 (M110, user decision 2026-10-07): written only when submit_data_need_spec offers research_experiments
-# (the sandbox reports research_multi_experiment); it follows step 3 of HYPOTHESIS PLAN
-HYPOTHESIS_STEP_THREE_END = "Any other change needs a revised plan and a\nnew approval."
-MULTI_EXPERIMENT_STEP = (
-    "Experiments of the plan that read the same data share one data need: submit it once with research_experiments, "
-    "one entry per experiment copied as above (research_governance null), and run each experiment's event_summary in "
-    "that one session. complete_analysis returns one finding per experiment and completes only when each has one. "
-    "Experiments on other data get their own data need.")
-MULTI_EXPERIMENT_VARIANTS = " Experiments of a hypothesis plan on the same data share one data need (research_experiments)."
 DUAL_RESEARCH_SENTENCE = ("A data need in mode RESEARCH is accepted only for an approved hypothesis plan (below); a "
                           "multi-angle plan runs only through start_research_run.")
 ANALYSIS_NEEDS_NO_PLAN = "Mode ANALYSIS needs no plan and proceeds directly."
@@ -984,8 +975,7 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
                         research_findings: bool = False, multi_angle: bool = False,
                         angle_limits: tuple[int, int, int] = (2, 6, 0), value_references: bool = False,
                         hypothesis_plans: bool = False, tools: frozenset[str] = frozenset(),
-                        tool_envelope: bool = False, memo_note: bool = False, merged_steps: bool = False,
-                        multi_experiment: bool = False) -> str:
+                        tool_envelope: bool = False, memo_note: bool = False, merged_steps: bool = False) -> str:
     """The system prompt for the registered tools. It is fixed for a deployment (AI_ENABLE_LOOKUP_FACT,
     AI_ENABLE_DATANEED, AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION, AI_ENABLE_STANDARD_PERIOD_RETURN,
     AI_FINAL_CONTRACT_IN_PROMPT, AI_ENABLE_TOOL_ENVELOPE), so every call of every run shares one byte-identical
@@ -1011,10 +1001,7 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
         research = ""
         if dual:
             # K4: one choice rule (RESEARCH PLANS) before both plans; K3: their field forms right after them
-            hypothesis_rules = HYPOTHESIS_PLAN_RULES.replace(
-                HYPOTHESIS_STEP_THREE_END, HYPOTHESIS_STEP_THREE_END + " " + MULTI_EXPERIMENT_STEP) \
-                if multi_experiment else HYPOTHESIS_PLAN_RULES
-            plan_rules = RESEARCH_PLANS_RULES + _drop_sentence(plan_rules, MULTI_ANGLE_OPENING) + hypothesis_rules \
+            plan_rules = RESEARCH_PLANS_RULES + _drop_sentence(plan_rules, MULTI_ANGLE_OPENING) + HYPOTHESIS_PLAN_RULES \
                 + ("\n\n" + plan_forms_block() if final_contract else "")
             mode_sentence = DUAL_RESEARCH_SENTENCE
             # B4, B5 (prompt audit 2026-10-05): the hypothesis findings cite the backend like the angle findings, and
@@ -2215,10 +2202,6 @@ class AgentOrchestrator:
         if self.hypothesis_plans:
             self.plan_tools = self.plan_tools | {"check_data_feasibility"}
         self.research_findings = findings_v1 and (not self.multi_angle or self.hypothesis_plans)
-        # EXEC-V stage 3: several experiments of a hypothesis plan in one data need (the sandbox's capability decides
-        # whether the registered submit_data_need_spec offers research_experiments)
-        self.multi_experiment = bool(self.hypothesis_plans and submit is not None
-                                     and "research_experiments" in submit.arguments_model.model_fields)
         # caller-chosen path: a request may fix ANALYSIS or RESEARCH (both need the DataNeed flow and plan confirmation)
         self.analysis_path = settings.ai_enable_analysis_path and submit is not None and self.plan_confirmation
         if settings.ai_enable_analysis_path and not self.analysis_path:
@@ -2252,8 +2235,7 @@ class AgentOrchestrator:
                                                  frozenset(registry.names()),
                                                  bool(getattr(settings, "ai_enable_tool_envelope", False)),
                                                  memo_note=run_memory is not None,
-                                                 merged_steps=self.merged_steps,
-                                                 multi_experiment=self.multi_experiment)
+                                                 merged_steps=self.merged_steps)
         self.final_schema = final_response_schema(self.plan_confirmation, self.methodology, self.research_findings,
                                                   self.multi_angle, self.value_references, self.hypothesis_plans,
                                                   memo_note=run_memory is not None)
@@ -3329,8 +3311,7 @@ class AgentOrchestrator:
                      router.NOTES["QUICK_SUMMARY"] if (intent or {}).get("choice") == "QUICK_SUMMARY" else None,
                      CORRECTION_NOTE if self.ask_back and state.plan_turn == "EXECUTE_APPROVED" else None,
                      VARIANT_NOTE.format(variants="; ".join(f"{name}: {', '.join(values)}"
-                                                            for name, values in named.items()))
-                     + (MULTI_EXPERIMENT_VARIANTS if self.multi_experiment else "") if named else None):
+                                                            for name, values in named.items())) if named else None):
             if note:  # EXEC-3: the router's reading of the request, and a quick summary the user chose
                 state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": note})
         kind = router.current_turn_kind.get()
@@ -4509,14 +4490,11 @@ class AgentOrchestrator:
             # EXEC-D P-h: the subject and relationships the need declared (the approved view has neither)
             records.add_need(state.data_record, state.request_id, result, given.get("mode"),
                              subject=given.get("subject"), relationships=given.get("relationships"))
-            # EXEC-V stage 3: a need may carry several experiments of the plan (research_experiments)
-            declared = [g for g in (given.get("research_experiments") or [given.get("research_governance")])
-                        if isinstance(g, dict)]
             state.needs[result["need_id"]] = {
                 "mode": (arguments or {}).get("mode") if isinstance(arguments, dict) else None,
                 "governance": result.get("research_governance"),
-                "hypothesis_id": declared[0].get("hypothesis_id") if declared else None,
-                "hypothesis_ids": [g.get("hypothesis_id") for g in declared]}
+                "hypothesis_id": ((arguments or {}).get("research_governance") or {}).get("hypothesis_id")
+                if isinstance(arguments, dict) else None}
             state.context_numbers.extend(numbers_in(arguments))
         elif name == "prepare_data_bundle" and result.get("status") == "READY":
             if result.get("reused"):
@@ -5938,17 +5916,16 @@ class AgentOrchestrator:
                 cited = check_answer(answer or "", index)
                 retained = "RETAINED" if cited.checked > len(cited.unsupported) else "DISCARDED"
             governance = need.get("governance") or {}
-            for hypothesis_id in need.get("hypothesis_ids") or [need.get("hypothesis_id")]:
-                finding = state.research_findings.get(str(hypothesis_id)) or {}
-                experiments.append({
-                    "spec_id": need_id, "evidence_standard": "HISTORICAL_PATTERN", "hypothesis_id": hypothesis_id,
-                    "followup_of": (governance.get("constraints") or {}).get("followup_of"),
-                    "governor_decision": governance.get("decision"), "analysis_id": session_id,
-                    "execution_status": (completion or {}).get("final", {}).get("sandbox_execution"),
-                    "validation_status": (completion or {}).get("coverage"),
-                    "validation_level": (completion or {}).get("final", {}).get("evidence_label"),
-                    "evidence_decision": finding.get("verdict"), "evidence_level": finding.get("sample_flag"),
-                    "retained": retained})
+            finding = state.research_findings.get(str(need.get("hypothesis_id"))) or {}
+            experiments.append({
+                "spec_id": need_id, "evidence_standard": "HISTORICAL_PATTERN", "hypothesis_id": need.get("hypothesis_id"),
+                "followup_of": (governance.get("constraints") or {}).get("followup_of"),
+                "governor_decision": governance.get("decision"), "analysis_id": session_id,
+                "execution_status": (completion or {}).get("final", {}).get("sandbox_execution"),
+                "validation_status": (completion or {}).get("coverage"),
+                "validation_level": (completion or {}).get("final", {}).get("evidence_label"),
+                "evidence_decision": finding.get("verdict"), "evidence_level": finding.get("sample_flag"),
+                "retained": retained})
         return experiments
 
     def _research_summary(self, state: RunState, answer: str) -> list[dict[str, Any]]:

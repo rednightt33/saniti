@@ -146,8 +146,6 @@ def _build(off: tuple[str, ...] = ()):
                                         period_return=True, backtest=True)
     kwargs = {argument: True for argument in SWITCHES.values()}
     kwargs["backtest"] = True  # P32: offered when the sandbox reports the backtest capability (no switch)
-    # EXEC-V stage 3: research_experiments, offered when the sandbox reports research_multi_experiment (no switch)
-    kwargs["research_multi_experiment"] = True
     kwargs["method_guides"] = {"names": names, "menu": method_guides.menu(names)}
     kwargs["multi_angle"] = {"max_groups": 2, "min_angles": 2, "max_angles": 5, "library": research_library.rows()}
     kwargs["metrics"] = [{"metric_id": "example", "label": "x", "description": "x", "source_table": "t",

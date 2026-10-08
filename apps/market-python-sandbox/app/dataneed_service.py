@@ -28,8 +28,7 @@ from . import findings_table
 from .research_findings import evaluate as evaluate_findings
 from .research_methods import sha256_json as research_sha256
 from .sessions import SessionError, SessionManager
-from .research_governance import MAX_EXPERIMENTS_PER_NEED, experiments_of
-from .research_governance import review_experiments as governance_review
+from .research_governance import review as governance_review
 from . import backtest_validation, event_study_validation, research_validation
 
 # outputs only the saniti helpers write (runtime/saniti_session.py RESEARCH_RESERVED): records the backend recomputes
@@ -182,9 +181,6 @@ class DataNeedService:
                 if governance is None:
                     extra.append({"data_request_id": None, "code": "MISSING_REQUIRED_FIELD",
                                   "field_path": "research_governance", "rejected_value": None})
-                elif isinstance(governance, list):
-                    # EXEC-V stage 3: the experiments of one hypothesis plan that read the same data
-                    extra.extend(self._check_experiments(governance))
                 else:
                     extra.extend(check_request(governance, self.policy.findings_fields_required))
             elif mode == "ANALYSIS" and governance is not None:
@@ -198,33 +194,9 @@ class DataNeedService:
                         "governance": n["governance"]}
                        for n in self.store.needs_for_request(request_id)
                        if n["mode"] == "RESEARCH" and n["extraction_allowed"]]
-            research = governance_review(experiments_of(governance), spec, history, len(earlier), self.policy)
+            research = governance_review(governance, spec, history, len(earlier), self.policy)
         return self._record(request_id, spec, governance, submitted, submitted_sha, key, body, approved, research,
                             contract=contract)
-
-    def _check_experiments(self, experiments: list[Any]) -> list[dict[str, Any]]:
-        """research_experiments: 2 to MAX_EXPERIMENTS_PER_NEED experiments with research findings v1 (each is
-        evaluated by its own finding), each a valid ResearchGovernanceRequest, every hypothesis_id once."""
-        def issue(code: str, path: str, value: Any) -> dict[str, Any]:
-            return {"data_request_id": None, "code": code, "field_path": path, "rejected_value": value}
-
-        if not self.settings.research_findings_enabled:
-            return [issue("MULTI_EXPERIMENT_UNAVAILABLE", "research_experiments",
-                          "several experiments in one data need need research findings v1")]
-        if not 2 <= len(experiments) <= MAX_EXPERIMENTS_PER_NEED:
-            return [issue("TOO_MANY_ITEMS" if len(experiments) > MAX_EXPERIMENTS_PER_NEED else "INVALID_FIELD_VALUE",
-                          "research_experiments", f"{len(experiments)} experiments")]
-        problems: list[dict[str, Any]] = []
-        for index, experiment in enumerate(experiments):
-            for item in check_request(experiment, True):
-                problems.append({**item, "field_path": item["field_path"].replace(
-                    "research_governance", f"research_experiments[{index}]", 1)})
-        ids = [e.get("hypothesis_id") for e in experiments if isinstance(e, dict)]
-        for index, hypothesis in enumerate(ids):
-            if hypothesis in ids[:index]:
-                problems.append(issue("DUPLICATE_HYPOTHESIS", f"research_experiments[{index}].hypothesis_id",
-                                      hypothesis))
-        return problems
 
     def _record(self, request_id: str, spec: Any, governance: Any, submitted: dict[str, Any], submitted_sha: str,
                 conversation_key: str | None, body: dict[str, Any], approved: dict[str, Any] | None,
@@ -617,10 +589,6 @@ class DataNeedService:
             constraints = research.get("constraints") or {}
             if research_v2 is None and constraints.get("governance_version") != GOVERNANCE_V2:
                 findings = constraints.get("findings") or None  # M28: research findings v1
-                if constraints.get("experiments"):
-                    # EXEC-V stage 3: each experiment's approved values, read by event_summary(hypothesis_id=...)
-                    findings = {"experiments": {c["hypothesis_id"]: c.get("findings") or {}
-                                                for c in constraints["experiments"]}}
         # A warm worker's namespace holds what its earlier epochs computed. 2c binds a need to a bundle of any mode, so
         # the mode decides the attach: a RESEARCH need always starts a fresh worker (it reads only its bundle and the
         # tables its approved plan names, with its own compute budget), and an ANALYSIS need never takes over a
@@ -936,7 +904,7 @@ class DataNeedService:
         findings = None
         if self.settings.research_findings_enabled and mode == "RESEARCH" and passed and grouped is None \
                 and constraints.get("governance_version") != GOVERNANCE_V2:
-            findings = self._evaluate_experiments(research.get("constraints") or {}, outputs)
+            findings = evaluate_findings(research.get("constraints") or {}, outputs, self.sessions.outputs_root)
             passed = findings["status"] == "OK"
         # G2 event study: every saniti.event_study of this epoch is rebuilt from its declaration and recomputed here,
         # outside the model's process; a released table that differs fails the completion (CALCULATION_MISMATCH)
@@ -1014,7 +982,7 @@ class DataNeedService:
                     "checksum_sha256"),
                 "execution_ids": [e["execution_id"] for e in executions if e["status"] == "OK"]}
         if findings is not None and findings["status"] == "OK":
-            final["research_findings"] = findings["findings"]
+            final["research_findings"] = [findings["finding"]]
         used = {}
         for run in executions:
             if run["status"] != "OK":
@@ -1086,7 +1054,7 @@ class DataNeedService:
         if passed:
             # M80 (a): the backend's research findings also as a standard table (export, chart, value references)
             found = ([grouped["findings"][a] for a in sorted(grouped["findings"])] if grouped is not None else []) \
-                + (findings["findings"] if findings is not None and findings["status"] == "OK" else [])
+                + ([findings["finding"]] if findings is not None and findings["status"] == "OK" else [])
             ok_runs = [e for e in executions if e["status"] == "OK"]
             table_rows = findings_table.rows(found)
             if table_rows and ok_runs:
@@ -1204,21 +1172,6 @@ class DataNeedService:
                   coverage=coverage_status, execution=execution, released=len(released),
                   evidence_label=final["evidence_label"])
         return result
-
-    def _evaluate_experiments(self, constraints: dict[str, Any], outputs: list[dict[str, Any]]) -> dict[str, Any]:
-        """Research findings v1 for every experiment of the need (EXEC-V stage 3): each from its own released
-        research_events_<hypothesis_id> and its own approved values; the completion passes only when all do, and the
-        message names each experiment still missing or invalid."""
-        experiments = constraints.get("experiments") or [constraints]
-        results = [(c, evaluate_findings(c, outputs, self.sessions.outputs_root)) for c in experiments]
-        failed = [(c, r) for c, r in results if r["status"] != "OK"]
-        if not failed:
-            return {"status": "OK", "findings": [r["finding"] for _, r in results]}
-        if len(experiments) == 1:
-            return failed[0][1]
-        status = "INVALID" if any(r["status"] == "INVALID" for _, r in failed) else failed[0][1]["status"]
-        return {"status": status, "message": " ".join(f"Experiment {c.get('hypothesis_id')}: {r['message']}"
-                                                      for c, r in failed)}
 
     def _research_hashes(self, constraints: dict[str, Any], bundle: dict[str, Any]) -> dict[str, Any]:
         run = self.store.get_research_run(str(constraints.get("research_run_id"))) or {}

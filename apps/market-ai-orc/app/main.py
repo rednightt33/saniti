@@ -209,15 +209,6 @@ def create_app(
                 log_event("research_findings_inactive", reason="needs AI_ENABLE_DATANEED, "
                                                                "AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION and a sandbox "
                                                                "reporting research_findings version 1")
-        # EXEC-V stage 3: several experiments of one hypothesis plan in one data need, when the sandbox evaluates one
-        # finding per experiment (research_multi_experiment version 1); otherwise one experiment per data need
-        research_multi_experiment = False
-        if research_findings:
-            capability = (sandbox.runtime().get("research_multi_experiment") or {}) if sandbox is not None else {}
-            research_multi_experiment = capability.get("enabled") is True and capability.get("version") == 1
-            if not research_multi_experiment:
-                log_event("research_multi_experiment_inactive", reason="needs a sandbox reporting "
-                                                                       "research_multi_experiment version 1")
         # Multi-Angle Research: both services must agree on the method registry and the grouped-execution contract
         multi_angle = None
         if settings.ai_enable_multi_angle_research:
@@ -354,7 +345,6 @@ def create_app(
             composite_keys=composite,
             point_in_time=point_in_time,
             research_findings=research_findings,
-            research_multi_experiment=research_multi_experiment,
             preflight_parts=settings.ai_enable_preflight_parts,
             planner_parallel_parts=settings.ai_planner_parallel_parts,
             multi_angle=multi_angle,
