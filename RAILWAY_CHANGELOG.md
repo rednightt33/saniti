@@ -3140,3 +3140,19 @@ User: "Test interaksinya ya fitur dll ensure tidak ada bug visually. bisa?" and
   proxy-denied; local rendering uses the tested production frontend and actual local backend paths.
 - Temporary verification sandbox `4de4be1c` was verified DESTROYED; the disposable local Postgres container
   was stopped. No live user conversation/response or market data was added by this QA.
+
+## 2026-10-08 — EXEC-X deployed from main: EDGE answer view (M124, M125 A/B), reader rules (M125 C), prompt history
+
+User: "Mau saya deploy ke dev lalu jalankan GT kecil itu?" — "Ok".
+
+- `main` fast-forwarded from `6371b71` to `72478cd` (branch `claude/code-session-2k3oeg`); both services track `main`.
+- market-ai-orc **30d161b7-1d60-4283-82b4-bfc9188d1512**, commit `72478cd`, reached **SUCCESS**. Rollback reference:
+  `9efe1118`. Startup log: `ai_model_selected switch=1 deepseek/deepseek-v4.1-flash`, `ai_mode_selected switch=4`,
+  provider policy OK (unchanged); `/ready` 200. Rendered dev prompt: `prompts/history/v002-2026-10-08-reader-rules`
+  (sha256 `367d6103d2e3`).
+- edge-bff **d5f225d3-483d-4e5c-8be3-72af2dc1a2da**, commit `72478cd`, reached **SUCCESS**. Rollback reference:
+  `2dcf1155`. Public `/ready` 200; served `index.html`, `edge-client.js`, `edge-labels.js` and `edge-view.js` are
+  byte-identical (sha256) to the tested files.
+- Tests before merge: orc 1,567 passed; EDGE BFF 46 passed (Chromium, local Postgres).
+- No variable, model, provider, mode, schema or Railway configuration change; no IaC apply. No paid AI call in the
+  deployment check.
