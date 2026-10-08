@@ -1215,6 +1215,26 @@ uji web 5 pertanyaan sesudah disetujui dan di-deploy). Usulan P1–P5 menunggu p
   sumbernya (teks link = nama situs, alamat dari daftar sumber yang dibaca sistem, bukan diketik AI); angka database
   tanpa tanda di kalimat, asalnya di panel Sources. P1–P5 masih menunggu go.
 
+**Uji ekstrak data ke Excel (keputusan user 2026-10-08: "Kita test yg nomor 2 ya masukan exec", nomor 2 = ekstrak
+data ke Excel).** Satu pesan lewat EDGE seperti user: foreign flow BBRI 1 tahun terakhir dalam Excel. Diukur: jalur
+yang dipilih router, waktu, biaya, file XLSX terunduh lewat tombol Download EDGE, isi file (baris, rentang tanggal,
+lembar definisi dan asal data), beberapa angka dicocokkan langsung ke database, dan apakah batas data aliran asing
+(sekitar 31 Agustus 2026, belum terverifikasi penuh) disebut. Batas kunci dinaikkan user (limit 38, sisa USD 5,37).
+
+**Tombol stop (permintaan user 2026-10-08: "kita jg perlu tambah stop button, which fungsinya kaya stop ai processing.
+saat ini sudah ada? jika belum masukan exec").** Belum ada (terverifikasi): BFF melaporkan `capabilities.cancel:
+false`, orc tidak punya rute pembatalan (hanya pembatalan rencana riset). Rencana, belum dibangun:
+- EDGE: tombol Stop menggantikan Submit selama jawaban berjalan.
+- BFF: `POST /api/v1/runs/{id}/cancel` (pemilik dan CSRF dicek), status baru CANCELLED.
+- Orc: rute pembatalan per request (pemilik dicek) yang memasang tanda berhenti; perulangan memeriksanya di batas yang
+  sama dengan tenggat run (sebelum tiap panggilan model dan tool, tiap langkah mode 4), lalu berhenti tanpa panggilan
+  berbayar baru. Yang sedang berjalan (satu panggilan model, satu job sandbox, satu pencarian web) dibiarkan selesai
+  atau dihentikan bila layanannya mendukung. Hasil yang sudah dirilis tetap tersimpan; jawaban dicatat "Dihentikan
+  oleh Anda" beserta apa yang sudah selesai.
+- Jaminan: biaya berhenti di batas berikutnya; paling banyak satu panggilan yang sedang berjalan ikut terbayar.
+- Pertanyaan terbuka: orc satu replika (tanda di memori cukup) atau perlu tanda di Postgres; perilaku bila run sedang
+  menunggu sandbox lama.
+
 ### EXEC-M109: pertanyaan tanya-balik router tetap dipakai
 
 **Keputusan user 2026-10-07:** "M109 OK untuk perbaikan plan. Masukan ke EXEC." Pilihan "Ya, masukkan juga
