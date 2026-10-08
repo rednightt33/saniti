@@ -484,6 +484,15 @@ sama bisa di proses di sandbox lain." Belum dijalankan; rencana eksekusi menungg
        sumber yang ada.
     Jaminan EXEC-D "threshold dikunci ke kata user" menjadi: "tidak ada yang dijalankan dengan nilai desain yang tidak
     dikutip dari user atau tidak disetujui user". Status: menunggu keputusan user.
+- **M121, inventaris jalan buntu (diminta user 2026-10-08: "saya tidak mau kalau seandainya kena limitation or whatever
+  that label was maka AI deadlock jadi tidak dynamic, tidak bisa tanya user, tidak bisa query ulang, tidak bisa run
+  another calculation di sandbox"):** 8 titik terverifikasi di kode dan audit (`ERRORS_AND_SOLUTIONS.md` M121). Usulan
+  (belum dibangun, menunggu keputusan): setiap gate atau batas yang habis menjeda dan bertanya, bukan mengakhiri. Yang
+  sudah terverifikasi tetap disampaikan; rencana, sesi dan draf disimpan; pilihan diturunkan dari penyebabnya (lanjut
+  dengan anggaran baru, ubah nilai, terima jawaban sebagian). Perbaikan berlanjut selama ada kemajuan. Pesan alat dan
+  prompt menawarkan "cara lain, tanya user, atau laporkan". Rencana yang disetujui tetap bisa dilanjutkan sampai risetnya
+  selesai. Jaminan EXEC-D tetap: angka tanpa sumber tidak disampaikan, data hanya setelah persetujuan, belanja berhenti di
+  batas sampai user bilang lanjut.
 
 **Hasil tahap 1 (2026-10-07, V-a opsi B):**
 - **Kode** (`d25e108`, `apps/market-ai-orc/app/orchestrator.py`):
