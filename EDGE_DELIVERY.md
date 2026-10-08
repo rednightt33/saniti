@@ -205,4 +205,8 @@ Only frontend/adapters/tests/docs changed; production contains no test stub or d
 model selection, Deep Research, attachments/data scope, notifications/support and public sharing remain
 unavailable as previously scoped. This is Chromium QA with dummy responses, not a paid model quality benchmark
 or Safari/iOS/Android-device certification. Direct cloud access to the public hostname is still proxy-denied;
-replacement Railway deployment/public ingress checks are recorded separately after verification.
+Railway BFF deployment **5afb332b-753a-4016-a346-0a134b47bf7e** / code **cd8e075** reached SUCCESS.
+Twelve public HTTPS/auth checks passed through a temporary private Railway sandbox; served HTML and client
+SHA256 exactly match the locally tested files. Orc remains on `24461464` / `b12153a`.
+Main remains unmerged, with all fixes on `codex/edge-bff`.
+The temporary verification sandbox was read back as DESTROYED and the disposable local Postgres stopped.

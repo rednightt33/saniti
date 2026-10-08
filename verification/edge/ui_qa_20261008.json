@@ -283,5 +283,91 @@
       "sha256": "6ba1b5bac4cbe69e485db273514eaf39eb1c98415de45a5d99e5092aa264ee11",
       "bytes": 508945
     }
-  ]
+  ],
+  "live": {
+    "deployment_id": "5afb332b-753a-4016-a346-0a134b47bf7e",
+    "commit": "cd8e07565328e2fc225a7582c5663eccb34a2e05",
+    "status": "SUCCESS",
+    "public_url": "https://edge-bff-dev.up.railway.app",
+    "verification": {
+      "checks": [
+        {
+          "path": "/health",
+          "status": 200
+        },
+        {
+          "path": "/ready",
+          "status": 200
+        },
+        {
+          "path": "/",
+          "status": 200
+        },
+        {
+          "path": "/edge-client.js",
+          "status": 200
+        },
+        {
+          "path": "/api/v1/auth/session",
+          "status": 401
+        },
+        {
+          "path": "/api/v1/auth/sign-in",
+          "status": 200
+        },
+        {
+          "path": "/api/v1/auth/session",
+          "status": 200
+        },
+        {
+          "path": "/api/v1/conversations",
+          "status": 200
+        },
+        {
+          "path": "/api/v1/runs",
+          "status": 200
+        },
+        {
+          "path": "/api/v1/runs",
+          "status": 422
+        },
+        {
+          "path": "/api/v1/auth/sign-out",
+          "status": 200
+        },
+        {
+          "path": "/api/v1/auth/session",
+          "status": 401
+        }
+      ],
+      "static_sha256": {
+        "/": "e27786a06a3a4e9538b0d2b32df74fbdd2f5ae7fcc1584160e2cfe224402dd34",
+        "/edge-client.js": "77f2df1e01ce0d3cb519ba719144c3117de5cc283da23ec7fbdc0616d2e408ea"
+      },
+      "secure_cookie": true,
+      "paid_ai_requests": 0
+    },
+    "orc_deployment_unchanged": "24461464-9154-4789-bb5f-8ccbcc54204b",
+    "main_merged": false,
+    "readback": {
+      "bff": {
+        "id": "5afb332b-753a-4016-a346-0a134b47bf7e",
+        "status": "SUCCESS",
+        "commit": "cd8e07565328e2fc225a7582c5663eccb34a2e05",
+        "branch": "codex/edge-bff"
+      },
+      "orc": {
+        "id": "24461464-9154-4789-bb5f-8ccbcc54204b",
+        "status": "SUCCESS",
+        "commit": "b12153ac61c50b10700fa6b40872c5393e2f5f2c",
+        "branch": "codex/edge-bff"
+      },
+      "sandbox": {
+        "id": "4de4be1c-610c-4647-8535-024935d99897",
+        "status": "DESTROYED"
+      }
+    },
+    "temporary_sandbox_destroyed": true
+  },
+  "local_postgres_stopped": true
 }

@@ -3095,6 +3095,10 @@ User: "Test interaksinya ya fitur dll ensure tidak ada bug visually. bisa?" and
 - Source remains `codex/edge-bff`; main stays unmerged. No runner/Orc, schema, model/provider or variable change;
   no paid AI request and no dummy data deployed. The same public BFF branch is the deployment target.
 - Pre-push live BFF was SUCCESS `e49f4a1c` / `304600a`; Orc remains SUCCESS `24461464` / `b12153a`.
-  Replacement BFF deployment and public static hash/auth verification are recorded below after confirmation.
+  Replacement BFF **5afb332b-753a-4016-a346-0a134b47bf7e**, code **cd8e075**, reached **SUCCESS**.
+  Twelve public HTTPS/auth/history/invalid-submit checks passed; served HTML/client SHA256 exactly match
+  the locally tested assets. Secure/HttpOnly/SameSite cookies verified; zero paid AI calls.
 - Evidence: `verification/edge/ui_qa_20261008.json`. Direct cloud browser access to the public domain remains
   proxy-denied; local rendering uses the tested production frontend and actual local backend paths.
+- Temporary verification sandbox `4de4be1c` was verified DESTROYED; the disposable local Postgres container
+  was stopped. No live user conversation/response or market data was added by this QA.
