@@ -922,6 +922,22 @@ dimulai; Gelombang B dan setiap GT tetap menunggu perintah user.
     kosong, M120).
   - Cacat yang ditemukan dan diperbaiki: baris konfirmasi menulis "0" tanpa tanda dan satuan; kini "> 0%" (`_shown_unit`).
 
+**GT lewat front-end EDGE (2026-10-08; permintaan user: "lakukan pengecekan dan gt bisa pakai front end bff? agar kamu
+bisa liat interaksi"):** Playwright + Chromium ke `https://edge-bff-dev.up.railway.app`, login dengan variabel edge-bff
+(tidak pernah dicetak); CA proxy sesi dimasukkan ke penyimpanan NSS lokal (verifikasi TLS tetap aktif). 4 giliran,
+biaya model ±USD 0,13 (sisa limit kunci USD 0,62 sebelum).
+- Riset "naik" lalu klik **APPROVE** di UI: riset jalan, COMPLETED, `research_completed` true (INCONCLUSIVE,
+  UNDERPOWERED). Model mengosongkan success_rule, jadi tanpa blok konfirmasi.
+- "naik signifikan": rencana terbit; model menafsirkan "signifikan" sebagai keyakinan 95% dan menulisnya sebagai asumsi,
+  **tidak bertanya** (M123).
+- "ubah ambang suksesnya jadi minimal satu persen": success_rule ≥ 1% sebagai kata user; model juga mengisi efek minimum 1%
+  yang tidak disebut user, dan backend menampilkannya di blok "Nilai yang perlu Anda konfirmasi ... Efek minimum ...: 1%,
+  usulan AI, belum Anda sebut" (terlihat di UI).
+- Jeda tidak terpicu di GT ini. Pilihan jeda saat ini hanya teks di akhir jawaban; UI belum membacanya dari
+  `execution.pause.options` sebagai tombol (M124).
+- Temuan front-end (M124): rencana riset dan "Research findings" tampil sebagai JSON mentah; markdown jawaban tidak
+  dirender (`**...**` terlihat); tombol rencana APPROVE/REVISE/CANCEL dalam bahasa Inggris.
+
 ### EXEC-M109: pertanyaan tanya-balik router tetap dipakai
 
 **Keputusan user 2026-10-07:** "M109 OK untuk perbaikan plan. Masukan ke EXEC." Pilihan "Ya, masukkan juga
