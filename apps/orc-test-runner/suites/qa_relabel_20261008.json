@@ -1,0 +1,25 @@
+{
+  "prefix": "ma-qa-relabel-20261008a",
+  "workers": 2,
+  "audit_wait_seconds": 0,
+  "items": [
+    {
+      "id": "relabel_analysis",
+      "expect": "EXEC-V V-g: the same past data (BBCA and BMRI, January to June 2025) asked again by other questions, so the model writes new data needs with other request labels; from turn 2 on, the sandbox log shows parts_looked_up matched>0 and bundle_built parts_reused>0 (data_reuse REUSED, reused_from the turn-1 extraction), no Governor extraction for those parts; a part with other columns or another window is EXTRACTED with its reason; every figure sourced",
+      "turns": [
+        "Berapa return kumulatif BBCA dan BMRI dari 2 Januari sampai 30 Juni 2025?",
+        "Masih untuk BBCA dan BMRI periode 2 Januari sampai 30 Juni 2025: tanggal berapa return harian terbesar dan terkecil masing-masing?",
+        "Untuk periode yang sama, berapa drawdown maksimum harga penutupan masing-masing?"
+      ]
+    },
+    {
+      "id": "relabel_research_after_analysis",
+      "expect": "EXEC-V V-f and V-g: turn 1 analysis on BBRI 2023-2024 prices and volume; turn 3 runs an approved research plan on the same period: the research data needs carry other labels; parts whose Governor SQL equals turn 1's are reused (data_reuse), any other part names its reason; with V-f built, the two experiments of the plan read their identical data from one extraction in the same answer; needs the M117 fix for a plan that says 'naik'",
+      "turns": [
+        "Berapa rata-rata volume harian dan rata-rata return harian BBRI pada 2023 sampai 2024, dan berapa hari volumenya minimal 2 kali rata-rata volume 20 hari sebelumnya?",
+        "Uji ini: kalau volume BBRI minimal 2 kali rata-rata volume 20 hari sebelumnya, apakah return 3 hari dan 10 hari berikutnya lebih tinggi dari hari biasa? Pakai data 2023 sampai 2024. Buatkan rencana ujinya.",
+        "setuju"
+      ]
+    }
+  ]
+}
