@@ -57,6 +57,10 @@ NON_FIGURE_PATTERNS = [
     r"\b(?:relasi|relationship|relation|versi|version|id|kode|code)\s*(?:no\.?\s*)?#?\s*\d+(?![.,]?\d)\b",
 ]
 NON_FIGURE_RE = re.compile("|".join(NON_FIGURE_PATTERNS), re.IGNORECASE)
+# A web address is never a figure: the digits of a link's target ("…/Tetap-5.75-…", "…-0050012026/…") are part of the
+# address (live web test 2026-10-08, after links were added to web facts: "75", "52, 9" and "0050012026" were reported
+# as untraced figures). Masked like a row number, at the same length.
+URL_RE = re.compile(r"https?://[^\s<>()\[\]]+")
 LIST_MARKER_RE = re.compile(r"(?m)^\s*(?:\(?\d{1,2}[.)]|\d{1,2}\.)\s+|(?:(?<=\s)|^)\(\d{1,2}\)\s")
 # A Markdown table whose first column numbers its rows: the header is a row-number label and the cells count 1, 2, 3,
 # ... (or 0, 1, 2, ... for a pasted DataFrame index) in row order. Those cells are list markers, not figures (P02).
@@ -137,7 +141,8 @@ def _mask_row_numbers(text: str) -> str:
 
 def parse_numbers(text: str) -> list[DisplayedNumber]:
     """Numbers a reader would take as data values in free text (tables included)."""
-    masked = NON_FIGURE_RE.sub(lambda m: " " * len(m.group(0)), text or "")
+    masked = URL_RE.sub(lambda m: " " * len(m.group(0)), text or "")
+    masked = NON_FIGURE_RE.sub(lambda m: " " * len(m.group(0)), masked)
     masked = DATE_RE.sub(lambda m: " " * len(m.group(0)), masked)
     masked = LIST_MARKER_RE.sub(lambda m: " " * len(m.group(0)), masked)
     masked = _mask_row_numbers(masked)

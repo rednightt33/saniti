@@ -1217,6 +1217,18 @@ uji web 5 pertanyaan sesudah disetujui dan di-deploy). Usulan P1–P5 menunggu p
   nama sumber tabel `2f27781`. Uji: orc 1.575 lulus, EDGE 52 lulus. Prompt sistem tidak berubah (v002 tetap). Bukti
   desktop tidak berubah: gaya terhitung semua elemen sama dengan dan tanpa blok mobile di 721, 1024 dan 1440 px,
   menu tertutup dan terbuka (dikunci di `test_frontend_contract.py`).
+- **Deploy dan uji web 5 pertanyaan (2026-10-08):** `main` `1f14c5a`, orc `4b6a272e`, edge-bff `be697e72` SUCCESS.
+  Lewat EDGE, satu percakapan per pertanyaan:
+
+  | Pertanyaan | Jalur | Waktu | Biaya | Hasil |
+  |---|---|---|---|---|
+  | BUMN dan pengendali BBRI, BMRI, BBCA | FACT | 1 mnt 47 dtk | USD 0,003 | Benar, 7 link per klaim, nama dari tabel referensi (database dulu) |
+  | BI-Rate terbaru | FACT | 1 mnt 46 dtk | USD 0,007 | Isi benar (5,75, 23 Sep 2026), tetapi LIMITED karena M129 |
+  | Kenapa saham bank turun Agustus 2026 | ASK_BACK | 12 dtk | USD 0,002 | Salah bertanya balik "sekarang Juni 2026" (M130) |
+  | Outlook ekonomi 2027 | EXPLORE (mode 4) | 14 mnt 57 dtk | USD 0,090 | Proyeksi lembaga dengan 18 link; M129; lalu rencana riset pasar yang tidak diminta (M127a) |
+  | Batu bara 2026 dan ADRO/PTBA | EXPLORE (mode 4) | 14 mnt 25 dtk | USD 0,054 | Tabel bulanan batu bara (World Bank, link per sel) dan return saham dari database; M129; rencana riset tidak diminta |
+
+  M129 diperbaiki (cakupan P1). M130 menunggu keputusan user.
 - Keputusan user 2026-10-08 atas contoh (a)/(b)/(c) tanda sumber: "pakai C". Klaim web selalu diberi link ke halaman
   sumbernya (teks link = nama situs, alamat dari daftar sumber yang dibaca sistem, bukan diketik AI); angka database
   tanpa tanda di kalimat, asalnya di panel Sources.

@@ -353,3 +353,25 @@ def test_an_output_figure_is_named_by_its_table_never_by_its_evidence_status() -
     item = orc._evidence(state)[0]
     assert item["label"] == "Dari bbri foreign flow by board: total foreign net value (Regular)"
     assert "label" not in item["source"] and "DATA_COVERAGE_VERIFIED" not in json.dumps(item)
+
+
+def test_the_digits_of_a_link_are_never_read_as_figures() -> None:
+    """Live web test 2026-10-08 (BI-Rate, outlook 2027, coal prices): the links P1 adds carried digits in their
+    addresses, and the provenance gate reported "75", "52, 9" and "0050012026" as untraced figures."""
+    from app.provenance import parse_numbers
+    text = ("BI-Rate 5,75% ([bi.go.id](https://www.bi.go.id/id/iru/Pages/BI--Rate-Tetap-5.75-Memperkuat.aspx)); OECD "
+            "([ekonomi.bisnis.com](https://ekonomi.bisnis.com/read/20260926/9/2007406/oecd-capai-52-inflasi-3-pada-2027)); "
+            "107,7 ([thedocs.worldbank.org](https://thedocs.worldbank.org/en/doc/18675f-0050012025/CMO-January-2026.pdf)) "
+            "dan https://contoh.example/a/2024/77.")
+    assert [n.text for n in parse_numbers(text)] == ["5,75%", "107,7"]
+
+
+def test_a_figure_inside_a_cited_statement_may_be_written_in_the_readers_words() -> None:
+    """Outlook 2027 (2026-10-08): the model wrote "sekitar lima persen" because it read a statement's figures as
+    unreachable; a figure of the cited statement or its quote is a source when the statement is cited."""
+    _, state, _ = tracked()
+    from app.provenance import check_answer
+    orc, _, _ = tracked()
+    rendered = render("Ekspor naik 2,3% pada 2024 {{web.wab12cd34_3.value}}.", state.ref_sources)
+    state.ref_values.extend(rendered.values)
+    assert check_answer(rendered.text, orc._source_index(state)).unsupported == []

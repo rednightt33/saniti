@@ -37,7 +37,8 @@ REFERENCE_SENTENCE = (" Each item has a ref: cite a number as {{<ref>.value_as_w
                       "{{<ref>.value}} (the value at full scale), and a list or a short value as {{<ref>.value}}; each "
                       "is shown with a link to its source page. A fact's statement is never inserted: say it in the "
                       "reader's language, in your own words, and put {{<ref>.value}} right after it, which shows only "
-                      "the link.")
+                      "the link; a figure the statement or its quote gives (\"5,1%\") may be written in those words, "
+                      "and it is checked against that quote.")
 # P34: added only when lookup_reference is offered
 DATABASE_SENTENCE = (" An attribute the database's reference tables hold (sector, industry, company profile) is read "
                      "with lookup_reference; this tool is refused for it until those tables have been read.")
