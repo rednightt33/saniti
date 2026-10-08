@@ -33,7 +33,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from .research_plan import normalize_text
 from .research_plan_v2 import FINDINGS_V2, VerifiedPlanV2, governance_v2
 from .tools.registry import ToolSpec
-from .tools.session import SESSION_PATTERN, _call, current_carried_outputs, released_contents, restore_into
+from .tools.session import (MAX_BUSY_WAIT_SECONDS, SESSION_PATTERN, _call, current_carried_outputs, open_with_wait,
+                            released_contents, restore_into)
 
 LEVELS = ("EXECUTION_ONLY", "STATISTICS_VERIFIED", "FORMULA_AND_STATISTICS_VERIFIED")
 SESSION_GONE = frozenset({"SESSION_ENDED", "SESSION_CLOSED"})
@@ -190,8 +191,7 @@ class ResearchRunExecutor:
         carried = current_carried_outputs.get()
         if carried is not None:
             body["carried_outputs"] = carried  # 2d: the tables the approved plan names
-        opened = _call(self.client, "POST", "/v1/sessions", timeout=self.timeout + 30 + self.client.open_wait_seconds,
-                       json=body)
+        opened = open_with_wait(self.client, body, self.timeout + 30)  # EXEC-W A5: the backend waits for a slot
         if opened.get("status") == "REJECTED" or not opened.get("session_id"):
             return opened
         restore_into(opened, carried if carried is not None else [])  # R-STORE: only the plan's tables
@@ -512,9 +512,10 @@ def executor_specs(*, timeout_seconds: float, execution_timeout_seconds: float, 
 
     return [
         ToolSpec(name="start_research_run", effect="COMPUTES", description=START_DESCRIPTION, arguments_model=StartResearchRunArgs,
-                 handler=start, timeout_seconds=timeout_seconds * 20, max_result_bytes=max_result_bytes),
+                 handler=start, timeout_seconds=timeout_seconds * 20 + MAX_BUSY_WAIT_SECONDS,
+                 max_result_bytes=max_result_bytes),
         ToolSpec(name="run_research_code", effect="COMPUTES", description=RUN_DESCRIPTION, arguments_model=RunResearchCodeArgs,
-                 handler=run_code, timeout_seconds=execution_timeout_seconds + timeout_seconds * 4,
+                 handler=run_code, timeout_seconds=execution_timeout_seconds + timeout_seconds * 4 + MAX_BUSY_WAIT_SECONDS,
                  max_result_bytes=max_result_bytes),
         ToolSpec(name="complete_research_run", effect="COMPUTES", description=COMPLETE_DESCRIPTION,
                  arguments_model=CompleteResearchRunArgs, handler=complete, timeout_seconds=timeout_seconds * 8,

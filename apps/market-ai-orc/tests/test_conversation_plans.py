@@ -76,19 +76,30 @@ def test_a_free_text_approval_runs_the_stored_plan_and_uses_it_once(databases) -
     assert second["execution"]["research_plan"]["turn"] == "EXECUTE_APPROVED"
     assert second["execution"]["research_plan"]["approved_plan_id"] == plan_id
     assert [c["path"] for c in api.sandbox.calls] == ["/v1/data-needs"]
-    assert second["conversation"]["research_plan"]["status"] == "EXECUTED"
-    # a new approval of the executed plan never re-runs it, and leaves no turn behind
-    before = turns(admin_url, conversation_id)
-    third = api.post("h2-3", "Setuju lagi.", conversation_id,
-                     plan_reply={"plan_id": plan_id, "action": "APPROVE"})
-    assert third.status_code == 409 and third.json()["detail"]["code"] == "RESEARCH_PLAN_NOT_PENDING"
-    assert turns(admin_url, conversation_id) == before and len(api.sandbox.calls) == 1
+    # EXEC-W A3 (M121 c, user decision 2026-10-08): the research did not complete, so the plan stays approvable
+    assert second["execution"]["research_plan"]["research_completed"] is False
+    assert second["conversation"]["research_plan"]["status"] == "PENDING"
     # the same approval request again is answered from the stored response, without a run
     replay = api.post("h2-2", "Setuju, lanjutkan.", conversation_id).json()
     assert replay["conversation"]["replayed"] is True and len(api.seen) == 2
+    # "lanjutkan" approves it again: the research runs again
+    api.scripted.responses.extend([submit(), final_response(answer("Dijalankan lagi.", "LIMITATION"))])
+    third = api.post("h2-3", "Lanjutkan.", conversation_id, plan_reply={"plan_id": plan_id, "action": "APPROVE"})
+    assert third.status_code == 200 and third.json()["execution"]["research_plan"]["turn"] == "EXECUTE_APPROVED"
+    assert len(api.sandbox.calls) == 2
+    # a completed research consumes the approval: a later approval is refused and leaves no turn behind
+    import psycopg
+    with psycopg.connect(admin_url, autocommit=True) as connection:
+        connection.execute("""UPDATE public."AI_conversation" SET state = jsonb_set(state, '{research_plan,status}',
+                              '"EXECUTED"') WHERE conversation_id = %s""", (conversation_id,))
+    before = turns(admin_url, conversation_id)
+    fourth = api.post("h2-4", "Setuju lagi.", conversation_id,
+                      plan_reply={"plan_id": plan_id, "action": "APPROVE"})
+    assert fourth.status_code == 409 and fourth.json()["detail"]["code"] == "RESEARCH_PLAN_NOT_PENDING"
+    assert turns(admin_url, conversation_id) == before and len(api.sandbox.calls) == 2
     # a later free-text message runs without the executed plan
     api.scripted.responses.append(final_response(answer("Halo.")))
-    api.post("h2-4", "Terima kasih.", conversation_id)
+    api.post("h2-5", "Terima kasih.", conversation_id)
     assert api.seen[-1].continuation is None
     messages = api.client.get(f"/v1/conversations/{conversation_id}/messages", headers=AUTH).json()
     assert messages["research_plan"]["status"] == "EXECUTED"

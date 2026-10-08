@@ -12,8 +12,9 @@ import httpx
 import pytest
 
 from app import conversation_router as router
+from app import stop_policy
 from app.orchestrator import (DATANEED_ANALYSIS_TOOLS, DISCOVERY_TOOLS, EVIDENCE_BACKEND_LINE,
-                              EVIDENCE_REFERENCED_LINE, GATE_ONCE_NOTE, TYPED_FIGURES_LINE,
+                              EVIDENCE_REFERENCED_LINE, GATE_ONCE_NOTE, GATE_ONCE_NOTES, TYPED_FIGURES_LINE,
                               LEGACY_ANALYSIS_TOOLS, RESEARCH_RUN_TOOLS, AgentOrchestrator, GateRejection, RunState)
 from app.schemas import FinalResponse
 from app.tools import build_default_registry
@@ -72,7 +73,8 @@ def test_a_gate_never_asks_for_a_tool_the_step_does_not_have(desk_name: str, kin
     if repairable:
         with pytest.raises(GateRejection) as raised:
             orc._gate_once(state, kind, "fix it.", needs=NEEDS[kind])
-        assert GATE_ONCE_NOTE in str(raised.value)  # K2: asked once, and the way out
+        # K2: asked once, and the way out (EXEC-W A1: what happens to a kept response is the kind's outcome)
+        assert GATE_ONCE_NOTES[stop_policy.cause_of(kind).outcome] in str(raised.value)
     else:
         orc._gate_once(state, kind, "fix it.", needs=NEEDS[kind])  # the gate's own outcome applies at once
         assert kind not in state.gate_kinds_rejected
@@ -117,12 +119,12 @@ def test_the_gate_names_asking_back_only_where_a_question_is_allowed() -> None:
     state = state_with(frozenset(DESKS["read_only"]))
     with pytest.raises(GateRejection) as asked:
         orc._gate_once(state, "PROVENANCE", "fix it.")
-    assert str(asked.value).endswith(GATE_ONCE_NOTE + GATE_ASK_NOTE)
+    assert str(asked.value).endswith(GATE_ONCE_NOTES[stop_policy.PAUSE] + GATE_ASK_NOTE)
     state = state_with(frozenset(DESKS["read_only"]))
     state.allowed_types = frozenset({"ANSWER", "LIMITATION"})
     with pytest.raises(GateRejection) as plain:
         orc._gate_once(state, "PROVENANCE", "fix it.")
-    assert str(plain.value).endswith(GATE_ONCE_NOTE)
+    assert str(plain.value).endswith(GATE_ONCE_NOTES[stop_policy.PAUSE])
 
 
 @pytest.mark.parametrize("kinds", [["CALCULATION_VERIFIED"], ["DATABASE_AGGREGATE", "FACT"]])

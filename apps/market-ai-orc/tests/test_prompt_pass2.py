@@ -23,6 +23,10 @@ DEV_TOOLS = frozenset({"query_metric", "lookup_reference", "research_web"})
 
 # The approved differences, as sentences (a sentence ends at . ? ! or ; outside brackets)
 REMOVED = {
+    # EXEC-W A3 (M121 h, user decision 2026-10-08): a failed check asks the user for an alternative
+    "on NOT_FEASIBLE drop or narrow the uncovered angles, or return LIMITATION naming what is missing and the "
+    "alternatives.",
+    "when the check cannot pass, return LIMITATION naming what is missing and the alternatives.",
     # K3: the plan forms are a section of their own
     "research_plan has exactly one of two forms.",
     # F4: the hypothesis plan's finding is its own list item, and the last item ends with a full stop
@@ -68,6 +72,11 @@ REMOVED = {
     "variables of the earlier message).",
 }
 ADDED = {
+    # EXEC-W A3 (M121 h, user decision 2026-10-08)
+    "on NOT_FEASIBLE drop or narrow the uncovered angles, or name what is missing and ask the user (CLARIFICATION) "
+    "for an alternative.",
+    "when the check cannot pass, name what is missing and ask the user (CLARIFICATION) for an alternative, or return "
+    "LIMITATION.",
     # K2
     "When the latest message has no language of its own (for example only a ticker), use the language of the "
     "conversation, and Indonesian when there is none.",

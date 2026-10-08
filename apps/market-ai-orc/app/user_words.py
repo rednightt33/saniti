@@ -147,3 +147,36 @@ def allowed_periods(stated: set[tuple[int, str]], analysis_frequency: str | None
     """The outcome_horizon_periods values the stated horizons allow at this frequency (empty: nothing locked)."""
     per = PERIODS[frequency_of(analysis_frequency)]
     return {n * per[unit] for n, unit in stated if unit in per}
+
+
+# EXEC-W A2 (M117, user decision 2026-10-08 "Oke untuk M117"): a design value is the user's when the router quotes the
+# user's own words for it (text) and those words are in the user's message; basis says whether the value is written
+# there (STATED) or follows from the words without a number (IMPLIED: "naik" is a success threshold above 0). The quote
+# is checked by matching the normalised text, never by a list of words, so new phrasings need no code.
+_QUOTE_EDGES = " \t\r\n\"'“”‘’`.,;:!?()[]"
+
+
+def _normalised(text: str | None) -> str:
+    return re.sub(r"\s+", " ", (text or "").casefold()).strip(_QUOTE_EDGES)
+
+
+def quoted_in(text: str | None, sources: list[str | None]) -> bool:
+    """The quote occurs in one of the user's texts (case, spacing and edge punctuation aside)."""
+    quote = _normalised(text)
+    return bool(quote) and any(quote in _normalised(source) for source in sources)
+
+
+def user_values(changes: list[dict] | None, name: str, sources: list[str | None]) -> list[tuple[float, str, str]]:
+    """(value, basis, quote) of the router's ADD or REPLACE changes of one design value whose quote is the user's
+    words; a change without a valid quote is not the user's (its value then needs the user's confirmation)."""
+    found = []
+    for change in changes or []:
+        if change.get("name") != name or change.get("action") not in ("ADD", "REPLACE"):
+            continue
+        try:
+            value = float(change.get("value"))
+        except (TypeError, ValueError):
+            continue
+        if quoted_in(change.get("text"), sources):
+            found.append((value, str(change.get("basis") or "STATED"), str(change.get("text"))))
+    return found

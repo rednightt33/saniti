@@ -276,7 +276,7 @@ def test_a_failed_router_call_is_retried_once_and_the_reading_is_returned() -> N
     route, _, record = orchestrator.classify_first("q", "harga BBRI minggu ini")
     assert route == "ANALYSIS" and record["attempts"] == 2 and record["understood_intent"] == "Harga BBRI minggu ini"
     assert record["design_value_changes"] == [{"name": "OUTCOME_HORIZON", "value": 5.0, "unit": "DAY",
-                                               "action": "ADD"}]
+                                               "basis": "STATED", "action": "ADD"}]
     assert client.payloads[0]["text"]["format"]["schema"] == router.FIRST_SCHEMA_ASK_BACK
     off = AgentOrchestrator(make_settings(**ROUTER_ON), ScriptedClient([RuntimeError("boom")]), ToolRegistry())
     route, _, record = off.classify_first("q", "x")
@@ -313,7 +313,7 @@ def test_the_plan_reply_reader_returns_the_reading_on_every_path() -> None:
     action, instruction, record = orchestrator.classify_reply("q", "tambahkan juga 10 hari, tetap 3 hari", PLAN1)
     assert (action, instruction) == ("REVISE", "tambah horizon 10 hari")
     assert record["reading"] == {"referent": "PENDING_SUGGESTION", "design_value_changes": [
-        {"name": "OUTCOME_HORIZON", "value": 10.0, "unit": "DAY", "action": "ADD"}]}
+        {"name": "OUTCOME_HORIZON", "value": 10.0, "unit": "DAY", "basis": "STATED", "action": "ADD"}]}
     off = AgentOrchestrator(make_settings(**ROUTER_ON), ScriptedClient([final_response(
         {"action": "APPROVE", "revision_instruction": None})]), ToolRegistry())
     _, _, record = off.classify_reply("q", "ok", PLAN1)

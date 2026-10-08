@@ -600,6 +600,8 @@ class ExecutionMetadata(BaseModel):
     mode: ModeExecution | None = None
     # the kejedot index (app/friction.py): rejected tool calls, gate repairs, repeated data orders, capacity refusals
     friction: dict[str, int] | None = None
+    # EXEC-W A1 (M121, app/stop_policy.py): the answer paused instead of ending; its cause and the choices it asked
+    pause: dict[str, Any] | None = None
 
     @model_serializer(mode="wrap")
     def _without_unused_path(self, handler: Any) -> Any:
@@ -607,7 +609,7 @@ class ExecutionMetadata(BaseModel):
         shape."""
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("analysis_path", "mode", "analysis_final_statuses", "friction"):
+            for key in ("analysis_path", "mode", "analysis_final_statuses", "friction", "pause"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data
@@ -644,6 +646,9 @@ class ResearchPlanExecution(BaseModel):
     # EXECUTE_APPROVED only: whether a RESEARCH data need was submitted (M19: an approval without any attempt stays
     # pending); null on other turns
     research_submitted: bool | None = None
+    # EXECUTE_APPROVED only (omitted otherwise): whether the approved research completed in this request; EXEC-W A3
+    # (M121 c): an approved plan whose research did not complete stays pending, so "lanjutkan" runs it again
+    research_completed: bool | None = None
     # the feasibility draft the issued plan was bound to, or the one the approved turn started from
     draft_id: str | None = None
     # Multi-Angle Research only (omitted otherwise): the plan version, the research data plan hash and the research run
@@ -655,7 +660,7 @@ class ResearchPlanExecution(BaseModel):
     def _without_unused_v2(self, handler: Any) -> Any:
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("plan_version", "research_data_plan_sha256", "research_run_id"):
+            for key in ("plan_version", "research_data_plan_sha256", "research_run_id", "research_completed"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data

@@ -237,13 +237,20 @@ def test_an_approval_without_any_research_submission_stays_pending() -> None:
     assert advance(state, result, "run_002", 1)["research_plan"]["status"] == "PENDING"
 
 
-def test_a_submission_consumes_the_approval_whatever_its_outcome() -> None:
+def test_an_approval_is_consumed_when_its_research_completes_and_stays_resumable_otherwise() -> None:
+    """EXEC-W A3 (M121 c, user decision 2026-10-08): the approval was consumed by any submission; a research that did
+    not complete now leaves the plan pending (the attempt is recorded), so "lanjutkan" runs it again."""
     result, _, issued = approve(Sandbox(), [call("submit_data_need_spec", research_arguments(), "c1"),
                                             final_response(answer("Data tidak cukup.", "LIMITATION"))])
-    assert result.execution.research_plan.research_submitted is True
+    plan_exec = result.execution.research_plan
+    assert plan_exec.research_submitted is True and plan_exec.research_completed is False
     assert result.continuation is None
     state = {"research_plan": {"plan_id": issued.plan_id, "status": "PENDING", "expires_at": issued.expires_at}}
-    assert advance(state, result, "run_002", 1)["research_plan"]["status"] == "EXECUTED"
+    kept = advance(state, result, "run_002", 1)["research_plan"]
+    assert kept["status"] == "PENDING" and kept["attempts"] == 1 and kept["last_attempt_request_id"] == "run_002"
+    done = result.model_copy(update={"execution": result.execution.model_copy(update={
+        "research_plan": plan_exec.model_copy(update={"research_completed": True})})})
+    assert advance(state, done, "run_003", 2)["research_plan"]["status"] == "EXECUTED"
 
 
 def test_the_governor_client_accepts_an_estimate_only_answer_only_for_an_estimate() -> None:
