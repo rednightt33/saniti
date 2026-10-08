@@ -517,8 +517,10 @@ Update the status in place when an `OPEN` item is fixed. Never delete an entry.
 
 ### EDGE integration validation — 2026-10-08
 
-- **Live schema read blocked (OPEN):** authenticated pgweb tunnel returned egress 403 and the public Postgres TCP
-  proxy could not resolve in this cloud execution environment. No database defect or absent schema is inferred.
+- **Live schema read initially blocked (RESOLVED for EDGE rollout):** authenticated pgweb tunnel returned egress 403 and the public Postgres TCP
+  proxy could not resolve in this cloud execution environment. Pgweb now responds; private-network Railway
+  sandbox admin preflight and schema/grant readback succeeded. Direct TCP/SSH remains unavailable from cloud.
+  No database defect or absent schema was inferred from the earlier transport failures.
   Migration remains PROPOSED; rerun `scripts/edge_readonly_preflight.sql` after connectivity is available.
 - **SSE middleware header regression (FIXED before rollout):** general no-cache middleware overwrote
   `Cache-Control: no-store, no-transform`. Preserve an endpoint's cache header with `setdefault`; terminal SSE
@@ -539,11 +541,12 @@ Update the status in place when an `OPEN` item is fixed. Never delete an entry.
 
 ### EDGE live rollout — 2026-10-08
 
-- **Railway Dockerfile parser (fix prepared; live rebuild pending):** deployment `3ecab877` failed before
+- **Railway Dockerfile parser (FIXED, live rebuild verified):** deployment `3ecab877` failed before
   building because Railway's Dockerfile parser permits cache mounts only and rejects the optional BuildKit
   `type=secret` CA mount used in local testing. The production Dockerfile now uses ordinary verified pip
   installation with the image's trusted CA roots. No TLS verification or dependency pin was disabled.
   Corporate-proxy local builds must use a temporary local Dockerfile to mount their existing trusted CA.
+  Replacement deployment `e49f4a1c` reached SUCCESS and real public auth/static/ready checks passed.
 
 - **GraphQL builder enum (FIXED):** the authoring/manifest value DOCKERFILE is not a public GraphQL
   `Builder` enum value. Public service updates use RAILPACK plus dockerfilePath; Railway then detects
@@ -551,10 +554,15 @@ Update the status in place when an `OPEN` item is fixed. Never delete an entry.
 
 - **Manifest path format (FIXED):** the new APPLIED.sha256 entry initially used a repository-relative
   path; the frozen-migration test resolves entries relative to the migration directory. Use the
-  filename only. The applied SQL stayed unchanged; rerun the frozen-migration tests after correction.
+  filename only. The applied SQL stayed unchanged; both frozen-migration tests passed after correction.
 - **Cloud administrative transport (resolved for this rollout):** direct Postgres/SSH host DNS fails;
   native SSH also encountered an unrelated read-only system-config permission issue. The temporary
   SSH key was registered then removed, with the agent/private key cleaned up. Native sandbox commands
   cannot persist CLI state under the read-only home directory. Supported GraphQL sandbox creation/exec
   succeeded instead: private-network, short-lived, credentials resolved from existing Railway references.
   Pgweb is reachable again and remains on its restricted read-only role. No global pgweb connection change.
+
+- **SDK CLI-version probe (FIXED):** launching the native CLI from Python inherited a shell executable
+  marker pointing at Python; railway/iac consequently read Python 3.12 as if it were the CLI version.
+  Invoke the config command through a shell so it sets the real executable marker automatically.
+  Native CLI is 5.63.1, meeting the unchanged SDK minimum; config pull/plan now succeed with NOOP.

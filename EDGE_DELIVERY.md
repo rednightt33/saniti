@@ -4,19 +4,20 @@
 
 The code and deterministic local validation are complete on isolated branch `codex/edge-bff`.
 The user approved dev rollout from this branch: "Ok, do it." Live admin reconciliation succeeded and
-the EDGE migration/login were applied and verified. BFF service/domain and secure variables are allocated;
-deployment/public verification is in progress. Main remains unmerged; no paid AI calls were made.
+the EDGE migration/login were applied and verified. Both branch deployments reached SUCCESS;
+17 public HTTPS/auth checks and two private Orc request-read probes passed. Main remains unmerged; no paid AI calls were made.
 
 ## 2. VERIFIED FACTS
 
 - Repository implementation baseline: `242e282f18a1b58d81d630044e9fc69bd5fdec23`. During execution, main advanced to
   `93efb9fac8ae419e4f11f23e7ad06e9579163d88` with EXEC/error documentation only; those changes were preserved by rebasing the review branch.
 - Read-only Railway inspection: project lucid-patience `8aef1702-030b-49cb-9df7-5ac2e0a42691`, dev environment
-  `4d3e5af2-302b-4a2e-84e2-7d7476d6ff49`, Orc service `41dc17ee-3bac-41ef-90ec-8b9356815c71`, active SUCCESS
-  deployment `6a0ebf8f-d4e6-4d7f-a397-31b6be3b713f`, runtime commit `92884b684d760e9b8d4c3399def268bd32f011f5`.
+  `4d3e5af2-302b-4a2e-84e2-7d7476d6ff49`, Orc service `41dc17ee-3bac-41ef-90ec-8b9356815c71`. Pre-rollout deployment
+  `6a0ebf8f-d4e6-4d7f-a397-31b6be3b713f` / commit `92884b6` remains the rollback reference. Current SUCCESS
+  deployment is `24461464-9154-4789-bb5f-8ccbcc54204b` / commit `b12153a`, branch `codex/edge-bff`.
 - Market Postgres `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86` is the verified live target. Web governor's Postgres-E8GM
   `4b193143-be17-456b-bc00-c1760ef5db82` is excluded. EDGE service is `c3656044-2817-44a7-9b55-54910bab416f`;
-  allocated origin `https://edge-bff-dev.up.railway.app` (not yet verified as ready).
+  public origin `https://edge-bff-dev.up.railway.app`, verified ready with real password login.
 - Admin preflight 10:10:09 UTC and readback 10:13:24 UTC: PostgreSQL 18.6, database railway;
   three EDGE tables, 28 columns, 40 constraints, six indexes, restricted DML on those three only.
   Full targeted schema/grant evidence is in `verification/edge`. Existing public/audit document snapshots
@@ -109,20 +110,28 @@ from the cloud's existing trusted certificate bundle. TLS verification remained 
 Initial setup/fixture failures were diagnosed and corrected; the final results above are passing runs. Container
 file permissions were fixed before delivery. No remaining failed local application check is being hidden.
 
-Not run: live schema/role/grant readback (network-blocked); live migration/deployment/domain/real export/proxy
-checks (approval-gated); paid end-to-end AI test (not authorized). Live IaC plan also needs a linked CLI context;
-local TypeScript evaluation/bundling is not a live drift review.
+Live validation: migration/role/grant readback; both exact SUCCESS branch deployments; public HTTPS health/readiness/static,
+real sign-in/session/Secure cookie, BFF-to-Orc history, active-job recovery read, CSRF rejection, invalid-input rejection,
+logout/revocation (17 checks), and private Orc owner/auth request-read (401 and structured REQUEST_NOT_FOUND).
+No agent execution was submitted. Native `config pull --force` and `config plan` succeeded; plan is NOOP.
+Not run live: paid question/answer, streamed active execution, bookmark/pin on an actual AI response, or real artifact export.
+Those frontend behaviors were covered by earlier deterministic local tests; do not present them as live AI verification.
+Evidence: `verification/edge/rollout_20261008.json`. The local image above is pre-rollout; Railway needed a Dockerfile
+parser fix removing the optional secret CA mount, retaining normal verified pip installation. Live image digest is in the rollout proof.
 
 ## 8. RAILWAY CHANGES
 
-Live: migration/login verified; one edge-bff service, public domain and secure variables allocated. Deployment
-is pending. Its Orc key is an existing-variable reference; no administrative DB credential is in the BFF.
+Live: migration/login verified; one edge-bff service, public domain and secure variables created; both branch deployments
+verified SUCCESS. BFF `e49f4a1c-a8ee-4733-a7d0-78370d7d52d5`, code `304600a`. Its Orc key is an existing-variable
+reference; no administrative DB credential is in the BFF. The three temporary sandboxes are verified DESTROYED.
 The original runner and unrelated services are unchanged. Main remains unmerged.
 
 Cloud development configuration is separate: updated install/start instructions and added only the pgweb hostname
 to the existing custom egress list, preserving the prior four destinations. The draft tool confirmed **saved** and
 `requires_publish=true`. The user must review/save/publish in Environment Settings for that configuration to activate.
-No cloud publication/fresh-task restore was performed, and saved settings do not prove live DB connectivity.
+This task verified pgweb connectivity after the earlier draft save; it does not establish who published the
+configuration or validate fresh-task restoration. Direct cloud access to the new BFF hostname is proxy-denied;
+public HTTPS checks succeeded from the temporary Railway sandbox, which has now been destroyed.
 
 ## 9. RISKS / TRADE-OFFS
 
@@ -174,6 +183,7 @@ continue; deleting data requires a separate decision. **Paid AI smoke tests requ
 
 ## 12. NEXT ACTION
 
-Complete Orc/BFF deployments from the branch, verify exact SUCCESS deployments, public health/auth/static
-and unpaid private backend reads, clean up the privileged sandbox, and publish rollout evidence on the branch.
-Keep EXEC-EDGE open until live delivery is verified. Paid end-to-end model calls remain a separate decision.
+Open https://edge-bff-dev.up.railway.app and sign in as `edge`. Retrieve the generated initial password from
+Railway dev → edge-bff → Variables → EDGE_INITIAL_PASSWORD; copy securely and then remove that unused handoff
+variable. Runtime authentication continues to use EDGE_PASSWORD_VERIFIER. Approved dev rollout is complete,
+recorded on the feature branch; main merge and paid agent smoke tests remain separate decisions.

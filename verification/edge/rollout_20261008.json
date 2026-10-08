@@ -1,0 +1,194 @@
+{
+  "recorded_at": "2026-10-08T10:29:07.261183+00:00",
+  "project_id": "8aef1702-030b-49cb-9df7-5ac2e0a42691",
+  "environment_id": "4d3e5af2-302b-4a2e-84e2-7d7476d6ff49",
+  "public_origin": "https://edge-bff-dev.up.railway.app",
+  "domain_id": "695eb767-530e-4013-b488-bd95379d981a",
+  "deployments": [
+    {
+      "service": "market-ai-orc",
+      "service_id": "41dc17ee-3bac-41ef-90ec-8b9356815c71",
+      "deployment_id": "24461464-9154-4789-bb5f-8ccbcc54204b",
+      "status": "SUCCESS",
+      "branch": "codex/edge-bff",
+      "commit": "b12153ac61c50b10700fa6b40872c5393e2f5f2c",
+      "image_digest": "sha256:433d077e22c2e63cfdb1d1279cf67898e15b784e2c9aadde7fdefb5e14c84f20",
+      "configuration": {
+        "healthcheckPath": "/ready",
+        "numReplicas": null,
+        "rootDirectory": "/apps/market-ai-orc",
+        "watchPatterns": [
+          "/apps/market-ai-orc/**"
+        ]
+      }
+    },
+    {
+      "service": "edge-bff",
+      "service_id": "c3656044-2817-44a7-9b55-54910bab416f",
+      "deployment_id": "e49f4a1c-a8ee-4733-a7d0-78370d7d52d5",
+      "status": "SUCCESS",
+      "branch": "codex/edge-bff",
+      "commit": "304600a7a1cb681fd57f2cc4e97582bda124677e",
+      "image_digest": "sha256:377b13241ee5fc8f7b21aa98f4eac32340f7b99b4154a7bb482f3fdf9461eee7",
+      "configuration": {
+        "healthcheckPath": "/ready",
+        "numReplicas": 1,
+        "rootDirectory": "/apps/edge-bff",
+        "watchPatterns": [
+          "/apps/edge-bff/**"
+        ]
+      }
+    }
+  ],
+  "public_probe": {
+    "public_origin": "https://edge-bff-dev.up.railway.app",
+    "checks": [
+      {
+        "check": "public /health",
+        "actual": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "check": "public /ready",
+        "actual": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "check": "public /",
+        "actual": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "check": "public /edge-client.js",
+        "actual": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "check": "unauthenticated session",
+        "actual": 401,
+        "expected": 401,
+        "passed": true
+      },
+      {
+        "check": "unauthenticated SSE",
+        "actual": 401,
+        "expected": 401,
+        "passed": true
+      },
+      {
+        "check": "password login",
+        "actual": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "check": "Secure and HttpOnly session cookie",
+        "actual": true,
+        "expected": true,
+        "passed": true
+      },
+      {
+        "check": "authenticated session",
+        "actual": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "check": "configured private login",
+        "actual": "edge",
+        "expected": "edge",
+        "passed": true
+      },
+      {
+        "check": "Orc history through BFF",
+        "actual": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "check": "active run recovery read",
+        "actual": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "check": "no submitted AI execution",
+        "actual": null,
+        "expected": null,
+        "passed": true
+      },
+      {
+        "check": "CSRF rejection",
+        "actual": 403,
+        "expected": 403,
+        "passed": true
+      },
+      {
+        "check": "invalid input rejected without AI",
+        "actual": 422,
+        "expected": 422,
+        "passed": true
+      },
+      {
+        "check": "logout",
+        "actual": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "check": "revoked session",
+        "actual": 401,
+        "expected": 401,
+        "passed": true
+      }
+    ],
+    "paid_ai_calls": 0
+  },
+  "private_orc_probe": [
+    {
+      "authenticated": false,
+      "http_status": 401,
+      "error_code": null
+    },
+    {
+      "authenticated": true,
+      "http_status": 404,
+      "error_code": "REQUEST_NOT_FOUND"
+    }
+  ],
+  "sandbox_cleanup": [
+    {
+      "id": "4f8cfab9-6f32-4be8-a8e1-02deb3c092ab",
+      "status": "DESTROYED"
+    },
+    {
+      "id": "f34d9695-a373-4e08-9d2e-31749417b755",
+      "status": "DESTROYED"
+    },
+    {
+      "id": "bb01b940-2966-4af1-ae86-7911785be492",
+      "status": "DESTROYED"
+    }
+  ],
+  "paid_ai_calls": 0,
+  "main_merged": false,
+  "iac_plan": "NOOP after config pull --force",
+  "public_probe_origin": "Railway temporary private-network sandbox via public HTTPS ingress; direct cloud proxy denies the newly allocated hostname",
+  "runtime_settings": {
+    "AI_MODEL": "deepseek/deepseek-v4.1-flash",
+    "AI_MODEL_2": "xiaomi/mimo-v2.6-flash",
+    "AI_MODEL_SWITCH": "1",
+    "AI_MODE_SWITCH": "4",
+    "AI_MAX_ANALYSIS_SECONDS": "1800",
+    "AI_REQUEST_TIMEOUT_SECONDS": "600",
+    "AI_CAPTURE_REASONING": "true",
+    "AI_ENABLE_CONVERSATION_STORE": "true",
+    "AI_PROVIDER_SORT": null,
+    "AI_PROVIDER_MAX_CACHE_PRICE_RATIO": "0.25",
+    "AI_PROVIDER_MIN_THROUGHPUT": "50"
+  }
+}

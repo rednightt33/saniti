@@ -3065,3 +3065,19 @@ Selected EDGE_LOGIN=edge and EDGE_OWNER=edge-private. Generated password/verifie
 Admin migration used a temporary private-network sandbox with server-resolved existing variable references.
 Initial sandbox replaced after connection validation; deployment and final sandbox cleanup are pending.
 No unrelated service/configuration, runner, model/provider/mode/feature flag change. Paid AI not called.
+
+## 2026-10-08 — EDGE dev rollout COMPLETE, feature branch only
+
+Both source connections are `rednightt33/saniti` / `codex/edge-bff`; main was not merged or pushed.
+Orc SUCCESS deployment `24461464-9154-4789-bb5f-8ccbcc54204b`, commit `b12153a`, source `/apps/market-ai-orc`.
+Only the additive owner-checked read endpoint was deployed; runner, prompts, tools/models/providers/mode and flags preserved.
+BFF SUCCESS deployment `e49f4a1c-a8ee-4733-a7d0-78370d7d52d5`, commit `304600a`, source `/apps/edge-bff`.
+Port 8080, one process/replica, `/ready` healthcheck, ALWAYS restart; HTTPS https://edge-bff-dev.up.railway.app.
+Initial BFF deployment `3ecab877` failed on unsupported Dockerfile secret mount; production Dockerfile
+was corrected, with pinned dependencies and TLS verification retained, then the exact replacement verified SUCCESS.
+Seventeen public HTTPS/auth checks and two private owner/auth request-read probes passed; no paid AI calls.
+All three temporary sandboxes verified DESTROYED; temporary SSH key/agent removed.
+Ran `railway config pull --force` and `railway config plan`: configuration up to date, NOOP; no IaC apply.
+Owner retrieves password securely via EDGE_INITIAL_PASSWORD in the BFF's Railway Variables, then removes
+that unused handoff variable after saving it. No secret values were committed, logged or printed in chat.
+Schema and rollout evidence: `verification/edge`; complete report: `EDGE_DELIVERY.md`.

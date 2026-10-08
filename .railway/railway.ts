@@ -1,4 +1,4 @@
-import { bucket, defineRailway, github, image, postgres, preserve, project, ref, service, volume } from "railway/iac";
+import { bucket, defineRailway, github, image, postgres, preserve, project, service, volume } from "railway/iac";
 
 export default defineRailway(() => {
   const saniti = github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/idx-price-cron" });
@@ -52,7 +52,7 @@ export default defineRailway(() => {
     env: { AUDIT_STORE_SANDBOX_KEY: preserve(), AUDIT_STORE_URL: preserve(), PORT: preserve(), PY_SANDBOX_API_KEY: preserve(), PY_SANDBOX_AUDIT_STORE_ENABLED: preserve(), PY_SANDBOX_BUNDLE_MAX_ROWS: preserve(), PY_SANDBOX_BUNDLE_RETENTION_HOURS: preserve(), PY_SANDBOX_DATANEED_ENABLED: preserve(), PY_SANDBOX_DERIVED_FREQUENCY_ENABLED: preserve(), PY_SANDBOX_ENABLE_CONVERSATION_REUSE: preserve(), PY_SANDBOX_MAX_ANALYSES_PER_REQUEST: preserve(), PY_SANDBOX_MAX_CPU_SECONDS_PER_REQUEST: preserve(), PY_SANDBOX_MAX_MEMORY_MB: preserve(), PY_SANDBOX_MAX_SESSIONS: preserve(), PY_SANDBOX_MAX_SPECS_PER_REQUEST: preserve(), PY_SANDBOX_MODULES_AUDIT_ENABLED: preserve(), PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED: preserve(), PY_SANDBOX_OPEN_WAIT_SECONDS: preserve(), PY_SANDBOX_RESEARCH_FINDINGS_ENABLED: preserve(), PY_SANDBOX_RESEARCH_MIN_ANGLES: preserve(), PY_SANDBOX_RESULT_RETENTION_HOURS: preserve(), SQL_GOVERNOR_DATASET_ACCESS_KEY: preserve(), SQL_GOVERNOR_URL: preserve() },
   });
   const marketAiOrc = service("market-ai-orc", {
-    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-ai-orc" }),
+    source: github("rednightt33/saniti", { branch: "codex/edge-bff", checkSuites: false, rootDirectory: "/apps/market-ai-orc" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/market-ai-orc/**"] },
     start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080",
     healthcheck: "/ready",
@@ -118,6 +118,16 @@ export default defineRailway(() => {
     deploy: { cronSchedule: "0 23 * * *", restartPolicyType: "NEVER" },
     env: { DATABASE_URL: preserve(), TELEGRAM_NOTIFY_ATTEMPTS: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_TIMEOUT: preserve(), TELEGRAM_NOTIFY_URL: preserve() },
   });
+  const edgeBff = service("edge-bff", {
+    source: github("rednightt33/saniti", { branch: "codex/edge-bff", checkSuites: false, rootDirectory: "/apps/edge-bff" }),
+    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/edge-bff/**"] },
+    start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080 --workers 1 --no-access-log --no-proxy-headers",
+    healthcheck: "/ready",
+    healthcheckTimeout: 120,
+    replicas: { "sfo": 1 },
+    deploy: { restartPolicyType: "ALWAYS" },
+    env: { EDGE_DATABASE_URL: preserve(), EDGE_ENVIRONMENT: preserve(), EDGE_HEARTBEAT_SECONDS: preserve(), EDGE_INITIAL_PASSWORD: preserve(), EDGE_LEASE_SECONDS: preserve(), EDGE_LOGIN: preserve(), EDGE_ORC_TIMEOUT_SECONDS: preserve(), EDGE_ORC_URL: preserve(), EDGE_OWNER: preserve(), EDGE_PASSWORD_VERIFIER: preserve(), EDGE_POLL_SECONDS: preserve(), EDGE_PUBLIC_ORIGIN: preserve(), EDGE_SECURE_COOKIE: preserve(), EDGE_SESSION_SECONDS: preserve(), EDGE_SESSION_SECRET: preserve(), EDGE_WORKER_ENABLED: preserve(), MARKET_AI_ORC_API_KEY: preserve(), PORT: preserve() },
+  });
   const aiDataCoverage = service("ai-data-coverage", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/ai-data-coverage" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/ai-data-coverage/**"] },
@@ -142,25 +152,7 @@ export default defineRailway(() => {
     env: { DATABASE_URL: preserve() },
   });
 
-  // PROPOSED EDGE: review only. Do not apply until live schema reconciliation and rollout approval.
-  const edgeBff = service("edge-bff", {
-    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/edge-bff" }),
-    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/edge-bff/**"] },
-    start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080 --workers 1 --no-access-log --no-proxy-headers",
-    healthcheck: "/ready", healthcheckTimeout: 120,
-    replicas: { "sfo": 1 }, deploy: { restartPolicyType: "ALWAYS" },
-    env: {
-      PORT: "8080", EDGE_ENVIRONMENT: "dev", EDGE_SECURE_COOKIE: "true",
-      EDGE_ORC_URL: "http://market-ai-orc.railway.internal:8080",
-      MARKET_AI_ORC_API_KEY: ref(marketAiOrc, "MARKET_AI_ORC_API_KEY"),
-      EDGE_ORC_TIMEOUT_SECONDS: "3900", EDGE_LEASE_SECONDS: "90", EDGE_HEARTBEAT_SECONDS: "20",
-      EDGE_SESSION_SECONDS: "86400", EDGE_POLL_SECONDS: "2", EDGE_WORKER_ENABLED: "true",
-      EDGE_DATABASE_URL: preserve(), EDGE_OWNER: preserve(), EDGE_LOGIN: preserve(),
-      EDGE_PASSWORD_VERIFIER: preserve(), EDGE_SESSION_SECRET: preserve(), EDGE_PUBLIC_ORIGIN: preserve(),
-    },
-  });
-
   return project("lucid-patience", {
-    resources: [edgeBff, orcTestRunner, marketSqlGovernor, marketWebGovernor, marketPythonSandbox, marketAiOrc, idxPriceCron, pgweb, PostgresE8GM, telegramTrigger, webGovernorTestRunner, marketAuditStore, telegramMonitor, idxPriceRecoveryCron, Postgres, aiDataCoverage, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, postgresVolumeOz3T, marketWebGovernorData, marketSqlDatasets, marketAiConversationOutputs, marketAiAuditArtifacts],
+    resources: [orcTestRunner, marketSqlGovernor, marketWebGovernor, marketPythonSandbox, marketAiOrc, idxPriceCron, pgweb, PostgresE8GM, telegramTrigger, webGovernorTestRunner, marketAuditStore, telegramMonitor, idxPriceRecoveryCron, Postgres, edgeBff, aiDataCoverage, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, postgresVolumeOz3T, marketWebGovernorData, marketSqlDatasets, marketAiConversationOutputs, marketAiAuditArtifacts],
   });
 });
