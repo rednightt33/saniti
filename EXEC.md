@@ -875,6 +875,36 @@ tambah-saja (versi panduan baru dan round katalog baru), versi lama tetap.
 **Disetujui user 2026-10-08:** "Ok" atas pertanyaan "D1, D2, D3 disetujui? Go untuk mulai Gelombang A?" Gelombang A
 dimulai; Gelombang B dan setiap GT tetap menunggu perintah user.
 
+**Hasil Gelombang A (2026-10-08, orc saja; commit `08549d0`, `8753eee`, `2e27136` di `claude/code-session-2k3oeg`):**
+- A1 `app/stop_policy.py`: satu tabel hasil per jenis pemeriksaan (PAUSE, CONFIRM, ANNOTATE, ALTERNATIVES,
+  PENDING_DECISION). `_forced` dan `_plan_not_feasible` lewat `_paused`: LIMITATION tetap membawa draf di balik catatan
+  backend, lalu diakhiri pertanyaan dan pilihan penyebabnya; `execution.pause` dan `data_record.pause` menyimpannya, dan
+  pesan berikutnya membaca catatan jeda sekali (`pause_answered`). Mode 4: langkah yang jeda menjedakan giliran. Catatan
+  "hanya sekali" dan hasil di log diturunkan dari tabel (METHODOLOGY dan lain-lain tidak lagi tercatat
+  FORCED_LIMITATION). Tes `tests/test_stop_policy.py` membaca semua jenis pemeriksaan dari kode dan gagal bila ada yang
+  tanpa hasil atau berakhir tanpa pertanyaan.
+- A2 M117: skema tiga router menulis `text` (kutipan kata user) dan `basis` STATED/IMPLIED; `user_words.quoted_in`
+  mencocokkan kutipan tanpa daftar kata. Pemeriksa rencana: nilai berkutipan STATED = kata user; IMPLIED atau beda tanda
+  = "saya tafsirkan dari ..."; tanpa kutipan = satu kali perbaikan lalu "usulan AI, belum Anda sebut"; horizon yang
+  berbeda dan angka teks rencana tanpa sumber juga masuk daftar. Rencana tetap terbit PENDING dengan blok "Nilai yang
+  perlu Anda konfirmasi sebelum riset dijalankan" yang ditulis backend. `CODE_GUARANTEES` diubah sesuai EXEC-D baru.
+- A3 M121: `research_completed` di eksekusi rencana; rencana yang risetnya belum selesai tetap PENDING (percobaan
+  dicatat) dan "lanjutkan" menjalankannya lagi. Prompt dan instruksi kelayakan/eksekusi menawarkan bertanya ke user
+  (CLARIFICATION) sebelum LIMITATION (tes prompt +2% tetap lulus).
+- A4 M122 1, 3, 5: registri menerjemahkan nilai berbentuk teks menurut skema (`ai_tool_arguments_decoded`,
+  `text_values_decoded`); pesan galat menyebut tipe yang diharapkan dan kolom saudara yang cocok polanya; batas
+  perbaikan menawarkan alat lain dengan efek sama, bertanya, atau lanjut tanpa hasil itu (`tool_repair_budget_reached`).
+- A5 sandbox penuh: `open_with_wait` (dipakai `open_analysis_session` dan riset) mengantre ulang selama sisa waktu
+  jawaban (cadangan 180 detik, maks 900 detik, dipacu sesuai tahanan sandbox), batas waktu alat diturunkan darinya;
+  setelah itu pesan ke AI tanpa "Do not retry" (`next_action` PAUSE_ANSWER) dan LIMITATION-nya dijeda (SANDBOX_BUSY).
+- Tes: orc 1.548 lulus termasuk tes database (Postgres lokal). Benchmark DeepSeek (kredit dicek, sisa limit kunci
+  USD 0,94; biaya ±USD 0,11): router pesan pertama `--ask-back` PASS (development 60/60, heldout 32/32, ask-back 16/16);
+  router giliran 48/50 (dua salah = kasus "BMRI kemarin" yang sama dengan sebelumnya, diterima di RAILWAY_CHANGELOG);
+  set M117 16 kalimat: semua angka eksplisit terbaca dengan kutipan sah (termasuk "setengah persen", "lima persen",
+  "-2" dari "turun lebih dari 2%"), nol tersirat 4/4 (sebelumnya 1/4), 0 kutipan palsu, 1 JSON rusak (dicoba ulang di
+  produksi); empat kalimat tanpa ambang dibaca 0 IMPLIED dari "naik"/"kenaikan" (masuk konfirmasi, tidak dijalankan
+  tanpa persetujuan); "naik signifikan" dibaca 0 dari "naik" tanpa menanyakan "signifikan" (dicatat untuk GT-A).
+
 ### EXEC-M109: pertanyaan tanya-balik router tetap dipakai
 
 **Keputusan user 2026-10-07:** "M109 OK untuk perbaikan plan. Masukan ke EXEC." Pilihan "Ya, masukkan juga
