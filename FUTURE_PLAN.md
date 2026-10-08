@@ -192,6 +192,7 @@ Untuk 100 pengguna bersamaan tetap perlu bagian 2.
 | Router giliran mode 4 juga membaca balasan untuk rencana v1 (rencana hipotesis): perlu ringkasan rencana v1 di konteks router | `EXEC.md` EXEC-D P-b (2026-10-07) | Sekarang rencana v1 dibaca penyortir balasan rencana (bisa bertanya balik lewat UNRELATED dan giliran CANCEL) |
 | Pilihan cepat yang membawa labelnya sendiri (misalnya `chosen_option` + `chosen_label`), supaya pilihan berjalur sama tetap bisa diklik dengan maknanya | `EXEC.md` EXEC-M109 (2026-10-07, tidak termasuk) | Mengubah API antara aplikasi depan dan backend |
 | "Setuju, jalankan" saat rencana sudah dijalankan: jawab "rencana sudah dijalankan, ini hasilnya" alih-alih bertanya balik | `EXEC.md` EXEC-M109 (2026-10-07, tidak termasuk) | Router perlu tahu rencana yang sudah selesai |
+| M127a: mode 4 menampilkan bagian riset dan usulan hanya bila ada isinya; deskripsi EXPLORE router tidak lagi mencakup pertanyaan yang tidak dijawab data pasar (outlook makro, berita), yang pergi ke FACT | `ERRORS_AND_SOLUTIONS.md` M127 (2026-10-08) | User 2026-10-08: "M137a nanti saja" (M127a) |
 
 ### 3b. Keputusan user yang masih terbuka
 

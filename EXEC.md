@@ -1211,18 +1211,22 @@ dan pratinjau (`ERRORS_AND_SOLUTIONS.md` M125 sisa, M126):
 **Keputusan user 2026-10-08** atas permintaan "jalankan pertanyaan yg related to web govt juga ya, liat apakah efisien
 dan gimana uinya 5 pertanyaan mix": kredit "Saya naikkan batas kunci"; urutan "Perbaiki dulu" (usulan perbaikan dulu,
 uji web 5 pertanyaan sesudah disetujui dan di-deploy). Usulan P1–P5 menunggu persetujuan.
+- **Go P1–P5 (user 2026-10-08: "Ok p1-p5 masukan exec", jawaban atas "Go untuk P1–P5").** Urutan kerja: P1–P5
+  dibangun dan diuji offline, deploy orc dan edge-bff sampai SUCCESS, lalu uji 5 pertanyaan web campuran lewat EDGE.
 - Keputusan user 2026-10-08 atas contoh (a)/(b)/(c) tanda sumber: "pakai C". Klaim web selalu diberi link ke halaman
   sumbernya (teks link = nama situs, alamat dari daftar sumber yang dibaca sistem, bukan diketik AI); angka database
-  tanpa tanda di kalimat, asalnya di panel Sources. P1–P5 masih menunggu go.
+  tanpa tanda di kalimat, asalnya di panel Sources.
 
 **Uji ekstrak data ke Excel (keputusan user 2026-10-08: "Kita test yg nomor 2 ya masukan exec", nomor 2 = ekstrak
-data ke Excel).** Satu pesan lewat EDGE seperti user: foreign flow BBRI 1 tahun terakhir dalam Excel. Diukur: jalur
+data ke Excel; user 2026-10-08: "Fitur excel tadi masukan exec": hasil uji dan perbaikan yang dibutuhkan dicatat di
+sini).** Satu pesan lewat EDGE seperti user: foreign flow BBRI 1 tahun terakhir dalam Excel. Diukur: jalur
 yang dipilih router, waktu, biaya, file XLSX terunduh lewat tombol Download EDGE, isi file (baris, rentang tanggal,
 lembar definisi dan asal data), beberapa angka dicocokkan langsung ke database, dan apakah batas data aliran asing
 (sekitar 31 Agustus 2026, belum terverifikasi penuh) disebut. Batas kunci dinaikkan user (limit 38, sisa USD 5,37).
 
 **Tombol stop (permintaan user 2026-10-08: "kita jg perlu tambah stop button, which fungsinya kaya stop ai processing.
-saat ini sudah ada? jika belum masukan exec").** Belum ada (terverifikasi): BFF melaporkan `capabilities.cancel:
+saat ini sudah ada? jika belum masukan exec"; disetujui 2026-10-08: "Tombol stop OK masukan exec", dibangun sesudah
+P1–P5).** Belum ada (terverifikasi): BFF melaporkan `capabilities.cancel:
 false`, orc tidak punya rute pembatalan (hanya pembatalan rencana riset). Rencana, belum dibangun:
 - EDGE: tombol Stop menggantikan Submit selama jawaban berjalan.
 - BFF: `POST /api/v1/runs/{id}/cancel` (pemilik dan CSRF dicek), status baru CANCELLED.
