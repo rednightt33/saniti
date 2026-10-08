@@ -10,6 +10,8 @@ released for the final answer only when complete_analysis passes coverage.
 from __future__ import annotations
 
 import contextvars
+import logging
+import time
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -18,7 +20,7 @@ from ..compaction import dumps
 from .analysis import SandboxClient
 from .artifacts import current_results, read_execution, read_output_any, resolve_ref
 from .registry import ToolError, ToolSpec
-from .request_data import current_request_id
+from .request_data import current_request_id, current_run_deadline
 
 # 2d (2026-10-02): the output ids of the carried tables the approved research plan names, set by the orchestrator
 # for the run that executes the plan (None: no approved plan, so the sandbox's own rule applies)
@@ -296,11 +298,56 @@ SESSION_LIMIT_SENTENCE = (
 CAPACITY_OWN_MESSAGE = (
     "Every analysis session slot of the sandbox is in use{waited}. This answer's own sessions stay open: continue in "
     "one of them (open_sessions), or return response_type \"LIMITATION\" for the part that needs another session.")
+# EXEC-W A5 (user decision 2026-10-08: "menunggu jadi tugas backend, jawaban jeda, dan feedback 'jangan coba lagi' bisa
+# diganti ke AI"): the backend waited and retried for the rest of the answer's time; the answer then pauses with a question
 CAPACITY_MESSAGE = (
-    "Every analysis session slot of the sandbox is in use by other requests{waited}. Do not retry open_analysis_session or "
-    "prepare_data_bundle in this run: return response_type \"LIMITATION\" saying that the analysis could not start "
-    "because the analysis sandbox was busy and that the question can be asked again later."
+    "Every analysis session slot of the sandbox stayed in use by other answers; the backend waited and retried "
+    "for you, so opening again in this message meets the same slots. Answer from what is already verified (a part that "
+    "needs no new session may still be done) and return response_type \"LIMITATION\" for the rest: the answer then "
+    "pauses with a question that lets the user continue later, and the prepared data is kept for that."
 )
+# how long before the answer's deadline the backend stops waiting for a slot (time to write the answer), and the
+# longest it waits in one call; each attempt is held by the sandbox for its open_wait_seconds (S28)
+BUSY_RESERVE_SECONDS = 180
+MAX_BUSY_WAIT_SECONDS = 900
+logger = logging.getLogger("market_ai_orc")
+
+
+def open_with_wait(client: SandboxClient, body: dict[str, Any], timeout: float,
+                   clock=time.monotonic, sleep=time.sleep) -> dict[str, Any]:
+    """POST /v1/sessions; while every slot is in use by other answers (SESSION_CAPACITY_EXCEEDED with no session of
+    this request), wait and try again for as long as the answer's time allows (EXEC-W A5), without the model. The
+    result names how long the backend waited (waited_seconds) and how often it asked (open_attempts)."""
+    started, attempts = clock(), 0
+    deadline = current_run_deadline.get()
+    limit = started + MAX_BUSY_WAIT_SECONDS
+    if deadline is not None:
+        limit = min(limit, deadline - BUSY_RESERVE_SECONDS)
+    while True:
+        attempts += 1
+        asked = clock()
+        result = _call(client, "POST", "/v1/sessions", timeout=timeout + client.open_wait_seconds, json=body)
+        busy = result.get("status") == "REJECTED" and result.get("code") == "SESSION_CAPACITY_EXCEEDED" \
+            and not result.get("open_sessions")
+        if not busy:
+            break
+        # a sandbox that does not hold an open request (open_wait_seconds 0) is not waited for here (S28 as before)
+        if client.open_wait_seconds <= 0 or clock() + timeout + client.open_wait_seconds > limit:
+            break
+        logger.info(dumps({"event": "session_open_busy_retry", "request_id": body.get("request_id"),
+                           "attempt": attempts, "waited_seconds": int(clock() - started)}))
+        # a refusal faster than the sandbox's own hold (its queue was full) is paced, never retried in a tight loop
+        rest = client.open_wait_seconds - (clock() - asked)
+        if rest > 0:
+            sleep(rest)
+    if attempts > 1 or result.get("status") == "REJECTED":
+        result = {**result, "open_attempts": attempts,
+                  "waited_seconds": max(int(clock() - started), int(result.get("waited_seconds") or 0))}
+    if busy:
+        # every way the answer opens a session (open_analysis_session, a research run) reads the same outcome
+        result.pop("retry_after_seconds", None)
+        result.update(message=CAPACITY_MESSAGE, next_action="PAUSE_ANSWER")  # no digit: tool numbers are sources
+    return result
 RELEASED_PREVIEW_ROWS = 200
 RELEASED_PREVIEW_OUTPUTS = 10
 # Room left in the tool result for fields the registry adds (ignored_arguments, omitted_fields_set_to_null).
@@ -455,19 +502,17 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
         carried = current_carried_outputs.get()
         if carried is not None:
             body["carried_outputs"] = carried
-        # S28: the sandbox may wait up to its open_wait_seconds for a slot before it answers
-        result = _call(client, "POST", "/v1/sessions", timeout=timeout_seconds + client.open_wait_seconds, json=body)
+        # S28: the sandbox may wait up to its open_wait_seconds for a slot before it answers; EXEC-W A5: the backend
+        # keeps asking while every slot is held by other answers and the answer's time allows
+        result = open_with_wait(client, body, timeout_seconds)
         restore_into(result, carried)
-        if result.get("status") == "REJECTED" and result.get("code") == "SESSION_CAPACITY_EXCEEDED":
-            # The sandbox's RETRY_LATER is for callers that can wait; it already waited, and a retry within this run
-            # meets the same slots.
+        if result.get("status") == "REJECTED" and result.get("code") == "SESSION_CAPACITY_EXCEEDED" \
+                and result.get("open_sessions"):
+            # every slot is in use and this answer holds some of them: it continues in its own sessions
             result.pop("retry_after_seconds", None)
             waited = result.get("waited_seconds")
             waited = f" (the sandbox waited {waited} seconds for a slot)" if waited else ""
-            if result.get("open_sessions"):
-                result.update(message=CAPACITY_OWN_MESSAGE.format(waited=waited), next_action="USE_OPEN_SESSION")
-            else:
-                result.update(message=CAPACITY_MESSAGE.format(waited=waited), next_action="REPORT_LIMITATION")
+            result.update(message=CAPACITY_OWN_MESSAGE.format(waited=waited), next_action="USE_OPEN_SESSION")
         if closed is not None:
             result["closed_session"] = {k: closed.get(k) for k in ("session_id", "status", "close_reason")}
         return result
@@ -528,7 +573,8 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
                  description=OPEN_DESCRIPTION + (SESSION_LIMIT_SENTENCE.format(
                      limit=NUMBER_WORDS.get(session_limit, str(session_limit))) if session_limit else ""),
                  arguments_model=OpenAnalysisSessionLimitArgs if session_limit else OpenAnalysisSessionArgs,
-                 handler=open_session, timeout_seconds=timeout_seconds + 30, max_result_bytes=max_result_bytes),
+                 handler=open_session, timeout_seconds=timeout_seconds + 30 + MAX_BUSY_WAIT_SECONDS,
+                 max_result_bytes=max_result_bytes),
         ToolSpec(name="run_python", effect="COMPUTES", description=RUN_DESCRIPTION + (PERIOD_RETURN_SENTENCE if standard_period_return
                                                                    else "")
                  + (EVENT_STUDY_SENTENCE if event_study else "") + (BACKTEST_SENTENCE if backtest else ""),

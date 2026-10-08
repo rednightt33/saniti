@@ -1290,6 +1290,11 @@ TYPED_FIGURES_LINE = ("Angka berikut diketik dari hasil analisis tanpa alamat, j
 # G23 C (K2, PLAN_FINAL_2026-10-04.md): every one-time gate request says it is asked once and the way out
 # EXEC-R R2 (2026-10-06): with an edit offered, {"keep": true} keeps the stored draft (h_add turn 2 resent 8,660 tokens
 # unchanged in 109 s to take this way out)
+# EXEC-W A4 (M122 item 5, user decision 2026-10-08): a spent repair budget offers ways on instead of ending the answer
+REPAIR_BUDGET_MESSAGE = (
+    "{name} was rejected {count} times for the same reason ({code}); do not call it again with the same kind of "
+    "arguments. Go on with {others}, ask the user (response_type CLARIFICATION) when only they can settle it, or "
+    "continue without this result and say in the answer what is missing.")
 GATE_ONCE_NOTE = (" This check asks only once. If you cannot make the change with the tools you have in this step, keep "
                   'the answer: reply {"keep": true} when an edit is offered below, otherwise send it again unchanged; '
                   "it is then delivered with the backend's note.")
@@ -1768,6 +1773,13 @@ PLAN_MIN_EFFECT_INSTRUCTION = (
 PLAN_FIELD_PATHS = " Fields: {paths}."
 
 
+def _asks_pause(node: Any, depth: int = 0) -> bool:
+    """EXEC-W A5: a tool result (or a result inside it) whose next_action pauses the answer (the sandbox stayed full)."""
+    if depth > 3 or not isinstance(node, dict):
+        return False
+    return node.get("next_action") == "PAUSE_ANSWER" or any(_asks_pause(v, depth + 1) for v in node.values())
+
+
 def _same_value(value: float, numbers: list[float]) -> bool:
     """value equals one of the numbers, as written or as a percent read the other way (5 and 0.05)."""
     return any(abs(n - value) < 1e-9 or abs(n * 100 - value) < 1e-9 or abs(n / 100 - value) < 1e-9 for n in numbers)
@@ -2065,6 +2077,8 @@ class RunState:
     data_record: dict[str, Any] = field(default_factory=records.empty)
     # EXEC-W A1 (M121): this run's answer paused (stop_policy.pause_record), else None
     pause: dict[str, Any] | None = None
+    # EXEC-W A5: an open of an analysis session met a full sandbox after the backend's wait
+    sandbox_busy: bool = False
     references_used: int = 0
     # M43 (2026-09-30): the final answer kept references to missing fields as [field] (validation_gate ANNOTATED)
     reference_annotated: bool = False
@@ -2387,6 +2401,8 @@ class AgentOrchestrator:
             carried = current_carried_outputs.set(state.carried_outputs)
             current_research_guard.set(state.guard)
             final = self._loop(state)
+            if state.sandbox_busy and state.pause is None and final.response_type == "LIMITATION":
+                final = self._paused(state, final, "SANDBOX_BUSY")  # EXEC-W A5: continue later, data kept
             final = self._with_ai_choices(state, final)
             final = self._conversation_correction(state, final)
             state.plan_meta["memory_decisions"] = self._memory_decisions(state, final)
@@ -3808,6 +3824,8 @@ class AgentOrchestrator:
                     output=outcome.output, ok=outcome.ok, error_code=self._rejection_code(name, outcome),
                     duration_ms=duration_ms, occurred_at=self.wall_clock()))
         kejedot.count_tool(state.friction, name, outcome, state.data_record)
+        if _asks_pause(outcome.output):
+            state.sandbox_busy = True  # EXEC-W A5: the backend waited for a slot in vain; the answer pauses
         self._remember_tool_refusal(state, name, raw_arguments, outcome)
         text = dumps(outcome.output)
         if getattr(self.settings, "ai_enable_tool_envelope", False):
@@ -4230,10 +4248,17 @@ class AgentOrchestrator:
             state.repairs[key] = state.repairs.get(key, 0) + 1
         if state.repairs[key] <= self.settings.ai_max_repair_attempts:
             return outcome
-        return error_outcome(call_id, name, "REPAIR_BUDGET_EXHAUSTED",
-                             f"{name} was rejected {state.repairs[key]} times for the same reason ({code}). Do not "
-                             "retry it: return response_type \"LIMITATION\" naming this reason code and what it "
-                             "means for the request.")
+        # EXEC-W A4 (M122 item 5, user decision 2026-10-08): the budget stops this call, not the answer; the ways on
+        # are the step's other tools of the same effect (from the registry), asking the user, or going on without it
+        effect = self.registry.effect_of(name)
+        others = sorted(self.registry.names_with_effect(frozenset({effect})) & self._desk(state) - {name}) \
+            if effect else []
+        log_event("tool_repair_budget_reached", request_id=state.request_id, tool=name, reason=code,
+                  refusals=state.repairs[key], alternatives=others[:8])
+        return error_outcome(call_id, name, "REPAIR_BUDGET_EXHAUSTED", REPAIR_BUDGET_MESSAGE.format(
+            name=name, count=state.repairs[key], code=code,
+            others=f"another tool of this step that does the same kind of work ({', '.join(others[:8])})"
+            if others else "another way with the tools of this step"))
 
     def _estimate_context(self, state: RunState, tools: list[dict[str, Any]]) -> int:
         return estimate_tokens({

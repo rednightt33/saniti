@@ -147,6 +147,134 @@ def _models_in(annotation: Any) -> list[type[BaseModel]]:
     return found
 
 
+def _node_at(schema: dict[str, Any], loc: list[str]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """(the schema node at a validation location, the object node that holds it)."""
+    node, parent = schema, None
+    for part in loc:
+        objects = _branch(node, "properties") if isinstance(node, dict) else None
+        if objects is not None and part in (objects.get("properties") or {}):
+            parent, node = objects, objects["properties"][part]
+            continue
+        items = _branch(node, "items") if isinstance(node, dict) else None
+        if items is not None and part.isdigit():
+            node = items["items"]
+            continue
+        return None, None
+    return node, parent
+
+
+def _full_match(pattern: str, value: str) -> bool:
+    try:
+        return re.fullmatch(pattern, value) is not None
+    except re.error:
+        return False
+
+
+def _resolved(schema: dict[str, Any], node: Any) -> Any:
+    """A pydantic JSON-schema node with its $ref (to $defs) followed."""
+    while isinstance(node, dict) and isinstance(node.get("$ref"), str):
+        node = (schema.get("$defs") or {}).get(node["$ref"].rsplit("/", 1)[-1])
+    return node
+
+
+def _siblings(model_schema: dict[str, Any], loc: list[str]) -> dict[str, Any]:
+    """The pydantic schema properties of the object that holds loc (they keep the patterns the strict schema drops)."""
+    node = model_schema
+    for part in loc[:-1]:
+        node = _resolved(model_schema, node)
+        if not isinstance(node, dict):
+            return {}
+        if part.isdigit():
+            node = node.get("items") or next((b.get("items") for b in node.get("anyOf") or []
+                                              if isinstance(b, dict) and b.get("items")), None)
+        else:
+            node = (node.get("properties") or {}).get(part)
+            node = next((b for b in (node or {}).get("anyOf") or [] if isinstance(b, dict) and "$ref" in b), node)
+    node = _resolved(model_schema, node)
+    return (node or {}).get("properties") or {} if isinstance(node, dict) else {}
+
+
+def _schema_hint(schema: dict[str, Any], loc: list[str], value: Any,
+                 model_schema: dict[str, Any] | None = None) -> str:
+    """What the schema expects at loc, and a sibling field whose pattern the refused value matches."""
+    node, parent = _node_at(schema, loc)
+    if not isinstance(node, dict):
+        return ""
+    types = sorted(t for t in _schema_types(node) if t)
+    hints = [f"expected JSON {' or '.join(types)}"] if types else []
+    if isinstance(value, str) and types and "string" not in types:
+        hints.append("send the value itself, not as text")
+    if isinstance(value, str) and model_schema:
+        for name, sibling in _siblings(model_schema, loc).items():
+            if not isinstance(sibling, dict) or name == (loc[-1] if loc else None):
+                continue
+            patterns = [branch["pattern"] for branch in [sibling, *(sibling.get("anyOf") or [])]
+                        if isinstance(branch, dict) and isinstance(branch.get("pattern"), str)]
+            if any(_full_match(pattern, value) for pattern in patterns):
+                hints.append(f"this value has the form of {name}: put it in {name}")
+    return "; ".join(hints)
+
+
+_JSON_TYPES = {type(None): "null", bool: "boolean", int: "integer", float: "number", list: "array", dict: "object",
+               str: "string"}
+
+
+def _schema_types(schema: dict[str, Any]) -> set[str]:
+    """The JSON types a (strict) schema node allows, through anyOf."""
+    if "anyOf" in schema:
+        return set().union(*(_schema_types(branch) for branch in schema["anyOf"] if isinstance(branch, dict)))
+    kind = schema.get("type")
+    return set(kind) if isinstance(kind, list) else {kind} if isinstance(kind, str) else set()
+
+
+def _fits(value: Any, types: set[str]) -> bool:
+    kind = _JSON_TYPES.get(type(value))
+    return kind in types or (kind == "integer" and "number" in types)
+
+
+def _branch(schema: dict[str, Any], key: str) -> dict[str, Any] | None:
+    """The object or array branch of a node (the one that has key: properties or items)."""
+    if key in schema:
+        return schema
+    for branch in schema.get("anyOf") or []:
+        if isinstance(branch, dict) and key in branch:
+            return branch
+    return None
+
+
+def decode_text_values(schema: dict[str, Any], data: Any, path: str = "") -> list[str]:
+    """EXEC-W A4 (M122 item 1, user decision 2026-10-08): a value the model wrote as text where the schema expects
+    another JSON type ("null", "[\"a\"]", "20") is decoded in place when the decoded value fits that type; the text
+    "null" in a nullable field means null (an opaque token or name is never the word null). Derived from each tool's
+    schema, so every tool is covered without a list. Returns the decoded paths (reported to the model and logged)."""
+    decoded: list[str] = []
+    objects = _branch(schema, "properties")
+    if isinstance(data, dict) and objects is not None:
+        for name, node in (objects.get("properties") or {}).items():
+            if name not in data or not isinstance(node, dict):
+                continue
+            where = f"{path}.{name}" if path else name
+            value = data[name]
+            types = _schema_types(node)
+            if isinstance(value, str) and types and "string" not in types:
+                try:
+                    candidate = json.loads(value)
+                except ValueError:
+                    candidate = value
+                if candidate is not value and _fits(candidate, types):
+                    data[name] = value = candidate
+                    decoded.append(where)
+            elif isinstance(value, str) and "null" in types and value.strip().casefold() == "null":
+                data[name] = value = None
+                decoded.append(where)
+            decoded += decode_text_values(node, value, where)
+    items = _branch(schema, "items")
+    if isinstance(data, list) and items is not None and isinstance(items.get("items"), dict):
+        for index, item in enumerate(data):
+            decoded += decode_text_values(items["items"], item, f"{path}.{index}")
+    return decoded
+
+
 def fill_omitted_nulls(model: type[BaseModel], data: Any, path: str = "") -> list[str]:
     """Strict tool schemas require every field, but a provider that does not enforce the schema lets the model omit
     nullable ones. An omitted nullable field means null, so it is set to null (reported back to the model); a missing
@@ -226,6 +354,11 @@ class ToolRegistry:
     def names(self) -> list[str]:
         return [name for name, spec in self._tools.items() if spec.enabled]
 
+    def effect_of(self, name: str) -> str | None:
+        """The effect class of one tool (None when unknown or unclassed)."""
+        spec = self._tools.get(name)
+        return spec.effect if spec is not None else None
+
     def names_with_effect(self, effects: frozenset[str] = READ_EFFECTS) -> frozenset[str]:
         """The offered tools whose effect is one of effects (by default the read-only ones)."""
         return frozenset(name for name, spec in self._tools.items() if spec.enabled and spec.effect in effects)
@@ -255,6 +388,7 @@ class ToolRegistry:
 
         ignored: list[str] = []
         assumed_null: list[str] = []
+        decoded: list[str] = []
         parsed: Any = None
         try:
             parsed = self._parse_arguments(raw_arguments)
@@ -264,6 +398,10 @@ class ToolRegistry:
                 # burns the tool-call budget, so the keys are ignored and reported back.
                 ignored, parsed = sorted(str(key) for key in parsed)[:20], {}
             parsed, unwrapped = self._unwrap(spec, parsed)
+            decoded = decode_text_values(self._schemas.get(name) or {}, parsed)
+            if decoded:
+                logger.info(dumps({"event": "ai_tool_arguments_decoded", "tool": name,
+                                   "request_id": _current_request_id(), "paths": decoded[:20]}))
             assumed_null = fill_omitted_nulls(spec.arguments_model, parsed)
             arguments = spec.arguments_model.model_validate(parsed)
         except (ValueError, ValidationError) as exc:
@@ -271,7 +409,8 @@ class ToolRegistry:
             logger.info(dumps({"event": "ai_tool_arguments_rejected", "tool": name,
                                "request_id": _current_request_id(),
                                "errors": self._argument_locations(exc)}))
-            outcome = error_outcome(call_id, name, "INVALID_ARGUMENTS", self._argument_issue(exc))
+            outcome = error_outcome(call_id, name, "INVALID_ARGUMENTS",
+                                    self._argument_issue(exc, self._schemas.get(name) or {}, spec.arguments_model))
             if spec.argument_errors is not None:
                 try:
                     outcome.output["error"].update(spec.argument_errors(exc, parsed))
@@ -300,6 +439,9 @@ class ToolRegistry:
             output["unwrapped_arguments"] = unwrapped
         if assumed_null:
             output["omitted_fields_set_to_null"] = assumed_null[:20]
+        if decoded:
+            # EXEC-W A4 (M122): the model learns its text was read as the JSON value the schema expects
+            output["text_values_decoded"] = decoded[:20]
         try:
             size = len(dumps(output).encode("utf-8"))
         except (TypeError, ValueError):
@@ -398,13 +540,21 @@ class ToolRegistry:
         return [{"loc": "root", "type": type(exc).__name__}]
 
     @staticmethod
-    def _argument_issue(exc: Exception) -> str:
+    def _argument_issue(exc: Exception, schema: dict[str, Any] | None = None,
+                        model: type[BaseModel] | None = None) -> str:
+        """The refusal the model reads. EXEC-W A4 (M122 item 3): each failing field also names, from the tool's
+        schema, the JSON type it expects and, for a value written in the form of a sibling field, that field."""
         if isinstance(exc, ValidationError):
-            details = [
-                f"{'.'.join(str(part) for part in item.get('loc') or ()) or 'root'}: "
-                f"{item.get('msg', 'invalid value')}"
-                for item in exc.errors(include_url=False, include_input=False)[:5]
-            ]
+            details = []
+            for item in exc.errors(include_url=False)[:5]:
+                loc = [str(part) for part in item.get("loc") or ()]
+                text = f"{'.'.join(loc) or 'root'}: {item.get('msg', 'invalid value')}"
+                try:
+                    model_schema = model.model_json_schema() if model is not None else None
+                except Exception:  # noqa: BLE001 - a hint never hides the refusal
+                    model_schema = None
+                hint = _schema_hint(schema or {}, loc, item.get("input"), model_schema)
+                details.append(text + (f" ({hint})" if hint else ""))
             return "Tool arguments failed validation: " + "; ".join(details)
         if isinstance(exc, json.JSONDecodeError):
             return "Tool arguments were not valid JSON. Resend one complete schema-valid call."

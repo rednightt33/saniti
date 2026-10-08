@@ -108,3 +108,20 @@ def test_a_record_without_a_pause_keeps_its_shape() -> None:
 def test_the_request_type_is_unchanged() -> None:
     # the pause rides on LIMITATION and execution.pause: no new status, no new response type for callers
     assert "PAUSED" not in AgentRunRequest.model_json_schema().__repr__()
+
+
+def test_a_full_sandbox_after_the_backends_wait_pauses_the_limitation() -> None:
+    """EXEC-W A5: a tool result that says PAUSE_ANSWER (directly or inside a research step's result) marks the run; its
+    LIMITATION then ends with the question to continue later."""
+    from app.orchestrator import _asks_pause
+    from app.schemas import FinalResponse
+
+    assert _asks_pause({"ok": True, "result": {"status": "REJECTED", "next_action": "PAUSE_ANSWER"}})
+    assert _asks_pause({"result": {"group": {"opened": {"next_action": "PAUSE_ANSWER"}}}})
+    assert not _asks_pause({"result": {"next_action": "USE_OPEN_SESSION"}})
+    state = RunState(request_id="busy", started=0.0, input_items=[])
+    limited = FinalResponse(response_type="LIMITATION", answer="Analisis belum bisa dimulai.",
+                            clarification_question=None, assumptions=[], limitations=["sandbox penuh"])
+    paused = AgentOrchestrator._paused(state, limited, "SANDBOX_BUSY")
+    assert paused.answer.endswith(stop_policy.pause_question("SANDBOX_BUSY")) and "Lanjutkan sekarang" in paused.answer
+    assert state.pause["cause"] == "SANDBOX_BUSY"

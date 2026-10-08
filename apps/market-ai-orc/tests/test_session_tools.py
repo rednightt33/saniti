@@ -187,14 +187,52 @@ def test_an_incomplete_analysis_fetches_nothing() -> None:
 
 # --- S05: capacity refusals and closing the sessions a run leaves open --------------------------------------------
 
-def test_a_capacity_refusal_tells_the_model_not_to_retry_in_this_run() -> None:
+def test_a_capacity_refusal_pauses_the_answer_instead_of_forbidding_a_retry() -> None:
+    """EXEC-W A5 (user decision 2026-10-08): the backend did the waiting; the model hears what happened and that the
+    answer pauses with a question (no "do not retry")."""
     fake = FakeSandbox({"/v1/sessions": (429, {
         "status": "REJECTED", "error": {"code": "SESSION_CAPACITY_EXCEEDED", "message": "Every slot is in use.",
                                         "retry_after_seconds": 30}, "next_action": "RETRY_LATER"})})
     result = call(registry(fake), "open_analysis_session", {"input_bundle_id": BUNDLE}).output["result"]
-    assert result["code"] == "SESSION_CAPACITY_EXCEEDED" and result["next_action"] == "REPORT_LIMITATION"
-    assert "retry_after_seconds" not in result and "Do not retry" in result["message"]
+    assert result["code"] == "SESSION_CAPACITY_EXCEEDED" and result["next_action"] == "PAUSE_ANSWER"
+    assert "retry_after_seconds" not in result and "Do not retry" not in result["message"]
+    assert "waited and retried" in result["message"] and "pauses" in result["message"]
     assert not any(ch.isdigit() for ch in result["message"])  # provenance reads the numbers of tool results
+
+
+def test_the_backend_waits_for_a_slot_while_the_answer_has_time() -> None:
+    from app.tools.request_data import current_run_deadline
+    from app.tools.session import BUSY_RESERVE_SECONDS, open_with_wait
+
+    busy = (429, {"status": "REJECTED", "error": {"code": "SESSION_CAPACITY_EXCEEDED", "message": "busy"}})
+    replies = [busy, busy, (200, {"session_id": SESSION, "status": "ACTIVE"})]
+    fake = FakeSandbox({})
+    fake.handler = lambda request: (fake.calls.append({"path": request.url.path}) or
+                                    httpx.Response(replies[min(len(fake.calls) - 1, 2)][0],
+                                                   json=replies[min(len(fake.calls) - 1, 2)][1]))
+    sandbox = SandboxClient("http://sandbox.test", SANDBOX_KEY, 10, 0, transport=httpx.MockTransport(fake.handler))
+    sandbox.open_wait_seconds = 60
+    now, slept = [1000.0], []
+
+    def sleep(seconds: float) -> None:
+        slept.append(seconds)
+        now[0] += seconds
+
+    token = current_run_deadline.set(1000.0 + BUSY_RESERVE_SECONDS + 600)
+    try:
+        opened = open_with_wait(sandbox, {"request_id": "run-1", "bundle_id": BUNDLE}, 10,
+                                clock=lambda: now[0], sleep=sleep)
+        assert opened["session_id"] == SESSION and opened["open_attempts"] == 3 and len(fake.calls) == 3
+        assert slept == [60, 60]  # instant refusals are paced at the sandbox's own hold
+        # with no time left in the answer, it stops at once and pauses
+        replies[2] = busy
+        fake.calls.clear()
+        current_run_deadline.set(now[0] + BUSY_RESERVE_SECONDS + 30)
+        stopped = open_with_wait(sandbox, {"request_id": "run-1", "bundle_id": BUNDLE}, 10,
+                                 clock=lambda: now[0], sleep=sleep)
+        assert stopped["next_action"] == "PAUSE_ANSWER" and len(fake.calls) == 1
+    finally:
+        current_run_deadline.reset(token)
 
 
 def test_close_sessions_closes_each_session_of_the_request_and_never_raises() -> None:
@@ -238,10 +276,18 @@ def test_s28_release_and_the_capacity_wait() -> None:
     client.open_wait_seconds = 60
     specs = {s.name: s for s in session_specs(client, timeout_seconds=45, execution_timeout_seconds=150,
                                                     max_result_bytes=60_000)}
-    result = specs["open_analysis_session"].handler(
-        specs["open_analysis_session"].arguments_model.model_validate({"input_bundle_id": "bundle_" + "1" * 24}))
-    assert result["code"] == "SESSION_CAPACITY_EXCEEDED" and result["next_action"] == "REPORT_LIMITATION"
-    assert "waited 60 seconds" in result["message"] and "retry_after_seconds" not in result
+    import time
+
+    from app.tools.request_data import current_run_deadline
+    from app.tools.session import BUSY_RESERVE_SECONDS
+    token = current_run_deadline.set(time.monotonic() + BUSY_RESERVE_SECONDS + 30)  # no time left for another try
+    try:
+        result = specs["open_analysis_session"].handler(
+            specs["open_analysis_session"].arguments_model.model_validate({"input_bundle_id": "bundle_" + "1" * 24}))
+    finally:
+        current_run_deadline.reset(token)
+    assert result["code"] == "SESSION_CAPACITY_EXCEEDED" and result["next_action"] == "PAUSE_ANSWER"
+    assert result["waited_seconds"] == 60 and result["open_attempts"] == 1 and "retry_after_seconds" not in result
     assert seen[-1][2]["read"] == 105  # the request timeout plus the sandbox's wait
 
 
