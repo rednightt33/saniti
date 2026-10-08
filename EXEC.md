@@ -483,7 +483,11 @@ sama bisa di proses di sandbox lain." Belum dijalankan; rencana eksekusi menungg
     5. Jalur analisis (tanpa langkah persetujuan): asumsi ditulis di jawaban (Model Spec) dan angka tetap lewat gate
        sumber yang ada.
     Jaminan EXEC-D "threshold dikunci ke kata user" menjadi: "tidak ada yang dijalankan dengan nilai desain yang tidak
-    dikutip dari user atau tidak disetujui user". Status: menunggu keputusan user.
+    dikutip dari user atau tidak disetujui user".
+  - **Disetujui user 2026-10-08:** "Oke untuk M117, masukan EXEC." Desain 1–5 di atas, termasuk perubahan jaminan
+    EXEC-D. Ditambah: rencana yang tertahan gate disimpan sebagai PENDING sehingga "setuju" atau perubahan nilai dari
+    user bisa langsung dipakai, dan pesan `GATE_ONCE_NOTE` yang keliru untuk rencana diperbaiki. Belum ada perintah
+    jalan; urutan tetap M117 → V-f → GT V-g.
 - **M121, inventaris jalan buntu (diminta user 2026-10-08: "saya tidak mau kalau seandainya kena limitation or whatever
   that label was maka AI deadlock jadi tidak dynamic, tidak bisa tanya user, tidak bisa query ulang, tidak bisa run
   another calculation di sandbox"):** 8 titik terverifikasi di kode dan audit (`ERRORS_AND_SOLUTIONS.md` M121). Usulan
@@ -493,6 +497,25 @@ sama bisa di proses di sandbox lain." Belum dijalankan; rencana eksekusi menungg
   prompt menawarkan "cara lain, tanya user, atau laporkan". Rencana yang disetujui tetap bisa dilanjutkan sampai risetnya
   selesai. Jaminan EXEC-D tetap: angka tanpa sumber tidak disampaikan, data hanya setelah persetujuan, belanja berhenti di
   batas sampai user bilang lanjut.
+  - **Audit lanjutan 2026-10-08** (diminta user: "saya mau kamu audit mengenai 8 titik buntu ini dan kondisi arsitektur
+    backend, mana yang perlu dirubah, mana yang kalau dibiarkan bisa menjadi masalah"; bukti di `ERRORS_AND_SOLUTIONS.md`
+    M121):
+    - Perlu diubah: (a) gate rencana membuang rencana (titik 2) → M117, disetujui; (b) satu perbaikan per jenis lalu
+      LIMITATION untuk jawaban (titik 1: PROVENANCE, FINDINGS_2, METHODOLOGY_PROVENANCE, DEFINITION) → beri tanda dan
+      tanya, seperti EXEC-E untuk EVIDENCE; (c) rencana yang disetujui dianggap terpakai apa pun hasilnya (titik 7);
+      (d) `GATE_ONCE_NOTE` (titik 8) → bersama M117.
+    - Bermasalah bila dibiarkan: (e) sandbox 4 slot total, satu jawaban boleh memegang 4 sampai jawabannya selesai,
+      penunggu 60 detik lalu "jangan coba lagi, LIMITATION" (titik 5); jadi masalah begitu ada beberapa user; (f) pesan
+      batas perbaikan alat melarang mencoba cara lain atau bertanya (titik 3); (g) batas langkah/waktu tanpa tawaran
+      "lanjutkan" (titik 4), dengan default kode 8 langkah / 12 panggilan / 600 detik, padahal dev 60/60/1.800 dan
+      lingkungan baru memakai default; (h) prompt mengarahkan ke LIMITATION (titik 6); (i) limit kunci OpenRouter: 31
+      jawaban gagal sebelumnya, sisa USD 0,94; (j) arsitektur: setiap gate memutuskan sendiri cara berhenti (orc 6.251
+      baris, 37 saklar fitur); usulan: satu aturan berhenti terpusat dan tes yang membaca semua jenis gate dari kode, lalu
+      memastikan tidak ada yang berakhir buntu.
+    - Sudah baik (dipertahankan): batas panggilan identik, pengklasifikasi balasan rencana yang bertanya bila ragu,
+      mode 4 maksimal 2 pertanyaan lalu langkah cadangan, sandbox menunggu dan mengusir sesi hangat, memori percakapan
+      membawa penolakan dan draf ke giliran berikut, angka yang tidak diketik dari sumber diberi tanda (bukan ditolak).
+    - Menunggu keputusan user: M121 (b, c, f, g, h, j) dan kapasitas sandbox (e).
 
 **Hasil tahap 1 (2026-10-07, V-a opsi B):**
 - **Kode** (`d25e108`, `apps/market-ai-orc/app/orchestrator.py`):
