@@ -9630,6 +9630,44 @@ html.dark .edge-flow-done{background:#1e9a59;}
 .monitor-layout .jump-latest{right:max(var(--conversation-right),calc((100% - var(--conversation-max-width))/2));}
 @media print{.monitor-layout .research-exchange{max-width:none;}}
 
+
+/* Small screens retain access to saved history and response details through drawers. */
+.edge-panel-backdrop {display:none;}
+.result h1,.result-metadata,.edge-pin-body,.content-block {overflow-wrap:anywhere;}
+.result-actions,.inline-actions {flex-wrap:wrap;}
+.details-panel .sources {padding:14px;}
+.monitor-layout .jump-latest {bottom:calc(var(--edge-composer-height,128px) + 28px);}
+@media(max-width:1050px) {
+ .monitor-layout {height:calc(100dvh - var(--topbar));position:relative;}
+ .top-actions>.icon-btn[aria-label="Settings"],.top-actions>.icon-btn[aria-label^="Switch to"] {display:inline-flex;}
+ .edge-panel-backdrop {display:block;position:absolute;inset:0;border:0;background:#0008;z-index:40;}
+ .mobile-history-open .conversation-panel {position:absolute;inset:0 auto 0 0;width:min(320px,calc(100% - 48px));z-index:41;align-items:stretch;padding:14px 12px;}
+ .mobile-history-open .conversation-panel .panel-head>div,.mobile-history-open .conversation-panel>.search,.mobile-history-open .mini-tabs,.mobile-history-open .conversation-list {display:flex;}
+ .mobile-history-open .conversation-panel .panel-head>div {flex-direction:column;}
+ .mobile-history-open .conversation-list {display:block;}
+ .mobile-history-open .conversation-panel>.btn {width:100%;padding:0 12px;}
+ .mobile-history-open .conversation-panel>.btn span {display:inline;}
+ .mobile-details-open .details-panel {display:flex;position:absolute;inset:0 0 0 auto;width:min(360px,calc(100% - 24px));z-index:41;}
+ .sidebar-resizer,.edge-details-resizer {display:none;}
+ .workspace-tools {height:auto;min-height:48px;flex-wrap:wrap;gap:6px;padding:6px 12px;}
+ .workspace-tools>div {min-width:0;flex-wrap:wrap;}
+ .conversation-bookmark-anchor {display:flex;}
+}
+@media(max-width:720px) {
+ .topbar {gap:8px;padding:0 10px;}
+ .topbar nav,.top-actions>.icon-btn[aria-label="Notifications unavailable"] {display:none;}
+ .top-actions {gap:5px;min-width:0;}
+ .top-actions .search {width:36px;min-width:36px;justify-content:center;padding:0;}
+ .market-search-placeholder,.market-search-inactive kbd {display:none;}
+ .monitor-layout .user-message {max-width:94%;}
+ .monitor-layout .research-workspace {--conversation-left:12px;--conversation-right:12px;--conversation-inset:12px;}
+ .workspace-tools>div:first-child {font-size:11px;gap:5px;}
+ .composer-status {flex-wrap:wrap;}
+ .result h1 {font-size:20px;}
+ .result-metadata {font-size:11px;}
+ .mode-menu {max-width:calc(100vw - 92px);}
+}
+
 </style>
 </head>
 <body><div id="root"></div>
@@ -9897,8 +9935,8 @@ const paths = {
 function Icon({ name, size = 16 }) {
     return element("svg", { className: "icon", width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.7", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true }, cloneGraphic(paths[name]));
 }
-function Button({ children, icon, endIcon, kind = "secondary", onClick, disabled, title, type = "button" }) {
-    return element("button", { type: type, className: `btn ${kind} ${endIcon ? "has-end-icon" : ""}`, onClick: onClick, disabled: disabled, title: title },
+function Button({ children, icon, endIcon, kind = "secondary", onClick, disabled, title, ariaLabel, type = "button" }) {
+    return element("button", { type: type, className: `btn ${kind} ${endIcon ? "has-end-icon" : ""}`, onClick: onClick, disabled: disabled, title: title, "aria-label": ariaLabel },
         icon && element(Icon, { name: icon }),
         " ",
         children !== undefined && element("span", { className: "btn-label" }, children),
@@ -9923,7 +9961,7 @@ function SectionTitle({ children, action }) { return element("div", { className:
     element("span", null, children),
     action); }
 const nav = [["Monitor", "monitor"]];
-function Shell({ route, go, children, chart = false }) {
+function Shell({ route, go, children, chart = false, mobilePanelOpen = false }) {
     const viewRecord = currentView;
     const { theme, toggle } = themeState;
     const accountOpen = initialValue(viewRecord, "accountOpen", () => ((() => { const seed = false; return typeof seed === "function" ? seed() : seed; })())), setAccountOpen = next => updateValue(viewRecord, "accountOpen", next);
@@ -9937,7 +9975,7 @@ function Shell({ route, go, children, chart = false }) {
     const supportRef = (viewRecord.refs.supportRef ??= { current: null });
     const avatarRef = (viewRecord.refs.avatarRef ??= { current: null });
     const settingsRef = (viewRecord.refs.settingsRef ??= { current: null });
-    const closeAccount = () => { setAccountOpen(false); requestAnimationFrame(() => avatarRef.current?.focus()); };
+    const closeAccount = (restoreFocus=true) => { setAccountOpen(false); if(restoreFocus)requestAnimationFrame(() => avatarRef.current?.focus()); };
     const openAccountView = (view) => { closeAccount(); setAccountView(view); };
     const notify = (message) => { setToast(message); window.setTimeout(() => setToast(""), 1800); };
     const marketSoon=initialValue(viewRecord,"marketSoon",()=>false),setMarketSoon=next=>updateValue(viewRecord,"marketSoon",next);
@@ -9957,7 +9995,7 @@ function Shell({ route, go, children, chart = false }) {
         showMarketSoon();
     } }; document.addEventListener("keydown", onKey); return () => document.removeEventListener("keydown", onKey); }, []);
     return element("div", { className: `app ${theme === "dark" ? "dark" : ""} ${chart ? "chart-app" : ""}` },
-        element("header", { className: "topbar" },
+        element("header", { className: "topbar", inert: mobilePanelOpen },
             element("button", { className: "brand", onClick: () => go("monitor") },
                 element("span", { className: "brand-mark" }, "E"),
                 element("strong", null, "EDGE")),
@@ -9985,8 +10023,16 @@ element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.
             toast));
 }
 
-function AccountMenu({signOut}) {
- return element("div",{className:"account-menu",role:"menu"},element("div",{className:"account-summary"},element("strong",null,Edge.auth?.login || "Private account")),element("button",{role:"menuitem",className:"sign-out",onClick:signOut},"Sign out"));
+function AccountMenu({signOut,close,trigger}) {
+ const view=currentView,menu=(view.refs.menu ??= {current:null});
+ onLifecycle(view,"dismiss",()=>{
+   const outside=e=>{if(!menu.current?.contains(e.target)&&!trigger.current?.contains(e.target))close(false);};
+   const key=e=>{if(e.key==="Escape"){e.preventDefault();close();}};
+   document.addEventListener("pointerdown",outside);document.addEventListener("keydown",key);
+   requestAnimationFrame(()=>menu.current?.querySelector("button")?.focus());
+   return()=>{document.removeEventListener("pointerdown",outside);document.removeEventListener("keydown",key);};
+ },[]);
+ return element("div",{ref:menu,className:"account-menu",role:"menu"},element("div",{className:"account-summary"},element("strong",null,Edge.auth?.login || "Private account")),element("button",{role:"menuitem",className:"sign-out",onClick:signOut},"Sign out"));
 }
 function DialogShell({ title, description, close, children, className = "", returnFocusRef }) {
     const viewRecord = currentView;
@@ -10056,7 +10102,7 @@ function PublicThemeButton() {
 function AuthPage({go}) {
  const v=currentView,login=initialValue(v,"login",()=>""),password=initialValue(v,"password",()=>""),busy=initialValue(v,"busy",()=>false),error=initialValue(v,"error",()=>"");
  const submit=async e=>{e.preventDefault();if(busy)return;updateValue(v,"busy",true);updateValue(v,"error","");try{await Edge.signin(login,password);updateValue(v,"password","");go("/monitor");}catch(e){updateValue(v,"error",e.message);}finally{updateValue(v,"busy",false);}};
- return element("div",{className:"auth-page"},element("div",{className:"auth-top"},element(PublicBrand,{go}),element(PublicThemeButton)),element("main",{className:"auth-shell"},element("div",{className:"auth-form-wrap"},element("div",{className:"auth-heading"},element("h1",null,"Welcome to Edge"),element("p",null,"Sign in to your private workspace.")),element("form",{onSubmit:submit},element(AuthField,{label:"Login"},element("input",{id:"auth-email",autoComplete:"username",value:login,required:true,disabled:busy,onChange:e=>updateValue(v,"login",e.target.value)})),element(AuthField,{label:"Password"},element("input",{id:"auth-password",type:"password",autoComplete:"current-password",value:password,required:true,disabled:busy,onChange:e=>updateValue(v,"password",e.target.value)})),error&&element("p",{className:"auth-error",role:"alert"},error),element(Button,{kind:"primary",type:"submit",disabled:busy},busy?"Signing in…":"Sign In")))),element(AuthFooter));
+ return element("div",{className:"auth-page"},element("div",{className:"auth-top"},element(PublicBrand,{go}),element(PublicThemeButton)),element("main",{className:"auth-shell"},element("div",{className:"auth-form-wrap"},element("div",{className:"auth-heading"},element("h1",null,"Welcome to Edge"),element("p",null,"Sign in to your private workspace.")),element("form",{onSubmit:submit},element(AuthField,{label:"Login"},element("input",{id:"auth-login",autoComplete:"username",value:login,required:true,disabled:busy,onChange:e=>updateValue(v,"login",e.target.value)})),element(AuthField,{label:"Password"},element("input",{id:"auth-password",type:"password",autoComplete:"current-password",value:password,required:true,disabled:busy,onChange:e=>updateValue(v,"password",e.target.value)})),error&&element("p",{className:"auth-error",role:"alert"},error),element(Button,{kind:"primary",type:"submit",disabled:busy},busy?"Signing in…":"Sign In")))),element(AuthFooter));
 }
 function AuthField({ label, error, support, children }) {
     const id = label.toLowerCase().replaceAll(" ", "-");
@@ -10096,6 +10142,19 @@ function Monitor({ go }) {
     const listFilter = initialValue(viewRecord, "listFilter", () => ((() => { const seed = "All"; return typeof seed === "function" ? seed() : seed; })())), setListFilter = next => updateValue(viewRecord, "listFilter", next);
     const detailsTab = initialValue(viewRecord, "detailsTab", () => ((() => { const seed = "Flow"; return typeof seed === "function" ? seed() : seed; })())), setDetailsTab = next => updateValue(viewRecord, "detailsTab", next);
     const detailsOpen = initialValue(viewRecord, "detailsOpen", () => ((() => { const seed = () => sessionStorage.getItem("edge-details-open") !== "false"; return typeof seed === "function" ? seed() : seed; })())), setDetailsOpen = next => updateValue(viewRecord, "detailsOpen", next);
+    const narrow = initialValue(viewRecord,"narrow",()=>matchMedia("(max-width:1050px)").matches), setNarrow=next=>updateValue(viewRecord,"narrow",next);
+    const historyOpen=initialValue(viewRecord,"historyOpen",()=>false),setHistoryOpen=next=>updateValue(viewRecord,"historyOpen",next);
+    const mobileDetailsOpen=initialValue(viewRecord,"mobileDetailsOpen",()=>false),setMobileDetailsOpen=next=>updateValue(viewRecord,"mobileDetailsOpen",next);
+    onLifecycle(viewRecord,"responsive",()=>{const media=matchMedia("(max-width:1050px)");const change=()=>setNarrow(media.matches);media.addEventListener("change",change);return()=>media.removeEventListener("change",change);},[]);
+    onLifecycle(viewRecord,"panel-focus",()=>{
+      if(!narrow||(!historyOpen&&!mobileDetailsOpen))return;
+      const previous=document.activeElement,panel=document.getElementById(historyOpen?"edge-conversations":"edge-details");
+      const focusable=()=>[...panel.querySelectorAll('button:not([disabled]),input,[tabindex="0"],summary')].filter(n=>n.getClientRects().length);
+      requestAnimationFrame(()=>focusable()[0]?.focus());
+      const key=e=>{if(e.key==="Escape"){e.preventDefault();setHistoryOpen(false);setMobileDetailsOpen(false);}else if(e.key==="Tab"){const nodes=focusable(),first=nodes[0],last=nodes.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}};
+      document.addEventListener("keydown",key);
+      return()=>{document.removeEventListener("keydown",key);requestAnimationFrame(()=>previous?.isConnected&&previous.focus());};
+    },[narrow,historyOpen,mobileDetailsOpen]);
     const detailsWidth = initialValue(viewRecord,"detailsWidth",()=>Math.min(560,Math.max(280,Number(localStorage.getItem("edge-details-width"))||320))), setDetailsWidth=next=>updateValue(viewRecord,"detailsWidth",next);
     const collapsed = initialValue(viewRecord, "collapsed", () => ((() => { const seed = () => localStorage.getItem("edge-monitor-collapsed") === "true"; return typeof seed === "function" ? seed() : seed; })())), setCollapsed = next => updateValue(viewRecord, "collapsed", next);
     const sidebarWidth = initialValue(viewRecord, "sidebarWidth", () => ((() => { const seed = () => Math.min(360, Math.max(180, Number(localStorage.getItem("edge-monitor-width")) || 230)); return typeof seed === "function" ? seed() : seed; })())), setSidebarWidth = next => updateValue(viewRecord, "sidebarWidth", next);
@@ -10112,6 +10171,14 @@ function Monitor({ go }) {
     const expandedTable = initialValue(viewRecord, "expandedTable", () => ((() => { const seed = null; return typeof seed === "function" ? seed() : seed; })())), setExpandedTable = next => updateValue(viewRecord, "expandedTable", next);
     const modeAnchorRef = (viewRecord.refs.modeAnchorRef ??= { current: null });
     const composerRef = (viewRecord.refs.composerRef ??= { current: null });
+    const composerPanelRef = (viewRecord.refs.composerPanelRef ??= {current:null});
+    onLifecycle(viewRecord,"composer-size",()=>{
+      const panel=composerPanelRef.current,workspace=panel?.closest(".research-workspace");
+      if(!panel||!workspace)return;
+      const update=()=>workspace.style.setProperty("--edge-composer-height",panel.getBoundingClientRect().height+"px");
+      const observer=new ResizeObserver(update);observer.observe(panel);update();
+      return()=>observer.disconnect();
+    },[]);
     const fileInput = (viewRecord.refs.fileInput ??= { current: null });
     const shareRef = (viewRecord.refs.shareRef ??= { current: null });
     const scrollRef = (viewRecord.refs.scrollRef ??= { current: null });
@@ -10151,9 +10218,9 @@ function Monitor({ go }) {
     const followRef=(viewRecord.refs.followRef ??= {current:null});
     const submissionRef=(viewRecord.refs.submissionRef ??= {current:null});
     const pendingReply=initialValue(viewRecord,"pendingReply",()=>null),setPendingReply=next=>updateValue(viewRecord,"pendingReply",next);
-    const selectConversation = async id => {setLoadingConversation(true);setApiError("");setSelectedId(id);setSelectedRunId(null);setPendingReply(null);try{const loaded=await Edge.messages(id);setItems(current=>current.map(x=>x.id===id?loaded:x));}catch(e){setApiError(e.message);}finally{setLoadingConversation(false);}};
+    const selectConversation = async id => {setHistoryOpen(false);setLoadingConversation(true);setApiError("");setSelectedId(id);setSelectedRunId(null);setPendingReply(null);try{const loaded=await Edge.messages(id);setItems(current=>current.map(x=>x.id===id?loaded:x));}catch(e){setApiError(e.message);}finally{setLoadingConversation(false);}};
     const toggleBookmark=async (id=selectedId)=>{const item=items.find(x=>x.id===id);if(!item || id.startsWith("draft:"))return;try{const ui=await Edge.bookmark(id,!item.bookmarked);updateConversation(id,x=>({...x,bookmarked:ui.bookmarked}));}catch(e){setApiError(e.message);}};
-    const newConversation=()=>{setSelectedId(null);setSelectedRunId(null);setPrompt("");setPendingReply(null);setApiError("");requestAnimationFrame(()=>composerRef.current?.focus());};
+    const newConversation=()=>{setHistoryOpen(false);setSelectedId(null);setSelectedRunId(null);setPrompt("");setPendingReply(null);setApiError("");requestAnimationFrame(()=>composerRef.current?.focus());};
     const updateRun=(conversationId,runId,update)=>updateConversation(conversationId,x=>({...x,runs:x.runs.map(r=>r.id===runId?update(r):r)}));
     const togglePin=async (target,pinned=!target.pinned)=>{try{await Edge.pin(target.id,pinned);setItems(current=>current.map(c=>({...c,runs:c.runs.map(r=>r.id===target.id?{...r,pinned}:r)})));}catch(e){setApiError(e.message);}};
     const followRun=(initialId,requestId)=>{
@@ -10206,18 +10273,18 @@ function Monitor({ go }) {
     const scrollToResearchSection = (sectionId) => { if (!run || !scrollRef.current)
         return; const section = document.getElementById(`${run.id}-${sectionId}`), container = scrollRef.current; if (!section)
         return; const top = section.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 24; setActiveSection(sectionId); container.scrollTo({ top, behavior: "smooth" }); };
-    return element(Shell, { route: "monitor", go: go },
-        element("main", { className: `monitor-layout ${collapsed ? "sidebar-collapsed" : ""} ${detailsOpen ? "" : "details-closed"}`, style: { gridTemplateColumns: `${collapsed ? 52 : sidebarWidth}px minmax(560px,1fr)${detailsOpen ? ` ${detailsWidth}px` : ""}` } },
-            element("aside", { className: "conversation-panel" },
+    return element(Shell, { route: "monitor", go: go, mobilePanelOpen:narrow&&(historyOpen||mobileDetailsOpen) },
+        element("main", { className: `monitor-layout ${collapsed ? "sidebar-collapsed" : ""} ${detailsOpen ? "" : "details-closed"} ${historyOpen ? "mobile-history-open" : ""} ${mobileDetailsOpen ? "mobile-details-open" : ""}`, style: { gridTemplateColumns: `${collapsed ? 52 : sidebarWidth}px minmax(0,1fr)${detailsOpen ? ` clamp(280px,${detailsWidth}px,max(280px,calc(100vw - ${collapsed ? 52 : sidebarWidth}px - 560px)))` : ""}` } },
+            element("aside", { id:"edge-conversations",className: "conversation-panel",role:narrow&&historyOpen?"dialog":undefined,"aria-modal":narrow&&historyOpen?true:undefined,"aria-label":"Conversation history",inert:narrow&&mobileDetailsOpen },
                 element("div", { className: "panel-head" },
                     element("div", null,
                         element("span", { className: "eyebrow" }, "Workspace"),
                         element("strong", null, "Edge Research")),
-                    element(IconButton, { icon: "menu", onClick: toggleCollapsed, title: collapsed ? "Expand sidebar" : "Collapse sidebar" })),
-                element(Button, { kind: "primary", icon: "plus", onClick: newConversation }, collapsed ? undefined : "New conversation"),
-                !collapsed && element(Search, { placeholder: "Search conversation", value: query, onChange: setQuery, conversation: true }),
+                    element(IconButton, { icon: "menu", onClick: () => narrow ? setHistoryOpen(!historyOpen) : toggleCollapsed(), title: narrow ? historyOpen ? "Close history" : "Open history" : collapsed ? "Expand sidebar" : "Collapse sidebar" })),
+                element(Button, { kind: "primary", icon: "plus", ariaLabel:"New conversation", onClick: newConversation }, collapsed && !(narrow && historyOpen) ? undefined : "New conversation"),
+                (!collapsed || (narrow && historyOpen)) && element(Search, { placeholder: "Search conversation", value: query, onChange: setQuery, conversation: true }),
                 " ",
-                !collapsed && element("div", { className: "mini-tabs" },
+                (!collapsed || (narrow && historyOpen)) && element("div", { className: "mini-tabs" },
                     element("button", { className: listFilter === "All" ? "active" : "", "aria-pressed": listFilter === "All", onClick: () => setListFilter("All") },
                         "All ",
                         items.length),
@@ -10234,16 +10301,16 @@ function Monitor({ go }) {
                         "Updated ",
                         "Saved history")),
                 element("div", { className: "sidebar-resizer", onPointerDown: startResize, onDoubleClick: () => { setSidebarWidth(230); localStorage.setItem("edge-monitor-width", "230"); }, title: "Drag to resize \u00B7 double-click to reset" })),
-            element("section", { className: "research-workspace" },
+            element("section", { className: "research-workspace",inert:narrow&&(historyOpen||mobileDetailsOpen) },
                 element("div", { className: "workspace-tools" },
                     element("div", null,
                         element("span", { className: active ? "pulse" : "live-dot" }),
                         " Research session ",
                         element(Pill, null, run ? `Run ${runNumber} · ${run.status[0].toUpperCase() + run.status.slice(1)}` : "Draft")),
                     element("div", null,
-                        !detailsOpen && element(Button, { kind: "ghost", icon: "sliders", onClick: () => setDetailsOpen(true) }, "Show Details"),
+                        (!detailsOpen || narrow) && element(Button, { kind: "ghost", icon: "sliders", ariaLabel:"Show Details", onClick: () => {setHistoryOpen(false);setDetailsOpen(true);setMobileDetailsOpen(true);} }, "Details"),
                         element("span", { className: "share-anchor conversation-bookmark-anchor" },
-                            element(IconButton, { icon: "bookmark", selected: selected?.bookmarked, disabled: !selected, onClick: () => toggleBookmark(), title: "Bookmark" }),
+                            element(IconButton, { icon: "bookmark", selected: selected?.bookmarked, disabled: !selected || selected.id.startsWith("draft:"), onClick: () => toggleBookmark(), title: "Bookmark" }),
                             element(IconButton, { icon: "share", selected: shareOpen, disabled: true, onClick: () => {}, title: "Public sharing unavailable", buttonRef: shareRef }),
                             shareOpen && selected && run && element(ShareResearchPopover, { trigger: shareRef, close: () => setShareOpen(false), conversation: selected, run: run })))),
                 element("div", { className: "research-scroll", ref: scrollRef, onScroll: onResearchScroll }, loadingConversation ? element("div", { className: "research-loading" }, "Loading research\u2026") : !selected ? element("div", { className: "research-empty" },
@@ -10268,7 +10335,7 @@ function Monitor({ go }) {
                     "Jump to latest"),
                 apiError && element("div",{className:"auth-error",role:"alert"},apiError),
                 pendingReply && element("div",{className:"composer-status"},"Describe the plan revision",element("button",{onClick:()=>setPendingReply(null)},"Dismiss")),
-                element("div", { key: "research-composer", className: `composer ${active ? "running" : ""} ${prompt.trim() ? "has-text" : ""}` },
+                element("div", { key: "research-composer", ref:composerPanelRef, className: `composer ${active ? "running" : ""} ${prompt.trim() ? "has-text" : ""}` },
                     active && element("div", { className: "composer-status" },
                         element("span", { className: "pulse" }),
                         element("span", null, executionRun?.status === "streaming" ? "Streaming research result…" : executionRun?.steps.find(step => step.status === "running")?.label ?? "Research running…"),
@@ -10313,20 +10380,21 @@ function Monitor({ go }) {
                             element(Button, { kind: "ghost", icon: "sliders", disabled: true, title: "Data Scope is not available yet" }, "Data Scope"),
                             element(IconButton, { icon: "attach", disabled: true, title: "Attachments are not available yet" })),
                         element(Button, { kind: "primary", disabled: active || submitting || !prompt.trim(), icon: "send", onClick: () => submit() }, active || submitting ? "Processing…" : "Submit")))),
-            detailsOpen && element("aside", { className: "details-panel" },
+            detailsOpen && element("aside", { id:"edge-details",className: "details-panel",role:narrow&&mobileDetailsOpen?"dialog":undefined,"aria-modal":narrow&&mobileDetailsOpen?true:undefined,"aria-label":"Response details",inert:narrow&&historyOpen },
                 element(DetailsResizeHandle,{width:detailsWidth,setWidth:setDetailsWidth}),
                 element("div", { className: "details-head" },
                     element("strong", null, "Details"),
-                    element(IconButton, { icon: "close", onClick: () => setDetailsOpen(false), title: "Close details" })),
+                    element(IconButton, { icon: "close", onClick: () => {setMobileDetailsOpen(false);setDetailsOpen(false);}, title: "Close details" })),
                 element(Tabs, { items: ["Flow", "Sources"], active: detailsTab, onChange: value => { setDetailsTab(value); setSourceDetail(null); } }),
                 element(PinnedResponses, { runs:selected?.runs ?? [], unpin:id=>togglePin(selected.runs.find(r=>r.id===id),false), jump:id=>{setSelectedRunId(id);setAutoFollow(false);requestAnimationFrame(()=>{const node=document.getElementById(id+"-response"),container=scrollRef.current;if(node&&container){container.scrollTo({top:container.scrollTop+node.getBoundingClientRect().top-container.getBoundingClientRect().top-24,behavior:"smooth"});node.focus({preventScroll:true});}})} }),
                 element("div", {className:"edge-details-upper",ref:historyScrollRef}, run ? detailsTab === "Sources" ? element(Sources,{run}) : element(ResponseFlows, { runs:selected?.runs ?? [], autoOpenRunId }) : element("div", { className: "details-empty" }, "No research run selected."))),
+            (historyOpen || mobileDetailsOpen) && element("button",{className:"edge-panel-backdrop",tabIndex:-1,"aria-label":"Close panel",onClick:()=>{setHistoryOpen(false);setMobileDetailsOpen(false);}}),
             expandedTable && element(ResearchTableDialog, { run: expandedTable, close: () => setExpandedTable(null) })));
 }
 function ConversationHistoryList({ items, selectedId, select, toggleBookmark }) {
     return element(fragment, null, ["Today", "Yesterday", "Previous 7 Days", "Older"].map(group => { const conversations = items.filter(item => conversationGroup(item.updatedAt) === group); return conversations.length ? element("div", { className: "conversation-group", key: group },
         element("span", null, group),
-        conversations.map(item => { const itemRun = latestRun(item); return element("div", { key: item.id, role: "button", tabIndex: 0, "aria-selected": item.id === selectedId, className: `conversation ${item.id === selectedId ? "active" : ""}`, onClick: () => select(item.id), onKeyDown: event => { if (event.key === "Enter" || event.key === " ") {
+        conversations.map(item => { const itemRun = latestRun(item); return element("div", { key: item.id, role: "button", tabIndex: 0, "aria-selected": item.id === selectedId, className: `conversation ${item.id === selectedId ? "active" : ""}`, onClick: () => select(item.id), onKeyDown: event => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
                 event.preventDefault();
                 select(item.id);
             } } },

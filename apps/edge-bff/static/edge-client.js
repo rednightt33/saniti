@@ -57,12 +57,12 @@
       messages:turns.map(t=>({id:t.request_id+'-user',role:'user',content:t.user_message,createdAt:t.created_at,runId:t.request_id})),runs:turns.map(t=>adaptRun(t,ui))};
   }
   const stateRun = (snapshot, previous) => ({...previous,
-    status:terminal(snapshot) ? snapshot.state === 'FINISHED' && snapshot.run_status !== 'FAILED' ? 'completed' : 'failed' : snapshot.state === 'QUEUED' ? 'submitted' : 'running',
-    domainStatus:snapshot.run_status,error:snapshot.expired ? 'Conversation expired; the saved response is no longer available.' : snapshot.error_code,
+    status:terminal(snapshot) ? snapshot.state === 'FINISHED' && snapshot.run_status !== 'FAILED' && !snapshot.expired ? 'completed' : 'failed' : snapshot.state === 'QUEUED' ? 'submitted' : 'running',
+    domainStatus:snapshot.run_status,error:snapshot.expired ? 'Conversation expired; the saved response is no longer available.' : snapshot.error_code || snapshot.response?.error?.code,
     completedAt:snapshot.completed_at,raw:snapshot.response || previous.raw,
     result:snapshot.response?.response ? {title:previous.question.slice(0,80),condition:snapshot.response.response.answer || snapshot.response.response.clarification_question || '',final:snapshot.response.response} : previous.result,
     sources:snapshot.response ? [...(snapshot.response.evidence || []),...(snapshot.response.annotations || []),...(snapshot.response.data_record ? [{name:'Data record',record:snapshot.response.data_record}] : [])] : previous.sources,
-    steps:[{id:'state',label:{QUEUED:'Queued',RUNNING:'AI request running',RECOVERING:'Recovering delivery',FINISHED:'Saved response: '+snapshot.run_status,FAILED:'Request failed',INTERRUPTED:'Delivery interrupted'}[snapshot.state],status:terminal(snapshot) ? snapshot.state === 'FINISHED' ? 'completed' : 'failed' : 'running',detail:snapshot.updated_at}]
+    steps:[{id:'state',label:{QUEUED:'Queued',RUNNING:'AI request running',RECOVERING:'Recovering delivery',FINISHED:'Saved response: '+snapshot.run_status,FAILED:'Request failed',INTERRUPTED:'Delivery interrupted'}[snapshot.state],status:terminal(snapshot) ? snapshot.state === 'FINISHED' && snapshot.run_status !== 'FAILED' && !snapshot.expired ? 'completed' : 'failed' : 'running',detail:snapshot.updated_at}]
   });
   window.Edge = {
     api,follow,terminal,conversations,messages,adaptRun,stateRun,

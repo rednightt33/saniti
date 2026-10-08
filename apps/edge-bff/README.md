@@ -110,6 +110,14 @@ Chromium locally or use Playwright's verified browser installer. They launch a l
 Postgres and a deterministic Orc substitute. The separate contract test obtains JSON from actual Orc HTTP/storage
 with a scripted model, satisfying the repository's M68 rule. No OpenRouter call is made by these tests.
 
+`tests/test_visual.py` also checks desktop/tablet/mobile interactions (360–1600 pixels), animated loading,
+refresh without duplicate execution, failed/limited replies, retry, research-plan and clarification controls,
+saved bookmark/pin preferences, panel focus and keyboard navigation. Set `EDGE_UI_ARTIFACT_DIR` to a local
+directory to save screenshots and console/HTTP results. Optional `EDGE_UI_RECORD_VIDEO=1` also records videos;
+this requires Playwright's FFmpeg installation (or the installed system FFmpeg in its browser cache).
+These fixtures run locally only and are never enabled in the deployed service. Mobile history and Details
+are drawers; active server cancellation remains unavailable.
+
 ## Rollout gate and rollback
 
 See `EDGE_DELIVERY.md`. Migration is **APPLIED** and verified at 10:13:24 UTC on 2026-10-08 after admin preflight.

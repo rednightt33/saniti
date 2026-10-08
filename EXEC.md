@@ -1,5 +1,14 @@
 # EXEC: eksekusi yang sudah disetujui
 
+### EXEC-EDGE-UI: interaction and visual QA (2026-10-08)
+
+User: "Test interaksinya ya fitur dll ensure tidak ada bug visually. bisa?";
+"uji juga response dari si ai gimana ketika reply animasi dll, pakai dummy dari kamu saja".
+Run Chromium against the real local BFF/worker and disposable Postgres, with deterministic Orc responses.
+Check desktop/mobile layouts, loading animations, saved answers, continuations, history/preferences,
+error/recovery and disabled controls; fix confirmed UI defects and add relevant browser regressions.
+No paid model calls. Keep changes on `codex/edge-bff`, without merging main or changing the runner/Orc.
+
 Setiap eksekusi yang isinya disetujui user ada di sini, satu bagian per eksekusi, dengan rinciannya langsung di
 bawahnya (keputusan user 2026-10-06: "EXEC itu harusnya jadi 1 file dengan setiap execution yang berbeda …
 gabungkan ya", pilihan "File baru EXEC.md"). Pekerjaan yang disetujui tetapi belum punya rencana eksekusi ada di

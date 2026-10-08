@@ -3081,3 +3081,20 @@ Ran `railway config pull --force` and `railway config plan`: configuration up to
 Owner retrieves password securely via EDGE_INITIAL_PASSWORD in the BFF's Railway Variables, then removes
 that unused handoff variable after saving it. No secret values were committed, logged or printed in chat.
 Schema and rollout evidence: `verification/edge`; complete report: `EDGE_DELIVERY.md`.
+
+## 2026-10-08 — EDGE browser QA and frontend fixes (feature branch)
+
+User: "Test interaksinya ya fitur dll ensure tidak ada bug visually. bisa?" and
+"uji juga response dari si ai gimana ketika reply animasi dll, pakai dummy dari kamu saja".
+
+- Real local BFF/worker/SSE plus disposable Postgres and dummy Orc, Chromium at six viewports (360–1600px).
+  All **32 BFF tests passed**, three existing dependency deprecation warnings; JavaScript syntax and diff checks passed.
+- Fixed mobile header clipping and inaccessible history/Details, keyboard bookmark selection, account menu
+  dismissal/focus, missing login/action labels, failure snapshot display, constrained desktop panel sizing and
+  floating Jump to latest overlap. Added screenshots, optional video recording and nine visual/interaction regressions.
+- Source remains `codex/edge-bff`; main stays unmerged. No runner/Orc, schema, model/provider or variable change;
+  no paid AI request and no dummy data deployed. The same public BFF branch is the deployment target.
+- Pre-push live BFF was SUCCESS `e49f4a1c` / `304600a`; Orc remains SUCCESS `24461464` / `b12153a`.
+  Replacement BFF deployment and public static hash/auth verification are recorded below after confirmation.
+- Evidence: `verification/edge/ui_qa_20261008.json`. Direct cloud browser access to the public domain remains
+  proxy-denied; local rendering uses the tested production frontend and actual local backend paths.

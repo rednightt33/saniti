@@ -566,3 +566,42 @@ Update the status in place when an `OPEN` item is fixed. Never delete an entry.
   marker pointing at Python; railway/iac consequently read Python 3.12 as if it were the CLI version.
   Invoke the config command through a shell so it sets the real executable marker automatically.
   Native CLI is 5.63.1, meeting the unchanged SDK minimum; config pull/plan now succeed with NOOP.
+
+### EDGE interaction and visual QA — 2026-10-08
+
+User requested browser QA, including AI reply animations with dummy responses only. All fixes below are
+frontend changes on `codex/edge-bff`; runner/Orc, live database schema, model and provider settings are unchanged.
+
+- **Mobile header overflow (FIXED):** at 390px the header extended to 437px and placed the account button
+  outside the viewport. Desktop search/nav and button sizing did not adapt to phones. Compact the mobile
+  header/search and keep account, theme and appearance controls visible; browser regressions check actual
+  bounds and document width at 360/390/768/1024/1280px.
+- **Inaccessible history and Details on small screens (FIXED):** inherited CSS hid both panels below
+  1050px without a usable opening control. Add explicit drawers, backdrop/Escape dismissal, keyboard focus
+  containment/restoration and inert background controls. Keep history search/filter available even when
+  the desktop sidebar was previously collapsed. Screenshots and browser interaction checks cover both panels.
+- **Missing accessible names/label (FIXED):** collapsed New conversation was an unnamed icon button;
+  the Login label targeted `auth-login` but its input was `auth-email`. Provide the action name and associate
+  Login with its input. Tests sign in by label and invoke New conversation at every viewport.
+- **Bookmark keyboard event activated its parent conversation (FIXED):** the conversation's keydown
+  listener handled Enter/Space bubbled from its child bookmark button. Restrict selection keys to the
+  conversation element itself. A regression bookmarks an older conversation by keyboard while keeping the
+  newer conversation selected.
+- **Account menu dismissal/focus (FIXED):** the simplified menu had no outside/Escape listener; restoring
+  avatar focus on outside dismissal also stole focus from a clicked composer. Add dismissal and initial menu
+  focus, with avatar focus restored only for keyboard dismissal. Browser checks cover Escape and outside clicks.
+- **Failure snapshot lost its error/status (FIXED):** before canonical history arrived, `stateRun` ignored
+  the saved response's error code when the job error field was empty and treated FINISHED/FAILED as a completed
+  flow step. Preserve the returned failure code and failed indicator immediately; expired snapshots also
+  remain failed rather than appearing successfully delivered. Failed-response Retry checks cover the saved
+  domain failure and distinct follow-up request IDs.
+- **Resizable desktop grid clipping (FIXED):** fixed sidebar + minimum 560px workspace + persisted Details
+  width could exceed the viewport. Clamp the Details grid track to available width and let the central track
+  shrink. Browser bounds and resize/reset checks exercise the resulting layout.
+- **Local QA setup (RESOLVED):** Playwright's optional video recorder lacked FFmpeg and its CDN was
+  egress-denied; use the already installed system FFmpeg through a task-local Playwright cache. The regression
+  suite works without video recording. CSP rejects string expressions evaluated via Playwright's eval path;
+  use function predicates in tests, preserving the production CSP without unsafe-eval.
+- **Jump to latest overlapped the mobile composer (FIXED):** its fixed bottom offset assumed a short desktop
+  composer; wrapping controls on a phone put the floating button over the composer. Measure the actual composer
+  with ResizeObserver and position Jump to latest above it. Responsive browser tests verify non-overlapping bounds.

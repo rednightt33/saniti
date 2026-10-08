@@ -46,7 +46,7 @@ def test_private_html_real_submit_reload_preferences_and_continuations(server):
         page.route('https://fonts.*/*',lambda route:route.abort())
         errors=[];page.on('pageerror',lambda error:errors.append(str(error)))
         page.goto(origin+'/monitor')
-        page.locator('#auth-email').fill('owner');page.locator('#auth-password').fill('local-test-password')
+        page.locator('#auth-login').fill('owner');page.locator('#auth-password').fill('local-test-password')
         page.get_by_role('button',name='Sign In',exact=True).click()
         composer=page.get_by_placeholder('Ask a research question…')
         composer.wait_for();composer.fill('Explain GOTO');page.get_by_role('button',name='Submit',exact=True).click()

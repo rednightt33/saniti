@@ -1,0 +1,287 @@
+{
+  "date": "2026-10-08",
+  "browser": "Chromium",
+  "viewports": [
+    [
+      1600,
+      1000
+    ],
+    [
+      1280,
+      800
+    ],
+    [
+      1024,
+      768
+    ],
+    [
+      768,
+      1024
+    ],
+    [
+      390,
+      844
+    ],
+    [
+      360,
+      800
+    ]
+  ],
+  "transport": "real local BFF, Postgres queue worker and SSE; deterministic Orc only",
+  "pytest": {
+    "passed": 32,
+    "warnings": 3,
+    "elapsed_seconds": 71.77
+  },
+  "paid_ai_requests": 0,
+  "unexpected_page_errors": 0,
+  "unexpected_console_errors": 0,
+  "expected_errors": [
+    "Unauthenticated session HTTP 401",
+    "Explicit submit failure test HTTP 503",
+    "External fonts intentionally blocked in fixtures"
+  ],
+  "static_sha256": {
+    "index.html": "e27786a06a3a4e9538b0d2b32df74fbdd2f5ae7fcc1584160e2cfe224402dd34",
+    "edge-client.js": "77f2df1e01ce0d3cb519ba719144c3117de5cc283da23ec7fbdc0616d2e408ea"
+  },
+  "scenarios": [
+    "loading animation and reduced motion",
+    "refresh while running without duplicate AI call",
+    "draft preserved as reply arrives",
+    "long and LIMITED replies",
+    "FAILED reply and Retry with new request ID",
+    "research plan APPROVE/REVISE/CANCEL",
+    "clarification route choice",
+    "bookmark and pin persistence",
+    "history filter/search and keyboard selection",
+    "mobile history and Details drawers",
+    "panel dismissal/focus and account menu",
+    "submit error and keyboard submission",
+    "disabled unavailable controls",
+    "panel resize/reset",
+    "Jump to latest does not overlap composer"
+  ],
+  "artifacts": [
+    {
+      "name": "answer-1024.png",
+      "sha256": "beae8561fee72333cd87daf1be320bd2fced6723717622de4b9bb0ad0de0362b",
+      "bytes": 86444
+    },
+    {
+      "name": "answer-1280.png",
+      "sha256": "b45f38ffeebb13b1f939020da59951a8c513316233c7e7d9b542caf8a881479d",
+      "bytes": 128251
+    },
+    {
+      "name": "answer-360.png",
+      "sha256": "562623127df3443509882da9370cb7e81f40f669daa9cfe853886dcf3976a307",
+      "bytes": 60291
+    },
+    {
+      "name": "answer-390.png",
+      "sha256": "64bf88c3b4d258c2f565eb3b358d2fd1413534256bdcf2587424e9efddb2e442",
+      "bytes": 52194
+    },
+    {
+      "name": "answer-768.png",
+      "sha256": "d8f8ecf6fc5ea05cb4abbd1340e839e49cde45cc8d6d6f7f04273c99b57c3cb5",
+      "bytes": 157777
+    },
+    {
+      "name": "desktop-answer-dark.png",
+      "sha256": "5d22e757bfb1dcd06aaa02f1fbeebf3e3455968729d5754de6ed4437924672d8",
+      "bytes": 182534
+    },
+    {
+      "name": "desktop-answer-light.png",
+      "sha256": "ecd4ad2afd8511b1a71fda7dc21b6d7b94dccd9e8faf10834d3773ea5d4a7deb",
+      "bytes": 176636
+    },
+    {
+      "name": "desktop-failure.png",
+      "sha256": "88b4311b69edc1fc5e8bcca18940645a781b7593842c16bc443000b25379c804",
+      "bytes": 163205
+    },
+    {
+      "name": "desktop-history-multiple.png",
+      "sha256": "7b2a8c4f9ade20306dbf1d1e06d47c51a2e55f9374db05ce42b1f07d3ed1501d",
+      "bytes": 181531
+    },
+    {
+      "name": "desktop-loading.png",
+      "sha256": "04ea498a85f442756ae9d2cdda01e4f7d585280adf42cdd6d866994b531bd57e",
+      "bytes": 71125
+    },
+    {
+      "name": "desktop-sources.png",
+      "sha256": "6aa3c7f5dd07d7ab9240695cde22d4536f3e0145d3045d4cf0966ed7a6965ccd",
+      "bytes": 186815
+    },
+    {
+      "name": "desktop-submit-error.png",
+      "sha256": "4c43a333c4561e7a89c5fb5c71e31270da57cc6784ccac73c6b75e8100799f04",
+      "bytes": 59857
+    },
+    {
+      "name": "details-1024.png",
+      "sha256": "65108474db63b964934e1357d27e2b2ef8d720f3d76823f77859457b0d2390d7",
+      "bytes": 83788
+    },
+    {
+      "name": "details-1280.png",
+      "sha256": "0f545e122635ef152aef65739fd1805a56fa0efd5e8d2da7aaf6aab3d582d336",
+      "bytes": 119345
+    },
+    {
+      "name": "details-360.png",
+      "sha256": "16aaebeb9fe858adedfadd4972c51552e347550dddd3a054f465f65439786d76",
+      "bytes": 25256
+    },
+    {
+      "name": "details-390.png",
+      "sha256": "1e94c4ef98616930fa1cda290675cb2bcf0dc9013e26f2284562c4590d5285bf",
+      "bytes": 25583
+    },
+    {
+      "name": "details-768.png",
+      "sha256": "494dc509a4073e25189ccf84b77ebf5ab6f40950ff6523e8f0c0bf9725853380",
+      "bytes": 109664
+    },
+    {
+      "name": "history-1024.png",
+      "sha256": "08faa7049eaaba8167e2a4662c5b32a57560d0059d7a7ee815e4d8911f79ed59",
+      "bytes": 24757
+    },
+    {
+      "name": "history-1280.png",
+      "sha256": "924b21f382f1d15d3153218ccfe7b61ccb2283197b9895dbb36a667b91ac8be3",
+      "bytes": 118841
+    },
+    {
+      "name": "history-360.png",
+      "sha256": "ac5e5ff666e6f8b712a31ec889a69efc58fa75adbf1ea30bcee56790f6035437",
+      "bytes": 18328
+    },
+    {
+      "name": "history-390.png",
+      "sha256": "5ca0697a3b7d67642af7d6e86d7f31af472b6ee7346ed3220c39bde9675bbe09",
+      "bytes": 18731
+    },
+    {
+      "name": "history-768.png",
+      "sha256": "3cbaa1f1bb54d032a1b33ce61412ef3a1a33a8bb0ba192d4d6d42d8f4959d355",
+      "bytes": 25035
+    },
+    {
+      "name": "mobile-clarification.png",
+      "sha256": "51c9e486edaa88940b692824d530728035c3d0568cc9c99515f8dc5936f99f97",
+      "bytes": 35486
+    },
+    {
+      "name": "mobile-history-from-collapsed-desktop.png",
+      "sha256": "14ea7c46e87c3956c74789b928284a8ed16dbc35270422abca030632f9491c37",
+      "bytes": 19000
+    },
+    {
+      "name": "mobile-login.png",
+      "sha256": "43c5ce9529e936fcc63eba03d9cea2305953be41271f62638252f51fd06387ed",
+      "bytes": 14961
+    },
+    {
+      "name": "mobile-research-plan.png",
+      "sha256": "3e02d710b1ae93bd220028cead8c1829558c4cae0b56bfb171d9aff67fdebaee",
+      "bytes": 44994
+    },
+    {
+      "name": "test_failure_retry_limited_and_multi_turn_history.json",
+      "sha256": "b6fc7c8a3762070238789e69aa7d6e64354a919cc919be4a1f75b679105ddba1",
+      "bytes": 682
+    },
+    {
+      "name": "test_failure_retry_limited_and_multi_turn_history.webm",
+      "sha256": "85fb9d46a3f7181a5a2a811b5d6a9375e0660c16361106fbffabdc3831eb0a9c",
+      "bytes": 384543
+    },
+    {
+      "name": "test_loading_animation_refresh_and_completed_answer.json",
+      "sha256": "886347db1563afd80786e4e8fd3af4e92aecd89ea61c5897a4870838ccbea736",
+      "bytes": 682
+    },
+    {
+      "name": "test_loading_animation_refresh_and_completed_answer.webm",
+      "sha256": "7b7b2ad7bb2e03c7caad15bc2d10d42300bd6441647e122c4af94877878f3d58",
+      "bytes": 282026
+    },
+    {
+      "name": "test_mobile_research_plan_and_clarification.json",
+      "sha256": "60b961b2aa2a990c1c99529eee0c20a74223a006e66b104616bbf27e11ebfc21",
+      "bytes": 515
+    },
+    {
+      "name": "test_mobile_research_plan_and_clarification.webm",
+      "sha256": "c9b1b52f3ef9e1cfe56c17ad1065023931ba31e5671d309ccc992d775aac9998",
+      "bytes": 324801
+    },
+    {
+      "name": "test_responsive_history_details_preferences_and_keyboard[1024-768].json",
+      "sha256": "21c426ac9faaf0361a2b0acc6d57c9622e3dfc346e077767c723f0b0845dc125",
+      "bytes": 682
+    },
+    {
+      "name": "test_responsive_history_details_preferences_and_keyboard[1024-768].webm",
+      "sha256": "d4ad52932095accd626f2eb3b99ff2b9a5583ee69e6c5003ea82962e16889016",
+      "bytes": 781744
+    },
+    {
+      "name": "test_responsive_history_details_preferences_and_keyboard[1280-800].json",
+      "sha256": "2220d3d0dc09ce474eeb6d9f0844738fa272526ae0cd5cd13a62df24d77b0cc9",
+      "bytes": 682
+    },
+    {
+      "name": "test_responsive_history_details_preferences_and_keyboard[1280-800].webm",
+      "sha256": "b1cd7f250978317ad58c0f7df54af7b9cb57220fab841a3114e530a6053ffcb2",
+      "bytes": 894855
+    },
+    {
+      "name": "test_responsive_history_details_preferences_and_keyboard[360-800].json",
+      "sha256": "2d429e7a45c6387f68fcb81ae4de5ade7956ba0e69bbc5d0f0dfa80ee2b4df95",
+      "bytes": 682
+    },
+    {
+      "name": "test_responsive_history_details_preferences_and_keyboard[360-800].webm",
+      "sha256": "53dedc21fff936a3dc65723e245da00b519d530123c6680063b1e18f970a9e77",
+      "bytes": 632677
+    },
+    {
+      "name": "test_responsive_history_details_preferences_and_keyboard[390-844].json",
+      "sha256": "2f1fc70698bb4c190a9167960ef8c19bfbba4e628312daf09cd168eac27f6a7e",
+      "bytes": 682
+    },
+    {
+      "name": "test_responsive_history_details_preferences_and_keyboard[390-844].webm",
+      "sha256": "c4954c8d1076d6c4f1803660812df8d92d518e5f77b02b531d121b10588eb257",
+      "bytes": 690113
+    },
+    {
+      "name": "test_responsive_history_details_preferences_and_keyboard[768-1024].json",
+      "sha256": "3eaf5b52ce2ae61d199a60c910bbd14ba3884885bbd7131668230f8983978aca",
+      "bytes": 682
+    },
+    {
+      "name": "test_responsive_history_details_preferences_and_keyboard[768-1024].webm",
+      "sha256": "97c12d7b980d69fde810e7001ec69696300306a0a35dbe473011abe7f1896be2",
+      "bytes": 747248
+    },
+    {
+      "name": "test_submit_error_keyboard_disabled_controls_and_resizing.json",
+      "sha256": "c9c47ed884c821542f8ffca911e23d7e9db5f19f7647530b89f165f58ace2ca7",
+      "bytes": 747
+    },
+    {
+      "name": "test_submit_error_keyboard_disabled_controls_and_resizing.webm",
+      "sha256": "6ba1b5bac4cbe69e485db273514eaf39eb1c98415de45a5d99e5092aa264ee11",
+      "bytes": 508945
+    }
+  ]
+}

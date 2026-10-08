@@ -187,3 +187,22 @@ Open https://edge-bff-dev.up.railway.app and sign in as `edge`. Retrieve the gen
 Railway dev → edge-bff → Variables → EDGE_INITIAL_PASSWORD; copy securely and then remove that unused handoff
 variable. Runtime authentication continues to use EDGE_PASSWORD_VERIFIER. Approved dev rollout is complete,
 recorded on the feature branch; main merge and paid agent smoke tests remain separate decisions.
+
+## 11. Interaction and visual QA — 2026-10-08
+
+The user requested dummy AI responses for browser QA. Chromium exercised the real local BFF, queue worker,
+SSE and disposable PostgreSQL at 1600/1280/1024/768/390/360px. **32 BFF tests passed** (three existing dependency
+warnings), including nine new visual/interaction cases; frontend syntax/diff checks passed. Screenshots were
+visually inspected and representative interaction videos recorded. No unexpected JavaScript/console error or
+horizontal page overflow remained in the tested scenarios. Evidence: `verification/edge/ui_qa_20261008.json`.
+
+Coverage includes animated pending/running → answer, reduced motion, refresh during execution without another
+model call, draft preservation, long/limited/failed responses, Retry, all research-plan actions, clarification,
+saved bookmark/pin state, history filtering, mobile drawers, keyboard focus/dismissal, themes and panel resizing.
+Confirmed defects and fixes are in `ERRORS_AND_SOLUTIONS.md` under EDGE interaction and visual QA.
+
+Only frontend/adapters/tests/docs changed; production contains no test stub or dummy response switch. Stop,
+model selection, Deep Research, attachments/data scope, notifications/support and public sharing remain
+unavailable as previously scoped. This is Chromium QA with dummy responses, not a paid model quality benchmark
+or Safari/iOS/Android-device certification. Direct cloud access to the public hostname is still proxy-denied;
+replacement Railway deployment/public ingress checks are recorded separately after verification.
