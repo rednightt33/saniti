@@ -1116,6 +1116,36 @@ deskriptor aksi.
 - Nama kolom pada label angka dari tabel hasil (misalnya "mean return"); idealnya diambil dari `Column_Catalog`.
 - Kode baru dari mesin riset yang belum punya kata tampil sebagai kata Inggris yang terbaca.
 
+**M125 C (aturan pembaca untuk AI): benchmark dan inspeksi (permintaan user 2026-10-08: "ok, benchmark denfan best
+practice dulu then inspect current architecture").** Hanya laporan, belum ada perubahan prompt.
+- **Benchmark:**
+  - SEC Plain English Handbook: kalimat pendek, kata sehari-hari, kalimat aktif, daftar atau tabel untuk hal rumit.
+  - POJK perlindungan konsumen (OJK): bahasa Indonesia yang mudah dimengerti konsumen.
+  - Panduan prompt Anthropic dan OpenAI: sebut pembacanya, beri contoh, katakan apa yang harus dilakukan dan bukan hanya
+    larangan.
+  - Riset pengendalian keterbacaan: contoh (few-shot) membantu tetapi tidak konsisten di semua model.
+  - Riset komunikasi statistik (Glenton 2010, Pocock 2009): selang kepercayaan paling sulit dipahami; makna dulu, angka
+    kemudian.
+- **Inspeksi (terverifikasi):**
+  - Aturan 15 prompt hanya mengatur bahasa.
+  - `FINDINGS_RETURNED` dan `INTERPRETING_RULES` mendaftar kode (INSUFFICIENT, ANECDOTAL, UNDERPOWERED, ADEQUATE, kode
+    putusan) dan meminta "state the sample category".
+  - `FINDINGS_INSTRUCTION` (perbaikan) meminta hal yang sama.
+  - Gate temuan hanya memeriksa angka sampel, bukan kata kodenya. Jadi kode di jawaban berasal dari instruksi, bukan
+    dari jaminan.
+  - Deskripsi `methodology` meminta "data and period used".
+  - Deskripsi temuan meminta "in the verdict's terms".
+  - Ruang prompt tersisa 5 karakter dari batas +2% (`tests/test_prompt_pass2.py`, keputusan EXEC-P2).
+- **Dugaan (belum terbukti):** aturan 12 ("Preserve exact identifiers ... table, field ... names") dibaca AI juga untuk
+  teks jawaban.
+- **Ukuran awal** (`scripts/answer_plainness.py`; kosakata diturunkan dari `DATABASE_SCHEMA.md` dan enum orc; 70
+  jawaban GT gtA, gt_f, qa, golden_c):
+  - 80% jawaban memuat istilah internal, rata-rata 4,7 per jawaban.
+  - Kalimat median 19,5 kata.
+  - Yang terbanyak: INSUFFICIENT_EVIDENCE ×22, UNDERPOWERED ×17, SUPPORTED ×13, `out.oN`, nama metode dalam snake_case,
+    dan nama tabel (IDX_Stock_Universe ×6).
+- **Menunggu keputusan user:** usulan desain C dan cara membayar ruang prompt.
+
 **Langkah berikut:** user melihat pratinjau. Setelah OK: gabung ke `main`, deploy orc dan edge-bff sampai SUCCESS, cek
 live tanpa biaya AI, lalu catat di changelog.
 
