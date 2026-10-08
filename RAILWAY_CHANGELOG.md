@@ -1,5 +1,24 @@
 # Railway changelog
 
+## 2026-10-08 — EXEC-W wave A deployed to dev orc (from `codex/edge-bff`)
+
+- **Source:** the dev `market-ai-orc` service deploys from `codex/edge-bff` since the EDGE rollout (Codex session,
+  user go "Ok, do it", without a main merge). User decision 2026-10-08: "Gabung ke codex/edge-bff". Main (`feada8f`,
+  EXEC-W wave A) was merged into `codex/edge-bff` as `6cf5db1` (no conflict; the EDGE read endpoint untouched); orc tests
+  1,555 passed on the merged tree with a local Postgres. Service source and settings unchanged.
+- **Deployment:** market-ai-orc `159a40ba-cfca-49e3-a29a-b1fb8e0a1ab5` SUCCESS (commit `6cf5db1`). Startup unchanged:
+  `ai_model_selected` switch 1 DeepSeek V4.1 Flash, `mode4_active`, `ai_mode_selected` 4, `run_memory_active`, provider
+  policy OK, no `*_inactive`, `/ready` 200. edge-bff not rebuilt (no change under `/apps/edge-bff`).
+- **What changed (code only):** stop policy and pauses (M121 j/b), M117 quoted design values confirmed in the plan, M121 c
+  resumable approved plans, M121 h prompt asks before LIMITATION, M122 1/3/5 tool arguments, backend waiting for a
+  sandbox slot. No variable, model, provider, mode or switch changed; no migration.
+- **Router benchmarks before deploy (DeepSeek, ±USD 0.11):** first-message `--ask-back` PASS (60/60, 32/32, 16/16);
+  turn router 48/50 (the known "BMRI kemarin" CLARIFY case); M117 set: explicit values 11/11 with valid quotes, implied
+  zero 4/4, 0 invalid quotes, 1 JSON error.
+- **Rollback:** redeploy `24461464-9154-4789-bb5f-8ccbcc54204b` (EDGE commit `b12153a`, before wave A) or
+  `6a0ebf8f` (main before EDGE).
+- **Not done:** GT-A (on the user's command; OpenRouter key limit USD 0.94 left before the benchmarks).
+
 ## 2026-10-08 — EXEC-V revision (several sessions per answer, M114, same SQL = same data) on dev
 
 Under the user's approval of the implementation plan of 2026-10-08 (`EXEC.md` EXEC-V; approval = stages 1–4 on dev in
