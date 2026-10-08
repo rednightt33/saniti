@@ -1,5 +1,11 @@
 # Railway changelog
 
+## 2026-10-08 — orc redeploy from main after GT-A (confirmation line format)
+
+- market-ai-orc `9efe1118-ff4f-49bd-9d5d-3ca6adeb8f95` SUCCESS (commit `df18695`, from main): confirmation lines show
+  the operator and unit ("> 0%"). Startup unchanged. edge-bff SKIPPED (no change). GT-A results: `EXEC.md` EXEC-W.
+  Rollback: `6bb2a68f`.
+
 ## 2026-10-08 — market-ai-orc and edge-bff deploy from main again
 
 - User decision 2026-10-08: "Push semua ke main dan deploy." `main` fast-forwarded to the `codex/edge-bff` tip (EDGE
