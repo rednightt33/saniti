@@ -432,7 +432,7 @@
      "ref": "finding.vol_spike_up"
     },
     "status": "DIRUJUK",
-    "label": "Angka dari hasil riset: jumlah tanggal, kelompok sinyal"
+    "label": "Dari hasil riset: jumlah tanggal, kelompok sinyal"
    },
    {
     "kind": "REFERENCED",
@@ -441,7 +441,7 @@
      "ref": "finding.vol_spike_up"
     },
     "status": "DIRUJUK",
-    "label": "Angka dari hasil riset: jumlah baris, kelompok pembanding"
+    "label": "Dari hasil riset: jumlah baris, kelompok pembanding"
    },
    {
     "kind": "REFERENCED",
@@ -450,7 +450,7 @@
      "ref": "finding.vol_spike_up"
     },
     "status": "DIRUJUK",
-    "label": "Angka dari hasil riset: rata-rata kelompok sinyal, angle a"
+    "label": "Dari hasil riset: rata-rata kelompok sinyal, sudut a"
    },
    {
     "kind": "REFERENCED",
@@ -459,7 +459,7 @@
      "ref": "finding.vol_spike_up"
     },
     "status": "DIRUJUK",
-    "label": "Angka dari hasil riset: rata-rata kelompok pembanding, angle a"
+    "label": "Dari hasil riset: rata-rata kelompok pembanding, sudut a"
    }
   ],
   "response": {
@@ -6710,5 +6710,1188 @@
     "request_id": "ma-golden-20261002c-g5_conversation-1-m4d"
    }
   }
+ },
+ "export_xlsx": {
+  "error": null,
+  "status": "COMPLETED",
+  "evidence": [
+   {
+    "kind": "REFERENCED",
+    "claim": "out.o1.row_count",
+    "label": "Angka dari DATA_COVERAGE_VERIFIED: row count",
+    "source": {
+     "ref": "out.o1",
+     "name": "bbri_foreign_flow_daily",
+     "label": "DATA_COVERAGE_VERIFIED",
+     "output_id": "out_6590734649bd7b6eb42310d4",
+     "data_as_of": "2026-08-31"
+    },
+    "status": "DIRUJUK"
+   },
+   {
+    "kind": "REFERENCED",
+    "claim": "out.o2.rows[market_board=Regular].first_date",
+    "label": "Angka dari DATA_COVERAGE_VERIFIED: first date, rows[market board=regular]",
+    "source": {
+     "ref": "out.o2",
+     "name": "bbri_foreign_flow_by_board",
+     "label": "DATA_COVERAGE_VERIFIED",
+     "output_id": "out_2c3d51df81209f222e397997",
+     "data_as_of": "2026-08-31"
+    },
+    "status": "DIRUJUK"
+   },
+   {
+    "kind": "REFERENCED",
+    "claim": "out.o2.rows[market_board=Regular].last_date",
+    "label": "Angka dari DATA_COVERAGE_VERIFIED: last date, rows[market board=regular]",
+    "source": {
+     "ref": "out.o2",
+     "name": "bbri_foreign_flow_by_board",
+     "label": "DATA_COVERAGE_VERIFIED",
+     "output_id": "out_2c3d51df81209f222e397997",
+     "data_as_of": "2026-08-31"
+    },
+    "status": "DIRUJUK"
+   },
+   {
+    "kind": "REFERENCED",
+    "claim": "out.o2.rows[market_board=Regular].total_foreign_net_value",
+    "label": "Angka dari DATA_COVERAGE_VERIFIED: total foreign net value, rows[market board=regular]",
+    "source": {
+     "ref": "out.o2",
+     "name": "bbri_foreign_flow_by_board",
+     "label": "DATA_COVERAGE_VERIFIED",
+     "output_id": "out_2c3d51df81209f222e397997",
+     "data_as_of": "2026-08-31"
+    },
+    "status": "DIRUJUK"
+   },
+   {
+    "kind": "REFERENCED",
+    "claim": "out.o2.rows[market_board=Regular].mean_daily_foreign_net_value",
+    "label": "Angka dari DATA_COVERAGE_VERIFIED: mean daily foreign net value, rows[market board=regular]",
+    "source": {
+     "ref": "out.o2",
+     "name": "bbri_foreign_flow_by_board",
+     "label": "DATA_COVERAGE_VERIFIED",
+     "output_id": "out_2c3d51df81209f222e397997",
+     "data_as_of": "2026-08-31"
+    },
+    "status": "DIRUJUK"
+   },
+   {
+    "kind": "REFERENCED",
+    "claim": "out.o2.rows[market_board=Nego].total_foreign_net_value",
+    "label": "Angka dari DATA_COVERAGE_VERIFIED: total foreign net value, rows[market board=nego]",
+    "source": {
+     "ref": "out.o2",
+     "name": "bbri_foreign_flow_by_board",
+     "label": "DATA_COVERAGE_VERIFIED",
+     "output_id": "out_2c3d51df81209f222e397997",
+     "data_as_of": "2026-08-31"
+    },
+    "status": "DIRUJUK"
+   },
+   {
+    "kind": "REFERENCED",
+    "claim": "out.o2.rows[market_board=Tunai].total_foreign_net_value",
+    "label": "Angka dari DATA_COVERAGE_VERIFIED: total foreign net value, rows[market board=tunai]",
+    "source": {
+     "ref": "out.o2",
+     "name": "bbri_foreign_flow_by_board",
+     "label": "DATA_COVERAGE_VERIFIED",
+     "output_id": "out_2c3d51df81209f222e397997",
+     "data_as_of": "2026-08-31"
+    },
+    "status": "DIRUJUK"
+   },
+   {
+    "kind": "REFERENCED",
+    "claim": "out.o2.rows[market_board=ALL_BOARDS].total_foreign_net_value",
+    "label": "Angka dari DATA_COVERAGE_VERIFIED: total foreign net value, rows[market board=all boards]",
+    "source": {
+     "ref": "out.o2",
+     "name": "bbri_foreign_flow_by_board",
+     "label": "DATA_COVERAGE_VERIFIED",
+     "output_id": "out_2c3d51df81209f222e397997",
+     "data_as_of": "2026-08-31"
+    },
+    "status": "DIRUJUK"
+   },
+   {
+    "kind": "REFERENCED",
+    "claim": "out.o2.rows[market_board=Regular].best_day",
+    "label": "Angka dari DATA_COVERAGE_VERIFIED: best day, rows[market board=regular]",
+    "source": {
+     "ref": "out.o2",
+     "name": "bbri_foreign_flow_by_board",
+     "label": "DATA_COVERAGE_VERIFIED",
+     "output_id": "out_2c3d51df81209f222e397997",
+     "data_as_of": "2026-08-31"
+    },
+    "status": "DIRUJUK"
+   },
+   {
+    "kind": "REFERENCED",
+    "claim": "out.o2.rows[market_board=Regular].best_day_value",
+    "label": "Angka dari DATA_COVERAGE_VERIFIED: best day value, rows[market board=regular]",
+    "source": {
+     "ref": "out.o2",
+     "name": "bbri_foreign_flow_by_board",
+     "label": "DATA_COVERAGE_VERIFIED",
+     "output_id": "out_2c3d51df81209f222e397997",
+     "data_as_of": "2026-08-31"
+    },
+    "status": "DIRUJUK"
+   },
+   {
+    "kind": "REFERENCED",
+    "claim": "out.o2.rows[market_board=Regular].worst_day",
+    "label": "Angka dari DATA_COVERAGE_VERIFIED: worst day, rows[market board=regular]",
+    "source": {
+     "ref": "out.o2",
+     "name": "bbri_foreign_flow_by_board",
+     "label": "DATA_COVERAGE_VERIFIED",
+     "output_id": "out_2c3d51df81209f222e397997",
+     "data_as_of": "2026-08-31"
+    },
+    "status": "DIRUJUK"
+   },
+   {
+    "kind": "REFERENCED",
+    "claim": "out.o2.rows[market_board=Regular].worst_day_value",
+    "label": "Angka dari DATA_COVERAGE_VERIFIED: worst day value, rows[market board=regular]",
+    "source": {
+     "ref": "out.o2",
+     "name": "bbri_foreign_flow_by_board",
+     "label": "DATA_COVERAGE_VERIFIED",
+     "output_id": "out_2c3d51df81209f222e397997",
+     "data_as_of": "2026-08-31"
+    },
+    "status": "DIRUJUK"
+   },
+   {
+    "kind": "REFERENCED",
+    "claim": "out.o2.rows[market_board=Regular].trading_days",
+    "label": "Angka dari DATA_COVERAGE_VERIFIED: trading days, rows[market board=regular]",
+    "source": {
+     "ref": "out.o2",
+     "name": "bbri_foreign_flow_by_board",
+     "label": "DATA_COVERAGE_VERIFIED",
+     "output_id": "out_2c3d51df81209f222e397997",
+     "data_as_of": "2026-08-31"
+    },
+    "status": "DIRUJUK"
+   },
+   {
+    "kind": "REFERENCED",
+    "claim": "out.o2.rows[market_board=Nego].trading_days",
+    "label": "Angka dari DATA_COVERAGE_VERIFIED: trading days, rows[market board=nego]",
+    "source": {
+     "ref": "out.o2",
+     "name": "bbri_foreign_flow_by_board",
+     "label": "DATA_COVERAGE_VERIFIED",
+     "output_id": "out_2c3d51df81209f222e397997",
+     "data_as_of": "2026-08-31"
+    },
+    "status": "DIRUJUK"
+   },
+   {
+    "kind": "REFERENCED",
+    "claim": "out.o2.rows[market_board=Nego].mean_daily_foreign_net_value",
+    "label": "Angka dari DATA_COVERAGE_VERIFIED: mean daily foreign net value, rows[market board=nego]",
+    "source": {
+     "ref": "out.o2",
+     "name": "bbri_foreign_flow_by_board",
+     "label": "DATA_COVERAGE_VERIFIED",
+     "output_id": "out_2c3d51df81209f222e397997",
+     "data_as_of": "2026-08-31"
+    },
+    "status": "DIRUJUK"
+   },
+   {
+    "kind": "REFERENCED",
+    "claim": "out.o2.rows[market_board=Tunai].trading_days",
+    "label": "Angka dari DATA_COVERAGE_VERIFIED: trading days, rows[market board=tunai]",
+    "source": {
+     "ref": "out.o2",
+     "name": "bbri_foreign_flow_by_board",
+     "label": "DATA_COVERAGE_VERIFIED",
+     "output_id": "out_2c3d51df81209f222e397997",
+     "data_as_of": "2026-08-31"
+    },
+    "status": "DIRUJUK"
+   },
+   {
+    "kind": "REFERENCED",
+    "claim": "out.o2.rows[market_board=Tunai].mean_daily_foreign_net_value",
+    "label": "Angka dari DATA_COVERAGE_VERIFIED: mean daily foreign net value, rows[market board=tunai]",
+    "source": {
+     "ref": "out.o2",
+     "name": "bbri_foreign_flow_by_board",
+     "label": "DATA_COVERAGE_VERIFIED",
+     "output_id": "out_2c3d51df81209f222e397997",
+     "data_as_of": "2026-08-31"
+    },
+    "status": "DIRUJUK"
+   },
+   {
+    "kind": "REFERENCED",
+    "claim": "out.o2.rows[market_board=ALL_BOARDS].trading_days",
+    "label": "Angka dari DATA_COVERAGE_VERIFIED: trading days, rows[market board=all boards]",
+    "source": {
+     "ref": "out.o2",
+     "name": "bbri_foreign_flow_by_board",
+     "label": "DATA_COVERAGE_VERIFIED",
+     "output_id": "out_2c3d51df81209f222e397997",
+     "data_as_of": "2026-08-31"
+    },
+    "status": "DIRUJUK"
+   },
+   {
+    "kind": "REFERENCED",
+    "claim": "out.o2.rows[market_board=ALL_BOARDS].mean_daily_foreign_net_value",
+    "label": "Angka dari DATA_COVERAGE_VERIFIED: mean daily foreign net value, rows[market board=all boards]",
+    "source": {
+     "ref": "out.o2",
+     "name": "bbri_foreign_flow_by_board",
+     "label": "DATA_COVERAGE_VERIFIED",
+     "output_id": "out_2c3d51df81209f222e397997",
+     "data_as_of": "2026-08-31"
+    },
+    "status": "DIRUJUK"
+   }
+  ],
+  "response": {
+   "answer": "**File Excel-nya sudah siap diunduh: `bbri_foreign_flow_daily.xlsx`** — 457 baris arus dana asing harian BBRI, satu baris per tanggal dan market board, dari 2025-10-10 sampai 2026-08-31.\n\n**Angka utamanya:** investor asing net jual di board Regular (pasar reguler) sebesar −Rp 19,47 triliun selama periode, atau rata-rata −Rp 92,73 miliar per hari perdagangan. Di board Nego (transaksi negosiasi) arusnya jauh lebih kecil, −Rp 97,79 miliar, dan di board Tunai praktis nol (Rp 320.000). Kalau semua board digabung: −Rp 19,57 triliun.\n\nHari paling ekstrem di board Regular: net beli asing terbesar pada 2025-10-31 sebesar Rp 661,91 miliar, dan net jual terbesar pada 2025-11-25 sebesar −Rp 1,21 triliun.\n\n| Market board | Hari perdagangan | Total net asing | Rata-rata per hari |\n|---|---|---|---|\n| Regular | 210 | −Rp 19,47 triliun | −Rp 92,73 miliar |\n| Nego | 210 | −Rp 97,79 miliar | −Rp 465,65 juta |\n| Tunai | 37 | Rp 320.000 | Rp 8.649 |\n| Semua board (digabung) | 210 | −Rp 19,57 triliun | −Rp 93,19 miliar |\n\nIsi file: ticker, tanggal, market board, nilai net asing (rupiah), jumlah berjalan per board, dan nilai transaksi harian sebagai pembanding; ditambah sheet definisi dan asal data.\n\nYang perlu diketahui saat membacanya: data terbaru yang tersedia berhenti di 31 Agu 2026, bukan 9 Okt 2026, jadi periode yang terisi adalah 10 Okt 2025 – 31 Agu 2026. Board disajikan terpisah karena mencampur Regular dengan Nego/Tunai memasukkan transaksi negosiasi ke dalam arus. Angka-angka ini statistik deskriptif dari data historis: bukan uji hipotesis, bukan pola yang sudah teruji, dan bukan sinyal beli atau jual. Arus asing di sini mengikuti tipe investor sumber (asing), bukan domisili broker.",
+   "assumptions": [
+    "\"1 tahun terakhir\" dihitung mundur dari tanggal acuan 9 Okt 2026, jadi periode yang diminta 10 Okt 2025 – 9 Okt 2026; data yang tersedia hanya sampai 31 Agu 2026.",
+    "Arus dana asing = nilai net beli asing harian (nilai beli dikurangi nilai jual investor bertipe asing), dalam rupiah, per tanggal dan market board.",
+    "Market board disajikan terpisah; baris gabungan \"semua board\" ikut disertakan dan diberi label karena mencampur transaksi negosiasi dengan pasar reguler.",
+    "Nilai transaksi harian disertakan hanya sebagai konteks (sisi beli dan sisi jual selalu sama besar), bukan bagian dari arus asing."
+   ],
+   "limitations": [
+    "Data berakhir 31 Agu 2026, sekitar 29 hari sebelum tanggal acuan, sehingga rentang yang diminta tidak terisi penuh (bundle menandai cakupan rentang sebagian).",
+    "Hasilnya statistik deskriptif: tidak ada uji signifikansi maupun koreksi atas banyak pembanding, jadi tidak boleh dibaca sebagai pola yang teruji, sebab, prediksi, atau sinyal perdagangan.",
+    "File ini tidak memuat harga saham, sehingga tidak ada return yang dihitung dan tidak ada penyesuaian aksi korporasi.",
+    "Tipe investor asing berasal dari label sumber data, bukan dari domisili broker pelaksana.",
+    "Angka hasil analisis di jawaban ini dibaca backend langsung dari tabel hasil yang dirujuk (bukti DIRUJUK), tanpa hitung ulang terpisah dari kode AI.",
+    "Kelengkapan data sudah dicek; perhitungannya sendiri tidak dihitung ulang secara terpisah oleh sistem.",
+    "Satu periode yang diminta hanya sebagian tercakup data.",
+    "Jawaban ini hanya statistik historis: tanpa uji signifikansi dan tanpa koreksi untuk banyak perbandingan; bukan kesimpulan, sebab, prediksi, atau sinyal trading."
+   ],
+   "methodology": "Data: ringkasan transaksi broker harian per saham dan market board, disaring hanya untuk saham BBRI, frekuensi harian, periode 10 Okt 2025 – 31 Agu 2026 (1 tahun terakhir menurut tanggal acuan, dibatasi ketersediaan data). Langkah: (1) mengambil nilai net beli asing harian untuk setiap tanggal dan market board; (2) menghitung jumlah berjalan arus asing di dalam tiap board dari tanggal pertama; (3) meringkas tiap board: jumlah hari perdagangan, total arus asing, rata-rata per hari, hari dengan net beli asing terbesar dan hari dengan net jual asing terbesar, serta satu baris gabungan seluruh board yang diberi label; (4) menyusun tabel harian sebagai file Excel beserta sheet definisi dan asal data. Statistik: hanya deskriptif (total, rata-rata, nilai ekstrem) — tanpa uji hipotesis, tanpa interval kepercayaan. Yang tidak disertakan: board tidak digabung di dalam angka per board, dan tidak ada data harga, volume saham, atau rincian broker individual.",
+   "research_plan": null,
+   "response_type": "ANSWER",
+   "clarification_question": null
+  },
+  "artifacts": [
+   {
+    "format": "XLSX",
+    "sha256": "538b1da6e938aeebe97de1a9d2ee4c35bdde7e0d891bf619db03afac93b8ab92",
+    "export_id": "exp_db23d46bca770b9a7557dca4",
+    "file_name": "bbri_foreign_flow_daily.xlsx",
+    "size_bytes": 25982,
+    "download_path": "/v1/exports/exp_db23d46bca770b9a7557dca4/download"
+   }
+  ],
+  "execution": {
+   "cost": 0.02311916,
+   "mode": {
+    "mode": 2,
+    "name": "ANALYSIS",
+    "route": "ANALYSIS",
+    "source": "ROUTER"
+   },
+   "model": "deepseek/deepseek-v4.1-flash",
+   "analyses": [],
+   "friction": {
+    "gate_repairs": 0,
+    "capacity_refusals": 0,
+    "rejected_tool_calls": 3,
+    "repeated_data_orders": 0
+   },
+   "provider": "openrouter",
+   "research": null,
+   "iterations": 13,
+   "duration_ms": 285310,
+   "input_tokens": 716823,
+   "total_tokens": 734729,
+   "analysis_path": {
+    "source": "CALLER",
+    "requested": "ANALYSIS",
+    "mismatches_refused": 0
+   },
+   "output_tokens": 17906,
+   "research_plan": null,
+   "tool_call_count": 17,
+   "validation_gate": "ANNOTATED",
+   "reasoning_tokens": 12237,
+   "number_provenance": {
+    "checked": 20,
+    "unsupported": []
+   },
+   "cache_write_tokens": 0,
+   "cached_input_tokens": 624128,
+   "provider_response_id": "gen-1791487369-obXGbyGoR9m55UdA3zq3",
+   "analysis_final_status": {
+    "status": "COMPLETED",
+    "need_id": "need_52270934830b36cea9b87b67",
+    "warnings": [
+     "PARTIAL_RANGE_COVERAGE"
+    ],
+    "session_id": "sess_5f66b886478604764399bb3e",
+    "time_basis": "HISTORICAL_DESCRIPTIVE",
+    "modules_used": [
+     "numpy",
+     "pandas"
+    ],
+    "completion_id": "cmp_bb8f64dd740af7d952ede875",
+    "data_complete": false,
+    "data_coverage": "PASS",
+    "claims_allowed": [
+     "the DataNeedSpec was validated",
+     "the SQL extraction succeeded",
+     "the requested ranges were delivered as approved",
+     "a Data Quality Manifest is available",
+     "data coverage passed",
+     "the sandbox execution succeeded",
+     "the methods and parameters used"
+    ],
+    "evidence_label": "DATA_COVERAGE_VERIFIED",
+    "sql_governance": "PASS",
+    "claims_forbidden": [
+     "the calculation was independently verified",
+     "a backend validator recalculated the formula"
+    ],
+    "sandbox_execution": "SUCCESS",
+    "execution_complete": true,
+    "research_governance": "NOT_APPLICABLE",
+    "data_need_validation": "PASS",
+    "research_constraints": null,
+    "calculation_validation": "NOT_PERFORMED",
+    "data_quality_profiling": "COMPLETE"
+   },
+   "methodology_provenance": {
+    "checked": 1,
+    "unsupported": []
+   },
+   "tools_withdrawn_reason": null,
+   "analysis_final_statuses": [
+    {
+     "status": "COMPLETED",
+     "need_id": "need_52270934830b36cea9b87b67",
+     "warnings": [
+      "PARTIAL_RANGE_COVERAGE"
+     ],
+     "session_id": "sess_5f66b886478604764399bb3e",
+     "time_basis": "HISTORICAL_DESCRIPTIVE",
+     "modules_used": [
+      "numpy",
+      "pandas"
+     ],
+     "completion_id": "cmp_bb8f64dd740af7d952ede875",
+     "data_complete": false,
+     "data_coverage": "PASS",
+     "claims_allowed": [
+      "the DataNeedSpec was validated",
+      "the SQL extraction succeeded",
+      "the requested ranges were delivered as approved",
+      "a Data Quality Manifest is available",
+      "data coverage passed",
+      "the sandbox execution succeeded",
+      "the methods and parameters used"
+     ],
+     "evidence_label": "DATA_COVERAGE_VERIFIED",
+     "sql_governance": "PASS",
+     "claims_forbidden": [
+      "the calculation was independently verified",
+      "a backend validator recalculated the formula"
+     ],
+     "sandbox_execution": "SUCCESS",
+     "execution_complete": true,
+     "research_governance": "NOT_APPLICABLE",
+     "data_need_validation": "PASS",
+     "research_constraints": null,
+     "calculation_validation": "NOT_PERFORMED",
+     "data_quality_profiling": "COMPLETE"
+    }
+   ]
+  },
+  "request_id": "edge_398b4589b7d11e86ffc689c8927e5af0",
+  "data_record": {
+   "seq": 3,
+   "needs": [
+    {
+     "mode": "ANALYSIS",
+     "need_id": "need_52270934830b36cea9b87b67",
+     "subject": "MARKET/STOCK/IDX_EQUITY",
+     "requests": [
+      {
+       "scope": "ticker EQ BBRI",
+       "ranges": [
+        {
+         "end": "2026-10-09",
+         "start": "2025-10-10",
+         "range_id": "last_1y"
+        }
+       ],
+       "columns": [
+        "ticker",
+        "date",
+        "market_board",
+        "foreign_net_value",
+        "total_buy_value",
+        "total_sell_value"
+       ],
+       "logical_name": "bbri_flow",
+       "scope_sha256": "97e07393151aadc9d0c9cada01b67b28430d8c9829933ed94a86eacf55053790",
+       "source_table": "Feature_03_Stock_Broker_Daily",
+       "data_request_id": "bbri_foreign_flow_A"
+      }
+     ],
+     "request_id": "edge_398b4589b7d11e86ffc689c8927e5af0",
+     "spec_sha256": "cf2da093fb70cfda60e0ff8f46b045d21b08a40f6322f345543d53888c282f07",
+     "catalog_sha256": "eeda5dc1457a7b058ab9cebf618d7d9858cf08842257d226589d114dd85c4b28"
+    }
+   ],
+   "pause": null,
+   "tables": {
+    "IDX_Broker_Profile": {
+     "read": [],
+     "used": [],
+     "requests": [
+      "edge_398b4589b7d11e86ffc689c8927e5af0"
+     ],
+     "time_column": null,
+     "entity_column": "broker_code"
+    },
+    "IDX_Broker_Summary": {
+     "read": [],
+     "used": [],
+     "requests": [
+      "edge_398b4589b7d11e86ffc689c8927e5af0"
+     ],
+     "time_column": "Date",
+     "entity_column": "Symbol"
+    },
+    "IDX_Stock_Universe": {
+     "read": [],
+     "used": [],
+     "requests": [
+      "edge_398b4589b7d11e86ffc689c8927e5af0"
+     ],
+     "time_column": null,
+     "entity_column": "Ticker"
+    },
+    "Feature_01_Stock_Daily": {
+     "read": [],
+     "used": [],
+     "requests": [
+      "edge_398b4589b7d11e86ffc689c8927e5af0"
+     ],
+     "time_column": "date",
+     "entity_column": "ticker"
+    },
+    "Feature_02_Broker_Rolling": {
+     "read": [
+      "active_days_20d",
+      "broker",
+      "broker_classification",
+      "buy_days_20d",
+      "buy_lots_1d",
+      "buy_value_1d",
+      "date",
+      "investor_type",
+      "market_board",
+      "net_lots_1d",
+      "net_lots_20d",
+      "net_lots_5d",
+      "net_lots_60d",
+      "net_value_1d",
+      "net_value_20d",
+      "net_value_5d",
+      "net_value_60d",
+      "sell_days_20d",
+      "sell_lots_1d",
+      "sell_value_1d",
+      "stock_trading_days_20d",
+      "ticker"
+     ],
+     "used": [],
+     "requests": [
+      "edge_398b4589b7d11e86ffc689c8927e5af0"
+     ],
+     "time_column": "date",
+     "entity_column": "ticker"
+    },
+    "Price_Stock_Indonesia_IDX": {
+     "read": [],
+     "used": [],
+     "requests": [
+      "edge_398b4589b7d11e86ffc689c8927e5af0"
+     ],
+     "time_column": "date",
+     "entity_column": "ticker"
+    },
+    "IDX_Broker_Profile_History": {
+     "read": [],
+     "used": [],
+     "requests": [
+      "edge_398b4589b7d11e86ffc689c8927e5af0"
+     ],
+     "time_column": null,
+     "entity_column": "broker_code"
+    },
+    "IDX_Stock_Universe_History": {
+     "read": [],
+     "used": [],
+     "requests": [
+      "edge_398b4589b7d11e86ffc689c8927e5af0"
+     ],
+     "time_column": null,
+     "entity_column": "Ticker"
+    },
+    "Feature_03_Stock_Broker_Daily": {
+     "read": [
+      "active_broker_count",
+      "broker_concentration_hhi",
+      "calculated_at",
+      "date",
+      "domestic_net_value",
+      "foreign_net_value",
+      "institutional_net_value",
+      "market_board",
+      "mixed_net_value",
+      "net_buy_broker_count",
+      "net_buy_broker_ratio",
+      "net_sell_broker_count",
+      "niche_net_value",
+      "positive_net_value_total",
+      "retail_net_value",
+      "ticker",
+      "top3_buyer_net_value",
+      "top3_buyer_share",
+      "top_buyer",
+      "top_buyer_net_value",
+      "top_seller",
+      "top_seller_net_value",
+      "total_buy_value",
+      "total_sell_value"
+     ],
+     "used": [
+      "date",
+      "foreign_net_value",
+      "market_board",
+      "ticker",
+      "total_buy_value",
+      "total_sell_value"
+     ],
+     "requests": [
+      "edge_398b4589b7d11e86ffc689c8927e5af0"
+     ],
+     "time_column": "date",
+     "entity_column": "ticker"
+    }
+   },
+   "values": {},
+   "answers": [
+    {
+     "seq": 3,
+     "outputs": [
+      "out.o1",
+      "out.o2"
+     ],
+     "summary": "**File Excel-nya sudah siap diunduh: `bbri_foreign_flow_daily.xlsx`** — 457 baris arus dana asing harian BBRI, satu baris per tanggal dan market board, dari 2025-10-10 sampai 2026-08-31. **Angka utamanya:** investor asing net jual di board Regular (pasar reguler) sebesar −Rp 19,47 triliun selama per",
+     "findings": [],
+     "question": "get me bbri foreign flow for last 1 year, output dalam excel",
+     "data_as_of": "2026-08-31",
+     "request_id": "edge_398b4589b7d11e86ffc689c8927e5af0",
+     "response_type": "ANSWER"
+    }
+   ],
+   "columns": {
+    "Feature_02_Broker_Rolling": {
+     "date": {
+      "unit": "Date",
+      "data_type": "date",
+      "is_primary_key": true
+     },
+     "broker": {
+      "unit": "Broker code",
+      "data_type": "text",
+      "is_primary_key": true
+     },
+     "ticker": {
+      "unit": "Ticker or instrument symbol",
+      "data_type": "text",
+      "is_primary_key": true
+     },
+     "buy_lots_1d": {
+      "unit": "Lots",
+      "data_type": "numeric",
+      "is_primary_key": false,
+      "resample_aggregation": "SUM",
+      "cross_entity_aggregation": "SUM"
+     },
+     "net_lots_1d": {
+      "unit": "Lots",
+      "data_type": "numeric",
+      "is_primary_key": false,
+      "resample_aggregation": "SUM",
+      "cross_entity_aggregation": "SUM"
+     },
+     "net_lots_5d": {
+      "unit": "Lots",
+      "data_type": "numeric",
+      "is_primary_key": false,
+      "cross_entity_aggregation": "SUM"
+     },
+     "buy_days_20d": {
+      "unit": "Days",
+      "data_type": "smallint",
+      "is_primary_key": false
+     },
+     "buy_value_1d": {
+      "unit": "IDR",
+      "data_type": "numeric",
+      "is_primary_key": false,
+      "resample_aggregation": "SUM",
+      "cross_entity_aggregation": "SUM"
+     },
+     "market_board": {
+      "unit": "Board label",
+      "data_type": "text",
+      "is_primary_key": true
+     },
+     "net_lots_20d": {
+      "unit": "Lots",
+      "data_type": "numeric",
+      "is_primary_key": false,
+      "cross_entity_aggregation": "SUM"
+     },
+     "net_lots_60d": {
+      "unit": "Lots",
+      "data_type": "numeric",
+      "is_primary_key": false,
+      "cross_entity_aggregation": "SUM"
+     },
+     "net_value_1d": {
+      "unit": "IDR",
+      "data_type": "numeric",
+      "is_primary_key": false,
+      "resample_aggregation": "SUM",
+      "cross_entity_aggregation": "SUM"
+     },
+     "net_value_5d": {
+      "unit": "IDR",
+      "data_type": "numeric",
+      "is_primary_key": false,
+      "cross_entity_aggregation": "SUM"
+     },
+     "sell_lots_1d": {
+      "unit": "Lots",
+      "data_type": "numeric",
+      "is_primary_key": false,
+      "resample_aggregation": "SUM",
+      "cross_entity_aggregation": "SUM"
+     },
+     "investor_type": {
+      "unit": "Domestic/Foreign investor label",
+      "data_type": "text",
+      "is_primary_key": true
+     },
+     "net_value_20d": {
+      "unit": "IDR",
+      "data_type": "numeric",
+      "is_primary_key": false,
+      "cross_entity_aggregation": "SUM"
+     },
+     "net_value_60d": {
+      "unit": "IDR",
+      "data_type": "numeric",
+      "is_primary_key": false,
+      "cross_entity_aggregation": "SUM"
+     },
+     "sell_days_20d": {
+      "unit": "Days",
+      "data_type": "smallint",
+      "is_primary_key": false
+     },
+     "sell_value_1d": {
+      "unit": "IDR",
+      "data_type": "numeric",
+      "is_primary_key": false,
+      "resample_aggregation": "SUM",
+      "cross_entity_aggregation": "SUM"
+     },
+     "active_days_20d": {
+      "unit": "Days",
+      "data_type": "smallint",
+      "is_primary_key": false
+     },
+     "broker_classification": {
+      "unit": "Broker usage label",
+      "data_type": "text",
+      "is_primary_key": false,
+      "value_time_basis": "CURRENT_STATE"
+     },
+     "stock_trading_days_20d": {
+      "unit": "Days",
+      "data_type": "smallint",
+      "is_primary_key": false
+     }
+    },
+    "Feature_03_Stock_Broker_Daily": {
+     "date": {
+      "unit": "Date",
+      "data_type": "date",
+      "description": "Source transaction date for this ticker and market board.",
+      "semantic_type": "IDENTIFIER",
+      "is_primary_key": true
+     },
+     "ticker": {
+      "unit": "Ticker or instrument symbol",
+      "data_type": "text",
+      "description": "Source broker-summary Symbol, including instruments outside the current stock universe.",
+      "semantic_type": "IDENTIFIER",
+      "is_primary_key": true
+     },
+     "top_buyer": {
+      "unit": "Broker code",
+      "data_type": "text",
+      "description": "Positive-net broker with the greatest daily net value; ties use broker code ascending.",
+      "semantic_type": "DIMENSION",
+      "is_primary_key": false
+     },
+     "top_seller": {
+      "unit": "Broker code",
+      "data_type": "text",
+      "description": "Negative-net broker with the lowest daily net value; ties use broker code ascending.",
+      "semantic_type": "DIMENSION",
+      "is_primary_key": false
+     },
+     "market_board": {
+      "unit": "Board label",
+      "data_type": "text",
+      "description": "Exact source board: Regular, Nego or Tunai; aggregates never mix boards.",
+      "semantic_type": "IDENTIFIER",
+      "is_primary_key": true
+     },
+     "calculated_at": {
+      "unit": "Timestamp with time zone",
+      "data_type": "timestamp with time zone",
+      "description": "Database statement timestamp when the row was calculated.",
+      "semantic_type": "DIMENSION",
+      "is_primary_key": false
+     },
+     "mixed_net_value": {
+      "unit": "IDR",
+      "data_type": "numeric",
+      "description": "Sum of daily broker net value where current broker_classification is Mixed.",
+      "semantic_type": "MEASURE",
+      "is_primary_key": false,
+      "value_time_basis": "CURRENT_STATE",
+      "resample_aggregation": "SUM",
+      "cross_entity_aggregation": "SUM"
+     },
+     "niche_net_value": {
+      "unit": "IDR",
+      "data_type": "numeric",
+      "description": "Sum of daily broker net value where current broker_classification is Niche.",
+      "semantic_type": "MEASURE",
+      "is_primary_key": false,
+      "value_time_basis": "CURRENT_STATE",
+      "resample_aggregation": "SUM",
+      "cross_entity_aggregation": "SUM"
+     },
+     "total_buy_value": {
+      "unit": "IDR",
+      "data_type": "numeric",
+      "description": "Sum of all broker buy_value_1d for the ticker, date and board.",
+      "semantic_type": "MEASURE",
+      "is_primary_key": false,
+      "resample_aggregation": "SUM",
+      "cross_entity_aggregation": "SUM"
+     },
+     "retail_net_value": {
+      "unit": "IDR",
+      "data_type": "numeric",
+      "description": "Sum of daily broker net value where current broker_classification is Retail-heavy.",
+      "semantic_type": "MEASURE",
+      "is_primary_key": false,
+      "value_time_basis": "CURRENT_STATE",
+      "resample_aggregation": "SUM",
+      "cross_entity_aggregation": "SUM"
+     },
+     "top3_buyer_share": {
+      "unit": "Fraction",
+      "data_type": "double precision",
+      "description": "top3_buyer_net_value divided by positive_net_value_total; null when the denominator is zero.",
+      "semantic_type": "MEASURE",
+      "is_primary_key": false
+     },
+     "total_sell_value": {
+      "unit": "IDR",
+      "data_type": "numeric",
+      "description": "Sum of all broker sell_value_1d for the ticker, date and board.",
+      "semantic_type": "MEASURE",
+      "is_primary_key": false,
+      "resample_aggregation": "SUM",
+      "cross_entity_aggregation": "SUM"
+     },
+     "foreign_net_value": {
+      "unit": "IDR",
+      "data_type": "numeric",
+      "description": "Sum of daily net value for source Foreign Investor Type across all brokers. Investor Type identifies the source investor, not broker domicile.",
+      "semantic_type": "MEASURE",
+      "is_primary_key": false,
+      "resample_aggregation": "SUM",
+      "cross_entity_aggregation": "SUM"
+     },
+     "domestic_net_value": {
+      "unit": "IDR",
+      "data_type": "numeric",
+      "description": "Sum of daily net value for source Domestic Investor Type across all brokers. Investor Type identifies the source investor, not broker domicile.",
+      "semantic_type": "MEASURE",
+      "is_primary_key": false,
+      "resample_aggregation": "SUM",
+      "cross_entity_aggregation": "SUM"
+     },
+     "active_broker_count": {
+      "unit": "Count",
+      "data_type": "smallint",
+      "description": "Brokers with nonzero gross buy/sell value or lots on the ticker, date and board.",
+      "semantic_type": "MEASURE",
+      "is_primary_key": false
+     },
+     "top_buyer_net_value": {
+      "unit": "IDR",
+      "data_type": "numeric",
+      "description": "Positive daily net value of top_buyer.",
+      "semantic_type": "MEASURE",
+      "is_primary_key": false
+     },
+     "net_buy_broker_count": {
+      "unit": "Count",
+      "data_type": "smallint",
+      "description": "Brokers whose aggregated daily net value is positive.",
+      "semantic_type": "MEASURE",
+      "is_primary_key": false
+     },
+     "net_buy_broker_ratio": {
+      "unit": "Fraction",
+      "data_type": "double precision",
+      "description": "net_buy_broker_count divided by active_broker_count; null when no broker is active.",
+      "semantic_type": "MEASURE",
+      "is_primary_key": false
+     },
+     "top3_buyer_net_value": {
+      "unit": "IDR",
+      "data_type": "numeric",
+      "description": "Sum of the three greatest positive broker net values, with fewer used when fewer exist.",
+      "semantic_type": "MEASURE",
+      "is_primary_key": false
+     },
+     "top_seller_net_value": {
+      "unit": "IDR",
+      "data_type": "numeric",
+      "description": "Negative daily net value of top_seller.",
+      "semantic_type": "MEASURE",
+      "is_primary_key": false
+     },
+     "net_sell_broker_count": {
+      "unit": "Count",
+      "data_type": "smallint",
+      "description": "Brokers whose aggregated daily net value is negative.",
+      "semantic_type": "MEASURE",
+      "is_primary_key": false
+     },
+     "institutional_net_value": {
+      "unit": "IDR",
+      "data_type": "numeric",
+      "description": "Sum of daily broker net value where current broker_classification is Institutional-heavy.",
+      "semantic_type": "MEASURE",
+      "is_primary_key": false,
+      "value_time_basis": "CURRENT_STATE",
+      "resample_aggregation": "SUM",
+      "cross_entity_aggregation": "SUM"
+     },
+     "broker_concentration_hhi": {
+      "unit": "HHI ratio 0-1",
+      "data_type": "double precision",
+      "description": "Sum of squared absolute-net-flow weights across brokers; null when total absolute net value is zero.",
+      "semantic_type": "MEASURE",
+      "is_primary_key": false
+     },
+     "positive_net_value_total": {
+      "unit": "IDR",
+      "data_type": "numeric",
+      "description": "Sum of every positive broker daily net value.",
+      "semantic_type": "MEASURE",
+      "is_primary_key": false
+     }
+    }
+   },
+   "manuals": [],
+   "outputs": [
+    {
+     "ref": "out.o1",
+     "seq": 1,
+     "name": "bbri_foreign_flow_daily",
+     "type": "TABLE",
+     "label": "DATA_COVERAGE_VERIFIED",
+     "stored": true,
+     "columns": [
+      "ticker",
+      "date",
+      "market_board",
+      "foreign_net_value",
+      "foreign_net_value_cum",
+      "turnover_idr"
+     ],
+     "lineage": {
+      "need_id": "need_52270934830b36cea9b87b67",
+      "bundle_id": "bundle_ad8c2b0a2abc5663bad03636",
+      "data_as_of": "2026-08-31",
+      "code_sha256": "d85aa8facf0ccc37e156079a43e74a9728ba52812f01c3690ab3be28c3d9c008",
+      "execution_id": "exe_acfbb92fde6facc6bf2fb5e4",
+      "reference_date": "2026-10-09"
+     },
+     "output_id": "out_6590734649bd7b6eb42310d4",
+     "row_count": 457,
+     "data_as_of": "2026-08-31",
+     "definition": {
+      "notes": "Sumber: ringkasan broker harian per saham dan market board. foreign_net_value = nilai net beli asing (beli dikurangi jual) untuk investor bertipe asing, dalam IDR. Kolom foreign_net_value_cum adalah jumlah berjalan di dalam board yang sama. turnover_idr = nilai transaksi harian (sisi beli dan sisi jual sama besar karena setiap transaksi dicatat di kedua sisi). Baris ALL_BOARDS menggabungkan Regular, Nego dan Tunai sehingga mencampur transaksi negosiasi ke dalam arus.",
+      "period": {
+       "end": "2026-08-31",
+       "start": "2025-10-10"
+      },
+      "filters": [],
+      "entities": [
+       "BBRI"
+      ],
+      "thresholds": {}
+     },
+     "request_id": "edge_398b4589b7d11e86ffc689c8927e5af0",
+     "session_id": "sess_5f66b886478604764399bb3e"
+    },
+    {
+     "ref": "out.o2",
+     "seq": 2,
+     "name": "bbri_foreign_flow_by_board",
+     "type": "TABLE",
+     "label": "DATA_COVERAGE_VERIFIED",
+     "stored": true,
+     "columns": [
+      "market_board",
+      "trading_days",
+      "total_foreign_net_value",
+      "mean_daily_foreign_net_value",
+      "best_day",
+      "best_day_value",
+      "worst_day",
+      "worst_day_value",
+      "first_date",
+      "last_date"
+     ],
+     "lineage": {
+      "need_id": "need_52270934830b36cea9b87b67",
+      "bundle_id": "bundle_ad8c2b0a2abc5663bad03636",
+      "data_as_of": "2026-08-31",
+      "code_sha256": "d85aa8facf0ccc37e156079a43e74a9728ba52812f01c3690ab3be28c3d9c008",
+      "execution_id": "exe_acfbb92fde6facc6bf2fb5e4",
+      "reference_date": "2026-10-09"
+     },
+     "output_id": "out_2c3d51df81209f222e397997",
+     "row_count": 4,
+     "data_as_of": "2026-08-31",
+     "definition": {
+      "notes": "Sumber: ringkasan broker harian per saham dan market board. foreign_net_value = nilai net beli asing (beli dikurangi jual) untuk investor bertipe asing, dalam IDR. Kolom foreign_net_value_cum adalah jumlah berjalan di dalam board yang sama. turnover_idr = nilai transaksi harian (sisi beli dan sisi jual sama besar karena setiap transaksi dicatat di kedua sisi). Baris ALL_BOARDS menggabungkan Regular, Nego dan Tunai sehingga mencampur transaksi negosiasi ke dalam arus.",
+      "period": {
+       "end": "2026-08-31",
+       "start": "2025-10-10"
+      },
+      "filters": [],
+      "entities": [
+       "BBRI"
+      ],
+      "thresholds": {}
+     },
+     "request_id": "edge_398b4589b7d11e86ffc689c8927e5af0",
+     "session_id": "sess_5f66b886478604764399bb3e"
+    }
+   ],
+   "version": 1,
+   "coverage": {
+    "Feature_02_Broker_Rolling": {
+     "read_at": "2026-10-08T19:19:07+00:00",
+     "last_checked_at": "2026-10-08T10:34:44.815952+00:00",
+     "expected_max_date": "2026-08-31",
+     "expected_min_date": "2016-01-04"
+    },
+    "Feature_03_Stock_Broker_Daily": {
+     "read_at": "2026-10-08T19:19:49+00:00",
+     "last_checked_at": "2026-10-08T10:34:44.815952+00:00",
+     "expected_max_date": "2026-08-31",
+     "expected_min_date": "2016-01-04"
+    }
+   },
+   "findings": [],
+   "readings": [
+    {
+     "route": "ANALYSIS",
+     "status": "COMPLETED",
+     "referent": "NONE",
+     "request_id": "edge_398b4589b7d11e86ffc689c8927e5af0",
+     "understood_intent": "Mengambil data foreign flow BBRI selama 1 tahun terakhir dan menyajikannya dalam file Excel.",
+     "design_value_changes": [
+      {
+       "name": "PERIOD",
+       "text": "last 1 year",
+       "unit": "NONE",
+       "basis": "STATED",
+       "action": "ADD"
+      },
+      {
+       "name": "SCOPE",
+       "text": "bbri",
+       "unit": "NONE",
+       "basis": "STATED",
+       "action": "ADD"
+      }
+     ]
+    }
+   ],
+   "research": [],
+   "next_alias": 3,
+   "suggestion": null,
+   "relationships": {
+    "4": {
+     "left_table": "IDX_Broker_Summary",
+     "right_table": "Feature_02_Broker_Rolling",
+     "left_columns": [
+      "Date",
+      "Symbol",
+      "Broker",
+      "Investor Type",
+      "Market Board"
+     ],
+     "right_columns": [
+      "date",
+      "ticker",
+      "broker",
+      "investor_type",
+      "market_board"
+     ],
+     "temporal_rule": "Exact source trading date",
+     "relationship_type": "ONE_TO_ONE",
+     "supported_join_semantics": [
+      "EXACT_DATE"
+     ]
+    },
+    "5": {
+     "left_table": "Feature_02_Broker_Rolling",
+     "right_table": "Feature_03_Stock_Broker_Daily",
+     "left_columns": [
+      "ticker",
+      "date",
+      "market_board"
+     ],
+     "right_columns": [
+      "ticker",
+      "date",
+      "market_board"
+     ],
+     "temporal_rule": "Exact trading date and market board",
+     "relationship_type": "MANY_TO_ONE",
+     "supported_join_semantics": [
+      "EXACT_DATE"
+     ]
+    },
+    "19": {
+     "left_table": "IDX_Stock_Universe",
+     "right_table": "Feature_02_Broker_Rolling",
+     "left_columns": [
+      "Ticker"
+     ],
+     "right_columns": [
+      "ticker"
+     ],
+     "temporal_rule": "Current-state reference metadata",
+     "relationship_type": "ONE_TO_MANY",
+     "supported_join_semantics": [
+      "CURRENT_STATE"
+     ]
+    },
+    "20": {
+     "left_table": "IDX_Stock_Universe",
+     "right_table": "Feature_03_Stock_Broker_Daily",
+     "left_columns": [
+      "Ticker"
+     ],
+     "right_columns": [
+      "ticker"
+     ],
+     "temporal_rule": "Current-state reference metadata",
+     "relationship_type": "ONE_TO_MANY",
+     "supported_join_semantics": [
+      "CURRENT_STATE"
+     ]
+    },
+    "21": {
+     "left_table": "IDX_Broker_Profile",
+     "right_table": "Feature_02_Broker_Rolling",
+     "left_columns": [
+      "broker_code"
+     ],
+     "right_columns": [
+      "broker"
+     ],
+     "temporal_rule": "Current-state broker metadata",
+     "relationship_type": "ONE_TO_MANY",
+     "supported_join_semantics": [
+      "CURRENT_STATE"
+     ]
+    },
+    "23": {
+     "left_table": "Price_Stock_Indonesia_IDX",
+     "right_table": "Feature_02_Broker_Rolling",
+     "left_columns": [
+      "ticker",
+      "date"
+     ],
+     "right_columns": [
+      "ticker",
+      "date"
+     ],
+     "temporal_rule": "Exact trading date",
+     "relationship_type": "ONE_TO_MANY",
+     "supported_join_semantics": [
+      "EXACT_DATE"
+     ]
+    },
+    "24": {
+     "left_table": "Price_Stock_Indonesia_IDX",
+     "right_table": "Feature_03_Stock_Broker_Daily",
+     "left_columns": [
+      "ticker",
+      "date"
+     ],
+     "right_columns": [
+      "ticker",
+      "date"
+     ],
+     "temporal_rule": "Exact trading date",
+     "relationship_type": "ONE_TO_MANY",
+     "supported_join_semantics": [
+      "EXACT_DATE"
+     ]
+    }
+   }
+  },
+  "continuation": null,
+  "evidence_label": "DATA_COVERAGE_VERIFIED"
  }
 }

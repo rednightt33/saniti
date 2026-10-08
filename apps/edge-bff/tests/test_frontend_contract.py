@@ -102,3 +102,22 @@ def test_labels_are_worded_not_field_names(views):
         for finding in (out['view']['findings'] or {}).get('items', []):
             labels += [p['label'] for p in finding['parts']] + [m['label'] for m in finding['metrics']]
     assert labels and not [label for label in labels if '_' in label]
+
+
+def test_every_artifact_field_the_view_reads_is_one_orc_sends(views):
+    """M128 (a): the view read `filename`, Orc sends `file_name`; the real export response is a fixture now, so the
+    Download button shows the file's name, never its id."""
+    files = views['export_xlsx']['view']['artifacts']
+    assert files == [{'id': 'exp_db23d46bca770b9a7557dca4', 'label': 'bbri_foreign_flow_daily.xlsx'}]
+    for out in views.values():
+        for file in out['view']['artifacts']:
+            assert file['label'] != file['id']
+
+
+def test_the_data_record_summary_shows_only_parts_worded_for_the_reader(views):
+    """P4: version, next_alias, seq and the other bookkeeping of the record stay in Detail teknis."""
+    for name, out in views.items():
+        record = out['sources']['record']
+        if record:
+            assert set(record['summary']) <= {'Tabel hasil', 'Data yang dibaca', 'Temuan riset'}, name
+            assert record['raw']  # the whole record is still there for the technical view

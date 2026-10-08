@@ -2,7 +2,9 @@
    fields: a data field's name as a label. A field missing here still shows, its name made readable.
    values: a backend code as words. A code missing here shows as written.
    verdicts: a backend verdict or status as [words, tone]; tone is positive, warning, negative or neutral.
-   status: the answer's state as [words, tone]. ui: fixed texts of the answer view. */
+   status: the answer's state as [words, tone]. ui: fixed texts of the answer view.
+   record: the parts of the conversation's data record shown in Sources, by name; a part not named here stays in
+   "Detail teknis" only (P4, 2026-10-08). */
 window.EdgeLabels = {
   fields: {
     objective:"Tujuan", universe:"Cakupan", time_scope:"Periode", analysis_frequency:"Frekuensi", original_question:"Pertanyaan",
@@ -23,8 +25,11 @@ window.EdgeLabels = {
     estimate_unit:"Satuan estimasi", claim:"Klaim", source:"Sumber", ref:"Ref", output_id:"ID output", name:"Nama", label:"Label",
     data_as_of:"Data per", kind:"Jenis", quote:"Kutipan", note:"Catatan", url:"Tautan", ticker:"Ticker",
     tables:"Tabel", columns:"Kolom", outputs:"Output", data_needs:"Kebutuhan data", answers:"Jawaban", readings:"Bacaan", pause:"Jeda",
-    operator:"Operator", value:"Nilai", unit:"Satuan", reason:"Alasan", options:"Pilihan", cause:"Penyebab"
+    operator:"Operator", value:"Nilai", unit:"Satuan", reason:"Alasan", options:"Pilihan", cause:"Penyebab",
+    source_url:"Tautan", source_title:"Judul halaman", source_date:"Tanggal sumber", source_official:"Sumber resmi",
+    source_quote:"Kutipan asli", source_name:"Tabel", source_label:"Tabel", source_data_as_of:"Data per"
   },
+  record: {outputs:"Tabel hasil", tables:"Data yang dibaca", findings:"Temuan riset"},
   values: {
     HIGHER:"Lebih tinggi", LOWER:"Lebih rendah", DIFFERENT:"Berbeda", PERCENT:"persen", DECIMAL:"desimal", BASIS_POINT:"basis poin",
     OTHER:"lainnya", EVENTS:"peristiwa", OBSERVATIONS:"observasi", ENTITIES:"entitas", DATES:"tanggal", NONE:"Tidak ada",

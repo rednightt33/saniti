@@ -120,8 +120,10 @@
     const sections = [];
     if (evidence.length) sections.push({title:`${ui.sourcesEvidence} (${evidence.length})`, items:evidence.map(sourceItem)});
     if (annotations.length) sections.push({title:`${ui.sourcesClaims} (${annotations.length})`, items:annotations.map(sourceItem)});
-    const summary = record && Object.fromEntries(Object.entries(record).filter(([, value]) => !empty(value))
-      .map(([key, value]) => [key, Array.isArray(value) ? `${value.length} ${ui.items}` : typeof value === "object" ? `${Object.keys(value).length} ${ui.items}` : value]));
+    // P4: only the parts edge-labels.js names are summarised for the reader; the whole record stays in Detail teknis
+    const named = L().record || {};
+    const summary = record && Object.fromEntries(Object.entries(record).filter(([key, value]) => named[key] && !empty(value))
+      .map(([key, value]) => [named[key], Array.isArray(value) ? `${value.length} ${ui.items}` : typeof value === "object" ? `${Object.keys(value).length} ${ui.items}` : value]));
     return {empty:!sections.length && empty(record), emptyText:ui.sourcesEmpty, sections,
       record:empty(record) ? null : {title:ui.sourcesRecord, summary, raw:record, technicalLabel:ui.technical}};
   }
@@ -150,7 +152,7 @@
       findings:findings(final.research_findings, planIndex),
       lists,
       methodology:final.methodology ? {label:ui.methodology, text:final.methodology} : null,
-      artifacts:(envelope?.artifacts || []).map(file => ({id:file.export_id, label:file.filename || file.export_id}))
+      artifacts:(envelope?.artifacts || []).map(file => ({id:file.export_id, label:file.file_name || file.filename || file.export_id}))
     };
   }
   // the experiments and angles of a conversation's plans, so a finding is titled by its plan's words
