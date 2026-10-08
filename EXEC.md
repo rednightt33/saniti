@@ -291,6 +291,26 @@ karena `is_mode4_plan` hanya mengenali `-m4d`.
   `PLAN.md` 8–12 (disetujui, belum punya rencana eksekusi) belum dibangun dan bukan bagian uji ini.
 - Kredit OpenRouter: sisa USD 1,529 (≥ 0,30).
 
+**Hasil tahap 4 (golden test `ma-qa-variant-20261007a`, runner `150c16a5`, orc `9c6f5abf`, sandbox `6e396414`,
+±USD 0,38, sisa USD 1,147):**
+- **Lulus:** riset giliran 4 (varian 2,5x) memakai ulang data (`bundle_reused`) di ruang kerja baru, 2 eksperimen
+  dalam 1 kebutuhan data dan 1 sesi, 2 temuan, 3 iterasi, 148 dtk. Giliran 1 dan 3 mengembalikan rencana (giliran 3
+  rencana revisi). BBRI giliran 1: satu tabel berkolom varian, 10 iterasi. `analysis_sessions_superseded` = 0. M109
+  tidak terpicu.
+- **Gagal:** riset giliran 2 LIMITED, 925 dtk, 29 iterasi, 36 panggilan. 913 dtk adalah waktu model; eksekusi
+  ruang kerja ±1,3 dtk. Keempat uji selesai di sandbox pada 17:14:11 (2 menit setelah mulai, `cmp_f4171f61`
+  COMPLETED, 29 keluaran), lalu 20 putaran sisanya habis untuk pemulihan dari M111–M114. BBRI giliran 2 mengekstrak
+  ulang data yang sama (M113).
+- Rincian dan akar masalah: `ERRORS_AND_SOLUTIONS.md` M111–M114.
+
+**Keputusan user 2026-10-08 (setelah golden test):** "kita revert saja ya, ruang kerja boleh dipakai oleh AI maks 4,
+membuka 1 tidak menutup yang lain. data tetap as is, apabila sama maka tidak perlu ditarik ulang, tapi boleh dipakai
+di ruang kerja lain." Lalu: "revert ke banyak ruang kerja, dan data yang sama maka tidak perlu ditarik lagi. data yg
+sama bisa di proses di sandbox lain." Belum dijalankan; rencana eksekusi menunggu jawaban atas pertanyaan terbuka:
+- tahap 3 (`research_experiments`, beberapa eksperimen di satu ruang kerja) dicabut atau tetap sebagai pilihan AI;
+- slot sandbox dinaikkan dari 2 (default) ke 4 (`PY_SANDBOX_MAX_SESSIONS`, maksimum kode) dan batas per pertanyaan;
+- M113 (label `LATEST`) dan M114 ("babak 2") ikut diperbaiki.
+
 **Hasil tahap 1 (2026-10-07, V-a opsi B):**
 - **Kode** (`d25e108`, `apps/market-ai-orc/app/orchestrator.py`):
   - `_one_open_session` menolak pembukaan paket lain dengan `ANALYSIS_SESSION_ALREADY_OPEN` selama sesi run ini belum
