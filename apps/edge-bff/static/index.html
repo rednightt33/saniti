@@ -9889,6 +9889,8 @@ html.dark .monitor-layout .details-panel>.tabs button:focus-visible{outline-colo
 </head>
 <body><div id="root"></div>
 <script src="/edge-client.js"></script>
+<script src="/edge-labels.js"></script>
+<script src="/edge-view.js"></script>
 <script>/* Edge Workstation — vanilla DOM views, original data and behavior. */
 (() => {
 "use strict";
@@ -10474,17 +10476,20 @@ function Monitor({ go }) {
         setSelectedId(id);setSelectedRunId(r.id);setAutoOpenRunId(r.id);setDetailsOpen(true);setPrompt("");setPendingReply(null);setInputHint(null);submissionRef.current=null;followRun(id,r.id);
       }catch(e){setApiError(e.message);}finally{setSubmitting(false);}
     };
-    const reply=(target,action)=>{
-      const planId=target.raw?.continuation?.plan_id || target.result?.final?.research_plan?.plan_id;
-      if(!planId)return;
-      if(action==="REVISE"){setInputHint(null);setPendingReply({plan_id:planId,action});setPrompt("");requestAnimationFrame(()=>composerRef.current?.focus());}
-      else void submit({plan_reply:{plan_id:planId,action}},action==="APPROVE"?"Setujui rencana riset":"Batalkan rencana riset");
+    // EXEC-X: every choice the view shows carries one action (EdgeView); this is the only place that sends it.
+    // route: a quick choice of an ask-back question; plan: a Research Plan reply; message: the choice's words as the
+    // user's message (a pause reads it); input: the user writes first, with the choice as the composer's hint.
+    const focusComposer=()=>requestAnimationFrame(()=>composerRef.current?.focus());
+    const act=action=>{
+      if(action.type==="route")return void submit({chosen_option:action.route},action.message,{plain:true});
+      if(action.type==="message")return void submit({},action.message,{plain:true});
+      if(action.type==="input"){setPendingReply(null);setInputHint(action.hint);setPrompt("");focusComposer();return;}
+      if(action.type==="plan"&&action.planId){
+        if(action.plan==="REVISE"){setInputHint(null);setPendingReply({plan_id:action.planId,action:"REVISE"});setPrompt("");focusComposer();}
+        else void submit({plan_reply:{plan_id:action.planId,action:action.plan}},action.message);
+      }
     };
-    // EXEC-X: a pause choice is sent as the user's message (the next run reads the pause); one that needs the user's
-    // own words opens the composer with the choice as its hint
-    const pick=label=>void submit({},label,{plain:true});
-    const askInput=label=>{setPendingReply(null);setInputHint(label);setPrompt("");requestAnimationFrame(()=>composerRef.current?.focus());};
-    const planIndex=edgePlanIndex(selected?.runs);
+    const planIndex=EdgeView.planIndex(selected?.runs.map(r=>r.raw));
     const retry=target=>{setPendingReply(null);submissionRef.current=null;setPrompt(target.question);requestAnimationFrame(()=>composerRef.current?.focus());};
     const startResize = (event) => { if (collapsed)
         return; event.preventDefault(); const startX = event.clientX, startWidth = sidebarWidth; let nextWidth = startWidth; const move = (pointer) => { nextWidth = Math.min(360, Math.max(180, startWidth + pointer.clientX - startX)); setSidebarWidth(nextWidth); }; const up = () => { localStorage.setItem("edge-monitor-width", String(nextWidth)); document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); }; document.addEventListener("pointermove", move); document.addEventListener("pointerup", up); };
@@ -10531,7 +10536,7 @@ function Monitor({ go }) {
                     element("div", null,
                         element("span", { className: active ? "pulse" : "live-dot" }),
                         " Research session ",
-                        element(Pill, null, run ? `Run ${runNumber} · ${Edge.statusLabel(run.status, run.domainStatus, run.raw?.execution?.pause)}` : "Draft")),
+                        element(Pill, null, run ? `Run ${runNumber} · ${Edge.statusLabel(run.status, run.domainStatus, run.paused)}` : "Draft")),
                     element("div", null,
                         (!detailsOpen || narrow) && element(Button, { kind: "ghost", icon: "sliders", ariaLabel:"Show Details", onClick: () => {setHistoryOpen(false);setDetailsOpen(true);setMobileDetailsOpen(true);} }, "Details"),
                         element("span", { className: "share-anchor conversation-bookmark-anchor" },
@@ -10554,7 +10559,7 @@ function Monitor({ go }) {
                     element("div", {className:"user-message-footer"},element("div", { className:"user-sent-at" }, formatMessageJakarta(message.createdAt)),element(MessageClipboardActions,{getText:()=>message.content,kind:"user"})),
                     messageRun && element(fragment, null,
                         element(RunStatus, { run: messageRun, expanded: expandedRuns.includes(messageRun.id), toggle: () => { setSelectedRunId(messageRun.id); setSourceDetail(null); setActiveSection("conditions"); setExpandedRuns(current => current.includes(messageRun.id) ? current.filter(id => id !== messageRun.id) : [...current, messageRun.id]); }, retry: () => retry(messageRun) }),
-                        messageRun.result && element(ResearchDocument, { run: messageRun, togglePin: () => togglePin(messageRun), reply: action=>reply(messageRun,action), choose: option=>submit({chosen_option:option.route},option.label,{plain:true}), pick, askInput, planIndex, enabled: !active && !submitting && messageRun.id === latestRun(selected)?.id, planEnabled: !active && !submitting && (!selected.plan || selected.plan.status === "PENDING") && messageRun.id === latestRun(selected)?.id, tableMenu: tableMenu, setTableMenu: setTableMenu, expand: () => setExpandedTable(messageRun) }))); })),
+                        messageRun.result && element(ResearchDocument, { run: messageRun, togglePin: () => togglePin(messageRun), act, planIndex, enabled: !active && !submitting && messageRun.id === latestRun(selected)?.id, planEnabled: !active && !submitting && (!selected.plan || selected.plan.status === "PENDING") && messageRun.id === latestRun(selected)?.id, tableMenu: tableMenu, setTableMenu: setTableMenu, expand: () => setExpandedTable(messageRun) }))); })),
                 !autoFollow && element("button", { className: "jump-latest", onClick: () => { setAutoFollow(true); scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); } },
                     element(Icon, { name: "arrow-down" }),
                     "Jump to latest"),
@@ -10748,63 +10753,16 @@ function responseCopyText(button) {
  article.querySelectorAll('.result-actions,.result-kicker,.result-metadata,button').forEach(node=>node.remove());
  return (article.innerText||Array.from(article.children).map(node=>node.textContent).join("\n\n")).trim();
 }
-function ResponseActions({run,togglePin}) {
- return element("div",{className:"result-actions"},element("button",{className:"result-action",onClick:togglePin,"aria-pressed":Boolean(run.pinned)},element(Icon,{name:"pin"}),run.pinned?"Pinned":"Pin"),element(MessageClipboardActions,{getText:responseCopyText,kind:"ai"}),(run.raw?.artifacts || []).map(file=>{const href=Edge.exportUrl(file.export_id);return href&&element("a",{className:"result-action",href},"Download "+(file.filename || file.export_id));}));
+function ResponseActions({run,togglePin,artifacts=[]}) {
+ return element("div",{className:"result-actions"},element("button",{className:"result-action",onClick:togglePin,"aria-pressed":Boolean(run.pinned)},element(Icon,{name:"pin"}),run.pinned?"Pinned":"Pin"),element(MessageClipboardActions,{getText:responseCopyText,kind:"ai"}),artifacts.map(file=>{const href=Edge.exportUrl(file.id);return href&&element("a",{className:"result-action",href},"Download "+file.label);}));
 }
-// EXEC-X (M124): the answer view reads the response's structure. Text from the AI becomes DOM nodes through element()
-// only (never innerHTML); structured parts use one generic view whose labels come from one table, so a field the view
-// does not know yet still shows, readably named, and JSON stays behind "Detail teknis".
-const EDGE_LABELS = {
-  objective:"Tujuan", universe:"Cakupan", time_scope:"Periode", analysis_frequency:"Frekuensi", original_question:"Pertanyaan",
-  root_hypothesis:"Hipotesis utama", hypothesis:"Hipotesis", angle_question:"Pertanyaan sudut", condition:"Kondisi",
-  outcome:"Yang diukur", baseline:"Pembanding", baseline_or_comparator:"Pembanding", expected_direction:"Arah yang diharapkan",
-  outcome_horizon_periods:"Horizon", outcome_unit:"Satuan hasil", success_definition:"Definisi sukses",
-  success_rule:"Ambang sukses", min_effect:"Efek minimum", min_effect_unit:"Satuan efek minimum",
-  candidate_count:"Jumlah kandidat", pairwise_comparisons:"Perbandingan berpasangan",
-  multiple_testing_policy:"Koreksi uji berganda", holdout_required:"Data uji terpisah (holdout)",
-  minimum_sample_value:"Sampel minimum", minimum_sample_unit:"Satuan sampel minimum", method_id:"Metode",
-  method_family:"Keluarga metode", parameters:"Parameter", why_distinct:"Mengapa berbeda", carried_inputs:"Tabel yang dipakai",
-  output_ref:"Tabel", purpose:"Kegunaan", assumptions:"Asumsi", limitations:"Batasan", confirmation_question:"Pertanyaan konfirmasi",
-  experiment_id:"ID eksperimen", hypothesis_id:"ID hipotesis", angle_id:"ID sudut", root_hypothesis_id:"ID hipotesis utama",
-  plan_version:"Versi rencana", title:"Judul", answer:"Jawaban", evidence:"Bukti", usefulness:"Kegunaan", follow_up:"Langkah berikutnya",
-  verdict:"Putusan", status:"Status", status_reason:"Alasan status", validation_level:"Tingkat validasi",
-  evidence_direction:"Arah bukti", effective_sample:"Sampel efektif", sample_unit:"Satuan sampel", estimate_kind:"Jenis estimasi",
-  estimate:"Estimasi", ci:"Selang kepercayaan", p_value:"p", p_adjusted:"p disesuaikan", confidence_level:"Tingkat keyakinan",
-  estimate_unit:"Satuan estimasi", claim:"Klaim", source:"Sumber", ref:"Ref", output_id:"ID output", name:"Nama", label:"Label",
-  data_as_of:"Data per", kind:"Jenis", quote:"Kutipan", note:"Catatan", url:"Tautan", ticker:"Ticker",
-  tables:"Tabel", columns:"Kolom", outputs:"Output", data_needs:"Kebutuhan data", answers:"Jawaban", readings:"Bacaan", pause:"Jeda",
-  operator:"Operator", value:"Nilai", unit:"Satuan", reason:"Alasan", options:"Pilihan", cause:"Penyebab"
-};
-const EDGE_VALUES = {
-  HIGHER:"Lebih tinggi", LOWER:"Lebih rendah", DIFFERENT:"Berbeda", PERCENT:"persen", DECIMAL:"desimal", BASIS_POINT:"basis poin",
-  OTHER:"lainnya", EVENTS:"peristiwa", OBSERVATIONS:"observasi", ENTITIES:"entitas", DATES:"tanggal", NONE:"Tidak ada",
-  BONFERRONI:"Bonferroni", HOLM:"Holm", BENJAMINI_HOCHBERG:"Benjamini–Hochberg"
-};
-// the backend's verdicts and statuses: label and tone (an unknown value shows as written, neutral)
-const EDGE_VERDICTS = {
-  SUPPORTED:["Didukung","positive"], PARTIALLY_SUPPORTED:["Didukung sebagian","warning"], NOT_SUPPORTED:["Tidak didukung","negative"],
-  INCONCLUSIVE:["Belum konklusif","neutral"], NOT_EVALUATED:["Tidak dievaluasi","neutral"],
-  INSUFFICIENT_EVIDENCE:["Bukti belum cukup","neutral"], INVALID:["Tidak valid","negative"], NOT_RUN:["Tidak dijalankan","neutral"],
-  DIRUJUK:["Dirujuk","positive"], TERCEK:["Tercek","positive"], TIDAK_COCOK:["Tidak cocok","negative"]
-};
-const EDGE_EVIDENCE = {
-  FACT:"Fakta", DATABASE_AGGREGATE:"Agregat database", CALCULATION_VERIFIED:"Perhitungan terverifikasi",
-  SCOPE_VERIFIED:"Cakupan terverifikasi", DATA_COVERAGE_VERIFIED:"Cakupan data terverifikasi",
-  UNVERIFIED_EXPLORATORY:"Eksploratif, belum terverifikasi", NOT_VALIDATED:"Belum tervalidasi"
-};
-const EDGE_UNIT_SUFFIX = {PERCENT:"%", BASIS_POINT:" bp", DECIMAL:""};
-const EDGE_OPERATORS = {">=":"≥", "<=":"≤", ">":">", "<":"<"};
-const edgeLabel = key => EDGE_LABELS[key] ?? String(key).replace(/_/g," ").replace(/^./,c=>c.toUpperCase());
-const edgeNumber = value => new Intl.NumberFormat("id-ID",{maximumFractionDigits:Math.abs(value)<1?4:2}).format(value);
-const edgeEmpty = value => value == null || value === "" || (Array.isArray(value) && !value.length) || (typeof value === "object" && !Array.isArray(value) && !Object.keys(value).length);
-function edgeValueText(value) {
-  if (typeof value === "boolean") return value ? "Ya" : "Tidak";
-  if (typeof value === "number") return edgeNumber(value);
-  return EDGE_VALUES[value] ?? String(value);
-}
-function edgeVerdict(value) {
-  const [label, tone] = EDGE_VERDICTS[value] ?? [String(value ?? "—"), "neutral"];
-  return element("span", {className:`edge-badge ${tone}`, title:String(value ?? "")}, label);
+// EXEC-X (M124): the answer view renders the view model of static/edge-view.js (EdgeView.toView), the only code that
+// reads Orc's response; words come from static/edge-labels.js. Text from the AI becomes DOM nodes through element()
+// only (never innerHTML). A field the view does not know yet still shows, readably named, through the generic view.
+const edgeFormat = () => EdgeView.format;
+const edgeUi = () => EdgeLabels.ui;
+function edgeVerdict(verdict) {
+  return element("span", {className:`edge-badge ${verdict.tone}`, title:verdict.code}, verdict.label);
 }
 
 // ---- Markdown: blocks, then inline spans; anything else stays plain text ----
@@ -10834,7 +10792,7 @@ function mdInline(text, ctx) {
     else {
       // P17: an italic span the backend marked as an unsupported claim carries its note
       const note = ctx?.claims?.get(inner.trim());
-      out.push(note ? element("em", {className:"edge-claim", tabIndex:0, title:note, "aria-label":`${inner} (catatan: ${note})`}, mdInline(inner, ctx)) : element("em", null, mdInline(inner, ctx)));
+      out.push(note ? element("em", {className:"edge-claim", tabIndex:0, title:note, "aria-label":`${inner} (${edgeUi().claimNote}: ${note})`}, mdInline(inner, ctx)) : element("em", null, mdInline(inner, ctx)));
     }
     rest = rest.slice(match.index + match[0].length);
   }
@@ -10912,212 +10870,116 @@ function renderMarkdown(text, ctx = {}) {
 function Markdown({text, claims, className = ""}) {
   return element("div", {className:`edge-md ${className}`}, renderMarkdown(text, {claims}));
 }
-function edgeClaims(raw) {
-  const claims = new Map();
-  for (const item of raw?.annotations || []) if (item?.quote) claims.set(String(item.quote).trim(), item.note || item.kind);
-  return claims;
-}
 
 // ---- One generic view for structured data ----
 function DataValue({value, depth = 0}) {
-  if (edgeEmpty(value)) return element("span", {className:"edge-muted"}, "—");
+  const {empty, valueText} = edgeFormat();
+  if (empty(value)) return element("span", {className:"edge-muted"}, "—");
   if (typeof value === "string") {
     const href = /^https?:\/\//.test(value) ? Edge.safeUrl(value) : null;
-    return href ? element("a", {href, target:"_blank", rel:"noopener noreferrer"}, value) : element("span", {className:"edge-text"}, edgeValueText(value));
+    return href ? element("a", {href, target:"_blank", rel:"noopener noreferrer"}, value) : element("span", {className:"edge-text"}, valueText(value));
   }
-  if (typeof value !== "object") return element("span", null, edgeValueText(value));
+  if (typeof value !== "object") return element("span", null, valueText(value));
   if (Array.isArray(value)) {
     if (value.every(item => item == null || typeof item !== "object")) return value.length <= 3 && value.every(item => typeof item === "number")
-      ? element("span", null, value.map(edgeValueText).join("; "))
-      : element("ul", {className:"edge-list"}, value.map(item => element("li", null, edgeValueText(item))));
+      ? element("span", null, value.map(valueText).join("; "))
+      : element("ul", {className:"edge-list"}, value.map(item => element("li", null, valueText(item))));
     return element("div", {className:"edge-data-cards"}, value.map(item => element("div", {className:"edge-data-card"}, DataRows({value:item, depth:depth + 1}))));
   }
   return depth > 3 ? element("code", {className:"edge-inline-json"}, JSON.stringify(value)) : DataRows({value, depth:depth + 1});
 }
 function DataRows({value, depth = 0, skip = []}) {
+  const {empty, label} = edgeFormat();
   if (value == null || typeof value !== "object" || Array.isArray(value)) return DataValue({value, depth});
-  const keys = Object.keys(value).filter(key => !skip.includes(key) && !edgeEmpty(value[key]));
+  const keys = Object.keys(value).filter(key => !skip.includes(key) && !empty(value[key]));
   return element("dl", {className:"edge-data-rows"}, keys.map(key => element("div", {className:"edge-data-row"},
-    element("dt", null, edgeLabel(key)), element("dd", null, DataValue({value:value[key], depth})))));
+    element("dt", null, label(key)), element("dd", null, DataValue({value:value[key], depth})))));
 }
-function TechnicalDetail({value, label = "Detail teknis"}) {
-  return edgeEmpty(value) ? null : element("details", {className:"edge-technical"}, element("summary", null, label),
+function TechnicalDetail({value, label}) {
+  return edgeFormat().empty(value) ? null : element("details", {className:"edge-technical"}, element("summary", null, label ?? edgeUi().technical),
     element("pre", null, JSON.stringify(value, null, 2)));
 }
+const edgeMore = (value, label) => value ? element("details", {className:"edge-more"}, element("summary", null, label), DataRows({value})) : null;
 
 // ---- Research plan ----
-function edgeThreshold(value, unit, outcomeUnit) {
-  if (value == null) return null;
-  return `${edgeNumber(value)}${EDGE_UNIT_SUFFIX[unit || outcomeUnit] ?? (unit || outcomeUnit ? " " + edgeValueText(unit || outcomeUnit) : "")}`;
-}
-function edgeDesignFacts(item) {
-  const facts = [];
-  const add = (label, value, note) => facts.push({label, value, note});
-  add(edgeLabel("condition"), item.condition);
-  add(edgeLabel("outcome"), item.outcome);
-  add(edgeLabel("baseline"), item.baseline ?? item.baseline_or_comparator);
-  if (item.outcome_horizon_periods != null) add(edgeLabel("outcome_horizon_periods"), `${edgeNumber(item.outcome_horizon_periods)} periode`);
-  if (item.expected_direction) add(edgeLabel("expected_direction"), edgeValueText(item.expected_direction));
-  if ("success_rule" in item) add(edgeLabel("success_rule"), item.success_rule ? `${EDGE_OPERATORS[item.success_rule.operator] ?? item.success_rule.operator} ${edgeThreshold(item.success_rule.value, item.success_rule.unit, item.outcome_unit)}` : "Tidak disebut",
-    item.success_rule ? null : "sukses = hasil di atas nol");
-  if ("min_effect" in item) add(edgeLabel("min_effect"), item.min_effect != null ? edgeThreshold(item.min_effect, item.min_effect_unit, item.outcome_unit) : "Tidak disebut",
-    item.min_effect != null ? null : "backend memakai nilai bawaannya");
-  if (item.success_definition) add(edgeLabel("success_definition"), item.success_definition);
-  return facts.filter(fact => !edgeEmpty(fact.value));
-}
-const EDGE_PLAN_SHOWN = ["title","hypothesis","angle_question","objective","condition","outcome","baseline","baseline_or_comparator","outcome_horizon_periods","expected_direction",
-  "success_rule","min_effect","min_effect_unit","outcome_unit","success_definition","experiment_id","angle_id"];
-function PlanItem({item, index, kind}) {
-  const title = item.title || item.hypothesis || item.angle_question || item.objective;
-  const question = item.title ? item.angle_question || item.hypothesis : null;
-  const rest = Object.fromEntries(Object.entries(item).filter(([key]) => !EDGE_PLAN_SHOWN.includes(key)));
+function PlanItem({item}) {
   return element("section", {className:"edge-plan-item"},
-    element("div", {className:"edge-plan-item-head"}, element("span", {className:"edge-step"}, `${kind} ${index + 1}`), element("strong", null, title)),
-    question && element("p", {className:"edge-plan-question"}, question),
-    item.objective && title !== item.objective && element("p", {className:"edge-muted"}, item.objective),
-    element("dl", {className:"edge-facts"}, edgeDesignFacts(item).map(fact => element("div", null, element("dt", {className: "edge-fact-label"}, fact.label),
+    element("div", {className:"edge-plan-item-head"}, element("span", {className:"edge-step"}, item.step), element("strong", null, item.title)),
+    item.question && element("p", {className:"edge-plan-question"}, item.question),
+    item.objective && element("p", {className:"edge-muted"}, item.objective),
+    element("dl", {className:"edge-facts"}, item.facts.map(fact => element("div", null, element("dt", {className: "edge-fact-label"}, fact.label),
       element("dd", null, fact.value, fact.note && element("small", null, fact.note))))),
-    !edgeEmpty(rest) && element("details", {className:"edge-more"}, element("summary", null, "Detail desain"), DataRows({value:rest})));
-}
-function edgeUniqueLines(lines, seen) {
-  return (lines || []).filter(line => { const key = String(line).trim(); if (!key || seen.has(key)) return false; seen.add(key); return true; });
+    edgeMore(item.more, item.moreLabel));
 }
 function PlanCard({plan, actions, pending, notes}) {
-  const items = plan.experiments || plan.angles || [];
-  const kind = plan.angles ? "Sudut" : "Eksperimen";
-  const summary = [["universe", plan.universe], ["time_scope", plan.time_scope], ["analysis_frequency", plan.analysis_frequency]].filter(([, value]) => !edgeEmpty(value));
-  const shown = new Set(["experiments","angles","objective","universe","time_scope","analysis_frequency","assumptions","limitations","confirmation_question","original_question","plan_version","root_hypothesis","root_hypothesis_id","carried_inputs"]);
-  const rest = Object.fromEntries(Object.entries(plan).filter(([key]) => !shown.has(key)));
-  return element("section", {className:"edge-plan", "aria-label":"Rencana riset"},
-    element("div", {className:"edge-plan-head"}, element("span", {className:"edge-eyebrow"}, "Rencana riset"), pending && element("span", {className:"edge-badge warning"}, "Menunggu persetujuan")),
+  return element("section", {className:"edge-plan", "aria-label":plan.label},
+    element("div", {className:"edge-plan-head"}, element("span", {className:"edge-eyebrow"}, plan.label), pending && element("span", {className:"edge-badge warning"}, plan.pendingLabel)),
     plan.objective && element("p", {className:"edge-plan-objective"}, plan.objective),
-    plan.root_hypothesis && element("p", {className:"edge-plan-question"}, element("strong", null, edgeLabel("root_hypothesis") + ": "), plan.root_hypothesis),
-    summary.length > 0 && element("dl", {className:"edge-facts edge-plan-summary"}, summary.map(([key, value]) => element("div", null, element("dt", null, edgeLabel(key)), element("dd", null, edgeValueText(value))))),
-    items.map((item, index) => element(PlanItem, {key:item.experiment_id || item.angle_id || index, item, index, kind})),
-    !edgeEmpty(plan.carried_inputs) && element("div", {className:"edge-plan-notes"}, element("strong", null, edgeLabel("carried_inputs")), DataValue({value:plan.carried_inputs})),
-    !edgeEmpty(rest) && element("details", {className:"edge-more"}, element("summary", null, "Detail rencana"), DataRows({value:rest})),
+    plan.root && element("p", {className:"edge-plan-question"}, element("strong", null, plan.root.label + ": "), plan.root.text),
+    plan.summary.length > 0 && element("dl", {className:"edge-facts edge-plan-summary"}, plan.summary.map(fact => element("div", null, element("dt", null, fact.label), element("dd", null, fact.value)))),
+    plan.items.map(item => element(PlanItem, {key:item.key, item:{...item, moreLabel:plan.itemMoreLabel}})),
+    plan.carried && element("div", {className:"edge-plan-notes"}, element("strong", null, plan.carried.label), DataValue({value:plan.carried.value})),
+    edgeMore(plan.more, plan.moreLabel),
     notes,
-    actions && element("div", {className:"edge-choice-panel"}, plan.confirmation_question && element("p", null, plan.confirmation_question), actions));
+    actions && element("div", {className:"edge-choice-panel"}, plan.confirmation && element("p", null, plan.confirmation), actions));
 }
 
 // ---- Research findings ----
-function edgeBackendMetrics(backend) {
-  if (!backend) return [];
-  const unit = backend.estimate_unit === "PERCENT" ? "%" : "";
-  const metrics = [];
-  if (backend.estimate != null) metrics.push([backend.estimate_kind ? edgeLabel("estimate") + " (" + String(backend.estimate_kind).toLowerCase().replace(/_/g, " ") + ")" : edgeLabel("estimate"), edgeNumber(backend.estimate) + unit]);
-  if (Array.isArray(backend.ci) && backend.ci.some(value => value != null)) metrics.push([`CI ${backend.confidence_level ? edgeNumber(backend.confidence_level * (backend.confidence_level <= 1 ? 100 : 1)) + "%" : ""}`.trim(), `[${backend.ci.map(value => value == null ? "—" : edgeNumber(value) + unit).join("; ")}]`]);
-  if (backend.p_value != null) metrics.push(["p", edgeNumber(backend.p_value)]);
-  if (backend.p_adjusted != null) metrics.push([edgeLabel("p_adjusted"), edgeNumber(backend.p_adjusted)]);
-  if (backend.effective_sample != null) metrics.push([edgeLabel("effective_sample"), edgeNumber(backend.effective_sample) + (backend.sample_unit ? " " + edgeValueText(backend.sample_unit).toLowerCase() : "")]);
-  return metrics;
-}
-function FindingCard({finding, planIndex, claims}) {
-  const id = finding.hypothesis_id || finding.angle_id;
-  const item = planIndex?.get(id);
-  const verdict = finding.verdict ?? finding.status ?? finding.backend?.status;
-  const reading = finding.interpretation || {};
-  const sections = ["answer", "evidence", "usefulness", "follow_up"].filter(key => reading[key]);
-  const otherReading = Object.fromEntries(Object.entries(reading).filter(([key]) => !sections.includes(key)));
-  const metrics = edgeBackendMetrics(finding.backend);
-  const backendRest = finding.backend ? Object.fromEntries(Object.entries(finding.backend).filter(([key]) => !["status","estimate","estimate_kind","ci","confidence_level","p_value","p_adjusted","effective_sample","sample_unit","estimate_unit"].includes(key))) : null;
+function FindingCard({finding, claims}) {
   return element("section", {className:"edge-finding"},
-    element("div", {className:"edge-finding-head"}, element("strong", null, item?.title || item?.hypothesis || item?.angle_question || edgeLabel(id || "Temuan")), edgeVerdict(verdict)),
-    metrics.length > 0 && element("div", {className:"edge-metrics"}, metrics.map(([label, value]) => element("div", null, element("span", null, label), element("strong", null, value)))),
-    sections.map(key => element("div", {className:"edge-finding-part"}, element("span", {className:"edge-eyebrow"}, edgeLabel(key)), element(Markdown, {text:reading[key], claims}))),
-    !edgeEmpty(otherReading) && DataRows({value:otherReading}),
-    !edgeEmpty(backendRest) && element("details", {className:"edge-more"}, element("summary", null, "Detail backend"), DataRows({value:backendRest})));
-}
-function edgePlanIndex(runs) {
-  const index = new Map();
-  for (const run of runs || []) {
-    const plan = run.result?.final?.research_plan;
-    for (const item of plan?.experiments || plan?.angles || []) {
-      if (item.hypothesis_id) index.set(item.hypothesis_id, item);
-      if (item.angle_id) index.set(item.angle_id, item);
-    }
-  }
-  return index;
+    element("div", {className:"edge-finding-head"}, element("strong", null, finding.title), edgeVerdict(finding.verdict)),
+    finding.metrics.length > 0 && element("div", {className:"edge-metrics"}, finding.metrics.map(metric => element("div", null, element("span", null, metric.label), element("strong", null, metric.value)))),
+    finding.parts.map(part => element("div", {className:"edge-finding-part"}, element("span", {className:"edge-eyebrow"}, part.label), element(Markdown, {text:part.text, claims}))),
+    finding.other && DataRows({value:finding.other}),
+    edgeMore(finding.backendMore, finding.backendMoreLabel));
 }
 
-// ---- Choices the backend offers (clarification routes, plan actions, pause options) ----
-function ChoiceBar({choices, enabled}) {
-  return element("div", {className:"edge-choices", role:"group", "aria-label":"Pilihan"},
-    choices.map((choice, index) => element(Button, {key:choice.key ?? index, kind:choice.kind ?? (index ? "secondary" : "primary"), disabled:!enabled, title:enabled ? choice.title : "Pilihan hanya untuk jawaban terakhir saat tidak ada proses berjalan", onClick:choice.onClick}, choice.label)));
+// ---- Choices the backend offers: each carries an action the page runs (act), whatever its source ----
+function ChoiceBar({choices, enabled, act}) {
+  return element("div", {className:"edge-choices", role:"group", "aria-label":edgeUi().choices},
+    choices.map((choice, index) => element(Button, {key:choice.key ?? index, kind:choice.kind ?? (index ? "secondary" : "primary"), disabled:!enabled, title:enabled ? choice.title : edgeUi().choicesDisabled, onClick:() => act(choice.action)}, choice.label)));
 }
-function PauseCard({pause, enabled, pick, askInput}) {
-  const choices = (pause.options || []).map(option => ({key:option.id, label:option.label,
-    title:option.needs_input ? "Tulis bagian yang ingin diubah di kolom pesan" : undefined,
-    onClick:() => option.needs_input ? askInput(option.label) : pick(option.label)}));
-  return element("section", {className:"edge-callout pause", role:"note", "aria-label":"Jawaban dijeda"},
-    element("div", {className:"edge-callout-head"}, element(Icon, {name:"info"}), element("strong", null, "Jawaban ini dijeda")),
+function PauseCard({pause, enabled, act}) {
+  return element("section", {className:"edge-callout pause", role:"note", "aria-label":pause.region},
+    element("div", {className:"edge-callout-head"}, element(Icon, {name:"info"}), element("strong", null, pause.label)),
     pause.reason && element("p", null, pause.reason),
-    choices.length > 0 && element(ChoiceBar, {choices, enabled}),
-    element("small", {className:"edge-muted"}, "Atau tulis instruksi lain di kolom pesan."));
+    pause.choices.length > 0 && element(ChoiceBar, {choices:pause.choices, enabled, act}),
+    element("small", {className:"edge-muted"}, pause.hint));
 }
-
-// ---- Status words: the answer area in Indonesian, the frame (pill, Details flow) in English ----
-function edgeStatus(run) {
-  const domain = run?.domainStatus || run?.raw?.status, paused = Boolean(run?.raw?.execution?.pause);
-  const id = {COMPLETED:["Selesai","positive"], AWAITING_CONFIRMATION:["Menunggu persetujuan","warning"], NEEDS_CLARIFICATION:["Perlu jawaban Anda","warning"],
-    LIMITED:paused ? ["Dijeda","warning"] : ["Terbatas","neutral"], FAILED:["Gagal","negative"]}[domain];
-  return id ?? [domain || "—", "neutral"];
-}
-function ResearchDocument({run,togglePin,reply,choose,pick,askInput,enabled,planEnabled,planIndex}) {
- const f=run.result.final, raw=run.raw, pause=raw?.execution?.pause, claims=edgeClaims(raw);
- const [statusLabel,statusTone]=edgeStatus(run);
- // the pause question the backend appended is shown once, as the card below (exact text, no parsing)
- const answer=pause?.question && f.answer?.includes(pause.question) ? f.answer.replace(pause.question,"").trimEnd() : f.answer;
- const plan=f.research_plan, seen=new Set();
- const planLines=key=>edgeUniqueLines(plan?.[key],seen);
- const planAssumptions=planLines("assumptions"), planLimitations=planLines("limitations");
+function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
+ const v=EdgeView.toView(run.raw,{domainStatus:run.domainStatus,planIndex}), claims=new Map(v.claims);
  const items=values=>element("ul",{className:"edge-list"},values.map(x=>element("li",null,typeof x==="string"?mdInline(x,{claims}):DataValue({value:x}))));
- const list=(title,values)=>values?.length?element("section",{className:"content-block edge-block"},element(SectionTitle,null,title),items(values)):null;
- const planNotes=(planAssumptions.length||planLimitations.length)?element("div",{className:"edge-plan-notes"},
-   planAssumptions.length>0&&element("div",null,element("span",{className:"edge-eyebrow"},"Asumsi rencana"),items(planAssumptions)),
-   planLimitations.length>0&&element("div",null,element("span",{className:"edge-eyebrow"},"Batasan rencana"),items(planLimitations))):null;
- const planActions=plan&&element(ChoiceBar,{enabled:planEnabled,choices:[
-   {key:"APPROVE",label:"Setujui & jalankan",onClick:()=>reply("APPROVE")},
-   {key:"REVISE",label:"Revisi",onClick:()=>reply("REVISE")},
-   {key:"CANCEL",label:"Batalkan",kind:"ghost",onClick:()=>reply("CANCEL")}]});
+ const list=part=>element("section",{className:"content-block edge-block"},element(SectionTitle,null,part.label),items(part.items));
+ const notes=v.plan&&[v.plan.notes.assumptions,v.plan.notes.limitations].some(part=>part.items.length)?element("div",{className:"edge-plan-notes"},
+   [v.plan.notes.assumptions,v.plan.notes.limitations].map(part=>part.items.length>0&&element("div",null,element("span",{className:"edge-eyebrow"},part.label),items(part.items)))):null;
  return element("article",{className:"result",id:run.id+"-response",tabIndex:-1},
-  element("div",{className:"result-kicker"},element(Icon,{name:"spark"}),"EDGE AI · "+statusLabel,element("i",{className:`edge-dot ${statusTone}`,"aria-hidden":"true"})),
+  element("div",{className:"result-kicker"},element(Icon,{name:"spark"}),"EDGE AI · "+v.status.label,element("i",{className:`edge-dot ${v.status.tone}`,"aria-hidden":"true"})),
   element("h1",null,run.result.title),
-  element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),raw?.execution?.model&&element("span",null,raw.execution.model),raw?.execution?.total_tokens!==undefined&&element("span",null,raw.execution.total_tokens+" tokens"),raw?.execution?.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+raw.execution.cost))),
-  raw?.evidence_label&&element("div",{className:"edge-tags"},element("span",{className:"edge-badge neutral",title:raw.evidence_label},"Bukti: "+(EDGE_EVIDENCE[raw.evidence_label]??raw.evidence_label))),
-  answer&&element("div",{className:"content-block edge-answer"},element(Markdown,{text:answer,claims})),
-  f.clarification_question&&element("section",{className:"content-block edge-choice-panel"},element(Markdown,{text:f.clarification_question,claims}),
-    (raw?.options||[]).length>0&&element(ChoiceBar,{enabled,choices:raw.options.map((option,index)=>({key:option.route||index,label:option.label,kind:"secondary",onClick:()=>choose(option)}))})),
-  pause&&element(PauseCard,{pause,enabled,pick,askInput}),
-  plan&&element(PlanCard,{plan,pending:planEnabled,actions:planActions,notes:planNotes}),
-  f.research_findings?.length>0&&element("section",{className:"content-block edge-block"},element(SectionTitle,null,"Temuan riset"),
-    f.research_findings.map((finding,index)=>element(FindingCard,{key:finding.hypothesis_id||finding.angle_id||index,finding,planIndex,claims}))),
-  list("Asumsi",edgeUniqueLines(f.assumptions,seen)),list("Batasan",edgeUniqueLines(f.limitations,seen)),
-  f.methodology&&element("section",{className:"content-block edge-block"},element(SectionTitle,null,"Metodologi"),element(Markdown,{text:f.methodology,claims})),
-  element(ResponseActions,{run,togglePin}));
+  element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",null,v.meta.model),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
+  v.evidence&&element("div",{className:"edge-tags"},element("span",{className:"edge-badge neutral",title:v.evidence.code},v.evidence.label)),
+  v.answer&&element("div",{className:"content-block edge-answer"},element(Markdown,{text:v.answer,claims})),
+  v.clarification&&element("section",{className:"content-block edge-choice-panel"},element(Markdown,{text:v.clarification.text,claims}),
+    v.clarification.choices.length>0&&element(ChoiceBar,{enabled,act,choices:v.clarification.choices})),
+  v.pause&&element(PauseCard,{pause:v.pause,enabled,act}),
+  v.plan&&element(PlanCard,{plan:v.plan,pending:planEnabled,actions:element(ChoiceBar,{enabled:planEnabled,act,choices:v.plan.choices}),notes}),
+  v.findings&&element("section",{className:"content-block edge-block"},element(SectionTitle,null,v.findings.label),
+    v.findings.items.map(finding=>element(FindingCard,{key:finding.key,finding,claims}))),
+  v.lists.map(list),
+  v.methodology&&element("section",{className:"content-block edge-block"},element(SectionTitle,null,v.methodology.label),element(Markdown,{text:v.methodology.text,claims})),
+  element(ResponseActions,{run,togglePin,artifacts:v.artifacts}));
 }
 function ShareResearchPopover({run,close}) {return element("div",{className:"share-popover"},element("p",null,"Public sharing unavailable"),element(Button,{onClick:close},"Close"));}
 function SourceItem({item}) {
- const title=item.claim||item.quote||item.name||item.label||edgeLabel(item.kind||"Bukti");
- const status=item.status||null;
- const rest={};
- for(const [key,value] of Object.entries(item)){
-  if(["claim","quote","name","status","start","end"].includes(key)||(key==="kind"&&status))continue;
-  if(value&&typeof value==="object"&&!Array.isArray(value))for(const [inner,v] of Object.entries(value))rest[inner==="ref"?key:`${key}_${inner}`]=v;
-  else rest[key]=value;
- }
  return element("div",{className:"edge-source"},
-  element("div",{className:"edge-source-head"},element(item.claim?"code":"strong",null,title),status&&edgeVerdict(status)),
-  DataRows({value:rest}));
+  element("div",{className:"edge-source-head"},element(item.code?"code":"strong",null,item.title),item.status&&edgeVerdict(item.status)),
+  DataRows({value:item.rows}));
 }
 function Sources({run}) {
- const raw=run.raw||{}, evidence=raw.evidence||[], annotations=raw.annotations||[], record=raw.data_record;
- const recordSummary=record&&Object.fromEntries(Object.entries(record).filter(([,value])=>!edgeEmpty(value)).map(([key,value])=>[key,Array.isArray(value)?`${value.length} item`:typeof value==="object"?`${Object.keys(value).length} item`:value]));
- if(!evidence.length&&!annotations.length&&edgeEmpty(record))return element("p",{className:"details-empty"},"No source or evidence metadata returned for this response.");
+ const v=EdgeView.sources(run.raw);
+ if(v.empty)return element("p",{className:"details-empty"},v.emptyText);
  return element("div",{className:"sources"},
-  evidence.length>0&&element("section",{className:"content-block"},element(SectionTitle,null,`Bukti (${evidence.length})`),evidence.map((item,index)=>element(SourceItem,{key:index,item}))),
-  annotations.length>0&&element("section",{className:"content-block"},element(SectionTitle,null,`Klaim yang ditandai (${annotations.length})`),annotations.map((item,index)=>element(SourceItem,{key:index,item}))),
-  !edgeEmpty(record)&&element("section",{className:"content-block"},element(SectionTitle,null,"Catatan data percakapan"),DataRows({value:recordSummary}),element(TechnicalDetail,{value:record})));
+  v.sections.map(section=>element("section",{className:"content-block"},element(SectionTitle,null,section.title),section.items.map((item,index)=>element(SourceItem,{key:index,item})))),
+  v.record&&element("section",{className:"content-block"},element(SectionTitle,null,v.record.title),DataRows({value:v.record.summary}),element(TechnicalDetail,{value:v.record.raw,label:v.record.technicalLabel})));
 }
 
 function SourceSection({ title, count, children }) {

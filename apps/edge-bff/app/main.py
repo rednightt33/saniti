@@ -23,6 +23,7 @@ from .worker import Worker
 
 COOKIE = 'edge_session'
 STATIC = Path(__file__).resolve().parents[1] / 'static'
+SCRIPT_NAME = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*')
 CONV = r'^conv_[0-9a-f]{32}$'
 CHOICES = r'^(QUICK_SUMMARY|ANALYSIS|RESEARCH|EXPLORE|FACT|CLARIFY|INSIGHT|CONTINUE|APPROVE|NEW_TOPIC)$'
 
@@ -178,9 +179,14 @@ def create_app(settings=None, store=None, orc=None):
     async def index():
         return FileResponse(STATIC / 'index.html', media_type='text/html')
 
-    @app.get('/edge-client.js')
-    async def frontend_client():
-        return FileResponse(STATIC / 'edge-client.js', media_type='text/javascript')
+    # EXEC-X: every page script in static/ (edge-client.js, edge-view.js, edge-labels.js, ...) by its name; a new
+    # front-end file needs no route. The name pattern keeps the request inside static/.
+    @app.get('/{name}.js')
+    async def frontend_script(name: str):
+        target = STATIC / f'{name}.js'
+        if not SCRIPT_NAME.fullmatch(name) or not target.is_file():
+            return error('NOT_FOUND', 404)
+        return FileResponse(target, media_type='text/javascript')
 
     @app.post('/api/v1/auth/sign-in')
     async def sign_in(body: Login, request: Request):
