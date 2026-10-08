@@ -539,6 +539,16 @@ Update the status in place when an `OPEN` item is fixed. Never delete an entry.
 
 ### EDGE live rollout — 2026-10-08
 
+- **Railway Dockerfile parser (fix prepared; live rebuild pending):** deployment `3ecab877` failed before
+  building because Railway's Dockerfile parser permits cache mounts only and rejects the optional BuildKit
+  `type=secret` CA mount used in local testing. The production Dockerfile now uses ordinary verified pip
+  installation with the image's trusted CA roots. No TLS verification or dependency pin was disabled.
+  Corporate-proxy local builds must use a temporary local Dockerfile to mount their existing trusted CA.
+
+- **GraphQL builder enum (FIXED):** the authoring/manifest value DOCKERFILE is not a public GraphQL
+  `Builder` enum value. Public service updates use RAILPACK plus dockerfilePath; Railway then detects
+  the Dockerfile. The service's root directory and watch pattern remain `/apps/edge-bff`.
+
 - **Manifest path format (FIXED):** the new APPLIED.sha256 entry initially used a repository-relative
   path; the frozen-migration test resolves entries relative to the migration directory. Use the
   filename only. The applied SQL stayed unchanged; rerun the frozen-migration tests after correction.
