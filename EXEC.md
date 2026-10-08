@@ -1211,6 +1211,9 @@ dan pratinjau (`ERRORS_AND_SOLUTIONS.md` M125 sisa, M126):
 **Keputusan user 2026-10-08** atas permintaan "jalankan pertanyaan yg related to web govt juga ya, liat apakah efisien
 dan gimana uinya 5 pertanyaan mix": kredit "Saya naikkan batas kunci"; urutan "Perbaiki dulu" (usulan perbaikan dulu,
 uji web 5 pertanyaan sesudah disetujui dan di-deploy). Usulan P1–P5 menunggu persetujuan.
+- Keputusan user 2026-10-08 atas contoh (a)/(b)/(c) tanda sumber: "pakai C". Klaim web selalu diberi link ke halaman
+  sumbernya (teks link = nama situs, alamat dari daftar sumber yang dibaca sistem, bukan diketik AI); angka database
+  tanpa tanda di kalimat, asalnya di panel Sources. P1–P5 masih menunggu go.
 
 ### EXEC-M109: pertanyaan tanya-balik router tetap dipakai
 
