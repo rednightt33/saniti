@@ -3156,3 +3156,17 @@ User: "Mau saya deploy ke dev lalu jalankan GT kecil itu?" — "Ok".
 - Tests before merge: orc 1,567 passed; EDGE BFF 46 passed (Chromium, local Postgres).
 - No variable, model, provider, mode, schema or Railway configuration change; no IaC apply. No paid AI call in the
   deployment check.
+
+## 2026-10-08 — EXEC-X P1–P5 and the mobile layout deployed from main
+
+User: "Ok p1-p5 masukan exec" (go), choice C for source links, and the mobile request ("hanya berlaku untuk mobile,
+bukan desktop. jangan ubah desktop").
+
+- `main` fast-forwarded to `1f14c5a`. market-ai-orc **4b6a272e-d6d9-4cb8-98e1-b6460073c203** and edge-bff
+  **be697e72-a314-4b7b-8b79-8719ec10cd64** reached **SUCCESS**. Rollback references: orc `30d161b7`, edge-bff `d5f225d3`.
+- Orc startup: `ai_model_selected switch=1 deepseek/deepseek-v4.1-flash`, `ai_mode_selected switch=4`, `/ready` 200.
+  System prompt unchanged (`prompts/history` v002).
+- Public `index.html`, `edge-view.js`, `edge-labels.js` and `edge-client.js` are byte-identical to the tested files.
+- Tests before merge: orc 1,575 passed; EDGE 52 passed (includes the desktop-unchanged proof at 721, 1024 and 1440 px).
+- No variable, model, provider, mode, schema or Railway configuration change; no IaC apply; no paid AI call in the
+  deployment check.
