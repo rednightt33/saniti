@@ -538,6 +538,9 @@ sama bisa di proses di sandbox lain." Belum dijalankan; rencana eksekusi menungg
         tanpa sukses di antaranya; (5) saat batas tercapai: "pakai alat lain dengan fungsi sama (diturunkan dari
         registri), tanya user, atau lanjut tanpa bagian ini dan sebutkan", bukan "kembalikan LIMITATION"; (6) setiap
         kejadian dicatat sebagai cacat kontrak alat (friction).
+        **Disetujui user 2026-10-08 sebagian:** "Untuk 2. Batas perbaikan alat (M122) --> OK... untuk solusi yang bisa
+        dipakai nomor 1, nomor 3 dan 5": (1) terjemahan nilai teks dari skema, (3) pesan galat dari skema, (5) pilihan
+        alternatif saat batas tercapai. Nomor 2, 4 dan 6 tidak dibangun. Belum ada perintah jalan.
       - (g) Batas langkah dan waktu. Dev disetel tangan ke 60 langkah / 60 panggilan / 1.800 detik setelah riset
         terpotong; kode bawaan tetap 8 / 12 / 600. Audit: 76% dari 537 jawaban memakai ≥5 langkah model dan 43% memakai
         ≥10, jadi dengan bawaan 8 sekitar separuh jawaban terpotong. Usulan: (1) nilai bawaan kode disamakan dengan nilai
