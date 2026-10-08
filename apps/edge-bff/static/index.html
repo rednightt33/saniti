@@ -11,14 +11,12 @@
 @layer theme, base, components, utilities;
 @layer theme {
   :root, :host {
-    --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
-      "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-      "Courier New", monospace;
+    --font-sans: Inter,"Segoe UI",sans-serif;
+    --font-mono: Inter,"Segoe UI",sans-serif;
     --spacing: 0.25rem;
     --radius-sm: 0.25rem;
-    --default-font-family: var(--font-sans);
-    --default-mono-font-family: var(--font-mono);
+    --default-font-family: Inter,"Segoe UI",sans-serif;
+    --default-mono-font-family: Inter,"Segoe UI",sans-serif;
   }
 }
 @layer base {
@@ -32,7 +30,7 @@
     line-height: 1.5;
     -webkit-text-size-adjust: 100%;
     tab-size: 4;
-    font-family: var(--default-font-family, ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji");
+    font-family:Inter,"Segoe UI",sans-serif;
     font-feature-settings: var(--default-font-feature-settings, normal);
     font-variation-settings: var(--default-font-variation-settings, normal);
     -webkit-tap-highlight-color: transparent;
@@ -59,7 +57,7 @@
     font-weight: bolder;
   }
   code, kbd, samp, pre {
-    font-family: var(--default-mono-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+    font-family:Inter,"Segoe UI",sans-serif;
     font-feature-settings: var(--default-mono-font-feature-settings, normal);
     font-variation-settings: var(--default-mono-font-variation-settings, normal);
     font-size: 1em;
@@ -276,7 +274,7 @@
   --radius: .625rem;
   --radius-sm: calc(var(--radius) - .125rem);
   --topbar: 58px;
-  font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  font-family:Inter,"Segoe UI",sans-serif;
   font-size: var(--font-size);
   color: var(--text);
   background: var(--bg);
@@ -565,7 +563,7 @@ button:disabled {
   color: var(--muted-foreground);
 }
 kbd {
-  font-family: inherit;
+  font-family:Inter,"Segoe UI",sans-serif;
   font-size: .75rem;
   padding: 2px 5px;
   border: 1px solid var(--border);
@@ -5351,7 +5349,7 @@ h1 {
   border-right: 0;
 }
 .chart-app {
-  font-family: Inter,"Segoe UI",sans-serif;
+  font-family:Inter,"Segoe UI",sans-serif;
   font-size: 13px;
 }
 .chart-toolbar,.chart-side,.chart-intelligence,.chart-bottom-drawer {
@@ -7666,7 +7664,7 @@ th button:hover .sort-indicator,th button:focus-visible .sort-indicator {
   font-size: .875rem;
 }
 .support-success dd {
-  font-family: ui-monospace,monospace;
+  font-family:Inter,"Segoe UI",sans-serif;
   font-weight: 600;
 }
 .screener-page {
@@ -8481,14 +8479,14 @@ th button:hover .sort-indicator,th button:focus-visible .sort-indicator {
 .conversation>span strong {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: .78rem;
+  font-size: calc(.78rem + 1px);
   font-weight: 500;
 }
 .conversation>span small {
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--muted-foreground);
-  font-size: .68rem;
+  font-size: calc(.68rem + 1px);
   font-weight: 400;
 }
 .conversation-bookmark {
@@ -8511,6 +8509,8 @@ th button:hover .sort-indicator,th button:focus-visible .sort-indicator {
 .conversation-bookmark.active .icon {
   fill: currentColor;
 }
+/* Center the bookmark SVG; the row icon rule otherwise adds an auto left margin. */
+.conversation .conversation-bookmark>.icon {margin:0;width:13px;height:13px;display:block;justify-self:center;align-self:center;}
 .conversation-bookmark-anchor>.icon-btn:first-child .icon {fill:none;}
 .conversation-bookmark-anchor>.icon-btn:first-child.selected .icon {fill:currentColor;}
 .conversation-state.completed {
@@ -9544,7 +9544,7 @@ html:not(.dark) .monitor-layout .user-message .message-attachments span {color:#
 .edge-flow-accordion>summary {padding:8px;transition:background 120ms ease,box-shadow 120ms ease;}
 .edge-flow-accordion>summary:hover {background:var(--card);box-shadow:0 2px 9px #00000015;}
 .edge-flow-accordion[open]>summary {background:var(--card);border:0;box-shadow:0 2px 9px #00000015;}
-.edge-pin-title:hover {color:var(--foreground);text-decoration:underline;text-underline-offset:3px;}
+.edge-pin-title,.edge-pin-title:hover,.edge-pin-title:focus,.edge-pin-title:active {color:var(--foreground);text-decoration:none;}
 .edge-pin-card:hover {box-shadow:0 3px 12px #0000001c;}
 .edge-history-head {display:flex;align-items:center;justify-content:space-between;padding:5px 0 11px;font-size:12px;font-weight:600;}
 .edge-history-head small {font-size:10px;font-weight:400;color:var(--muted-foreground);}
@@ -9569,14 +9569,14 @@ html:not(.dark) .monitor-layout .user-message .message-attachments span {color:#
 .market-search-ribbon-close>.icon {width:13px;height:13px;}
 
 /* Approved conversation alignment option 5: aligned surfaces and dedicated ribbon gutter. */
-.monitor-layout .research-workspace {--conversation-left:32px;--conversation-right:152px;--conversation-inset:18px;position:relative;}
+.monitor-layout .research-workspace {--conversation-left:24px;--conversation-right:24px;--conversation-inset:18px;position:relative;}
 .monitor-layout .research-scroll {padding-left:var(--conversation-left);padding-right:var(--conversation-right);}
 .monitor-layout .composer {margin-left:var(--conversation-left);margin-right:var(--conversation-right);padding:14px var(--conversation-inset);background:#fafbfc;}
 .monitor-layout .composer textarea {padding:0;}
 .monitor-layout .composer>div:last-child {gap:8px;flex-wrap:wrap;}
 .monitor-layout .composer>div:last-child>div {flex-wrap:wrap;gap:4px;min-width:0;}
 .monitor-layout .result {padding:18px var(--conversation-inset);border-radius:9px;background:#fafbfc;}
-.monitor-layout .user-message {max-width:74%;}
+.monitor-layout .user-message {max-width:90%;}
 .monitor-layout .edge-scroll-marker {right:20px;max-width:112px;background:#f5f6f8;box-shadow:none;}
 .monitor-layout .edge-scroll-marker:after {background:#f5f6f8;}
 .monitor-layout .edge-scroll-marker:hover,.monitor-layout .edge-scroll-marker:focus-visible,.monitor-layout .edge-scroll-marker.dragging {box-shadow:0 3px 12px #00000018;}
@@ -9624,7 +9624,7 @@ html.dark .edge-flow-done{background:#1e9a59;}
 .monitor-layout .result>.result-metadata{margin-bottom:0;}
 
 /* Centered reading column: replies and composer share a responsive maximum width. */
-.monitor-layout .research-workspace{--conversation-max-width:800px;}
+.monitor-layout .research-workspace{--conversation-max-width:1120px;}
 .monitor-layout .research-exchange,.monitor-layout .research-empty,.monitor-layout .research-loading{width:100%;max-width:var(--conversation-max-width);margin-left:auto;margin-right:auto;}
 .monitor-layout .composer{width:calc(100% - var(--conversation-left) - var(--conversation-right));max-width:var(--conversation-max-width);margin-left:auto;margin-right:auto;}
 .monitor-layout .jump-latest{right:max(var(--conversation-right),calc((100% - var(--conversation-max-width))/2));}
@@ -9682,8 +9682,8 @@ html.dark .edge-flow-done{background:#1e9a59;}
 .edge-md li,.edge-list li {margin:.25em 0;padding-left:.15em;}
 .edge-md li::marker,.edge-list li::marker {color:var(--muted-foreground);}
 .edge-md strong {font-weight:600;color:var(--text);}
-.edge-md code,.edge-inline-json {font:.85em ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--secondary);border-radius:4px;padding:.1em .35em;overflow-wrap:anywhere;}
-.edge-md-code {background:var(--secondary);border-radius:var(--radius-sm);padding:12px 14px;overflow:auto;font:.82rem/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;}
+.edge-md code,.edge-inline-json {font:.85em Inter,"Segoe UI",sans-serif;background:var(--secondary);border-radius:4px;padding:.1em .35em;overflow-wrap:anywhere;}
+.edge-md-code {background:var(--secondary);border-radius:var(--radius-sm);padding:12px 14px;overflow:auto;font:.82rem/1.5 Inter,"Segoe UI",sans-serif;}
 .edge-md-code code {background:none;padding:0;}
 .edge-md blockquote {margin:.6em 0 .9em;padding:.1em 0 .1em 14px;border-left:3px solid var(--border);color:var(--text-2);}
 .edge-md hr {border:0;border-top:1px solid var(--border);margin:1.2em 0;}
@@ -9740,7 +9740,7 @@ html.dark .edge-flow-done{background:#1e9a59;}
 .edge-more>summary,.edge-technical>summary {cursor:pointer;color:var(--muted-foreground);font-size:.78rem;font-weight:500;width:max-content;max-width:100%;}
 .edge-more>summary:hover,.edge-technical>summary:hover {color:var(--text);}
 .edge-more[open]>summary,.edge-technical[open]>summary {margin-bottom:8px;}
-.edge-technical pre {white-space:pre-wrap;overflow-wrap:anywhere;font:.75rem/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--secondary);border-radius:var(--radius-sm);padding:10px;max-height:320px;overflow:auto;margin:0;}
+.edge-technical pre {white-space:pre-wrap;overflow-wrap:anywhere;font:.75rem/1.45 Inter,"Segoe UI",sans-serif;background:var(--secondary);border-radius:var(--radius-sm);padding:10px;max-height:320px;overflow:auto;margin:0;}
 .edge-data-rows {margin:0;display:flex;flex-direction:column;gap:6px;}
 .edge-data-row {display:grid;grid-template-columns:minmax(110px,34%) 1fr;gap:10px;}
 .edge-data-row dt {color:var(--muted-foreground);font-size:.8rem;}
@@ -9761,7 +9761,7 @@ html.dark .edge-flow-done{background:#1e9a59;}
 .edge-source {border-top:1px solid var(--border-soft);padding:10px 0;display:flex;flex-direction:column;gap:8px;}
 .edge-source:first-of-type {border-top:0;}
 .edge-source-head {display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
-.edge-source-head code {font:.8rem ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere;}
+.edge-source-head code {font:.8rem Inter,"Segoe UI",sans-serif;overflow-wrap:anywhere;}
 .sources .edge-data-row {grid-template-columns:minmax(80px,38%) 1fr;font-size:.82rem;}
 .edge-pin-body .edge-md {font-size:.85rem;}
 @media (max-width:640px) {
@@ -9771,6 +9771,120 @@ html.dark .edge-flow-done{background:#1e9a59;}
   .edge-choices .btn {flex:1 1 100%;justify-content:flex-start;}
   .edge-finding-head,.edge-plan-item-head {flex-direction:column;gap:6px;}
 }
+
+/* Requested emphasis: cost, fact labels, experiment index, neutral status. */
+.monitor-layout .edge-cost-badge{display:inline-flex;align-items:center;padding:4px 9px;border-radius:4px;background:#252b34;color:#f8fafc;font-size:11px;font-weight:600;line-height:1.5;white-space:nowrap;font-variant-numeric:tabular-nums;}
+html.dark .monitor-layout .edge-cost-badge{background:#303945;color:#f8fafc;}
+.monitor-layout .edge-facts dt.edge-fact-label,.monitor-layout .edge-plan-notes>div>.edge-eyebrow{display:inline-flex;align-items:center;width:fit-content;padding:3px 7px;margin-bottom:7px;background:var(--secondary);color:var(--text);border-radius:3px;border:1px solid var(--border);font-size:11px;line-height:1.4;font-weight:600;letter-spacing:0;text-transform:none;}
+.monitor-layout .edge-plan-item-head .edge-step{border:0;background:#252b34;color:#f8fafc;padding:5px 9px;border-radius:3px;font-size:11px;font-weight:700;line-height:1.4;letter-spacing:0;text-transform:none;white-space:nowrap;}
+html.dark .monitor-layout .edge-plan-item-head .edge-step{background:#303945;color:#f8fafc;}
+.monitor-layout .edge-badge,.monitor-layout .edge-badge:is(.positive,.warning,.negative){border:0;border-radius:0;padding:0;background:transparent;color:var(--text-2);font-size:12px;line-height:1.5;font-weight:500;white-space:normal;}
+.monitor-layout .edge-badge::before{display:none;}
+.monitor-layout .edge-finding-head>.edge-badge{flex-shrink:0;border-left:0;padding-left:12px;max-width:40%;text-align:right;}
+.monitor-layout .edge-tags{margin:4px 0 16px;}
+.monitor-layout .edge-tags>.edge-badge{font-size:12px;color:var(--muted-foreground);}
+.monitor-layout .edge-callout.pause{border:0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);border-radius:0;background:transparent;box-shadow:none;padding:18px 0;margin:24px 0;}
+.monitor-layout .edge-callout.pause .edge-callout-head>.icon{display:none;}
+.monitor-layout .edge-callout.pause .edge-callout-head{font-size:14px;font-weight:600;}
+.monitor-layout .edge-callout.pause .edge-choices .btn{border-radius:4px;box-shadow:none;}
+.monitor-layout .edge-callout.pause .edge-choices .btn.primary{background:#252b34;color:#f8fafc;}
+@media(max-width:640px){.monitor-layout .edge-finding-head>.edge-badge{padding-left:0;max-width:100%;text-align:left;}}
+
+/* Align metadata and emphasize every label within the plan's fact boxes. */
+.monitor-layout .result-metadata{align-items:center;gap:6px 14px;line-height:1.5;}
+.monitor-layout .result-metadata>span{display:inline-flex;align-items:center;min-height:26px;}
+.monitor-layout .result-metadata>.edge-cost{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;}
+.monitor-layout .edge-cost-label{font-size:inherit;font-weight:400;color:var(--muted-foreground);}
+.monitor-layout .edge-cost-badge{padding:3px 8px;line-height:1.5;border-radius:999px;background:var(--muted-foreground);color:var(--background);font-weight:500;font-size:11px;}
+html.dark .monitor-layout .edge-cost-badge{background:var(--secondary);color:var(--foreground);}
+.monitor-layout .edge-facts dt,.monitor-layout .edge-facts dt.edge-fact-label{display:inline-flex;align-items:center;width:fit-content;min-height:26px;padding:3px 7px;margin-bottom:7px;background:var(--secondary);color:var(--text);border-radius:3px;border:1px solid var(--border);font-size:11px;line-height:1.4;font-weight:600;letter-spacing:0;text-transform:none;}
+
+/* Header actions and subordinate lifecycle typography. */
+.monitor-layout .conversation-bookmark-anchor{display:inline-flex;align-items:center;gap:8px;}
+.monitor-layout .flow-step .edge-flow-title{font-family:Inter,"Segoe UI",sans-serif;font-size:12px;font-weight:700;line-height:19.5px;letter-spacing:0;}
+.monitor-layout .flow-step small{font-family:Inter,"Segoe UI",sans-serif;font-size:11px;font-weight:400;line-height:18px;}
+
+/* Conversation filter: approved option 03, Compact pill. Keep the tray footprint. */
+.monitor-layout .conversation-panel .mini-tabs{border-radius:22px;background:#eceef2;gap:4px;}
+.monitor-layout .conversation-panel .mini-tabs button{border-radius:22px;color:#6b7280;font-weight:500;}
+.monitor-layout .conversation-panel .mini-tabs button:hover{background:#e5e8ee;color:#171b23;}
+.monitor-layout .conversation-panel .mini-tabs button.active{background:#fff;color:#171b23;box-shadow:0 2px 7px #18223018,0 1px 2px #1822300d;}
+.monitor-layout .conversation-panel .mini-tabs button.active::after{display:none;}
+html.dark .monitor-layout .conversation-panel .mini-tabs{background:#171b22;}
+html.dark .monitor-layout .conversation-panel .mini-tabs button{color:#a1a8b4;}
+html.dark .monitor-layout .conversation-panel .mini-tabs button:hover{background:#303742;color:#edf0f4;}
+html.dark .monitor-layout .conversation-panel .mini-tabs button.active{background:#20242b;color:#edf0f4;box-shadow:0 3px 10px #0005,0 1px 3px #0003;}
+
+/* Header settings icon and compact account menu. */
+.top-actions>.icon-btn[aria-label="Settings"]>.icon{display:block;margin:0;width:16px;height:16px;}
+.top-actions .account-menu{width:220px;padding:8px;border-radius:8px;}
+.top-actions .account-menu>.account-summary{padding:8px 10px 12px;margin-bottom:4px;border-bottom:1px solid var(--border);}
+.top-actions .account-menu>.account-summary>strong{font-size:12px;font-weight:500;line-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.top-actions .account-menu>button.sign-out{display:flex;align-items:center;justify-content:flex-start;min-height:36px;padding:8px 10px;white-space:nowrap;font-size:12px;line-height:18px;border-radius:5px;}
+
+/* Single-action account menu: use the background, without a focus border. */
+.top-actions .account-menu>button.sign-out:is(:focus,:focus-visible,:active){outline:none;border:0;box-shadow:none;}
+
+/* Dark response palette: explicit surface/text pairs, scoped to AI replies. */
+html.dark .monitor-layout .result{
+ --foreground:#f1f4f8;--text:#f1f4f8;--text-2:#d1d7e0;--muted-foreground:#b5becb;
+ --card:#252c35;--card-foreground:#f1f4f8;--secondary:#303844;--secondary-foreground:#f1f4f8;
+ --accent:#394453;--accent-foreground:#f1f4f8;--border:#46515f;--border-soft:#394453;
+ --control-background:#303844;--control-border:#46515f;
+ background:#20242b;color:#f1f4f8;
+}
+html.dark .monitor-layout .result .result-kicker,
+html.dark .monitor-layout .result .result-metadata{color:var(--muted-foreground);}
+html.dark .monitor-layout .result .data-table{background:#252c35;color:var(--text);border-color:var(--border);}
+html.dark .monitor-layout .result .data-table th{background:#303844;color:var(--text-2);}
+html.dark .monitor-layout .result .data-table td{color:var(--text);border-color:var(--border);}
+html.dark .monitor-layout .result .data-table tbody tr:hover{background:#303844;}
+html.dark .monitor-layout .result .edge-choices .btn{background:#303844;color:var(--text);border-color:var(--border);}
+html.dark .monitor-layout .result .edge-choices .btn.primary{background:#dbe3ee;color:#1c2530;}
+html.dark .monitor-layout .result .edge-choices .btn:not(:disabled):hover{background:#394453;color:#f1f4f8;}
+html.dark .monitor-layout .result .edge-choices .btn.primary:not(:disabled):hover{background:#eef2f8;color:#1c2530;}
+html.dark .monitor-layout .result .edge-cost-badge{background:#394453;color:#f1f4f8;}
+
+/* Details tabs: approved option 03, Compact pill. */
+/* Option 01: compact underline tabs for the Details panel. */
+.monitor-layout .details-panel>.tabs{align-self:flex-start;flex:none;width:max-content;max-width:calc(100% - 24px);height:46px;margin:0 12px;padding:0;gap:16px;align-items:center;border:0;background:transparent;}
+.monitor-layout .details-panel>.tabs button{position:relative;flex:0 0 auto;min-width:38px;height:32px;min-height:32px;padding:0 3px;border:0;border-radius:3px;background:transparent;color:#626d7c;font-size:12px;font-weight:500;box-shadow:none;transition:background .12s,color .12s;}
+.monitor-layout .details-panel>.tabs button::after{content:"";position:absolute;height:2px;bottom:0;left:3px;right:3px;border-radius:2px;background:transparent;}
+.monitor-layout .details-panel>.tabs button:hover{background:#e2e7ed;color:#18202b;}
+.monitor-layout .details-panel>.tabs button.active{background:transparent;color:#18202b;box-shadow:none;}
+.monitor-layout .details-panel>.tabs button.active::after{background:#263447;}
+.monitor-layout .details-panel>.tabs button:focus-visible{outline:2px solid #557499;outline-offset:3px;}
+html.dark .monitor-layout .details-panel>.tabs button{color:#aab4c2;}
+html.dark .monitor-layout .details-panel>.tabs button:hover{background:#323d4c;color:#eef2f7;}
+html.dark .monitor-layout .details-panel>.tabs button.active{background:transparent;color:#eef2f7;box-shadow:none;}
+html.dark .monitor-layout .details-panel>.tabs button.active::after{background:#d9e2ee;}
+html.dark .monitor-layout .details-panel>.tabs button:focus-visible{outline-color:#9dbbe1;}
+
+
+/* Compact trailing space after the final saved lifecycle step. */
+.monitor-layout .edge-flow-accordion .flow-step:last-child{padding-bottom:4px;}
+
+/* Compact Sources sections with one separator and a shared metadata grid. */
+.monitor-layout .details-panel .sources>.content-block{padding:12px 0 0;margin:12px 0 0;border-top:1px solid var(--border);}
+.monitor-layout .details-panel .sources>.content-block:first-child{padding-top:0;margin-top:0;border-top:0;}
+.monitor-layout .details-panel .sources .section-title{min-height:20px;margin:0 0 8px;align-items:flex-start;font-size:12px;font-weight:600;line-height:20px;}
+.monitor-layout .details-panel .sources .section-title+.edge-source{border-top:0;padding-top:0;}
+.monitor-layout .details-panel .sources .edge-source{padding:8px 0 0;gap:8px;}
+.monitor-layout .details-panel .sources .edge-source-head{margin:0;align-items:flex-start;}
+.monitor-layout .details-panel .sources .edge-source-head>strong{font-size:12px;font-weight:600;line-height:18px;}
+.monitor-layout .details-panel .sources .edge-data-rows{gap:6px;}
+.monitor-layout .details-panel .sources .edge-data-row{grid-template-columns:minmax(80px,34%) minmax(0,1fr);gap:12px;align-items:start;font-size:11.5px;line-height:18px;}
+.monitor-layout .details-panel .sources .edge-data-row>dt,
+.monitor-layout .details-panel .sources .edge-data-row>dd{margin:0;padding:0;font-size:inherit;line-height:inherit;}
+
+.monitor-layout .user-message-footer{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:7px 0 19px;min-height:30px;}
+.monitor-layout .user-message-footer .user-sent-at{margin:0;}
+.monitor-layout .message-clipboard-actions{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;}
+.monitor-layout .clipboard-action{width:30px;height:30px;padding:0;justify-content:center;}
+.monitor-layout .clipboard-action .icon{width:16px;height:16px;}
+.monitor-layout .clipboard-status{font-size:10px;color:var(--muted-foreground);max-width:240px;}
+.monitor-layout .result-pin-action[aria-pressed="true"] .icon{fill:none;}
+@media print{.message-clipboard-actions{display:none!important;}}
 </style>
 </head>
 <body><div id="root"></div>
@@ -9965,11 +10079,13 @@ const paths = {
         element("path", { d: "M9.7 9a2.5 2.5 0 1 1 3.8 2.1c-1.5.9-1.5 1.4-1.5 2.4M12 17h.01" })),
     settings: element(fragment, null,
         element("circle", { cx: "12", cy: "12", r: "3" }),
-        element("path", { d: "M19 14.5l1.2 1.2-2.5 4.3-1.7-.5a8 8 0 0 1-2 .9l-.4 1.6h-5l-.4-1.6a8 8 0 0 1-2-.9l-1.7.5L2 15.7l1.2-1.2a8 8 0 0 1 0-2.4L2 10.3 4.5 6l1.7.5a8 8 0 0 1 2-.9L8.6 4h5l.4 1.6a8 8 0 0 1 2 .9l1.7-.5 2.5 4.3-1.2 1.8a8 8 0 0 1 0 2.4Z" })),
+        element("path", { d: "M20.957 11.118 L20.957 12.882 L18.699 14.032 L18.173 15.300 L18.957 17.710 L17.710 18.957 L15.300 18.173 L14.032 18.699 L12.882 20.957 L11.118 20.957 L9.968 18.699 L8.700 18.173 L6.290 18.957 L5.043 17.710 L5.827 15.300 L5.301 14.032 L3.043 12.882 L3.043 11.118 L5.301 9.968 L5.827 8.700 L5.043 6.290 L6.290 5.043 L8.700 5.827 L9.968 5.301 L11.118 3.043 L12.882 3.043 L14.032 5.301 L15.300 5.827 L17.710 5.043 L18.957 6.290 L18.173 8.700 L18.699 9.968Z" })),
     user: element(fragment, null,
         element("circle", { cx: "12", cy: "8", r: "4" }),
         element("path", { d: "M4 21a8 8 0 0 1 16 0" })),
     bookmark: element("path", { d: "M6 4h12v17l-6-4-6 4Z" }),
+    pin: element("path", {d:"M9 3h6l-1 7 4 4v2H6v-2l4-4-1-7ZM12 16v6"}),
+    copy: element(fragment,null,element("rect",{x:8,y:8,width:12,height:12,rx:2}),element("path",{d:"M16 8V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4"})),
     share: element(fragment, null,
         element("circle", { cx: "18", cy: "5", r: "2" }),
         element("circle", { cx: "6", cy: "12", r: "2" }),
@@ -10135,7 +10251,7 @@ function AccountMenu({signOut,close,trigger}) {
    requestAnimationFrame(()=>menu.current?.querySelector("button")?.focus());
    return()=>{document.removeEventListener("pointerdown",outside);document.removeEventListener("keydown",key);};
  },[]);
- return element("div",{ref:menu,className:"account-menu",role:"menu"},element("div",{className:"account-summary"},element("strong",null,Edge.auth?.login || "Private account")),element("button",{role:"menuitem",className:"sign-out",onClick:signOut},"Sign out"));
+ return element("div",{ref:menu,className:"account-menu",role:"menu"},element("button",{role:"menuitem",className:"sign-out",onClick:signOut},"Sign out"));
 }
 function DialogShell({ title, description, close, children, className = "", returnFocusRef }) {
     const viewRecord = currentView;
@@ -10435,7 +10551,7 @@ function Monitor({ go }) {
                         messageRun?.attachments.length ? element("div", { className: "message-attachments" }, messageRun.attachments.map(file => element("span", { key: file },
                             element(Icon, { name: "attach" }),
                             file))) : null),
-                    element("div", { className:"user-sent-at" }, formatMessageJakarta(message.createdAt)),
+                    element("div", {className:"user-message-footer"},element("div", { className:"user-sent-at" }, formatMessageJakarta(message.createdAt)),element(MessageClipboardActions,{getText:()=>message.content,kind:"user"})),
                     messageRun && element(fragment, null,
                         element(RunStatus, { run: messageRun, expanded: expandedRuns.includes(messageRun.id), toggle: () => { setSelectedRunId(messageRun.id); setSourceDetail(null); setActiveSection("conditions"); setExpandedRuns(current => current.includes(messageRun.id) ? current.filter(id => id !== messageRun.id) : [...current, messageRun.id]); }, retry: () => retry(messageRun) }),
                         messageRun.result && element(ResearchDocument, { run: messageRun, togglePin: () => togglePin(messageRun), reply: action=>reply(messageRun,action), choose: option=>submit({chosen_option:option.route},option.label,{plain:true}), pick, askInput, planIndex, enabled: !active && !submitting && messageRun.id === latestRun(selected)?.id, planEnabled: !active && !submitting && (!selected.plan || selected.plan.status === "PENDING") && messageRun.id === latestRun(selected)?.id, tableMenu: tableMenu, setTableMenu: setTableMenu, expand: () => setExpandedTable(messageRun) }))); })),
@@ -10610,14 +10726,30 @@ function PinnedResponses({runs,unpin,jump}) {
 function PinnedResponseCard({run,unpin,jump}) {
     const view=currentView,expanded=initialValue(view,"expanded",()=>false),setExpanded=next=>updateValue(view,"expanded",next);
     return element("div",{className:"edge-pin-card"},
-        element("div",{className:"edge-pin-top"},element(Icon,{name:"bookmark"}),
+        element("div",{className:"edge-pin-top"},element(Icon,{name:"pin"}),
             element("button",{className:"edge-pin-title",onClick:jump,title:run.result.title},run.result.title),
             element("button",{className:"small",onClick:()=>setExpanded(!expanded),"aria-expanded":expanded,"aria-label":"Expand pinned response"},element(DisclosureChevron)),
             element("button",{className:"small",onClick:unpin,"aria-label":"Unpin response"},"×")),
         expanded&&element("div",{className:"edge-pin-body"},element(Markdown,{text:run.result.condition}),element("button",{onClick:jump},"View full response →")));
 }
+function MessageClipboardActions({getText,kind}) {
+ const view=currentView,status=initialValue(view,"clipboardStatus",()=>""),setStatus=next=>updateValue(view,"clipboardStatus",next);
+ const copy=async event=>{const text=getText(event.currentTarget);try{
+  if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(text);
+  else {const field=document.createElement("textarea");field.value=text;field.style.position="fixed";field.style.opacity="0";document.body.append(field);field.select();const ok=document.execCommand("copy");field.remove();if(!ok)throw new Error("Copy unavailable");}
+  setStatus("Copied");
+ }catch(error){setStatus("Copy unavailable. Select the message and copy manually.");}};
+ return element("span",{className:"message-clipboard-actions"},
+  element("button",{className:"result-action clipboard-action",type:"button",onClick:copy,title:kind==="user"?"Copy question":"Copy AI response","aria-label":kind==="user"?"Copy question":"Copy AI response"},element(Icon,{name:"copy"})),
+  element("span",{className:"clipboard-status",role:"status"},status));
+}
+function responseCopyText(button) {
+ const article=button.closest('.result').cloneNode(true);
+ article.querySelectorAll('.result-actions,.result-kicker,.result-metadata,button').forEach(node=>node.remove());
+ return (article.innerText||Array.from(article.children).map(node=>node.textContent).join("\n\n")).trim();
+}
 function ResponseActions({run,togglePin}) {
- return element("div",{className:"result-actions"},element("button",{className:"result-action",onClick:togglePin,"aria-pressed":Boolean(run.pinned)},element(Icon,{name:"bookmark"}),run.pinned?"Pinned":"Pin"),(run.raw?.artifacts || []).map(file=>{const href=Edge.exportUrl(file.export_id);return href&&element("a",{className:"result-action",href},"Download "+(file.filename || file.export_id));}));
+ return element("div",{className:"result-actions"},element("button",{className:"result-action",onClick:togglePin,"aria-pressed":Boolean(run.pinned)},element(Icon,{name:"pin"}),run.pinned?"Pinned":"Pin"),element(MessageClipboardActions,{getText:responseCopyText,kind:"ai"}),(run.raw?.artifacts || []).map(file=>{const href=Edge.exportUrl(file.export_id);return href&&element("a",{className:"result-action",href},"Download "+(file.filename || file.export_id));}));
 }
 // EXEC-X (M124): the answer view reads the response's structure. Text from the AI becomes DOM nodes through element()
 // only (never innerHTML); structured parts use one generic view whose labels come from one table, so a field the view
@@ -10843,7 +10975,7 @@ function PlanItem({item, index, kind}) {
     element("div", {className:"edge-plan-item-head"}, element("span", {className:"edge-step"}, `${kind} ${index + 1}`), element("strong", null, title)),
     question && element("p", {className:"edge-plan-question"}, question),
     item.objective && title !== item.objective && element("p", {className:"edge-muted"}, item.objective),
-    element("dl", {className:"edge-facts"}, edgeDesignFacts(item).map(fact => element("div", null, element("dt", null, fact.label),
+    element("dl", {className:"edge-facts"}, edgeDesignFacts(item).map(fact => element("div", null, element("dt", {className: "edge-fact-label"}, fact.label),
       element("dd", null, fact.value, fact.note && element("small", null, fact.note))))),
     !edgeEmpty(rest) && element("details", {className:"edge-more"}, element("summary", null, "Detail desain"), DataRows({value:rest})));
 }
@@ -10951,7 +11083,7 @@ function ResearchDocument({run,togglePin,reply,choose,pick,askInput,enabled,plan
  return element("article",{className:"result",id:run.id+"-response",tabIndex:-1},
   element("div",{className:"result-kicker"},element(Icon,{name:"spark"}),"EDGE AI · "+statusLabel,element("i",{className:`edge-dot ${statusTone}`,"aria-hidden":"true"})),
   element("h1",null,run.result.title),
-  element("div",{className:"result-metadata"},"Request "+run.id,raw?.execution?.model&&element("span",null,raw.execution.model),raw?.execution?.total_tokens!==undefined&&element("span",null,raw.execution.total_tokens+" tokens"),raw?.execution?.cost!=null&&element("span",null,"Reported cost $"+raw.execution.cost)),
+  element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),raw?.execution?.model&&element("span",null,raw.execution.model),raw?.execution?.total_tokens!==undefined&&element("span",null,raw.execution.total_tokens+" tokens"),raw?.execution?.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+raw.execution.cost))),
   raw?.evidence_label&&element("div",{className:"edge-tags"},element("span",{className:"edge-badge neutral",title:raw.evidence_label},"Bukti: "+(EDGE_EVIDENCE[raw.evidence_label]??raw.evidence_label))),
   answer&&element("div",{className:"content-block edge-answer"},element(Markdown,{text:answer,claims})),
   f.clarification_question&&element("section",{className:"content-block edge-choice-panel"},element(Markdown,{text:f.clarification_question,claims}),
