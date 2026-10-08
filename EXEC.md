@@ -431,11 +431,16 @@ sama bisa di proses di sandbox lain." Belum dijalankan; rencana eksekusi menungg
     hasil pembukaan sesi, panduan metode `event_study` (tabel `AI_method_guide`, migrasi), `get_system_capabilities`,
     `help()` di sesi, dan pesan galat. Penolakan menyebut alasannya dan langkah berikutnya; akhiran "sesi riset" hanya
     di sesi riset.
-  - Usulan user (perlu konfirmasi detail): sandbox dipakai membuat sampai ±1.000 tabel turunan dari data mentah untuk
-    analisis. Batas sekarang: variabel di sesi tidak dibatasi jumlahnya (memori sesi 4 GB, satu frame maks ±40%);
-    tabel yang disimpan sebagai keluaran maks 40 per sesi (`PY_SANDBOX_SESSION_MAX_OUTPUTS`, kode maks 500). Usulan:
-    B dibangun sebagai penyimpanan tabel kerja sesi (simpan/baca menurut nama, kuota disk, tidak dirilis, tidak
-    dihitung dalam 40 keluaran).
+  - **B sebagai penyimpanan tabel kerja sesi, disetujui user 2026-10-08:** "1.000 tabel turunan, konfirmasi: ...
+    Usulan saya: opsi B dibangun sebagai penyimpanan tabel kerja sesi, yaitu simpan dan baca menurut nama, dibatasi
+    kuota disk, tidak dirilis, dan tidak dihitung dalam batas 40. Dengan begitu 1.000 tabel turunan bisa dipakai di
+    analisis. Untuk dikutip di jawaban, tabel tetap harus dirilis seperti biasa. --> OK masukan EXEC."
+    - Saat ini: variabel di sesi tidak dibatasi jumlahnya (memori sesi 4 GB, satu frame maks ±40% ≈ 1,6 GB) tetapi
+      hilang saat sesi ditutup dan tidak bisa dipanggil menurut nama dari luar kode; tabel yang disimpan sebagai
+      keluaran maks 40 per sesi (`PY_SANDBOX_SESSION_MAX_OUTPUTS`, kode maks 500).
+    - Dibangun: simpan/baca tabel kerja menurut nama di sesi, dibatasi kuota disk (bukan jumlah), tidak dirilis, tidak
+      dihitung dalam 40 keluaran; mengutip angka tetap butuh tabel yang dirilis. Kuota, masa simpan dan nama variabel
+      ditetapkan di rencana eksekusi. Status: disetujui, belum ada perintah jalan.
 - **M117, usulan "AI yang menafsirkan" (diminta user 2026-10-08: "Bisa gak AI saja yang infer apa maksud user -->
   masukan ke research? Apa resikonya"):** router (panggilan model terpisah yang hanya membaca pesan user) sudah membaca
   ambang/efek minimum/horizon (`design_value_changes`); pemeriksa rencana mengabaikannya. Usulan: (1) bacaan router
@@ -443,6 +448,42 @@ sama bisa di proses di sandbox lain." Belum dijalankan; rencana eksekusi menungg
   belum Anda sebut" di pertanyaan konfirmasi (persetujuan user wajib di dev); (3) jaminan EXEC-D "threshold dikunci ke
   kata user" diubah menjadi "tidak ada yang dijalankan dengan ambang yang tidak disebut atau tidak disetujui user".
   Menunggu keputusan user.
+- **M117, benchmark praktik terbaik eksternal (2026-10-08).** User meminta: "M117 tolong benchmark dengan antrophic, GPT
+  dan external source lainnya terlebih dahulu", lalu menjelaskan: "No, kita pakai deepseek. Yang saya maksud benchmark
+  adalah kamu search best practice dari external source". Tidak ada panggilan model dan tidak ada perubahan model atau
+  provider. Temuan (sumber di `ERRORS_AND_SOLUTIONS.md` M117):
+  - OpenAI. Contoh pesan sistem function calling: "Don't make assumptions about what values to plug into functions. Ask
+    for clarification if a user request is ambiguous." Strict JSON schema menjamin bentuk, bukan kebenaran nilai. Model
+    Spec: bila maksud tidak jelas, beri tebakan aman, sebutkan asumsinya, dan tanya balik bila perlu. Panduan GPT-5: mode
+    "eager" jalan terus dengan asumsi yang dicatat; mode hati-hati berhenti dan melaporkan pertanyaan terbuka sebelum
+    lanjut. Pilihannya bergantung pada mahalnya salah.
+  - Anthropic. Izinkan model berkata "tidak tahu"; dasarkan jawaban pada kutipan kata per kata dari sumber, cocokkan
+    kutipan dengan teks asli lewat string matching, dan tarik klaim yang tidak punya kutipan. Building Effective Agents:
+    pasang titik konfirmasi manusia sebelum langkah mahal atau tak bisa dibalik. Claude Code/Agent SDK: tanya user
+    (pilihan ganda) hanya untuk keputusan yang memang milik user; selain itu pakai default yang masuk akal.
+  - Sistem dialog klasik (Amazon Lex, Dialogflow CX). Setelah slot terisi, tanyakan konfirmasi. Bila user menolak, slot
+    itu dikosongkan lalu ditanyakan ulang; maksud dan slot lain tidak dibuang. Batas pengulangan selalu berakhir di jalan
+    keluar, tidak pernah buntu.
+  - Riset. LLM lemah mengenali permintaan ambigu: CLAMBER (ACL 2024), AMBROSIA (NeurIPS 2024, kategori kata samar),
+    PRACTIQ (NAACL 2025). Alur "deteksi, tanya, perbaiki" menaikkan akurasi: ClarifyGPT (FSE 2024), AmbiSQL hingga +50
+    poin pada pertanyaan ambigu. Untuk ekstraksi: field wajib mendorong model mengarang; field boleh kosong + "jangan
+    menebak" + bukti per nilai menguranginya.
+  - **Desain M117 yang diturunkan dari temuan itu (usulan, belum dibangun; tetap DeepSeek):**
+    1. Router menulis setiap nilai desain bersama kutipan kata user (`text`, sudah ada di skema) dan dasar
+       `STATED`/`IMPLIED`. Backend hanya memeriksa kutipan itu benar ada di pesan user (string matching, diturunkan, tanpa
+       daftar kata). Ini menggantikan pembaca ambang buatan tangan (tanda, kata bilangan, nol tersirat).
+    2. Nilai yang tidak punya kutipan sah atau berdasar `IMPLIED` tidak membuang rencana. Nilai itu tampil di pertanyaan
+       konfirmasi rencana sebagai "saya tafsirkan dari '...'" atau "usulan AI, belum Anda sebut". Persetujuan user adalah
+       jaminannya (pola Lex/Anthropic). Karena model lemah mengenali ambiguitas (CLAMBER), jaminan tidak bergantung pada
+       deteksi model: semua nilai tanpa kutipan sah selalu masuk konfirmasi.
+    3. Kata samar ("signifikan", "naik banyak") dibiarkan kosong lalu ditanyakan (field boleh kosong + jangan menebak).
+    4. Gate rencana tidak lagi berakhir di LIMITATION tanpa rencana. Penolakan kedua menyimpan rencana dan menanyakan
+       nilai yang bermasalah (re-elicit, pola Lex). Pertanyaan tetap kalau model gagal; maksimal dua pertanyaan berturut
+       (EXEC-D).
+    5. Jalur analisis (tanpa langkah persetujuan): asumsi ditulis di jawaban (Model Spec) dan angka tetap lewat gate
+       sumber yang ada.
+    Jaminan EXEC-D "threshold dikunci ke kata user" menjadi: "tidak ada yang dijalankan dengan nilai desain yang tidak
+    dikutip dari user atau tidak disetujui user". Status: menunggu keputusan user.
 
 **Hasil tahap 1 (2026-10-07, V-a opsi B):**
 - **Kode** (`d25e108`, `apps/market-ai-orc/app/orchestrator.py`):
