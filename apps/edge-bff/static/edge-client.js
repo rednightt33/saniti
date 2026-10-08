@@ -17,6 +17,10 @@
     return data;
   }
   const terminal = s => ['FINISHED','FAILED','INTERRUPTED'].includes(s.state);
+  // EXEC-X (M124): the frame stays English (user decision 2026-10-08) but says what the saved response is
+  const DOMAIN = {COMPLETED:'Completed',AWAITING_CONFIRMATION:'Awaiting approval',NEEDS_CLARIFICATION:'Needs your reply',LIMITED:'Limited',FAILED:'Failed'};
+  const statusLabel = (status, domain, pause) => ['submitted','running','streaming'].includes(status) ? 'Running' : status === 'failed' && !domain ? 'Failed'
+    : pause && domain === 'LIMITED' ? 'Paused' : DOMAIN[domain] || (status ? status[0].toUpperCase() + status.slice(1) : '—');
   function follow(id, callback, onError) {
     let closed = false, failures = 0, source, timer, version = -1;
     const close = () => { closed = true; source?.close(); clearTimeout(timer); followers.delete(close); };
@@ -47,7 +51,7 @@
       mode:'Standard',attachments:[],pinned:(ui.pinned_request_ids || []).includes(turn.request_id),
       error:raw?.error?.code || turn.error_code,raw,result:final ? {title:turn.user_message?.slice(0,80) || ui.title || 'Research response',condition:final.answer || final.clarification_question || '',final} : null,
       sources:[...(raw?.evidence || []), ...(raw?.annotations || []), ...(raw?.data_record ? [{name:'Data record',record:raw.data_record}] : [])],
-      steps:[{id:'saved-state',label:turn.status === 'RUNNING' ? 'AI request running' : 'Saved response: ' + (raw?.status || turn.run_status || turn.status),status:turn.status === 'RUNNING' ? 'running' : failed ? 'failed' : 'completed',detail:'Persisted lifecycle state'}]};
+      steps:[{id:'saved-state',label:turn.status === 'RUNNING' ? 'AI request running' : 'Saved response: ' + statusLabel('completed', raw?.status || turn.run_status, raw?.execution?.pause),status:turn.status === 'RUNNING' ? 'running' : failed ? 'failed' : 'completed',detail:'Persisted lifecycle state'}]};
   }
   async function messages(id) {
     let after = -1, turns = [], page;
@@ -62,10 +66,10 @@
     completedAt:snapshot.completed_at,raw:snapshot.response || previous.raw,
     result:snapshot.response?.response ? {title:previous.question.slice(0,80),condition:snapshot.response.response.answer || snapshot.response.response.clarification_question || '',final:snapshot.response.response} : previous.result,
     sources:snapshot.response ? [...(snapshot.response.evidence || []),...(snapshot.response.annotations || []),...(snapshot.response.data_record ? [{name:'Data record',record:snapshot.response.data_record}] : [])] : previous.sources,
-    steps:[{id:'state',label:{QUEUED:'Queued',RUNNING:'AI request running',RECOVERING:'Recovering delivery',FINISHED:'Saved response: '+snapshot.run_status,FAILED:'Request failed',INTERRUPTED:'Delivery interrupted'}[snapshot.state],status:terminal(snapshot) ? snapshot.state === 'FINISHED' && snapshot.run_status !== 'FAILED' && !snapshot.expired ? 'completed' : 'failed' : 'running',detail:snapshot.updated_at}]
+    steps:[{id:'state',label:{QUEUED:'Queued',RUNNING:'AI request running',RECOVERING:'Recovering delivery',FINISHED:'Saved response: '+statusLabel('completed',snapshot.run_status,snapshot.response?.execution?.pause),FAILED:'Request failed',INTERRUPTED:'Delivery interrupted'}[snapshot.state],status:terminal(snapshot) ? snapshot.state === 'FINISHED' && snapshot.run_status !== 'FAILED' && !snapshot.expired ? 'completed' : 'failed' : 'running',detail:snapshot.updated_at}]
   });
   window.Edge = {
-    api,follow,terminal,conversations,messages,adaptRun,stateRun,
+    api,follow,terminal,conversations,messages,adaptRun,stateRun,statusLabel,
     get auth() { return auth; },
     async session() { try { auth = await api('/auth/session'); } catch { auth = null; } return auth; },
     async signin(login,password) { auth = await api('/auth/sign-in',{login,password}); dispatchEvent(new Event('edge-auth')); return auth; },

@@ -255,7 +255,7 @@ def test_failure_retry_limited_and_multi_turn_history(dummy_orc, browser_page):
     assert orc.calls[1][2]['conversation_id'] == orc.saved[first]['conversation_id']
     submit(page, 'Dummy limited')
     saved(page, 3)
-    assert 'EDGE AI · LIMITED' in page.locator('article.result').last.inner_text()
+    assert page.locator('article.result').last.locator('.result-kicker').text_content() == 'EDGE AI · Terbatas'
     page.locator('.research-scroll').evaluate('(node) => node.scrollTop = 0')
     capture(page, 'desktop-history-multiple')
     page.reload()
@@ -338,12 +338,12 @@ def test_mobile_research_plan_and_clarification(server, browser_page):
     orc.run=mobile_reply
     sign_in(page, origin)
     submit(page, 'Plan mobile')
-    page.get_by_role('button', name='REVISE', exact=True).wait_for()
+    page.get_by_role('button', name='Revisi', exact=True).wait_for()
     saved(page)
     page.locator('.research-scroll').evaluate('(node) => node.scrollTop = 0')
     no_clipping(page)
     capture(page, 'mobile-research-plan')
-    page.get_by_role('button', name='REVISE', exact=True).click()
+    page.get_by_role('button', name='Revisi', exact=True).click()
     page.locator('.composer-status').filter(has_text='Describe the plan revision').wait_for()
     page.get_by_placeholder('Ask a research question…').fill('Use one year')
     page.get_by_role('button', name='Submit', exact=True).click()

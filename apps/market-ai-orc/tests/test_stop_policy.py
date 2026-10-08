@@ -80,6 +80,7 @@ def test_a_figure_without_a_source_pauses_the_answer_and_the_next_message_reads_
     assert "Korelasi" in result.response.answer  # the draft is kept behind the notice, marked as not validated
     assert result.response.answer.endswith(stop_policy.pause_question("ROUTING"))
     pause = result.execution.pause
+    assert result.response.answer.endswith(pause["question"])
     assert pause["cause"] == "ROUTING" and [o["id"] for o in pause["options"]] == ["RECOMPUTE", "ACCEPT_PARTIAL"]
     assert result.data_record["pause"] == pause
     # the next message of the conversation reads the pause once and clears it
@@ -125,3 +126,15 @@ def test_a_full_sandbox_after_the_backends_wait_pauses_the_limitation() -> None:
     paused = AgentOrchestrator._paused(state, limited, "SANDBOX_BUSY")
     assert paused.answer.endswith(stop_policy.pause_question("SANDBOX_BUSY")) and "Lanjutkan sekarang" in paused.answer
     assert state.pause["cause"] == "SANDBOX_BUSY"
+
+
+def test_a_pause_record_carries_its_exact_question_and_which_choice_needs_the_users_words() -> None:
+    """EXEC-X (M124): a front-end shows the choices as buttons and leaves out the question text the answer ends with
+    (an exact match, no parsing); a choice that needs the user's own words fills the composer instead of sending."""
+    for kind in [k for k, c in stop_policy.CAUSES.items() if c.outcome == stop_policy.PAUSE]:
+        record = stop_policy.pause_record(kind, "r1")
+        assert record["question"] == stop_policy.pause_question(kind)
+        assert all(o["needs_input"] == (o["id"] in stop_policy.NEEDS_INPUT) for o in record["options"])
+    plan = stop_policy.pause_record("PLAN_FINDINGS", "r1")
+    assert [o["needs_input"] for o in plan["options"]] == [True, False]
+    assert stop_policy.NEEDS_INPUT <= set(stop_policy.OPTIONS)

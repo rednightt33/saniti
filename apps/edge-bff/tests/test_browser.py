@@ -67,10 +67,10 @@ def test_private_html_real_submit_reload_preferences_and_continuations(server):
         page.locator('article.result').wait_for()
         assert page.get_by_role('button',name='Pinned',exact=True).is_visible()
         assert page.get_by_role('button',name='Bookmark',exact=True).get_attribute('aria-pressed')=='true'
-        for action in ('APPROVE','REVISE','CANCEL'):
+        for action,label in (('APPROVE','Setujui & jalankan'),('REVISE','Revisi'),('CANCEL','Batalkan')):
             page.get_by_role('button',name='New conversation',exact=True).click()
             composer.fill('Plan '+action);page.get_by_role('button',name='Submit',exact=True).click()
-            button=page.get_by_role('button',name=action,exact=True);button.wait_for();button.click()
+            button=page.get_by_role('button',name=label,exact=True);button.wait_for();button.click()
             if action=='REVISE':composer.fill('Use one year');page.get_by_role('button',name='Submit',exact=True).click()
             page.wait_for_function("() => document.querySelector('.composer-status')===null")
             page.wait_for_timeout(300)

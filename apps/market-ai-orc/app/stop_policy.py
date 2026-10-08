@@ -32,6 +32,9 @@ OPTIONS = {
     "REPLAN": "Susun ulang rencananya",
     "CONTINUE": "Lanjutkan sekarang",
 }
+# EXEC-X (M124): the choices whose answer needs the user's own words (what to change); a front-end lets the user write
+# them instead of sending the label alone
+NEEDS_INPUT = frozenset({"REVISE_PLAN"})
 
 
 @dataclass(frozen=True)
@@ -95,10 +98,14 @@ def pause_question(kind: str) -> str:
 
 
 def pause_record(kind: str, request_id: str, kept: dict[str, Any] | None = None) -> dict[str, Any]:
-    """execution.pause and the data record's pause: the cause, its choices and what the next message can build on."""
+    """execution.pause and the data record's pause: the cause, its choices and what the next message can build on.
+    EXEC-X (M124): `question` is the exact text the answer ends with, so a front-end that shows the choices as buttons
+    can leave that text out; `needs_input` marks a choice the user completes in their own words."""
     cause = cause_of(kind)
     return {"version": VERSION, "cause": kind.split(":", 1)[0], "reason": cause.reason,
-            "options": [{"id": option, "label": OPTIONS[option]} for option in cause.options],
+            "question": pause_question(kind),
+            "options": [{"id": option, "label": OPTIONS[option], "needs_input": option in NEEDS_INPUT}
+                        for option in cause.options],
             "request_id": request_id, "kept": kept or {}}
 
 

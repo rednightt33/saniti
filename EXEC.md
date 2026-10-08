@@ -50,7 +50,9 @@ gabungkan ya", pilihan "File baru EXEC.md"). Pekerjaan yang disetujui tetapi bel
 
 ## Ringkasan
 
-**Menunggu "go" (2026-10-08):** EXEC-X (M124, tampilan jawaban di EDGE; disetujui, rencana siap). EXEC-W, rencana eksekusi butir EXEC-V yang disetujui (dua
+**Berjalan (2026-10-08):** EXEC-X (M124, tampilan jawaban di EDGE). Langkah 1–3 selesai: orc 1.556 uji lulus, EDGE 41 uji lulus, pratinjau dikirim ke user. Kode ada di cabang `claude/code-session-2k3oeg`, belum di `main`; deploy menunggu OK user.
+
+**Menunggu "go" (2026-10-08):** EXEC-W, rencana eksekusi butir EXEC-V yang disetujui (dua
 gelombang).
 
 **Berjalan (2026-10-07):** EXEC-V (M110 + opsi B) dan EXEC-M109, rencana implementasi 4 tahap disetujui. Tahap 1
@@ -938,13 +940,13 @@ biaya model ±USD 0,13 (sisa limit kunci USD 0,62 sebelum).
 - Temuan front-end (M124): rencana riset dan "Research findings" tampil sebagai JSON mentah; markdown jawaban tidak
   dirender (`**...**` terlihat); tombol rencana APPROVE/REVISE/CANCEL dalam bahasa Inggris.
 
-### EXEC-X: M124, tampilan jawaban di EDGE (disetujui; menunggu "go")
+### EXEC-X: M124, tampilan jawaban di EDGE (go 2026-10-08; berjalan)
 
 **Keputusan user 2026-10-08:**
 - "m124 kamu beresin saja ya"
 - "jadikan ini nice, inspect dulu code then generate plan"
-
-Rencana ini usulan. Eksekusi mulai hanya setelah "go".
+- Bingkai aplikasi: "Tidak, tetap inggris." Hanya area jawaban, tombol pilihan dan status yang berbahasa Indonesia.
+- "Go untuk EXEC-X? OK"
 
 **Temuan inspeksi (read-only, `main` `ee1bee1`; edge-bff `2dcf1155`, orc `9efe1118`).**
 
@@ -1021,7 +1023,7 @@ Selain itu, setiap pilihan dari backend di luar `options` hanya berupa teks.
 
 **Tidak termasuk:**
 - M123;
-- terjemahan bingkai aplikasi (Workspace, New conversation, Submit, Details), menunggu keputusan user;
+- terjemahan bingkai aplikasi (Workspace, New conversation, Submit, Details): user memutuskan tetap bahasa Inggris;
 - daftar nilai konfirmasi terstruktur, karena blok konfirmasi M117 tetap markdown tetapi kini terender;
 - tampilan per langkah mode 4;
 - berbagi publik.
