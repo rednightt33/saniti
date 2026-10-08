@@ -22,6 +22,8 @@ import re
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from . import user_texts as texts
+
 CHOICE_CALLS = {"quantile", "percentile", "nanpercentile", "nanquantile", "nlargest", "nsmallest", "qcut", "cut"}
 MAX_CHOICES = 30
 MAX_SEEN = 50_000
@@ -250,7 +252,7 @@ def classify(values: list[Typed], user_text: str, seen_strings: set[str], seen_s
 
 
 def describe_web(facts: list[dict[str, Any]]) -> str | None:
-    """S4b: the web facts the run used, each with its status and domains (written by the system)."""
+    """S4b: the web facts the run used, each with its status and domains (written by the system, user_texts)."""
     parts = []
     for fact in facts[:10]:
         versions = fact.get("versions") or []
@@ -258,23 +260,18 @@ def describe_web(facts: list[dict[str, Any]]) -> str | None:
             shown = " vs ".join(f"{v.get('value')} ({', '.join(v.get('domains') or [])})" for v in versions[:3])
         else:
             domains = ", ".join((versions[0].get("domains") or []) if versions else [])
-            shown = f"{fact.get('value') or 'tidak ditemukan'}" + (f" ({domains})" if domains else "")
-        parts.append(f"{fact.get('subject')} — {fact.get('attribute')}: {shown} [{fact.get('status')}]")
+            shown = f"{fact.get('value') or texts.words('NOT_FOUND')}" + (f" ({domains})" if domains else "")
+        parts.append(texts.WEB_FACT_ITEM.format(subject=fact.get("subject"), attribute=fact.get("attribute"),
+                                                shown=shown, status=texts.words(fact.get("status"))))
     if not parts:
         return None
-    return "Fakta web (dicari sistem, bukan dari data pasar): " + "; ".join(parts) + "."
+    return texts.WEB_FACTS_LINE.format(facts="; ".join(parts))
 
 
 def describe_web_research(lookups: list[dict[str, Any]]) -> str | None:
-    """Item 12: the web lookups of research_web the run made, each with its status and the domains of its items
-    (written by the system); the values themselves are named where they are shown."""
-    parts = []
-    for lookup in lookups[:10]:
-        domains = ", ".join(lookup.get("domains") or [])
-        parts.append(f"{lookup.get('need') or '-'} [{lookup.get('status')}" + (f"; {domains}" if domains else "") + "]")
-    if not parts:
-        return None
-    return "Fakta web (dicari sistem, bukan dari data pasar): " + "; ".join(parts) + "."
+    """Item 12: the web lookups of research_web the run made: how many, how each ended, the sites (system-written,
+    user_texts; the model's search text is not shown, P3 2026-10-08); the values are named where they are shown."""
+    return texts.web_lookups_line(lookups[:10])
 
 
 def describe_web_used(choices: list[dict[str, Any]]) -> str | None:

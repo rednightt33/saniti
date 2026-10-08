@@ -202,8 +202,9 @@ def test_the_system_names_the_web_lookups_of_the_run() -> None:
     final = FinalResponse(response_type="ANSWER", answer="Ekspor naik.", clarification_question=None,
                           assumptions=[], limitations=[])
     line = orc._with_ai_choices(state, final).assumptions[0]
-    assert line.startswith("Fakta web (dicari sistem") and "nilai ekspor Indonesia per tahun sejak 2018 [OK; " \
-        "bps.go.id, reuters.com]" in line
+    # P3 (2026-10-08): the reader sees how many topics, how they ended and the sites; never the model's search text
+    assert line == "Dicari di web (bukan dari data pasar): 1 topik, 1 ditemukan; sumber: bps.go.id, reuters.com."
+    assert "nilai ekspor" not in line and "[OK" not in line
     assert C.describe_web_research([]) is None
 
 
@@ -330,3 +331,13 @@ def test_only_http_links_are_registered() -> None:
     sources.add("web", "a", {"value": 1}, "WEB_FACT", origin="x.id", link="javascript:alert(1)")
     sources.add("web", "b", {"value": 1}, "WEB_FACT", origin="x.id", link="https://x.id/b")
     assert sources.links == {("web", "b"): "https://x.id/b"}
+
+
+def test_a_cited_web_fact_shows_its_page_date_and_quote_in_the_evidence() -> None:
+    orc, state, _ = tracked()
+    state.referenced = ["web.wab12cd34_1.value_as_written", "web.wab12cd34_3.value"]
+    items = orc._evidence(state)
+    assert [item["label"] for item in items] == ["Fakta web · bps.go.id", "Fakta web · reuters.com"]
+    first = items[0]["source"]
+    assert first["url"] == "https://www.bps.go.id/a" and first["official"] is True
+    assert first["quote"] == "Januari-Desember 2024 mencapai US$264,70 miliar"

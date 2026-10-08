@@ -1229,6 +1229,18 @@ lembar definisi dan asal data), beberapa angka dicocokkan langsung ke database, 
   tanggal, hari ekstrem). Cacat: M128 (a) tombol Download menampilkan kode file, diperbaiki di P4; (b) kolom file
   memakai nama internal dan lembar definisi tanpa arti kolom, usulan menunggu keputusan.
 
+**Tampilan mobile EDGE (permintaan user 2026-10-08: "mobile design juga perlu rapihkan terutama bagian bawah dan jump
+to latest / jump to latest pada mobile view hilangkan saja / kemudian untuk bagian stadard, server model etc mungkin
+bisa dibuat clean khusus untuk mobil sama seperti tampilan claude srkarang dimobile. penting: hanya berlaku untuk
+mobile, bukan desktop. jangan ubah desktop.")** Dibangun bersama P4 (perubahan EDGE):
+- Hanya di dalam media query lebar layar mobile di `static/index.html`; aturan desktop tidak disentuh.
+- Tombol "Jump to latest" tidak tampil di mobile.
+- Kotak tanya di mobile ringkas seperti aplikasi Claude: kolom teks di atas, satu baris di bawahnya berisi tombol
+  pilihan (Standard, Data Scope, lampiran) dalam satu tombol bulat kecil, lalu tombol kirim bulat di kanan; "Server
+  model" disembunyikan.
+- Bukti: tangkapan layar mobile sebelum dan sesudah; DOM dan tangkapan layar desktop (1440 dan 1024 px) identik
+  sebelum dan sesudah.
+
 **Tombol stop (permintaan user 2026-10-08: "kita jg perlu tambah stop button, which fungsinya kaya stop ai processing.
 saat ini sudah ada? jika belum masukan exec"; disetujui 2026-10-08: "Tombol stop OK masukan exec", dibangun sesudah
 P1–P5).** Belum ada (terverifikasi): BFF melaporkan `capabilities.cancel:

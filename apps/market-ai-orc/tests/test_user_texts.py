@@ -121,12 +121,29 @@ def test_a_code_without_words_is_shown_readable_not_raw() -> None:
 def test_a_cited_figure_is_named_from_its_address() -> None:
     """Derived from the address, so a new field or output needs no wording change to be readable."""
     assert texts.value_label("finding.vol_spike_up.groups.CONDITION.dates") == \
-        "Angka dari hasil riset: jumlah tanggal, kelompok sinyal"
+        "Dari hasil riset: jumlah tanggal, kelompok sinyal"
     assert texts.value_label("out.o3.rows.2.mean_return", {"out.o3": "Peringkat broker"}) == \
-        "Angka dari Peringkat broker: mean return"
+        "Dari Peringkat broker: mean return"
+    # M125 P2 (live answer 2026-10-08): a row picked by its key is named by the key, never "rows[ticker=bris]"
+    assert texts.value_label("reference.r1.rows[Ticker=BRIS].Company Name") == \
+        "Dari tabel referensi: company name (BRIS)"
+    assert texts.value_label("finding.h1.angle_a.condition_mean") == "Dari hasil riset: rata-rata kelompok sinyal, sudut a"
     assert "_" not in texts.value_label("finding.x.some_new_field")
 
 
 def test_a_plan_value_to_confirm_names_its_place_in_the_plan() -> None:
     assert texts.plan_item("experiments", 0) == "eksperimen 1" and texts.plan_item("angles", 2) == "sudut 3"
     assert texts.horizon_text({(10, "DAY")}) == "10 hari"
+
+
+def test_every_namespace_the_orchestrator_registers_has_a_name_for_the_reader() -> None:
+    """M125 P2: a value reference reads one of the namespaces the orchestrator registers; each is named in
+    SOURCE_NAMES, so a new namespace fails here until it has words (derived from the code, not listed by hand)."""
+    import re
+    from pathlib import Path
+    from app.value_refs import OUTSIDE_NAMESPACES
+    code = (Path(__file__).resolve().parents[1] / "app" / "orchestrator.py").read_text(encoding="utf-8")
+    registered = set(re.findall(r'sources\.add\(\(?"([a-z]+)"', code)) | set(OUTSIDE_NAMESPACES.values())
+    assert registered and registered <= set(texts.SOURCE_NAMES), registered - set(texts.SOURCE_NAMES)
+    for name in texts.SOURCE_NAMES.values():
+        assert not texts.INTERNAL_NAME.search(name)

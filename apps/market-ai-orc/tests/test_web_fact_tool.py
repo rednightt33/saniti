@@ -60,14 +60,14 @@ def test_the_fact_is_written_as_a_web_source_by_the_system() -> None:
     final = FinalResponse(response_type="ANSWER", answer="BBCA bank swasta.", clarification_question=None,
                           assumptions=[], limitations=[])
     line = orc._with_ai_choices(state, final).assumptions[0]
-    assert line.startswith("Fakta web") and "swasta (bisnis.com, kontan.co.id) [CONFIRMED]" in line
+    assert line.startswith("Fakta web") and "swasta (bisnis.com, kontan.co.id) (terkonfirmasi)" in line
 
 
 def test_a_conflict_shows_every_version() -> None:
     from app.ai_choices import describe_web
     conflict = {**CONFIRMED, "status": "CONFLICTING", "value": None,
                 "versions": [{"value": "swasta", "domains": ["a.com"]}, {"value": "BUMN", "domains": ["b.com"]}]}
-    assert "swasta (a.com) vs BUMN (b.com) [CONFLICTING]" in describe_web([conflict])
+    assert "swasta (a.com) vs BUMN (b.com) (sumbernya berbeda)" in describe_web([conflict])
 
 
 def test_settings() -> None:

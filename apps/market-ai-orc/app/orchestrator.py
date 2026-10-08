@@ -58,7 +58,7 @@ from .user_words import allowed_periods, current_design_changes, current_turn_re
 from .provenance import (CONTEXT, typed_figures, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
                          parse_numbers, released_numbers, requested_statistics, weakest)
 from .value_refs import (FUNC_RE, OUTSIDE_LABELS, OUTSIDE_NAMESPACES, REF_RE, UNITS, ReferenceSources, Resolved,
-                         TableRows, format_value, menu_address, registered_links_only, render)
+                         TableRows, format_value, menu_address, registered_links_only, render, safe_link)
 from .tools import ToolOutcome, ToolRegistry, error_outcome
 from .tools.analysis import DataDate, current_conversation_key, current_data_date, current_run_context, run_context
 from .tools.envelope import envelope
@@ -1345,8 +1345,7 @@ EXHAUSTED_LINE = "Pemeriksaan tidak selesai ({reason}). Kode permintaan: {reques
 EXHAUSTED_NO_DRAFT = "Tidak bisa dihitung: {reason} sebelum ada jawaban. Kode permintaan: {request_id}."
 EXHAUSTED_REASONS = {"MAX_ITERATIONS": "batas langkah tercapai", "ANALYSIS_TIMEOUT": "batas waktu tercapai"}
 # O4: every figure from the model's code is a value reference; the backend read each from its released table
-EVIDENCE_REFERENCED_LINE = ("Angka hasil analisis di jawaban ini dibaca backend langsung dari tabel hasil yang dirujuk "
-                            "(bukti DIRUJUK), tanpa hitung ulang terpisah dari kode AI.")
+EVIDENCE_REFERENCED_LINE = texts.EVIDENCE_REFERENCED_LINE
 
 RESPONSE_FORMAT_NAME = "saniti_agent_response"
 # M48 (2026-10-01): the refused draft goes back whole, so a repair sees what it repairs (it was 4000 characters from the
@@ -5343,6 +5342,16 @@ class AgentOrchestrator:
         for expr in state.referenced[:20]:
             head = ".".join(expr.split(".")[:2])
             output = outputs.get(head)
+            outside = state.ref_sources.outside_item(expr) if head.split(".")[0] in OUTSIDE_NAMESPACES.values() else None
+            if outside is not None:
+                # M125 P2: a web fact shows its page (linked), its date and the source's own words
+                page = outside.get("source") if isinstance(outside.get("source"), dict) else {}
+                items.append({"kind": "REFERENCED", "status": "DIRUJUK", "claim": expr,
+                              "label": texts.WEB_EVIDENCE.format(domain=page.get("domain") or "-"),
+                              "source": {"ref": head, "url": page.get("url") if safe_link(page.get("url")) else None,
+                                         "title": page.get("title"), "date": page.get("date"),
+                                         "official": page.get("official"), "quote": outside.get("quote")}})
+                continue
             # M125: "label" says in words what the figure is and where it comes from; "claim" keeps the address
             items.append({"kind": "REFERENCED", "status": "DIRUJUK", "claim": expr,
                           "label": texts.value_label(expr, names),

@@ -39,6 +39,9 @@ WORDS = {
     "DAY": "hari", "WEEK": "minggu", "MONTH": "bulan",
     # where a cited figure comes from
     "FACT": "data pasar", "WEB": "sumber web",
+    # the outcome of a web lookup (research_web, find_web_fact)
+    "OK": "ditemukan", "PARTIAL": "sebagian", "NOT_FOUND": "tidak ditemukan",
+    "BUDGET_EXHAUSTED": "batas biaya habis", "CONFIRMED": "terkonfirmasi", "CONFLICTING": "sumbernya berbeda",
 }
 
 
@@ -60,9 +63,14 @@ PARTS = {"CONDITION": "kelompok sinyal", "BASELINE": "kelompok pembanding", "dat
          "p_adjusted": "p setelah koreksi", "mean": "rata-rata", "median": "median", "count": "jumlah",
          "condition_mean": "rata-rata kelompok sinyal", "baseline_mean": "rata-rata kelompok pembanding",
          "hit_rate": "seberapa sering naik", "effective": "sampel efektif", "value": "nilai"}
-FIGURE_FROM = "Angka dari {source}: {what}"
-FINDING_SOURCE = "hasil riset"
+FIGURE_FROM = "Dari {source}: {what}"
 FIGURE_VALUE = "nilai"
+# M125 P2: every namespace a value reference can read, named for the reader (tests/test_user_texts.py checks that each
+# namespace the orchestrator registers has a name here)
+SOURCE_NAMES = {"out": "hasil analisis", "analysis": "hasil analisis", "finding": "hasil riset", "fact": "data pasar",
+                "metric": "data pasar", "reference": "tabel referensi", "web": "fakta web"}
+WEB_EVIDENCE = "Fakta web · {domain}"
+SELECTED_RE = re.compile(r"^(?P<name>[^\[\]]+)\[(?:[^=\[\]]+=)?(?P<value>[^\[\]]+)\]$")  # rows[Ticker=BRIS], rows[BRIS]
 
 
 def value_label(expression: str, output_names: dict[str, str] | None = None) -> str:
@@ -73,10 +81,23 @@ def value_label(expression: str, output_names: dict[str, str] | None = None) -> 
         return ""
     namespace, rest = parts[0], parts[2:] if len(parts) > 2 else parts[1:]
     source = (output_names or {}).get(".".join(parts[:2])) if namespace == "out" else None
-    source = source or (FINDING_SOURCE if namespace == "finding" else None) or words(namespace)
-    meaning = [p for i, p in enumerate(rest) if not p.isdigit() and not (p in STRUCTURE and i < len(rest) - 1)]
-    what = ", ".join(PARTS.get(p) or words(p) for p in reversed(meaning)) or FIGURE_VALUE
-    return FIGURE_FROM.format(source=source, what=what)
+    source = source or SOURCE_NAMES.get(namespace) or words(namespace)
+    entities, names = [], []
+    for part in rest:  # a row picked by its key ("rows[Ticker=BRIS]") is named by that key: "(BRIS)"
+        selected = SELECTED_RE.match(part)
+        if selected:
+            part = selected.group("name")
+            if not selected.group("value").lstrip("-").isdigit():
+                entities.append(selected.group("value").strip())
+        names.append(part)
+    meaning = [p for i, p in enumerate(names) if not p.isdigit() and not (p in STRUCTURE and i < len(names) - 1)]
+    what = ", ".join(PARTS.get(p) or _angle(p) or words(p) for p in reversed(meaning)) or FIGURE_VALUE
+    return FIGURE_FROM.format(source=source, what=what) + (f" ({', '.join(entities)})" if entities else "")
+
+
+def _angle(part: str) -> str | None:
+    """A multi-angle finding's angle id ("angle_a", "angle_quant") is the angle the reader sees as "sudut a"."""
+    return f"sudut {part[len('angle_'):].replace('_', ' ')}" if part.startswith("angle_") and len(part) > 6 else None
 
 
 # ---- notices that open a response the backend had to hold back ----
@@ -203,3 +224,24 @@ def horizon_text(horizons: object) -> str:
 
 # the internal names a user-facing text must not show (tests/test_user_texts.py)
 INTERNAL_NAME = re.compile(r"\b[a-z]+_[a-z0-9_]+\b|\b[A-Z]{2,}_[A-Z0-9_]+\b|\b[a-z]+[A-Z][A-Za-z]+\b")
+
+
+# ---- the web lookups of a run (system-written; P3, 2026-10-08) ----
+# The need is the model's search text, often English for wider results: it is not shown; the reader sees how many
+# topics were looked up, how each ended, and the sites the answer could draw on.
+WEB_LOOKUPS_LINE = "Dicari di web (bukan dari data pasar): {count} topik, {outcomes}; sumber: {domains}."
+WEB_FACTS_LINE = "Fakta web (dicari sistem, bukan dari data pasar): {facts}."
+WEB_FACT_ITEM = "{subject} — {attribute}: {shown} ({status})"
+EVIDENCE_REFERENCED_LINE = ("Angka hasil analisis di jawaban ini dibaca langsung dari tabel hasilnya, tanpa dihitung "
+                            "ulang secara terpisah.")
+
+
+def web_lookups_line(lookups: list[dict]) -> str | None:
+    if not lookups:
+        return None
+    counts: dict[str, int] = {}
+    for lookup in lookups:
+        counts[words(lookup.get("status"))] = counts.get(words(lookup.get("status")), 0) + 1
+    domains = sorted({d for lookup in lookups for d in lookup.get("domains") or []})
+    return WEB_LOOKUPS_LINE.format(count=len(lookups), outcomes=", ".join(f"{n} {w}" for w, n in counts.items()),
+                                   domains=", ".join(domains[:12]) + (" …" if len(domains) > 12 else "") or "-")
