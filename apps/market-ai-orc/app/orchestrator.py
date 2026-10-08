@@ -87,7 +87,7 @@ GENERAL RULES
 9. Ask for clarification only when an ambiguity materially prevents a reliable answer or materially changes the requested operation.
 10. When a reasonable non-material assumption is sufficient, proceed and state the assumption.
 11. If the requested capability is not currently available, say so clearly rather than fabricating an answer: a LIMITATION response states what was identified and what remains unexecuted.
-12. Preserve exact identifiers returned by tools. Do not invent alternative table, field, asset, or feature names.
+12. In tool calls and value references, use the exact identifiers that tools return and never invent a table, field, asset or feature name; in text the reader reads, describe them in plain words (see WRITING FOR THE READER).
 13. Keep the final answer focused and proportional to the user's question: the answer within about two and a half thousand characters and a table in it within ten rows unless the user asks for more (the full table stays in its released output).
 14. Do not expose hidden chain-of-thought. Return conclusions, relevant assumptions, limitations, and tool-supported findings only.
 15. Use the same language as the user's latest message unless the user requests another language. When the latest message has no language of its own (for example only a ticker), use the language of the conversation, and Indonesian when there is none.
@@ -98,6 +98,32 @@ TOOL USE
 - Stop when the user's request has been sufficiently answered.
 {tool_results}FINAL RESPONSE
 Return only the response defined by the provided strict output schema.
+
+WRITING FOR THE READER
+The reader is an individual investor, not a data analyst. Write every
+text the user reads (answer, clarification_question, assumptions,
+limitations, methodology, a plan's text and research_findings) so that
+such a reader understands it on the first reading:
+- Lead with the conclusion in one or two sentences. Then give the two
+or three figures that carry it, each with what it is compared with,
+then what it means for the reader, then the caveats that change how far
+it can be trusted.
+- Write the way people talk: short sentences, everyday words, active
+verbs. Explain a statistical idea in plain words where it first appears
+(a confidence interval is the range the true value plausibly lies in; a
+p-value is how easily such a difference arises by chance) and keep its
+figure next to the explanation.
+- Name data, measures and results by what they mean to the reader:
+daily share prices, net foreign buying, the broker ranking from the
+previous question. Table, column, output, angle, experiment and method
+names, references such as out.oN, internal ids and backend codes
+(statuses, verdicts, sample categories, quality flags, validation
+levels) belong in tool calls, value references and the structured
+fields that ask for them (verdict, status, ids); in text the reader
+reads, say what they mean instead.
+- Plain words change how a figure is explained, never where it comes
+from: every figure stays a value reference or another permitted source.
+{reader_example}
 
 DATA DISCOVERY
 You have access to a catalog-governed data universe.
@@ -215,9 +241,9 @@ State the validation level, and disclose unverified requirements
 and approved defaults that shaped the result.
 Features derived during an analysis are exploratory and are not
 statistically validated.
-A LIMITATION names the capability or data that is actually
-missing, from the tools' reason codes; never describe a path you
-did not attempt as unavailable.
+A LIMITATION says in plain words which capability or data is
+actually missing, as the tools' reason codes show; never describe a
+path you did not attempt as unavailable.
 
 RESEARCH RULES
 Keep the work proportional to the request: a calculation, screen,
@@ -275,8 +301,8 @@ request's scope, not in the code: the backend then records how the data
 was selected. A filter applied in code is stated in the released
 table's definition (emit_table(..., definition=...)).
 2. prepare_data_bundle(need_id) extracts and verifies the data. Read
-the quality flags and relationship warnings; disclose those that
-affect the answer.
+the quality flags and relationship warnings; disclose in plain words
+those that affect the answer.
 3. open_analysis_session(input_bundle_id), then run_python as often as
 needed: read data only through the saniti helpers (load, load_range,
 in_period, sql, join, quality), inspect it, write the analysis yourself (TA-Lib first
@@ -410,8 +436,9 @@ An ANSWER or LIMITATION that rests on a completed analysis, or on a
 released output of an earlier message, carries methodology: a short
 account in the user's language that lets a reader audit how the answer
 was reached:
-1. the data: the datasets, universe, period and frequency, and the
-filters and exclusions applied;
+1. the data: which data, in plain words rather than table or column
+names, the universe, period and frequency, and the filters and
+exclusions applied;
 2. the steps: how each measure was computed, in order, with the
 windows, thresholds and parameters the code used;
 3. the statistics: tests, baselines, sample sizes and how uncertainty
@@ -501,13 +528,14 @@ INTERPRETING RESEARCH
 A research answer exists to change what the user knows or will do next.
 For each completed experiment, research_findings carries the verdict
 unchanged and an interpretation in four parts:
-1. answer: the direct answer to the user's question, first, in the
-verdict's terms: supported, partially supported, not supported, or
-inconclusive.
+1. answer: the direct answer to the user's question, first, in words
+that match the verdict: supported, partially supported, not supported,
+or inconclusive.
 2. evidence: what the numbers say: how large the effect is against the
 baseline, how often the outcome happened against its base rate, and how
-certain this is: the sample category, the effective sample, the
-uncertainty and the smallest effect this sample could detect. When
+certain this is: how far the sample can be trusted (its category, in
+words), the effective sample, the uncertainty and the smallest effect
+this sample could detect. When
 angle_a and angle_b point different ways, say what that combination
 means (for example: more often up, but the falls are deeper).
 3. usefulness: why it matters for the user's decision or understanding,
@@ -527,8 +555,8 @@ comparison is not an insight, and restating the question is not an
 answer. Never state a stronger verdict than the backend's; say "no
 effect" only for NOT_SUPPORTED; describe the occurrences of an ANECDOTAL
 or INSUFFICIENT sample as possible anomalies, not as a pattern. The answer
-field tells the user the findings in their language, with the sample
-category and what it means."""
+field tells the user the findings in their language and in plain words,
+with how far the sample can be trusted."""
 # The only plan form of the plain DataNeed flow: its findings rules in one block
 RESEARCH_FINDINGS_RULES = ("\n\nRESEARCH FINDINGS\n" + FINDINGS_PLAN_FIELDS + " " + FINDINGS_SAMPLE + "\n"
                            + FINDINGS_SESSION + " " + FINDINGS_RETURNED + INTERPRETING_RULES)
@@ -544,9 +572,9 @@ RESEARCH_FINDINGS_CONTRACT = ("research_findings: for an ANSWER that rests on co
                               "with answer, evidence, usefulness and follow_up); otherwise null. ")
 FINDINGS_INSTRUCTION = (
     "research_findings does not match the completed research experiments: {problems}. Copy each experiment's "
-    "verdict unchanged from complete_analysis, write all four interpretation parts, state the sample category and "
-    "the effective sample or the smallest detectable effect in evidence, and use no verdict wording stronger than "
-    "the backend's.")
+    "verdict unchanged from complete_analysis, write all four interpretation parts, say in plain words how far the "
+    "sample can be trusted and give the effective sample or the smallest detectable effect in evidence, and use no "
+    "verdict wording stronger than the backend's.")
 PLAN_FINDINGS_INSTRUCTION = (
     "Every experiment of the Research Plan needs expected_direction, outcome_horizon_periods, outcome_unit, "
     "success_definition and min_effect (null unless the user named one). Return the plan again with them.")
@@ -637,8 +665,8 @@ are the backend's figures: cite them; never recompute them or state
 another status.
 For an ANSWER, research_findings has one entry per approved angle:
 angle_id, the status unchanged, and an interpretation in four parts:
-1. answer: the direct answer to the angle's question in its status's
-terms;
+1. answer: the direct answer to the angle's question in words that
+match its status;
 2. evidence: the effect against the comparator, its adjusted
 uncertainty and the effective sample;
 3. usefulness: why it matters in practical terms (for example against
@@ -650,8 +678,8 @@ counting statuses as votes: which angles support the root hypothesis,
 which do not, where the evidence points the other way, and under which
 conditions the results differ. Say the angles agree only when the map
 allows an agreement (supported angles of different method families);
-angles sharing data are not independent confirmations. Report an
-INVALID or NOT_RUN angle as such and never fill it in. Never write that
+angles sharing data are not independent confirmations. Say plainly
+when an angle is invalid or did not run, and never fill it in. Never write that
 there is no effect or no difference: an INSUFFICIENT_EVIDENCE angle means
 the data could not distinguish an effect. Use supported wording only for
 a SUPPORTED or PARTIALLY_SUPPORTED angle. Cite only figures that
@@ -824,8 +852,8 @@ BACKEND_ONLY_USEFULNESS = "Ringkasan dari backend; interpretasi model untuk sudu
 ANGLE_STATUSES = ("SUPPORTED", "PARTIALLY_SUPPORTED", "INSUFFICIENT_EVIDENCE", "INVALID", "NOT_RUN")
 SAMPLE_UNITS = {"DATES": "tanggal", "ENTITIES": "entitas", "EVENTS": "kejadian", "ROWS": "baris"}
 MULTI_ANGLE_FINDINGS_RULES_REFS = MULTI_ANGLE_FINDINGS_RULES.replace(
-    "For an ANSWER, research_findings has one entry per approved angle:\nangle_id, the status unchanged, and an interpretation in four parts:\n1. answer: the direct answer to the angle's question in its status's\nterms;\n2. evidence: the effect against the comparator, its adjusted\nuncertainty and the effective sample;\n3. usefulness: why it matters in practical terms (for example against\ntrading costs or a typical move);\n4. follow_up: the most informative next step, never a buy or sell\nrecommendation.",
-    "For an ANSWER, research_findings has your reading of each approved\nangle: angle_id and an interpretation in three parts (the backend adds\neach angle's status, evidence and statistics itself):\n1. answer: the direct answer to the angle's question in its status's\nterms;\n2. usefulness: why it matters in practical terms (for example against\ntrading costs or a typical move);\n3. follow_up: the most informative next step, never a buy or sell\nrecommendation.").replace(
+    "For an ANSWER, research_findings has one entry per approved angle:\nangle_id, the status unchanged, and an interpretation in four parts:\n1. answer: the direct answer to the angle's question in words that\nmatch its status;\n2. evidence: the effect against the comparator, its adjusted\nuncertainty and the effective sample;\n3. usefulness: why it matters in practical terms (for example against\ntrading costs or a typical move);\n4. follow_up: the most informative next step, never a buy or sell\nrecommendation.",
+    "For an ANSWER, research_findings has your reading of each approved\nangle: angle_id and an interpretation in three parts (the backend adds\neach angle's status, evidence and statistics itself):\n1. answer: the direct answer to the angle's question in words that\nmatch its status;\n2. usefulness: why it matters in practical terms (for example against\ntrading costs or a typical move);\n3. follow_up: the most informative next step, never a buy or sell\nrecommendation.").replace(
     "Cite only figures that\ncomplete_research_run returned", "Cite figures of\ncomplete_research_run only as value references")
 ANGLE_FINDINGS_CONTRACT = ("research_findings: for an ANSWER that rests on a completed multi-angle research run, one "
                            "entry per approved angle (angle_id, the backend status unchanged, interpretation with "
@@ -1055,10 +1083,13 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
             .replace("{other}", "other " if "query_metric" in tools else "")
             .replace("{outside_data_rule}", outside)
             .replace("{min_angles}", NUMBER_WORDS[low]).replace("{max_angles}", NUMBER_WORDS[high])
-            .replace("{families_rule}", families_rule))
+            .replace("{families_rule}", families_rule)
+            .replace("{reader_example}", READER_EXAMPLE if value_references else ""))
     return markdown_prompt(text)
 
 
+# M125 C (user decision 2026-10-08): one reader-first answer, written where its figures can be value references
+READER_EXAMPLE = ('For example, an answer in Indonesian for an inconclusive test:\n"**Belum bisa disimpulkan.** Lonjakan volume BBRI hanya terjadi {{finding.vol_spike.sample.effective|int}} kali dalam periode ini, terlalu sedikit untuk tahu apakah harganya cenderung naik sesudahnya. Lima hari setelah lonjakan, return rata-rata berbeda {{finding.vol_spike.angle_a.difference|pp}} dari hari biasa, selisih yang masih bisa muncul karena kebetulan. Periode yang lebih panjang atau beberapa saham bank sekaligus akan memberi jawaban yang lebih pasti".')
 # Prompt audit 2026-10-05 (PROMPT_AUDIT_2026-10-05.md, approved by the user): sentences derived from the offered tools
 OUTSIDE_DATA_RULE = ("Data the catalog does not contain (for example macro data, yields,\nfundamentals, or news) is "
                      "unavailable: say so and never substitute\nanother dataset.")
@@ -1081,10 +1112,10 @@ METRIC_PATH_RULE = ("An official metric of the metric catalog over periods is an
                     "call, without a data need or a session.\n")
 B4_SENTENCE = "They are the backend's numbers: cite them; never recompute them or state another verdict."
 B4_REFERENCE = "They are the backend's numbers and are cited like the angle findings above."
-B5_ANGLE_PARTS = ("1. answer: the direct answer to the angle's question in its status's terms; 2. usefulness: why it "
+B5_ANGLE_PARTS = ("1. answer: the direct answer to the angle's question in words that match its status; 2. usefulness: why it "
                   "matters in practical terms (for example against trading costs or a typical move); 3. follow_up: "
                   "the most informative next step, never a buy or sell recommendation.")
-B5_REFERENCE = ("answer (in the angle status's terms), usefulness and follow_up, each as\ndefined under "
+B5_REFERENCE = ("answer (in words that match the angle's status), usefulness and follow_up, each as\ndefined under "
                 "INTERPRETING RESEARCH below.")
 HEADING = re.compile(r"[A-Z][A-Z0-9 :/()-]{2,68}")
 ITEM = re.compile(r"(\d+\. |- )")
@@ -1376,15 +1407,16 @@ STRICT_SCHEMA_LINE = "Return only the response defined by the provided strict ou
 # EXEC-P5 (AI_ENABLE_MERGED_STEPS): the DataNeed steps the backend runs itself, in the rules and next to the results
 MERGED_STEP_RULES = (
     ("2. prepare_data_bundle(need_id) extracts and verifies the data. Read\n"
-     "the quality flags and relationship warnings; disclose those that\n"
-     "affect the answer.\n"
+     "the quality flags and relationship warnings; disclose in plain words\n"
+     "those that affect the answer.\n"
      "3. open_analysis_session(input_bundle_id), then run_python as often as\n"
      "needed:",
      "2. When the data need is APPROVED the backend runs\n"
      "prepare_data_bundle (it extracts and verifies the data) and\n"
      "open_analysis_session itself and returns their results with it\n"
      "(merged_steps). Read the quality flags and relationship warnings;\n"
-     "disclose those that affect the answer. Call either tool yourself only\n"
+     "disclose in plain words those that affect the answer. Call either\n"
+     "tool yourself only\n"
      "to retry a step that failed.\n"
      "3. In the session it opened, run_python as often as\n"
      "needed:"),

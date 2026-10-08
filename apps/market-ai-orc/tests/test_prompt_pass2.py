@@ -131,7 +131,48 @@ ADDED = {
     "variables);",
     "otherwise it opens a new session.",
 }
-SECTIONS = ["GENERAL RULES", "TOOL USE", "TOOL RESULTS", "FINAL RESPONSE", "DATA DISCOVERY", "DATA SOURCES",
+# M125 C (user decisions 2026-10-08: "Naikan batas", "Lanjut tulis prompt. Pakai best practice prompt. Pastikan tidak
+# ada prompt yg contradict di system prompt."): the reader section, and the sentences that asked for codes or names
+# in the reader's text. A sentence an earlier change added and this one replaces leaves ADDED instead of joining REMOVED.
+C_REMOVED = {
+    "An ANSWER or LIMITATION that rests on a completed analysis, or on a released output of an earlier message, carries methodology: a short account in the user's language that lets a reader audit how the answer was reached: the data: the datasets, universe, period and frequency, and the filters and exclusions applied;",
+    "Do not invent alternative table, field, asset, or feature names.",
+    "For an ANSWER, research_findings has your reading of each approved angle: angle_id and an interpretation in three parts (the backend adds each angle's status, evidence and statistics itself): answer (in the angle status's terms), usefulness and follow_up, each as defined under INTERPRETING RESEARCH below.",
+    "For each completed experiment, research_findings carries the verdict unchanged and an interpretation in four parts: answer: the direct answer to the user's question, first, in the verdict's terms: supported, partially supported, not supported, or inconclusive.",
+    "Preserve exact identifiers returned by tools.",
+    "Report an INVALID or NOT_RUN angle as such and never fill it in.",
+    "The answer field tells the user the findings in their language, with the sample category and what it means.",
+    "disclose those that affect the answer.",
+    "evidence: what the numbers say: how large the effect is against the baseline, how often the outcome happened against its base rate, and how certain this is: the sample category, the effective sample, the uncertainty and the smallest effect this sample could detect."
+}
+C_ADDED = {
+    "An ANSWER or LIMITATION that rests on a completed analysis, or on a released output of an earlier message, carries methodology: a short account in the user's language that lets a reader audit how the answer was reached: the data: which data, in plain words rather than table or column names, the universe, period and frequency, and the filters and exclusions applied;",
+    "Explain a statistical idea in plain words where it first appears (a confidence interval is the range the true value plausibly lies in; a p-value is how easily such a difference arises by chance) and keep its figure next to the explanation.",
+    "For an ANSWER, research_findings has your reading of each approved angle: angle_id and an interpretation in three parts (the backend adds each angle's status, evidence and statistics itself): answer (in words that match the angle's status), usefulness and follow_up, each as defined under INTERPRETING RESEARCH below.",
+    "For each completed experiment, research_findings carries the verdict unchanged and an interpretation in four parts: answer: the direct answer to the user's question, first, in words that match the verdict: supported, partially supported, not supported, or inconclusive.",
+    "For example, an answer in Indonesian for an inconclusive test: \"**Belum bisa disimpulkan.** Lonjakan volume BBRI hanya terjadi {{finding.vol_spike.sample.effective|int}} kali dalam periode ini, terlalu sedikit untuk tahu apakah harganya cenderung naik sesudahnya.",
+    "In tool calls and value references, use the exact identifiers that tools return and never invent a table, field, asset or feature name;",
+    "Lima hari setelah lonjakan, return rata-rata berbeda {{finding.vol_spike.angle_a.difference|pp}} dari hari biasa, selisih yang masih bisa muncul karena kebetulan.",
+    "Name data, measures and results by what they mean to the reader: daily share prices, net foreign buying, the broker ranking from the previous question.",
+    "Periode yang lebih panjang atau beberapa saham bank sekaligus akan memberi jawaban yang lebih pasti\".",
+    "Plain words change how a figure is explained, never where it comes from: every figure stays a value reference or another permitted source.",
+    "Say plainly when an angle is invalid or did not run, and never fill it in.",
+    "Table, column, output, angle, experiment and method names, references such as out.oN, internal ids and backend codes (statuses, verdicts, sample categories, quality flags, validation levels) belong in tool calls, value references and the structured fields that ask for them (verdict, status, ids);",
+    "The answer field tells the user the findings in their language and in plain words, with how far the sample can be trusted.",
+    "The reader is an individual investor, not a data analyst.",
+    "Then give the two or three figures that carry it, each with what it is compared with, then what it means for the reader, then the caveats that change how far it can be trusted.",
+    "Write every text the user reads (answer, clarification_question, assumptions, limitations, methodology, a plan's text and research_findings) so that such a reader understands it on the first reading: Lead with the conclusion in one or two sentences.",
+    "Write the way people talk: short sentences, everyday words, active verbs.",
+    "disclose in plain words those that affect the answer.",
+    "evidence: what the numbers say: how large the effect is against the baseline, how often the outcome happened against its base rate, and how certain this is: how far the sample can be trusted (its category, in words), the effective sample, the uncertainty and the smallest effect this sample could detect.",
+    "in text the reader reads, describe them in plain words (see WRITING FOR THE READER).",
+    "in text the reader reads, say what they mean instead."
+}
+REMOVED, ADDED = (REMOVED | (C_REMOVED - ADDED)) - C_ADDED, (ADDED - C_REMOVED) | (C_ADDED - REMOVED)
+# the reader section added about six percent (the budget was two percent over the pass-2 fixture)
+SIZE_BUDGET = 1.09
+
+SECTIONS = ["GENERAL RULES", "TOOL USE", "TOOL RESULTS", "FINAL RESPONSE", "WRITING FOR THE READER", "DATA DISCOVERY", "DATA SOURCES",
             "DATA NEED", "MODES", "TIME BASIS", "NAMED-PERIOD RETURNS", "WEEKLY AND MONTHLY", "CONVERSATION REUSE",
             "VALUE REFERENCES", "METHODOLOGY", "RESEARCH PLANS", "MULTI-ANGLE PLAN", "HYPOTHESIS PLAN",
             "RESEARCH PLAN FORMS", "MULTI-ANGLE FINDINGS", "HYPOTHESIS FINDINGS", "INTERPRETING RESEARCH"]
@@ -168,7 +209,7 @@ def test_no_new_digit_no_long_prose_line_and_at_most_two_percent_more() -> None:
     text, digits = dev_prompt(), re.compile(r"\d")
     assert sorted(digits.findall(text)) == sorted(digits.findall(BEFORE))  # the prompt is a number source
     assert all(len(line) <= MAX_PARAGRAPH_CHARS for line in text.splitlines() if not line.startswith("{"))
-    assert len(text) <= len(BEFORE) * 1.02
+    assert len(text) <= len(BEFORE) * SIZE_BUDGET
     assert markdown_prompt(text) == text  # formatting is stable
 
 
@@ -192,3 +233,18 @@ def test_the_moved_blocks_sit_where_they_are_used() -> None:
     assert "{\"carried_inputs\"" in section("RESEARCH PLAN FORMS") and "{\"carried_inputs\"" not in section("FINAL RESPONSE")
     # F2.5: the tool-result envelope right after TOOL USE, only when the envelope is on
     assert "## TOOL RESULTS" not in build_system_prompt(**DEV, tools=DEV_TOOLS)
+
+
+def test_no_sentence_asks_for_codes_or_names_in_the_readers_text() -> None:
+    """M125 C (user decision 2026-10-08: "Pastikan tidak ada prompt yg contradict di system prompt"): WRITING FOR THE
+    READER keeps codes, categories and identifiers out of the text the user reads. A sentence that tells the response to
+    say, state, report, disclose or name one of them must ask for plain words too, in every prompt the service builds."""
+    from app.orchestrator import SYSTEM_PROMPT
+    asks = re.compile(r"\b(say|says|state|states|report|reports|tell|tells|disclose|name|names)\b", re.I)
+    coded = re.compile(r"\b(categor(y|ies)|(reason|backend|status) codes?|identifiers?|flags?|terms)\b", re.I)
+    plain = re.compile(r"\b(plain words|in words|what they mean|say what)\b", re.I)
+    tool_side = re.compile(r"\btool calls\b", re.I)  # a sentence about what goes into tool calls, not the reader's text
+    for prompt in (dev_prompt(), SYSTEM_PROMPT):
+        conflicting = [s for s in inventory(prompt)
+                       if asks.search(s) and coded.search(s) and not plain.search(s) and not tool_side.search(s)]
+        assert conflicting == [], conflicting

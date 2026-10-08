@@ -110,11 +110,11 @@ class FindingInterpretation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     answer: str = Field(min_length=1, max_length=2000,
-                        description="The direct answer to the user's question in the verdict's terms.")
+                        description="The direct answer to the user's question, in words that match the verdict.")
     evidence: str = Field(min_length=1, max_length=3000,
                           description="What the numbers say: effect size against the baseline, how often the "
-                                      "outcome happened against its base rate, and how certain (sample category, "
-                                      "uncertainty, smallest detectable effect).")
+                                      "outcome happened against its base rate, and how certain (how far the sample "
+                                      "can be trusted, in words; uncertainty; smallest detectable effect).")
     usefulness: str = Field(min_length=1, max_length=2000,
                             description="Why it matters for the user's decision, sized in practical terms.")
     follow_up: str = Field(min_length=1, max_length=2000,
@@ -152,7 +152,8 @@ class NarrativeParts(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     answer: str = Field(min_length=1, max_length=2000,
-                        description="The direct answer to the angle's question in its backend status's terms.")
+                        description="The direct answer to the angle's question, in words that match its backend "
+                                    "status.")
     usefulness: str = Field(min_length=1, max_length=2000,
                             description="Why it matters for the user's decision, sized in practical terms.")
     follow_up: str = Field(min_length=1, max_length=2000,
@@ -354,8 +355,8 @@ FINAL_RESPONSE_SCHEMA: dict[str, Any] = {
 METHODOLOGY_PROPERTY: dict[str, Any] = {
     "type": ["string", "null"],
     "description": (
-        "For an ANSWER or LIMITATION that rests on an analysis: how it was reached, in plain words (the data and "
-        "period used, filters and exclusions, the calculation steps, statistical methods and their parameters). "
+        "For an ANSWER or LIMITATION that rests on an analysis: how it was reached, in plain words (the data in "
+        "words rather than table or column names, the period used, filters and exclusions, the calculation steps, statistical methods and their parameters). "
         "Otherwise null."),
 }
 

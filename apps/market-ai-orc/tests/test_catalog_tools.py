@@ -166,8 +166,10 @@ to completing a user's analytical calculation."""
         assert rule in python_block, rule
     validation_block = SYSTEM_PROMPT[SYSTEM_PROMPT.index("ANALYSIS VALIDATION RULES"):]
     # prompt audit 2026-10-05: Markdown headings, wrapped lines joined; B6 moved the LIMITATION sentence to rule 11
-    assert SYSTEM_PROMPT.endswith("strict output schema.\n\n" + markdown_prompt(block) + "\n\n## " + query_block
-                                  + python_block + validation_block)
+    # M125 C (2026-10-08): WRITING FOR THE READER stands between the final response and the data rules
+    reader = SYSTEM_PROMPT[SYSTEM_PROMPT.index("## WRITING FOR THE READER"):SYSTEM_PROMPT.index("## DATA DISCOVERY")]
+    assert SYSTEM_PROMPT.endswith("strict output schema.\n\n" + reader + markdown_prompt(block) + "\n\n## "
+                                  + query_block + python_block + validation_block)
     assert "a LIMITATION response states what was identified and what remains unexecuted" in SYSTEM_PROMPT
     for rule in ("analysis_type is ANALYSIS", "provenance", "CATALOG_RESOLVED", "Never change the user's requested period",
                  "execution_status and validation_status are independent", "never describe a path you did not attempt",

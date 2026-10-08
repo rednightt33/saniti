@@ -416,7 +416,9 @@ def blob_registry() -> ToolRegistry:
 
 
 # About 1.7k tokens of instructions/tools/schema; each 21,000-byte result adds ~7k tokens.
-BUDGET = {"AI_MAX_CONTEXT_TOKENS": "20000", "AI_MAX_OUTPUT_TOKENS": "1000"}
+# M125 C (2026-10-08): the reader section added about five hundred tokens to the system prompt; the budget keeps
+# the same room for the two pages the tests read
+BUDGET = {"AI_MAX_CONTEXT_TOKENS": "20500", "AI_MAX_OUTPUT_TOKENS": "1000"}
 LIMITATION = {
     "response_type": "LIMITATION",
     "answer": "Only part of the requested records could be read.",

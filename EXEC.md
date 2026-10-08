@@ -1144,7 +1144,38 @@ practice dulu then inspect current architecture").** Hanya laporan, belum ada pe
   - Kalimat median 19,5 kata.
   - Yang terbanyak: INSUFFICIENT_EVIDENCE ×22, UNDERPOWERED ×17, SUPPORTED ×13, `out.oN`, nama metode dalam snake_case,
     dan nama tabel (IDX_Stock_Universe ×6).
-- **Menunggu keputusan user:** usulan desain C dan cara membayar ruang prompt.
+- **Keputusan user 2026-10-08:**
+  - Ruang prompt: "Naikan batas". Batas ukuran prompt +2% (EXEC-P2) dinaikkan; besarnya diusulkan bersama draf.
+  - "Lanjut tulis prompt. Pakai best practice prompt. Pastikan tidak ada prompt yg contradict di system prompt."
+  - Draf ditulis dan diuji offline dulu. GT berbayar hanya atas perintah.
+- **Dibangun 2026-10-08 (cabang sesi, belum deploy):**
+  - Bagian prompt baru **WRITING FOR THE READER**, letaknya setelah FINAL RESPONSE dan berlaku di semua jalur dan mode 4.
+    Isinya:
+    - pembacanya investor perorangan;
+    - kesimpulan dulu, lalu dua atau tiga angka dengan pembandingnya, lalu artinya, lalu batasannya;
+    - kalimat pendek dan kata sehari-hari, istilah statistik dijelaskan sekali;
+    - nama tabel, kolom, output, sudut, eksperimen dan metode, ref `out.oN`, ID dan kode tidak muncul di teks pembaca;
+    - angka tetap berupa referensi nilai;
+    - satu contoh jawaban berbahasa Indonesia. Contoh ini memakai referensi nilai, jadi hanya ditulis bila fitur itu aktif.
+  - Kalimat yang bertentangan diperbaiki:
+    - aturan 12, karena nama persis hanya untuk pemanggilan tool dan referensi;
+    - "disclose" bendera kualitas, menjadi dengan kata biasa;
+    - data di METHODOLOGY, tanpa nama tabel atau kolom;
+    - "in the verdict's terms" dan "in its status's terms", menjadi kata yang sesuai putusan;
+    - "the sample category", menjadi seberapa sampel bisa dipegang, dengan kata;
+    - "Report an INVALID or NOT_RUN angle as such";
+    - kalimat penutup INTERPRETING;
+    - instruksi perbaikan temuan;
+    - di jalur lama, "LIMITATION names ... from the tools' reason codes".
+  - Deskripsi skema yang dibaca model juga diselaraskan (temuan, jawaban sudut, metodologi).
+  - Ukuran prompt dev naik dari +2,0% menjadi +8,6% terhadap fixture pass-2; batas baru `SIZE_BUDGET` 1,09.
+  - Tercatat di `tests/test_prompt_pass2.py`: 9 kalimat dihapus dan 21 ditambah, urutan bagian, dan uji baru
+    `test_no_sentence_asks_for_codes_or_names_in_the_readers_text`. Uji ini terbukti menangkap dua kalimat konflik di
+    prompt lama.
+  - Anggaran konteks uji dinaikkan sekitar lima ratus token, sebesar ukuran bagian baru.
+  - Uji orc: 1.563 lulus.
+  - Langkah berikut: GT kecil berbayar sebelum dan sesudah, diukur dengan `scripts/answer_plainness.py`. Hanya atas
+    perintah user, dan kredit perlu dicek dulu.
 
 **Langkah berikut:** user melihat pratinjau. Setelah OK: gabung ke `main`, deploy orc dan edge-bff sampai SUCCESS, cek
 live tanpa biaya AI, lalu catat di changelog.
