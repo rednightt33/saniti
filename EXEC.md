@@ -317,6 +317,27 @@ sama bisa di proses di sandbox lain." Belum dijalankan; rencana eksekusi menungg
 - Masih terbuka: tahap 3 (pertanyaan diperjelas), opsi M113 (dengan benchmark).
 - Persetujuan ini untuk rencana; eksekusi menunggu konfirmasi "go".
 
+**Keputusan user 2026-10-08 (lanjutan 2):**
+- Aturan yang menutup ruang kerja: "Harus diubah agar 'membuka satu tidak menutup yang lain'. Ok masukan exec terkait
+  ini." Yang diubah:
+  - A (orc `_one_open_session`, S08): membuka ruang kerja baru tidak lagi menutup ruang kerja run ini yang belum selesai.
+  - B (orc, tahap 1 opsi B): penolakan pembukaan selama ada ruang kerja belum dipakai/belum diselesaikan dicabut.
+  - C (orc `_merged_steps`, M102 + tahap 1): ruang kerja tetap dibuka otomatis setelah data siap selama di bawah batas;
+    `COMPLETE_OPEN_SESSION_FIRST` dicabut.
+  - D (sandbox `_take_slot`): ruang kerja run ini yang belum selesai tidak ditutup (`REPLACED_IN_REQUEST` dicabut);
+    pembukaan di atas batas ditolak dengan pesan jelas.
+  - Turunan yang diperlukan: AI diberi tahu batasnya (deskripsi `open_analysis_session` dan prompt: sampai 4 ruang kerja
+    per jawaban, membuka satu tidak menutup yang lain, data yang sama dipakai ulang di ruang kerja lain), dan penolakan
+    ke-5 menyebut ruang kerja yang terbuka beserta langkah berikutnya (pakai, selesaikan, atau tutup salah satu). Teks
+    "one session of a request is open at a time" dihapus dari semua pesan.
+  - Tetap: idle 15 menit, umur 1 jam, proses mati, restart, pelepasan di akhir jawaban, penggusuran ruang kerja WARM_IDLE
+    percakapan lain bila slot penuh, kelompok riset multi-sudut satu per satu.
+- Tahap 3: "Tahap 3 we'll go with opsi B." Dicabut: satu uji = satu kebutuhan data = satu ruang kerja (kapabilitas
+  `research_multi_experiment` dimatikan, `research_experiments` tidak ditawarkan; Tool_Catalog round baru untuk
+  `submit_data_need_spec` tanpa field itu). Data yang sama tetap tidak ditarik ulang (tahap 2) dan boleh dipakai di
+  ruang kerja lain.
+- M113: penjelasan cara backend mendeteksi data yang sama diminta; opsi belum dipilih.
+
 **Hasil tahap 1 (2026-10-07, V-a opsi B):**
 - **Kode** (`d25e108`, `apps/market-ai-orc/app/orchestrator.py`):
   - `_one_open_session` menolak pembukaan paket lain dengan `ANALYSIS_SESSION_ALREADY_OPEN` selama sesi run ini belum
