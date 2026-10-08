@@ -52,7 +52,7 @@ export default defineRailway(() => {
     env: { AUDIT_STORE_SANDBOX_KEY: preserve(), AUDIT_STORE_URL: preserve(), PORT: preserve(), PY_SANDBOX_API_KEY: preserve(), PY_SANDBOX_AUDIT_STORE_ENABLED: preserve(), PY_SANDBOX_BUNDLE_MAX_ROWS: preserve(), PY_SANDBOX_BUNDLE_RETENTION_HOURS: preserve(), PY_SANDBOX_DATANEED_ENABLED: preserve(), PY_SANDBOX_DERIVED_FREQUENCY_ENABLED: preserve(), PY_SANDBOX_ENABLE_CONVERSATION_REUSE: preserve(), PY_SANDBOX_MAX_ANALYSES_PER_REQUEST: preserve(), PY_SANDBOX_MAX_CPU_SECONDS_PER_REQUEST: preserve(), PY_SANDBOX_MAX_MEMORY_MB: preserve(), PY_SANDBOX_MAX_SESSIONS: preserve(), PY_SANDBOX_MAX_SPECS_PER_REQUEST: preserve(), PY_SANDBOX_MODULES_AUDIT_ENABLED: preserve(), PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED: preserve(), PY_SANDBOX_OPEN_WAIT_SECONDS: preserve(), PY_SANDBOX_RESEARCH_FINDINGS_ENABLED: preserve(), PY_SANDBOX_RESEARCH_MIN_ANGLES: preserve(), PY_SANDBOX_RESULT_RETENTION_HOURS: preserve(), SQL_GOVERNOR_DATASET_ACCESS_KEY: preserve(), SQL_GOVERNOR_URL: preserve() },
   });
   const marketAiOrc = service("market-ai-orc", {
-    source: github("rednightt33/saniti", { branch: "codex/edge-bff", checkSuites: false, rootDirectory: "/apps/market-ai-orc" }),
+    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-ai-orc" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/market-ai-orc/**"] },
     start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080",
     healthcheck: "/ready",
@@ -119,7 +119,7 @@ export default defineRailway(() => {
     env: { DATABASE_URL: preserve(), TELEGRAM_NOTIFY_ATTEMPTS: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_TIMEOUT: preserve(), TELEGRAM_NOTIFY_URL: preserve() },
   });
   const edgeBff = service("edge-bff", {
-    source: github("rednightt33/saniti", { branch: "codex/edge-bff", checkSuites: false, rootDirectory: "/apps/edge-bff" }),
+    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/edge-bff" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/edge-bff/**"] },
     start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080 --workers 1 --no-access-log --no-proxy-headers",
     healthcheck: "/ready",
