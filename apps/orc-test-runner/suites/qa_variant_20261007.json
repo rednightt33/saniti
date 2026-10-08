@@ -1,11 +1,11 @@
 {
-  "prefix": "ma-qa-variant-20261007a",
+  "prefix": "ma-qa-variant-20261008a",
   "workers": 2,
   "audit_wait_seconds": 0,
   "items": [
     {
       "id": "variant_research_bbca",
-      "expect": "EXEC-V research (M110): the four experiments (2 volume thresholds x 2 horizons) share one data need, one bundle and one analysis session; analysis_sessions_superseded = 0; turn 2 uses fewer model calls than ma-qa-20261007c variant_bbca turn 2 (22 calls, 294 s); four verdicts, each recomputed by the backend, with the conversation-level correction; turn 3 (a value outside the plan) leads to a revised plan for approval, not to a run; turn 4 runs the approved revision on the same data without a new extraction (bundle reused, research in a new session: user decision 2026-10-07 'Data dipakai ulang, ruang kerja baru'); EXEC-M109 not triggered unless the router asks back",
+      "expect": "EXEC-V revision 2026-10-08: research turn 2 runs the experiments, one data need and one session per experiment, up to four sessions open at once, none closed by another open (no superseded, no REPLACED_IN_REQUEST); complete_analysis results reach the model (M111 still open); an execution after a passed completion stays in its epoch (M114); turn 3 leads to a revised plan; turn 4 runs it, data parts whose SQL an earlier turn ran and whose range ends before today are reused (data_reuse), others extracted with their reason",
       "turns": [
         "Uji ini: kalau volume BBCA minimal 2 kali dan minimal 3 kali rata-rata volume 20 hari sebelumnya, apakah harganya naik dalam 3 hari dan 10 hari berikutnya? Buatkan rencana ujinya.",
         "uji itu",
@@ -15,7 +15,7 @@
     },
     {
       "id": "variant_analysis_bbri",
-      "expect": "EXEC-V analysis (M110): turn 1 answers the three thresholds from one data need and one analysis session, released as one table with a variant column; analysis_sessions_superseded = 0; turn 2 adds the 10-day horizon on the same data without a new extraction (bundle reused, warm session reattached or reopened on the same bundle), every figure sourced",
+      "expect": "EXEC-V revision 2026-10-08: turn 1 one need and session; turn 2 the 10-day horizon: the same SQL, but 'sejak 2022' ends today, so the parts are extracted again with reason RANGE_INCLUDES_TODAY (rule (i)), or the bundle is reused whole when the contract is identical; every figure sourced",
       "turns": [
         "Berapa rata-rata return 5 hari BBRI setelah hari dengan volume minimal 1,5 kali, 2 kali dan 3 kali rata-rata volume 20 hari sebelumnya, sejak 2022?",
         "tambahkan juga horizon 10 hari"
