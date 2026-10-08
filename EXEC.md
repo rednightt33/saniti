@@ -1177,8 +1177,23 @@ practice dulu then inspect current architecture").** Hanya laporan, belum ada pe
   - Langkah berikut: GT kecil berbayar sebelum dan sesudah, diukur dengan `scripts/answer_plainness.py`. Hanya atas
     perintah user, dan kredit perlu dicek dulu.
 
-**Langkah berikut:** user melihat pratinjau. Setelah OK: gabung ke `main`, deploy orc dan edge-bff sampai SUCCESS, cek
-live tanpa biaya AI, lalu catat di changelog.
+**Riwayat system prompt (keputusan user 2026-10-08: "jangan lupa buat dokumentasi / history system prompt agar selalu
+bisa fallback. Masukan ke daftar wajib di update").** Dibangun di cabang sesi:
+- `scripts/snapshot_system_prompt.py` merekam prompt sistem dev dan skema jawaban akhir (deskripsi field-nya juga
+  instruksi) ke `prompts/history/vNNN-tanggal-nama/`, lengkap dengan keputusan user, isi perubahan, ukuran dan sha256.
+- Indeks `prompts/SYSTEM_PROMPT_HISTORY.md` mendaftar semua versi dan langkah kembali ke versi lama (redeploy build
+  lama di Railway, atau `git revert` lalu rekam snapshot baru). Prompt lama selalu dikembalikan bersama kodenya.
+- v001: prompt yang ter-deploy sebelum aturan pembaca (dirender dari commit e4795e0, sama dengan `main`). v002: aturan
+  pembaca M125 C.
+- `apps/market-ai-orc/tests/test_prompt_history.py` gagal bila kode merender prompt atau skema yang belum direkam.
+- Masuk daftar wajib `AGENTS.md` (Mandatory workflow, System prompt).
+- Cacat yang ditemukan sebelum commit: versi pertama skrip memuat ulang modul `app` di dalam proses uji, sehingga lima
+  uji lain yang berjalan sesudahnya gagal (uji itu memasang tiruan pada salinan modul yang lama). Sekarang perenderan
+  selalu berjalan di proses Python tersendiri. Hasilnya: 1.567 uji orc lulus, termasuk dengan urutan uji riwayat lebih dulu.
+
+**Langkah berikut (user "Ok" 2026-10-08 atas "deploy ke dev lalu jalankan GT kecil"):** gabung ke `main`, deploy orc
+dan edge-bff sampai SUCCESS, cek live tanpa biaya AI, cek kredit, GT kecil sebelum dan sesudah diukur dengan
+`scripts/answer_plainness.py`, lalu catat di changelog.
 
 ### EXEC-M109: pertanyaan tanya-balik router tetap dipakai
 

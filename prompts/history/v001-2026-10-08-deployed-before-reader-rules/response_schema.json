@@ -1,0 +1,935 @@
+{
+ "additionalProperties": false,
+ "properties": {
+  "answer": {
+   "description": "The answer for the user. For LIMITATION, what can reliably be said. Empty string for CLARIFICATION.",
+   "type": "string"
+  },
+  "assumptions": {
+   "description": "Reasonable non-material assumptions made to answer.",
+   "items": {
+    "type": "string"
+   },
+   "type": "array"
+  },
+  "clarification_question": {
+   "description": "One focused question when response_type is CLARIFICATION; otherwise null.",
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "limitations": {
+   "description": "Limitations of the answer, including unavailable capabilities.",
+   "items": {
+    "type": "string"
+   },
+   "type": "array"
+  },
+  "methodology": {
+   "description": "For an ANSWER or LIMITATION that rests on an analysis: how it was reached, in plain words (the data and period used, filters and exclusions, the calculation steps, statistical methods and their parameters). Otherwise null.",
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "research_findings": {
+   "anyOf": [
+    {
+     "items": {
+      "additionalProperties": false,
+      "properties": {
+       "angle_id": {
+        "description": "The approved angle's angle_id.",
+        "type": "string"
+       },
+       "interpretation": {
+        "additionalProperties": false,
+        "description": "The model's own reading of one angle; the status and the evidence are written by the backend.",
+        "properties": {
+         "answer": {
+          "description": "The direct answer to the angle's question in its backend status's terms.",
+          "type": "string"
+         },
+         "follow_up": {
+          "description": "The most informative next step; never a buy or sell recommendation.",
+          "type": "string"
+         },
+         "usefulness": {
+          "description": "Why it matters for the user's decision, sized in practical terms.",
+          "type": "string"
+         }
+        },
+        "required": [
+         "answer",
+         "usefulness",
+         "follow_up"
+        ],
+        "type": "object"
+       }
+      },
+      "required": [
+       "angle_id",
+       "interpretation"
+      ],
+      "type": "object"
+     },
+     "type": "array"
+    },
+    {
+     "items": {
+      "additionalProperties": false,
+      "properties": {
+       "hypothesis_id": {
+        "description": "The approved experiment's hypothesis_id.",
+        "type": "string"
+       },
+       "interpretation": {
+        "additionalProperties": false,
+        "description": "The model's reading of one experiment (research findings v1); the verdict itself is the backend's.",
+        "properties": {
+         "answer": {
+          "description": "The direct answer to the user's question in the verdict's terms.",
+          "type": "string"
+         },
+         "evidence": {
+          "description": "What the numbers say: effect size against the baseline, how often the outcome happened against its base rate, and how certain (sample category, uncertainty, smallest detectable effect).",
+          "type": "string"
+         },
+         "follow_up": {
+          "description": "The most informative next step; never a buy or sell recommendation.",
+          "type": "string"
+         },
+         "usefulness": {
+          "description": "Why it matters for the user's decision, sized in practical terms.",
+          "type": "string"
+         }
+        },
+        "required": [
+         "answer",
+         "evidence",
+         "usefulness",
+         "follow_up"
+        ],
+        "type": "object"
+       },
+       "verdict": {
+        "description": "Copied unchanged from the completed analysis's research_findings.",
+        "enum": [
+         "SUPPORTED",
+         "PARTIALLY_SUPPORTED",
+         "NOT_SUPPORTED",
+         "INCONCLUSIVE",
+         "NOT_EVALUATED"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "hypothesis_id",
+       "verdict",
+       "interpretation"
+      ],
+      "type": "object"
+     },
+     "type": "array"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "description": "For an ANSWER that rests on completed research: one entry per approved angle of a multi-angle run, or one per experiment of a hypothesis plan; otherwise null."
+  },
+  "research_plan": {
+   "anyOf": [
+    {
+     "additionalProperties": false,
+     "properties": {
+      "analysis_frequency": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "angles": {
+       "description": "Two to six distinct angles.",
+       "items": {
+        "additionalProperties": false,
+        "properties": {
+         "angle_id": {
+          "description": "Lower-case id, unique in the plan, e.g. angle_one.",
+          "type": "string"
+         },
+         "angle_question": {
+          "description": "The exact analytical question of this angle, unique in the plan.",
+          "type": "string"
+         },
+         "baseline_or_comparator": {
+          "description": "What the outcome is compared with, in words.",
+          "type": "string"
+         },
+         "candidate_count": {
+          "description": "Thresholds, lags, lengths or conditions evaluated inside this angle.",
+          "type": "integer"
+         },
+         "condition": {
+          "description": "The condition, signal or grouping in words.",
+          "type": "string"
+         },
+         "expected_direction": {
+          "description": "HIGHER or LOWER when the hypothesis expects the outcome above or below the comparator; DIFFERENT when it names no direction.",
+          "enum": [
+           "HIGHER",
+           "LOWER",
+           "DIFFERENT"
+          ],
+          "type": "string"
+         },
+         "holdout_required": {
+          "description": "True when the latest range is kept as a holdout.",
+          "type": "boolean"
+         },
+         "method_family": {
+          "enum": [
+           "CONDITIONAL_OUTCOME",
+           "PERSISTENCE",
+           "GROUP_COMPARISON",
+           "QUANTILE_RANKING",
+           "TEMPORAL_DEPENDENCY"
+          ],
+          "type": "string"
+         },
+         "method_id": {
+          "enum": [
+           "conditional_distribution",
+           "threshold_sensitivity",
+           "streak_persistence",
+           "regime_comparison",
+           "cohort_comparison",
+           "quantile_ranking",
+           "lead_lag",
+           "correlation_dependency"
+          ],
+          "type": "string"
+         },
+         "min_effect": {
+          "anyOf": [
+           {
+            "type": "number"
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "description": "The smallest effect worth knowing, as the user wrote it, only when the user named one; else null."
+         },
+         "min_effect_unit": {
+          "anyOf": [
+           {
+            "enum": [
+             "PERCENT",
+             "DECIMAL",
+             "BASIS_POINT"
+            ],
+            "type": "string"
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "description": "P26: the unit of min_effect as the user wrote it (PERCENT, DECIMAL or BASIS_POINT); the backend converts it to the outcome's unit. Null means the outcome's unit."
+         },
+         "minimum_sample_unit": {
+          "anyOf": [
+           {
+            "enum": [
+             "EVENTS",
+             "OBSERVATIONS",
+             "ENTITIES"
+            ],
+            "type": "string"
+           },
+           {
+            "type": "null"
+           }
+          ]
+         },
+         "minimum_sample_value": {
+          "anyOf": [
+           {
+            "type": "integer"
+           },
+           {
+            "type": "null"
+           }
+          ]
+         },
+         "multiple_testing_policy": {
+          "description": "NONE only for a single comparison.",
+          "enum": [
+           "NONE",
+           "BONFERRONI",
+           "HOLM",
+           "BENJAMINI_HOCHBERG"
+          ],
+          "type": "string"
+         },
+         "objective": {
+          "type": "string"
+         },
+         "outcome": {
+          "description": "The outcome measured, in words.",
+          "type": "string"
+         },
+         "outcome_horizon_periods": {
+          "description": "Analysis periods one outcome spans.",
+          "type": "integer"
+         },
+         "outcome_unit": {
+          "enum": [
+           "PERCENT",
+           "DECIMAL",
+           "OTHER"
+          ],
+          "type": "string"
+         },
+         "pairwise_comparisons": {
+          "type": "integer"
+         },
+         "parameters": {
+          "additionalProperties": false,
+          "description": "Every field is present; null when the angle's method does not use it.",
+          "properties": {
+           "baseline_mode": {
+            "anyOf": [
+             {
+              "enum": [
+               "COMPLEMENT",
+               "ALL"
+              ],
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "description": "conditional_distribution / threshold_sensitivity: compare with the rows without the condition (COMPLEMENT) or with every row (ALL)."
+           },
+           "buckets": {
+            "anyOf": [
+             {
+              "type": "integer"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "description": "quantile_ranking: the number of equal-count buckets."
+           },
+           "comparison": {
+            "anyOf": [
+             {
+              "enum": [
+               "PAIRWISE",
+               "VS_REST",
+               "FIRST_VS_OTHERS"
+              ],
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "description": "regime_comparison / cohort_comparison: which differences are tested."
+           },
+           "correlation_method": {
+            "anyOf": [
+             {
+              "enum": [
+               "PEARSON",
+               "SPEARMAN"
+              ],
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "description": "lead_lag / correlation_dependency: the correlation."
+           },
+           "groups": {
+            "anyOf": [
+             {
+              "items": {
+               "type": "string"
+              },
+              "type": "array"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "description": "regime_comparison / cohort_comparison: the group labels, in the order the hypothesis reads (differences are earlier minus later)."
+           },
+           "lags": {
+            "anyOf": [
+             {
+              "items": {
+               "type": "integer"
+              },
+              "type": "array"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "description": "lead_lag: the lags tested, in analysis periods."
+           },
+           "primary_lag": {
+            "anyOf": [
+             {
+              "type": "integer"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "description": "lead_lag: the predeclared lag (one of lags); correlation_dependency: the lag of the main correlation (null for none)."
+           },
+           "rolling_window": {
+            "anyOf": [
+             {
+              "type": "integer"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "description": "correlation_dependency: the rolling window in periods, or null."
+           },
+           "streak_lengths": {
+            "anyOf": [
+             {
+              "items": {
+               "type": "integer"
+              },
+              "type": "array"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "description": "streak_persistence: the streak lengths tested."
+           },
+           "threshold_operator": {
+            "anyOf": [
+             {
+              "enum": [
+               ">=",
+               "<="
+              ],
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "description": "threshold_sensitivity: signal >= or <= each threshold."
+           },
+           "thresholds": {
+            "anyOf": [
+             {
+              "items": {
+               "type": "number"
+              },
+              "type": "array"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "description": "threshold_sensitivity: the signal thresholds tested."
+           }
+          },
+          "required": [
+           "thresholds",
+           "threshold_operator",
+           "lags",
+           "primary_lag",
+           "buckets",
+           "groups",
+           "comparison",
+           "streak_lengths",
+           "rolling_window",
+           "baseline_mode",
+           "correlation_method"
+          ],
+          "type": "object"
+         },
+         "title": {
+          "type": "string"
+         },
+         "why_distinct": {
+          "description": "Why this question differs from the other angles.",
+          "type": "string"
+         }
+        },
+        "required": [
+         "angle_id",
+         "title",
+         "angle_question",
+         "method_id",
+         "method_family",
+         "objective",
+         "condition",
+         "outcome",
+         "baseline_or_comparator",
+         "expected_direction",
+         "outcome_horizon_periods",
+         "outcome_unit",
+         "min_effect",
+         "min_effect_unit",
+         "parameters",
+         "candidate_count",
+         "pairwise_comparisons",
+         "multiple_testing_policy",
+         "holdout_required",
+         "minimum_sample_value",
+         "minimum_sample_unit",
+         "why_distinct"
+        ],
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "assumptions": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      "carried_inputs": {
+       "anyOf": [
+        {
+         "items": {
+          "additionalProperties": false,
+          "description": "2d (user decision 2026-10-02): a released table of this conversation the research builds on, so it is part of\nwhat the user approves; a research session loads only the tables its plan names.",
+          "properties": {
+           "output_ref": {
+            "description": "The table's ref from the data record, e.g. out.o3.",
+            "type": "string"
+           },
+           "purpose": {
+            "description": "What the research takes from it, in plain words.",
+            "type": "string"
+           }
+          },
+          "required": [
+           "output_ref",
+           "purpose"
+          ],
+          "type": "object"
+         },
+         "type": "array"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Released tables of this conversation the research builds on; null for none."
+      },
+      "confirmation_question": {
+       "type": "string"
+      },
+      "limitations": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      "objective": {
+       "type": "string"
+      },
+      "original_question": {
+       "type": "string"
+      },
+      "plan_version": {
+       "enum": [
+        "research_plan/v2"
+       ],
+       "type": "string"
+      },
+      "root_hypothesis": {
+       "description": "The one hypothesis every angle examines.",
+       "type": "string"
+      },
+      "root_hypothesis_id": {
+       "type": "string"
+      },
+      "time_scope": {
+       "type": "string"
+      },
+      "universe": {
+       "type": "string"
+      }
+     },
+     "required": [
+      "carried_inputs",
+      "plan_version",
+      "original_question",
+      "objective",
+      "root_hypothesis_id",
+      "root_hypothesis",
+      "universe",
+      "time_scope",
+      "analysis_frequency",
+      "angles",
+      "assumptions",
+      "limitations",
+      "confirmation_question"
+     ],
+     "type": "object"
+    },
+    {
+     "additionalProperties": false,
+     "properties": {
+      "analysis_frequency": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "e.g. daily; null when not relevant."
+      },
+      "assumptions": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      "carried_inputs": {
+       "anyOf": [
+        {
+         "items": {
+          "additionalProperties": false,
+          "description": "2d (user decision 2026-10-02): a released table of this conversation the research builds on, so it is part of\nwhat the user approves; a research session loads only the tables its plan names.",
+          "properties": {
+           "output_ref": {
+            "description": "The table's ref from the data record, e.g. out.o3.",
+            "type": "string"
+           },
+           "purpose": {
+            "description": "What the research takes from it, in plain words.",
+            "type": "string"
+           }
+          },
+          "required": [
+           "output_ref",
+           "purpose"
+          ],
+          "type": "object"
+         },
+         "type": "array"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Released tables of this conversation the research builds on; null for none."
+      },
+      "confirmation_question": {
+       "description": "Asks the user to approve, revise or cancel the plan.",
+       "type": "string"
+      },
+      "experiments": {
+       "description": "1-4 experiments, one hypothesis each.",
+       "items": {
+        "additionalProperties": false,
+        "description": "An experiment with the values the backend needs to judge the sample and the verdict (research findings v1,\nAI_ENABLE_RESEARCH_FINDINGS). Descriptions carry no digits: the plan form is part of the system prompt.",
+        "properties": {
+         "baseline": {
+          "description": "What the outcome is compared with.",
+          "type": "string"
+         },
+         "candidate_count": {
+          "description": "Conditions, lags or parameter combinations evaluated (1-50).",
+          "type": "integer"
+         },
+         "condition": {
+          "description": "The condition or event, in plain words.",
+          "type": "string"
+         },
+         "expected_direction": {
+          "description": "HIGHER or LOWER when the hypothesis expects the outcome after the condition to be above or below the baseline; DIFFERENT when it names no direction.",
+          "enum": [
+           "HIGHER",
+           "LOWER",
+           "DIFFERENT"
+          ],
+          "type": "string"
+         },
+         "experiment_id": {
+          "description": "Lower-case id, unique in the plan, e.g. experiment_1.",
+          "type": "string"
+         },
+         "holdout_required": {
+          "description": "True when a later time range is kept out of fitting.",
+          "type": "boolean"
+         },
+         "hypothesis": {
+          "description": "The hypothesis to test, in plain words.",
+          "type": "string"
+         },
+         "hypothesis_id": {
+          "description": "Lower-case id, unique in the plan; research_governance of the data need uses exactly this id.",
+          "type": "string"
+         },
+         "min_effect": {
+          "anyOf": [
+           {
+            "type": "number"
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "description": "The smallest effect worth knowing, as the user wrote it, only when the user named one; otherwise null (the backend then uses a round-trip trading cost for returns)."
+         },
+         "min_effect_unit": {
+          "anyOf": [
+           {
+            "enum": [
+             "PERCENT",
+             "DECIMAL",
+             "BASIS_POINT"
+            ],
+            "type": "string"
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "description": "P26: the unit of min_effect as the user wrote it (PERCENT, DECIMAL or BASIS_POINT; a percentage point is PERCENT); the backend converts it to the outcome's unit. Null means the outcome's unit."
+         },
+         "minimum_sample_unit": {
+          "anyOf": [
+           {
+            "enum": [
+             "EVENTS",
+             "OBSERVATIONS",
+             "ENTITIES"
+            ],
+            "type": "string"
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "description": "Unit of the minimum sample; null exactly when the value is null."
+         },
+         "minimum_sample_value": {
+          "anyOf": [
+           {
+            "type": "integer"
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "description": "Minimum sample size, or null for none."
+         },
+         "multiple_testing_policy": {
+          "description": "NONE only for a single comparison.",
+          "enum": [
+           "NONE",
+           "BONFERRONI",
+           "HOLM",
+           "BENJAMINI_HOCHBERG"
+          ],
+          "type": "string"
+         },
+         "objective": {
+          "description": "What this experiment establishes.",
+          "type": "string"
+         },
+         "outcome": {
+          "description": "The outcome measured after the condition.",
+          "type": "string"
+         },
+         "outcome_horizon_periods": {
+          "description": "How many analysis periods one outcome spans (a forward return over five trading days spans five); outcomes closer together than this overlap.",
+          "type": "integer"
+         },
+         "outcome_unit": {
+          "description": "PERCENT for returns in percent, DECIMAL for returns as fractions, OTHER for anything else.",
+          "enum": [
+           "PERCENT",
+           "DECIMAL",
+           "OTHER"
+          ],
+          "type": "string"
+         },
+         "pairwise_comparisons": {
+          "type": "integer"
+         },
+         "success_definition": {
+          "description": "When one outcome counts as a success for the event-lookback share, in plain words, for example: the forward return is above zero.",
+          "type": "string"
+         },
+         "success_rule": {
+          "anyOf": [
+           {
+            "additionalProperties": false,
+            "description": "M28 (golden g6 2026-10-02): when one outcome is a success, as a number the engine applies (outcome <operator>\nvalue, in the outcome's unit), not only a sentence.",
+            "properties": {
+             "operator": {
+              "description": "How the outcome is compared with value.",
+              "enum": [
+               ">=",
+               ">",
+               "<=",
+               "<"
+              ],
+              "type": "string"
+             },
+             "unit": {
+              "anyOf": [
+               {
+                "enum": [
+                 "PERCENT",
+                 "DECIMAL",
+                 "BASIS_POINT"
+                ],
+                "type": "string"
+               },
+               {
+                "type": "null"
+               }
+              ],
+              "description": "P26: the unit of value as the user wrote it (PERCENT for a percent, DECIMAL for a fraction, BASIS_POINT for basis points); the backend converts it to the outcome's unit. Null means the outcome's unit."
+             },
+             "value": {
+              "description": "The threshold as the user wrote it.",
+              "type": "number"
+             }
+            },
+            "required": [
+             "operator",
+             "value",
+             "unit"
+            ],
+            "type": "object"
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "description": "The success threshold as a number when the user named one (for example rises at least three percent: operator >= and value three, in the outcome's unit); the engine applies it and the answer reports the rule it used. Null when the user named none (success is then above zero). A change the user asks for later is a revised plan."
+         }
+        },
+        "required": [
+         "experiment_id",
+         "hypothesis_id",
+         "hypothesis",
+         "objective",
+         "condition",
+         "outcome",
+         "baseline",
+         "candidate_count",
+         "pairwise_comparisons",
+         "multiple_testing_policy",
+         "holdout_required",
+         "minimum_sample_value",
+         "minimum_sample_unit",
+         "expected_direction",
+         "outcome_horizon_periods",
+         "outcome_unit",
+         "success_definition",
+         "min_effect",
+         "min_effect_unit",
+         "success_rule"
+        ],
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "limitations": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      "objective": {
+       "description": "The research objective in plain words.",
+       "type": "string"
+      },
+      "original_question": {
+       "description": "The user's question.",
+       "type": "string"
+      },
+      "plan_version": {
+       "enum": [
+        "research_plan/v1"
+       ],
+       "type": "string"
+      },
+      "time_scope": {
+       "description": "The period studied.",
+       "type": "string"
+      },
+      "universe": {
+       "description": "Which entities, conceptually (no table names needed).",
+       "type": "string"
+      }
+     },
+     "required": [
+      "carried_inputs",
+      "plan_version",
+      "original_question",
+      "objective",
+      "universe",
+      "time_scope",
+      "analysis_frequency",
+      "experiments",
+      "assumptions",
+      "limitations",
+      "confirmation_question"
+     ],
+     "type": "object"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "description": "The Research Plan for RESEARCH_PLAN_CONFIRMATION (answer renders it for the user); otherwise null."
+  },
+  "response_type": {
+   "description": "ANSWER when the request is answered; CLARIFICATION when a material ambiguity prevents a reliable answer; RESEARCH_PLAN_CONFIRMATION when a research question needs the user's approval of a Research Plan before any data is used; LIMITATION when a required capability is unavailable.",
+   "enum": [
+    "ANSWER",
+    "CLARIFICATION",
+    "RESEARCH_PLAN_CONFIRMATION",
+    "LIMITATION"
+   ],
+   "type": "string"
+  }
+ },
+ "required": [
+  "response_type",
+  "answer",
+  "clarification_question",
+  "assumptions",
+  "limitations",
+  "research_plan",
+  "methodology",
+  "research_findings"
+ ],
+ "type": "object"
+}

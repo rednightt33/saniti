@@ -1,0 +1,10 @@
+{
+ "version": 1,
+ "date": "2026-10-08",
+ "name": "deployed-before-reader-rules",
+ "decision": "Titik awal riwayat: prompt yang ter-deploy di dev sebelum M125 C (orc 9efe1118, kode main df18695)",
+ "change": "Versi dasar riwayat. Berisi semua perubahan yang sudah disetujui sampai EXEC-W gelombang A (2026-10-08): audit prompt pass 2, M117, M121 h, M122. Belum ada bagian WRITING FOR THE READER.",
+ "prompt_chars": 35194,
+ "prompt_sha256": "5ae68c51948c0756ab46d14da8b030a0cb60b395d2fe8a9b7b57e4cee24ff9e7",
+ "schema_sha256": "b4e5b2cd9d330ab4e51911b7a34e3f3d20b77105abe8136dd2a0fefd188b039c"
+}

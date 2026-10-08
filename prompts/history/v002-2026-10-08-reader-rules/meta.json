@@ -1,0 +1,10 @@
+{
+ "version": 2,
+ "date": "2026-10-08",
+ "name": "reader-rules",
+ "decision": "2026-10-08: \"Naikan batas\"; \"Lanjut tulis prompt. Pakai best practice prompt. Pastikan tidak ada prompt yg contradict di system prompt.\"",
+ "change": "M125 C. Bagian baru WRITING FOR THE READER: pembacanya investor perorangan; kesimpulan dulu, lalu angka dengan pembandingnya, artinya, dan batasannya; kalimat pendek dan kata sehari-hari; nama tabel, kolom, output, ID dan kode hanya di pemanggilan tool dan field terstruktur; satu contoh jawaban berbahasa Indonesia. Sembilan kalimat yang bertentangan ditulis ulang: aturan 12, bendera kualitas, data di METHODOLOGY, istilah putusan dan status, kategori sampel, sudut tidak valid, penutup INTERPRETING, instruksi perbaikan temuan, dan LIMITATION jalur lama. Deskripsi skema temuan dan metodologi diselaraskan. Ukuran +8,6% terhadap fixture pass-2, batas baru 1,09.",
+ "prompt_chars": 37462,
+ "prompt_sha256": "367d6103d2e39a55f92904bbf395d018ef890217cb1b46b2e30cf47d7bc863f2",
+ "schema_sha256": "48bceaa503bc5008b5d949b461b36c7c322017f50354b2138f48c5e02d2b1a03"
+}
