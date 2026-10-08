@@ -418,6 +418,11 @@ sama bisa di proses di sandbox lain." Belum dijalankan; rencana eksekusi menungg
   sama lewat pertanyaan lain sehingga model menulis kebutuhan data baru dengan label lain). Lulus bila log sandbox
   `parts_looked_up matched>0` dan `bundle_built parts_reused>0` dengan sumber kebutuhan berlabel lain. Dijalankan hanya
   atas perintah user; sebaiknya setelah V-f dan perbaikan M117 (riset dengan "naik" sekarang terhenti, M117).
+  - Disetujui user 2026-10-08: "Saran saya, GT ini dijalankan setelah V-f dan perbaikan M117 dibangun ... -->
+    approved, masukan EXEC. We'll work on M117 now." Urutan: perbaikan M117 → V-f → GT V-g (perintah run tetap dari
+    user).
+- **M117 diperlakukan sebagai cacat struktural** (inspeksi kode + audit 2026-09-30..10-08, `ERRORS_AND_SOLUTIONS.md`
+  M117): opsi perbaikan menunggu keputusan user.
 
 **Hasil tahap 1 (2026-10-07, V-a opsi B):**
 - **Kode** (`d25e108`, `apps/market-ai-orc/app/orchestrator.py`):
