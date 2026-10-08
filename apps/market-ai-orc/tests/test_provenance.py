@@ -1,6 +1,7 @@
 """Number provenance gate, routing guard, and evidence labels (the answer contract enforced in code)."""
 from __future__ import annotations
 
+from app import user_texts as texts
 import json
 from typing import Any
 
@@ -201,7 +202,7 @@ def test_unsupported_numbers_force_a_limitation_after_one_rejection() -> None:
     result, scripted = run([lookup_call(), final_response(bad), final_response(bad)], "Close BBCA dan BBRI kemarin?",
                            lookup=facts_body(fact(9125)))
     assert "9.140" in rejection_text(scripted) and "4.200" in rejection_text(scripted)
-    assert result.response.response_type == "LIMITATION" and result.response.answer.startswith("Some figures")
+    assert result.response.response_type == "LIMITATION" and result.response.answer.startswith("Sebagian angka")
     assert result.execution.number_provenance.unsupported == ["9.140", "4.200"]
     assert any("9.140" in line for line in result.response.limitations)
     assert result.evidence_label == "NOT_VALIDATED"
@@ -228,7 +229,7 @@ def test_metrics_of_a_passed_analysis_are_a_source_and_labelled_by_level() -> No
                      final_response(answer("T001: RSI 6,06."))], "Screen RSI < 30", sandbox={
         ("POST", "/v1/analyses"): (200, unverified)})
     assert result.response.response_type == "ANSWER" and result.evidence_label == "UNVERIFIED_EXPLORATORY"
-    assert any("UNVERIFIED" in line for line in result.response.limitations)
+    assert texts.ANALYSIS_UNVERIFIED_LINE in result.response.limitations
 
 
 def test_outputs_of_a_failed_analysis_are_not_a_source_even_in_a_limitation() -> None:

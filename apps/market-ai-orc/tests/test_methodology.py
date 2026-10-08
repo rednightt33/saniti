@@ -15,6 +15,7 @@ from app.tools import ToolSpec
 from conftest import ScriptedClient, final_response, make_settings
 from test_dataneed_orchestrator import SESSION, Tools, answer, call, completed, flow
 
+from app import user_texts as texts
 import pytest
 
 ON = {"AI_ENABLE_DATANEED": "true", "AI_ENABLE_METHODOLOGY": "true"}
@@ -100,7 +101,7 @@ def test_a_missing_note_is_asked_for_once_then_the_answer_stands_with_a_limitati
                                          final_response(noted("BBCA naik 12,35%.", "  "))])
     assert "methodology is empty" in str(scripted.payloads[-1]["input"][-1])
     assert result.response.response_type == "ANSWER" and result.response.methodology is None
-    assert "No methodology note was provided for this response." in result.response.limitations
+    assert texts.METHODOLOGY_MISSING_LINE in result.response.limitations
 
 
 def test_a_note_with_an_unsourced_number_is_repaired_or_withheld() -> None:
@@ -111,7 +112,7 @@ def test_a_note_with_an_unsourced_number_is_repaired_or_withheld() -> None:
     withheld, _, _ = run(steps() + [final_response(noted("BBCA naik 12,35%.", bad)),
                                     final_response(noted("BBCA naik 12,35%.", bad))])
     assert withheld.response.response_type == "ANSWER" and withheld.response.methodology is None
-    assert any("withheld" in line and "812" in line for line in withheld.response.limitations)
+    assert any("tidak ditampilkan" in line and "812" in line for line in withheld.response.limitations)
 
 
 def test_code_that_failed_is_not_a_source() -> None:
@@ -119,7 +120,7 @@ def test_code_that_failed_is_not_a_source() -> None:
                                   final_response(noted("x", GOOD, "LIMITATION"))],
                        tools=CodeTools([completed()], status="SCRIPT_ERROR"))
     assert result.response.methodology is None
-    assert any("withheld" in line for line in result.response.limitations)
+    assert any("tidak ditampilkan" in line for line in result.response.limitations)
 
 
 def test_no_analysis_needs_no_note() -> None:

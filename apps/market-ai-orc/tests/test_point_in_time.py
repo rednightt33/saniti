@@ -102,7 +102,7 @@ def test_no_refusal_no_disclosure() -> None:
 
 
 def test_the_current_state_column_warning_is_disclosed() -> None:
-    assert "today's value" in WARNING_LINES["CURRENT_STATE_COLUMN"]
+    assert "nilai hari ini" in WARNING_LINES["CURRENT_STATE_COLUMN"]
     result = run(pit_flow("HISTORICAL_DESCRIPTIVE") + [final_response(answer("BBCA naik 12,35%."))],
                  completed(time_basis="HISTORICAL_DESCRIPTIVE", warnings=["CURRENT_STATE_COLUMN"]))
     assert WARNING_LINES["CURRENT_STATE_COLUMN"] in result.response.limitations

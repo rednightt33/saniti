@@ -1,6 +1,7 @@
 """Research AI in the orchestrator: research specs cross the tool boundary unchanged, evidence assessments drive
 the answer contract (claims, reporting constraints), experiments are summarised, and every run is audited."""
 from __future__ import annotations
+from app import user_texts as texts
 
 import json
 from typing import Any
@@ -115,8 +116,9 @@ def test_negated_or_constrained_wording_is_not_a_claim() -> None:
                     sandbox_for(study_result()))
     assert result.response.response_type == "ANSWER" and result.execution.validation_gate == "ANNOTATED"
     limitations = " ".join(result.response.limitations)
-    assert "HISTORICAL_PATTERN" in limitations and "not causation" in limitations
-    assert "not dividend-adjusted" in limitations  # corporate-action disclosure
+    # M125: the evidence line in words; the analysis service's own reporting constraint is passed through as written
+    assert "Kekuatan bukti satu analisis" in limitations and "not causation" in limitations
+    assert texts.CORPORATE_ACTIONS_LINE in limitations  # corporate-action disclosure
     assert result.execution.number_provenance.unsupported == []  # interval bounds come from the validator
 
 

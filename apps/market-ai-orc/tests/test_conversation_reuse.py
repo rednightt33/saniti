@@ -170,7 +170,7 @@ def test_a_redisplay_answers_from_a_released_output_of_an_earlier_message() -> N
     # no new analysis ran, yet the routing gate accepts it and provenance finds 12,35% in the released rows
     assert result.response.response_type == "ANSWER", result.response
     assert result.evidence_label == "DATA_COVERAGE_VERIFIED"
-    assert any("computed in an earlier message (completion cmp_1" in line for line in result.response.limitations)
+    assert any("dihitung di pesan sebelumnya" in line for line in result.response.limitations)
     assert result.execution.number_provenance.unsupported == []
 
 

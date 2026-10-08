@@ -1,6 +1,7 @@
 """get_dataset_manifest, create_analysis_spec, run_python_analysis, get_analysis_result, and the validation gate."""
 from __future__ import annotations
 
+from app import user_texts as texts
 import importlib
 import importlib.machinery
 import importlib.util
@@ -453,8 +454,9 @@ def test_gate_rejects_an_answer_on_a_failed_validation_once_then_forces_limitati
     assert "did not pass validation" in rejection and "ANALYSIS_SCOPE_MISMATCH" in rejection
     assert scripted.payloads[-1].get("tools")  # the model may still repair the analysis
     assert result.status == "LIMITED" and result.response.response_type == "LIMITATION"
-    assert result.response.answer.startswith("Validation did not pass")
-    assert any("validation FAILED (ANALYSIS_SCOPE_MISMATCH)" in line for line in result.response.limitations)
+    assert result.response.answer.startswith(texts.GATE_NOTICE)
+    assert texts.ANALYSIS_NOT_VALIDATED_LINE.format(status=texts.words("FAILED")) in result.response.limitations
+    assert not any("ANALYSIS_SCOPE_MISMATCH" in line for line in result.response.limitations)  # M125: no codes
     assert result.execution.validation_gate == "FORCED_LIMITATION"
 
 
@@ -467,15 +469,15 @@ def test_gate_accepts_a_repaired_rerun_and_annotates_the_validation_level() -> N
         tool_call_response("run_python_analysis", json.dumps(run_args(python_code="print(2)")), call_id="c2"),
         final_response(ANSWER, response_id="r2")])
     assert result.status == "COMPLETED" and result.response.response_type == "ANSWER"
-    assert any("level SCOPE_VERIFIED" in line for line in result.response.limitations)
+    assert texts.ANALYSIS_NOT_RECOMPUTED_LINE in result.response.limitations  # M125: the level in words, no code
     assert [a.validation_status for a in result.execution.analyses] == ["FAILED", "PASS"]
     assert result.execution.validation_gate == "ANNOTATED"
 
 
 @pytest.mark.parametrize(("overrides", "expected"), [
-    ({"validation_status": "UNVERIFIED", "validation_level": "EXECUTION_ONLY"}, "validation UNVERIFIED"),
+    ({"validation_status": "UNVERIFIED", "validation_level": "EXECUTION_ONLY"}, texts.ANALYSIS_UNVERIFIED_LINE),
     ({"execution_status": "FAILED", "validation_status": "UNVERIFIED",
-      "error": {"code": "INPUT_VALIDATION_FAILED", "message": "m"}}, "did not complete (INPUT_VALIDATION_FAILED)"),
+      "error": {"code": "INPUT_VALIDATION_FAILED", "message": "m"}}, texts.ANALYSIS_FAILED_LINE),
 ])
 def test_gate_annotates_unverified_and_blocks_failed_executions(overrides: dict, expected: str) -> None:
     result, _ = orchestrate({("POST", "/v1/analyses"): (200, completed(**overrides))}, [

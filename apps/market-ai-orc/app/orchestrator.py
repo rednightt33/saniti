@@ -43,6 +43,12 @@ from .schemas import (
 )
 from . import conversation_router as router
 from . import in_sample as insample
+from . import user_texts as texts
+from .user_texts import (  # M125: every line the backend writes for the user
+    ANALYSIS_PATH_LINE, ANGLE_FINDINGS_NOTICE, DATANEED_GATE_NOTICE, DATANEED_PROVENANCE_NOTICE, DATANEED_ROUTING_NOTICE,
+    DERIVED_FREQUENCY_LINE, FINDINGS_NOTICE, GATE_NOTICE, METHODOLOGY_MISSING_LINE, METHODOLOGY_WITHHELD_LINE,
+    PIT_FALLBACK_LINE, PLAN_FINDINGS_NOTICE, PLAN_NOT_EXECUTED_LINE, PLAN_NOT_FEASIBLE_NOTICE, PLAN_PROVENANCE_NOTICE,
+    PLAN_VERSION_NOTICE, PROVENANCE_NOTICE, ROUTING_NOTICE, WARNING_LINES)
 from . import method_guides
 from . import tool_desks as desks
 from . import variant_correction
@@ -454,8 +460,6 @@ period close over the previous period close. Never sum daily returns.
 4. Compare or rank only periods with period_complete true; name any
 open or partial period you show, and say that the weekly or monthly
 figures were derived from daily data."""
-DERIVED_FREQUENCY_LINE = ("Weekly or monthly figures were derived from daily data (weeks end on Friday, months at the "
-                          "calendar month end); a period still open or only partly covered is marked incomplete.")
 # Research findings v1 (AI_ENABLE_RESEARCH_FINDINGS). No digits except list numbering: the system prompt is a
 # number source for the provenance check, and every threshold comes from the backend.
 FINDINGS_PLAN_FIELDS = """Each experiment of a Research Plan also states expected_direction,
@@ -546,9 +550,6 @@ FINDINGS_INSTRUCTION = (
 PLAN_FINDINGS_INSTRUCTION = (
     "Every experiment of the Research Plan needs expected_direction, outcome_horizon_periods, outcome_unit, "
     "success_definition and min_effect (null unless the user named one). Return the plan again with them.")
-PLAN_FINDINGS_NOTICE = "The Research Plan below is incomplete and cannot be approved as it stands. "
-FINDINGS_NOTICE = ("The interpretation of the research result below did not match the backend's verdict; read the "
-                   "figures as unconfirmed. ")
 SUPPORTED_WORDING = (r"\b(?:terbukti|didukung|mendukung hipotesis|terkonfirmasi|dikonfirmasi|confirmed|proven|"
                      r"supports? the hypothesis|is supported)\b")
 # M26 option B (user decision 2026-10-05): an effect in the expected direction but below the minimum effect the user
@@ -1154,24 +1155,18 @@ VALIDATION_GATE_INSTRUCTION = (
     "validation must not be presented as a valid answer. Fix the analysis and run it again, request the missing "
     "data, or return response_type \"LIMITATION\" that states what was and was not validated."
 )
-GATE_NOTICE = ("Validation did not pass for the analysis behind this response; any figures below are not a "
-               "validated answer to the request. ")
 ROUTING_INSTRUCTION = (
     "The request asks for {families}, which only a Python analysis whose validation passed can answer; source "
     "facts alone are not enough and numbers must not be calculated by you. Use create_analysis_spec, "
     "prepare_analysis_data, and run_python_analysis, or return response_type \"LIMITATION\" stating what was not "
     "calculated."
 )
-ROUTING_NOTICE = ("This request needs a validated analysis ({families}), and none supports this response; any "
-                  "figures below are not a validated answer. ")
 PROVENANCE_INSTRUCTION = (
     "These numbers in your answer have no governed source in this run: {numbers}. Every number must come from a "
     "lookup_fact result, the output of an analysis whose validation passed, the user's message, the approved spec, "
     "or a prepared dataset; outputs of failed or incomplete analyses and preview rows are not sources. Remove or "
     "correct those numbers, obtain them with the right tool, or return response_type \"LIMITATION\"."
 )
-PROVENANCE_NOTICE = ("Some figures below could not be traced to a governed source in this run and are not "
-                     "validated: {numbers}. ")
 # Predictive or causal wording about market outcomes (English and Indonesian). A match governed by a negation in its
 # clause, before or after it ("not a prediction", "bukan penyebab", "menyebabkan … tidak terbukti"), is not a claim.
 PREDICTIVE_PATTERN = (
@@ -1268,18 +1263,12 @@ CODE_LITERAL_HINT = (" Of these, {numbers} appear only as literals in the code t
                      "threshold, a percentile or a window): state a parameter in methodology, or release it with the "
                      "result (for example emit_json of the parameters) and reference it; a number typed into code is "
                      "not a result.")
-DATANEED_GATE_NOTICE = ("The data analysis behind this response did not complete; any figures below are not a "
-                        "verified answer to the request. ")
-DATANEED_ROUTING_NOTICE = ("This request needs a completed analysis ({families}), and none supports this response; "
-                           "any figures below are not a verified answer. ")
 METHODOLOGY_INSTRUCTION = (
     "Your response rests on a completed analysis but methodology is empty. Add methodology: the data, the steps, the "
     "methods and their parameters in plain words, describing only what actually ran.")
 METHODOLOGY_PROVENANCE_INSTRUCTION = (
     "These numbers in methodology have no source in this run: {numbers}. Its numbers must come from the same sources "
     "as the answer, the approved plan, the DataNeedSpec or the code that ran. Remove or correct them.")
-METHODOLOGY_MISSING_LINE = "No methodology note was provided for this response."
-METHODOLOGY_WITHHELD_LINE = "The methodology note was withheld because it cited figures without a source: {numbers}."
 # EXEC-E (user decision 2026-10-06: get_evidence and its gate removed): a figure the model typed from its own code is
 # written by its address instead (asked once; an edit is enough)
 TYPED_FIGURES_INSTRUCTION = (
@@ -1327,26 +1316,6 @@ EXHAUSTED_REASONS = {"MAX_ITERATIONS": "batas langkah tercapai", "ANALYSIS_TIMEO
 # O4: every figure from the model's code is a value reference; the backend read each from its released table
 EVIDENCE_REFERENCED_LINE = ("Angka hasil analisis di jawaban ini dibaca backend langsung dari tabel hasil yang dirujuk "
                             "(bukti DIRUJUK), tanpa hitung ulang terpisah dari kode AI.")
-DATANEED_PROVENANCE_NOTICE = ("Some figures below could not be traced to a released analysis output or another "
-                              "governed source in this run: {numbers}. ")
-WARNING_LINES = {
-    "HISTORICAL_REFERENCE_USES_CURRENT_STATE": "Classifications come from the current state of the reference "
-                                               "table, not from the classification valid at each historical date.",
-    "HISTORY_BUFFER_SHORTFALL": "Some entities have fewer observations before a range than the requested warm-up "
-                                "history.",
-    "FUTURE_BUFFER_SHORTFALL": "Some entities have fewer observations after a range than requested (the data may "
-                               "end at the reference date).",
-    "FREQUENCY_GAPS": "Some entities miss dates of the dataset's own calendar inside a range.",
-    "EMPTY_RANGE": "A requested range has no data.",
-    "PARTIAL_RANGE_COVERAGE": "A requested range is only partly covered by the data.",
-    "EMPTY_ENTITY": "An entity named in the request has no data.",
-    "NULL_VALUES": "Some delivered values are missing (null).",
-    "DUPLICATE_KEYS": "Some rows repeat their key columns.",
-    "CURRENT_STATE_COLUMN": "Some columns hold today's value on every historical row (for example the current sector "
-                            "or broker classification), not the value of each date.",
-}
-PIT_FALLBACK_LINE = ("Point-in-time data was requested but is not available ({detail}); these results use current "
-                     "reference data (historical descriptive), not what was known at each date.")
 
 RESPONSE_FORMAT_NAME = "saniti_agent_response"
 # M48 (2026-10-01): the refused draft goes back whole, so a repair sees what it repairs (it was 4000 characters from the
@@ -1502,15 +1471,11 @@ PLAN_FEASIBILITY_INSTRUCTION = (
     "check_data_feasibility with the DataNeedSpec the plan needs; when the check cannot pass, say what is missing and "
     "ask the user with response_type \"CLARIFICATION\" which alternative to take, or return \"LIMITATION\" when none "
     "exists.")
-PLAN_NOT_FEASIBLE_NOTICE = ("A Research Plan was not issued: its data could not be confirmed as available and within "
-                            "the limits of one run. ")
 PLAN_NOT_EXECUTED_INSTRUCTION = (
     "The user approved the Research Plan, but no RESEARCH data need was submitted in this run. Carry out the approved "
     "experiments now (submit_data_need_spec with mode RESEARCH, then prepare the bundle, run and complete the "
     "analysis), or, only if the data truly cannot be obtained, name the exact tool result that blocks it and ask the "
     "user how to go on (response_type \"CLARIFICATION\"), or return \"LIMITATION\" when nothing else can be done.")
-PLAN_NOT_EXECUTED_LINE = ("The approved Research Plan was not executed in this message, so it remains pending; "
-                          "approving it again runs it.")
 REVISE_NOTE = (PLAN_NOTE_PREFIX + "the user asked to revise Research Plan {plan_id}: {instruction}\nReturn the revised "
                "plan as RESEARCH_PLAN_CONFIRMATION (it needs a new approval), or CLARIFICATION if the change is "
                "unclear. A new success threshold the user states (for example \"ubah jadi 5%\") goes into the "
@@ -1553,9 +1518,6 @@ current_answer_target: contextvars.ContextVar[int] = contextvars.ContextVar("cur
                                                                             default=ANSWER_TARGET_CHARS)
 ANGLE_COUNT_NOTE = (PLAN_NOTE_PREFIX + "for this request the Research Plan has {count} (check_research_feasibility and "
                     "the plan check use this count; it replaces the angle count stated in the instructions).")
-ANALYSIS_PATH_LINE = ("Analysis path (fixed by the caller): descriptive historical statistics without a significance "
-                      "test or a correction for multiple comparisons; not a verdict, a cause, a prediction or a "
-                      "trading signal.")
 CANCEL_NOTE = (PLAN_NOTE_PREFIX + "the user cancelled the Research Plan. Nothing was run. Acknowledge it briefly in "
                "the user's language with response_type ANSWER and do not start any analysis.")
 # EXEC-D P-a (user decision 2026-10-07): the reply was read as a cancel, but the model may ask back when it does not
@@ -1599,7 +1561,6 @@ CONTENTS_NOT_SHOWN_NOTE = (
 CARRIED_INPUTS_INSTRUCTION = (
     "carried_inputs names tables that are not released outputs of this conversation: {unknown}. Name a table by its "
     "ref in the data record ({known}), or set carried_inputs to null.")
-PLAN_VERSION_NOTICE = "The Research Plan below is not in the form this deployment runs and cannot be approved. "
 RESEARCH_RUN_NOT_EXECUTED_INSTRUCTION = (
     "The user approved the multi-angle Research Plan, but no research run was started in this message. Call "
     "start_research_run, run_research_code for each bundle group and complete_research_run now, or, only if the data "
@@ -1614,8 +1575,6 @@ ANGLE_NARRATIVE_INSTRUCTION = (
     "Your reading of the multi-angle research run does not match its findings: {problems}. Use no status wording "
     "stronger than each angle's backend status (the backend writes the statuses and the evidence itself), say the "
     "angles agree only when the synthesis map allows an agreement, and write figures as value references.")
-ANGLE_FINDINGS_NOTICE = ("The interpretation of the multi-angle research result below did not match the backend's "
-                         "findings; read the figures as unconfirmed. ")
 # P09 (suite20 r08, 2026-09-29): "tidak mengizinkan pernyataan bahwa sudut-sudut saling mendukung" was read as an
 # agreement claim because the negation stood 47 characters before the phrase and only 40 were checked. A negation
 # governs the phrase when it stands in the same clause: after the last sentence or clause boundary (., !, ?, ;, :, a
@@ -1716,29 +1675,34 @@ def backend_summary(finding: dict[str, Any]) -> BackendAngleSummary:
 
 def evidence_sentence(summary: BackendAngleSummary) -> str:
     """The evidence part of one angle, written by the backend (Indonesian, figures formatted by value_refs)."""
-    reason = REASON_LABELS.get(summary.status_reason or "", summary.status_reason)
-    parts = [f"Status backend {summary.status}" + (f" ({reason})" if reason else "")]
+    # M125: statuses, levels and directions in words (user_texts), never as backend codes
+    say = texts.ANGLE_EVIDENCE
+    reason = REASON_LABELS.get(summary.status_reason or "") or (texts.words(summary.status_reason)
+                                                                if summary.status_reason else None)
+    parts = [say["status"].format(status=texts.words(summary.status)) + (say["reason"].format(reason=reason) if reason
+                                                                           else "")]
     if summary.validation_level:
-        parts.append(f"level validasi {summary.validation_level}")
+        parts.append(say["validation"].format(level=texts.words(summary.validation_level)))
     if summary.effective_sample is not None:
-        unit = SAMPLE_UNITS.get(str(summary.sample_unit or "").upper(), str(summary.sample_unit or "").lower())
-        parts.append(f"sampel efektif {format_value(summary.effective_sample)}" + (f" {unit}" if unit else ""))
+        unit = SAMPLE_UNITS.get(str(summary.sample_unit or "").upper()) or (texts.words(summary.sample_unit)
+                                                                           if summary.sample_unit else "")
+        parts.append(say["sample"].format(value=format_value(summary.effective_sample), unit=f" {unit}" if unit else ""))
     # P23: a difference of known unit is shown in percentage points (a fraction scaled by 100); P24: p-values with p
     fmt, unit = ("pp", summary.estimate_unit) if summary.estimate_unit else (None, None)
     if summary.estimate is not None:
-        text = f"estimasi utama{f' ({summary.estimate_kind})' if summary.estimate_kind else ''} " \
-               f"{format_value(summary.estimate, fmt, unit=unit)}"
+        kind = f" ({texts.words(summary.estimate_kind)})" if summary.estimate_kind else ""
+        text = say["estimate"].format(kind=kind, value=format_value(summary.estimate, fmt, unit=unit))
         if summary.ci and len(summary.ci) == 2 and None not in summary.ci:
             level = f" {format_value(summary.confidence_level * 100)}%" if summary.confidence_level else ""
-            text += (f" (CI{level} {format_value(summary.ci[0], fmt, unit=unit)} s/d "
-                     f"{format_value(summary.ci[1], fmt, unit=unit)})")
+            text += say["ci"].format(level=level, low=format_value(summary.ci[0], fmt, unit=unit),
+                                     high=format_value(summary.ci[1], fmt, unit=unit))
         parts.append(text)
     if summary.p_value is not None:
-        parts.append(format_value(summary.p_value, "p")
-                     + (f" (terkoreksi: {format_value(summary.p_adjusted, 'p')})" if summary.p_adjusted is not None
-                        else ""))
+        parts.append(say["p"].format(value=format_value(summary.p_value, "p"))
+                     + (say["p_adjusted"].format(value=format_value(summary.p_adjusted, "p"))
+                        if summary.p_adjusted is not None else ""))
     if summary.evidence_direction:
-        parts.append(f"arah bukti {summary.evidence_direction}")
+        parts.append(say["direction"].format(direction=texts.words(summary.evidence_direction)))
     return "; ".join(parts) + "."
 
 
@@ -1754,7 +1718,6 @@ PLAN_PROVENANCE_INSTRUCTION = (
     "from the research_plan itself, the user's message or released outputs of this run. Put them in the plan or "
     "remove them; a number you keep is listed for the user to confirm before anything runs."
 )
-PLAN_PROVENANCE_NOTICE = "Some figures below could not be traced to the Research Plan or another source: {numbers}. "
 PLAN_SUCCESS_RULE_INSTRUCTION = (
     "The success_rule value {values} is not a number the user stated. A success threshold is the user's: take it from "
     "their words, set success_rule to null and ask them in the plan's confirmation question, or keep it: the plan then "
@@ -1804,14 +1767,15 @@ def _shown(value: float, unit: str) -> str:
 
 
 def confirm_lines(label: str, interpreted: list[tuple[int, str, float, str, str]],
-                  untraced: list[tuple[int, str, float, str]]) -> list[str]:
+                  untraced: list[tuple[int, str, float, str]], kind: str = "experiments") -> list[str]:
     """EXEC-W A2 (M117): one line per value the user has to confirm, with its operator and unit ("> 0%") and where
     it comes from (GT-A 2026-10-08 showed "0" for a "> 0%" threshold)."""
     lines = []
-    for _, item, value, unit, quote in interpreted:
-        lines.append(f"{label} {item}: {_shown(value, unit)}, saya tafsirkan dari \"{quote}\"")
-    for _, item, value, unit in untraced:
-        lines.append(f"{label} {item}: {_shown(value, unit)}, usulan AI, belum Anda sebut")
+    # M125: the experiment or angle by its place in the plan, as the plan card names it, not by its id
+    for index, _, value, unit, quote in interpreted:
+        lines.append(f"{label} {texts.plan_item(kind, index)}: {_shown(value, unit)}, saya tafsirkan dari \"{quote}\"")
+    for index, _, value, unit in untraced:
+        lines.append(f"{label} {texts.plan_item(kind, index)}: {_shown(value, unit)}, usulan AI, belum Anda sebut")
     return lines
 
 
@@ -4350,33 +4314,27 @@ class AgentOrchestrator:
             level = summary.get("validation_level") or "EXECUTION_ONLY"
             if execution in ("QUEUED", "RUNNING"):
                 blocking.append(f"analysis {ident} had not finished")
-                lines.append(f"Analysis {ident} had not finished, so no calculated result from it is available.")
+                lines.append(texts.ANALYSIS_NOT_FINISHED_LINE)
             elif execution != "COMPLETED":
                 blocking.append(f"analysis {ident} did not complete ({summary.get('error_code') or execution})")
-                lines.append(f"Analysis {ident} did not complete ({summary.get('error_code') or execution}); no "
-                             f"validated calculation result is available from it.")
+                lines.append(texts.ANALYSIS_FAILED_LINE)
             elif validation in ("FAILED", "INCOMPLETE"):
                 blocking.append(f"analysis {ident} validation {validation} ({reasons})")
-                lines.append(f"Analysis {ident}: execution COMPLETED but validation {validation} ({reasons}); its "
-                             f"result is not a validated answer to the requested scope.")
+                lines.append(texts.ANALYSIS_NOT_VALIDATED_LINE.format(status=texts.words(validation)))
             elif validation == "UNVERIFIED":
-                lines.append(f"Analysis {ident}: validation UNVERIFIED (level {level}); its scope and values could "
-                             f"not be checked independently.")
+                lines.append(texts.ANALYSIS_UNVERIFIED_LINE)
             elif level != "CALCULATION_VERIFIED":
-                lines.append(f"Analysis {ident}: validation {validation} at level {level}; the calculation itself "
-                             f"was not independently recalculated.")
+                lines.append(texts.ANALYSIS_NOT_RECOMPUTED_LINE)
             spec = state.specs.get(summary.get("spec_id") or "")
             if spec and spec["unverified"]:
-                lines.append(f"Requirements not stated by the user in the spec of analysis {ident}: "
-                             f"{', '.join(spec['unverified'])}.")
+                lines.append(texts.ANALYSIS_ASSUMED_LINE.format(items=texts.words_list(spec["unverified"])))
             evidence = state.evidence.get(ident)
             if evidence and evidence.get("claim_type") in RESEARCH_CLAIMS:
-                lines.append(f"Analysis {ident} ({evidence['claim_type']}): evidence {evidence.get('decision')}, "
-                             f"level {evidence.get('evidence_level')}.")
+                lines.append(texts.ANALYSIS_EVIDENCE_LINE.format(decision=texts.words(evidence.get("decision")),
+                                                                 level=texts.words(evidence.get("evidence_level"))))
                 lines.extend(c for c in evidence["reporting_constraints"] if c not in lines)
         if "CORPORATE_ACTIONS_NOT_ADJUSTED" in state.warning_codes and latest:
-            lines.append("Prices are split-adjusted as fetched and not dividend-adjusted; returns that span a "
-                         "corporate action can be distorted.")
+            lines.append(texts.CORPORATE_ACTIONS_LINE)
         return blocking, lines
 
     @staticmethod
@@ -4600,62 +4558,52 @@ class AgentOrchestrator:
             if completion is None:
                 if session.get("executions"):
                     blocking.append(f"analysis session {session_id} was not completed with complete_analysis")
-                    lines.append(f"Analysis session {session_id} was not completed, so none of its outputs were "
-                                 "released.")
+                    lines.append(texts.SESSION_NOT_COMPLETED_LINE)
             elif completion["status"] != "COMPLETED":
                 final = completion["final"]
                 blocking.append(f"analysis session {session_id} is INCOMPLETE (data_coverage "
                                 f"{final.get('data_coverage')}, sandbox_execution {final.get('sandbox_execution')})")
-                lines.append(f"Analysis session {session_id}: data coverage {final.get('data_coverage')}, sandbox "
-                             f"execution {final.get('sandbox_execution')}; its outputs were not released.")
+                lines.append(texts.SESSION_INCOMPLETE_LINE)
         completed = [c for c in state.completions.values() if c["status"] == "COMPLETED"]
         if completed:
             studies = [s for c in completed for s in c["final"].get("event_studies") or [] if isinstance(s, dict)]
             passed = sorted({str(s.get("name")) for s in studies if s.get("status") == "PASS"})
             if passed:
                 # G2: only the event-study tables were recomputed; every other calculation was not
-                lines.append(f"Data coverage was verified against the approved DataNeedSpec. The event studies "
-                             f"{', '.join(passed)} were recomputed independently by the backend from their "
-                             "declaration and matched (CALCULATION_VERIFIED); the other calculations were not "
-                             "independently recalculated.")
+                lines.append(texts.COVERAGE_RECOMPUTED_LINE)
             else:
-                lines.append("Data coverage was verified against the approved DataNeedSpec; the calculations "
-                             "themselves were not independently recalculated by the backend (calculation_validation "
-                             "NOT_PERFORMED).")
+                lines.append(texts.COVERAGE_ONLY_LINE)
             invalid = sorted({f"{s.get('name')} ({s.get('reason')})" for s in studies if s.get("status") == "INVALID"})
             if invalid:
-                lines.append(f"Event studies the backend could not recompute: {', '.join(invalid)}; their tables are "
-                             "not independently verified.")
+                lines.append(texts.EVENT_STUDY_INVALID_LINE)
+                log_event("event_study_not_recomputed", request_id=state.request_id, studies=invalid)
             codes = sorted({code for c in completed for code in c["final"].get("warnings") or []})
             lines.extend(WARNING_LINES[code] for code in codes if code in WARNING_LINES)
             if any(c["final"].get("derived_frequency") for c in completed):
                 lines.append(DERIVED_FREQUENCY_LINE)
             if state.pit_refusals and any(c["final"].get("time_basis") != "POINT_IN_TIME" for c in completed):
                 # IP1 Stage D: a point-in-time request was refused and the answer rests on descriptive data
-                lines.append(PIT_FALLBACK_LINE.format(detail="; ".join(state.pit_refusals[:3])))
+                lines.append(PIT_FALLBACK_LINE)
             if any((state.needs.get(c.get("need_id") or "") or {}).get("mode") == "RESEARCH" for c in completed):
-                lines.append("Research results describe a historical pattern only; they are not evidence of a cause "
-                             "or a prediction.")
+                lines.append(texts.HISTORICAL_PATTERN_LINE)
         if state.inherited:
             for output_id, origin in state.inherited.items():
-                lines.append(f"Figures from {origin.get('name') or output_id} were computed in an earlier message "
-                             f"(completion {origin.get('completion_id')}, {origin.get('completed_at')}) and were not "
-                             "recomputed in this message.")
+                lines.append(texts.EARLIER_FIGURES_LINE.format(name=origin.get("label") or texts.EARLIER_RESULT))
             if not completed:
-                lines.append("Data coverage was verified when those results were computed; the calculations were "
-                             "not independently recalculated by the backend (calculation_validation NOT_PERFORMED).")
+                lines.append(texts.EARLIER_COVERAGE_LINE)
             codes = sorted({code for origin in state.inherited.values() for code in origin.get("warnings") or []})
             lines.extend(line for line in (WARNING_LINES[code] for code in codes if code in WARNING_LINES)
                          if line not in lines)
         if state.in_sample:
-            lines.append(insample.LINE.format(ids=", ".join(sorted(state.in_sample)),
-                                              detail=insample.details(state.in_sample)))
+            lines.append(texts.IN_SAMPLE_LINE.format(detail=texts.in_sample_detail(state.in_sample)))
+            log_event("in_sample_detail", request_id=state.request_id, ids=sorted(state.in_sample),
+                      detail=insample.details(state.in_sample))
         executor = self._executor(state)
         if executor is not None and executor.research_run_id is not None:
             run = executor.result
             if run is None:
                 blocking.append("the multi-angle research run was not completed with complete_research_run")
-                lines.append("The multi-angle research run was not completed, so none of its findings were released.")
+                lines.append(texts.RESEARCH_RUN_NOT_COMPLETED_LINE)
             else:
                 if run.get("status") != "COMPLETED":
                     blocking.append(f"the multi-angle research run is {run.get('status')} (angles without a finding: "
@@ -4666,19 +4614,12 @@ class AgentOrchestrator:
     @staticmethod
     def _research_run_lines(run: dict[str, Any]) -> list[str]:
         counts = run.get("angle_completion") or {}
-        findings = run.get("research_findings") or []
-        lines = [f"Multi-angle research: {counts.get('planned')} angles planned, {counts.get('validated')} with a "
-                 f"validated finding, {counts.get('invalid')} invalid, {counts.get('not_run')} not run; calculation "
-                 f"validation {run.get('calculation_validation')} (the weakest level of the findings relied on)."]
-        for status, label in (("INVALID", "invalid"), ("NOT_RUN", "not run")):
-            angles = [f"{f.get('angle_id')} ({f.get('status_reason')})" for f in findings if f.get("status") == status]
-            if angles:
-                lines.append(f"Angles {label}: {', '.join(angles)}.")
+        # M125: counts in words; which angle is invalid or not run shows on its own finding card
+        lines = [texts.RESEARCH_RUN_LINE.format(planned=counts.get("planned"), validated=counts.get("validated"),
+                                                invalid=counts.get("invalid"), not_run=counts.get("not_run"))]
         if run.get("calculation_validation") not in VERIFIED_LEVELS:
-            lines.append("The backend did not recompute the research statistics of the findings relied on "
-                         "(EXECUTION_ONLY or NOT_PERFORMED).")
-        lines.append("Research results describe a historical pattern only; they are not evidence of a cause or a "
-                     "prediction.")
+            lines.append(texts.RESEARCH_NOT_RECOMPUTED_LINE)
+        lines.append(texts.HISTORICAL_PATTERN_LINE)
         return lines
 
     def _row_fetcher(self, state: RunState, session_id: str | None, output_id: str) -> Any:
@@ -5182,9 +5123,8 @@ class AgentOrchestrator:
         if missing and final.response_type == "ANSWER":
             names = ", ".join(missing)
             self._gate_once(state, "ROUTING", ROUTING_INSTRUCTION.format(families=names), needs=LEGACY_ANALYSIS_TOOLS)
-            return self._forced(state, final, "ROUTING", ROUTING_NOTICE.format(families=names),
-                                [f"The request needs a validated analysis ({names}); no such analysis supports this "
-                                 f"response."] + lines)
+            return self._forced(state, final, "ROUTING", ROUTING_NOTICE.format(families=texts.words_list(missing)),
+                                [texts.NEEDS_ANALYSIS_LINE.format(families=texts.words_list(missing))] + lines)
 
         provenance = check_answer(final.answer, self._source_index(state))
         state.number_provenance = {"checked": provenance.checked, "unsupported": provenance.unsupported[:50]}
@@ -5193,7 +5133,7 @@ class AgentOrchestrator:
             self._gate_once(state, "PROVENANCE", PROVENANCE_INSTRUCTION.format(numbers=numbers)
                             + self._code_literal_hint(state, final.answer, provenance.unsupported))
             return self._forced(state, final, "PROVENANCE", PROVENANCE_NOTICE.format(numbers=numbers),
-                                [f"Figures without a governed source in this run: {numbers}."] + lines)
+                                [texts.NO_SOURCE_LINE.format(numbers=numbers)] + lines)
 
         final = self._annotate_claims(state, final)  # P17: marked, never rejected
         annotated = state.reference_annotated or bool(state.claim_annotations) or state.definition_annotated
@@ -5235,9 +5175,8 @@ class AgentOrchestrator:
             names = ", ".join(missing)
             self._gate_once(state, "ROUTING", DATANEED_ROUTING_INSTRUCTION.format(families=names),
                             needs=DATANEED_ANALYSIS_TOOLS)
-            return self._forced(state, final, "ROUTING", DATANEED_ROUTING_NOTICE.format(families=names),
-                                [f"The request needs a completed analysis ({names}); none supports this "
-                                 f"response."] + lines)
+            return self._forced(state, final, "ROUTING", DATANEED_ROUTING_NOTICE.format(families=texts.words_list(missing)),
+                                [texts.NEEDS_ANALYSIS_LINE.format(families=texts.words_list(missing))] + lines)
         provenance = check_answer(final.answer, self._source_index(state))
         state.number_provenance = {"checked": provenance.checked, "unsupported": provenance.unsupported[:50]}
         if provenance.unsupported:
@@ -5247,7 +5186,7 @@ class AgentOrchestrator:
                 + self._code_literal_hint(state, final.answer, provenance.unsupported)
                 + (REFERENCE_HINT if self.value_references else ""))
             return self._forced(state, final, "PROVENANCE", DATANEED_PROVENANCE_NOTICE.format(numbers=numbers),
-                                [f"Figures without a governed source in this run: {numbers}."] + lines)
+                                [texts.NO_SOURCE_LINE.format(numbers=numbers)] + lines)
         # Multi-Angle Research: the backend recomputed the statistics, so saying so at the returned level is allowed;
         # G2: so is an answer whose every number comes from event-study tables the backend recomputed
         # P17 (user decision 2026-10-01): unsupported claims are marked in italics with annotations, never rejected
@@ -5347,10 +5286,13 @@ class AgentOrchestrator:
         from its released table without a recomputation). The recomputed claims of get_evidence ended with EXEC-E."""
         items: list[dict[str, Any]] = []
         outputs = {o.get("ref"): o for o in (state.data_record or {}).get("outputs") or [] if isinstance(o, dict)}
+        names = {ref: o.get("label") or texts.words(o.get("name")) for ref, o in outputs.items() if ref}
         for expr in state.referenced[:20]:
             head = ".".join(expr.split(".")[:2])
             output = outputs.get(head)
+            # M125: "label" says in words what the figure is and where it comes from; "claim" keeps the address
             items.append({"kind": "REFERENCED", "status": "DIRUJUK", "claim": expr,
+                          "label": texts.value_label(expr, names),
                           "source": {k: output.get(k) for k in ("ref", "output_id", "name", "label", "data_as_of")}
                           if output else {"ref": head}})
         return items or None
@@ -5606,7 +5548,7 @@ class AgentOrchestrator:
                 values=", ".join(f"{v:g}" for _, _, v, _ in untraced))
                 + PLAN_FIELD_PATHS.format(paths=", ".join(f"research_plan.{plan_items}[{index}].min_effect"
                                                           for index, _, _, _ in untraced)) + hint)
-        to_confirm += confirm_lines("Efek minimum", interpreted, untraced)
+        to_confirm += confirm_lines("Efek minimum", interpreted, untraced, plan_items)
         self._log_cited_thresholds(state, final, before, cited)
         # M69 tahap 1: an outcome horizon the user stated binds every experiment and angle
         # the newest statement wins: a revision replaces the horizon of the first question (oldest text first)
@@ -5620,6 +5562,7 @@ class AgentOrchestrator:
                  for index, i in enumerate(getattr(final.research_plan, horizon_key, None) or [])
                  if getattr(i, "outcome_horizon_periods", None) is not None]
         drifted = [(name, used, path) for name, used, path in items if allowed and used not in allowed]
+        drifted_at = [(index, item) for index, item in enumerate(items) if allowed and item[1] not in allowed]
         if drifted:
             stated_text = ", ".join(f"{n} {u.lower()}{'s' if n > 1 else ''}" for n, u in sorted(horizons))
             self._gate_once(state, "PLAN_HORIZON", PLAN_HORIZON_INSTRUCTION.format(
@@ -5627,8 +5570,8 @@ class AgentOrchestrator:
                 used=", ".join(sorted({str(u) for _, u, _ in drifted})),
                 allowed=" or ".join(str(a) for a in sorted(allowed)))
                 + PLAN_FIELD_PATHS.format(paths=", ".join(path for _, _, path in drifted)))
-            to_confirm += [f"Horizon {name}: rencana memakai {used} periode, padahal Anda menyebut {stated_text}"
-                           for name, used, _ in drifted]
+            to_confirm += [f"Horizon {texts.plan_item(horizon_key, index)}: rencana memakai {used} periode, padahal Anda "
+                           f"menyebut {texts.horizon_text(horizons)}" for index, (_, used, _) in drifted_at]
         if changes is not None and not disagreement:
             final = self._variant_coverage(state, final, horizons, allowed, {used for _, used, _ in items}, changes)
         # M29 (d02 2026-09-29: "about 6 banks" planned, 48 run): a number written in the plan's own text (universe,

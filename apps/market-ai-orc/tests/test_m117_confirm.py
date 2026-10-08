@@ -117,4 +117,4 @@ def test_a_horizon_that_differs_after_the_repair_is_listed_not_dropped() -> None
     finally:
         current_design_changes.reset(token)
     assert out.response_type == "RESEARCH_PLAN_CONFIRMATION"
-    assert "rencana memakai 3 periode, padahal Anda menyebut 10 days" in out.answer
+    assert "Horizon eksperimen 1: rencana memakai 3 periode, padahal Anda menyebut 10 hari" in out.answer

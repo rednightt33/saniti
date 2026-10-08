@@ -5,6 +5,7 @@ supported in part but never plainly supported, and the minimum effect of a plan 
 like PLAN_SUCCESS_RULE)."""
 from __future__ import annotations
 
+from app import user_texts as texts
 import pytest
 
 from app.orchestrator import (BELOW_USER_MINIMUM, AgentOrchestrator, GateRejection, backend_summary,
@@ -61,7 +62,7 @@ def test_the_backend_evidence_names_the_reason_in_the_users_words() -> None:
     assert BELOW_USER_MINIMUM not in sentence
     other = evidence_sentence(backend_summary({"status": "PARTIALLY_SUPPORTED",
                                                "status_reason": "MULTIPLE_TESTING_NOT_PASSED"}))
-    assert "MULTIPLE_TESTING_NOT_PASSED" in other
+    assert texts.words("MULTIPLE_TESTING_NOT_PASSED") in other and "MULTIPLE_TESTING_NOT_PASSED" not in other
 
 
 def plan_with(min_effect: float | None, question: str, unit: str | None = "PERCENT") -> FinalResponse:

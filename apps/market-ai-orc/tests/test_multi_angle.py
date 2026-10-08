@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from app.orchestrator import markdown_prompt  # noqa: E402 - prompt audit C (2026-10-05)
 
+from app import user_texts as texts
 import copy
 import json
 import re
@@ -626,8 +627,8 @@ def test_the_approved_turn_runs_the_plan_through_the_executor_and_reports_every_
         ("a_lag", "NOT_RUN", "research_findings/v2")]
     assert experiments[0].retained == "RETAINED" and experiments[2].retained == "NOT_RUN"
     assert result.execution.analysis_final_status["calculation_validation"] == "STATISTICS_VERIFIED"
-    assert any("calculation validation STATISTICS_VERIFIED" in line for line in result.response.limitations)
-    assert any("Angles not run: a_lag" in line for line in result.response.limitations)
+    # M125: counts in words; which angle did not run shows on its finding (status NOT_RUN above)
+    assert texts.RESEARCH_RUN_LINE.format(planned=3, validated=2, invalid=0, not_run=1) in result.response.limitations
     assert result.continuation is None
     dumped = result.model_dump(mode="json")
     assert dumped["execution"]["research"]["experiments"][0]["method_id"] == "conditional_distribution"

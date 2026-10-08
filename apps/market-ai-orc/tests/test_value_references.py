@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app import user_texts as texts
 import pytest
 
 from app.orchestrator import AgentOrchestrator, build_system_prompt, negated_or_zero, response_contract
@@ -229,7 +230,7 @@ def test_the_answer_is_rendered_and_every_angle_carries_the_backend_block() -> N
         ("a_fall", "SUPPORTED"), ("a_rank", "INSUFFICIENT_EVIDENCE"), ("a_lag", "NOT_RUN")]
     fall, rank, lag = findings
     assert fall.backend.effective_sample == 120 and fall.backend.estimate == 1.25 and fall.backend.ci == [0.4, 2.1]
-    assert "sampel efektif 120" in fall.interpretation.evidence and "Status backend SUPPORTED" in \
+    assert "sampel efektif 120" in fall.interpretation.evidence and "Hasil: " + texts.words("SUPPORTED") in \
         fall.interpretation.evidence
     assert rank.interpretation.answer == "Data belum bisa membedakan efeknya."
     assert lag.interpretation.answer == "Tidak diinterpretasikan oleh model."  # not interpreted, still reported

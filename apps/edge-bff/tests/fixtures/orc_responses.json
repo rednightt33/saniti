@@ -431,7 +431,8 @@
     "source": {
      "ref": "finding.vol_spike_up"
     },
-    "status": "DIRUJUK"
+    "status": "DIRUJUK",
+    "label": "Angka dari hasil riset: jumlah tanggal, kelompok sinyal"
    },
    {
     "kind": "REFERENCED",
@@ -439,7 +440,8 @@
     "source": {
      "ref": "finding.vol_spike_up"
     },
-    "status": "DIRUJUK"
+    "status": "DIRUJUK",
+    "label": "Angka dari hasil riset: jumlah baris, kelompok pembanding"
    },
    {
     "kind": "REFERENCED",
@@ -447,7 +449,8 @@
     "source": {
      "ref": "finding.vol_spike_up"
     },
-    "status": "DIRUJUK"
+    "status": "DIRUJUK",
+    "label": "Angka dari hasil riset: rata-rata kelompok sinyal, angle a"
    },
    {
     "kind": "REFERENCED",
@@ -455,7 +458,8 @@
     "source": {
      "ref": "finding.vol_spike_up"
     },
-    "status": "DIRUJUK"
+    "status": "DIRUJUK",
+    "label": "Angka dari hasil riset: rata-rata kelompok pembanding, angle a"
    }
   ],
   "response": {
@@ -475,8 +479,8 @@
     "Kondisi lonjakan volume dibangun oleh kode analisis; backend menghitung ulang statistiknya dari baris peristiwa dan baseline yang diserahkan.",
     "p-value setiap uji disesuaikan oleh backend bersama seluruh uji percakapan ini (Holm/Benjamini-Hochberg) dan ditambahkan pada keterbatasan jawaban.",
     "Angka hasil analisis di jawaban ini dibaca backend langsung dari tabel hasil yang dirujuk (bukti DIRUJUK), tanpa hitung ulang terpisah dari kode AI.",
-    "Data coverage was verified against the approved DataNeedSpec; the calculations themselves were not independently recalculated by the backend (calculation_validation NOT_PERFORMED).",
-    "Research results describe a historical pattern only; they are not evidence of a cause or a prediction."
+    "Kelengkapan data sudah dicek; perhitungannya sendiri tidak dihitung ulang secara terpisah oleh sistem.",
+    "Hasil riset hanya menggambarkan pola masa lalu; bukan bukti sebab-akibat atau prediksi."
    ],
    "methodology": "Data: harga dan volume harian BBRI (tabel Price_Stock_Indonesia_IDX, kolom close dan volume) untuk rentang studi 2023-01-01–2024-12-31 yang tersedia 2023-01-02–2024-12-30 (476 baris, satu saham), dengan 20 observasi pemanasan sebelum rentang dan 5 observasi setelahnya. Langkah: kondisi = volume harian ≥ 2 × rata-rata volume 20 hari perdagangan sebelumnya (rata-rata dihitung dari 20 hari sebelum hari sinyal, hari sinyal tidak termasuk); hasil = imbal hasil 5 hari ke depan = penutupan t+5 / penutupan t − 1 (persen); peristiwa ber-jendela 5 hari dibuat non-overlapping (hari sinyal yang jendelanya tumpang tindih dengan peristiwa yang sudah dipakai dibuang); baseline = hari tanpa kondisi lonjakan. Statistik: backend menghitung selisih rata-rata imbal hasil peristiwa vs baseline beserta selang kepercayaan 95% dan p-value dengan tanggal sebagai klaster, serta selisih frekuensi imbal hasil > 0 (angle_b) dengan selang dan p-nya; sampel efektif menghitung hasil yang tumpang tindih sekali; backend juga menilai kategori sampel dan efek terkecil yang dapat dideteksi. Yang ditinggalkan: hari tanpa kondisi atau tanpa hasil 5 hari yang terdefinisi, dan peristiwa yang tumpang tindih.",
    "research_plan": null,
@@ -3119,9 +3123,9 @@
     "Pemisahan BUMN/non-BUMN memakai nama emiten referensi terkini, bukan status kepemilikan historis.",
     "Sumber data tidak memuat berita, makro, kebijakan, atau fundamental, sehingga hubungan sebab-akibat tidak dapat diuji.",
     "Hasil adalah pola historis (asosiasi), bukan penyebab, prediksi, atau sinyal trading.",
-    "IN_SAMPLE: all_banks_big_buy_pooled, bumn_rb_flow_lead_lag, bumn_rb_flow_rank, nonbumn_threshold_scale were tested on data an earlier step of this conversation already read (IDX_Broker_Summary 2018-01-02 to 2026-08-31 against 2018-01-02 to 2026-08-31); a pattern found and tested on the same period tends to look stronger than it is. Read these findings as exploratory and confirm them on another period or universe.",
-    "Multi-angle research: 4 angles planned, 4 with a validated finding, 0 invalid, 0 not run; calculation validation STATISTICS_VERIFIED (the weakest level of the findings relied on).",
-    "Research results describe a historical pattern only; they are not evidence of a cause or a prediction."
+    "Sebagian temuan diuji pada data yang sudah dibaca di langkah sebelumnya dalam percakapan ini (periode uji 2018-01-02 s/d 2026-08-31 bertumpuk dengan 2018-01-02 s/d 2026-08-31). Pola yang ditemukan dan diuji di periode yang sama cenderung terlihat lebih kuat dari sebenarnya; anggap temuan ini awal dan cek ulang di periode atau saham lain.",
+    "Riset beberapa sudut: 4 sudut direncanakan, 4 punya temuan yang sudah diperiksa, 0 tidak valid, 0 tidak dijalankan.",
+    "Hasil riset hanya menggambarkan pola masa lalu; bukan bukti sebab-akibat atau prediksi."
    ],
    "research_plan": null,
    "methodology": "Rencana empat sudut yang Anda setujui dijalankan lewat run riset rrun_8882b7e61745d126650b119d pada kelompok data tunggal g1 (sesi sess_a42fcef2c6aa0d469c3201fd). Langkah: (1) penyiapan data kelompok g1 — lima permintaan, yaitu arus broker RB (IDX_Broker_Summary, Broker=RB), harga penutupan (Price_Stock_Indonesia_IDX), daftar bank BUMN, seluruh bank, dan bank non-BUMN, dengan rentang 2018-01-02 s/d 2026-08-31 dan buffer maju 5 observasi pada permintaan harga; (2) pemeriksaan kualitas tiap permintaan — daftar emiten terisi (4/46/42), sedangkan arus RB dan harga berstatus EMPTY_DATASET/EMPTY_RANGE dengan 0 baris dan 0 emiten; (3) setiap sudut direkam satu kali dengan helper metode yang disetujui (research_quantiles untuk bumn_rb_flow_rank dengan 2 kuantil; research_conditional untuk all_banks_big_buy_pooled dengan ambang Rp 10 miliar dan baseline COMPLEMENT; research_temporal_dependency untuk bumn_rb_flow_lead_lag dengan lag 1/2/3, lag utama 1, korelasi Pearson, koreksi Benjamini-Hochberg; research_conditional untuk nonbumn_threshold_scale dengan ambang Rp 5/10/20 miliar dan baseline COMPLEMENT); (4) sebagai syarat penyelesaian, setiap permintaan kelompok dibaca melalui helper (load), lalu complete_research_run memvalidasi cakupan dan menghitung ulang statistik tiap sudut. Karena input setiap sudut berisi nol baris, backend menetapkan keempatnya INSUFFICIENT_EVIDENCE/INSUFFICIENT_SAMPLE dengan arah bukti NONE, sampel efektif nol, dan level validasi STATISTICS_VERIFIED. Tidak ada penghitungan ulang atau pengubahan status yang saya lakukan; angka di atas berasal dari temuan backend tersebut.",
@@ -3131,7 +3135,7 @@
      "status": "INSUFFICIENT_EVIDENCE",
      "interpretation": {
       "answer": "Tidak terjawab — status backend INSUFFICIENT_EVIDENCE (INSUFFICIENT_SAMPLE), karena input sudut berisi 0 baris dan 0 tanggal efektif, jadi penyebaran return kuantil atas vs kuantil bawah bank BUMN tidak bisa dihitung.",
-      "evidence": "Status backend INSUFFICIENT_EVIDENCE (INSUFFICIENT_SAMPLE); level validasi STATISTICS_VERIFIED; sampel efektif 0 tanggal; arah bukti NONE.",
+      "evidence": "Hasil: bukti belum cukup (sampel terlalu sedikit); pemeriksaan: statistiknya dihitung ulang dan cocok; sampel efektif 0 tanggal; arah: tidak ada arah yang jelas.",
       "usefulness": "Pertanyaan apakah urutan besarnya net beli RB lintas emiten BUMN pada tanggal yang sama menandai perbedaan return 5 hari sama sekali belum terjawab; tidak ada implikasi praktis yang bisa ditarik.",
       "follow_up": "Perbaiki penyiapan dua permintaan kosong (arus RB dan harga) pada scope/rentang ini, lalu ulangi sudut ini tanpa mengubah desain."
      },
@@ -3156,7 +3160,7 @@
      "status": "INSUFFICIENT_EVIDENCE",
      "interpretation": {
       "answer": "Tidak terjawab — status backend INSUFFICIENT_EVIDENCE (INSUFFICIENT_SAMPLE), karena input berisi 0 baris dan 0 tanggal efektif, jadi perbandingan hari dengan net beli RB minimal Rp 10 miliar terhadap hari tanpa kondisi (COMPLEMENT) tidak bisa dihitung.",
-      "evidence": "Status backend INSUFFICIENT_EVIDENCE (INSUFFICIENT_SAMPLE); level validasi STATISTICS_VERIFIED; sampel efektif 0 tanggal; arah bukti NONE.",
+      "evidence": "Hasil: bukti belum cukup (sampel terlalu sedikit); pemeriksaan: statistiknya dihitung ulang dan cocok; sampel efektif 0 tanggal; arah: tidak ada arah yang jelas.",
       "usefulness": "Pertanyaan apakah pola beli besar RB ada di sektor bank secara umum belum terjawab; tanpa itu, pembanding utama untuk klaim \"hanya di BUMN\" juga belum ada.",
       "follow_up": "Perbaiki permintaan arus/harga lalu ulangi; bila tetap kosong, telusuri apakah kode Broker=\"RB\" atau rentangnya yang tidak cocok dengan isi IDX_Broker_Summary."
      },
@@ -3181,7 +3185,7 @@
      "status": "INSUFFICIENT_EVIDENCE",
      "interpretation": {
       "answer": "Tidak terjawab — status backend INSUFFICIENT_EVIDENCE (INSUFFICIENT_SAMPLE), karena input berisi 0 baris dan 0 tanggal efektif, jadi korelasi arus RB hari ini dengan return pada lag 1, 2, dan 3 hari tidak bisa dihitung.",
-      "evidence": "Status backend INSUFFICIENT_EVIDENCE (INSUFFICIENT_SAMPLE); level validasi STATISTICS_VERIFIED; sampel efektif 0 dates_autocorrelation_adjusted; arah bukti NONE.",
+      "evidence": "Hasil: bukti belum cukup (sampel terlalu sedikit); pemeriksaan: statistiknya dihitung ulang dan cocok; sampel efektif 0 tanggal (disesuaikan untuk autokorelasi); arah: tidak ada arah yang jelas.",
       "usefulness": "Pertanyaan apakah arus RB mendahului return bank BUMN belum terjawab; dimensi waktu dari ide Anda karena itu belum diuji.",
       "follow_up": "Ulangi setelah data terisi; bila sudah terisi, periksa apakah korelasi lag utama (lag 1) tetap bertahan pada periode atau himpunan bank lain."
      },
@@ -3206,7 +3210,7 @@
      "status": "INSUFFICIENT_EVIDENCE",
      "interpretation": {
       "answer": "Tidak terjawab — status backend INSUFFICIENT_EVIDENCE (INSUFFICIENT_SAMPLE), karena input berisi 0 baris dan 0 tanggal efektif, jadi perbandingan terhadap baseline pada ambang Rp 5, 10, dan 20 miliar di bank non-BUMN tidak bisa dihitung.",
-      "evidence": "Status backend INSUFFICIENT_EVIDENCE (INSUFFICIENT_SAMPLE); level validasi STATISTICS_VERIFIED; sampel efektif 0 tanggal; arah bukti NONE.",
+      "evidence": "Hasil: bukti belum cukup (sampel terlalu sedikit); pemeriksaan: statistiknya dihitung ulang dan cocok; sampel efektif 0 tanggal; arah: tidak ada arah yang jelas.",
       "usefulness": "Pembanding non-BUMN untuk klaim \"hanya di BUMN\", termasuk apakah efek berskala dengan besarnya beli, belum tersedia; tidak ada kesimpulan praktis.",
       "follow_up": "Ulangi setelah data terisi; karena kohort non-BUMN jauh lebih besar daripada BUMN, ini sudut pertama yang akan memberi daya uji memadai bila arus RB tersedia."
      },
@@ -4261,8 +4265,8 @@
     "Hanya tabel event study yang direkalkulasi independen oleh backend (FORMULA_AND_STATISTICS_VERIFIED); statistik research findings berasal dari baris events/baseline yang dibangun oleh kode analisis dan dihitung ulang backend dari agregat per tanggal (STATISTICS_VERIFIED), bukan verifikasi atas cara baris itu dibentuk.",
     "Sebanyak 1 peristiwa disensor dan 0 dibuang karena tumpang tindih; tidak ada nilai kosong pada kolom yang dipakai.",
     "Pola historis ini bukan sebab, prediksi, atau sinyal perdagangan.",
-    "Data coverage was verified against the approved DataNeedSpec. The event studies foreign_buy were recomputed independently by the backend from their declaration and matched (CALCULATION_VERIFIED); the other calculations were not independently recalculated.",
-    "Research results describe a historical pattern only; they are not evidence of a cause or a prediction."
+    "Kelengkapan data sudah dicek. Tabel studi peristiwa dihitung ulang secara terpisah oleh sistem dan hasilnya cocok; perhitungan lainnya tidak dihitung ulang.",
+    "Hasil riset hanya menggambarkan pola masa lalu; bukan bukti sebab-akibat atau prediksi."
    ],
    "research_plan": null,
    "methodology": "Data: Feature_03_Stock_Broker_Daily untuk BBCA papan Regular (kolom foreign_net_value) dan Feature_01_Stock_Daily untuk BBCA (kolom close), keduanya frekuensi harian 1D, periode 2020-01-02–2026-08-31 sesuai DataNeedSpec yang disetujui; permintaan harga diberi future_buffer 1 observasi perdagangan untuk return ke depan. Tidak ada filter tambahan di dalam kode. Langkah: satu event study dijalankan dengan kondisi foreign_net_value > 0, outcome forward return dari harga close atas 1 observasi, range study_period, overlap_policy NON_OVERLAPPING, baseline NON_EVENT; tabel event study direkalkulasi ulang oleh backend (CALCULATION_VERIFIED). Rangkaian peristiwa dan baseline dari event study itu kemudian diringkas dengan event_summary untuk hipotesis h1 dengan horizon 1 periode, unit PERCENT, arah diharapkan HIGHER, satu perbandingan, kebijakan multiple testing NONE. Statistik: selisih rata-rata outcome kondisi vs baseline dengan interval kepercayaan 95% dan uji t (p-value) di mana peristiwa pada satu tanggal dihitung satu observasi (cluster per tanggal); alpha 5%, power 80%; frekuensi keberhasilan (return > 0) dibandingkan dengan cara yang sama; kecukupan sampel dinilai backend (effective 771 tanggal, kategori ADEQUATE) dan efek terkecil yang dapat dideteksi dilaporkan. Yang dikeluarkan: 1 peristiwa disensor karena outcome-nya melewati akhir data, 0 dibuang karena tumpang tindih; hanya 0 baris dengan kondisi tidak diketahui.",
@@ -4997,11 +5001,10 @@
     "Klasifikasi broker (broker_type, broker_classification) memakai data referensi terkini, bukan klasifikasi yang berlaku pada tiap tanggal historis.",
     "\"Kenapa\" tidak dapat dijawab secara kausal dari basis data ini: tidak tersedia berita, data makro, kebijakan, atau sentimen. Yang dilaporkan adalah asosiasi, bukan sebab.",
     "Kalimat bercetak miring ditandai: klaim sebab-akibat, prediksi, pembuktian atau verifikasi perhitungan tidak didukung oleh analisis historis ini.",
-    "Figures from crash_broker_rank were computed in an earlier message (completion cmp_21f70efda7ddc240fcdafb5f, 2026-10-02T19:39:59+00:00) and were not recomputed in this message.",
-    "Figures from meta_summary were computed in an earlier message (completion cmp_21f70efda7ddc240fcdafb5f, 2026-10-02T19:39:59+00:00) and were not recomputed in this message.",
-    "Data coverage was verified when those results were computed; the calculations were not independently recalculated by the backend (calculation_validation NOT_PERFORMED).",
-    "Some entities miss dates of the dataset's own calendar inside a range.",
-    "Classifications come from the current state of the reference table, not from the classification valid at each historical date.",
+    "Angka dari hasil sebelumnya dihitung di pesan sebelumnya dan tidak dihitung ulang di pesan ini.",
+    "Kelengkapan datanya dicek saat angka itu dihitung; perhitungannya tidak dihitung ulang secara terpisah oleh sistem.",
+    "Sebagian saham tidak punya data di beberapa hari bursa dalam periode.",
+    "Pengelompokan memakai data terkini, bukan pengelompokan yang berlaku di tiap tanggal lama.",
     "Some delivered values are missing (null).",
     "Usulan riset sebelumnya masih menunggu keputusan Anda; balas \"jalankan\" kapan saja untuk menjalankannya."
    ],
@@ -5851,11 +5854,10 @@
     "Klasifikasi broker (broker_type, broker_classification) memakai data referensi terkini, bukan klasifikasi yang berlaku pada tiap tanggal historis.",
     "\"Kenapa\" tidak dapat dijawab secara kausal dari basis data ini: tidak tersedia berita, data makro, kebijakan, atau sentimen. Yang dilaporkan adalah asosiasi, bukan sebab.",
     "Kalimat bercetak miring ditandai: klaim sebab-akibat, prediksi, pembuktian atau verifikasi perhitungan tidak didukung oleh analisis historis ini.",
-    "Figures from crash_broker_rank were computed in an earlier message (completion cmp_21f70efda7ddc240fcdafb5f, 2026-10-02T19:39:59+00:00) and were not recomputed in this message.",
-    "Figures from meta_summary were computed in an earlier message (completion cmp_21f70efda7ddc240fcdafb5f, 2026-10-02T19:39:59+00:00) and were not recomputed in this message.",
-    "Data coverage was verified when those results were computed; the calculations were not independently recalculated by the backend (calculation_validation NOT_PERFORMED).",
-    "Some entities miss dates of the dataset's own calendar inside a range.",
-    "Classifications come from the current state of the reference table, not from the classification valid at each historical date.",
+    "Angka dari hasil sebelumnya dihitung di pesan sebelumnya dan tidak dihitung ulang di pesan ini.",
+    "Kelengkapan datanya dicek saat angka itu dihitung; perhitungannya tidak dihitung ulang secara terpisah oleh sistem.",
+    "Sebagian saham tidak punya data di beberapa hari bursa dalam periode.",
+    "Pengelompokan memakai data terkini, bukan pengelompokan yang berlaku di tiap tanggal lama.",
     "Some delivered values are missing (null).",
     "Usulan riset sebelumnya masih menunggu keputusan Anda; balas \"jalankan\" kapan saja untuk menjalankannya."
    ],

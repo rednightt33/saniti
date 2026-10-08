@@ -12,7 +12,8 @@
   function valueText(value) {
     if (typeof value === "boolean") return value ? L().ui.yes : L().ui.no;
     if (typeof value === "number") return number(value);
-    return L().values[value] ?? String(value);
+    // a backend code without words yet is made readable, never shown raw (M125)
+    return L().values[value] ?? (/^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/.test(String(value)) ? String(value).replace(/_/g, " ").toLowerCase() : String(value));
   }
   const verdict = code => { const [text, tone] = L().verdicts[code] ?? [String(code ?? "—"), "neutral"]; return {code:String(code ?? ""), label:text, tone}; };
   const pick = (object, keys) => Object.fromEntries(Object.entries(object || {}).filter(([key]) => !keys.includes(key)));
@@ -102,13 +103,17 @@
 
   // ---- Sources (the Details panel) ----
   function sourceItem(item) {
-    const st = item.status || null, rows = {};
+    const st = item.status || null, rows = {}, named = Boolean(item.label);
     for (const [key, value] of Object.entries(item)) {
-      if (["claim","quote","name","status","start","end"].includes(key) || (key === "kind" && st)) continue;
+      if (["claim","quote","name","label","status","start","end"].includes(key) || (key === "kind" && st)) continue;
+      if (named && key === "source" && value && typeof value === "object") {  // M125: the address is in the label
+        for (const [inner, v] of Object.entries(value)) if (!["ref","output_id"].includes(inner)) rows[`${key}_${inner}`] = v;
+        continue;
+      }
       if (value && typeof value === "object" && !Array.isArray(value)) for (const [inner, v] of Object.entries(value)) rows[inner === "ref" ? key : `${key}_${inner}`] = v;
       else rows[key] = value;
     }
-    return {title:item.claim || item.quote || item.name || item.label || label(item.kind || L().ui.sourcesEvidence), code:Boolean(item.claim), status:st ? verdict(st) : null, rows};
+    return {title:item.label || item.claim || item.quote || item.name || label(item.kind || L().ui.sourcesEvidence), code:!named && Boolean(item.claim), status:st ? verdict(st) : null, rows};
   }
   function sources(envelope) {
     const ui = L().ui, raw = envelope || {}, evidence = raw.evidence || [], annotations = raw.annotations || [], record = raw.data_record;

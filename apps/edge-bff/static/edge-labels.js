@@ -28,6 +28,7 @@ window.EdgeLabels = {
   values: {
     HIGHER:"Lebih tinggi", LOWER:"Lebih rendah", DIFFERENT:"Berbeda", PERCENT:"persen", DECIMAL:"desimal", BASIS_POINT:"basis poin",
     OTHER:"lainnya", EVENTS:"peristiwa", OBSERVATIONS:"observasi", ENTITIES:"entitas", DATES:"tanggal", NONE:"Tidak ada",
+    DATES_AUTOCORRELATION_ADJUSTED:"tanggal (disesuaikan untuk autokorelasi)", MEAN_DIFFERENCE:"selisih rata-rata",
     BONFERRONI:"Bonferroni", HOLM:"Holm", BENJAMINI_HOCHBERG:"Benjamini–Hochberg"
   },
   verdicts: {

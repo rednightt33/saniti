@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from app.orchestrator import markdown_prompt  # noqa: E402 - prompt audit C (2026-10-05)
 
+from app import user_texts as texts
 import json
 from typing import Any
 
@@ -186,7 +187,7 @@ def test_released_outputs_are_the_source_of_an_answer_labelled_data_coverage_ver
     assert status["completion_id"] == "cmp_1" and status["data_coverage"] == "PASS"
     assert status["calculation_validation"] == "NOT_PERFORMED" and status["status"] == "COMPLETED"
     limitations = result.response.limitations
-    assert any("calculation_validation NOT_PERFORMED" in line for line in limitations)
+    assert texts.COVERAGE_ONLY_LINE in limitations
     assert result.execution.validation_gate == "ANNOTATED"
 
 
@@ -207,8 +208,9 @@ def test_an_analysis_that_was_run_but_not_completed_cannot_support_an_answer() -
     assert "did not complete" in rejection and "complete_analysis" in rejection
     assert result.response.response_type == "LIMITATION" and result.evidence_label == "NOT_VALIDATED"
     assert result.execution.validation_gate == "FORCED_LIMITATION"
-    assert result.response.answer.startswith("The data analysis behind this response did not complete")
-    assert any(f"Analysis session {SESSION} was not completed" in line for line in result.response.limitations)
+    assert result.response.answer.startswith(texts.DATANEED_GATE_NOTICE)
+    assert texts.SESSION_NOT_COMPLETED_LINE in result.response.limitations
+    assert not any(SESSION in line for line in result.response.limitations)  # M125: no internal ids
 
 
 def test_an_incomplete_analysis_is_rejected_until_it_completes() -> None:
@@ -272,7 +274,7 @@ def test_a_research_answer_reports_a_historical_pattern() -> None:
                     Tools([completed(research_governance="APPROVED")], mode="RESEARCH"),
                     message="Apakah RSI di bawah 30 diikuti kenaikan harga?")
     assert result.response.response_type == "ANSWER" and result.evidence_label == "DATA_COVERAGE_VERIFIED"
-    assert any("historical pattern only" in line for line in result.response.limitations)
+    assert texts.HISTORICAL_PATTERN_LINE in result.response.limitations
     [experiment] = result.execution.research.experiments
     assert experiment.spec_id == NEED and experiment.evidence_standard == "HISTORICAL_PATTERN"
     assert experiment.hypothesis_id == "h1" and experiment.analysis_id == SESSION
@@ -512,8 +514,7 @@ def test_a_second_open_closes_nothing_and_both_sessions_stay_usable() -> None:
     assert "superseded_sessions" not in opened["result"]
     # the session of the second bundle ran code but was not completed: closed at the end of the run, named as such
     assert closer.calls == [("dn", [SESSION_2])]
-    assert result.status == "LIMITED" and any(SESSION_2 in line and "not completed" in line
-                                              for line in result.response.limitations)
+    assert result.status == "LIMITED" and texts.SESSION_NOT_COMPLETED_LINE in result.response.limitations
 
 
 def test_both_number_rules_allow_display_rounding_without_adding_number_sources() -> None:
@@ -562,8 +563,8 @@ def test_an_answer_from_a_recomputed_event_study_is_calculation_verified() -> No
     assert result.status == "COMPLETED" and result.execution.number_provenance.unsupported == []
     assert result.evidence_label == "CALCULATION_VERIFIED"
     limitations = " ".join(result.response.limitations)
-    assert "event studies drops were recomputed independently" in limitations
-    assert "calculation_validation NOT_PERFORMED" not in limitations
+    assert texts.COVERAGE_RECOMPUTED_LINE in limitations
+    assert texts.COVERAGE_ONLY_LINE not in limitations
     assert result.execution.analysis_final_status["calculation_validation"] == "PARTIAL"
 
 
@@ -587,7 +588,7 @@ def test_an_event_study_the_backend_could_not_recompute_is_disclosed() -> None:
                     Tools([completed(event_studies=[{"name": "drops", "status": "INVALID",
                                                      "reason": "REBUILD_FAILED: ValueError"}])]))
     limitations = " ".join(result.response.limitations)
-    assert "could not recompute: drops (REBUILD_FAILED: ValueError)" in limitations
+    assert texts.EVENT_STUDY_INVALID_LINE in limitations and "REBUILD_FAILED" not in limitations
     assert result.evidence_label == "DATA_COVERAGE_VERIFIED"
 
 

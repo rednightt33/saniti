@@ -12,6 +12,7 @@ their figures, and the IN_SAMPLE flag.
 """
 from __future__ import annotations
 
+from app import user_texts as texts
 import copy
 import json
 from typing import Any
@@ -205,10 +206,11 @@ def test_an_approved_multi_angle_plan_opens_its_sessions_with_the_tables_it_name
 def test_a_research_test_over_a_period_an_earlier_analysis_read_is_flagged() -> None:
     sandbox = RunSandbox()
     result = approved_v2(record_with_analysis(), sandbox)
-    line = next(x for x in result.response.limitations if x.startswith("IN_SAMPLE"))
-    # a_fall and a_rank read the prices 2021-2026, which the analysis read for 2025; a_lag reads index prices
-    assert "a_fall, a_rank were tested" in line and "a_lag" not in line
-    assert "Price_Stock_Indonesia_IDX 2021-01-04 to 2026-09-25 against 2025-01-01 to 2025-12-31" in line
+    line = next(x for x in result.response.limitations if x.startswith(texts.IN_SAMPLE_LINE[:40]))
+    # a_fall and a_rank read the prices 2021-2026, which the analysis read for 2025; a_lag reads index prices. M125: the
+    # user reads the periods; the angles and the table stay in the data record and the log
+    assert "periode uji 2021-01-04 s/d 2026-09-25 bertumpuk dengan 2025-01-01 s/d 2025-12-31" in line
+    assert "Price_Stock_Indonesia_IDX" not in line and "a_fall" not in line
     findings = {f["id"]: f["finding"] for f in result.data_record["findings"]}
     assert findings["a_fall"]["in_sample"][0]["analysis_request_id"] == "q-1"
     assert "in_sample" not in findings["a_lag"]
@@ -217,16 +219,17 @@ def test_a_research_test_over_a_period_an_earlier_analysis_read_is_flagged() -> 
 
 def test_a_research_test_on_another_period_is_not_flagged() -> None:
     result = approved_v2(record_with_analysis("2019-01-01", "2020-12-31"), RunSandbox())
-    assert not any(x.startswith("IN_SAMPLE") for x in result.response.limitations)
+    assert not any(x.startswith(texts.IN_SAMPLE_LINE[:40]) for x in result.response.limitations)
     assert not any("in_sample" in f["finding"] for f in result.data_record["findings"])
 
 
 def test_a_research_test_that_loaded_an_earlier_result_is_flagged() -> None:
     used = [{"output_id": EARLIER, "name": "drops", "kind": "G1", "label": "DATA_COVERAGE_VERIFIED"}]
     result = approved_v2(record_with_output(), CarriedRunSandbox(used), CARRIED)
-    line = next(x for x in result.response.limitations if x.startswith("IN_SAMPLE"))
-    assert 'out.o1 "drops", an earlier result loaded as test data' in line
-    assert "a_fall, a_lag, a_rank were tested" in line  # one bundle group holds the three angles
+    line = next(x for x in result.response.limitations if x.startswith(texts.IN_SAMPLE_LINE[:40]))
+    assert texts.IN_SAMPLE_CARRIED in line and "out.o1" not in line
+    findings = {f["id"]: f["finding"] for f in result.data_record["findings"]}
+    assert all("in_sample" in findings[a] for a in ("a_fall", "a_lag", "a_rank"))  # one bundle group holds the three
 
 
 def test_the_overlap_is_derived_per_table_and_date() -> None:
