@@ -423,6 +423,26 @@ sama bisa di proses di sandbox lain." Belum dijalankan; rencana eksekusi menungg
     user).
 - **M117 diperlakukan sebagai cacat struktural** (inspeksi kode + audit 2026-09-30..10-08, `ERRORS_AND_SOLUTIONS.md`
   M117): opsi perbaikan menunggu keputusan user.
+- **M119 (disetujui 2026-10-08, belum dijalankan):** "M119 solusi A dan B - ensure AI aware of this. Penolakan alasan
+  harus jelas. Cek sekarang informasi lewat mana AI dapat mengetahui fitur backend. Should include this as well."
+  - A: `event_study` (dan `backtest`) mengembalikan data tabel yang dibuatnya.
+  - B: kode bisa membaca tabel buatan sesinya sendiri menurut nama (label "belum dirilis"; mengutip tetap butuh rilis).
+  - AI tahu lewat semua jalur fitur backend: deskripsi `run_python`/`open_analysis_session`, daftar helper dan batas di
+    hasil pembukaan sesi, panduan metode `event_study` (tabel `AI_method_guide`, migrasi), `get_system_capabilities`,
+    `help()` di sesi, dan pesan galat. Penolakan menyebut alasannya dan langkah berikutnya; akhiran "sesi riset" hanya
+    di sesi riset.
+  - Usulan user (perlu konfirmasi detail): sandbox dipakai membuat sampai ±1.000 tabel turunan dari data mentah untuk
+    analisis. Batas sekarang: variabel di sesi tidak dibatasi jumlahnya (memori sesi 4 GB, satu frame maks ±40%);
+    tabel yang disimpan sebagai keluaran maks 40 per sesi (`PY_SANDBOX_SESSION_MAX_OUTPUTS`, kode maks 500). Usulan:
+    B dibangun sebagai penyimpanan tabel kerja sesi (simpan/baca menurut nama, kuota disk, tidak dirilis, tidak
+    dihitung dalam 40 keluaran).
+- **M117, usulan "AI yang menafsirkan" (diminta user 2026-10-08: "Bisa gak AI saja yang infer apa maksud user -->
+  masukan ke research? Apa resikonya"):** router (panggilan model terpisah yang hanya membaca pesan user) sudah membaca
+  ambang/efek minimum/horizon (`design_value_changes`); pemeriksa rencana mengabaikannya. Usulan: (1) bacaan router
+  menjadi sumber "kata user"; (2) nilai yang tidak tertelusur tidak lagi membuang rencana, tetapi ditandai "ditafsirkan,
+  belum Anda sebut" di pertanyaan konfirmasi (persetujuan user wajib di dev); (3) jaminan EXEC-D "threshold dikunci ke
+  kata user" diubah menjadi "tidak ada yang dijalankan dengan ambang yang tidak disebut atau tidak disetujui user".
+  Menunggu keputusan user.
 
 **Hasil tahap 1 (2026-10-07, V-a opsi B):**
 - **Kode** (`d25e108`, `apps/market-ai-orc/app/orchestrator.py`):
