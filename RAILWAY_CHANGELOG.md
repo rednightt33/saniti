@@ -3170,3 +3170,10 @@ bukan desktop. jangan ubah desktop").
 - Tests before merge: orc 1,575 passed; EDGE 52 passed (includes the desktop-unchanged proof at 721, 1024 and 1440 px).
 - No variable, model, provider, mode, schema or Railway configuration change; no IaC apply; no paid AI call in the
   deployment check.
+
+## 2026-10-08 — M129 fix: link addresses are not figures (orc only)
+
+- `main` `e1f8e06`: market-ai-orc **bbc19fa5-3fa8-48ac-9d7c-6d3b41dd2901** reached **SUCCESS**; edge-bff SKIPPED (no change
+  under its watch path). Rollback reference: orc `4b6a272e`.
+- Cause found by the live web test through EDGE (5 questions, USD ~0.16): the provenance gate read digits inside the
+  web links P1 added. Tests: orc 1,577 passed. No variable, model, provider, mode or configuration change.
