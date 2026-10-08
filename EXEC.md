@@ -516,8 +516,8 @@ sama bisa di proses di sandbox lain." Belum dijalankan; rencana eksekusi menungg
       mode 4 maksimal 2 pertanyaan lalu langkah cadangan, sandbox menunggu dan mengusir sesi hangat, memori percakapan
       membawa penolakan dan draf ke giliran berikut, angka yang tidak diketik dari sumber diberi tanda (bukan ditolak).
     - **M121 disetujui user 2026-10-08:** "M121 (jeda dan tanya, bukan berhenti, plus satu aturan berhenti terpusat):
-      disetujui untuk dibuat rencana eksekusinya bersama M117? --> OK masukan EXEC." Lingkup: b, c, f, g, h, j di atas,
-      dibangun bersama M117. Belum ada perintah jalan.
+      disetujui untuk dibuat rencana eksekusinya bersama M117? --> OK masukan EXEC." Lingkup: b, c, f, h, j di atas
+      (g pending, lihat di bawah), dibangun bersama M117. Belum ada perintah jalan.
     - **Usulan rincian (user minta "propose a fix" 2026-10-08; menunggu persetujuan):**
       - (e) Sandbox penuh. Pesan "jangan coba lagi" ada karena sandbox sudah menunggu 60 detik dan percobaan ulang
         langsung oleh AI menemui slot yang sama (S05: dulu dicoba terus sampai anggaran jawaban habis). Akibatnya
@@ -527,6 +527,9 @@ sama bisa di proses di sandbox lain." Belum dijalankan; rencana eksekusi menungg
         diturunkan saat itu juga; tidak ada sesi yang ditutup, sesuai keputusan "membuka satu tidak menutup yang lain";
         (3) bila waktu jawaban hampir habis: jeda M121, yaitu bagian yang selesai disampaikan, data yang sudah disiapkan
         disimpan, dan user ditanya "lanjutkan?"; (4) pesan "jangan coba lagi" dihapus.
+        **Disetujui user 2026-10-08:** "Ok solusi sandbox nomor 1 menungguu jd tugas backend, jawaban jeda, dan feedback
+        'jangan coba lagi' bisa diganti ke AI —> masukan exec": butir (1), (3) dan (4). Butir (2) bagi rata tidak
+        disetujui (tidak dibangun). Belum ada perintah jalan.
       - (f) Batas perbaikan alat, akar masalah terverifikasi (M122): model mengirim nilai sebagai teks (`"null"`,
         `"[...]"`, `"20"`) sehingga `discover_catalog` menolak `CURSOR_INVALID` padahal model bermaksud kosong;
         `get_research_library` menolak daftar berbentuk teks; `get_lineage` menerima alias `out.o35` di kolom yang
@@ -548,6 +551,9 @@ sama bisa di proses di sandbox lain." Belum dijalankan; rencana eksekusi menungg
         disampaikan, sesi/data/draf disimpan, dan user ditanya "Saya perlu kira-kira N langkah lagi untuk X.
         Lanjutkan?"; "lanjutkan" memberi anggaran baru (jaminan biaya: belanja di atas batas hanya dengan kata user);
         (3) AI diberi tahu sisa anggarannya mendekati batas, supaya bisa merapikan atau merencanakan jeda.
+        **Pending (user 2026-10-08: "Usulan batas langkah dan waktu: jeda dengan pertanyaan 'lanjutkan?', dan nilai
+        bawaan kode disamakan dengan dev —> ini pending").** Butir (g) keluar dari lingkup M121 putaran ini; dicatat di
+        `FUTURE_PLAN.md`.
 
 **Hasil tahap 1 (2026-10-07, V-a opsi B):**
 - **Kode** (`d25e108`, `apps/market-ai-orc/app/orchestrator.py`):
