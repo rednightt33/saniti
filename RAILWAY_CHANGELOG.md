@@ -1,5 +1,18 @@
 # Railway changelog
 
+## 2026-10-08 — market-ai-orc and edge-bff deploy from main again
+
+- User decision 2026-10-08: "Push semua ke main dan deploy." `main` fast-forwarded to the `codex/edge-bff` tip (EDGE
+  BFF and EXEC-W wave A); `.railway/railway.ts`: the `branch: "codex/edge-bff"` of market-ai-orc and edge-bff removed
+  (`52a4ae9`). `railway config plan`: 2 changes (source.branch codex/edge-bff → default); `railway config apply --yes`:
+  applied; `railway config plan` afterwards: up to date. `codex/edge-bff` holds the same commit (the Codex session should
+  pull before its next push).
+- Deployments from main `52a4ae9`: market-ai-orc `6bb2a68f-0cec-4ffa-83ed-b512365450ef` SUCCESS (startup unchanged:
+  DeepSeek switch 1, mode 4, run memory, provider policy OK, no `*_inactive`); edge-bff
+  `2dcf1155-3fe6-4b52-836c-1fedf0e14a4e` SUCCESS, `https://edge-bff-dev.up.railway.app/ready` 200. No variable, model,
+  provider, mode or switch changed.
+- Rollback: re-add the branch to both sources and redeploy `159a40ba` (orc) / `e49f4a1c` (edge-bff).
+
 ## 2026-10-08 — EXEC-W wave A deployed to dev orc (from `codex/edge-bff`)
 
 - **Source:** the dev `market-ai-orc` service deploys from `codex/edge-bff` since the EDGE rollout (Codex session,

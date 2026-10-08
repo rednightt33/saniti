@@ -45,6 +45,7 @@ def test_a_rise_read_as_above_zero_is_listed_for_confirmation_without_a_repair()
     out, s = gate(question, plan_with(0.0, question), reading(0, "naik", "IMPLIED"))
     assert out.response_type == "RESEARCH_PLAN_CONFIRMATION" and out.research_plan is not None
     assert CONFIRM_TITLE in out.answer and 'saya tafsirkan dari "naik"' in out.answer and CONFIRM_LINE in out.answer
+    assert "Ambang sukses experiment_1: > 0%" in out.answer or ": > 0" in out.answer  # operator and unit shown (GT-A)
     assert "PLAN_SUCCESS_RULE" not in s.gate_kinds_rejected  # no repair turn: the user decides
     assert s.plan_meta["values_to_confirm"] and s.pause is None
 

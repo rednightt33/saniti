@@ -1789,14 +1789,29 @@ CONFIRM_TITLE = "**Nilai yang perlu Anda konfirmasi sebelum riset dijalankan**"
 CONFIRM_LINE = "Balas \"setuju\" untuk memakai nilai ini, atau sebutkan nilai lain."
 
 
+UNIT_SHOWN = {"PERCENT": "%", "PP": " poin persen", "MULTIPLE": "x", "DECIMAL": ""}
+
+
+def _shown_unit(unit: str | None, operator: str | None) -> str:
+    """How a value's operator and unit read in a confirmation line: (prefix, suffix) joined by a tab ("> \t%")."""
+    suffix = UNIT_SHOWN.get(str(unit or "").upper(), f" {unit}" if unit else "")
+    return f"{operator + ' ' if operator else ''}\t{suffix}"
+
+
+def _shown(value: float, unit: str) -> str:
+    prefix, _, suffix = unit.partition("\t")
+    return f"{prefix}{value:g}{suffix}"
+
+
 def confirm_lines(label: str, interpreted: list[tuple[int, str, float, str, str]],
                   untraced: list[tuple[int, str, float, str]]) -> list[str]:
-    """EXEC-W A2 (M117): one line per value the user has to confirm, with where it comes from."""
+    """EXEC-W A2 (M117): one line per value the user has to confirm, with its operator and unit ("> 0%") and where
+    it comes from (GT-A 2026-10-08 showed "0" for a "> 0%" threshold)."""
     lines = []
     for _, item, value, unit, quote in interpreted:
-        lines.append(f"{label} {item}: {value:g}{(' ' + unit) if unit else ''}, saya tafsirkan dari \"{quote}\"")
+        lines.append(f"{label} {item}: {_shown(value, unit)}, saya tafsirkan dari \"{quote}\"")
     for _, item, value, unit in untraced:
-        lines.append(f"{label} {item}: {value:g}{(' ' + unit) if unit else ''}, usulan AI, belum Anda sebut")
+        lines.append(f"{label} {item}: {_shown(value, unit)}, usulan AI, belum Anda sebut")
     return lines
 
 
@@ -5568,7 +5583,8 @@ class AgentOrchestrator:
         hint = CITED_THRESHOLD_HINT if current_turn_referent.get() == "NEWEST_RESULT" else ""
         to_confirm: list[str] = []
         experiments = list(enumerate(getattr(final.research_plan, "experiments", None) or []))
-        success = [(index, getattr(e, "experiment_id", None) or str(index + 1), e.success_rule.value, "")
+        success = [(index, getattr(e, "experiment_id", None) or str(index + 1), e.success_rule.value,
+                    _shown_unit(getattr(e.success_rule, "unit", None), getattr(e.success_rule, "operator", None)))
                    for index, e in experiments if getattr(e, "success_rule", None) is not None]
         interpreted, untraced = self._unstated("SUCCESS_THRESHOLD", success, stated, cited, changes, words,
                                                magnitude=False)
@@ -5581,7 +5597,7 @@ class AgentOrchestrator:
         # M26 option B: a minimum effect decides the verdict, so it is the user's number too (experiments and angles)
         plan_items = "experiments" if getattr(final.research_plan, "experiments", None) else "angles"
         effects = [(index, getattr(i, "experiment_id", None) or getattr(i, "angle_id", None) or str(index + 1),
-                    i.min_effect, getattr(i, "min_effect_unit", None) or "")
+                    i.min_effect, _shown_unit(getattr(i, "min_effect_unit", None), None))
                    for index, i in enumerate(getattr(final.research_plan, plan_items, None) or [])
                    if getattr(i, "min_effect", None) is not None]
         interpreted, untraced = self._unstated("MIN_EFFECT", effects, stated, cited, changes, words, magnitude=True)

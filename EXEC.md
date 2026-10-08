@@ -905,6 +905,23 @@ dimulai; Gelombang B dan setiap GT tetap menunggu perintah user.
   produksi); empat kalimat tanpa ambang dibaca 0 IMPLIED dari "naik"/"kenaikan" (masuk konfirmasi, tidak dijalankan
   tanpa persetujuan); "naik signifikan" dibaca 0 dari "naik" tanpa menanyakan "signifikan" (dicatat untuk GT-A).
 
+**Deploy dan GT-A (2026-10-08; perintah user: "Push semua ke main dan deploy. Lakukan GT"):**
+- `main` = EDGE + Gelombang A (`52a4ae9`); sumber market-ai-orc dan edge-bff kembali ke `main` (`railway config apply`);
+  orc `6bb2a68f` dan edge-bff `2dcf1155` SUCCESS (RAILWAY_CHANGELOG).
+- GT-A `ma-qa-wavea-20261008a` (`apps/orc-test-runner/suites/qa_wave_a_20261008.json`, runner `7bb24f72`, 3 butir, 5
+  giliran, biaya model USD 0,18; kredit dicek: sisa limit kunci USD 0,81 sebelum):
+  - naik_confirm: rencana terbit (model mengosongkan success_rule, jadi tanpa blok konfirmasi); "setuju" menjalankan riset
+    (EXECUTE_APPROVED, `research_completed` true, rencana EXECUTED); jawaban COMPLETED, satu perbaikan sumber angka.
+  - vague_word ("naik signifikan"): rencana terbit dengan blok "Nilai yang perlu Anda konfirmasi" ("> 0 ... saya
+    tafsirkan dari \"naik\""); tidak ada LIMITATION. Celah: "signifikan" tidak ditanyakan (desain M117 butir 3 baru
+    separuh: nilai samar tidak dikarang, tetapi pertanyaannya belum ada; usulan: router melaporkan kata samar dan backend
+    menambahkannya ke blok konfirmasi; menunggu keputusan).
+  - revise_value: "ubah ambang suksesnya jadi minimal satu persen" menjadi success_rule ≥ 1% (kata bilangan, dikutip,
+    tanpa baris konfirmasi); min_effect 1 yang dikarang model ditolak sekali lalu dikosongkan.
+  - Tidak ada jeda (pause) atau LIMITATION; tidak ada penolakan argumen yang tersisa (satu `check_references` daftar
+    kosong, M120).
+  - Cacat yang ditemukan dan diperbaiki: baris konfirmasi menulis "0" tanpa tanda dan satuan; kini "> 0%" (`_shown_unit`).
+
 ### EXEC-M109: pertanyaan tanya-balik router tetap dipakai
 
 **Keputusan user 2026-10-07:** "M109 OK untuk perbaikan plan. Masukan ke EXEC." Pilihan "Ya, masukkan juga
