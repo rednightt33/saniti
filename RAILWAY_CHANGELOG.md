@@ -3053,3 +3053,15 @@ healthcheck), an existing-Orc-key reference, private Orc URL, and secure-variabl
 domain, database migration or deployment was created/changed. Existing runner/services/models/tools untouched.
 Before rollout inspect the actual live IaC plan for drift; this branch must not auto-deploy main.
 Approval scope and rollback: `EDGE_DELIVERY.md`.
+
+## 2026-10-08 — EDGE dev rollout authorized and infrastructure allocated
+
+User go: "Ok, do it", for deployment from `codex/edge-bff` without a main merge.
+Created one `edge-bff` service `c3656044-2817-44a7-9b55-54910bab416f` in lucid-patience/dev;
+allocated domain `edge-bff-dev.up.railway.app`, ID `695eb767-530e-4013-b488-bd95379d981a`, target port 8080.
+Set BFF variables securely, resolving the existing Orc-key reference; restricted DB login only, no admin URL.
+Selected EDGE_LOGIN=edge and EDGE_OWNER=edge-private. Generated password/verifier/session/database secrets;
+`EDGE_INITIAL_PASSWORD` is a temporary handoff through Railway Variables, unused by the application.
+Admin migration used a temporary private-network sandbox with server-resolved existing variable references.
+Initial sandbox replaced after connection validation; deployment and final sandbox cleanup are pending.
+No unrelated service/configuration, runner, model/provider/mode/feature flag change. Paid AI not called.

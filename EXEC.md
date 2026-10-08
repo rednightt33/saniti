@@ -814,14 +814,15 @@ remains part of the separately approved rollout; generate it securely and never 
 
 Scope: one new BFF application; one additive owner-checked GET /v1/agent/requests/{request_id}; existing market Postgres for restricted edge_bff schema; persisted sessions/jobs/conversation UI; same-origin REST + factual SSE snapshots; preserve Orc/runner execution behavior and all five domain statuses. No model/provider/routing/feature-flag changes, live tool progress, reasoning display, active cancellation or production work.
 
-Live migration, Railway services/variables/domains/deployments and paid AI calls require a separate explicit approval under the attached documents. Do not push/merge this branch to main before deployment approval: main application changes auto-deploy.
+Live rollout authorization (2026-10-08): "Ok, do it." This approves the immediately proposed Railway dev
+deployment directly from `codex/edge-bff`, including read-only reconciliation, the dedicated migration/login,
+the additive Orc endpoint, one BFF service, secure variables and an HTTPS domain. Keep `main` unmerged.
+Verify health, login and unpaid backend reads. Paid AI smoke calls remain outside this approval.
 
 Reconciliation: branch baseline 242e282f18a1b58d81d630044e9fc69bd5fdec23; active Orc deployment 6a0ebf8f-d4e6-4d7f-a397-31b6be3b713f, runtime commit 92884b684d760e9b8d4c3399def268bd32f011f5. AI_MODEL_SWITCH=1, AI_MODE_SWITCH=4, AI_MAX_ANALYSIS_SECONDS=1800, provider timeout=600; Mode4 default maximum 3600 seconds, so proposed BFF upstream total timeout 3900 seconds. Market Postgres ID bb21a9f4-a9d3-4a51-945f-fa86b63f4b86; separate web Postgres is excluded.
 
-UNKNOWN/BLOCKED: live SQL schema/grants inspection cannot currently reach authenticated pgweb (network tunnel 403) or TCP proxy DNS. Migration remains a tested proposal pending read-only live reconciliation; no live database change is authorized. Credential bootstrap/public origin are rollout inputs, not secrets to commit.
+Live reconciliation completed via pgweb and a temporary private-network Railway sandbox. Admin preflight 10:10:09 UTC; migration/login applied and schema/grants read back 10:13:24 UTC. BFF service/domain and secure bootstrap inputs allocated. Deployment and public verification remain pending. Evidence is under verification/edge; no secrets committed.
 
 Steps: additive endpoint/test; BFF schema/client/store/worker/auth/API; adapted HTML; disposable Postgres + Orc regression + mocked browser tests; review branch and concrete approval checkpoint. Retain this item until approved live delivery is verified.
 
-Execution update: implementation and local validation complete; review branch delivery is documented in
-`EDGE_DELIVERY.md`. Forward migration is still PROPOSED pending live schema reconciliation and explicit approval.
-No live Railway mutation/deployment/paid call. Keep EXEC-EDGE open for the approved rollout checkpoint.
+Execution update: implementation/local validation and live database rollout complete. Service deployment and public verification are in progress; keep this item open until those succeed. No paid AI calls or main merge.

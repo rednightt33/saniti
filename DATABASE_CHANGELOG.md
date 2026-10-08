@@ -1587,3 +1587,16 @@ and restricted-login provisioning/preflight helpers. Three dedicated operational
 Orc table or retention change, no public data/Feature/catalog change. Disposable Postgres 17 validation is recorded
 in `EDGE_DELIVERY.md`. Market Postgres live reconciliation was blocked (pgweb egress 403; public TCP DNS failure).
 Do not add this migration to APPLIED.sha256 until approved application and live verification.
+
+## 2026-10-08 — EDGE operational migration APPLIED and verified
+
+User go: "Ok, do it." Deployment stays on `codex/edge-bff`, without merging main. Live admin
+preflight at 10:10:09 UTC verified canonical schema, grants, no EDGE objects and zero active Orc
+requests; pgweb host/port/database matched the market Postgres service. Applied migration
+`20261008_002_create_edge_bff.sql` through a temporary private-network Railway sandbox.
+Provisioned `edge_bff_login` using the approved helper and an existing secure BFF credential reference.
+Readback at 10:13:24 UTC: three tables, 28 columns, 40 constraints, six indexes; runtime DML reaches
+only the three EDGE relations. Actual restricted-login connection succeeded; canonical-table read
+was denied. Added the migration hash to APPLIED.sha256; no applied migration was rewritten.
+No original market/canonical table, data, catalog, routine, retention, or web Postgres change.
+Evidence: `verification/edge/admin_preflight_20261008.json`, `verification/edge/schema_readback_20261008.json`.

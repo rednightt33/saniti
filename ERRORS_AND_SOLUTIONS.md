@@ -536,3 +536,15 @@ Update the status in place when an `OPEN` item is fixed. Never delete an entry.
   0700; Docker COPY retained those modes under root ownership, so uid 10001 could not import `app`. The image
   now grants read/traverse (`a+rX`) on copied app/static while retaining root ownership and denying runtime write.
   Container smoke verification is recorded in `EDGE_DELIVERY.md`.
+
+### EDGE live rollout — 2026-10-08
+
+- **Manifest path format (FIXED):** the new APPLIED.sha256 entry initially used a repository-relative
+  path; the frozen-migration test resolves entries relative to the migration directory. Use the
+  filename only. The applied SQL stayed unchanged; rerun the frozen-migration tests after correction.
+- **Cloud administrative transport (resolved for this rollout):** direct Postgres/SSH host DNS fails;
+  native SSH also encountered an unrelated read-only system-config permission issue. The temporary
+  SSH key was registered then removed, with the agent/private key cleaned up. Native sandbox commands
+  cannot persist CLI state under the read-only home directory. Supported GraphQL sandbox creation/exec
+  succeeded instead: private-network, short-lived, credentials resolved from existing Railway references.
+  Pgweb is reachable again and remains on its restricted read-only role. No global pgweb connection change.

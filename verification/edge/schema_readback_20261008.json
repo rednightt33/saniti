@@ -1,0 +1,681 @@
+[
+  {
+    "query": "SELECT clock_timestamp() AS checked_at,current_database() AS database,current_user AS role",
+    "rows": [
+      {
+        "checked_at": "2026-10-08 10:13:24.784857+00:00",
+        "database": "railway",
+        "role": "postgres"
+      }
+    ]
+  },
+  {
+    "query": "SELECT table_schema,table_name,column_name,data_type,is_nullable,column_default,ordinal_position FROM information_schema.columns WHERE table_schema='edge_bff' ORDER BY table_name,ordinal_position",
+    "rows": [
+      {
+        "table_schema": "edge_bff",
+        "table_name": "conversation_ui",
+        "column_name": "owner_key",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": null,
+        "ordinal_position": 1
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "conversation_ui",
+        "column_name": "conversation_id",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": null,
+        "ordinal_position": 2
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "conversation_ui",
+        "column_name": "title",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": null,
+        "ordinal_position": 3
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "conversation_ui",
+        "column_name": "bookmarked",
+        "data_type": "boolean",
+        "is_nullable": "NO",
+        "column_default": "false",
+        "ordinal_position": 4
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "conversation_ui",
+        "column_name": "pinned_request_ids",
+        "data_type": "ARRAY",
+        "is_nullable": "NO",
+        "column_default": "'{}'::text[]",
+        "ordinal_position": 5
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "conversation_ui",
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "column_default": "CURRENT_TIMESTAMP",
+        "ordinal_position": 6
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "conversation_ui",
+        "column_name": "updated_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "column_default": "CURRENT_TIMESTAMP",
+        "ordinal_position": 7
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "jobs",
+        "column_name": "request_id",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": null,
+        "ordinal_position": 1
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "jobs",
+        "column_name": "owner_key",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": null,
+        "ordinal_position": 2
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "jobs",
+        "column_name": "submission_key",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": null,
+        "ordinal_position": 3
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "jobs",
+        "column_name": "fingerprint",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": null,
+        "ordinal_position": 4
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "jobs",
+        "column_name": "input",
+        "data_type": "jsonb",
+        "is_nullable": "NO",
+        "column_default": null,
+        "ordinal_position": 5
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "jobs",
+        "column_name": "conversation_id",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "column_default": null,
+        "ordinal_position": 6
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "jobs",
+        "column_name": "state",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": "'QUEUED'::text",
+        "ordinal_position": 7
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "jobs",
+        "column_name": "state_version",
+        "data_type": "bigint",
+        "is_nullable": "NO",
+        "column_default": "1",
+        "ordinal_position": 8
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "jobs",
+        "column_name": "attempt_count",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": "0",
+        "ordinal_position": 9
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "jobs",
+        "column_name": "lease_token",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "column_default": null,
+        "ordinal_position": 10
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "jobs",
+        "column_name": "lease_expires_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null,
+        "ordinal_position": 11
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "jobs",
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "column_default": "CURRENT_TIMESTAMP",
+        "ordinal_position": 12
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "jobs",
+        "column_name": "updated_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "column_default": "CURRENT_TIMESTAMP",
+        "ordinal_position": 13
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "jobs",
+        "column_name": "completed_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null,
+        "ordinal_position": 14
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "jobs",
+        "column_name": "run_status",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "column_default": null,
+        "ordinal_position": 15
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "jobs",
+        "column_name": "error_code",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "column_default": null,
+        "ordinal_position": 16
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "sessions",
+        "column_name": "token_hash",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": null,
+        "ordinal_position": 1
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "sessions",
+        "column_name": "owner_key",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": null,
+        "ordinal_position": 2
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "sessions",
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "column_default": "CURRENT_TIMESTAMP",
+        "ordinal_position": 3
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "sessions",
+        "column_name": "expires_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "column_default": null,
+        "ordinal_position": 4
+      },
+      {
+        "table_schema": "edge_bff",
+        "table_name": "sessions",
+        "column_name": "revoked_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null,
+        "ordinal_position": 5
+      }
+    ]
+  },
+  {
+    "query": "SELECT n.nspname,c.relname,con.conname,pg_get_constraintdef(con.oid) AS definition FROM pg_constraint con JOIN pg_class c ON c.oid=con.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='edge_bff' ORDER BY 2,3",
+    "rows": [
+      {
+        "nspname": "edge_bff",
+        "relname": "conversation_ui",
+        "conname": "conversation_ui_bookmarked_not_null",
+        "definition": "NOT NULL bookmarked"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "conversation_ui",
+        "conname": "conversation_ui_conversation_id_check",
+        "definition": "CHECK ((conversation_id ~ '^conv_[0-9a-f]{32}$'::text))"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "conversation_ui",
+        "conname": "conversation_ui_conversation_id_not_null",
+        "definition": "NOT NULL conversation_id"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "conversation_ui",
+        "conname": "conversation_ui_created_at_not_null",
+        "definition": "NOT NULL created_at"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "conversation_ui",
+        "conname": "conversation_ui_owner_key_not_null",
+        "definition": "NOT NULL owner_key"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "conversation_ui",
+        "conname": "conversation_ui_pinned_request_ids_check",
+        "definition": "CHECK ((cardinality(pinned_request_ids) <= 500))"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "conversation_ui",
+        "conname": "conversation_ui_pinned_request_ids_not_null",
+        "definition": "NOT NULL pinned_request_ids"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "conversation_ui",
+        "conname": "conversation_ui_pkey",
+        "definition": "PRIMARY KEY (owner_key, conversation_id)"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "conversation_ui",
+        "conname": "conversation_ui_title_check",
+        "definition": "CHECK (((length(title) >= 1) AND (length(title) <= 200)))"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "conversation_ui",
+        "conname": "conversation_ui_title_not_null",
+        "definition": "NOT NULL title"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "conversation_ui",
+        "conname": "conversation_ui_updated_at_not_null",
+        "definition": "NOT NULL updated_at"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs",
+        "conname": "jobs_attempt_count_check",
+        "definition": "CHECK ((attempt_count >= 0))"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs",
+        "conname": "jobs_attempt_count_not_null",
+        "definition": "NOT NULL attempt_count"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs",
+        "conname": "jobs_check",
+        "definition": "CHECK (((state = ANY (ARRAY['FINISHED'::text, 'FAILED'::text, 'INTERRUPTED'::text])) = (completed_at IS NOT NULL)))"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs",
+        "conname": "jobs_check1",
+        "definition": "CHECK (((lease_token IS NULL) = (lease_expires_at IS NULL)))"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs",
+        "conname": "jobs_created_at_not_null",
+        "definition": "NOT NULL created_at"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs",
+        "conname": "jobs_fingerprint_check",
+        "definition": "CHECK ((fingerprint ~ '^[0-9a-f]{64}$'::text))"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs",
+        "conname": "jobs_fingerprint_not_null",
+        "definition": "NOT NULL fingerprint"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs",
+        "conname": "jobs_input_check",
+        "definition": "CHECK ((jsonb_typeof(input) = 'object'::text))"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs",
+        "conname": "jobs_input_not_null",
+        "definition": "NOT NULL input"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs",
+        "conname": "jobs_owner_key_not_null",
+        "definition": "NOT NULL owner_key"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs",
+        "conname": "jobs_owner_key_submission_key_key",
+        "definition": "UNIQUE (owner_key, submission_key)"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs",
+        "conname": "jobs_pkey",
+        "definition": "PRIMARY KEY (request_id)"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs",
+        "conname": "jobs_request_id_check",
+        "definition": "CHECK ((request_id ~ '^edge_[0-9a-f]{32}$'::text))"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs",
+        "conname": "jobs_request_id_not_null",
+        "definition": "NOT NULL request_id"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs",
+        "conname": "jobs_run_status_check",
+        "definition": "CHECK ((run_status = ANY (ARRAY['COMPLETED'::text, 'NEEDS_CLARIFICATION'::text, 'AWAITING_CONFIRMATION'::text, 'LIMITED'::text, 'FAILED'::text])))"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs",
+        "conname": "jobs_state_check",
+        "definition": "CHECK ((state = ANY (ARRAY['QUEUED'::text, 'RUNNING'::text, 'RECOVERING'::text, 'FINISHED'::text, 'FAILED'::text, 'INTERRUPTED'::text])))"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs",
+        "conname": "jobs_state_not_null",
+        "definition": "NOT NULL state"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs",
+        "conname": "jobs_state_version_check",
+        "definition": "CHECK ((state_version > 0))"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs",
+        "conname": "jobs_state_version_not_null",
+        "definition": "NOT NULL state_version"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs",
+        "conname": "jobs_submission_key_check",
+        "definition": "CHECK (((length(submission_key) >= 1) AND (length(submission_key) <= 100)))"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs",
+        "conname": "jobs_submission_key_not_null",
+        "definition": "NOT NULL submission_key"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs",
+        "conname": "jobs_updated_at_not_null",
+        "definition": "NOT NULL updated_at"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "sessions",
+        "conname": "sessions_check",
+        "definition": "CHECK ((expires_at > created_at))"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "sessions",
+        "conname": "sessions_created_at_not_null",
+        "definition": "NOT NULL created_at"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "sessions",
+        "conname": "sessions_expires_at_not_null",
+        "definition": "NOT NULL expires_at"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "sessions",
+        "conname": "sessions_owner_key_not_null",
+        "definition": "NOT NULL owner_key"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "sessions",
+        "conname": "sessions_pkey",
+        "definition": "PRIMARY KEY (token_hash)"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "sessions",
+        "conname": "sessions_token_hash_check",
+        "definition": "CHECK ((token_hash ~ '^[0-9a-f]{64}$'::text))"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "sessions",
+        "conname": "sessions_token_hash_not_null",
+        "definition": "NOT NULL token_hash"
+      }
+    ]
+  },
+  {
+    "query": "SELECT schemaname,tablename,indexname,indexdef FROM pg_indexes WHERE schemaname='edge_bff' ORDER BY 2,3",
+    "rows": [
+      {
+        "schemaname": "edge_bff",
+        "tablename": "conversation_ui",
+        "indexname": "conversation_ui_pkey",
+        "indexdef": "CREATE UNIQUE INDEX conversation_ui_pkey ON edge_bff.conversation_ui USING btree (owner_key, conversation_id)"
+      },
+      {
+        "schemaname": "edge_bff",
+        "tablename": "jobs",
+        "indexname": "edge_bff_claim",
+        "indexdef": "CREATE INDEX edge_bff_claim ON edge_bff.jobs USING btree (created_at) WHERE (state = ANY (ARRAY['QUEUED'::text, 'RUNNING'::text, 'RECOVERING'::text]))"
+      },
+      {
+        "schemaname": "edge_bff",
+        "tablename": "jobs",
+        "indexname": "edge_bff_one_active_owner",
+        "indexdef": "CREATE UNIQUE INDEX edge_bff_one_active_owner ON edge_bff.jobs USING btree (owner_key) WHERE (state = ANY (ARRAY['QUEUED'::text, 'RUNNING'::text, 'RECOVERING'::text]))"
+      },
+      {
+        "schemaname": "edge_bff",
+        "tablename": "jobs",
+        "indexname": "jobs_owner_key_submission_key_key",
+        "indexdef": "CREATE UNIQUE INDEX jobs_owner_key_submission_key_key ON edge_bff.jobs USING btree (owner_key, submission_key)"
+      },
+      {
+        "schemaname": "edge_bff",
+        "tablename": "jobs",
+        "indexname": "jobs_pkey",
+        "indexdef": "CREATE UNIQUE INDEX jobs_pkey ON edge_bff.jobs USING btree (request_id)"
+      },
+      {
+        "schemaname": "edge_bff",
+        "tablename": "sessions",
+        "indexname": "sessions_pkey",
+        "indexdef": "CREATE UNIQUE INDEX sessions_pkey ON edge_bff.sessions USING btree (token_hash)"
+      }
+    ]
+  },
+  {
+    "query": "SELECT rolname,rolsuper,rolcreatedb,rolcreaterole,rolreplication,rolbypassrls,rolcanlogin FROM pg_roles WHERE rolname LIKE 'edge_bff%' ORDER BY 1",
+    "rows": [
+      {
+        "rolname": "edge_bff_login",
+        "rolsuper": false,
+        "rolcreatedb": false,
+        "rolcreaterole": false,
+        "rolreplication": false,
+        "rolbypassrls": false,
+        "rolcanlogin": true
+      },
+      {
+        "rolname": "edge_bff_runtime",
+        "rolsuper": false,
+        "rolcreatedb": false,
+        "rolcreaterole": false,
+        "rolreplication": false,
+        "rolbypassrls": false,
+        "rolcanlogin": false
+      }
+    ]
+  },
+  {
+    "query": "SELECT grantee,table_schema,table_name,privilege_type FROM information_schema.table_privileges WHERE grantee LIKE 'edge_bff%' ORDER BY 1,2,3,4",
+    "rows": [
+      {
+        "grantee": "edge_bff_runtime",
+        "table_schema": "edge_bff",
+        "table_name": "conversation_ui",
+        "privilege_type": "DELETE"
+      },
+      {
+        "grantee": "edge_bff_runtime",
+        "table_schema": "edge_bff",
+        "table_name": "conversation_ui",
+        "privilege_type": "INSERT"
+      },
+      {
+        "grantee": "edge_bff_runtime",
+        "table_schema": "edge_bff",
+        "table_name": "conversation_ui",
+        "privilege_type": "SELECT"
+      },
+      {
+        "grantee": "edge_bff_runtime",
+        "table_schema": "edge_bff",
+        "table_name": "conversation_ui",
+        "privilege_type": "UPDATE"
+      },
+      {
+        "grantee": "edge_bff_runtime",
+        "table_schema": "edge_bff",
+        "table_name": "jobs",
+        "privilege_type": "DELETE"
+      },
+      {
+        "grantee": "edge_bff_runtime",
+        "table_schema": "edge_bff",
+        "table_name": "jobs",
+        "privilege_type": "INSERT"
+      },
+      {
+        "grantee": "edge_bff_runtime",
+        "table_schema": "edge_bff",
+        "table_name": "jobs",
+        "privilege_type": "SELECT"
+      },
+      {
+        "grantee": "edge_bff_runtime",
+        "table_schema": "edge_bff",
+        "table_name": "jobs",
+        "privilege_type": "UPDATE"
+      },
+      {
+        "grantee": "edge_bff_runtime",
+        "table_schema": "edge_bff",
+        "table_name": "sessions",
+        "privilege_type": "DELETE"
+      },
+      {
+        "grantee": "edge_bff_runtime",
+        "table_schema": "edge_bff",
+        "table_name": "sessions",
+        "privilege_type": "INSERT"
+      },
+      {
+        "grantee": "edge_bff_runtime",
+        "table_schema": "edge_bff",
+        "table_name": "sessions",
+        "privilege_type": "SELECT"
+      },
+      {
+        "grantee": "edge_bff_runtime",
+        "table_schema": "edge_bff",
+        "table_name": "sessions",
+        "privilege_type": "UPDATE"
+      }
+    ]
+  },
+  {
+    "query": "SELECT r.rolname AS granted_role,u.rolname AS member FROM pg_auth_members m JOIN pg_roles r ON r.oid=m.roleid JOIN pg_roles u ON u.oid=m.member WHERE u.rolname LIKE 'edge_bff%'",
+    "rows": [
+      {
+        "granted_role": "edge_bff_runtime",
+        "member": "edge_bff_login"
+      }
+    ]
+  },
+  {
+    "query": "SELECT n.nspname,c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname NOT LIKE 'pg_toast%' AND c.relkind IN ('r','p','v','m','f') AND has_table_privilege('edge_bff_login',c.oid,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') ORDER BY 1,2",
+    "rows": [
+      {
+        "nspname": "edge_bff",
+        "relname": "conversation_ui"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "jobs"
+      },
+      {
+        "nspname": "edge_bff",
+        "relname": "sessions"
+      }
+    ]
+  }
+]

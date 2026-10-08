@@ -1,4 +1,4 @@
--- PROPOSED: apply only after read-only live reconciliation and explicit approval.
+-- Approved dev rollout 2026-10-08; live admin schema/grant preflight verified before application.
 -- Dedicated operational schema; no AI/market table or canonical retention changes.
 BEGIN;
 SET LOCAL lock_timeout = '5s';

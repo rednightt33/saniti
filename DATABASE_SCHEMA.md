@@ -2432,15 +2432,60 @@ refuse UPDATE and DELETE on `event` and `artifact_access`, even for the owner. N
 | `retention_hold` | A pin or legal hold on one run or one artifact; while `released_at` is NULL nothing it covers may be deleted. |
 | `ingest_outbox` | Durable hand-off of finished market-ai-orc runs: one RUN_FINISHED row per request (idempotent on source + idempotency key), never read or changed by the orchestrator; the store records PENDING, COMPLETE, FAILED_RETRYABLE or INCOMPLETE. |
 
-## Proposed EDGE operational schema — not applied (2026-10-08)
+## EDGE operational schema — live verified (2026-10-08)
 
-`database/migrations/20261008_002_create_edge_bff.sql` proposes exactly three tables in restricted schema
-`edge_bff`: `sessions` (hashed opaque cookie/owner/expiry/revocation), `jobs` (unique request/submission identity,
-original input JSON, owner, lifecycle/version, fenced lease, terminal status/timestamps), and `conversation_ui`
-(owner/conversation composite key, title/bookmark, pinned request IDs, timestamps). No response, reasoning or event
-log is copied. The existing market Postgres is the target, not web governor's Postgres-E8GM. Runtime role
-`edge_bff_runtime` is NOLOGIN with DML on these tables only; proposed `edge_bff_login` inherits only that role.
-Primary/unique indexes implement identity and one active job per owner; a partial created_at index supports claiming.
-No index on market data is proposed. Operational input/UI retention has no automatic purge yet; canonical Orc
-retention is unchanged. Live schema/roles/grants remain unverified because egress blocked read-only access.
-This section describes a reviewed proposal, not a refreshed live snapshot. See `apps/edge-bff/README.md`.
+Applied `database/migrations/20261008_002_create_edge_bff.sql` after live admin preflight.
+Target: market Postgres `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`, database `railway`, PostgreSQL 18.6.
+Admin schema readback: 2026-10-08 10:13:24 UTC. This refresh covers only `edge_bff`;
+the earlier public/audit snapshot retains its own original date. Live targeted canonical-table
+columns/constraints/grants are in `verification/edge/admin_preflight_20261008.json`.
+
+Three operational tables, 28 columns, six indexes. `edge_bff_runtime` is NOLOGIN;
+`edge_bff_login` is a restricted LOGIN member of that role only (no superuser, createdb,
+createrole, replication or bypassrls). Verified DML rights on exactly these three relations
+and denial of direct access to `public."AI_conversation"`. No canonical response/reasoning is copied.
+
+### `edge_bff.sessions`
+
+| Column | Type | Nullable | Default |
+| --- | --- | --- | --- |
+| `token_hash` | `text` | NO | — |
+| `owner_key` | `text` | NO | — |
+| `created_at` | `timestamp with time zone` | NO | `CURRENT_TIMESTAMP` |
+| `expires_at` | `timestamp with time zone` | NO | — |
+| `revoked_at` | `timestamp with time zone` | YES | — |
+
+### `edge_bff.jobs`
+
+| Column | Type | Nullable | Default |
+| --- | --- | --- | --- |
+| `request_id` | `text` | NO | — |
+| `owner_key` | `text` | NO | — |
+| `submission_key` | `text` | NO | — |
+| `fingerprint` | `text` | NO | — |
+| `input` | `jsonb` | NO | — |
+| `conversation_id` | `text` | YES | — |
+| `state` | `text` | NO | `'QUEUED'::text` |
+| `state_version` | `bigint` | NO | `1` |
+| `attempt_count` | `integer` | NO | `0` |
+| `lease_token` | `text` | YES | — |
+| `lease_expires_at` | `timestamp with time zone` | YES | — |
+| `created_at` | `timestamp with time zone` | NO | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp with time zone` | NO | `CURRENT_TIMESTAMP` |
+| `completed_at` | `timestamp with time zone` | YES | — |
+| `run_status` | `text` | YES | — |
+| `error_code` | `text` | YES | — |
+
+### `edge_bff.conversation_ui`
+
+| Column | Type | Nullable | Default |
+| --- | --- | --- | --- |
+| `owner_key` | `text` | NO | — |
+| `conversation_id` | `text` | NO | — |
+| `title` | `text` | NO | — |
+| `bookmarked` | `boolean` | NO | `false` |
+| `pinned_request_ids` | `ARRAY` | NO | `'{}'::text[]` |
+| `created_at` | `timestamp with time zone` | NO | `CURRENT_TIMESTAMP` |
+| `updated_at` | `timestamp with time zone` | NO | `CURRENT_TIMESTAMP` |
+
+Primary/unique indexes enforce session/request identity, owner/submission deduplication, one active job per owner, and owner/conversation UI identity; a partial created_at index supports claiming. Full defaults, 40 PostgreSQL-18 constraints, indexes, role flags, memberships and grants are in `verification/edge/schema_readback_20261008.json`. No automatic terminal input/UI purge; canonical Orc retention is unchanged.

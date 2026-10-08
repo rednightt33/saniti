@@ -1,0 +1,642 @@
+[
+  {
+    "query": "SELECT current_database(), current_user, version()",
+    "rows": [
+      {
+        "current_database": "railway",
+        "current_user": "postgres",
+        "version": "PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit"
+      }
+    ]
+  },
+  {
+    "query": "SELECT n.nspname, c.relname, c.relkind\nFROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace\nWHERE n.nspname='edge_bff' OR (n.nspname='public' AND c.relname IN ('AI_conversation','AI_conversation_turn'))\nORDER BY 1,2",
+    "rows": [
+      {
+        "nspname": "public",
+        "relname": "AI_conversation",
+        "relkind": "r"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation_turn",
+        "relkind": "r"
+      }
+    ]
+  },
+  {
+    "query": "SELECT table_schema,table_name,column_name,data_type,is_nullable\nFROM information_schema.columns WHERE table_schema='edge_bff'\n OR (table_schema='public' AND table_name IN ('AI_conversation','AI_conversation_turn'))\nORDER BY table_schema,table_name,ordinal_position",
+    "rows": [
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation",
+        "column_name": "conversation_id",
+        "data_type": "text",
+        "is_nullable": "NO"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation",
+        "column_name": "owner_key",
+        "data_type": "text",
+        "is_nullable": "NO"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation",
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation",
+        "column_name": "updated_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation",
+        "column_name": "expires_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation",
+        "column_name": "next_turn_index",
+        "data_type": "integer",
+        "is_nullable": "NO"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation",
+        "column_name": "active_request_id",
+        "data_type": "text",
+        "is_nullable": "YES"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation",
+        "column_name": "lease_generation",
+        "data_type": "bigint",
+        "is_nullable": "NO"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation",
+        "column_name": "lease_expires_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation",
+        "column_name": "state",
+        "data_type": "jsonb",
+        "is_nullable": "NO"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "column_name": "request_id",
+        "data_type": "text",
+        "is_nullable": "NO"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "column_name": "conversation_id",
+        "data_type": "text",
+        "is_nullable": "NO"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "column_name": "turn_index",
+        "data_type": "integer",
+        "is_nullable": "NO"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "column_name": "request_fingerprint",
+        "data_type": "text",
+        "is_nullable": "NO"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "column_name": "user_message",
+        "data_type": "text",
+        "is_nullable": "NO"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "column_name": "status",
+        "data_type": "text",
+        "is_nullable": "NO"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "column_name": "lease_generation",
+        "data_type": "bigint",
+        "is_nullable": "NO"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "column_name": "run_status",
+        "data_type": "text",
+        "is_nullable": "YES"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "column_name": "response_type",
+        "data_type": "text",
+        "is_nullable": "YES"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "column_name": "assistant_text",
+        "data_type": "text",
+        "is_nullable": "YES"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "column_name": "response",
+        "data_type": "jsonb",
+        "is_nullable": "YES"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "column_name": "error_code",
+        "data_type": "text",
+        "is_nullable": "YES"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO"
+      },
+      {
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "column_name": "completed_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES"
+      }
+    ]
+  },
+  {
+    "query": "SELECT rolname,rolsuper,rolcreatedb,rolcreaterole,rolreplication,rolbypassrls,rolcanlogin\nFROM pg_roles WHERE rolname IN ('edge_bff_login','edge_bff_runtime','market_ai_conversation','market_ai_conversation_store')",
+    "rows": [
+      {
+        "rolname": "market_ai_conversation_store",
+        "rolsuper": false,
+        "rolcreatedb": false,
+        "rolcreaterole": false,
+        "rolreplication": false,
+        "rolbypassrls": false,
+        "rolcanlogin": false
+      },
+      {
+        "rolname": "market_ai_conversation",
+        "rolsuper": false,
+        "rolcreatedb": false,
+        "rolcreaterole": false,
+        "rolreplication": false,
+        "rolbypassrls": false,
+        "rolcanlogin": true
+      }
+    ]
+  },
+  {
+    "query": "SELECT grantee,table_schema,table_name,privilege_type FROM information_schema.table_privileges WHERE table_schema NOT IN ('pg_catalog','information_schema') AND (grantee='PUBLIC' OR grantee LIKE 'edge_bff%' OR (table_schema='public' AND table_name IN ('AI_conversation','AI_conversation_turn'))) ORDER BY 1,2,3,4",
+    "rows": [
+      {
+        "grantee": "market_ai_conversation_store",
+        "table_schema": "public",
+        "table_name": "AI_conversation",
+        "privilege_type": "DELETE"
+      },
+      {
+        "grantee": "market_ai_conversation_store",
+        "table_schema": "public",
+        "table_name": "AI_conversation",
+        "privilege_type": "INSERT"
+      },
+      {
+        "grantee": "market_ai_conversation_store",
+        "table_schema": "public",
+        "table_name": "AI_conversation",
+        "privilege_type": "SELECT"
+      },
+      {
+        "grantee": "market_ai_conversation_store",
+        "table_schema": "public",
+        "table_name": "AI_conversation",
+        "privilege_type": "UPDATE"
+      },
+      {
+        "grantee": "market_ai_conversation_store",
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "privilege_type": "DELETE"
+      },
+      {
+        "grantee": "market_ai_conversation_store",
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "privilege_type": "INSERT"
+      },
+      {
+        "grantee": "market_ai_conversation_store",
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "privilege_type": "SELECT"
+      },
+      {
+        "grantee": "market_ai_conversation_store",
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "privilege_type": "UPDATE"
+      },
+      {
+        "grantee": "pgweb_reader",
+        "table_schema": "public",
+        "table_name": "AI_conversation",
+        "privilege_type": "SELECT"
+      },
+      {
+        "grantee": "pgweb_reader",
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "privilege_type": "SELECT"
+      },
+      {
+        "grantee": "postgres",
+        "table_schema": "public",
+        "table_name": "AI_conversation",
+        "privilege_type": "DELETE"
+      },
+      {
+        "grantee": "postgres",
+        "table_schema": "public",
+        "table_name": "AI_conversation",
+        "privilege_type": "INSERT"
+      },
+      {
+        "grantee": "postgres",
+        "table_schema": "public",
+        "table_name": "AI_conversation",
+        "privilege_type": "REFERENCES"
+      },
+      {
+        "grantee": "postgres",
+        "table_schema": "public",
+        "table_name": "AI_conversation",
+        "privilege_type": "SELECT"
+      },
+      {
+        "grantee": "postgres",
+        "table_schema": "public",
+        "table_name": "AI_conversation",
+        "privilege_type": "TRIGGER"
+      },
+      {
+        "grantee": "postgres",
+        "table_schema": "public",
+        "table_name": "AI_conversation",
+        "privilege_type": "TRUNCATE"
+      },
+      {
+        "grantee": "postgres",
+        "table_schema": "public",
+        "table_name": "AI_conversation",
+        "privilege_type": "UPDATE"
+      },
+      {
+        "grantee": "postgres",
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "privilege_type": "DELETE"
+      },
+      {
+        "grantee": "postgres",
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "privilege_type": "INSERT"
+      },
+      {
+        "grantee": "postgres",
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "privilege_type": "REFERENCES"
+      },
+      {
+        "grantee": "postgres",
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "privilege_type": "SELECT"
+      },
+      {
+        "grantee": "postgres",
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "privilege_type": "TRIGGER"
+      },
+      {
+        "grantee": "postgres",
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "privilege_type": "TRUNCATE"
+      },
+      {
+        "grantee": "postgres",
+        "table_schema": "public",
+        "table_name": "AI_conversation_turn",
+        "privilege_type": "UPDATE"
+      }
+    ]
+  },
+  {
+    "query": "SELECT r.rolname AS granted_role,u.rolname AS member FROM pg_auth_members m\nJOIN pg_roles r ON r.oid=m.roleid JOIN pg_roles u ON u.oid=m.member\nWHERE u.rolname LIKE 'edge_bff%' OR u.rolname='market_ai_conversation'",
+    "rows": [
+      {
+        "granted_role": "market_ai_conversation_store",
+        "member": "market_ai_conversation"
+      }
+    ]
+  },
+  {
+    "query": "SELECT schemaname,tablename,indexname,indexdef FROM pg_indexes\nWHERE schemaname='edge_bff' OR (schemaname='public' AND tablename IN ('AI_conversation','AI_conversation_turn'))",
+    "rows": [
+      {
+        "schemaname": "public",
+        "tablename": "AI_conversation",
+        "indexname": "AI_conversation_pkey",
+        "indexdef": "CREATE UNIQUE INDEX \"AI_conversation_pkey\" ON public.\"AI_conversation\" USING btree (conversation_id)"
+      },
+      {
+        "schemaname": "public",
+        "tablename": "AI_conversation",
+        "indexname": "ai_conversation_owner_idx",
+        "indexdef": "CREATE INDEX ai_conversation_owner_idx ON public.\"AI_conversation\" USING btree (owner_key, updated_at DESC)"
+      },
+      {
+        "schemaname": "public",
+        "tablename": "AI_conversation",
+        "indexname": "ai_conversation_expiry_idx",
+        "indexdef": "CREATE INDEX ai_conversation_expiry_idx ON public.\"AI_conversation\" USING btree (expires_at)"
+      },
+      {
+        "schemaname": "public",
+        "tablename": "AI_conversation_turn",
+        "indexname": "AI_conversation_turn_pkey",
+        "indexdef": "CREATE UNIQUE INDEX \"AI_conversation_turn_pkey\" ON public.\"AI_conversation_turn\" USING btree (request_id)"
+      },
+      {
+        "schemaname": "public",
+        "tablename": "AI_conversation_turn",
+        "indexname": "ai_conversation_turn_position_key",
+        "indexdef": "CREATE UNIQUE INDEX ai_conversation_turn_position_key ON public.\"AI_conversation_turn\" USING btree (conversation_id, turn_index)"
+      }
+    ]
+  },
+  {
+    "query": "SELECT n.nspname,c.relname,con.conname,pg_get_constraintdef(con.oid) AS definition\nFROM pg_constraint con JOIN pg_class c ON c.oid=con.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace\nWHERE n.nspname='edge_bff' OR (n.nspname='public' AND c.relname IN ('AI_conversation','AI_conversation_turn'))",
+    "rows": [
+      {
+        "nspname": "public",
+        "relname": "AI_conversation",
+        "conname": "AI_conversation_conversation_id_not_null",
+        "definition": "NOT NULL conversation_id"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation",
+        "conname": "AI_conversation_created_at_not_null",
+        "definition": "NOT NULL created_at"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation",
+        "conname": "AI_conversation_expires_at_not_null",
+        "definition": "NOT NULL expires_at"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation",
+        "conname": "AI_conversation_lease_generation_not_null",
+        "definition": "NOT NULL lease_generation"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation",
+        "conname": "AI_conversation_next_turn_index_not_null",
+        "definition": "NOT NULL next_turn_index"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation",
+        "conname": "AI_conversation_owner_key_not_null",
+        "definition": "NOT NULL owner_key"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation",
+        "conname": "AI_conversation_pkey",
+        "definition": "PRIMARY KEY (conversation_id)"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation",
+        "conname": "AI_conversation_state_not_null",
+        "definition": "NOT NULL state"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation",
+        "conname": "AI_conversation_updated_at_not_null",
+        "definition": "NOT NULL updated_at"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation",
+        "conname": "ai_conversation_expiry_check",
+        "definition": "CHECK ((expires_at > created_at))"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation",
+        "conname": "ai_conversation_id_check",
+        "definition": "CHECK ((conversation_id ~ '^conv_[0-9a-f]{32}$'::text))"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation",
+        "conname": "ai_conversation_lease_check",
+        "definition": "CHECK (((active_request_id IS NULL) = (lease_expires_at IS NULL)))"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation",
+        "conname": "ai_conversation_owner_check",
+        "definition": "CHECK ((owner_key ~ '^[A-Za-z0-9._:@-]{1,128}$'::text))"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation",
+        "conname": "ai_conversation_state_check",
+        "definition": "CHECK ((jsonb_typeof(state) = 'object'::text))"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation",
+        "conname": "ai_conversation_turn_index_check",
+        "definition": "CHECK (((next_turn_index >= 0) AND (lease_generation >= 0)))"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation_turn",
+        "conname": "AI_conversation_turn_conversation_id_fkey",
+        "definition": "FOREIGN KEY (conversation_id) REFERENCES \"AI_conversation\"(conversation_id) ON DELETE CASCADE"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation_turn",
+        "conname": "AI_conversation_turn_conversation_id_not_null",
+        "definition": "NOT NULL conversation_id"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation_turn",
+        "conname": "AI_conversation_turn_created_at_not_null",
+        "definition": "NOT NULL created_at"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation_turn",
+        "conname": "AI_conversation_turn_lease_generation_not_null",
+        "definition": "NOT NULL lease_generation"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation_turn",
+        "conname": "AI_conversation_turn_pkey",
+        "definition": "PRIMARY KEY (request_id)"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation_turn",
+        "conname": "AI_conversation_turn_request_fingerprint_not_null",
+        "definition": "NOT NULL request_fingerprint"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation_turn",
+        "conname": "AI_conversation_turn_request_id_not_null",
+        "definition": "NOT NULL request_id"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation_turn",
+        "conname": "AI_conversation_turn_status_not_null",
+        "definition": "NOT NULL status"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation_turn",
+        "conname": "AI_conversation_turn_turn_index_not_null",
+        "definition": "NOT NULL turn_index"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation_turn",
+        "conname": "AI_conversation_turn_user_message_not_null",
+        "definition": "NOT NULL user_message"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation_turn",
+        "conname": "ai_conversation_turn_fingerprint_check",
+        "definition": "CHECK ((request_fingerprint ~ '^[0-9a-f]{64}$'::text))"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation_turn",
+        "conname": "ai_conversation_turn_finished_check",
+        "definition": "CHECK (((status = 'RUNNING'::text) = (completed_at IS NULL)))"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation_turn",
+        "conname": "ai_conversation_turn_index_check",
+        "definition": "CHECK (((turn_index >= 0) AND (lease_generation >= 0)))"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation_turn",
+        "conname": "ai_conversation_turn_position_key",
+        "definition": "UNIQUE (conversation_id, turn_index)"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation_turn",
+        "conname": "ai_conversation_turn_request_id_check",
+        "definition": "CHECK ((request_id ~ '^[A-Za-z0-9._:-]{1,200}$'::text))"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation_turn",
+        "conname": "ai_conversation_turn_response_check",
+        "definition": "CHECK (((response IS NULL) OR (jsonb_typeof(response) = 'object'::text)))"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation_turn",
+        "conname": "ai_conversation_turn_status_check",
+        "definition": "CHECK ((status = ANY (ARRAY['RUNNING'::text, 'COMPLETED'::text, 'FAILED'::text, 'INTERRUPTED'::text])))"
+      },
+      {
+        "nspname": "public",
+        "relname": "AI_conversation_turn",
+        "conname": "ai_conversation_turn_text_check",
+        "definition": "CHECK ((((length(user_message) >= 1) AND (length(user_message) <= 20000)) AND ((assistant_text IS NULL) OR (length(assistant_text) <= 40000))))"
+      }
+    ]
+  },
+  {
+    "query": "SELECT clock_timestamp() AS checked_at, current_database() AS database, current_user AS role, rolsuper FROM pg_roles WHERE rolname=current_user",
+    "rows": [
+      {
+        "checked_at": "2026-10-08 10:10:09.607338+00:00",
+        "database": "railway",
+        "role": "postgres",
+        "rolsuper": true
+      }
+    ]
+  },
+  {
+    "query": "SELECT count(*) AS active_requests FROM public.\"AI_conversation_turn\" WHERE status='RUNNING'",
+    "rows": [
+      {
+        "active_requests": 0
+      }
+    ]
+  },
+  {
+    "query": "SELECT n.nspname,p.proname,p.prosecdef FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace, LATERAL aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND p.prosecdef AND a.grantee=0 AND a.privilege_type='EXECUTE' ORDER BY 1,2",
+    "rows": []
+  }
+]

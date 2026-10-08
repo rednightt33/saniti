@@ -2,9 +2,10 @@
 
 ## 1. BEST RECOMMENDATION / CURRENT DECISION
 
-The code and deterministic local validation are complete on isolated branch `codex/edge-bff`. Review it before
-rollout. The forward migration remains a **tested proposal**, because live schema reconciliation is blocked.
-Nothing was merged to main, deployed, migrated live, or sent to paid AI. Keep EXEC-EDGE open for rollout.
+The code and deterministic local validation are complete on isolated branch `codex/edge-bff`.
+The user approved dev rollout from this branch: "Ok, do it." Live admin reconciliation succeeded and
+the EDGE migration/login were applied and verified. BFF service/domain and secure variables are allocated;
+deployment/public verification is in progress. Main remains unmerged; no paid AI calls were made.
 
 ## 2. VERIFIED FACTS
 
@@ -13,8 +14,13 @@ Nothing was merged to main, deployed, migrated live, or sent to paid AI. Keep EX
 - Read-only Railway inspection: project lucid-patience `8aef1702-030b-49cb-9df7-5ac2e0a42691`, dev environment
   `4d3e5af2-302b-4a2e-84e2-7d7476d6ff49`, Orc service `41dc17ee-3bac-41ef-90ec-8b9356815c71`, active SUCCESS
   deployment `6a0ebf8f-d4e6-4d7f-a397-31b6be3b713f`, runtime commit `92884b684d760e9b8d4c3399def268bd32f011f5`.
-- Market Postgres `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86` is the proposed target. Web governor's Postgres-E8GM
-  `4b193143-be17-456b-bc00-c1760ef5db82` is excluded. No live edge-bff service exists in the inspected state.
+- Market Postgres `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86` is the verified live target. Web governor's Postgres-E8GM
+  `4b193143-be17-456b-bc00-c1760ef5db82` is excluded. EDGE service is `c3656044-2817-44a7-9b55-54910bab416f`;
+  allocated origin `https://edge-bff-dev.up.railway.app` (not yet verified as ready).
+- Admin preflight 10:10:09 UTC and readback 10:13:24 UTC: PostgreSQL 18.6, database railway;
+  three EDGE tables, 28 columns, 40 constraints, six indexes, restricted DML on those three only.
+  Full targeted schema/grant evidence is in `verification/edge`. Existing public/audit document snapshots
+  retain their original date; this is not a claim that every market table was refreshed.
 - Runtime model slot 1, mode switch 4, analysis budget 1800 s, provider request timeout 600 s, enabled server
   conversation/run-memory storage. Code's mode-4 maximum is 3600 s when its override is unset; BFF uses 3900 s.
 - Source `final 8 oct.html` SHA256 `3ad20976de979ca6c854571e9558cf6530c684365236e70295ffd7139421b4a8`.
@@ -109,9 +115,9 @@ local TypeScript evaluation/bundling is not a live drift review.
 
 ## 8. RAILWAY CHANGES
 
-Live: **none**. IaC proposes exactly one edge-bff service, one replica/process, port 8080, ready check, private Orc
-URL, existing-key reference and secure-variable placeholders. No service/variable/domain was created or edited.
-The original runner and other services are unchanged by this work. Main remains unmerged.
+Live: migration/login verified; one edge-bff service, public domain and secure variables allocated. Deployment
+is pending. Its Orc key is an existing-variable reference; no administrative DB credential is in the BFF.
+The original runner and unrelated services are unchanged. Main remains unmerged.
 
 Cloud development configuration is separate: updated install/start instructions and added only the pgweb hostname
 to the existing custom egress list, preserving the prior four destinations. The draft tool confirmed **saved** and
@@ -135,25 +141,28 @@ No cloud publication/fresh-task restore was performed, and saved settings do not
 
 ## 10. UNKNOWN / BLOCKED
 
-Live market schema/roles/grants/migration state: pgweb egress tunnel returned 403; TCP proxy DNS could not resolve.
-The migration is not finalized against live state. The new network rule is saved only, not activated/verified.
+Earlier transport blockers were resolved for reconciliation: pgweb is reachable and its target matched market PG;
+supported private-network Railway sandbox execution provided administrative access. No global pgweb
+connection or unrelated service was changed. Direct TCP/SSH DNS remains unavailable from this cloud machine.
 
 The user selected branch-only delivery on 2026-10-08 and delegated the private login choice: `EDGE_LOGIN=edge`.
-The published `codex/edge-bff` branch remains unmerged; no live rollout is authorized by that follow-up.
-Rollout inputs remain: stable EDGE owner, securely bootstrapped password verifier/session secret/restricted DB
-credential, assigned HTTPS origin. No secret value is requested in chat. Final new service/domain ID does not yet
-exist. Git push permission was verified separately from GitHub API authentication. The feature branch can be published;
+That branch-only follow-up was superseded by explicit go for dev deployment from the branch; main stays unmerged.
+Non-secret owner is `edge-private`; credentials and HTTPS origin have been set securely. The generated password
+handoff is `EDGE_INITIAL_PASSWORD` in Railway Variables, unused by app code; copy it securely then remove that
+variable after saving the password. No secret value is requested or printed in chat.
+Git push permission was verified separately from GitHub API authentication. The feature branch is published;
 GitHub CLI API authentication is unavailable, so no draft PR was created.
 
-## 11. APPROVAL REQUIRED
+## 11. APPROVED DEV ROLLOUT SCOPE
 
-The attached executor explicitly says: **"Do not interpret this prompt as deployment approval."**
+The attached executor required separate deployment go, supplied by the user on 2026-10-08: **"Ok, do it."**
+This approves deployment from `codex/edge-bff`; it does not approve a main merge or paid AI calls.
 
-After successful read-only preflight, proposed **dev-only** approval scope is:
+After successful read-only preflight, the approved **dev-only** scope is:
 
 1. Apply `20261008_002_create_edge_bff.sql` to market Postgres ID `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`;
    provision `edge_bff_login` with the helper; read back schema and exact grants.
-2. Merge/deploy the additive Orc endpoint on service `41dc17ee-3bac-41ef-90ec-8b9356815c71`, leaving its execution,
+2. Deploy the additive Orc endpoint from the branch on service `41dc17ee-3bac-41ef-90ec-8b9356815c71`, leaving its execution,
    feature flags, tools, models/providers/mode and runner configuration intact. Confirm its exact deployment SUCCESS.
 3. Create the one edge-bff service on project/environment above, set the listed variables securely and existing-key
    reference, allocate one Railway HTTPS domain, set its exact origin, deploy and verify unpaid health/auth/read paths.
@@ -165,6 +174,6 @@ continue; deleting data requires a separate decision. **Paid AI smoke tests requ
 
 ## 12. NEXT ACTION
 
-Review the feature branch and local evidence. Enable the saved pgweb connectivity requirement and rerun the
-read-only preflight. Only then finalize the migration and proceed with the explicitly approved dev rollout above.
-The current task delivers implementation/local validation; live rollout remains open in EXEC-EDGE.
+Complete Orc/BFF deployments from the branch, verify exact SUCCESS deployments, public health/auth/static
+and unpaid private backend reads, clean up the privileged sandbox, and publish rollout evidence on the branch.
+Keep EXEC-EDGE open until live delivery is verified. Paid end-to-end model calls remain a separate decision.

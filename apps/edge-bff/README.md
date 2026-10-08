@@ -69,16 +69,17 @@ COMPLETED/NEEDS_CLARIFICATION/AWAITING_CONFIRMATION/LIMITED/FAILED. FINISHED mea
 even if its domain status is FAILED. The read endpoint's saved envelope excludes POST's `conversation` decoration.
 Sources are drawn only from actual evidence/annotations/data_record. Usage/cost appears only when the saved execution reports it.
 
-## Configuration (proposed; no live values created)
+## Railway dev configuration
 
 | Variable | Value/source |
 | --- | --- |
 | EDGE_DATABASE_URL | New restricted `edge_bff_login` on existing market Postgres, private endpoint; secure value |
 | EDGE_ORC_URL | `http://market-ai-orc.railway.internal:8080` |
 | MARKET_AI_ORC_API_KEY | Railway reference to existing Orc variable |
-| EDGE_OWNER | Stable private owner, e.g. an operator-chosen identifier; never browser supplied |
+| EDGE_OWNER | `edge-private`, stable server-owned identity; never browser supplied |
 | EDGE_LOGIN | `edge`, selected under the user's 2026-10-08 delegation; set before deployment |
-| EDGE_PASSWORD_VERIFIER | `python password_hash.py`; scrypt output entered as a secret |
+| EDGE_PASSWORD_VERIFIER | Scrypt verifier of the securely generated private password |
+| EDGE_INITIAL_PASSWORD | Temporary credential handoff in Railway Variables; unused by the application. Owner retrieves securely, then removes this variable after copying the password |
 | EDGE_SESSION_SECRET | Random 32+ character secret, entered securely |
 | EDGE_PUBLIC_ORIGIN | Exact HTTPS origin of the new service; set after domain allocation |
 | EDGE_ENVIRONMENT | `dev` (use `local` only for loopback tests) |
@@ -111,10 +112,10 @@ with a scripted model, satisfying the repository's M68 rule. No OpenRouter call 
 
 ## Rollout gate and rollback
 
-See `EDGE_DELIVERY.md`. Migration is **PROPOSED**, not applied. Read-only live schema/role/grant reconciliation
-was blocked by environment egress; it must succeed before this migration is finalized/applied. The only Orc code
+See `EDGE_DELIVERY.md`. Migration is **APPLIED** and verified at 10:13:24 UTC on 2026-10-08 after admin preflight.
+See `verification/edge` for live columns, constraints, indexes and grants. The only Orc code
 change is additive GET `/v1/agent/requests/{request_id}`; no existing runner/tool/model/provider configuration changes.
-Merging to main can auto-deploy Orc: leave this branch unmerged until approval.
+The user approved dev deployment directly from `codex/edge-bff`; keep main unmerged. Further merge approval is separate.
 
 After approved reconciliation: apply the forward migration; provision the restricted login with
 `scripts/provision_edge_bff_login.py`; verify actual grants; deploy the additive Orc endpoint; create the one BFF
