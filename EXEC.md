@@ -872,6 +872,9 @@ M118; M120.
 **Jalan balik:** orc `6a0ebf8f`, sandbox `ce18b33c` (Governor tidak berubah); revert commit per gelombang. Migrasi
 tambah-saja (versi panduan baru dan round katalog baru), versi lama tetap.
 
+**Disetujui user 2026-10-08:** "Ok" atas pertanyaan "D1, D2, D3 disetujui? Go untuk mulai Gelombang A?" Gelombang A
+dimulai; Gelombang B dan setiap GT tetap menunggu perintah user.
+
 ### EXEC-M109: pertanyaan tanya-balik router tetap dipakai
 
 **Keputusan user 2026-10-07:** "M109 OK untuk perbaikan plan. Masukan ke EXEC." Pilihan "Ya, masukkan juga
