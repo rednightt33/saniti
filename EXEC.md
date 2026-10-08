@@ -50,7 +50,7 @@ gabungkan ya", pilihan "File baru EXEC.md"). Pekerjaan yang disetujui tetapi bel
 
 ## Ringkasan
 
-**Menunggu "go" (2026-10-08):** EXEC-W, rencana eksekusi butir EXEC-V yang disetujui (dua
+**Menunggu "go" (2026-10-08):** EXEC-X (M124, tampilan jawaban di EDGE; disetujui, rencana siap). EXEC-W, rencana eksekusi butir EXEC-V yang disetujui (dua
 gelombang).
 
 **Berjalan (2026-10-07):** EXEC-V (M110 + opsi B) dan EXEC-M109, rencana implementasi 4 tahap disetujui. Tahap 1
@@ -937,6 +937,128 @@ biaya model ±USD 0,13 (sisa limit kunci USD 0,62 sebelum).
   `execution.pause.options` sebagai tombol (M124).
 - Temuan front-end (M124): rencana riset dan "Research findings" tampil sebagai JSON mentah; markdown jawaban tidak
   dirender (`**...**` terlihat); tombol rencana APPROVE/REVISE/CANCEL dalam bahasa Inggris.
+
+### EXEC-X: M124, tampilan jawaban di EDGE (disetujui; menunggu "go")
+
+**Keputusan user 2026-10-08:**
+- "m124 kamu beresin saja ya"
+- "jadikan ini nice, inspect dulu code then generate plan"
+
+Rencana ini usulan. Eksekusi mulai hanya setelah "go".
+
+**Temuan inspeksi (read-only, `main` `ee1bee1`; edge-bff `2dcf1155`, orc `9efe1118`).**
+
+`apps/edge-bff/static/index.html`, `ResearchDocument` dan `Sources`:
+- Jawaban dicetak sebagai teks polos (`pre-wrap`), sehingga `**...**`, `##` dan tabel markdown terlihat mentah.
+- `research_plan` dicetak dengan `JSON.stringify` di dalam `<pre>`. Butir `research_findings` juga dicetak sebagai JSON.
+- Tombol rencana memakai teks tetap `["APPROVE","REVISE","CANCEL"]`. Pesan yang terkirim berbahasa Inggris
+  ("Approve the research plan") dan muncul sebagai gelembung pesan user.
+- `execution.pause` tidak dibaca. Pertanyaan jeda hanya berupa teks yang ditempel orc di akhir jawaban
+  (`_paused`, `apps/market-ai-orc/app/orchestrator.py`).
+- Status tampil teknis dan berbahasa Inggris: "Run 1 · Completed" untuk rencana yang menunggu persetujuan, dan
+  "Saved response: AWAITING_CONFIRMATION".
+- Tab Sources mencetak tiap bukti sebagai JSON.
+- Tanda klaim P17 (`annotations`: teks miring dan catatannya) tidak tampil.
+- Pilihan klarifikasi (`options`) sudah berupa tombol.
+
+Uji `apps/edge-bff/tests/test_browser.py` memeriksa nama tombol APPROVE/REVISE/CANCEL.
+
+**Akar masalah (terverifikasi dari kode dan tangkapan layar GT UI):** renderer tidak punya tampilan yang memahami jenis
+data. Setiap bagian terstruktur jatuh ke teks atau JSON.
+
+**Kelas masalah:** setiap bagian terstruktur yang dikirim orc tampil sebagai JSON atau tidak tampil sama sekali.
+Contohnya:
+- rencana v1, v1 dengan temuan, dan v2 (sudut);
+- temuan per eksperimen dan per sudut dengan angka backend;
+- jeda;
+- bukti dan catatan data;
+- data lintas-aset dan makro yang akan datang.
+
+Selain itu, setiap pilihan dari backend di luar `options` hanya berupa teks.
+
+**Perbaikan (permanen):**
+
+1. **Front-end (`apps/edge-bff/static/index.html`, bagian renderer saja).**
+   - **a. Markdown yang aman.** Dibangun dengan `element()` sebagai simpul DOM, tanpa `innerHTML`. Mendukung judul,
+     paragraf, tebal/miring, kode sebaris, daftar, tabel (gaya `.data-table`), kutipan, garis, dan tautan lewat
+     `Edge.safeUrl`. Sintaks lain tetap tampil sebagai teks. Teks miring yang sama dengan kutipan `annotations` diberi
+     catatannya saat disentuh atau diarahkan kursor (P17).
+   - **b. Tampilan umum untuk data terstruktur.**
+     - Objek menjadi baris berlabel, daftar objek menjadi kartu, daftar teks menjadi butir, dan angka diformat id-ID.
+     - Label diambil dari satu tabel label Indonesia. Field yang belum dikenal tetap tampil dengan nama yang dibuat
+       mudah dibaca, tanpa perubahan kode.
+     - JSON hanya ada di "Detail teknis" yang tertutup.
+   - **c. Kartu rencana riset.**
+     - Bagian atas: tujuan, cakupan, periode dan frekuensi.
+     - Satu kartu per eksperimen (v1) atau sudut (v2): hipotesis, kondisi, yang diukur, pembanding, horizon, arah,
+       ambang sukses dengan operator dan satuan (misalnya "> 0%"), efek minimum, dan tabel yang dibawa.
+     - Asumsi dan batasan sebagai butir.
+   - **d. Kartu temuan riset.**
+     - Lencana putusan backend dengan warna dan label Indonesia: Didukung, Didukung sebagian, Tidak didukung, Belum
+       konklusif, Tidak dievaluasi, Bukti belum cukup, Tidak valid, Tidak dijalankan. Nilai yang belum dikenal tampil
+       apa adanya dengan warna netral.
+     - Judul diambil dari eksperimen atau sudut di rencana bila tersedia.
+     - Isi: Jawaban / Bukti / Kegunaan / Langkah berikutnya, serta angka backend (estimasi, CI, p, sampel).
+   - **e. Satu komponen pilihan untuk semua pilihan backend.**
+     - Mencakup pilihan klarifikasi (route), aksi rencana (Setujui / Revisi / Batalkan), dan pilihan jeda (dari
+       `execution.pause.options`).
+     - Klik pilihan jeda mengirim labelnya sebagai pesan. Orc sudah membaca pesan itu lewat catatan jeda.
+     - Pilihan yang butuh kata user (`needs_input`) mengisi kolom ketik dan memfokuskannya.
+     - Aturan aktif tetap seperti sekarang: hanya jawaban terakhir dan hanya saat tidak ada yang berjalan.
+   - **f. Kartu jeda.** Berisi "Jawaban ini dijeda", alasan dan tombol pilihan. Pertanyaan jeda di akhir jawaban tidak
+     ditampilkan dua kali, hanya bila sama persis dengan `pause.question`.
+   - **g. Status dalam kata biasa:** Selesai, Menunggu persetujuan, Perlu jawaban Anda, Dijeda, Terbatas, Gagal. Pesan
+     aksi rencana: "Setujui rencana riset", "Batalkan rencana riset".
+   - **h. Tab Sources.**
+     - Tiap bukti tampil sebagai baris yang mudah dibaca: status, klaim, sumber (ref, nama, tanggal data).
+     - Catatan data diringkas: tabel yang dibaca dan output yang dirilis.
+     - JSON di "Detail teknis".
+   - **i. Gaya.** Memakai token dan kelas yang sudah ada (`.data-table`, `.pill`, `--positive`, `--card`, `--border`),
+     tema terang/gelap, dan lebar 360–1600 px. Tanpa pustaka luar; CSP tidak berubah.
+2. **Orc, kontrak kecil yang hanya menambah field.** Catatan jeda (`stop_policy.pause_record`) menyimpan `question`
+   (teks persis yang ditempel di jawaban) dan `needs_input` per pilihan (REVISE_PLAN). Keduanya ditentukan oleh tabel
+   kebijakan jeda itu sendiri. Klien lain tidak terpengaruh.
+
+**Tidak termasuk:**
+- M123;
+- terjemahan bingkai aplikasi (Workspace, New conversation, Submit, Details), menunggu keputusan user;
+- daftar nilai konfirmasi terstruktur, karena blok konfirmasi M117 tetap markdown tetapi kini terender;
+- tampilan per langkah mode 4;
+- berbagi publik.
+
+**Langkah:**
+1. **Orc.** Kontrak jeda dan uji (`tests/test_stop_policy.py`), lalu seluruh uji orc.
+2. **EDGE.**
+   - Renderer a–i.
+   - Uji `test_browser.py` diubah untuk tombol Indonesia, kartu rencana, tanpa JSON mentah, tabel markdown, tombol jeda
+     yang mengirim label, dan `needs_input` yang mengisi kolom ketik.
+   - Fixture dari respons tersimpan GT: rencana v1, jawaban INCONCLUSIVE dengan tabel, klarifikasi, LIMITATION dengan
+     jeda, rencana v2 dan temuan per sudut.
+   - Uji keamanan: `<script>` dan tautan `javascript:` di markdown tetap tampil sebagai teks.
+3. **Pratinjau.** Tangkapan layar lokal (desktop/ponsel, gelap/terang) dari fixture dikirim ke user **sebelum deploy**.
+4. **Deploy setelah user setuju.**
+   - Push `main`, lalu orc dan edge-bff ter-deploy lewat `watchPatterns`.
+   - Status deployment dicek sampai SUCCESS, lalu dicatat di `RAILWAY_CHANGELOG.md`.
+5. **Cek live tanpa biaya AI.** Buka percakapan GT yang tersimpan di dev (edge_d1bb…, edge_5141…, edge_3b0e…,
+   edge_7c49…) di UI baru dan ambil tangkapan layar. Jeda live butuh run berbayar dan tidak bisa dipaksa, jadi hanya
+   dijalankan atas perintah.
+6. **Dokumentasi:** status M124 di `ERRORS_AND_SOLUTIONS.md`, ringkasan EXEC, README edge-bff (kontrak renderer), dan
+   changelog.
+
+**Risiko dan biaya:**
+- `index.html` adalah file pasokan 10,6 ribu baris. Perubahan dibatasi pada fungsi renderer dan CSS tambahan di
+  akhir.
+- Sesi Codex mungkin mengubah file yang sama di `codex/edge-bff`, jadi perlu pull dulu.
+- Markdown yang tidak didukung tampil sebagai teks (aman).
+- Biaya: tanpa biaya AI, satu deploy orc dan satu deploy edge-bff.
+
+**Uji generalisasi:**
+- Kasus lain yang tercakup:
+  - rencana v2 (sudut) dan temuan per sudut dengan angka backend, yang belum terlihat di GT;
+  - field yang belum dikenal tampil berlabel;
+  - nilai putusan yang belum dikenal tampil netral.
+- Kasus yang tidak tercakup: isi teknis `data_record` dan lampiran unduhan. Keduanya tetap di Detail teknis atau
+  sebagai tautan, karena itu data operasional dan bukan bacaan user.
 
 ### EXEC-M109: pertanyaan tanya-balik router tetap dipakai
 
