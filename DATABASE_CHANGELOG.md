@@ -1,5 +1,25 @@
 # Database changelog
 
+## 2026-10-08 — EXEC-V revision: Tool_Catalog round M on dev
+
+- **`20261008_001_round_m_tool_catalog.sql`** (generated, round `round_m`, `scripts/generate_tool_catalog_migration.py`;
+  `EXEC.md` EXEC-V decisions and implementation plan of 2026-10-08): three inactive `Tool_Catalog` rows copied from the
+  previous versions with the input schema and purpose of the code: `submit_data_need_spec` v11 (`research_experiments`
+  removed, stage 3 revoked), `open_analysis_session` v3 (up to four sessions per answer, opening one never closes
+  another, `close_session_id` after `SESSION_LIMIT_PER_REQUEST`), `prepare_data_bundle` v3 (a part with the same
+  Governor SQL whose range ends before today is reused within the conversation; `data_reuse`). No table, column,
+  grant or other row changed.
+- **Part A check:** tool metadata, not market data; Part A does not apply.
+- Applied by the temporary service `mmig-job` (`DATABASE_URL` as a reference to the catalog database, never printed;
+  deleted afterwards, read back absent): DRYRUN `af003036` passed and rolled back (115 rows, 25 active, before and
+  after); APPLY `f064e342` committed. Read back: 118 rows, 25 active (unchanged); `submit_data_need_spec` v11 inactive
+  without `research_experiments`, `open_analysis_session` v3 with "never closes another", `prepare_data_bundle` v3 with
+  `data_reuse`, the earlier versions unchanged; a second run was refused by its preflight ("already registered").
+  Checksum appended to `database/migrations/APPLIED.sha256`.
+- Sandbox SQLite store (service volume, not PostgreSQL): schema version 5 kept; `bundle_bindings.aliases` is no longer
+  written (stage 2 aliases removed). New bundle manifests record per partition `data_sha256`, `part_key`, the
+  Governor's validator manifest and, for a reused part, `reused_from`.
+
 ## 2026-10-07 — EXEC-V stage 3: Tool_Catalog round L on dev
 
 - **`20261007_001_round_l_tool_catalog.sql`** (generated, round `round_l`, `scripts/generate_tool_catalog_migration.py`):

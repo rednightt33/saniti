@@ -1,5 +1,29 @@
 # Railway changelog
 
+## 2026-10-08 — EXEC-V revision (several sessions per answer, M114, same SQL = same data) on dev
+
+Under the user's approval of the implementation plan of 2026-10-08 (`EXEC.md` EXEC-V; approval = stages 1–4 on dev in
+order; the golden test only on the user's command). No model, provider or AI switch changed.
+
+- **market-sql-governor:** `main` `4cfbe06`; deployment `ad4da9bb` reached `SUCCESS` (start log clean). Estimates and
+  extractions return `data_sha256`.
+- **Variable:** `PY_SANDBOX_MAX_SESSIONS=4` on market-python-sandbox (was unset, default 2; user: "Ya naikan ke 4"), set
+  with `--skip-deploys` before the code push. Checked first: the container limit is 24 GB memory and 24 vCPU
+  (`serviceInstanceLimits`), above four sessions × `PY_SANDBOX_MAX_MEMORY_MB` 4096. `PY_SANDBOX_MAX_SESSIONS_PER_REQUEST`
+  is not set (defaults to the same four).
+- **Migration** 20261008_001 (Tool_Catalog round M) by the temporary service `mmig-job` (reference
+  `DATABASE_URL=${{Postgres.DATABASE_URL}}`, never printed): DRYRUN `af003036`, APPLY `f064e342`; deleted with
+  `railway service delete`, read back absent. Details in `DATABASE_CHANGELOG.md`.
+- **market-python-sandbox:** `main` `92884b6`; deployment `ce18b33c` reached `SUCCESS` (`sandbox_started` with isolation
+  enforced, `sessions_started`). A temporary read-only job `rchk-job` (references to orc's `PY_SANDBOX_URL` and
+  `PY_SANDBOX_API_KEY`, never printed; deleted, read back absent) read `GET /v1/runtime`: `session_release` version 2
+  with `max_sessions` 4 and `max_sessions_per_request` 4, `part_reuse` version 1, `research_multi_experiment` absent.
+- **market-ai-orc:** the push deployed `87b7773a` (`SUCCESS`) before the sandbox was up, so it logged
+  `session_release_inactive` and `part_reuse_inactive`; redeployed after the sandbox as `6a0ebf8f` (`SUCCESS`), start
+  log without any `*_inactive` event.
+- `railway config pull --force` added `PY_SANDBOX_MAX_SESSIONS: preserve()` to `.railway/railway.ts`; `railway config
+  plan` (run directly, R24): already up to date.
+
 ## 2026-10-07 — EXEC-V stage 3 (several experiments in one data need) on dev
 
 Under the approved implementation plan for EXEC-V (stage 3; `EXEC.md` EXEC-V).
