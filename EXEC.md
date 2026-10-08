@@ -515,7 +515,36 @@ sama bisa di proses di sandbox lain." Belum dijalankan; rencana eksekusi menungg
     - Sudah baik (dipertahankan): batas panggilan identik, pengklasifikasi balasan rencana yang bertanya bila ragu,
       mode 4 maksimal 2 pertanyaan lalu langkah cadangan, sandbox menunggu dan mengusir sesi hangat, memori percakapan
       membawa penolakan dan draf ke giliran berikut, angka yang tidak diketik dari sumber diberi tanda (bukan ditolak).
-    - Menunggu keputusan user: M121 (b, c, f, g, h, j) dan kapasitas sandbox (e).
+    - **M121 disetujui user 2026-10-08:** "M121 (jeda dan tanya, bukan berhenti, plus satu aturan berhenti terpusat):
+      disetujui untuk dibuat rencana eksekusinya bersama M117? --> OK masukan EXEC." Lingkup: b, c, f, g, h, j di atas,
+      dibangun bersama M117. Belum ada perintah jalan.
+    - **Usulan rincian (user minta "propose a fix" 2026-10-08; menunggu persetujuan):**
+      - (e) Sandbox penuh. Pesan "jangan coba lagi" ada karena sandbox sudah menunggu 60 detik dan percobaan ulang
+        langsung oleh AI menemui slot yang sama (S05: dulu dicoba terus sampai anggaran jawaban habis). Akibatnya
+        jawaban itu tidak selesai, dan user harus mengirim ulang. Usulan: (1) menunggu menjadi tugas backend, bukan AI:
+        orc mengantre ulang selama sisa waktu jawaban, tanpa token model; (2) bagi rata: selama ada jawaban lain yang
+        menunggu, satu jawaban tidak membuka sesi melebihi bagiannya (slot ÷ jawaban aktif dan menunggu, minimal 1),
+        diturunkan saat itu juga; tidak ada sesi yang ditutup, sesuai keputusan "membuka satu tidak menutup yang lain";
+        (3) bila waktu jawaban hampir habis: jeda M121, yaitu bagian yang selesai disampaikan, data yang sudah disiapkan
+        disimpan, dan user ditanya "lanjutkan?"; (4) pesan "jangan coba lagi" dihapus.
+      - (f) Batas perbaikan alat, akar masalah terverifikasi (M122): model mengirim nilai sebagai teks (`"null"`,
+        `"[...]"`, `"20"`) sehingga `discover_catalog` menolak `CURSOR_INVALID` padahal model bermaksud kosong;
+        `get_research_library` menolak daftar berbentuk teks; `get_lineage` menerima alias `out.o35` di kolom yang
+        salah; `query_metric` menolak periode "dari 1 Jan sampai sekarang" (tanpa tanggal akhir); penghitung perbaikan
+        tidak di-reset setelah panggilan berhasil. Usulan: (1) registri alat menerjemahkan nilai teks yang jelas sesuai
+        tipe di skema (diturunkan dari skema, dicatat di log); (2) masukan yang jelas maksudnya diterima: id dikenali
+        dari polanya, periode terbuka berakhir di tanggal data terakhir yang disebut di hasil; (3) pesan galat diturunkan
+        dari skema: tipe yang diharapkan, contoh, dan "maksud Anda kolom X?"; (4) penghitung = penolakan berturut-turut
+        tanpa sukses di antaranya; (5) saat batas tercapai: "pakai alat lain dengan fungsi sama (diturunkan dari
+        registri), tanya user, atau lanjut tanpa bagian ini dan sebutkan", bukan "kembalikan LIMITATION"; (6) setiap
+        kejadian dicatat sebagai cacat kontrak alat (friction).
+      - (g) Batas langkah dan waktu. Dev disetel tangan ke 60 langkah / 60 panggilan / 1.800 detik setelah riset
+        terpotong; kode bawaan tetap 8 / 12 / 600. Audit: 76% dari 537 jawaban memakai ≥5 langkah model dan 43% memakai
+        ≥10, jadi dengan bawaan 8 sekitar separuh jawaban terpotong. Usulan: (1) nilai bawaan kode disamakan dengan nilai
+        yang terbukti di dev, dicatat di satu tempat; (2) batas habis = jeda M121: bagian yang terverifikasi
+        disampaikan, sesi/data/draf disimpan, dan user ditanya "Saya perlu kira-kira N langkah lagi untuk X.
+        Lanjutkan?"; "lanjutkan" memberi anggaran baru (jaminan biaya: belanja di atas batas hanya dengan kata user);
+        (3) AI diberi tahu sisa anggarannya mendekati batas, supaya bisa merapikan atau merencanakan jeda.
 
 **Hasil tahap 1 (2026-10-07, V-a opsi B):**
 - **Kode** (`d25e108`, `apps/market-ai-orc/app/orchestrator.py`):
