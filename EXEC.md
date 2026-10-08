@@ -1195,6 +1195,23 @@ bisa fallback. Masukan ke daftar wajib di update").** Dibangun di cabang sesi:
 dan edge-bff sampai SUCCESS, cek live tanpa biaya AI, cek kredit, GT kecil sebelum dan sesudah diukur dengan
 `scripts/answer_plainness.py`, lalu catat di changelog.
 
+**Deploy dan GT kecil (2026-10-08).** `main` `72478cd`: orc `30d161b7` dan edge-bff `d5f225d3` SUCCESS. GT kecil
+`ma-plain-20261008a` (pertanyaan sama dengan gtA, gt_f, qa, golden_c; USD 0,099): jawaban yang memuat nama internal 9/9
+sebelum (5,4 per jawaban) → 0/5 sesudah; kalimat median 17,7 → 15,0 kata. Cacat yang ditemukan dengan membaca jawaban
+dan pratinjau (`ERRORS_AND_SOLUTIONS.md` M125 sisa, M126):
+- P1 (M126): referensi ke teks (fakta web, nama di tabel referensi) menyisipkan kutipan utuh, sebagian berbahasa
+  Inggris, ke tengah kalimat; nama perusahaan tertulis dua kali.
+- P2: panel Sources menamai bukti "Angka dari sumber web: nilai" dan "Angka dari reference: company name,
+  rows[ticker=bris]"; situs, kutipan dan tautan fakta web tidak tampil.
+- P3: baris sistem yang masih memuat kode: "(bukti DIRUJUK)"; baris kebutuhan web "… peng [OK; bca.co.id, …]" (kode
+  status, teks terpotong).
+- P4: "Catatan data percakapan" di Sources menampilkan field internal (Version, Next alias, Seq).
+- P5: ukuran kejelasan hanya membaca teks jawaban, bukan asumsi, batasan, metodologi dan label bukti.
+
+**Keputusan user 2026-10-08** atas permintaan "jalankan pertanyaan yg related to web govt juga ya, liat apakah efisien
+dan gimana uinya 5 pertanyaan mix": kredit "Saya naikkan batas kunci"; urutan "Perbaiki dulu" (usulan perbaikan dulu,
+uji web 5 pertanyaan sesudah disetujui dan di-deploy). Usulan P1–P5 menunggu persetujuan.
+
 ### EXEC-M109: pertanyaan tanya-balik router tetap dipakai
 
 **Keputusan user 2026-10-07:** "M109 OK untuk perbaikan plan. Masukan ke EXEC." Pilihan "Ya, masukkan juga
