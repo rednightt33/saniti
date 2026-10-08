@@ -160,13 +160,17 @@ def test_every_item_is_a_value_reference_shown_as_a_web_fact() -> None:
     assert [item["ref"] for item in result["citable"]] == ["web.wab12cd34_1", "web.wab12cd34_2", "web.wab12cd34_3"]
     shown = render("Ekspor 2024 {{web.wab12cd34_1.value_as_written}}, 2023 {{web.wab12cd34_2.value_as_written}}.",
                    state.ref_sources)
+    # M126 (choice C): a web value carries a link to its page, once per sentence
     assert shown.problems == [] and shown.text == (
-        "Ekspor 2024 US$264,70 miliar (fakta web, bps.go.id), 2023 US$258,82 miliar.")
+        "Ekspor 2024 US$264,70 miliar ([bps.go.id](https://www.bps.go.id/a)), 2023 US$258,82 miliar.")
     table = render("| 2024 | {{web.wab12cd34_1.value_as_written}} |\n| 2023 | {{web.wab12cd34_2.value_as_written}} |",
                    state.ref_sources)
-    assert table.text.count("(fakta web, bps.go.id)") == 1  # named once per text
-    fact = render("Reuters: {{web.wab12cd34_3.value}}.", state.ref_sources)
-    assert fact.text == "Reuters: exports rose 2.3% in 2024 (fakta web, reuters.com)."
+    assert table.text.count("([bps.go.id](https://www.bps.go.id/a))") == 2  # each table row links its source
+    # a statement is said in the reader's words and cited by its link only; its figures stay sources
+    fact = render("Ekspor naik 2,3% pada 2024 {{web.wab12cd34_3.value}}.", state.ref_sources)
+    assert fact.problems == [] and fact.cited == ["web.wab12cd34_3.value"]
+    assert fact.text == "Ekspor naik 2,3% pada 2024 ([reuters.com](https://www.bps.go.id/a))."
+    assert 2.3 in {value.value for value in fact.values}
     # a web value is a context source: never a data label
     assert {value.label for value in shown.values} == {"WEB_FACT"}
     assert render("{{diff(web.wab12cd34_1.value, web.wab12cd34_2.value)|dec:0}}", state.ref_sources).text \
@@ -257,3 +261,72 @@ def test_a_percent_web_value_declares_its_unit() -> None:
                                                              output={"result": result}), {})
     assert result["citable"][0]["unit_code"] == "PERCENT"
     assert render("{{web.wab12cd34_9.value|pct}}", state.ref_sources).text.startswith("2,92%")
+
+
+# ------------------------------------------------------------------------------------------------- M126 citations
+
+def m126_sources():
+    """The shapes of the live answer of 2026-10-08 (g13 and the macro outlook): a long statement, a short name, a list,
+    and a reference-table name (a database value)."""
+    from app.value_refs import ReferenceSources
+    sources = ReferenceSources()
+    statement = ("Pemegang Saham PT Dwimuria Investama Andalan adalah Sdr. Robert Budi Hartono dan Sdr. Bambang "
+                 "Hartono, sehingga pengendali terakhir BCA adalah Sdr. Robert Budi Hartono.")
+    for key, value, extra in (
+            ("w1_1", statement, {"statement": statement, "shape": "FACT"}),
+            ("w1_2", "BCA is the largest private bank in Indonesia", {"statement": "BCA private bank", "shape": "FACT"}),
+            ("w1_3", "Bank Mandiri", {"statement": "Pemegang saham mayoritas BSI"}),
+            ("w1_4", "BMRI, BBNI, BBRI", {"statement": "Pemegang saham BSI", "members": ["BMRI", "BBNI", "BBRI"],
+                                          "shape": "LIST"})):
+        entry = {"id": key, "value": value, "label": "WEB_FACT", "quote": value, **extra}
+        sources.add("web", key, entry, "WEB_FACT", origin="bca.co.id", link=f"https://www.bca.co.id/{key}")
+    sources.add("reference", "r1", {"rows": [{"Ticker": "BRIS", "Company Name": "PT Bank Syariah Indonesia Tbk"}]},
+                "FACT")
+    return sources
+
+
+def test_a_statement_is_cited_by_its_link_and_never_pasted_in() -> None:
+    shown = render("BCA dikendalikan keluarga Hartono {{web.w1_1.value}}. BCA bank swasta terbesar {{web.w1_2.value}}.",
+                   m126_sources())
+    assert shown.problems == [] and "Pemegang Saham" not in shown.text and "largest" not in shown.text
+    assert shown.text == ("BCA dikendalikan keluarga Hartono ([bca.co.id](https://www.bca.co.id/w1_1)). "
+                          "BCA bank swasta terbesar ([bca.co.id](https://www.bca.co.id/w1_2)).")
+
+
+def test_a_name_and_a_list_are_shown_with_their_link_once_per_sentence() -> None:
+    shown = render("Pemegang mayoritas BSI adalah {{web.w1_3.value}}; pemegang sahamnya {{web.w1_4.value}} dan "
+                   "{{web.w1_3.value}}.", m126_sources())
+    assert shown.text == ("Pemegang mayoritas BSI adalah Bank Mandiri ([bca.co.id](https://www.bca.co.id/w1_3)); "
+                          "pemegang sahamnya BMRI, BBNI, BBRI ([bca.co.id](https://www.bca.co.id/w1_4)) dan Bank Mandiri.")
+
+
+def test_a_name_the_answer_already_wrote_is_not_written_twice() -> None:
+    shown = render("BRIS tercatat sebagai PT Bank Syariah Indonesia Tbk "
+                   "{{reference.r1.rows[Ticker=BRIS].Company Name}} (sektor Financials).", m126_sources())
+    assert shown.text == "BRIS tercatat sebagai PT Bank Syariah Indonesia Tbk (sektor Financials)."
+    assert shown.deduplicated == ["PT Bank Syariah Indonesia Tbk"]
+    # a database name the answer did not write is shown, without a source mark (choice C)
+    assert render("BRIS: {{reference.r1.rows[Ticker=BRIS].Company Name}}.", m126_sources()).text \
+        == "BRIS: PT Bank Syariah Indonesia Tbk."
+
+
+def test_a_link_the_model_typed_to_a_page_the_run_did_not_read_keeps_only_its_words() -> None:
+    from app.value_refs import registered_links_only
+    allowed = set(m126_sources().links.values())
+    text, removed = registered_links_only("Lihat [laporan BI](https://contoh.example/x) dan "
+                                          "[BCA](https://www.bca.co.id/w1_1).", allowed)
+    assert text == "Lihat laporan BI dan [BCA](https://www.bca.co.id/w1_1)."
+    assert removed == ["https://contoh.example/x"]
+    _, state, _ = tracked()
+    final = FinalResponse(response_type="ANSWER", answer="Sumber: [x](https://evil.example/a).",
+                          clarification_question=None, assumptions=["[y](https://www.bps.go.id/a)"], limitations=[])
+    cleaned = AgentOrchestrator._registered_links_only(state, final)
+    assert cleaned.answer == "Sumber: x." and cleaned.assumptions == ["[y](https://www.bps.go.id/a)"]
+
+
+def test_only_http_links_are_registered() -> None:
+    from app.value_refs import ReferenceSources
+    sources = ReferenceSources()
+    sources.add("web", "a", {"value": 1}, "WEB_FACT", origin="x.id", link="javascript:alert(1)")
+    sources.add("web", "b", {"value": 1}, "WEB_FACT", origin="x.id", link="https://x.id/b")
+    assert sources.links == {("web", "b"): "https://x.id/b"}

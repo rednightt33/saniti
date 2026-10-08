@@ -55,6 +55,16 @@ UNRESOLVED = "[nilai tidak tersedia]"
 OUTSIDE_LABELS = {"WEB_FACT": "fakta web"}
 OUTSIDE_NAMESPACES = {"WEB_FACT": "web"}  # the namespace an item of a citable envelope is registered under
 OUTSIDE_FIELDS = frozenset({"value", "value_as_written", "members"})  # the fields of an outside item that are its value
+# M126 (user decision 2026-10-08, choice C): an outside value is shown with a link to the page it was read from, once per
+# sentence. A number, a list or a short label (a name) is shown and linked; a statement (the item's own sentence, or a
+# text with a sentence end, a figure, or more words than a label) is not inserted at all: the answer says it in the
+# reader's words and the reference shows only the link. The quote stays in the evidence list.
+LABEL_MAX_WORDS = 8  # an item without a shape: longer than this, it is read as a statement
+STATEMENT_SHAPES = frozenset({"FACT", "EVENT"})
+VALUE_SHAPES = frozenset({"NUMBER", "SERIES", "LIST"})
+SENTENCE_END_RE = re.compile(r"[.!?](?:\s|$)")
+CLAUSE_BREAK_RE = re.compile(r"[.!?](?:\s|$)|[\n|]")  # a new sentence, line or table cell links its sources again
+MARKDOWN_LINK_RE = re.compile(r"\[(?P<label>[^\[\]]+)\]\((?P<url>[^()\s]+)\)")
 NEXT_IS_WORD_RE = re.compile(r"\s*[\w$€£¥%]")
 
 
@@ -172,12 +182,16 @@ class ReferenceSources:
     redirected: dict[str, str] = field(default_factory=dict)
     # Item 12: (namespace, key) -> where an outside value comes from (a web fact's domain), named where it is shown
     origins: dict[tuple[str, str], str] = field(default_factory=dict)
+    # M126: (namespace, key) -> the page an outside value was read from (http or https only), linked where it is shown
+    links: dict[tuple[str, str], str] = field(default_factory=dict)
 
     def add(self, namespace: str, key: str, value: Any, label: str, units: dict[str, Any] | None = None,
-            origin: str | None = None) -> None:
+            origin: str | None = None, link: str | None = None) -> None:
         self.objects.setdefault(namespace, {})[str(key)] = (value, label)
         if origin:
             self.origins[(namespace, str(key))] = origin
+        if safe_link(link):
+            self.links[(namespace, str(key))] = str(link)
         declared = {str(k): v for k, v in (units or {}).items() if v in UNITS}
         if declared:  # a later registration without units keeps the ones learned before (the same output)
             self.units[(namespace, str(key))] = declared
@@ -257,7 +271,19 @@ class ReferenceSources:
         if not rest or _names([rest[-1]])[:1] != [rest[-1]] or rest[-1] not in OUTSIDE_FIELDS:
             return None
         origin = self.origins.get((namespace, key))
+        link = self.links.get((namespace, key))
+        if origin and link:
+            return f"[{origin}]({link})"
         return f"{name}, {origin}" if origin else name
+
+    def outside_item(self, path: str) -> dict[str, Any] | None:
+        """M126: the registered outside item a path reads (its statement and quote), or None."""
+        try:
+            namespace, key, _ = self._locate(path)
+        except ReferenceError_:
+            return None
+        entry = self.objects.get(namespace, {}).get(key)
+        return entry[0] if entry and isinstance(entry[0], dict) else None
 
     def unit(self, path: str) -> str | None:
         """P23: the unit of the value at path, from the units declared beside its object or by an object on the way
@@ -706,6 +732,8 @@ class Rendering:
     outside: list[tuple[str, str]] = field(default_factory=list)
     named: set[str] = field(default_factory=set)
     pending: str | None = None
+    cited: list[str] = field(default_factory=list)  # M126: outside statements shown as their link only
+    deduplicated: list[str] = field(default_factory=list)  # M126: text values the answer had already written
 
 
 def _text(value: str) -> str:
@@ -715,6 +743,43 @@ def _text(value: str) -> str:
 
 def _text_numbers(text: str) -> list[float]:
     return [value for shown in parse_numbers(text) for value, _ in shown.candidates]
+
+
+def safe_link(url: Any) -> bool:
+    """A link the reader may open: an absolute http or https address without spaces or brackets."""
+    return isinstance(url, str) and bool(re.fullmatch(r"https?://[^\s()<>\[\]]+", url))
+
+
+def _is_statement(text: str, item: dict[str, Any] | None) -> bool:
+    """M126: a text that says something (the item's own statement, a sentence, or longer than a label) rather than
+    naming a value. Read from the item's shape when it has one; otherwise from the text, so an outside source without
+    shapes is read the same way. A number as its source writes it ("US$264,70 miliar") is never a statement."""
+    item = item or {}
+    if item.get("value_as_written") not in (None, ""):
+        return False
+    if item.get("shape") in STATEMENT_SHAPES:
+        return True  # the web governor's contract: a FACT is "one statement about a subject", an EVENT says what happened
+    if item.get("shape") in VALUE_SHAPES:
+        return False
+    one_line = " ".join(text.split())
+    statement = " ".join(str((item or {}).get("statement") or "").split())
+    return bool(statement and one_line == statement) or bool(SENTENCE_END_RE.search(one_line)) \
+        or len(one_line.split()) > LABEL_MAX_WORDS or bool(_text_numbers(one_line))  # a text with a figure is a claim
+
+
+def registered_links_only(text: str | None, allowed: set[str]) -> tuple[str | None, list[str]]:
+    """M126: a Markdown link whose address is not a source this run read keeps its words and loses its address, so a
+    link the model typed can never send the reader to a page the system did not read."""
+    if not text or "](" not in text:
+        return text, []
+    removed: list[str] = []
+
+    def keep(match: re.Match[str]) -> str:
+        if match.group("url") in allowed:
+            return match.group(0)
+        removed.append(match.group("url"))
+        return match.group("label")
+    return MARKDOWN_LINK_RE.sub(keep, text), removed
 
 
 LIST_ITEMS = 8  # items of a list shown before "(+N lainnya)"
@@ -774,6 +839,15 @@ def render(text: str | None, sources: ReferenceSources) -> Rendering:
         try:
             if not FUNC_RE.match(expression):
                 raw, label = sources.resolve(expression)
+                if label in OUTSIDE_LABELS and isinstance(raw, str) and _number(raw) is None \
+                        and _is_statement(raw, sources.outside_item(expression)):
+                    # M126: a statement is cited, not inserted; the numbers of its text and quote stay sources
+                    item = sources.outside_item(expression) or {}
+                    for text in (raw, item.get("quote")):
+                        out.values.extend(Resolved(v, label) for v in _text_numbers(str(text or "")))
+                    _note_outside(out, sources, expression, label)
+                    out.cited.append(expression)
+                    return "", None
                 shown = _display(raw, label, fmt, places, expression, out,
                                  sources.unit(sources.redirected.get(expression, expression)))
                 if shown is not None:
@@ -876,8 +950,16 @@ def _without_repeated_units(text: str, replace, out: Rendering) -> str:
         if match.start() < position:
             continue
         before = text[position:match.start()]
+        if CLAUSE_BREAK_RE.search(before):
+            out.named.clear()  # M126: each sentence, line or table cell links its own sources
         shown, number = replace(match)
         position = match.end()
+        if number is None and len(shown.strip()) >= 3 and \
+                " ".join(before.split()).casefold().endswith(" ".join(shown.split()).casefold()):
+            out.deduplicated.append(shown)  # M126: "PT X Tbk {{ref to PT X Tbk}}" shows the name once
+            shown, before = "", before.rstrip(" ")
+        if shown == "" and out.pending is not None:
+            before = before.rstrip(" ")  # a cited statement leaves only its link: " (bca.co.id)", one space
         follows_reference = bool(REF_RE.match(text, position))
         if number is not None and number.resolved.unit in ("FRACTION", "PERCENT") and not follows_reference \
                 and display_format(number.fmt, number.resolved.unit) in ("auto", "dec", "int") + PERCENT_FORMATS:
@@ -914,10 +996,13 @@ def _without_repeated_units(text: str, replace, out: Rendering) -> str:
                 break
         if out.pending is not None:
             name, out.pending = out.pending, None
-            if name not in out.named and not NEXT_IS_WORD_RE.match(text, position):
+            linked = name.startswith("[")
+            # a link follows its value wherever it stands (M126, choice C); a plain name only where no word follows
+            if name not in out.named and (linked or not NEXT_IS_WORD_RE.match(text, position)):
                 out.named.add(name)
                 parts.append(f" ({name})")
-                out.values.extend(Resolved(v, "CONTEXT") for v in _text_numbers(name))
+                if not linked:
+                    out.values.extend(Resolved(v, "CONTEXT") for v in _text_numbers(name))
     parts.append(text[position:])
     return "".join(parts)
 

@@ -32,9 +32,12 @@ DESCRIPTION = (
     "database holds; a web number describes and is never an input of a calculation, while an event date may set an "
     "analysis period. A run has a limited web budget: ask for what the answer needs.")
 # added only when value references are on (a description never promises what the run cannot do; P31)
+# M126 (user decision 2026-10-08, choice C): a statement is cited by a link, never inserted as the source's own words
 REFERENCE_SENTENCE = (" Each item has a ref: cite a number as {{<ref>.value_as_written}} (as its source writes it) or "
-                      "{{<ref>.value}} (the value at full scale, or the text of a fact or list); it is shown as a web "
-                      "fact with its domain.")
+                      "{{<ref>.value}} (the value at full scale), and a list or a short value as {{<ref>.value}}; each "
+                      "is shown with a link to its source page. A fact's statement is never inserted: say it in the "
+                      "reader's language, in your own words, and put {{<ref>.value}} right after it, which shows only "
+                      "the link.")
 # P34: added only when lookup_reference is offered
 DATABASE_SENTENCE = (" An attribute the database's reference tables hold (sector, industry, company profile) is read "
                      "with lookup_reference; this tool is refused for it until those tables have been read.")

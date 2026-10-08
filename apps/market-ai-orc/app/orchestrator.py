@@ -58,7 +58,7 @@ from .user_words import allowed_periods, current_design_changes, current_turn_re
 from .provenance import (CONTEXT, typed_figures, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
                          parse_numbers, released_numbers, requested_statistics, weakest)
 from .value_refs import (FUNC_RE, OUTSIDE_LABELS, OUTSIDE_NAMESPACES, REF_RE, UNITS, ReferenceSources, Resolved,
-                         TableRows, format_value, menu_address, render)
+                         TableRows, format_value, menu_address, registered_links_only, render)
 from .tools import ToolOutcome, ToolRegistry, error_outcome
 from .tools.analysis import DataDate, current_conversation_key, current_data_date, current_run_context, run_context
 from .tools.envelope import envelope
@@ -4835,7 +4835,8 @@ class AgentOrchestrator:
             source = entry.get("source") if isinstance(entry.get("source"), dict) else {}
             # a percent figure declares its unit, so a percent format shows 2,92 as 2,92% (not 292%)
             units = {"value": "PERCENT"} if entry.get("unit_code") == "PERCENT" else None
-            sources.add(namespace, str(entry["id"]), entry, entry["label"], units=units, origin=source.get("domain"))
+            sources.add(namespace, str(entry["id"]), entry, entry["label"], units=units, origin=source.get("domain"),
+                        link=source.get("url"))
             entry["ref"] = f"{namespace}.{entry['id']}"  # its own ref is its address: no menu line
             if namespace == "web" and all(w.get("id") != entry["id"] for w in state.web_entries):
                 state.web_entries.append(entry)  # EXEC-C item 4: kept with its quote and link for later runs
@@ -4933,6 +4934,25 @@ class AgentOrchestrator:
                 index.add(record["label"], record["values"])
         return index
 
+    @staticmethod
+    def _registered_links_only(state: RunState, final: FinalResponse) -> FinalResponse:
+        """M126: every link the reader sees goes to a page this run read; a link the model typed to any other address
+        keeps its words only (logged)."""
+        allowed = set(state.ref_sources.links.values())
+        removed: list[str] = []
+
+        def clean(text: str | None) -> str | None:
+            cleaned, gone = registered_links_only(text, allowed)
+            removed.extend(gone)
+            return cleaned
+        update: dict[str, Any] = {"answer": clean(final.answer), "methodology": clean(final.methodology),
+                                  "limitations": [clean(x) for x in final.limitations],
+                                  "assumptions": [clean(x) for x in final.assumptions]}
+        if not removed:
+            return final
+        log_event("ai_unregistered_links_removed", request_id=state.request_id, links=removed[:20])
+        return final.model_copy(update=update)
+
     def _resolve_references(self, state: RunState, final: FinalResponse) -> tuple[FinalResponse, bool]:
         """P11: fill every value reference of an ANSWER or LIMITATION from this run's sources. The resolved values
         become provenance sources, so the gates run unchanged on the rendered text. A reference that does not resolve
@@ -4942,6 +4962,7 @@ class AgentOrchestrator:
         unresolved reference is shown as [nilai tidak tersedia] with a limitation line, and the response also keeps
         its type (P14, user decision 2026-10-01)."""
         state.reference_annotated = False  # it describes this final only, not an earlier refused draft
+        final = self._registered_links_only(state, final)
         # 10.6: a plan's answer may cite an earlier result's value as its threshold; it is rendered (and its values
         # become sources) before the plan gate reads them (golden test ma-qa-20261006b threshold_from_result turn 2:
         # the cited value never reached the gate, and the plan was forced to a LIMITATION)
