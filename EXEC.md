@@ -1223,6 +1223,11 @@ sini).** Satu pesan lewat EDGE seperti user: foreign flow BBRI 1 tahun terakhir 
 yang dipilih router, waktu, biaya, file XLSX terunduh lewat tombol Download EDGE, isi file (baris, rentang tanggal,
 lembar definisi dan asal data), beberapa angka dicocokkan langsung ke database, dan apakah batas data aliran asing
 (sekitar 31 Agustus 2026, belum terverifikasi penuh) disebut. Batas kunci dinaikkan user (limit 38, sisa USD 5,37).
+- **Hasil 2026-10-08** (`edge_398b4589…`): router ANALYSIS, 5 menit 6 detik, USD 0,023, 13 langkah AI. File XLSX 26 KB
+  terunduh lewat EDGE: 457 baris harian per board, lembar `definisi` dan `lineage`. Batas data 31 Agustus 2026 disebut
+  di jawaban. Semua angka cocok dengan hitung ulang mandiri read-only lewat pgweb (total, jumlah hari, rentang
+  tanggal, hari ekstrem). Cacat: M128 (a) tombol Download menampilkan kode file, diperbaiki di P4; (b) kolom file
+  memakai nama internal dan lembar definisi tanpa arti kolom, usulan menunggu keputusan.
 
 **Tombol stop (permintaan user 2026-10-08: "kita jg perlu tambah stop button, which fungsinya kaya stop ai processing.
 saat ini sudah ada? jika belum masukan exec"; disetujui 2026-10-08: "Tombol stop OK masukan exec", dibangun sesudah
