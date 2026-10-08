@@ -306,10 +306,16 @@ karena `is_mode4_plan` hanya mengenali `-m4d`.
 **Keputusan user 2026-10-08 (setelah golden test):** "kita revert saja ya, ruang kerja boleh dipakai oleh AI maks 4,
 membuka 1 tidak menutup yang lain. data tetap as is, apabila sama maka tidak perlu ditarik ulang, tapi boleh dipakai
 di ruang kerja lain." Lalu: "revert ke banyak ruang kerja, dan data yang sama maka tidak perlu ditarik lagi. data yg
-sama bisa di proses di sandbox lain." Belum dijalankan; rencana eksekusi menunggu jawaban atas pertanyaan terbuka:
-- tahap 3 (`research_experiments`, beberapa eksperimen di satu ruang kerja) dicabut atau tetap sebagai pilihan AI;
-- slot sandbox dinaikkan dari 2 (default) ke 4 (`PY_SANDBOX_MAX_SESSIONS`, maksimum kode) dan batas per pertanyaan;
-- M113 (label `LATEST`) dan M114 ("babak 2") ikut diperbaiki.
+sama bisa di proses di sandbox lain." Belum dijalankan; rencana eksekusi menunggu jawaban atas pertanyaan terbuka.
+
+**Keputusan user 2026-10-08 (lanjutan):**
+- M114 ("babak 2"): "Ok untuk usulan perbaikan babak 2. Masukan exec." Perbaikan: di pesan yang sama, eksekusi setelah
+  penyelesaian yang lulus tetap di babaknya (hasil yang sudah selesai tidak hilang, tambahan ikut dirilis saat
+  diselesaikan lagi); babak baru hanya untuk pesan berikutnya.
+- Slot sandbox: "Ya naikan ke 4." (`PY_SANDBOX_MAX_SESSIONS` 2 → 4, maksimum kode). Diminta: cek aturan yang menutup
+  ruang kerja otomatis.
+- Masih terbuka: tahap 3 (pertanyaan diperjelas), opsi M113 (dengan benchmark).
+- Persetujuan ini untuk rencana; eksekusi menunggu konfirmasi "go".
 
 **Hasil tahap 1 (2026-10-07, V-a opsi B):**
 - **Kode** (`d25e108`, `apps/market-ai-orc/app/orchestrator.py`):
