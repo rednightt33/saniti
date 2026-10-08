@@ -4,6 +4,10 @@ export), backend codes from the orc's schema enums, internal ids by their shapes
 counted without a change here.
 
     python scripts/answer_plainness.py runs.json [more.json ...]   # dumps written by the GT runner (key -> {body})
+
+P5 (2026-10-08): every text the reader sees is measured, not only the answer: the clarification question, assumptions,
+limitations, methodology, the research findings' readings and the evidence labels of the Sources panel. The English
+share is the share of words that are common English function words (the reader writes Indonesian).
 """
 from __future__ import annotations
 
@@ -38,14 +42,36 @@ def vocabulary() -> dict[str, set[str]]:
     return {"tables": tables, "columns": columns, "codes": codes}
 
 
+READER_FIELDS = ("answer", "clarification_question", "assumptions", "limitations", "methodology")
+FINDING_PARTS = ("answer", "evidence", "usefulness", "follow_up")
+
+
+def reader_texts(body: dict) -> dict[str, str]:
+    """Every text of one response that the reader sees, by where it is shown."""
+    response = body.get("response") or {}
+    texts = {}
+    for name in READER_FIELDS:
+        value = response.get(name)
+        value = "\n".join(x for x in value if isinstance(x, str)) if isinstance(value, list) else value
+        if isinstance(value, str) and value.strip():
+            texts[name] = value
+    findings = [str((f.get("interpretation") or {}).get(part) or "") for f in response.get("research_findings") or []
+                if isinstance(f, dict) for part in FINDING_PARTS]
+    if any(findings):
+        texts["findings"] = "\n".join(x for x in findings if x)
+    labels = [str(e.get("label") or "") for e in body.get("evidence") or [] if isinstance(e, dict)]
+    if any(labels):
+        texts["evidence_labels"] = "\n".join(x for x in labels if x)
+    return texts
+
+
 def answers(paths: list[str]):
     for path in paths:
         for key, item in json.loads(Path(path).read_text(encoding="utf-8")).items():
             body = item.get("body", item) if isinstance(item, dict) else {}
-            response = (body or {}).get("response") or {}
-            text = "\n".join(filter(None, [response.get("answer"), response.get("clarification_question")]))
-            if text:
-                yield f"{Path(path).stem}:{key}", text
+            texts = reader_texts(body or {})
+            if texts:
+                yield f"{Path(path).stem}:{key}", texts
 
 
 def measure(text: str, vocab: dict[str, set[str]]) -> dict[str, object]:
@@ -54,21 +80,32 @@ def measure(text: str, vocab: dict[str, set[str]]) -> dict[str, object]:
     found["ids"] = sorted(set(IDS.findall(text)))
     found["snake_case"] = sorted(set(SNAKE.findall(text)) - set(found["columns"]))
     sentences = [s for s in SENTENCE.findall(text) if len(s.split()) > 2]
+    total = len(re.findall(r"\w+", text)) or 1
     return {"internal": sum(len(v) for v in found.values()), "found": {k: v for k, v in found.items() if v},
             "words_per_sentence": round(statistics.mean(len(s.split()) for s in sentences), 1) if sentences else None,
-            "english_words": len(ENGLISH.findall(text)), "chars": len(text)}
+            "english_words": len(ENGLISH.findall(text)), "english_share": len(ENGLISH.findall(text)) / total,
+            "chars": len(text)}
 
 
 def main(paths: list[str]) -> None:
     vocab = vocabulary()
-    rows = [(name, measure(text, vocab)) for name, text in answers(paths)]
-    if not rows:
+    measured = [(name, {field: measure(text, vocab) for field, text in texts.items()}) for name, texts in answers(paths)]
+    if not measured:
         raise SystemExit("no answers found")
+    rows = [(name, measure("\n".join(texts.values()), vocab)) for name, texts in answers(paths)]
+    by_field: dict[str, list[dict]] = {}
+    for _, fields in measured:
+        for field, m in fields.items():
+            by_field.setdefault(field, []).append(m)
+    for field, ms in by_field.items():
+        print(f"  [{field}] {len(ms)} texts; with internal names {sum(1 for m in ms if m['internal'])}; "
+              f"English share {100 * statistics.mean(m['english_share'] for m in ms):.1f}%")
     with_internal = [r for r in rows if r[1]["internal"]]
     wps = [r[1]["words_per_sentence"] for r in rows if r[1]["words_per_sentence"]]
     print(f"answers {len(rows)}; with internal names {len(with_internal)} ({100 * len(with_internal) // len(rows)}%); "
           f"internal names per answer {statistics.mean(r[1]['internal'] for r in rows):.2f}; "
-          f"words per sentence median {statistics.median(wps):.1f}")
+          f"words per sentence median {statistics.median(wps):.1f}; "
+          f"English share {100 * statistics.mean(r[1]['english_share'] for r in rows):.1f}%")
     totals: dict[str, dict[str, int]] = {}
     for _, m in rows:
         for kind, names in m["found"].items():

@@ -5338,7 +5338,9 @@ class AgentOrchestrator:
         from its released table without a recomputation). The recomputed claims of get_evidence ended with EXEC-E."""
         items: list[dict[str, Any]] = []
         outputs = {o.get("ref"): o for o in (state.data_record or {}).get("outputs") or [] if isinstance(o, dict)}
-        names = {ref: o.get("label") or texts.words(o.get("name")) for ref, o in outputs.items() if ref}
+        # an output's "label" is its evidence status (DATA_COVERAGE_VERIFIED), not a name: the source is named by the
+        # output's own name, made readable (M125 P2, Excel run 2026-10-08)
+        names = {ref: texts.words(o.get("name")) for ref, o in outputs.items() if ref}
         for expr in state.referenced[:20]:
             head = ".".join(expr.split(".")[:2])
             output = outputs.get(head)
@@ -5355,7 +5357,7 @@ class AgentOrchestrator:
             # M125: "label" says in words what the figure is and where it comes from; "claim" keeps the address
             items.append({"kind": "REFERENCED", "status": "DIRUJUK", "claim": expr,
                           "label": texts.value_label(expr, names),
-                          "source": {k: output.get(k) for k in ("ref", "output_id", "name", "label", "data_as_of")}
+                          "source": {k: output.get(k) for k in ("ref", "output_id", "name", "data_as_of")}
                           if output else {"ref": head}})
         return items or None
 

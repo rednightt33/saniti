@@ -27,7 +27,7 @@ window.EdgeLabels = {
     tables:"Tabel", columns:"Kolom", outputs:"Output", data_needs:"Kebutuhan data", answers:"Jawaban", readings:"Bacaan", pause:"Jeda",
     operator:"Operator", value:"Nilai", unit:"Satuan", reason:"Alasan", options:"Pilihan", cause:"Penyebab",
     source_url:"Tautan", source_title:"Judul halaman", source_date:"Tanggal sumber", source_official:"Sumber resmi",
-    source_quote:"Kutipan asli", source_name:"Tabel", source_label:"Tabel", source_data_as_of:"Data per"
+    source_quote:"Kutipan asli", source_name:"Tabel hasil", source_data_as_of:"Data per"
   },
   record: {outputs:"Tabel hasil", tables:"Data yang dibaca", findings:"Temuan riset"},
   values: {

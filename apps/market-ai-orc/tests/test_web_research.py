@@ -341,3 +341,15 @@ def test_a_cited_web_fact_shows_its_page_date_and_quote_in_the_evidence() -> Non
     first = items[0]["source"]
     assert first["url"] == "https://www.bps.go.id/a" and first["official"] is True
     assert first["quote"] == "Januari-Desember 2024 mencapai US$264,70 miliar"
+
+
+def test_an_output_figure_is_named_by_its_table_never_by_its_evidence_status() -> None:
+    """Excel run 2026-10-08: the output's "label" is its evidence status; the Sources label read
+    "Angka dari DATA_COVERAGE_VERIFIED: total foreign net value, rows[market board=regular]"."""
+    orc, state, _ = tracked()
+    state.data_record = {"outputs": [{"ref": "out.o2", "name": "bbri_foreign_flow_by_board", "output_id": "out_2c",
+                                      "label": "DATA_COVERAGE_VERIFIED", "data_as_of": "2026-08-31"}]}
+    state.referenced = ["out.o2.rows[market_board=Regular].total_foreign_net_value"]
+    item = orc._evidence(state)[0]
+    assert item["label"] == "Dari bbri foreign flow by board: total foreign net value (Regular)"
+    assert "label" not in item["source"] and "DATA_COVERAGE_VERIFIED" not in json.dumps(item)
