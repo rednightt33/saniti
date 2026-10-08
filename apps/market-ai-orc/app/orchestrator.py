@@ -342,10 +342,11 @@ PLAN_FEASIBILITY_RULES = """
 5. Before presenting a plan, call check_data_feasibility with the
 DataNeedSpec the plan will need (no research_governance). Present the
 plan only after a FEASIBLE check. When the check is NOT_FEASIBLE or
-REVISION_REQUIRED and the catalog offers no fix, return LIMITATION: say
-what is missing (for example no documented relationship between two
-tables, or data too large for one run) and offer alternatives such as a
-shorter period, a narrower universe or other available data."""
+REVISION_REQUIRED and the catalog offers no fix, say what is missing (for
+example no documented relationship between two tables, or data too large
+for one run) and ask the user (CLARIFICATION) which alternative to take,
+such as a shorter period, a narrower universe or other available data;
+return LIMITATION only when no alternative exists."""
 PERIOD_RETURN_RULES = """
 
 NAMED-PERIOD RETURNS
@@ -590,8 +591,8 @@ against the method's rules, merges shared data and splits the angles
 into bundle groups only when they do not fit one. Present the plan only
 after FEASIBLE, with exactly the angles and designs checked. On
 REVISION_REQUIRED fix the named angles; on NOT_FEASIBLE drop or narrow
-the uncovered angles, or return LIMITATION naming what is missing and
-the alternatives.
+the uncovered angles, or name what is missing and ask the user
+(CLARIFICATION) for an alternative.
 4. Return response_type RESEARCH_PLAN_CONFIRMATION with research_plan;
 answer presents the root hypothesis and each angle (its question, method
 in plain words, condition, outcome and comparator) in the user's language
@@ -670,8 +671,8 @@ you define).
 prepare_data_bundle or any session tool for it. You may read the
 catalog. Call check_data_feasibility with the DataNeedSpec the plan
 will need (no research_governance) and present the plan only after a
-FEASIBLE check; when the check cannot pass, return LIMITATION naming
-what is missing and the alternatives.
+FEASIBLE check; when the check cannot pass, name what is missing and ask
+the user (CLARIFICATION) for an alternative, or return LIMITATION.
 2. Return RESEARCH_PLAN_CONFIRMATION with research_plan in its
 experiment form: the objective, the universe and time scope in plain
 words, the analysis frequency, and the experiments, each with its
@@ -1493,15 +1494,16 @@ FEASIBLE_DRAFT_NOTE = (" Before approval this plan's data passed check_data_feas
                        "catalog reading is needed unless the validator asks for a change: {spec}")
 PLAN_FEASIBILITY_INSTRUCTION = (
     "A Research Plan is presented only after its data passed check_data_feasibility in this run (FEASIBLE). Call "
-    "check_data_feasibility with the DataNeedSpec the plan needs; when the check cannot pass, return response_type "
-    "\"LIMITATION\" saying what is missing and which alternatives exist.")
+    "check_data_feasibility with the DataNeedSpec the plan needs; when the check cannot pass, say what is missing and "
+    "ask the user with response_type \"CLARIFICATION\" which alternative to take, or return \"LIMITATION\" when none "
+    "exists.")
 PLAN_NOT_FEASIBLE_NOTICE = ("A Research Plan was not issued: its data could not be confirmed as available and within "
                             "the limits of one run. ")
 PLAN_NOT_EXECUTED_INSTRUCTION = (
     "The user approved the Research Plan, but no RESEARCH data need was submitted in this run. Carry out the approved "
     "experiments now (submit_data_need_spec with mode RESEARCH, then prepare the bundle, run and complete the "
-    "analysis), or, only if the data truly cannot be obtained, return response_type \"LIMITATION\" naming the exact "
-    "tool result that blocks it.")
+    "analysis), or, only if the data truly cannot be obtained, name the exact tool result that blocks it and ask the "
+    "user how to go on (response_type \"CLARIFICATION\"), or return \"LIMITATION\" when nothing else can be done.")
 PLAN_NOT_EXECUTED_LINE = ("The approved Research Plan was not executed in this message, so it remains pending; "
                           "approving it again runs it.")
 REVISE_NOTE = (PLAN_NOTE_PREFIX + "the user asked to revise Research Plan {plan_id}: {instruction}\nReturn the revised "
@@ -1574,8 +1576,8 @@ RESEARCH_RUN_INCOMPLETE_INSTRUCTION = (
 MULTI_ANGLE_FEASIBILITY_INSTRUCTION = (
     "A multi-angle Research Plan is presented only for angles that passed check_research_feasibility in this run "
     "(FEASIBLE): {problems}. Call check_research_feasibility with one data requirement per angle of the plan you will "
-    "present, then present exactly those angles; when the check cannot pass, return response_type \"LIMITATION\" "
-    "saying what is missing and which alternatives exist.")
+    "present, then present exactly those angles; when the check cannot pass, say what is missing and ask the user "
+    "with response_type \"CLARIFICATION\" which alternative to take, or return \"LIMITATION\" when none exists.")
 PLAN_VERSION_INSTRUCTION = {
     True: "This deployment runs research as a multi-angle Research Plan: return research_plan in its multi-angle form "
           "(plan_version, root hypothesis and angles) after check_research_feasibility, not the single-experiment form.",
@@ -1596,7 +1598,8 @@ PLAN_VERSION_NOTICE = "The Research Plan below is not in the form this deploymen
 RESEARCH_RUN_NOT_EXECUTED_INSTRUCTION = (
     "The user approved the multi-angle Research Plan, but no research run was started in this message. Call "
     "start_research_run, run_research_code for each bundle group and complete_research_run now, or, only if the data "
-    "truly cannot be obtained, return response_type \"LIMITATION\" naming the exact tool result that blocks it.")
+    "truly cannot be obtained, name the exact tool result that blocks it and ask the user how to go on (response_type "
+    "\"CLARIFICATION\"), or return \"LIMITATION\" when nothing else can be done.")
 ANGLE_FINDINGS_INSTRUCTION = (
     "research_findings does not match the multi-angle research run: {problems}. Give one entry per approved angle with "
     "the status copied unchanged from complete_research_run, all four interpretation parts and the effective sample "
@@ -6328,11 +6331,22 @@ class AgentOrchestrator:
             approved_plan_id=meta.get("approved_plan_id"), issued_plan_id=meta.get("issued_plan_id"),
             guard_rejections=state.guard_rejections,
             research_submitted=state.research_attempted if state.plan_turn == "EXECUTE_APPROVED" else None,
+            research_completed=AgentOrchestrator._research_completed(state)
+            if state.plan_turn == "EXECUTE_APPROVED" else None,
             draft_id=meta.get("draft_id") or (meta.get("issued_plan_id") and state.feasible_draft) or None,
             classifier=ReplyClassifierUsage(**state.classifier) if state.classifier else None,
             plan_version=meta.get("plan_version"), research_data_plan_sha256=meta.get("research_data_plan_sha256"),
             research_run_id=state.research.executor.research_run_id
             if state.research is not None and state.research.executor is not None else None)
+
+    @staticmethod
+    def _research_completed(state: RunState) -> bool:
+        """EXEC-W A3 (M121 c): the approved research finished in this request (the multi-angle run completed, or an
+        analysis of the research data need completed)."""
+        executor = state.research.executor if state.research is not None else None
+        if executor is not None and executor.result is not None:
+            return executor.result.get("status") == "COMPLETED"
+        return any(c.get("status") == "COMPLETED" for c in state.completions.values())
 
     def _failed(self, state: RunState, code: str, message: str) -> AgentRunResponse:
         return AgentRunResponse(

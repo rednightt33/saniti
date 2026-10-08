@@ -646,6 +646,9 @@ class ResearchPlanExecution(BaseModel):
     # EXECUTE_APPROVED only: whether a RESEARCH data need was submitted (M19: an approval without any attempt stays
     # pending); null on other turns
     research_submitted: bool | None = None
+    # EXECUTE_APPROVED only (omitted otherwise): whether the approved research completed in this request; EXEC-W A3
+    # (M121 c): an approved plan whose research did not complete stays pending, so "lanjutkan" runs it again
+    research_completed: bool | None = None
     # the feasibility draft the issued plan was bound to, or the one the approved turn started from
     draft_id: str | None = None
     # Multi-Angle Research only (omitted otherwise): the plan version, the research data plan hash and the research run
@@ -657,7 +660,7 @@ class ResearchPlanExecution(BaseModel):
     def _without_unused_v2(self, handler: Any) -> Any:
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("plan_version", "research_data_plan_sha256", "research_run_id"):
+            for key in ("plan_version", "research_data_plan_sha256", "research_run_id", "research_completed"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data

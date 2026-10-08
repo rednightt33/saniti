@@ -14,11 +14,13 @@ state moves after a turn.
   cancelled or executed plan is refused even when its token has not expired: the server knows the plan's state,
   which a stateless token cannot express (CLIENT mode keeps that documented limit).
 - A newly issued plan (a first proposal, a revision, a re-plan) replaces the latest plan; the previous one becomes
-  SUPERSEDED. A CANCEL turn marks it CANCELLED. An EXECUTE_APPROVED turn that submitted a RESEARCH data need marks it
-  EXECUTED whatever the outcome (one that submitted none leaves it PENDING, M19): an
+  SUPERSEDED. A CANCEL turn marks it CANCELLED. An EXECUTE_APPROVED turn whose research completed marks it EXECUTED: an
   approval is used once and a new approval never re-runs the experiments by itself (a retry of the same request_id is
-  answered from the stored response). A later computation needs a new or revised plan and a new approval. An UNRELATED
-  turn returns the same continuation (same token and expiry), so the plan stays PENDING and is never extended.
+  answered from the stored response). A later computation needs a new or revised plan and a new approval. One that
+  submitted no RESEARCH data need leaves it PENDING (M19), and so does one whose research did not complete (EXEC-W A3,
+  M121 c, user decision 2026-10-08: the approved research stays resumable until it completes; "lanjutkan" approves it
+  again within its expiry, after which the plan is presented again). An UNRELATED turn returns the same continuation
+  (same token and expiry), so the plan stays PENDING and is never extended.
 - Mode 4 (app/mode4.py): a turn that executes the approved suggestion and issues the next one retires the approved
   plan as EXECUTED (not SUPERSEDED); a new question in place of a reply cancels the pending suggestion (CANCELLED).
 - A research_plan/v2 (Multi-Angle Research) is stored with the research data plan its rpc2 token binds; its
@@ -144,7 +146,8 @@ def advance(state: dict[str, Any] | None, result: AgentRunResponse, request_id: 
             if status == PENDING:
                 # mode 4: the same turn ran the approved plan and issued the next suggestion
                 status = EXECUTED if execution.turn == "EXECUTE_APPROVED" and execution.approved_plan_id \
-                    == plan.get("plan_id") and execution.research_submitted is not False else SUPERSEDED
+                    == plan.get("plan_id") and execution.research_submitted is not False \
+                    and execution.research_completed is not False else SUPERSEDED
             _retire(state, plan, status, request_id)
         state[STATE_KEY] = {"plan_id": issued.plan_id, "status": PENDING, "origin_request_id":
                             issued.origin_request_id, "conversation_id": issued.conversation_id, "token": issued.token,
@@ -158,8 +161,13 @@ def advance(state: dict[str, Any] | None, result: AgentRunResponse, request_id: 
         return state
     if execution.turn == "EXECUTE_APPROVED" and execution.approved_plan_id == plan.get("plan_id") \
             and execution.research_submitted is not False:  # M19: an approval without any attempt stays pending
-        state[STATE_KEY] = {**plan, "status": EXECUTED, "executed_request_id": request_id,
-                            "executed_turn_index": turn_index, "run_status": result.status}
+        if execution.research_completed is False:
+            # EXEC-W A3 (M121 c): the research did not complete; the plan stays pending and records the attempt
+            state[STATE_KEY] = {**plan, "attempts": int(plan.get("attempts") or 0) + 1,
+                                "last_attempt_request_id": request_id, "last_run_status": result.status}
+        else:
+            state[STATE_KEY] = {**plan, "status": EXECUTED, "executed_request_id": request_id,
+                                "executed_turn_index": turn_index, "run_status": result.status}
     elif execution.turn == "CANCEL" and not (response is not None and response.response_type == "CLARIFICATION"):
         # EXEC-D P-a: a cancel turn that asked a question instead leaves the plan waiting
         state[STATE_KEY] = {**plan, "status": CANCELLED, "closed_request_id": request_id}
