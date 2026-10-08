@@ -1089,7 +1089,7 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
 
 
 # M125 C (user decision 2026-10-08): one reader-first answer, written where its figures can be value references
-READER_EXAMPLE = ('For example, an answer in Indonesian for an inconclusive test:\n"**Belum bisa disimpulkan.** Lonjakan volume BBRI hanya terjadi {{finding.vol_spike.sample.effective|int}} kali dalam periode ini, terlalu sedikit untuk tahu apakah harganya cenderung naik sesudahnya. Lima hari setelah lonjakan, return rata-rata berbeda {{finding.vol_spike.angle_a.difference|pp}} dari hari biasa, selisih yang masih bisa muncul karena kebetulan. Periode yang lebih panjang atau beberapa saham bank sekaligus akan memberi jawaban yang lebih pasti".')
+READER_EXAMPLE = ('\nFor example, an answer in Indonesian for an inconclusive test:\n"**Belum bisa disimpulkan.** Lonjakan volume BBRI hanya terjadi {{finding.vol_spike.sample.effective|int}} kali dalam periode ini, terlalu sedikit untuk tahu apakah harganya cenderung naik sesudahnya. Lima hari setelah lonjakan, return rata-rata berbeda {{finding.vol_spike.angle_a.difference|pp}} dari hari biasa, selisih yang masih bisa muncul karena kebetulan. Periode yang lebih panjang atau beberapa saham bank sekaligus akan memberi jawaban yang lebih pasti".')
 # Prompt audit 2026-10-05 (PROMPT_AUDIT_2026-10-05.md, approved by the user): sentences derived from the offered tools
 OUTSIDE_DATA_RULE = ("Data the catalog does not contain (for example macro data, yields,\nfundamentals, or news) is "
                      "unavailable: say so and never substitute\nanother dataset.")
