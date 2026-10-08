@@ -24,11 +24,11 @@ def manifest(expires: datetime) -> bytes:
     return json.dumps({"expires_at": expires.isoformat()}).encode()
 
 
-def seed_local(store: LocalStore) -> None:
+def seed_local(store: LocalStore, now: datetime = NOW) -> None:
     store.put_immutable(f"datasets/{EXPIRED}/data.parquet", b"x", "", "c")
-    store.put_immutable(f"datasets/{EXPIRED}/manifest.json", manifest(NOW - timedelta(minutes=1)), "", "c")
+    store.put_immutable(f"datasets/{EXPIRED}/manifest.json", manifest(now - timedelta(minutes=1)), "", "c")
     store.put_immutable(f"datasets/{LIVE}/data.parquet", b"y", "", "c")
-    store.put_immutable(f"datasets/{LIVE}/manifest.json", manifest(NOW + timedelta(days=6)), "", "c")
+    store.put_immutable(f"datasets/{LIVE}/manifest.json", manifest(now + timedelta(days=6)), "", "c")
     store.put_immutable(f"datasets/{ORPHAN}/data.parquet", b"z", "", "c")           # manifest never written
     store.put_immutable(f"datasets/{BROKEN}/manifest.json", b"not json", "", "c")    # unreadable manifest
     store.put_immutable("datasets/not-a-dataset/secret.txt", b"keep", "", "c")
@@ -102,7 +102,8 @@ def test_s3_store_deletes_only_expired_objects_across_pages() -> None:
 
 def test_janitor_runs_with_the_app_and_logs_a_summary(tmp_path) -> None:
     store = LocalStore(str(tmp_path))
-    seed_local(store)
+    # the app's janitor reads the real clock, so the live dataset expires relative to it (M115: a fixed date expired)
+    seed_local(store, datetime.now(timezone.utc))
     past = "ds_" + "e" * 24  # expired relative to the real clock
     store.put_immutable(f"datasets/{past}/data.parquet", b"x", "", "c")
     store.put_immutable(f"datasets/{past}/manifest.json",

@@ -37,7 +37,7 @@ dataset is exactly the approved request.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Annotated, Any, Literal
@@ -50,6 +50,8 @@ from .compiler import CompiledQuery
 
 EXTRACTION_VERSION = "extraction_spec/v1"
 EXECUTED_SCOPE_VERSION = "extract/v1"
+# EXEC-V 2026-10-08 (option D, M113): the identity of extracted data is the SQL the Governor runs for it
+DATA_IDENTITY_VERSION = "data_sha256/v1"
 TABLE_PATTERN = r"^[A-Za-z][A-Za-z0-9_]{0,62}$"
 COLUMN_PATTERN = r"^[A-Za-z_][A-Za-z0-9_ ]{0,62}$"
 SHA256_PATTERN = r"^[0-9a-f]{64}$"
@@ -703,6 +705,36 @@ def compile_extraction(bound: BoundExtraction, row_cap: int | None, *, ordered: 
         params.append(row_cap)
     statement = sql.Composed(parts)
     return CompiledQuery(statement, tuple(params), statement.as_string(None))
+
+
+def _canonical_node(node: BoundNode) -> BoundNode:
+    """The same scope with the IN/NOT_IN values and the AND/OR children in canonical order (the rows are the same)."""
+    if node.type == "PREDICATE":
+        p = node.predicate
+        values = list(p.values)
+        if p.operator in ("IN", "NOT_IN"):
+            unique = {canonical_value(v): v for v in values}
+            values = [unique[key] for key in sorted(unique)]
+        return BoundNode("PREDICATE", BoundPredicate(p.column, p.operator, values, p.data_type))
+    children = [_canonical_node(child) for child in node.children]
+    if node.type in ("AND", "OR"):
+        children = sorted(children, key=lambda child: canonical_json(canonical(child)))
+    return BoundNode(node.type, node.predicate, children)
+
+
+def data_sha256(bound: BoundExtraction) -> str:
+    """EXEC-V 2026-10-08 (option D, user decision: "data yang sama tidak ditarik lagi"; M113): the identity of the
+    rows an extraction delivers is the SQL the Governor compiles for it, without its LIMIT (the row cap only detects
+    an over-large result, which is never delivered) and with the scope in canonical order (the order of IN values,
+    AND/OR children and restrictions does not change the rows). Labels (data_request_id, logical name, range ids,
+    need and plan ids) are not in the SQL, so the same data asked under other labels has the same identity; another
+    window, entity partition, column, column name, measure, filter or order does not."""
+    restrictions = sorted(bound.restrictions, key=lambda r: canonical_json(r.canonical))
+    restrictions = [replace(r, index=i, right_scope=_canonical_node(r.right_scope))
+                    for i, r in enumerate(restrictions)]
+    compiled = compile_extraction(replace(bound, scope=_canonical_node(bound.scope), restrictions=restrictions), None)
+    return sha256_json({"version": DATA_IDENTITY_VERSION, "sql": compiled.text,
+                        "params": [str(value) for value in compiled.params]})
 
 
 def executed_scope(bound: BoundExtraction) -> dict[str, Any]:

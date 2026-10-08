@@ -802,7 +802,7 @@ class Extractor:
             tables = [spec.source_table, *(r.right_table for r in spec.restrictions)]
             contract = load_contract(run, tables)
             bound = ex.bind(spec, contract, max_in_values=s.extract_max_in_values, max_columns=s.extract_max_columns)
-            state.update(bound=bound, source_tables=bound.source_tables)
+            state.update(bound=bound, source_tables=bound.source_tables, data_sha256=ex.data_sha256(bound))
             if lineage.catalog_sha256 is not None and lineage.catalog_sha256 != contract.get("catalog_sha256"):
                 # the catalog changed since approval: the table hashes in the executed scope let the sandbox decide
                 state.setdefault("warnings", []).append("CATALOG_CHANGED_SINCE_APPROVAL")
@@ -838,8 +838,8 @@ class Extractor:
             if estimate_only:
                 return {"status": "WITHIN_LIMITS", "estimate_only": True, "code": None, "message": None,
                         "data_request_id": spec.data_request_id, "request_id": request_id, "query_id": query_id,
-                        "query_hash": explain.query_hash, "estimates": estimates.as_dict(),
-                        "warnings": state.get("warnings") or []}
+                        "query_hash": explain.query_hash, "data_sha256": state["data_sha256"],
+                        "estimates": estimates.as_dict(), "warnings": state.get("warnings") or []}
             if self.governor.store is None:
                 raise ex.policy("DATASET_STORAGE_UNAVAILABLE", "Dataset storage is not configured.")
             compiled = ex.compile_extraction(bound, s.max_dataset_rows + 1)
@@ -930,6 +930,7 @@ class Extractor:
             lineage=lineage.model_dump(mode="json", by_alias=True), executed=executed,
             source_contracts={name: source_contract(meta) for name, meta in contract["tables"].items()})
         manifest["estimates"] = estimates.as_dict()
+        manifest["data_sha256"] = state["data_sha256"]
         manifest_raw, manifest_checksum = manifest_bytes(manifest)
         store = self.governor.store
         store.put_immutable(f"datasets/{dataset_id}/data.parquet", payload, "application/vnd.apache.parquet", checksum)
@@ -943,6 +944,7 @@ class Extractor:
                 "query_hash": compiled.query_hash, "partitioning": None, "estimates": estimates.as_dict(),
                 "details": {}, "warnings": state.get("warnings") or [],
                 "executed_scope_sha256": sha256_json(executed), "part_key": executed["part_key"],
+                "data_sha256": state["data_sha256"],
                 "dataset": {"dataset_id": dataset_id, "format": "PARQUET", "row_count": manifest["row_count"],
                             "column_count": manifest["column_count"], "byte_count": manifest["byte_count"],
                             "checksum_sha256": checksum, "actual_date_range": manifest["actual_date_range"],

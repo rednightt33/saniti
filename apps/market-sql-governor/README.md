@@ -175,7 +175,12 @@ The response always contains `decision`, `next_action`, `reason_code`, `message`
      `SQL_MAX_UNFILTERED_DATE_RANGE_DAYS`. This matches the legacy backend semantics.
 8. **Compile.** Uses `psycopg.sql.Identifier` for tables, aliases, and columns. Every value and
    the `LIMIT` are placeholders. The row cap is `min(requested_limit, SQL_MAX_DATASET_ROWS + 1)`.
-   `query_hash` is the SHA-256 of the SQL text plus its parameters.
+   `query_hash` is the SHA-256 of the SQL text plus its parameters. For `/v1/extract` the Governor also returns
+   `data_sha256` (EXEC-V 2026-10-08, option D): the SHA-256 of the extraction's SQL without its LIMIT, with the IN
+   values, AND/OR children and restrictions in canonical order (`app/extract.py data_sha256`, version
+   `data_sha256/v1`). It carries no request labels, so the same rows asked under other labels have the same identity;
+   another window, partition, column, column name, measure, filter or order does not. It is in the estimate and the
+   extraction result and in the dataset manifest (and the sandbox's validator manifest).
 9. **EXPLAIN (FORMAT JSON).** Walks the whole plan tree. The estimate is the largest node's
    `Plan Rows`, except that a sequential scan counts the relation's full `reltuples`, because it
    reads every row. Three checks run before anything executes:

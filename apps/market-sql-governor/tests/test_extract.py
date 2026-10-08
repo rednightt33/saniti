@@ -124,6 +124,31 @@ def test_values_are_bound_parameters_and_never_sql_text() -> None:
     assert ex.compile_extraction(bind(spec), None).text.count("LIMIT") == 0
 
 
+def test_the_data_identity_is_the_canonical_sql_without_labels_or_limit() -> None:
+    """EXEC-V 2026-10-08 (option D, M113): the BBRI turns asked the same rows under other labels and extracted again."""
+    base = extraction(scope={"type": "AND", "children": [pred("ticker", "IN", "BBRI", "BBCA"),
+                                                         pred("close", "GTE", "1000")]})
+    same = ex.data_sha256(bind(base))
+    reordered = extraction(scope={"type": "AND", "children": [pred("close", "GTE", "1000"),
+                                                              pred("ticker", "IN", "BBCA", "BBRI", "BBCA")]},
+                           rid="data_request_7_X")  # other label, other value and child order: the same rows
+    assert ex.data_sha256(bind(reordered)) == same
+    assert same == ex.data_sha256(bind(base))  # deterministic
+    # the extraction's own SQL is unchanged and still differs by its LIMIT
+    assert ex.compile_extraction(bind(base), 1001).query_hash != ex.compile_extraction(bind(base), None).query_hash
+    for other in (extraction(scope=base["scope"], window=("2025-01-02", "2025-04-30")),
+                  extraction(scope=base["scope"], columns=("ticker", "date", "close", "volume")),
+                  extraction(scope={"type": "AND", "children": [pred("ticker", "IN", "BBRI"),
+                                                                pred("close", "GTE", "1000")]}),
+                  extraction(scope=base["scope"], order_by=[{"column": "date", "direction": "DESC"}]),
+                  extraction(scope=base["scope"], partition={"modulus": 2, "remainder": 1})):
+        assert ex.data_sha256(bind(other)) != same
+    two = [restriction(7, "CURRENT_STATE", UNIVERSE, pred("Industry", "EQ", "Banks")),
+           restriction(7, "CURRENT_STATE", UNIVERSE, pred("Sector", "EQ", "Finance"))]
+    assert ex.data_sha256(bind(extraction(restrictions=two))) == ex.data_sha256(
+        bind(extraction(restrictions=list(reversed(two)))))
+
+
 def test_the_order_is_total_and_deterministic() -> None:
     bound = bind(extraction(order_by=[{"column": "date", "direction": "DESC"}]))
     assert bound.order_by == [("date", "DESC"), ("ticker", "ASC")]
@@ -456,6 +481,18 @@ def test_estimate_only_answers_like_an_extraction_without_reading_or_storing(gov
     assert fits["status"] == "WITHIN_LIMITS" and fits["estimate_only"] is True
     assert fits["estimates"]["result_rows"] > 0 and "dataset" not in fits
     assert not list(tmp_path.glob("datasets/*"))
+    # EXEC-V 2026-10-08 (option D): the estimate names the data's identity, and the extraction of the same SQL under
+    # another need and label carries the same one (stored in its manifest for the sandbox's grant)
+    assert fits["data_sha256"] == ex.data_sha256(bind(spec))
+    other = extraction(rid="data_request_4_B")
+    extracted = ext.handle("test-extract", other, lineage(other, need_id="need_" + "f" * 24))
+    assert extracted["status"] == "APPROVED" and extracted["data_sha256"] == fits["data_sha256"]
+    stored = json.loads((tmp_path / "datasets" / extracted["dataset"]["dataset_id"] / "manifest.json").read_text())
+    assert stored["data_sha256"] == fits["data_sha256"]
+    for path in tmp_path.glob("datasets/*/*"):
+        path.unlink()
+    for path in tmp_path.glob("datasets/*"):
+        path.rmdir()
     small = extractor(governed_db, tmp_path, SQL_MAX_DATASET_ROWS="500")
     split = small.handle("test-extract", spec, draft, estimate_only=True)
     assert split["status"] == "APPROVED_WITH_PARTITIONING" and split["partitioning"]["parts"] >= 2

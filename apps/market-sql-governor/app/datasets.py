@@ -107,6 +107,8 @@ def validator_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
         "executed_scope": manifest.get("executed_scope"),
         "source_contracts": manifest.get("source_contracts") or {},
         "query_hash": manifest.get("query_hash"),
+        # EXEC-V 2026-10-08 (option D): the identity of the rows, the canonical SQL without its LIMIT
+        "data_sha256": manifest.get("data_sha256"),
         "request_sha256": manifest.get("request_sha256"),
         "checksum_sha256": manifest.get("checksum_sha256"),
         "requested_entities": scope.get("entities"),
