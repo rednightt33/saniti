@@ -50,6 +50,9 @@ gabungkan ya", pilihan "File baru EXEC.md"). Pekerjaan yang disetujui tetapi bel
 
 ## Ringkasan
 
+**Menunggu "go" (2026-10-08):** EXEC-W, rencana eksekusi butir EXEC-V yang disetujui (dua
+gelombang).
+
 **Berjalan (2026-10-07):** EXEC-V (M110 + opsi B) dan EXEC-M109, rencana implementasi 4 tahap disetujui. Tahap 1
 (V-a opsi B + EXEC-M109) dan tahap 2 (data sama walau nama beda; sandbox `0598a616`, orc `f43f627d`) ter-deploy;
 tahap 3 (banyak eksperimen satu kebutuhan data) ter-deploy; golden test
@@ -725,6 +728,149 @@ analisis (BBRI).
 **Tidak termasuk:** ruang kerja paralel untuk satu pertanyaan (S08 tetap; `AI_RESEARCH_MAX_PARALLEL_GROUPS` tetap 1).
 
 **Jalan balik:** redeploy orc `63e29b62` dan deployment sandbox sebelumnya, atau revert commit EXEC-V.
+
+### EXEC-W: rencana eksekusi putaran 2026-10-08 (butir EXEC-V yang disetujui; menunggu "go")
+
+**Permintaan user 2026-10-08:** "now untuk yg ada di exec tolong cek backend dan architecture dan propose plan untuk
+approved exec this round." Rencana ini usulan; eksekusi mulai hanya setelah "go".
+
+**Lingkup (semua sudah disetujui, rincian di EXEC-V):** M117 (desain 1–5, rencana tertahan disimpan PENDING,
+`GATE_ONCE_NOTE`); M121 b, c, h, j; M122 butir 1, 3, 5; sandbox penuh butir 1, 3, 4; V-f; M119 A + B (tabel kerja
+sesi) + AI tahu lewat semua jalur + penolakan jelas; GT V-g (hanya atas perintah).
+**Tidak termasuk:** M121 g (batas langkah/waktu, pending, `FUTURE_PLAN.md`); M122 butir 2, 4, 6; sandbox bagi rata;
+M118; M120.
+
+**Temuan inspeksi (read-only, `main` `747e29e`; orc `6a0ebf8f`, sandbox `ce18b33c`, Governor `ad4da9bb`):**
+- Pembawa jeda: `FinalResponse` melarang `clarification_question` pada LIMITATION (`app/schemas.py`); `_forced`
+  (`orchestrator.py`) mengisinya null. Mode 4 menerima LIMITATION sebagai langkah sah (`mode4._ok`), dan runner hanya
+  membaca status. Pembawa jeda paling aman: LIMITATION dengan pertanyaan dan pilihan yang ditulis backend.
+- M117: `_plan_gate` memeriksa ambang dan efek minimum dengan `released_numbers` (angka berdigit di teks user) dan
+  memakai nilai router hanya untuk REMOVE. Skema router: `text` hanya untuk PERIOD/SCOPE, tanpa dasar STATED/IMPLIED.
+  `DesignValueChange`: nilai ≤ 0 diabaikan gate, sehingga "naik" (0) tidak pernah terbaca. Penerbitan rencana
+  (`signer.issue`, `conversation_plans`) hanya terjadi bila jawaban tetap RESEARCH_PLAN_CONFIRMATION, jadi rencana
+  yang tertahan tetap bisa disetujui asalkan gate tidak mengubahnya menjadi LIMITATION.
+- M121 b: gate jawaban yang masih memaksa adalah PROVENANCE, DATANEED_PROVENANCE, ROUTING, ANALYSIS, FINDINGS/
+  FINDINGS_2 dan METHODOLOGY_PROVENANCE. EVIDENCE sudah menjadi tanda sejak EXEC-E (`6c6ce58`); TYPED_FIGURES, klaim
+  dan definisi sudah menandai. c: `conversation_plans` menandai EXECUTED apa pun hasilnya. h: 14 instruksi menyebut
+  LIMITATION sebagai jalan keluar. j: tiap gate memanggil `_gate_once` dan `_forced` sendiri; jenis gate tidak punya
+  daftar tunggal.
+- M122: `registry.execute` hanya mengurai string argumen terluar; nilai di dalamnya (`"null"`, `"[...]"`) tidak
+  diterjemahkan; pesan `REPAIR_BUDGET_EXHAUSTED` menyuruh LIMITATION.
+- Sandbox penuh: `tools/session.py` mengubah `SESSION_CAPACITY_EXCEEDED` menjadi `CAPACITY_MESSAGE` ("Do not retry
+  ... return LIMITATION"). Batas waktu alat `open_analysis_session` = batas permintaan + 30 detik, sedangkan sandbox
+  sendiri bisa menunggu 60 detik plus pembukaan; risiko alat habis waktu saat sandbox masih bekerja. Kode lain yang
+  bermakna "sibuk, coba nanti": `QUEUE_FULL` → `RETRY_LATER` (`tools/analysis.py`).
+- V-f: dua uji GT1 diekstrak bersamaan di dalam satu `prepare` (potongan berjalan paralel, `AI_PLANNER_PARALLEL_PARTS=2`
+  di dev). Sandbox memeriksa garis asal tiap potongan (`coverage.py` LINEAGE), jadi satu dataset tidak bisa dipakai
+  dua potongan secara langsung. Jalur pakai ulang (`reuse_of`, `_link_reused`, cek kolom data) sudah ada untuk antar
+  jawaban. `_match` menolak rentang sampai hari ini (`RANGE_INCLUDES_TODAY`) tanpa melihat apakah sumbernya jawaban
+  yang sama.
+- M119: `event_study` sudah mengembalikan frame `events` dan `baseline` tetapi tidak `flow` dan ringkasan;
+  `load_output` hanya membaca tabel rilisan percakapan (`carried`), dan akhiran "sesi riset" dipasang setiap kali
+  daftar itu kosong. Panduan metode tersimpan di tabel `AI_method_guide` (migrasi v6, generator
+  `scripts/generate_ai_method_guide_migration.py`).
+
+**Keputusan desain yang diusulkan (untuk direview):**
+- D1, jeda = LIMITATION yang membawa pertanyaan dan pilihan dari backend, ditambah `execution.pause` (penyebab, pilihan,
+  apa yang tersimpan). Status tetap LIMITED, jadi runner, mode 4 dan klien lama tetap jalan. Skema jawaban model tidak
+  berubah (model tidak pernah menulis jeda). Status percakapan menyimpan jeda terakhir; giliran berikutnya membaca
+  pilihan user ("lanjutkan", ubah nilai, terima sebagian) lewat router giliran, seperti rencana yang menunggu.
+- D2, tanpa saklar fitur baru (masalah j: 37 saklar). Jalan balik dengan redeploy deployment sebelumnya. Pengecualian:
+  satu setelan kuota disk tabel kerja di sandbox (M119 B).
+- D3, dua gelombang deploy, masing-masing dengan GT kecil, supaya penyebab bila ada masalah jelas:
+  A = orc saja (cara AI berhenti dan bertanya); B = sandbox + orc + migrasi (data dan ruang kerja).
+
+**Gelombang A (orc; M117 + M121 + M122 + sandbox penuh):**
+- A1, aturan berhenti terpusat (M121 j). Satu daftar penyebab (gate jawaban, gate rencana, batas perbaikan alat,
+  sandbox sibuk). Setiap penyebab punya satu hasil: perbaiki (selama masih boleh), beri tanda, atau jeda (D1).
+  `_forced` dan `_plan_not_feasible` lewat aturan ini dan tidak lagi mengakhiri diam-diam. Tes membaca semua jenis gate
+  dari daftar itu dan dari pemanggilan di kode, lalu gagal bila ada jenis tanpa hasil atau berakhir buntu. `GATE_ONCE_NOTE`
+  menyebut hasil sebenarnya per penyebab.
+- A2, M117:
+  - Skema tiga router (pesan pertama, giliran, balasan rencana): setiap nilai desain menulis kutipan kata user
+    (`text`) dan dasar `STATED`/`IMPLIED`; nilai 0 dengan arah sah.
+  - Backend memeriksa kutipan ada di pesan user (pencocokan teks yang dinormalkan, tanpa daftar kata). Nilai rencana
+    yang cocok dengan nilai router berkutipan sah dianggap kata user (tanda dan skala persen tetap dicocokkan seperti
+    sekarang).
+  - Nilai yang tidak tertelusur, atau IMPLIED, tidak membuang rencana. Backend menambah blok "Nilai yang perlu Anda
+    konfirmasi" ke jawaban rencana: nilai, kutipan atau "usulan AI, belum Anda sebut", dan asalnya. Rencana diterbitkan
+    PENDING seperti biasa, sehingga persetujuan user mencakup nilai itu.
+  - Kata samar: nilai kosong lalu ditanyakan.
+  - Gate rencana lain (versi, temuan, input bawaan, kelayakan, sumber angka teks) setelah satu perbaikan: jeda D1
+    dengan draf rencana tersimpan, bukan LIMITATION tanpa jejak.
+  - Jaminan EXEC-D diubah teksnya: "tidak ada yang dijalankan dengan nilai desain yang tidak dikutip dari user atau
+    tidak disetujui user".
+- A3, M121 b, c, h:
+  - b: gate jawaban yang memaksa diganti jeda D1. Bagian yang terverifikasi disampaikan; angka tanpa sumber tidak
+    pernah disampaikan sebagai fakta (ditandai dan dikeluarkan, seperti EXEC-E); pilihan "hitung ulang bagian X /
+    terima tanpa bagian itu".
+  - c: rencana yang disetujui tetap bisa dilanjutkan sampai risetnya selesai (status baru: disetujui, belum selesai);
+    "lanjutkan" memakai persetujuan yang sama selama rencana belum kedaluwarsa, dan sesudahnya rencana ditampilkan
+    ulang untuk disetujui.
+  - h: instruksi prompt yang menyebut LIMITATION diubah menjadi "cara lain, tanya user, atau laporkan", dengan aturan
+    ukuran prompt +2% tetap dijaga.
+- A4, M122 1, 3, 5: registri menerjemahkan nilai teks yang tipenya pasti menurut skema (null, angka, daftar, objek) dan
+  mencatat `ai_tool_arguments_decoded`; pesan galat diturunkan dari skema (tipe yang diharapkan, contoh, kolom
+  saudara yang cocok); saat batas tercapai pesannya menawarkan alat lain dengan efek yang sama (dari registri), tanya
+  user, atau lanjut tanpa bagian itu.
+- A5, sandbox penuh 1, 3, 4: orkestrator menunggu dan mencoba ulang kode "sibuk, coba nanti" (`SESSION_CAPACITY_EXCEEDED`
+  tanpa sesi sendiri, `QUEUE_FULL`) selama sisa waktu jawaban, tanpa token model, dan mencatat antreannya. Batas waktu
+  alat pembuka sesi diturunkan dari waktu tunggu sandbox. Bila waktu habis: jeda D1, dengan data yang sudah disiapkan
+  tetap tersimpan. Pesan "Do not retry" diganti pesan yang menyebut apa yang terjadi dan pilihan AI.
+- Dokumen: `AI_ROUTER.md` (generator), `AI_TOOLS.md`/`AI_MODELS.md` bila deskripsi alat atau setelan router berubah,
+  EXEC-D, `ERRORS_AND_SOLUTIONS.md` (M117, M121, M122, P42), `RAILWAY_CHANGELOG.md`.
+- Uji sebelum deploy: tes unit orc penuh. Benchmark router (`scripts/benchmark_first_router.py`,
+  `benchmark_turn_router.py`, plus kasus M117: nol tersirat, tanda, kata bilangan, kata samar, tanpa ambang),
+  DeepSeek saja, sekitar USD 0,05, kredit dicek ≥ USD 0,30.
+- Deploy orc; log startup tanpa `*_inactive`; `/ready` 200.
+- GT-A (atas perintah): riset "naik" → rencana dengan nilai ditafsirkan → "setuju" → riset jalan; "naik signifikan" →
+  ditanyakan; ubah nilai setelah rencana; satu jawaban analisis yang memancing gate sumber angka → jeda dengan pilihan.
+
+**Gelombang B (sandbox + orc + migrasi; V-f + M119):**
+- B1, V-f:
+  - Planner orc: di dalam satu `prepare`, potongan dengan `data_sha256` sama diekstrak sekali; potongan lainnya
+    direncanakan `reuse_of` potongan saudara di rencana yang sama.
+  - Sandbox: pembangun paket menerima pakai ulang dari potongan di paket yang sama (ditautkan setelah unduhan, cek
+    checksum dan kolom data seperti pakai ulang antar jawaban).
+  - `_match`: sumber dari request yang sama dengan tanggal acuan yang sama boleh dipakai walau rentangnya sampai hari
+    ini atau tanpa rentang.
+  - Laporan `data_reuse` menyebut "dipakai ulang di jawaban ini".
+- B2, M119:
+  - A: `event_study` dan `backtest` mengembalikan semua tabel yang dibuatnya sebagai frame (ringkasan, alur) beserta
+    nama outputnya.
+  - B: `save_table(name, frame)` / `load_table(name)` di sesi, dengan kuota disk per sesi (setelan baru, nilai
+    ditetapkan setelah ukuran volume sandbox dibaca), tidak dirilis, tidak dihitung dalam 40 keluaran, label "belum
+    dirilis". `load_output` juga membaca keluaran sesi sendiri menurut nama dengan label yang sama. Mengutip angka
+    tetap butuh tabel yang dirilis.
+  - Penolakan menyebut alasan dan langkah berikutnya; akhiran "sesi riset" hanya di sesi riset.
+  - AI tahu lewat semua jalur: deskripsi `run_python`/`open_analysis_session`, daftar helper dan batas di hasil
+    pembukaan sesi, `help()`, `get_system_capabilities`, panduan metode (migrasi `AI_method_guide` v7), `Tool_Catalog`
+    round baru, `AI_TOOLS.md`.
+- Migrasi: panduan metode v7 dan `Tool_Catalog` round baru (generator; `APPLIED.sha256`). Dibaca ulang dari database
+  setelah dijalankan.
+- Uji: tes sandbox dan orc penuh. Deploy sandbox → orc (orc di-redeploy setelah sandbox SUCCESS); log startup.
+- GT V-g (`suites/qa_relabel_20261008.json`) + satu item M119 (riset dengan beberapa `event_study` lalu tabel ringkasan
+  dari tabel kerja), atas perintah.
+
+**Lulus bila:**
+- Tidak ada jalan buntu baru (tes daftar penyebab), tidak ada LIMITATION tanpa pertanyaan dari gate atau sandbox sibuk.
+- GT-A: riset "naik" berjalan setelah "setuju"; nilai IMPLIED tampil di konfirmasi; kata samar ditanyakan.
+- GT B: `parts_looked_up matched>0` dan `bundle_built parts_reused>0` (V-g); satu SQL sekali per jawaban (log Governor);
+  tidak ada `load_output` gagal untuk tabel sesi sendiri.
+- Semua angka jawaban tetap bersumber; tidak ada data diambil sebelum persetujuan.
+
+**Risiko dan mitigasi:**
+- Perubahan cara berhenti menyentuh semua gate. Mitigasi: daftar penyebab tunggal dan tes yang membacanya; gelombang
+  A tanpa perubahan sandbox.
+- Router menulis kutipan yang tidak persis. Mitigasi: pencocokan dinormalkan; bila gagal, nilai masuk konfirmasi (tidak
+  dibuang, tidak dijalankan diam-diam).
+- Jeda terlalu sering mengganggu. Mitigasi: hanya setelah perbaikan habis, maksimal dua pertanyaan berturut (EXEC-D).
+- Menunggu sandbox memperpanjang jawaban. Mitigasi: dibatasi sisa waktu jawaban; antrean dicatat.
+- Tabel kerja memenuhi disk. Mitigasi: kuota per sesi dan dihapus saat sesi ditutup.
+- Kredit: limit kunci tinggal USD 0,94; GT perlu limit dinaikkan user.
+
+**Jalan balik:** orc `6a0ebf8f`, sandbox `ce18b33c` (Governor tidak berubah); revert commit per gelombang. Migrasi
+tambah-saja (versi panduan baru dan round katalog baru), versi lama tetap.
 
 ### EXEC-M109: pertanyaan tanya-balik router tetap dipakai
 
