@@ -49,6 +49,7 @@ from .tools.lineage import BUNDLE_LINEAGE_VERSION
 from .tools.metric import read_metrics
 
 REUSE_VERSION = 1  # the conversation reuse contract both services must report
+PART_REUSE_VERSION = 1  # EXEC-V 2026-10-08 (option D): POST /v1/parts/lookup and plan parts with reuse_of
 EXPORT_ID_RE = re.compile(r"^exp_[0-9a-f]{24}$")
 FEASIBILITY_VERSION = 1  # the Research Plan feasibility endpoints of the sandbox
 POINT_IN_TIME_VERSION = 1
@@ -409,6 +410,12 @@ def create_app(
             capability = (sandbox.runtime().get("conversation_reuse") or {})
             if capability.get("enabled") is True and capability.get("version") == REUSE_VERSION:
                 resources = sandbox.conversation_resources
+                # EXEC-V 2026-10-08 (option D): a part with the same Governor SQL is reused within the conversation
+                parts = sandbox.runtime().get("part_reuse") or {}
+                sandbox.part_reuse = parts.get("enabled") is True and parts.get("version") == PART_REUSE_VERSION
+                if not sandbox.part_reuse:
+                    log_event("part_reuse_inactive", reason=f"the sandbox does not report part_reuse version "
+                                                            f"{PART_REUSE_VERSION}")
             else:
                 log_event("conversation_reuse_inactive", reason="the sandbox does not report conversation_reuse "
                                                                 f"version {REUSE_VERSION}")

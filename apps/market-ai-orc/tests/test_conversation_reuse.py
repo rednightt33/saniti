@@ -98,20 +98,14 @@ def test_the_planner_reuses_an_equal_contract_bundle_before_extracting() -> None
 
 
 
-def test_a_bundle_reused_under_other_labels_reaches_the_model_with_the_new_labels() -> None:
-    """EXEC-V stage 2 (M110): the sandbox recognises the same data by content; the planner passes its view on as is,
-    the datasets under this need's labels and aliases naming the earlier ones."""
-    reused = {"status": "READY", "input_bundle_id": "bundle_" + "8" * 24, "reused": True,
-              "reused_from": {"request_id": "r1"}, "datasets": [{"data_request_id": "exp_b_A", "logical_name": "px"}],
-              "aliases": [{"data_request_id": "exp_b_A", "logical_name": "px", "bundle_data_request_id": "exp_a_A",
-                           "bundle_logical_name": "prices"}]}
-    sandbox = PlannerSandbox(reused)
-    result = plan(sandbox, KEY)
-    assert result["datasets"] == reused["datasets"] and result["aliases"] == reused["aliases"]
-    assert sandbox.calls == ["get_need", "reuse_bundle"]  # the same request's second need: no extraction
+def test_the_rules_say_the_same_sql_is_reused_when_its_range_ended_before_today() -> None:
+    """EXEC-V 2026-10-08 (option D, version (i)): the model knows the backend's reuse rule and where it reads it."""
     from app.orchestrator import CONVERSATION_REUSE_RULES
 
-    assert "recognised by content, whatever its labels" in " ".join(CONVERSATION_REUSE_RULES.split())
+    rules = " ".join(CONVERSATION_REUSE_RULES.split())
+    assert "Data whose SQL an earlier answer ran is reused if its range ends before today" in rules
+    assert "data_reuse" in rules and "recognised by content" not in rules
+
 
 RESOURCES = {"conversation_reuse": True, "warm_sessions": 1,
              "released_outputs": [{"output_id": OUTPUT, "session_id": SESSION, "name": "ytd", "type": "TABLE",

@@ -350,25 +350,24 @@ completion, completion responses keep their shape).
   `reused_from` (`bundle_id`, source `need_id` and `request_id`, `extracted_at`, `expires_at`, `equal_candidates`).
   Otherwise the answer is `NO_MATCH` with a reason (`NO_COVERING_CONTRACT`, `EXPIRED`, `NEED_NOT_IN_CONVERSATION`). A
   changed catalog changes `catalog_sha256`, so it never reuses.
-- **Same data under other labels (EXEC-V stage 2, M110, 2026-10-07).** Request ids, logical names and range ids are
-  labels the model chose (an id starts with its request group id), so they no longer decide reuse.
-  `data_need.contract_alias(earlier, later)` pairs each later request with one earlier request whose content covers it
-  (every covering rule above; windows paired by content, not by range id) and checks that the relationships between
-  the paired requests are the same. It returns the alias: earlier request id → later request id, logical name and
-  range ids (`{}` when every label is equal). `contract_covers` is `contract_alias`'s difference. The stored
-  `contract_sha256` keeps its labels (audit and earlier bundles are unchanged); it is only a fast path for equal
-  labels.
-  - The binding stores the alias (`bundle_bindings.aliases`, store schema version 5). `data_need.aliased_manifest`
-    renames every request id, logical name and range id of the stored manifest (datasets, ranges, quality, coverage,
-    relationships) for the need a session serves; files, rows, checksums and the bundle id stay as they are, and
-    `aliases` lists the earlier labels. The reuse answer, the session (`session.json`, so `load`, `load_range`, SQL
-    views, event study and backtest helpers), `inspect_dataset`, the audit inputs and the completion's coverage all
-    read this view.
-  - A warm worker knows the labels it was opened with, so a need with other labels opens a new worker on the same
-    files (no extraction); with equal labels the warm session is attached as before.
-  - Several needs of one request may share one bundle (the same data asked twice in one message). An open of that
-    bundle serves them in the order they were prepared: the first without a COMPLETED result (the bundle's own need
-    first); when all have one, the newest binding.
+- **Part reuse by SQL (EXEC-V 2026-10-08, option D, M113).** The identity of extracted rows is the SQL the Governor
+  runs for them (`data_sha256`, canonical and without its LIMIT; it carries no request labels). Every new bundle
+  partition records its `data_sha256`, `part_key` and the Governor's validator manifest.
+  - `POST /v1/parts/lookup {request_id, need_id, parts: [{data_request_id, part_key, data_sha256, window}]}` (with
+    the conversation key) answers per part `MATCH` (`reuse_of {bundle_id, partition_id}`, `dataset_id`, `rows`,
+    `checksum_sha256`, `request_id`, `extracted_at`, the first extraction's time) or `NO_MATCH` with `reason` and
+    `message`: `RANGE_INCLUDES_TODAY` (the window ends on or after the need's reference date), `NO_DATE_RANGE`
+    (current-state data), `NOT_EXTRACTED_IN_CONVERSATION`, `EXPIRED` (the copy expired or its file is gone),
+    `CATALOG_CHANGED`, `REUSE_UNAVAILABLE`. Version (i) of the user's decision: same SQL, a range that ends before
+    the reference date, a copy still kept; scope one conversation.
+  - A plan part may carry `reuse_of` and its `data_sha256` instead of a fresh dataset. The builder checks it again
+    itself (`REUSE_NOT_ALLOWED` otherwise), hard-links the earlier read-only file (a copy across devices), verifies
+    its checksum, and delivery coverage checks the earlier executed scope against this need's request on the fields
+    that decide the rows (table, columns, scope and restriction hashes, window, entity partition, part key, summary,
+    catalog, no sampling or truncation, and `data_sha256`), never on the labels it was extracted under. The
+    partition records `reused_from`. No Governor call is made for it.
+  - `GET /v1/runtime` reports `part_reuse {enabled, version 1}` (conversation reuse on). The stage 2 label aliases
+    (`contract_alias`, `aliased_manifest`) were removed; `bundle_bindings.aliases` (store version 5) stays unused.
 - **Warm sessions (S2).** A passed completion of a session with a conversation key leaves the worker `WARM_IDLE`
   instead of closing it, unless an execution of that epoch timed out, which leaves the namespace uncertain.
   - `POST /v1/sessions` on a bound bundle (or the request's own) first looks for a `WARM_IDLE` session on it in the
@@ -378,7 +377,10 @@ completion, completion responses keep their shape).
   - Otherwise a new worker opens on the bundle, and the RAM of the earlier message is gone.
   - After an attach, the earlier request can no longer use the session.
   - Execution count, failed count, CPU and lifetime are cumulative and never reset by an attach.
-  - Running code in a `WARM_IDLE` session of the same request (after its own completion passed) starts a new epoch.
+  - A session stays `ACTIVE` after its own completion passed until the answer's release (EXEC-V 2026-10-08), and
+    code run in it in the same request stays in its epoch (M114); completing again evaluates the whole epoch and
+    releases the new outputs (`previous_completion_id`). Without a new successful execution the earlier result is
+    replayed.
   - With no free slot, the least recently used `WARM_IDLE` session is closed (`EVICTED`); an `ACTIVE` or `BUSY`
     session never is. `WARM_IDLE` sessions close after the idle time like any other.
   - A caller's close of an attached session that ran nothing in its epoch returns it to `WARM_IDLE`
@@ -392,7 +394,7 @@ completion, completion responses keep their shape).
     in full counts as `INHERITED` (coverage `processing: INHERITED`). The final status then names
     `inherited_coverage` (`parent_completion_id`, `parent_request_id`, `ancestor_completion_ids`,
     `data_request_ids`). Every earlier passed epoch counts, because they share one namespace (S07).
-  - The completion carries `epoch` and `session_status` (`WARM_IDLE` or `CLOSED`).
+  - The completion carries `epoch` and `session_status` (`ACTIVE` until the answer's release, or `CLOSED`).
 - **Released outputs across requests (READ_RELEASED).** `GET /v1/sessions/{id}/outputs/{output_id}` with the
   conversation key also serves a **released** output of an earlier request of the conversation, or of an earlier
   epoch. The answer adds `read_mode: READ_RELEASED` and `origin`: the completion that released it, its request,
@@ -1148,7 +1150,8 @@ every caller can check a bundle's size before extracting it.
 | `PY_SANDBOX_BUNDLE_MAX_ROWS` / `_MAX_BYTES` | `PY_SANDBOX_MAX_INPUT_ROWS` / `_MAX_INPUT_BYTES` |
 | `PY_SANDBOX_BUNDLE_MAX_PARTS` | 128 |
 | `PY_SANDBOX_BUNDLE_STORE_BYTES` | 8 GiB (oldest bundles evicted above it) |
-| `PY_SANDBOX_SESSION_UID_BASE` / `PY_SANDBOX_MAX_SESSIONS` | 20201 / 2 |
+| `PY_SANDBOX_SESSION_UID_BASE` / `PY_SANDBOX_MAX_SESSIONS` | 20201 / 2 (dev 4 since 2026-10-08) |
+| `PY_SANDBOX_MAX_SESSIONS_PER_REQUEST` | `PY_SANDBOX_MAX_SESSIONS` (at most it) |
 | `PY_SANDBOX_SESSION_EXECUTION_SECONDS` | `PY_SANDBOX_MAX_RUNTIME_SECONDS` (per execution, SIGINT then SIGKILL) |
 | `PY_SANDBOX_SESSION_CPU_SECONDS` | 900 per session (a RESEARCH need uses its approved compute budget when lower) |
 | `PY_SANDBOX_SESSION_IDLE_SECONDS` / `_MAX_SECONDS` | 900 / 3600 |
@@ -1343,8 +1346,6 @@ side on only when they match.
   (`final_status.research_findings_v2`, `calculation_validation` = the weakest level relied on). Missing angles keep
   the completion open (`next_action` RUN_PYTHON) unless `finalize` records them as `NOT_RUN`.
 - Store schema version 4 adds `research_runs`, `research_groups` and `research_findings`.
-- Store schema version 5 adds `bundle_bindings.aliases` (EXEC-V stage 2: the later need's labels for an earlier
-  bundle's requests).
 
 ### Imported modules (item C)
 
@@ -1408,13 +1409,18 @@ Boundaries:
 - `POST /v1/requests/{request_id}/release`: the orchestrator calls it when the answer of a request ends. Each open
   session of the request that completed goes to `WARM_IDLE` (reusable by the conversation, evicted when a slot is
   needed); any other session closes with `RELEASED`. Idempotent.
-- One active session per request: opening another session in the same request settles its completed sessions to
-  `WARM_IDLE`; with no free slot, the request's own uncompleted session is closed (`REPLACED_IN_REQUEST`) before
-  anything else of another request is touched (an ACTIVE or BUSY session of another request never is).
+- Several sessions per request (EXEC-V 2026-10-08, "membuka 1 tidak menutup yang lain"): a request holds up to
+  `PY_SANDBOX_MAX_SESSIONS_PER_REQUEST` open sessions (default `PY_SANDBOX_MAX_SESSIONS`, at most it), and opening one
+  never closes or settles another. The open beyond the limit is refused (`SESSION_LIMIT_PER_REQUEST`, 409,
+  `next_action USE_OPEN_SESSION`) with `open_sessions` (`session_id`, `bundle_id`, `need_id`, `status`, `executions`,
+  `completed`) and `max_sessions_per_request`. With every slot in use, only a `WARM_IDLE` session (its answer ended)
+  is evicted; `SESSION_CAPACITY_EXCEEDED` lists the request's own `open_sessions`. `REPLACED_IN_REQUEST` is gone.
+- Idle per answer: an execution, inspection or output read in one session of a request refreshes every open session
+  of that request, so a session waiting while the answer works in another is not closed as idle.
 - `PY_SANDBOX_OPEN_WAIT_SECONDS` (default 0, maximum 120; dev 60): with every slot in use, an open waits in arrival
   order and retries the eviction; after the wait, `SESSION_CAPACITY_EXCEEDED` carries `waited_seconds`.
-- `GET /v1/runtime` reports `session_release {enabled, version 1, open_wait_seconds}`. The 900 s idle sweep remains
-  the safety net.
+- `GET /v1/runtime` reports `session_release {enabled, version 2, open_wait_seconds, max_sessions,
+  max_sessions_per_request}`. The 900 s idle sweep remains the safety net.
 
 ### Durable results (R-STORE, round 2026-10-03)
 

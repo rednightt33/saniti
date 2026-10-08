@@ -112,6 +112,16 @@ class Part:
     entity_partition: dict[str, int] | None
     envelope: dict[str, Any] | None
     dataset: dict[str, Any] | None = None
+    # EXEC-V 2026-10-08 (option D): the identity of the part's rows (the Governor's estimate), and the earlier part of
+    # the conversation with the same SQL it reuses (the sandbox's lookup), if any
+    data_sha256: str | None = None
+    reused: dict[str, Any] | None = None
+
+
+# EXEC-V 2026-10-08: what prepare_data_bundle tells the model about reused data
+REUSE_NOTE = ("Parts whose Governor SQL is the same as one an earlier answer of this conversation extracted, with a "
+              "date range that ends before today, were reused without a new extraction (reused_from gives when they "
+              "were extracted: disclose it as the data's as-of); every other part was extracted, with its reason.")
 
 
 class PlanStop(Exception):
@@ -185,7 +195,7 @@ class ExecutionPlanner:
         # G15 (AI_PLANNER_PARALLEL_PARTS): chosen parts extracted at the same time; 1 = one after the other
         self.parallel_parts = max(1, int(parallel_parts or 1))
 
-    def prepare(self, need_id: str) -> dict[str, Any]:
+    def prepare(self, need_id: str, part_reuse: bool = True) -> dict[str, Any]:
         request_id = current_request_id.get() or ""
         need = self.sandbox.get_need(need_id)
         if need is None or need.get("request_id") != request_id:
@@ -198,19 +208,26 @@ class ExecutionPlanner:
                 return {**reused, "plan": {"reused": True, "extractions": 0}}
         plan_id = f"plan_{secrets.token_hex(12)}"
         planned, decisions = [], []
+        # EXEC-V 2026-10-08 (option D): within a conversation each part is looked up by its Governor SQL before it is
+        # extracted; the lookup needs the estimates' data_sha256, so it plans with the preflight
+        reuse = part_reuse and bool(current_conversation_key.get()) and getattr(self.sandbox, "part_reuse", False)
+        preflight = self.preflight or reuse
+        report: list[dict[str, Any]] = []
         try:
             chosen: dict[str, list[Part]] = {}
-            if self.preflight:
+            if preflight:
                 # A2: every part of every request fits by estimate before any row is read; G14: and all of them
                 # together fit one bundle
                 budget = PlanBudget(self.max_bundle_rows)
                 for rid in sorted(need["requests"]):
                     chosen[rid] = self._preflight(need, plan_id, need["requests"][rid], budget)[0]
+                if reuse:
+                    report = self._lookup(request_id, need_id, chosen)
             extracted = PlanBudget(self.max_bundle_rows)  # G14: real rows, for parts whose count was uncertain
             for rid in sorted(need["requests"]):
                 entry = need["requests"][rid]
                 parts, envelopes = self._extract_chosen(need, plan_id, entry, chosen[rid], extracted) \
-                    if self.preflight else self._request_parts(need, plan_id, entry, extracted)
+                    if preflight else self._request_parts(need, plan_id, entry, extracted)
                 planned.append({"data_request_id": rid, "envelopes": envelopes, "parts": parts})
                 decisions += self._decisions(entry, envelopes, parts)
         except PlanStop as stop:
@@ -218,11 +235,42 @@ class ExecutionPlanner:
                     "extracted_requests": [p["data_request_id"] for p in planned]}
         bundle = self.sandbox.build_bundle(request_id, need_id, {"plan_id": plan_id, "requests": planned,
                                                                  "decisions": decisions})
+        if bundle.get("status") == "REJECTED" and bundle.get("code") == "REUSE_NOT_ALLOWED" and reuse:
+            # the earlier copy changed between the lookup and the bundle (expired, evicted): extract instead
+            return self.prepare(need_id, part_reuse=False)
         bundle["plan"] = {"plan_id": plan_id, "requests": [
             {"data_request_id": p["data_request_id"], "envelopes": len(p["envelopes"]) or None,
              "partitions": len(p["parts"])} for p in planned],
             "decisions": sorted({d["kind"] for d in decisions})}
+        if report:
+            reused = [r for r in report if r["status"] == "REUSED"]
+            bundle["data_reuse"] = {"parts_reused": len(reused), "parts_extracted": len(report) - len(reused),
+                                    "parts": report[:24], "note": REUSE_NOTE}
         return bundle
+
+    def _lookup(self, request_id: str, need_id: str, chosen: dict[str, list[Part]]) -> list[dict[str, Any]]:
+        """EXEC-V 2026-10-08 (option D): ask the sandbox which planned parts an earlier answer of this conversation
+        already extracted with the same Governor SQL; a match is reused (no Governor call), every other part is
+        extracted with the reason the sandbox gave. A part without an identity (an older Governor) is extracted."""
+        order = [(rid, part) for rid in sorted(chosen) for part in chosen[rid]]
+        asked = [(rid, part) for rid, part in order if part.data_sha256]
+        found = self.sandbox.lookup_parts(request_id, need_id, [
+            {"data_request_id": rid, "part_key": part_key(part.window, part.entity_partition),
+             "data_sha256": part.data_sha256, "window": part.window} for rid, part in asked]) if asked else None
+        answers = {id(part): answer for (_, part), answer in zip(asked, found or [])}
+        report = []
+        for rid, part in order:
+            answer = answers.get(id(part)) or {}
+            entry = {"data_request_id": rid, "window": part.window, "entity_partition": part.entity_partition}
+            if answer.get("status") == "MATCH":
+                part.reused = answer
+                report.append({**entry, "status": "REUSED", "reused_from": {
+                    "request_id": answer.get("request_id"), "extracted_at": answer.get("extracted_at")}})
+            else:
+                reason = answer.get("reason") or ("LOOKUP_UNAVAILABLE" if part.data_sha256 else "NO_DATA_IDENTITY")
+                report.append({**entry, "status": "EXTRACTED", "reason": reason,
+                               **({"message": answer["message"]} if answer.get("message") else {})})
+        return report
 
     def estimate(self, draft: dict[str, Any]) -> dict[str, Any]:
         """Research Plan feasibility: every extraction envelope of a validated draft goes to the Governor as an
@@ -359,6 +407,7 @@ class ExecutionPlanner:
             if status == "WITHIN_LIMITS":
                 found = int((response.get("estimates") or {}).get("result_rows") or 0)
                 self._check_bundle(rid, budget, found)
+                whole.data_sha256 = response.get("data_sha256")
                 chosen.append(whole)
                 rows += found
                 budget.spend(rid, found)
@@ -392,6 +441,7 @@ class ExecutionPlanner:
                     fits = False
                     failure = {**response, "window": part.window, "parts": count}
                     break
+                part.data_sha256 = response.get("data_sha256")
                 rows += int((response.get("estimates") or {}).get("result_rows") or 0)
                 self._check_bundle(rid, budget, rows)  # this window's rows are the same in any split
             if fits:
@@ -418,6 +468,7 @@ class ExecutionPlanner:
             answer = self._estimate(source, plan_id, entry, part, total, budget)
             status = answer.get("status")
             if status == "WITHIN_LIMITS":
+                part.data_sha256 = answer.get("data_sha256")
                 kept.append(part)
                 rows += int((answer.get("estimates") or {}).get("result_rows") or 0)
                 self._check_bundle(rid, budget, rows)
@@ -435,7 +486,11 @@ class ExecutionPlanner:
         stop can leave at most parallel_parts - 1 extra datasets unused, which expire with the Governor's storage)."""
         rid = entry["data_request_id"]
         envelopes = merge_windows(entry.get("windows") or []) if entry.get("time_column") else []
-        queue, done = list(chosen), []
+        done = [part for part in chosen if part.reused]
+        for part in done:  # EXEC-V 2026-10-08: the earlier file of the same SQL, no Governor call
+            part.dataset = {"dataset_id": part.reused["dataset_id"], "row_count": part.reused.get("rows")}
+            self._spend_extracted(rid, extracted, part.dataset)
+        queue = [part for part in chosen if not part.reused]
         while queue:
             wave, queue = queue[:self.parallel_parts], queue[self.parallel_parts:]
             requeue: list[Part] = []
@@ -526,7 +581,9 @@ class ExecutionPlanner:
             for index, part in enumerate(members, start=1):
                 named.append({"partition_id": f"{prefix}__part_{index:03d}", "dataset_id": part.dataset["dataset_id"],
                               "part_key": part_key(part.window, part.entity_partition), "window": part.window,
-                              "entity_partition": part.entity_partition})
+                              "entity_partition": part.entity_partition,
+                              **({"reuse_of": part.reused["reuse_of"], "data_sha256": part.data_sha256}
+                                 if part.reused else {})})
         return named
 
     @staticmethod
@@ -614,7 +671,10 @@ PREPARE_BUNDLE_DESCRIPTION = (
     "(OK, PARTIAL, EMPTY), quality_flags (e.g. NULL_VALUES, FREQUENCY_GAPS, HISTORY_BUFFER_SHORTFALL, EMPTY_ENTITY, "
     "DUPLICATE_KEYS) and relationship warnings; or REJECTED naming the data_request_id, the reason code and the next "
     "action. Quality flags are facts about the data to investigate and disclose, not failures. Never change the "
-    "user's scope to pass a limit: revise the DataNeedSpec only when the rejection says so."
+    "user's scope to pass a limit: revise the DataNeedSpec only when the rejection says so. Within a conversation, a "
+    "part whose Governor SQL equals one an earlier answer extracted and whose date range ends before today is "
+    "reused, not extracted again, whatever its request labels (data_reuse lists each part as REUSED with when it was "
+    "extracted, or EXTRACTED with the reason); each data need still gets its own bundle and session."
 )
 
 

@@ -114,13 +114,13 @@ ADDED = {
     "Keep the final answer focused and proportional to the user's question: the answer within about two and a half "
     "thousand characters and a table in it within ten rows unless the user asks for more (the full table stays in its "
     "released output).",
-    # EXEC-V stage 2 (M110): the backend pairs requests by content, not by their ids or names
+    # EXEC-V stage 2 (M110), revised 2026-10-08 (option D, version (i)): the same Governor SQL is the same data
     "For a new computation on the same data, submit the listed data_need_spec (any request_group_id, revision one).",
-    "The same data is recognised by content, whatever its labels: prepare_data_bundle reuses the earlier bundle "
-    "(reused true) under this spec's labels.",
-    "With the labels unchanged, open_analysis_session reattaches the warm session (reused_session true, listing the "
-    "earlier variables);",
-    "otherwise it opens a new session on the same data.",
+    "Data whose SQL an earlier answer ran is reused if its range ends before today, whatever its labels "
+    "(prepare_data_bundle's data_reuse says which).",
+    "With the same spec, open_analysis_session reattaches the warm session (reused_session true, listing the earlier "
+    "variables);",
+    "otherwise it opens a new session.",
 }
 SECTIONS = ["GENERAL RULES", "TOOL USE", "TOOL RESULTS", "FINAL RESPONSE", "DATA DISCOVERY", "DATA SOURCES",
             "DATA NEED", "MODES", "TIME BASIS", "NAMED-PERIOD RETURNS", "WEEKLY AND MONTHLY", "CONVERSATION REUSE",

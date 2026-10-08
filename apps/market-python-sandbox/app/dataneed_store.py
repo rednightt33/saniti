@@ -24,7 +24,7 @@ Schema versions (PRAGMA user_version): 0 is the original layout (CREATE TABLE IF
 reuse columns and tables of the implementation plan 2026-09-27 (S1/S2); 2 adds data_need_drafts; 3 adds executions.modules
 (the modules each execution's code imports, EXTRACTION_AND_AUDIT_PLAN.md item C); 4 adds research_runs, research_groups and
 research_findings (MULTI_ANGLE_RESEARCH.md); 5 adds bundle_bindings.aliases (EXEC-V stage 2: the later need's labels for
-the earlier bundle's requests). Upgrades only add nullable or defaulted columns
+the earlier bundle's requests; unused since the revision of 2026-10-08, which reuses parts by their SQL instead). Upgrades only add nullable or defaulted columns
 and new tables, so code without them still reads and writes the database.
 """
 from __future__ import annotations
@@ -337,10 +337,9 @@ class DataNeedStore:
     def get_binding(self, need_id: str) -> dict[str, Any] | None:
         return self._one("SELECT * FROM bundle_bindings WHERE need_id = ?", (need_id,))
 
-    def bindings_to(self, request_id: str, bundle_id: str) -> list[dict[str, Any]]:
-        """The bindings of one request to one bundle, in the order they were made."""
-        return self._all("SELECT * FROM bundle_bindings WHERE request_id = ? AND bundle_id = ? ORDER BY created_at, "
-                         "rowid", (request_id, bundle_id))
+    def binding_for(self, request_id: str, bundle_id: str) -> dict[str, Any] | None:
+        return self._one("SELECT * FROM bundle_bindings WHERE request_id = ? AND bundle_id = ? ORDER BY created_at "
+                         "DESC LIMIT 1", (request_id, bundle_id))
 
     def conversation_bundles(self, conversation_key: str) -> list[dict[str, Any]]:
         """READY bundles of one conversation with their need's data contract hash, newest first."""

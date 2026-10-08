@@ -11,7 +11,10 @@ Delivery coverage (this module, at bundle creation) checks, per data request:
 
 - every approved data_request_id is delivered, and nothing else is;
 - every part's lineage names this need, plan, request and part, and its executed scope equals the approved scope,
-  restrictions, columns, table and summary (G18 aggregate), with no sampling and no truncation;
+  restrictions, columns, table and summary (G18 aggregate), with no sampling and no truncation; a part reused from an
+  earlier need of the conversation (EXEC-V 2026-10-08, reuse_of) is checked on every field that decides its rows
+  (table, columns, scope, restrictions, window, entity partition, part key, summary, catalog), never on the labels of
+  the need it was extracted for;
 - the catalog version each part ran under equals the one the spec was approved against;
 - the partitions tile every approved extraction window: on every date of every window each entity residue is
   covered exactly once (a gap is MISSING_PARTITION, a double cover OVERLAPPING_PARTITIONS);
@@ -60,22 +63,30 @@ def check_part(approved: dict[str, Any], request: dict[str, Any], plan_id: str, 
     lineage = validator.get("lineage") or {}
     executed = validator.get("executed_scope") or {}
     pid = part["partition_id"]
-    expected = {"need_id": need["need_id"], "spec_sha256": approved["spec_sha256"], "plan_id": plan_id,
-                "request_group_id": approved["request_group_id"], "revision": approved["revision"],
-                "data_request_id": request["data_request_id"], "scope_sha256": request["scope_sha256"],
-                "restriction_sha256": request["restriction_sha256"], "part_key": part["part_key"]}
+    reused = bool(part.get("reuse_of"))
+    expected = {"scope_sha256": request["scope_sha256"], "restriction_sha256": request["restriction_sha256"],
+                "part_key": part["part_key"]}
+    if not reused:
+        expected.update({"need_id": need["need_id"], "spec_sha256": approved["spec_sha256"], "plan_id": plan_id,
+                         "request_group_id": approved["request_group_id"], "revision": approved["revision"],
+                         "data_request_id": request["data_request_id"]})
     for key, value in expected.items():
         if lineage.get(key) != value:
             issues.append(_issue("LINEAGE_MISMATCH", f"{pid}: lineage {key} does not match the approved need.",
                                  partition_id=pid, field=key))
     window = part.get("window")
-    checks = {"version": "extract/v1", "data_request_id": request["data_request_id"],
-              "source_table": request["source_table"], "columns": request["extract_columns"],
+    checks = {"version": "extract/v1", "source_table": request["source_table"], "columns": request["extract_columns"],
               "scope_sha256": request["scope_sha256"], "restriction_sha256": request["restriction_sha256"],
               "entity_partition": part.get("entity_partition"), "part_key": part["part_key"],
               "sampling": False, "truncation": False,
               # G18: the summary the Governor computed is the approved one (both absent for raw rows)
               "aggregate": request.get("aggregate")}
+    if not reused:
+        checks["data_request_id"] = request["data_request_id"]
+    elif validator.get("data_sha256") != part.get("data_sha256"):
+        # the Governor's identity of the earlier rows is the identity it gave this part's SQL
+        issues.append(_issue("EXECUTED_SCOPE_MISMATCH", f"{pid}: the reused part's SQL differs from this part's.",
+                             partition_id=pid, field="data_sha256"))
     for key, value in checks.items():
         if executed.get(key) != value:
             code = {"sampling": "SAMPLING_DETECTED", "truncation": "TRUNCATION_DETECTED"}.get(

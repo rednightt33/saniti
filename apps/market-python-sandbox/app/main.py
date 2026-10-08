@@ -65,6 +65,7 @@ DATA_NEED_KEYS = {"request_id", "reference_time", "timezone", "spec", "research_
 CONVERSATION_HEADER = "X-Saniti-Conversation-Key"
 CONVERSATION_KEY = re.compile(r"^ck_[0-9a-f]{32}$")
 REUSE_VERSION = 1
+PART_REUSE_VERSION = 1  # EXEC-V 2026-10-08 (option D): POST /v1/parts/lookup and plan parts with reuse_of
 PAGE_MAX = 500
 
 
@@ -148,6 +149,10 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                                   "ops": list(stored_tables.OPS), "max_bytes": settings.restore_max_bytes,
                                   "export_formats": list(stored_tables.EXPORT_FORMATS),
                                   "export_max_bytes": stored_tables.EXPORT_MAX_BYTES},
+                # EXEC-V 2026-10-08 (option D): POST /v1/parts/lookup and plan parts with reuse_of; within one
+                # conversation, a part whose Governor SQL is the same and whose range ends before the reference date
+                "part_reuse": {"enabled": dataneed is not None and settings.conversation_reuse,
+                               "version": PART_REUSE_VERSION},
                 # S28: POST /v1/requests/{request_id}/release, and how long opening a session waits for a slot
                 # EXEC-V 2026-10-08 (version 2): a request holds up to max_sessions_per_request open sessions and
                 # opening one never closes another (SESSION_LIMIT_PER_REQUEST beyond that)
@@ -332,6 +337,30 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                 "code": "INVALID_REQUEST", "message": "Body must be {request_id, need_id}."}})
         try:
             return dataneed.reuse_bundle(body["request_id"], body["need_id"], key)
+        except DataNeedError as exc:
+            return dataneed_error(exc)
+
+    @app.post("/v1/parts/lookup", dependencies=dataneed_routes)
+    def lookup_parts(body: Any = Body(...), key: str | None = Depends(conversation_key)) -> Any:
+        """EXEC-V 2026-10-08 (option D): for each planned part of an approved need, the earlier part of the same
+        conversation with the same Governor SQL (data_sha256) it may reuse, or NO_MATCH with the reason."""
+        parts = body.get("parts") if isinstance(body, dict) else None
+        if not isinstance(body, dict) or set(body) != {"request_id", "need_id", "parts"} \
+                or not isinstance(body["request_id"], str) or not re.fullmatch(REQUEST_ID, body["request_id"]) \
+                or not isinstance(body["need_id"], str) or not NEED_ID.fullmatch(body["need_id"]) \
+                or not isinstance(parts, list) or not 1 <= len(parts) <= 1024 or not all(
+                    isinstance(p, dict) and set(p) == {"data_request_id", "part_key", "data_sha256", "window"}
+                    and all(isinstance(p[k], str) and len(p[k]) <= 128 for k in ("data_request_id", "part_key",
+                                                                                   "data_sha256"))
+                    and (p["window"] is None or (isinstance(p["window"], dict) and set(p["window"]) == {"from", "to"}
+                                                 and all(isinstance(v, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", v)
+                                                         for v in p["window"].values())))
+                    for p in parts):
+            return JSONResponse(status_code=422, content={"status": "REJECTED", "error": {
+                "code": "INVALID_REQUEST", "message": "Body must be {request_id, need_id, parts: [{data_request_id, "
+                                                      "part_key, data_sha256, window}]}."}})
+        try:
+            return dataneed.lookup_parts(body["request_id"], body["need_id"], parts, key)
         except DataNeedError as exc:
             return dataneed_error(exc)
 

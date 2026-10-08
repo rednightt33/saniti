@@ -815,13 +815,17 @@ the released outputs (JSON, and up to 200 rows of each of up to 10 tables), so t
   `COMPLETED` (`POST /v1/sessions/{id}/close`, best effort, log `analysis_sessions_closed` with each close reason).
   The sandbox closes a session itself only when `complete_analysis` passes; before this, a failed or abandoned
   session held one of its `PY_SANDBOX_MAX_SESSIONS` slots until the idle timeout (900 s).
-- One open session per run (`ERRORS_AND_SOLUTIONS.md` S08). The slots are shared by every run, and a run that opened a
-  second session before completing its first held both. Before another `open_analysis_session`, an earlier session
-  of the run that has not completed is handled first:
-  - with no successful `run_python`, or after `complete_analysis` answered `INCOMPLETE`, market-ai-orc closes it (log
-    `analysis_sessions_superseded`); it released nothing, so it no longer blocks the answer;
-  - with a successful `run_python`, the open is refused with `ANALYSIS_SESSION_ALREADY_OPEN` (naming
-    `open_session_id`) until `complete_analysis` is called on it. The refusal counts toward the repair budget.
+- Several sessions per answer (EXEC-V 2026-10-08; replaces S08's one open session per run). Each READY bundle gets
+  its own session (with `AI_ENABLE_MERGED_STEPS` the backend opens it), and opening one never closes another. The
+  limit is the sandbox's (`session_release` version 2, `max_sessions_per_request`, read at startup); the model reads
+  it in words in `open_analysis_session`'s description, with `close_session_id` to close one of its own completed or
+  unneeded sessions after the sandbox refuses an open with `SESSION_LIMIT_PER_REQUEST` (its result lists the open
+  sessions). A session the model closed that way is not reported as unfinished.
+- Part reuse (EXEC-V 2026-10-08, option D): with conversation reuse and the sandbox's `part_reuse` v1, the Execution
+  Planner keeps each part's `data_sha256` from the Governor's estimate (the preflight runs for it), asks
+  `POST /v1/parts/lookup`, plans matches as `reuse_of` parts (no Governor extraction), and returns `data_reuse`
+  (`parts_reused`, `parts_extracted`, per part `REUSED` with `reused_from` or `EXTRACTED` with its reason). A build
+  refused with `REUSE_NOT_ALLOWED` is planned again with extraction.
 
 **Phase 5 (implemented): the orchestrator in DataNeed mode** (`app/orchestrator.py`). With `AI_ENABLE_DATANEED`
 the DataNeed flow is exclusive:

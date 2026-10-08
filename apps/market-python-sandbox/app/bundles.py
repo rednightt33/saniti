@@ -13,6 +13,10 @@ envelopes and every physical part (partition_id, dataset_id, part_key, window, e
    delivered rows and entities against the SQL manifests;
 6. records the bundle with its manifest and checksum. A bundle whose coverage fails is REJECTED, never READY.
 
+EXEC-V 2026-10-08 (option D): a part may instead name an earlier part of the same conversation (reuse_of) whose
+Governor SQL is the same (data_sha256); its verified file is linked, not extracted again, and coverage checks its
+executed scope against this need's request on the fields that decide the rows (not the request labels).
+
 The bundle is read-only for everyone after this: no request field can add, remove or replace a file, the sandbox
 never queries the database, and nothing is sampled or truncated. The files survive a restart of the service (the
 volume) until the bundle expires; sessions copy them into their own workspace.
@@ -40,6 +44,7 @@ PARTITION_ID = re.compile(r"^[a-z][a-z0-9_]{0,39}_[A-Za-z0-9]{1,12}__[a-z0-9_]{1
 PLAN_ID = re.compile(r"^plan_[0-9a-f]{24}$")
 DATASET_ID = re.compile(r"^ds_[0-9a-f]{24}$")
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+SHA256 = re.compile(r"^[0-9a-f]{64}$")
 CHUNK = 1 << 20
 
 
@@ -107,9 +112,21 @@ def normalize_plan(raw: Any, approved: dict[str, Any], max_parts: int) -> dict[s
                 raise BundleError("INVALID_PLAN", f"{part['partition_id']}: partition and dataset ids must be unique.")
             seen_parts.add(part["partition_id"])
             seen_datasets.add(part["dataset_id"])
-            parts.append({"partition_id": part["partition_id"], "dataset_id": part["dataset_id"],
+            normalized = {"partition_id": part["partition_id"], "dataset_id": part["dataset_id"],
                           "part_key": part["part_key"], "window": _window(part.get("window")),
-                          "entity_partition": _partition(part.get("entity_partition"))})
+                          "entity_partition": _partition(part.get("entity_partition"))}
+            reuse = part.get("reuse_of")
+            if reuse is not None:
+                # EXEC-V 2026-10-08 (option D): an earlier part of the conversation with the same Governor SQL
+                if not isinstance(reuse, dict) or set(reuse) != {"bundle_id", "partition_id"} \
+                        or not isinstance(reuse["bundle_id"], str) or not BUNDLE_ID.fullmatch(reuse["bundle_id"]) \
+                        or not isinstance(reuse["partition_id"], str) \
+                        or not PARTITION_ID.fullmatch(reuse["partition_id"]) \
+                        or not isinstance(part.get("data_sha256"), str) or not SHA256.fullmatch(part["data_sha256"]):
+                    raise BundleError("INVALID_PLAN", f"{part['partition_id']}: reuse_of needs {{bundle_id, "
+                                                      "partition_id}} and the part's data_sha256.")
+                normalized.update(reuse_of=dict(reuse), data_sha256=part["data_sha256"])
+            parts.append(normalized)
         requests.append({"data_request_id": item["data_request_id"],
                          "envelopes": [e for e in item.get("envelopes") or [] if isinstance(e, dict)][:32],
                          "parts": sorted(parts, key=lambda p: p["partition_id"])})
@@ -132,7 +149,11 @@ class BundleBuilder:
 
     # ------------------------------------------------------------------ build
 
-    def build(self, request_id: str, need: dict[str, Any], raw_plan: Any) -> dict[str, Any]:
+    def build(self, request_id: str, need: dict[str, Any], raw_plan: Any,
+              resolve_reuse: Any = None) -> dict[str, Any]:
+        """resolve_reuse(part) -> the earlier part a reuse_of names, checked by the caller (same conversation, same
+        data_sha256 and part_key, range before the reference date, not expired, same catalog): {"bundle_id",
+        "request_id", "created_at", "partition" (its manifest entry), "path"}; it raises BundleError otherwise."""
         s = self.settings
         approved = need
         plan = normalize_plan(raw_plan, approved, s.bundle_max_parts)
@@ -143,15 +164,23 @@ class BundleBuilder:
                 return {**earlier["manifest"], "replayed": True}
         bundle_id = f"bundle_{secrets.token_hex(12)}"
         grants: dict[str, Any] = {}
+        sources: dict[str, dict[str, Any]] = {}
         try:
             for request in plan["requests"]:
                 for part in request["parts"]:
+                    if part.get("reuse_of"):
+                        if resolve_reuse is None:
+                            raise BundleError("REUSE_NOT_AVAILABLE", "This sandbox reuses parts only within a "
+                                                                     "conversation.")
+                        sources[part["partition_id"]] = resolve_reuse(part)
+                        continue
                     grants[part["partition_id"]] = self.analysis.datasets.grant(
                         part["dataset_id"], request_id=request_id, analysis_id=bundle_id)
         except DatasetFailure as failure:
             raise BundleError(failure.code, failure.message) from failure
-        rows = sum(g.row_count for g in grants.values())
-        size = sum(g.byte_count for g in grants.values())
+        rows = sum(g.row_count for g in grants.values()) + sum(int(r["partition"]["rows"] or 0)
+                                                               for r in sources.values())
+        size = sum(g.byte_count for g in grants.values()) + sum(r["path"].stat().st_size for r in sources.values())
         if rows > s.bundle_max_rows or size > s.bundle_max_bytes:
             raise BundleError("BUNDLE_TOO_LARGE", f"The extracted data holds {rows} rows / {size} bytes; a bundle "
                                                   f"holds at most {s.bundle_max_rows} rows / {s.bundle_max_bytes} "
@@ -165,17 +194,21 @@ class BundleBuilder:
         directory = self.root / bundle_id
         directory.mkdir(mode=0o700)
         try:
-            files = self._store_files(directory, plan, grants)
+            files = self._store_files(directory, plan, grants, sources)
             quality = self._profile(bundle_id, approved, plan, files)
             delivered = {pid: {"validator": g.manifest.get("validator_manifest") or {}, "row_count": g.row_count,
                                "entities_present": (g.manifest.get("validator_manifest") or {}).get(
                                    "entities_present")} for pid, g in grants.items()}
+            for pid, source in sources.items():
+                validator = source["partition"].get("validator") or {}
+                delivered[pid] = {"validator": validator, "row_count": source["partition"]["rows"],
+                                  "entities_present": validator.get("entities_present")}
             coverage = delivery_coverage(approved, need, plan, delivered, quality)
         except Exception:
             shutil.rmtree(directory, ignore_errors=True)
             raise
         manifest = self._manifest(bundle_id, request_id, need, approved, plan, plan_sha, grants, files, quality,
-                                  coverage, size, rows)
+                                  coverage, size, rows, sources)
         status = manifest["status"]
         if status != "READY":
             shutil.rmtree(directory, ignore_errors=True)
@@ -187,12 +220,17 @@ class BundleBuilder:
         self.evict()
         return manifest
 
-    def _store_files(self, directory: Path, plan: dict[str, Any], grants: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    def _store_files(self, directory: Path, plan: dict[str, Any], grants: dict[str, Any],
+                     sources: dict[str, dict[str, Any]] | None = None) -> dict[str, dict[str, Any]]:
         files: dict[str, dict[str, Any]] = {}
         for request in plan["requests"]:
             folder = directory / request["data_request_id"]
             folder.mkdir(mode=0o700)
             for part in request["parts"]:
+                source = (sources or {}).get(part["partition_id"])
+                if source is not None:
+                    files[part["partition_id"]] = self._link_reused(folder, request, part, source)
+                    continue
                 grant = grants[part["partition_id"]]
                 try:
                     cached = self.analysis.datasets.fetch(grant)
@@ -212,6 +250,29 @@ class BundleBuilder:
                                                "byte_count": grant.byte_count, "rows": grant.row_count,
                                                "relative": f"{request['data_request_id']}/{target.name}"}
         return files
+
+    @staticmethod
+    def _link_reused(folder: Path, request: dict[str, Any], part: dict[str, Any], source: dict[str, Any]
+                     ) -> dict[str, Any]:
+        """EXEC-V 2026-10-08: the earlier part's verified read-only file, linked (copied across devices) into this
+        bundle and checked against its recorded checksum; the earlier bundle's eviction leaves this copy intact."""
+        target = folder / f"{part['partition_id']}.parquet"
+        expected = source["partition"]["checksum_sha256"]
+        try:
+            os.link(source["path"], target)
+        except OSError:
+            shutil.copyfile(source["path"], target)
+        digest = hashlib.sha256()
+        with open(target, "rb") as handle:
+            while chunk := handle.read(CHUNK):
+                digest.update(chunk)
+        if digest.hexdigest() != expected:
+            raise BundleError("DATASET_INTEGRITY_ERROR", f"{part['partition_id']}: the reused file does not match "
+                                                         "its checksum.")
+        os.chmod(target, 0o444)
+        return {"path": target, "cached": target, "checksum_sha256": expected,
+                "byte_count": target.stat().st_size, "rows": source["partition"]["rows"],
+                "relative": f"{request['data_request_id']}/{target.name}"}
 
     # ------------------------------------------------------------------ profiling
 
@@ -300,7 +361,8 @@ class BundleBuilder:
 
     def _manifest(self, bundle_id: str, request_id: str, need: dict[str, Any], approved: dict[str, Any],
                   plan: dict[str, Any], plan_sha: str, grants: dict[str, Any], files: dict[str, dict[str, Any]],
-                  quality: dict[str, dict[str, Any]], coverage: dict[str, Any], size: int, rows: int) -> dict[str, Any]:
+                  quality: dict[str, dict[str, Any]], coverage: dict[str, Any], size: int, rows: int,
+                  sources: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
         created = datetime.now(timezone.utc).replace(microsecond=0)
         expires = created + timedelta(hours=self.settings.bundle_retention_hours)
         datasets = []
@@ -312,21 +374,16 @@ class BundleBuilder:
             quality_id = f"quality_{sha256_json(profile)[:24]}"
             columns = []
             if parts:
+                first = parts[0]["partition_id"]
                 columns = [{"name": c.get("name"), "type": c.get("type"), "source_type": c.get("source_type"),
-                            "unit": c.get("unit")} for c in grants[parts[0]["partition_id"]].manifest.get("columns")
-                           or []]
+                            "unit": c.get("unit")} for c in grants[first].manifest.get("columns") or []] \
+                    if first in grants else [dict(c) for c in sources[first]["columns"]]
             datasets.append({
                 "data_request_id": rid, "logical_name": entry["logical_name"], "source_table": entry["source_table"],
                 "entity_column": entry.get("entity_column"), "time_column": entry.get("time_column"),
                 "key_columns": entry.get("key_columns") or [], "columns": columns,
                 "dataset_ids": [p["dataset_id"] for p in parts],
-                "partitions": [{"partition_id": p["partition_id"], "dataset_id": p["dataset_id"],
-                                "window": p["window"], "entity_partition": p["entity_partition"],
-                                "rows": files[p["partition_id"]]["rows"],
-                                "checksum_sha256": files[p["partition_id"]]["checksum_sha256"],
-                                "file": files[p["partition_id"]]["relative"],
-                                # D3 (round 2026-10-03): which Governor query delivered it, for get_lineage
-                                "governor": governor_ids(grants[p["partition_id"]])} for p in parts],
+                "partitions": [self._partition_entry(p, files, grants, sources or {}) for p in parts],
                 "rows": sum(files[p["partition_id"]]["rows"] for p in parts),
                 "ranges": entry.get("windows") or [], "source_frequency": entry.get("source_frequency"),
                 "analysis_frequency": entry.get("analysis_frequency"), "resample": entry.get("resample"),
@@ -352,6 +409,30 @@ class BundleBuilder:
             "immutable": True, "created_at": created.isoformat(), "expires_at": expires.isoformat()}
         body["checksum_sha256"] = sha256_json(body)
         return body
+
+    @staticmethod
+    def _partition_entry(part: dict[str, Any], files: dict[str, dict[str, Any]], grants: dict[str, Any],
+                         sources: dict[str, dict[str, Any]]) -> dict[str, Any]:
+        pid = part["partition_id"]
+        entry = {"partition_id": pid, "dataset_id": part["dataset_id"], "window": part["window"],
+                 "entity_partition": part["entity_partition"], "part_key": part["part_key"],
+                 "rows": files[pid]["rows"], "checksum_sha256": files[pid]["checksum_sha256"],
+                 "file": files[pid]["relative"]}
+        source = sources.get(pid)
+        if source is None:
+            validator = grants[pid].manifest.get("validator_manifest") or {}
+            # D3 (round 2026-10-03): which Governor query delivered it, for get_lineage; EXEC-V 2026-10-08: the
+            # identity of its rows (data_sha256) and the Governor's record of it, so a later need of the
+            # conversation with the same SQL reuses this file
+            entry.update(governor=governor_ids(grants[pid]), data_sha256=validator.get("data_sha256"),
+                         validator=validator)
+            return entry
+        earlier = source["partition"]
+        entry.update(governor=earlier.get("governor"), data_sha256=earlier.get("data_sha256"),
+                     validator=earlier.get("validator"),
+                     reused_from={"bundle_id": source["bundle_id"], "partition_id": earlier["partition_id"],
+                                  "request_id": source["request_id"], "extracted_at": source["extracted_at"]})
+        return entry
 
     # ------------------------------------------------------------------ lifecycle
 
@@ -392,7 +473,8 @@ def governor_ids(grant: Any) -> dict[str, Any]:
     manifest = getattr(grant, "manifest", None) or {}
     validator = manifest.get("validator_manifest") or {}
     return {"dataset_id": manifest.get("dataset_id"), "query_id": manifest.get("query_id"),
-            "query_hash": validator.get("query_hash"), "rows": getattr(grant, "row_count", None)}
+            "query_hash": validator.get("query_hash"), "data_sha256": validator.get("data_sha256"),
+            "rows": getattr(grant, "row_count", None)}
 
 
 def lineage_view(manifest: dict[str, Any]) -> dict[str, Any]:

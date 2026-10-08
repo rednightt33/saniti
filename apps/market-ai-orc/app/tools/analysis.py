@@ -590,6 +590,8 @@ class SandboxClient:
         self.poll_wait_seconds = poll_wait_seconds
         # S28: how long the sandbox may hold an open request waiting for a slot (from GET /v1/runtime at startup)
         self.open_wait_seconds = 0
+        # EXEC-V 2026-10-08 (option D): the sandbox reports part_reuse (POST /v1/parts/lookup, reuse_of parts)
+        self.part_reuse = False
         self._client = httpx.Client(base_url=base_url.rstrip("/"), timeout=timeout_seconds, transport=transport,
                                     headers={"Authorization": f"Bearer {api_key}"})
 
@@ -679,6 +681,17 @@ class SandboxClient:
         if response.status_code == 200 and body.get("reused") and body.get("status") == "READY":
             return body
         return None
+
+    def lookup_parts(self, request_id: str, need_id: str, parts: list[dict[str, Any]]) -> list[dict[str, Any]] | None:
+        """EXEC-V 2026-10-08 (option D): per planned part, the earlier part of this conversation with the same Governor
+        SQL it may reuse (MATCH) or why not (NO_MATCH with a reason); None when the lookup is unavailable."""
+        response = self._call("POST", "/v1/parts/lookup", json={"request_id": request_id, "need_id": need_id,
+                                                                "parts": parts}, timeout=30)
+        if response.status_code != 200:
+            return None
+        body = self._json(response)
+        found = body.get("parts")
+        return found if isinstance(found, list) and len(found) == len(parts) else None
 
     def conversation_resources(self, key: str) -> dict[str, Any] | None:
         """What earlier messages of the conversation left for reuse; None when unavailable."""

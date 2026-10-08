@@ -22,8 +22,11 @@ registering the new versions of the tools whose contract changed in that round.
   AI_conversation_evidence noted as no longer written ("table_notes").
 - round_k (20261006_004, applied): read_conversation_memory v1, submit_data_need_spec v9 and run_python v5 (EXEC-C,
   EXEC-P5).
-- round_l (20261007_001): submit_data_need_spec v10, research_experiments (EXEC-V stage 3: the experiments of one
-  hypothesis plan on the same data share one data need).
+- round_l (20261007_001, applied): submit_data_need_spec v10, research_experiments (EXEC-V stage 3: the experiments of
+  one hypothesis plan on the same data share one data need).
+- round_m (20261008_001): submit_data_need_spec v11 (research_experiments removed, stage 3 revoked),
+  open_analysis_session v3 (up to four sessions per answer, close_session_id) and prepare_data_bundle v3 (the same
+  Governor SQL is reused within a conversation, data_reuse); EXEC-V revision of 2026-10-08.
 
 Registered from the code with every switch of the dev environment on (the registry of scripts/generate_ai_tools_doc.py,
 one source for both). An applied migration is frozen (database/migrations/APPLIED.sha256); market-ai-orc's
@@ -276,8 +279,28 @@ ROUNDS = {
                                            "plan and counted as one experiment by the Research Governor; one finding "
                                            "per experiment, the completion passes only when each has one"},
     },
+    "round_m": {
+        "target": ROOT / "database/migrations/20261008_001_round_m_tool_catalog.sql",
+        "versions": {"submit_data_need_spec": ("v10", "v11"), "open_analysis_session": ("v2", "v3"),
+                     "prepare_data_bundle": ("v2", "v3")},
+        "contracts": {"submit_data_need_spec": ("input_schema", "research_governance"),
+                      "open_analysis_session": ("purpose", "never closes another"),
+                      "prepare_data_bundle": ("purpose", "data_reuse")},
+        "title": "EXEC-V revision",
+        "header": "EXEC.md EXEC-V decisions and implementation plan of 2026-10-08",
+        "design": "EXEC.md EXEC-V decisions and implementation plan of 2026-10-08",
+        "limits_design": "EXEC.md EXEC-V decisions and implementation plan of 2026-10-08",
+        "summary": ["submit_data_need_spec v11: research_experiments removed (stage 3 revoked: one experiment, one data",
+                    "need, one session). open_analysis_session v3: up to four sessions per answer, opening one never",
+                    "closes another, close_session_id after SESSION_LIMIT_PER_REQUEST. prepare_data_bundle v3: within a",
+                    "conversation a part with the same Governor SQL whose range ends before today is reused (data_reuse)."],
+        "limits": {"sessions_per_answer": "up to PY_SANDBOX_MAX_SESSIONS_PER_REQUEST (dev four) open at once; the open "
+                                          "beyond it is refused with the open sessions listed",
+                   "part_reuse": "one conversation; same data_sha256 and part_key; range ends before the reference "
+                                 "date; copy not expired; same catalog"},
+    },
 }
-NEWEST = "round_l"
+NEWEST = "round_m"
 
 
 def _tools_doc():

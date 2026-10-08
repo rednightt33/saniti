@@ -18,8 +18,7 @@ from .bundles import BundleBuilder, BundleError, row_counts
 from .bundles import model_view as bundle_view
 from .coverage import execution_manifest, processing_coverage
 from .data_need import (COMPLETENESS_RULE, DEFAULT_TIME_BASIS, NULL_POLICY, PERIOD_POLICY, Limits, contract_tables,
-                        aliased_manifest, contract_alias, data_contract_sha256, sha256_json, summary_options,
-                        validate)
+                        contract_covers, data_contract_sha256, sha256_json, summary_options, validate)
 from .datasets import DatasetFailure
 from .dataneed_store import DRAFT_RETENTION_DAYS, DataNeedStore
 from .records import utc_now
@@ -522,6 +521,7 @@ class DataNeedService:
     # ------------------------------------------------------------------------------------------ governed bundles
 
     BUNDLE_ACTIONS = {"BUNDLE_TOO_LARGE": "REVISE_DATA_NEED_SPEC", "NEED_NOT_FOUND": "SUBMIT_DATA_NEED_SPEC",
+                      "REUSE_NOT_ALLOWED": "PREPARE_DATA_BUNDLE",
                       "REQUEST_BUDGET_EXCEEDED": "REPORT_LIMITATION", "DATA_QUALITY_PROFILING_FAILED": "RETRY_LATER",
                       "DATASET_EXPIRED": "PREPARE_DATA_BUNDLE", "DATASET_NOT_FOUND": "PREPARE_DATA_BUNDLE"}
 
@@ -531,15 +531,18 @@ class DataNeedService:
         if need is None or need["request_id"] != request_id:
             raise DataNeedError("NEED_NOT_FOUND", "No approved data need with this need_id exists for this request.",
                                 http_status=404, next_action="SUBMIT_DATA_NEED_SPEC")
+        record = self.store.get_need(need_id) or {}
+        key = record.get("conversation_key") if self.settings.conversation_reuse else None
         try:
-            manifest = self.bundles.build(request_id, need, plan)
+            manifest = self.bundles.build(
+                request_id, need, plan,
+                resolve_reuse=(lambda part: self._reuse_source(need, key, part)) if key else None)
         except BundleError as exc:
             self._log("bundle_rejected", request_id=request_id, need_id=need_id, code=exc.code)
             raise DataNeedError(exc.code, exc.message, http_status=exc.http_status,
                                 next_action=self.BUNDLE_ACTIONS.get(exc.code, "REPORT_LIMITATION"),
                                 **exc.details) from exc
-        key = (self.store.get_need(need_id) or {}).get("conversation_key")
-        if key and self.settings.conversation_reuse:
+        if key:
             self.store.set_bundle_conversation(manifest["input_bundle_id"], key)
         view = bundle_view(manifest)
         coverage = manifest.get("coverage") or {}
@@ -549,12 +552,108 @@ class DataNeedService:
         else:
             view["next_action"] = "REVISE_DATA_NEED_SPEC" if "CATALOG_CHANGED_SINCE_APPROVAL" in codes \
                 else "REPORT_LIMITATION"
+        reused = [p for d in manifest["datasets"] for p in d["partitions"] if p.get("reused_from")]
         self._log("bundle_built", request_id=request_id, need_id=need_id, bundle_id=manifest["input_bundle_id"],
                   status=manifest["status"], coverage=coverage.get("coverage_status"), issues=codes,
+                  parts_reused=len(reused),
                   rows=manifest.get("row_count"), bytes=manifest.get("byte_count"),
                   quality_flags={d["data_request_id"]: (d.get("quality") or {}).get("quality_flags")
                                  for d in manifest["datasets"]}, replayed=manifest.get("replayed", False))
         return view
+
+    # ------------------------------------------------------------------------------------------ same SQL, same data
+
+    # EXEC-V 2026-10-08 (option D, user decision "data yang sama tidak ditarik lagi", version (i), one conversation):
+    # why a part was not reused; each reaches the model through prepare_data_bundle
+    REUSE_REASONS = {
+        "RANGE_INCLUDES_TODAY": "its date range reaches the reference date, so newer rows may have arrived since; it "
+                                "is extracted again",
+        "NO_DATE_RANGE": "it has no date range (current-state data that may change); it is extracted again",
+        "NOT_EXTRACTED_IN_CONVERSATION": "no earlier answer of this conversation extracted the same SQL",
+        "EXPIRED": "the earlier copy of the same SQL has expired or its file is gone",
+        "CATALOG_CHANGED": "the table's catalog changed since the earlier extraction of the same SQL",
+        "REUSE_UNAVAILABLE": "this sandbox reuses data only within a conversation"}
+
+    def _same_sql_parts(self, key: str, data_sha256: str, part_key: str):
+        """Earlier parts of the conversation with this Governor SQL and part, newest first: (bundle, partition)."""
+        for bundle in self.store.conversation_bundles(key):
+            for dataset in bundle["manifest"].get("datasets") or []:
+                for partition in dataset.get("partitions") or []:
+                    if partition.get("data_sha256") == data_sha256 and partition.get("validator") \
+                            and partition.get("part_key") == part_key:
+                        yield bundle, dataset, partition
+
+    def _match(self, need: dict[str, Any], key: str | None, item: dict[str, Any]
+               ) -> tuple[dict[str, Any] | None, str | None]:
+        """The earlier part this part may reuse, or the reason it may not: same conversation, same data_sha256 and
+        part_key, a date range that ends before the reference date, a copy that has not expired, same catalog."""
+        if not key:
+            return None, "REUSE_UNAVAILABLE"
+        window = item.get("window")
+        if window is None:
+            return None, "NO_DATE_RANGE"
+        if date.fromisoformat(window["to"]) >= date.fromisoformat(need["reference_date"]):
+            return None, "RANGE_INCLUDES_TODAY"
+        request = (need.get("requests") or {}).get(item.get("data_request_id")) or {}
+        now = datetime.now(timezone.utc)
+        reason = "NOT_EXTRACTED_IN_CONVERSATION"
+        for bundle, dataset, partition in self._same_sql_parts(key, item["data_sha256"], item["part_key"]):
+            path = self.bundles.path_of(bundle["bundle_id"], partition["file"])
+            if datetime.fromisoformat(bundle["manifest"]["expires_at"]) <= now or not path.is_file():
+                reason = "EXPIRED"
+                continue
+            contract = ((partition["validator"].get("source_contracts") or {}).get(dataset["source_table"]) or {})
+            if request.get("catalog_table_sha256") \
+                    and contract.get("catalog_table_sha256") != request["catalog_table_sha256"]:
+                reason = "CATALOG_CHANGED"
+                continue
+            origin = partition.get("reused_from") or {}
+            return {"bundle_id": bundle["bundle_id"], "request_id": bundle["request_id"],
+                    "extracted_at": origin.get("extracted_at") or bundle["created_at"], "partition": partition,
+                    "columns": dataset.get("columns") or [], "path": path}, None
+        return None, reason
+
+    def _reuse_source(self, need: dict[str, Any], key: str, part: dict[str, Any]) -> dict[str, Any]:
+        """The bundle builder's check of a reuse_of part (the planner's lookup is not trusted on its own)."""
+        rid = part["partition_id"].split("__", 1)[0]
+        source, reason = self._match(need, key, {**part, "data_request_id": rid})
+        if source is None or source["bundle_id"] != part["reuse_of"]["bundle_id"] \
+                or source["partition"]["partition_id"] != part["reuse_of"]["partition_id"]:
+            raise BundleError("REUSE_NOT_ALLOWED", f"{part['partition_id']} cannot reuse "
+                                                   f"{part['reuse_of']['partition_id']}: "
+                                                   f"{self.REUSE_REASONS.get(reason or '', 'it is not the same SQL')}.",
+                              reason=reason or "NOT_THE_SAME_PART")
+        return source
+
+    def lookup_parts(self, request_id: str, need_id: str, parts: list[dict[str, Any]],
+                     conversation_key: str | None) -> dict[str, Any]:
+        """POST /v1/parts/lookup: for each planned part of this request's approved need, the earlier part of the same
+        conversation it may reuse (MATCH) or why not (NO_MATCH with a reason). Nothing is bound or copied here."""
+        record = self.store.get_need(need_id)
+        need = self.get_need(need_id)
+        if record is None or need is None or record["request_id"] != request_id:
+            raise DataNeedError("NEED_NOT_FOUND", "No approved data need with this need_id exists for this request.",
+                                http_status=404, next_action="SUBMIT_DATA_NEED_SPEC")
+        key = conversation_key if self.settings.conversation_reuse and record.get("conversation_key") \
+            == conversation_key else None
+        results = []
+        for item in parts:
+            source, reason = self._match(need, key, item)
+            if source is None:
+                results.append({"part_key": item["part_key"], "data_sha256": item["data_sha256"],
+                                "status": "NO_MATCH", "reason": reason, "message": self.REUSE_REASONS[reason]})
+                continue
+            partition = source["partition"]
+            results.append({"part_key": item["part_key"], "data_sha256": item["data_sha256"], "status": "MATCH",
+                            "reuse_of": {"bundle_id": source["bundle_id"],
+                                         "partition_id": partition["partition_id"]},
+                            "dataset_id": partition["dataset_id"], "rows": partition["rows"],
+                            "checksum_sha256": partition["checksum_sha256"], "request_id": source["request_id"],
+                            "extracted_at": source["extracted_at"]})
+        self._log("parts_looked_up", request_id=request_id, need_id=need_id, parts=len(results),
+                  matched=sum(1 for r in results if r["status"] == "MATCH"),
+                  reasons=sorted({r["reason"] for r in results if r.get("reason")}))
+        return {"need_id": need_id, "parts": results}
 
     # ------------------------------------------------------------------------------------------ analysis sessions
 
@@ -577,7 +676,9 @@ class DataNeedService:
         attached with a new epoch instead of starting a new worker."""
         key = conversation_key if self.settings.conversation_reuse else None
         record = self.store.get_bundle(bundle_id)
-        binding = self._binding_to_serve(request_id, record, key) if key and record is not None else None
+        binding = self.store.binding_for(request_id, bundle_id) if key and record is not None else None
+        if binding is not None and binding["conversation_key"] != key:
+            binding = None
         need_id = binding["need_id"] if binding else (record or {}).get("need_id")
         cpu, research_v2, mode, findings = None, None, None, None
         if need_id:
@@ -593,9 +694,7 @@ class DataNeedService:
         # the mode decides the attach: a RESEARCH need always starts a fresh worker (it reads only its bundle and the
         # tables its approved plan names, with its own compute budget), and an ANALYSIS need never takes over a
         # research worker.
-        # EXEC-V stage 2: a warm worker's namespace knows the labels it was opened with, so a need that reads the
-        # bundle under other labels gets a new worker on the same files
-        if key and record is not None and mode != "RESEARCH" and not (binding or {}).get("aliases") \
+        if key and record is not None and mode != "RESEARCH" \
                 and (binding is not None or record["request_id"] == request_id):
             for warm in self.store.warm_sessions(key):
                 if warm.get("need_id") and (self.store.get_need(warm["need_id"]) or {}).get("mode") == "RESEARCH":
@@ -609,24 +708,6 @@ class DataNeedService:
                                   bound=binding is not None, research=research_v2, carried_outputs=carried_outputs,
                                   findings=findings)
 
-    def _binding_to_serve(self, request_id: str, record: dict[str, Any], key: str) -> dict[str, Any] | None:
-        """The binding whose need an open of this bundle serves, or None for the bundle's own need.
-
-        Several needs of one request may share one bundle (EXEC-V stage 2: the same data asked again under other
-        labels). They are served in the order they were prepared: the first that has no COMPLETED result yet; when
-        all have one, the newest (the behaviour before several needs could share a bundle)."""
-        bindings = [b for b in self.store.bindings_to(request_id, record["bundle_id"]) if b["conversation_key"] == key]
-        if not bindings:
-            return None
-        waiting: list[dict[str, Any] | None] = [None] if record["request_id"] == request_id else []
-        waiting += bindings
-        done = {c["need_id"] for c in self.store.completions_for(request_id)
-                if (c.get("final_status") or {}).get("status") == "COMPLETED"}
-        for candidate in waiting:
-            if (candidate["need_id"] if candidate else record["need_id"]) not in done:
-                return candidate
-        return bindings[-1]
-
     def _session_research(self, research: dict[str, Any]) -> dict[str, Any] | None:
         """The research_v2 section of session.json for a need promoted by a multi-angle research run (flag on only)."""
         constraints = research.get("constraints") or {}
@@ -639,7 +720,7 @@ class DataNeedService:
     def reuse_bundle(self, request_id: str, need_id: str, conversation_key: str | None) -> dict[str, Any]:
         """Conversation reuse (S1, 2c): bind this request's approved need to an earlier READY bundle of the same
         conversation whose need has the same data contract (data_contract_sha256) or one that covers it
-        (contract_alias: any mode, same or wider columns, any request labels), so no extraction runs.
+        (contract_covers: any mode, same or wider columns), so no extraction runs.
         The earlier bundle's manifest and checksum are unchanged; the binding records the lineage. NO_MATCH (with a
         reason) sends the caller to the normal planner."""
         if not self.settings.conversation_reuse or not conversation_key:
@@ -653,20 +734,15 @@ class DataNeedService:
         existing = self.store.get_binding(need_id)
         if existing is not None:
             bundle = self.store.get_bundle(existing["bundle_id"])
-            return self._reused_view({**bundle, "alias": existing.get("aliases")}, need_id, 1, replayed=True)
+            return self._reused_view(bundle, need_id, 1, replayed=True)
         now = datetime.now(ZoneInfo("UTC"))
         candidates, expired, own = [], 0, None
         later = record["approved"]
         for bundle in self.store.conversation_bundles(conversation_key):
-            alias: dict[str, Any] = {}
             if bundle["contract_sha256"] != record["contract_sha256"]:
-                # 2c: an earlier bundle that holds all of this need's data (any mode, same or wider columns); EXEC-V
-                # stage 2: under any request labels (the alias renames them for this need)
+                # 2c: an earlier bundle that holds all of this need's data (any mode, same or wider columns)
                 earlier = self.store.get_need(bundle["need_id"]) if bundle.get("need_id") else None
-                if earlier is None:
-                    continue
-                alias, difference = contract_alias(earlier.get("approved") or {}, later)
-                if difference is not None:
+                if earlier is None or contract_covers(earlier.get("approved") or {}, later) is not None:
                     continue
             manifest = bundle["manifest"]
             if datetime.fromisoformat(manifest["expires_at"]) <= now or not self._files_present(manifest):
@@ -675,7 +751,7 @@ class DataNeedService:
             if bundle["need_id"] == need_id:
                 own = own or bundle
                 continue
-            candidates.append({**bundle, "alias": alias})
+            candidates.append(bundle)
         if own is not None:
             # G14: the same need prepared again in its request (e.g. after a refused frame) gets its own READY bundle
             # back instead of a second extraction
@@ -687,11 +763,9 @@ class DataNeedService:
         chosen = candidates[0]  # the newest snapshot that holds this need's data
         self.store.insert_binding({"need_id": need_id, "request_id": request_id, "bundle_id": chosen["bundle_id"],
                                    "source_need_id": chosen["need_id"], "source_request_id": chosen["request_id"],
-                                   "conversation_key": conversation_key, "created_at": utc_now(),
-                                   "aliases": chosen["alias"] or None})
+                                   "conversation_key": conversation_key, "created_at": utc_now()})
         self._log("bundle_reused", request_id=request_id, need_id=need_id, bundle_id=chosen["bundle_id"],
-                  source_request_id=chosen["request_id"], candidates=len(candidates),
-                  renamed=len((chosen["alias"] or {}).get("requests") or {}))
+                  source_request_id=chosen["request_id"], candidates=len(candidates))
         return self._reused_view(chosen, need_id, len(candidates))
 
     def _files_present(self, manifest: dict[str, Any]) -> bool:
@@ -705,10 +779,7 @@ class DataNeedService:
     def _reused_view(bundle: dict[str, Any], need_id: str, candidates: int, replayed: bool = False
                      ) -> dict[str, Any]:
         manifest = bundle["manifest"]
-        renamed = aliased_manifest(manifest, bundle.get("alias"))
-        view = bundle_view(renamed)
-        if renamed.get("aliases"):
-            view["aliases"] = renamed["aliases"]
+        view = bundle_view(manifest)
         view.update({"need_id": need_id, "reused": True, "replayed": replayed, "next_action": "OPEN_ANALYSIS_SESSION",
                      "reused_from": {"bundle_id": manifest["input_bundle_id"], "need_id": manifest["need_id"],
                                      "request_id": bundle["request_id"], "extracted_at": bundle["created_at"],
@@ -717,10 +788,7 @@ class DataNeedService:
                              "returned." if manifest["need_id"] == need_id else
                              "No new extraction: the data of an earlier message that holds all of this approved "
                              "data contract (any mode; it may carry more columns) is reused. Disclose its extraction "
-                             "time as the as-of of the data."
-                             + (" The same data was asked under other request labels: the datasets carry this need's "
-                                "data_request_id, logical_name and range ids (aliases lists the earlier ones)."
-                                if renamed.get("aliases") else "")})
+                             "time as the as-of of the data."})
         return view
 
     def close_session(self, session_id: str, request_id: str, conversation_key: str | None = None
@@ -825,10 +893,8 @@ class DataNeedService:
             if not any(e["seq"] > covered and e["status"] == "OK" for e in self.store.executions_for(session_id)):
                 return {**earlier["final_status"], "replayed": True}
             recompleted = earlier
-        stored = self.store.get_bundle(record["bundle_id"])["manifest"]
-        need_id = record.get("need_id") or stored["need_id"]
-        # EXEC-V stage 2: coverage, lineage and validation read the bundle under this need's labels
-        bundle = self.sessions.manifest_for(record["bundle_id"], need_id)
+        bundle = self.store.get_bundle(record["bundle_id"])["manifest"]
+        need_id = record.get("need_id") or bundle["need_id"]
         need = self.get_need(need_id)
         start = int(record.get("epoch_start_seq") or 0)
         executions = [e for e in self.store.executions_for(session_id) if e["seq"] > start]

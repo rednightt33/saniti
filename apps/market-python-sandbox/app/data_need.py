@@ -1345,151 +1345,38 @@ COVER_EQUAL_FIELDS = tuple(f for f in CONTRACT_REQUEST_FIELDS if f not in ("colu
                                                                             "column_types", "resample_rules"))
 
 
-# EXEC-V stage 2 (M110, user decision 2026-10-07: "1 data ... tidak perlu lagi request data"): the request ids and
-# logical names are labels the model chose (an id must start with its request group id), not data. Identical data asked
-# under other labels is the same data: requests are paired by content, and the earlier bundle is shown to the later
-# need under the later need's labels (aliased_manifest). The range ids inside a request are labels too.
-NAME_FIELDS = ("data_request_id", "logical_name")
-ID_KEYS = ("data_request_id", "left_request_id", "right_request_id")
-
-
-def _window_content(window: dict[str, Any]) -> str:
-    return sha256_json({k: v for k, v in window.items() if k != "range_id"})
-
-
-def _request_covers(before: dict[str, Any], request: dict[str, Any]) -> tuple[str | None, dict[str, str]]:
-    """(None, {earlier range_id: later range_id}) when the earlier request holds all of the later one's data under
-    any labels; else (the first different field, {})."""
-    for field in COVER_EQUAL_FIELDS:
-        if field not in NAME_FIELDS and field != "windows" and before.get(field) != request.get(field):
-            return field, {}
-    if request.get("resample_semantics_version") != before.get("resample_semantics_version"):
-        return "resample_semantics_version", {}
-    if request.get("aggregate") != before.get("aggregate"):
-        return "aggregate", {}  # G18: a summary serves only the same summary
-    for field in ("columns", "extract_columns"):
-        if not set(request.get(field) or []) <= set(before.get(field) or []):
-            return field, {}
-    for field in ("column_types", "resample_rules"):
-        held = before.get(field) or {}
-        if any(c not in held or held[c] != v for c, v in (request.get(field) or {}).items()):
-            return field, {}
-    earlier, later = list(before.get("windows") or []), list(request.get("windows") or [])
-    if len(earlier) != len(later):
-        return "windows", {}
-    ranges: dict[str, str] = {}
-    free = list(earlier)
-    for window in later:
-        match = next((w for w in free if _window_content(w) == _window_content(window)), None)
-        if match is None:
-            return "windows", {}
-        free.remove(match)
-        ranges[match.get("range_id")] = window.get("range_id")
-    return None, ranges
-
-
-def _relationships(approved: dict[str, Any], ids: dict[str, str]) -> list[str]:
-    """The relationships with their request ids translated by ids, as sorted canonical texts."""
-    return sorted(json.dumps({k: (ids.get(v, v) if k in ID_KEYS else v) for k, v in r.items()}, sort_keys=True,
-                             default=str) for r in approved.get("relationships") or [])
-
-
-def contract_alias(earlier: dict[str, Any], later: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
-    """(alias, None) when the earlier approved need's data covers the later one's under any request labels: the same
-    subject, time basis and catalog, one earlier request per later request with the same table, scope, restrictions,
-    windows, frequencies, resample rules, buffers, ordering and catalog version and every column the later one asks
-    for, and the same relationships between the paired requests. alias["requests"] maps each earlier request id to
-    the later request's id, logical name and range ids; {} when every label is the same. (None, the first difference)
-    otherwise. A narrower scope or a shorter window is not served (the session would need to filter it)."""
-    for key in ("catalog_sha256",):
-        if (earlier.get(key) or None) != (later.get(key) or None):
-            return None, key
-    if (earlier.get("time_basis") or DEFAULT_TIME_BASIS) != (later.get("time_basis") or DEFAULT_TIME_BASIS):
-        return None, "time_basis"
-    if (earlier.get("spec") or {}).get("subject") != (later.get("spec") or {}).get("subject"):
-        return None, "subject"
-    old, new = earlier.get("requests") or {}, later.get("requests") or {}
-    if len(old) != len(new):
-        return None, "requests"
-    options: dict[str, list[tuple[str, dict[str, str]]]] = {}
-    for rid in sorted(new):
-        # the earlier request with the same id first, so equal labels pair with each other
-        found = [(oid, ranges) for oid in sorted(old, key=lambda o: (o != rid, o))
-                 for difference, ranges in [_request_covers(old[oid], new[rid])] if difference is None]
-        if not found:
-            difference = _request_covers(old[rid], new[rid])[0] if rid in old else None
-            return None, f"{rid}.{difference}" if difference else "requests"
-        options[rid] = found
-    order = sorted(new, key=lambda r: len(options[r]))
-    wanted = _relationships(later, {})
-
-    def search(position: int, used: dict[str, tuple[str, dict[str, str]]]) -> dict[str, Any] | None:
-        if position == len(order):
-            to_later = {oid: rid for rid, (oid, _) in used.items()}
-            if _relationships(earlier, to_later) != wanted:
-                return None
-            return {oid: {"data_request_id": rid, "logical_name": new[rid]["logical_name"], "ranges": ranges}
-                    for rid, (oid, ranges) in used.items()}
-        rid = order[position]
-        taken = {oid for oid, _ in used.values()}
-        for oid, ranges in options[rid]:
-            if oid not in taken:
-                found = search(position + 1, {**used, rid: (oid, ranges)})
-                if found is not None:
-                    return found
-        return None
-
-    pairs = search(0, {})
-    if pairs is None:
-        return None, "relationships"
-    identity = all(oid == item["data_request_id"] and old[oid].get("logical_name") == item["logical_name"]
-                   and all(a == b for a, b in item["ranges"].items()) for oid, item in pairs.items())
-    return ({} if identity else {"requests": pairs}), None
-
-
 def contract_covers(earlier: dict[str, Any], later: dict[str, Any]) -> str | None:
-    """None when the earlier approved need's data covers the later one's (contract_alias, any request labels); else
-    the first difference."""
-    return contract_alias(earlier, later)[1]
-
-
-def aliased_manifest(manifest: dict[str, Any], alias: dict[str, Any] | None) -> dict[str, Any]:
-    """The bundle manifest as the later need sees it: every request id, logical name and range id renamed to the
-    later need's labels (datasets, ranges, quality, coverage, relationships). Files, rows, checksums and the bundle's
-    own identity are unchanged; aliases records the earlier labels (lineage)."""
-    requests = (alias or {}).get("requests") or {}
-    if not requests:
-        return manifest
-    ids = {oid: item["data_request_id"] for oid, item in requests.items()}
-    names = {d.get("logical_name"): requests[d["data_request_id"]]["logical_name"]
-             for d in manifest.get("datasets") or [] if d.get("data_request_id") in requests}
-
-    def walk(value: Any, ranges: dict[str, str]) -> Any:
-        if isinstance(value, list):
-            return [walk(item, ranges) for item in value]
-        if not isinstance(value, dict):
-            return value
-        rid = value.get("data_request_id")
-        if isinstance(rid, str) and rid in requests:
-            ranges = requests[rid].get("ranges") or {}
-        out = {}
-        for key, item in value.items():
-            if key in ID_KEYS and isinstance(item, str):
-                out[key] = ids.get(item, item)
-            elif key == "logical_name" and isinstance(item, str):
-                out[key] = names.get(item, item)
-            elif key == "range_id" and isinstance(item, str):
-                out[key] = ranges.get(item, item)
-            else:
-                out[key] = walk(item, ranges)
-        return out
-
-    renamed = walk(manifest, {})
-    renamed["aliases"] = [{"data_request_id": item["data_request_id"], "logical_name": item["logical_name"],
-                           "bundle_data_request_id": oid,
-                           "bundle_logical_name": next((k for k, v in names.items() if v == item["logical_name"]),
-                                                       None)} for oid, item in sorted(requests.items())]
-    return renamed
+    """None when the earlier approved need's data covers the later one's: the same requests (ids, tables, scope,
+    restrictions, windows, frequencies, resample rules, buffers, ordering, catalog versions), relationships, subject,
+    time basis and catalog, and every column the later one asks for; else the first difference. A narrower scope or a
+    shorter window is not served (the session would need to filter it): the data is extracted again."""
+    for key in ("relationships", "catalog_sha256"):
+        if (earlier.get(key) or None) != (later.get(key) or None):
+            return key
+    if (earlier.get("time_basis") or DEFAULT_TIME_BASIS) != (later.get("time_basis") or DEFAULT_TIME_BASIS):
+        return "time_basis"
+    if (earlier.get("spec") or {}).get("subject") != (later.get("spec") or {}).get("subject"):
+        return "subject"
+    old, new = earlier.get("requests") or {}, later.get("requests") or {}
+    if set(old) != set(new):
+        return "requests"
+    for rid, request in new.items():
+        before = old[rid]
+        for field in COVER_EQUAL_FIELDS:
+            if before.get(field) != request.get(field):
+                return f"{rid}.{field}"
+        if request.get("resample_semantics_version") != before.get("resample_semantics_version"):
+            return f"{rid}.resample_semantics_version"
+        if request.get("aggregate") != before.get("aggregate"):
+            return f"{rid}.aggregate"  # G18: a summary serves only the same summary
+        for field in ("columns", "extract_columns"):
+            if not set(request.get(field) or []) <= set(before.get(field) or []):
+                return f"{rid}.{field}"
+        for field in ("column_types", "resample_rules"):
+            held = before.get(field) or {}
+            if any(c not in held or held[c] != v for c, v in (request.get(field) or {}).items()):
+                return f"{rid}.{field}"
+    return None
 
 
 def data_contract_sha256(approved: dict[str, Any]) -> str:
