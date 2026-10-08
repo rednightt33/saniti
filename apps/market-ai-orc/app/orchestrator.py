@@ -13,6 +13,7 @@ from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
 from . import ai_choices
+from . import stop_policy
 from .tools import reference
 from .audit_outbox import build_payload, final_event, model_event, tool_event, unrendered_event
 from . import data_record as records
@@ -45,7 +46,7 @@ from . import in_sample as insample
 from . import method_guides
 from . import tool_desks as desks
 from . import variant_correction
-from .user_words import design_values, variants
+from .user_words import user_values, design_values, variants
 from .user_words import allowed_periods, current_design_changes, current_turn_referent, current_user_words, \
     locked_horizons
 from .provenance import (CONTEXT, typed_figures, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
@@ -1291,6 +1292,17 @@ TYPED_FIGURES_LINE = ("Angka berikut diketik dari hasil analisis tanpa alamat, j
 GATE_ONCE_NOTE = (" This check asks only once. If you cannot make the change with the tools you have in this step, keep "
                   'the answer: reply {"keep": true} when an edit is offered below, otherwise send it again unchanged; '
                   "it is then delivered with the backend's note.")
+# EXEC-W A1 (M121 d): what happens to a kept response, by the check's outcome (app/stop_policy.py); the note said
+# "delivered with the backend's note" also where the plan was dropped
+GATE_ONCE_NOTES = {
+    stop_policy.ANNOTATE: GATE_ONCE_NOTE,
+    stop_policy.PAUSE: GATE_ONCE_NOTE[:-len("it is then delivered with the backend's note.")]
+    + "it is then delivered marked as not validated, with a question that lets the user choose how to go on.",
+    stop_policy.CONFIRM: GATE_ONCE_NOTE[:-len("it is then delivered with the backend's note.")]
+    + "the plan is then issued with these values listed for the user to confirm before anything runs.",
+}
+GATE_OUTCOMES = {stop_policy.PAUSE: "FORCED_LIMITATION", stop_policy.CONFIRM: "CONFIRMED",
+                 stop_policy.ANNOTATE: "ANNOTATED"}
 # EXEC-D P-e (user decision 2026-10-07: the model may always ask back when the intent is unclear): added only in a step
 # whose response types include CLARIFICATION
 GATE_ASK_NOTE = (" If what the user wants is itself unclear and only the user can settle it, you may instead return "
@@ -1731,13 +1743,14 @@ AGREEMENT_WORDING = (r"\b(?:(?:all|every|the) (?:\w+ )?angles? (?:\w+ )?(?:agree
 VERIFIED_LEVELS = ("STATISTICS_VERIFIED", "FORMULA_AND_STATISTICS_VERIFIED")
 PLAN_PROVENANCE_INSTRUCTION = (
     "These numbers in your Research Plan answer have no source: {numbers}. A plan uses no data: its numbers come "
-    "from the research_plan itself, the user's message or released outputs of this run. Put them in the plan, remove "
-    "them, or return response_type \"LIMITATION\"."
+    "from the research_plan itself, the user's message or released outputs of this run. Put them in the plan or "
+    "remove them; a number you keep is listed for the user to confirm before anything runs."
 )
 PLAN_PROVENANCE_NOTICE = "Some figures below could not be traced to the Research Plan or another source: {numbers}. "
 PLAN_SUCCESS_RULE_INSTRUCTION = (
     "The success_rule value {values} is not a number the user stated. A success threshold is the user's: take it from "
-    "their words, or set success_rule to null and ask them in the plan's confirmation question.")
+    "their words, set success_rule to null and ask them in the plan's confirmation question, or keep it: the plan then "
+    "lists it for the user to confirm before anything runs.")
 # 10.6 (plan 2026-10-05, user decision): the user built on an earlier result ("pakai angka hasil analisa kamu barusan")
 CITED_THRESHOLD_HINT = (" The user refers to an earlier result: to use one of its values, write that value in the "
                         "plan's answer as a value reference to the result (read it with get_session_output first) "
@@ -1746,9 +1759,32 @@ CITED_THRESHOLD_HINT = (" The user refers to an earlier result: to use one of it
 # user's number or null, like the success threshold
 PLAN_MIN_EFFECT_INSTRUCTION = (
     "The min_effect value {values} is not a number the user stated. The smallest effect that matters is the user's: "
-    "take it from their words, or set min_effect and min_effect_unit to null.")
+    "take it from their words, set min_effect and min_effect_unit to null, or keep it: the plan then lists it for the "
+    "user to confirm before anything runs.")
 # EXEC-R R1 (2026-10-06): a plan gate names the fields to change, so an edit's "set" can fix them without a rewrite
 PLAN_FIELD_PATHS = " Fields: {paths}."
+
+
+def _same_value(value: float, numbers: list[float]) -> bool:
+    """value equals one of the numbers, as written or as a percent read the other way (5 and 0.05)."""
+    return any(abs(n - value) < 1e-9 or abs(n * 100 - value) < 1e-9 or abs(n / 100 - value) < 1e-9 for n in numbers)
+
+
+CONFIRM_TITLE = "**Nilai yang perlu Anda konfirmasi sebelum riset dijalankan**"
+CONFIRM_LINE = "Balas \"setuju\" untuk memakai nilai ini, atau sebutkan nilai lain."
+
+
+def confirm_lines(label: str, interpreted: list[tuple[int, str, float, str, str]],
+                  untraced: list[tuple[int, str, float, str]]) -> list[str]:
+    """EXEC-W A2 (M117): one line per value the user has to confirm, with where it comes from."""
+    lines = []
+    for _, item, value, unit, quote in interpreted:
+        lines.append(f"{label} {item}: {value:g}{(' ' + unit) if unit else ''}, saya tafsirkan dari \"{quote}\"")
+    for _, item, value, unit in untraced:
+        lines.append(f"{label} {item}: {value:g}{(' ' + unit) if unit else ''}, usulan AI, belum Anda sebut")
+    return lines
+
+
 def _without(numbers: list[float], removed: list[float]) -> list[float]:
     """numbers without the ones equal to a removed value (also as a fraction or a percent of it)."""
     return [n for n in numbers if not any(abs(n - r) < 1e-9 or abs(n * 100 - r) < 1e-9 or abs(n / 100 - r) < 1e-9
@@ -2024,6 +2060,8 @@ class RunState:
     ref_next: int = 1  # P18: the next alias number; seeded from the data record, so numbering is conversation-wide
     # M47: the conversation's data record, seeded from earlier steps and turns and extended by this run
     data_record: dict[str, Any] = field(default_factory=records.empty)
+    # EXEC-W A1 (M121): this run's answer paused (stop_policy.pause_record), else None
+    pause: dict[str, Any] | None = None
     references_used: int = 0
     # M43 (2026-09-30): the final answer kept references to missing fields as [field] (validation_gate ANNOTATED)
     reference_annotated: bool = False
@@ -2429,6 +2467,8 @@ class AgentOrchestrator:
             current_results.reset(results)
         self._store_results(state, request.conversation_id)
         result = self._data_date_lines(state, request, result)
+        # EXEC-W A1: the pause of this run (or none: an earlier pause was answered by this message)
+        state.data_record["pause"] = state.pause
         result = result.model_copy(update={"data_record": records.public(state.data_record)})
         self._save_memory(state, request, result, turn_id)
         # the closes still carry the conversation key, so an attached session that ran nothing is detached, not lost
@@ -2467,6 +2507,7 @@ class AgentOrchestrator:
             duration_ms=result.execution.duration_ms,
             repair_ledger=state.repairs or None,
             friction=self._friction(state),
+            pause=state.pause,
         )
         log_event("ai_model_usage_summary", **self._usage_summary(state))
         if state.reuse or state.inherited:
@@ -2510,6 +2551,13 @@ class AgentOrchestrator:
         self._seed_findings(state)
         self._offer_methods(state)
         self._offer_metrics(state)
+        pause = state.data_record.get("pause")
+        if pause:
+            # EXEC-W A1 (M121): the previous answer paused with a question; this message answers it
+            state.input_items.insert(len(state.input_items) - 1, {"role": "user",
+                                                                  "content": stop_policy.pause_note(pause)})
+            log_event("pause_answered", request_id=state.request_id, cause=pause.get("cause"),
+                      paused_request_id=pause.get("request_id"))
         if not records.has_data(state.data_record):
             return
         records.seed_ledger(state.data_record, state.catalog)
@@ -4944,7 +4992,7 @@ class AgentOrchestrator:
         kind = "REFERENCE:" + stable_hash(failing)[:12]
         spent = sum(1 for k in state.gate_kinds_rejected if k.startswith("REFERENCE"))
         self._gate_once(state, kind, REFERENCE_INSTRUCTION.format(problems=detail),
-                        allowed=spent < MAX_REFERENCE_REPAIRS, outcome="ANNOTATED")
+                        allowed=spent < MAX_REFERENCE_REPAIRS)
         lines = []
         if missing:
             lines.append(MISSING_FIELD_LINE.format(fields=", ".join(dict.fromkeys(name for _, name, _ in missing))))
@@ -5002,11 +5050,13 @@ class AgentOrchestrator:
         return entries or None
 
     def _gate_once(self, state: RunState, kind: str, message: str, allowed: bool = True,
-                   outcome: str = "FORCED_LIMITATION", needs: frozenset[str] | None = None) -> None:
+                   needs: frozenset[str] | None = None) -> None:
         """Reject a final answer once per kind of problem while the model can still repair it with tools. allowed:
-        False when the kind's repair budget is spent (P16); outcome: what happens when no repair is possible; needs:
-        the tools the repair calls (any one is enough). G23 A: a repair whose tools are not on this step's desk is
-        never asked for; the gate's own outcome applies at once."""
+        False when the kind's repair budget is spent (P16); needs: the tools the repair calls (any one is enough).
+        G23 A: a repair whose tools are not on this step's desk is never asked for; the gate's own outcome applies at
+        once. What happens when no repair is possible is the kind's cause in app/stop_policy.py (EXEC-W A1)."""
+        policy = stop_policy.cause_of(kind).outcome
+        outcome = GATE_OUTCOMES.get(policy, "ANNOTATED")
         desk = self._desk(state)
         # EXEC-D P-f: an edit needs no tool, so an empty desk does not end an edit repair
         edit = needs is None and (kind in EDIT_REPAIR_KINDS or kind.startswith("REFERENCE"))
@@ -5031,7 +5081,7 @@ class AgentOrchestrator:
         if repairable:
             state.gate_kinds_rejected.add(kind)
             state.gate_rejections += 1
-            raise GateRejection(message + GATE_ONCE_NOTE
+            raise GateRejection(message + GATE_ONCE_NOTES.get(policy, GATE_ONCE_NOTE)
                                 + (GATE_ASK_NOTE if "CLARIFICATION" in state.allowed_types else ""))
 
     def _desk(self, state: RunState) -> frozenset[str]:
@@ -5078,7 +5128,7 @@ class AgentOrchestrator:
         if blocking and final.response_type == "ANSWER":
             self._gate_once(state, "ANALYSIS", VALIDATION_GATE_INSTRUCTION.format(findings="; ".join(blocking)),
                             needs=LEGACY_ANALYSIS_TOOLS)
-            return self._forced(state, final, GATE_NOTICE, lines)
+            return self._forced(state, final, "ANALYSIS", GATE_NOTICE, lines)
 
         families, plain_average = requested_statistics(state.user_text)
         usable = any(record["label"] for record in state.analysis_values.values())
@@ -5089,7 +5139,7 @@ class AgentOrchestrator:
         if missing and final.response_type == "ANSWER":
             names = ", ".join(missing)
             self._gate_once(state, "ROUTING", ROUTING_INSTRUCTION.format(families=names), needs=LEGACY_ANALYSIS_TOOLS)
-            return self._forced(state, final, ROUTING_NOTICE.format(families=names),
+            return self._forced(state, final, "ROUTING", ROUTING_NOTICE.format(families=names),
                                 [f"The request needs a validated analysis ({names}); no such analysis supports this "
                                  f"response."] + lines)
 
@@ -5099,7 +5149,7 @@ class AgentOrchestrator:
             numbers = ", ".join(provenance.unsupported[:20])
             self._gate_once(state, "PROVENANCE", PROVENANCE_INSTRUCTION.format(numbers=numbers)
                             + self._code_literal_hint(state, final.answer, provenance.unsupported))
-            return self._forced(state, final, PROVENANCE_NOTICE.format(numbers=numbers),
+            return self._forced(state, final, "PROVENANCE", PROVENANCE_NOTICE.format(numbers=numbers),
                                 [f"Figures without a governed source in this run: {numbers}."] + lines)
 
         final = self._annotate_claims(state, final)  # P17: marked, never rejected
@@ -5126,7 +5176,7 @@ class AgentOrchestrator:
         if blocking and final.response_type == "ANSWER":
             self._gate_once(state, "ANALYSIS", DATANEED_GATE_INSTRUCTION.format(findings="; ".join(blocking)),
                             needs=DATANEED_ANALYSIS_TOOLS)
-            return self._forced(state, final, DATANEED_GATE_NOTICE, lines)
+            return self._forced(state, final, "ANALYSIS", DATANEED_GATE_NOTICE, lines)
         families, plain_average = requested_statistics(state.user_text)
         # a released output of an earlier message read in this run is a completed analysis's result (reuse)
         run = self._research_result(state)
@@ -5142,7 +5192,7 @@ class AgentOrchestrator:
             names = ", ".join(missing)
             self._gate_once(state, "ROUTING", DATANEED_ROUTING_INSTRUCTION.format(families=names),
                             needs=DATANEED_ANALYSIS_TOOLS)
-            return self._forced(state, final, DATANEED_ROUTING_NOTICE.format(families=names),
+            return self._forced(state, final, "ROUTING", DATANEED_ROUTING_NOTICE.format(families=names),
                                 [f"The request needs a completed analysis ({names}); none supports this "
                                  f"response."] + lines)
         provenance = check_answer(final.answer, self._source_index(state))
@@ -5153,7 +5203,7 @@ class AgentOrchestrator:
                 numbers=numbers, lookup=", a lookup_fact result" if self.settings.ai_enable_lookup_fact else "")
                 + self._code_literal_hint(state, final.answer, provenance.unsupported)
                 + (REFERENCE_HINT if self.value_references else ""))
-            return self._forced(state, final, DATANEED_PROVENANCE_NOTICE.format(numbers=numbers),
+            return self._forced(state, final, "PROVENANCE", DATANEED_PROVENANCE_NOTICE.format(numbers=numbers),
                                 [f"Figures without a governed source in this run: {numbers}."] + lines)
         # Multi-Angle Research: the backend recomputed the statistics, so saying so at the returned level is allowed;
         # G2: so is an answer whose every number comes from event-study tables the backend recomputed
@@ -5172,7 +5222,7 @@ class AgentOrchestrator:
                 if v2 else FINDINGS_INSTRUCTION
             self._gate_once(state, kind, instruction.format(
                 problems=text))
-            forced = self._forced(state, final, ANGLE_FINDINGS_NOTICE if v2 else FINDINGS_NOTICE,
+            forced = self._forced(state, final, kind, ANGLE_FINDINGS_NOTICE if v2 else FINDINGS_NOTICE,
                                   [f"Research findings problem: {text}."] + lines)
             if v2:
                 # P09 (suite20 r08, 2026-09-29): four valid backend findings disappeared with the model's reading; the
@@ -5440,8 +5490,8 @@ class AgentOrchestrator:
         if not self._plan_form_runs(is_v2, presenting=True, plan=final.research_plan):
             self._gate_once(state, "PLAN_VERSION", PLAN_VERSION_INSTRUCTION[self.multi_angle] + (
                 PLAN_VERSION_SUCCESS_RULE_LINE if self.multi_angle and self.hypothesis_plans else ""))
-            return self._forced(state, final, PLAN_VERSION_NOTICE, ["The Research Plan is not in the form this "
-                                                                    "deployment runs."])
+            return self._forced(state, final, "PLAN_VERSION", PLAN_VERSION_NOTICE,
+                                ["The Research Plan is not in the form this deployment runs."])
         if is_v2:
             plan = self._checked_angle_ids(state, final.research_plan)
             if plan is not final.research_plan:
@@ -5452,10 +5502,10 @@ class AgentOrchestrator:
                 kind = "PLAN_FEASIBILITY_2" if "PLAN_FEASIBILITY" in state.gate_kinds_rejected else "PLAN_FEASIBILITY"
                 self._gate_once(state, kind, MULTI_ANGLE_FEASIBILITY_INSTRUCTION.format(
                     problems="; ".join(problems[:6])))
-                return self._plan_not_feasible(state, final)
+                return self._plan_not_feasible(state, final, kind)
         elif self.research_findings and not isinstance(final.research_plan, ResearchPlanFindings):
             self._gate_once(state, "PLAN_FINDINGS", PLAN_FINDINGS_INSTRUCTION)
-            return self._forced(state, final, PLAN_FINDINGS_NOTICE,
+            return self._forced(state, final, "PLAN_FINDINGS", PLAN_FINDINGS_NOTICE,
                                 ["The Research Plan lacks expected_direction, outcome_horizon_periods, outcome_unit, "
                                  "success_definition or min_effect in its experiments."])
         unknown = [i.output_ref for i in final.research_plan.carried_inputs or []
@@ -5464,14 +5514,17 @@ class AgentOrchestrator:
             known = [o.get("ref") for o in state.data_record.get("outputs") or [] if o.get("ref")]
             self._gate_once(state, "PLAN_CARRIED_INPUTS", CARRIED_INPUTS_INSTRUCTION.format(
                 unknown=", ".join(unknown), known=", ".join(known[-20:]) or "none"))
-            return self._forced(state, final, PLAN_VERSION_NOTICE, [f"The Research Plan names tables that are not "
-                                                                    f"released in this conversation: "
-                                                                    f"{', '.join(unknown)}."])
+            return self._forced(state, final, "PLAN_CARRIED_INPUTS", PLAN_VERSION_NOTICE,
+                                [f"The Research Plan names tables that are not released in this conversation: "
+                                 f"{', '.join(unknown)}."])
         if self.plan_feasibility and not is_v2 and state.feasible_draft is None:
             self._gate_once(state, "PLAN_FEASIBILITY", PLAN_FEASIBILITY_INSTRUCTION,
                             needs=frozenset({"check_data_feasibility"}))
-            return self._plan_not_feasible(state, final)
-        # M28 / H2: a success threshold is the user's number (their question or this message), never the model's
+            return self._plan_not_feasible(state, final, "PLAN_FEASIBILITY")
+        # M28 / H2 / EXEC-W A2 (M117, user decision 2026-10-08 "Oke untuk M117"): a design value is the user's number
+        # (their words, as the router quoted them, or a cited result). A value the user did not state never drops the
+        # plan: it is listed for the user to confirm before anything runs (EXEC-D: nothing runs with a design value
+        # that is not quoted from the user or approved by the user)
         words = self._user_words(state)
         # a pipeline's own user words are the whole source; a plan's original_question is the model's restatement
         sources = [words] if current_user_words.get() is not None else [
@@ -5483,42 +5536,33 @@ class AgentOrchestrator:
         cited = self._cited_result_values(state)
         before = list(stated)
         stated = stated + cited
-        # variants (2026-10-06): a threshold the user took out (REMOVE) is no longer theirs
         changes = current_design_changes.get() if self.ask_back else None
-        stated_success = _without(stated, design_values(changes, "SUCCESS_THRESHOLD", "REMOVE"))
-        invented_at = [(index, e.success_rule.value)
-                       for index, e in enumerate(getattr(final.research_plan, "experiments", None) or [])
-                       if getattr(e, "success_rule", None) is not None
-                       and not any(abs(n - e.success_rule.value) < 1e-9 or abs(n * 100 - e.success_rule.value) < 1e-9
-                                   or abs(n / 100 - e.success_rule.value) < 1e-9 for n in stated_success)
-                       and not cited_match(e.success_rule.value, cited, magnitude=False)]
-        invented = [value for _, value in invented_at]
-        if invented:
-            values = ", ".join(f"{v:g}" for v in invented)
-            paths = ", ".join(f"research_plan.experiments[{index}].success_rule" for index, _ in invented_at)
-            self._gate_once(state, "PLAN_SUCCESS_RULE", PLAN_SUCCESS_RULE_INSTRUCTION.format(values=values)
-                            + PLAN_FIELD_PATHS.format(paths=paths)
-                            + (CITED_THRESHOLD_HINT if current_turn_referent.get() == "NEWEST_RESULT" else ""))
-            return self._forced(state, final, PLAN_PROVENANCE_NOTICE.format(numbers=values),
-                                [f"Success thresholds the user did not state: {values}."])
+        hint = CITED_THRESHOLD_HINT if current_turn_referent.get() == "NEWEST_RESULT" else ""
+        to_confirm: list[str] = []
+        experiments = list(enumerate(getattr(final.research_plan, "experiments", None) or []))
+        success = [(index, getattr(e, "experiment_id", None) or str(index + 1), e.success_rule.value, "")
+                   for index, e in experiments if getattr(e, "success_rule", None) is not None]
+        interpreted, untraced = self._unstated("SUCCESS_THRESHOLD", success, stated, cited, changes, words,
+                                               magnitude=False)
+        if untraced:
+            self._gate_once(state, "PLAN_SUCCESS_RULE", PLAN_SUCCESS_RULE_INSTRUCTION.format(
+                values=", ".join(f"{v:g}" for _, _, v, _ in untraced))
+                + PLAN_FIELD_PATHS.format(paths=", ".join(f"research_plan.experiments[{index}].success_rule"
+                                                          for index, _, _, _ in untraced)) + hint)
+        to_confirm += confirm_lines("Ambang sukses", interpreted, untraced)
         # M26 option B: a minimum effect decides the verdict, so it is the user's number too (experiments and angles)
         plan_items = "experiments" if getattr(final.research_plan, "experiments", None) else "angles"
-        items_with_effect = [(index, i) for index, i in enumerate(getattr(final.research_plan, plan_items, None) or [])
-                             if getattr(i, "min_effect", None) is not None]
-        stated_effect = _without(stated, design_values(changes, "MIN_EFFECT", "REMOVE"))
-        invented_at = [(index, i.min_effect) for index, i in items_with_effect
-                       if not any(abs(n - i.min_effect) < 1e-9 or abs(n * 100 - i.min_effect) < 1e-9
-                                  or abs(n / 100 - i.min_effect) < 1e-9 for n in stated_effect)
-                       and not cited_match(i.min_effect, cited, magnitude=True)]
-        invented = [value for _, value in invented_at]
-        if invented:
-            values = ", ".join(f"{v:g}" for v in invented)
-            paths = ", ".join(f"research_plan.{plan_items}[{index}].min_effect" for index, _ in invented_at)
-            self._gate_once(state, "PLAN_MIN_EFFECT", PLAN_MIN_EFFECT_INSTRUCTION.format(values=values)
-                            + PLAN_FIELD_PATHS.format(paths=paths)
-                            + (CITED_THRESHOLD_HINT if current_turn_referent.get() == "NEWEST_RESULT" else ""))
-            return self._forced(state, final, PLAN_PROVENANCE_NOTICE.format(numbers=values),
-                                [f"Minimum effects the user did not state: {values}."])
+        effects = [(index, getattr(i, "experiment_id", None) or getattr(i, "angle_id", None) or str(index + 1),
+                    i.min_effect, getattr(i, "min_effect_unit", None) or "")
+                   for index, i in enumerate(getattr(final.research_plan, plan_items, None) or [])
+                   if getattr(i, "min_effect", None) is not None]
+        interpreted, untraced = self._unstated("MIN_EFFECT", effects, stated, cited, changes, words, magnitude=True)
+        if untraced:
+            self._gate_once(state, "PLAN_MIN_EFFECT", PLAN_MIN_EFFECT_INSTRUCTION.format(
+                values=", ".join(f"{v:g}" for _, _, v, _ in untraced))
+                + PLAN_FIELD_PATHS.format(paths=", ".join(f"research_plan.{plan_items}[{index}].min_effect"
+                                                          for index, _, _, _ in untraced)) + hint)
+        to_confirm += confirm_lines("Efek minimum", interpreted, untraced)
         self._log_cited_thresholds(state, final, before, cited)
         # M69 tahap 1: an outcome horizon the user stated binds every experiment and angle
         # the newest statement wins: a revision replaces the horizon of the first question (oldest text first)
@@ -5539,8 +5583,8 @@ class AgentOrchestrator:
                 used=", ".join(sorted({str(u) for _, u, _ in drifted})),
                 allowed=" or ".join(str(a) for a in sorted(allowed)))
                 + PLAN_FIELD_PATHS.format(paths=", ".join(path for _, _, path in drifted)))
-            return self._forced(state, final, PLAN_VERSION_NOTICE, [
-                f"The Research Plan changes the outcome horizon the user stated ({stated_text})."])
+            to_confirm += [f"Horizon {name}: rencana memakai {used} periode, padahal Anda menyebut {stated_text}"
+                           for name, used, _ in drifted]
         if changes is not None and not disagreement:
             final = self._variant_coverage(state, final, horizons, allowed, {used for _, used, _ in items}, changes)
         # M29 (d02 2026-09-29: "about 6 banks" planned, 48 run): a number written in the plan's own text (universe,
@@ -5552,8 +5596,7 @@ class AgentOrchestrator:
         if written.unsupported:
             numbers = ", ".join(written.unsupported[:20])
             self._gate_once(state, "PLAN_TEXT_PROVENANCE", PLAN_TEXT_PROVENANCE_INSTRUCTION.format(numbers=numbers))
-            return self._forced(state, final, PLAN_PROVENANCE_NOTICE.format(numbers=numbers),
-                                [f"Figures without a source in the Research Plan's text: {numbers}."])
+            to_confirm.append(f"Angka di teks rencana {numbers}: usulan AI, belum Anda sebut")
         index = self._source_index(state)
         index.add(CONTEXT, released_numbers(final.research_plan.model_dump(mode="json")))  # P12
         provenance = check_answer(final.answer, index)
@@ -5561,8 +5604,13 @@ class AgentOrchestrator:
         if provenance.unsupported:
             numbers = ", ".join(provenance.unsupported[:20])
             self._gate_once(state, "PLAN_PROVENANCE", PLAN_PROVENANCE_INSTRUCTION.format(numbers=numbers))
-            return self._forced(state, final, PLAN_PROVENANCE_NOTICE.format(numbers=numbers),
-                                [f"Figures without a source in this Research Plan: {numbers}."])
+            to_confirm.append(f"Angka di rencana {numbers}: usulan AI, belum Anda sebut")
+        if to_confirm:
+            # the backend writes the list (never the model), so what the user approves is what the gates found
+            state.plan_meta["values_to_confirm"] = to_confirm
+            log_event("plan_values_to_confirm", request_id=state.request_id, values=to_confirm[:20])
+            final = final.model_copy(update={"answer": final.answer.rstrip() + "\n\n" + CONFIRM_TITLE + "\n"
+                                             + "\n".join(f"- {line}" for line in to_confirm) + "\n" + CONFIRM_LINE})
         state.evidence_label = None
         return final
 
@@ -5597,7 +5645,7 @@ class AgentOrchestrator:
         if not missing:
             return final
         self._gate_once(state, "PLAN_VARIANT_COVERAGE", PLAN_VARIANT_COVERAGE_INSTRUCTION.format(
-            asked="; ".join(asked), missing=", ".join(missing)), outcome="ANNOTATED")
+            asked="; ".join(asked), missing=", ".join(missing)))
         line = VARIANT_COVERAGE_LINE.format(missing=", ".join(missing))
         return final if line in final.limitations else final.model_copy(
             update={"limitations": [*final.limitations, line]})
@@ -5637,6 +5685,30 @@ class AgentOrchestrator:
         """The user's own words in this run (a pipeline's sub-run adds application context to its message)."""
         words = current_user_words.get()
         return state.user_text if words is None else words
+
+    @staticmethod
+    def _unstated(name: str, entries: list[tuple[int, str, float, str]], stated: list[float], cited: list[float],
+                  changes: list[dict] | None, words: str, *, magnitude: bool
+                  ) -> tuple[list[tuple[int, str, float, str, str]], list[tuple[int, str, float, str]]]:
+        """EXEC-W A2 (M117): the plan's values of one design value (index, item, value, unit) that the user did not
+        state: (interpreted, untraced). A value is stated when it is a number of the user's words (released_numbers),
+        a quoted STATED reading of the router, or a cited result; it is interpreted when it matches a quoted reading
+        only by an IMPLIED basis or by its magnitude (a sign the router read differently); the rest is untraced. A
+        value the user took out (REMOVE) is no longer theirs (variants, 2026-10-06)."""
+        quoted = user_values(changes, name, [words])
+        mine = _without(stated, design_values(changes, name, "REMOVE")) + [v for v, basis, _ in quoted
+                                                                           if basis == "STATED"]
+        interpreted, untraced = [], []
+        for index, item, value, unit in entries:
+            if _same_value(value, mine) or cited_match(value, cited, magnitude=magnitude):
+                continue
+            quote = next((text for v, _, text in quoted
+                          if _same_value(value, [v]) or _same_value(abs(value), [abs(v)])), None)
+            if quote is not None:
+                interpreted.append((index, item, value, unit, quote))
+            else:
+                untraced.append((index, item, value, unit))
+        return interpreted, untraced
 
     def _checked_angle_ids(self, state: RunState, plan: ResearchPlanV2) -> ResearchPlanV2:
         """M49 (2026-10-01, m01 m4b): an angle's id is the key the feasibility check gave its data and design; a plan
@@ -5704,8 +5776,9 @@ class AgentOrchestrator:
         return problems
 
     @staticmethod
-    def _plan_not_feasible(state: RunState, final: FinalResponse) -> FinalResponse:
-        """A plan presented without a FEASIBLE check after the reminder becomes a LIMITATION: no plan id, no token."""
+    def _plan_not_feasible(state: RunState, final: FinalResponse, kind: str) -> FinalResponse:
+        """A plan presented without a FEASIBLE check after the reminder becomes a LIMITATION: no plan id, no token. It
+        ends with the question of its cause (EXEC-W A1); the draft plan stays in the run memory with its refusal."""
         state.validation_gate = "FORCED_LIMITATION"
         state.evidence_label = None
         reasons = []
@@ -5719,9 +5792,10 @@ class AgentOrchestrator:
                            + (f" ({refused})" if refused else "") + ".")
         if not reasons:
             reasons.append("The plan's data was not checked with check_data_feasibility.")
-        return FinalResponse(response_type="LIMITATION", answer=PLAN_NOT_FEASIBLE_NOTICE + " ".join(reasons),
-                             clarification_question=None, assumptions=final.assumptions,
-                             limitations=reasons + [x for x in final.limitations if x not in reasons])
+        limited = FinalResponse(response_type="LIMITATION", answer=PLAN_NOT_FEASIBLE_NOTICE + " ".join(reasons),
+                                clarification_question=None, assumptions=final.assumptions,
+                                limitations=reasons + [x for x in final.limitations if x not in reasons])
+        return AgentOrchestrator._paused(state, limited, kind)
 
     @staticmethod
     def _claim_spans(state: RunState, answer: str, dataneed: bool = False,
@@ -5882,17 +5956,35 @@ class AgentOrchestrator:
         return experiments
 
     @staticmethod
-    def _forced(state: RunState, final: FinalResponse, notice: str, lines: list[str]) -> FinalResponse:
+    def _forced(state: RunState, final: FinalResponse, kind: str, notice: str, lines: list[str]) -> FinalResponse:
+        """A check whose repair is used up (kind: the check, app/stop_policy.py). The answer keeps its text behind the
+        backend's notice, marked as not validated; EXEC-W A1 (M121): it then ends with the cause's question and choices
+        (a PAUSE), so the user decides how to go on instead of meeting an ending."""
         state.validation_gate = "FORCED_LIMITATION"
         state.evidence_label = "NOT_VALIDATED"
         # M39 (suite20b r11, 2026-09-29): a LIMITATION forced by any gate after a completed multi-angle run keeps the
         # backend's per-angle findings (the provenance gate dropped three validated findings)
         executor = state.research.executor if state.research is not None else None
         run = executor.result if executor is not None else None
-        return FinalResponse(response_type="LIMITATION", answer=notice + final.answer, clarification_question=None,
-                             assumptions=final.assumptions,
-                             limitations=lines + [x for x in final.limitations if x not in lines],
-                             research_findings=backend_findings(run) if run else None)
+        limited = FinalResponse(response_type="LIMITATION", answer=notice + final.answer, clarification_question=None,
+                                assumptions=final.assumptions,
+                                limitations=lines + [x for x in final.limitations if x not in lines],
+                                research_findings=backend_findings(run) if run else None)
+        return AgentOrchestrator._paused(state, limited, kind)
+
+    @staticmethod
+    def _paused(state: RunState, final: FinalResponse, kind: str) -> FinalResponse:
+        """EXEC-W A1: a LIMITATION a check produced ends with the question of its cause (stop_policy PAUSE); the pause
+        goes to execution.pause and the data record, so the next message answers it."""
+        if stop_policy.cause_of(kind).outcome != stop_policy.PAUSE:
+            return final
+        question = stop_policy.pause_question(kind)
+        state.pause = stop_policy.pause_record(kind, state.request_id, {"limitations": final.limitations[:5]})
+        log_event("answer_paused", request_id=state.request_id, cause=state.pause["cause"],
+                  options=[o["id"] for o in state.pause["options"]])
+        if question in final.answer:
+            return final
+        return final.model_copy(update={"answer": final.answer.rstrip() + "\n\n" + question})
 
     def _tool_arguments(self, name: str, raw: Any) -> Any:
         """The arguments as the tool validates them (M55's envelope taken out by the registry's own rule): a wrapped
@@ -6218,6 +6310,7 @@ class AgentOrchestrator:
             analysis_path=AnalysisPathExecution(requested=state.forced_path, mismatches_refused=state.path_refusals)
             if state.forced_path else None,
             friction=self._friction(state),
+            pause=state.pause,
         )
 
     @staticmethod

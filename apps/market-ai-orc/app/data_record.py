@@ -53,7 +53,7 @@ NOTE_HEADER = ("DATA RECORD (application context: the data this conversation has
 def empty() -> dict[str, Any]:
     return {"version": VERSION, "tables": {}, "needs": [], "outputs": [], "research": [], "next_alias": 1,
             "values": {}, "relationships": {}, "coverage": {}, "manuals": [], "findings": [], "seq": 0,
-            "suggestion": None, "answers": [], "columns": {}, "readings": []}
+            "suggestion": None, "answers": [], "columns": {}, "readings": [], "pause": None}
 
 
 def normalize(record: Any) -> dict[str, Any]:
@@ -83,6 +83,9 @@ def normalize(record: Any) -> dict[str, Any]:
     clean["seq"] = seq if isinstance(seq, int) and seq > 0 else 0
     suggestion = record.get("suggestion")
     clean["suggestion"] = dict(suggestion) if isinstance(suggestion, dict) and suggestion.get("plan_id") else None
+    # EXEC-W A1 (M121): the answer that paused and the choices it asked; the next message answers it
+    pause = record.get("pause")
+    clean["pause"] = dict(pause) if isinstance(pause, dict) and pause.get("cause") else None
     stored = record.get("next_alias")
     clean["next_alias"] = max(stored if isinstance(stored, int) and stored > 0 else 1,
                               max((_alias_number(o.get("ref")) for o in clean["outputs"]), default=0) + 1)
@@ -466,7 +469,7 @@ def results_after_suggestion(record: dict[str, Any] | None, plan_id: str | None)
 
 def is_empty(record: dict[str, Any] | None) -> bool:
     return not has_data(record) and not (record or {}).get("manuals") and not (record or {}).get("suggestion") \
-        and not (record or {}).get("readings")
+        and not (record or {}).get("readings") and not (record or {}).get("pause")
 
 
 def finding_line(entry: dict[str, Any]) -> str:

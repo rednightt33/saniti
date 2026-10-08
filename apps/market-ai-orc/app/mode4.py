@@ -653,6 +653,13 @@ class _Mode4Run:
             status = {"RESEARCH_PLAN_CONFIRMATION": "AWAITING_CONFIRMATION", "ANSWER": "COMPLETED",
                       "LIMITATION": "LIMITED"}[response.response_type]
         execution = self._execution(result, research if round_ == "FOLLOW_UP" else None)
+        # EXEC-W A1 (M121): a step that paused pauses the turn (its question is in that step's section); a later step's
+        # record must not clear it
+        pause = next((r.execution.pause for r in (analysis, research, suggestion, main)
+                      if r is not None and r.execution is not None and r.execution.pause), None)
+        if pause is not None:
+            execution = execution.model_copy(update={"pause": pause})
+            self.record = {**records.normalize(self.record), "pause": pause}
         labels = [r.evidence_label for r in (analysis, research) if r is not None and r.response is not None
                   and r.response.response_type in ("ANSWER", "LIMITATION")]
         combined = AgentRunResponse(

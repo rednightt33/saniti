@@ -48,6 +48,8 @@ DESIGN_VALUES = ("OUTCOME_HORIZON", "CONDITION_THRESHOLD", "SUCCESS_THRESHOLD", 
 HORIZON_UNITS = ("DAY", "WEEK", "MONTH")
 VALUE_UNITS = (*HORIZON_UNITS, "PERCENT", "PP", "MULTIPLE", "NONE")
 CHANGE_ACTIONS = ("REPLACE", "ADD", "REMOVE")
+# EXEC-W A2 (M117, 2026-10-08): whether a design value is written in the message or follows from its words
+VALUE_BASES = ("STATED", "IMPLIED")
 # without AI_ENABLE_ASK_BACK the routers read the outcome horizon only (M82), with REPLACE or ADD
 HORIZON_RULE = """design_value_changes lists the outcome horizon the message states for a test: how many days, weeks or months after
 the event the outcome is measured ("ubah horizonnya jadi 10 hari", "dalam 5 hari berikutnya", "also check 20 days").
@@ -70,11 +72,15 @@ DESIGN_VALUE_RULE = (
     "\"data 3 bulan terakhir\", \"RSI 14 hari\"), CONDITION_THRESHOLD (the level that defines the event: volume at "
     "least 2 times its average, a rise of 5% or more), SUCCESS_THRESHOLD (the outcome level that counts as a success), "
     "MIN_EFFECT (the smallest difference that matters), PERIOD (the data period) and SCOPE (the stocks or the group). "
-    "Each entry: name; value (the number, null for PERIOD and SCOPE); unit (DAY, WEEK or MONTH for a horizon, PERCENT, "
-    "PP or MULTIPLE for a level, NONE otherwise); text (PERIOD and SCOPE as written, null otherwise); action REPLACE "
-    "(instead of the earlier value), ADD (in addition to it: a variant tested as well; every value of a first message is "
-    "ADD) or REMOVE (no longer tested). Several values of one name (\"2x dan 3x\", \"3 dan 10 hari\") are one entry "
-    "each. Empty when the message states none.")
+    "Each entry: name; value (the number with the sign the user means, a fall negative: \"turun lebih dari 2%\" -2; "
+    "null for PERIOD and SCOPE); unit (DAY, WEEK or MONTH for a horizon, PERCENT, PP or MULTIPLE for a level, NONE "
+    "otherwise); text (the user's own words for this value, copied exactly from the message: \"setengah persen\", "
+    "\"naik\", \"10 hari\"); basis STATED (the message writes the value, in digits or in words) or IMPLIED (it follows "
+    "from the words without a number: \"naik\", \"positif\" or \"tidak turun\" is a SUCCESS_THRESHOLD of 0 PERCENT); "
+    "action REPLACE (instead of the earlier value), ADD (in addition to it: a variant tested as well; every value of a "
+    "first message is ADD) or REMOVE (no longer tested). Several values of one name (\"2x dan 3x\", \"3 dan 10 "
+    "hari\") are one entry each. A vague word (\"signifikan\", \"naik banyak\") is no value: leave it out, never guess "
+    "a number for it. Empty when the message states none.")
 DESIGN_CHANGES_SCHEMA: dict[str, Any] = {
     "type": "array", "maxItems": 8, "items": {
         "type": "object", "additionalProperties": False,
@@ -82,8 +88,9 @@ DESIGN_CHANGES_SCHEMA: dict[str, Any] = {
                        "value": {"type": ["number", "null"]},
                        "unit": {"type": "string", "enum": list(VALUE_UNITS)},
                        "text": {"type": ["string", "null"]},
+                       "basis": {"type": "string", "enum": list(VALUE_BASES)},
                        "action": {"type": "string", "enum": list(CHANGE_ACTIONS)}},
-        "required": ["name", "value", "unit", "text", "action"]}}
+        "required": ["name", "value", "unit", "text", "basis", "action"]}}
 NEEDS_PENDING = ("APPROVE", "REVISE", "CANCEL")
 RESEARCH_KINDS = ("CONTINUE", "APPROVE", "NEW_TOPIC")
 FALLBACK = "INSIGHT"
@@ -154,7 +161,8 @@ MODEL_DECIDES = (
 CODE_GUARANTEES = (
     "a tool outside the step's desk cannot be called (app/tool_desks.py)",
     "no data is fetched before the user approves a research plan",
-    "every figure in an answer has a source; thresholds and horizons stay the user's words",
+    "every figure in an answer has a source; nothing runs with a design value (threshold, horizon) that is not quoted "
+    "from the user or approved by the user",
     "each quick choice runs its route; a failed router call gets the fixed question; at most two questions in a row",
 )
 # user decision 2026-10-06 ("Naikkan batas token"): with AI_ENABLE_ASK_BACK the routers and the plan-reply reader read
@@ -240,6 +248,8 @@ class DesignValueChange(BaseModel):
     value: float | None = None
     unit: str = Field(default="NONE", pattern="^(" + "|".join(VALUE_UNITS) + ")$")
     text: str | None = Field(default=None, max_length=300)
+    # EXEC-W A2 (M117): STATED (written in the message) or IMPLIED (follows from its words without a number)
+    basis: str = Field(default="STATED", pattern="^(" + "|".join(VALUE_BASES) + ")$")
     action: str = Field(pattern="^(" + "|".join(CHANGE_ACTIONS) + ")$")
 
 
