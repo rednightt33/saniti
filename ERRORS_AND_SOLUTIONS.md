@@ -514,3 +514,25 @@ Record every new error in the same task that finds it (see `AGENTS.md`). Use the
 **Testing another service's payload (M68):** code that shows or copies what another service returns is tested with that service's own output (import its function or record a real response), never with a hand-written sample of the shape you expect.
 
 Update the status in place when an `OPEN` item is fixed. Never delete an entry.
+
+### EDGE integration validation — 2026-10-08
+
+- **Live schema read blocked (OPEN):** authenticated pgweb tunnel returned egress 403 and the public Postgres TCP
+  proxy could not resolve in this cloud execution environment. No database defect or absent schema is inferred.
+  Migration remains PROPOSED; rerun `scripts/edge_readonly_preflight.sql` after connectivity is available.
+- **SSE middleware header regression (FIXED before rollout):** general no-cache middleware overwrote
+  `Cache-Control: no-store, no-transform`. Preserve an endpoint's cache header with `setdefault`; terminal SSE
+  contract and live local streaming tests cover the fix.
+- **False request absence (FIXED before rollout):** a generic Orc route/store 404 was indistinguishable from a
+  missing request and could allow dispatch during a version mismatch. Only structured `REQUEST_NOT_FOUND` now
+  means absent; disabled/missing read capability fails closed without dispatch. Covered by BFF tests.
+- **Local npm/Docker paths (RESOLVED setup):** default caches under `/home/agent` were not writable. Use task
+  cache/config paths under `/tmp` or `/workspace`; frozen npm install then passed without checksum changes.
+- **Docker proxy DNS/trust (setup):** BuildKit did not inherit the cloud proxy hosts mapping or trusted CA bundle.
+  Use the existing proxy binding, a build-only host mapping and optional `build_ca` secret mount. Never disable
+  TLS verification or embed proxy credentials/CA files into the image. Final outcome is in `EDGE_DELIVERY.md`.
+
+- **Non-root Docker import failure (FIXED before rollout):** cloud-created source files were 0600/directories
+  0700; Docker COPY retained those modes under root ownership, so uid 10001 could not import `app`. The image
+  now grants read/traverse (`a+rX`) on copied app/static while retaining root ownership and denying runtime write.
+  Container smoke verification is recorded in `EDGE_DELIVERY.md`.

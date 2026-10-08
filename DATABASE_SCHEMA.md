@@ -2431,3 +2431,16 @@ refuse UPDATE and DELETE on `event` and `artifact_access`, even for the owner. N
 | `artifact_access` | Append-only log of every short-lived read granted on an artifact: who, why, for which run, and when the URL expires. |
 | `retention_hold` | A pin or legal hold on one run or one artifact; while `released_at` is NULL nothing it covers may be deleted. |
 | `ingest_outbox` | Durable hand-off of finished market-ai-orc runs: one RUN_FINISHED row per request (idempotent on source + idempotency key), never read or changed by the orchestrator; the store records PENDING, COMPLETE, FAILED_RETRYABLE or INCOMPLETE. |
+
+## Proposed EDGE operational schema — not applied (2026-10-08)
+
+`database/migrations/20261008_002_create_edge_bff.sql` proposes exactly three tables in restricted schema
+`edge_bff`: `sessions` (hashed opaque cookie/owner/expiry/revocation), `jobs` (unique request/submission identity,
+original input JSON, owner, lifecycle/version, fenced lease, terminal status/timestamps), and `conversation_ui`
+(owner/conversation composite key, title/bookmark, pinned request IDs, timestamps). No response, reasoning or event
+log is copied. The existing market Postgres is the target, not web governor's Postgres-E8GM. Runtime role
+`edge_bff_runtime` is NOLOGIN with DML on these tables only; proposed `edge_bff_login` inherits only that role.
+Primary/unique indexes implement identity and one active job per owner; a partial created_at index supports claiming.
+No index on market data is proposed. Operational input/UI retention has no automatic purge yet; canonical Orc
+retention is unchanged. Live schema/roles/grants remain unverified because egress blocked read-only access.
+This section describes a reviewed proposal, not a refreshed live snapshot. See `apps/edge-bff/README.md`.

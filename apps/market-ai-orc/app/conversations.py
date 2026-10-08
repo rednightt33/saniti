@@ -53,6 +53,18 @@ MESSAGES_PAGE_DEFAULT = 20
 MESSAGES_PAGE_MAX = 50
 
 
+def _request_public(value: Any) -> Any:
+    """Keep stored response fields, excluding private diagnostic material in extensible dictionaries."""
+    forbidden = {"reasoning", "reasoning_content", "reasoning_details", "thinking", "chain_of_thought",
+                 "encrypted_content", "raw_provider_response", "tool_trace", "audit_trace", "system_prompt",
+                 "memo_note", "reasoning_summary", "summarized_reasoning"}
+    if isinstance(value, dict):
+        return {key: _request_public(item) for key, item in value.items() if key.lower() not in forbidden}
+    if isinstance(value, list):
+        return [_request_public(item) for item in value]
+    return value
+
+
 class ConversationError(Exception):
     """A refused conversation request: code and message for the caller, and the HTTP status."""
 
@@ -414,6 +426,25 @@ class ConversationStore:
             logger.exception(json.dumps({"event": "conversation_store_failed", "request_id": request_id}))
 
     # ------------------------------------------------------------------------------------------------ reading
+
+    def request(self, owner: str, request_id: str) -> dict[str, Any]:
+        """Read one turn without replaying execution. Missing and foreign requests are indistinguishable."""
+        if not re.fullmatch(r"[A-Za-z0-9._:-]{1,200}", request_id):
+            raise ConversationError("REQUEST_NOT_FOUND", "No such request for this owner.", 404)
+        try:
+            with self._connect() as connection:
+                row = connection.execute(
+                    '''SELECT t.request_id, t.conversation_id, t.turn_index, t.status AS turn_status,
+                              t.run_status, t.response, t.error_code, t.created_at, t.completed_at
+                       FROM public."AI_conversation_turn" t
+                       JOIN public."AI_conversation" c USING (conversation_id)
+                       WHERE t.request_id = %s AND c.owner_key = %s''', (request_id, owner)).fetchone()
+        except psycopg.Error as exc:
+            raise ConversationError("CONVERSATION_STORE_UNAVAILABLE", "The conversation store failed.", 503) from exc
+        if row is None:
+            raise ConversationError("REQUEST_NOT_FOUND", "No such request for this owner.", 404)
+        return {key: value.isoformat() if hasattr(value, "isoformat") else _request_public(value)
+                for key, value in row.items()}
 
     def messages(self, owner: str, conversation_id: str, after: int | None, limit: int | None) -> dict[str, Any]:
         limit = min(max(limit or MESSAGES_PAGE_DEFAULT, 1), MESSAGES_PAGE_MAX)

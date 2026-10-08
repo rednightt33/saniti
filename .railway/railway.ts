@@ -1,4 +1,4 @@
-import { bucket, defineRailway, github, image, postgres, preserve, project, service, volume } from "railway/iac";
+import { bucket, defineRailway, github, image, postgres, preserve, project, ref, service, volume } from "railway/iac";
 
 export default defineRailway(() => {
   const saniti = github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/idx-price-cron" });
@@ -142,7 +142,25 @@ export default defineRailway(() => {
     env: { DATABASE_URL: preserve() },
   });
 
+  // PROPOSED EDGE: review only. Do not apply until live schema reconciliation and rollout approval.
+  const edgeBff = service("edge-bff", {
+    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/edge-bff" }),
+    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/edge-bff/**"] },
+    start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080 --workers 1 --no-access-log --no-proxy-headers",
+    healthcheck: "/ready", healthcheckTimeout: 120,
+    replicas: { "sfo": 1 }, deploy: { restartPolicyType: "ALWAYS" },
+    env: {
+      PORT: "8080", EDGE_ENVIRONMENT: "dev", EDGE_SECURE_COOKIE: "true",
+      EDGE_ORC_URL: "http://market-ai-orc.railway.internal:8080",
+      MARKET_AI_ORC_API_KEY: ref(marketAiOrc, "MARKET_AI_ORC_API_KEY"),
+      EDGE_ORC_TIMEOUT_SECONDS: "3900", EDGE_LEASE_SECONDS: "90", EDGE_HEARTBEAT_SECONDS: "20",
+      EDGE_SESSION_SECONDS: "86400", EDGE_POLL_SECONDS: "2", EDGE_WORKER_ENABLED: "true",
+      EDGE_DATABASE_URL: preserve(), EDGE_OWNER: preserve(), EDGE_LOGIN: preserve(),
+      EDGE_PASSWORD_VERIFIER: preserve(), EDGE_SESSION_SECRET: preserve(), EDGE_PUBLIC_ORIGIN: preserve(),
+    },
+  });
+
   return project("lucid-patience", {
-    resources: [orcTestRunner, marketSqlGovernor, marketWebGovernor, marketPythonSandbox, marketAiOrc, idxPriceCron, pgweb, PostgresE8GM, telegramTrigger, webGovernorTestRunner, marketAuditStore, telegramMonitor, idxPriceRecoveryCron, Postgres, aiDataCoverage, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, postgresVolumeOz3T, marketWebGovernorData, marketSqlDatasets, marketAiConversationOutputs, marketAiAuditArtifacts],
+    resources: [edgeBff, orcTestRunner, marketSqlGovernor, marketWebGovernor, marketPythonSandbox, marketAiOrc, idxPriceCron, pgweb, PostgresE8GM, telegramTrigger, webGovernorTestRunner, marketAuditStore, telegramMonitor, idxPriceRecoveryCron, Postgres, aiDataCoverage, feature01Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, postgresVolumeOz3T, marketWebGovernorData, marketSqlDatasets, marketAiConversationOutputs, marketAiAuditArtifacts],
   });
 });

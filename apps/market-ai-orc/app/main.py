@@ -618,6 +618,15 @@ def create_app(
                                      "Content-Length": str(found["size_bytes"]),
                                      "X-Saniti-Sha256": found["sha256"]})
 
+    @app.get("/v1/agent/requests/{request_id}", dependencies=[Depends(authorize)])
+    def request_status(request_id: str, x_saniti_owner: str | None = Header(default=None)) -> JSONResponse:
+        try:
+            if conversations is None:
+                raise ConversationError("HISTORY_MODE_UNAVAILABLE", "The conversation store is not enabled.", 404)
+            return JSONResponse(content=conversations.request(owner_from_header(x_saniti_owner), request_id))
+        except ConversationError as error:
+            return refuse(error)
+
     @app.get("/v1/conversations/{conversation_id}/messages", dependencies=[Depends(authorize)])
     def conversation_messages(conversation_id: str, after: int | None = None, limit: int | None = None,
                               x_saniti_owner: str | None = Header(default=None)) -> JSONResponse:

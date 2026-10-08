@@ -1579,3 +1579,11 @@ This file records database structure changes and material data loads. Times are 
 - Parallelism: runs alongside the existing ascending backfill using separate process status and log files.
 - Authentication safety: five consecutive HTTP 401/403 responses stop the query as `STOPPED_INVALID_TOKEN` without advancing through the remaining dates.
 - Status: the continuous historical backfill remains active; per-date results are recorded in `stockbit_broker_summary_load_log`.
+
+## 2026-10-08 — EDGE migration prepared; NOT APPLIED
+
+User authorized code execution in an isolated branch. Prepared forward migration `20261008_002_create_edge_bff.sql`
+and restricted-login provisioning/preflight helpers. Three dedicated operational tables only; no original market/
+Orc table or retention change, no public data/Feature/catalog change. Disposable Postgres 17 validation is recorded
+in `EDGE_DELIVERY.md`. Market Postgres live reconciliation was blocked (pgweb egress 403; public TCP DNS failure).
+Do not add this migration to APPLIED.sha256 until approved application and live verification.

@@ -3044,3 +3044,12 @@ This file records intentional changes to the Railway project. Git history preser
 - Added a five-consecutive-401/403 stop rule to both supervisors so an invalid Stockbit token stops querying instead of marking the remaining date range `NEEDS_REVIEW`.
 - Historical CSV export is disabled; only operational status and logs are retained locally.
 - No Railway service, deployment, domain, or environment-variable values changed.
+
+## 2026-10-08 — EDGE BFF deployment proposal; no live mutation
+
+Read-only Railway reconciliation confirmed dev Orc's active SUCCESS deployment and existing market Postgres.
+Prepared IaC definition for one `edge-bff` service (source `/apps/edge-bff`, one replica/process, port 8080, ready
+healthcheck), an existing-Orc-key reference, private Orc URL, and secure-variable placeholders. No service, variable,
+domain, database migration or deployment was created/changed. Existing runner/services/models/tools untouched.
+Before rollout inspect the actual live IaC plan for drift; this branch must not auto-deploy main.
+Approval scope and rollback: `EDGE_DELIVERY.md`.

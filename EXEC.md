@@ -801,3 +801,22 @@ pertama dan giliran lanjutan. Kode menimpa penilaian model, padahal pertanyaan b
   - h_add t2 dan threshold t2/t3 lolos;
   - median panggilan per putaran turun ≥ 30%;
   - "BBRI" ditanya balik.
+
+
+## EXEC-EDGE — private BFF integration (2026-10-08)
+
+User authorization: "execute", with EDGE_Final_Implementation_Plan_2026-10-08.md and EDGE_AI_Executor_Prompt_2026-10-08.md. Approved: implementation code, forward migration files, deterministic tests and documentation on isolated branch codex/edge-bff. Source frontend: final 8 oct.html.
+
+Scope: one new BFF application; one additive owner-checked GET /v1/agent/requests/{request_id}; existing market Postgres for restricted edge_bff schema; persisted sessions/jobs/conversation UI; same-origin REST + factual SSE snapshots; preserve Orc/runner execution behavior and all five domain statuses. No model/provider/routing/feature-flag changes, live tool progress, reasoning display, active cancellation or production work.
+
+Live migration, Railway services/variables/domains/deployments and paid AI calls require a separate explicit approval under the attached documents. Do not push/merge this branch to main before deployment approval: main application changes auto-deploy.
+
+Reconciliation: branch baseline 242e282f18a1b58d81d630044e9fc69bd5fdec23; active Orc deployment 6a0ebf8f-d4e6-4d7f-a397-31b6be3b713f, runtime commit 92884b684d760e9b8d4c3399def268bd32f011f5. AI_MODEL_SWITCH=1, AI_MODE_SWITCH=4, AI_MAX_ANALYSIS_SECONDS=1800, provider timeout=600; Mode4 default maximum 3600 seconds, so proposed BFF upstream total timeout 3900 seconds. Market Postgres ID bb21a9f4-a9d3-4a51-945f-fa86b63f4b86; separate web Postgres is excluded.
+
+UNKNOWN/BLOCKED: live SQL schema/grants inspection cannot currently reach authenticated pgweb (network tunnel 403) or TCP proxy DNS. Migration remains a tested proposal pending read-only live reconciliation; no live database change is authorized. Credential bootstrap/public origin are rollout inputs, not secrets to commit.
+
+Steps: additive endpoint/test; BFF schema/client/store/worker/auth/API; adapted HTML; disposable Postgres + Orc regression + mocked browser tests; review branch and concrete approval checkpoint. Retain this item until approved live delivery is verified.
+
+Execution update: implementation and local validation complete; review branch delivery is documented in
+`EDGE_DELIVERY.md`. Forward migration is still PROPOSED pending live schema reconciliation and explicit approval.
+No live Railway mutation/deployment/paid call. Keep EXEC-EDGE open for the approved rollout checkpoint.

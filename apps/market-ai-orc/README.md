@@ -2352,3 +2352,13 @@ They create a temporary database from the exact DDL in
 columns, keys, and indexes of `DATABASE_SCHEMA.md`, filled with synthetic rows. They apply
 both migrations and the provisioning script, call every tool as the `market_ai_orc` login,
 and drop everything afterwards.
+
+### EDGE additive request read
+
+`GET /v1/agent/requests/{request_id}` uses the same internal bearer and `X-Saniti-Owner` as existing routes.
+It reads the existing owner-joined conversation turn, without execution or replay, returning request/conversation
+identity, turn index, `turn_status`, domain `run_status`, stored response/error, created/completed timestamps.
+Missing and foreign request IDs both return the same `REQUEST_NOT_FOUND` 404. Disabled storage returns
+`HISTORY_MODE_UNAVAILABLE` 404; a caller must distinguish this from request absence. Invalid owner remains 400.
+The stored response excludes POST's conversation decoration and private reasoning/memo/diagnostic keys.
+No existing run/runner behavior, feature flag, model/provider/mode or storage schema changes.

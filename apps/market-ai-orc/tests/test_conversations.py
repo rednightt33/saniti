@@ -303,3 +303,51 @@ def test_history_keeps_the_assumptions_limitations_and_methodology() -> None:
                                assumptions=["x"], limitations=["y"], methodology=None)
     assert assistant_text(SimpleNamespace(response=question)) == "Periode mana?"
     assert assistant_text(SimpleNamespace(response=None)) is None
+
+# EDGE additive read endpoint uses canonical storage and never calls the model.
+def test_edge_request_read_endpoint(databases):
+    _, url = databases
+    api = Api(store_for(url), [answer('Stored EDGE answer')])
+    made = api.post(server('edge-read-1','Read this'), owner='edge-test').json()
+    route = '/v1/agent/requests/edge-read-1'
+    assert api.client.get(route).status_code == 401
+    headers = {**AUTH, 'X-Saniti-Owner':'edge-test'}
+    read = api.client.get(route, headers=headers)
+    assert read.status_code == 200
+    body = read.json()
+    assert body['turn_status'] == 'COMPLETED' and body['run_status'] == 'COMPLETED'
+    assert body['conversation_id'] == made['conversation']['conversation_id']
+    assert body['response'] == {k:v for k,v in made.items() if k != 'conversation'} and len(api.seen) == 1
+    missing = api.client.get('/v1/agent/requests/no-such-request', headers=headers)
+    foreign = api.client.get(route, headers={**AUTH,'X-Saniti-Owner':'foreign'})
+    assert missing.status_code == foreign.status_code == 404 and missing.json() == foreign.json()
+    assert api.client.get(route, headers={**AUTH,'X-Saniti-Owner':'invalid owner'}).status_code == 400
+
+@pytest.mark.parametrize('lifecycle',['RUNNING','COMPLETED','FAILED','INTERRUPTED'])
+def test_edge_read_lifecycle_without_execution(databases,lifecycle):
+    admin,url = databases
+    id = 'edge-state-' + lifecycle
+    store = store_for(url)
+    request = AgentRunRequest(**server(id,'Read only'))
+    store.begin('edge-states',request,fingerprint(request))
+    with psycopg.connect(admin) as c:
+        c.execute('''UPDATE public."AI_conversation_turn" SET status=%s,
+                     completed_at=CASE WHEN %s='RUNNING' THEN NULL ELSE now() END
+                     WHERE request_id=%s''',(lifecycle,lifecycle,id))
+    api = Api(store, [])
+    read = api.client.get('/v1/agent/requests/'+id, headers={**AUTH,'X-Saniti-Owner':'edge-states'})
+    assert read.status_code == 200 and read.json()['turn_status'] == lifecycle
+    assert read.json()['response'] is None and api.seen == []
+
+def test_edge_request_excludes_private_diagnostics(databases):
+    from psycopg.types.json import Jsonb
+    admin,url=databases
+    api=Api(store_for(url),[answer('Public answer')])
+    api.post(server('edge-private','Read public output'),owner='edge-private')
+    with psycopg.connect(admin) as c:
+        row=c.execute('SELECT response FROM public."AI_conversation_turn" WHERE request_id=%s',('edge-private',)).fetchone()[0]
+        row['private_extension']={'reasoning':'hidden','reasoning_summary':'hidden summary','nested':[{'memo_note':'hidden memo','safe':'public'}]}
+        c.execute('UPDATE public."AI_conversation_turn" SET response=%s WHERE request_id=%s',(Jsonb(row),'edge-private'))
+    body=api.client.get('/v1/agent/requests/edge-private',headers={**AUTH,'X-Saniti-Owner':'edge-private'}).json()
+    assert body['response']['private_extension']=={'nested':[{'safe':'public'}]}
+    assert body['response']['execution']['reasoning_tokens']==5  # usage count is not hidden reasoning text
