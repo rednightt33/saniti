@@ -77,7 +77,7 @@ Sources are drawn only from actual evidence/annotations/data_record. Usage/cost 
 | EDGE_ORC_URL | `http://market-ai-orc.railway.internal:8080` |
 | MARKET_AI_ORC_API_KEY | Railway reference to existing Orc variable |
 | EDGE_OWNER | Stable private owner, e.g. an operator-chosen identifier; never browser supplied |
-| EDGE_LOGIN | Allowlisted private login; set before deployment |
+| EDGE_LOGIN | `edge`, selected under the user's 2026-10-08 delegation; set before deployment |
 | EDGE_PASSWORD_VERIFIER | `python password_hash.py`; scrypt output entered as a secret |
 | EDGE_SESSION_SECRET | Random 32+ character secret, entered securely |
 | EDGE_PUBLIC_ORIGIN | Exact HTTPS origin of the new service; set after domain allocation |

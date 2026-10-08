@@ -138,7 +138,9 @@ No cloud publication/fresh-task restore was performed, and saved settings do not
 Live market schema/roles/grants/migration state: pgweb egress tunnel returned 403; TCP proxy DNS could not resolve.
 The migration is not finalized against live state. The new network rule is saved only, not activated/verified.
 
-Rollout inputs remain: stable EDGE owner/login, securely bootstrapped password verifier/session secret/restricted DB
+The user selected branch-only delivery on 2026-10-08 and delegated the private login choice: `EDGE_LOGIN=edge`.
+The published `codex/edge-bff` branch remains unmerged; no live rollout is authorized by that follow-up.
+Rollout inputs remain: stable EDGE owner, securely bootstrapped password verifier/session secret/restricted DB
 credential, assigned HTTPS origin. No secret value is requested in chat. Final new service/domain ID does not yet
 exist. Git push permission was verified separately from GitHub API authentication. The feature branch can be published;
 GitHub CLI API authentication is unavailable, so no draft PR was created.

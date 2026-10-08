@@ -807,6 +807,11 @@ pertama dan giliran lanjutan. Kode menimpa penilaian model, padahal pertanyaan b
 
 User authorization: "execute", with EDGE_Final_Implementation_Plan_2026-10-08.md and EDGE_AI_Executor_Prompt_2026-10-08.md. Approved: implementation code, forward migration files, deterministic tests and documentation on isolated branch codex/edge-bff. Source frontend: final 8 oct.html.
 
+User follow-up (2026-10-08): "buat saja dulu branch sblm merge ke main." Continue on the published
+`codex/edge-bff` branch; this follow-up does not authorize merging or live rollout. For the private login,
+the user delegated the choice: "you choose it." Selected non-secret `EDGE_LOGIN=edge`. Password bootstrap
+remains part of the separately approved rollout; generate it securely and never commit or print it in chat.
+
 Scope: one new BFF application; one additive owner-checked GET /v1/agent/requests/{request_id}; existing market Postgres for restricted edge_bff schema; persisted sessions/jobs/conversation UI; same-origin REST + factual SSE snapshots; preserve Orc/runner execution behavior and all five domain statuses. No model/provider/routing/feature-flag changes, live tool progress, reasoning display, active cancellation or production work.
 
 Live migration, Railway services/variables/domains/deployments and paid AI calls require a separate explicit approval under the attached documents. Do not push/merge this branch to main before deployment approval: main application changes auto-deploy.
