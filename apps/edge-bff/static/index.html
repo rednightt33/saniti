@@ -9885,6 +9885,23 @@ html.dark .monitor-layout .details-panel>.tabs button:focus-visible{outline-colo
 .monitor-layout .clipboard-status{font-size:10px;color:var(--muted-foreground);max-width:240px;}
 .monitor-layout .result-pin-action[aria-pressed="true"] .icon{fill:none;}
 @media print{.message-clipboard-actions{display:none!important;}}
+/* Mobile only (user 2026-10-08: "hanya berlaku untuk mobile, bukan desktop. jangan ubah desktop"). The composer is one
+   compact row like a phone chat app: the text on top, then the mode chip and the attachment button on the left and a
+   round send button on the right; controls that cannot be used on a phone yet (the fixed server model, Data Scope) are
+   not shown, and "Jump to latest" is hidden. Nothing here applies above 720px. */
+@media (max-width:720px) {
+ .monitor-layout .jump-latest {display:none!important;}
+ .composer {margin:6px 10px calc(8px + env(safe-area-inset-bottom));padding:8px 8px 8px 14px;border-radius:22px;}
+ .composer textarea {min-height:24px;max-height:120px;padding:6px 2px 4px;font-size:16px;line-height:1.4;}
+ .composer>div:last-child {gap:8px;margin-top:2px;}
+ .composer>div:last-child>div {gap:4px;min-width:0;flex-wrap:nowrap;}
+ .composer [title="Model follows server configuration"],.composer [title="Data Scope is not available yet"] {display:none;}
+ .composer .mode-anchor>.btn {height:32px;padding:0 10px;border-radius:999px;background:var(--secondary);font-size:13px;}
+ .composer>div:last-child>div>.icon-btn {width:32px;height:32px;min-width:32px;border-radius:999px;order:-1;}
+ .composer>div:last-child>.btn.primary {width:36px;height:36px;min-width:36px;padding:0;border-radius:999px;justify-content:center;flex:none;}
+ .composer>div:last-child>.btn.primary .btn-label {position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}
+ .composer .mode-menu {position:fixed;left:12px;right:12px;bottom:calc(var(--edge-composer-height,98px) + 16px + env(safe-area-inset-bottom));width:auto;max-width:none;}
+}
 </style>
 </head>
 <body><div id="root"></div>

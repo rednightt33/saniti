@@ -167,8 +167,11 @@ def test_responsive_history_details_preferences_and_keyboard(dummy_orc, browser_
     saved(page)
     page.locator('.research-scroll').evaluate('(node) => node.scrollTop = 0')
     no_clipping(page)
-    page.get_by_role('button', name='Jump to latest', exact=True).wait_for()
-    page.wait_for_function("() => document.querySelector('.jump-latest').getBoundingClientRect().bottom < document.querySelector('.composer').getBoundingClientRect().top")
+    if width <= 720:  # user 2026-10-08: "jump to latest pada mobile view hilangkan saja"
+        page.wait_for_function("() => !document.querySelector('.jump-latest') || getComputedStyle(document.querySelector('.jump-latest')).display === 'none'")
+    else:
+        page.get_by_role('button', name='Jump to latest', exact=True).wait_for()
+        page.wait_for_function("() => document.querySelector('.jump-latest').getBoundingClientRect().bottom < document.querySelector('.composer').getBoundingClientRect().top")
     capture(page, f'answer-{width}')
     page.get_by_role('button', name='Pin', exact=True).click()
     page.get_by_role('button', name='Pinned', exact=True).wait_for()

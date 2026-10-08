@@ -121,3 +121,39 @@ def test_the_data_record_summary_shows_only_parts_worded_for_the_reader(views):
         if record:
             assert set(record['summary']) <= {'Tabel hasil', 'Data yang dibaca', 'Temuan riset'}, name
             assert record['raw']  # the whole record is still there for the technical view
+
+
+MOBILE_ONLY = '''() => {
+    const dump = () => [...document.querySelectorAll('body *')].map(e => { const c = getComputedStyle(e), b = e.getBoundingClientRect();
+        return [...c].map(p => c.getPropertyValue(p)).join(';') + [b.x, b.y, b.width, b.height].map(Math.round).join(','); });
+    const before = dump();
+    let removed = 0;
+    for (const sheet of document.styleSheets) for (let i = sheet.cssRules.length - 1; i >= 0; i--) {
+        const rule = sheet.cssRules[i];
+        if (rule instanceof CSSMediaRule && rule.media.mediaText.replace(/\\s/g, '') === '(max-width:720px)'
+            && rule.cssText.includes('.monitor-layout .jump-latest')) { sheet.deleteRule(i); removed++; }
+    }
+    const after = dump();
+    return {removed, differing: before.filter((x, i) => x !== after[i]).length};
+}'''
+
+
+@pytest.mark.parametrize('width,phone', [(1440, False), (1024, False), (721, False), (390, True)])
+def test_the_mobile_layout_never_reaches_a_wider_screen(tmp_path, width, phone):
+    """User 2026-10-08: the phone layout ("jump to latest" hidden, one compact composer row) applies to phones only,
+    "jangan ubah desktop". With the page in one state, every element's computed style is compared with and without the
+    mobile block: equal above 720px, different on a phone."""
+    playwright = pytest.importorskip('playwright.sync_api')
+    built = tmp_path / 'preview.html'
+    assert run_preview('build', str(built)).returncode == 0
+    with playwright.sync_playwright() as pw:
+        browser = pw.chromium.launch(executable_path=os.environ.get('EDGE_TEST_CHROMIUM', '/usr/bin/chromium'), headless=True, args=['--no-sandbox'])
+        page = browser.new_page(viewport={'width': width, 'height': 900})
+        page.route('**/*', lambda route: route.continue_() if route.request.url.startswith(('file:', 'data:')) else route.abort())
+        page.goto(built.as_uri())
+        page.wait_for_selector('article.result')
+        page.click('.composer .mode-anchor > .btn')  # the open mode menu is covered too
+        result = page.evaluate(MOBILE_ONLY)
+        browser.close()
+    assert result['removed'] == 1
+    assert (result['differing'] > 0) is phone, result
