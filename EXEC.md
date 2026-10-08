@@ -50,7 +50,9 @@ gabungkan ya", pilihan "File baru EXEC.md"). Pekerjaan yang disetujui tetapi bel
 
 ## Ringkasan
 
-**Berjalan (2026-10-08):** EXEC-X (M124, tampilan jawaban di EDGE). Langkah 1–3 selesai: orc 1.556 uji lulus, EDGE 41 uji lulus, pratinjau dikirim ke user. Kode ada di cabang `claude/code-session-2k3oeg`, belum di `main`; deploy menunggu OK user.
+**Berjalan (2026-10-08):** EXEC-X (M124 + M125 A/B, tampilan jawaban EDGE). Dibangun di cabang
+`claude/code-session-2k3oeg` (HTML user sebagai sumber utama, API dipisah dari tampilan, teks backend bahasa biasa);
+uji lulus (orc 1.563, EDGE 46). Belum di `main`, belum deploy: menunggu OK user atas pratinjau.
 
 **Menunggu "go" (2026-10-08):** EXEC-W, rencana eksekusi butir EXEC-V yang disetujui (dua
 gelombang).
@@ -1061,6 +1063,61 @@ Selain itu, setiap pilihan dari backend di luar `options` hanya berupa teks.
   - nilai putusan yang belum dikenal tampil netral.
 - Kasus yang tidak tercakup: isi teknis `data_record` dan lampiran unduhan. Keduanya tetap di Detail teknis atau
   sebagai tautan, karena itu data operasional dan bukan bacaan user.
+
+**Lanjutan 2026-10-08 (keputusan user, kata-kata user):**
+- Atas M125 (bahasa kaku, istilah teknis): "Ok, tolong perbaiki. Jalankan." Ini berlaku untuk usulan A (tampilan) dan B
+  (teks backend). C (aturan pembaca untuk AI, butuh GT berbayar) belum dijalankan.
+- "Saya akan lampirkan HTML yang sudah diperbaiki. Saya tidak mau ada formatting yang berubah." Lalu: "Pakai saja HTMl
+  saya as the main source. Tinggal ubah API wiringnya kan."
+- "untuk HTML karena akan banyak improvement, usahakan setiap API jangan ter-lock kesuatu object. Benchmark dan pakai
+  best practice that allow us untuk edit FE jika ada improvement dimasa mendatang dengan mudah tanpa harus terlalu
+  banyak coding."
+
+**Benchmark (sumber eksternal):**
+- Backend for Frontend (Sam Newman; AWS, Microsoft): backend membentuk data sesuai satu tampilan, sehingga logika di UI
+  tipis.
+- Server-driven UI (Airbnb Ghost Platform; Apollo SDUI): tampilan dibangun dari blok bertipe lewat registry komponen.
+  Tipe yang belum dikenal ditangani oleh cadangan (fallback), bukan error.
+- Adaptive Cards (Microsoft): elemen yang tidak dikenal punya `fallback` dan kartu punya `version`.
+
+Yang diterapkan dari ketiganya: satu kontrak tampilan berversi, tampilan generik sebagai cadangan, dan pilihan sebagai
+deskriptor aksi.
+
+**Yang dibangun:**
+1. **HTML user menjadi `static/index.html`.** Data dan server tiruan pratinjau dibuang, `/edge-client.js` dimuat lagi.
+   CSS dan markup byte-identik dengan file user.
+2. **Pemisahan lapisan.**
+   - `static/edge-view.js` (`EdgeView.toView`, kontrak tampilan v1) adalah satu-satunya kode yang membaca bentuk respons
+     orc.
+   - `static/edge-labels.js` memuat semua kata.
+   - Tampilan hanya membaca model tampilan.
+   - Semua pilihan lewat satu `act()` dengan deskriptor `route`, `plan`, `message` atau `input`.
+   - BFF menyajikan setiap script halaman menurut namanya.
+   - DOM keenam percakapan pratinjau identik dengan halaman user sebelum langkah M125.
+3. **Alat pratinjau dua arah** (`preview/edge_preview.py build|import`). File satu-halaman diedit lalu dikembalikan ke
+   sumber. Round trip tanpa perubahan sudah diuji; file yang bukan buatan alat ini ditolak.
+4. **M125 B (orc).**
+   - `app/user_texts.py` memuat semua teks backend untuk user dalam bahasa Indonesia sehari-hari, tanpa ID dan kode.
+   - Kode diubah ke kata lewat `words()`.
+   - Angka yang dirujuk diberi nama lewat `value_label()`, yang diturunkan dari alamatnya.
+   - Baris konfirmasi menyebut "eksperimen 1"; horizon ditulis "10 hari".
+   - ID dan kode tetap ada di instruksi untuk model dan di log.
+   - `tests/test_user_texts.py` gagal bila ada nama internal, kode, atau kalimat Inggris di teks user modul mana pun.
+5. **M125 A (EDGE).**
+   - Judul di tab Sources memakai nama dari backend, dan alamat kode tidak lagi tampil sebagai baris.
+   - Kode yang belum punya kata ditampilkan terbaca, tidak mentah.
+   - Format halaman user tidak diubah: struktur dan class tetap. Yang berubah hanya teks, satu baris batasan yang dobel,
+     dan elemen judul Sources.
+6. **Data contoh pratinjau.** Bagian yang ditulis backend dirender ulang dengan teks baru; teks AI tidak diubah.
+
+**Belum tercakup:**
+- Gaya bahasa kalimat AI (M125 C), menunggu persetujuan dan kredit.
+- Teks dari layanan analisis yang diteruskan apa adanya (misalnya "numeric stored as float64", "not causation").
+- Nama kolom pada label angka dari tabel hasil (misalnya "mean return"); idealnya diambil dari `Column_Catalog`.
+- Kode baru dari mesin riset yang belum punya kata tampil sebagai kata Inggris yang terbaca.
+
+**Langkah berikut:** user melihat pratinjau. Setelah OK: gabung ke `main`, deploy orc dan edge-bff sampai SUCCESS, cek
+live tanpa biaya AI, lalu catat di changelog.
 
 ### EXEC-M109: pertanyaan tanya-balik router tetap dipakai
 

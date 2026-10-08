@@ -7,7 +7,40 @@ no public model/provider/path override and no per-token, reasoning, or per-tool 
 The HTML comes from `final 8 oct.html`; its original CSS and workspace renderer are retained. Demo conversations,
 market values, result tables, prices, sources, upload simulation and timed execution are removed. The renderer
 accepts canonical response types rather than a fixed research template. AI text uses text nodes, never raw HTML.
-`static/edge-client.js` holds the session/API/SSE/adapters separately from view handlers.
+`static/edge-client.js` holds the session/API/SSE/adapters separately from view handlers (see Front-end structure).
+
+## Front-end structure: editing the page without touching the API (EXEC-X, 2026-10-08)
+
+The page is edited as one HTML file and its API wiring is not locked to the view. Four layers, each with one job:
+
+| Layer | File | Change it when |
+| --- | --- | --- |
+| Transport (API, session, SSE) | `static/edge-client.js` | a BFF route or its JSON changes |
+| View contract | `static/edge-view.js` (`EdgeView.toView`) | Orc's response shape changes; the only code that reads it |
+| Words | `static/edge-labels.js` | wording, a label, a code's words, a status name |
+| Look and layout | `static/index.html` (markup, CSS, renderers) | anything visual; renderers read the view model only |
+
+- `EdgeView.toView(envelope)` returns display-ready parts (status, meta, answer, clarification, pause, plan, findings,
+  lists, methodology, artifacts; `EdgeView.sources` for the Details panel). Its `version` changes when a part changes
+  shape. A field the view does not know yet still shows through the generic view, named from its key.
+- Every choice the page shows carries an action descriptor: `route` (a quick choice), `plan` (APPROVE, REVISE,
+  CANCEL with its plan id), `message` (the choice's words are sent) or `input` (the user writes first). `act()` in the
+  page is the only place that sends one, so a new kind of choice from the backend needs no new button code.
+- The BFF serves every page script in `static/` by name (`/<name>.js`), so a new front-end file needs no route.
+- Backend codes reach the page as words: Orc writes its own lines in plain Indonesian (`app/user_texts.py`), and the
+  page words a code through `edge-labels.js` or, when a code has no words yet, shows it readable, never raw.
+
+Editing workflow (no server, no login, no AI call):
+
+```bash
+python preview/edge_preview.py build preview/edge_preview.html   # one file: the page, its scripts, saved dev responses
+# open and edit that file in any editor or design tool, then:
+python preview/edge_preview.py import preview/edge_preview.html  # back to static/index.html and static/*.js
+```
+
+`import` refuses a file the tool did not build and writes only what changed. `tests/test_frontend_contract.py` checks
+the script route, the round trip and the view contract on every saved response (`tests/fixtures/orc_responses.json`);
+`tests/test_answer_view.py` drives the real page through the BFF with those responses.
 
 ## Persistence and ownership
 
