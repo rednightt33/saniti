@@ -1552,6 +1552,19 @@ didahului inspeksi ulang singkat; GT V-g dan item M119 tetap hanya atas perintah
 desktop. Usulan P1/P2 (hari aktif kelompok di baris kelengkapan; tabel dengan butir yang sama) dan bahasa teks backend
 belum diputuskan ("dulu"): dicatat di `FUTURE_PLAN.md`.
 
+**Hasil Fase 4 (2026-10-09, go "lanjut fase 4 dan 5 dulu"; ter-deploy, uji live menunggu perintah):**
+- B1 V-f (ERRORS M134): data dengan SQL Governor yang sama diambil sekali per jawaban: sandbox memakai ulang potongan
+  dari jawaban yang sama walau rentangnya sampai hari ini; dua permintaan dalam satu rencana berbagi satu file
+  (`same_as`); dua persiapan data yang berjalan bersamaan saling menunggu lalu memakai ulang.
+- B2 M119: sesi bisa membaca tabel buatannya sendiri menurut id atau nama (label "belum dirilis"); tabel kerja
+  `save_table`/`load_table` dengan kuota disk (bawaan setengah disk sementara sesi), tidak dirilis dan tidak dikutip;
+  `event_study`/`backtest` menyebut semua tabel yang dibuatnya; pesan penolakan menyebut langkah berikutnya.
+- AI tahu lewat: tampilan sesi, `run_python` v6 (Tool_Catalog round Q), panduan metode v7, AI_TOOLS.md.
+- Migrasi `20261009_005` (panduan v7) dan `_006` (round Q) diterapkan dan dibaca balik.
+- Tes: orc 1.607 lulus; sandbox 809 lulus. Deploy: sandbox `e46c0ba5`, orc `540227e6` (di-redeploy sesudah sandbox
+  SUCCESS), keduanya SUCCESS, tanpa peringatan kapabilitas.
+- Uji live (GT V-g dan item M119, ±USD 0,40) hanya atas perintah user.
+
 **Hasil Fase 3 (2026-10-09, go "gas"; ter-deploy dan dicek live):**
 - Migrasi `20261009_002` (diterapkan, dibaca balik): `AI_table_catalog.row_presence` (5 tabel bertanggal
   ACTIVITY_ONLY, 4 tabel tanpa tanggal NOT_APPLICABLE, status INFERRED) dan `AI_column_catalog.description_id`

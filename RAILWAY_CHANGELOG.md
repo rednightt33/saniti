@@ -3254,3 +3254,15 @@ User: "gas" (go for Fase 3 after "E1 ok 2-4" and E2).
 - `main` `1d83787` (filters written on one line): market-ai-orc **f41dc090-45ea-430d-bcc2-15534be1540c** reached
   **SUCCESS**.
 - No variable, model, provider, mode or Railway configuration change; no IaC apply.
+
+## 2026-10-09 — EXEC-Y Fase 4 (V-f, M119) deployed from main
+
+User: "lanjut fase 4 dan 5 dulu".
+
+- `main` `77b13d2`: market-python-sandbox **e46c0ba5-da3a-42d4-af79-0306d979db0f** and market-ai-orc
+  **a9cdb1c6-dc1e-400b-a269-59de0bede4a5** reached **SUCCESS**; market-ai-orc was then redeployed after the sandbox
+  (**540227e6-0558-4478-b83f-303883026bb7**, SUCCESS) so it reads the sandbox's part_reuse version 2 and guides hash
+  at startup; no `*_inactive` event. Rollback references: sandbox `81dd8a94`, orc `f41dc090`.
+- Migrations `20261009_005` (method guides v7) and `_006` (Tool_Catalog round Q) applied through `mmig-job` (deleted).
+- New optional sandbox variable `PY_SANDBOX_WORKING_TABLE_BYTES` (not set on dev: the default, half of
+  `PY_SANDBOX_MAX_INTERMEDIATE_BYTES`, applies). No variable, model, provider, mode or Railway configuration change.
