@@ -26,8 +26,9 @@ DESCRIPTION = (
     "Write an output as a file the user downloads (CSV, XLSX with definition and lineage sheets, or PARQUET), at most "
     "20 MB. Give ref (out.o3), output_id, or evidence_id (a checked claim's evidence rows). Returns export_id, file "
     "name, size and format only; the answer names the file, the user downloads it. For XLSX give column_labels: the "
-    "title of each column in the user's language, as the reader should see it. The backend adds to the XLSX "
-    "definition sheet what one row is and how complete each group is against the source table."
+    "title of each column in the user's language, as the reader should see it, and source_columns: for each column "
+    "copied from a source table (renamed or not), that table's column name; never for a computed column. The backend "
+    "adds to the XLSX definition sheet what one row is and how complete each group is against the source table."
 )
 MAX_COLUMNS = 60  # the column sheet travels in the request header with the definition and lineage
 # The sandbox's HTTP server reads at most 16 KiB of request headers (h11); the metadata header stays below this, its
@@ -44,6 +45,14 @@ class ColumnLabel(BaseModel):
     label: str = Field(description="Its title in the user's language.")
 
 
+class SourceColumn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    column: str = Field(description="The column's name in the output.")
+    source_column: str = Field(description="The source table's column it was copied from, exactly as the catalog "
+                                           "names it (for example Date for trading_date).")
+
+
 class ExportResultArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -56,6 +65,9 @@ class ExportResultArgs(BaseModel):
     column_labels: list[ColumnLabel] | None = Field(
         description="XLSX: the title the reader sees for each column, in the user's language; a column not named "
                     "keeps its name made readable.")
+    source_columns: list[SourceColumn] | None = Field(
+        description="XLSX: the source table's column of each column copied from it (renamed or not); a computed "
+                    "column is not listed.")
 
     @model_validator(mode="after")
     def _one_source(self) -> "ExportResultArgs":
@@ -109,12 +121,18 @@ def export_specs(client: SandboxClient, *, timeout_seconds: float, max_result_by
                 **({"lineage": texts.export_lineage(lineage)}
                    if includes["lineage"] and arguments.format == "XLSX" else {})}
         names = [str(n) for n in (entry or {}).get("columns") or []][:MAX_COLUMNS]
+        # EXEC-Y Fase 3: a renamed source column (trading_date for Date) keeps its catalog meaning and its count; the
+        # mapping is the model's reading of its own code, the catalog and the Governor check that the column exists
+        copied = {item.column: item.source_column for item in arguments.source_columns or []
+                  if item.column in names and item.source_column.strip()}
         if arguments.format == "XLSX" and names:
             # M128b: the titles the reader sees and what each column means; the CSV keeps the machine names
             meanings = {}
             if column_meanings is not None and lineage.get("source_tables"):
                 try:
-                    meanings = column_meanings(list(lineage["source_tables"]), names)
+                    found = column_meanings(list(lineage["source_tables"]), sorted(set(names) | set(copied.values())))
+                    meanings = {name: found.get(copied.get(name, name)) or found.get(name) for name in names}
+                    meanings = {k: v for k, v in meanings.items() if v}
                 except Exception:  # noqa: BLE001 - a catalog failure leaves the meanings out, never the file
                     meanings = {}
             labels = {item.column: item.label[:80] for item in arguments.column_labels or []
@@ -126,7 +144,7 @@ def export_specs(client: SandboxClient, *, timeout_seconds: float, max_result_by
             meta["texts"] = texts.EXPORT_READING
             meta["completeness"] = completeness(client, governor, table_facts, results.record,
                                                 ((entry or {}).get("lineage") or (stored.lineage if stored else None)
-                                                 or {}).get("need_id"), names, data, kind, timeout_seconds)
+                                                 or {}).get("need_id"), names, data, kind, timeout_seconds, copied)
             meta = fit_header(meta)
         status, body, headers = stored_op(client, "export", data, meta, timeout=timeout_seconds)
         if status != 200:
@@ -144,9 +162,11 @@ UNCHECKED = {"status": "UNCHECKED"}
 
 
 def completeness(client: SandboxClient, governor: Any, table_facts: Any, record: dict[str, Any], need_id: Any,
-                 names: list[str], data: bytes, kind: str, timeout: float) -> dict[str, Any]:
+                 names: list[str], data: bytes, kind: str, timeout: float,
+                 copied: dict[str, str] | None = None) -> dict[str, Any]:
     """EXEC-Y Fase 3 E1(1) (user decision 2026-10-09 "E1 ok 2-4"): the days the source table has, per group, over the
     file's own period, for the sandbox to set against the file's days. Derived, so a new table needs no code:
+      - a file column stands for the source column of the same name, or the one the model named for it (copied);
       - the source is a request of the output's data need whose table's time column is a column of the file, with the
         canonical filter kept in the data record and no restriction to another table;
       - the groups are the file's columns that the table can be grouped by (its grain keys and the catalog's
@@ -157,23 +177,26 @@ def completeness(client: SandboxClient, governor: Any, table_facts: Any, record:
         need = next((n for n in record.get("needs") or [] if isinstance(n, dict) and n.get("need_id") == need_id), None)
         if governor is None or table_facts is None or need is None:
             return UNCHECKED
+        source_of = {name: (copied or {}).get(name, name) for name in names}
         requests = [r for r in need.get("requests") or [] if isinstance(r, dict) and r.get("source_table")]
-        facts = table_facts(sorted({r["source_table"] for r in requests}), names) if requests else {}
+        facts = table_facts(sorted({r["source_table"] for r in requests}), sorted(set(source_of.values()))) \
+            if requests else {}
         best = None
         for request in requests:
             table = facts.get(request["source_table"]) or {}
             time_column = table.get("time_column")
-            if not time_column or time_column not in names or request.get("restrictions") \
+            file_time = next((n for n in names if source_of[n] == time_column), None)
+            if not time_column or file_time is None or request.get("restrictions") \
                     or not isinstance(request.get("scope_spec"), dict):
                 continue
-            groups = [c for c in names if c != time_column and c in table.get("groupable", set())]
+            groups = [n for n in names if n != file_time and source_of[n] in table.get("groupable", set())]
             if best is None or len(groups) > len(best[2]):
-                best = (request, table, groups, time_column)
+                best = (request, table, groups, file_time)
         if best is None or len(best[2]) > 6:
             return UNCHECKED
-        request, table, groups, time_column = best
-        meta = {"format": kind, "checksum_sha256": hashlib.sha256(data).hexdigest(), "column": time_column,
-                "columns": [time_column]}
+        request, table, groups, file_time = best
+        meta = {"format": kind, "checksum_sha256": hashlib.sha256(data).hexdigest(), "column": file_time,
+                "columns": [file_time]}
         ends = []
         for measure in ("MIN", "MAX"):
             status, body, _ = stored_op(client, "recount", data, {**meta, "measure": measure}, timeout=timeout)
@@ -182,17 +205,18 @@ def completeness(client: SandboxClient, governor: Any, table_facts: Any, record:
                 return UNCHECKED
             ends.append(value[:10])
         spec = {"summary_version": "summary_spec/v1", "source_table": request["source_table"],
-                "scope": request["scope_spec"], "restrictions": [], "group_by": groups,
+                "scope": request["scope_spec"], "restrictions": [], "group_by": [source_of[g] for g in groups],
                 "measures": [{"column": None, "function": "COUNT", "as": "row_count"}],
                 "period": {"from": ends[0], "to": ends[1]}}
         answer = governor.summary(spec, {"purpose": "EVIDENCE", "recipe_sha256": sha256_json(spec)}, timeout=timeout)
         rows = answer.get("rows") or []
         if answer.get("status") != "OK" or len(rows) > MAX_COMPLETENESS_GROUPS:
             return UNCHECKED
-        return {"status": "CHECKED", "time_column": time_column, "group_columns": groups, "from": ends[0],
+        return {"status": "CHECKED", "time_column": file_time, "group_columns": groups, "from": ends[0],
                 "to": ends[1], "calendar_dates": (answer.get("period") or {}).get("calendar_dates"),
                 "row_presence": table.get("row_presence"),
-                "groups": [{"key": [row.get(g) for g in groups], "days": row.get("days_present")} for row in rows]}
+                "groups": [{"key": [row.get(source_of[g]) for g in groups], "days": row.get("days_present")}
+                           for row in rows]}
     except Exception:  # noqa: BLE001 - the check never blocks the file; the file says it was not checked
         return UNCHECKED
 

@@ -28,9 +28,11 @@ registering the new versions of the tools whose contract changed in that round.
   open_analysis_session v3 (up to four sessions per answer, close_session_id) and prepare_data_bundle v3 (the same
   Governor SQL is reused within a conversation, data_reuse); EXEC-V revision of 2026-10-08.
 - round_n (20261009_001, applied): export_result v2 (column_labels: the reader's column titles of an XLSX; M128b).
-- round_o (20261009_003): research_web v2 (no web link in the answer text, the source in the Sources panel; user
+- round_o (20261009_003, applied): research_web v2 (no web link in the answer text, the source in the Sources panel; user
   decision B 2026-10-09) and export_result v3 (the XLSX definition sheet says what one row is and how complete each
   group is against the source table; EXEC-Y Fase 3).
+- round_p (20261009_004): export_result v4 (source_columns: the source column of each copied column, so a renamed
+  column keeps its meaning and its count; live check of EXEC-Y Fase 3).
 
 Registered from the code with every switch of the dev environment on (the registry of scripts/generate_ai_tools_doc.py,
 one source for both). An applied migration is frozen (database/migrations/APPLIED.sha256); market-ai-orc's
@@ -336,8 +338,23 @@ ROUNDS = {
                                    "a filter through another table or one longer than 2,000 characters is not "
                                    "checked and the file says so"},
     },
+    "round_p": {
+        "target": ROOT / "database/migrations/20261009_004_round_p_tool_catalog.sql",
+        "versions": {"export_result": ("v3", "v4")},
+        "contracts": {"export_result": ("input_schema", "source_columns")},
+        "title": "EXEC-Y Fase 3 renamed columns",
+        "header": "EXEC.md EXEC-Y Fase 3 (go \"gas\" 2026-10-09), live check edge_58b3a299: renamed columns were not counted",
+        "design": "EXEC.md EXEC-Y Fase 3; ERRORS_AND_SOLUTIONS.md M128 (d)",
+        "limits_design": "EXEC.md EXEC-Y Fase 3; ERRORS_AND_SOLUTIONS.md M128 (d)",
+        "summary": ["export_result v4: source_columns, the source table's column of each output column copied from it",
+                    "(renamed or not), so a renamed column keeps its catalog meaning in the column sheet and is counted",
+                    "against the source table in the completeness rows (the live check of 2026-10-09 renamed Date and",
+                    "Market Board, and both files said \"not checked\")."],
+        "limits": {"source_columns": "a mapping for a column the output does not have is ignored; a source column the "
+                                     "table does not have or cannot group by is not counted"},
+    },
 }
-NEWEST = "round_o"
+NEWEST = "round_p"
 
 
 def _tools_doc():

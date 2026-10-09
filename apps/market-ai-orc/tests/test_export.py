@@ -255,7 +255,8 @@ def facts(tables, columns):
             "IDX_Stock_Universe": {"time_column": None, "row_presence": "NOT_APPLICABLE", "groupable": {"Ticker"}}}
 
 
-def export_xlsx(fake, governor, requests, columns=("date", "board_type", "foreign_net_value"), fmt="XLSX"):
+def export_xlsx(fake, governor, requests, columns=("date", "board_type", "foreign_net_value"), fmt="XLSX",
+                source_columns=None):
     import base64
     import json
 
@@ -274,7 +275,7 @@ def export_xlsx(fake, governor, requests, columns=("date", "board_type", "foreig
     token = current_results.set(RunResults(conversation_id="conv_1", request_id="req_1", store=ExportStore(),
                                            record=record, fetch=lambda sid, oid: b"PAR1"))
     try:
-        call(tools, "export_result", {"ref": "o1", "format": fmt})
+        call(tools, "export_result", {"ref": "o1", "format": fmt, "source_columns": source_columns})
     finally:
         current_results.reset(token)
     sent = [c for c in fake.calls if c["path"] == "/v1/stored-tables/export"][-1]
@@ -341,3 +342,54 @@ def test_the_metadata_header_stays_within_the_sandboxs_limit() -> None:
     groups = {"status": "CHECKED", "groups": [{"key": ["x" * 200], "days": 1}] * 50}
     fitted = fit_header({"format": "PARQUET", "columns": columns, "completeness": groups})
     assert _header_bytes(fitted) <= META_HEADER_BYTES and fitted["completeness"] == {"status": "UNCHECKED"}
+
+
+def test_renamed_source_columns_are_counted_under_the_names_the_model_gives() -> None:
+    """Live check 2026-10-09 (edge_58b3a299…): the analysis renamed Date to trading_date and Market Board to
+    market_board, so both files said "not checked". The model names the source column of each copied column; the
+    Governor is asked with the source names, the sandbox counts under the file's names; a mapping to a column the
+    table cannot be grouped by is not used as a group."""
+    governor = Governor({"status": "OK", "period": {"calendar_dates": 211},
+                         "rows": [{"board_type": "Nego", "row_count": 900, "days_present": 210}]})
+    requests = [{"source_table": "Feature_03_Stock_Broker_Daily", "scope_spec": SCOPE}]
+    meta = export_xlsx(RecountSandbox(), governor, requests, ("trading_date", "board", "net"),
+                       source_columns=[{"column": "trading_date", "source_column": "date"},
+                                       {"column": "board", "source_column": "board_type"},
+                                       {"column": "net", "source_column": "foreign_net_value"},
+                                       {"column": "nope", "source_column": "ticker"}])
+    spec = governor.specs[0][0]
+    assert spec["group_by"] == ["board_type"]
+    assert meta["completeness"]["time_column"] == "trading_date"
+    assert meta["completeness"]["group_columns"] == ["board"]
+    assert meta["completeness"]["groups"] == [{"key": ["Nego"], "days": 210}]
+
+
+def test_a_renamed_source_column_keeps_its_catalog_meaning() -> None:
+    import base64
+    import json
+
+    from app.tools import _column_meanings
+    from app.tools.export import export_specs
+    from app.tools.registry import ToolRegistry
+
+    reader = Rows([{"column_name": "Date", "description_id": "Tanggal transaksi", "unit": None},
+                   {"column_name": "Net Value", "description": "Net traded value", "unit": "IDR"}])
+    fake = ExportSandbox()
+    sandbox = SandboxClient("http://sandbox.test", SANDBOX_KEY, 10, 0, transport=httpx.MockTransport(fake.handler))
+    tools = ToolRegistry()
+    for spec in export_specs(sandbox, timeout_seconds=10, max_result_bytes=40000,
+                             column_meanings=_column_meanings(reader)):
+        tools.register(spec)
+    record = {"outputs": [{"ref": "out.o1", "output_id": OUTPUT, "session_id": SESSION, "name": "flow", "type": "TABLE",
+                           "columns": ["trading_date", "net_sum"], "lineage": {"need_id": "need_1"}}],
+              "needs": [{"need_id": "need_1", "requests": [{"source_table": "IDX_Broker_Summary"}]}]}
+    token = current_results.set(RunResults(conversation_id="conv_1", request_id="req_1", store=ExportStore(),
+                                           record=record, fetch=lambda sid, oid: b"PAR1"))
+    try:
+        call(tools, "export_result", {"ref": "o1", "format": "XLSX", "source_columns": [
+            {"column": "trading_date", "source_column": "Date"}]})
+    finally:
+        current_results.reset(token)
+    meta = json.loads(base64.urlsafe_b64decode(fake.calls[-1]["headers"]["x-saniti-output-meta"] + "=="))
+    assert reader.asked[0][1] == ["Date", "net_sum", "trading_date"]
+    assert [c["meaning"] for c in meta["columns"]] == ["Tanggal transaksi", None]  # a computed column gets none

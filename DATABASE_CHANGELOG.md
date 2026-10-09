@@ -1,5 +1,17 @@
 # Database changelog
 
+## 2026-10-09 — EXEC-Y Fase 3: Tool_Catalog round P on dev (renamed columns)
+
+- **`20261009_004_round_p_tool_catalog.sql`** (generated, round `round_p`): one inactive `Tool_Catalog` row,
+  `export_result` v4, copied from v3 with the code's input schema and purpose (`source_columns`: the source column of
+  each output column copied from a source table, so a renamed column keeps its meaning and is counted in the
+  completeness rows). Cause: the live check `edge_58b3a299…` renamed `Date` and `Market Board`, and both files said
+  "not checked".
+- **Part A check:** tool metadata; Part A does not apply.
+- Applied by the temporary service `mmig-job` (deleted afterwards, read back absent): DRYRUN `0960ef9d` rolled back;
+  APPLY `7d01a819` committed (file sha256 `01ecb84b…`). Read back: `export_result` v1–v4, all inactive. Checksum
+  appended to `database/migrations/APPLIED.sha256`.
+
 ## 2026-10-09 — EXEC-Y Fase 3: row_presence, Indonesian column meanings, Tool_Catalog round O on dev
 
 User decisions 2026-10-09: "E1 ok 2-4 masukan exec"; "kenapa tidak e2 let ai terjemahkan agar sesuai dengan bahasa
