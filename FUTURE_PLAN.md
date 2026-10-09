@@ -223,3 +223,17 @@ Untuk 100 pengguna bersamaan tetap perlu bagian 2.
 Pertanyaan yang tidak butuh data pasar (makro murni, berita) langsung ke riset berita `/v1/ask` tanpa langkah analisis
 data, lebih cepat dan murah. Butuh perubahan kriteria router, `AI_ROUTER.md` dan benchmark router. User 2026-10-09:
 "bisa untuk explore jalur khusus v1/ask di exclude dulu. jalurnya lain keep as is".
+
+## Kelengkapan Excel: hari tanpa transaksi yang tersaring (usulan 2026-10-09, menunggu keputusan)
+
+Bukti: uji live EXEC-Y Fase 3 (`edge_58b3a299…`): data diambil dengan saringan `Investor Type = Foreign`, jadi hari
+papan Nego tanpa broker asing (2026-05-26) tidak pernah masuk; model tidak bisa menulis nol, dan baris kelengkapan dengan
+saringan yang sama menulis "210 dari 210". Kelas: setiap data yang disaring pada atribut di luar kunci tabel lalu
+disusun per kalender (broker, tipe investor, kategori makro nanti).
+- P1 (backend, jaminan): baris kelengkapan juga menghitung hari aktif kelompok dengan saringan dilonggarkan (hanya
+  saringan pada kolom entitas dan kolom kelompok dipertahankan, diturunkan dari katalog); satu kueri Governor tambahan.
+- P2 (panduan model): bila ada tabel dengan butir yang sama dengan hasil yang diminta dan sudah memuat ukurannya
+  (contoh Feature_03), pakai tabel itu.
+- Bahasa teks backend untuk pembaca selalu Indonesia, sedangkan model menulis dalam bahasa pertanyaan (limitations
+  bercampur di uji yang sama). Kelas: semua teks backend untuk pembaca.
+User 2026-10-09: "lanjut fase 4 dan 5 dulu" (belum diputuskan).

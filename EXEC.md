@@ -1547,6 +1547,11 @@ dan nama source berita".** Belum dibangun; menunggu pilihan user (lihat jawaban 
   dibenarkan tanpa merubah design site" → Fase 5 (QA tampilan mobile dan desktop) sesudah Fase 4.
 - E2 tidak dijawab ulang; dipakai usulan: terjemahan disimpan sekali per kolom dan dipakai ulang.
 
+**Go Fase 4 dan 5 (user 2026-10-09: "lanjut fase 4 dan 5 dulu").** Fase 4 = Gelombang B EXEC-W (B1 V-f, B2 M119 A+B),
+didahului inspeksi ulang singkat; GT V-g dan item M119 tetap hanya atas perintah. Fase 5 = QA tampilan mobile dan
+desktop. Usulan P1/P2 (hari aktif kelompok di baris kelengkapan; tabel dengan butir yang sama) dan bahasa teks backend
+belum diputuskan ("dulu"): dicatat di `FUTURE_PLAN.md`.
+
 **Hasil Fase 3 (2026-10-09, go "gas"; ter-deploy dan dicek live):**
 - Migrasi `20261009_002` (diterapkan, dibaca balik): `AI_table_catalog.row_presence` (5 tabel bertanggal
   ACTIVITY_ONLY, 4 tabel tanpa tanggal NOT_APPLICABLE, status INFERRED) dan `AI_column_catalog.description_id`
