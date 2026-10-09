@@ -1,5 +1,9 @@
 # Railway changelog
 
+## 2026-10-09 — M139 and M140 deployed from main (EXEC-Z)
+
+- `main` `977b525`: market-python-sandbox `92eabc87` SUCCESS (a failed `run_python` reports its outputs as `discarded_outputs`), market-ai-orc `d6177468` SUCCESS (the typed-figure repair names the equal values). Orc startup unchanged: model and mode selected, provider policy OK, no `*_inactive`. No variable, model, provider, mode or switch changed. Rollback: sandbox `e46c0ba5`, orc `540227e6`.
+
 ## 2026-10-09 — edge-bff Fase 5 QA fixes deployed from main
 
 - edge-bff `a225ddfc-3183-4d41-92c0-f89f130f7ca1` SUCCESS (commit `dfdabf7`, from main; `static/index.html` only:

@@ -1632,6 +1632,7 @@ fasenya. Usulan "ide riset" sebelumnya dibatalkan; pilihan "Uji dengan data: …
 - M139 (sandbox): jawaban `run_python` yang gagal tidak lagi mencantumkan tabel yang dibuatnya di `outputs`; tabel itu ada di `discarded_outputs` dengan satu kalimat bahwa `complete_analysis` tidak akan merilisnya dan harus dibuat ulang di eksekusi yang benar (tabelnya tetap bisa dibaca dengan `load_output(name)`). Aturan rilis tidak berubah.
 - M140 (orc): permintaan perbaikan angka ketikan (`TYPED_FIGURES`) menyebut alamat nilai yang sama dengan setiap angka (paling banyak 6 per angka), supaya AI tinggal memilih. Angka yang cocok dengan lebih dari satu nilai tetap tidak dirujuk otomatis.
 - Tes: sandbox 810 lulus (`test_dataneed_completion.py`: hasil buangan dan rilis sesudah dibuat ulang); orc 1.608 lulus (`test_g23_desk.py`: kandidat disebut, tanpa kandidat bila tidak ada yang sama).
+- Deploy `977b525`: sandbox `92eabc87` dan orc `d6177468` **SUCCESS**. Cek live: pada run berikutnya yang mengalami kode gagal atau angka ganda.
 
 ### EXEC-M109: pertanyaan tanya-balik router tetap dipakai
 
