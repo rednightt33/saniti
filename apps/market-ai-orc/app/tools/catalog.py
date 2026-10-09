@@ -172,10 +172,30 @@ SELECT t.table_name, t.grain, t.primary_key_columns, t.time_column, t.entity_col
        to_jsonb(t) ->> 'data_domain' AS data_domain, to_jsonb(t) ->> 'entity_type' AS entity_type,
        to_jsonb(t) ->> 'asset_type' AS asset_type, to_jsonb(t) -> 'supported_frequencies' AS supported_frequencies,
        to_jsonb(t) ->> 'time_semantics' AS time_semantics,
-       to_jsonb(t) ->> 'subject_metadata_status' AS subject_metadata_status
+       to_jsonb(t) ->> 'subject_metadata_status' AS subject_metadata_status,
+       to_jsonb(t) ->> 'row_presence' AS row_presence
 FROM public."AI_table_catalog" t
 WHERE t.table_name = ANY(%s)
 ORDER BY t.table_name
+'''
+
+# EXEC-Y Fase 3 (E1, E2): what an export reads of its source tables. row_presence (DENSE, ACTIVITY_ONLY,
+# NOT_APPLICABLE) and description_id (the Indonesian column meaning) through to_jsonb, so the queries stay valid before
+# migration 20261009_001.
+EXPORT_TABLES_SQL = '''
+SELECT t.table_name, t.time_column, t.entity_column, t.primary_key_columns,
+       to_jsonb(t) ->> 'row_presence' AS row_presence
+FROM public."AI_table_catalog" t
+WHERE t.table_name = ANY(%s)
+'''
+
+EXPORT_COLUMNS_SQL = '''
+SELECT c.table_name, c.column_name, c.description, to_jsonb(c) ->> 'description_id' AS description_id, c.unit,
+       c.group_by_allowed
+FROM public."AI_column_catalog" c
+WHERE c.table_name = ANY(%s) AND c.ai_allowed AND NOT c.is_sensitive AND c.column_name = ANY(%s)
+ORDER BY c.table_name, c.ordinal_position
+LIMIT %s
 '''
 
 RESEARCH_COUNTS_SQL = '''
@@ -1090,8 +1110,8 @@ class CatalogTools:
                 # the table-level contract a data need copies: grain, keys, time/entity columns, subject values
                 base["table_metadata"] = {
                     row["table_name"]: {
-                        **_entry(row, ("grain", "primary_key_columns", "time_column", "entity_column"),
-                                 keep_null=("time_column", "entity_column")),
+                        **_entry(row, ("grain", "primary_key_columns", "time_column", "entity_column",
+                                       "row_presence"), keep_null=("time_column", "entity_column")),
                         **({"subject": _entry(row, ("data_domain", "entity_type", "asset_type",
                                                     "supported_frequencies", "time_semantics",
                                                     "subject_metadata_status"), keep_null=("asset_type",))}

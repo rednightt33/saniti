@@ -7,7 +7,9 @@ The model sees only the export's id, name, size and format; the file never enter
 """
 from __future__ import annotations
 
+import base64
 import hashlib
+import json
 import re
 from typing import Any, Callable, Literal
 
@@ -15,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .. import user_texts as texts
 from .analysis import SandboxClient
+from .data_planner import sha256_json
 from .artifacts import (current_results, record_source_tables, resolve_ref, short_lineage, source_bytes,
                         stored_op)
 from .registry import ToolError, ToolSpec
@@ -23,9 +26,15 @@ DESCRIPTION = (
     "Write an output as a file the user downloads (CSV, XLSX with definition and lineage sheets, or PARQUET), at most "
     "20 MB. Give ref (out.o3), output_id, or evidence_id (a checked claim's evidence rows). Returns export_id, file "
     "name, size and format only; the answer names the file, the user downloads it. For XLSX give column_labels: the "
-    "title of each column in the user's language, as the reader should see it."
+    "title of each column in the user's language, as the reader should see it. The backend adds to the XLSX "
+    "definition sheet what one row is and how complete each group is against the source table."
 )
 MAX_COLUMNS = 60  # the column sheet travels in the request header with the definition and lineage
+# The sandbox's HTTP server reads at most 16 KiB of request headers (h11); the metadata header stays below this, its
+# column meanings shortened first and the completeness groups dropped next (M133).
+META_HEADER_BYTES = 14_000  # leaves about 2 KiB for the other headers
+MEANING_STEPS = (300, 160, 120, 80, 0)
+MAX_COMPLETENESS_GROUPS = 50
 
 
 class ColumnLabel(BaseModel):
@@ -61,8 +70,11 @@ def file_name(name: Any, output_id: str, extension: str) -> str:
 
 
 def export_specs(client: SandboxClient, *, timeout_seconds: float, max_result_bytes: int,
-                 column_meanings: Callable[[list[str], list[str]], dict[str, dict]] | None = None) -> list[ToolSpec]:
-    """column_meanings(tables, columns): the catalog's meaning and unit of each column a source table has (M128b)."""
+                 column_meanings: Callable[[list[str], list[str]], dict[str, dict]] | None = None,
+                 table_facts: Callable[[list[str], list[str]], dict[str, dict]] | None = None,
+                 governor: Any = None) -> list[ToolSpec]:
+    """column_meanings(tables, columns): the catalog's meaning and unit of each column a source table has (M128b).
+    table_facts(tables, columns) and governor: the source counts behind the XLSX completeness rows (EXEC-Y Fase 3)."""
     def handler(arguments: BaseModel) -> dict[str, Any]:
         assert isinstance(arguments, ExportResultArgs)
         results = current_results.get()
@@ -109,6 +121,13 @@ def export_specs(client: SandboxClient, *, timeout_seconds: float, max_result_by
                       if item.column in names and item.label.strip()}
             meta["columns"] = texts.export_columns(names, labels, meanings)
             meta["headers"] = {row["name"]: row["label"] for row in meta["columns"]}
+        if arguments.format == "XLSX":
+            # E1(1), E1(3): how to read the file (one row per ..., the days per group against the source)
+            meta["texts"] = texts.EXPORT_READING
+            meta["completeness"] = completeness(client, governor, table_facts, results.record,
+                                                ((entry or {}).get("lineage") or (stored.lineage if stored else None)
+                                                 or {}).get("need_id"), names, data, kind, timeout_seconds)
+            meta = fit_header(meta)
         status, body, headers = stored_op(client, "export", data, meta, timeout=timeout_seconds)
         if status != 200:
             return _refused(status, body)
@@ -119,6 +138,81 @@ def export_specs(client: SandboxClient, *, timeout_seconds: float, max_result_by
 
     return [ToolSpec(name="export_result", effect="OWN_ARTIFACT", description=DESCRIPTION, arguments_model=ExportResultArgs,
                      handler=handler, timeout_seconds=timeout_seconds + 30, max_result_bytes=max_result_bytes)]
+
+
+UNCHECKED = {"status": "UNCHECKED"}
+
+
+def completeness(client: SandboxClient, governor: Any, table_facts: Any, record: dict[str, Any], need_id: Any,
+                 names: list[str], data: bytes, kind: str, timeout: float) -> dict[str, Any]:
+    """EXEC-Y Fase 3 E1(1) (user decision 2026-10-09 "E1 ok 2-4"): the days the source table has, per group, over the
+    file's own period, for the sandbox to set against the file's days. Derived, so a new table needs no code:
+      - the source is a request of the output's data need whose table's time column is a column of the file, with the
+        canonical filter kept in the data record and no restriction to another table;
+      - the groups are the file's columns that the table can be grouped by (its grain keys and the catalog's
+        group_by_allowed columns); the request with the most of them is used;
+      - the file's period is its first and last date (sandbox recount), the counts one Governor summary (COUNT).
+    UNCHECKED when any of this is missing or fails: the file then says it was not checked, never a guess."""
+    try:
+        need = next((n for n in record.get("needs") or [] if isinstance(n, dict) and n.get("need_id") == need_id), None)
+        if governor is None or table_facts is None or need is None:
+            return UNCHECKED
+        requests = [r for r in need.get("requests") or [] if isinstance(r, dict) and r.get("source_table")]
+        facts = table_facts(sorted({r["source_table"] for r in requests}), names) if requests else {}
+        best = None
+        for request in requests:
+            table = facts.get(request["source_table"]) or {}
+            time_column = table.get("time_column")
+            if not time_column or time_column not in names or request.get("restrictions") \
+                    or not isinstance(request.get("scope_spec"), dict):
+                continue
+            groups = [c for c in names if c != time_column and c in table.get("groupable", set())]
+            if best is None or len(groups) > len(best[2]):
+                best = (request, table, groups, time_column)
+        if best is None or len(best[2]) > 6:
+            return UNCHECKED
+        request, table, groups, time_column = best
+        meta = {"format": kind, "checksum_sha256": hashlib.sha256(data).hexdigest(), "column": time_column,
+                "columns": [time_column]}
+        ends = []
+        for measure in ("MIN", "MAX"):
+            status, body, _ = stored_op(client, "recount", data, {**meta, "measure": measure}, timeout=timeout)
+            value = body.get("value") if status == 200 and isinstance(body, dict) else None
+            if not isinstance(value, str) or len(value) < 10:
+                return UNCHECKED
+            ends.append(value[:10])
+        spec = {"summary_version": "summary_spec/v1", "source_table": request["source_table"],
+                "scope": request["scope_spec"], "restrictions": [], "group_by": groups,
+                "measures": [{"column": None, "function": "COUNT", "as": "row_count"}],
+                "period": {"from": ends[0], "to": ends[1]}}
+        answer = governor.summary(spec, {"purpose": "EVIDENCE", "recipe_sha256": sha256_json(spec)}, timeout=timeout)
+        rows = answer.get("rows") or []
+        if answer.get("status") != "OK" or len(rows) > MAX_COMPLETENESS_GROUPS:
+            return UNCHECKED
+        return {"status": "CHECKED", "time_column": time_column, "group_columns": groups, "from": ends[0],
+                "to": ends[1], "calendar_dates": (answer.get("period") or {}).get("calendar_dates"),
+                "row_presence": table.get("row_presence"),
+                "groups": [{"key": [row.get(g) for g in groups], "days": row.get("days_present")} for row in rows]}
+    except Exception:  # noqa: BLE001 - the check never blocks the file; the file says it was not checked
+        return UNCHECKED
+
+
+def _header_bytes(meta: dict[str, Any]) -> int:
+    return len(base64.urlsafe_b64encode(json.dumps(meta, default=str).encode()))
+
+
+def fit_header(meta: dict[str, Any]) -> dict[str, Any]:
+    """M133: the metadata within META_HEADER_BYTES; column meanings shortened step by step, then the completeness
+    groups dropped (the file then says it was not checked)."""
+    for limit in MEANING_STEPS:
+        if _header_bytes(meta) <= META_HEADER_BYTES:
+            return meta
+        if meta.get("columns"):
+            meta = {**meta, "columns": [{**c, "meaning": (c.get("meaning") or "")[:limit] or None}
+                                        for c in meta["columns"]]}
+    if _header_bytes(meta) > META_HEADER_BYTES and meta.get("completeness"):
+        meta = {**meta, "completeness": UNCHECKED}
+    return meta
 
 
 def _refused(status: int, body: Any) -> dict[str, Any]:

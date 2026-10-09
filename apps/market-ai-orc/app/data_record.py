@@ -10,6 +10,7 @@ provenance source.
 from __future__ import annotations
 
 import copy
+import json
 import re
 from typing import Any
 
@@ -39,6 +40,7 @@ MAX_COLUMNS_PER_TABLE = 150
 COLUMNS_NOTE_CHARS = 14000
 REFERENCE_NOTE_CHARS = 8000
 MAX_READINGS = 30
+MAX_SCOPE_SPEC_CHARS = 2000
 MANUALS_HEADER = ("METHOD GUIDES OPENED EARLIER IN THIS CONVERSATION (application context from the backend, not from "
                   "the user): the manuals of these methods are already here, current version; do not open them "
                   "again.")
@@ -233,6 +235,10 @@ def add_need(record: dict[str, Any], request_id: str, result: dict[str, Any], mo
                          "scope_sha256": entry.get("scope_sha256"),
                          # H1 (M63): the row filter the backend applied, readable (DERIVED)
                          **({"scope": scope_text(entry["scope"])} if entry.get("scope") else {}),
+                         # EXEC-Y Fase 3 E1(1): the canonical filter itself, so an export can count the same rows in
+                         # the source (a long filter is left out and the file says it was not checked)
+                         **({"scope_spec": entry["scope"]} if isinstance(entry.get("scope"), dict)
+                            and len(json.dumps(entry["scope"], default=str)) <= MAX_SCOPE_SPEC_CHARS else {}),
                          **({"restrictions": [f"{x.get('right_table')}: {scope_text(x.get('right_scope'))}"
                                               for x in entry["restrictions"] if isinstance(x, dict)]}
                             if entry.get("restrictions") else {})})

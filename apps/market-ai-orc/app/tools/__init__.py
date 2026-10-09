@@ -145,7 +145,8 @@ def build_default_registry(
 
                     for spec in export_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
                                              max_result_bytes=python_analysis_max_bytes,
-                                             column_meanings=_column_meanings(catalog_reader)):
+                                             column_meanings=_column_meanings(catalog_reader),
+                                             table_facts=_export_tables(catalog_reader), governor=governor_client):
                         registry.register(spec)
                 if lineage_tool:
                     # D3 (AI_ENABLE_LINEAGE_TOOL): where an output's numbers came from
@@ -266,17 +267,42 @@ __all__ = [
 
 
 def _column_meanings(catalog_reader: CatalogReader | None):
-    """M128b: the AI column catalog's description and unit of each named column of the source tables (the first table
-    that has the column), read when a file is exported; None without a catalog."""
+    """M128b: the AI column catalog's meaning and unit of each named column of the source tables (the first table
+    that has the column), read when a file is exported; the Indonesian meaning when the catalog has one (EXEC-Y Fase 3
+    E2), else the English one marked as such; None without a catalog."""
     if catalog_reader is None:
         return None
-    from .catalog import COLUMNS_SQL
+    from .. import user_texts as texts
+    from .catalog import EXPORT_COLUMNS_SQL
 
     def meanings(tables: list[str], columns: list[str]) -> dict[str, dict]:
         with catalog_reader.read_only() as run:
-            rows = run(COLUMNS_SQL, (tables, columns, columns, 500))
+            rows = run(EXPORT_COLUMNS_SQL, (tables, columns, 500))
         found: dict[str, dict] = {}
         for row in rows:
-            found.setdefault(row["column_name"], {"meaning": row.get("description"), "unit": row.get("unit")})
+            meaning = row.get("description_id") or (
+                texts.EXPORT_ENGLISH_MEANING.format(text=row["description"]) if row.get("description") else None)
+            found.setdefault(row["column_name"], {"meaning": meaning, "unit": row.get("unit")})
         return found
     return meanings
+
+
+def _export_tables(catalog_reader: CatalogReader | None):
+    """EXEC-Y Fase 3 E1(1): per source table its time column, the columns its rows can be grouped by (the grain keys
+    and the catalog's group_by_allowed columns among the names asked) and its row_presence; None without a catalog."""
+    if catalog_reader is None:
+        return None
+    from .catalog import EXPORT_COLUMNS_SQL, EXPORT_TABLES_SQL
+
+    def facts(tables: list[str], columns: list[str]) -> dict[str, dict]:
+        with catalog_reader.read_only() as run:
+            found = {row["table_name"]: {"time_column": row.get("time_column"),
+                                         "row_presence": row.get("row_presence"),
+                                         "groupable": {c for c in [row.get("entity_column"),
+                                                                   *(row.get("primary_key_columns") or [])] if c}}
+                     for row in run(EXPORT_TABLES_SQL, (tables,))}
+            for row in run(EXPORT_COLUMNS_SQL, (tables, columns, 500)):
+                if row.get("group_by_allowed") and row["table_name"] in found:
+                    found[row["table_name"]]["groupable"].add(row["column_name"])
+        return found
+    return facts

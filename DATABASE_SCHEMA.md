@@ -206,20 +206,23 @@ AI-facing column semantics and bounded-query permissions for the seven approved 
 | `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed updated_at field of AI_column_catalog; see the creating migration for its exact contract. |
 | `resample_aggregation` | `text` | Yes | — | Exact aggregation rule to a coarser frequency (FIRST, LAST, MAX, MIN, SUM); NULL means no established rule, so resampling is never pushed down. |
 | `cross_entity_aggregation` | `text` | Yes | — | Rule for aggregating the column across entities of a finer grain (SUM, MIN, MAX); NULL means the column is not additive across entities and is never summed. Used by saniti.preaggregate before a relationship join and, since migration 20261002_002 (G18 phase 1), by a DataNeed request's aggregate: the SQL Governor computes SUM across entities only for a SUM rule (re-derived from its own catalog contract). Read through the Governor catalog contract and shown by get_catalog_details. |
-| `value_time_basis` | `text` | No | — | HISTORICAL: the value belongs to its row's date (or version). CURRENT_STATE: today's reference value repeated on every row (current classification); a point-in-time DataNeedSpec may not read or filter it. |
+| `value_time_basis` | `text` | No | — | HISTORICAL (the value belongs to its row's date or version) or CURRENT_STATE (today's reference value on every row); a point-in-time DataNeedSpec may not read or filter a CURRENT_STATE column. |
+| `description_id` | `text` | Yes | — | The column meaning in Indonesian, translated once from description by the production model; description stays the source text. |
+| `description_id_status` | `text` | Yes | — | DRAFT (machine translation, not yet reviewed) or REVIEWED; NULL exactly when description_id is NULL. |
 
 ### Constraints
 
 | Name | Type | Definition |
 |---|---|---|
-| `AI_column_catalog_value_time_basis_check` | Check | `CHECK (value_time_basis = ANY (ARRAY['HISTORICAL'::text, 'CURRENT_STATE'::text]))` |
-| `AI_column_catalog_cross_entity_aggregation_check` | Check | `CHECK (cross_entity_aggregation IS NULL OR (cross_entity_aggregation = ANY (ARRAY['SUM'::text, 'MIN'::text, 'MAX'::text])))` |
 | `AI_column_catalog_aggregations_check` | Check | `CHECK (allowed_aggregations <@ ARRAY['SUM'::text, 'AVG'::text, 'MEDIAN'::text, 'MIN'::text, 'MAX'::text, 'COUNT'::text, 'COUNT_DISTINCT'::text, 'PERCENTILE'::text, 'WEIGHTED_AVG'::text])` |
+| `AI_column_catalog_cross_entity_aggregation_check` | Check | `CHECK (cross_entity_aggregation IS NULL OR (cross_entity_aggregation = ANY (ARRAY['SUM'::text, 'MIN'::text, 'MAX'::text])))` |
+| `AI_column_catalog_description_id_status_check` | Check | `CHECK (description_id IS NULL AND description_id_status IS NULL OR description_id IS NOT NULL AND (description_id_status = ANY (ARRAY['DRAFT'::text, 'REVIEWED'::text])))` |
 | `AI_column_catalog_documentation_check` | Check | `CHECK (documentation_status = ANY (ARRAY['VERIFIED'::text, 'PARTIAL'::text, 'NEEDS_REVIEW'::text]))` |
 | `AI_column_catalog_position_check` | Check | `CHECK (ordinal_position > 0)` |
 | `AI_column_catalog_resample_aggregation_check` | Check | `CHECK (resample_aggregation IS NULL OR (resample_aggregation = ANY (ARRAY['FIRST'::text, 'LAST'::text, 'MAX'::text, 'MIN'::text, 'SUM'::text])))` |
 | `AI_column_catalog_semantic_check` | Check | `CHECK (semantic_type = ANY (ARRAY['IDENTIFIER'::text, 'TIME'::text, 'DIMENSION'::text, 'MEASURE'::text]))` |
 | `AI_column_catalog_timestamp_check` | Check | `CHECK (updated_at >= created_at)` |
+| `AI_column_catalog_value_time_basis_check` | Check | `CHECK (value_time_basis = ANY (ARRAY['HISTORICAL'::text, 'CURRENT_STATE'::text]))` |
 | `AI_column_catalog_table_fkey` | Foreign key | `FOREIGN KEY (table_name) REFERENCES "AI_table_catalog"(table_name) ON DELETE CASCADE` |
 | `AI_column_catalog_pkey` | Primary key | `PRIMARY KEY (table_name, column_name)` |
 
@@ -872,6 +875,8 @@ AI-facing master list and bounded-access contract for seven approved source and 
 | `supported_frequencies` | `ARRAY` | No | — | Observation frequencies the table supports; {STATIC} exactly when time_column is NULL. |
 | `time_semantics` | `text` | Yes | — | Meaning of time_column values (exchange trading date, observation date) or that the table holds current-state reference data. |
 | `subject_metadata_status` | `text` | No | `'INFERRED'::text` | Review state of the subject values: INFERRED (seeded by migration 20260925_001), REVIEWED, or VERIFIED after a person confirms them. |
+| `row_presence` | `text` | Yes | — | What a missing row of the table means: DENSE (every expected date has a row; an absent row is missing data), ACTIVITY_ONLY (a row exists only when something happened; an absent row on a trading day means none happened) or NOT_APPLICABLE (no time column). |
+| `row_presence_status` | `text` | Yes | — | Review state of row_presence: INFERRED (seeded by migration 20261009_002 from time_column and a read-only measurement), REVIEWED or VERIFIED after a person confirms it. |
 
 ### Constraints
 
@@ -885,6 +890,9 @@ AI-facing master list and bounded-access contract for seven approved source and 
 | `AI_table_catalog_entity_type_check` | Check | `CHECK (entity_type ~ '^[A-Z][A-Z0-9_]{1,39}$'::text)` |
 | `AI_table_catalog_frequencies_check` | Check | `CHECK (cardinality(supported_frequencies) >= 1 AND cardinality(supported_frequencies) <= 8 AND supported_frequencies <@ ARRAY['STATIC'::text, '1MIN'::text, '5MIN'::text, '15MIN'::text, '1H'::text, '1D'::text, '1W'::text, '1M'::text, '1Q'::text, '1Y'::text] AND (time_column IS NULL) = (supported_frequencies = ARRAY['STATIC'::text]))` |
 | `AI_table_catalog_name_check` | Check | `CHECK (btrim(table_name) <> ''::text)` |
+| `AI_table_catalog_row_presence_check` | Check | `CHECK (row_presence IS NULL OR (row_presence = ANY (ARRAY['DENSE'::text, 'ACTIVITY_ONLY'::text, 'NOT_APPLICABLE'::text])))` |
+| `AI_table_catalog_row_presence_status_check` | Check | `CHECK (row_presence_status IS NULL OR (row_presence_status = ANY (ARRAY['INFERRED'::text, 'REVIEWED'::text, 'VERIFIED'::text])))` |
+| `AI_table_catalog_row_presence_time_check` | Check | `CHECK (row_presence IS NULL OR (row_presence = 'NOT_APPLICABLE'::text) = (time_column IS NULL))` |
 | `AI_table_catalog_subject_status_check` | Check | `CHECK (subject_metadata_status = ANY (ARRAY['INFERRED'::text, 'REVIEWED'::text, 'VERIFIED'::text]))` |
 | `AI_table_catalog_timestamp_check` | Check | `CHECK (updated_at >= created_at)` |
 | `AI_table_catalog_pkey` | Primary key | `PRIMARY KEY (table_name)` |

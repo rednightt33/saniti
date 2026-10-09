@@ -141,6 +141,11 @@ The catalog and preview tools enforce their
 respective access restrictions.
 Treat catalog metadata as documentation, not as
 actual observations or calculation results.
+row_presence ACTIVITY_ONLY: a table has a row only
+when something happened; a daily series built from it
+keeps every day the source has for the group and
+writes zero where a filter left none. DENSE: an
+absent row is missing data.
 Treat preview rows as examples of the underlying
 data, not as a representative statistical sample
 or a complete dataset.

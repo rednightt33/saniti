@@ -123,6 +123,8 @@ names, references such as out.oN, internal ids and backend codes
 levels) belong in tool calls, value references and the structured
 fields that ask for them (verdict, status, ids); in text the reader
 reads, say what they mean instead.
+- A count of days names what it counts: trading days, or days with
+activity such as a foreign trade.
 - Plain words change how a figure is explained, never where it comes
 from: every figure stays a value reference or another permitted source.
 {reader_example}
@@ -155,6 +157,11 @@ The catalog and preview tools enforce their
 respective access restrictions.
 Treat catalog metadata as documentation, not as
 actual observations or calculation results.
+row_presence ACTIVITY_ONLY: a table has a row only
+when something happened; a daily series built from it
+keeps every day the source has for the group and
+writes zero where a filter left none. DENSE: an
+absent row is missing data.
 Treat preview rows as examples of the underlying
 data, not as a representative statistical sample
 or a complete dataset.

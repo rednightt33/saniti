@@ -254,6 +254,23 @@ EXPORT_LINEAGE = {"name": "Nama tabel", "source_tables": "Tabel sumber", "data_a
                   "reference_date": "Tanggal acuan"}
 EXPORT_AUDIT = "Kode audit (untuk tim teknis)"  # the ids the audit trail joins on, kept in one line
 EXPORT_PERIOD = "{start} s.d. {end}"
+# EXEC-Y Fase 3 E2: a column meaning the catalog has only in English (no Indonesian text yet)
+EXPORT_ENGLISH_MEANING = "{text} (teks Inggris; terjemahan belum ada)"
+# EXEC-Y Fase 3 E1(1) and E1(3): the 'definisi' rows the sandbox writes from the file and the source counts
+EXPORT_READING = {
+    "row_rule_label": "Aturan baris",
+    "row_rule_one": "Satu baris untuk setiap {key}.",
+    "row_rule_many": "Satu baris untuk setiap kombinasi {keys}.",
+    "and": " dan ",
+    "row_rule_none": "Tidak ada kolom teks atau tanggal yang unik per baris.",
+    "completeness_label": "Kelengkapan",
+    "period": "Dicek terhadap tabel sumber untuk {start} s.d. {end} ({calendar} hari bursa).",
+    "group": "{group}: file memuat {file} tanggal; sumber punya data pada {source} hari.",
+    "all_rows": "Semua baris",
+    "unchecked": "Tidak dapat dicek otomatis terhadap tabel sumber.",
+    "activity_only": "Tabel sumber hanya mencatat hari yang ada aktivitasnya; hari tanpa baris berarti tidak ada "
+                     "aktivitas, bukan data yang hilang.",
+}
 
 
 def _empty(value: object) -> bool:

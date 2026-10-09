@@ -169,8 +169,18 @@ C_ADDED = {
     "in text the reader reads, say what they mean instead."
 }
 REMOVED, ADDED = (REMOVED | (C_REMOVED - ADDED)) - C_ADDED, (ADDED - C_REMOVED) | (C_ADDED - REMOVED)
-# the reader section added about six percent (the budget was two percent over the pass-2 fixture)
-SIZE_BUDGET = 1.09
+# EXEC-Y Fase 3 (user decision 2026-10-09 "E1 ok 2-4"): what a missing row means (E1 part 2, from the catalog's
+# row_presence) and what a count of days counts (E1 part 4)
+ADDED |= {
+    "row_presence ACTIVITY_ONLY: a table has a row only when something happened;",
+    "a daily series built from it keeps every day the source has for the group and writes zero where a filter left "
+    "none.",
+    "DENSE: an absent row is missing data.",
+    "A count of days names what it counts: trading days, or days with activity such as a foreign trade.",
+}
+# the reader section added about six percent (the budget was two percent over the pass-2 fixture); EXEC-Y Fase 3's
+# four sentences about half a percent more
+SIZE_BUDGET = 1.10
 
 SECTIONS = ["GENERAL RULES", "TOOL USE", "TOOL RESULTS", "FINAL RESPONSE", "WRITING FOR THE READER", "DATA DISCOVERY", "DATA SOURCES",
             "DATA NEED", "MODES", "TIME BASIS", "NAMED-PERIOD RETURNS", "WEEKLY AND MONTHLY", "CONVERSATION REUSE",

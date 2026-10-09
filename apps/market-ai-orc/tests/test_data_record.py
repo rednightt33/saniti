@@ -256,3 +256,19 @@ def test_a_finding_run_again_with_another_rule_keeps_the_earlier_one() -> None:
     # the same rule recorded again replaces it (a repeat, not a new test)
     records.add_finding(record, "req_3", kind="HYPOTHESIS", finding_id="h1", finding=five)
     assert sorted(f["id"] for f in record["findings"]) == ["h1", "h1@1"]
+
+
+def test_a_need_keeps_its_canonical_filter_for_a_later_count_unless_it_is_long() -> None:
+    """EXEC-Y Fase 3 E1(1): an export counts the same rows in the source with the need's own filter; a filter longer
+    than MAX_SCOPE_SPEC_CHARS is not kept (the file then says it was not checked) and the note never shows it."""
+    short = {"type": "PREDICATE", "column": "ticker", "operator": "EQ", "values": ["BBRI"]}
+    long = {"type": "PREDICATE", "column": "ticker", "operator": "IN", "values": [f"T{i:04d}" for i in range(400)]}
+    record = records.empty()
+    for need, scope in (("need_1", short), ("need_2", long)):
+        records.add_need(record, "req_1", {"need_id": need, "approved": {"spec_sha256": "s", "requests": [{
+            "data_request_id": "r", "logical_name": "flows", "source_table": "Feature_03_Stock_Broker_Daily",
+            "extract_columns": ["date"], "ranges": [], "scope_sha256": "x", "scope": scope}]}}, "ANALYSIS")
+    kept = [n["requests"][0].get("scope_spec") for n in record["needs"]]
+    assert kept == [short, None]
+    assert "scope_spec" not in records.note(record) and "ticker EQ BBRI" in records.note(record)
+    assert records.normalize(record)["needs"][0]["requests"][0]["scope_spec"] == short

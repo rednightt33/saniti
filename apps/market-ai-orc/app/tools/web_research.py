@@ -33,12 +33,15 @@ DESCRIPTION = (
     "analysis period. A run has a limited web budget: ask for what the answer needs.")
 # added only when value references are on (a description never promises what the run cannot do; P31)
 # M126 (user decision 2026-10-08, choice C): a statement is cited by a link, never inserted as the source's own words
+# User decision B 2026-10-09 ("semua link web hilang pindah ke source"): no web link in the answer text; the source of
+# every web value is listed in the answer's Sources panel
 REFERENCE_SENTENCE = (" Each item has a ref: cite a number as {{<ref>.value_as_written}} (as its source writes it) or "
-                      "{{<ref>.value}} (the value at full scale), and a list or a short value as {{<ref>.value}}; each "
-                      "is shown with a link to its source page. A fact's statement is never inserted: say it in the "
-                      "reader's language, in your own words, and put {{<ref>.value}} right after it, which shows only "
-                      "the link; a figure the statement or its quote gives (\"5,1%\") may be written in those words, "
-                      "and it is checked against that quote.")
+                      "{{<ref>.value}} (the value at full scale), and a list or a short value as {{<ref>.value}}; the "
+                      "text shows the value without a link, and its source page is listed in the answer's Sources "
+                      "panel. A fact's statement is never inserted: say it in the reader's language, in your own "
+                      "words, and put {{<ref>.value}} right after it, which shows nothing in the text and records the "
+                      "statement's source; a figure the statement or its quote gives (\"5,1%\") may be written in "
+                      "those words, and it is checked against that quote.")
 # P34: added only when lookup_reference is offered
 DATABASE_SENTENCE = (" An attribute the database's reference tables hold (sector, industry, company profile) is read "
                      "with lookup_reference; this tool is refused for it until those tables have been read.")

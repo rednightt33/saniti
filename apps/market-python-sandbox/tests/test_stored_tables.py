@@ -125,6 +125,69 @@ def test_an_xlsx_shows_the_readers_column_titles_and_a_column_sheet() -> None:
     assert csv.decode().splitlines()[0].replace('"', "").split(",") == names
 
 
+TEXTS = {"row_rule_label": "Aturan baris", "row_rule_one": "Satu baris untuk setiap {key}.",
+         "row_rule_many": "Satu baris untuk setiap {keys}.", "and": " dan ",
+         "row_rule_none": "Tidak ada kolom yang unik per baris.", "completeness_label": "Kelengkapan",
+         "period": "{start} s.d. {end}, {calendar} hari bursa.", "group": "{group}: {file} dari {source} hari di sumber.",
+         "all_rows": "Semua baris", "unchecked": "Tidak dapat dicek otomatis.",
+         "activity_only": "Sumber hanya mencatat hari dengan aktivitas."}
+
+
+def definition_rows(body: bytes) -> list[tuple]:
+    from openpyxl import load_workbook
+
+    return [r for r in load_workbook(io.BytesIO(body), read_only=True)["definisi"].iter_rows(values_only=True)][1:]
+
+
+def test_an_xlsx_says_what_one_row_is_and_how_complete_each_group_is() -> None:
+    """M128 (d): BBRI foreign flow per board; Nego had a trading day without a foreign trade, so the file holds one
+    day fewer than the source. The definition sheet says one row per date and board, and Nego 2 of 3 days."""
+    rows = [{"date": d, "board": b, "net": 1.0} for d in ("2026-05-25", "2026-05-26", "2026-05-27")
+            for b in ("Regular", "Nego") if not (b == "Nego" and d == "2026-05-26")]
+    data = parquet(rows)
+    check = {"status": "CHECKED", "time_column": "date", "group_columns": ["board"], "from": "2026-05-25",
+             "to": "2026-05-27", "calendar_dates": 3, "row_presence": "ACTIVITY_ONLY",
+             "groups": [{"key": ["Regular"], "days": 3}, {"key": ["Nego"], "days": 3}]}
+    body, _, _ = stored_tables.export(data, meta_for(data, target="XLSX", texts=TEXTS, completeness=check,
+                                                     headers={"date": "Tanggal", "board": "Papan"}))
+    got = definition_rows(body)
+    assert ("Aturan baris", "Satu baris untuk setiap Tanggal dan Papan.") in got
+    assert ("Kelengkapan", "Papan Regular: 3 dari 3 hari di sumber.") in got
+    assert ("Kelengkapan", "Papan Nego: 2 dari 3 hari di sumber.") in got
+    assert ("Kelengkapan", "Sumber hanya mencatat hari dengan aktivitas.") in got
+
+
+def test_completeness_of_other_shapes_and_when_it_cannot_be_checked() -> None:
+    """Cases other than the observed one: one ticker's daily prices without a group (dates as date objects), a file
+    whose rows repeat, and a check the caller could not run."""
+    from datetime import date as day
+
+    prices = [{"date": day(2026, 9, d), "close": 100.0 + d} for d in range(1, 6)]
+    data = parquet(prices)
+    check = {"status": "CHECKED", "time_column": "date", "group_columns": [], "from": "2026-09-02",
+             "to": "2026-09-05", "calendar_dates": 4, "groups": [{"key": [], "days": 4}]}
+    got = definition_rows(stored_tables.export(data, meta_for(data, target="XLSX", texts=TEXTS,
+                                                              completeness=check))[0])
+    assert ("Aturan baris", "Satu baris untuk setiap date.") in got
+    assert ("Kelengkapan", "Semua baris: 4 dari 4 hari di sumber.") in got
+    repeated = parquet([{"broker": "RB", "net": 1.0}, {"broker": "RB", "net": 2.0}])
+    got = definition_rows(stored_tables.export(repeated, meta_for(repeated, target="XLSX", texts=TEXTS,
+                                                                  completeness={"status": "UNCHECKED"}))[0])
+    assert got == [("Aturan baris", "Tidak ada kolom yang unik per baris."),
+                   ("Kelengkapan", "Tidak dapat dicek otomatis.")]
+
+
+def test_recount_reads_the_first_and_last_date_of_a_date_column() -> None:
+    from datetime import date as day
+
+    for rows in (CRASH, [{"date": day(2026, 1, d), "v": 1.0} for d in (3, 1, 2)]):
+        data = parquet(rows)
+        first = stored_tables.recount(data, meta_for(data, measure="MIN", column="date"))["value"]
+        last = stored_tables.recount(data, meta_for(data, measure="MAX", column="date"))["value"]
+        assert (first, last) in (("2026-01-01", "2026-05-20"), ("2026-01-01", "2026-01-03"))
+    assert stored_tables.recount(data, meta_for(data, measure="SUM", column="date"))["value"] is None
+
+
 def test_export_over_the_limit_is_refused_with_a_next_step() -> None:
     data = parquet(CRASH)
     with pytest.raises(StoredTableError) as big:

@@ -212,7 +212,132 @@ def test_an_xlsx_carries_the_readers_titles_and_the_catalogs_column_meanings() -
     assert meta["headers"] == {"date": "Date", "foreign_net_value": "Net beli asing (Rp)",
                                "foreign_net_value_cum": "Foreign net value cum"}
     assert meta["columns"][1] == {"label": "Net beli asing (Rp)", "name": "foreign_net_value",
-                                  "meaning": "Net value of foreign investors", "unit": "IDR"}
+                                  "meaning": "Net value of foreign investors (teks Inggris; terjemahan belum ada)",
+                                  "unit": "IDR"}
     assert meta["columns"][2]["meaning"] is None
     assert meta["definition"] == {"Periode": "2025-10-10 s.d. 2026-08-31", "Saham": ["BBRI"],
                                   "Catatan": "cum = jumlah berjalan"}
+    assert meta["completeness"] == {"status": "UNCHECKED"}  # no Governor and no table facts here
+    assert meta["texts"]["completeness_label"] == "Kelengkapan"
+
+
+SCOPE = {"type": "PREDICATE", "column": "ticker", "operator": "EQ", "values": ["BBRI"]}
+
+
+class RecountSandbox(ExportSandbox):
+    """Answers the file's first and last date (recount MIN / MAX) from the request's metadata."""
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        import base64
+        import json
+
+        if request.url.path == "/v1/stored-tables/recount":
+            meta = json.loads(base64.urlsafe_b64decode(request.headers["x-saniti-output-meta"] + "=="))
+            self.calls.append({"path": request.url.path, "meta": meta})
+            return httpx.Response(200, json={"value": "2025-10-09" if meta["measure"] == "MIN" else "2026-08-31"})
+        return super().handler(request)
+
+
+class Governor:
+    def __init__(self, answer=None, error=None):
+        self.answer, self.error, self.specs = answer, error, []
+
+    def summary(self, spec, lineage, timeout=None):
+        self.specs.append((spec, lineage))
+        if self.error:
+            raise self.error
+        return self.answer
+
+
+def facts(tables, columns):
+    return {"Feature_03_Stock_Broker_Daily": {"time_column": "date", "row_presence": "ACTIVITY_ONLY",
+                                              "groupable": {"ticker", "board_type"}},
+            "IDX_Stock_Universe": {"time_column": None, "row_presence": "NOT_APPLICABLE", "groupable": {"Ticker"}}}
+
+
+def export_xlsx(fake, governor, requests, columns=("date", "board_type", "foreign_net_value"), fmt="XLSX"):
+    import base64
+    import json
+
+    from app.tools.export import export_specs
+    from app.tools.registry import ToolRegistry
+
+    sandbox = SandboxClient("http://sandbox.test", SANDBOX_KEY, 10, 0, transport=httpx.MockTransport(fake.handler))
+    tools = ToolRegistry()
+    for spec in export_specs(sandbox, timeout_seconds=10, max_result_bytes=40000, table_facts=facts,
+                             governor=governor):
+        tools.register(spec)
+    record = {"outputs": [{"ref": "out.o1", "output_id": OUTPUT, "session_id": SESSION, "name": "bbri flow",
+                           "type": "TABLE", "columns": list(columns), "definition": {"notes": "x"},
+                           "lineage": {"need_id": "need_1", "data_as_of": "2026-08-31"}}],
+              "needs": [{"need_id": "need_1", "requests": requests}]}
+    token = current_results.set(RunResults(conversation_id="conv_1", request_id="req_1", store=ExportStore(),
+                                           record=record, fetch=lambda sid, oid: b"PAR1"))
+    try:
+        call(tools, "export_result", {"ref": "o1", "format": fmt})
+    finally:
+        current_results.reset(token)
+    sent = [c for c in fake.calls if c["path"] == "/v1/stored-tables/export"][-1]
+    return json.loads(base64.urlsafe_b64decode(sent["headers"]["x-saniti-output-meta"] + "=="))
+
+
+def test_an_xlsx_gets_the_source_days_per_group_over_the_files_own_period() -> None:
+    """M128 (d): BBRI foreign flow per board, Nego 210 of 211 days. The export counts, with one Governor summary
+    over the file's first and last date and the need's own filter, the days the source has per board."""
+    from app.tools.data_planner import sha256_json
+
+    governor = Governor({"status": "OK", "period": {"from": "2025-10-09", "to": "2026-08-31", "calendar_dates": 211},
+                         "rows": [{"board_type": "Regular", "row_count": 211, "days_present": 211},
+                                  {"board_type": "Nego", "row_count": 211, "days_present": 211}]})
+    requests = [{"source_table": "Feature_03_Stock_Broker_Daily", "scope_spec": SCOPE},
+                {"source_table": "IDX_Stock_Universe", "scope_spec": {"type": "ALL"}}]
+    meta = export_xlsx(RecountSandbox(), governor, requests)
+    spec, lineage = governor.specs[0]
+    assert spec == {"summary_version": "summary_spec/v1", "source_table": "Feature_03_Stock_Broker_Daily",
+                    "scope": SCOPE, "restrictions": [], "group_by": ["board_type"],
+                    "measures": [{"column": None, "function": "COUNT", "as": "row_count"}],
+                    "period": {"from": "2025-10-09", "to": "2026-08-31"}}
+    assert lineage == {"purpose": "EVIDENCE", "recipe_sha256": sha256_json(spec)}
+    assert meta["completeness"] == {
+        "status": "CHECKED", "time_column": "date", "group_columns": ["board_type"], "from": "2025-10-09",
+        "to": "2026-08-31", "calendar_dates": 211, "row_presence": "ACTIVITY_ONLY",
+        "groups": [{"key": ["Regular"], "days": 211}, {"key": ["Nego"], "days": 211}]}
+
+
+def test_completeness_is_not_guessed_when_the_source_cannot_be_counted_the_same_way() -> None:
+    """Cases other than the observed one: a filter through another table, a filter too long to keep, a file without
+    the table's time column, a Governor refusal or failure, and a CSV (no definition sheet at all)."""
+    ok = {"status": "OK", "period": {"calendar_dates": 3}, "rows": [{"row_count": 3, "days_present": 3}]}
+    table = "Feature_03_Stock_Broker_Daily"
+    for requests, columns, governor in (
+            ([{"source_table": table, "scope_spec": SCOPE, "restrictions": ["IDX_Stock_Universe: x"]}],
+             ("date", "foreign_net_value"), Governor(ok)),
+            ([{"source_table": table}], ("date", "foreign_net_value"), Governor(ok)),
+            ([{"source_table": table, "scope_spec": SCOPE}], ("month", "foreign_net_value"), Governor(ok)),
+            ([{"source_table": table, "scope_spec": SCOPE}], ("date", "foreign_net_value"),
+             Governor({"status": "REJECTED_POLICY", "code": "SCAN_LIMIT"})),
+            ([{"source_table": table, "scope_spec": SCOPE}], ("date", "foreign_net_value"),
+             Governor(error=RuntimeError("down")))):
+        assert export_xlsx(RecountSandbox(), governor, requests, columns)["completeness"] == {"status": "UNCHECKED"}
+    whole = export_xlsx(RecountSandbox(), Governor(ok), [{"source_table": table, "scope_spec": SCOPE}],
+                        ("date", "foreign_net_value"))["completeness"]
+    assert whole["status"] == "CHECKED" and whole["group_columns"] == [] and whole["groups"] == [{"key": [], "days": 3}]
+    fake = RecountSandbox()
+    csv = export_xlsx(fake, Governor(ok), [{"source_table": table, "scope_spec": SCOPE}], fmt="CSV")
+    assert "completeness" not in csv and "texts" not in csv
+    assert not [c for c in fake.calls if c["path"] == "/v1/stored-tables/recount"]
+
+
+def test_the_metadata_header_stays_within_the_sandboxs_limit() -> None:
+    """M133: the sandbox reads at most 16 KiB of headers; 60 columns with long meanings and 50 groups fit by
+    shortening the meanings first, then dropping the completeness groups."""
+    from app.tools.export import META_HEADER_BYTES, _header_bytes, fit_header
+
+    columns = [{"label": f"Kolom {i}", "name": f"col_{i}", "meaning": "m" * 300, "unit": "IDR"} for i in range(60)]
+    small = {"format": "PARQUET", "columns": columns[:3], "completeness": {"status": "UNCHECKED"}}
+    assert fit_header(small) == small
+    fitted = fit_header({"format": "PARQUET", "columns": columns, "completeness": {"status": "UNCHECKED"}})
+    assert _header_bytes(fitted) <= META_HEADER_BYTES and 0 < len(fitted["columns"][0]["meaning"]) < 300
+    groups = {"status": "CHECKED", "groups": [{"key": ["x" * 200], "days": 1}] * 50}
+    fitted = fit_header({"format": "PARQUET", "columns": columns, "completeness": groups})
+    assert _header_bytes(fitted) <= META_HEADER_BYTES and fitted["completeness"] == {"status": "UNCHECKED"}

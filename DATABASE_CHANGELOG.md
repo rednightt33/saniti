@@ -1,5 +1,41 @@
 # Database changelog
 
+## 2026-10-09 — EXEC-Y Fase 3: row_presence, Indonesian column meanings, Tool_Catalog round O on dev
+
+User decisions 2026-10-09: "E1 ok 2-4 masukan exec"; "kenapa tidak e2 let ai terjemahkan agar sesuai dengan bahasa
+indonesia in default language"; "Ok untuk B semua link web hilang pindah ke source"; go "gas" (`EXEC.md` EXEC-Y).
+
+- **`20261009_002_row_presence_and_indonesian_meanings.sql`** (schema and catalog data):
+  - `AI_table_catalog.row_presence` (`DENSE`, `ACTIVITY_ONLY`, `NOT_APPLICABLE`) and `row_presence_status`
+    (`INFERRED`, `REVIEWED`, `VERIFIED`), with three checks (values; status values; `NOT_APPLICABLE` exactly when
+    `time_column` is NULL). Seeded from `time_column`: the five dated tables `ACTIVITY_ONLY`, the four undated ones
+    `NOT_APPLICABLE`, all `INFERRED`. Evidence (read-only through pgweb, 2025-01-01..2025-12-31): Price and Feature 01
+    miss trading days inside their own span for 297 of 835 tickers; Feature 03 misses days on the Nego and Tunai
+    boards; Feature 02 and `IDX_Broker_Summary` hold a broker row only when the broker traded (their grain). That an
+    absent row means "no activity" is inferred, not verified.
+  - `AI_column_catalog.description_id` and `description_id_status` (`DRAFT`, `REVIEWED`; both NULL or both set).
+    172 of 173 meanings (the one row without an English description has none) translated once by
+    `deepseek/deepseek-v4.1-flash` through OpenRouter (temperature 0, reasoning low, strict JSON schema, USD 0.034),
+    written into the migration for review in git; each UPDATE applies only to the English text it translated.
+  - Four `Column_Catalog` rows (`PARTIAL`) for the new columns.
+- **`20261009_003_round_o_tool_catalog.sql`** (generated, round `round_o`): two inactive `Tool_Catalog` rows,
+  `research_web` v2 (a web value is shown without a link; its source page is in the answer's Sources panel) and
+  `export_result` v3 (the XLSX definition sheet says what one row is and how complete each group is against the source
+  table), copied from the previous versions with the code's purpose and input schema.
+- **Part A check:** catalog metadata, not market data. A3.15 (sparse tables) now has its catalog place; Part A updated.
+- Applied by the temporary service `mmig-job` (`DATABASE_URL` a reference, never printed; deleted afterwards, read
+  back absent from `railway service list`): DRYRUN `32ec0e04` ran both migrations with their own checks and rolled back;
+  APPLY `2aa16ea2` committed both (file sha256 `5e9acf09…`, `f9d48738…`). Read back by the job and independently through
+  pgweb: nine `row_presence` rows as seeded, 172 of 173 `description_id` (all `DRAFT`), four `Column_Catalog` rows,
+  `research_web` v2 and `export_result` v3 inactive. Checksums appended to `database/migrations/APPLIED.sha256`.
+- Documentation refresh: the same service then ran `scripts/sync_database_catalog.py` (840 physical columns
+  reconciled, 170 physical facts updated, no reviewed definition overwritten) and `scripts/sync_database_schema.py`
+  (51 `Database_Table_Status` rows synchronized; tables the generator's `TABLE_STATUS_RULES` does not name, such as the
+  `AI_conversation_*` tables, were written as "Unclassified / Unknown / Baseline only", the generator's default). The
+  generated `DATABASE_SCHEMA.md` drops the hand-maintained sections (audit store, EDGE, earlier hand notes), so only the
+  `AI_column_catalog` and `AI_table_catalog` sections were replaced from it; the rest of the file is unchanged.
+  Open: give those tables their rule in `TABLE_STATUS_RULES` so a full regeneration keeps them.
+
 ## 2026-10-09 — M128b: Tool_Catalog round N on dev (readable Excel files)
 
 - **`20261009_001_round_n_tool_catalog.sql`** (generated, round `round_n`, `scripts/generate_tool_catalog_migration.py`;

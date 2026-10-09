@@ -27,7 +27,10 @@ registering the new versions of the tools whose contract changed in that round.
 - round_m (20261008_001): submit_data_need_spec v11 (research_experiments removed, stage 3 revoked),
   open_analysis_session v3 (up to four sessions per answer, close_session_id) and prepare_data_bundle v3 (the same
   Governor SQL is reused within a conversation, data_reuse); EXEC-V revision of 2026-10-08.
-- round_n (20261009_001): export_result v2 (column_labels: the reader's column titles of an XLSX; M128b).
+- round_n (20261009_001, applied): export_result v2 (column_labels: the reader's column titles of an XLSX; M128b).
+- round_o (20261009_003): research_web v2 (no web link in the answer text, the source in the Sources panel; user
+  decision B 2026-10-09) and export_result v3 (the XLSX definition sheet says what one row is and how complete each
+  group is against the source table; EXEC-Y Fase 3).
 
 Registered from the code with every switch of the dev environment on (the registry of scripts/generate_ai_tools_doc.py,
 one source for both). An applied migration is frozen (database/migrations/APPLIED.sha256); market-ai-orc's
@@ -315,8 +318,26 @@ ROUNDS = {
         "limits": {"columns": "at most 60 columns get a title and a meaning; a label is cut at 80 characters; a label "
                               "for a column the output does not have is ignored"},
     },
+    "round_o": {
+        "target": ROOT / "database/migrations/20261009_003_round_o_tool_catalog.sql",
+        "versions": {"research_web": ("v1", "v2"), "export_result": ("v2", "v3")},
+        "contracts": {"research_web": ("purpose", "Sources panel"),
+                      "export_result": ("purpose", "how complete each group is")},
+        "title": "EXEC-Y Fase 3 and decision B",
+        "header": "EXEC.md EXEC-Y (user decisions 2026-10-09: \"Ok untuk B semua link web hilang pindah ke source\"; "
+                  "\"E1 ok 2-4\"; go \"gas\")",
+        "design": "EXEC.md EXEC-Y Fase 3 and decision B; ERRORS_AND_SOLUTIONS.md M128 (d), M132",
+        "limits_design": "EXEC.md EXEC-Y Fase 3 and decision B; ERRORS_AND_SOLUTIONS.md M128 (d), M132",
+        "summary": ["research_web v2: a web value is shown without a link and its source page is listed in the answer's",
+                    "Sources panel (user decision B 2026-10-09). export_result v3: the XLSX definition sheet says what",
+                    "one row is and, from one SQL Governor summary over the file's own period, how complete each group",
+                    "is against the source table (EXEC-Y Fase 3 E1)."],
+        "limits": {"completeness": "one Governor summary (COUNT) per export, at most 6 group columns and 50 groups; "
+                                   "a filter through another table or one longer than 2,000 characters is not "
+                                   "checked and the file says so"},
+    },
 }
-NEWEST = "round_n"
+NEWEST = "round_o"
 
 
 def _tools_doc():

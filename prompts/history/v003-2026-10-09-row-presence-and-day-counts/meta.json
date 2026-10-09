@@ -1,0 +1,10 @@
+{
+ "version": 3,
+ "date": "2026-10-09",
+ "name": "row-presence-and-day-counts",
+ "decision": "2026-10-09: \"E1 ok 2-4 masukan exec\"; go \"gas\" (EXEC-Y Fase 3)",
+ "change": "EXEC-Y Fase 3 E1 bagian 2 dan 4. DATA DISCOVERY: arti row_presence dari katalog (ACTIVITY_ONLY: baris hanya ada bila ada aktivitas; deret harian dari tabel itu memakai setiap hari yang ada di sumber untuk kelompoknya dan menulis nol bila saringan tidak menyisakan baris; DENSE: baris yang tidak ada berarti data hilang). WRITING FOR THE READER: jumlah hari menyebut apa yang dihitung (hari bursa atau hari dengan aktivitas). Ukuran +9,5% terhadap fixture pass-2, batas baru 1,10.",
+ "prompt_chars": 37793,
+ "prompt_sha256": "19b8a23befb78743f2b728994cd7cbbb6b8aab67f83c15c110bd5422a37c18ea",
+ "schema_sha256": "48bceaa503bc5008b5d949b461b36c7c322017f50354b2138f48c5e02d2b1a03"
+}

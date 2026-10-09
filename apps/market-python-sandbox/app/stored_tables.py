@@ -166,15 +166,98 @@ def _xlsx(table, meta: dict[str, Any]) -> bytes:
         for column in columns[:MAX_COLUMN_ROWS]:
             if isinstance(column, dict):
                 extra.append(["" if column.get(k) is None else str(column.get(k))[:32000] for k in keys])
+    texts = meta.get("texts") if isinstance(meta.get("texts"), dict) else {}
     for title, key in (("definisi", "definition"), ("asal data", "lineage")):
-        if meta.get(key):
+        rows = _pairs(meta[key]) if meta.get(key) else []
+        if key == "definition" and texts:
+            rows += _reading_rows(table, meta, texts)
+        if rows:
             extra = book.create_sheet(title)
             extra.append(["field", "value"])
-            for field, value in _pairs(meta[key]):
+            for field, value in rows:
                 extra.append([field, value[:32000]])
     out = io.BytesIO()
     book.save(out)
     return out.getvalue()
+
+
+# EXEC-Y Fase 3 E1(1) and E1(3) (user decision 2026-10-09 "E1 ok 2-4"): two rows of the 'definisi' sheet say how to
+# read the file. Both are derived from the file itself and, for completeness, from the source counts the caller read
+# from the SQL Governor, so a new table needs no code. The caller gives the reader's words ("texts"); without them the
+# sheet is as before.
+ROW_KEY_COLUMNS = 8  # the first non-numeric columns tried as the row key
+ROW_KEY_SIZE = 3
+MAX_COMPLETENESS_LINES = 50
+
+
+def _row_key(table) -> list[str] | None:
+    """The smallest set of non-numeric columns (text, date, time, flag) that is unique per row, in column order; None
+    when no set of at most three is."""
+    import itertools
+
+    import pyarrow.types as t
+
+    names = [f.name for f in table.schema if not (t.is_integer(f.type) or t.is_floating(f.type)
+                                                  or t.is_decimal(f.type))][:ROW_KEY_COLUMNS]
+    if not names or table.num_rows == 0:
+        return None
+    frame = table.select(names).to_pandas()
+    for size in range(1, min(ROW_KEY_SIZE, len(names)) + 1):
+        for combo in itertools.combinations(names, size):
+            if not frame.duplicated(subset=list(combo)).any():
+                return list(combo)
+    return None
+
+
+def _day_strings(series):
+    import pandas as pd
+
+    days = pd.to_datetime(series, errors="coerce")
+    return days.dt.strftime("%Y-%m-%d").where(days.notna(), None)
+
+
+def _completeness_rows(table, meta: dict[str, Any], texts: dict[str, str]) -> list[tuple[str, str]]:
+    """The file's days per group against the days the source table has for the same group and period."""
+    label = texts.get("completeness_label") or "completeness"
+    check = meta.get("completeness") if isinstance(meta.get("completeness"), dict) else None
+    unchecked = [(label, texts.get("unchecked") or "")]
+    if not check or check.get("status") != "CHECKED":
+        return unchecked if check else []
+    time_column, groups = check.get("time_column"), list(check.get("group_columns") or [])
+    if time_column not in table.column_names or any(g not in table.column_names for g in groups):
+        return unchecked
+    frame = table.select([time_column, *groups]).to_pandas()
+    frame["__day"] = _day_strings(frame[time_column])
+    frame = frame[frame["__day"].notna()]
+    frame = frame[(frame["__day"] >= str(check.get("from"))) & (frame["__day"] <= str(check.get("to")))]
+    file_days: dict[tuple, int] = {(): int(frame["__day"].nunique())}
+    if groups:
+        counted = frame.groupby([frame[g].astype("string").fillna("") for g in groups])["__day"].nunique()
+        file_days = {(k if isinstance(k, tuple) else (k,)): int(v) for k, v in counted.items()}
+    headers = meta.get("headers") if isinstance(meta.get("headers"), dict) else {}
+    rows = [(label, texts.get("period", "").format(start=check.get("from"), end=check.get("to"),
+                                                    calendar=check.get("calendar_dates")))]
+    for group in (check.get("groups") or [])[:MAX_COMPLETENESS_LINES]:
+        key = tuple("" if v is None else str(v) for v in group.get("key") or [])
+        found = file_days.get(key if groups else (), 0)
+        name = " / ".join(f"{headers.get(g) or g} {v}" for g, v in zip(groups, key)) or texts.get("all_rows", "")
+        rows.append((label, texts.get("group", "").format(group=name, file=found, source=group.get("days"))))
+    if texts.get("activity_only") and check.get("row_presence") == "ACTIVITY_ONLY":
+        rows.append((label, texts["activity_only"]))
+    return rows
+
+
+def _reading_rows(table, meta: dict[str, Any], texts: dict[str, str]) -> list[tuple[str, str]]:
+    headers = meta.get("headers") if isinstance(meta.get("headers"), dict) else {}
+    key = _row_key(table)
+    if key is None:
+        rule = texts.get("row_rule_none") or ""
+    else:
+        words = [str(headers.get(name) or name) for name in key]
+        rule = (texts.get("row_rule_one") or "").format(key=words[0]) if len(words) == 1 else \
+            (texts.get("row_rule_many") or "").format(keys=(texts.get("and") or ", ").join(words))
+    rows = [(texts.get("row_rule_label") or "row", rule)] if rule else []
+    return rows + _completeness_rows(table, meta, texts)
 
 
 def _mask(frame, where: list[dict[str, Any]]):
@@ -223,6 +306,23 @@ def _comparable(series, values: list[Any]):
     return series.astype("string"), [str(v) for v in values]
 
 
+def _date_extreme(series, measure: str) -> str | None:
+    """MIN or MAX of a date or time column as ISO text (EXEC-Y Fase 3: the export reads a file's period this way);
+    None for any other measure or a column that is not dates."""
+    import pandas as pd
+
+    if measure not in ("MIN", "MAX") or series.notna().sum() == 0:
+        return None
+    if not (pd.api.types.is_datetime64_any_dtype(series)
+            or isinstance(series.dropna().iloc[0], (date, datetime, str))):
+        return None
+    days = pd.to_datetime(series, errors="coerce")
+    if days.notna().sum() == 0:
+        return None
+    value = days.min() if measure == "MIN" else days.max()
+    return value.date().isoformat() if value == value.normalize() else value.isoformat()
+
+
 def recount(data: bytes, meta: dict[str, Any]) -> dict[str, Any]:
     """Evidence tier 2: the claim's number recomputed from the released base table, deterministically, with the
     matching rows (at most 200) as the evidence a user can check."""
@@ -246,7 +346,7 @@ def recount(data: bytes, meta: dict[str, Any]) -> dict[str, Any]:
     else:
         series = pd.to_numeric(matched[column], errors="coerce")
         if series.notna().sum() == 0:
-            value = None
+            value = _date_extreme(matched[column], measure)
         else:
             value = {"SUM": series.sum, "MIN": series.min, "MAX": series.max, "MEAN": series.mean}[measure]()
             value = float(value)

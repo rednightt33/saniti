@@ -59,6 +59,12 @@ WHERE table_name = 'Feature_02_Broker_Rolling' AND column_name = 'net_value_1d';
 ALTER TABLE public."AI_column_catalog" ADD COLUMN cross_entity_aggregation text;
 UPDATE public."AI_column_catalog" SET cross_entity_aggregation = 'SUM'
 WHERE table_name = 'Feature_02_Broker_Rolling' AND column_name IN ('net_value_1d', 'net_value_20d');
+ALTER TABLE public."AI_table_catalog" ADD COLUMN row_presence text;
+UPDATE public."AI_table_catalog" SET row_presence = 'ACTIVITY_ONLY' WHERE table_name = 'IDX_Broker_Summary';
+UPDATE public."AI_table_catalog" SET row_presence = 'NOT_APPLICABLE' WHERE table_name = 'IDX_Broker_Profile';
+ALTER TABLE public."AI_column_catalog" ADD COLUMN description_id text, ADD COLUMN description_id_status text;
+UPDATE public."AI_column_catalog" SET description_id = 'Nilai bersih satu hari', description_id_status = 'DRAFT'
+WHERE table_name = 'Feature_02_Broker_Rolling' AND column_name = 'net_value_1d';
 '''
 EXTRA_TABLES = 55
 EXTRA_FORMULAS = 60
@@ -237,6 +243,27 @@ def test_details_start_with_the_table_contract_a_data_need_copies(migrated_db: s
     assert table["subject"]["data_domain"] == "MARKET" and table["subject"]["supported_frequencies"] == ["1D"]
     profile = meta["table_metadata"]["IDX_Broker_Profile"]
     assert profile["time_column"] is None and profile["subject"]["asset_type"] is None
+    # EXEC-Y Fase 3 E1(2): what a missing row means, from the catalog
+    assert table["row_presence"] == "ACTIVITY_ONLY" and profile["row_presence"] == "NOT_APPLICABLE"
+
+
+def test_an_export_reads_the_indonesian_meaning_and_the_tables_grouping_from_the_catalog(
+        migrated_db: str, legacy_db: str) -> None:
+    """EXEC-Y Fase 3 (E1, E2) on the real SQL, before and after migration 20261009_001."""
+    from app.catalog_store import CatalogStore
+    from app.tools import _column_meanings, _export_tables
+
+    store = CatalogStore(migrated_db, connect_timeout_seconds=5, statement_timeout_ms=5000)
+    found = _column_meanings(store)(["Feature_02_Broker_Rolling"], ["net_value_1d", "net_value_20d"])
+    assert found["net_value_1d"]["meaning"] == "Nilai bersih satu hari"
+    assert found["net_value_20d"]["meaning"].endswith("(teks Inggris; terjemahan belum ada)")
+    facts = _export_tables(store)(["IDX_Broker_Summary"], ["Date", "Symbol", "Broker"])
+    assert facts["IDX_Broker_Summary"]["time_column"] == "Date"
+    assert facts["IDX_Broker_Summary"]["row_presence"] == "ACTIVITY_ONLY"
+    assert "Symbol" in facts["IDX_Broker_Summary"]["groupable"]
+    old = CatalogStore(legacy_db, connect_timeout_seconds=5, statement_timeout_ms=5000)
+    assert _export_tables(old)(["IDX_Broker_Summary"], ["Date"])["IDX_Broker_Summary"]["row_presence"] is None
+    assert _column_meanings(old)(["Feature_02_Broker_Rolling"], ["net_value_1d"])["net_value_1d"]["meaning"]
 
 
 def rows_for(table: str, count: int, description: str = "d" * 400) -> list[dict]:
