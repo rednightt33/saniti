@@ -10453,6 +10453,8 @@ function Monitor({ go }) {
     const updateConversation = (id, update) => setItems(current => current.map(item => item.id === id ? update(item) : item));
     const submitting = initialValue(viewRecord,"submitting",()=>false), setSubmitting=next=>updateValue(viewRecord,"submitting",next);
     const apiError=initialValue(viewRecord,"apiError",()=>""), setApiError=next=>updateValue(viewRecord,"apiError",next);
+    // The stop button (EXEC-X 2026-10-09): holds the id of the run being stopped; the run's own snapshot ends it.
+    const stoppingId=initialValue(viewRecord,"stoppingId",()=>null), setStoppingId=next=>updateValue(viewRecord,"stoppingId",next);
     const followRef=(viewRecord.refs.followRef ??= {current:null});
     const submissionRef=(viewRecord.refs.submissionRef ??= {current:null});
     const pendingReply=initialValue(viewRecord,"pendingReply",()=>null),setPendingReply=next=>updateValue(viewRecord,"pendingReply",next);
@@ -10492,6 +10494,11 @@ function Monitor({ go }) {
         setItems(current=>{const found=current.find(c=>c.id===id);if(found)return current.map(c=>c.id===id && !c.runs.some(x=>x.id===r.id)?{...c,messages:[...c.messages,{id:r.id+"-user",role:"user",content:question,createdAt:now,runId:r.id}],runs:[...c.runs,r]}:c);return [{id,title:question.slice(0,80),bookmarked:false,createdAt:now,updatedAt:now,messages:[{id:r.id+"-user",role:"user",content:question,createdAt:now,runId:r.id}],runs:[r]},...current];});
         setSelectedId(id);setSelectedRunId(r.id);setAutoOpenRunId(r.id);setDetailsOpen(true);setPrompt("");setPendingReply(null);setInputHint(null);submissionRef.current=null;followRun(id,r.id);
       }catch(e){setApiError(e.message);}finally{setSubmitting(false);}
+    };
+    const stopRun=async ()=>{
+      const id=executionRun?.id;if(!id || stoppingId===id)return;
+      setStoppingId(id);setApiError("");
+      try{await Edge.stopRun(id);}catch(e){setStoppingId(null);setApiError(e.status===409?edgeUi().stopNotYet:e.message);}
     };
     // EXEC-X: every choice the view shows carries one action (EdgeView); this is the only place that sends it.
     // route: a quick choice of an ask-back question; plan: a Research Plan reply; message: the choice's words as the
@@ -10627,7 +10634,7 @@ function Monitor({ go }) {
                             element(EdgeModelSelector, null),
                             element(Button, { kind: "ghost", icon: "sliders", disabled: true, title: "Data Scope is not available yet" }, "Data Scope"),
                             element(IconButton, { icon: "attach", disabled: true, title: "Attachments are not available yet" })),
-                        element(Button, { kind: "primary", disabled: active || submitting || !prompt.trim(), icon: "send", onClick: () => submit() }, active || submitting ? "Processing…" : "Submit")))),
+                        active && !submitting ? element(Button, { kind: "primary", disabled: stoppingId === executionRun.id, icon: "stop", onClick: stopRun }, stoppingId === executionRun.id ? edgeUi().stopping : edgeUi().stop) : element(Button, { kind: "primary", disabled: active || submitting || !prompt.trim(), icon: "send", onClick: () => submit() }, submitting ? "Processing…" : "Submit")))),
             detailsOpen && element("aside", { id:"edge-details",className: "details-panel",role:narrow&&mobileDetailsOpen?"dialog":undefined,"aria-modal":narrow&&mobileDetailsOpen?true:undefined,"aria-label":"Response details",inert:narrow&&historyOpen },
                 element(DetailsResizeHandle,{width:detailsWidth,setWidth:setDetailsWidth}),
                 element("div", { className: "details-head" },
@@ -10701,7 +10708,7 @@ function RunStatus({ run, expanded, toggle, retry }) {
         element("span", { className: "edge-response-dots", "aria-hidden": "true" }, element("i"), element("i"), element("i")),
         element("span", null, run.status === "streaming" ? "Streaming research result…" : run.steps.find(step => step.status === "running")?.label ?? "Submitted"));
     if (run.status === "failed" || run.status === "cancelled") return element("div", { className: `run-inline-state ${run.status}`, role: "status" },
-        element("div", null, element("strong", null, run.status === "failed" ? "Research failed" : "Research cancelled"), element("span", null, run.error)),
+        element("div", null, element("strong", null, run.status === "failed" ? "Research failed" : "Research cancelled"), element("span", null, run.error === "STOPPED_BY_USER" ? edgeUi().stopped : run.error)),
         element(Button, { icon: "refresh", onClick: retry }, "Retry"));
     return null;
 }

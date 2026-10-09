@@ -70,6 +70,19 @@ class Store:
                 raise StoreError('RUN_NOT_FOUND', 404)
             return row
 
+    def stop_queued(self, owner, request_id):
+        """The stop button on a run no worker has claimed: it ends here and never reaches Orc. None when a worker
+        claimed it first (the row lock orders this against claim), so the caller stops it at Orc instead."""
+        with self.connect() as c:
+            changed = c.execute('''UPDATE edge_bff.jobs SET state='FAILED',error_code='STOPPED_BY_USER',
+                state_version=state_version+1,updated_at=now(),completed_at=now()
+                WHERE owner_key=%s AND request_id=%s AND state='QUEUED' AND lease_token IS NULL RETURNING *''',
+                (owner, request_id)).fetchone()
+            if changed:
+                logger.info(json.dumps({'event':'job_state', 'request_id':changed['request_id'],
+                                        'state':changed['state'], 'version':changed['state_version']}))
+            return changed
+
     def claim(self, seconds):
         with self.connect() as c:
             row = c.execute('''SELECT * FROM edge_bff.jobs WHERE state IN ('QUEUED','RUNNING','RECOVERING')

@@ -26,6 +26,7 @@ from .audit import RunAuditor
 from .audit_outbox import AuditOutbox
 from .mode4 import Mode4Orchestrator
 from .modes import MODES, current_caller_path, effective_default, path_for, resolve_mode
+from . import stop
 from .orchestrator import AgentOrchestrator, log_event
 from .provider_log import ProviderLogger
 from .provider_policy import CachePricePolicy
@@ -528,6 +529,18 @@ def create_app(
             return result  # the first-message router recorded the mode it chose
         return result.model_copy(update={"execution": result.execution.model_copy(update={"mode": mode})})
 
+    @app.post("/v1/agent/run/{request_id}/stop", dependencies=[Depends(authorize)])
+    def stop_run(request_id: str, x_saniti_owner: str | None = Header(default=None)) -> JSONResponse:
+        """The stop button (app/stop.py): the run stops before its next model call; its answer still arrives on the
+        run's own request. 404 when no run of this owner with this id is running."""
+        try:
+            owner = owner_from_header(x_saniti_owner) if x_saniti_owner is not None else None
+        except ConversationError as error:
+            return refuse(error)
+        status = stop.stop(request_id[:200], owner)
+        log_event("ai_run_stop_requested", request_id=request_id[:200], status=status)
+        return JSONResponse(status_code=202 if status == "STOPPING" else 404, content={"status": status})
+
     @app.post("/v1/agent/run", response_model=AgentRunResponse, dependencies=[Depends(authorize)])
     def run_agent(payload: AgentRunRequest,
                   x_saniti_owner: str | None = Header(default=None)) -> AgentRunResponse | JSONResponse:
@@ -551,7 +564,8 @@ def create_app(
             request, mode = routed(payload, payload.continuation)
             caller = current_caller_path.set(payload.analysis_path if mode.source == "CALLER" else None)
             try:
-                return with_mode(orchestrator.run(request), mode)
+                with stop.running(payload.request_id, None):
+                    return with_mode(orchestrator.run(request), mode)
             finally:
                 current_caller_path.reset(caller)
         try:
@@ -582,11 +596,12 @@ def create_app(
             extra = {"data_record": record} if record else {}
             caller = current_caller_path.set(payload.analysis_path if mode.source == "CALLER" else None)
             try:
-                if getattr(orchestrator, "conversation_reuse", False):
-                    result = orchestrator.run(request, conversation_key=reuse_key(owner, start.conversation_id),
-                                              **extra)
-                else:
-                    result = orchestrator.run(request, **extra)
+                with stop.running(payload.request_id, owner):
+                    if getattr(orchestrator, "conversation_reuse", False):
+                        result = orchestrator.run(request, conversation_key=reuse_key(owner, start.conversation_id),
+                                                  **extra)
+                    else:
+                        result = orchestrator.run(request, **extra)
             finally:
                 current_caller_path.reset(caller)
         except Exception:

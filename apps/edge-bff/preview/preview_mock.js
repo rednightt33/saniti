@@ -66,6 +66,7 @@
       jobs[request_id] = {request_id, conversation_id:c.id, state:'FINISHED', state_version:2, run_status:response.status, response, completed_at:t.completed_at, updated_at:t.completed_at};
       return json({request_id, conversation_id:c.id, state:'QUEUED', state_version:0, created:true}, 202);
     }
+    if (path.match(/^\/runs\/[^/]+\/stop$/)) return json({status:'NOT_RUNNING'}, 409);  // a preview run is already done
     if ((m = path.match(/^\/runs\/([^/]+)$/))) return json(jobs[decodeURIComponent(m[1])] || {}, jobs[decodeURIComponent(m[1])] ? 200 : 404);
     return json({error:{code:'NOT_AVAILABLE_IN_PREVIEW'}}, 404);
   };

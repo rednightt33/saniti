@@ -218,7 +218,7 @@ def create_app(settings=None, store=None, orc=None):
     @app.get('/api/v1/auth/session')
     async def get_session(token=Depends(session)):
         return {'authenticated': True, 'login': settings.login, 'csrf_token': csrf_token(token, settings.session_secret),
-                'capabilities': {'deep_research': False, 'model_selection': False, 'cancel': False, 'tool_progress': False,
+                'capabilities': {'deep_research': False, 'model_selection': False, 'cancel': True, 'tool_progress': False,
                                  'retention_days_default': 30}}
 
     @app.post('/api/v1/auth/sign-out')
@@ -238,6 +238,18 @@ def create_app(settings=None, store=None, orc=None):
         row, created = await asyncio.to_thread(store.submit, settings.owner, body.submission_key, payload)
         return {'request_id': row['request_id'], 'conversation_id': row['conversation_id'],
                 'state': row['state'], 'state_version': row['state_version'], 'created': created}
+
+    @app.post('/api/v1/runs/{request_id}/stop')
+    async def stop_run(request_id: str, _=Depends(write)):
+        # The stop button (EXEC-X 2026-10-09): a queued run ends here; a running one stops at Orc before its next
+        # model call and its answer still arrives through the worker. 409 when there is nothing to stop yet/anymore.
+        row = await asyncio.to_thread(store.job, settings.owner, request_id)
+        status = 'NOT_RUNNING'
+        if row['state'] == 'QUEUED' and await asyncio.to_thread(store.stop_queued, settings.owner, request_id):
+            status = 'STOPPED'
+        elif row['state'] in ('QUEUED', 'RUNNING', 'RECOVERING'):
+            status = await asyncio.to_thread(orc.stop, settings.owner, request_id)
+        return JSONResponse({'status': status}, status_code=409 if status == 'NOT_RUNNING' else 202)
 
     @app.get('/api/v1/runs/{request_id}')
     async def run_status(request_id: str, _=Depends(session)):

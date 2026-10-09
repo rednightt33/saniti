@@ -43,6 +43,7 @@ from .schemas import (
 )
 from . import conversation_router as router
 from . import in_sample as insample
+from . import stop
 from . import user_texts as texts
 from .user_texts import (  # M125: every line the backend writes for the user
     ANALYSIS_PATH_LINE, ANGLE_FINDINGS_NOTICE, DATANEED_GATE_NOTICE, DATANEED_PROVENANCE_NOTICE, DATANEED_ROUTING_NOTICE,
@@ -1343,7 +1344,8 @@ EVIDENCE_BACKEND_LINE = ("Angka jawaban ini dihitung atau dihitung ulang oleh ba
 # G23 D (K3): the step limit or time ran out; the last draft still reaches the user
 EXHAUSTED_LINE = "Pemeriksaan tidak selesai ({reason}). Kode permintaan: {request_id}."
 EXHAUSTED_NO_DRAFT = "Tidak bisa dihitung: {reason} sebelum ada jawaban. Kode permintaan: {request_id}."
-EXHAUSTED_REASONS = {"MAX_ITERATIONS": "batas langkah tercapai", "ANALYSIS_TIMEOUT": "batas waktu tercapai"}
+EXHAUSTED_REASONS = {"MAX_ITERATIONS": "batas langkah tercapai", "ANALYSIS_TIMEOUT": "batas waktu tercapai",
+                     "STOPPED_BY_USER": "dihentikan oleh Anda"}
 # O4: every figure from the model's code is a value reference; the backend read each from its released table
 EVIDENCE_REFERENCED_LINE = texts.EVIDENCE_REFERENCED_LINE
 
@@ -3550,6 +3552,8 @@ class AgentOrchestrator:
                 else min(budget, self.settings.ai_max_analysis_seconds)
             if self.clock() - state.started >= limit:
                 return self._exhausted(state, "ANALYSIS_TIMEOUT")
+            if stop.requested():  # the stop button: no new model call after it (app/stop.py)
+                return self._exhausted(state, "STOPPED_BY_USER")
 
             tools = [] if state.tools_locked or state.structured_only else self._turn_tools(state)
             context_tokens = self._estimate_context(state, tools)

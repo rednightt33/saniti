@@ -66,6 +66,20 @@ class OrcClient:
     def request(self, owner, request_id):
         return self._call('GET', f'/v1/agent/requests/{request_id}', owner)
 
+    def stop(self, owner, request_id):
+        """The stop button: STOPPING when Orc flagged the running request, NOT_RUNNING when it is not running there
+        (not dispatched yet, finished, or another owner's). Orc answers 202 or 404; never a POST replay."""
+        try:
+            response = self.client.post(f'/v1/agent/run/{request_id}/stop',
+                headers={'Authorization': f'Bearer {self.settings.orc_key}', 'X-Saniti-Owner': owner})
+        except httpx.HTTPError as e:
+            raise OrcError() from e
+        if response.status_code == 202:
+            return 'STOPPING'
+        if response.status_code == 404:
+            return 'NOT_RUNNING'
+        raise OrcError()
+
     def messages(self, owner, conversation_id, after=-1, limit=20):
         return self._call('GET', f'/v1/conversations/{conversation_id}/messages?after={after}&limit={limit}', owner)
 

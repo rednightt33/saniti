@@ -41,6 +41,7 @@ from typing import Any
 from . import conversation_router as router
 from . import data_record as records
 from . import modes
+from . import stop
 from .conversations import assistant_text
 from .orchestrator import MODE4_PART_TARGET_CHARS, AgentOrchestrator, current_answer_target, current_time_budget, \
     log_event
@@ -336,6 +337,11 @@ class _Mode4Run:
             bounds: tuple[int, int] | None = None, turn_kind: str | None = None) -> AgentRunResponse | None:
         request_id = f"{self.base_id}-{suffix}"
         left = self.remaining()
+        if stop.requested():  # the stop button: the steps not started are skipped (app/stop.py)
+            self.steps.append({"step": step, "request_id": request_id, "status": "SKIPPED",
+                               "reason": "STOPPED_BY_USER"})
+            log_event("mode4_step_skipped", request_id=self.request.request_id, step=step, reason="STOPPED_BY_USER")
+            return None
         if left < MIN_STEP_SECONDS:
             self.steps.append({"step": step, "request_id": request_id, "status": "SKIPPED",
                                "reason": "AI_MODE4_MAX_SECONDS"})
@@ -643,7 +649,10 @@ class _Mode4Run:
                 or (research if research_ok else None)
         if base is None:
             result = main or research or suggestion
-            if result is None:  # nothing ran: the budget was spent before the first step
+            if result is None and stop.requested():  # stopped before the first step began
+                result = self.inner._failed(_empty_state(self.inner, self.request), "STOPPED_BY_USER",
+                                            "stopped by the user before the first step")
+            elif result is None:  # nothing ran: the budget was spent before the first step
                 result = self.inner._failed(_empty_state(self.inner, self.request), "ANALYSIS_TIMEOUT",
                                             "AI_MODE4_MAX_SECONDS exhausted before the first step")
             response, status = result.response, result.status

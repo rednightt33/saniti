@@ -61,7 +61,7 @@
       messages:turns.map(t=>({id:t.request_id+'-user',role:'user',content:t.user_message,createdAt:t.created_at,runId:t.request_id})),runs:turns.map(t=>adaptRun(t,ui))};
   }
   const stateRun = (snapshot, previous) => ({...previous,
-    status:terminal(snapshot) ? snapshot.state === 'FINISHED' && snapshot.run_status !== 'FAILED' && !snapshot.expired ? 'completed' : 'failed' : snapshot.state === 'QUEUED' ? 'submitted' : 'running',
+    status:snapshot.error_code === 'STOPPED_BY_USER' ? 'cancelled' : terminal(snapshot) ? snapshot.state === 'FINISHED' && snapshot.run_status !== 'FAILED' && !snapshot.expired ? 'completed' : 'failed' : snapshot.state === 'QUEUED' ? 'submitted' : 'running',
     domainStatus:snapshot.run_status,paused:Boolean((snapshot.response || previous.raw)?.execution?.pause),error:snapshot.expired ? 'Conversation expired; the saved response is no longer available.' : snapshot.error_code || snapshot.response?.error?.code,
     completedAt:snapshot.completed_at,raw:snapshot.response || previous.raw,
     result:snapshot.response?.response ? {title:previous.question.slice(0,80),condition:snapshot.response.response.answer || snapshot.response.response.clarification_question || '',final:snapshot.response.response} : previous.result,
@@ -75,6 +75,7 @@
     async signin(login,password) { auth = await api('/auth/sign-in',{login,password}); dispatchEvent(new Event('edge-auth')); return auth; },
     async signout() { await api('/auth/sign-out',{}); reset(); },
     createRun: body => api('/runs',body),
+    stopRun: id => api('/runs/'+encodeURIComponent(id)+'/stop',{}),
     bookmark: (id,bookmarked) => api('/conversations/'+encodeURIComponent(id)+'/preferences',{bookmarked},'PATCH'),
     pin: (id,pinned) => api('/runs/'+encodeURIComponent(id)+'/preferences',{pinned},'PATCH'),
     exportUrl: id => /^exp_[0-9a-f]{24}$/.test(id) ? '/api/v1/exports/'+id : null,

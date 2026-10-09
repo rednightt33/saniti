@@ -124,16 +124,20 @@ def test_loading_animation_refresh_and_completed_answer(dummy_orc, browser_page)
     try:
         submit(page, 'Dummy GOTO response')
         assert entered.wait(3)
-        page.get_by_role('button', name='Processing…', exact=True).wait_for()
-        assert page.get_by_role('button', name='Processing…', exact=True).is_disabled()
+        stop = page.get_by_role('button', name='Stop', exact=True)  # EXEC-X 2026-10-09: the stop button
+        stop.wait_for()
+        assert stop.is_enabled() and not page.get_by_role('button', name='Submit', exact=True).count()
         assert page.locator('.edge-response-dots i').count() == 3
         assert page.locator('.edge-response-dots i').first.evaluate('(node) => getComputedStyle(node).animationName') == 'edge-response-pulse'
         animation = page.locator('.edge-response-dots i').first
         first_time = animation.evaluate('(node) => node.getAnimations()[0].currentTime')
         page.wait_for_timeout(150)
         assert animation.evaluate('(node) => node.getAnimations()[0].currentTime') > first_time
-        assert not page.get_by_role('button', name='Stop', exact=True).count()  # server cancellation is unavailable
         capture(page, 'desktop-loading')
+        stop.click()
+        page.get_by_role('button', name='Stopping…', exact=True).wait_for()
+        assert page.get_by_role('button', name='Stopping…', exact=True).is_disabled()
+        assert getattr(orc, 'stopped', []) and orc.stopped[-1].startswith('edge_')
         page.reload()
         page.locator('.edge-inline-progress').wait_for()
         assert 'Dummy GOTO response' in page.locator('.user-message').inner_text()

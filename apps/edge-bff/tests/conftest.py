@@ -38,6 +38,7 @@ class FakeOrc:
         self.calls.append((owner,id,payload.copy()));conv=payload.get('conversation_id') or 'conv_'+uuid.uuid4().hex
         result={'request_id':id,'status':self.status,'response':{'response_type':'ANSWER','answer':'Saved answer <script>window.pwned=true</script>','assumptions':[],'limitations':[],'clarification_question':None,'research_plan':None},'execution':{'model':'fixture-model','cost':0.001,'total_tokens':42},'conversation':{'conversation_id':conv,'persistence':'SAVED'},'options':[{'label':'Quick summary','route':'QUICK_SUMMARY'}]}
         self.saved[id]={'request_id':id,'conversation_id':conv,'turn_status':'COMPLETED','run_status':self.status,'response':result,'user_message':payload['message']};return result
+    def stop(self,owner,id):self.stopped=getattr(self,'stopped',[])+[id];return 'NOT_RUNNING' if id in self.saved else 'STOPPING'
     def request(self,owner,id):return self.saved.get(id)
     def messages(self,owner,conv,after=-1,limit=20):
         turns=[dict(t,turn_index=i,status=t['turn_status'],created_at='2026-10-08T00:00:00+00:00',completed_at='2026-10-08T00:00:01+00:00') for i,t in enumerate(self.saved.values()) if t['conversation_id']==conv];turns=[t for t in turns if t['turn_index']>after]

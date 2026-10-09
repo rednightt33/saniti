@@ -143,3 +143,38 @@ def test_deployment_refuses_admin_credentials_and_short_deadline(settings):
     configured=replace(configured,database_url='postgresql://edge_bff_login@postgres.railway.internal/railway')
     configured.validate()
     with pytest.raises(ValueError,match='timeout'):replace(configured,orc_timeout_seconds=3600).validate()
+
+
+def test_stop_button_ends_a_queued_run_here_and_asks_orc_for_a_running_one(settings,store):
+    """EXEC-X 2026-10-09: a queued run never reaches Orc; a running one is flagged at Orc (only its owner's);
+    nothing running answers 409; the stop needs the CSRF token."""
+    orc=FakeOrc()
+    with TestClient(create_app(settings,store,orc)) as c:
+        h=login(c);assert c.get('/api/v1/auth/session').json()['capabilities']['cancel'] is True
+        id=c.post('/api/v1/runs',headers=h,json={'message':'Queued','submission_key':'q'}).json()['request_id']
+        assert c.post('/api/v1/runs/'+id+'/stop',headers=ORIGIN,json={}).status_code==403
+        r=c.post('/api/v1/runs/'+id+'/stop',headers=h,json={});assert r.status_code==202 and r.json()=={'status':'STOPPED'}
+        s=c.get('/api/v1/runs/'+id).json();assert s['state']=='FAILED' and s['error_code']=='STOPPED_BY_USER'
+        assert store.claim(90) is None and not orc.calls and not getattr(orc,'stopped',[])
+        assert c.post('/api/v1/runs/'+id+'/stop',headers=h,json={}).status_code==409  # already ended
+        id=c.post('/api/v1/runs',headers=h,json={'message':'Running','submission_key':'r'}).json()['request_id']
+        row=store.claim(90);assert row['request_id']==id and store.stop_queued(settings.owner,id) is None
+        r=c.post('/api/v1/runs/'+id+'/stop',headers=h,json={});assert r.status_code==202 and r.json()=={'status':'STOPPING'}
+        assert orc.stopped==[id]
+        asyncio.run(Worker(settings,store,orc).process(row))  # the run's answer still arrives
+        assert c.get('/api/v1/runs/'+id).json()['state']=='FINISHED'
+        assert c.post('/api/v1/runs/'+id+'/stop',headers=h,json={}).status_code==409
+        assert c.post('/api/v1/runs/edge_missing/stop',headers=h,json={}).status_code==404
+
+
+def test_orc_client_stop_reads_202_and_404_and_never_forwards_upstream_text():
+    def handler(request):
+        assert request.url.path=='/v1/agent/run/edge_1/stop' and request.headers['x-saniti-owner']=='o'
+        return httpx.Response({'edge_1':202}.get(request.url.path.split('/')[-2],404),json={'status':'x'})
+    settings=type('S',(),{'orc_key':'k'})()
+    client=OrcClient(settings,httpx.Client(base_url='http://orc',transport=httpx.MockTransport(handler)))
+    assert client.stop('o','edge_1')=='STOPPING'
+    broken=OrcClient(settings,httpx.Client(base_url='http://orc',transport=httpx.MockTransport(lambda r:httpx.Response(500,text='secret upstream'))))
+    with pytest.raises(OrcError):broken.stop('o','edge_1')
+    missing=OrcClient(settings,httpx.Client(base_url='http://orc',transport=httpx.MockTransport(lambda r:httpx.Response(404))))
+    assert missing.stop('o','edge_2')=='NOT_RUNNING'
