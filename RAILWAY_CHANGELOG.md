@@ -3251,4 +3251,6 @@ User: "gas" (go for Fase 3 after "E1 ok 2-4" and E2).
   each time and read back absent); details in `DATABASE_CHANGELOG.md`.
 - Live checks (USD 0.06 in total; key limit remaining about USD 3.76): two BBRI foreign-flow Excel exports (details in
   `EXEC.md` EXEC-Y).
+- `main` `1d83787` (filters written on one line): market-ai-orc **f41dc090-45ea-430d-bcc2-15534be1540c** reached
+  **SUCCESS**.
 - No variable, model, provider, mode or Railway configuration change; no IaC apply.
