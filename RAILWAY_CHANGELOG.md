@@ -3185,3 +3185,20 @@ bukan desktop. jangan ubah desktop").
   rolled back, then `MODE=APPLY` committed `20261009_001_round_n_tool_catalog.sql` (details in `DATABASE_CHANGELOG.md`).
   Deleted with `railway service delete`; read back absent (19 services). No other service, variable or configuration
   changed.
+
+## 2026-10-09 — M130, M128b and the stop button deployed from main
+
+User: "1 3 dan 4 - jalankan sekarang" (M130 router date, M128b readable Excel, stop button).
+
+- `main` fast-forwarded to `79eee1f`. market-python-sandbox **8c06ff02-d041-4d72-9c5c-09ffb78771b0**, market-ai-orc
+  **eddb0530-9f7b-4aeb-a0a2-5f3f84c20a83** and edge-bff **415baf87-3916-487c-a0fd-ac74e3a89294** reached **SUCCESS**.
+  Rollback references: orc `bbc19fa5`, edge-bff `be697e72`; the sandbox's previous deployment is older than the CLI's
+  list (redeploy `d81e066` to roll back).
+- Orc startup: `ai_model_selected switch=1 deepseek/deepseek-v4.1-flash`, `ai_mode_selected switch=4`. Router benchmark
+  before deploy: first router 120/120, turn router 48/50 (unchanged from before M130).
+- Tests before merge: orc 1,583 passed; EDGE 54 passed (including the browser Stop test).
+- Free live check: `capabilities.cancel` true, stop without CSRF 403, unknown run 404, new static files served.
+- Paid live checks (key limit 38): a stop on a running analysis (`edge_8b5bde97…`, ended 10 s after the press, USD
+  0.0049) and the Excel export (`edge_c97a5348…`, USD 0.025, figures verified through pgweb).
+- `Tool_Catalog` round N had been applied earlier the same day (entry above). No variable, model, provider, mode or
+  Railway configuration change; no IaC apply.

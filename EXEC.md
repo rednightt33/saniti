@@ -1238,6 +1238,26 @@ terbaru; benchmark router ulang dengan kasus waktu sebelum deploy), 3 = M128b (j
 lebih lanjut dan kalau bisa jawaban selaij menjawab tapi juga ngomong history, serta forward event terkait
 pertanyaan. konsep mitip v1/ask").** Desain disusun sesudah inspeksi `/v1/ask` web governor dan mode 4; dibangun
 sesudah go.
+- **Usulan desain 2026-10-09 (menunggu go; belum dibangun).**
+  - Akar masalah (terverifikasi dari kode): putaran pertama EXPLORE (mode 4) = A analisis database + B rencana riset
+    yang menunggu persetujuan. Tidak ada langkah yang mencari riwayat, peristiwa ke depan, atau menulis pertanyaan
+    lanjutan; orc tidak memanggil `/v1/ask` (hanya `/v1/orc/web` dan `/v1/fact`). Padahal `/v1/ask` sudah punya
+    ketiganya: jendela riwayat sampai 7 tahun, pencarian peristiwa mendatang plus `timeline` (waktu disalin persis dari
+    sumber), dan 3–5 `follow_ups`; tanggal tiap fakta diambil dari daftar sumber, bukan dari model.
+  - Kelas masalah: setiap pertanyaan terbuka (makro, sektor, emiten, komoditas, kebijakan, juga data lintas aset dan
+    makro yang direncanakan) dijawab tanpa konteks waktu dan hanya dengan satu jalan lanjut (rencana riset mahal; M127a).
+  - Usulan (lapis kontrak antar-layanan, permanen): putaran pertama EXPLORE menjalankan `/v1/ask` (W) sejajar dengan A.
+    Jawaban gabungan: Jawaban (A + W), Riwayat, Peristiwa ke depan, Pertanyaan lanjutan (pilihan yang bisa diklik; klik
+    = pesan berikutnya, tidak ada yang jalan tanpa klik). Sumber W didaftarkan sebagai sumber web orc sehingga klaim
+    ber-link (keputusan C) dan gerbang angka tetap berlaku. Tombol stop dicek sebelum W.
+  - Biaya dan waktu (perkiraan, diukur saat uji): W dibatasi anggaran `/v1/ask` (maks. sekitar USD 0,06, 180 detik) dan
+    berjalan sejajar dengan A; uji web sebelumnya EXPLORE 14–15 menit, USD 0,054–0,090.
+  - Juga berlaku untuk: "prospek batu bara 2026" (riwayat harga, aturan DMO yang dijadwalkan), "kenapa GOTO turun"
+    (riwayat peristiwa, RUPS mendatang), dan nanti data makro (angka dari database, jadwal RDG BI dari W). Tidak untuk:
+    FACT (satu nilai; riwayat dan peristiwa ke depan menambah biaya tanpa nilai) dan ekstrak Excel.
+  - Pertanyaan untuk user: (1) rencana riset B di putaran pertama EXPLORE tetap otomatis, atau dijadikan salah satu
+    pertanyaan lanjutan ("Uji dengan data: …"), yang sekaligus menyelesaikan M127a? (2) Pertanyaan lanjutan hanya di
+    EXPLORE, atau juga di ANALYSIS (satu panggilan model kecil)?
 - Keputusan user 2026-10-08 atas contoh (a)/(b)/(c) tanda sumber: "pakai C". Klaim web selalu diberi link ke halaman
   sumbernya (teks link = nama situs, alamat dari daftar sumber yang dibaca sistem, bukan diketik AI); angka database
   tanpa tanda di kalimat, asalnya di panel Sources.
@@ -1268,18 +1288,18 @@ mobile, bukan desktop. jangan ubah desktop.")** Dibangun bersama P4 (perubahan E
 
 **Tombol stop (permintaan user 2026-10-08: "kita jg perlu tambah stop button, which fungsinya kaya stop ai processing.
 saat ini sudah ada? jika belum masukan exec"; disetujui 2026-10-08: "Tombol stop OK masukan exec", dibangun sesudah
-P1–P5).** Belum ada (terverifikasi): BFF melaporkan `capabilities.cancel:
-false`, orc tidak punya rute pembatalan (hanya pembatalan rencana riset). Rencana, belum dibangun:
-- EDGE: tombol Stop menggantikan Submit selama jawaban berjalan.
-- BFF: `POST /api/v1/runs/{id}/cancel` (pemilik dan CSRF dicek), status baru CANCELLED.
-- Orc: rute pembatalan per request (pemilik dicek) yang memasang tanda berhenti; perulangan memeriksanya di batas yang
-  sama dengan tenggat run (sebelum tiap panggilan model dan tool, tiap langkah mode 4), lalu berhenti tanpa panggilan
-  berbayar baru. Yang sedang berjalan (satu panggilan model, satu job sandbox, satu pencarian web) dibiarkan selesai
-  atau dihentikan bila layanannya mendukung. Hasil yang sudah dirilis tetap tersimpan; jawaban dicatat "Dihentikan
-  oleh Anda" beserta apa yang sudah selesai.
-- Jaminan: biaya berhenti di batas berikutnya; paling banyak satu panggilan yang sedang berjalan ikut terbayar.
-- Pertanyaan terbuka: orc satu replika (tanda di memori cukup) atau perlu tanda di Postgres; perilaku bila run sedang
-  menunggu sandbox lama.
+P1–P5).** **Dibangun dan ter-deploy 2026-10-09** (go "1 3 dan 4 - jalankan sekarang"; detail di
+`ERRORS_AND_SOLUTIONS.md` M131):
+- EDGE: selama jawaban berjalan, tombol Submit menjadi Stop (desktop dan mobile); sesudah ditekan menjadi "Stopping…".
+- BFF: `POST /api/v1/runs/{id}/stop` (sesi dan CSRF dicek). Run yang masih antre diakhiri di BFF dan tidak pernah
+  sampai ke AI; run yang berjalan ditandai di orc. 409 bila belum atau sudah tidak ada yang bisa dihentikan.
+  `capabilities.cancel` = true.
+- Orc: `POST /v1/agent/run/{id}/stop` (pemilik dicek; run orang lain tidak pernah terungkap). Tanda dibaca di batas
+  yang sama dengan tenggat run (awal tiap langkah, sebelum tiap langkah mode 4), jadi tidak ada panggilan model baru;
+  panggilan yang sedang jalan selesai. Jawaban memakai jalur "waktu habis": draf terakhir lewat semua gerbang, atau
+  baris "dihentikan oleh Anda".
+- Jawaban pertanyaan terbuka: orc satu replika, tanda di memori cukup. Job sandbox yang sedang jalan dibiarkan selesai.
+- Uji live 2026-10-09 (`edge_8b5bde97…`): Stop ditekan detik ke-27, run berakhir 10 detik kemudian, USD 0,0049.
 
 ### EXEC-M109: pertanyaan tanya-balik router tetap dipakai
 
