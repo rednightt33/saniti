@@ -1471,6 +1471,29 @@ migrasi hanya menambah kolom atau versi baru.
 
 **Go Fase 1 (user 2026-10-09: "go for phase 1").** Fase 2–4 tetap menunggu go masing-masing.
 
+**Hasil Fase 1 (2026-10-09; `main` `58388b0`, orc `b05fbdfe`, edge-bff `4043ccd4` SUCCESS; detail M131):**
+- S1: orc menandai jawaban yang dihentikan (`execution.stopped`); EDGE menampilkan "Stopped by you." dengan tombol
+  "Edit & resend" yang mengembalikan pertanyaan ke kolom pesan.
+- S2: jawaban yang dihentikan menyebut yang sudah selesai ("Sebelum dihentikan: 7 data sudah dibaca dan 0 tabel hasil
+  sudah selesai. Catatan itu ikut ke pesan berikutnya di percakapan ini.").
+- S3: mengetik saat proses berjalan memunculkan "Stop & send": run berhenti, pesan itu jalan berikutnya di percakapan
+  yang sama. Enter saja tidak menghentikan apa pun. Pesan yang menunggu bisa dihentikan juga.
+- I1, koreksi premis: router pesan pertama ternyata sudah berjalan di dalam run yang terdaftar untuk stop (`mode4.run`),
+  jadi tidak ada yang dipindah di orc. Celah yang sebenarnya ada di BFF (job sudah diambil worker tetapi belum sampai ke
+  orc): kini job ditandai berhenti dan worker tidak pernah mengirim job yang ditandai; untuk job yang baru dikirim,
+  BFF mencoba stop ke orc sampai 3 kali.
+- I2: teks proses "Stopping — waiting for the current step to finish".
+- Perbedaan dari rencana (R35): pesan yang menunggu tidak bisa menjadi job kedua karena database BFF mewajibkan satu job
+  aktif per pemilik (`edge_bff_one_active_owner`). Tanpa migrasi, pesan itu disimpan di job yang sedang dihentikan
+  (`input.next`) dan dijadikan job sendiri dalam transaksi yang sama saat job itu berakhir; aturan satu job aktif tetap.
+- Uji: orc 1.585 lulus, EDGE 58 lulus (termasuk tes browser Stop & send lalu Edit & resend).
+- Uji live (USD 0,03; `conv_40a3700d…`): "Bandingkan volatilitas harian BBCA, BBRI dan BMRI selama 2025", lalu pada
+  detik ke-40 "Lanjutkan, tapi cukup BBCA saja" lewat Stop & send. Run pertama berhenti 4 detik kemudian (`stopped`
+  true, baris S2 benar, USD 0,006); pesan kedua mulai 0,3 detik sesudahnya di percakapan yang sama dan selesai
+  (COMPLETED, 3 menit 25 detik, USD 0,024). Catatan data run pertama terbawa (7 tabel, 1 kebutuhan data, 1 paket data
+  ditawarkan). Paket data tidak dipakai ulang karena pertanyaan kedua meminta data lain (hanya BBCA, SQL berbeda);
+  aturan opsi D hanya memakai ulang SQL yang sama (M113), jadi ini sesuai desain, bukan cacat.
+
 **Tambahan Fase 2 (user 2026-10-09: "Pertanyaan lanjutan … —>+ tambah idea research boleh?", lalu dikoreksi: "maksudnya
 bukan idea research, tapi ide untuk pertanyaan insight lanjutan").** Dimasukkan ke desain Fase 2, menunggu go bersama
 fasenya. Usulan "ide riset" sebelumnya dibatalkan; pilihan "Uji dengan data: …" (EXPLORE opsi B) tetap satu butir.

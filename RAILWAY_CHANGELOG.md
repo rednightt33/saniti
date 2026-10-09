@@ -3202,3 +3202,15 @@ User: "1 3 dan 4 - jalankan sekarang" (M130 router date, M128b readable Excel, s
   0.0049) and the Excel export (`edge_c97a5348…`, USD 0.025, figures verified through pgweb).
 - `Tool_Catalog` round N had been applied earlier the same day (entry above). No variable, model, provider, mode or
   Railway configuration change; no IaC apply.
+
+## 2026-10-09 — EXEC-Y Fase 1 (stop with best practice) deployed from main
+
+User: "go for phase 1".
+
+- `main` `58388b0`: market-ai-orc **b05fbdfe-d758-4302-8f64-749bf82965b6** and edge-bff
+  **4043ccd4-ed15-466c-97db-8124dd7bc05b** reached **SUCCESS**; sandbox SKIPPED (no change). Rollback references: orc
+  `eddb0530`, edge-bff `415baf87`.
+- Tests before merge: orc 1,585 passed; EDGE 58 passed.
+- Live check (USD 0.03, key limit remaining USD 4.44 after): Stop & send on a running analysis; the stopped run ended
+  4 s after the press with `execution.stopped`, the queued message ran next in the same conversation and completed.
+- No variable, model, provider, mode, schema or Railway configuration change; no migration.
