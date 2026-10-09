@@ -3227,3 +3227,14 @@ User: "ok gas go".
   FACT control, one insight idea clicked (details in `EXEC.md` EXEC-Y).
 - No variable, model, provider, mode, schema or Railway configuration change; no migration. The orc calls the web
   governor's existing `/v1/ask` with the existing `WEB_GOVERNOR_URL` and `WEB_GOVERNOR_API_KEY`.
+
+## 2026-10-09 — Web links move to Sources (decision B), M132, mobile font
+
+User: "Ok untuk B semua link web hilang pindah ke source masukan exec"; mobile font "pls standardized"; "gas".
+
+- `main` `0bffe46`: market-ai-orc **5ba6caab-0a69-4826-a03b-5c814fed6139** and edge-bff
+  **9044798d-538d-4d0e-95a0-f0b700b785d2** reached **SUCCESS**. `main` `522cb50` (M132 dates): market-ai-orc
+  **12f35049-052c-44a4-a164-4af5bc7e576e** reached **SUCCESS**; edge-bff SKIPPED (no change). Rollback references: orc
+  `4494ba03`, edge-bff `473a2117`.
+- Live check (USD 0.012): FACT BI-Rate answer with no link in the text; sources in the Sources panel.
+- No variable, model, provider, mode, schema or Railway configuration change; no migration.

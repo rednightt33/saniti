@@ -1547,6 +1547,17 @@ dan nama source berita".** Belum dibangun; menunggu pilihan user (lihat jawaban 
   dibenarkan tanpa merubah design site" → Fase 5 (QA tampilan mobile dan desktop) sesudah Fase 4.
 - E2 tidak dijawab ulang; dipakai usulan: terjemahan disimpan sekali per kolom dan dipakai ulang.
 
+**Hasil B dan ukuran huruf mobile (2026-10-09, ter-deploy):**
+- `main` `0bffe46` lalu `522cb50`: market-ai-orc `12f35049` dan edge-bff `9044798d` **SUCCESS**.
+- B: teks jawaban tanpa link web dan tanpa nama situs; sumber web dan berita ada di panel Sources (berita sebagai bagian
+  "Berita"). Angka tanpa sumber tetap dibuang di backend lebih dulu.
+- M132: nilai web yang sudah tertulis di kalimat yang sama (angka dalam gaya desimal apa pun, atau tanggal dalam bentuk
+  tulisan apa pun) tidak dicetak lagi. Cek live pertama menemukan "23 September 2026 2026-09-23"; tanggal ditambahkan
+  di `522cb50`.
+- Cek live (FACT BI-Rate, USD 0,012): 0 link di teks; halaman bi.go.id tampil di Sources.
+- Mobile: kolom tanya dan placeholder 14px, sama dengan teks pesan (hanya di layar ≤ 720px); pengaman zoom hanya untuk
+  iOS. Tes browser memeriksa ukuran yang sama. Desktop tidak berubah.
+
 **Tambahan Fase 2 (user 2026-10-09: "Pertanyaan lanjutan … —>+ tambah idea research boleh?", lalu dikoreksi: "maksudnya
 bukan idea research, tapi ide untuk pertanyaan insight lanjutan").** Dimasukkan ke desain Fase 2, menunggu go bersama
 fasenya. Usulan "ide riset" sebelumnya dibatalkan; pilihan "Uji dengan data: …" (EXPLORE opsi B) tetap satu butir.
