@@ -305,3 +305,11 @@ STOPPED_NOTHING_DONE = "Sebelum dihentikan belum ada data yang selesai dibaca."
 
 def stopped_done_line(tables: int, outputs: int) -> str:
     return STOPPED_DONE.format(tables=tables, outputs=outputs) if tables or outputs else STOPPED_NOTHING_DONE
+
+
+# ---- EXPLORE and follow-ups (EXEC-Y Fase 2) ----
+NEWS_TITLE = "Riwayat dan konteks berita"
+NEWS_NOTE = "Diringkas dari {count} berita; setiap kalimat bertaut ke sumbernya."
+FORWARD_TITLE = "Peristiwa ke depan"
+NEWS_DATE_UNKNOWN = "Tanggal belum diumumkan"
+DATA_TEST_LABEL = "Uji dengan data: {hypothesis}"

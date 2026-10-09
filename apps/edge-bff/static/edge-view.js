@@ -152,8 +152,23 @@
       findings:findings(final.research_findings, planIndex),
       lists,
       methodology:final.methodology ? {label:ui.methodology, text:final.methodology} : null,
-      artifacts:(envelope?.artifacts || []).map(file => ({id:file.export_id, label:file.file_name || file.filename || file.export_id}))
+      artifacts:(envelope?.artifacts || []).map(file => ({id:file.export_id, label:file.file_name || file.filename || file.export_id})),
+      next:next(envelope?.follow_ups)
     };
+  }
+  // EXEC-Y Fase 2: what the user could ask next, grouped by kind; a click sends the words as the next message
+  function next(items) {
+    const ui = L().ui, titles = {FOLLOW_UP:ui.followUps, INSIGHT_IDEA:ui.insightIdeas, DATA_TEST:ui.dataTest};
+    const groups = [];
+    for (const item of items || []) {
+      if (!item?.label) continue;
+      const kind = titles[item.kind] ? item.kind : "FOLLOW_UP";
+      let group = groups.find(g => g.key === kind);
+      if (!group) groups.push(group = {key:kind, label:titles[kind], choices:[]});
+      group.choices.push({key:kind + group.choices.length, label:item.label, kind:"secondary", action:{type:"message", message:item.label}});
+    }
+    const order = Object.keys(titles);
+    return groups.length ? groups.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key)) : null;
   }
   // the experiments and angles of a conversation's plans, so a finding is titled by its plan's words
   function planIndex(envelopes) {

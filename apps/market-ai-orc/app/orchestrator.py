@@ -45,6 +45,7 @@ from . import conversation_router as router
 from . import in_sample as insample
 from . import stop
 from . import user_texts as texts
+from . import follow_ups
 from .user_texts import (  # M125: every line the backend writes for the user
     ANALYSIS_PATH_LINE, ANGLE_FINDINGS_NOTICE, DATANEED_GATE_NOTICE, DATANEED_PROVENANCE_NOTICE, DATANEED_ROUTING_NOTICE,
     DERIVED_FREQUENCY_LINE, FINDINGS_NOTICE, GATE_NOTICE, METHODOLOGY_MISSING_LINE, METHODOLOGY_WITHHELD_LINE,
@@ -3389,6 +3390,19 @@ class AgentOrchestrator:
                   **({"attempts": record["attempts"], "understood_intent": record.get("understood_intent"),
                       "design_value_changes": record.get("design_value_changes")} if self.ask_back else {}))
         return (parsed.route if parsed else None), (parsed.reason if parsed else None), record
+
+    def suggest_follow_ups(self, request_id: str, content: str) -> tuple[Any, dict[str, Any]]:
+        """EXEC-Y Fase 2 (app/follow_ups.py): follow-up questions, insight ideas and a data test after an answer; one
+        router call (reasoning low, strict schema, no tools). None on any failure (the answer goes without them)."""
+        parsed, record = self._router_call(
+            request_id, "follow-ups", follow_ups.INSTRUCTIONS, content, "follow_ups", follow_ups.SCHEMA,
+            follow_ups.Suggestions, "follow_ups_failed", max_tokens=follow_ups.OUTPUT_TOKENS)
+        log_event("follow_ups_suggested", request_id=request_id, status=record["status"],
+                  follow_ups=len(parsed.follow_ups) if parsed else 0,
+                  insight_ideas=len(parsed.insight_ideas) if parsed else 0,
+                  data_test=bool(parsed and parsed.data_test), cost=record.get("cost"),
+                  latency_ms=record["latency_ms"])
+        return parsed, record
 
     def _database_holds(self, state: RunState, call_id: str, name: str, arguments: Any) -> ToolOutcome | None:
         """P34 (plan 2026-10-05 Fase D option A): before a web lookup, one small model call compares the asked

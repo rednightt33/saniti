@@ -104,6 +104,9 @@ def dummy_orc(server):
             result.update(status='FAILED', error={'code': 'DUMMY_FAILURE'})
         elif question == 'Dummy limited':
             result['status'] = 'LIMITED'
+        elif question == 'Dummy follow ups':
+            result['follow_ups'] = [{'kind': 'FOLLOW_UP', 'label': 'Kapan rapat BI berikutnya?'},
+                                    {'kind': 'INSIGHT_IDEA', 'label': 'Bulan apa jual asing BBRI paling besar?'}]
         elif question == 'Dummy stopped':
             result['execution']['stopped'] = True  # EXEC-Y Fase 1: Orc says the user stopped this answer
         if question.startswith('Dummy'):
@@ -170,6 +173,23 @@ def test_loading_animation_refresh_and_completed_answer(dummy_orc, browser_page)
         capture(page, 'desktop-sources')
     finally:
         release.set()
+
+
+def test_follow_up_questions_and_insight_ideas_are_clicked_as_the_next_message(dummy_orc, browser_page):
+    """EXEC-Y Fase 2: the answer lists what to ask next under two titles; a click sends those words as the next
+    message in the same conversation."""
+    origin, orc = dummy_orc
+    page = browser_page
+    sign_in(page, origin)
+    submit(page, 'Dummy follow ups')
+    saved(page)
+    assert page.get_by_text('Pertanyaan lanjutan', exact=True).is_visible()
+    assert page.get_by_text('Ide insight', exact=True).is_visible()
+    capture(page, 'follow-ups')
+    page.get_by_role('button', name='Bulan apa jual asing BBRI paling besar?', exact=True).click()
+    saved(page, 2)
+    assert orc.calls[-1][2]['message'] == 'Bulan apa jual asing BBRI paling besar?'
+    assert orc.calls[-1][2]['conversation_id'] == orc.saved[orc.calls[0][1]]['conversation_id']
 
 
 def test_stop_and_send_then_edit_and_resend(dummy_orc, browser_page):

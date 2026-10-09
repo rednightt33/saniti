@@ -377,7 +377,8 @@ def test_through_the_api_a_bare_ticker_is_asked_back_and_a_choice_answers_it() -
     body = post(app, {"request_id": "a2", "message": "Ringkasan harga terbaru", "history": history,
                       "chosen_option": "QUICK_SUMMARY"})
     assert body["execution"]["mode"] == {"mode": 2, "name": "ANALYSIS", "source": "CHOICE", "route": "QUICK_SUMMARY"}
-    assert len(scripted.payloads) == 2  # one router call (the first message), one analysis step
+    work = [p for p in scripted.payloads if p.get("text", {}).get("format", {}).get("name") != "follow_ups"]
+    assert len(work) == 2  # one router call (the first message), one analysis step (EXEC-Y: then the follow-ups)
     assert router.NOTES["QUICK_SUMMARY"] in json.dumps(scripted.payloads[1]["input"], ensure_ascii=False)
 
 

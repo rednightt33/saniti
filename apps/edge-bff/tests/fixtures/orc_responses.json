@@ -7893,5 +7893,34 @@
   },
   "continuation": null,
   "evidence_label": "DATA_COVERAGE_VERIFIED"
+ },
+ "follow_ups": {
+  "request_id": "edge_fixture_follow_ups",
+  "status": "COMPLETED",
+  "response": {
+   "response_type": "ANSWER",
+   "answer": "Asing net jual BBRI.",
+   "assumptions": [],
+   "limitations": []
+  },
+  "execution": {
+   "model": "deepseek/deepseek-v4.1-flash",
+   "total_tokens": 10,
+   "cost": 0.001
+  },
+  "follow_ups": [
+   {
+    "kind": "INSIGHT_IDEA",
+    "label": "Bulan apa jual asing BBRI paling besar, dan apa yang terjadi saat itu?"
+   },
+   {
+    "kind": "FOLLOW_UP",
+    "label": "Kapan rapat BI berikutnya?"
+   },
+   {
+    "kind": "DATA_TEST",
+    "label": "Uji dengan data: Saham bank turun dalam 5 hari setelah BI-Rate naik"
+   }
+  ]
  }
 }

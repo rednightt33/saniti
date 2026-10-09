@@ -33,14 +33,17 @@ the mode4 block lists the steps.
 """
 from __future__ import annotations
 
+import contextvars
 import re
 from collections.abc import Iterator
+from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
 from typing import Any
 
 from . import conversation_router as router
 from . import data_record as records
 from . import modes
+from . import news as news_research
 from . import stop
 from .conversations import assistant_text
 from .orchestrator import MODE4_PART_TARGET_CHARS, AgentOrchestrator, current_answer_target, current_time_budget, \
@@ -147,6 +150,7 @@ class Mode4Orchestrator:
     ask_back = False  # AI_ENABLE_ASK_BACK (EXEC-3), set in __init__
     auto_research = False  # AI_MODE4_AUTO_RESEARCH (EXEC-P1), set in __init__
     memory = False  # AI_ENABLE_RUN_MEMORY (EXEC-C), set in __init__
+    news_client: news_research.NewsClient | None = None  # EXEC-Y Fase 2, set in __init__
 
     def __init__(self, inner: AgentOrchestrator) -> None:
         self.inner = inner
@@ -156,6 +160,11 @@ class Mode4Orchestrator:
         self.sandbox_min = int(limits.get("sandbox_min_angles") or 2)
         self.router = bool(getattr(inner.settings, "ai_enable_conversation_router", False))
         self.first_router = bool(getattr(inner.settings, "ai_enable_first_turn_router", False))
+        # EXEC-Y Fase 2: EXPLORE's news research (/v1/ask), on with the web research and its address and key
+        settings = inner.settings
+        self.news_client = news_research.NewsClient(settings.web_governor_url, settings.web_governor_api_key) \
+            if getattr(settings, "ai_enable_web_research", False) and getattr(settings, "web_governor_url", None) \
+            and getattr(settings, "web_governor_api_key", None) else None
         self.ask_back = self.first_router and bool(getattr(inner.settings, "ai_enable_ask_back", False))
         # EXEC-P1: the first round's plan runs at once (the earlier behaviour) only with AI_MODE4_AUTO_RESEARCH
         self.auto_research = bool(getattr(inner.settings, "ai_mode4_auto_research", False))
@@ -326,6 +335,10 @@ class _Mode4Run:
         # EXEC-C items 7 and 8: the analysis and plan steps of the round, for the next steps and the combined answer
         self.analysis_result: AgentRunResponse | None = None
         self.plan_result: AgentRunResponse | None = None
+        # EXEC-Y Fase 2 (option B): EXPLORE's first round is the answer with the news sections; no plan is built
+        self.explore_only = False
+        self.news_text = ""
+        self.news_summary: dict[str, Any] | None = None
 
     # ------------------------------------------------------------------------------------------------ plumbing
 
@@ -475,9 +488,39 @@ class _Mode4Run:
             self.results[-1] = result
         return self.finish(result, round_=kind, passthrough=True)
 
+    def _start_news(self, question: str) -> Future | None:
+        """EXEC-Y Fase 2: /v1/ask runs next to the analysis (its own budget and deadline), in a thread that carries
+        this request's context (stop flag, conversation)."""
+        client = self.owner.news_client
+        if client is None or stop.requested():
+            return None
+        today = getattr(self.inner, "_today", None)
+        pool = ThreadPoolExecutor(max_workers=1)
+        future = pool.submit(contextvars.copy_context().run, news_research.run, client, f"{self.base_id}-m4w",
+                             question, str(today()) if today else None)
+        pool.shutdown(wait=False)
+        return future
+
+    def _news_done(self, future: Future | None) -> None:
+        if future is None:
+            return
+        try:
+            self.news_text, summary = future.result(timeout=max(1.0, min(self.remaining(), news_research.ASK_SECONDS)))
+        except Exception as exc:  # noqa: BLE001 - the answer goes on without the news sections
+            self.news_text, summary = "", {"status": "FAILED", "error": type(exc).__name__, "follow_ups": []}
+        self.news_summary = summary
+        self.steps.append({"step": "news", "request_id": f"{self.base_id}-m4w", "status": summary.get("status"),
+                           "cost": summary.get("cost"), "duration_ms": int((summary.get("seconds") or 0) * 1000)})
+        log_event("mode4_news", request_id=self.request.request_id,
+                  **{k: v for k, v in summary.items() if k != "follow_ups"})
+
     def first_round(self, cancelled_plan_id: str | None = None) -> AgentRunResponse:
         question = self.request.message
         count = requested_count(question)
+        # EXEC-Y Fase 2 (option B, user 2026-10-09 "explore pakai B"): without AI_MODE4_AUTO_RESEARCH the round is the
+        # answer, the news research next to it, and follow-up suggestions (app/follow_ups.py); a research plan is
+        # built only when the user picks "Uji dengan data"
+        news = None if self.owner.auto_research else self._start_news(question)
         analysis = self.sub("analysis", "m4a", question, "ANALYSIS")
         self.analysis_result = analysis
         if not _ok(analysis, "ANSWER", "LIMITATION"):
@@ -486,6 +529,10 @@ class _Mode4Run:
             self.notes.append("Riset tidak dijalankan karena analisis tidak menghasilkan jawaban.")
             return self.finish(analysis, round_="FIRST", cancelled_plan_id=cancelled_plan_id)
         assert analysis is not None and analysis.response is not None
+        if not self.owner.auto_research:
+            self._news_done(news)
+            self.explore_only = True
+            return self.finish(analysis, round_="FIRST", cancelled_plan_id=cancelled_plan_id)
         if analysis.evidence_label is None:
             # M79 (user decision 2026-10-04): research tests what the data showed; an answer without figures from
             # data (a fact, a definition, small talk, a refusal) has nothing to test, so B-D do not run
@@ -640,7 +687,8 @@ class _Mode4Run:
             "version": MODE4_VERSION, "round": round_, "steps": self.steps, "notes": self.notes,
             "turn_kind": self.turn_kind, "router": self.router_usage,
             "analysis": self._part(analysis), "research": self._part(research),
-            "suggestion": self._part(suggestion), "cancelled_plan_id": cancelled_plan_id}
+            "suggestion": self._part(suggestion), "cancelled_plan_id": cancelled_plan_id,
+            **({"news": self.news_summary} if self.news_summary is not None else {})}
         research_ok = _ok(research, "ANSWER", "LIMITATION")
         base = None
         if not passthrough and (_ok(analysis, "ANSWER", "LIMITATION")
@@ -693,7 +741,9 @@ class _Mode4Run:
         sections = []
         if analysis is not None and analysis.response is not None:
             sections.append("**Jawaban**\n\n" + analysis.response.answer)
-        if self.plan_waiting and research is None and suggestion is not None and suggestion.response is not None:
+        if self.explore_only:  # EXEC-Y Fase 2: the answer and the backend's news sections, no research sections
+            sections.extend([self.news_text] if self.news_text else [])
+        elif self.plan_waiting and research is None and suggestion is not None and suggestion.response is not None:
             # EXEC-P1: the answer and the plan that waits for the user's approval
             sections.append(PLAN_TITLE + "\n\n" + suggestion.response.answer)
         else:
@@ -775,6 +825,8 @@ class _Mode4Run:
         costs = [e.cost for e in runs if e.cost is not None]
         if (self.router_usage or {}).get("cost") is not None:
             costs.append(self.router_usage["cost"])
+        if (self.news_summary or {}).get("cost") is not None:  # EXEC-Y Fase 2: the news research
+            costs.append(self.news_summary["cost"])
         classifier = self.classifier or {}
         if classifier.get("cost") is not None:
             costs.append(classifier["cost"])

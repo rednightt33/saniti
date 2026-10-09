@@ -9889,6 +9889,9 @@ html.dark .monitor-layout .details-panel>.tabs button:focus-visible{outline-colo
    compact row like a phone chat app: the text on top, then the mode chip and the attachment button on the left and a
    round send button on the right; controls that cannot be used on a phone yet (the fixed server model, Data Scope) are
    not shown, and "Jump to latest" is hidden. Nothing here applies above 720px. */
+/* EXEC-Y Fase 2: follow-up questions and insight ideas read as a list of questions */
+.edge-next .edge-choices {flex-direction:column;align-items:stretch;}
+.edge-next .edge-choices .btn {justify-content:flex-start;text-align:left;white-space:normal;height:auto;min-height:36px;padding:8px 12px;line-height:1.4;}
 @media (max-width:720px) {
  .monitor-layout .jump-latest {display:none!important;}
  .composer {margin:6px 10px calc(8px + env(safe-area-inset-bottom));padding:8px 8px 8px 14px;border-radius:22px;}
@@ -10999,6 +11002,7 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
     v.findings.items.map(finding=>element(FindingCard,{key:finding.key,finding,claims}))),
   v.lists.map(list),
   v.methodology&&element("section",{className:"content-block edge-block"},element(SectionTitle,null,v.methodology.label),element(Markdown,{text:v.methodology.text,claims})),
+  v.next&&v.next.map(group=>element("section",{key:group.key,className:"content-block edge-block edge-next"},element(SectionTitle,null,group.label),element(ChoiceBar,{enabled,act,choices:group.choices}))),
   element(ResponseActions,{run,togglePin,artifacts:v.artifacts}));
 }
 function ShareResearchPopover({run,close}) {return element("div",{className:"share-popover"},element("p",null,"Public sharing unavailable"),element(Button,{onClick:close},"Close"));}

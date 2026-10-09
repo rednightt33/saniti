@@ -720,12 +720,15 @@ class AgentRunResponse(BaseModel):
     # EXEC-3 (AI_ENABLE_ASK_BACK): the quick choices of an ask-back question ([{label, route}], numbered as in the
     # question); send the picked one's route back as chosen_option. Absent otherwise
     options: list[dict[str, str]] | None = None
+    # EXEC-Y Fase 2 (app/follow_ups.py): what the user could ask next ([{kind, label}]; kind FOLLOW_UP, INSIGHT_IDEA or
+    # DATA_TEST); a click sends the label as the next message. Absent when there is none
+    follow_ups: list[dict[str, str]] | None = None
 
     @model_serializer(mode="wrap")
     def _without_mode4(self, handler: Any) -> Any:
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("mode4", "annotations", "data_record", "artifacts", "evidence", "options"):
+            for key in ("mode4", "annotations", "data_record", "artifacts", "evidence", "options", "follow_ups"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data

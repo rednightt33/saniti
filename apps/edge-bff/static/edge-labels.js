@@ -60,6 +60,7 @@ window.EdgeLabels = {
     designMore:"Detail desain", planMore:"Detail rencana", planAssumptions:"Asumsi rencana", planLimitations:"Batasan rencana",
     approve:"Setujui & jalankan", revise:"Revisi", cancel:"Batalkan",
     stop:"Stop", stopping:"Stopping…", stopNotYet:"Nothing to stop yet; try again in a moment.", stopped:"Stopped by you.",
+    followUps:"Pertanyaan lanjutan", insightIdeas:"Ide insight", dataTest:"Riset lanjutan",
     stopAndSend:"Stop & send", stoppingHint:"Stopping — waiting for the current step to finish", editResend:"Edit & resend",
     stoppedHint:"What was done so far stays in this conversation.",
     findings:"Temuan riset", finding:"Temuan", backendMore:"Detail backend",

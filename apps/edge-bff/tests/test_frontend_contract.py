@@ -18,7 +18,7 @@ from conftest import FakeOrc
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = json.loads((ROOT / 'tests' / 'fixtures' / 'orc_responses.json').read_text())
 PARTS = {'version', 'status', 'meta', 'evidence', 'claims', 'answer', 'clarification', 'pause', 'plan', 'findings', 'lists',
-         'methodology', 'artifacts'}
+         'methodology', 'artifacts', 'next'}
 ACTIONS = {'route', 'message', 'input', 'plan'}
 
 
@@ -70,7 +70,7 @@ def views():
 
 
 def choices(view):
-    for part in (view['clarification'], view['pause'], view['plan']):
+    for part in (view['clarification'], view['pause'], view['plan'], *(view['next'] or [])):
         yield from (part or {}).get('choices', [])
 
 
@@ -157,3 +157,11 @@ def test_the_mobile_layout_never_reaches_a_wider_screen(tmp_path, width, phone):
         browser.close()
     assert result['removed'] == 1
     assert (result['differing'] > 0) is phone, result
+
+
+def test_follow_ups_are_grouped_in_order_and_a_click_sends_the_words(views):
+    """EXEC-Y Fase 2: questions first, then insight ideas, then the data test; each click is the next message."""
+    groups = views['follow_ups']['view']['next']
+    assert [g['label'] for g in groups] == ['Pertanyaan lanjutan', 'Ide insight', 'Riset lanjutan']
+    assert all(c['action'] == {'type': 'message', 'message': c['label']} for g in groups for c in g['choices'])
+    assert views['answer_table']['view']['next'] is None

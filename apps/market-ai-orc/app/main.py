@@ -26,7 +26,7 @@ from .audit import RunAuditor
 from .audit_outbox import AuditOutbox
 from .mode4 import Mode4Orchestrator
 from .modes import MODES, current_caller_path, effective_default, path_for, resolve_mode
-from . import stop
+from . import follow_ups, stop
 from .orchestrator import AgentOrchestrator, log_event
 from .provider_log import ProviderLogger
 from .provider_policy import CachePricePolicy
@@ -572,7 +572,8 @@ def create_app(
             caller = current_caller_path.set(payload.analysis_path if mode.source == "CALLER" else None)
             try:
                 with stop.running(payload.request_id, None) as flag:
-                    return stopped(with_mode(orchestrator.run(request), mode), flag)
+                    result = stopped(with_mode(orchestrator.run(request), mode), flag)
+                return follow_ups.attach(orchestrator, payload.message, result)
             finally:
                 current_caller_path.reset(caller)
         try:
@@ -615,7 +616,7 @@ def create_app(
         except Exception:
             conversations.abandon(start, payload.request_id, "INTERNAL_ERROR")
             raise
-        result = with_mode(result, mode)
+        result = follow_ups.attach(orchestrator, payload.message, with_mode(result, mode))  # EXEC-Y Fase 2
         saved = conversations.finish(start, payload.request_id, result)
         return JSONResponse(content={**result.model_dump(mode="json"), "conversation": {
             "conversation_id": start.conversation_id, "turn_index": start.turn_index,
