@@ -1229,6 +1229,15 @@ uji web 5 pertanyaan sesudah disetujui dan di-deploy). Usulan P1–P5 menunggu p
   | Batu bara 2026 dan ADRO/PTBA | EXPLORE (mode 4) | 14 mnt 25 dtk | USD 0,054 | Tabel bulanan batu bara (World Bank, link per sel) dan return saham dari database; M129; rencana riset tidak diminta |
 
   M129 diperbaiki (cakupan P1). M130 menunggu keputusan user.
+
+**Go 2026-10-09 (user: "1 3 dan 4 - jalankan sekarang").** 1 = M130 (router menerima tanggal hari ini dan tanggal data
+terbaru; benchmark router ulang dengan kasus waktu sebelum deploy), 3 = M128b (judul dan arti kolom XLSX dari katalog),
+4 = tombol stop (rencana di bawah). M127a tetap ditunda.
+
+**Permintaan jalur EXPLORE (user 2026-10-09: "untuk jalur explore harus tambahkan pertanyaan agar user bis dxplore
+lebih lanjut dan kalau bisa jawaban selaij menjawab tapi juga ngomong history, serta forward event terkait
+pertanyaan. konsep mitip v1/ask").** Desain disusun sesudah inspeksi `/v1/ask` web governor dan mode 4; dibangun
+sesudah go.
 - Keputusan user 2026-10-08 atas contoh (a)/(b)/(c) tanda sumber: "pakai C". Klaim web selalu diberi link ke halaman
   sumbernya (teks link = nama situs, alamat dari daftar sumber yang dibaca sistem, bukan diketik AI); angka database
   tanpa tanda di kalimat, asalnya di panel Sources.
