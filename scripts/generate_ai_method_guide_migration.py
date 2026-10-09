@@ -34,12 +34,16 @@ VERSION_CHANGES = {
        "activity z-scores without the current observation, and the backtest guide",
     6: "EXEC.md EXEC-E, user decision 2026-10-06: get_evidence removed; every cited figure is\n-- released and "
        "written by its address (DIRUJUK)",
+    7: "EXEC.md EXEC-W wave B / EXEC-Y Fase 4 (M119, go 2026-10-09): a session loads the tables it\n-- emitted by "
+       "name, keeps working tables (save_table / load_table), and event_study and backtest name\n-- every table they "
+       "emitted",
 }
 VERSION_TARGETS = {2: ROOT / "database/migrations/20261003_002_ai_method_guides_v2.sql",
                    3: ROOT / "database/migrations/20261003_004_ai_method_guides_v3.sql",
                    4: ROOT / "database/migrations/20261003_010_ai_method_guides_v4.sql",
                    5: ROOT / "database/migrations/20261005_002_ai_method_guides_v5.sql",
-                   6: ROOT / "database/migrations/20261006_002_ai_method_guides_v6.sql"}
+                   6: ROOT / "database/migrations/20261006_002_ai_method_guides_v6.sql",
+                   7: ROOT / "database/migrations/20261009_005_ai_method_guides_v7.sql"}
 COLUMNS = [
     ("name", "text", "Guide name (free_code, event_study, hypothesis_plan, multi_angle or a session helper's guide)."),
     ("guides_version", "integer", "Version of the method guides content."),

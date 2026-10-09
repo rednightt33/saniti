@@ -153,18 +153,29 @@ def candidates(store: Any, conversation_key: str | None, session_id: str) -> lis
     return found
 
 
+def own(store: Any, session_id: str) -> list[dict[str, Any]]:
+    """M119 (2026-10-09): the tables a session emitted itself, newest first, never a backend record. They are its own
+    work, so a research session's carried restriction does not apply; unreleased ones are labelled NOT_RELEASED."""
+    found = [o for o in store.outputs_for(session_id) if o.get("format") == "PARQUET"
+             and not str(o.get("name") or "").startswith(RECORD_PREFIXES)]
+    return list(reversed(found))[:MAX_CARRIED]
+
+
 def stage(directory: Path, outputs: list[dict[str, Any]], *, outputs_root: Path,
           origin_of: Callable[[str, str], dict[str, Any] | None], allowed: set[str] | None,
-          profiles: dict[str, dict[str, Any]], now: str) -> list[dict[str, Any]]:
+          profiles: dict[str, dict[str, Any]], now: str,
+          own: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     """Link the allowed, unexpired tables into input/carried read-only and write the manifest the session's
-    load_output reads; returns the manifest entries. profiles caches a table's profile by output_id."""
+    load_output reads; returns the manifest entries. profiles caches a table's profile by output_id. own: the
+    session's own tables (M119), always loadable, marked own and labelled NOT_RELEASED until released."""
     target = directory / "input" / CARRIED_DIR
     target.mkdir(mode=0o755, exist_ok=True)
     entries = []
     keep = set()
-    for output in outputs:
+    mine = {str(o["output_id"]) for o in own or []}
+    for output in [*(own or []), *outputs]:
         output_id = str(output["output_id"])
-        if allowed is not None and output_id not in allowed:
+        if output_id not in mine and allowed is not None and output_id not in allowed:
             continue
         if str(output.get("expires_at") or "") <= now:
             continue
@@ -181,7 +192,7 @@ def stage(directory: Path, outputs: list[dict[str, Any]], *, outputs_root: Path,
             os.chmod(path, 0o444)
         keep.add(file_name)
         origin = origin_of(str(output["session_id"]), output_id) or {}
-        label = label_of(origin)
+        label = label_of(origin) if output_id not in mine or output.get("released") else "NOT_RELEASED"
         if output_id not in profiles:
             profiles[output_id] = profile([str(path)])
         entries.append({
@@ -196,6 +207,7 @@ def stage(directory: Path, outputs: list[dict[str, Any]], *, outputs_root: Path,
             "definition": (output.get("meta") or {}).get("definition") if isinstance(output.get("meta"), dict)
             else None,
             "execution_id": output.get("execution_id"),
+            **({"own": True} if output_id in mine else {}),
             # R-STORE: a table restored from the orchestrator's store, and the last date of its data
             **({"restored": True} if (output.get("meta") or {}).get("restored") else {}),
             **({"data_as_of": (output.get("meta") or {})["data_as_of"]}

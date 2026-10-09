@@ -161,6 +161,14 @@ class Settings:
     # G14: the share of PY_SANDBOX_MAX_MEMORY_MB one pandas frame may take; a larger result is refused before it is
     # materialized (aggregate it in DuckDB first)
     frame_memory_percent: int = 40
+    # M119 B (2026-10-09): the share of a session's intermediate disk its working tables (save_table) may take; 0 =
+    # half of PY_SANDBOX_MAX_INTERMEDIATE_BYTES, so the quota follows the session's disk without a fixed number
+    working_table_bytes: int = 0
+
+    @property
+    def working_tables_quota(self) -> int:
+        return min(self.working_table_bytes or self.max_intermediate_bytes // 2,
+                   max(1 << 20, self.max_intermediate_bytes - (64 << 20)))
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -320,6 +328,8 @@ class Settings:
             audit_max_attempts=_integer(env, "PY_SANDBOX_AUDIT_MAX_ATTEMPTS", 12, maximum=100),
             audit_timeout_seconds=_integer(env, "PY_SANDBOX_AUDIT_TIMEOUT_SECONDS", 30, maximum=300),
             frame_memory_percent=_integer(env, "PY_SANDBOX_FRAME_MEMORY_PERCENT", 40, minimum=5, maximum=90),
+            working_table_bytes=_integer(env, "PY_SANDBOX_WORKING_TABLE_BYTES", 0, minimum=0,
+                                         maximum=17_179_869_184),
         )
         if settings.audit_store_enabled:
             # the Audit Store variables are required only while the feature is on

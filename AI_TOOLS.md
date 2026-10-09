@@ -92,8 +92,12 @@ Dibuat dari `apps/market-ai-orc/app/tool_desks.py` (`DESKS`), saklar semua menya
 | `in_period` | Penanda baris yang berada di dalam periode yang disetujui (tanpa baris pemanasan), untuk menghitung sampel. |
 | `sql` | Query DuckDB atas data sesi. |
 | `relation` | Data satu permintaan sebagai relasi DuckDB. |
-| `load_output` | Membuka tabel hasil yang dirilis di giliran sebelumnya. |
-| `carried` | Daftar tabel giliran sebelumnya yang bisa dibuka. |
+| `load_output` | Membuka tabel hasil yang dirilis di giliran sebelumnya, atau tabel yang dibuat sesi ini sendiri. |
+| `carried` | Daftar tabel giliran sebelumnya (dan tabel sesi ini sendiri) yang bisa dibuka. |
+| `save_table` | Menyimpan tabel kerja sesi menurut nama (tidak dirilis, tidak bisa dikutip). |
+| `load_table` | Membuka tabel kerja yang disimpan dengan save_table. |
+| `saved_tables` | Daftar tabel kerja sesi dan ukurannya. |
+| `drop_table` | Menghapus satu tabel kerja sesi. |
 | `join` | Menyambung dua permintaan lewat relasi katalog yang disetujui. |
 | `resample` | Mengubah data harian menjadi mingguan/bulanan dengan aturan katalog. |
 | `period_return` | Return untuk periode bernama (YTD, bulan, kuartal, tahun). |

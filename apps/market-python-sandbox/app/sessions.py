@@ -229,8 +229,11 @@ HELPERS = ["requests()", "manifest()", "quality(request)", "load(request, column
            "load_range(request, range_id, columns=None, include_buffers=False) (also saniti.range; plain range is "
            "Python's built-in)", "in_period(frame, request, range_id=None, date_column=None) (mask of the rows inside "
            "the approved ranges, without buffer rows: count and summarise only these)", "sql(query, params=None)",
-           "relation(request)", "load_output(output_id, columns=None) (a released table of this conversation; see "
-           "carried())", "carried()", "join(relationship_id, left=None, right=None, how=None)",
+           "relation(request)", "load_output(output_id, columns=None) (a released table of this conversation, or a "
+           "table this session emitted in an earlier run_python, by output_id or name; see carried())", "carried()",
+           "save_table(name, frame) (a working table of this session by name within working_table_bytes; never "
+           "released, not an output, not citable)", "load_table(name, columns=None)", "saved_tables()",
+           "drop_table(name)", "join(relationship_id, left=None, right=None, how=None)",
            "resample(frame, request, frequency=None)",
            "period_return(request, range_id, value_column='close', entity_column=None, date_column=None)",
            "event_study(request, event, outcome, horizon, *, range_id=None, overlap_policy='NON_OVERLAPPING', "
@@ -559,15 +562,18 @@ class SessionManager:
         table released by another session of the conversation since is there too)."""
         record = self.store.get_session(session_id)
         worker = self.workers.get(session_id)
-        if record is None or worker is None or not self.settings.conversation_reuse:
+        if record is None or worker is None:
             return []
-        outputs = carried_tables.candidates(self.store, record.get("conversation_key"), session_id)
-        if not outputs and not (worker.directory / "input" / carried_tables.CARRIED_DIR).exists():
+        outputs = carried_tables.candidates(self.store, record.get("conversation_key"), session_id) \
+            if self.settings.conversation_reuse else []
+        # M119 (2026-10-09): the tables this session emitted, readable by output_id or name from its next execution
+        own = carried_tables.own(self.store, session_id)
+        if not outputs and not own and not (worker.directory / "input" / carried_tables.CARRIED_DIR).exists():
             return []
         return carried_tables.stage(worker.directory, outputs, outputs_root=self.outputs_root,
                                     origin_of=self._release_origin,
                                     allowed=self.carried_allowed.get(session_id), profiles=self.profiles,
-                                    now=utc_now())
+                                    now=utc_now(), own=own)
 
     def _offer_carried(self, session_id: str, view: dict[str, Any]) -> None:
         try:
@@ -577,7 +583,11 @@ class SessionManager:
             entries = []
         # R-STORE: every carried output_id (the listing below shows at most 20), so the orchestrator uploads only
         # the stored tables this sandbox no longer holds
+        own = [e for e in entries if e.get("own")]  # M119: a reattached session's own tables, listed apart
+        entries = [e for e in entries if not e.get("own")]
         view["carried_output_ids"] = [e["output_id"] for e in entries]
+        if own:
+            view["own_outputs"] = carried_tables.listing(own)
         if entries:
             view["carried_outputs"] = carried_tables.listing(entries)
             view["carried_note"] = ("Tables released earlier in this conversation; load one with "
@@ -730,7 +740,8 @@ class SessionManager:
                 "limits": {"execution_seconds": s.session_execution_seconds, "cpu_seconds": budget,
                            "memory_mb": s.max_memory_mb, "max_executions": s.session_max_executions,
                            "max_failed_executions": s.session_max_failed, "idle_seconds": s.session_idle_seconds,
-                           "max_outputs": s.session_max_outputs, "expires_at": expires_at},
+                           "max_outputs": s.session_max_outputs, "working_table_bytes": s.working_tables_quota,
+                           "expires_at": expires_at},
                 "next_action": "RUN_PYTHON"}
 
     def _dataset_profile(self, manifest: dict[str, Any], dataset: dict[str, Any]) -> dict[str, Any] | None:
@@ -864,7 +875,8 @@ class SessionManager:
                                                      "relationship_warnings")},
             "requests": requests,
             "outputs": {"max_outputs": s.session_max_outputs, "max_table_rows": s.max_table_output_rows,
-                        "max_json_bytes": 1 << 20, "max_text_chars": 200_000},
+                        "max_json_bytes": 1 << 20, "max_text_chars": 200_000,
+                        "working_table_bytes": s.working_tables_quota},
             "frames": {"budget_mb": s.frame_budget_mb, "budget_bytes": s.frame_budget_mb << 20,
                        "type_bytes": FRAME_TYPE_BYTES,
                        "default_bytes": FRAME_DEFAULT_BYTES},

@@ -39,6 +39,9 @@ needs; nothing here computes an indicator or checks a formula.
     insufficient_data(request, range_id=None, value=None, unit=..., requirement_type=..., reason="")
                                     stop: the data cannot support the analysis; revise the DataNeedSpec
     intermediate_path(name)         a private file path for intermediate results
+    save_table(name, frame) / load_table(name, columns=None) / saved_tables() / drop_table(name)
+                                    working tables of this session by name (M119 B): kept on disk within a quota,
+                                    never released, not counted as outputs; cite only released tables
     emit_table / emit_chart / emit_json / emit_text / emit_file
                                     outputs (TABLE, CHART, JSON, TEXT, PARQUET, CSV, PNG, ARTIFACT)
 
@@ -58,7 +61,7 @@ from typing import Any
 __all__ = [
     "REQUESTS", "REFERENCE_DATE", "SEED", "requests", "manifest", "quality", "load", "range", "load_range", "in_period",
     "sql",
-    "relation", "load_output", "carried",
+    "relation", "load_output", "carried", "save_table", "load_table", "saved_tables", "drop_table",
     "join", "join_report", "preaggregate", "resample", "period_return", "forward_return", "event_study", "backtest",
     "insufficient_data",
     "intermediate_path", "duckdb_connection", "emit_table",
@@ -366,16 +369,22 @@ def carried() -> list[dict[str, Any]]:
 def load_output(output_id: str, columns: list[str] | None = None):
     """A released table of this conversation (see carried()) as a DataFrame, within the frame budget. The frame's
     attrs hold its label and origin: a figure derived from it is never better checked than that label."""
-    entries = {e["output_id"]: e for e in carried()}
+    listed = carried()
+    entries = {e["output_id"]: e for e in listed}
     entry = entries.get(output_id)
     if entry is None:
-        named = [e for e in entries.values() if e.get("name") == output_id]
-        entry = named[0] if len(named) == 1 else None
+        # M119 (2026-10-09): by name, this session's own table first (newest), else a single carried one
+        own = [e for e in listed if e.get("own") and e.get("name") == output_id]
+        named = [e for e in listed if e.get("name") == output_id]
+        entry = own[0] if own else (named[0] if len(named) == 1 else None)
     if entry is None:
-        raise SanitiError(f"{output_id!r} is not a carried table of this session. Carried: "
-                          f"{[(e['output_id'], e.get('name')) for e in entries.values()][:20]}"
-                          + (" (a research plan's session loads only the tables its approved plan names)"
-                             if not entries else ""))
+        raise SanitiError(
+            f"{output_id!r} is not a table this session can load. Loadable: "
+            f"{[(e['output_id'], e.get('name')) for e in listed][:20]}. Tables this session emitted can be loaded "
+            "by output_id or name from the next run_python on; a frame you still hold is a variable; "
+            "save_table(name, frame) keeps a working table by name."
+            + (" A research plan's session loads only the earlier tables its approved plan names."
+               if _BUNDLE.get("mode") == "RESEARCH" else ""))
     path = _os.path.join(_CARRIED_DIR, entry["file"])
     available = list(entry.get("columns") or [])
     chosen = list(columns) if columns else available
@@ -561,6 +570,8 @@ def backtest(request: str, frame, signal: str, *, exit_signal: str | None = None
     _log({"call": "backtest", "data_request_id": r["data_request_id"], "name": label, "trades": len(trades)})
     return {"name": label, "summary": summary, "trades": pd.DataFrame(trades, columns=list(BT.TRADE_COLUMNS)),
             "outputs": [trades_table, summary_table], "conventions": BT.CONVENTIONS,
+            # M119 A: the tables' names, which load_output reads in a later run_python
+            "tables": {"trades": f"{label}_trades", "summary": f"{label}_summary"},
             "validation": "Recomputed by the backend from the bundle prices and these signal dates at "
                           "complete_analysis; the signals themselves are your code's."}
 
@@ -690,8 +701,12 @@ def event_study(request: str, event: str, outcome: dict[str, Any], horizon: int,
             # P32: the rows the study used per approved range (buffer rows only fed lags and forward returns)
             "rows_in_period": [{"range_id": w.get("range_id"), "rows": w.get("rows")}
                                for w in info.get("ranges") or []],
-            # G3: the same events and baseline as frames, e.g. for event_summary(events, baseline, ...)
+            # G3: the same events and baseline as frames, e.g. for event_summary(events, baseline, ...); M119 A
+            # (2026-10-09): the flow too, and every table's name, which load_output reads in a later run_python
             "events": events, "baseline": baseline_rows,
+            "flow": pd.DataFrame(ES.flow(canonical, params), columns=list(ES.FLOW_COLUMNS)),
+            "tables": {"summary": label, "events": f"{label}_events", "baseline": f"{label}_baseline",
+                       "flow": f"{label}_flow"},
             "validation": "Recomputed independently by the backend at complete_analysis; a match is labelled "
                           "CALCULATION_VERIFIED, a difference fails completion (CALCULATION_MISMATCH)."}
 
@@ -1796,6 +1811,90 @@ def intermediate_path(name: str) -> str:
     if not INTERMEDIATE_NAME.fullmatch(name or ""):
         raise SanitiError("Intermediate names are 1-64 letters, digits, '_' or '-'.")
     return _os.path.join(_INTERMEDIATE_DIR, f"{name}.parquet")
+
+
+# ---------------------------------------------------------------- working tables (M119 B, 2026-10-09)
+
+def _tables_dir() -> str:
+    path = _os.path.join(_INTERMEDIATE_DIR, "tables")
+    _os.makedirs(path, exist_ok=True)
+    return path
+
+
+def _table_file(name: str) -> str:
+    if not INTERMEDIATE_NAME.fullmatch(name or ""):
+        raise SanitiError("Working table names are 1-64 letters, digits, '_' or '-'.")
+    return _os.path.join(_tables_dir(), f"{name}.parquet")
+
+
+def saved_tables() -> list[dict[str, Any]]:
+    """The working tables of this session: name, rows, columns and bytes, and the quota they share."""
+    import pyarrow.parquet as pq
+
+    out = []
+    for file_name in sorted(_os.listdir(_tables_dir())):
+        if file_name.endswith(".parquet"):
+            path = _os.path.join(_tables_dir(), file_name)
+            meta = pq.ParquetFile(path)
+            out.append({"name": file_name[:-8], "rows": meta.metadata.num_rows, "columns": meta.schema_arrow.names,
+                        "bytes": _os.path.getsize(path)})
+    return out
+
+
+def save_table(name: str, frame) -> dict[str, Any]:
+    """Keep a frame as a working table of this session, readable with load_table(name) in any later run_python of
+    the session (a table of the same name is replaced). Not released and not an output: it never counts against
+    the session's outputs and cannot be cited; emit_table the result you cite. All working tables share a disk
+    quota (working_table_bytes); a table that would exceed it is refused and nothing is written."""
+    import pyarrow.parquet as pq
+
+    target = _table_file(name)
+    table = _arrow(frame)
+    temporary = target + ".tmp"
+    pq.write_table(table, temporary, compression="zstd")
+    size = _os.path.getsize(temporary)
+    others = sum(t["bytes"] for t in saved_tables() if t["name"] != name)
+    quota = int(_LIMITS.get("working_table_bytes") or 0)
+    if quota and others + size > quota:
+        _os.remove(temporary)
+        raise OutputLimitExceeded(
+            f"Working table {name!r} needs {size} bytes; the session's working tables hold {others} of "
+            f"{quota} bytes. Drop one with drop_table(name), keep fewer columns or rows, or emit_table the result.")
+    _os.replace(temporary, target)
+    _log({"call": "save_table", "name": name, "rows": table.num_rows, "bytes": size})
+    return {"name": name, "rows": table.num_rows, "columns": table.column_names, "bytes": size,
+            "label": "NOT_RELEASED", "quota_bytes": quota or None, "used_bytes": others + size}
+
+
+def load_table(name: str, columns: list[str] | None = None):
+    """A working table saved with save_table, as a DataFrame within the frame budget. Its attrs label it
+    NOT_RELEASED: a figure from it is cited only after it is emitted and released."""
+    path = _table_file(name)
+    if not _os.path.isfile(path):
+        raise SanitiError(f"No working table {name!r} in this session. Saved: {[t['name'] for t in saved_tables()]}. "
+                          "Save one with save_table(name, frame); a released table of an earlier answer is read "
+                          "with load_output(output_id).")
+    import pyarrow.parquet as pq
+
+    available = pq.ParquetFile(path).schema_arrow.names
+    chosen = list(columns) if columns else available
+    unknown = [c for c in chosen if c not in available]
+    if unknown:
+        raise SanitiError(f"{unknown} are not columns of working table {name!r}: {available}")
+    frame = _frame(f"SELECT {', '.join(_ident(c) for c in chosen)} FROM read_parquet({_quote(path)})",
+                   what=f"load_table({name!r})")
+    frame.attrs.update({"name": name, "label": "NOT_RELEASED"})
+    _log({"call": "load_table", "name": name, "rows": len(frame)})
+    return frame
+
+
+def drop_table(name: str) -> bool:
+    """Remove a working table; True when it existed."""
+    path = _table_file(name)
+    existed = _os.path.isfile(path)
+    if existed:
+        _os.remove(path)
+    return existed
 
 
 def add_warning(code: str, message: str) -> None:

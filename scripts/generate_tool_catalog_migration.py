@@ -31,8 +31,10 @@ registering the new versions of the tools whose contract changed in that round.
 - round_o (20261009_003, applied): research_web v2 (no web link in the answer text, the source in the Sources panel; user
   decision B 2026-10-09) and export_result v3 (the XLSX definition sheet says what one row is and how complete each
   group is against the source table; EXEC-Y Fase 3).
-- round_p (20261009_004): export_result v4 (source_columns: the source column of each copied column, so a renamed
+- round_p (20261009_004, applied): export_result v4 (source_columns: the source column of each copied column, so a renamed
   column keeps its meaning and its count; live check of EXEC-Y Fase 3).
+- round_q (20261009_006): run_python v6 (M119: a session loads the tables it emitted by output_id or name, and
+  keeps working tables with save_table / load_table; EXEC-Y Fase 4).
 
 Registered from the code with every switch of the dev environment on (the registry of scripts/generate_ai_tools_doc.py,
 one source for both). An applied migration is frozen (database/migrations/APPLIED.sha256); market-ai-orc's
@@ -353,8 +355,23 @@ ROUNDS = {
         "limits": {"source_columns": "a mapping for a column the output does not have is ignored; a source column the "
                                      "table does not have or cannot group by is not counted"},
     },
+    "round_q": {
+        "target": ROOT / "database/migrations/20261009_006_round_q_tool_catalog.sql",
+        "versions": {"run_python": ("v5", "v6")},
+        "contracts": {"run_python": ("purpose", "save_table")},
+        "title": "M119 working tables",
+        "header": "EXEC.md EXEC-W wave B / EXEC-Y Fase 4 (M119; go 2026-10-09 \"lanjut fase 4 dan 5 dulu\")",
+        "design": "EXEC.md EXEC-W wave B B2; ERRORS_AND_SOLUTIONS.md M119",
+        "limits_design": "EXEC.md EXEC-W wave B B2; ERRORS_AND_SOLUTIONS.md M119",
+        "summary": ["run_python v6: a table the session emitted is loaded by output_id or name from the next",
+                    "run_python (label NOT_RELEASED until released), and save_table / load_table keep working tables",
+                    "by name within the session's working_table_bytes, never released or cited (M119: GT1 typed the",
+                    "ids of its own tables and load_output refused them)."],
+        "limits": {"working_tables": "PY_SANDBOX_WORKING_TABLE_BYTES, default half of the session's intermediate "
+                                     "disk; a table above the quota is refused and nothing is written"},
+    },
 }
-NEWEST = "round_p"
+NEWEST = "round_q"
 
 
 def _tools_doc():

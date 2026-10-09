@@ -21,7 +21,7 @@ import hashlib
 import json
 from typing import Any
 
-GUIDES_VERSION = 6  # 2 (2026-10-02, HIGH ALERT): output definitions, event flow, approved success rule; 3 (2026-10-03, P26): thresholds with units, the approved outcome unit; 4 (2026-10-03, D6): base tables for claims, get_evidence; 5 (2026-10-05, P32/P33): counts over the approved ranges (in_period), activity z-scores without the current observation, backtest; 6 (2026-10-06, EXEC-E): get_evidence removed, cited figures by address
+GUIDES_VERSION = 7  # 2 (2026-10-02, HIGH ALERT): output definitions, event flow, approved success rule; 3 (2026-10-03, P26): thresholds with units, the approved outcome unit; 4 (2026-10-03, D6): base tables for claims, get_evidence; 5 (2026-10-05, P32/P33): counts over the approved ranges (in_period), activity z-scores without the current observation, backtest; 6 (2026-10-06, EXEC-E): get_evidence removed, cited figures by address; 7 (2026-10-09, M119): the session's own tables by name, working tables, the tables each helper emitted
 
 # How the backend checks a result (ERRORS_AND_SOLUTIONS S23), from weakest to strongest.
 VERIFICATION_LEVELS = {
@@ -68,6 +68,10 @@ GUIDES: list[dict[str, Any]] = [
                    "(MaterializationLimitExceeded): reduce it in sql() first; the session and its variables stay.",
                    "A table of an earlier result is loaded with load_output(output_id) (carried() lists them with "
                    "their labels); a figure built on it is never better checked than its label.",
+                   "A table this session emitted in an earlier run_python is loaded the same way, by output_id or "
+                   "name (label NOT_RELEASED until complete_analysis releases it). A frame needed again later is "
+                   "kept with save_table(name, frame) and read with load_table(name): working tables share the "
+                   "session's working_table_bytes, are never released and never cited; emit_table what you cite.",
                    "complete_analysis needs every approved request and range read in a successful execution and at "
                    "least one output.",
                    "Every released table or JSON states how it was made: emit_table(name, frame, description, "
@@ -116,7 +120,10 @@ GUIDES: list[dict[str, Any]] = [
              "fix": "the time column holds datetime.date objects: compare with datetime.date or convert with "
                     "pd.to_datetime first."},
             {"code": "a unit shown twice", "seen_in": "P22",
-             "fix": "a format such as pct, pp or rp already shows its unit: do not type it after the reference."}],
+             "fix": "a format such as pct, pp or rp already shows its unit: do not type it after the reference."},
+            {"code": "is not a table this session can load", "seen_in": "M119",
+             "fix": "a table emitted in the same run_python is still your variable; from the next run_python load it "
+                    "with load_output(name); keep any other frame with save_table(name, frame)."}],
         "examples": [
             {"title": "Ranking from a SQL summary", "runnable": True,
              "code": "top = sql('SELECT ticker, max(close) AS high, min(close) AS low FROM prices GROUP BY ticker "
@@ -175,7 +182,8 @@ GUIDES: list[dict[str, Any]] = [
                    "meets_min_events), <name>_events (date, entity, outcome), <name>_baseline and <name>_flow "
                    "(rows_in_window, condition_unknown, condition_true = the qualifying events, censored, "
                    "overlapping_dropped, used; condition_true = censored + overlapping_dropped + used); the call also "
-                   "returns the events and baseline frames and rows_in_period (the rows each range used; buffer rows "
+                   "returns the events, baseline and flow frames, tables (the name of each table, which "
+                   "load_output(name) reads in a later run_python) and rows_in_period (the rows each range used; buffer rows "
                    "only fed lags and forward returns). Cite {{out.o1.rows[segment=ALL].delta_mean}}; quote every "
                    "count of the event flow from <name>_flow, never derive one. The interval and p-value treat events "
                    "on one date as one observation.",
@@ -243,7 +251,8 @@ GUIDES: list[dict[str, Any]] = [
                    "<name>_summary (per entity and ALL: signals, signals_skipped, trades, wins, win_rate, "
                    "mean_return, median_return, average_win, average_loss, realized_reward_risk, profit_factor, "
                    "cumulative_return, max_drawdown, bars_in_period, bars_buffer, first_date, last_date). Quote the "
-                   "trade count and the period's bars from <name>_summary; bars_buffer are warm-up rows, not sample.",
+                   "trade count and the period's bars from <name>_summary; bars_buffer are warm-up rows, not sample. The call "
+                   "returns the trades frame and tables (each table's name, for load_output in a later run_python).",
         "common_errors": [
             {"code": "PRICE_COLUMN_MISSING", "seen_in": "backtest",
              "fix": "pass prices={'open': ..., 'high': ..., 'low': ..., 'close': ...} with the request's columns."},
