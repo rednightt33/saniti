@@ -1263,6 +1263,10 @@ sesudah go.
   - Pertanyaan (1) dijelaskan ulang (user: "maksudnya gimana ya?"), belum diputuskan. Ukuran dari uji web 2026-10-08:
     langkah rencana riset otomatis memakan 7,5 menit dan USD 0,056 (outlook 2027, 62% biaya) dan 5,5 menit dan USD
     0,026 (batu bara, 48% biaya), padahal user tidak meminta riset.
+  - **Keputusan user 2026-10-09 atas pertanyaan (1): "explore pakai B --> masukan exec jangan execute dulu".** Putaran
+    pertama EXPLORE menjawab plus 3–5 pertanyaan lanjutan yang bisa diklik; rencana riset tidak dibuat otomatis, tetapi
+    menjadi salah satu pilihan ("Uji dengan data: …") yang disusun hanya bila diklik (menyelesaikan M127a). Belum
+    dieksekusi; menunggu go.
 - Keputusan user 2026-10-08 atas contoh (a)/(b)/(c) tanda sumber: "pakai C". Klaim web selalu diberi link ke halaman
   sumbernya (teks link = nama situs, alamat dari daftar sumber yang dibaca sistem, bukan diketik AI); angka database
   tanpa tanda di kalimat, asalnya di panel Sources.
@@ -1288,6 +1292,14 @@ lembar definisi dan asal data), beberapa angka dicocokkan langsung ke database, 
   (jumlah hari di sumber vs di file, tanggal yang tidak ada); E2 arti kolom berbahasa Indonesia di katalog
   (`Column_Catalog`, 836 kolom, 48 tabel; draf dibuat model, status DRAFT, ditinjau); E3 setiap kolom buatan analisis
   wajib punya arti (model menulisnya bersama judul kolom).
+- **Keputusan dan pertanyaan user 2026-10-09.** E1: "juga perlu baris kelengkapan saja? atau perlu yang lain? dan
+  kenapa yg hitung backend?" (dijawab: kelengkapan dihitung backend sebagai jaminan; hari yang sumbernya mencatat nol
+  sebenarnya ditulis 0, bukan dihilangkan; aturan baris "satu baris = …" di lembar definisi; jumlah hari di jawaban
+  menyebut apa yang dihitung; belum diputuskan). E2: "kenapa tidak e2 let ai terjemahkan agar sesuai dengan bahasa
+  indonesia in default language --> masukan exec jangan execute". Disetujui untuk direncanakan: arti kolom
+  diterjemahkan AI ke bahasa Indonesia sebagai bahasa bawaan; teks Inggris di katalog tetap sumber. Pertanyaan terbuka:
+  terjemahan disimpan sekali per kolom dan dipakai ulang (usulan: konsisten, murah) atau dibuat ulang setiap ekspor.
+  Belum dieksekusi. E3: user bertanya maksud "6 dari 10 kolom" (dijawab); belum diputuskan.
 
 **Tampilan mobile EDGE (permintaan user 2026-10-08: "mobile design juga perlu rapihkan terutama bagian bawah dan jump
 to latest / jump to latest pada mobile view hilangkan saja / kemudian untuk bagian stadard, server model etc mungkin
@@ -1327,6 +1339,10 @@ P1–P5).** **Dibangun dan ter-deploy 2026-10-09** (go "1 3 dan 4 - jalankan sek
   kirim ulang" di jawaban yang dihentikan (EDGE, memakai Retry yang ada); S2 jawaban yang dihentikan menyebut tabel
   yang sudah selesai dan pesan berikutnya bisa memakainya (perlu dicek dulu apakah reuse data EXEC-V sudah berlaku
   untuk run yang dihentikan); S3 (nanti) kirim pesan selama proses = hentikan lalu arahkan ulang.
+- **Keputusan user 2026-10-09: "ok tombol stop with best practice. masukan exec, janfan execute dulu".** S1, S2 dan S3
+  disetujui untuk direncanakan, mengikuti pola pembanding (pekerjaan yang sudah jalan disimpan; arahkan ulang tanpa
+  mengetik ulang; pesan selama proses = hentikan lalu arahkan ulang). Belum dieksekusi; menunggu go. Langkah pertama
+  saat go: uji live apakah tabel dari run yang dihentikan bisa dipakai giliran berikutnya (S2), lalu desain S3.
 
 ### EXEC-M109: pertanyaan tanya-balik router tetap dipakai
 
