@@ -131,6 +131,9 @@ DATA_TYPES = ("Frames from load, range, sql and join: the time column holds date
               "with datetime.date(2026, 1, 2) (import datetime) or select a period with range(); before .dt, "
               ".resample(), .loc['2026-01-02'] or a comparison with a date string, convert first: "
               "frame[col] = pd.to_datetime(frame[col]).")
+# M139: what happens to the tables and JSON a failed execution emitted (they stay loadable by name, unreleased)
+DISCARDED_NOTE = ("This execution failed, so the outputs it emitted are never released by complete_analysis. "
+                  "Emit them again in the corrected run (load_output(name) still reads a discarded table).")
 STATE_CORRUPTED_HINT = ("The code changed the session's own state (the saniti_session/research_* modules, stdin or the "
                         "protocol pipe). Do not import or modify the sandbox's internal modules.")
 # S13: the per-angle records the research_* helpers write; one of each per angle and epoch
@@ -1036,6 +1039,11 @@ class SessionManager:
                                 "warnings": answer.get("warnings") or []}
         if rejected:
             view["rejected_outputs"] = rejected
+        if failed and outputs:
+            # M139 (2026-10-09): completion releases outputs of OK executions only; say so here, where the model
+            # decides what to rerun, instead of listing them as if they were kept
+            view["discarded_outputs"], view["outputs"] = outputs, []
+            view["discarded_note"] = DISCARDED_NOTE
         if status == "SCRIPT_ERROR":
             view.update({k: v for k, v in (answer.get("error") or {}).items()})
             view["next_action"] = "REVISE_PYTHON_CODE"

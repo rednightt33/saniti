@@ -1314,6 +1314,10 @@ METHODOLOGY_PROVENANCE_INSTRUCTION = (
 TYPED_FIGURES_INSTRUCTION = (
     "Your answer types these figures from this run's results without a value reference: {numbers}. Write each as its "
     "{{{{address}}}} from the addresses list of the result that released it, or remove the figure; an edit is enough.")
+# M140 (user go 2026-10-09): a typed figure equal to several released values is never referenced automatically (the
+# backend cannot know which one is meant); the request names those values so the repair is a choice, not a search
+TYPED_FIGURES_CANDIDATES = " Values this run released that equal each figure (choose the one you mean): {candidates}."
+MAX_CANDIDATES_PER_FIGURE = 6
 TYPED_FIGURES_LINE = ("Angka berikut diketik dari hasil analisis tanpa alamat, jadi tidak dibaca ulang dari tabel hasil: "
                       "{numbers}.")
 # G23 C (K2, PLAN_FINAL_2026-10-04.md): every one-time gate request says it is asked once and the way out
@@ -5327,10 +5331,15 @@ class AgentOrchestrator:
         typed_text = state.typed_answer if state.typed_answer is not None else (final.answer or "")
         typed = [shown for shown, kind in typed_figures(typed_text, self._source_index(state))
                  if kind not in BACKEND_RECOMPUTED_KINDS]
-        typed = self._auto_references(state, list(dict.fromkeys(typed)))
+        candidates: dict[str, list[str]] = {}
+        typed = self._auto_references(state, list(dict.fromkeys(typed)), candidates)
         if typed:
             numbers = ", ".join(typed[:12])
-            self._gate_once(state, "TYPED_FIGURES", TYPED_FIGURES_INSTRUCTION.format(numbers=numbers))
+            choices = "; ".join(f"{text} = " + ", ".join(f"{{{{{a}}}}}" for a in candidates[text][:MAX_CANDIDATES_PER_FIGURE])
+                                + (" …" if len(candidates[text]) > MAX_CANDIDATES_PER_FIGURE else "")
+                                for text in typed[:12] if candidates.get(text))
+            self._gate_once(state, "TYPED_FIGURES", TYPED_FIGURES_INSTRUCTION.format(numbers=numbers)
+                            + (TYPED_FIGURES_CANDIDATES.format(candidates=choices) if choices else ""))
             extra.append(TYPED_FIGURES_LINE.format(numbers=numbers))
         elif own_figures and state.referenced:
             extra.append(EVIDENCE_REFERENCED_LINE)
@@ -5342,10 +5351,11 @@ class AgentOrchestrator:
             return final.model_copy(update={"limitations": [*final.limitations, *extra]})
         return final
 
-    def _auto_references(self, state: RunState, typed: list[str]) -> list[str]:
+    def _auto_references(self, state: RunState, typed: list[str],
+                         candidates: dict[str, list[str]] | None = None) -> list[str]:
         """EXEC-R R3: a typed figure equal, as written (rounded to its own decimals), to exactly one value this run can
         reference is that value's reference: it joins the answer's DIRUJUK list (`ai_reference_auto`). Two or more
-        equal values, or none, leave it typed."""
+        equal values, or none, leave it typed; M140: the equal values of a figure left typed go into candidates."""
         if not typed:
             return typed
         sources = state.ref_sources
@@ -5366,6 +5376,8 @@ class AgentOrchestrator:
                 log_event("ai_reference_auto", request_id=state.request_id, figure=text, address=address)
             else:
                 left.append(text)
+                if candidates is not None and matches:
+                    candidates[text] = sorted(matches)
         return left
 
     def _evidence(self, state: RunState) -> list[dict[str, Any]] | None:

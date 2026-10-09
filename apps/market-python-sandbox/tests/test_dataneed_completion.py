@@ -78,7 +78,9 @@ emit_json('rows', {'rows': sum(len(f) for f in frames)}, definition={})
 
 def test_reads_and_outputs_of_failed_executions_do_not_count(session) -> None:
     body = run(session, YTD + "\nraise ValueError('late failure')").json()
-    assert body["status"] == "SCRIPT_ERROR" and body["outputs"]
+    # M139: the answer says the failed execution's outputs are discarded instead of listing them as kept
+    assert body["status"] == "SCRIPT_ERROR" and body["outputs"] == [] and body["discarded_outputs"]
+    assert "never released" in body["discarded_note"]
     result = complete(session)
     assert result["final_status"]["sandbox_execution"] == "FAILED"
     assert result["final_status"]["data_coverage"] == "FAIL" and result["released_outputs"] == []
@@ -125,3 +127,13 @@ def test_a_released_result_without_a_definition_keeps_the_analysis_open(session)
     [released] = [o for o in second["released_outputs"] if o["name"] == "last_close"][-1:]
     assert released["definition"]["notes"] == "last close per ticker"
     assert released["lineage"]["need_id"] and released["lineage"]["bundle_id"]
+
+
+def test_a_discarded_output_emitted_again_by_a_corrected_run_is_released(session) -> None:
+    """M139: the failed run's table is reported as discarded; the corrected run emits it again and it is released."""
+    failed = run(session, YTD + "\nraise ValueError('late failure')").json()
+    names = {o["name"] for o in failed["discarded_outputs"]}
+    good = ok(session, YTD)
+    assert {o["name"] for o in good["outputs"]} == names and "discarded_outputs" not in good
+    result = complete(session)
+    assert {o["name"] for o in result["released_outputs"]} >= names

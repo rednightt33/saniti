@@ -296,3 +296,14 @@ def test_a_typed_figure_equal_to_two_released_values_is_still_asked_for() -> Non
     with pytest.raises(GateRejection) as raised:
         evidence_orchestrator()._evidence_gate(state, FIGURES, ["DATA_COVERAGE_VERIFIED"])
     assert "116" in str(raised.value) and "132" not in str(raised.value)
+    # M140: the request names the released values equal to the figure, so the repair is a choice
+    assert "{{out.o3.rows[broker=RB].net_days}}" in str(raised.value)
+    assert "{{out.o3.rows[broker=YP].net_days}}" in str(raised.value)
+
+
+def test_a_typed_figure_equal_to_no_released_value_gets_no_candidates() -> None:
+    rows = [{"broker": "RB", "net_days": 50.0, "days": 132.0}, {"broker": "YP", "net_days": 60.0, "days": 140.0}]
+    state = released_state(rows, "RB beli bersih 116 dari 132 hari.")
+    with pytest.raises(GateRejection) as raised:
+        evidence_orchestrator()._evidence_gate(state, FIGURES, ["DATA_COVERAGE_VERIFIED"])
+    assert "116" in str(raised.value) and "choose the one you mean" not in str(raised.value)

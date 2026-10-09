@@ -1626,6 +1626,13 @@ fasenya. Usulan "ide riset" sebelumnya dibatalkan; pilihan "Uji dengan data: …
 - Cek Fase 2: dari 5 pertanyaan uji, setiap ide insight yang diklik harus terjawab dari data yang ada; dihitung berapa
   yang ternyata tidak bisa dijawab.
 
+### EXEC-Z: M139 dan M140 (hasil buangan dan pilihan angka ganda)
+
+**Keputusan user 2026-10-09:** "Ok perbaikan untuk M139 langsung jalankan sekarang saja dan M140 langsung jalankan sekarang." Bukti: run `edge_87c8c408…` (ERRORS M139, M140).
+- M139 (sandbox): jawaban `run_python` yang gagal tidak lagi mencantumkan tabel yang dibuatnya di `outputs`; tabel itu ada di `discarded_outputs` dengan satu kalimat bahwa `complete_analysis` tidak akan merilisnya dan harus dibuat ulang di eksekusi yang benar (tabelnya tetap bisa dibaca dengan `load_output(name)`). Aturan rilis tidak berubah.
+- M140 (orc): permintaan perbaikan angka ketikan (`TYPED_FIGURES`) menyebut alamat nilai yang sama dengan setiap angka (paling banyak 6 per angka), supaya AI tinggal memilih. Angka yang cocok dengan lebih dari satu nilai tetap tidak dirujuk otomatis.
+- Tes: sandbox 810 lulus (`test_dataneed_completion.py`: hasil buangan dan rilis sesudah dibuat ulang); orc 1.608 lulus (`test_g23_desk.py`: kandidat disebut, tanpa kandidat bila tidak ada yang sama).
+
 ### EXEC-M109: pertanyaan tanya-balik router tetap dipakai
 
 **Keputusan user 2026-10-07:** "M109 OK untuk perbaikan plan. Masukan ke EXEC." Pilihan "Ya, masukkan juga
