@@ -204,3 +204,14 @@ def test_m64_a_follow_up_on_the_newest_result_is_not_a_revision_of_an_old_sugges
     result = wrapper.run(m4(request_id="q3", message="Ubah usulan riset tadi: pakai 5 tahun.", history=HISTORY,
                             continuation=fake_continuation()), data_record=suggested_then_studied())
     assert result.mode4["turn_kind"] == "REVISE" and inner.requests[0].continuation.action == "REVISE"
+
+
+def test_both_routers_are_told_todays_date() -> None:
+    """M130 (2026-10-09): on 2026-10-08 the first router asked back "Agustus 2026 belum terjadi (sekarang Juni 2026)"
+    because it was never given the date; both routers now read the application's date and a rule about it."""
+    from datetime import date
+    from app import conversation_router as router
+    for text in (router.first_instructions(True), router.first_instructions(False), router.router_instructions(True),
+                 router.router_instructions(False)):
+        assert router.DATE_RULE in text
+    assert router.dated("Kenapa saham bank turun Agustus 2026?", date(2026, 10, 9)).startswith("today: 2026-10-09\n")

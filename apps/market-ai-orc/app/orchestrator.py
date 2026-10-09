@@ -3344,7 +3344,8 @@ class AgentOrchestrator:
         revision instruction, with its usage record. A failure returns None (the backend's rules pick the class)."""
         parsed, record = self._router_call(
             request_id, "turn-router", router.router_instructions(self.ask_back),
-            dumps({"conversation": context, "user_message": message[:4000]}), "conversation_turn",
+            dumps({"today": self._today().isoformat(), "conversation": context, "user_message": message[:4000]}),
+            "conversation_turn",
             router.router_schema(self.ask_back), router.TurnClassification, "conversation_router_failed",
             attempts=2 if self.ask_back else 1, max_tokens=router.router_max_output_tokens(self.ask_back))
         if parsed is not None:
@@ -3361,11 +3362,16 @@ class AgentOrchestrator:
                   output_tokens=record["output_tokens"], **({"attempts": record["attempts"]} if self.ask_back else {}))
         return (parsed.turn_kind if parsed else None), (parsed.revision_instruction if parsed else None), record
 
+    def _today(self) -> Any:
+        """M130: the reference date in the analysis timezone, the one the analysis step is told (RUN_CONTEXT_NOTE)."""
+        return self.wall_clock().astimezone(ZoneInfo(self.settings.analysis_timezone)).date()
+
     def classify_first(self, request_id: str, message: str) -> tuple[str | None, str | None, dict[str, Any]]:
         """The first-message router (ROUTER_BENCHMARK_2026-10-04.md; one small tool-free call, reasoning low): the
         route and its reason, with its usage record. A failure returns None (the backend's fallback applies)."""
         parsed, record = self._router_call(
-            request_id, "first-router", router.first_instructions(self.ask_back), message[:4000],
+            request_id, "first-router", router.first_instructions(self.ask_back),
+            router.dated(message[:4000], self._today()),
             "first_message_route", router.first_schema(self.ask_back), router.FirstRoute,
             "first_message_router_failed", attempts=2 if self.ask_back else 1,
             max_tokens=router.router_max_output_tokens(self.ask_back))

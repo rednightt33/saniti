@@ -19,6 +19,8 @@ import os
 import sys
 import time
 import urllib.request
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,11 +30,13 @@ from app import conversation_router as router  # noqa: E402
 MODEL = os.environ.get("AI_MODEL", "deepseek/deepseek-v4.1-flash")
 REPEATS = 2
 ASK_BACK = False  # --ask-back
+# M130: the router reads today's date in the analysis timezone, as the orchestrator sends it (--today to replay a day)
+TODAY = datetime.now(ZoneInfo(os.environ.get("ANALYSIS_TIMEZONE", "Asia/Jakarta"))).date()
 
 
 def route(message: str) -> tuple[str | None, float, float]:
     body = {"model": MODEL, "instructions": router.first_instructions(ASK_BACK),
-            "input": [{"role": "user", "content": message[:4000]}], "reasoning": {"effort": "low"},
+            "input": [{"role": "user", "content": router.dated(message[:4000], TODAY)}], "reasoning": {"effort": "low"},
             "max_output_tokens": router.router_max_output_tokens(ASK_BACK), "store": False,
             "text": {"format": {"type": "json_schema", "name": "first_message_route", "strict": True,
                                 "schema": router.first_schema(ASK_BACK)}}}
@@ -51,14 +55,18 @@ def route(message: str) -> tuple[str | None, float, float]:
 
 
 def main() -> None:
-    global ASK_BACK
+    global ASK_BACK, TODAY
     parser = argparse.ArgumentParser()
     parser.add_argument("--ask-back", action="store_true", help="the instructions and schema of AI_ENABLE_ASK_BACK")
-    ASK_BACK = parser.parse_args().ask_back
+    parser.add_argument("--today", help="the date the router is told (YYYY-MM-DD; default: today in Asia/Jakarta)")
+    args = parser.parse_args()
+    ASK_BACK = args.ask_back
+    if args.today:
+        TODAY = date.fromisoformat(args.today)
     cases = json.loads((ROOT / "apps/market-ai-orc/tests/fixtures/first_message_router_cases.json").read_text())
     data_routes = set(router.DATA_ROUTES)
     must = never = asked_must = asked_never = costly_total = failed_total = 0
-    for name in ("development", "heldout", *(("ask_back",) if ASK_BACK else ())):
+    for name in ("development", "heldout", *(("ask_back", "time") if ASK_BACK else ())):
         items = cases[name]
         with cf.ThreadPoolExecutor(8) as pool:
             results = list(pool.map(lambda job: route(job[0]["message"]),

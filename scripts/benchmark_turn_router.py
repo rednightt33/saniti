@@ -14,6 +14,8 @@ import json
 import os
 import sys
 import urllib.request
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,11 +25,13 @@ from app.compaction import dumps  # noqa: E402
 
 MODEL = os.environ.get("AI_MODEL", "deepseek/deepseek-v4.1-flash")
 ASK_BACK = False  # --ask-back
+# M130: the router reads today's date in the analysis timezone, as the orchestrator sends it
+TODAY = datetime.now(ZoneInfo(os.environ.get("ANALYSIS_TIMEZONE", "Asia/Jakarta"))).date()
 
 
 def classify(case: dict) -> tuple[str | None, float, list[dict] | None]:
     body = {"model": MODEL, "instructions": router.router_instructions(ASK_BACK),
-            "input": [{"role": "user", "content": dumps({"conversation": case["context"],
+            "input": [{"role": "user", "content": dumps({"today": TODAY.isoformat(), "conversation": case["context"],
                                                           "user_message": case["message"][:4000]})}],
             "reasoning": {"effort": "low"}, "max_output_tokens": router.router_max_output_tokens(ASK_BACK), "store": False,
             "text": {"format": {"type": "json_schema", "name": "conversation_turn", "strict": True,
