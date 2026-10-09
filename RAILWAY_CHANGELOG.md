@@ -3214,3 +3214,16 @@ User: "go for phase 1".
 - Live check (USD 0.03, key limit remaining USD 4.44 after): Stop & send on a running analysis; the stopped run ended
   4 s after the press with `execution.stopped`, the queued message ran next in the same conversation and completed.
 - No variable, model, provider, mode, schema or Railway configuration change; no migration.
+
+## 2026-10-09 — EXEC-Y Fase 2 (EXPLORE option B, follow-ups) deployed from main
+
+User: "ok gas go".
+
+- `main` `52104e6`: market-ai-orc **4494ba03-beb3-4fed-811f-2f4d78cfffe6** and edge-bff
+  **473a2117-7074-43dd-b5cc-38db290296fc** reached **SUCCESS**; sandbox and web governor unchanged. Rollback references:
+  orc `b05fbdfe`, edge-bff `4043ccd4`.
+- Tests before merge: orc 1,591 passed; EDGE 60 passed. `AI_MODELS.md` regenerated (router call purpose).
+- Live check (USD 0.30; key limit remaining USD 3.90 after): three EXPLORE questions (4–8 minutes), one ANALYSIS, one
+  FACT control, one insight idea clicked (details in `EXEC.md` EXEC-Y).
+- No variable, model, provider, mode, schema or Railway configuration change; no migration. The orc calls the web
+  governor's existing `/v1/ask` with the existing `WEB_GOVERNOR_URL` and `WEB_GOVERNOR_API_KEY`.

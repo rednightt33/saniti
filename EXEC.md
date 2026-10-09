@@ -1496,6 +1496,31 @@ migrasi hanya menambah kolom atau versi baru.
 
 **Go Fase 2 (user 2026-10-09: "ok gas go").** Fase 3–4 tetap menunggu go masing-masing.
 
+**Hasil Fase 2 (2026-10-09; `main` `52104e6`, orc `4494ba03`, edge-bff `473a2117` SUCCESS):**
+- EXPLORE opsi B: putaran pertama tidak lagi menyusun rencana riset; `/v1/ask` berjalan sejajar dengan analisis dan
+  backend menulis "Riwayat dan konteks berita" (setiap kalimat ber-link, baris berangka tanpa sumber dibuang) dan
+  "Peristiwa ke depan" (waktu disalin dari sumber). Biaya `/v1/ask` ikut dihitung di jawaban.
+- Pertanyaan lanjutan, ide insight dan satu "Uji dengan data" (hanya EXPLORE dengan angka dari data) lewat satu
+  panggilan model router setelah jawaban ANALYSIS, EXPLORE, INSIGHT atau CONTINUE; tidak setelah FACT, CHAT, rencana,
+  pertanyaan balik, jeda atau jawaban yang dihentikan. Ide insight hanya yang tabelnya sudah dibaca percakapan ini.
+  Klik = pesan berikutnya (router giliran yang menilai). Field respons baru `follow_ups`.
+- Perbedaan dari rencana (R35): saran dikirim di field baru `follow_ups`, bukan di `options`, karena `options` dipakai
+  aturan tanya-balik (pilihan cepat dan batas dua pertanyaan); klik mengirim pesan, bukan rute, supaya router giliran
+  yang memutuskan jalurnya (prinsip EXEC-D). Teks rute EXPLORE di router ("ten minutes or more") tidak diubah agar
+  kriteria router tetap; perkiraan waktunya kini usang (dicatat di M127).
+- Uji: orc 1.591 lulus (tes lama "rencana menunggu di putaran pertama" diganti tes opsi B), EDGE 60 lulus (termasuk
+  tes browser klik ide insight).
+- Uji live (USD 0,30, sisa batas kunci USD 3,90):
+
+  | Pertanyaan | Jalur | Waktu | Biaya | Hasil |
+  |---|---|---|---|---|
+  | Outlook ekonomi 2027 | EXPLORE | 4 mnt 25 dtk (sebelumnya 14 mnt 57 dtk) | USD 0,085 (0,090) | 105 sumber berita ber-link, 8 peristiwa ke depan, 5 pertanyaan lanjutan, 3 ide insight |
+  | Batu bara 2026, ADRO/PTBA | EXPLORE | 4 mnt 14 dtk (14 mnt 25 dtk) | USD 0,072 (0,054) | 255 sumber, 8 peristiwa, 5 + 3 saran, 1 uji dengan data |
+  | Kenapa GOTO turun 3 bulan | EXPLORE | 8 mnt 5 dtk | USD 0,117 | 118 sumber, 0 peristiwa, 5 + 3 saran, 1 uji dengan data |
+  | Return BBCA vs BBRI 2025 | ANALYSIS | 32 dtk | USD 0,009 | 5 pertanyaan lanjutan, 3 ide insight |
+  | BI-Rate terbaru | FACT | 1 mnt 15 dtk | USD 0,003 | Tanpa saran (sesuai desain); cacat lama M132 terlihat |
+  | Klik ide insight "return bulanan BBCA dan BBRI …" | CONTINUE | 1 mnt 15 dtk | USD 0,018 | Terjawab dari data yang sama (Maret paling berbeda) |
+
 **Tambahan Fase 2 (user 2026-10-09: "Pertanyaan lanjutan … —>+ tambah idea research boleh?", lalu dikoreksi: "maksudnya
 bukan idea research, tapi ide untuk pertanyaan insight lanjutan").** Dimasukkan ke desain Fase 2, menunggu go bersama
 fasenya. Usulan "ide riset" sebelumnya dibatalkan; pilihan "Uji dengan data: …" (EXPLORE opsi B) tetap satu butir.
