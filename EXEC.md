@@ -1533,6 +1533,20 @@ dan nama source berita".** Belum dibangun; menunggu pilihan user (lihat jawaban 
 - Pertanyaan user yang sama: "ada berapa jalur jawaban yg dipakai untuk pertanyaan qualitative?" (dijawab di
   percakapan: CHAT, FACT, ANALYSIS dengan web sebagai konteks, EXPLORE; ditambah tanya balik).
 
+**Keputusan user 2026-10-09 (sesudah jawaban di atas), dengan "gas" sebagai go:**
+- "bisa untuk explore jalur khusus v1/ask di exclude dulu. jalurnya lain keep as is masukan exec": dibaca sebagai usulan
+  jalur khusus pertanyaan kualitatif murni langsung ke `/v1/ask` tidak dibangun sekarang (dicatat di
+  `FUTURE_PLAN.md`); jalur lain, termasuk EXPLORE dengan `/v1/ask` yang sudah ter-deploy, tetap seperti sekarang.
+- "Ok untuk B semua link web hilang pindah ke source masukan exec": semua link web hilang dari teks jawaban (bagian
+  berita dan klaim web langkah analisis; menggantikan pilihan C 2026-10-08) dan sumbernya tampil di panel Sources.
+  Jaminan tetap: angka tanpa sumber dibuang di backend sebelum link dihapus. M132 (angka web tercetak dua kali) ikut
+  diperbaiki karena berada di kode tampilan yang sama.
+- Mobile: "jawaban teks terlalu besar font size compared to the other, pls standardized" (tangkapan layar: kolom tanya
+  dan tombol Standard di layar ponsel) → ukuran huruf mobile diseragamkan, hanya di mobile.
+- "setelah semua fase selesai, uji interaksi dimobile dan web animasi dll. teks rusak, tidak align, broken silahkan
+  dibenarkan tanpa merubah design site" → Fase 5 (QA tampilan mobile dan desktop) sesudah Fase 4.
+- E2 tidak dijawab ulang; dipakai usulan: terjemahan disimpan sekali per kolom dan dipakai ulang.
+
 **Tambahan Fase 2 (user 2026-10-09: "Pertanyaan lanjutan … —>+ tambah idea research boleh?", lalu dikoreksi: "maksudnya
 bukan idea research, tapi ide untuk pertanyaan insight lanjutan").** Dimasukkan ke desain Fase 2, menunggu go bersama
 fasenya. Usulan "ide riset" sebelumnya dibatalkan; pilihan "Uji dengan data: …" (EXPLORE opsi B) tetap satu butir.
