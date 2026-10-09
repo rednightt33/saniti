@@ -1521,6 +1521,18 @@ migrasi hanya menambah kolom atau versi baru.
   | BI-Rate terbaru | FACT | 1 mnt 15 dtk | USD 0,003 | Tanpa saran (sesuai desain); cacat lama M132 terlihat |
   | Klik ide insight "return bulanan BBCA dan BBRI …" | CONTINUE | 1 mnt 15 dtk | USD 0,018 | Terjawab dari data yang sama (Maret paling berbeda) |
 
+**Permintaan user 2026-10-09 sesudah Fase 2: "sumber untuk berita bisa dihilangkan, saat ini terlalu banyak hyperlink
+dan nama source berita".** Belum dibangun; menunggu pilihan user (lihat jawaban di percakapan):
+- Asal link di jawaban EXPLORE (terverifikasi dari kode dan jawaban live): (1) bagian "Riwayat dan konteks berita"
+  dari `/v1/ask`, satu link per kalimat (outlook 2027: 105 sumber); (2) klaim web langkah analisis (alat
+  `research_web`, aturan pilihan C 2026-10-08: link setelah setiap nilai web, sekali per kalimat).
+- Usulan: link di teks dihapus dan semua sumber pindah ke panel Sources (judul, situs, tanggal, tautan); pemeriksaan
+  "angka tanpa sumber dibuang" tetap berjalan di backend sebelum link dihapus, jadi jaminan "setiap angka bersumber"
+  tetap, hanya tempat sumbernya yang pindah. Pilihan cakupan: hanya bagian berita, atau juga klaim web langkah
+  analisis (berarti mengganti keputusan pilihan C).
+- Pertanyaan user yang sama: "ada berapa jalur jawaban yg dipakai untuk pertanyaan qualitative?" (dijawab di
+  percakapan: CHAT, FACT, ANALYSIS dengan web sebagai konteks, EXPLORE; ditambah tanya balik).
+
 **Tambahan Fase 2 (user 2026-10-09: "Pertanyaan lanjutan … —>+ tambah idea research boleh?", lalu dikoreksi: "maksudnya
 bukan idea research, tapi ide untuk pertanyaan insight lanjutan").** Dimasukkan ke desain Fase 2, menunggu go bersama
 fasenya. Usulan "ide riset" sebelumnya dibatalkan; pilihan "Uji dengan data: …" (EXPLORE opsi B) tetap satu butir.
