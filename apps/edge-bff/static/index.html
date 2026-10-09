@@ -686,6 +686,12 @@ kbd {
   color: var(--muted-foreground);
   margin-left: auto;
 }
+.sidebar-foot span:not(.status-dot), .sidebar-foot small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
 .status-dot, .live-dot {
   width: 7px;
   height: 7px;
@@ -9246,6 +9252,9 @@ th button:hover .sort-indicator,th button:focus-visible .sort-indicator {
   color: var(--muted-foreground);
   opacity: 1;
 }
+.conversation-panel > .search input {
+  text-overflow: ellipsis;
+}
 .conversation-panel > .search input:focus-visible {
   outline: none;
   border: 0;
@@ -9563,7 +9572,7 @@ html:not(.dark) .monitor-layout .user-message .message-attachments span {color:#
 
 .market-search-anchor {position:relative;display:inline-flex;}
 .market-search-inactive {font:inherit;text-align:left;cursor:pointer;}
-.market-search-placeholder {flex:1;min-width:0;color:var(--muted-foreground);}
+.market-search-placeholder {flex:1;min-width:0;color:var(--muted-foreground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .market-search-inactive:is(.active,:focus,:focus-visible) {outline:none;border-color:transparent;background:var(--card);color:var(--foreground);box-shadow:0 3px 13px #17203325;}
 .market-search-inactive:is(.active,:focus) .market-search-placeholder {color:inherit;}
 .market-search-ribbon {position:absolute;top:calc(100% + 11px);left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:8px 10px;border:0;border-radius:6px;background:#20242c;color:#fff;box-shadow:0 5px 20px #17203312;font:500 12px/1.4 Inter,"Segoe UI",sans-serif;white-space:nowrap;z-index:120;}
@@ -9877,6 +9886,8 @@ html.dark .monitor-layout .details-panel>.tabs button:focus-visible{outline-colo
 .monitor-layout .details-panel .sources .edge-source{padding:8px 0 0;gap:8px;}
 .monitor-layout .details-panel .sources .edge-source-head{margin:0;align-items:flex-start;}
 .monitor-layout .details-panel .sources .edge-source-head>strong{font-size:12px;font-weight:600;line-height:18px;}
+.edge-source-head>:first-child{min-width:0;}
+.edge-source-head>.edge-badge,.monitor-layout .edge-source-head>.edge-badge{flex-shrink:0;white-space:nowrap;overflow-wrap:normal;}
 .monitor-layout .details-panel .sources .edge-data-rows{gap:6px;}
 .monitor-layout .details-panel .sources .edge-data-row{grid-template-columns:minmax(80px,34%) minmax(0,1fr);gap:12px;align-items:start;font-size:11.5px;line-height:18px;}
 .monitor-layout .details-panel .sources .edge-data-row>dt,
@@ -10565,9 +10576,7 @@ function Monitor({ go }) {
                 element("div", { className: "sidebar-foot" },
                     element("span", { className: "status-dot demo" }),
                     element("span", null, "Private workspace"),
-                    element("small", null,
-                        "Updated ",
-                        "Saved history")),
+                    element("small", null, "Saved history")),
                 element("div", { className: "sidebar-resizer", onPointerDown: startResize, onDoubleClick: () => { setSidebarWidth(230); localStorage.setItem("edge-monitor-width", "230"); }, title: "Drag to resize \u00B7 double-click to reset" })),
             element("section", { className: "research-workspace",inert:narrow&&(historyOpen||mobileDetailsOpen) },
                 element("div", { className: "workspace-tools" },
@@ -10888,8 +10897,11 @@ function renderMarkdown(text, ctx = {}) {
       const rows = [];
       index += 2;
       while (index < lines.length && lines[index].includes("|") && lines[index].trim()) rows.push(mdCells(lines[index++]));
-      // a column's alignment as written; otherwise numbers right, words left
-      const cell = (tag, value, column) => element(tag, align[column] ? {style:{textAlign:align[column]}} : MD_NUMERIC.test(value) ? {className:"num"} : null, mdInline(value, ctx));
+      // a column's alignment as written; otherwise one alignment per column (Fase 5 QA 2026-10-09: "211" right and
+      // "Rp 83,27 triliun" left in one column): figures right when every cell of the column is one, words left
+      const figure = value => MD_NUMERIC.test(value) || (/\d/.test(value) && value.length <= 40 && value.trim().split(/\s+/).length <= 5);
+      const numeric = head.map((_, column) => { const values = rows.map(row => (row[column] ?? "").trim()).filter(Boolean); return values.length > 0 && values.every(figure); });
+      const cell = (tag, value, column) => element(tag, align[column] ? {style:{textAlign:align[column]}} : numeric[column] ? {className:"num"} : null, mdInline(value, ctx));
       blocks.push(element("div", {className:"edge-md-table"}, element("table", {className:"data-table"},
         element("thead", null, element("tr", null, head.map((value, column) => cell("th", value, column)))),
         element("tbody", null, rows.map(row => element("tr", null, head.map((_, column) => cell("td", row[column] ?? "", column))))))));
