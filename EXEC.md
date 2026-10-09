@@ -1300,6 +1300,17 @@ lembar definisi dan asal data), beberapa angka dicocokkan langsung ke database, 
   diterjemahkan AI ke bahasa Indonesia sebagai bahasa bawaan; teks Inggris di katalog tetap sumber. Pertanyaan terbuka:
   terjemahan disimpan sekali per kolom dan dipakai ulang (usulan: konsisten, murah) atau dibuat ulang setiap ekspor.
   Belum dieksekusi. E3: user bertanya maksud "6 dari 10 kolom" (dijawab); belum diputuskan.
+- **Keputusan user 2026-10-09: "E1 ok 2-4 masukan exec".** E1 disetujui untuk direncanakan dengan keempat bagiannya:
+  (1) baris kelengkapan dihitung backend; (2) hari yang menurut sumber nol sebenarnya ditulis 0, bukan dihilangkan; (3)
+  aturan baris ("satu baris = …") di lembar definisi; (4) jumlah hari di jawaban menyebut apa yang dihitung. Belum
+  dieksekusi; menunggu go. User bertanya: "ini hanya berlaku sekali saja kan? … kalau kita update table atau tambah
+  data lain, maka model automatically understand this rule?" Desainnya berlaku umum, bukan sekali: (1) dan (3)
+  diturunkan backend saat ekspor dari asal data, kolom tanggal dan kolom kunci hasil, jadi tabel baru tercakup tanpa
+  ubah kode; (2) membaca arti "tidak ada baris" dari katalog (Part A A3.15: tabel yang hanya menulis baris saat ada
+  aktivitas wajib dinyatakan sparse), jadi tabel baru wajib menyatakannya saat didaftarkan; (4) aturan umum untuk model,
+  dan baris kelengkapan dari backend menangkap bila model keliru. Syarat yang perlu dicek saat go: apakah katalog sudah
+  punya tempat untuk sifat sparse dan arti ketiadaan baris per tabel (D05 masih OPEN); bila belum, migrasi katalog dan
+  pengisian untuk tabel yang ada.
 
 **Tampilan mobile EDGE (permintaan user 2026-10-08: "mobile design juga perlu rapihkan terutama bagian bawah dan jump
 to latest / jump to latest pada mobile view hilangkan saja / kemudian untuk bagian stadard, server model etc mungkin
@@ -1343,6 +1354,32 @@ P1–P5).** **Dibangun dan ter-deploy 2026-10-09** (go "1 3 dan 4 - jalankan sek
   disetujui untuk direncanakan, mengikuti pola pembanding (pekerjaan yang sudah jalan disimpan; arahkan ulang tanpa
   mengetik ulang; pesan selama proses = hentikan lalu arahkan ulang). Belum dieksekusi; menunggu go. Langkah pertama
   saat go: uji live apakah tabel dari run yang dihentikan bisa dipakai giliran berikutnya (S2), lalu desain S3.
+- **Review S1–S3 terhadap infrastruktur (permintaan user 2026-10-09: "pls review kembali dengan kondisi infra.. saya
+  rasa mungkin tidak semua bisa diaplikasikan karna sistem kita tidak sama dengan claude dll. kalau bisa then its good.
+  masukan ke exec").** Fakta yang dicek di kode dan live:
+  - Satu replika per layanan (`.railway/railway.ts`); tanda stop di memori orc cukup.
+  - Satu run aktif per pemilik di BFF (`RUN_IN_PROGRESS`); orc menjawab satu giliran per permintaan, tanpa saluran untuk
+    pesan baru di tengah run.
+  - Yang sedang berjalan tidak bisa dibatalkan di tengah: panggilan model (batas 180 detik), `run_python` di sandbox
+    (sesi tidak punya rute batal; hanya jalur analisis lama yang punya), pencarian web. Jadi Stop bisa menunggu sampai
+    sekitar 3 menit dalam kasus terburuk (uji live: 10 detik).
+  - Router pesan pertama (3–11 detik) berjalan sebelum run terdaftar untuk stop, jadi Stop di detik-detik awal dijawab
+    "belum bisa, coba lagi".
+  - Run yang dihentikan sudah menyimpan catatan datanya ke percakapan (uji live `edge_8b5bde97…`: 7 tabel dibaca, 1
+    kebutuhan data tercatat), dan giliran berikutnya membacanya (M47).
+  Kesimpulan per usulan:
+  - S1 "Ubah & kirim ulang": bisa, di EDGE saja. Cek saat go: run yang dihentikan saat menjalankan rencana riset yang
+    disetujui (apakah rencananya masih bisa disetujui ulang).
+  - S2 pekerjaan disimpan: sebagian besar sudah ada (catatan data tersimpan). Yang kurang: jawaban yang dihentikan
+    tidak menyebut apa yang sudah selesai, dan pemakaian ulang tabel hasil belum diuji live (biaya sekitar USD 0,01).
+  - S3 kirim pesan selama proses: versi Claude Code/ChatGPT agent (mengarahkan run yang sedang berjalan tanpa
+    berhenti) TIDAK cocok: orc tidak punya saluran pesan di tengah run, dan jaminan (data hanya setelah persetujuan,
+    ambang terkunci pada kata user) mengharuskan pesan baru dibaca router sebagai giliran baru. Versi yang bisa: kirim
+    selama proses = hentikan run lalu BFF mengantrekan pesan itu dan menjalankannya otomatis sebagai giliran berikutnya
+    begitu run berhenti (BFF mengizinkan satu pesan antre per pemilik).
+  - Tambahan dari review: I1 daftarkan run untuk stop sejak permintaan diterima (sebelum router), sehingga jawaban
+    "coba lagi" hampir hilang; I2 tampilan "Stopping…" menyebut bahwa langkah yang sedang berjalan ditunggu selesai;
+    I3 (opsional) rute batal untuk job sesi sandbox, sehingga `run_python` yang lama bisa dihentikan di tengah.
 
 ### EXEC-M109: pertanyaan tanya-balik router tetap dipakai
 
