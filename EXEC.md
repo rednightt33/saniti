@@ -1258,6 +1258,11 @@ sesudah go.
   - Pertanyaan untuk user: (1) rencana riset B di putaran pertama EXPLORE tetap otomatis, atau dijadikan salah satu
     pertanyaan lanjutan ("Uji dengan data: …"), yang sekaligus menyelesaikan M127a? (2) Pertanyaan lanjutan hanya di
     EXPLORE, atau juga di ANALYSIS (satu panggilan model kecil)?
+  - **Keputusan user 2026-10-09 atas pertanyaan (2): "analysis OK - masukan exec".** Pertanyaan lanjutan juga dibuat
+    di jalur ANALYSIS. Disetujui untuk direncanakan; pembangunan menunggu go bersama desain EXPLORE.
+  - Pertanyaan (1) dijelaskan ulang (user: "maksudnya gimana ya?"), belum diputuskan. Ukuran dari uji web 2026-10-08:
+    langkah rencana riset otomatis memakan 7,5 menit dan USD 0,056 (outlook 2027, 62% biaya) dan 5,5 menit dan USD
+    0,026 (batu bara, 48% biaya), padahal user tidak meminta riset.
 - Keputusan user 2026-10-08 atas contoh (a)/(b)/(c) tanda sumber: "pakai C". Klaim web selalu diberi link ke halaman
   sumbernya (teks link = nama situs, alamat dari daftar sumber yang dibaca sistem, bukan diketik AI); angka database
   tanpa tanda di kalimat, asalnya di panel Sources.
@@ -1273,6 +1278,16 @@ lembar definisi dan asal data), beberapa angka dicocokkan langsung ke database, 
   di jawaban. Semua angka cocok dengan hitung ulang mandiri read-only lewat pgweb (total, jumlah hari, rentang
   tanggal, hari ekstrem). Cacat: M128 (a) tombol Download menampilkan kode file, diperbaiki di P4; (b) kolom file
   memakai nama internal dan lembar definisi tanpa arti kolom, usulan menunggu keputusan.
+- **Uji ulang sesudah M128b 2026-10-09** (`edge_c97a5348…`, 3 menit 32 detik, USD 0,025): judul kolom terbaca, lembar
+  `kolom`, definisi dan asal data dalam kata biasa; angka cocok dengan database. Sisa (ERRORS M128 c–e).
+- **Pertanyaan user 2026-10-09: "apakah ini masalah? coba benchmark data extraction and data explanation best
+  practice ya".** Pembanding: panduan GSS "Releasing statistics in spreadsheets" dan "Symbols in tables" (nol hanya
+  untuk nol sebenarnya, sel kosong harus dijelaskan, catatan di lembar Notes, satuan di judul kolom), Broman & Woo 2018
+  (kamus data, tidak ada sel kosong tanpa arti), Frictionless Table Schema (judul, deskripsi dan nilai hilang per
+  kolom). Usulan, menunggu keputusan: E1 baris kelengkapan di lembar definisi, dihitung backend dari tabel sumber
+  (jumlah hari di sumber vs di file, tanggal yang tidak ada); E2 arti kolom berbahasa Indonesia di katalog
+  (`Column_Catalog`, 836 kolom, 48 tabel; draf dibuat model, status DRAFT, ditinjau); E3 setiap kolom buatan analisis
+  wajib punya arti (model menulisnya bersama judul kolom).
 
 **Tampilan mobile EDGE (permintaan user 2026-10-08: "mobile design juga perlu rapihkan terutama bagian bawah dan jump
 to latest / jump to latest pada mobile view hilangkan saja / kemudian untuk bagian stadard, server model etc mungkin
@@ -1300,6 +1315,18 @@ P1–P5).** **Dibangun dan ter-deploy 2026-10-09** (go "1 3 dan 4 - jalankan sek
   baris "dihentikan oleh Anda".
 - Jawaban pertanyaan terbuka: orc satu replika, tanda di memori cukup. Job sandbox yang sedang jalan dibiarkan selesai.
 - Uji live 2026-10-09 (`edge_8b5bde97…`): Stop ditekan detik ke-27, run berakhir 10 detik kemudian, USD 0,0049.
+- **Pertanyaan user 2026-10-09: "bagaimana behaviour tombol stop? jika user mau nanya lagi, harus resend message? coba
+  benchmark dengan external."** Perilaku sekarang (terverifikasi dari kode): jawaban "dihentikan oleh Anda" tersimpan di
+  percakapan; kolom pesan kosong (pertanyaan dikosongkan saat dikirim), draf yang diketik selama proses tetap ada; pesan
+  baru melanjutkan percakapan yang sama; untuk menanyakan ulang pertanyaan yang sama user harus mengetik ulang (tombol
+  Retry yang mengembalikan pertanyaan ke kolom pesan hanya muncul untuk run gagal atau dihentikan saat antre).
+  Pembanding: Claude Code (dokumen resmi: Esc menghentikan, pekerjaan yang sudah jalan disimpan, pesan yang diketik
+  selama bekerja diantrikan, Esc+Esc mengembalikan draf atau memutar balik); ChatGPT agent (pengumuman OpenAI: bisa
+  disela kapan saja, lanjut tanpa kehilangan kemajuan, berhenti dengan hasil parsial); ChatGPT chat, Gemini dan
+  Perplexity: perilaku stop tidak ada di dokumen resmi yang ditemukan. Usulan, menunggu keputusan: S1 tombol "Ubah &
+  kirim ulang" di jawaban yang dihentikan (EDGE, memakai Retry yang ada); S2 jawaban yang dihentikan menyebut tabel
+  yang sudah selesai dan pesan berikutnya bisa memakainya (perlu dicek dulu apakah reuse data EXEC-V sudah berlaku
+  untuk run yang dihentikan); S3 (nanti) kirim pesan selama proses = hentikan lalu arahkan ulang.
 
 ### EXEC-M109: pertanyaan tanya-balik router tetap dipakai
 
