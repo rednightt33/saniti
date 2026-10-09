@@ -1,5 +1,12 @@
 # Railway changelog
 
+## 2026-10-09 — edge-bff Fase 5 QA fixes deployed from main
+
+- edge-bff `a225ddfc-3183-4d41-92c0-f89f130f7ca1` SUCCESS (commit `dfdabf7`, from main; `static/index.html` only:
+  table column alignment, one-line chips and placeholders, sidebar footer text; ERRORS M135). `/ready` 200. No other
+  service rebuilt; no variable, model, provider, mode or switch changed. Rollback: redeploy edge-bff
+  `9044798d` (commit `0bffe46`).
+
 ## 2026-10-08 — orc redeploy from main after GT-A (confirmation line format)
 
 - market-ai-orc `9efe1118-ff4f-49bd-9d5d-3ca6adeb8f95` SUCCESS (commit `df18695`, from main): confirmation lines show

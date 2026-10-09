@@ -1552,6 +1552,18 @@ didahului inspeksi ulang singkat; GT V-g dan item M119 tetap hanya atas perintah
 desktop. Usulan P1/P2 (hari aktif kelompok di baris kelengkapan; tabel dengan butir yang sama) dan bahasa teks backend
 belum diputuskan ("dulu"): dicatat di `FUTURE_PLAN.md`.
 
+**Hasil Fase 5 (2026-10-09, go "lanjut fase 4 dan 5 dulu"; ter-deploy dan dicek live):**
+- QA tanpa panggilan model: percakapan nyata di EDGE dev dibuka di lebar 390, 820, 1024 dan 1440 px (gulir per layar,
+  tema terang, menu Standard, laci riwayat, Details/Sources, kolom tanya panjang). Tidak ada halaman yang melebar ke
+  samping di lebar mana pun.
+- Diperbaiki (ERRORS M135, `dfdabf7`, hanya `static/index.html`, desain tidak berubah): satu perataan per kolom tabel
+  (angka rata kanan bila semua isi kolom berupa angka); chip status "Dirujuk" di Sources tidak lagi patah jadi dua baris
+  di ponsel; placeholder "Search markets" dan cari percakapan memakai "…" bila tidak muat; footer samping tanpa kata
+  "Updated" yang tertinggal.
+- Tes EDGE 61 lulus. edge-bff `a225ddfc` **SUCCESS**; QA diulang di live: semua temuan di atas hilang.
+- Belum tercakup: judul berbahasa Inggris dari backend (misalnya "Industry & policy context") ikut keputusan bahasa teks
+  backend yang masih ditunda.
+
 **Hasil Fase 4 (2026-10-09, go "lanjut fase 4 dan 5 dulu"; ter-deploy, uji live menunggu perintah):**
 - B1 V-f (ERRORS M134): data dengan SQL Governor yang sama diambil sekali per jawaban: sandbox memakai ulang potongan
   dari jawaban yang sama walau rentangnya sampai hari ini; dua permintaan dalam satu rencana berbagi satu file
