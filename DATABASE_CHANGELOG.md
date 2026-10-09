@@ -1,5 +1,19 @@
 # Database changelog
 
+## 2026-10-09 — EXEC-Y Fase 4 (M119): method guides v7 and Tool_Catalog round Q on dev
+
+User: "lanjut fase 4 dan 5 dulu" (go for EXEC-W wave B: V-f and M119).
+
+- **`20261009_005_ai_method_guides_v7.sql`** (generated, `scripts/generate_ai_method_guide_migration.py`): nine
+  `AI_method_guide` rows of guides version 7 (earlier versions kept): a session loads the tables it emitted by name,
+  keeps working tables with `save_table` / `load_table`, and `event_study` and `backtest` name every table they emit.
+- **`20261009_006_round_q_tool_catalog.sql`** (generated, round `round_q`): one inactive `Tool_Catalog` row,
+  `run_python` v6, copied from v5 with the code's purpose (own tables and working tables).
+- **Part A check:** model-facing metadata; Part A does not apply.
+- Applied by the temporary service `mmig-job` (deleted afterwards, read back absent): DRYRUN `dbefb65f` rolled back;
+  APPLY `d22b6dd0` committed (sha256 `b0ad15c9…`, `60d866d8…`). Read back: guides version 7 with 9 active rows next
+  to versions 1–6; `run_python` v1–v6, all inactive. Checksums appended to `database/migrations/APPLIED.sha256`.
+
 ## 2026-10-09 — EXEC-Y Fase 3: Tool_Catalog round P on dev (renamed columns)
 
 - **`20261009_004_round_p_tool_catalog.sql`** (generated, round `round_p`): one inactive `Tool_Catalog` row,
