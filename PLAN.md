@@ -110,6 +110,8 @@ test"); rincian di `FACTOR_EVENT_RESEARCH_PLAN.md` langkah 1–5.
 Dijalankan saat tabel baru pertama dimuat, bersama Part A `ERRORS_AND_SOLUTIONS.md`. Tabel makro di database adalah
 keputusan terpisah (`FUTURE_PLAN.md` §3).
 
+**Rencana user 2026-10-09 (bukan perintah jalan):** "saya plan sehabis ini karena kuota weekly sudah habis tuk ingest habis2an data macro, fundamental, fx, cross market, commodities etc. kemudian feature.. ini adalah proses onboarding only. saya minta kamu cek, table onboarding plan MD apakah bisa solely cukup dijadikan dokumen onboarding table ini, yang mana pada akhirnya data2 ini juga bisa visible ke sisi AI?" Rencana diperiksa dan diperbarui hari yang sama (rantai visibilitas AI, butir 14–21, pertanyaan per kelas aset, tabel Feature, keadaan kode sekarang, daftar yang harus jadi sebelum tabel pertama dibuka ke AI). Usulan kode di dalamnya (ERRORS M136, M137) menunggu keputusan user.
+
 ---
 
 ## Sudah dieksekusi, tinggal bukti live
