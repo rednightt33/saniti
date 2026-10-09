@@ -1469,20 +1469,22 @@ migrasi hanya menambah kolom atau versi baru.
 **Keputusan user 2026-10-09:** "setuju untuk urutan fase 1 2 3 4". Belum ada "go" untuk fase mana pun; pertanyaan E2
 (terjemahan disimpan sekali per kolom) belum dijawab.
 
-**Tambahan Fase 2 (user 2026-10-09: "Pertanyaan lanjutan … —>+ tambah idea research boleh?"):** dimasukkan ke desain
-Fase 2, menunggu go bersama fasenya.
-- Fungsi pertanyaan lanjutan yang sama menghasilkan dua jenis butir: 3–5 pertanyaan lanjutan dan 1–2 ide riset
-  (hipotesis satu kalimat yang bisa diuji, misalnya "Apakah saham bank turun dalam 5 hari setelah BI-Rate naik?").
-  Pilihan "Uji dengan data: …" menjadi ide riset ini, bukan butir terpisah.
-- Ide riset hanya diusulkan bila datanya ada: fungsi itu menerima daftar tabel dan cakupan yang sudah dibaca (catatan
-  data) dan ringkasan katalog, jadi usulan diturunkan dari data yang tersedia, bukan daftar tetap.
-- Klik ide riset = rute RESEARCH: rencana riset disusun, lalu menunggu persetujuan seperti biasa (data hanya sesudah
-  persetujuan). Bila ternyata tidak layak, pemeriksa rencana yang ada menjeda dan bertanya (M121), tidak buntu.
-- Biaya: tanpa panggilan tambahan (satu panggilan yang sama, keluaran sedikit lebih panjang). Ide riset tidak
-  menyusun rencana sampai diklik, jadi tidak mengulang biaya langkah B lama (5,5–7,5 menit, USD 0,026–0,056).
-- EDGE: butir ide riset tampil di bawah judul "Ide riset" (`kind: RESEARCH_IDEA`, kata di `edge-labels.js`).
-- Cek Fase 2: dari 5 pertanyaan uji, setiap ide riset yang diklik harus menghasilkan rencana yang memakai tabel yang
-  ada; dihitung berapa ide yang ternyata tidak layak.
+**Tambahan Fase 2 (user 2026-10-09: "Pertanyaan lanjutan … —>+ tambah idea research boleh?", lalu dikoreksi: "maksudnya
+bukan idea research, tapi ide untuk pertanyaan insight lanjutan").** Dimasukkan ke desain Fase 2, menunggu go bersama
+fasenya. Usulan "ide riset" sebelumnya dibatalkan; pilihan "Uji dengan data: …" (EXPLORE opsi B) tetap satu butir.
+- Fungsi pertanyaan lanjutan yang sama menghasilkan juga 2–3 ide pertanyaan insight: pertanyaan yang menggali lebih
+  dalam dari data yang ada (perbandingan, rincian per kelompok atau periode, tren, pemicu), misalnya "Bagaimana aliran
+  asing BBRI dibanding BBCA di periode yang sama?" atau "Bulan apa jual asing BBRI paling besar, dan apa yang terjadi
+  saat itu?".
+- Ide diturunkan dari data yang tersedia: fungsi itu menerima tabel dan cakupan yang sudah dibaca (catatan data) dan
+  ringkasan katalog, jadi hanya mengusulkan yang bisa dijawab, juga untuk tabel baru nanti tanpa ubah kode.
+- Klik ide = pesan berikutnya dengan rute INSIGHT (satu langkah analisis, rute yang sudah ada di router giliran), bukan
+  rencana riset; jadi cepat dan murah. Data tetap lewat jalur dan gerbang biasa.
+- Biaya: tanpa panggilan tambahan (satu panggilan yang sama).
+- EDGE: tampil di bawah judul "Ide insight" (`kind: INSIGHT_IDEA`, kata di `edge-labels.js`), terpisah dari
+  "Pertanyaan lanjutan".
+- Cek Fase 2: dari 5 pertanyaan uji, setiap ide insight yang diklik harus terjawab dari data yang ada; dihitung berapa
+  yang ternyata tidak bisa dijawab.
 
 ### EXEC-M109: pertanyaan tanya-balik router tetap dipakai
 
