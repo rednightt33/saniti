@@ -277,6 +277,24 @@ def _empty(value: object) -> bool:
     return value is None or value == "" or value == [] or value == {}
 
 
+# a filter of an output's definition ({column, operator, value}) as one line (live check 2026-10-09 showed
+# "Saringan[0].column market_board" row by row)
+FILTER_OPERATORS = {"EQ": "=", "NE": "≠", "NEQ": "≠", "GT": ">", "GE": "≥", "GTE": "≥", "LT": "<", "LE": "≤",
+                    "LTE": "≤", "IN": "salah satu dari", "NOT_IN": "bukan salah satu dari", "BETWEEN": "antara",
+                    "IS_NULL": "kosong", "IS_NOT_NULL": "terisi"}
+
+
+def filter_text(item: object) -> str:
+    """One filter in words: the column made readable, the operator as a sign or words, the value(s)."""
+    if not isinstance(item, dict):
+        return str(item)
+    value = item.get("values", item.get("value"))
+    shown = ", ".join(map(str, value)) if isinstance(value, list) else ("" if value is None else str(value))
+    operator = str(item.get("operator") or item.get("op") or "")
+    return " ".join(part for part in (words(item.get("column")),
+                                      FILTER_OPERATORS.get(operator.upper(), words(operator)), shown) if part)
+
+
 def export_definition(definition: dict | None) -> dict:
     """An output's definition with the reader's field names; a field not named here is made readable."""
     out = {}
@@ -285,6 +303,8 @@ def export_definition(definition: dict | None) -> dict:
             continue
         if key == "period" and isinstance(value, dict):
             value = EXPORT_PERIOD.format(start=value.get("start") or "-", end=value.get("end") or "-")
+        if key == "filters" and isinstance(value, list):
+            value = "; ".join(filter_text(item) for item in value)
         out[EXPORT_DEFINITION.get(key) or words(key).capitalize()] = value
     return out
 

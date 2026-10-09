@@ -1547,6 +1547,27 @@ dan nama source berita".** Belum dibangun; menunggu pilihan user (lihat jawaban 
   dibenarkan tanpa merubah design site" → Fase 5 (QA tampilan mobile dan desktop) sesudah Fase 4.
 - E2 tidak dijawab ulang; dipakai usulan: terjemahan disimpan sekali per kolom dan dipakai ulang.
 
+**Hasil Fase 3 (2026-10-09, go "gas"; ter-deploy dan dicek live):**
+- Migrasi `20261009_002` (diterapkan, dibaca balik): `AI_table_catalog.row_presence` (5 tabel bertanggal
+  ACTIVITY_ONLY, 4 tabel tanpa tanggal NOT_APPLICABLE, status INFERRED) dan `AI_column_catalog.description_id`
+  (172 dari 173 arti kolom diterjemahkan sekali oleh DeepSeek, USD 0,034, status DRAFT). Tool_Catalog round O
+  (research_web v2 tanpa link, export_result v3) dan round P (export_result v4 `source_columns`).
+- E1(1)+(3): lembar `definisi` Excel menulis "Aturan baris" (diturunkan dari file) dan "Kelengkapan" per kelompok
+  (satu ringkasan SQL Governor dengan saringan yang sama, atas periode file sendiri), atau "tidak dapat dicek
+  otomatis" bila tidak bisa dihitung dengan cara yang sama.
+- E1(2)+(4): prompt v003 (arti baris yang tidak ada dari `row_presence`; jumlah hari menyebut apa yang dihitung).
+  Batas ukuran prompt naik dari 1,09 ke 1,10 (empat kalimat, +0,5%).
+- E2: lembar `kolom` memakai arti berbahasa Indonesia; kolom tanpa terjemahan ditandai "teks Inggris".
+- Uji live 1 (`edge_58b3a299…`, USD 0,037): aturan baris benar, tetapi kelengkapan "tidak dapat dicek" dan arti kolom
+  kosong karena analisis mengganti nama kolom (`Date` → `trading_date`). Diperbaiki hari yang sama: model menyebut
+  kolom sumber tiap kolom yang disalin (`source_columns`), backend memeriksa dan menghitung.
+- Uji live 2 (USD 0,023): file harian "file memuat 211 tanggal; sumber punya data pada 211 hari" dari 211 hari bursa;
+  dicek independen lewat pgweb (211 hari, net −Rp 20.152.871.413.000 sama dengan total file). File bulanan jujur "tidak
+  dapat dicek otomatis". Saringan di lembar definisi kini satu baris kata biasa.
+- Belum tercakup: model belum menulis nol untuk hari tanpa transaksi asing di papan Nego (uji 1: Nego 210 hari); baris
+  kelengkapan dan catatan aktivitas sekarang menjelaskannya kepada pembaca. Arti kolom buatan analisis (E3) tidak
+  disetujui. Ulasan manusia atas `row_presence` dan terjemahan (DRAFT) masih terbuka.
+
 **Hasil B dan ukuran huruf mobile (2026-10-09, ter-deploy):**
 - `main` `0bffe46` lalu `522cb50`: market-ai-orc `12f35049` dan edge-bff `9044798d` **SUCCESS**.
 - B: teks jawaban tanpa link web dan tanpa nama situs; sumber web dan berita ada di panel Sources (berita sebagai bagian

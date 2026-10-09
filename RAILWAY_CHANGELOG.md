@@ -3238,3 +3238,17 @@ User: "Ok untuk B semua link web hilang pindah ke source masukan exec"; mobile f
   `4494ba03`, edge-bff `473a2117`.
 - Live check (USD 0.012): FACT BI-Rate answer with no link in the text; sources in the Sources panel.
 - No variable, model, provider, mode, schema or Railway configuration change; no migration.
+
+## 2026-10-09 — EXEC-Y Fase 3 (Excel completeness, row_presence, Indonesian meanings) deployed from main
+
+User: "gas" (go for Fase 3 after "E1 ok 2-4" and E2).
+
+- `main` `561ff14`: market-python-sandbox **81dd8a94-b434-41d9-b24d-49991f6bac0b** and market-ai-orc
+  **e8c4f922-c474-4c8d-8056-a04e8aae1f9d** reached **SUCCESS**; edge-bff SKIPPED. `main` `ca1eb3d` (export_result v4
+  `source_columns`): market-ai-orc **7ad66425-bf3f-4f92-bf35-b78bb264872e** reached **SUCCESS**. Rollback references:
+  orc `12f35049`, sandbox `8c06ff02`.
+- Migrations `20261009_002`, `_003`, `_004` applied through the temporary service `mmig-job` (created twice, deleted
+  each time and read back absent); details in `DATABASE_CHANGELOG.md`.
+- Live checks (USD 0.06 in total; key limit remaining about USD 3.76): two BBRI foreign-flow Excel exports (details in
+  `EXEC.md` EXEC-Y).
+- No variable, model, provider, mode or Railway configuration change; no IaC apply.

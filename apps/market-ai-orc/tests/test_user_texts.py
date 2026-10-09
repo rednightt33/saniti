@@ -147,3 +147,14 @@ def test_every_namespace_the_orchestrator_registers_has_a_name_for_the_reader() 
     assert registered and registered <= set(texts.SOURCE_NAMES), registered - set(texts.SOURCE_NAMES)
     for name in texts.SOURCE_NAMES.values():
         assert not texts.INTERNAL_NAME.search(name)
+
+
+def test_an_exported_definition_writes_each_filter_on_one_line() -> None:
+    """Live check 2026-10-09 (EXEC-Y Fase 3): the XLSX definition sheet showed a filter as three rows
+    (Saringan[0].column, .operator, .value). Other shapes: a list value, an operator not listed, a plain text filter."""
+    out = texts.export_definition({"filters": [{"column": "market_board", "operator": "EQ", "value": "Regular"},
+                                               {"column": "investor_type", "operator": "IN", "values": ["F", "D"]},
+                                               {"column": "net_value", "op": "WITHIN_BAND", "value": 3},
+                                               "ticker BBRI"]})
+    assert out == {"Saringan": "market board = Regular; investor type salah satu dari F, D; net value within band 3; "
+                               "ticker BBRI"}
