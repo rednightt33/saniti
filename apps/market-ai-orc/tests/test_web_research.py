@@ -377,3 +377,13 @@ def test_a_figure_inside_a_cited_statement_may_be_written_in_the_readers_words()
     rendered = render("Ekspor naik 2,3% pada 2024 {{web.wab12cd34_3.value}}.", state.ref_sources)
     state.ref_values.extend(rendered.values)
     assert check_answer(rendered.text, orc._source_index(state)).unsupported == []
+
+
+def test_a_web_date_the_sentence_already_writes_is_not_printed_again() -> None:
+    """M132 (live 2026-10-09: "berlaku sejak 23 September 2026 2026-09-23"): the same day in any written form."""
+    from app.value_refs import _already_in_sentence
+    assert _already_in_sentence("2026-09-23", "berlaku sejak 23 September 2026 ")
+    assert _already_in_sentence("2026-09-23", "berlaku sejak 23 Sep 2026 ")
+    assert not _already_in_sentence("2026-09-23", "berlaku sejak 22 September 2026 ")
+    assert not _already_in_sentence("2026-09-23", "Keputusan itu. Berlaku sejak ")  # an earlier sentence does not count
+    assert _already_in_sentence("5.75 %", "BI-Rate 5,75% ")

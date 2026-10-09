@@ -1023,10 +1023,34 @@ def _number_groups(text: str) -> list[set[float]]:
     return [{round(v, 9) for v, _ in shown.candidates} for shown in parse_numbers(text)]
 
 
+MONTHS = {1: ("januari", "january", "jan"), 2: ("februari", "february", "feb"), 3: ("maret", "march", "mar"),
+          4: ("april", "apr"), 5: ("mei", "may"), 6: ("juni", "june", "jun"), 7: ("juli", "july", "jul"),
+          8: ("agustus", "august", "agu", "aug"), 9: ("september", "sep", "sept"),
+          10: ("oktober", "october", "okt", "oct"), 11: ("november", "nov"), 12: ("desember", "december", "des", "dec")}
+ISO_DATE_RE = re.compile(r"^\s*(\d{4})-(\d{2})-(\d{2})\s*$")
+
+
+def _date_written(shown: str, sentence: str) -> bool | None:
+    """M132: for an ISO date value, whether the sentence already writes that day ("23 September 2026", "23 Sep 2026",
+    "2026-09-23"); None when the value is not a date."""
+    match = ISO_DATE_RE.match(shown)
+    if not match:
+        return None
+    year, month, day = int(match.group(1)), int(match.group(2)), int(match.group(3))
+    if match.group(0).strip() in sentence:
+        return True
+    names = "|".join(MONTHS.get(month, ()))
+    return bool(names) and bool(re.search(rf"\b0?{day}\s+(?:{names})\.?\s+{year}\b", sentence, re.IGNORECASE))
+
+
 def _already_in_sentence(shown: str, written: str) -> bool:
-    """M132: every number of a shown value already stands in the sentence written so far (any reading of each)."""
+    """M132: the shown value already stands in the sentence written so far: the same day for a date, otherwise every
+    number of it (any reading of each)."""
     breaks = list(CLAUSE_BREAK_RE.finditer(written))
     sentence = written[breaks[-1].end():] if breaks else written
+    dated = _date_written(shown, sentence)
+    if dated is not None:
+        return dated
     wanted, present = _number_groups(shown), set().union(*_number_groups(sentence) or [set()])
     return bool(wanted) and all(group & present for group in wanted)
 
