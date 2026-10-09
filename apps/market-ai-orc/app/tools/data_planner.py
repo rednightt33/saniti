@@ -27,6 +27,8 @@ import hashlib
 import json
 import math
 import secrets
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -116,12 +118,48 @@ class Part:
     # the conversation with the same SQL it reuses (the sandbox's lookup), if any
     data_sha256: str | None = None
     reused: dict[str, Any] | None = None
+    # V-f (2026-10-09): a part of an earlier request of the same plan with the same Governor SQL, extracted once
+    twin: "Part | None" = None
+    partition_id: str | None = None
+    report: dict[str, Any] | None = None
 
 
-# EXEC-V 2026-10-08: what prepare_data_bundle tells the model about reused data
-REUSE_NOTE = ("Parts whose Governor SQL is the same as one an earlier answer of this conversation extracted, with a "
-              "date range that ends before today, were reused without a new extraction (reused_from gives when they "
-              "were extracted: disclose it as the data's as-of); every other part was extracted, with its reason.")
+# EXEC-V 2026-10-08, V-f 2026-10-09: what prepare_data_bundle tells the model about reused data
+REUSE_NOTE = ("Parts whose Governor SQL was already extracted in this answer, or by an earlier answer of this "
+              "conversation with a date range that ends before today, were reused without a new extraction "
+              "(reused_from gives when they were extracted: disclose it as the data's as-of); every other part was "
+              "extracted, with its reason.")
+TWIN_VERSION = 2  # the sandbox's part_reuse version that accepts same_as parts (V-f)
+INFLIGHT_WAIT_SECONDS = 600.0
+
+
+class InFlight:
+    """V-f (user decision 2026-10-08 "ambil jadi sekali saja"): the parts being extracted right now, per conversation
+    and Governor SQL. A prepare whose parts another prepare of the same conversation is extracting waits for it, then
+    looks them up and reuses them; it claims nothing while it waits, and claims all of its parts at once, so two
+    prepares never wait for each other. One process (market-ai-orc runs one replica)."""
+
+    def __init__(self) -> None:
+        self._owned: set[tuple[str, str, str]] = set()
+        self._changed = threading.Condition()
+
+    def claim(self, keys: set[tuple[str, str, str]], timeout: float = INFLIGHT_WAIT_SECONDS) -> tuple[set, float]:
+        """(the keys this caller now owns, seconds waited); after the timeout it claims what is free and goes on."""
+        started = time.monotonic()
+        with self._changed:
+            while keys & self._owned and time.monotonic() - started < timeout:
+                self._changed.wait(timeout=min(5.0, max(0.1, timeout - (time.monotonic() - started))))
+            mine = keys - self._owned
+            self._owned |= mine
+        return mine, time.monotonic() - started
+
+    def release(self, keys: set[tuple[str, str, str]]) -> None:
+        with self._changed:
+            self._owned -= keys
+            self._changed.notify_all()
+
+
+IN_FLIGHT = InFlight()
 
 
 class PlanStop(Exception):
@@ -213,6 +251,7 @@ class ExecutionPlanner:
         reuse = part_reuse and bool(current_conversation_key.get()) and getattr(self.sandbox, "part_reuse", False)
         preflight = self.preflight or reuse
         report: list[dict[str, Any]] = []
+        owned: set[tuple[str, str, str]] = set()
         try:
             chosen: dict[str, list[Part]] = {}
             if preflight:
@@ -222,7 +261,18 @@ class ExecutionPlanner:
                 for rid in sorted(need["requests"]):
                     chosen[rid] = self._preflight(need, plan_id, need["requests"][rid], budget)[0]
                 if reuse:
+                    # V-f: a part another prepare of this conversation is extracting now is waited for, then reused
+                    keys = {(str(current_conversation_key.get()), p.data_sha256, part_key(p.window, p.entity_partition))
+                            for parts in chosen.values() for p in parts if p.data_sha256}
+                    owned, waited = IN_FLIGHT.claim(keys)
+                    if waited >= 0.5:
+                        from ..orchestrator import log_event
+
+                        log_event("planner_waited_for_same_sql", request_id=request_id, need_id=need_id,
+                                  seconds=round(waited, 1), parts=len(keys))
                     report = self._lookup(request_id, need_id, chosen)
+                    if getattr(self.sandbox, "part_reuse_version", 1) >= TWIN_VERSION:
+                        self._twins(chosen)
             extracted = PlanBudget(self.max_bundle_rows)  # G14: real rows, for parts whose count was uncertain
             for rid in sorted(need["requests"]):
                 entry = need["requests"][rid]
@@ -230,11 +280,13 @@ class ExecutionPlanner:
                     if preflight else self._request_parts(need, plan_id, entry, extracted)
                 planned.append({"data_request_id": rid, "envelopes": envelopes, "parts": parts})
                 decisions += self._decisions(entry, envelopes, parts)
+            bundle = self.sandbox.build_bundle(request_id, need_id, {"plan_id": plan_id, "requests": planned,
+                                                                     "decisions": decisions})
         except PlanStop as stop:
             return {**stop.outcome, **summary_hint(need, stop.outcome), "need_id": need_id, "plan_id": plan_id,
                     "extracted_requests": [p["data_request_id"] for p in planned]}
-        bundle = self.sandbox.build_bundle(request_id, need_id, {"plan_id": plan_id, "requests": planned,
-                                                                 "decisions": decisions})
+        finally:
+            IN_FLIGHT.release(owned)
         if bundle.get("status") == "REJECTED" and bundle.get("code") == "REUSE_NOT_ALLOWED" and reuse:
             # the earlier copy changed between the lookup and the bundle (expired, evicted): extract instead
             return self.prepare(need_id, part_reuse=False)
@@ -247,6 +299,21 @@ class ExecutionPlanner:
             bundle["data_reuse"] = {"parts_reused": len(reused), "parts_extracted": len(report) - len(reused),
                                     "parts": report[:24], "note": REUSE_NOTE}
         return bundle
+
+    @staticmethod
+    def _twins(chosen: dict[str, list[Part]]) -> None:
+        """V-f: a part with the same Governor SQL and part as a part of an earlier request of this plan is a twin of
+        it: extracted once, its file linked for both (the sandbox checks it like a reused part)."""
+        first: dict[tuple[str, str], tuple[str, Part]] = {}
+        for rid in sorted(chosen):
+            for part in chosen[rid]:
+                if part.reused or not part.data_sha256:
+                    continue
+                key = (part.data_sha256, part_key(part.window, part.entity_partition))
+                if key in first and first[key][0] != rid:
+                    part.twin = first[key][1]
+                else:
+                    first.setdefault(key, (rid, part))
 
     def _lookup(self, request_id: str, need_id: str, chosen: dict[str, list[Part]]) -> list[dict[str, Any]]:
         """EXEC-V 2026-10-08 (option D): ask the sandbox which planned parts an earlier answer of this conversation
@@ -265,11 +332,13 @@ class ExecutionPlanner:
             if answer.get("status") == "MATCH":
                 part.reused = answer
                 report.append({**entry, "status": "REUSED", "reused_from": {
-                    "request_id": answer.get("request_id"), "extracted_at": answer.get("extracted_at")}})
+                    "request_id": answer.get("request_id"), "extracted_at": answer.get("extracted_at"),
+                    **({"same_answer": True} if answer.get("same_answer") else {})}})
             else:
                 reason = answer.get("reason") or ("LOOKUP_UNAVAILABLE" if part.data_sha256 else "NO_DATA_IDENTITY")
                 report.append({**entry, "status": "EXTRACTED", "reason": reason,
                                **({"message": answer["message"]} if answer.get("message") else {})})
+            part.report = report[-1]
         return report
 
     def estimate(self, draft: dict[str, Any]) -> dict[str, Any]:
@@ -490,7 +559,20 @@ class ExecutionPlanner:
         for part in done:  # EXEC-V 2026-10-08: the earlier file of the same SQL, no Governor call
             part.dataset = {"dataset_id": part.reused["dataset_id"], "row_count": part.reused.get("rows")}
             self._spend_extracted(rid, extracted, part.dataset)
-        queue = [part for part in chosen if not part.reused]
+        for part in chosen:
+            if part.twin is not None and part.twin.dataset is not None and part.twin.partition_id:
+                # V-f: the same SQL was extracted for an earlier request of this plan; its file is linked
+                part.dataset = dict(part.twin.dataset)
+                self._spend_extracted(rid, extracted, part.dataset)
+                done.append(part)
+                if part.report is not None:
+                    part.report.update(status="REUSED", reused_from={"same_answer": True,
+                                                                     "partition_id": part.twin.partition_id})
+                    part.report.pop("reason", None)
+                    part.report.pop("message", None)
+            else:
+                part.twin = None  # the twin was split or stopped: this part is extracted itself
+        queue = [part for part in chosen if not part.reused and part.twin is None]
         while queue:
             wave, queue = queue[:self.parallel_parts], queue[self.parallel_parts:]
             requeue: list[Part] = []
@@ -579,11 +661,14 @@ class ExecutionPlanner:
                                         (p.entity_partition or {}).get("modulus", 1),
                                         (p.entity_partition or {}).get("remainder", 0)))
             for index, part in enumerate(members, start=1):
-                named.append({"partition_id": f"{prefix}__part_{index:03d}", "dataset_id": part.dataset["dataset_id"],
+                part.partition_id = f"{prefix}__part_{index:03d}"
+                named.append({"partition_id": part.partition_id, "dataset_id": part.dataset["dataset_id"],
                               "part_key": part_key(part.window, part.entity_partition), "window": part.window,
                               "entity_partition": part.entity_partition,
                               **({"reuse_of": part.reused["reuse_of"], "data_sha256": part.data_sha256}
-                                 if part.reused else {})})
+                                 if part.reused else {}),
+                              **({"same_as": part.twin.partition_id, "data_sha256": part.data_sha256}
+                                 if part.twin is not None else {})})
         return named
 
     @staticmethod

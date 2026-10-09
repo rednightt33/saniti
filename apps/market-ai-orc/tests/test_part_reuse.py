@@ -112,3 +112,111 @@ def test_a_reuse_the_sandbox_refuses_at_build_time_falls_back_to_extraction() ->
     assert result["status"] == "READY" and len(sandbox.bundles) == 2
     assert not any(p.get("reuse_of") for r in sandbox.bundles[1]["requests"] for p in r["parts"])
     assert len(extractions(governor)) == 2 + 3  # the second plan extracts every part
+
+
+class WindowGovernor(IdentityGovernor):
+    """The identity of a part is its SQL without labels: here its table and window, whatever the request id."""
+
+    def __init__(self, gate=None, entered=None) -> None:
+        super().__init__()
+        self.gate, self.entered = gate, entered
+
+    def extract(self, spec, lineage, *, planned_parts=1, estimate_only=False, count_cap=None):
+        if estimate_only:
+            self.calls.append({"spec": copy.deepcopy(spec), "estimate_only": True})
+            return {"status": "WITHIN_LIMITS", "estimates": {"result_rows": 10},
+                    "data_sha256": f"{spec['source_table']}:{(spec['window'] or {}).get('from')}".ljust(64, "0")}
+        if self.entered is not None:
+            self.entered.set()
+        if self.gate is not None:
+            self.gate.wait(10)
+        return super().extract(spec, lineage, planned_parts=planned_parts)
+
+
+class TwinSandbox(ReuseSandbox):
+    """Version 2 (same_as parts); nothing was extracted before, unless a bundle of this run already holds the SQL."""
+
+    def __init__(self, twins: bool = True) -> None:
+        super().__init__()
+        self.part_reuse_version = 2
+        self.twins = twins
+        self.built: dict[str, dict[str, Any]] = {}
+
+    def get_need(self, need_id):
+        base = need()
+        if self.twins:  # a second request with the same SQL under another label (GT1: two horizons, one stock)
+            base["requests"]["data_request_1_C"] = {**copy.deepcopy(base["requests"]["data_request_1_A"]),
+                                                    "data_request_id": "data_request_1_C", "logical_name": "px_10d"}
+        return base
+
+    def lookup_parts(self, request_id, need_id, parts):
+        self.lookups.append(copy.deepcopy(parts))
+        return [{"status": "MATCH", "reuse_of": self.built[p["data_sha256"]]["reuse_of"],
+                 "dataset_id": self.built[p["data_sha256"]]["dataset_id"], "rows": 10, "request_id": request_id,
+                 "extracted_at": "2026-10-09T08:00:00+00:00", "same_answer": True}
+                if p["data_sha256"] in self.built else
+                {"status": "NO_MATCH", "reason": "NOT_EXTRACTED_IN_CONVERSATION", "message": "new"} for p in parts]
+
+
+def test_two_requests_with_the_same_sql_in_one_plan_are_extracted_once() -> None:
+    """V-f (GT1 ma-qa-variant-20261008a: BBCA extracted twice in one research answer): the later request's parts
+    name the earlier ones (same_as) and share their dataset; the model reads them as reused within this answer."""
+    governor, sandbox = WindowGovernor(), TwinSandbox()
+    result = prepare(ExecutionPlanner(sandbox, governor))
+    assert result["status"] == "READY"
+    assert len(extractions(governor)) == 3  # data_request_1_A twice (two windows) and data_request_1_B; none for _C
+    by_request = {r["data_request_id"]: r["parts"] for r in sandbox.bundles[0]["requests"]}
+    names = {p["part_key"]: p for p in by_request["data_request_1_A"]}
+    for part in by_request["data_request_1_C"]:
+        source = names[part["part_key"]]
+        assert part["same_as"] == source["partition_id"] and part["dataset_id"] == source["dataset_id"]
+    twins = [p for p in result["data_reuse"]["parts"] if p["data_request_id"] == "data_request_1_C"]
+    assert [p["status"] for p in twins] == ["REUSED", "REUSED"] and all(p["reused_from"]["same_answer"] for p in twins)
+    # a sandbox of version 1 gets no same_as: every part is extracted as before
+    governor, old = WindowGovernor(), TwinSandbox()
+    old.part_reuse_version = 1
+    prepare(ExecutionPlanner(old, governor))
+    assert len(extractions(governor)) == 5 and not any(p.get("same_as") for r in old.bundles[0]["requests"]
+                                                       for p in r["parts"])
+
+
+def test_a_prepare_waits_for_the_same_sql_another_prepare_of_the_answer_is_extracting() -> None:
+    """V-f: two data needs of one answer prepared at the same time (two research workspaces) extracted the same data at
+    the same second. The second waits for the first, then looks its parts up and reuses them."""
+    import threading
+    import time
+
+    gate, entered = threading.Event(), threading.Event()
+    governor, sandbox = WindowGovernor(gate, entered), TwinSandbox(twins=False)
+    original = sandbox.build_bundle
+
+    def build(request_id, need_id, plan):
+        for request in plan["requests"]:
+            for part in request["parts"]:
+                sha = next(c for c in governor.calls if c["estimate_only"] and c["spec"]["data_request_id"]
+                           == request["data_request_id"] and (c["spec"]["window"] or None) and
+                           c["spec"]["window"]["from"] == (part["window"] or {}).get("from")) if part["window"] \
+                    else None
+                key = f"{sha['spec']['source_table']}:{sha['spec']['window']['from']}".ljust(64, "0") if sha \
+                    else "IDX_Stock_Universe:None".ljust(64, "0")
+                sandbox.built[key] = {"reuse_of": {"bundle_id": "bundle_" + "f" * 24,
+                                                   "partition_id": part["partition_id"]},
+                                      "dataset_id": part["dataset_id"]}
+        return original(request_id, need_id, plan)
+
+    sandbox.build_bundle = build
+    planner = ExecutionPlanner(sandbox, governor)
+    results = []
+    first = threading.Thread(target=lambda: results.append(prepare(planner)))
+    first.start()
+    assert entered.wait(5)
+    second = threading.Thread(target=lambda: results.append(prepare(planner)))
+    second.start()
+    time.sleep(0.5)
+    assert len(sandbox.lookups) == 1  # the second waits before its lookup, holding nothing
+    gate.set()
+    first.join(10)
+    second.join(10)
+    assert [r["status"] for r in results] == ["READY", "READY"]
+    assert len(extractions(governor)) == 3  # the first answer's three parts only
+    assert all(p["status"] == "REUSED" for p in results[1]["data_reuse"]["parts"])

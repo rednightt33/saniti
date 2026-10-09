@@ -108,10 +108,12 @@ def normalize_plan(raw: Any, approved: dict[str, Any], max_parts: int) -> dict[s
                     or not isinstance(part.get("part_key"), str):
                 raise BundleError("INVALID_PLAN", "Each part needs partition_id (<data_request_id>__...), dataset_id "
                                                   "and part_key.")
-            if part["partition_id"] in seen_parts or part["dataset_id"] in seen_datasets:
+            twin = part.get("same_as")
+            if part["partition_id"] in seen_parts or (twin is None and part["dataset_id"] in seen_datasets):
                 raise BundleError("INVALID_PLAN", f"{part['partition_id']}: partition and dataset ids must be unique.")
             seen_parts.add(part["partition_id"])
-            seen_datasets.add(part["dataset_id"])
+            if twin is None:
+                seen_datasets.add(part["dataset_id"])
             normalized = {"partition_id": part["partition_id"], "dataset_id": part["dataset_id"],
                           "part_key": part["part_key"], "window": _window(part.get("window")),
                           "entity_partition": _partition(part.get("entity_partition"))}
@@ -126,10 +128,25 @@ def normalize_plan(raw: Any, approved: dict[str, Any], max_parts: int) -> dict[s
                     raise BundleError("INVALID_PLAN", f"{part['partition_id']}: reuse_of needs {{bundle_id, "
                                                       "partition_id}} and the part's data_sha256.")
                 normalized.update(reuse_of=dict(reuse), data_sha256=part["data_sha256"])
+            if twin is not None:
+                # V-f (2026-10-09): a part of another request of this plan with the same Governor SQL, extracted once
+                if reuse is not None or not isinstance(twin, str) or not PARTITION_ID.fullmatch(twin) \
+                        or not isinstance(part.get("data_sha256"), str) or not SHA256.fullmatch(part["data_sha256"]):
+                    raise BundleError("INVALID_PLAN", f"{part['partition_id']}: same_as needs a partition id of this "
+                                                      "plan and the part's data_sha256, without reuse_of.")
+                normalized.update(same_as=twin, data_sha256=part["data_sha256"])
             parts.append(normalized)
         requests.append({"data_request_id": item["data_request_id"],
                          "envelopes": [e for e in item.get("envelopes") or [] if isinstance(e, dict)][:32],
                          "parts": sorted(parts, key=lambda p: p["partition_id"])})
+    by_id = {p["partition_id"]: p for r in requests for p in r["parts"]}
+    for part in by_id.values():
+        source = by_id.get(part.get("same_as") or "")
+        if part.get("same_as") and (source is None or source.get("same_as") or source.get("reuse_of")
+                                    or source["part_key"] != part["part_key"]
+                                    or source["dataset_id"] != part["dataset_id"]):
+            raise BundleError("INVALID_PLAN", f"{part['partition_id']}: same_as must name an extracted part of this "
+                                              "plan with the same part_key and dataset_id.")
     if len(seen_parts) > max_parts:
         raise BundleError("BUNDLE_TOO_LARGE", f"The plan has {len(seen_parts)} parts; a bundle holds at most "
                                               f"{max_parts}.", limit=max_parts)
@@ -165,9 +182,13 @@ class BundleBuilder:
         bundle_id = f"bundle_{secrets.token_hex(12)}"
         grants: dict[str, Any] = {}
         sources: dict[str, dict[str, Any]] = {}
+        twins: dict[str, str] = {}  # V-f: partition -> the partition of this plan it is a copy of
         try:
             for request in plan["requests"]:
                 for part in request["parts"]:
+                    if part.get("same_as"):
+                        twins[part["partition_id"]] = part["same_as"]
+                        continue
                     if part.get("reuse_of"):
                         if resolve_reuse is None:
                             raise BundleError("REUSE_NOT_AVAILABLE", "This sandbox reuses parts only within a "
@@ -179,8 +200,10 @@ class BundleBuilder:
         except DatasetFailure as failure:
             raise BundleError(failure.code, failure.message) from failure
         rows = sum(g.row_count for g in grants.values()) + sum(int(r["partition"]["rows"] or 0)
-                                                               for r in sources.values())
-        size = sum(g.byte_count for g in grants.values()) + sum(r["path"].stat().st_size for r in sources.values())
+                                                               for r in sources.values()) \
+            + sum(grants[t].row_count for t in twins.values())
+        size = sum(g.byte_count for g in grants.values()) + sum(r["path"].stat().st_size for r in sources.values()) \
+            + sum(grants[t].byte_count for t in twins.values())
         if rows > s.bundle_max_rows or size > s.bundle_max_bytes:
             raise BundleError("BUNDLE_TOO_LARGE", f"The extracted data holds {rows} rows / {size} bytes; a bundle "
                                                   f"holds at most {s.bundle_max_rows} rows / {s.bundle_max_bytes} "
@@ -194,7 +217,7 @@ class BundleBuilder:
         directory = self.root / bundle_id
         directory.mkdir(mode=0o700)
         try:
-            files = self._store_files(directory, plan, grants, sources)
+            files = self._store_files(directory, plan, grants, sources, twins)
             quality = self._profile(bundle_id, approved, plan, files)
             delivered = {pid: {"validator": g.manifest.get("validator_manifest") or {}, "row_count": g.row_count,
                                "entities_present": (g.manifest.get("validator_manifest") or {}).get(
@@ -203,12 +226,14 @@ class BundleBuilder:
                 validator = source["partition"].get("validator") or {}
                 delivered[pid] = {"validator": validator, "row_count": source["partition"]["rows"],
                                   "entities_present": validator.get("entities_present")}
+            for pid, twin in twins.items():
+                delivered[pid] = delivered[twin]
             coverage = delivery_coverage(approved, need, plan, delivered, quality)
         except Exception:
             shutil.rmtree(directory, ignore_errors=True)
             raise
         manifest = self._manifest(bundle_id, request_id, need, approved, plan, plan_sha, grants, files, quality,
-                                  coverage, size, rows, sources)
+                                  coverage, size, rows, sources, twins)
         status = manifest["status"]
         if status != "READY":
             shutil.rmtree(directory, ignore_errors=True)
@@ -221,12 +246,15 @@ class BundleBuilder:
         return manifest
 
     def _store_files(self, directory: Path, plan: dict[str, Any], grants: dict[str, Any],
-                     sources: dict[str, dict[str, Any]] | None = None) -> dict[str, dict[str, Any]]:
+                     sources: dict[str, dict[str, Any]] | None = None,
+                     twins: dict[str, str] | None = None) -> dict[str, dict[str, Any]]:
         files: dict[str, dict[str, Any]] = {}
         for request in plan["requests"]:
             folder = directory / request["data_request_id"]
             folder.mkdir(mode=0o700)
             for part in request["parts"]:
+                if part["partition_id"] in (twins or {}):
+                    continue  # linked below, once its twin is stored
                 source = (sources or {}).get(part["partition_id"])
                 if source is not None:
                     files[part["partition_id"]] = self._link_reused(folder, request, part, source)
@@ -249,6 +277,15 @@ class BundleBuilder:
                 files[part["partition_id"]] = {"path": target, "cached": cached, "checksum_sha256": grant.checksum,
                                                "byte_count": grant.byte_count, "rows": grant.row_count,
                                                "relative": f"{request['data_request_id']}/{target.name}"}
+        for request in plan["requests"]:
+            for part in request["parts"]:
+                twin = (twins or {}).get(part["partition_id"])
+                if twin is not None:
+                    stored = files[twin]
+                    files[part["partition_id"]] = self._link_reused(
+                        directory / request["data_request_id"], request, part,
+                        {"path": stored["path"], "partition": {"checksum_sha256": stored["checksum_sha256"],
+                                                               "rows": stored["rows"]}})
         return files
 
     @staticmethod
@@ -362,8 +399,10 @@ class BundleBuilder:
     def _manifest(self, bundle_id: str, request_id: str, need: dict[str, Any], approved: dict[str, Any],
                   plan: dict[str, Any], plan_sha: str, grants: dict[str, Any], files: dict[str, dict[str, Any]],
                   quality: dict[str, dict[str, Any]], coverage: dict[str, Any], size: int, rows: int,
-                  sources: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
+                  sources: dict[str, dict[str, Any]] | None = None,
+                  twins: dict[str, str] | None = None) -> dict[str, Any]:
         created = datetime.now(timezone.utc).replace(microsecond=0)
+        twins = twins or {}
         expires = created + timedelta(hours=self.settings.bundle_retention_hours)
         datasets = []
         planned = {r["data_request_id"]: r for r in plan["requests"]}
@@ -374,7 +413,7 @@ class BundleBuilder:
             quality_id = f"quality_{sha256_json(profile)[:24]}"
             columns = []
             if parts:
-                first = parts[0]["partition_id"]
+                first = twins.get(parts[0]["partition_id"], parts[0]["partition_id"])
                 columns = [{"name": c.get("name"), "type": c.get("type"), "source_type": c.get("source_type"),
                             "unit": c.get("unit")} for c in grants[first].manifest.get("columns") or []] \
                     if first in grants else [dict(c) for c in sources[first]["columns"]]
@@ -383,7 +422,7 @@ class BundleBuilder:
                 "entity_column": entry.get("entity_column"), "time_column": entry.get("time_column"),
                 "key_columns": entry.get("key_columns") or [], "columns": columns,
                 "dataset_ids": [p["dataset_id"] for p in parts],
-                "partitions": [self._partition_entry(p, files, grants, sources or {}) for p in parts],
+                "partitions": [self._partition_entry(p, files, grants, sources or {}, twins) for p in parts],
                 "rows": sum(files[p["partition_id"]]["rows"] for p in parts),
                 "ranges": entry.get("windows") or [], "source_frequency": entry.get("source_frequency"),
                 "analysis_frequency": entry.get("analysis_frequency"), "resample": entry.get("resample"),
@@ -412,20 +451,21 @@ class BundleBuilder:
 
     @staticmethod
     def _partition_entry(part: dict[str, Any], files: dict[str, dict[str, Any]], grants: dict[str, Any],
-                         sources: dict[str, dict[str, Any]]) -> dict[str, Any]:
+                         sources: dict[str, dict[str, Any]], twins: dict[str, str] | None = None) -> dict[str, Any]:
         pid = part["partition_id"]
+        twin = (twins or {}).get(pid)
         entry = {"partition_id": pid, "dataset_id": part["dataset_id"], "window": part["window"],
                  "entity_partition": part["entity_partition"], "part_key": part["part_key"],
                  "rows": files[pid]["rows"], "checksum_sha256": files[pid]["checksum_sha256"],
                  "file": files[pid]["relative"]}
         source = sources.get(pid)
         if source is None:
-            validator = grants[pid].manifest.get("validator_manifest") or {}
+            validator = grants[twin or pid].manifest.get("validator_manifest") or {}
             # D3 (round 2026-10-03): which Governor query delivered it, for get_lineage; EXEC-V 2026-10-08: the
             # identity of its rows (data_sha256) and the Governor's record of it, so a later need of the
             # conversation with the same SQL reuses this file
-            entry.update(governor=governor_ids(grants[pid]), data_sha256=validator.get("data_sha256"),
-                         validator=validator)
+            entry.update(governor=governor_ids(grants[twin or pid]), data_sha256=validator.get("data_sha256"),
+                         validator=validator, **({"same_as": twin} if twin else {}))
             return entry
         earlier = source["partition"]
         entry.update(governor=earlier.get("governor"), data_sha256=earlier.get("data_sha256"),

@@ -586,18 +586,23 @@ class DataNeedService:
     def _match(self, need: dict[str, Any], key: str | None, item: dict[str, Any]
                ) -> tuple[dict[str, Any] | None, str | None]:
         """The earlier part this part may reuse, or the reason it may not: same conversation, same data_sha256 and
-        part_key, a date range that ends before the reference date, a copy that has not expired, same catalog."""
+        part_key, a date range that ends before the reference date, a copy that has not expired, same catalog.
+        V-f (user decision 2026-10-08 "ambil jadi sekali saja", go 2026-10-09): within one answer (the same request and
+        reference date) a part is reused whatever its range, so a range up to today or current-state data is read
+        once per answer; across answers the rule above stays."""
         if not key:
             return None, "REUSE_UNAVAILABLE"
         window = item.get("window")
-        if window is None:
-            return None, "NO_DATE_RANGE"
-        if date.fromisoformat(window["to"]) >= date.fromisoformat(need["reference_date"]):
-            return None, "RANGE_INCLUDES_TODAY"
+        late = "NO_DATE_RANGE" if window is None else (
+            "RANGE_INCLUDES_TODAY" if date.fromisoformat(window["to"]) >= date.fromisoformat(need["reference_date"])
+            else None)
         request = (need.get("requests") or {}).get(item.get("data_request_id")) or {}
         now = datetime.now(timezone.utc)
-        reason = "NOT_EXTRACTED_IN_CONVERSATION"
+        reason = late or "NOT_EXTRACTED_IN_CONVERSATION"
         for bundle, dataset, partition in self._same_sql_parts(key, item["data_sha256"], item["part_key"]):
+            if late and not (bundle["request_id"] == need.get("request_id") and (bundle["manifest"].get(
+                    "reference_date") == need["reference_date"])):
+                continue  # an earlier answer's copy of a range up to today: newer rows may have arrived
             path = self.bundles.path_of(bundle["bundle_id"], partition["file"])
             if datetime.fromisoformat(bundle["manifest"]["expires_at"]) <= now or not path.is_file():
                 reason = "EXPIRED"
@@ -609,6 +614,7 @@ class DataNeedService:
                 continue
             origin = partition.get("reused_from") or {}
             return {"bundle_id": bundle["bundle_id"], "request_id": bundle["request_id"],
+                    "same_answer": bundle["request_id"] == need.get("request_id"),
                     "extracted_at": origin.get("extracted_at") or bundle["created_at"], "partition": partition,
                     "columns": dataset.get("columns") or [], "path": path}, None
         return None, reason
@@ -649,7 +655,7 @@ class DataNeedService:
                                          "partition_id": partition["partition_id"]},
                             "dataset_id": partition["dataset_id"], "rows": partition["rows"],
                             "checksum_sha256": partition["checksum_sha256"], "request_id": source["request_id"],
-                            "extracted_at": source["extracted_at"]})
+                            "extracted_at": source["extracted_at"], "same_answer": source["same_answer"]})
         self._log("parts_looked_up", request_id=request_id, need_id=need_id, parts=len(results),
                   matched=sum(1 for r in results if r["status"] == "MATCH"),
                   reasons=sorted({r["reason"] for r in results if r.get("reason")}))

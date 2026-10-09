@@ -51,6 +51,7 @@ from .tools.metric import read_metrics
 
 REUSE_VERSION = 1  # the conversation reuse contract both services must report
 PART_REUSE_VERSION = 1  # EXEC-V 2026-10-08 (option D): POST /v1/parts/lookup and plan parts with reuse_of
+PART_REUSE_VERSIONS = (1, 2)  # V-f 2026-10-09: version 2 also takes same_as parts (one SQL extracted once per plan)
 EXPORT_ID_RE = re.compile(r"^exp_[0-9a-f]{24}$")
 FEASIBILITY_VERSION = 1  # the Research Plan feasibility endpoints of the sandbox
 POINT_IN_TIME_VERSION = 1
@@ -413,10 +414,11 @@ def create_app(
                 resources = sandbox.conversation_resources
                 # EXEC-V 2026-10-08 (option D): a part with the same Governor SQL is reused within the conversation
                 parts = sandbox.runtime().get("part_reuse") or {}
-                sandbox.part_reuse = parts.get("enabled") is True and parts.get("version") == PART_REUSE_VERSION
+                sandbox.part_reuse = parts.get("enabled") is True and parts.get("version") in PART_REUSE_VERSIONS
+                sandbox.part_reuse_version = parts.get("version") if sandbox.part_reuse else 0
                 if not sandbox.part_reuse:
                     log_event("part_reuse_inactive", reason=f"the sandbox does not report part_reuse version "
-                                                            f"{PART_REUSE_VERSION}")
+                                                            f"{' or '.join(map(str, PART_REUSE_VERSIONS))}")
             else:
                 log_event("conversation_reuse_inactive", reason="the sandbox does not report conversation_reuse "
                                                                 f"version {REUSE_VERSION}")

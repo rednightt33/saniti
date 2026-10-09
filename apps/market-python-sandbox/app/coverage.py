@@ -63,7 +63,7 @@ def check_part(approved: dict[str, Any], request: dict[str, Any], plan_id: str, 
     lineage = validator.get("lineage") or {}
     executed = validator.get("executed_scope") or {}
     pid = part["partition_id"]
-    reused = bool(part.get("reuse_of"))
+    reused = bool(part.get("reuse_of") or part.get("same_as"))  # V-f: a twin of this plan is checked like reuse
     expected = {"scope_sha256": request["scope_sha256"], "restriction_sha256": request["restriction_sha256"],
                 "part_key": part["part_key"]}
     if not reused:

@@ -592,6 +592,7 @@ class SandboxClient:
         self.open_wait_seconds = 0
         # EXEC-V 2026-10-08 (option D): the sandbox reports part_reuse (POST /v1/parts/lookup, reuse_of parts)
         self.part_reuse = False
+        self.part_reuse_version = 0  # V-f: 2 when the sandbox also takes same_as parts
         self._client = httpx.Client(base_url=base_url.rstrip("/"), timeout=timeout_seconds, transport=transport,
                                     headers={"Authorization": f"Bearer {api_key}"})
 

@@ -65,7 +65,8 @@ DATA_NEED_KEYS = {"request_id", "reference_time", "timezone", "spec", "research_
 CONVERSATION_HEADER = "X-Saniti-Conversation-Key"
 CONVERSATION_KEY = re.compile(r"^ck_[0-9a-f]{32}$")
 REUSE_VERSION = 1
-PART_REUSE_VERSION = 1  # EXEC-V 2026-10-08 (option D): POST /v1/parts/lookup and plan parts with reuse_of
+PART_REUSE_VERSION = 2  # EXEC-V 2026-10-08 (option D): POST /v1/parts/lookup and plan parts with reuse_of; V-f
+# 2026-10-09: version 2 also takes same_as parts and reuses a range up to today within the same answer
 PAGE_MAX = 500
 
 

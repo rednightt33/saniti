@@ -182,4 +182,59 @@ def test_the_builder_checks_a_reused_part_itself(reuse) -> None:
 
 def test_the_runtime_reports_part_reuse(reuse) -> None:
     runtime = reuse["api"].get("/v1/runtime", headers=HEADERS).json()
-    assert runtime["part_reuse"] == {"enabled": True, "version": 1}
+    assert runtime["part_reuse"] == {"enabled": True, "version": 2}
+
+
+def test_within_one_answer_a_range_up_to_today_and_current_state_data_are_read_once(reuse) -> None:
+    """V-f (user decision 2026-10-08 "ambil jadi sekali saja", go 2026-10-09): GT1 (ma-qa-variant-20261008a) extracted
+    the same BBCA data twice in one research answer. Within one answer (same request, same reference date) a later need
+    reuses the parts of an earlier one even when the range reaches today or has no range; another answer of the
+    conversation still extracts them (newer rows may have arrived)."""
+    first = approve(reuse, "req_one", spec=spec("exp_a", end="2026-09-25", static=True))
+    plan, _ = parts_of(reuse, first)
+    assert build(reuse, first, plan, request_id="req_one").json()["status"] == "READY"
+    second = approve(reuse, "req_one", spec=spec("exp_b", "px", "x", "y", end="2026-09-25", static=True))
+    found = lookup(reuse, "req_one", second, wanted(second))["parts"]
+    assert [p["status"] for p in found] == ["MATCH", "MATCH", "MATCH"], found
+    assert all(p["same_answer"] for p in found)
+    later = approve(reuse, "req_two", spec=spec("exp_c", end="2026-09-25", static=True))
+    reasons = sorted(p.get("reason") or "MATCH" for p in lookup(reuse, "req_two", later, wanted(later))["parts"])
+    assert reasons == ["MATCH", "NO_DATE_RANGE", "RANGE_INCLUDES_TODAY"]  # the closed range is reused across answers
+
+
+def test_two_requests_of_one_plan_with_the_same_sql_are_extracted_once(reuse) -> None:
+    """V-f within one plan: a second request whose part has the same Governor SQL names the first part (same_as);
+    the builder links the stored file, coverage checks it on the fields that decide its rows, and a twin that claims
+    another part key or a part that is itself a twin is refused."""
+    from dataneed_fixtures import prices as price_request
+
+    window_ranges = [{"range_id": "r", "start": "2026-08-03", "end": "2026-09-01"}]
+    two = ytd_spec(request_group_id="twins", relationships=[], data_requests=[
+        price_request("twins_A", logical_name="horizon_3", time_ranges=window_ranges),
+        price_request("twins_B", logical_name="horizon_10", time_ranges=window_ranges)])
+    need = approve(reuse, "req_twins", spec=two)
+    a, b = need["requests"]["twins_A"], need["requests"]["twins_B"]
+    window = {"from": a["windows"][0]["extract_from"], "to": a["windows"][0]["extract_to"]}
+    assert identity(a, window) == identity(b, window)
+    part = extract_part(reuse, need, "twins_A", price_rows(TICKERS, window["from"], window["to"]),
+                        "twins_A__r__part_001", window=window)
+    sha = identity(a, window)
+    reuse["governor"].datasets[part["dataset_id"]]["manifest"]["validator_manifest"]["data_sha256"] = sha
+    twin = {**part, "partition_id": "twins_B__r__part_001", "same_as": part["partition_id"], "data_sha256": sha}
+    calls = len(reuse["governor"].calls)
+    plan = [{"data_request_id": "twins_A", "envelopes": [], "parts": [part]},
+            {"data_request_id": "twins_B", "envelopes": [], "parts": [twin]}]
+    built = build(reuse, need, plan, request_id="req_twins").json()
+    assert built["status"] == "READY" and built["coverage_status"] == "PASS", built
+    assert len(reuse["governor"].calls) == calls + 1  # one grant for one dataset
+    manifest = reuse["api"].get(f"/v1/bundles/{built['input_bundle_id']}", headers=HEADERS).json()
+    by_request = {d["data_request_id"]: d for d in manifest["datasets"]}
+    assert by_request["twins_B"]["partitions"][0]["same_as"] == "twins_A__r__part_001"
+    assert by_request["twins_B"]["rows"] == by_request["twins_A"]["rows"] > 0
+    assert by_request["twins_B"]["partitions"][0]["checksum_sha256"] == \
+        by_request["twins_A"]["partitions"][0]["checksum_sha256"]
+    for broken in ({**twin, "part_key": "0" * 64}, {**twin, "same_as": "twins_B__r__part_001"}):
+        refused = build(reuse, need, [plan[0], {"data_request_id": "twins_B", "envelopes": [], "parts": [broken]}],
+                        request_id="req_twins")
+        assert refused.json().get("error", {}).get("code") == "INVALID_PLAN" or \
+            refused.json().get("code") == "INVALID_PLAN", refused.text
