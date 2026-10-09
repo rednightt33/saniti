@@ -54,6 +54,8 @@ gabungkan ya", pilihan "File baru EXEC.md"). Pekerjaan yang disetujui tetapi bel
 `claude/code-session-2k3oeg` (HTML user sebagai sumber utama, API dipisah dari tampilan, teks backend bahasa biasa);
 uji lulus (orc 1.563, EDGE 46). Belum di `main`, belum deploy: menunggu OK user atas pratinjau.
 
+**Menunggu "go" (2026-10-09):** EXEC-Y, rencana implementasi semua butir yang disetujui dan belum dibangun (4 fase).
+
 **Menunggu "go" (2026-10-08):** EXEC-W, rencana eksekusi butir EXEC-V yang disetujui (dua
 gelombang).
 
@@ -1380,6 +1382,89 @@ P1–P5).** **Dibangun dan ter-deploy 2026-10-09** (go "1 3 dan 4 - jalankan sek
   - Tambahan dari review: I1 daftarkan run untuk stop sejak permintaan diterima (sebelum router), sehingga jawaban
     "coba lagi" hampir hilang; I2 tampilan "Stopping…" menyebut bahwa langkah yang sedang berjalan ditunggu selesai;
     I3 (opsional) rute batal untuk job sesi sandbox, sehingga `run_python` yang lama bisa dihentikan di tengah.
+
+### EXEC-Y: rencana implementasi putaran 2026-10-09 (review semua butir EXEC yang disetujui; menunggu "go")
+
+**Permintaan user 2026-10-09:** "Ok, untuk semua yang ada di exec pls review lagi baik secara arsitektur dan eksekusi.
+Kalau ada yg tidak cocok feel free to contrast alih2 merubah arsitektur secara massive. Buat implementation plan dulu
+sekarang." Rencana ini usulan; tidak ada kode yang diubah sampai user memberi "go" (per fase).
+
+**Lingkup (butir yang disetujui dan belum dibangun):**
+- Tombol stop S1–S3 (EXEC-X, "ok tombol stop with best practice") dan I1–I2 dari review infrastruktur.
+- EXPLORE opsi B dengan riwayat, peristiwa ke depan dan pertanyaan lanjutan (EXEC-X, "explore pakai B"); pertanyaan
+  lanjutan juga di ANALYSIS ("analysis OK").
+- Excel E1 bagian 1–4 ("E1 ok 2-4") dan E2 terjemahan AI ("let ai terjemahkan").
+- Gelombang B EXEC-W: V-f (SQL yang sama diambil sekali per jawaban) dan M119 A + B; GT V-g hanya atas perintah.
+
+**Tidak termasuk (menunggu keputusan):** E3 (arti kolom buatan analisis), M123 (kata samar ditanyakan), target EXEC-D
+"waktu sesudah penolakan ≤ 5%", M121 g (batas langkah/waktu), M127b (exa.ai), salah baca "BMRI kemarin" di router giliran.
+M127a selesai lewat EXPLORE opsi B.
+
+**Hasil review (dicek di kode dan dev 2026-10-09):**
+
+| Butir | Cocok dengan arsitektur? | Kontras / penyesuaian (bukan perubahan arsitektur besar) |
+|---|---|---|
+| S1 "Ubah & kirim ulang" | Ya. EDGE sudah punya Retry (pertanyaan kembali ke kolom pesan); rencana yang dihentikan saat dijalankan tetap PENDING (M121 c), jadi bisa disetujui ulang | Orc menambah satu field `execution.stopped` supaya EDGE tahu jawaban itu dihentikan |
+| S2 pekerjaan disimpan | Sebagian besar sudah ada: run yang dihentikan menyimpan catatan datanya (live: 7 tabel dibaca) dan giliran berikut membacanya (M47) | Yang dibangun hanya baris "yang sudah selesai" (diturunkan dari catatan data) dan uji live pemakaian ulang tabel hasil |
+| S3 kirim pesan selama proses | Versi "mengarahkan run tanpa berhenti" (Claude Code, ChatGPT agent) tidak cocok: orc tidak punya saluran pesan di tengah run, dan jaminan (data sesudah persetujuan, ambang dari kata user) mengharuskan pesan baru dibaca router sebagai giliran baru | Diganti: kirim selama proses = stop + pesan diantrekan di BFF (disimpan di `jobs.input`, tanpa migrasi) dan dijalankan otomatis begitu run berhenti. Worker tidak mengambil pesan antre selama run pemilik yang sama masih aktif |
+| I1 stop sejak permintaan diterima | Ya: router pesan pertama (3–11 dtk) kini berjalan sebelum run terdaftar | Pendaftaran dipindah sebelum `routed()` di `main.py` |
+| I2 teks "Stopping…" | Ya | Menyebut bahwa langkah yang sedang berjalan ditunggu selesai (maks. sekitar 3 menit) |
+| I3 batal job sandbox di tengah | Kurang cocok: sesi `run_python` tidak punya rute batal; mematikan proses menghapus isi sesi | Tidak dibangun sekarang; usulan ke `FUTURE_PLAN.md` |
+| EXPLORE W (`/v1/ask`) | Ya: `/v1/ask` sudah aktif di web governor dev (riwayat, `timeline` peristiwa mendatang dengan waktu disalin dari sumber, `follow_ups`), dibatasi USD 0,06 dan 180 dtk; orc sudah punya `WEB_GOVERNOR_URL` | Teks jawaban `/v1/ask` tidak ditempel ke jawaban yang diperiksa gerbang angka (sumbernya tidak terdaftar di orc, angkanya akan ditandai). Diganti: backend menulis bagian "Riwayat" dan "Peristiwa ke depan" dari data terstruktur `/v1/ask`, tiap butir bertanggal dan ber-link, diberi label "dari berita" |
+| EXPLORE riwayat | `/v1/ask` mencari 24 bulan secara bawaan, 7 tahun bila pertanyaan menanyakan kapan/seberapa sering | Tidak dipaksa 7 tahun untuk semua pertanyaan (waktu dan biaya naik); penilaian tetap di `/v1/ask` |
+| EXPLORE opsi B | Ya: langkah B mode 4 (rencana otomatis) dilewati; pilihan "Uji dengan data: …" memakai mekanisme pilihan cepat yang ada (`options` {label, route}, route RESEARCH), jadi tanpa jenis aksi baru di EDGE | — |
+| Pertanyaan lanjutan (EXPLORE + ANALYSIS) | Ya | Satu panggilan model kecil di orc untuk kedua jalur (`follow_ups` dari `/v1/ask` hanya jadi bahan), supaya bentuk dan aturannya sama. Dikirim lewat `options` dengan tambahan `kind: FOLLOW_UP`; klik = pesan berikutnya dengan rute pilihannya |
+| E1(1) baris kelengkapan | Ya: asal data (tabel sumber, periode, filter) sudah ada di metadata ekspor | Bila kolom tanggal/kunci hasil tidak bernama sama dengan kolom tabel sumber, baris menyebut "tidak dapat dicek otomatis", tidak menebak. Dibandingkan dengan setiap tabel sumber yang punya kolom kunci itu, jumlah terbesar dipakai |
+| E1(2) nol sebenarnya ditulis 0 | Butuh arti "tidak ada baris" per tabel; `Table_Catalog` belum punya tempatnya (D05 OPEN) | Satu kolom baru `row_presence` (DENSE, ACTIVITY_ONLY, NOT_APPLICABLE) lewat migrasi, diisi untuk 48 tabel dengan status bukan VERIFIED bila disimpulkan; model membacanya dari katalog |
+| E1(3) aturan baris | Ya | Diturunkan di sandbox saat ekspor: kumpulan kolom non-angka terkecil yang unik |
+| E1(4) jumlah di jawaban | Ya | Satu kalimat di WRITING FOR THE READER (snapshot prompt); baris kelengkapan backend tetap jaminannya |
+| E2 terjemahan AI | Ya | Terjemahan dibuat sekali per kolom oleh DeepSeek lewat skrip, disimpan di kolom baru `Column_Catalog` (migrasi hasil generator, status DRAFT, bisa ditinjau), lalu dipakai ulang. Kolom tanpa terjemahan tampil dalam bahasa Inggris dengan tanda. Bahasa bawaan Indonesia; percakapan berbahasa Inggris memakai teks Inggris |
+| V-f, M119 A + B | Rencana EXEC-W masih berlaku (sandbox masih menolak `RANGE_INCLUDES_TODAY` tanpa melihat request yang sama; `AI_PLANNER_PARALLEL_PARTS=2` di dev) | Kode sandbox dan orc berubah sejak 2026-10-08, jadi inspeksi ulang singkat di awal fase |
+
+**Fase dan urutan (satu deploy dan satu cek per fase, supaya penyebab masalah jelas):**
+
+| Fase | Isi | Layanan | Migrasi | Cek berbayar |
+|---|---|---|---|---|
+| 1 | Stop S1, S2, S3, I1, I2 | orc, edge-bff | Tidak | Stop live + kirim selama proses + lanjutkan, ±USD 0,03 |
+| 2 | EXPLORE opsi B + W + pertanyaan lanjutan (EXPLORE dan ANALYSIS) | orc, EDGE | Tidak | 5 pertanyaan (makro, sektor, emiten, analisis, FACT sebagai kontrol), ±USD 0,40 |
+| 3 | Excel E1(1–4) + E2 | Governor/sandbox (hitung kelengkapan), orc, EDGE | `Table_Catalog.row_presence`, `Column_Catalog` teks Indonesia | Terjemahan ±USD 0,05; ekspor BBRI ulang + satu tabel lain, ±USD 0,05 |
+| 4 | Gelombang B: V-f + M119 A + B | sandbox, orc | Panduan metode v7, Tool_Catalog round baru | GT V-g + butir M119, hanya atas perintah, ±USD 0,40 |
+
+**Rincian per fase:**
+- **Fase 1.** Orc: `stop.running` sebelum `routed()`; `execution.stopped`; baris "yang sudah selesai" dari catatan
+  data (`user_texts`). BFF: `POST /api/v1/runs` saat ada run aktif dengan `after_stop: true` = stop run itu + simpan
+  pesan antre (satu per pemilik); `claim()` melewati pesan antre selama run pemilik aktif; pesan antre mewarisi
+  `conversation_id` run sebelumnya. EDGE: Send saat proses = "Stop & kirim"; tombol "Ubah & kirim ulang" pada jawaban
+  yang dihentikan; teks I2 di `edge-labels.js`. Tes: orc, BFF (antre, urutan, pemilik lain), browser.
+- **Fase 2.** Orc `mode4.first_round`: langkah B tidak dijalankan untuk EXPLORE; W berjalan sejajar dengan A (konteks
+  stop ikut ke thread); bagian Riwayat/Peristiwa ke depan ditulis backend; satu fungsi pertanyaan lanjutan (model
+  router DeepSeek, keluaran terstruktur, 3–5 pertanyaan dengan rute) untuk EXPLORE dan ANALYSIS; pilihan "Uji dengan
+  data: …" rute RESEARCH. EDGE: `options` dengan `kind: FOLLOW_UP` tampil di bawah "Pertanyaan lanjutan"
+  (`edge-view.js`, `edge-labels.js`). Dokumen: `AI_MODELS.md` (panggilan baru, `PURPOSE`), `AI_ROUTER.md` dan benchmark
+  router bila teks rute EXPLORE berubah, snapshot prompt bila prompt berubah.
+- **Fase 3.** Migrasi `row_presence` dan teks Indonesia (generator, DRYRUN lalu APPLY lewat job sementara, dibaca
+  balik); skrip terjemahan (keluaran ditinjau di git sebelum diterapkan). Ekspor: baris kelengkapan dan aturan baris di
+  lembar definisi; nilai 0 untuk hari aktif sumber tanpa aktivitas mengikuti `row_presence` (penilaian model, dibantu
+  katalog); kalimat E1(4) di prompt (snapshot). Part A A3.15 diperbarui: tabel baru wajib mengisi `row_presence` dan
+  teks Indonesia.
+- **Fase 4.** Seperti EXEC-W Gelombang B (B1 V-f, B2 M119), didahului inspeksi ulang singkat.
+
+**Jaminan yang tetap:** data hanya sesudah persetujuan; setiap angka bersumber (bagian dari berita diberi label dan
+link); tidak ada pilihan yang menjalankan sesuatu tanpa klik user; satu run aktif per pemilik; model dan provider tidak
+berubah (`AI_MODEL`, `AI_PROVIDER_SORT`, saklar mode tetap).
+
+**Risiko:**
+- Fase 2 menambah panggilan web di setiap EXPLORE; bisa tumpang tindih dengan pencarian web langkah A. Diukur di cek
+  5 pertanyaan (waktu, biaya, isi ganda).
+- Pesan antre (S3) menunggu langkah yang sedang berjalan, sampai sekitar 3 menit.
+- Terjemahan katalog bisa keliru: status DRAFT, ditinjau, teks Inggris tetap sumber.
+- Kredit: sisa batas kunci sekitar USD 4,47; perkiraan semua cek ±USD 1,0. Kredit dicek sebelum tiap cek berbayar.
+
+**Jalan balik:** per fase, redeploy deployment sebelumnya (orc `eddb0530`, edge-bff `415baf87`, sandbox `8c06ff02`);
+migrasi hanya menambah kolom atau versi baru.
+
+**Pertanyaan untuk user sebelum go:** urutan fase 1 → 2 → 3 → 4 setuju? Terjemahan E2 disimpan sekali per kolom
+(usulan) setuju?
 
 ### EXEC-M109: pertanyaan tanya-balik router tetap dipakai
 
