@@ -46,42 +46,92 @@ class Store:
         with self.connect() as c:
             c.execute('UPDATE edge_bff.sessions SET revoked_at=now() WHERE token_hash=%s', (hashed,))
 
-    def submit(self, owner, key, payload):
+    def submit(self, owner, key, payload, after_stop=False):
+        """A new job. EXEC-Y Fase 1 (S3): sent with after_stop while a run is active, the message waits inside that
+        run (input.next) and becomes its own job, in the same conversation, the moment that run ends (_promote); the
+        run is marked to stop. One active job per owner stays a database rule; one waiting message per run."""
         fingerprint = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
         with self.connect() as c:
             c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', (owner,))
             row = c.execute('SELECT * FROM edge_bff.jobs WHERE owner_key=%s AND submission_key=%s', (owner, key)).fetchone()
-            if row:
-                if row['fingerprint'] != fingerprint:
+            waiting = c.execute("""SELECT * FROM edge_bff.jobs WHERE owner_key=%s AND input->'next'->>'submission_key'=%s""",
+                                (owner, key)).fetchone()
+            if row or waiting:
+                if (row or waiting['input']['next'])['fingerprint'] != fingerprint:
                     raise StoreError('SUBMISSION_CONFLICT')
-                return row, False
-            active = c.execute("SELECT 1 FROM edge_bff.jobs WHERE owner_key=%s AND state IN ('QUEUED','RUNNING','RECOVERING')", (owner,)).fetchone()
-            if active:
+                return (row or self._waiting(waiting)), False
+            active = c.execute("SELECT * FROM edge_bff.jobs WHERE owner_key=%s AND state IN ('QUEUED','RUNNING','RECOVERING')", (owner,)).fetchone()
+            if active and (not after_stop or (active['input'] or {}).get('next')):
                 raise StoreError('RUN_IN_PROGRESS')
+            request_id = 'edge_'+secrets.token_hex(16)
+            if active:
+                job_input = {**payload, 'after_request_id': active['request_id']}
+                nxt = {'request_id': request_id, 'submission_key': key, 'fingerprint': fingerprint, 'input': job_input}
+                active = c.execute("""UPDATE edge_bff.jobs SET input=input||jsonb_build_object('stop_requested',true,'next',%s::jsonb)
+                    WHERE request_id=%s RETURNING *""", (json.dumps(nxt), active['request_id'])).fetchone()
+                return self._waiting(active), True
             row = c.execute('''INSERT INTO edge_bff.jobs(request_id,owner_key,submission_key,fingerprint,input,conversation_id)
                 VALUES (%s,%s,%s,%s,%s,%s) RETURNING *''',
-                ('edge_'+secrets.token_hex(16), owner, key, fingerprint, Jsonb(payload), payload.get('conversation_id'))).fetchone()
+                (request_id, owner, key, fingerprint, Jsonb(payload), payload.get('conversation_id'))).fetchone()
             return row, True
+
+    @staticmethod
+    def _waiting(holder):
+        """The message waiting inside an active run, read like a job (QUEUED; FAILED once it was stopped)."""
+        nxt = holder['input']['next']
+        stopped = bool(nxt.get('stopped'))
+        return {'request_id': nxt['request_id'], 'owner_key': holder['owner_key'], 'input': nxt['input'],
+                'conversation_id': nxt['input'].get('conversation_id') or holder['conversation_id'],
+                'state': 'FAILED' if stopped else 'QUEUED', 'state_version': 0, 'run_status': None,
+                'error_code': 'STOPPED_BY_USER' if stopped else None, 'created_at': holder['updated_at'],
+                'updated_at': holder['updated_at'], 'completed_at': holder['updated_at'] if stopped else None,
+                'attempt_count': 0, 'lease_token': None}
+
+    def _promote(self, c, ended):
+        """The waiting message of a run that just ended becomes its own job, in the run's conversation."""
+        nxt = (ended['input'] or {}).get('next')
+        if not nxt:
+            return
+        job_input = dict(nxt['input'])
+        if not job_input.get('conversation_id') and ended['conversation_id']:
+            job_input['conversation_id'] = ended['conversation_id']
+        stopped = bool(nxt.get('stopped'))
+        c.execute('''INSERT INTO edge_bff.jobs(request_id,owner_key,submission_key,fingerprint,input,conversation_id,
+                state,error_code,completed_at)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,CASE WHEN %s THEN now() END) ON CONFLICT DO NOTHING''',
+            (nxt['request_id'], ended['owner_key'], nxt['submission_key'], nxt['fingerprint'], Jsonb(job_input),
+             job_input.get('conversation_id'), 'FAILED' if stopped else 'QUEUED',
+             'STOPPED_BY_USER' if stopped else None, stopped))
 
     def job(self, owner, request_id):
         with self.connect() as c:
             row = c.execute('SELECT * FROM edge_bff.jobs WHERE owner_key=%s AND request_id=%s', (owner, request_id)).fetchone()
             if not row:
+                holder = c.execute("SELECT * FROM edge_bff.jobs WHERE owner_key=%s AND input->'next'->>'request_id'=%s",
+                                   (owner, request_id)).fetchone()
+                if holder:
+                    return self._waiting(holder)
                 raise StoreError('RUN_NOT_FOUND', 404)
             return row
 
     def stop_queued(self, owner, request_id):
         """The stop button on a run no worker has claimed: it ends here and never reaches Orc. None when a worker
-        claimed it first (the row lock orders this against claim), so the caller stops it at Orc instead."""
+        claimed it first (the row lock orders this against claim), so the caller stops it at Orc instead. A message
+        waiting inside a run (S3) is marked stopped and becomes a stopped job when that run ends."""
         with self.connect() as c:
             changed = c.execute('''UPDATE edge_bff.jobs SET state='FAILED',error_code='STOPPED_BY_USER',
                 state_version=state_version+1,updated_at=now(),completed_at=now()
                 WHERE owner_key=%s AND request_id=%s AND state='QUEUED' AND lease_token IS NULL RETURNING *''',
                 (owner, request_id)).fetchone()
             if changed:
+                self._promote(c, changed)
                 logger.info(json.dumps({'event':'job_state', 'request_id':changed['request_id'],
                                         'state':changed['state'], 'version':changed['state_version']}))
-            return changed
+                return changed
+            holder = c.execute("""UPDATE edge_bff.jobs SET input=jsonb_set(input,'{next,stopped}','true'::jsonb)
+                WHERE owner_key=%s AND input->'next'->>'request_id'=%s AND state IN ('QUEUED','RUNNING','RECOVERING')
+                RETURNING *""", (owner, request_id)).fetchone()
+            return self._waiting(holder) if holder else None
 
     def claim(self, seconds):
         with self.connect() as c:
@@ -99,6 +149,13 @@ class Store:
     def active(self, owner):
         with self.connect() as c:
             return c.execute("SELECT request_id FROM edge_bff.jobs WHERE owner_key=%s AND state IN ('QUEUED','RUNNING','RECOVERING')", (owner,)).fetchone()
+
+    def request_stop(self, owner, request_id):
+        """Mark a queued or running job to stop (the worker never dispatches a marked job); the job, or None."""
+        with self.connect() as c:
+            return c.execute("""UPDATE edge_bff.jobs SET input=input||'{"stop_requested":true}'::jsonb
+                WHERE owner_key=%s AND request_id=%s AND state IN ('QUEUED','RUNNING','RECOVERING') RETURNING *""",
+                (owner, request_id)).fetchone()
 
     def heartbeat(self, request_id, token, seconds):
         with self.connect() as c:
@@ -125,6 +182,8 @@ class Store:
                  row['request_id'], row['lease_token'])).fetchone()
             if changed and changed['conversation_id']:
                 self._index(c, changed)
+            if changed and terminal:
+                self._promote(c, changed)
             if changed:
                 logger.info(json.dumps({'event':'job_state', 'request_id':changed['request_id'],
                                         'state':changed['state'], 'version':changed['state_version']}))

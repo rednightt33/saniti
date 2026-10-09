@@ -3740,6 +3740,9 @@ class AgentOrchestrator:
                 final = None
         log_event("ai_run_exhausted", request_id=state.request_id, code=code, iterations=state.iterations,
                   draft=draft.response_type if draft is not None else None, delivered=final is not None)
+        if code == "STOPPED_BY_USER":  # EXEC-Y Fase 1 (S2): what was already done stays with the conversation
+            line = f"{line} " + texts.stopped_done_line(len(state.data_record.get("tables") or {}),
+                                                        len(state.data_record.get("outputs") or []))
         if final is not None and final.response_type in ("ANSWER", "LIMITATION"):
             return final.model_copy(update={"response_type": "LIMITATION",
                                             "limitations": [*final.limitations, line]})

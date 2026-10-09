@@ -10482,14 +10482,19 @@ function Monitor({ go }) {
       }catch(e){if(!disposed)setApiError(e.message);}})();
       return ()=>{disposed=true;followRef.current?.();};
     },[]);
-    const submit=async (extra={},messageOverride=null,{plain=false}={})=>{
-      const question=(messageOverride || prompt).trim();if(!question || active || submitting)return;
+    // EXEC-Y Fase 1 (S3): afterStop sends while a run is active: that run stops and this message runs next in its
+    // conversation. Enter never does this; only the Stop & send button.
+    const submit=async (extra={},messageOverride=null,{plain=false,afterStop=false}={})=>{
+      const question=(messageOverride || prompt).trim();if(!question || submitting || (active && !afterStop))return;
       setSubmitting(true);setApiError("");
-      const existing=selectedId?.startsWith("conv_")?selectedId:null;
-      const payload={message:question,...(existing?{conversation_id:existing}:{}),...extra,...(pendingReply&&!plain?{plan_reply:{...pendingReply,revision_instruction:question.slice(0,2000)}}:{})};
+      const holder=afterStop && executionRun ? items.find(c=>c.runs.some(r=>r.id===executionRun.id)) : null;
+      const target=holder ? holder.id : selectedId;
+      const existing=target?.startsWith("conv_")?target:null;
+      const payload={message:question,...(existing?{conversation_id:existing}:{}),...(afterStop?{after_stop:true}:{}),...extra,...(pendingReply&&!plain?{plan_reply:{...pendingReply,revision_instruction:question.slice(0,2000)}}:{})};
       const fingerprint=JSON.stringify(payload);
       const pending=submissionRef.current?.fingerprint===fingerprint?submissionRef.current:{fingerprint,key:crypto.randomUUID()};submissionRef.current=pending;
-      try{const accepted=await Edge.createRun({...payload,submission_key:pending.key});const now=new Date().toISOString(),id=accepted.conversation_id || existing || "draft:"+accepted.request_id;
+      try{const accepted=await Edge.createRun({...payload,submission_key:pending.key});const now=new Date().toISOString(),id=accepted.conversation_id || existing || holder?.id || "draft:"+accepted.request_id;
+        if(afterStop && accepted.after_request_id)setStoppingId(accepted.after_request_id);
         const r={id:accepted.request_id,question,status:"submitted",mode:"Standard",createdAt:now,attachments:[],sources:[],steps:[{id:"queued",label:"Queued",status:"running",detail:"Accepted by server"}]};
         setItems(current=>{const found=current.find(c=>c.id===id);if(found)return current.map(c=>c.id===id && !c.runs.some(x=>x.id===r.id)?{...c,messages:[...c.messages,{id:r.id+"-user",role:"user",content:question,createdAt:now,runId:r.id}],runs:[...c.runs,r]}:c);return [{id,title:question.slice(0,80),bookmarked:false,createdAt:now,updatedAt:now,messages:[{id:r.id+"-user",role:"user",content:question,createdAt:now,runId:r.id}],runs:[r]},...current];});
         setSelectedId(id);setSelectedRunId(r.id);setAutoOpenRunId(r.id);setDetailsOpen(true);setPrompt("");setPendingReply(null);setInputHint(null);submissionRef.current=null;followRun(id,r.id);
@@ -10582,7 +10587,7 @@ function Monitor({ go }) {
                             file))) : null),
                     element("div", {className:"user-message-footer"},element("div", { className:"user-sent-at" }, formatMessageJakarta(message.createdAt)),element(MessageClipboardActions,{getText:()=>message.content,kind:"user"})),
                     messageRun && element(fragment, null,
-                        element(RunStatus, { run: messageRun, expanded: expandedRuns.includes(messageRun.id), toggle: () => { setSelectedRunId(messageRun.id); setSourceDetail(null); setActiveSection("conditions"); setExpandedRuns(current => current.includes(messageRun.id) ? current.filter(id => id !== messageRun.id) : [...current, messageRun.id]); }, retry: () => retry(messageRun) }),
+                        element(RunStatus, { run: messageRun, stopping: stoppingId === messageRun.id, expanded: expandedRuns.includes(messageRun.id), toggle: () => { setSelectedRunId(messageRun.id); setSourceDetail(null); setActiveSection("conditions"); setExpandedRuns(current => current.includes(messageRun.id) ? current.filter(id => id !== messageRun.id) : [...current, messageRun.id]); }, retry: () => retry(messageRun) }),
                         messageRun.result && element(ResearchDocument, { run: messageRun, togglePin: () => togglePin(messageRun), act, planIndex, enabled: !active && !submitting && messageRun.id === latestRun(selected)?.id, planEnabled: !active && !submitting && (!selected.plan || selected.plan.status === "PENDING") && messageRun.id === latestRun(selected)?.id, tableMenu: tableMenu, setTableMenu: setTableMenu, expand: () => setExpandedTable(messageRun) }))); })),
                 !autoFollow && element("button", { className: "jump-latest", onClick: () => { setAutoFollow(true); scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); } },
                     element(Icon, { name: "arrow-down" }),
@@ -10634,7 +10639,7 @@ function Monitor({ go }) {
                             element(EdgeModelSelector, null),
                             element(Button, { kind: "ghost", icon: "sliders", disabled: true, title: "Data Scope is not available yet" }, "Data Scope"),
                             element(IconButton, { icon: "attach", disabled: true, title: "Attachments are not available yet" })),
-                        active && !submitting ? element(Button, { kind: "primary", disabled: stoppingId === executionRun.id, icon: "stop", onClick: stopRun }, stoppingId === executionRun.id ? edgeUi().stopping : edgeUi().stop) : element(Button, { kind: "primary", disabled: active || submitting || !prompt.trim(), icon: "send", onClick: () => submit() }, submitting ? "Processing…" : "Submit")))),
+                        active && !submitting ? (prompt.trim() ? element(Button, { kind: "primary", icon: "send", onClick: () => submit({}, null, {afterStop: true}) }, edgeUi().stopAndSend) : element(Button, { kind: "primary", disabled: stoppingId === executionRun.id, icon: "stop", onClick: stopRun }, stoppingId === executionRun.id ? edgeUi().stopping : edgeUi().stop)) : element(Button, { kind: "primary", disabled: active || submitting || !prompt.trim(), icon: "send", onClick: () => submit() }, submitting ? "Processing…" : "Submit")))),
             detailsOpen && element("aside", { id:"edge-details",className: "details-panel",role:narrow&&mobileDetailsOpen?"dialog":undefined,"aria-modal":narrow&&mobileDetailsOpen?true:undefined,"aria-label":"Response details",inert:narrow&&historyOpen },
                 element(DetailsResizeHandle,{width:detailsWidth,setWidth:setDetailsWidth}),
                 element("div", { className: "details-head" },
@@ -10702,11 +10707,15 @@ function ResearchScrollMarker({ scrollRef, conversationId }) {
     return element("div", {ref:markerRef,className:"edge-scroll-marker",role:"scrollbar",tabIndex:0,"aria-label":"Posisi research; tahan dan tarik untuk scroll","aria-orientation":"vertical","aria-valuemin":0,"aria-valuemax":100}, "Pertanyaan");
 }
 
-function RunStatus({ run, expanded, toggle, retry }) {
+function RunStatus({ run, stopping, expanded, toggle, retry }) {
     const active = ["submitted", "running", "streaming"].includes(run.status);
     if (active) return element("div", { className: "edge-inline-progress", role: "status", "aria-live": "polite" },
         element("span", { className: "edge-response-dots", "aria-hidden": "true" }, element("i"), element("i"), element("i")),
-        element("span", null, run.status === "streaming" ? "Streaming research result…" : run.steps.find(step => step.status === "running")?.label ?? "Submitted"));
+        element("span", null, stopping ? edgeUi().stoppingHint : run.status === "streaming" ? "Streaming research result…" : run.steps.find(step => step.status === "running")?.label ?? "Submitted"));
+    // EXEC-Y Fase 1 (S1): an answer stopped by the user offers its question back to edit and resend
+    if (run.stopped && run.status === "completed") return element("div", { className: "run-inline-state cancelled", role: "status" },
+        element("div", null, element("strong", null, edgeUi().stopped), element("span", null, edgeUi().stoppedHint)),
+        element(Button, { icon: "refresh", onClick: retry }, edgeUi().editResend));
     if (run.status === "failed" || run.status === "cancelled") return element("div", { className: `run-inline-state ${run.status}`, role: "status" },
         element("div", null, element("strong", null, run.status === "failed" ? "Research failed" : "Research cancelled"), element("span", null, run.error === "STOPPED_BY_USER" ? edgeUi().stopped : run.error)),
         element(Button, { icon: "refresh", onClick: retry }, "Retry"));

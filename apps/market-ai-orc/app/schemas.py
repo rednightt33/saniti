@@ -603,6 +603,8 @@ class ExecutionMetadata(BaseModel):
     friction: dict[str, int] | None = None
     # EXEC-W A1 (M121, app/stop_policy.py): the answer paused instead of ending; its cause and the choices it asked
     pause: dict[str, Any] | None = None
+    # EXEC-Y Fase 1 (S1): the user pressed Stop while this answer ran (app/stop.py); omitted otherwise
+    stopped: bool | None = None
 
     @model_serializer(mode="wrap")
     def _without_unused_path(self, handler: Any) -> Any:
@@ -610,7 +612,7 @@ class ExecutionMetadata(BaseModel):
         shape."""
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("analysis_path", "mode", "analysis_final_statuses", "friction", "pause"):
+            for key in ("analysis_path", "mode", "analysis_final_statuses", "friction", "pause", "stopped"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data

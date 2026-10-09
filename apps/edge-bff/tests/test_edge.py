@@ -147,7 +147,8 @@ def test_deployment_refuses_admin_credentials_and_short_deadline(settings):
 
 def test_stop_button_ends_a_queued_run_here_and_asks_orc_for_a_running_one(settings,store):
     """EXEC-X 2026-10-09: a queued run never reaches Orc; a running one is flagged at Orc (only its owner's);
-    nothing running answers 409; the stop needs the CSRF token."""
+    nothing running answers 409; the stop needs the CSRF token. EXEC-Y Fase 1: a claimed run stopped before its
+    dispatch is never sent to Orc."""
     orc=FakeOrc()
     with TestClient(create_app(settings,store,orc)) as c:
         h=login(c);assert c.get('/api/v1/auth/session').json()['capabilities']['cancel'] is True
@@ -157,14 +158,50 @@ def test_stop_button_ends_a_queued_run_here_and_asks_orc_for_a_running_one(setti
         s=c.get('/api/v1/runs/'+id).json();assert s['state']=='FAILED' and s['error_code']=='STOPPED_BY_USER'
         assert store.claim(90) is None and not orc.calls and not getattr(orc,'stopped',[])
         assert c.post('/api/v1/runs/'+id+'/stop',headers=h,json={}).status_code==409  # already ended
-        id=c.post('/api/v1/runs',headers=h,json={'message':'Running','submission_key':'r'}).json()['request_id']
+        id=c.post('/api/v1/runs',headers=h,json={'message':'Claimed','submission_key':'r'}).json()['request_id']
         row=store.claim(90);assert row['request_id']==id and store.stop_queued(settings.owner,id) is None
         r=c.post('/api/v1/runs/'+id+'/stop',headers=h,json={});assert r.status_code==202 and r.json()=={'status':'STOPPING'}
         assert orc.stopped==[id]
-        asyncio.run(Worker(settings,store,orc).process(row))  # the run's answer still arrives
-        assert c.get('/api/v1/runs/'+id).json()['state']=='FINISHED'
+        asyncio.run(Worker(settings,store,orc).process(row))  # marked before dispatch: never sent to Orc
+        s=c.get('/api/v1/runs/'+id).json();assert s['state']=='FAILED' and s['error_code']=='STOPPED_BY_USER' and not orc.calls
         assert c.post('/api/v1/runs/'+id+'/stop',headers=h,json={}).status_code==409
         assert c.post('/api/v1/runs/edge_missing/stop',headers=h,json={}).status_code==404
+
+
+def test_a_dispatched_run_is_flagged_at_orc_and_its_answer_still_arrives(settings,store):
+    class Running(FakeOrc):
+        def stop(self,owner,id):self.stopped=getattr(self,'stopped',[])+[id];return 'STOPPING'
+    orc=Running()
+    with TestClient(create_app(settings,store,orc)) as c:
+        h=login(c);id=c.post('/api/v1/runs',headers=h,json={'message':'Run','submission_key':'d'}).json()['request_id']
+        row=store.claim(90);assert store.attempted(row)  # dispatched
+        assert c.post('/api/v1/runs/'+id+'/stop',headers=h,json={}).json()=={'status':'STOPPING'} and orc.stopped==[id]
+
+
+def test_a_message_sent_while_a_run_is_active_stops_it_and_runs_next_in_its_conversation(settings,store):
+    """S3: Send while running = stop that run, then this message runs by itself once it ended; one waiting message;
+    a plain send while running is still refused; the waiting message takes the stopped run's conversation."""
+    orc=FakeOrc()
+    with TestClient(create_app(settings,store,orc)) as c:
+        h=login(c)
+        first=c.post('/api/v1/runs',headers=h,json={'message':'First','submission_key':'a'}).json()['request_id']
+        row=store.claim(90);assert row['request_id']==first
+        assert c.post('/api/v1/runs',headers=h,json={'message':'Plain','submission_key':'p'}).status_code==409
+        r=c.post('/api/v1/runs',headers=h,json={'message':'Instead','submission_key':'b','after_stop':True})
+        assert r.status_code==202 and r.json()['after_request_id']==first and r.json()['state']=='QUEUED',r.text
+        second=r.json()['request_id']
+        assert c.post('/api/v1/runs',headers=h,json={'message':'Third','submission_key':'c','after_stop':True}).status_code==409
+        assert store.claim(90) is None  # waits for the run it follows
+        s2=c.get('/api/v1/runs/'+second).json();assert s2['state']=='QUEUED' and s2['message']=='Instead'
+        conv='conv_'+'a'*32
+        with store.connect() as db:db.execute('UPDATE edge_bff.jobs SET conversation_id=%s WHERE request_id=%s',(conv,first))
+        asyncio.run(Worker(settings,store,orc).process(row))
+        assert c.get('/api/v1/runs/'+first).json()['error_code']=='STOPPED_BY_USER'
+        nxt=store.claim(90);assert nxt['request_id']==second and nxt['conversation_id']==conv and nxt['input']['conversation_id']==conv
+        assert 'after_stop' not in nxt['input'] and nxt['input']['after_request_id']==first
+        orc.saved['seed']={'request_id':'seed','conversation_id':conv,'turn_status':'COMPLETED','run_status':'COMPLETED','response':{},'user_message':'x'}
+        asyncio.run(Worker(settings,store,orc).process(nxt))
+        assert orc.calls[-1][2]['conversation_id']==conv and c.get('/api/v1/runs/'+second).json()['state']=='FINISHED'
 
 
 def test_orc_client_stop_reads_202_and_404_and_never_forwards_upstream_text():
@@ -178,3 +215,17 @@ def test_orc_client_stop_reads_202_and_404_and_never_forwards_upstream_text():
     with pytest.raises(OrcError):broken.stop('o','edge_1')
     missing=OrcClient(settings,httpx.Client(base_url='http://orc',transport=httpx.MockTransport(lambda r:httpx.Response(404))))
     assert missing.stop('o','edge_2')=='NOT_RUNNING'
+
+
+def test_a_waiting_message_can_itself_be_stopped(settings,store):
+    orc=FakeOrc()
+    with TestClient(create_app(settings,store,orc)) as c:
+        h=login(c)
+        first=c.post('/api/v1/runs',headers=h,json={'message':'First','submission_key':'a'}).json()['request_id']
+        row=store.claim(90)
+        second=c.post('/api/v1/runs',headers=h,json={'message':'Next','submission_key':'b','after_stop':True}).json()['request_id']
+        assert c.post('/api/v1/runs/'+second+'/stop',headers=h,json={}).json()=={'status':'STOPPED'}
+        asyncio.run(Worker(settings,store,orc).process(row))
+        s=c.get('/api/v1/runs/'+second).json();assert s['state']=='FAILED' and s['error_code']=='STOPPED_BY_USER'
+        assert store.claim(90) is None and not orc.calls
+        assert c.post('/api/v1/runs',headers=h,json={'message':'Next','submission_key':'b','after_stop':True}).json()['request_id']==second  # idempotent

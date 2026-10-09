@@ -1469,6 +1469,8 @@ migrasi hanya menambah kolom atau versi baru.
 **Keputusan user 2026-10-09:** "setuju untuk urutan fase 1 2 3 4". Belum ada "go" untuk fase mana pun; pertanyaan E2
 (terjemahan disimpan sekali per kolom) belum dijawab.
 
+**Go Fase 1 (user 2026-10-09: "go for phase 1").** Fase 2–4 tetap menunggu go masing-masing.
+
 **Tambahan Fase 2 (user 2026-10-09: "Pertanyaan lanjutan … —>+ tambah idea research boleh?", lalu dikoreksi: "maksudnya
 bukan idea research, tapi ide untuk pertanyaan insight lanjutan").** Dimasukkan ke desain Fase 2, menunggu go bersama
 fasenya. Usulan "ide riset" sebelumnya dibatalkan; pilihan "Uji dengan data: …" (EXPLORE opsi B) tetap satu butir.

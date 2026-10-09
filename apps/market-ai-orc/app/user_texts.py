@@ -296,3 +296,12 @@ def export_columns(names: list, labels: dict | None, meanings: dict | None) -> l
         rows.append({"label": (labels or {}).get(name) or words(name).capitalize(), "name": name,
                      "meaning": (found.get("meaning") or "")[:300] or None, "unit": found.get("unit")})
     return rows
+
+
+# ---- the stop button (EXEC-Y Fase 1, S2): what a stopped answer had already done ----
+STOPPED_DONE = "Sebelum dihentikan: {tables} data sudah dibaca dan {outputs} tabel hasil sudah selesai. Catatan itu ikut ke pesan berikutnya di percakapan ini."
+STOPPED_NOTHING_DONE = "Sebelum dihentikan belum ada data yang selesai dibaca."
+
+
+def stopped_done_line(tables: int, outputs: int) -> str:
+    return STOPPED_DONE.format(tables=tables, outputs=outputs) if tables or outputs else STOPPED_NOTHING_DONE

@@ -54,6 +54,14 @@ def capture(page, name):
         page.screenshot(path=str(Path(directory) / (name + '.png')))
 
 
+def wait_until(check, seconds=5):
+    import time
+    end = time.monotonic() + seconds
+    while not check():
+        assert time.monotonic() < end, 'condition not met in time'
+        time.sleep(0.05)
+
+
 def sign_in(page, origin):
     page.goto(origin + '/monitor')
     page.get_by_label('Login', exact=True).fill('owner')
@@ -96,6 +104,8 @@ def dummy_orc(server):
             result.update(status='FAILED', error={'code': 'DUMMY_FAILURE'})
         elif question == 'Dummy limited':
             result['status'] = 'LIMITED'
+        elif question == 'Dummy stopped':
+            result['execution']['stopped'] = True  # EXEC-Y Fase 1: Orc says the user stopped this answer
         if question.startswith('Dummy'):
             result['response'].update(
                 answer='GOTO — jawaban dummy untuk pengujian UI.\n\nIni simulasi, bukan analisis investasi.\n\n'
@@ -137,7 +147,8 @@ def test_loading_animation_refresh_and_completed_answer(dummy_orc, browser_page)
         stop.click()
         page.get_by_role('button', name='Stopping…', exact=True).wait_for()
         assert page.get_by_role('button', name='Stopping…', exact=True).is_disabled()
-        assert getattr(orc, 'stopped', []) and orc.stopped[-1].startswith('edge_')
+        wait_until(lambda: getattr(orc, 'stopped', []))  # the button turns first; the request follows
+        assert orc.stopped[-1].startswith('edge_')
         page.reload()
         page.locator('.edge-inline-progress').wait_for()
         assert 'Dummy GOTO response' in page.locator('.user-message').inner_text()
@@ -157,6 +168,42 @@ def test_loading_animation_refresh_and_completed_answer(dummy_orc, browser_page)
         page.get_by_role('tab', name='Sources', exact=True).click()
         assert page.get_by_text('IDX — dummy metadata', exact=True).is_visible()
         capture(page, 'desktop-sources')
+    finally:
+        release.set()
+
+
+def test_stop_and_send_then_edit_and_resend(dummy_orc, browser_page):
+    """EXEC-Y Fase 1: typing while a run is active offers Stop & send (the run stops, the message runs next in the
+    same conversation); a stopped answer offers its question back (Edit & resend). Enter alone never stops a run."""
+    origin, orc = dummy_orc
+    page = browser_page
+    entered, release = threading.Event(), threading.Event()
+    original = orc.run
+    def blocked(owner, request_id, payload):
+        if payload['message'] == 'Dummy first':
+            entered.set()
+            assert release.wait(15)
+        return original(owner, request_id, payload)
+    orc.run = blocked
+    sign_in(page, origin)
+    try:
+        submit(page, 'Dummy first')
+        assert entered.wait(3)
+        page.get_by_role('button', name='Stop', exact=True).wait_for()
+        composer = page.get_by_placeholder('Ask a research question…')
+        composer.fill('Dummy stopped')
+        composer.press('Enter')
+        assert composer.input_value() == 'Dummy stopped' and len(orc.calls) == 0  # Enter does not stop or send
+        page.get_by_role('button', name='Stop & send', exact=True).click()
+        page.get_by_text('Stopping — waiting for the current step to finish', exact=True).wait_for()
+        wait_until(lambda: getattr(orc, 'stopped', []))
+        release.set()
+        saved(page, 2)
+        assert [call[2]['message'] for call in orc.calls] == ['Dummy first', 'Dummy stopped']
+        assert orc.calls[1][2]['conversation_id'] == orc.saved[orc.calls[0][1]]['conversation_id']
+        page.get_by_role('button', name='Edit & resend', exact=True).click()
+        assert composer.input_value() == 'Dummy stopped'
+        capture(page, 'stopped-edit-resend')
     finally:
         release.set()
 

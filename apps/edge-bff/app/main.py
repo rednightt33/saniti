@@ -22,6 +22,7 @@ from .store import Store, StoreError, TERMINAL
 from .worker import Worker
 
 COOKIE = 'edge_session'
+STOP_RETRIES = 3  # EXEC-Y Fase 1 (I1): a run dispatched a moment ago is registered at Orc on receipt
 STATIC = Path(__file__).resolve().parents[1] / 'static'
 SCRIPT_NAME = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*')
 CONV = r'^conv_[0-9a-f]{32}$'
@@ -55,6 +56,8 @@ class RunInput(Strict):
     conversation_id: str | None = Field(default=None, pattern=CONV)
     chosen_option: str | None = Field(default=None, pattern=CHOICES)
     plan_reply: PlanReply | None = None
+    # EXEC-Y Fase 1 (S3): sent while a run is active = stop that run and run this message next
+    after_stop: bool = False
 
     @model_validator(mode='after')
     def check_message(self):
@@ -230,25 +233,44 @@ def create_app(settings=None, store=None, orc=None):
 
     @app.post('/api/v1/runs', status_code=202)
     async def submit(body: RunInput, _=Depends(write)):
-        payload = body.model_dump(exclude_none=True, exclude={'submission_key'})
+        payload = body.model_dump(exclude_none=True, exclude={'submission_key', 'after_stop'})
         if body.conversation_id:
             await asyncio.to_thread(store.conversation, settings.owner, body.conversation_id)
             if not await asyncio.to_thread(orc.messages, settings.owner, body.conversation_id):
                 raise StoreError('CONVERSATION_EXPIRED', 410)
-        row, created = await asyncio.to_thread(store.submit, settings.owner, body.submission_key, payload)
+        row, created = await asyncio.to_thread(store.submit, settings.owner, body.submission_key, payload,
+                                               body.after_stop)
+        after = (row['input'] or {}).get('after_request_id')
+        before = await asyncio.to_thread(store.job, settings.owner, after) if after else None
+        if before is not None and created:  # S3: the run this message follows is stopped; this one waits for it
+            await stop_job(before)
         return {'request_id': row['request_id'], 'conversation_id': row['conversation_id'],
-                'state': row['state'], 'state_version': row['state_version'], 'created': created}
+                'state': row['state'], 'state_version': row['state_version'], 'created': created,
+                **({'after_request_id': before['request_id']} if before is not None else {})}
+
+    async def stop_job(row):
+        """The stop button (EXEC-X, EXEC-Y Fase 1): a queued run ends here and never reaches Orc; a running one is
+        marked (the worker never dispatches a marked run) and flagged at Orc, which stops before its next model call
+        while the run's answer still arrives through the worker. NOT_RUNNING when there is nothing to stop."""
+        if row['state'] == 'QUEUED' and await asyncio.to_thread(store.stop_queued, settings.owner, row['request_id']):
+            return 'STOPPED'
+        if row['state'] not in ('QUEUED', 'RUNNING', 'RECOVERING'):
+            return 'NOT_RUNNING'
+        marked = await asyncio.to_thread(store.request_stop, settings.owner, row['request_id'])
+        for attempt in range(STOP_RETRIES):
+            status = await asyncio.to_thread(orc.stop, settings.owner, row['request_id'])
+            if status != 'NOT_RUNNING':
+                return status
+            if marked and not marked['attempt_count']:
+                return 'STOPPING'  # not dispatched yet: the worker ends it before it reaches Orc
+            if attempt + 1 < STOP_RETRIES:
+                await asyncio.sleep(settings.poll_seconds)  # dispatched a moment ago: Orc registers it on receipt
+        return 'NOT_RUNNING'
 
     @app.post('/api/v1/runs/{request_id}/stop')
     async def stop_run(request_id: str, _=Depends(write)):
-        # The stop button (EXEC-X 2026-10-09): a queued run ends here; a running one stops at Orc before its next
-        # model call and its answer still arrives through the worker. 409 when there is nothing to stop yet/anymore.
         row = await asyncio.to_thread(store.job, settings.owner, request_id)
-        status = 'NOT_RUNNING'
-        if row['state'] == 'QUEUED' and await asyncio.to_thread(store.stop_queued, settings.owner, request_id):
-            status = 'STOPPED'
-        elif row['state'] in ('QUEUED', 'RUNNING', 'RECOVERING'):
-            status = await asyncio.to_thread(orc.stop, settings.owner, request_id)
+        status = await stop_job(row)
         return JSONResponse({'status': status}, status_code=409 if status == 'NOT_RUNNING' else 202)
 
     @app.get('/api/v1/runs/{request_id}')

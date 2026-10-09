@@ -524,6 +524,13 @@ def create_app(
         return (request.model_copy(update={"analysis_path": path_for(number)}),
                 ModeExecution(mode=number, name=MODES[number], source=source))
 
+    def stopped(result: AgentRunResponse, flag: Any) -> AgentRunResponse:
+        """EXEC-Y Fase 1 (S1): an answer the user stopped says so (execution.stopped), so a client can offer to edit
+        and resend the question."""
+        if not flag.is_set():
+            return result
+        return result.model_copy(update={"execution": result.execution.model_copy(update={"stopped": True})})
+
     def with_mode(result: AgentRunResponse, mode: ModeExecution) -> AgentRunResponse:
         if result.execution.mode is not None and result.execution.mode.source in ("ROUTER", "CHOICE"):
             return result  # the first-message router recorded the mode it chose
@@ -564,8 +571,8 @@ def create_app(
             request, mode = routed(payload, payload.continuation)
             caller = current_caller_path.set(payload.analysis_path if mode.source == "CALLER" else None)
             try:
-                with stop.running(payload.request_id, None):
-                    return with_mode(orchestrator.run(request), mode)
+                with stop.running(payload.request_id, None) as flag:
+                    return stopped(with_mode(orchestrator.run(request), mode), flag)
             finally:
                 current_caller_path.reset(caller)
         try:
@@ -596,12 +603,13 @@ def create_app(
             extra = {"data_record": record} if record else {}
             caller = current_caller_path.set(payload.analysis_path if mode.source == "CALLER" else None)
             try:
-                with stop.running(payload.request_id, owner):
+                with stop.running(payload.request_id, owner) as flag:
                     if getattr(orchestrator, "conversation_reuse", False):
                         result = orchestrator.run(request, conversation_key=reuse_key(owner, start.conversation_id),
                                                   **extra)
                     else:
                         result = orchestrator.run(request, **extra)
+                    result = stopped(result, flag)
             finally:
                 current_caller_path.reset(caller)
         except Exception:

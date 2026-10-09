@@ -92,6 +92,11 @@ class Worker:
                     if row['attempt_count'] >= 3:
                         await self.call(self.store.transition, row, 'INTERRUPTED', error_code='DISPATCH_UNCERTAIN')
                         return
+                    current = await self.call(self.store.job, row['owner_key'], row['request_id'])
+                    if (current['input'] or {}).get('stop_requested'):
+                        # EXEC-Y Fase 1: stopped before it reached Orc; nothing is dispatched
+                        await self.call(self.store.transition, row, 'FAILED', error_code='STOPPED_BY_USER')
+                        return
                     if not await self.call(self.store.attempted, row):
                         return
                     row['attempt_count'] += 1

@@ -38,6 +38,35 @@ def test_a_stopped_run_makes_no_new_model_call_and_says_it_was_stopped() -> None
     text = (result.response.answer if result.response else "") + " ".join(result.response.limitations
                                                                            if result.response else [])
     assert "dihentikan oleh Anda" in text
+    assert "Sebelum dihentikan belum ada data yang selesai dibaca." in text  # S2: what was done, here nothing
+
+
+def test_the_done_line_counts_what_the_conversation_keeps() -> None:
+    from app import user_texts
+    assert user_texts.stopped_done_line(7, 1) == ("Sebelum dihentikan: 7 data sudah dibaca dan 1 tabel hasil sudah "
+                                                 "selesai. Catatan itu ikut ke pesan berikutnya di percakapan ini.")
+
+
+def test_a_stopped_answer_says_so_and_a_finished_one_does_not() -> None:
+    """S1: execution.stopped tells the client the answer was stopped (it offers to edit and resend the question)."""
+    from app.main import create_app
+
+    class Stops:
+        def __init__(self, press):
+            self.press = press
+
+        def run(self, request, **_):
+            if self.press:
+                stop.current_stop.get().set()
+            agent, _ = orchestrator([])
+            agent.client = ScriptedClient([tool_call_response("get_system_capabilities")])
+            return agent.run(request)
+
+    for press in (True, False):
+        app = create_app(make_settings(), orchestrator=Stops(press))
+        body = TestClient(app).post("/v1/agent/run", headers=AUTH, json={
+            "request_id": f"edge_{int(press)}", "message": "Harga BBCA?", "history_mode": "CLIENT"}).json()
+        assert body["execution"].get("stopped") is (True if press else None), body["execution"]
 
 
 def test_the_stop_route_answers_404_for_a_run_that_is_not_running() -> None:
