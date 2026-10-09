@@ -7921,6 +7921,17 @@
     "kind": "DATA_TEST",
     "label": "Uji dengan data: Saham bank turun dalam 5 hari setelah BI-Rate naik"
    }
+  ],
+  "evidence": [
+   {
+    "kind": "NEWS",
+    "label": "BI tahan suku bunga",
+    "source": {
+     "url": "https://kontan.co.id/a",
+     "publisher": "Kontan",
+     "date": "2026-09-23"
+    }
+   }
   ]
  }
 }

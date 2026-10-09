@@ -53,6 +53,9 @@ UNRESOLVED = "[nilai tidak tersedia]"
 # Item 12 (plan 2026-10-05): labels of values from outside the database, and how a rendered value names them; such a
 # value is a context source for the provenance gate (not in LABEL_ORDER), so it never lowers an answer's data label
 OUTSIDE_LABELS = {"WEB_FACT": "fakta web"}
+# User decision 2026-10-09 ("Ok untuk B semua link web hilang pindah ke source"): an outside value is shown without its
+# source's name or link; its page is listed in the answer's Sources (evidence). True brings back choice C (2026-10-08).
+SOURCES_IN_TEXT = False
 OUTSIDE_NAMESPACES = {"WEB_FACT": "web"}  # the namespace an item of a citable envelope is registered under
 OUTSIDE_FIELDS = frozenset({"value", "value_as_written", "members"})  # the fields of an outside item that are its value
 # M126 (user decision 2026-10-08, choice C): an outside value is shown with a link to the page it was read from, once per
@@ -260,7 +263,7 @@ class ReferenceSources:
         an outside label and a path that ends at the item's value; None otherwise. A function of outside values is
         named without its domain."""
         name = OUTSIDE_LABELS.get(label)
-        if name is None:
+        if name is None or not SOURCES_IN_TEXT:
             return None
         if FUNC_RE.match(path.strip()):
             return name
@@ -734,6 +737,7 @@ class Rendering:
     pending: str | None = None
     cited: list[str] = field(default_factory=list)  # M126: outside statements shown as their link only
     deduplicated: list[str] = field(default_factory=list)  # M126: text values the answer had already written
+    last_outside: bool = False  # M132: the reference just filled reads a value from outside the database
 
 
 def _text(value: str) -> str:
@@ -832,6 +836,7 @@ def render(text: str | None, sources: ReferenceSources) -> Rendering:
 
     def replace(match: re.Match[str]) -> tuple[str, "_Number | None"]:
         out.count += 1
+        out.last_outside = False
         places = int(match.group("places")) if match.group("places") is not None else None
         fmt = match.group("fmt")
         expression = match.group("expr").strip().rstrip("\\").strip()
@@ -848,12 +853,14 @@ def render(text: str | None, sources: ReferenceSources) -> Rendering:
                     _note_outside(out, sources, expression, label)
                     out.cited.append(expression)
                     return "", None
+                out.last_outside = label in OUTSIDE_LABELS
                 shown = _display(raw, label, fmt, places, expression, out,
                                  sources.unit(sources.redirected.get(expression, expression)))
                 if shown is not None:
                     _note_outside(out, sources, expression, label)
                     return shown, None
             resolved = evaluate(expression, sources)
+            out.last_outside = resolved.label in OUTSIDE_LABELS
             _note_outside(out, sources, expression, resolved.label)
             number = _Number(resolved, fmt, places, expression)
             shown = number.show(out)
@@ -958,8 +965,13 @@ def _without_repeated_units(text: str, replace, out: Rendering) -> str:
                 " ".join(before.split()).casefold().endswith(" ".join(shown.split()).casefold()):
             out.deduplicated.append(shown)  # M126: "PT X Tbk {{ref to PT X Tbk}}" shows the name once
             shown, before = "", before.rstrip(" ")
-        if shown == "" and out.pending is not None:
-            before = before.rstrip(" ")  # a cited statement leaves only its link: " (bca.co.id)", one space
+        if out.last_outside and shown.strip() and _already_in_sentence(shown, "".join(parts) + before):
+            # M132: a web figure the sentence already shows is not printed again ("5,75% ... 5,75"); the reference
+            # still makes it a source of the typed figure
+            out.deduplicated.append(shown)
+            shown, before = "", before.rstrip(" ")
+        if shown == "":
+            before = before.rstrip(" ")  # a cited statement leaves nothing (B) or only its link, with one space
         follows_reference = bool(REF_RE.match(text, position))
         if number is not None and number.resolved.unit in ("FRACTION", "PERCENT") and not follows_reference \
                 and display_format(number.fmt, number.resolved.unit) in ("auto", "dec", "int") + PERCENT_FORMATS:
@@ -1005,6 +1017,18 @@ def _without_repeated_units(text: str, replace, out: Rendering) -> str:
                     out.values.extend(Resolved(v, "CONTEXT") for v in _text_numbers(name))
     parts.append(text[position:])
     return "".join(parts)
+
+
+def _number_groups(text: str) -> list[set[float]]:
+    return [{round(v, 9) for v, _ in shown.candidates} for shown in parse_numbers(text)]
+
+
+def _already_in_sentence(shown: str, written: str) -> bool:
+    """M132: every number of a shown value already stands in the sentence written so far (any reading of each)."""
+    breaks = list(CLAUSE_BREAK_RE.finditer(written))
+    sentence = written[breaks[-1].end():] if breaks else written
+    wanted, present = _number_groups(shown), set().union(*_number_groups(sentence) or [set()])
+    return bool(wanted) and all(group & present for group in wanted)
 
 
 LEFTOVER_RE = re.compile(r"\{\{([^{}]{0,300}?)\}\}")

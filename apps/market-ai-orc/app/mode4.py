@@ -339,6 +339,7 @@ class _Mode4Run:
         self.explore_only = False
         self.news_text = ""
         self.news_summary: dict[str, Any] | None = None
+        self.news_evidence: list[dict[str, Any]] = []
 
     # ------------------------------------------------------------------------------------------------ plumbing
 
@@ -508,6 +509,7 @@ class _Mode4Run:
             self.news_text, summary = future.result(timeout=max(1.0, min(self.remaining(), news_research.ASK_SECONDS)))
         except Exception as exc:  # noqa: BLE001 - the answer goes on without the news sections
             self.news_text, summary = "", {"status": "FAILED", "error": type(exc).__name__, "follow_ups": []}
+        self.news_evidence = summary.pop("evidence", [])  # the Sources panel lists the news (user decision B)
         self.news_summary = summary
         self.steps.append({"step": "news", "request_id": f"{self.base_id}-m4w", "status": summary.get("status"),
                            "cost": summary.get("cost"), "duration_ms": int((summary.get("seconds") or 0) * 1000)})
@@ -730,7 +732,7 @@ class _Mode4Run:
             mode4=block, data_record=self.record or None,
             artifacts=_artifacts(analysis, research, suggestion, result),
             evidence=[e for r in (analysis, research, suggestion) if r is not None for e in r.evidence or []]
-            or (result.evidence if base is None else None) or None)
+            + (self.news_evidence if base is not None else []) or (result.evidence if base is None else None) or None)
         log_event("mode4_completed", request_id=self.request.request_id, round=round_, status=combined.status,
                   steps=[(s["step"], s["status"]) for s in self.steps], cost=execution.cost,
                   duration_ms=execution.duration_ms, suggestion=suggestion is not None)

@@ -48,14 +48,15 @@ def test_option_b_the_first_round_is_the_answer_with_the_news_and_no_plan() -> N
     assert result.status == "COMPLETED" and result.continuation is None
     answer = result.response.answer
     assert answer.index("**Jawaban**") < answer.index("**Riwayat dan konteks berita**")
-    assert "BI menaikkan suku bunga pada 2025-11-20 ([Kontan](https://kontan.co.id/a), [Bisnis](https://bisnis.com/b))" \
-        in answer
+    assert "BI menaikkan suku bunga pada 2025-11-20.\n" in answer and "](" not in answer  # B: no link in the text
     assert "7%" not in answer and "Belum ada keputusan baru." in answer and "Implikasi" not in answer
-    assert "- 18 November 2026: Rapat BI berikutnya (dijadwalkan) ([Bisnis](https://bisnis.com/b))" in answer
-    assert "Tanpa sumber" not in answer
+    assert "- 18 November 2026: Rapat BI berikutnya (dijadwalkan)" in answer and "Tanpa sumber" not in answer
+    news_items = [e for e in result.evidence if e["kind"] == "NEWS"]  # the pages are in Sources
+    assert [e["source"]["url"] for e in news_items] == ["https://kontan.co.id/a", "https://bisnis.com/b"]
+    assert news_items[0]["label"] == "" or news_items[0]["source"]["publisher"] == "Kontan"
     assert mode4.PLAN_TITLE not in answer and "**Hasil riset**" not in answer and "Riset tidak dijalankan" not in answer
     news = result.mode4["news"]
-    assert news["lines_dropped"] == 1 and news["follow_ups"] == ["Kapan rapat BI berikutnya?"]
+    assert news["lines_dropped"] == 1 and news["follow_ups"] == ["Kapan rapat BI berikutnya?"] and "evidence" not in news
     analysis_cost = result.mode4["steps"][0]["cost"] or 0
     assert abs(result.execution.cost - (analysis_cost + 0.031)) < 1e-9  # the news research counts in the turn
 

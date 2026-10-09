@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>/* EXEC-Y (user 2026-10-09: mobile font sizes standardized): the message box uses the text size of the page (14px).
+   iOS Safari zooms into a field under 16px when it is tapped; on iOS only, the page keeps its scale (iOS still allows
+   pinch zoom). Other devices keep the plain viewport, so their pinch zoom is untouched. */
+(() => { const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (ios) document.querySelector('meta[name="viewport"]').setAttribute("content", "width=device-width, initial-scale=1, maximum-scale=1"); })();</script>
 <title>EDGE — Sign In & Monitor</title>
 <link rel="icon" href="data:,">
 <style>/*! tailwindcss v4.2.1 | MIT License | https://tailwindcss.com */
@@ -9895,7 +9900,8 @@ html.dark .monitor-layout .details-panel>.tabs button:focus-visible{outline-colo
 @media (max-width:720px) {
  .monitor-layout .jump-latest {display:none!important;}
  .composer {margin:6px 10px calc(8px + env(safe-area-inset-bottom));padding:8px 8px 8px 14px;border-radius:22px;}
- .composer textarea {min-height:24px;max-height:120px;padding:6px 2px 4px;font-size:16px;line-height:1.4;}
+ .composer textarea {min-height:24px;max-height:120px;padding:6px 2px 4px;font-size:14px;line-height:1.5;}
+ .composer textarea::placeholder {font-size:14px;}
  .composer>div:last-child {gap:8px;margin-top:2px;}
  .composer>div:last-child>div {gap:4px;min-width:0;flex-wrap:nowrap;}
  .composer [title="Model follows server configuration"],.composer [title="Data Scope is not available yet"] {display:none;}

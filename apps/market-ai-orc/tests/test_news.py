@@ -28,4 +28,4 @@ def test_a_failure_or_an_unsafe_link_never_reaches_the_reader() -> None:
     unsafe = {**NEWS, "citations": [{"n": 1, "publisher": "x", "url": "javascript:alert(1)"}],
               "answer_cited": "Fakta [1].", "plan": {}}
     text, summary = news.sections(unsafe)
-    assert text == "" and "javascript" not in text and summary["sources"] == 0
+    assert text == "" and summary["sources"] == 0 and summary["evidence"] == []

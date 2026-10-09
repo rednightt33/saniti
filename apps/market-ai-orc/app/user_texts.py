@@ -309,7 +309,7 @@ def stopped_done_line(tables: int, outputs: int) -> str:
 
 # ---- EXPLORE and follow-ups (EXEC-Y Fase 2) ----
 NEWS_TITLE = "Riwayat dan konteks berita"
-NEWS_NOTE = "Diringkas dari {count} berita; setiap kalimat bertaut ke sumbernya."
+NEWS_NOTE = "Diringkas dari {count} berita; sumbernya ada di tab Sources."
 FORWARD_TITLE = "Peristiwa ke depan"
 NEWS_DATE_UNKNOWN = "Tanggal belum diumumkan"
 DATA_TEST_LABEL = "Uji dengan data: {hypothesis}"

@@ -238,6 +238,9 @@ def test_responsive_history_details_preferences_and_keyboard(dummy_orc, browser_
     saved(page)
     page.locator('.research-scroll').evaluate('(node) => node.scrollTop = 0')
     no_clipping(page)
+    if width <= 720:  # user 2026-10-09: the message box uses the page's text size on mobile
+        sizes = page.evaluate("() => [getComputedStyle(document.querySelector('.composer textarea')).fontSize, getComputedStyle(document.querySelector('.user-message')).fontSize]")
+        assert sizes[0] == sizes[1] == '14px', sizes
     if width <= 720:  # user 2026-10-08: "jump to latest pada mobile view hilangkan saja"
         page.wait_for_function("() => !document.querySelector('.jump-latest') || getComputedStyle(document.querySelector('.jump-latest')).display === 'none'")
     else:

@@ -165,3 +165,11 @@ def test_follow_ups_are_grouped_in_order_and_a_click_sends_the_words(views):
     assert [g['label'] for g in groups] == ['Pertanyaan lanjutan', 'Ide insight', 'Riset lanjutan']
     assert all(c['action'] == {'type': 'message', 'message': c['label']} for g in groups for c in g['choices'])
     assert views['answer_table']['view']['next'] is None
+
+
+def test_news_pages_are_listed_in_their_own_sources_part(views):
+    """EXEC-Y (user decision B): the pages of the news section are in Sources, under their own title."""
+    sections = views['follow_ups']['sources']['sections']
+    assert [s['title'] for s in sections] == ['Berita (1)']
+    item = sections[0]['items'][0]
+    assert item['title'] == 'BI tahan suku bunga' and item['rows']['source_url'] == 'https://kontan.co.id/a'

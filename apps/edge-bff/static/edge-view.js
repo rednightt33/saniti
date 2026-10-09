@@ -118,7 +118,10 @@
   function sources(envelope) {
     const ui = L().ui, raw = envelope || {}, evidence = raw.evidence || [], annotations = raw.annotations || [], record = raw.data_record;
     const sections = [];
-    if (evidence.length) sections.push({title:`${ui.sourcesEvidence} (${evidence.length})`, items:evidence.map(sourceItem)});
+    // EXEC-Y (user decision B 2026-10-09): web pages are listed here, not in the answer text; news has its own part
+    const news = evidence.filter(item => item?.kind === "NEWS"), proof = evidence.filter(item => item?.kind !== "NEWS");
+    if (proof.length) sections.push({title:`${ui.sourcesEvidence} (${proof.length})`, items:proof.map(sourceItem)});
+    if (news.length) sections.push({title:`${ui.sourcesNews} (${news.length})`, items:news.map(sourceItem)});
     if (annotations.length) sections.push({title:`${ui.sourcesClaims} (${annotations.length})`, items:annotations.map(sourceItem)});
     // P4: only the parts edge-labels.js names are summarised for the reader; the whole record stays in Detail teknis
     const named = L().record || {};

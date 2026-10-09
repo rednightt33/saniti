@@ -59,7 +59,7 @@ from .user_words import allowed_periods, current_design_changes, current_turn_re
     locked_horizons
 from .provenance import (CONTEXT, typed_figures, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
                          parse_numbers, released_numbers, requested_statistics, weakest)
-from .value_refs import (FUNC_RE, OUTSIDE_LABELS, OUTSIDE_NAMESPACES, REF_RE, UNITS, ReferenceSources, Resolved,
+from .value_refs import (FUNC_RE, OUTSIDE_LABELS, OUTSIDE_NAMESPACES, REF_RE, SOURCES_IN_TEXT, UNITS, ReferenceSources, Resolved,
                          TableRows, format_value, menu_address, registered_links_only, render, safe_link)
 from .tools import ToolOutcome, ToolRegistry, error_outcome
 from .tools.analysis import DataDate, current_conversation_key, current_data_date, current_run_context, run_context
@@ -4963,8 +4963,9 @@ class AgentOrchestrator:
     @staticmethod
     def _registered_links_only(state: RunState, final: FinalResponse) -> FinalResponse:
         """M126: every link the reader sees goes to a page this run read; a link the model typed to any other address
-        keeps its words only (logged)."""
-        allowed = set(state.ref_sources.links.values())
+        keeps its words only (logged). User decision 2026-10-09 (B): no web link stays in the text; the pages are in
+        the answer's Sources (evidence)."""
+        allowed = set(state.ref_sources.links.values()) if SOURCES_IN_TEXT else set()
         removed: list[str] = []
 
         def clean(text: str | None) -> str | None:

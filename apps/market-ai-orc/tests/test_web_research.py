@@ -160,21 +160,25 @@ def test_every_item_is_a_value_reference_shown_as_a_web_fact() -> None:
     assert [item["ref"] for item in result["citable"]] == ["web.wab12cd34_1", "web.wab12cd34_2", "web.wab12cd34_3"]
     shown = render("Ekspor 2024 {{web.wab12cd34_1.value_as_written}}, 2023 {{web.wab12cd34_2.value_as_written}}.",
                    state.ref_sources)
-    # M126 (choice C): a web value carries a link to its page, once per sentence
-    assert shown.problems == [] and shown.text == (
-        "Ekspor 2024 US$264,70 miliar ([bps.go.id](https://www.bps.go.id/a)), 2023 US$258,82 miliar.")
+    # user decision 2026-10-09 (B): a web value is shown without its source's name or link (Sources lists the page)
+    assert shown.problems == [] and shown.text == "Ekspor 2024 US$264,70 miliar, 2023 US$258,82 miliar."
     table = render("| 2024 | {{web.wab12cd34_1.value_as_written}} |\n| 2023 | {{web.wab12cd34_2.value_as_written}} |",
                    state.ref_sources)
-    assert table.text.count("([bps.go.id](https://www.bps.go.id/a))") == 2  # each table row links its source
+    assert "](" not in table.text and "bps.go.id" not in table.text
+    # M132: a figure the sentence already shows is not printed again; the reference still sources it
+    again = render("Ekspor 2024 mencapai US$264,70 miliar {{web.wab12cd34_1.value_as_written}}.", state.ref_sources)
+    assert again.text == "Ekspor 2024 mencapai US$264,70 miliar." and again.deduplicated == ["US$264,70 miliar"]
+    other = render("Ekspor 2023 US$258,82 miliar; 2024 {{web.wab12cd34_1.value_as_written}}.", state.ref_sources)
+    assert other.text == "Ekspor 2023 US$258,82 miliar; 2024 US$264,70 miliar."  # a different figure is shown
     # a statement is said in the reader's words and cited by its link only; its figures stay sources
     fact = render("Ekspor naik 2,3% pada 2024 {{web.wab12cd34_3.value}}.", state.ref_sources)
     assert fact.problems == [] and fact.cited == ["web.wab12cd34_3.value"]
-    assert fact.text == "Ekspor naik 2,3% pada 2024 ([reuters.com](https://www.bps.go.id/a))."
+    assert fact.text == "Ekspor naik 2,3% pada 2024."
     assert 2.3 in {value.value for value in fact.values}
     # a web value is a context source: never a data label
     assert {value.label for value in shown.values} == {"WEB_FACT"}
-    assert render("{{diff(web.wab12cd34_1.value, web.wab12cd34_2.value)|dec:0}}", state.ref_sources).text \
-        .endswith("(fakta web)")
+    assert "fakta web" not in render("{{diff(web.wab12cd34_1.value, web.wab12cd34_2.value)|dec:0}}",
+                                     state.ref_sources).text
 
 
 def test_web_values_pass_provenance_as_context_and_keep_the_data_label() -> None:
@@ -290,15 +294,13 @@ def test_a_statement_is_cited_by_its_link_and_never_pasted_in() -> None:
     shown = render("BCA dikendalikan keluarga Hartono {{web.w1_1.value}}. BCA bank swasta terbesar {{web.w1_2.value}}.",
                    m126_sources())
     assert shown.problems == [] and "Pemegang Saham" not in shown.text and "largest" not in shown.text
-    assert shown.text == ("BCA dikendalikan keluarga Hartono ([bca.co.id](https://www.bca.co.id/w1_1)). "
-                          "BCA bank swasta terbesar ([bca.co.id](https://www.bca.co.id/w1_2)).")
+    assert shown.text == "BCA dikendalikan keluarga Hartono. BCA bank swasta terbesar."
 
 
 def test_a_name_and_a_list_are_shown_with_their_link_once_per_sentence() -> None:
     shown = render("Pemegang mayoritas BSI adalah {{web.w1_3.value}}; pemegang sahamnya {{web.w1_4.value}} dan "
                    "{{web.w1_3.value}}.", m126_sources())
-    assert shown.text == ("Pemegang mayoritas BSI adalah Bank Mandiri ([bca.co.id](https://www.bca.co.id/w1_3)); "
-                          "pemegang sahamnya BMRI, BBNI, BBRI ([bca.co.id](https://www.bca.co.id/w1_4)) dan Bank Mandiri.")
+    assert shown.text == "Pemegang mayoritas BSI adalah Bank Mandiri; pemegang sahamnya BMRI, BBNI, BBRI dan Bank Mandiri."
 
 
 def test_a_name_the_answer_already_wrote_is_not_written_twice() -> None:
@@ -322,7 +324,7 @@ def test_a_link_the_model_typed_to_a_page_the_run_did_not_read_keeps_only_its_wo
     final = FinalResponse(response_type="ANSWER", answer="Sumber: [x](https://evil.example/a).",
                           clarification_question=None, assumptions=["[y](https://www.bps.go.id/a)"], limitations=[])
     cleaned = AgentOrchestrator._registered_links_only(state, final)
-    assert cleaned.answer == "Sumber: x." and cleaned.assumptions == ["[y](https://www.bps.go.id/a)"]
+    assert cleaned.answer == "Sumber: x." and cleaned.assumptions == ["y"]  # B: no web link stays in the text
 
 
 def test_only_http_links_are_registered() -> None:
