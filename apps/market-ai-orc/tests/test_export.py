@@ -88,8 +88,9 @@ def test_an_output_is_exported_and_the_model_sees_no_content() -> None:
     import json
 
     meta = json.loads(base64.urlsafe_b64decode(fake.calls[-1]["headers"]["x-saniti-output-meta"] + "=="))
-    assert meta["target"] == "XLSX" and meta["definition"] == {"notes": "crash days"}
-    assert meta["lineage"]["source_tables"] == ["IDX_Broker_Summary"]
+    assert meta["target"] == "XLSX" and meta["definition"] == {"Catatan": "crash days"}
+    assert meta["lineage"]["Tabel sumber"] == "IDX_Broker_Summary" and meta["lineage"]["Data per"] == "2026-08-31"
+    assert "need_id=need_1" in meta["lineage"]["Kode audit (untuk tim teknis)"]
     assert meta["checksum_sha256"] == hashlib.sha256(b"PAR1").hexdigest()
 
 
@@ -154,3 +155,64 @@ def test_a_run_lists_its_exports_in_the_response() -> None:
                                  "size_bytes": 10, "sha256": "c" * 64,
                                  "download_path": "/v1/exports/exp_" + "2" * 24 + "/download"}]
     assert "artifacts" in result.model_dump(mode="json")
+
+
+
+class Rows:
+    """A catalog reader whose one query answers the AI column catalog's rows."""
+
+    def __init__(self, rows):
+        self.rows, self.asked = rows, []
+
+    def read_only(self):
+        import contextlib
+
+        @contextlib.contextmanager
+        def session():
+            def run(sql, params):
+                self.asked.append(params)
+                return self.rows
+            yield run
+        return session()
+
+
+def test_an_xlsx_carries_the_readers_titles_and_the_catalogs_column_meanings() -> None:
+    """M128b (Excel run 2026-10-08): the file's headers were foreign_net_value, foreign_net_value_cum and turnover_idr.
+    The model gives the titles; a column a source table has gets the catalog's meaning and unit; a column the
+    analysis made gets none (its meaning stays in the definition's notes); a label for an unknown column is ignored."""
+    import base64
+    import json
+
+    from app.tools import _column_meanings
+    from app.tools.export import export_specs
+    from app.tools.registry import ToolRegistry
+
+    reader = Rows([{"column_name": "foreign_net_value", "description": "Net value of foreign investors", "unit": "IDR"}])
+    fake, store = ExportSandbox(), ExportStore()
+    sandbox = SandboxClient("http://sandbox.test", SANDBOX_KEY, 10, 0, transport=httpx.MockTransport(fake.handler))
+    tools = ToolRegistry()
+    for spec in export_specs(sandbox, timeout_seconds=10, max_result_bytes=40000,
+                             column_meanings=_column_meanings(reader)):
+        tools.register(spec)
+    record = {"outputs": [{"ref": "out.o1", "output_id": OUTPUT, "session_id": SESSION, "name": "bbri flow",
+                           "type": "TABLE", "columns": ["date", "foreign_net_value", "foreign_net_value_cum"],
+                           "definition": {"period": {"start": "2025-10-10", "end": "2026-08-31"}, "entities": ["BBRI"],
+                                          "filters": [], "notes": "cum = jumlah berjalan"},
+                           "lineage": {"need_id": "need_1", "data_as_of": "2026-08-31"}}],
+              "needs": [{"need_id": "need_1", "requests": [{"source_table": "Feature_03_Stock_Broker_Daily"}]}]}
+    token = current_results.set(RunResults(conversation_id="conv_1", request_id="req_1", store=store, record=record,
+                                           fetch=lambda sid, oid: b"PAR1"))
+    try:
+        call(tools, "export_result", {"ref": "o1", "format": "XLSX", "column_labels": [
+            {"column": "foreign_net_value", "label": "Net beli asing (Rp)"}, {"column": "nope", "label": "x"}]})
+    finally:
+        current_results.reset(token)
+    meta = json.loads(base64.urlsafe_b64decode(fake.calls[-1]["headers"]["x-saniti-output-meta"] + "=="))
+    assert reader.asked[0][0] == ["Feature_03_Stock_Broker_Daily"]
+    assert meta["headers"] == {"date": "Date", "foreign_net_value": "Net beli asing (Rp)",
+                               "foreign_net_value_cum": "Foreign net value cum"}
+    assert meta["columns"][1] == {"label": "Net beli asing (Rp)", "name": "foreign_net_value",
+                                  "meaning": "Net value of foreign investors", "unit": "IDR"}
+    assert meta["columns"][2]["meaning"] is None
+    assert meta["definition"] == {"Periode": "2025-10-10 s.d. 2026-08-31", "Saham": ["BBRI"],
+                                  "Catatan": "cum = jumlah berjalan"}

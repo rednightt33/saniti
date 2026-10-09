@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import hashlib
 import re
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .. import user_texts as texts
 from .analysis import SandboxClient
 from .artifacts import (current_results, record_source_tables, resolve_ref, short_lineage, source_bytes,
                         stored_op)
@@ -21,8 +22,17 @@ from .registry import ToolError, ToolSpec
 DESCRIPTION = (
     "Write an output as a file the user downloads (CSV, XLSX with definition and lineage sheets, or PARQUET), at most "
     "20 MB. Give ref (out.o3), output_id, or evidence_id (a checked claim's evidence rows). Returns export_id, file "
-    "name, size and format only; the answer names the file, the user downloads it."
+    "name, size and format only; the answer names the file, the user downloads it. For XLSX give column_labels: the "
+    "title of each column in the user's language, as the reader should see it."
 )
+MAX_COLUMNS = 60  # the column sheet travels in the request header with the definition and lineage
+
+
+class ColumnLabel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    column: str = Field(description="The column's name in the output.")
+    label: str = Field(description="Its title in the user's language.")
 
 
 class ExportResultArgs(BaseModel):
@@ -34,6 +44,9 @@ class ExportResultArgs(BaseModel):
     format: Literal["CSV", "XLSX", "PARQUET"]
     include_definition: bool | None = Field(description="XLSX: a sheet with the output's definition (default true).")
     include_lineage: bool | None = Field(description="XLSX: a sheet with where the data came from (default true).")
+    column_labels: list[ColumnLabel] | None = Field(
+        description="XLSX: the title the reader sees for each column, in the user's language; a column not named "
+                    "keeps its name made readable.")
 
     @model_validator(mode="after")
     def _one_source(self) -> "ExportResultArgs":
@@ -47,7 +60,9 @@ def file_name(name: Any, output_id: str, extension: str) -> str:
     return f"{stem}.{extension}"
 
 
-def export_specs(client: SandboxClient, *, timeout_seconds: float, max_result_bytes: int) -> list[ToolSpec]:
+def export_specs(client: SandboxClient, *, timeout_seconds: float, max_result_bytes: int,
+                 column_meanings: Callable[[list[str], list[str]], dict[str, dict]] | None = None) -> list[ToolSpec]:
+    """column_meanings(tables, columns): the catalog's meaning and unit of each column a source table has (M128b)."""
     def handler(arguments: BaseModel) -> dict[str, Any]:
         assert isinstance(arguments, ExportResultArgs)
         results = current_results.get()
@@ -77,8 +92,23 @@ def export_specs(client: SandboxClient, *, timeout_seconds: float, max_result_by
         includes = {"definition": arguments.include_definition is not False and bool(definition),
                     "lineage": arguments.include_lineage is not False}
         meta = {"format": kind, "checksum_sha256": hashlib.sha256(data).hexdigest(), "target": arguments.format,
-                **({"definition": definition} if includes["definition"] and arguments.format == "XLSX" else {}),
-                **({"lineage": lineage} if includes["lineage"] and arguments.format == "XLSX" else {})}
+                **({"definition": texts.export_definition(definition)}
+                   if includes["definition"] and arguments.format == "XLSX" else {}),
+                **({"lineage": texts.export_lineage(lineage)}
+                   if includes["lineage"] and arguments.format == "XLSX" else {})}
+        names = [str(n) for n in (entry or {}).get("columns") or []][:MAX_COLUMNS]
+        if arguments.format == "XLSX" and names:
+            # M128b: the titles the reader sees and what each column means; the CSV keeps the machine names
+            meanings = {}
+            if column_meanings is not None and lineage.get("source_tables"):
+                try:
+                    meanings = column_meanings(list(lineage["source_tables"]), names)
+                except Exception:  # noqa: BLE001 - a catalog failure leaves the meanings out, never the file
+                    meanings = {}
+            labels = {item.column: item.label[:80] for item in arguments.column_labels or []
+                      if item.column in names and item.label.strip()}
+            meta["columns"] = texts.export_columns(names, labels, meanings)
+            meta["headers"] = {row["name"]: row["label"] for row in meta["columns"]}
         status, body, headers = stored_op(client, "export", data, meta, timeout=timeout_seconds)
         if status != 200:
             return _refused(status, body)

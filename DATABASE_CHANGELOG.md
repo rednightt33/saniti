@@ -1,5 +1,18 @@
 # Database changelog
 
+## 2026-10-09 — M128b: Tool_Catalog round N on dev (readable Excel files)
+
+- **`20261009_001_round_n_tool_catalog.sql`** (generated, round `round_n`, `scripts/generate_tool_catalog_migration.py`;
+  `EXEC.md` EXEC-X, go 2026-10-09 "1 3 dan 4 - jalankan sekarang"; `ERRORS_AND_SOLUTIONS.md` M128 (b)): one inactive
+  `Tool_Catalog` row, `export_result` v2, copied from v1 with the code's input schema and purpose (`column_labels`: the
+  reader's column titles of an XLSX). No table, column, grant or other row changed.
+- **Part A check:** tool metadata, not market data; Part A does not apply.
+- Applied by the temporary service `mmig-job` (`DATABASE_URL` as a reference to the catalog database, never printed;
+  deleted afterwards, read back absent): DRYRUN `8c219662` ran the migration with its own checks and rolled back
+  (118 rows, 25 active, before and after); APPLY committed. Read back: 119 rows, 25 active (unchanged);
+  `export_result` v1 unchanged, v2 inactive with `column_labels` in its input schema. A second run is refused by the
+  migration's preflight ("already registered"). Checksum appended to `database/migrations/APPLIED.sha256`.
+
 ## 2026-10-08 — EXEC-V revision: Tool_Catalog round M on dev
 
 - **`20261008_001_round_m_tool_catalog.sql`** (generated, round `round_m`, `scripts/generate_tool_catalog_migration.py`;

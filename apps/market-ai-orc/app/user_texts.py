@@ -245,3 +245,54 @@ def web_lookups_line(lookups: list[dict]) -> str | None:
     domains = sorted({d for lookup in lookups for d in lookup.get("domains") or []})
     return WEB_LOOKUPS_LINE.format(count=len(lookups), outcomes=", ".join(f"{n} {w}" for w, n in counts.items()),
                                    domains=", ".join(domains[:12]) + (" …" if len(domains) > 12 else "") or "-")
+
+
+# ---- an exported file is read by people (M128b, 2026-10-09) ----
+EXPORT_DEFINITION = {"period": "Periode", "entities": "Saham", "filters": "Saringan", "thresholds": "Ambang",
+                     "notes": "Catatan"}
+EXPORT_LINEAGE = {"name": "Nama tabel", "source_tables": "Tabel sumber", "data_as_of": "Data per",
+                  "reference_date": "Tanggal acuan"}
+EXPORT_AUDIT = "Kode audit (untuk tim teknis)"  # the ids the audit trail joins on, kept in one line
+EXPORT_PERIOD = "{start} s.d. {end}"
+
+
+def _empty(value: object) -> bool:
+    return value is None or value == "" or value == [] or value == {}
+
+
+def export_definition(definition: dict | None) -> dict:
+    """An output's definition with the reader's field names; a field not named here is made readable."""
+    out = {}
+    for key, value in (definition or {}).items():
+        if _empty(value):
+            continue
+        if key == "period" and isinstance(value, dict):
+            value = EXPORT_PERIOD.format(start=value.get("start") or "-", end=value.get("end") or "-")
+        out[EXPORT_DEFINITION.get(key) or words(key).capitalize()] = value
+    return out
+
+
+def export_lineage(lineage: dict | None) -> dict:
+    """Where the file's rows came from, in words; the audit ids in one line for the technical team."""
+    out, audit = {}, []
+    for key, value in (lineage or {}).items():
+        if _empty(value):
+            continue
+        if key in EXPORT_LINEAGE:
+            out[EXPORT_LINEAGE[key]] = ", ".join(map(str, value)) if isinstance(value, list) else value
+        else:
+            audit.append(f"{key}={value}")
+    if audit:
+        out[EXPORT_AUDIT] = "; ".join(audit)
+    return out
+
+
+def export_columns(names: list, labels: dict | None, meanings: dict | None) -> list[dict]:
+    """The column sheet: the title the reader sees (the model's, else the name made readable), the name in the data,
+    the meaning and unit the catalog gives a column of the source tables (none for a column the analysis made)."""
+    rows = []
+    for name in names:
+        found = (meanings or {}).get(name) or {}
+        rows.append({"label": (labels or {}).get(name) or words(name).capitalize(), "name": name,
+                     "meaning": (found.get("meaning") or "")[:300] or None, "unit": found.get("unit")})
+    return rows

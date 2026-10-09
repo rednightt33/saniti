@@ -27,6 +27,7 @@ registering the new versions of the tools whose contract changed in that round.
 - round_m (20261008_001): submit_data_need_spec v11 (research_experiments removed, stage 3 revoked),
   open_analysis_session v3 (up to four sessions per answer, close_session_id) and prepare_data_bundle v3 (the same
   Governor SQL is reused within a conversation, data_reuse); EXEC-V revision of 2026-10-08.
+- round_n (20261009_001): export_result v2 (column_labels: the reader's column titles of an XLSX; M128b).
 
 Registered from the code with every switch of the dev environment on (the registry of scripts/generate_ai_tools_doc.py,
 one source for both). An applied migration is frozen (database/migrations/APPLIED.sha256); market-ai-orc's
@@ -299,8 +300,23 @@ ROUNDS = {
                    "part_reuse": "one conversation; same data_sha256 and part_key; range ends before the reference "
                                  "date; copy not expired; same catalog"},
     },
+    "round_n": {
+        "target": ROOT / "database/migrations/20261009_001_round_n_tool_catalog.sql",
+        "versions": {"export_result": ("v1", "v2")},
+        "contracts": {"export_result": ("input_schema", "column_labels")},
+        "title": "M128b readable Excel files",
+        "header": "EXEC.md EXEC-X (go 2026-10-09: \"1 3 dan 4 - jalankan sekarang\"), ERRORS_AND_SOLUTIONS.md M128",
+        "design": "EXEC.md EXEC-X, ERRORS_AND_SOLUTIONS.md M128 (b)",
+        "limits_design": "EXEC.md EXEC-X, ERRORS_AND_SOLUTIONS.md M128 (b)",
+        "summary": ["export_result v2: column_labels, the title of each column in the user's language for an XLSX; the",
+                    "backend adds a column sheet (meaning and unit from AI_column_catalog for a column of the source",
+                    "tables) and writes the definition and lineage sheets in plain words; CSV and Parquet keep the",
+                    "machine column names."],
+        "limits": {"columns": "at most 60 columns get a title and a meaning; a label is cut at 80 characters; a label "
+                              "for a column the output does not have is ignored"},
+    },
 }
-NEWEST = "round_m"
+NEWEST = "round_n"
 
 
 def _tools_doc():

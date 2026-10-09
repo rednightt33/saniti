@@ -98,10 +98,31 @@ def test_export_keeps_every_row_and_adds_definition_and_lineage(target: str) -> 
         from openpyxl import load_workbook
 
         book = load_workbook(io.BytesIO(body), read_only=True)
-        assert book.sheetnames == ["data", "definisi", "lineage"]
+        assert book.sheetnames == ["data", "definisi", "asal data"]
         assert sum(1 for _ in book["data"].iter_rows()) == 133
-        lineage = {row[0]: row[1] for row in book["lineage"].iter_rows(values_only=True)}
+        lineage = {row[0]: row[1] for row in book["asal data"].iter_rows(values_only=True)}
         assert lineage["source_tables"] == "IDX_Broker_Summary"
+
+
+def test_an_xlsx_shows_the_readers_column_titles_and_a_column_sheet() -> None:
+    """M128b (2026-10-09): the Excel export of BBRI's foreign flow showed foreign_net_value and turnover_idr as
+    headers; the caller's titles and column meanings make the file readable, the CSV keeps the machine names."""
+    from openpyxl import load_workbook
+
+    data = parquet(CRASH)
+    names = pq.read_table(io.BytesIO(data)).column_names
+    headers = {names[0]: "Tanggal", names[-1]: "Nilai bersih (Rp)"}
+    columns = [{"label": "Tanggal", "name": names[0], "meaning": "Hari bursa", "unit": None},
+               {"label": "Nilai bersih (Rp)", "name": names[-1], "meaning": "Beli dikurangi jual", "unit": "IDR"}]
+    body, _, _ = stored_tables.export(data, meta_for(data, target="XLSX", headers=headers, columns=columns))
+    book = load_workbook(io.BytesIO(body), read_only=True)
+    assert book.sheetnames == ["data", "kolom"]
+    head = next(book["data"].iter_rows(values_only=True))
+    assert head[0] == "Tanggal" and head[-1] == "Nilai bersih (Rp)" and list(head[1:-1]) == names[1:-1]
+    assert list(book["kolom"].iter_rows(values_only=True))[2] == ("Nilai bersih (Rp)", names[-1], "Beli dikurangi jual",
+                                                                  "IDR")
+    csv, _, _ = stored_tables.export(data, meta_for(data, target="CSV", headers=headers, columns=columns))
+    assert csv.decode().splitlines()[0].replace('"', "").split(",") == names
 
 
 def test_export_over_the_limit_is_refused_with_a_next_step() -> None:

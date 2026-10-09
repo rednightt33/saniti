@@ -3177,3 +3177,11 @@ bukan desktop. jangan ubah desktop").
   under its watch path). Rollback reference: orc `4b6a272e`.
 - Cause found by the live web test through EDGE (5 questions, USD ~0.16): the provenance gate read digits inside the
   web links P1 added. Tests: orc 1,577 passed. No variable, model, provider, mode or configuration change.
+
+## 2026-10-09 — Temporary migration job for Tool_Catalog round N
+
+- Temporary service `mmig-job` (`d762c766`, empty service, CLI upload of a one-shot Python job; variables
+  `DATABASE_URL=${{Postgres.DATABASE_URL}}` as a reference, never printed, and `MODE`): DRYRUN deployment `8c219662`
+  rolled back, then `MODE=APPLY` committed `20261009_001_round_n_tool_catalog.sql` (details in `DATABASE_CHANGELOG.md`).
+  Deleted with `railway service delete`; read back absent (19 services). No other service, variable or configuration
+  changed.

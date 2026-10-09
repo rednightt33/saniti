@@ -144,7 +144,8 @@ def build_default_registry(
                     from .export import export_specs
 
                     for spec in export_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
-                                             max_result_bytes=python_analysis_max_bytes):
+                                             max_result_bytes=python_analysis_max_bytes,
+                                             column_meanings=_column_meanings(catalog_reader)):
                         registry.register(spec)
                 if lineage_tool:
                     # D3 (AI_ENABLE_LINEAGE_TOOL): where an output's numbers came from
@@ -262,3 +263,20 @@ def _register_multi_angle(registry: ToolRegistry, sandbox_client: SandboxClient,
 __all__ = [
     "ToolError", "ToolOutcome", "ToolRegistry", "ToolSpec", "build_default_registry", "error_outcome",
 ]
+
+
+def _column_meanings(catalog_reader: CatalogReader | None):
+    """M128b: the AI column catalog's description and unit of each named column of the source tables (the first table
+    that has the column), read when a file is exported; None without a catalog."""
+    if catalog_reader is None:
+        return None
+    from .catalog import COLUMNS_SQL
+
+    def meanings(tables: list[str], columns: list[str]) -> dict[str, dict]:
+        with catalog_reader.read_only() as run:
+            rows = run(COLUMNS_SQL, (tables, columns, columns, 500))
+        found: dict[str, dict] = {}
+        for row in rows:
+            found.setdefault(row["column_name"], {"meaning": row.get("description"), "unit": row.get("unit")})
+        return found
+    return meanings

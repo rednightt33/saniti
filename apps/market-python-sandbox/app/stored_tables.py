@@ -141,17 +141,32 @@ def export(data: bytes, meta: dict[str, Any]) -> tuple[bytes, str, str]:
     return body, mime, ext
 
 
+# M128b (2026-10-09): an XLSX is read by people. The caller may give the column titles the reader sees ("headers":
+# {name: title}) and a column sheet ("columns": [{label, name, meaning, unit}]); without them the file is as before.
+COLUMN_SHEET = ("kolom", ("Kolom", "Nama asli", "Arti", "Satuan"), ("label", "name", "meaning", "unit"))
+MAX_COLUMN_ROWS = 200
+
+
 def _xlsx(table, meta: dict[str, Any]) -> bytes:
     from openpyxl import Workbook
 
     book = Workbook(write_only=True)
     sheet = book.create_sheet("data")
-    sheet.append(table.column_names)
+    headers = meta.get("headers") if isinstance(meta.get("headers"), dict) else {}
+    sheet.append([str(headers.get(name) or name)[:200] for name in table.column_names])
     for batch in table.to_batches(max_chunksize=5000):
         columns = [batch.column(i).to_pylist() for i in range(batch.num_columns)]
         for row in zip(*columns):
             sheet.append([_cell(v) for v in row])
-    for title, key in (("definisi", "definition"), ("lineage", "lineage")):
+    columns = meta.get("columns")
+    if isinstance(columns, list) and columns:
+        title, head, keys = COLUMN_SHEET
+        extra = book.create_sheet(title)
+        extra.append(list(head))
+        for column in columns[:MAX_COLUMN_ROWS]:
+            if isinstance(column, dict):
+                extra.append(["" if column.get(k) is None else str(column.get(k))[:32000] for k in keys])
+    for title, key in (("definisi", "definition"), ("asal data", "lineage")):
         if meta.get(key):
             extra = book.create_sheet(title)
             extra.append(["field", "value"])
