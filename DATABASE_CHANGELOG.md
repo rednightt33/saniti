@@ -7,6 +7,7 @@
 - Live readback preserved 1,379,042 rows / 868 asset-ticker partitions: 1,318,633 equity rows across 844 tickers and 60,409 bonds rows across 24 tickers. There are zero NULL close values, zero equity source mismatch and zero bonds source mismatch. Old physical/catalog/relationship/constraint/index references are zero.
 - Catalog coverage is 57/57 physical/column/active-feature definitions; semantic audit PASS is 148/148 active definitions across four Feature tables. The Feature01 relationship explicitly filters Feature04 to equity, and the standard governed Feature-name validator has been restored.
 - Initial queue-derived readiness inserted close status for only the 25 instruments currently represented in the queue. The readback caught this immediately; migration 009 instead derives all instruments from the target and completed 868/868 successful close statuses. Total Feature04 status rows are 44,268 (`868 × 51`), with zero nonterminal queue rows.
+- Post-deploy canaries replayed full history for equity `BBCA` and dynamically selected bond `ID01MY`. Both attempts finished `SUCCESS` with 51/51 outputs, zero failed columns, zero changed rows, zero close/source mismatch, and the queue returned to zero nonterminal rows.
 - Evidence: `verification/feature04/RENAME_CLOSE.md` and `rename_close_validation.json`. `DATABASE_SCHEMA.md` was refreshed by read-only introspection.
 
 ## 2026-10-11 — Feature04 cross-asset fixed-income price support

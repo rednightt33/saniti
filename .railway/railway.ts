@@ -100,6 +100,12 @@ export default defineRailway(() => {
     deploy: { restartPolicyType: "ALWAYS" },
     env: { AUDIT_BUCKET_ACCESS_KEY_ID: preserve(), AUDIT_BUCKET_ENDPOINT: preserve(), AUDIT_BUCKET_NAME: preserve(), AUDIT_BUCKET_REGION: preserve(), AUDIT_BUCKET_SECRET_ACCESS_KEY: preserve(), AUDIT_DATABASE_URL: preserve(), AUDIT_STORE_GOVERNOR_KEY: preserve(), AUDIT_STORE_READER_KEY: preserve(), AUDIT_STORE_SANDBOX_KEY: preserve(), MARKET_AI_AUDIT_DB_PASSWORD: preserve(), PORT: preserve() },
   });
+  const fixedIncomePriceRecoveryCron = service("fixed-income-price-recovery-cron", {
+    start: "python fixed_income_update.py --mode recovery",
+    replicas: { "sfo": 1 },
+    deploy: { cronSchedule: "0 23 * * *", restartPolicyType: "NEVER" },
+    env: { DATABASE_URL: preserve(), TRADINGVIEW_VERIFY_TLS: preserve() },
+  });
   const telegramMonitor = service("telegram-monitor", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/telegram-monitor" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/telegram-monitor/**"] },
@@ -117,6 +123,14 @@ export default defineRailway(() => {
     replicas: { "sfo": 1 },
     deploy: { cronSchedule: "0 23 * * *", restartPolicyType: "NEVER" },
     env: { DATABASE_URL: preserve(), TELEGRAM_NOTIFY_ATTEMPTS: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_TIMEOUT: preserve(), TELEGRAM_NOTIFY_URL: preserve() },
+  });
+  const feature04Worker = service("feature-04-worker", {
+    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/" }),
+    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "apps/feature-04-worker/Dockerfile", watchPatterns: ["/apps/feature-04-worker/**", "/features/feature04/**"] },
+    start: "python worker.py",
+    replicas: { "sfo": 1 },
+    deploy: { restartPolicyType: "ALWAYS" },
+    env: { DATABASE_URL: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_URL: preserve() },
   });
   const edgeBff = service("edge-bff", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/edge-bff" }),
@@ -144,13 +158,11 @@ export default defineRailway(() => {
     deploy: { restartPolicyType: "ALWAYS" },
     env: { DATABASE_URL: preserve() },
   });
-  const feature04Worker = service("feature-04-worker", {
-    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/" }),
-    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "apps/feature-04-worker/Dockerfile", watchPatterns: ["/apps/feature-04-worker/**", "/features/feature04/**"] },
-    start: "python worker.py",
+  const fixedIncomePriceCron = service("fixed-income-price-cron", {
+    start: "python fixed_income_update.py --mode daily",
     replicas: { "sfo": 1 },
-    deploy: { restartPolicyType: "ALWAYS" },
-    env: { DATABASE_URL: "${{Postgres.DATABASE_URL}}", TELEGRAM_NOTIFY_SECRET: "${{telegram-monitor.TELEGRAM_NOTIFY_SECRET}}", TELEGRAM_NOTIFY_URL: "http://${{telegram-monitor.RAILWAY_PRIVATE_DOMAIN}}:8080/notify" },
+    deploy: { cronSchedule: "0 10 * * *", restartPolicyType: "NEVER" },
+    env: { DATABASE_URL: preserve(), TRADINGVIEW_VERIFY_TLS: preserve() },
   });
   const dbOpsRunner = service("db-ops-runner", {
     source: image("ghcr.io/railwayapp/function-bun:1.4.0"),
@@ -161,6 +173,6 @@ export default defineRailway(() => {
   });
 
   return project("lucid-patience", {
-    resources: [orcTestRunner, marketSqlGovernor, marketWebGovernor, marketPythonSandbox, marketAiOrc, idxPriceCron, pgweb, PostgresE8GM, telegramTrigger, webGovernorTestRunner, marketAuditStore, telegramMonitor, idxPriceRecoveryCron, Postgres, edgeBff, aiDataCoverage, feature01Worker, feature04Worker, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, postgresVolumeOz3T, marketWebGovernorData, marketSqlDatasets, marketAiConversationOutputs, marketAiAuditArtifacts],
+    resources: [orcTestRunner, marketSqlGovernor, marketWebGovernor, marketPythonSandbox, marketAiOrc, idxPriceCron, pgweb, PostgresE8GM, telegramTrigger, webGovernorTestRunner, marketAuditStore, fixedIncomePriceRecoveryCron, telegramMonitor, idxPriceRecoveryCron, feature04Worker, Postgres, edgeBff, aiDataCoverage, feature01Worker, fixedIncomePriceCron, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, postgresVolumeOz3T, marketWebGovernorData, marketSqlDatasets, marketAiConversationOutputs, marketAiAuditArtifacts],
   });
 });

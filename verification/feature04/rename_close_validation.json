@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-10-11T14:42:52.782721+00:00",
+  "checked_at": "2026-10-11T14:51:42+00:00",
   "table": {
     "name": "Feature_04_Technical_Indicator",
     "rows": 1379042,
@@ -54,5 +54,55 @@
     "before_close_statuses": 25,
     "after_close_statuses": 868,
     "rehearsal_rollback_preserved": true
+  },
+  "worker_deployment": {
+    "commit": "90e72443dd0436a91cfac35581c8ecd6cb7869e7",
+    "deployment_id": "3bf6c748-c429-41d2-97b1-c3cef69400aa",
+    "status": "SUCCESS",
+    "calculation_version": "feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4"
+  },
+  "canaries": [
+    {
+      "asset_type": "equity",
+      "ticker": "BBCA",
+      "generation": 2,
+      "work_revision": 2,
+      "attempt_id": 26,
+      "source_rows": 2113,
+      "source_start": "2018-01-02",
+      "source_end": "2026-10-09",
+      "result": "SUCCESS",
+      "requested_columns": 51,
+      "successful_columns": 51,
+      "failed_columns": 0,
+      "changed_rows": 0,
+      "close_source_mismatches": 0,
+      "queue_status": "DONE"
+    },
+    {
+      "asset_type": "bonds",
+      "ticker": "ID01MY",
+      "selection": "dynamic first ticker from target bonds rows",
+      "generation": 2,
+      "work_revision": 2,
+      "attempt_id": 27,
+      "source_rows": 2625,
+      "source_start": "2016-01-04",
+      "source_end": "2026-10-09",
+      "result": "SUCCESS",
+      "requested_columns": 51,
+      "successful_columns": 51,
+      "failed_columns": 0,
+      "changed_rows": 0,
+      "close_source_mismatches": 0,
+      "queue_status": "DONE"
+    }
+  ],
+  "closeout": {
+    "nonterminal_queue_rows": 0,
+    "temporary_service_deleted": true,
+    "sandbox_id": "0077bb1b-6e27-4ef8-b5eb-26f61e637c39",
+    "sandbox_status": "DESTROYED",
+    "railway_config_plan": "up to date"
   }
 }

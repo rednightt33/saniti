@@ -1792,8 +1792,14 @@ deploy worker; canary satu equity dan satu bonds; refresh schema; catat evidence
 hapus runner sementara; commit dan push `main`; verifikasi deployment exact `SUCCESS` dan
 branch sama dengan `origin/main`.
 
-**Status:** IN PROGRESS 2026-10-11. Implementasi lokal dan 38 uji Feature04 sudah lulus;
-hasil rehearsal, migrasi live, deploy, dan bukti akhir dicatat setelah masing-masing selesai.
+**Status:** COMPLETED 2026-10-11. Sebanyak 38 uji Feature04 dan 2 pemeriksaan migrasi
+beku lulus. Migrasi 008/009 direhearsal dengan rollback lalu diterapkan; readback menemukan
+1.379.042 baris, 57 kolom, 868 status `close` sukses, nol NULL/mismatch dan semantic audit
+148/148. Commit `90e7244` mendeploy worker `3bf6c748-c429-41d2-97b1-c3cef69400aa`
+`SUCCESS`. Canary equity `BBCA` dan bonds `ID01MY` sama-sama `SUCCESS` untuk 51/51 output,
+nol failure, nol perubahan idempoten dan nol mismatch close. Runner sementara dihapus,
+sandbox `DESTROYED`, config ditarik ulang, dan plan Railway menyatakan up to date. Bukti:
+`verification/feature04/RENAME_CLOSE.md` dan `rename_close_validation.json`.
 
 ## Verifikasi bersama
 

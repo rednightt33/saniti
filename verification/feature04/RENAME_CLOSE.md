@@ -52,6 +52,33 @@ migration, `20261011_009_complete_feature04_close_status.sql` SHA256
 rollback and then committed. Final readiness is 868 successful close statuses and 44,268
 total statuses (`868 × 51`), with zero nonterminal queue rows.
 
+## Worker deployment and canaries
+
+Commit `90e72443dd0436a91cfac35581c8ecd6cb7869e7` deployed the existing
+`feature-04-worker` as deployment `3bf6c748-c429-41d2-97b1-c3cef69400aa`; Railway
+reported `SUCCESS`. The startup log reported calculation version
+`feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4`.
+
+Two full-history jobs were enqueued through `enqueue_feature04_group`, with no monitoring
+execution ID so the verification did not emit Telegram messages:
+
+- equity `BBCA`: generation/revision 2/2, 2,113 source rows from 2018-01-02 through
+  2026-10-09, attempt 26 `SUCCESS`, 51/51 columns successful, zero failed columns,
+  zero changed rows and zero close/source mismatch;
+- bonds `ID01MY`, selected dynamically from the bonds rows rather than a production ticker
+  list: generation/revision 2/2, 2,625 source rows from 2016-01-04 through 2026-10-09,
+  attempt 27 `SUCCESS`, 51/51 columns successful, zero failed columns, zero changed rows
+  and zero close/source mismatch.
+
+The zero changed-row results prove the replay is idempotent. Both queues finished `DONE`,
+all 51 per-column statuses for each canary are `SUCCESS`, and the global nonterminal queue
+count returned to zero.
+
+The temporary migration service was deleted and the private sandbox reached `DESTROYED`.
+`railway config pull --force` refreshed the checked-in Railway representation with the
+already-live fixed-income daily/recovery services and Feature04 worker; `railway config
+plan` then reported that live configuration is already up to date.
+
 Machine-readable aggregate evidence is in
 [`rename_close_validation.json`](rename_close_validation.json). No source row, ticker list,
 AI allowlist, permission, price cron, Telegram ordering rule, or indicator formula changed.

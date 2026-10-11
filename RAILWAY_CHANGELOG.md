@@ -3,8 +3,9 @@
 ## 2026-10-11 — Feature04 rename/close migration runner
 
 - A temporary private `f04-rename-close-job` service used only a server-side `DATABASE_URL=${{Postgres.DATABASE_URL}}` reference. It ran migration 008 rehearsal `60ad5c5a-9613-474e-87d4-39786240a4f8` and apply `ff630d5c-e9b5-4d24-becb-6d1ea7a1995f`, then migration 009 rehearsal `371e17af-278d-48b0-93a0-248c0cdd8e4e` and apply `779f2808-811c-4a35-ae34-8c629aad7f1f`. Every rehearsal rolled back cleanly; both apply readbacks passed.
-- A private sandbox `0077bb1b-6e27-4ef8-b5eb-26f61e637c39` performs read-only semantic audit/schema export and later canary checks. Direct Postgres TCP and Railway sandbox WebSocket exec are blocked from Codex; sandbox commands use the Railway HTTPS API. Both temporary resources remain only through final verification and are deleted during close-out.
-- No persistent service, variable, domain, replica, schedule, model, provider, price source, Telegram flow, or `.railway/railway.ts` resource is intended to change. The existing worker deployment is updated from `main` because its runtime target name and 51-output contract changed.
+- Private sandbox `0077bb1b-6e27-4ef8-b5eb-26f61e637c39` performed read-only semantic audit/schema export and the final canary checks. Direct Postgres TCP and Railway sandbox WebSocket exec were blocked from Codex, so sandbox commands used the Railway HTTPS API. The migration service was deleted and the sandbox reached `DESTROYED` after verification.
+- Commit `90e72443dd0436a91cfac35581c8ecd6cb7869e7` deployed the existing worker as `3bf6c748-c429-41d2-97b1-c3cef69400aa` (`SUCCESS`). Equity `BBCA` and dynamically selected bond `ID01MY` canaries each completed 51/51 outputs with zero failures, zero changed rows and zero close/source mismatch.
+- No persistent live service, variable, domain, replica, schedule, model, provider, price source, or Telegram flow changed. `config pull --force` added the already-live fixed-income daily/recovery services and Feature04 worker to `.railway/railway.ts`; the following `config plan` reported the live configuration already up to date.
 
 ## 2026-10-11 — Feature04 bonds worker and fixed-income Telegram bridge
 
